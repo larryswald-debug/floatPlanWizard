@@ -69,6 +69,11 @@
                     </form>
                 </div>
             </div>
+
+            <div class="mt-3 small">
+  <a href="/fpw/app/forgot-password.cfm">Forgot password?</a>
+</div>
+
             <p class="text-center text-muted small mt-3">
                 &copy; #dateFormat(now(), "yyyy")# Mobile App Example
             </p>
