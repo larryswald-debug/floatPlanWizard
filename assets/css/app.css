@@ -1,0 +1,6 @@
+/* /fpw/assets/css/app.css */
+
+/* Simple visual tweak so we know CSS loaded */
+body {
+  background-color: #f8f9fa; /* matches Bootstrap's light gray */
+}

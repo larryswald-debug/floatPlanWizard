@@ -1,0 +1,30 @@
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== ColdFusion =====
+cfusion/logs/
+WEB-INF/cfusion/logs/
+*.log
+
+# ===== Docker =====
+docker/volumes/
+docker/data/
+*.pid
+
+# ===== Environment =====
+.env
+.env.*
+secrets/
+*.key
+
+# ===== Node / Frontend (if added later) =====
+node_modules/
+
+# ===== IDE =====
+.vscode/
+.idea/
+
+# ===== Temp =====
+tmp/
+temp/
