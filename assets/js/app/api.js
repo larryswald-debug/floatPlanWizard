@@ -4,7 +4,15 @@
 
   console.log("api.js loaded OK");
 
-  var API_BASE = "/fpw/api/v1";
+  // Compute API base dynamically. If the app is served under a first
+  // path segment (e.g. "/fpw"), use that. Allow an explicit override
+  // via `window.FPW_API_BASE` for environments where detection fails.
+  var API_BASE = (function () {
+    if (window.FPW_API_BASE) return window.FPW_API_BASE;
+    var firstSegment = (window.location.pathname.split('/')[1] || "");
+    var prefix = firstSegment ? "/" + firstSegment : "";
+    return prefix + "/api/v1";
+  })();
 
   function request(path, options) {
     options = options || {};
@@ -22,7 +30,13 @@
       fetchOptions.body = JSON.stringify(options.body);
     }
 
-    return fetch(API_BASE + path, fetchOptions)
+    // If calling a CFC without an explicit returnFormat, request JSON
+    var fullPath = API_BASE + path;
+    if (/\.cfc(\?|$)/i.test(fullPath) && !/returnformat=/i.test(fullPath)) {
+      fullPath += (fullPath.indexOf('?') === -1 ? '?' : '&') + 'returnFormat=json';
+    }
+
+    return fetch(fullPath, fetchOptions)
       .then(function (res) {
         return res.text().then(function (txt) {
           var data;
@@ -43,21 +57,21 @@
 
   window.Api = {
     login: function (email, password) {
-      return request("/auth.cfm", {
+      return request("/auth.cfc?method=handle", {
         method: "POST",
         body: { action: "login", email: email, password: password }
       });
     },
 
     logout: function () {
-      return request("/auth.cfm", {
+      return request("/auth.cfc?method=handle", {
         method: "POST",
         body: { action: "logout" }
       });
     },
 
     getCurrentUser: function () {
-      return request("/me.cfm", { method: "GET" });
+      return request("/me.cfc?method=handle", { method: "GET" });
     }
   };
 

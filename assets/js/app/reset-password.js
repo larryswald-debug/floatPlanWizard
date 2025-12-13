@@ -49,7 +49,7 @@
       btn.textContent = "Updating…";
 
       try {
-        var data = await fetchJson("/fpw/api/v1/password_reset.cfm", {
+        var data = await fetchJson("/fpw/api/v1/password_reset.cfc?method=handle", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

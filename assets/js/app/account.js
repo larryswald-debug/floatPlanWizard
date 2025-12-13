@@ -19,23 +19,22 @@
   function populateHomePort(home) {
     home = home || {};
 
-    var address = pick(home, ["address", "ADDRESS"], "—");
+    var address = pick(home, ["address", "ADDRESS"], "");
     var city    = pick(home, ["city", "CITY"], "");
     var state   = pick(home, ["state", "STATE"], "");
     var zip     = pick(home, ["zip", "ZIP"], "");
 
-    var phone   = pick(home, ["phone", "PHONE"], "—");
-    var lat     = pick(home, ["lat", "LAT"], "—");
-    var lng     = pick(home, ["lng", "LNG"], "—");
+    var phone   = pick(home, ["phone", "PHONE"], "");
+    var lat     = pick(home, ["lat", "LAT"], "");
+    var lng     = pick(home, ["lng", "LNG"], "");
 
-    if ($("homeAddress")) $("homeAddress").textContent = address;
-
-    var csz = [city, state, zip].filter(Boolean).join(" ");
-    if ($("homeCityStateZip")) $("homeCityStateZip").textContent = csz || "—";
-
-    if ($("homePhone")) $("homePhone").textContent = phone;
-    if ($("homeLatLng")) $("homeLatLng").textContent =
-      (lat !== "—" || lng !== "—") ? (lat + " / " + lng) : "—";
+    if ($("homeAddress")) $("homeAddress").value = address;
+    if ($("homeCity")) $("homeCity").value = city;
+    if ($("homeState")) $("homeState").value = state;
+    if ($("homeZip")) $("homeZip").value = zip;
+    if ($("homePhone")) $("homePhone").value = phone;
+    if ($("homeLat")) $("homeLat").value = lat;
+    if ($("homeLng")) $("homeLng").value = lng;
   }
 
   function populateProfile(profile) {
@@ -65,6 +64,11 @@
     options = options || {};
     options.credentials = "include";
 
+    // If calling a CFC without explicit returnFormat, request JSON
+    if (/\.cfc(\?|$)/i.test(url) && !/returnformat=/i.test(url)) {
+      url += (url.indexOf('?') === -1 ? '?' : '&') + 'returnFormat=json';
+    }
+
     var res = await fetch(url, options);
     var txt = await res.text();
 
@@ -81,7 +85,7 @@
 
   async function loadProfile() {
     try {
-      var data = await fetchJson("/fpw/api/v1/profile.cfm", { method: "GET" });
+      var data = await fetchJson("/fpw/api/v1/profile.cfc?method=handle", { method: "GET" });
 
       if (data && data.AUTH === false) {
         window.location.href = "/fpw/app/login.cfm";
@@ -114,7 +118,7 @@
     if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
 
     try {
-      var data = await fetchJson("/fpw/api/v1/profile.cfm", {
+      var data = await fetchJson("/fpw/api/v1/profile.cfc?method=handle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -163,7 +167,7 @@
     if (btn) { btn.disabled = true; btn.textContent = "Changing…"; }
 
     try {
-      var data = await fetchJson("/fpw/api/v1/profile.cfm", {
+      var data = await fetchJson("/fpw/api/v1/profile.cfc?method=handle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -194,9 +198,53 @@
     }
   }
 
+  async function saveHomePort(evt) {
+    evt.preventDefault();
+
+    var payload = {
+      action: "save",
+      address: ($("homeAddress").value || "").trim(),
+      city: ($("homeCity").value || "").trim(),
+      state: ($("homeState").value || "").trim(),
+      zip: ($("homeZip").value || "").trim(),
+      phone: ($("homePhone").value || "").trim(),
+      lat: ($("homeLat").value || "").trim(),
+      lng: ($("homeLng").value || "").trim()
+    };
+
+    var btn = $("saveHomePortBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+
+    try {
+      var data = await fetchJson("/fpw/api/v1/homeport.cfc?method=handle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (data && data.AUTH === false) {
+        window.location.href = "/fpw/app/login.cfm";
+        return;
+      }
+      if (!data || data.SUCCESS !== true) {
+        alert((data && data.MESSAGE) ? data.MESSAGE : "Home port save failed.");
+        return;
+      }
+
+      var home = data.HOMEPORT || data.homePort || data.homeport || {};
+      populateHomePort(home);
+      alert("Home port saved.");
+    } catch (err) {
+      console.error("saveHomePort error:", err);
+      alert((err && err.MESSAGE) ? err.MESSAGE : "Home port save failed (see console).");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Save Home Port"; }
+    }
+  }
+
   async function logout() {
     try {
-      await fetchJson("/fpw/api/v1/auth.cfm", {
+      await fetchJson("/fpw/api/v1/auth.cfc?method=handle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "logout" })
@@ -214,6 +262,9 @@
 
     var refreshBtn = $("refreshProfileBtn");
     if (refreshBtn) refreshBtn.addEventListener("click", loadProfile);
+
+    var homePortForm = $("homePortForm");
+    if (homePortForm) homePortForm.addEventListener("submit", saveHomePort);
 
     var logoutBtn = $("logoutButton");
     if (logoutBtn) logoutBtn.addEventListener("click", logout);
