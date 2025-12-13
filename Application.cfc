@@ -12,6 +12,26 @@ component {
 
     public boolean function onRequestStart( string targetPage ) {
         cfsetting( showdebugoutput = true );
+
+        var normalizedTarget = "/" & lcase( replace( targetPage, "\", "/", "all" ) );
+        var isAppPage = left( normalizedTarget, len( "/app/" ) ) EQ "/app/";
+        var publicAppPages = [
+            "/app/login.cfm",
+            "/app/forgot-password.cfm",
+            "/app/reset-password.cfm"
+        ];
+
+        if (
+            isAppPage
+            AND arrayFind( publicAppPages, normalizedTarget ) EQ 0
+            AND (
+                NOT structKeyExists( session, "user" )
+                OR NOT structKeyExists( session.user, "userId" )
+            )
+        ) {
+            location( url = "/fpw/app/login.cfm", addToken = false );
+        }
+
         return true;
     }
 

@@ -4,10 +4,7 @@
   <meta charset="UTF-8">
   <title>Forgot Password</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-    rel="stylesheet"
-    crossorigin="anonymous">
+  <cfinclude template="/fpw/includes/header_styles.cfm">
 </head>
 <body class="bg-light">
 
