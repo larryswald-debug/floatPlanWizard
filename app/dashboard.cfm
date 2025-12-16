@@ -123,6 +123,7 @@
             display: flex;
             flex-direction: column;
             min-height: 260px;
+            max-height: 420px;
         }
 
         .dashboard-card .card-header {
@@ -138,6 +139,17 @@
             font-size: 1.1rem;
         }
 
+        .dashboard-card .card-title {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-subtitle {
+            margin-top: 0.15rem;
+            font-size: 0.85rem;
+            color: var(--secondary);
+        }
+
         .card-actions button {
             margin-left: 0.35rem;
         }
@@ -145,6 +157,7 @@
         .dashboard-card .card-body {
             padding: 1rem 1.25rem;
             flex: 1;
+            overscroll-behavior: contain;
             overflow-y: auto;
         }
 
@@ -163,7 +176,9 @@
             border-bottom: 1px dashed var(--border);
             display: flex;
             justify-content: space-between;
-            gap: 0.5rem;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
         }
 
         .list-item:last-child {
@@ -174,9 +189,45 @@
             color: var(--secondary);
         }
 
+        .list-item-multi {
+            align-items: flex-start;
+        }
+
+        .list-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .list-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .list-meta {
+            font-size: 0.8rem;
+            color: var(--secondary);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            margin-top: 0.15rem;
+        }
+
+        .meta-sep {
+            color: var(--border);
+        }
+
+        .list-actions {
+            display: flex;
+            gap: 0.35rem;
+        }
+
         .empty {
             color: var(--secondary);
             font-style: italic;
+        }
+
+        #floatPlansMessage {
+            margin: 0;
         }
 
         @media (max-width: 768px) {
@@ -196,6 +247,11 @@
             .header-actions {
                 justify-content: center;
                 flex-wrap: wrap;
+            }
+
+            .list-actions {
+                width: 100%;
+                justify-content: flex-end;
             }
         }
     </style>
@@ -229,35 +285,20 @@
 
         <section class="dashboard-card">
             <div class="card-header">
-                <h2>Float Plans</h2>
+                <div class="card-title">
+                    <h2>Float Plans</h2>
+                    <small class="card-subtitle" id="floatPlansSummary">Loading…</small>
+                </div>
                 <div class="card-actions">
-                    <button class="btn-primary">+ Add</button>
+                    <button class="btn-primary" type="button" id="addFloatPlanBtn">+ Add</button>
                 </div>
             </div>
-            <div class="card-body">
-                <div class="list-item">
-                    <div>
-                        Chesapeake Bay Run<br />
-                        <small>Active • 3 waypoints</small>
-                    </div>
-                    <div>
-                        <button class="btn-secondary">Edit</button>
-                        <button class="btn-danger">Delete</button>
-                    </div>
-                </div>
-                <div class="list-item">
-                    <div>
-                        Gulf Weekend Trip<br />
-                        <small>Draft</small>
-                    </div>
-                    <div>
-                        <button class="btn-secondary">Edit</button>
-                        <button class="btn-danger">Delete</button>
-                    </div>
-                </div>
+            <div class="card-body" id="floatPlansBody">
+                <p id="floatPlansMessage" class="empty">Loading float plans…</p>
+                <div id="floatPlansList"></div>
             </div>
             <div class="card-footer">
-                <button class="btn-secondary">View All</button>
+                <button class="btn-secondary" type="button" id="viewAllFloatPlansBtn">View All</button>
             </div>
         </section>
 
