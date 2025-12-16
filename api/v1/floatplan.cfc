@@ -141,6 +141,29 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="loadRescueCenters" access="private" returntype="array" output="false">
+        <cfscript>
+            var centers = [];
+            var qCenters = queryExecute("
+                SELECT recId, rcName, rcPhone, rcDistrict, rcArea, rcLocation
+                FROM rescuecenters
+                ORDER BY rcName ASC
+            ", {}, { datasource = "fpw" });
+
+            for (var i = 1; i LTE qCenters.recordCount; i++) {
+                arrayAppend(centers, {
+                    recId      = qCenters.recId[i],
+                    rcName     = qCenters.rcName[i],
+                    rcPhone    = qCenters.rcPhone[i],
+                    rcDistrict = qCenters.rcDistrict[i],
+                    rcArea     = qCenters.rcArea[i],
+                    rcLocation = qCenters.rcLocation[i]
+                });
+            }
+            return centers;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="getBootstrapData" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
@@ -163,11 +186,12 @@
                 }
             }
 
-            response.VESSELS    = loadVessels(arguments.userId);
-            response.OPERATORS  = loadOperators(arguments.userId);
-            response.PASSENGERS = loadPassengers(arguments.userId);
-            response.CONTACTS   = loadContacts(arguments.userId);
-            response.WAYPOINTS  = loadWaypoints(arguments.userId);
+            response.VESSELS        = loadVessels(arguments.userId);
+            response.OPERATORS      = loadOperators(arguments.userId);
+            response.PASSENGERS     = loadPassengers(arguments.userId);
+            response.CONTACTS       = loadContacts(arguments.userId);
+            response.WAYPOINTS      = loadWaypoints(arguments.userId);
+            response.RESCUE_CENTERS = loadRescueCenters();
 
             return response;
         </cfscript>

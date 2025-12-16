@@ -187,6 +187,19 @@
                 </div>
 
                 <div class="mb-3">
+                    <label class="form-label">Select Rescue Authority (optional)</label>
+                    <select class="form-select" v-model="selectedRescueCenterId" @change="handleRescueCenterSelection">
+                        <option value="0">Select a rescue center</option>
+                        <option v-for="center in rescueCenters" :key="'resc-'+center.recId" :value="center.recId">
+                            {{ formatRescueCenterLabel(center) }}
+                        </option>
+                    </select>
+                    <div class="form-text">
+                        Choosing a center will prefill the authority name and phone, but you can still edit the fields manually (manual edits will clear the dropdown selection).
+                    </div>
+                </div>
+
+                <div class="mb-3">
                     <label class="form-label">Rescue Authority *</label>
                     <input type="text" class="form-control" v-model="fp.FLOATPLAN.RESCUE_AUTHORITY">
                 </div>

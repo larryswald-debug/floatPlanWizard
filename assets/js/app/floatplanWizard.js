@@ -77,6 +77,35 @@
     return plan;
   }
 
+  function getRescueCenterField(center, key) {
+    if (!center || typeof center !== "object") {
+      return "";
+    }
+    if (center[key] !== undefined && center[key] !== null) {
+      return center[key];
+    }
+    var upperKey = key.toUpperCase();
+    if (center[upperKey] !== undefined && center[upperKey] !== null) {
+      return center[upperKey];
+    }
+    return "";
+  }
+
+  function normalizeRescueCenter(center) {
+    if (!center || typeof center !== "object") {
+      center = {};
+    }
+    var normalized = {
+      recId: numeric(getRescueCenterField(center, "recId")),
+      rcName: (getRescueCenterField(center, "rcName") || "").toString().trim(),
+      rcPhone: (getRescueCenterField(center, "rcPhone") || "").toString().trim(),
+      rcDistrict: (getRescueCenterField(center, "rcDistrict") || "").toString().trim(),
+      rcArea: (getRescueCenterField(center, "rcArea") || "").toString().trim(),
+      rcLocation: (getRescueCenterField(center, "rcLocation") || "").toString().trim()
+    };
+    return normalized;
+  }
+
   function normalizePassengerSelection(entry) {
     if (!entry) return null;
     var id = numeric(entry.PASSENGERID || entry.passengerId || entry.PASSID || entry.passId);
@@ -179,6 +208,9 @@
         passengers: [],
         contacts: [],
         waypoints: [],
+        rescueCenters: [],
+        selectedRescueCenterId: 0,
+        rescueCenterSyncing: false,
         initialPlanId: getPlanIdFromQuery()
       };
     },
@@ -202,6 +234,15 @@
 
       waypointSummary: function () {
         return summarizeSelections(this.fp.WAYPOINTS, this.waypoints, "WAYPOINTID", "WAYPOINTNAME");
+      }
+    },
+
+    watch: {
+      "fp.FLOATPLAN.RESCUE_AUTHORITY": function () {
+        this.syncRescueCenterSelection();
+      },
+      "fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE": function () {
+        this.syncRescueCenterSelection();
       }
     },
 
@@ -250,6 +291,78 @@
         }
         console.error("Float plan wizard error", err);
         this.setStatus(message, false);
+      },
+
+      handleRescueCenterSelection: function () {
+        if (this.rescueCenterSyncing) {
+          return;
+        }
+        this.rescueCenterSyncing = true;
+        var selectedId = numeric(this.selectedRescueCenterId);
+        var match = null;
+        for (var i = 0; i < this.rescueCenters.length; i++) {
+          if (numeric(this.rescueCenters[i].recId) === selectedId) {
+            match = this.rescueCenters[i];
+            break;
+          }
+        }
+
+        if (match) {
+          this.fp.FLOATPLAN.RESCUE_AUTHORITY = match.rcName || "";
+          this.fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE = match.rcPhone || "";
+        } else {
+          this.fp.FLOATPLAN.RESCUE_AUTHORITY = "";
+          this.fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE = "";
+        }
+
+        this.rescueCenterSyncing = false;
+        this.syncRescueCenterSelection();
+      },
+
+      formatRescueCenterLabel: function (center) {
+        if (!center) {
+          return "";
+        }
+        var name = (center.rcName || "").trim();
+        if (!name) {
+          name = center.rcDistrict || center.rcArea || "";
+        }
+        if (!name) {
+          name = "Rescue Center #" + numeric(center.recId);
+        }
+        var location = (center.rcLocation || "").trim();
+        return location ? name + " — " + location : name;
+      },
+
+      syncRescueCenterSelection: function () {
+        if (this.rescueCenterSyncing) {
+          return;
+        }
+        this.rescueCenterSyncing = true;
+        var authority = (this.fp.FLOATPLAN.RESCUE_AUTHORITY || "").trim();
+        var phone = (this.fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE || "").trim();
+        var matchId = 0;
+
+        if (authority && phone) {
+          var normalizedName = authority.toLowerCase();
+          var normalizedPhone = phone;
+          for (var j = 0; j < this.rescueCenters.length; j++) {
+            var center = this.rescueCenters[j];
+            if (
+              center &&
+              center.rcName &&
+              center.rcPhone &&
+              String(center.rcName).toLowerCase().trim() === normalizedName &&
+              String(center.rcPhone).trim() === normalizedPhone
+            ) {
+              matchId = numeric(center.recId);
+              break;
+            }
+          }
+        }
+
+        this.selectedRescueCenterId = matchId;
+        this.rescueCenterSyncing = false;
       },
 
       getPlanId: function () {
@@ -345,7 +458,10 @@
             self.operators = toArray(data.OPERATORS);
             self.passengers = toArray(data.PASSENGERS);
             self.contacts = toArray(data.CONTACTS);
-            self.waypoints = toArray(data.WAYPOINTS);
+          self.waypoints = toArray(data.WAYPOINTS);
+            self.rescueCenters = toArray(data.RESCUE_CENTERS).map(function (center) {
+              return normalizeRescueCenter(center);
+            });
 
             self.fp.FLOATPLAN = normalizeFloatPlan(data.FLOATPLAN);
 
@@ -369,6 +485,8 @@
                 .filter(function (item) { return !!item; }),
               "SORT_ORDER"
             );
+
+            self.syncRescueCenterSelection();
 
             self.initialPlanId = numeric(self.fp.FLOATPLAN.FLOATPLANID) || self.initialPlanId;
             self.isLoading = false;
@@ -398,6 +516,7 @@
         })
         .then(function (response) {
           self.fp.FLOATPLAN = normalizeFloatPlan(response.FLOATPLAN || response);
+          self.syncRescueCenterSelection();
           self.fp.PASSENGERS = sortByOrder(
             toArray(response.PLAN_PASSENGERS)
               .map(normalizePassengerSelection)
@@ -447,7 +566,7 @@
         this.isSaving = true;
         this.setStatus("Deleting float plan…", true);
 
-        window.Api.deleteFloatPlan(planId)
+          window.Api.deleteFloatPlan(planId)
           .then(function () {
             self.isSaving = false;
             self.setStatus("Float plan deleted.", true);
