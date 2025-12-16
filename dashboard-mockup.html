@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>FloatPlanWizard Dashboard Mockup</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<style>
+:root {
+  --bg: #f4f6f8;
+  --card: #ffffff;
+  --primary: #0d6efd;
+  --secondary: #6c757d;
+  --success: #198754;
+  --danger: #dc3545;
+  --border: #e0e0e0;
+  --text: #212529;
+}
+
+* {
+  box-sizing: border-box;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: linear-gradient(135deg, #0d6efd, #0b5ed7);
+  color: #fff;
+  padding: 1rem 1.5rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.header-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+  align-items: center;
+}
+
+.user-info h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.user-info small {
+  opacity: 0.85;
+}
+
+.weather {
+  background: rgba(255,255,255,0.15);
+  padding: 0.75rem;
+  border-radius: 8px;
+  text-align: right;
+}
+
+main {
+  padding: 1.5rem;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1.25rem;
+}
+
+.card {
+  background: var(--card);
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  min-height: 260px;
+}
+
+.card-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.card-actions button {
+  margin-left: 0.35rem;
+}
+
+.card-body {
+  padding: 1rem 1.25rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.card-footer {
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid var(--border);
+  text-align: right;
+}
+
+button {
+  border: none;
+  border-radius: 8px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-secondary { background: var(--secondary); color: #fff; }
+.btn-danger { background: var(--danger); color: #fff; }
+
+.list-item {
+  padding: 0.5rem 0;
+  border-bottom: 1px dashed var(--border);
+  display: flex;
+  justify-content: space-between;
+}
+
+.list-item:last-child {
+  border-bottom: none;
+}
+
+.list-item small {
+  color: var(--secondary);
+}
+
+.empty {
+  color: var(--secondary);
+  font-style: italic;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="header-grid">
+    <div class="user-info">
+      <h1>Welcome, Captain Wald</h1>
+      <small>Member since 2018 • Last login: Today 08:12</small>
+    </div>
+    <div class="weather">
+      <strong>New Port Richey, FL</strong><br />
+      ☀️ 76°F • Winds NE 8kt<br />
+      Seas: 1–2 ft
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="dashboard-grid">
+
+    <!-- Float Plans -->
+    <section class="card">
+      <div class="card-header">
+        <h2>Float Plans</h2>
+        <div class="card-actions">
+          <button class="btn-primary">+ Add</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="list-item">
+          <div>
+            Chesapeake Bay Run<br />
+            <small>Active • 3 waypoints</small>
+          </div>
+          <div>
+            <button class="btn-secondary">Edit</button>
+            <button class="btn-danger">Delete</button>
+          </div>
+        </div>
+        <div class="list-item">
+          <div>
+            Gulf Weekend Trip<br />
+            <small>Draft</small>
+          </div>
+          <div>
+            <button class="btn-secondary">Edit</button>
+            <button class="btn-danger">Delete</button>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <button class="btn-secondary">View All</button>
+      </div>
+    </section>
+
+    <!-- Vessels -->
+    <section class="card">
+      <div class="card-header">
+        <h2>Vessels</h2>
+        <button class="btn-primary">+ Add</button>
+      </div>
+      <div class="card-body">
+        <div class="list-item">
+          <div>
+            Sea Ray 320<br />
+            <small>Registration: FL1234AB</small>
+          </div>
+          <div>
+            <button class="btn-secondary">Edit</button>
+            <button class="btn-danger">Delete</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Contacts -->
+    <section class="card">
+      <div class="card-header">
+        <h2>Contacts</h2>
+        <button class="btn-primary">+ Add</button>
+      </div>
+      <div class="card-body">
+        <div class="list-item">
+          <div>
+            Abbe Wald<br />
+            <small>Emergency Contact</small>
+          </div>
+          <div>
+            <button class="btn-secondary">Edit</button>
+            <button class="btn-danger">Delete</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Passengers & Crew -->
+    <section class="card">
+      <div class="card-header">
+        <h2>Passengers & Crew</h2>
+        <button class="btn-primary">+ Add</button>
+      </div>
+      <div class="card-body">
+        <div class="list-item">
+          <div>
+            John Smith<br />
+            <small>Crew</small>
+          </div>
+          <div>
+            <button class="btn-secondary">Edit</button>
+            <button class="btn-danger">Delete</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Operators -->
+    <section class="card">
+      <div class="card-header">
+        <h2>Operators</h2>
+        <button class="btn-primary">+ Add</button>
+      </div>
+      <div class="card-body">
+        <p class="empty">No operators defined.</p>
+      </div>
+    </section>
+
+    <!-- Waypoints -->
+    <section class="card">
+      <div class="card-header">
+        <h2>Waypoints</h2>
+        <button class="btn-primary">+ Add</button>
+      </div>
+      <div class="card-body">
+        <div class="list-item">
+          <div>
+            Anclote Key<br />
+            <small>28.178°N, 82.838°W</small>
+          </div>
+          <div>
+            <button class="btn-secondary">Edit</button>
+            <button class="btn-danger">Delete</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<script>
+// Placeholder JS hooks for future FPW API integration
+document.querySelectorAll("button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    console.log("Action:", btn.textContent.trim());
+  });
+});
+</script>
+
+</body>
+</html>
