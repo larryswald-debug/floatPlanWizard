@@ -88,7 +88,8 @@
         </div>
 
         <template v-else>
-            <div class="wizard-steps mb-3">
+            <form id="floatplanWizardForm" novalidate @submit.prevent>
+                <div class="wizard-steps mb-3">
                 <span v-for="n in totalSteps"
                       :key="'step-badge-' + n"
                       class="badge"
@@ -107,7 +108,7 @@
 
                 <div class="mb-3">
                     <label class="form-label">Float Plan Name *</label>
-                    <input type="text" class="form-control" v-model="fp.FLOATPLAN.NAME" placeholder="Weekend Cruise">
+                    <input type="text" class="form-control" v-model="fp.FLOATPLAN.NAME" placeholder="Weekend Cruise" required aria-required="true">
                 </div>
 
                 <div class="mb-3">
@@ -225,11 +226,13 @@
                     <textarea rows="2" class="form-control" v-model="fp.FLOATPLAN.NOTES"></textarea>
                 </div>
 
-                <hr>
+            </section>
 
-                <h3 class="h6">Passengers & Crew</h3>
+            <!-- Step 4 -->
+            <section v-if="step === 4">
+                <h2 class="h5 mb-3">Step 4 – Passengers & Crew</h2>
                 <p class="small text-muted">Tap to toggle each passenger.</p>
-                <div class="list-group mb-3">
+                <div class="list-group">
                     <button
                         v-for="p in passengers"
                         :key="'p-'+p.PASSENGERID"
@@ -242,8 +245,11 @@
                         </span>
                     </button>
                 </div>
+            </section>
 
-                <h3 class="h6">Contacts</h3>
+            <!-- Step 5 -->
+            <section v-if="step === 5">
+                <h2 class="h5 mb-3">Step 5 – Contacts</h2>
                 <p class="small text-muted">Tap to include for notifications.</p>
                 <div class="list-group">
                     <button
@@ -260,9 +266,9 @@
                 </div>
             </section>
 
-            <!-- Step 4 -->
-            <section v-if="step === 4">
-                <h2 class="h5 mb-3">Step 4 – Waypoints & Review</h2>
+            <!-- Step 6 -->
+            <section v-if="step === 6">
+                <h2 class="h5 mb-3">Step 6 – Waypoints</h2>
 
                 <h3 class="h6">Waypoints</h3>
                 <p class="small text-muted">Tap to include; order is preserved.</p>
@@ -279,6 +285,11 @@
                         </span>
                     </button>
                 </div>
+            </section>
+
+            <!-- Step 7 -->
+            <section v-if="step === 7">
+                <h2 class="h5 mb-3">Step 7 – Review</h2>
 
                 <h3 class="h6">Review</h3>
                 <ul class="list-group small mb-3">
@@ -315,24 +326,25 @@
                 </ul>
 
                 <div class="d-flex gap-2 mb-3" v-if="fp.FLOATPLAN.FLOATPLANID">
-                    <button class="btn btn-outline-danger w-100" @click="confirmDelete" :disabled="isSaving">
+                    <button type="button" class="btn btn-outline-danger w-100" @click="confirmDelete" :disabled="isSaving">
                         Delete Float Plan
                     </button>
                 </div>
 
-                <button class="btn btn-primary w-100" @click="submitPlan" :disabled="isSaving">
+                <button type="button" class="btn btn-primary w-100" @click="submitPlan" :disabled="isSaving">
                     {{ isSaving ? 'Saving…' : 'Save Float Plan' }}
                 </button>
             </section>
 
             <div class="wizard-nav">
-                <button class="btn btn-outline-secondary" :disabled="step === 1 || isSaving" @click="prevStep">
+                <button type="button" class="btn btn-outline-secondary" :disabled="step === 1 || isSaving" @click="prevStep">
                     Back
                 </button>
-                <button class="btn btn-primary" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
-                    Next
+                <button type="button" class="btn btn-primary" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
+                    {{ nextButtonLabel }}
                 </button>
             </div>
+            </form>
         </template>
 
     </div>
@@ -341,6 +353,7 @@
 <cfinclude template="/fpw/includes/footer_scripts.cfm">
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="/fpw/assets/js/app/validate.js"></script>
 <script src="/fpw/assets/js/app/floatplanWizard.js"></script>
 
 </body>

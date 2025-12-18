@@ -5,3 +5,8 @@
   crossorigin="anonymous"></script>
 
 <script src="/fpw/assets/js/app/api.js"></script>
+<script src="/fpw/assets/js/app/auth.js"></script>
+
+
+
+

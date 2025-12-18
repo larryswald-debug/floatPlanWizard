@@ -7,6 +7,27 @@
     plans: []
   };
 
+  var FALLBACK_LOGIN_URL = "/fpw/app/login.cfm";
+
+  function getLoginUrl() {
+    if (window.AppAuth && window.AppAuth.loginUrl) {
+      return window.AppAuth.loginUrl;
+    }
+    return FALLBACK_LOGIN_URL;
+  }
+
+  function redirectToLogin() {
+    if (window.AppAuth && typeof window.AppAuth.redirectToLogin === "function") {
+      window.AppAuth.redirectToLogin();
+      return;
+    }
+    window.location.href = getLoginUrl();
+  }
+
+  function ensureAuthResponse(data) {
+    return window.AppAuth ? window.AppAuth.ensureAuthenticated(data) : true;
+  }
+
   var FLOAT_PLAN_LIMIT = 5;
 
   function showDashboardAlert(message, type) {
@@ -215,8 +236,7 @@
 
     Api.getFloatPlans({ limit: limit })
       .then(function (data) {
-        if (!data.AUTH) {
-          window.location.href = "/fpw/app/login.cfm";
+        if (!ensureAuthResponse(data)) {
           return;
         }
 
@@ -325,9 +345,12 @@
     Api.getCurrentUser()
       .then(function (data) {
         // data.SUCCESS already checked in Api.request
-        if (!data.AUTH || !data.USER) {
-          // Not logged in -> back to login page
-          window.location.href = "/fpw/app/login.cfm";
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+
+        if (!data.USER) {
+          redirectToLogin();
           return;
         }
 
@@ -337,7 +360,7 @@
       .catch(function (err) {
         console.error("Failed to load current user:", err);
         // If the API fails, assume not logged in and send to login
-        window.location.href = "/fpw/app/login.cfm";
+        redirectToLogin();
       });
 
     // Wire up logout
@@ -356,7 +379,7 @@
             // Ignore errors, just send them to login
           })
           .finally(function () {
-            window.location.href = "/fpw/app/login.cfm";
+            redirectToLogin();
           });
       });
     }

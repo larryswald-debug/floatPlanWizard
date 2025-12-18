@@ -1,3 +1,5 @@
+<cfinclude template="/fpw/includes/html_head.cfm">
+
 <!-- Shared header styles: Bootstrap CSS + app stylesheet -->
 <link
     href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
@@ -6,3 +8,4 @@
     crossorigin="anonymous">
 
 <link rel="stylesheet" href="/fpw/assets/css/app.css">
+

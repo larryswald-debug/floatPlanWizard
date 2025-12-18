@@ -188,11 +188,143 @@
     return names.join(", ");
   }
 
+  var FLOATPLAN_VALIDATION_RULES = {
+    NAME: {
+      presence: {
+        allowEmpty: false,
+        message: "Float plan name is required."
+      }
+    },
+    VESSELID: {
+      presence: {
+        allowEmpty: false,
+        message: "Select a vessel."
+      },
+      numericality: {
+        onlyInteger: true,
+        greaterThan: 0,
+        message: "Select a vessel."
+      }
+    },
+    OPERATORID: {
+      presence: {
+        allowEmpty: false,
+        message: "Select an operator."
+      },
+      numericality: {
+        onlyInteger: true,
+        greaterThan: 0,
+        message: "Select an operator."
+      }
+    },
+    DEPARTING_FROM: {
+      presence: {
+        allowEmpty: false,
+        message: "Departure location is required."
+      }
+    },
+    DEPARTURE_TIME: {
+      presence: {
+        allowEmpty: false,
+        message: "Departure date and time are required."
+      }
+    },
+    DEPARTURE_TIMEZONE: {
+      presence: {
+        allowEmpty: false,
+        message: "Departure time zone is required."
+      }
+    },
+    RETURNING_TO: {
+      presence: {
+        allowEmpty: false,
+        message: "Return location is required."
+      }
+    },
+    RETURN_TIME: {
+      presence: {
+        allowEmpty: false,
+        message: "Return date and time are required."
+      }
+    },
+    RETURN_TIMEZONE: {
+      presence: {
+        allowEmpty: false,
+        message: "Return time zone is required."
+      }
+    },
+    EMAIL: {
+      presence: {
+        allowEmpty: false,
+        message: "Email is required."
+      },
+      email: {
+        message: "Enter a valid email address."
+      }
+    },
+    RESCUE_AUTHORITY: {
+      presence: {
+        allowEmpty: false,
+        message: "Rescue authority is required."
+      }
+    },
+    RESCUE_AUTHORITY_PHONE: {
+      presence: {
+        allowEmpty: false,
+        message: "Rescue authority phone is required."
+      }
+    }
+  };
+
+  var REQUIRED_FLOATPLAN_KEYS = [
+    "NAME",
+    "VESSELID",
+    "OPERATORID",
+    "DEPARTING_FROM",
+    "DEPARTURE_TIME",
+    "DEPARTURE_TIMEZONE",
+    "RETURNING_TO",
+    "RETURN_TIME",
+    "RETURN_TIMEZONE",
+    "EMAIL",
+    "RESCUE_AUTHORITY",
+    "RESCUE_AUTHORITY_PHONE"
+  ];
+
+  function buildFloatplanConstraints(keys) {
+    var result = {};
+    keys.forEach(function (key) {
+      var rule = FLOATPLAN_VALIDATION_RULES[key];
+      if (rule) {
+        result[key] = rule;
+      }
+    });
+    return result;
+  }
+
+  var STEP_VALIDATION_CONSTRAINTS = {
+    1: buildFloatplanConstraints(["NAME", "VESSELID", "OPERATORID"]),
+    2: buildFloatplanConstraints([
+      "DEPARTING_FROM",
+      "DEPARTURE_TIME",
+      "DEPARTURE_TIMEZONE",
+      "RETURNING_TO",
+      "RETURN_TIME",
+      "RETURN_TIMEZONE"
+    ]),
+    3: buildFloatplanConstraints([
+      "EMAIL",
+      "RESCUE_AUTHORITY",
+      "RESCUE_AUTHORITY_PHONE"
+    ]),
+    7: buildFloatplanConstraints(REQUIRED_FLOATPLAN_KEYS)
+  };
+
   var app = Vue.createApp({
     data: function () {
       return {
         step: 1,
-        totalSteps: 4,
+        totalSteps: 7,
         isLoading: true,
         isSaving: false,
         statusMessage: null,
@@ -234,6 +366,9 @@
 
       waypointSummary: function () {
         return summarizeSelections(this.fp.WAYPOINTS, this.waypoints, "WAYPOINTID", "WAYPOINTNAME");
+      },
+      nextButtonLabel: function () {
+        return this.step === this.totalSteps - 1 ? "Review Float Plan" : "Next";
       }
     },
 
@@ -251,10 +386,37 @@
     },
 
     methods: {
-      nextStep: function () {
-        if (this.step < this.totalSteps) {
-          this.step += 1;
+      validateStep: function (stepNumber) {
+        var constraints = STEP_VALIDATION_CONSTRAINTS[stepNumber];
+        var validator = window.validate;
+        if (!constraints || typeof validator !== "function") {
+          return true;
         }
+        var payload = this.fp ? this.fp.FLOATPLAN || {} : {};
+        if (stepNumber === 1) {
+          var nameValue = (payload.NAME || "").trim();
+          if (!nameValue) {
+            this.setStatus("Float plan name is required.", false);
+            return false;
+          }
+        }
+        var errors = validator(payload, constraints, { format: "flat", fullMessages: false });
+        if (!errors) {
+          this.clearStatus();
+          return true;
+        }
+        this.setStatus(errors[0], false);
+        return false;
+      },
+
+      nextStep: function () {
+        if (this.step >= this.totalSteps) {
+          return;
+        }
+        if (!this.validateStep(this.step)) {
+          return;
+        }
+        this.step += 1;
       },
 
       prevStep: function () {
@@ -502,6 +664,10 @@
         var self = this;
         if (!window.Api || typeof window.Api.saveFloatPlan !== "function") {
           this.handleError("API helper not available.", "Unable to save float plan.");
+          return;
+        }
+
+        if (!this.validateStep(this.totalSteps)) {
           return;
         }
 
