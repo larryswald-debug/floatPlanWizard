@@ -302,6 +302,24 @@
     return result;
   }
 
+  function isEmptyValue(value) {
+    if (value === undefined || value === null) {
+      return true;
+    }
+    if (typeof value === "string") {
+      return value.trim().length === 0;
+    }
+    return false;
+  }
+
+  function getPresenceMessageFor(key) {
+    var rule = FLOATPLAN_VALIDATION_RULES[key];
+    if (rule && rule.presence && rule.presence.message) {
+      return rule.presence.message;
+    }
+    return "This field is required.";
+  }
+
   var STEP_VALIDATION_CONSTRAINTS = {
     1: buildFloatplanConstraints(["NAME", "VESSELID", "OPERATORID"]),
     2: buildFloatplanConstraints([
@@ -387,11 +405,6 @@
 
     methods: {
       validateStep: function (stepNumber) {
-        var constraints = STEP_VALIDATION_CONSTRAINTS[stepNumber];
-        var validator = window.validate;
-        if (!constraints || typeof validator !== "function") {
-          return true;
-        }
         var payload = this.fp ? this.fp.FLOATPLAN || {} : {};
         if (stepNumber === 1) {
           var nameValue = (payload.NAME || "").trim();
@@ -399,6 +412,28 @@
             this.setStatus("Float plan name is required.", false);
             return false;
           }
+        }
+        if (stepNumber === 2) {
+          var routeFields = [
+            "DEPARTING_FROM",
+            "DEPARTURE_TIME",
+            "DEPARTURE_TIMEZONE",
+            "RETURNING_TO",
+            "RETURN_TIME",
+            "RETURN_TIMEZONE"
+          ];
+          for (var i = 0; i < routeFields.length; i++) {
+            var key = routeFields[i];
+            if (isEmptyValue(payload[key])) {
+              this.setStatus(getPresenceMessageFor(key), false);
+              return false;
+            }
+          }
+        }
+        var constraints = STEP_VALIDATION_CONSTRAINTS[stepNumber];
+        var validator = window.validate;
+        if (!constraints || typeof validator !== "function") {
+          return true;
         }
         var errors = validator(payload, constraints, { format: "flat", fullMessages: false });
         if (!errors) {
