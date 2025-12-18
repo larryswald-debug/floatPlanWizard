@@ -108,27 +108,54 @@
 
                 <div class="mb-3">
                     <label class="form-label">Float Plan Name *</label>
-                    <input type="text" class="form-control" v-model="fp.FLOATPLAN.NAME" placeholder="Weekend Cruise" required aria-required="true">
-                </div>
+                    <input
+                        type="text"
+                        name="NAME"
+                        class="form-control"
+                        v-model="fp.FLOATPLAN.NAME"
+                        :class="{ 'is-invalid': hasError('NAME') }"
+                        :aria-invalid="hasError('NAME') ? 'true' : 'false'"
+                        @input="clearFieldError('NAME')" 
+                        required
+                        />
+                        <div class="invalid-feedback" v-if="hasError('NAME')">{{ getError('NAME') }}</div>
+
+                                        </div>
 
                 <div class="mb-3">
                     <label class="form-label">Vessel *</label>
-                    <select class="form-select" v-model.number="fp.FLOATPLAN.VESSELID">
+                   <select
+                        name="VESSELID"
+                        class="form-select"
+                        v-model.number="fp.FLOATPLAN.VESSELID"
+                        :class="{ 'is-invalid': hasError('VESSELID') }"
+                        :aria-invalid="hasError('VESSELID') ? 'true' : 'false'"
+                        @change="clearFieldError('VESSELID')"
+                        >
                         <option :value="0">Select vessel</option>
                         <option v-for="v in vessels" :key="v.VESSELID" :value="v.VESSELID">
                             {{ v.VESSELNAME }} &mdash; {{ v.HOMEPORT || 'Unknown port' }}
                         </option>
                     </select>
+                    <div class="invalid-feedback" v-if="hasError('VESSELID')">{{ getError('VESSELID') }}</div>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">Operator *</label>
-                    <select class="form-select" v-model.number="fp.FLOATPLAN.OPERATORID">
+                    <select
+                        name="OPERATORID"
+                        class="form-select"
+                        v-model.number="fp.FLOATPLAN.OPERATORID"
+                        :class="{ 'is-invalid': hasError('OPERATORID') }"
+                        :aria-invalid="hasError('OPERATORID') ? 'true' : 'false'"
+                        @change="clearFieldError('OPERATORID')"
+                        >
                         <option :value="0">Select operator</option>
                         <option v-for="o in operators" :key="o.OPERATORID" :value="o.OPERATORID">
                             {{ o.OPERATORNAME }}
                         </option>
                     </select>
+                    <div class="invalid-feedback" v-if="hasError('OPERATORID')">{{ getError('OPERATORID') }}</div>
                 </div>
 
                 <div class="form-check mb-3">
@@ -143,38 +170,101 @@
 
                 <div class="mb-3">
                     <label class="form-label">Departing From *</label>
-                    <input type="text" class="form-control" v-model="fp.FLOATPLAN.DEPARTING_FROM">
+                    <input
+                        type="text"
+                        id="departingFrom"
+                        name="DEPARTING_FROM"
+                        class="form-control"
+                        v-model="fp.FLOATPLAN.DEPARTING_FROM"
+                        :class="{ 'is-invalid': hasError('DEPARTING_FROM') }"
+                        :aria-invalid="hasError('DEPARTING_FROM') ? 'true' : 'false'"
+                        @input="clearFieldError('DEPARTING_FROM')"
+                        required
+                    />
+                    <div class="invalid-feedback" v-if="hasError('DEPARTING_FROM')">{{ getError('DEPARTING_FROM') }}</div>
+                    </div>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">Departure Date & Time *</label>
-                    <input type="datetime-local" class="form-control" v-model="fp.FLOATPLAN.DEPARTURE_TIME">
+                    <input
+                        type="datetime-local"
+                        name="DEPARTURE_TIME"
+                        class="form-control"
+                        v-model="fp.FLOATPLAN.DEPARTURE_TIME"
+                        :class="{ 'is-invalid': hasError('DEPARTURE_TIME') }"
+                        :aria-invalid="hasError('DEPARTURE_TIME') ? 'true' : 'false'"
+                        @input="clearFieldError('DEPARTURE_TIME')"
+                        />
+                    <div class="invalid-feedback" v-if="hasError('DEPARTURE_TIME')">{{ getError('DEPARTURE_TIME') }}</div>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">Departure Time Zone *</label>
-                    <select class="form-select" v-model="fp.FLOATPLAN.DEPARTURE_TIMEZONE">
+                    <select
+                        id="departureTimezone"
+                        name="DEPARTURE_TIMEZONE"
+                        class="form-select"
+                        v-model="fp.FLOATPLAN.DEPARTURE_TIMEZONE"
+                        :class="{ 'is-invalid': hasError('DEPARTURE_TIMEZONE') }"
+                        :aria-invalid="hasError('DEPARTURE_TIMEZONE') ? 'true' : 'false'"
+                        @change="clearFieldError('DEPARTURE_TIMEZONE')"
+                        required
+                    >
                         <option value="">Select time zone</option>
                         <option v-for="tz in timezones" :key="'dep-'+tz" :value="tz">{{ tz }}</option>
                     </select>
+                    <div class="invalid-feedback" v-if="hasError('DEPARTURE_TIMEZONE')">{{ getError('DEPARTURE_TIMEZONE') }}</div>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">Returning To *</label>
-                    <input type="text" class="form-control" v-model="fp.FLOATPLAN.RETURNING_TO">
+                     <input
+                        type="text"
+                        id="returningTo"
+                        name="RETURNING_TO"
+                        class="form-control"
+                        v-model="fp.FLOATPLAN.RETURNING_TO"
+                        :class="{ 'is-invalid': hasError('RETURNING_TO') }"
+                        :aria-invalid="hasError('RETURNING_TO') ? 'true' : 'false'"
+                        @input="clearFieldError('RETURNING_TO')"
+                        required
+                    />
+                    <div class="invalid-feedback" v-if="hasError('RETURNING_TO')">{{ getError('RETURNING_TO') }}</div>
+
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">Return Date & Time *</label>
-                    <input type="datetime-local" class="form-control" v-model="fp.FLOATPLAN.RETURN_TIME">
+                    <input
+                        type="datetime-local"
+                        name="RETURN_TIME"
+                        class="form-control"
+                        v-model="fp.FLOATPLAN.RETURN_TIME"
+                        :class="{ 'is-invalid': hasError('RETURN_TIME') }"
+                        :aria-invalid="hasError('RETURN_TIME') ? 'true' : 'false'"
+                        @input="clearFieldError('RETURN_TIME')"
+                        />
+                        <div class="invalid-feedback" v-if="hasError('RETURN_TIME')">{{ getError('RETURN_TIME') }}</div>
+
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">Return Time Zone *</label>
-                    <select class="form-select" v-model="fp.FLOATPLAN.RETURN_TIMEZONE">
+                    <select
+                        id="returnTimezone"
+                        name="RETURN_TIMEZONE"
+                        class="form-select"
+                        v-model="fp.FLOATPLAN.RETURN_TIMEZONE"
+                        :class="{ 'is-invalid': hasError('RETURN_TIMEZONE') }"
+                        :aria-invalid="hasError('RETURN_TIMEZONE') ? 'true' : 'false'"
+                        @change="clearFieldError('RETURN_TIMEZONE')"
+                        required
+                    >
                         <option value="">Select time zone</option>
                         <option v-for="tz in timezones" :key="'ret-'+tz" :value="tz">{{ tz }}</option>
                     </select>
+                    <div class="invalid-feedback" v-if="hasError('RETURN_TIMEZONE')">{{ getError('RETURN_TIMEZONE') }}</div>
                 </div>
             </section>
 
@@ -188,26 +278,27 @@
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label">Select Rescue Authority (optional)</label>
-                    <select class="form-select" v-model="selectedRescueCenterId" @change="handleRescueCenterSelection">
-                        <option value="0">Select a rescue center</option>
+                    <label class="form-label">Rescue Authority *</label>
+                    <select
+                        name="RESCUE_AUTHORITY_SELECTION"
+                        class="form-select"
+                        v-model.number="selectedRescueCenterId"
+                        :class="{ 'is-invalid': hasError('RESCUE_AUTHORITY_SELECTION') }"
+                        :aria-invalid="hasError('RESCUE_AUTHORITY_SELECTION') ? 'true' : 'false'"
+                        @change="handleRescueCenterSelection($event)"
+                        required
+                    >
+                        <option :value="0">Select a rescue authority</option>
                         <option v-for="center in rescueCenters" :key="'resc-'+center.recId" :value="center.recId">
                             {{ formatRescueCenterLabel(center) }}
                         </option>
                     </select>
-                    <div class="form-text">
-                        Choosing a center will prefill the authority name and phone, but you can still edit the fields manually (manual edits will clear the dropdown selection).
+                    <div class="invalid-feedback" v-if="hasError('RESCUE_AUTHORITY_SELECTION')">
+                        {{ getError('RESCUE_AUTHORITY_SELECTION') }}
                     </div>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">Rescue Authority *</label>
-                    <input type="text" class="form-control" v-model="fp.FLOATPLAN.RESCUE_AUTHORITY">
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">Rescue Authority Phone *</label>
-                    <input type="text" class="form-control" v-model="fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE">
+                    <div class="form-text">
+                        Selecting a rescue center populates the authority name and phone automatically.
+                    </div>
                 </div>
 
                 <div class="row mb-3">

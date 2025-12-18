@@ -49,6 +49,7 @@
       EMAIL: "",
       RESCUE_AUTHORITY: "",
       RESCUE_AUTHORITY_PHONE: "",
+      RESCUE_CENTERID: 0,
       DEPARTING_FROM: "",
       DEPARTURE_TIME: "",
       DEPARTURE_TIMEZONE: "",
@@ -74,6 +75,7 @@
     plan.VESSELID = numeric(plan.VESSELID);
     plan.OPERATORID = numeric(plan.OPERATORID);
     plan.OPERATOR_HAS_PFD = !!plan.OPERATOR_HAS_PFD;
+    plan.RESCUE_CENTERID = numeric(plan.RESCUE_CENTERID);
     return plan;
   }
 
@@ -188,6 +190,9 @@
     return names.join(", ");
   }
 
+  var RESCUE_AUTHORITY_SELECTION_FIELD = "RESCUE_AUTHORITY_SELECTION";
+  var RESCUE_AUTHORITY_SELECTION_MESSAGE = "Select a rescue authority.";
+
   var FLOATPLAN_VALIDATION_RULES = {
     NAME: {
       presence: {
@@ -286,7 +291,6 @@
     "RETURNING_TO",
     "RETURN_TIME",
     "RETURN_TIMEZONE",
-    "EMAIL",
     "RESCUE_AUTHORITY",
     "RESCUE_AUTHORITY_PHONE"
   ];
@@ -330,17 +334,20 @@
       "RETURN_TIME",
       "RETURN_TIMEZONE"
     ]),
-    3: buildFloatplanConstraints([
-      "EMAIL",
-      "RESCUE_AUTHORITY",
-      "RESCUE_AUTHORITY_PHONE"
-    ]),
+    3: buildFloatplanConstraints([]),
     7: buildFloatplanConstraints(REQUIRED_FLOATPLAN_KEYS)
   };
 
   var app = Vue.createApp({
     data: function () {
       return {
+
+
+        fieldErrors: {
+
+        },
+
+
         step: 1,
         totalSteps: 7,
         isLoading: true,
@@ -404,45 +411,69 @@
     },
 
     methods: {
+
+
+      
       validateStep: function (stepNumber) {
+        this.clearFieldErrors();
+
         var payload = this.fp ? this.fp.FLOATPLAN || {} : {};
-        if (stepNumber === 1) {
-          var nameValue = (payload.NAME || "").trim();
-          if (!nameValue) {
-            this.setStatus("Float plan name is required.", false);
-            return false;
-          }
-        }
-        if (stepNumber === 2) {
-          var routeFields = [
-            "DEPARTING_FROM",
-            "DEPARTURE_TIME",
-            "DEPARTURE_TIMEZONE",
-            "RETURNING_TO",
-            "RETURN_TIME",
-            "RETURN_TIMEZONE"
-          ];
-          for (var i = 0; i < routeFields.length; i++) {
-            var key = routeFields[i];
-            if (isEmptyValue(payload[key])) {
-              this.setStatus(getPresenceMessageFor(key), false);
-              return false;
-            }
-          }
-        }
         var constraints = STEP_VALIDATION_CONSTRAINTS[stepNumber];
         var validator = window.validate;
+
+        // If no validator, allow step
         if (!constraints || typeof validator !== "function") {
           return true;
         }
-        var errors = validator(payload, constraints, { format: "flat", fullMessages: false });
+
+        // Validate.js returns object map when format is "grouped"
+        var errors = validator(payload, constraints, { format: "grouped", fullMessages: false });
+
+        // Custom cross-field rule (return after departure) for step 2 (or final step 7)
+        if ((stepNumber === 2 || stepNumber === 7) && payload.DEPARTURE_TIME && payload.RETURN_TIME) {
+          var depart = new Date(payload.DEPARTURE_TIME);
+          var ret = new Date(payload.RETURN_TIME);
+          if (!isNaN(depart.getTime()) && !isNaN(ret.getTime()) && ret <= depart) {
+            if (!errors) errors = {};
+            errors.RETURN_TIME = ["Return must be after departure."];
+          }
+        }
+
+        if ((stepNumber === 3 || stepNumber === 7) && numeric(this.selectedRescueCenterId) <= 0) {
+          if (!errors) errors = {};
+          errors[RESCUE_AUTHORITY_SELECTION_FIELD] = [RESCUE_AUTHORITY_SELECTION_MESSAGE];
+        }
+
         if (!errors) {
-          this.clearStatus();
+          this.clearStatus(); // keep your existing status alert behavior optional
           return true;
         }
-        this.setStatus(errors[0], false);
+
+        // Push each field’s first message into fieldErrors
+        var keys = Object.keys(errors);
+        for (var i = 0; i < keys.length; i++) {
+          var field = keys[i];
+          var msgArr = errors[field];
+          var msg = (Array.isArray(msgArr) && msgArr.length) ? msgArr[0] : "Invalid value.";
+          this.setFieldError(field, msg);
+        }
+
+        // Optional: keep a simple top message, but inline is the primary display
+        this.setStatus("Please fix the highlighted fields.", false);
+
+        this.$nextTick(this.focusFirstError);
         return false;
-      },
+      }
+
+      
+      ,
+
+      clearFieldError: function (field) {
+        if (this.fieldErrors && this.fieldErrors[field]) {
+          delete this.fieldErrors[field];
+        }
+      }
+,
 
       nextStep: function () {
         if (this.step >= this.totalSteps) {
@@ -490,12 +521,18 @@
         this.setStatus(message, false);
       },
 
-      handleRescueCenterSelection: function () {
+      handleRescueCenterSelection: function (event) {
         if (this.rescueCenterSyncing) {
           return;
         }
         this.rescueCenterSyncing = true;
-        var selectedId = numeric(this.selectedRescueCenterId);
+        var selectedId = numeric(
+          event && event.target && event.target.value !== undefined
+            ? event.target.value
+            : this.selectedRescueCenterId
+        );
+        this.selectedRescueCenterId = selectedId;
+        this.fp.FLOATPLAN.RESCUE_CENTERID = selectedId;
         var match = null;
         for (var i = 0; i < this.rescueCenters.length; i++) {
           if (numeric(this.rescueCenters[i].recId) === selectedId) {
@@ -514,6 +551,7 @@
 
         this.rescueCenterSyncing = false;
         this.syncRescueCenterSelection();
+        this.clearFieldError(RESCUE_AUTHORITY_SELECTION_FIELD);
       },
 
       formatRescueCenterLabel: function (center) {
@@ -538,13 +576,23 @@
         this.rescueCenterSyncing = true;
         var authority = (this.fp.FLOATPLAN.RESCUE_AUTHORITY || "").trim();
         var phone = (this.fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE || "").trim();
+        var storedCenterId = numeric(this.fp.FLOATPLAN.RESCUE_CENTERID);
         var matchId = 0;
 
-        if (authority && phone) {
+        if (storedCenterId > 0) {
+          for (var j = 0; j < this.rescueCenters.length; j++) {
+            if (numeric(this.rescueCenters[j].recId) === storedCenterId) {
+              matchId = storedCenterId;
+              break;
+            }
+          }
+        }
+
+        if (!matchId && authority && phone) {
           var normalizedName = authority.toLowerCase();
           var normalizedPhone = phone;
-          for (var j = 0; j < this.rescueCenters.length; j++) {
-            var center = this.rescueCenters[j];
+          for (var k = 0; k < this.rescueCenters.length; k++) {
+            var center = this.rescueCenters[k];
             if (
               center &&
               center.rcName &&
@@ -559,6 +607,10 @@
         }
 
         this.selectedRescueCenterId = matchId;
+        this.fp.FLOATPLAN.RESCUE_CENTERID = matchId;
+        if (matchId > 0) {
+          this.clearFieldError(RESCUE_AUTHORITY_SELECTION_FIELD);
+        }
         this.rescueCenterSyncing = false;
       },
 
@@ -694,6 +746,37 @@
             self.handleError(err, "Unable to load float plan.");
           });
       },
+
+      clearFieldErrors: function () {
+        this.fieldErrors = {};
+      },
+
+      setFieldError: function (field, message) {
+        if (!field) return;
+        if (!this.fieldErrors) this.fieldErrors = {};
+        this.fieldErrors[field] = message || "Invalid value.";
+      },
+
+      hasError: function (field) {
+        return !!(this.fieldErrors && this.fieldErrors[field]);
+      },
+
+      getError: function (field) {
+        return (this.fieldErrors && this.fieldErrors[field]) ? this.fieldErrors[field] : "";
+      },
+
+      focusFirstError: function () {
+        var keys = this.fieldErrors ? Object.keys(this.fieldErrors) : [];
+        if (!keys.length) return;
+
+        // Focus by name attr first (preferred)
+        var first = keys[0];
+        var el = document.querySelector('[name="' + first + '"]');
+        if (el && typeof el.focus === "function") {
+          el.focus();
+        }
+      }
+      ,
 
       submitPlan: function () {
         var self = this;
