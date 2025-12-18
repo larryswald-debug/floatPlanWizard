@@ -72,6 +72,49 @@
 
     getCurrentUser: function () {
       return request("/me.cfc?method=handle", { method: "GET" });
+    },
+
+    getFloatPlans: function (options) {
+      options = options || {};
+      var params = [];
+
+      if (options.limit) {
+        params.push("limit=" + encodeURIComponent(options.limit));
+      }
+
+      var path = "/floatplans.cfc?method=handle";
+      if (params.length) {
+        path += (path.indexOf("?") === -1 ? "?" : "&") + params.join("&");
+      }
+
+      return request(path, { method: "GET" });
+    },
+
+    getFloatPlanBootstrap: function (floatPlanId) {
+      var path = "/floatplan.cfc?method=handle&action=bootstrap";
+      if (floatPlanId) {
+        path += "&id=" + encodeURIComponent(floatPlanId);
+      }
+      return request(path, { method: "GET" });
+    },
+
+    saveFloatPlan: function (payload) {
+      payload = payload || {};
+      payload.action = "save";
+      return request("/floatplan.cfc?method=handle", {
+        method: "POST",
+        body: payload
+      });
+    },
+
+    deleteFloatPlan: function (floatPlanId) {
+      return request("/floatplan.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "delete",
+          floatPlanId: floatPlanId
+        }
+      });
     }
   };
 

@@ -16,6 +16,22 @@
     return val ? String(val) : "—";
   }
 
+  function ensureAuth(payload) {
+    return window.AppAuth ? window.AppAuth.ensureAuthenticated(payload) : true;
+  }
+
+  function handleAuthError(err) {
+    return window.AppAuth ? window.AppAuth.handleUnauthorizedError(err) : false;
+  }
+
+  function redirectToLogin() {
+    if (window.AppAuth && typeof window.AppAuth.redirectToLogin === "function") {
+      window.AppAuth.redirectToLogin();
+      return;
+    }
+    window.location.href = "/fpw/app/login.cfm";
+  }
+
   function populateHomePort(home) {
     home = home || {};
 
@@ -87,8 +103,7 @@
     try {
       var data = await fetchJson("/fpw/api/v1/profile.cfc?method=handle", { method: "GET" });
 
-      if (data && data.AUTH === false) {
-        window.location.href = "/fpw/app/login.cfm";
+      if (!ensureAuth(data)) {
         return;
       }
       if (!data || data.SUCCESS !== true) {
@@ -99,7 +114,9 @@
       populateProfile(data.PROFILE || data.profile || {});
     } catch (err) {
       console.error("loadProfile error:", err);
-      if (err && err.AUTH === false) window.location.href = "/fpw/app/login.cfm";
+      if (handleAuthError(err)) {
+        return;
+      }
     }
   }
 
@@ -124,8 +141,7 @@
         body: JSON.stringify(payload)
       });
 
-      if (data && data.AUTH === false) {
-        window.location.href = "/fpw/app/login.cfm";
+      if (!ensureAuth(data)) {
         return;
       }
       if (!data || data.SUCCESS !== true) {
@@ -137,6 +153,9 @@
       alert("Profile saved.");
     } catch (err) {
       console.error("saveProfile error:", err);
+      if (handleAuthError(err)) {
+        return;
+      }
       alert((err && err.MESSAGE) ? err.MESSAGE : "Save failed (see console).");
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = "Save Profile"; }
@@ -177,8 +196,7 @@
         })
       });
 
-      if (data && data.AUTH === false) {
-        window.location.href = "/fpw/app/login.cfm";
+      if (!ensureAuth(data)) {
         return;
       }
       if (!data || data.SUCCESS !== true) {
@@ -192,6 +210,9 @@
       alert("Password changed.");
     } catch (err) {
       console.error("changePassword error:", err);
+      if (handleAuthError(err)) {
+        return;
+      }
       alert((err && err.MESSAGE) ? err.MESSAGE : "Password change failed (see console).");
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = "Change Password"; }
@@ -222,8 +243,7 @@
         body: JSON.stringify(payload)
       });
 
-      if (data && data.AUTH === false) {
-        window.location.href = "/fpw/app/login.cfm";
+      if (!ensureAuth(data)) {
         return;
       }
       if (!data || data.SUCCESS !== true) {
@@ -236,6 +256,9 @@
       alert("Home port saved.");
     } catch (err) {
       console.error("saveHomePort error:", err);
+      if (handleAuthError(err)) {
+        return;
+      }
       alert((err && err.MESSAGE) ? err.MESSAGE : "Home port save failed (see console).");
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = "Save Home Port"; }
@@ -250,7 +273,7 @@
         body: JSON.stringify({ action: "logout" })
       });
     } catch (e) {}
-    window.location.href = "/fpw/app/login.cfm";
+    redirectToLogin();
   }
 
   document.addEventListener("DOMContentLoaded", function () {

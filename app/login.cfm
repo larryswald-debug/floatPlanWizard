@@ -15,6 +15,11 @@
             min-height: 100vh;
         }
     </style>
+
+    <cfif structKeyExists(session, "authenticated") AND NOT isLoggedIn()>
+        <cfset structClear(session)>
+    </cfif>
+
 </head>
 <body class="bg-light d-flex align-items-center justify-content-center">
 
