@@ -221,6 +221,7 @@
             var email     = trim(pickValue(floatPlan, ["email", "EMAIL"], ""));
             var rescueAuthority = trim(pickValue(floatPlan, ["rescueAuthority", "RESCUE_AUTHORITY"], ""));
             var rescuePhone     = trim(pickValue(floatPlan, ["rescueAuthorityPhone", "RESCUE_AUTHORITY_PHONE"], ""));
+            var rescueCenterId  = val(pickValue(floatPlan, ["rescueCenterId", "RESCUE_CENTERID"], 0));
             var departingFrom   = trim(pickValue(floatPlan, ["departingFrom", "DEPARTING_FROM"], ""));
             var departureTime   = trim(pickValue(floatPlan, ["departureTime", "DEPARTURE_TIME"], ""));
             var departureTz     = trim(pickValue(floatPlan, ["departureTimezone", "DEPARTURE_TIMEZONE"], ""));
@@ -259,6 +260,7 @@
                             floatPlanEmail,
                             rescueAuthority,
                             rescueAuthorityPhone,
+                            rescueCenterId,
                             departing,
                             departureTime,
                             departTimezone,
@@ -282,6 +284,7 @@
                             :email,
                             :rescueAuthority,
                             :rescuePhone,
+                            :rescueCenterId,
                             :departingFrom,
                             :departureTime,
                             :departureTz,
@@ -304,6 +307,7 @@
                         email = { value = email, cfsqltype = "cf_sql_varchar", null = NOT len(email) },
                         rescueAuthority = { value = rescueAuthority, cfsqltype = "cf_sql_varchar", null = NOT len(rescueAuthority) },
                         rescuePhone = { value = rescuePhone, cfsqltype = "cf_sql_varchar", null = NOT len(rescuePhone) },
+                        rescueCenterId = { value = rescueCenterId, cfsqltype = "cf_sql_integer", null = (rescueCenterId LTE 0) },
                         departingFrom = { value = departingFrom, cfsqltype = "cf_sql_varchar", null = NOT len(departingFrom) },
                         departureTime = { value = departureTime, cfsqltype = "cf_sql_timestamp", null = NOT len(departureTime) },
                         departureTz = { value = departureTz, cfsqltype = "cf_sql_varchar", null = NOT len(departureTz) },
@@ -328,6 +332,7 @@
                                floatPlanEmail      = :email,
                                rescueAuthority     = :rescueAuthority,
                                rescueAuthorityPhone= :rescuePhone,
+                               rescueCenterId      = :rescueCenterId,
                                departing           = :departingFrom,
                                departureTime       = :departureTime,
                                departTimezone      = :departureTz,
@@ -350,6 +355,7 @@
                         email = { value = email, cfsqltype = "cf_sql_varchar", null = NOT len(email) },
                         rescueAuthority = { value = rescueAuthority, cfsqltype = "cf_sql_varchar", null = NOT len(rescueAuthority) },
                         rescuePhone = { value = rescuePhone, cfsqltype = "cf_sql_varchar", null = NOT len(rescuePhone) },
+                        rescueCenterId = { value = rescueCenterId, cfsqltype = "cf_sql_integer", null = (rescueCenterId LTE 0) },
                         departingFrom = { value = departingFrom, cfsqltype = "cf_sql_varchar", null = NOT len(departingFrom) },
                         departureTime = { value = departureTime, cfsqltype = "cf_sql_timestamp", null = NOT len(departureTime) },
                         departureTz = { value = departureTz, cfsqltype = "cf_sql_varchar", null = NOT len(departureTz) },
@@ -498,6 +504,7 @@
                     floatPlanEmail,
                     rescueAuthority,
                     rescueAuthorityPhone,
+                    rescueCenterId,
                     departing,
                     departureTime,
                     departTimezone,
@@ -528,6 +535,7 @@
                     EMAIL                = qPlan.floatPlanEmail,
                     RESCUE_AUTHORITY     = qPlan.rescueAuthority,
                     RESCUE_AUTHORITY_PHONE = qPlan.rescueAuthorityPhone,
+                    RESCUE_CENTERID      = qPlan.rescueCenterId,
                     DEPARTING_FROM       = qPlan.departing,
                     DEPARTURE_TIME       = qPlan.departureTime,
                     DEPARTURE_TIMEZONE   = qPlan.departTimezone,
@@ -628,6 +636,7 @@
                 EMAIL                = "",
                 RESCUE_AUTHORITY     = "",
                 RESCUE_AUTHORITY_PHONE = "",
+                RESCUE_CENTERID      = 0,
                 DEPARTING_FROM       = "",
                 DEPARTURE_TIME       = "",
                 DEPARTURE_TIMEZONE   = "",
