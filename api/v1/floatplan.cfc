@@ -164,6 +164,49 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="loadHomePort" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfscript>
+            var home = {};
+            var qHome = queryExecute("
+                SELECT
+                    recId,
+                    userId,
+                    address,
+                    city,
+                    state,
+                    zip,
+                    phone,
+                    lat,
+                    lng,
+                    isHomePort
+                FROM users_address
+                WHERE userId = :userId
+                  AND isHomePort = 1
+                LIMIT 1
+            ", {
+                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+            }, { datasource = "fpw" });
+
+            if (qHome.recordCount EQ 1) {
+                home = {
+                    RECID      = qHome.recId[1],
+                    USERID     = qHome.userId[1],
+                    ADDRESS    = qHome.address[1],
+                    CITY       = qHome.city[1],
+                    STATE      = qHome.state[1],
+                    ZIP        = qHome.zip[1],
+                    PHONE      = qHome.phone[1],
+                    LAT        = qHome.lat[1],
+                    LNG        = qHome.lng[1],
+                    ISHOMEPORT = qHome.isHomePort[1]
+                };
+            }
+
+            return home;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="getBootstrapData" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
@@ -192,6 +235,7 @@
             response.CONTACTS       = loadContacts(arguments.userId);
             response.WAYPOINTS      = loadWaypoints(arguments.userId);
             response.RESCUE_CENTERS = loadRescueCenters();
+            response.HOME_PORT      = loadHomePort(arguments.userId);
 
             return response;
         </cfscript>

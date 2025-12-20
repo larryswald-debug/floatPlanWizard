@@ -30,6 +30,141 @@
     "Pacific/Honolulu"
   ];
 
+  var STATE_TO_TIMEZONE = {
+    AL: "US/Central",
+    AK: "US/Alaska",
+    AZ: "US/Mountain",
+    AR: "US/Central",
+    CA: "US/Pacific",
+    CO: "US/Mountain",
+    CT: "US/Eastern",
+    DE: "US/Eastern",
+    FL: "US/Eastern",
+    GA: "US/Eastern",
+    HI: "US/Hawaii",
+    ID: "US/Mountain",
+    IL: "US/Central",
+    IN: "US/Eastern",
+    IA: "US/Central",
+    KS: "US/Central",
+    KY: "US/Eastern",
+    LA: "US/Central",
+    ME: "US/Eastern",
+    MD: "US/Eastern",
+    MA: "US/Eastern",
+    MI: "US/Eastern",
+    MN: "US/Central",
+    MS: "US/Central",
+    MO: "US/Central",
+    MT: "US/Mountain",
+    NE: "US/Central",
+    NV: "US/Pacific",
+    NH: "US/Eastern",
+    NJ: "US/Eastern",
+    NM: "US/Mountain",
+    NY: "US/Eastern",
+    NC: "US/Eastern",
+    ND: "US/Central",
+    OH: "US/Eastern",
+    OK: "US/Central",
+    OR: "US/Pacific",
+    PA: "US/Eastern",
+    RI: "US/Eastern",
+    SC: "US/Eastern",
+    SD: "US/Central",
+    TN: "US/Central",
+    TX: "US/Central",
+    UT: "US/Mountain",
+    VT: "US/Eastern",
+    VA: "US/Eastern",
+    WA: "US/Pacific",
+    WV: "US/Eastern",
+    WI: "US/Central",
+    WY: "US/Mountain",
+    DC: "US/Eastern",
+    PR: "America/Puerto_Rico"
+  };
+
+  var STATE_NAME_TO_CODE = {
+    ALABAMA: "AL",
+    ALASKA: "AK",
+    ARIZONA: "AZ",
+    ARKANSAS: "AR",
+    CALIFORNIA: "CA",
+    COLORADO: "CO",
+    CONNECTICUT: "CT",
+    DELAWARE: "DE",
+    FLORIDA: "FL",
+    GEORGIA: "GA",
+    HAWAII: "HI",
+    IDAHO: "ID",
+    ILLINOIS: "IL",
+    INDIANA: "IN",
+    IOWA: "IA",
+    KANSAS: "KS",
+    KENTUCKY: "KY",
+    LOUISIANA: "LA",
+    MAINE: "ME",
+    MARYLAND: "MD",
+    MASSACHUSETTS: "MA",
+    MICHIGAN: "MI",
+    MINNESOTA: "MN",
+    MISSISSIPPI: "MS",
+    MISSOURI: "MO",
+    MONTANA: "MT",
+    NEBRASKA: "NE",
+    NEVADA: "NV",
+    "NEW HAMPSHIRE": "NH",
+    "NEW JERSEY": "NJ",
+    "NEW MEXICO": "NM",
+    "NEW YORK": "NY",
+    "NORTH CAROLINA": "NC",
+    "NORTH DAKOTA": "ND",
+    OHIO: "OH",
+    OKLAHOMA: "OK",
+    OREGON: "OR",
+    PENNSYLVANIA: "PA",
+    "RHODE ISLAND": "RI",
+    "SOUTH CAROLINA": "SC",
+    "SOUTH DAKOTA": "SD",
+    TENNESSEE: "TN",
+    TEXAS: "TX",
+    UTAH: "UT",
+    VERMONT: "VT",
+    VIRGINIA: "VA",
+    WASHINGTON: "WA",
+    "WEST VIRGINIA": "WV",
+    WISCONSIN: "WI",
+    WYOMING: "WY",
+    "DISTRICT OF COLUMBIA": "DC",
+    "PUERTO RICO": "PR"
+  };
+
+  function normalizeStateCode(stateValue) {
+    if (!stateValue) {
+      return "";
+    }
+    var normalized = stateValue.toString().trim().toUpperCase();
+    if (!normalized) {
+      return "";
+    }
+    if (STATE_TO_TIMEZONE[normalized]) {
+      return normalized;
+    }
+    if (STATE_NAME_TO_CODE[normalized]) {
+      return STATE_NAME_TO_CODE[normalized];
+    }
+    return "";
+  }
+
+  function getTimezoneForState(stateValue) {
+    var code = normalizeStateCode(stateValue);
+    if (!code) {
+      return "";
+    }
+    return STATE_TO_TIMEZONE[code] || "";
+  }
+
   function toArray(value) {
     return Array.isArray(value) ? value.slice() : [];
   }
@@ -140,6 +275,55 @@
       DEPART_MODE: entry.DEPART_MODE || entry.departMode || "",
       ARRIVAL_TIME: entry.ARRIVAL_TIME || entry.arrivalTime || "",
       DEPARTURE_TIME: entry.DEPARTURE_TIME || entry.departureTime || ""
+    };
+  }
+
+  function parseHomePortFlag(value) {
+    if (value === undefined || value === null) {
+      return 0;
+    }
+    if (typeof value === "boolean") {
+      return value ? 1 : 0;
+    }
+    var normalized = (typeof value === "string") ? value.trim().toLowerCase() : "";
+    if (normalized === "true" || normalized === "1") {
+      return 1;
+    }
+    if (normalized === "false" || normalized === "0") {
+      return 0;
+    }
+    return numeric(value);
+  }
+
+  function normalizeHomePort(source) {
+    if (!source || typeof source !== "object") {
+      return null;
+    }
+    var isHomePortValue = parseHomePortFlag(
+      source.ISHOMEPORT ||
+      source.isHomePort ||
+      source.is_home_port ||
+      source.isHomeport ||
+      source.is_homeport ||
+      source.home_port ||
+      source.homePort ||
+      0
+    );
+    if (isHomePortValue <= 0) {
+      return null;
+    }
+    var rawState = (source.STATE || source.state || "").toString().trim();
+    var stateCode = normalizeStateCode(rawState);
+    return {
+      recId: numeric(source.RECID || source.recId || 0),
+      address: (source.ADDRESS || source.address || "").toString().trim(),
+      city: (source.CITY || source.city || "").toString().trim(),
+      state: stateCode || rawState.toUpperCase(),
+      zip: (source.ZIP || source.zip || "").toString().trim(),
+      phone: (source.PHONE || source.phone || "").toString().trim(),
+      lat: (source.LAT || source.lat || "").toString().trim(),
+      lng: (source.LNG || source.lng || "").toString().trim(),
+      isHomePort: true
     };
   }
 
@@ -366,6 +550,8 @@
         contacts: [],
         waypoints: [],
         rescueCenters: [],
+        homePort: null,
+        homePortTimezone: "",
         selectedRescueCenterId: 0,
         rescueCenterSyncing: false,
         initialPlanId: getPlanIdFromQuery()
@@ -463,17 +649,33 @@
 
         this.$nextTick(this.focusFirstError);
         return false;
-      }
-
-      
-      ,
+      },
 
       clearFieldError: function (field) {
         if (this.fieldErrors && this.fieldErrors[field]) {
           delete this.fieldErrors[field];
         }
-      }
-,
+      },
+
+      applyHomePortDefaults: function () {
+        if (!this.homePort || !this.homePort.isHomePort) {
+          return;
+        }
+        var plan = this.fp && this.fp.FLOATPLAN ? this.fp.FLOATPLAN : {};
+        if (isEmptyValue(plan.DEPARTING_FROM)) {
+          plan.DEPARTING_FROM = "Home Port";
+        }
+        if (isEmptyValue(plan.RETURNING_TO)) {
+          plan.RETURNING_TO = "Home Port";
+        }
+        var timezone = this.homePortTimezone || getTimezoneForState(this.homePort.state);
+        if (timezone && isEmptyValue(plan.DEPARTURE_TIMEZONE)) {
+          plan.DEPARTURE_TIMEZONE = timezone;
+        }
+        if (timezone && isEmptyValue(plan.RETURN_TIMEZONE)) {
+          plan.RETURN_TIMEZONE = timezone;
+        }
+      },
 
       nextStep: function () {
         if (this.step >= this.totalSteps) {
@@ -713,6 +915,9 @@
             });
 
             self.fp.FLOATPLAN = normalizeFloatPlan(data.FLOATPLAN);
+            self.homePort = normalizeHomePort(data.HOME_PORT || data.HOMEPORT || data.homePort || {});
+            self.homePortTimezone = getTimezoneForState(self.homePort ? self.homePort.state : "");
+            self.applyHomePortDefaults();
 
             self.fp.PASSENGERS = sortByOrder(
               toArray(data.PLAN_PASSENGERS)
