@@ -104,7 +104,12 @@
 
             <!-- Step 1 -->
             <section v-if="step === 1">
-                <h2 class="h5 mb-3">Step 1 – Basics</h2>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h5 mb-0">Step 1 – Basics</h2>
+                    <button type="button" class="btn btn-primary btn-sm" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
+                        {{ nextButtonLabel }}
+                    </button>
+                </div>
 
                 <div class="mb-3">
                     <label class="form-label">Float Plan Name *</label>
@@ -166,7 +171,12 @@
 
             <!-- Step 2 -->
             <section v-if="step === 2">
-                <h2 class="h5 mb-3">Step 2 – Times & Route</h2>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h5 mb-0">Step 2 – Times & Route</h2>
+                    <button type="button" class="btn btn-primary btn-sm" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
+                        {{ nextButtonLabel }}
+                    </button>
+                </div>
 
                 <div class="mb-3">
                     <label class="form-label">Departing From *</label>
@@ -270,7 +280,12 @@
 
             <!-- Step 3 -->
             <section v-if="step === 3">
-                <h2 class="h5 mb-3">Step 3 – People & Safety</h2>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h5 mb-0">Step 3 – People & Safety</h2>
+                    <button type="button" class="btn btn-primary btn-sm" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
+                        {{ nextButtonLabel }}
+                    </button>
+                </div>
 
                 <div class="mb-3">
                     <label class="form-label">Email (while underway)</label>
@@ -321,7 +336,12 @@
 
             <!-- Step 4 -->
             <section v-if="step === 4">
-                <h2 class="h5 mb-3">Step 4 – Passengers & Crew</h2>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h5 mb-0">Step 4 – Passengers & Crew</h2>
+                    <button type="button" class="btn btn-primary btn-sm" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
+                        {{ nextButtonLabel }}
+                    </button>
+                </div>
                 <p class="small text-muted">Tap to toggle each passenger.</p>
                 <div class="list-group">
                     <button
@@ -340,7 +360,12 @@
 
             <!-- Step 5 -->
             <section v-if="step === 5">
-                <h2 class="h5 mb-3">Step 5 – Contacts</h2>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h5 mb-0">Step 5 – Contacts</h2>
+                    <button type="button" class="btn btn-primary btn-sm" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
+                        {{ nextButtonLabel }}
+                    </button>
+                </div>
                 <p class="small text-muted">Tap to include for notifications.</p>
                 <div class="list-group">
                     <button
@@ -359,7 +384,12 @@
 
             <!-- Step 6 -->
             <section v-if="step === 6">
-                <h2 class="h5 mb-3">Step 6 – Waypoints</h2>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h5 mb-0">Step 6 – Waypoints</h2>
+                    <button type="button" class="btn btn-primary btn-sm" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
+                        {{ nextButtonLabel }}
+                    </button>
+                </div>
 
                 <h3 class="h6">Waypoints</h3>
                 <p class="small text-muted">Tap to include; order is preserved.</p>

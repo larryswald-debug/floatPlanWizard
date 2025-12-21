@@ -6,257 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <cfinclude template="/fpw/includes/header_styles.cfm">
+    <link rel="stylesheet" href="/fpw/assets/css/dashboard-console.css?v=1">
 
-    <style>
-        :root {
-            --bg: #f4f6f8;
-            --card: #ffffff;
-            --primary: #0d6efd;
-            --secondary: #6c757d;
-            --success: #198754;
-            --danger: #dc3545;
-            --border: #e0e0e0;
-            --text: #212529;
-        }
-
-        body.dashboard-body {
-            margin: 0;
-            background: var(--bg);
-            color: var(--text);
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            min-height: 100vh;
-        }
-
-        .dashboard-header {
-            position: sticky;
-            top: 0;
-            z-index: 10;
-            background: linear-gradient(135deg, #0d6efd, #0b5ed7);
-            color: #fff;
-            padding: 1rem 1.5rem;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-        }
-
-        .dashboard-header .header-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 1rem;
-            align-items: center;
-        }
-
-        .dashboard-header .user-info h1 {
-            margin: 0;
-            font-size: 1.4rem;
-        }
-
-        .dashboard-header .user-info small {
-            opacity: 0.85;
-        }
-
-        .header-meta {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 0.75rem;
-        }
-
-        .dashboard-body button {
-            border: none;
-            border-radius: 8px;
-            padding: 0.4rem 0.75rem;
-            font-size: 0.85rem;
-            cursor: pointer;
-        }
-
-        .weather {
-            width: 100%;
-            background: rgba(255,255,255,0.15);
-            padding: 0.75rem;
-            border-radius: 8px;
-            text-align: right;
-            font-size: 0.9rem;
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .header-actions a,
-        .header-actions button {
-            border: 1px solid rgba(255,255,255,0.5);
-            color: #fff;
-            background: transparent;
-            border-radius: 8px;
-            padding: 0.35rem 0.85rem;
-            font-size: 0.85rem;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.2s ease;
-        }
-
-        .header-actions a:hover,
-        .header-actions button:hover {
-            background: rgba(255,255,255,0.15);
-        }
-
-        main.dashboard-main {
-            padding: 1.5rem;
-        }
-
-        #dashboardAlert {
-            margin-bottom: 1rem;
-        }
-
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 1.25rem;
-        }
-
-        .dashboard-card {
-            background: var(--card);
-            border-radius: 14px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
-            display: flex;
-            flex-direction: column;
-            min-height: 260px;
-            max-height: 420px;
-        }
-
-        .dashboard-card .card-header {
-            padding: 1rem 1.25rem;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .dashboard-card .card-header h2 {
-            margin: 0;
-            font-size: 1.1rem;
-        }
-
-        .dashboard-card .card-title {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .card-subtitle {
-            margin-top: 0.15rem;
-            font-size: 0.85rem;
-            color: var(--secondary);
-        }
-
-        .card-actions button {
-            margin-left: 0.35rem;
-        }
-
-        .dashboard-card .card-body {
-            padding: 1rem 1.25rem;
-            flex: 1;
-            overscroll-behavior: contain;
-            overflow-y: auto;
-        }
-
-        .dashboard-card .card-footer {
-            padding: 0.75rem 1.25rem;
-            border-top: 1px solid var(--border);
-            text-align: right;
-        }
-
-        .dashboard-body .btn-primary { background: var(--primary); color: #fff; }
-        .dashboard-body .btn-secondary { background: var(--secondary); color: #fff; }
-        .dashboard-body .btn-danger { background: var(--danger); color: #fff; }
-
-        .list-item {
-            padding: 0.5rem 0;
-            border-bottom: 1px dashed var(--border);
-            display: flex;
-            justify-content: space-between;
-            gap: 0.75rem;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .list-item:last-child {
-            border-bottom: none;
-        }
-
-        .list-item small {
-            color: var(--secondary);
-        }
-
-        .list-item-multi {
-            align-items: flex-start;
-        }
-
-        .list-main {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .list-title {
-            font-weight: 600;
-            margin-bottom: 0.25rem;
-        }
-
-        .list-meta {
-            font-size: 0.8rem;
-            color: var(--secondary);
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.35rem;
-            margin-top: 0.15rem;
-        }
-
-        .meta-sep {
-            color: var(--border);
-        }
-
-        .list-actions {
-            display: flex;
-            gap: 0.35rem;
-        }
-
-        .empty {
-            color: var(--secondary);
-            font-style: italic;
-        }
-
-        #floatPlansMessage {
-            margin: 0;
-        }
-
-        @media (max-width: 768px) {
-            .dashboard-header .header-grid {
-                grid-template-columns: 1fr;
-                text-align: center;
-            }
-
-            .header-meta {
-                align-items: center;
-            }
-
-            .weather {
-                text-align: center;
-            }
-
-            .header-actions {
-                justify-content: center;
-                flex-wrap: wrap;
-            }
-
-            .list-actions {
-                width: 100%;
-                justify-content: flex-end;
-            }
-        }
-    </style>
+   
 </head>
 <body class="dashboard-body">
+
+
+
 
 <header class="dashboard-header">
     <div class="header-grid">
@@ -283,10 +40,49 @@
 
     <div class="dashboard-grid">
 
-        <section class="dashboard-card">
+        
+        <section class="dashboard-card alerts-panel" aria-label="System Alerts">
             <div class="card-header">
                 <div class="card-title">
-                    <h2>Float Plans</h2>
+                <h2><span class="status-dot status-ok"></span>System Alerts</h2>
+                <small class="card-subtitle" id="alertsSummary">Nominal</small>
+                </div>
+            </div>
+
+            <div class="card-body" id="alertsBody">
+                <div class="alert-tile alert-info">
+                <div class="alert-top">
+                    <span class="alert-dot"></span>
+                    <div class="alert-name">Weather</div>
+                    <div class="alert-time numeric">Now</div>
+                </div>
+                <div class="alert-text">No marine alerts. Wind NE 8kt • Seas 1–2ft.</div>
+                </div>
+
+                <div class="alert-tile alert-warn">
+                <div class="alert-top">
+                    <span class="alert-dot"></span>
+                    <div class="alert-name">Data</div>
+                    <div class="alert-time numeric">Action</div>
+                </div>
+                <div class="alert-text">2 contacts missing phone numbers.</div>
+                </div>
+
+                <div class="alert-tile alert-danger">
+                <div class="alert-top">
+                    <span class="alert-dot"></span>
+                    <div class="alert-name">Check-in</div>
+                    <div class="alert-time numeric">Overdue</div>
+                </div>
+                <div class="alert-text">Active float plan is past return time.</div>
+                </div>
+            </div>
+            </section>
+        
+        <section class="dashboard-card hero-panel active" id="floatPlansPanel">
+            <div class="card-header">
+                <div class="card-title">
+                    <h2><span class="status-dot status-ok"></span>Float Plans</h2>
                     <small class="card-subtitle" id="floatPlansSummary">Loading…</small>
                 </div>
                 <div class="card-actions">
@@ -301,6 +97,8 @@
                 <button class="btn-secondary" type="button" id="viewAllFloatPlansBtn">View All</button>
             </div>
         </section>
+
+        
 
         <section class="dashboard-card">
             <div class="card-header">
@@ -388,6 +186,9 @@
             </div>
         </section>
 
+        
+
+
     </div>
 </main>
 
@@ -395,6 +196,8 @@
 
 <!-- Dashboard-specific JS -->
 <script src="/fpw/assets/js/app/dashboard.js"></script>
+
+
 
 </body>
 </html>
