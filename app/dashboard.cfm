@@ -167,7 +167,7 @@
             </div>
         </section>
 
-        <section class="dashboard-card">
+        <section class="dashboard-card full-width">
             <div class="card-header">
                 <h2>Waypoints</h2>
                 <button class="btn-primary">+ Add</button>

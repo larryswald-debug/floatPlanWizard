@@ -46,6 +46,7 @@ body.dashboard-body{
   font-family: var(--sans);
   color: var(--text);
   background: radial-gradient(circle at top, var(--console-bg-2), var(--console-bg-0));
+  padding: 0 25px;
 }
 
 /* Subtle grid / bridge texture (very light) */
@@ -159,7 +160,7 @@ main.dashboard-main{
 /* ---------- Grid of panels ---------- */
 .dashboard-grid{
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
   gap: 1.25rem;
   align-items: start;
   min-width: 0;
@@ -206,6 +207,10 @@ main.dashboard-main{
     inset 0 1px 0 rgba(255,255,255,0.06),
     0 0 0 1px rgba(53,208,198,0.25),
     0 26px 52px rgba(0,0,0,0.70);
+}
+
+.dashboard-card.full-width{
+  grid-column: 1 / -1;
 }
 
 /* ---------- Panel header ---------- */
