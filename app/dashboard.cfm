@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <cfinclude template="/fpw/includes/header_styles.cfm">
+    <cfinclude template="/fpw/includes/floatplan-wizard-styles.cfm">
     <link rel="stylesheet" href="/fpw/assets/css/dashboard-console.css?v=1">
 
    
@@ -192,9 +193,28 @@
     </div>
 </main>
 
+<div class="modal fade" id="floatPlanWizardModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-fullscreen-lg-down modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Float Plan</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <cfset wizardShellClasses = "wizard-shell wizard-shell-embedded">
+                <cfset wizardAutoInit = false>
+                <cfinclude template="/fpw/includes/floatplan-wizard-content.cfm">
+            </div>
+        </div>
+    </div>
+</div>
+
 <cfinclude template="/fpw/includes/footer_scripts.cfm">
 
 <!-- Dashboard-specific JS -->
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="/fpw/assets/js/app/validate.js"></script>
+<script src="/fpw/assets/js/app/floatplanWizard.js"></script>
 <script src="/fpw/assets/js/app/dashboard.js"></script>
 
 

@@ -7,11 +7,6 @@
     return;
   }
 
-  var mountEl = document.getElementById("wizardApp");
-  if (!mountEl) {
-    return;
-  }
-
   var DEFAULT_TIMEZONES = [
     "UTC",
     "US/Eastern",
@@ -522,41 +517,52 @@
     7: buildFloatplanConstraints(REQUIRED_FLOATPLAN_KEYS)
   };
 
-  var app = Vue.createApp({
-    data: function () {
-      return {
+  function createWizardApp(mountEl, options) {
+    var opts = options || {};
+    var callbacks = {
+      onSaved: (opts && typeof opts.onSaved === "function") ? opts.onSaved : null
+    };
+    var initialPlanId = numeric(opts && opts.initialPlanId ? opts.initialPlanId : 0);
+    if (!initialPlanId) {
+      initialPlanId = getPlanIdFromQuery();
+    }
+
+    var app = Vue.createApp({
+      data: function () {
+        return {
 
 
-        fieldErrors: {
+          fieldErrors: {
 
-        },
+          },
 
 
-        step: 1,
-        totalSteps: 7,
-        isLoading: true,
-        isSaving: false,
-        statusMessage: null,
-        timezones: DEFAULT_TIMEZONES.slice(),
-        fp: {
-          FLOATPLAN: createEmptyFloatPlan(),
-          PASSENGERS: [],
-          CONTACTS: [],
-          WAYPOINTS: []
-        },
-        vessels: [],
-        operators: [],
-        passengers: [],
-        contacts: [],
-        waypoints: [],
-        rescueCenters: [],
-        homePort: null,
-        homePortTimezone: "",
-        selectedRescueCenterId: 0,
-        rescueCenterSyncing: false,
-        initialPlanId: getPlanIdFromQuery()
-      };
-    },
+          step: 1,
+          totalSteps: 7,
+          isLoading: true,
+          isSaving: false,
+          statusMessage: null,
+          timezones: DEFAULT_TIMEZONES.slice(),
+          fp: {
+            FLOATPLAN: createEmptyFloatPlan(),
+            PASSENGERS: [],
+            CONTACTS: [],
+            WAYPOINTS: []
+          },
+          vessels: [],
+          operators: [],
+          passengers: [],
+          contacts: [],
+          waypoints: [],
+          rescueCenters: [],
+          homePort: null,
+          homePortTimezone: "",
+          selectedRescueCenterId: 0,
+          rescueCenterSyncing: false,
+          initialPlanId: initialPlanId,
+          callbacks: callbacks
+        };
+      },
 
     computed: {
       currentVesselName: function () {
@@ -593,13 +599,39 @@
     },
 
     created: function () {
-      this.loadBootstrap();
+      this.resetWizard(this.initialPlanId);
     },
 
     methods: {
 
 
-      
+
+      resetWizard: function (planId) {
+        var parsedId = numeric(planId);
+        this.step = 1;
+        this.isSaving = false;
+        this.statusMessage = null;
+        this.fieldErrors = {};
+        this.selectedRescueCenterId = 0;
+        this.rescueCenterSyncing = false;
+        this.fp = {
+          FLOATPLAN: createEmptyFloatPlan(),
+          PASSENGERS: [],
+          CONTACTS: [],
+          WAYPOINTS: []
+        };
+        this.vessels = [];
+        this.operators = [];
+        this.passengers = [];
+        this.contacts = [];
+        this.waypoints = [];
+        this.rescueCenters = [];
+        this.homePort = null;
+        this.homePortTimezone = "";
+        this.initialPlanId = parsedId;
+        this.loadBootstrap();
+      },
+
       validateStep: function (stepNumber) {
         this.clearFieldErrors();
 
@@ -983,6 +1015,13 @@
       }
       ,
 
+      notifySaved: function () {
+        if (this.callbacks && typeof this.callbacks.onSaved === "function") {
+          this.callbacks.onSaved(this.fp);
+        }
+      }
+      ,
+
       submitPlan: function () {
         var self = this;
         if (!window.Api || typeof window.Api.saveFloatPlan !== "function") {
@@ -1027,6 +1066,7 @@
 
           self.initialPlanId = numeric(self.fp.FLOATPLAN.FLOATPLANID) || self.initialPlanId;
           self.setStatus("Float plan saved successfully.", true);
+          self.notifySaved();
           self.isSaving = false;
         })
         .catch(function (err) {
@@ -1071,5 +1111,44 @@
     }
   });
 
-  app.mount(mountEl);
+    var vm = app.mount(mountEl);
+    return { app: app, vm: vm, mountEl: mountEl };
+  }
+
+  var activeWizard = null;
+
+  function mountWizard(mountEl, options) {
+    if (!mountEl) {
+      return null;
+    }
+
+    if (activeWizard && activeWizard.app) {
+      activeWizard.app.unmount();
+    }
+
+    activeWizard = createWizardApp(mountEl, options);
+    return activeWizard;
+  }
+
+  function unmountWizard() {
+    if (activeWizard && activeWizard.app) {
+      activeWizard.app.unmount();
+    }
+    activeWizard = null;
+  }
+
+  function getActiveWizard() {
+    return activeWizard;
+  }
+
+  var autoMountEl = document.querySelector("#wizardApp[data-auto-init='true']");
+  if (autoMountEl) {
+    mountWizard(autoMountEl, { initialPlanId: getPlanIdFromQuery() });
+  }
+
+  window.FloatPlanWizard = {
+    mount: mountWizard,
+    unmount: unmountWizard,
+    getInstance: getActiveWizard
+  };
 })(window, document, window.Vue);

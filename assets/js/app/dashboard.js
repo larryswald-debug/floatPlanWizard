@@ -256,12 +256,91 @@
       });
   }
 
-  function goToFloatPlanWizard(planId) {
+  function navigateToFloatPlanWizard(planId) {
     var url = "/fpw/app/floatplan-wizard.cfm";
     if (planId) {
       url += "?id=" + encodeURIComponent(planId);
     }
     window.location.href = url;
+  }
+
+  var wizardModalInstance = null;
+  var wizardMountEl = null;
+  var wizardTemplateHtml = "";
+
+  function getWizardMount() {
+    if (!wizardMountEl) {
+      wizardMountEl = document.getElementById("wizardApp");
+      if (wizardMountEl && !wizardTemplateHtml) {
+        wizardTemplateHtml = wizardMountEl.innerHTML;
+      }
+    }
+    return wizardMountEl;
+  }
+
+  function resetWizardDom() {
+    if (wizardMountEl && wizardTemplateHtml) {
+      wizardMountEl.innerHTML = wizardTemplateHtml;
+    }
+  }
+
+  function ensureWizardModal() {
+    if (wizardModalInstance) {
+      return wizardModalInstance;
+    }
+
+    var modalEl = document.getElementById("floatPlanWizardModal");
+    if (!modalEl || !window.bootstrap) {
+      return null;
+    }
+
+    wizardModalInstance = new bootstrap.Modal(modalEl, { backdrop: "static", keyboard: false });
+    modalEl.addEventListener("hidden.bs.modal", function () {
+      if (window.FloatPlanWizard && typeof window.FloatPlanWizard.unmount === "function") {
+        window.FloatPlanWizard.unmount();
+      }
+      resetWizardDom();
+      wizardMountEl = null;
+    });
+
+    return wizardModalInstance;
+  }
+
+  function handleWizardSaved() {
+    if (wizardModalInstance) {
+      wizardModalInstance.hide();
+    }
+    loadFloatPlans(FLOAT_PLAN_LIMIT);
+  }
+
+  function openFloatPlanWizard(planId) {
+    var modal = ensureWizardModal();
+    var mountTarget = getWizardMount();
+
+    if (!modal || !mountTarget || !window.FloatPlanWizard || typeof window.FloatPlanWizard.mount !== "function") {
+      navigateToFloatPlanWizard(planId);
+      return;
+    }
+
+    var numericPlanId = parseInt(planId, 10);
+    if (isNaN(numericPlanId)) {
+      numericPlanId = 0;
+    }
+
+    var instance = window.FloatPlanWizard.getInstance && window.FloatPlanWizard.getInstance();
+
+    if (instance && instance.vm && typeof instance.vm.resetWizard === "function") {
+      instance.vm.resetWizard(numericPlanId);
+      instance.vm.callbacks = instance.vm.callbacks || {};
+      instance.vm.callbacks.onSaved = handleWizardSaved;
+    } else {
+      instance = window.FloatPlanWizard.mount(mountTarget, {
+        initialPlanId: numericPlanId,
+        onSaved: handleWizardSaved
+      });
+    }
+
+    modal.show();
   }
 
   function handleFloatPlansListClick(event) {
@@ -276,7 +355,7 @@
     if (!planId) return;
 
     if (action === "edit") {
-      goToFloatPlanWizard(planId);
+      openFloatPlanWizard(planId);
     } else if (action === "delete") {
       if (!window.confirm("Delete this float plan?")) {
         return;
@@ -387,14 +466,14 @@
     var addPlanBtn = document.getElementById("addFloatPlanBtn");
     if (addPlanBtn) {
       addPlanBtn.addEventListener("click", function () {
-        goToFloatPlanWizard();
+        openFloatPlanWizard();
       });
     }
 
     var viewAllBtn = document.getElementById("viewAllFloatPlansBtn");
     if (viewAllBtn) {
       viewAllBtn.addEventListener("click", function () {
-        goToFloatPlanWizard();
+        navigateToFloatPlanWizard();
       });
     }
 
