@@ -1,16 +1,16 @@
+// Updated to support modal-driven init/destroy for the float plan wizard.
 // /fpw/assets/js/app/floatplanWizard.js
 (function (window, document, Vue) {
   "use strict";
 
   if (!Vue) {
     console.error("Vue is required for the float plan wizard.");
-    return;
   }
 
-  var mountEl = document.getElementById("wizardApp");
-  if (!mountEl) {
-    return;
-  }
+  var wizardApp = null;
+  var wizardAppInstance = null;
+  var wizardMountEl = null;
+  var wizardTemplateHtml = "";
 
   var DEFAULT_TIMEZONES = [
     "UTC",
@@ -522,8 +522,17 @@
     7: buildFloatplanConstraints(REQUIRED_FLOATPLAN_KEYS)
   };
 
-  var app = Vue.createApp({
-    data: function () {
+  function createWizardApp(options) {
+    options = options || {};
+    var onSaved = options.onSaved;
+    var onDeleted = options.onDeleted;
+    var initialPlanId = numeric(options.planId || 0);
+    if (!initialPlanId) {
+      initialPlanId = getPlanIdFromQuery();
+    }
+
+    var app = Vue.createApp({
+      data: function () {
       return {
 
 
@@ -554,7 +563,7 @@
         homePortTimezone: "",
         selectedRescueCenterId: 0,
         rescueCenterSyncing: false,
-        initialPlanId: getPlanIdFromQuery()
+        initialPlanId: initialPlanId
       };
     },
 
@@ -1028,6 +1037,9 @@
           self.initialPlanId = numeric(self.fp.FLOATPLAN.FLOATPLANID) || self.initialPlanId;
           self.setStatus("Float plan saved successfully.", true);
           self.isSaving = false;
+          if (typeof onSaved === "function") {
+            onSaved(response, self);
+          }
         })
         .catch(function (err) {
           self.isSaving = false;
@@ -1059,9 +1071,13 @@
           .then(function () {
             self.isSaving = false;
             self.setStatus("Float plan deleted.", true);
-            window.setTimeout(function () {
-              window.location.href = "/fpw/app/dashboard.cfm";
-            }, 600);
+            if (typeof onDeleted === "function") {
+              onDeleted(planId, self);
+            } else {
+              window.setTimeout(function () {
+                window.location.href = "/fpw/app/dashboard.cfm";
+              }, 600);
+            }
           })
           .catch(function (err) {
             self.isSaving = false;
@@ -1070,6 +1086,51 @@
       }
     }
   });
+    return app;
+  }
 
-  app.mount(mountEl);
+  function initWizard(options) {
+    if (!Vue) {
+      console.error("Vue is required for the float plan wizard.");
+      return null;
+    }
+
+    options = options || {};
+    var mountEl = options.mountEl || document.getElementById("wizardApp");
+    if (!mountEl) {
+      return null;
+    }
+
+    destroyWizard();
+    wizardMountEl = mountEl;
+    if (!wizardTemplateHtml) {
+      wizardTemplateHtml = mountEl.innerHTML;
+    }
+    wizardApp = createWizardApp(options);
+    wizardAppInstance = wizardApp.mount(mountEl);
+    return wizardAppInstance;
+  }
+
+  function destroyWizard() {
+    if (wizardApp) {
+      wizardApp.unmount();
+    }
+    if (wizardMountEl && wizardTemplateHtml) {
+      wizardMountEl.innerHTML = wizardTemplateHtml;
+    }
+    wizardApp = null;
+    wizardAppInstance = null;
+    wizardMountEl = null;
+  }
+
+  window.FloatPlanWizard = window.FloatPlanWizard || {};
+  Object.assign(window.FloatPlanWizard, {
+    init: initWizard,
+    destroy: destroyWizard
+  });
+
+  var autoMountEl = document.getElementById("wizardApp");
+  if (autoMountEl && autoMountEl.getAttribute("data-init") !== "manual") {
+    initWizard({ mountEl: autoMountEl });
+  }
 })(window, document, window.Vue);

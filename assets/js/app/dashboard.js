@@ -1,5 +1,4 @@
-// /fpw/assets/js/app/dashboard.js
-
+// Updated to launch the float plan wizard in a modal and refresh after save.
 (function (window, document) {
   "use strict";
 
@@ -29,14 +28,23 @@
   }
 
   var FLOAT_PLAN_LIMIT = 5;
+  var wizardModalEl = null;
+  var wizardModal = null;
+  var wizardMountEl = null;
 
   function showDashboardAlert(message, type) {
     var alertEl = document.getElementById("dashboardAlert");
     if (!alertEl) return;
 
-    alertEl.classList.remove("d-none", "alert-success", "alert-danger", "alert-info");
-    alertEl.classList.add("alert-" + (type || "info"));
-    alertEl.textContent = message;
+    alertEl.textContent = message || "";
+    alertEl.classList.remove("d-none", "alert-success", "alert-danger", "alert-warning", "alert-info");
+
+    var alertType = type || "info";
+    alertEl.classList.add("alert-" + alertType);
+
+    if (!message) {
+      alertEl.classList.add("d-none");
+    }
   }
 
   function clearDashboardAlert() {
@@ -256,12 +264,50 @@
       });
   }
 
-  function goToFloatPlanWizard(planId) {
-    var url = "/fpw/app/floatplan-wizard.cfm";
-    if (planId) {
-      url += "?id=" + encodeURIComponent(planId);
+  function ensureWizardModal() {
+    if (!wizardModalEl) {
+      wizardModalEl = document.getElementById("floatPlanWizardModal");
+      if (wizardModalEl) {
+        wizardMountEl = wizardModalEl.querySelector("#wizardApp");
+      }
     }
-    window.location.href = url;
+
+    if (wizardModalEl && !wizardModal && window.bootstrap && window.bootstrap.Modal) {
+      wizardModal = new window.bootstrap.Modal(wizardModalEl);
+    }
+
+    if (wizardModalEl && !wizardModalEl.dataset.listenersAttached) {
+      wizardModalEl.addEventListener("hidden.bs.modal", function () {
+        if (window.FloatPlanWizard && typeof window.FloatPlanWizard.destroy === "function") {
+          window.FloatPlanWizard.destroy();
+        }
+      });
+      wizardModalEl.dataset.listenersAttached = "true";
+    }
+  }
+
+  function openWizard(planId) {
+    ensureWizardModal();
+    if (!wizardModalEl || !wizardModal) {
+      return;
+    }
+
+    if (window.FloatPlanWizard && typeof window.FloatPlanWizard.init === "function") {
+      window.FloatPlanWizard.init({
+        mountEl: wizardMountEl,
+        planId: planId,
+        onSaved: function () {
+          wizardModal.hide();
+          loadFloatPlans(FLOAT_PLAN_LIMIT);
+        },
+        onDeleted: function () {
+          wizardModal.hide();
+          loadFloatPlans(FLOAT_PLAN_LIMIT);
+        }
+      });
+    }
+
+    wizardModal.show();
   }
 
   function handleFloatPlansListClick(event) {
@@ -276,7 +322,7 @@
     if (!planId) return;
 
     if (action === "edit") {
-      goToFloatPlanWizard(planId);
+      openWizard(planId);
     } else if (action === "delete") {
       if (!window.confirm("Delete this float plan?")) {
         return;
@@ -321,27 +367,18 @@
     var emailEl = document.getElementById("userEmail");
 
     if (nameEl) {
-      var fullName = [
-        user.firstName || user.FIRSTNAME || "",
-        user.lastName || user.LASTNAME || ""
-      ].join(" ").trim();
-      nameEl.textContent = fullName || "(no name)";
+      nameEl.textContent = (user && user.NAME) ? user.NAME : "";
     }
 
     if (emailEl) {
-      emailEl.textContent = user.email || user.EMAIL || "(no email)";
+      emailEl.textContent = (user && user.EMAIL) ? user.EMAIL : "";
     }
   }
 
   function initDashboard() {
-    if (!window.Api || typeof window.Api.getCurrentUser !== "function") {
-      console.error("Api.getCurrentUser is not available.");
-      return;
-    }
-
     clearDashboardAlert();
+    ensureWizardModal();
 
-    // Check current user
     Api.getCurrentUser()
       .then(function (data) {
         // data.SUCCESS already checked in Api.request
@@ -364,18 +401,12 @@
       });
 
     // Wire up logout
-    var logoutButton = document.getElementById("logoutButton");
-    if (logoutButton) {
-      logoutButton.addEventListener("click", function () {
-        if (!window.Api || typeof window.Api.logout !== "function") {
-          return;
-        }
-
-        logoutButton.disabled = true;
-        logoutButton.textContent = "Logging out…";
-
+    var logoutBtn = document.getElementById("logoutButton");
+    if (logoutBtn) {
+      logoutBtn.addEventListener("click", function () {
         Api.logout()
-          .catch(function () {
+          .catch(function (err) {
+            console.error("Logout failed:", err);
             // Ignore errors, just send them to login
           })
           .finally(function () {
@@ -387,14 +418,14 @@
     var addPlanBtn = document.getElementById("addFloatPlanBtn");
     if (addPlanBtn) {
       addPlanBtn.addEventListener("click", function () {
-        goToFloatPlanWizard();
+        openWizard(0);
       });
     }
 
     var viewAllBtn = document.getElementById("viewAllFloatPlansBtn");
     if (viewAllBtn) {
       viewAllBtn.addEventListener("click", function () {
-        goToFloatPlanWizard();
+        openWizard(0);
       });
     }
 
@@ -405,5 +436,4 @@
   }
 
   document.addEventListener("DOMContentLoaded", initDashboard);
-
 })(window, document);
