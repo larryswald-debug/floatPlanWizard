@@ -164,6 +164,49 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="loadHomePort" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfscript>
+            var home = {};
+            var qHome = queryExecute("
+                SELECT
+                    recId,
+                    userId,
+                    address,
+                    city,
+                    state,
+                    zip,
+                    phone,
+                    lat,
+                    lng,
+                    isHomePort
+                FROM users_address
+                WHERE userId = :userId
+                  AND isHomePort = 1
+                LIMIT 1
+            ", {
+                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+            }, { datasource = "fpw" });
+
+            if (qHome.recordCount EQ 1) {
+                home = {
+                    RECID      = qHome.recId[1],
+                    USERID     = qHome.userId[1],
+                    ADDRESS    = qHome.address[1],
+                    CITY       = qHome.city[1],
+                    STATE      = qHome.state[1],
+                    ZIP        = qHome.zip[1],
+                    PHONE      = qHome.phone[1],
+                    LAT        = qHome.lat[1],
+                    LNG        = qHome.lng[1],
+                    ISHOMEPORT = qHome.isHomePort[1]
+                };
+            }
+
+            return home;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="getBootstrapData" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
@@ -192,6 +235,7 @@
             response.CONTACTS       = loadContacts(arguments.userId);
             response.WAYPOINTS      = loadWaypoints(arguments.userId);
             response.RESCUE_CENTERS = loadRescueCenters();
+            response.HOME_PORT      = loadHomePort(arguments.userId);
 
             return response;
         </cfscript>
@@ -221,6 +265,7 @@
             var email     = trim(pickValue(floatPlan, ["email", "EMAIL"], ""));
             var rescueAuthority = trim(pickValue(floatPlan, ["rescueAuthority", "RESCUE_AUTHORITY"], ""));
             var rescuePhone     = trim(pickValue(floatPlan, ["rescueAuthorityPhone", "RESCUE_AUTHORITY_PHONE"], ""));
+            var rescueCenterId  = val(pickValue(floatPlan, ["rescueCenterId", "RESCUE_CENTERID"], 0));
             var departingFrom   = trim(pickValue(floatPlan, ["departingFrom", "DEPARTING_FROM"], ""));
             var departureTime   = trim(pickValue(floatPlan, ["departureTime", "DEPARTURE_TIME"], ""));
             var departureTz     = trim(pickValue(floatPlan, ["departureTimezone", "DEPARTURE_TIMEZONE"], ""));
@@ -259,6 +304,7 @@
                             floatPlanEmail,
                             rescueAuthority,
                             rescueAuthorityPhone,
+                            rescueCenterId,
                             departing,
                             departureTime,
                             departTimezone,
@@ -282,6 +328,7 @@
                             :email,
                             :rescueAuthority,
                             :rescuePhone,
+                            :rescueCenterId,
                             :departingFrom,
                             :departureTime,
                             :departureTz,
@@ -304,6 +351,7 @@
                         email = { value = email, cfsqltype = "cf_sql_varchar", null = NOT len(email) },
                         rescueAuthority = { value = rescueAuthority, cfsqltype = "cf_sql_varchar", null = NOT len(rescueAuthority) },
                         rescuePhone = { value = rescuePhone, cfsqltype = "cf_sql_varchar", null = NOT len(rescuePhone) },
+                        rescueCenterId = { value = rescueCenterId, cfsqltype = "cf_sql_integer", null = (rescueCenterId LTE 0) },
                         departingFrom = { value = departingFrom, cfsqltype = "cf_sql_varchar", null = NOT len(departingFrom) },
                         departureTime = { value = departureTime, cfsqltype = "cf_sql_timestamp", null = NOT len(departureTime) },
                         departureTz = { value = departureTz, cfsqltype = "cf_sql_varchar", null = NOT len(departureTz) },
@@ -328,6 +376,7 @@
                                floatPlanEmail      = :email,
                                rescueAuthority     = :rescueAuthority,
                                rescueAuthorityPhone= :rescuePhone,
+                               rescueCenterId      = :rescueCenterId,
                                departing           = :departingFrom,
                                departureTime       = :departureTime,
                                departTimezone      = :departureTz,
@@ -350,6 +399,7 @@
                         email = { value = email, cfsqltype = "cf_sql_varchar", null = NOT len(email) },
                         rescueAuthority = { value = rescueAuthority, cfsqltype = "cf_sql_varchar", null = NOT len(rescueAuthority) },
                         rescuePhone = { value = rescuePhone, cfsqltype = "cf_sql_varchar", null = NOT len(rescuePhone) },
+                        rescueCenterId = { value = rescueCenterId, cfsqltype = "cf_sql_integer", null = (rescueCenterId LTE 0) },
                         departingFrom = { value = departingFrom, cfsqltype = "cf_sql_varchar", null = NOT len(departingFrom) },
                         departureTime = { value = departureTime, cfsqltype = "cf_sql_timestamp", null = NOT len(departureTime) },
                         departureTz = { value = departureTz, cfsqltype = "cf_sql_varchar", null = NOT len(departureTz) },
@@ -498,6 +548,7 @@
                     floatPlanEmail,
                     rescueAuthority,
                     rescueAuthorityPhone,
+                    rescueCenterId,
                     departing,
                     departureTime,
                     departTimezone,
@@ -528,6 +579,7 @@
                     EMAIL                = qPlan.floatPlanEmail,
                     RESCUE_AUTHORITY     = qPlan.rescueAuthority,
                     RESCUE_AUTHORITY_PHONE = qPlan.rescueAuthorityPhone,
+                    RESCUE_CENTERID      = qPlan.rescueCenterId,
                     DEPARTING_FROM       = qPlan.departing,
                     DEPARTURE_TIME       = qPlan.departureTime,
                     DEPARTURE_TIMEZONE   = qPlan.departTimezone,
@@ -628,6 +680,7 @@
                 EMAIL                = "",
                 RESCUE_AUTHORITY     = "",
                 RESCUE_AUTHORITY_PHONE = "",
+                RESCUE_CENTERID      = 0,
                 DEPARTING_FROM       = "",
                 DEPARTURE_TIME       = "",
                 DEPARTURE_TIMEZONE   = "",

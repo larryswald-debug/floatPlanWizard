@@ -1,0 +1,27 @@
+{
+  "name": "fpw",
+  "version": "1.0.0",
+  "description": "Float Plan Wizard",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/larryswald-debug/floatPlanWizard.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/larryswald-debug/floatPlanWizard/issues"
+  },
+  "homepage": "https://github.com/larryswald-debug/floatPlanWizard#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0"
+  }
+}

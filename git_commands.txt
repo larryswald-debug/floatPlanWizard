@@ -1,0 +1,12 @@
+FPW_EMAIL="lswald@yahoo.com" FPW_PASSWORD="rIhnyc-garhab-neqbu2" npx playwright test --debug
+
+
+FPW_EMAIL="your@email.com" FPW_PASSWORD="yourpassword" npx playwright test --headed
+
+FPW_EMAIL="lswald@yahoo.com" FPW_PASSWORD="rIhnyc-garhab-neqbu2" npx playwright test "tests/e2e/e2e/login.spec.js" --headed
+
+
+cd /Users/larrywald/Docker/cf-mysql-dev/wwwroot/fpw
+FPW_EMAIL="lswald@yahoo.com"" FPW_PASSWORD="rIhnyc-garhab-neqbu2" npx playwright test "tests/e2e/e2e/login.spec.js" --headed --reporter=line
+
+
