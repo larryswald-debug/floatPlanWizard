@@ -166,6 +166,52 @@ main.dashboard-main{
   min-width: 0;
 }
 
+@media (max-width: 900px){
+  .dashboard-header .header-grid{
+    grid-template-columns: 1fr;
+  }
+
+  .header-meta{
+    align-items: flex-start;
+  }
+
+  .weather{
+    text-align: left;
+  }
+
+  .header-actions{
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 768px){
+  body.dashboard-body{
+    padding: 0 12px;
+  }
+
+  main.dashboard-main{
+    padding: 1rem 0;
+  }
+
+  .dashboard-grid{
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-card{
+    min-height: auto;
+    max-height: none;
+  }
+
+  .dashboard-card .card-body{
+    overflow-y: visible;
+  }
+
+  .dashboard-body button,
+  .header-actions a{
+    min-height: 44px;
+  }
+}
+
 /* ---------- Console panels ---------- */
 .dashboard-card{
   background: var(--panel);
