@@ -6,6 +6,8 @@ Thumbs.db
 cfusion/logs/
 WEB-INF/cfusion/logs/
 *.log
+git_commands.txt
+prompts.txt
 
 # ===== Docker =====
 docker/volumes/
