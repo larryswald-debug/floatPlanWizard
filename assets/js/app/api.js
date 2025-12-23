@@ -115,6 +115,16 @@
           floatPlanId: floatPlanId
         }
       });
+    },
+
+    cloneFloatPlan: function (floatPlanId) {
+      return request("/floatplan.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "clone",
+          floatPlanId: floatPlanId
+        }
+      });
     }
   };
 

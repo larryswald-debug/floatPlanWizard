@@ -1,16 +1,16 @@
+// Updated to support modal-driven init/destroy for the float plan wizard.
 // /fpw/assets/js/app/floatplanWizard.js
 (function (window, document, Vue) {
   "use strict";
 
   if (!Vue) {
     console.error("Vue is required for the float plan wizard.");
-    return;
   }
 
-  var mountEl = document.getElementById("wizardApp");
-  if (!mountEl) {
-    return;
-  }
+  var wizardApp = null;
+  var wizardAppInstance = null;
+  var wizardMountEl = null;
+  var wizardTemplateHtml = "";
 
   var DEFAULT_TIMEZONES = [
     "UTC",
@@ -500,6 +500,7 @@
     return false;
   }
 
+
   function getPresenceMessageFor(key) {
     var rule = FLOATPLAN_VALIDATION_RULES[key];
     if (rule && rule.presence && rule.presence.message) {
@@ -519,11 +520,28 @@
       "RETURN_TIMEZONE"
     ]),
     3: buildFloatplanConstraints([]),
-    7: buildFloatplanConstraints(REQUIRED_FLOATPLAN_KEYS)
+    6: buildFloatplanConstraints(REQUIRED_FLOATPLAN_KEYS)
   };
 
-  var app = Vue.createApp({
-    data: function () {
+  function createWizardApp(options) {
+    options = options || {};
+    var onSaved = options.onSaved;
+    var onDeleted = options.onDeleted;
+    var initialPlanId = numeric(options.planId || 0);
+    if (!initialPlanId) {
+      initialPlanId = getPlanIdFromQuery();
+    }
+    var totalSteps = 6;
+    var initialStep = numeric(options.startStep || 1);
+    if (initialStep < 1) {
+      initialStep = 1;
+    }
+    if (initialStep > totalSteps) {
+      initialStep = totalSteps;
+    }
+
+    var app = Vue.createApp({
+      data: function () {
       return {
 
 
@@ -532,8 +550,8 @@
         },
 
 
-        step: 1,
-        totalSteps: 7,
+        step: initialStep,
+        totalSteps: totalSteps,
         isLoading: true,
         isSaving: false,
         statusMessage: null,
@@ -554,7 +572,7 @@
         homePortTimezone: "",
         selectedRescueCenterId: 0,
         rescueCenterSyncing: false,
-        initialPlanId: getPlanIdFromQuery()
+        initialPlanId: initialPlanId
       };
     },
 
@@ -615,8 +633,9 @@
         // Validate.js returns object map when format is "grouped"
         var errors = validator(payload, constraints, { format: "grouped", fullMessages: false });
 
-        // Custom cross-field rule (return after departure) for step 2 (or final step 7)
-        if ((stepNumber === 2 || stepNumber === 7) && payload.DEPARTURE_TIME && payload.RETURN_TIME) {
+
+        // Custom cross-field rule (return after departure) for step 2 (or final step 6)
+        if ((stepNumber === 2 || stepNumber === 6) && payload.DEPARTURE_TIME && payload.RETURN_TIME) {
           var depart = new Date(payload.DEPARTURE_TIME);
           var ret = new Date(payload.RETURN_TIME);
           if (!isNaN(depart.getTime()) && !isNaN(ret.getTime()) && ret <= depart) {
@@ -625,7 +644,7 @@
           }
         }
 
-        if ((stepNumber === 3 || stepNumber === 7) && numeric(this.selectedRescueCenterId) <= 0) {
+        if ((stepNumber === 3 || stepNumber === 6) && numeric(this.selectedRescueCenterId) <= 0) {
           if (!errors) errors = {};
           errors[RESCUE_AUTHORITY_SELECTION_FIELD] = [RESCUE_AUTHORITY_SELECTION_MESSAGE];
         }
@@ -1028,6 +1047,9 @@
           self.initialPlanId = numeric(self.fp.FLOATPLAN.FLOATPLANID) || self.initialPlanId;
           self.setStatus("Float plan saved successfully.", true);
           self.isSaving = false;
+          if (typeof onSaved === "function") {
+            onSaved(response, self);
+          }
         })
         .catch(function (err) {
           self.isSaving = false;
@@ -1059,17 +1081,96 @@
           .then(function () {
             self.isSaving = false;
             self.setStatus("Float plan deleted.", true);
-            window.setTimeout(function () {
-              window.location.href = "/fpw/app/dashboard.cfm";
-            }, 600);
+            if (typeof onDeleted === "function") {
+              onDeleted(planId, self);
+            } else {
+              window.setTimeout(function () {
+                window.location.href = "/fpw/app/dashboard.cfm";
+              }, 600);
+            }
           })
           .catch(function (err) {
             self.isSaving = false;
             self.handleError(err, "Unable to delete float plan.");
           });
       }
+    },
+
+    watch: {
+      isSaving: function (value) {
+        setCloseDisabled(!!value);
+      }
     }
   });
+    return app;
+  }
 
-  app.mount(mountEl);
+  function setCloseDisabled(disabled) {
+    var modal = document.getElementById("floatPlanWizardModal");
+    if (!modal) {
+      return;
+    }
+    var closeButton = modal.querySelector(".btn-close");
+    if (!closeButton) {
+      return;
+    }
+    closeButton.disabled = disabled;
+    closeButton.setAttribute("aria-disabled", disabled ? "true" : "false");
+  }
+
+  function initWizard(options) {
+    if (!Vue) {
+      console.error("Vue is required for the float plan wizard.");
+      return null;
+    }
+
+    options = options || {};
+    var mountEl = options.mountEl || document.getElementById("wizardApp");
+    if (!mountEl) {
+      return null;
+    }
+
+    destroyWizard();
+    wizardMountEl = mountEl;
+    if (!wizardTemplateHtml) {
+      wizardTemplateHtml = mountEl.innerHTML;
+    }
+    wizardApp = createWizardApp(options);
+    wizardAppInstance = wizardApp.mount(mountEl);
+    if (wizardAppInstance && options.startStep != null) {
+      var startStep = numeric(options.startStep);
+      if (startStep > 0) {
+        var maxSteps = numeric(wizardAppInstance.totalSteps) || 6;
+        if (startStep > maxSteps) {
+          startStep = maxSteps;
+        }
+        wizardAppInstance.step = startStep;
+      }
+    }
+    return wizardAppInstance;
+  }
+
+  function destroyWizard() {
+    if (wizardApp) {
+      wizardApp.unmount();
+    }
+    if (wizardMountEl && wizardTemplateHtml) {
+      wizardMountEl.innerHTML = wizardTemplateHtml;
+    }
+    setCloseDisabled(false);
+    wizardApp = null;
+    wizardAppInstance = null;
+    wizardMountEl = null;
+  }
+
+  window.FloatPlanWizard = window.FloatPlanWizard || {};
+  Object.assign(window.FloatPlanWizard, {
+    init: initWizard,
+    destroy: destroyWizard
+  });
+
+  var autoMountEl = document.getElementById("wizardApp");
+  if (autoMountEl && autoMountEl.getAttribute("data-init") !== "manual") {
+    initWizard({ mountEl: autoMountEl });
+  }
 })(window, document, window.Vue);
