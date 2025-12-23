@@ -254,8 +254,10 @@
 
       return (
         '<div class="list-item list-item-single" data-plan-id="' + escapeHtml(id) + '">' +
-          '<div class="list-main">' +
+          '<div class="list-col-name">' +
             '<div class="list-title">' + escapeHtml(name || "Untitled Plan") + ":</div>" +
+          "</div>" +
+          '<div class="list-col-summary">' +
             metaInline +
           "</div>" +
           '<div class="list-actions">' +
@@ -478,8 +480,10 @@
         planId: planId,
         startStep: startStep,
         onSaved: function () {
-          wizardModal.hide();
           loadFloatPlans(FLOAT_PLAN_LIMIT);
+          if (wizardModal) {
+            wizardModal.show();
+          }
         },
         onDeleted: function () {
           wizardModal.hide();

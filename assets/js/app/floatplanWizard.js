@@ -602,6 +602,11 @@
     },
 
     watch: {
+      step: function (nextStep, prevStep) {
+        if (nextStep !== prevStep) {
+          this.clearStatus();
+        }
+      },
       "fp.FLOATPLAN.RESCUE_AUTHORITY": function () {
         this.syncRescueCenterSelection();
       },
@@ -704,11 +709,13 @@
           return;
         }
         this.step += 1;
+        this.clearStatus();
       },
 
       prevStep: function () {
         if (this.step > 1) {
           this.step -= 1;
+          this.clearStatus();
         }
       },
 
