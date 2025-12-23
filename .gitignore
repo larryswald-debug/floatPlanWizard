@@ -8,6 +8,7 @@ WEB-INF/cfusion/logs/
 *.log
 git_commands.txt
 prompts.txt
+.pw-home/.npm/
 
 # ===== Docker =====
 docker/volumes/
