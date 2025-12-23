@@ -135,11 +135,15 @@
                 </div>
             </div>
             <div class="card-body" id="floatPlansBody">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-3" id="floatPlansFilterBar">
+                    <div class="flex-grow-1" id="floatPlansFilterInputWrap">
+                        <input type="text" id="floatPlansFilterInput" class="form-control" placeholder="Filter float plans…" autocomplete="off">
+                    </div>
+                    <small class="card-subtitle" id="floatPlansFilterCount">Showing 0 of 0</small>
+                    <button type="button" class="btn-secondary" id="floatPlansFilterClear">Clear</button>
+                </div>
                 <p id="floatPlansMessage" class="empty">Loading float plans…</p>
                 <div id="floatPlansList"></div>
-            </div>
-            <div class="card-footer">
-                <button class="btn-secondary" type="button" id="viewAllFloatPlansBtn">View All</button>
             </div>
         </section>
 
@@ -237,14 +241,14 @@
     </div>
 </main>
 
-<div class="modal fade" id="floatPlanWizardModal" tabindex="-1" aria-labelledby="floatPlanWizardLabel" aria-hidden="true">
+<div class="modal fade" id="floatPlanWizardModal" tabindex="-1" aria-labelledby="floatPlanWizardLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="floatPlanWizardLabel">Float Plan Wizard</h5>
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="floatPlanWizardLabel">Float Plan Wizard</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body wizard-body">
+            <div class="modal-body card-body wizard-body">
                 <div id="wizardApp" class="wizard-container" data-init="manual">
 
                     <div v-if="isLoading" class="text-center py-5">
@@ -255,10 +259,10 @@
                     <template v-else>
                         <form id="floatplanWizardForm" novalidate @submit.prevent>
                             <div class="wizard-steps mb-3">
-                            <span v-for="n in totalSteps"
+                            <span v-for="n in Math.min(totalSteps, 6)"
                                   :key="'step-badge-' + n"
-                                  class="badge"
-                                  :class="n === step ? 'bg-primary' : 'bg-secondary'">
+                                  class="badge wizard-step-badge"
+                                  :class="n === step ? 'wizard-step-badge--active' : 'wizard-step-badge--inactive'">
                                 Step {{ n }}
                             </span>
                         </div>
@@ -271,7 +275,7 @@
                         <section v-if="step === 1">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h2 class="h5 mb-0">Step 1 – Basics</h2>
-                                <button type="button" class="btn btn-primary btn-sm" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
+                                <button type="button" class="btn-primary" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
                                     {{ nextButtonLabel }}
                                 </button>
                             </div>
@@ -502,7 +506,7 @@
                         <!-- Step 4 -->
                         <section v-if="step === 4">
                             <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h2 class="h5 mb-0">Step 4 – Passengers & Crew</h2>
+                                <h2 class="h5 mb-0">Step 4 – Passengers, Crew & Contacts</h2>
                                 <button type="button" class="btn btn-primary btn-sm" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
                                     {{ nextButtonLabel }}
                                 </button>
@@ -521,36 +525,29 @@
                                     </span>
                                 </button>
                             </div>
+
+                            <div class="mt-4">
+                                <p class="small text-muted">Tap to include for notifications.</p>
+                                <div class="list-group">
+                                    <button
+                                        v-for="c in contacts"
+                                        :key="'c-'+c.CONTACTID"
+                                        type="button"
+                                        class="list-group-item list-group-item-action list-group-button"
+                                        @click="toggleContact(c)">
+                                        <span>{{ c.CONTACTNAME }}</span>
+                                        <span class="badge" :class="isContactSelected(c.CONTACTID) ? 'bg-success' : 'bg-secondary'">
+                                            {{ isContactSelected(c.CONTACTID) ? 'Included' : 'Tap to add' }}
+                                        </span>
+                                    </button>
+                                </div>
+                            </div>
                         </section>
 
                         <!-- Step 5 -->
                         <section v-if="step === 5">
                             <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h2 class="h5 mb-0">Step 5 – Contacts</h2>
-                                <button type="button" class="btn btn-primary btn-sm" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
-                                    {{ nextButtonLabel }}
-                                </button>
-                            </div>
-                            <p class="small text-muted">Tap to include for notifications.</p>
-                            <div class="list-group">
-                                <button
-                                    v-for="c in contacts"
-                                    :key="'c-'+c.CONTACTID"
-                                    type="button"
-                                    class="list-group-item list-group-item-action list-group-button"
-                                    @click="toggleContact(c)">
-                                    <span>{{ c.CONTACTNAME }}</span>
-                                    <span class="badge" :class="isContactSelected(c.CONTACTID) ? 'bg-success' : 'bg-secondary'">
-                                        {{ isContactSelected(c.CONTACTID) ? 'Included' : 'Tap to add' }}
-                                    </span>
-                                </button>
-                            </div>
-                        </section>
-
-                        <!-- Step 6 -->
-                        <section v-if="step === 6">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h2 class="h5 mb-0">Step 6 – Waypoints</h2>
+                                <h2 class="h5 mb-0">Step 5 – Waypoints</h2>
                                 <button type="button" class="btn btn-primary btn-sm" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
                                     {{ nextButtonLabel }}
                                 </button>
@@ -573,9 +570,9 @@
                             </div>
                         </section>
 
-                        <!-- Step 7 -->
-                        <section v-if="step === 7">
-                            <h2 class="h5 mb-3">Step 7 – Review</h2>
+                        <!-- Step 6 -->
+                        <section v-if="step === 6">
+                            <h2 class="h5 mb-3">Step 6 – Review</h2>
 
                             <h3 class="h6">Review</h3>
                             <ul class="list-group small mb-3">
@@ -612,21 +609,24 @@
                             </ul>
 
                             <div class="d-flex gap-2 mb-3" v-if="fp.FLOATPLAN.FLOATPLANID">
-                                <button type="button" class="btn btn-outline-danger w-100" @click="confirmDelete" :disabled="isSaving">
-                                    Delete Float Plan
-                                </button>
+                            <button type="button" class="btn-danger w-100" @click="confirmDelete" :disabled="isSaving">
+                                Delete Float Plan
+                            </button>
                             </div>
 
-                            <button type="button" class="btn btn-primary w-100" @click="submitPlan" :disabled="isSaving">
+                            <button type="button" class="btn-primary w-100" @click="submitPlan" :disabled="isSaving">
                                 {{ isSaving ? 'Saving…' : 'Save Float Plan' }}
                             </button>
                         </section>
 
                         <div class="wizard-nav">
-                            <button type="button" class="btn btn-outline-secondary" :disabled="step === 1 || isSaving" @click="prevStep">
+                            <button type="button" class="btn-secondary" :disabled="step === 1 || isSaving" @click="prevStep">
                                 Back
                             </button>
-                            <button type="button" class="btn btn-primary" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
+                            <button type="button" class="btn-primary" v-if="fp.FLOATPLAN.FLOATPLANID" :disabled="isSaving" @click="submitPlan">
+                                {{ isSaving ? 'Saving…' : 'Save Float Plan' }}
+                            </button>
+                            <button type="button" class="btn-primary" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
                                 {{ nextButtonLabel }}
                             </button>
                         </div>
@@ -634,6 +634,22 @@
                     </template>
 
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="floatPlanCloneModal" tabindex="-1" aria-labelledby="floatPlanCloneLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="floatPlanCloneLabel">Float Plan Cloned</h5>
+            </div>
+            <div class="modal-body card-body">
+                <p class="mb-0" data-clone-message>Float plan has been cloned.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-primary" data-clone-ok>OK</button>
             </div>
         </div>
     </div>

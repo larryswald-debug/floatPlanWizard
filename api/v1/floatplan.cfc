@@ -73,6 +73,21 @@
                     <cfoutput>#serializeJSON(saveResult)#</cfoutput>
                 </cfcase>
 
+                <cfcase value="clone">
+                    <cfset var cloneId = 0>
+                    <cfif structKeyExists(body, "floatPlanId")>
+                        <cfset cloneId = val(body.floatPlanId)>
+                    <cfelseif structKeyExists(url, "floatPlanId")>
+                        <cfset cloneId = val(url.floatPlanId)>
+                    <cfelseif structKeyExists(url, "id")>
+                        <cfset cloneId = val(url.id)>
+                    </cfif>
+
+                    <cfset var cloneResult = cloneFloatPlan(userId, cloneId)>
+                    <cfset cloneResult.AUTH = true>
+                    <cfoutput>#serializeJSON(cloneResult)#</cfoutput>
+                </cfcase>
+
                 <cfcase value="delete">
                     <cfset var deleteId = 0>
                     <cfif structKeyExists(body, "floatPlanId")>
@@ -291,6 +306,8 @@
 
             var ds = "fpw";
 
+            planName = ensureUniquePlanName(arguments.userId, planId, planName, ds);
+
             transaction {
                 if (planId LTE 0) {
                     queryExecute("
@@ -484,6 +501,251 @@
             result.PLAN_CONTACTS = savedSelections.CONTACTS;
             result.PLAN_WAYPOINTS = savedSelections.WAYPOINTS;
 
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="ensureUniquePlanName" access="private" returntype="string" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="planId" type="numeric" required="true">
+        <cfargument name="planName" type="string" required="true">
+        <cfargument name="datasource" type="string" required="true">
+        <cfscript>
+            var baseNameRaw = trim(arguments.planName);
+            var baseName = baseNameRaw;
+            var suffix = 0;
+            var candidate = baseNameRaw;
+            var dupCheck = {};
+
+            if (NOT len(baseNameRaw)) {
+                return baseNameRaw;
+            }
+
+            var lastSegment = listLast(baseNameRaw, "_");
+            if (listLen(baseNameRaw, "_") GT 1 AND isNumeric(lastSegment)) {
+                baseName = left(baseNameRaw, len(baseNameRaw) - len(lastSegment) - 1);
+                if (len(baseName)) {
+                    suffix = val(lastSegment);
+                } else {
+                    baseName = baseNameRaw;
+                    suffix = 0;
+                }
+            }
+
+            do {
+                dupCheck = queryExecute(
+                    "SELECT COUNT(*) AS nameCount
+                     FROM floatplans
+                     WHERE userId = ?
+                       AND floatPlanName = ?
+                       AND floatplanId <> ?",
+                    [
+                        { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                        { value = candidate, cfsqltype = "cf_sql_varchar" },
+                        { value = arguments.planId, cfsqltype = "cf_sql_integer" }
+                    ],
+                    { datasource = arguments.datasource }
+                );
+
+                if (dupCheck.recordCount EQ 0 OR dupCheck.nameCount[1] EQ 0) {
+                    return candidate;
+                }
+
+                suffix = suffix + 1;
+                candidate = baseName & "_" & suffix;
+            } while (true);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="cloneFloatPlan" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var result = { SUCCESS = false };
+            if (arguments.floatPlanId LTE 0) {
+                result.ERROR = "INVALID_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            var planExists = queryExecute("
+                SELECT floatplanId
+                  FROM floatplans
+                 WHERE floatplanId = :planId
+                   AND userId = :userId
+                 LIMIT 1
+            ", {
+                planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+            }, { datasource = "fpw" });
+
+            if (planExists.recordCount EQ 0) {
+                result.ERROR = "NOT_FOUND";
+                result.MESSAGE = "Float plan not found.";
+                return result;
+            }
+
+            var planData = loadFloatPlan(arguments.userId, arguments.floatPlanId);
+            var selections = loadPlanSelections(arguments.userId, arguments.floatPlanId);
+            var ds = "fpw";
+
+            var baseName = trim(pickValue(planData, ["NAME"], "Float Plan"));
+            if (NOT len(baseName)) {
+                baseName = "Float Plan";
+            }
+
+            var cloneName = ensureUniquePlanName(arguments.userId, 0, baseName, ds);
+            var newPlanId = 0;
+
+            var vesselId = val(pickValue(planData, ["VESSELID"], 0));
+            var operatorId = val(pickValue(planData, ["OPERATORID"], 0));
+            var operatorHasPfd = booleanValue(pickValue(planData, ["OPERATOR_HAS_PFD"], true));
+            var email = trim(pickValue(planData, ["EMAIL"], ""));
+            var rescueAuthority = trim(pickValue(planData, ["RESCUE_AUTHORITY"], ""));
+            var rescuePhone = trim(pickValue(planData, ["RESCUE_AUTHORITY_PHONE"], ""));
+            var rescueCenterId = val(pickValue(planData, ["RESCUE_CENTERID"], 0));
+            var departingFrom = trim(pickValue(planData, ["DEPARTING_FROM"], ""));
+            var departureTime = trim(pickValue(planData, ["DEPARTURE_TIME"], ""));
+            var departureTz = trim(pickValue(planData, ["DEPARTURE_TIMEZONE"], ""));
+            var returningTo = trim(pickValue(planData, ["RETURNING_TO"], ""));
+            var returnTime = trim(pickValue(planData, ["RETURN_TIME"], ""));
+            var returnTz = trim(pickValue(planData, ["RETURN_TIMEZONE"], ""));
+            var foodDays = trim(pickValue(planData, ["FOOD_DAYS_PER_PERSON"], ""));
+            var waterDays = trim(pickValue(planData, ["WATER_DAYS_PER_PERSON"], ""));
+            var notes = trim(pickValue(planData, ["NOTES"], ""));
+            var status = trim(pickValue(planData, ["STATUS"], "Draft"));
+
+            transaction {
+                queryExecute("
+                    INSERT INTO floatplans
+                    (
+                        userId,
+                        floatPlanName,
+                        vesselId,
+                        operatorId,
+                        opHasPfd,
+                        floatPlanEmail,
+                        rescueAuthority,
+                        rescueAuthorityPhone,
+                        rescueCenterId,
+                        departing,
+                        departureTime,
+                        departTimezone,
+                        returning,
+                        returnTime,
+                        returnTimezone,
+                        food,
+                        water,
+                        notes,
+                        status,
+                        dateCreated,
+                        lastUpdate
+                    )
+                    VALUES
+                    (
+                        :userId,
+                        :planName,
+                        :vesselId,
+                        :operatorId,
+                        :operatorHasPfd,
+                        :email,
+                        :rescueAuthority,
+                        :rescuePhone,
+                        :rescueCenterId,
+                        :departingFrom,
+                        :departureTime,
+                        :departureTz,
+                        :returningTo,
+                        :returnTime,
+                        :returnTz,
+                        :foodDays,
+                        :waterDays,
+                        :notes,
+                        :status,
+                        NOW(),
+                        NOW()
+                    )
+                ", {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                    planName = { value = cloneName, cfsqltype = "cf_sql_varchar" },
+                    vesselId = { value = vesselId, cfsqltype = "cf_sql_integer" },
+                    operatorId = { value = operatorId, cfsqltype = "cf_sql_integer", null = (operatorId LTE 0) },
+                    operatorHasPfd = { value = operatorHasPfd, cfsqltype = "cf_sql_bit" },
+                    email = { value = email, cfsqltype = "cf_sql_varchar", null = NOT len(email) },
+                    rescueAuthority = { value = rescueAuthority, cfsqltype = "cf_sql_varchar", null = NOT len(rescueAuthority) },
+                    rescuePhone = { value = rescuePhone, cfsqltype = "cf_sql_varchar", null = NOT len(rescuePhone) },
+                    rescueCenterId = { value = rescueCenterId, cfsqltype = "cf_sql_integer", null = (rescueCenterId LTE 0) },
+                    departingFrom = { value = departingFrom, cfsqltype = "cf_sql_varchar", null = NOT len(departingFrom) },
+                    departureTime = { value = departureTime, cfsqltype = "cf_sql_timestamp", null = NOT len(departureTime) },
+                    departureTz = { value = departureTz, cfsqltype = "cf_sql_varchar", null = NOT len(departureTz) },
+                    returningTo = { value = returningTo, cfsqltype = "cf_sql_varchar", null = NOT len(returningTo) },
+                    returnTime = { value = returnTime, cfsqltype = "cf_sql_timestamp", null = NOT len(returnTime) },
+                    returnTz = { value = returnTz, cfsqltype = "cf_sql_varchar", null = NOT len(returnTz) },
+                    foodDays = { value = foodDays, cfsqltype = "cf_sql_varchar", null = NOT len(foodDays) },
+                    waterDays = { value = waterDays, cfsqltype = "cf_sql_varchar", null = NOT len(waterDays) },
+                    notes = { value = notes, cfsqltype = "cf_sql_varchar", null = NOT len(notes) },
+                    status = { value = status, cfsqltype = "cf_sql_varchar", null = NOT len(status) }
+                }, { datasource = ds });
+
+                var newIdQuery = queryExecute("SELECT LAST_INSERT_ID() AS newId", {}, { datasource = ds });
+                newPlanId = newIdQuery.newId;
+
+                for (var pIndex = 1; pIndex LTE arrayLen(selections.PASSENGERS); pIndex++) {
+                    var p = selections.PASSENGERS[pIndex];
+                    var passengerId = val(pickValue(p, ["PASSENGERID", "passengerId"], 0));
+                    if (passengerId LTE 0) continue;
+                    var hasPfd = booleanValue(pickValue(p, ["HAS_PFD", "hasPfd"], true));
+                    queryExecute("
+                        INSERT INTO floatplan_passengers (passId, floatplanId, hasPdf)
+                        VALUES (:passengerId, :planId, :hasPfd)
+                    ", {
+                        planId = { value = newPlanId, cfsqltype = "cf_sql_integer" },
+                        passengerId = { value = passengerId, cfsqltype = "cf_sql_integer" },
+                        hasPfd = { value = hasPfd, cfsqltype = "cf_sql_bit" }
+                    }, { datasource = ds });
+                }
+
+                for (var cIndex = 1; cIndex LTE arrayLen(selections.CONTACTS); cIndex++) {
+                    var c = selections.CONTACTS[cIndex];
+                    var contactId = val(pickValue(c, ["CONTACTID", "contactId"], 0));
+                    if (contactId LTE 0) continue;
+                    queryExecute("
+                        INSERT INTO floatplan_contacts (contactId, floatplanId)
+                        VALUES (:contactId, :planId)
+                    ", {
+                        contactId = { value = contactId, cfsqltype = "cf_sql_integer" },
+                        planId = { value = newPlanId, cfsqltype = "cf_sql_integer" }
+                    }, { datasource = ds });
+                }
+
+                for (var wIndex = 1; wIndex LTE arrayLen(selections.WAYPOINTS); wIndex++) {
+                    var w = selections.WAYPOINTS[wIndex];
+                    var waypointId = val(pickValue(w, ["WAYPOINTID", "waypointId"], 0));
+                    if (waypointId LTE 0) continue;
+                    var reason = trim(pickValue(w, ["REASON_FOR_STOP", "reasonForStop"], ""));
+                    var departMode = trim(pickValue(w, ["DEPART_MODE", "departMode"], ""));
+                    var arrivalAt = trim(pickValue(w, ["ARRIVAL_TIME", "arrivalTime"], ""));
+                    var departAt = trim(pickValue(w, ["DEPARTURE_TIME", "departureTime"], ""));
+
+                    queryExecute("
+                        INSERT INTO floatplan_waypoints
+                            (wayPointId, floatPlanId, reason, departType, arrival, departure)
+                        VALUES
+                            (:waypointId, :planId, :reason, :departMode, :arrivalAt, :departAt)
+                    ", {
+                        planId = { value = newPlanId, cfsqltype = "cf_sql_integer" },
+                        waypointId = { value = waypointId, cfsqltype = "cf_sql_integer" },
+                        reason = { value = reason, cfsqltype = "cf_sql_varchar", null = NOT len(reason) },
+                        departMode = { value = departMode, cfsqltype = "cf_sql_varchar", null = NOT len(departMode) },
+                        arrivalAt = { value = arrivalAt, cfsqltype = "cf_sql_timestamp", null = NOT len(arrivalAt) },
+                        departAt = { value = departAt, cfsqltype = "cf_sql_timestamp", null = NOT len(departAt) }
+                    }, { datasource = ds });
+                }
+            }
+
+            result.SUCCESS = true;
+            result.FLOATPLANID = newPlanId;
+            result.CLONED_NAME = cloneName;
             return result;
         </cfscript>
     </cffunction>

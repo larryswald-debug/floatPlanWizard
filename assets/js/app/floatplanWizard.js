@@ -500,6 +500,7 @@
     return false;
   }
 
+
   function getPresenceMessageFor(key) {
     var rule = FLOATPLAN_VALIDATION_RULES[key];
     if (rule && rule.presence && rule.presence.message) {
@@ -519,7 +520,7 @@
       "RETURN_TIMEZONE"
     ]),
     3: buildFloatplanConstraints([]),
-    7: buildFloatplanConstraints(REQUIRED_FLOATPLAN_KEYS)
+    6: buildFloatplanConstraints(REQUIRED_FLOATPLAN_KEYS)
   };
 
   function createWizardApp(options) {
@@ -529,6 +530,14 @@
     var initialPlanId = numeric(options.planId || 0);
     if (!initialPlanId) {
       initialPlanId = getPlanIdFromQuery();
+    }
+    var totalSteps = 6;
+    var initialStep = numeric(options.startStep || 1);
+    if (initialStep < 1) {
+      initialStep = 1;
+    }
+    if (initialStep > totalSteps) {
+      initialStep = totalSteps;
     }
 
     var app = Vue.createApp({
@@ -541,8 +550,8 @@
         },
 
 
-        step: 1,
-        totalSteps: 7,
+        step: initialStep,
+        totalSteps: totalSteps,
         isLoading: true,
         isSaving: false,
         statusMessage: null,
@@ -624,8 +633,9 @@
         // Validate.js returns object map when format is "grouped"
         var errors = validator(payload, constraints, { format: "grouped", fullMessages: false });
 
-        // Custom cross-field rule (return after departure) for step 2 (or final step 7)
-        if ((stepNumber === 2 || stepNumber === 7) && payload.DEPARTURE_TIME && payload.RETURN_TIME) {
+
+        // Custom cross-field rule (return after departure) for step 2 (or final step 6)
+        if ((stepNumber === 2 || stepNumber === 6) && payload.DEPARTURE_TIME && payload.RETURN_TIME) {
           var depart = new Date(payload.DEPARTURE_TIME);
           var ret = new Date(payload.RETURN_TIME);
           if (!isNaN(depart.getTime()) && !isNaN(ret.getTime()) && ret <= depart) {
@@ -634,7 +644,7 @@
           }
         }
 
-        if ((stepNumber === 3 || stepNumber === 7) && numeric(this.selectedRescueCenterId) <= 0) {
+        if ((stepNumber === 3 || stepNumber === 6) && numeric(this.selectedRescueCenterId) <= 0) {
           if (!errors) errors = {};
           errors[RESCUE_AUTHORITY_SELECTION_FIELD] = [RESCUE_AUTHORITY_SELECTION_MESSAGE];
         }
@@ -1084,9 +1094,28 @@
             self.handleError(err, "Unable to delete float plan.");
           });
       }
+    },
+
+    watch: {
+      isSaving: function (value) {
+        setCloseDisabled(!!value);
+      }
     }
   });
     return app;
+  }
+
+  function setCloseDisabled(disabled) {
+    var modal = document.getElementById("floatPlanWizardModal");
+    if (!modal) {
+      return;
+    }
+    var closeButton = modal.querySelector(".btn-close");
+    if (!closeButton) {
+      return;
+    }
+    closeButton.disabled = disabled;
+    closeButton.setAttribute("aria-disabled", disabled ? "true" : "false");
   }
 
   function initWizard(options) {
@@ -1108,6 +1137,16 @@
     }
     wizardApp = createWizardApp(options);
     wizardAppInstance = wizardApp.mount(mountEl);
+    if (wizardAppInstance && options.startStep != null) {
+      var startStep = numeric(options.startStep);
+      if (startStep > 0) {
+        var maxSteps = numeric(wizardAppInstance.totalSteps) || 6;
+        if (startStep > maxSteps) {
+          startStep = maxSteps;
+        }
+        wizardAppInstance.step = startStep;
+      }
+    }
     return wizardAppInstance;
   }
 
@@ -1118,6 +1157,7 @@
     if (wizardMountEl && wizardTemplateHtml) {
       wizardMountEl.innerHTML = wizardTemplateHtml;
     }
+    setCloseDisabled(false);
     wizardApp = null;
     wizardAppInstance = null;
     wizardMountEl = null;

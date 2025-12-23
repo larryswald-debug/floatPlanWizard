@@ -361,6 +361,98 @@ main.dashboard-main{
   border-color: rgba(255, 77, 79, 0.55);
 }
 
+/* ---------- Float plan wizard modal uses dashboard panel styling ---------- */
+#floatPlanWizardModal .modal-content.dashboard-card{
+  min-height: auto;
+  max-height: none;
+}
+
+#floatPlanWizardModal .modal-dialog{
+  max-width: 770px;
+}
+
+#floatPlanWizardModal .modal-title{
+  margin: 0;
+  font-size: 0.92rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#floatPlanWizardModal .wizard-body{
+  background: transparent;
+  color: var(--text);
+}
+
+#floatPlanWizardModal .wizard-container{
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+#floatPlanWizardModal #floatplanWizardForm{
+  padding-left: 50px;
+  padding-right: 50px;
+}
+
+#floatPlanWizardModal .btn-outline-secondary{
+  background: rgba(255,255,255,0.06);
+  border-color: var(--panel-border);
+  color: var(--text);
+}
+
+#floatPlanWizardModal .btn-outline-danger{
+  background: rgba(255, 77, 79, 0.16);
+  border-color: rgba(255, 77, 79, 0.35);
+  color: var(--text);
+}
+
+#floatPlanWizardModal .wizard-step-badge{
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--panel-border);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text);
+  background: rgba(255,255,255,0.05);
+  letter-spacing: 0.02em;
+}
+
+#floatPlanWizardModal .wizard-step-badge--active{
+  background: rgba(53, 208, 198, 0.18);
+  border-color: rgba(53, 208, 198, 0.35);
+}
+
+#floatPlanWizardModal .wizard-step-badge--inactive{
+  background: rgba(255,255,255,0.06);
+  border-color: var(--panel-border);
+}
+
+#floatPlanWizardModal .btn-close{
+  background-color: transparent;
+  border: 0;
+  box-shadow: none;
+  opacity: 1;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2'%3e%3cpath d='M2 2l12 12M14 2L2 14'/%3e%3c/svg%3e");
+  background-size: 1em 1em;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: none;
+}
+
+/* ---------- Float plans filter width ---------- */
+#floatPlansFilterInputWrap{
+  flex: 0 0 25%;
+  max-width: 25%;
+  width: 25%;
+}
+
+
 /* ---------- List rows ---------- */
 .list-item{
   padding: 0.6rem 0;
@@ -399,11 +491,27 @@ main.dashboard-main{
 .list-item:hover::after{ opacity: 0.9; }
 
 .list-item-multi{ align-items: flex-start; }
+.list-item-single{
+  align-items: center;
+  flex-wrap: nowrap;
+}
 .list-main{ flex: 1; min-width: 0; }
+.list-item-single .list-main{
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  text-align: left;
+}
 
 .list-title{
   font-weight: 600;
   margin-bottom: 0.25rem;
+}
+.list-item-single .list-title{
+  margin-bottom: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .list-meta{
@@ -413,6 +521,13 @@ main.dashboard-main{
   flex-wrap: wrap;
   gap: 0.35rem;
   margin-top: 0.15rem;
+}
+.list-item-single .list-meta{
+  margin-top: 0;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .meta-sep{ color: rgba(255,255,255,0.14); }
@@ -424,6 +539,16 @@ main.dashboard-main{
   font-style: italic;
 }
 #floatPlansMessage{ margin: 0; }
+#floatPlansBody{
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#floatPlansList{
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
 
 /* ---------- Status dots ---------- */
 .status-dot{

@@ -3,7 +3,9 @@
   "use strict";
 
   var floatPlanState = {
-    plans: []
+    all: [],
+    filtered: [],
+    query: ""
   };
 
   var FALLBACK_LOGIN_URL = "/fpw/app/login.cfm";
@@ -27,10 +29,14 @@
     return window.AppAuth ? window.AppAuth.ensureAuthenticated(data) : true;
   }
 
-  var FLOAT_PLAN_LIMIT = 5;
+  var FLOAT_PLAN_LIMIT = 100;
   var wizardModalEl = null;
   var wizardModal = null;
   var wizardMountEl = null;
+  var cloneModalEl = null;
+  var cloneModal = null;
+  var cloneMessageEl = null;
+  var cloneOkButton = null;
 
   function showDashboardAlert(message, type) {
     var alertEl = document.getElementById("dashboardAlert");
@@ -86,6 +92,31 @@
     return datePart + " " + timePart;
   }
 
+  function parsePlanDate(value) {
+    if (!value) return 0;
+    var date = new Date(value);
+    var time = date.getTime();
+    return isNaN(time) ? 0 : time;
+  }
+
+  function debounce(fn, delay) {
+    var timerId = null;
+    return function () {
+      var args = arguments;
+      if (timerId) {
+        window.clearTimeout(timerId);
+      }
+      timerId = window.setTimeout(function () {
+        timerId = null;
+        fn.apply(null, args);
+      }, delay);
+    };
+  }
+
+  function normalizeSearch(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
   function setFloatPlansSummary(text) {
     var el = document.getElementById("floatPlansSummary");
     if (!el) return;
@@ -108,6 +139,12 @@
 
     var summaryText = activeCount + " active • " + plans.length + " total";
     setFloatPlansSummary(summaryText);
+  }
+
+  function setFloatPlansFilterCount(filteredCount, totalCount) {
+    var countEl = document.getElementById("floatPlansFilterCount");
+    if (!countEl) return;
+    countEl.textContent = "Showing " + filteredCount + " of " + totalCount;
   }
 
   function setFloatPlansMessage(text, isError) {
@@ -147,6 +184,7 @@
         cls = "bg-dark";
         break;
       case "DRAFT":
+        return "";
       default:
         cls = "bg-secondary";
         break;
@@ -155,20 +193,26 @@
     return '<span class="badge ' + cls + '">' + escapeHtml(normalized) + "</span>";
   }
 
-  function renderFloatPlans(plans) {
+  function renderFloatPlansList(plans, totalCount) {
     var listEl = document.getElementById("floatPlansList");
     if (!listEl) return;
 
-    updateFloatPlansSummary(plans);
-
+    var currentQuery = floatPlanState.query || "";
     if (!plans || !plans.length) {
       listEl.innerHTML = "";
-      setFloatPlansMessage("You don’t have any float plans yet.", false);
+      if (!totalCount) {
+        setFloatPlansMessage("You don’t have any float plans yet.", false);
+      } else if (currentQuery) {
+        setFloatPlansMessage("No float plans match your filter.", false);
+      } else {
+        setFloatPlansMessage("You don’t have any float plans yet.", false);
+      }
       return;
     }
 
     setFloatPlansMessage("", false);
 
+    var scrollTop = listEl.scrollTop;
     var rows = plans.map(function (plan) {
       var id = pick(plan, ["FLOATPLANID", "PLANID", "ID"], "");
       var name = pick(plan, ["PLANNAME", "NAME"], "");
@@ -194,28 +238,30 @@
       var statusBadge = renderStatusBadge(status);
       var updatedText = updated ? "Updated " + updated : "";
 
-      var statusLine = "";
-      if (statusBadge || metaText) {
-        statusLine =
-          '<div class="list-meta">' +
-          (statusBadge ? statusBadge : "") +
-          (statusBadge && metaText ? '<span class="meta-sep">•</span>' : "") +
-          (metaText ? escapeHtml(metaText) : "") +
-          "</div>";
+      var metaPartsInline = [];
+      if (statusBadge) {
+        metaPartsInline.push(statusBadge);
       }
-
-      var updatedLine = updatedText
-        ? '<div class="list-meta text-muted">' + escapeHtml(updatedText) + "</div>"
+      if (metaText) {
+        metaPartsInline.push('<span class="list-meta-text">' + escapeHtml(metaText) + "</span>");
+      }
+      if (updatedText) {
+        metaPartsInline.push('<span class="list-meta-text text-muted">' + escapeHtml(updatedText) + "</span>");
+      }
+      var metaInline = metaPartsInline.length
+        ? '<div class="list-meta list-meta-inline">' + metaPartsInline.join('<span class="meta-sep">•</span>') + "</div>"
         : "";
 
       return (
-        '<div class="list-item list-item-multi" data-plan-id="' + escapeHtml(id) + '">' +
+        '<div class="list-item list-item-single" data-plan-id="' + escapeHtml(id) + '">' +
           '<div class="list-main">' +
-            '<div class="list-title">' + escapeHtml(name || "Untitled Plan") + "</div>" +
-            statusLine +
-            updatedLine +
+            '<div class="list-title">' + escapeHtml(name || "Untitled Plan") + ":</div>" +
+            metaInline +
           "</div>" +
           '<div class="list-actions">' +
+            '<button class="btn-secondary" type="button" data-action="view" data-plan-id="' + escapeHtml(id) + '">View</button>' +
+            '<button class="btn-secondary" type="button" data-action="send" data-plan-id="' + escapeHtml(id) + '">Send</button>' +
+            '<button class="btn-secondary" type="button" data-action="clone" data-plan-id="' + escapeHtml(id) + '">Clone</button>' +
             '<button class="btn-secondary" type="button" data-action="edit" data-plan-id="' + escapeHtml(id) + '">Edit</button>' +
             '<button class="btn-danger" type="button" data-action="delete" data-plan-id="' + escapeHtml(id) + '">Delete</button>' +
           "</div>" +
@@ -224,6 +270,71 @@
     }).join("");
 
     listEl.innerHTML = rows;
+    listEl.scrollTop = scrollTop;
+  }
+
+  function buildPlanSearchText(plan) {
+    var name = pick(plan, ["PLANNAME", "NAME"], "");
+    var status = pick(plan, ["STATUS", "status"], "");
+    var vessel = pick(plan, ["VESSELNAME", "VESSEL"], "");
+    var depart = pick(plan, ["DEPARTDATETIME", "DEPARTUREDATE", "departAt", "DEPARTURE_TIME", "DEPARTING_FROM"], "");
+    var returnBy = pick(plan, ["RETURNDATETIME", "RETURNDATE", "returnAt", "RETURN_TIME", "RETURNING_TO", "DESTINATION"], "");
+    var updated = pick(plan, ["UPDATEDDATE", "UPDATEDAT", "MODIFIEDDATE"], "");
+    var pieces = [
+      name,
+      status,
+      vessel,
+      depart,
+      returnBy,
+      updated,
+      formatPlanDate(depart),
+      formatPlanDate(returnBy),
+      formatPlanDate(updated)
+    ];
+    return normalizeSearch(pieces.join(" "));
+  }
+
+  function applyFloatPlanFilter(rawQuery) {
+    var normalized = normalizeSearch(rawQuery);
+    floatPlanState.query = normalized;
+
+    var source = floatPlanState.all || [];
+    var filtered = normalized
+      ? source.filter(function (plan) {
+          return buildPlanSearchText(plan).indexOf(normalized) !== -1;
+        })
+      : source.slice();
+
+    floatPlanState.filtered = filtered;
+    renderFloatPlansList(filtered, source.length);
+    setFloatPlansFilterCount(filtered.length, source.length);
+
+    var clearBtn = document.getElementById("floatPlansFilterClear");
+    if (clearBtn) {
+      clearBtn.disabled = !normalized;
+    }
+  }
+
+  function initFloatPlansFilter() {
+    var inputEl = document.getElementById("floatPlansFilterInput");
+    var clearBtn = document.getElementById("floatPlansFilterClear");
+    if (!inputEl) return;
+
+    var debouncedFilter = debounce(function () {
+      applyFloatPlanFilter(inputEl.value);
+    }, 250);
+
+    inputEl.addEventListener("input", function () {
+      debouncedFilter();
+    });
+
+    if (clearBtn) {
+      clearBtn.addEventListener("click", function () {
+        inputEl.value = "";
+        applyFloatPlanFilter("");
+        inputEl.focus();
+      });
+    }
   }
 
   function loadFloatPlans(limit) {
@@ -253,8 +364,22 @@
         }
 
         var plans = data.PLANS || data.FLOATPLANS || data.floatplans || [];
-        floatPlanState.plans = plans;
-        renderFloatPlans(plans);
+        plans = plans.slice().sort(function (a, b) {
+          var aCreated = parsePlanDate(pick(a, ["CREATEDDATE", "CREATEDAT", "DATECREATED", "CREATED_ON", "CREATED", "createdAt", "created_on"], ""));
+          var bCreated = parsePlanDate(pick(b, ["CREATEDDATE", "CREATEDAT", "DATECREATED", "CREATED_ON", "CREATED", "createdAt", "created_on"], ""));
+          if (aCreated !== bCreated) {
+            return bCreated - aCreated;
+          }
+          var aId = parseInt(pick(a, ["FLOATPLANID", "PLANID", "ID"], 0), 10);
+          var bId = parseInt(pick(b, ["FLOATPLANID", "PLANID", "ID"], 0), 10);
+          if (isNaN(aId)) aId = 0;
+          if (isNaN(bId)) bId = 0;
+          return bId - aId;
+        });
+        floatPlanState.all = plans;
+        updateFloatPlansSummary(plans);
+        var inputEl = document.getElementById("floatPlansFilterInput");
+        applyFloatPlanFilter(inputEl ? inputEl.value : "");
       })
       .catch(function (err) {
         console.error("Failed to load float plans:", err);
@@ -282,11 +407,66 @@
           window.FloatPlanWizard.destroy();
         }
       });
+      var closeButton = wizardModalEl.querySelector(".btn-close");
+      if (closeButton) {
+        closeButton.addEventListener("click", function () {
+          if (window.FloatPlanWizard && typeof window.FloatPlanWizard.destroy === "function") {
+            window.FloatPlanWizard.destroy();
+          }
+        });
+      }
       wizardModalEl.dataset.listenersAttached = "true";
     }
   }
 
-  function openWizard(planId) {
+  function ensureCloneModal() {
+    if (!cloneModalEl) {
+      cloneModalEl = document.getElementById("floatPlanCloneModal");
+      if (cloneModalEl) {
+        cloneMessageEl = cloneModalEl.querySelector("[data-clone-message]");
+        cloneOkButton = cloneModalEl.querySelector("[data-clone-ok]");
+      }
+    }
+
+    if (cloneModalEl && !cloneModal && window.bootstrap && window.bootstrap.Modal) {
+      cloneModal = new window.bootstrap.Modal(cloneModalEl);
+    }
+
+    if (cloneModalEl && !cloneModalEl.dataset.listenersAttached) {
+      if (cloneOkButton) {
+        cloneOkButton.addEventListener("click", function () {
+          if (cloneModal) {
+            cloneModal.hide();
+          }
+          window.location.href = "/fpw/app/dashboard.cfm";
+        });
+      }
+      cloneModalEl.dataset.listenersAttached = "true";
+    }
+  }
+
+  function showCloneModal(planName) {
+    ensureCloneModal();
+    if (!cloneModalEl || !cloneModal) {
+      if (planName) {
+        window.alert("Float plan cloned: " + planName);
+      } else {
+        window.alert("Float plan cloned.");
+      }
+      return;
+    }
+
+    if (cloneMessageEl) {
+      var safeName = planName ? String(planName) : "";
+      cloneMessageEl.textContent = safeName
+        ? "Float plan has been cloned: " + safeName
+        : "Float plan has been cloned.";
+    }
+
+    cloneModal.show();
+  }
+
+  function openWizard(planId, startStep) {
     ensureWizardModal();
     if (!wizardModalEl || !wizardModal) {
       return;
@@ -296,6 +476,7 @@
       window.FloatPlanWizard.init({
         mountEl: wizardMountEl,
         planId: planId,
+        startStep: startStep,
         onSaved: function () {
           wizardModal.hide();
           loadFloatPlans(FLOAT_PLAN_LIMIT);
@@ -323,12 +504,52 @@
 
     if (action === "edit") {
       openWizard(planId);
+    } else if (action === "view") {
+      openWizard(planId, 6);
+    } else if (action === "clone") {
+      cloneFloatPlan(planId, button);
     } else if (action === "delete") {
       if (!window.confirm("Delete this float plan?")) {
         return;
       }
       deleteFloatPlan(planId, button);
     }
+  }
+
+  function cloneFloatPlan(planId, triggerButton) {
+    if (!window.Api || typeof window.Api.cloneFloatPlan !== "function") {
+      return;
+    }
+
+    var originalText = "";
+    if (triggerButton) {
+      originalText = triggerButton.textContent;
+      triggerButton.disabled = true;
+      triggerButton.textContent = "Cloning...";
+    }
+
+    Api.cloneFloatPlan(planId)
+      .then(function (data) {
+        if (!data.SUCCESS) {
+          throw data;
+        }
+        loadFloatPlans(FLOAT_PLAN_LIMIT);
+        var clonedName = pick(data, ["CLONED_NAME", "PLANNAME"], "");
+        if (!clonedName && data.FLOATPLAN) {
+          clonedName = pick(data.FLOATPLAN, ["NAME", "PLANNAME"], "");
+        }
+        showCloneModal(clonedName);
+      })
+      .catch(function (err) {
+        console.error("Failed to clone float plan:", err);
+        showDashboardAlert((err && err.MESSAGE) ? err.MESSAGE : "Clone failed.", "danger");
+      })
+      .finally(function () {
+        if (triggerButton) {
+          triggerButton.disabled = false;
+          triggerButton.textContent = originalText || "Clone";
+        }
+      });
   }
 
   function deleteFloatPlan(planId, triggerButton) {
@@ -378,6 +599,8 @@
   function initDashboard() {
     clearDashboardAlert();
     ensureWizardModal();
+    ensureCloneModal();
+    initFloatPlansFilter();
 
     Api.getCurrentUser()
       .then(function (data) {
@@ -418,13 +641,6 @@
     var addPlanBtn = document.getElementById("addFloatPlanBtn");
     if (addPlanBtn) {
       addPlanBtn.addEventListener("click", function () {
-        openWizard(0);
-      });
-    }
-
-    var viewAllBtn = document.getElementById("viewAllFloatPlansBtn");
-    if (viewAllBtn) {
-      viewAllBtn.addEventListener("click", function () {
         openWizard(0);
       });
     }
