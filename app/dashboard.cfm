@@ -620,7 +620,7 @@
                         </section>
 
                         <div class="wizard-nav">
-                            <button type="button" class="btn-secondary" :disabled="step === 1 || isSaving" @click="prevStep">
+                            <button type="button" class="btn-secondary" :disabled="step === 1 || isSaving" @click="clearStatus(); prevStep()">
                                 Back
                             </button>
                             <button type="button" class="btn-primary" v-if="fp.FLOATPLAN.FLOATPLANID" :disabled="isSaving" @click="submitPlan">
