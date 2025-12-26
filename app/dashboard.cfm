@@ -617,13 +617,16 @@
                             <button type="button" class="btn-primary w-100" @click="submitPlan" :disabled="isSaving">
                                 {{ isSaving ? 'Saving…' : 'Save Float Plan' }}
                             </button>
+                            <button type="button" class="btn-primary w-100 mt-2" :disabled="isSaving">
+                                Save &amp; Send
+                            </button>
                         </section>
 
                         <div class="wizard-nav">
                             <button type="button" class="btn-secondary" :disabled="step === 1 || isSaving" @click="clearStatus(); prevStep()">
                                 Back
                             </button>
-                            <button type="button" class="btn-primary" v-if="fp.FLOATPLAN.FLOATPLANID" :disabled="isSaving" @click="submitPlan">
+                            <button type="button" class="btn-primary" v-if="fp.FLOATPLAN.FLOATPLANID && step < totalSteps" :disabled="isSaving" @click="submitPlan">
                                 {{ isSaving ? 'Saving…' : 'Save Float Plan' }}
                             </button>
                             <button type="button" class="btn-primary" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
