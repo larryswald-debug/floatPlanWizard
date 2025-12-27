@@ -11,7 +11,7 @@
             var apiDir = getDirectoryFromPath(baseDir);
             var rootDir = getDirectoryFromPath(apiDir);
             var templatePath = baseDir & "USCGFloatPlan_new.pdf";
-            var outputDir = rootDir & "floatPlans";
+            var outputDir = rootDir & "floatPlans/user_float_plans";
 
             if (!directoryExists(outputDir)) {
                 directoryCreate(outputDir);
@@ -27,6 +27,11 @@
             var stamp = dateFormat(now(), "yyyymmdd") & "_" & timeFormat(now(), "HHmmss");
             var fileName = safePlanName & "_" & stamp & ".pdf";
             var destinationPath = outputDir & "/" & fileName;
+            var readonlyFileName = reReplace(fileName, "\.pdf$", "_readonly.pdf", "all");
+            if (readonlyFileName EQ fileName) {
+                readonlyFileName = fileName & "_readonly";
+            }
+            var readonlyPath = outputDir & "/" & readonlyFileName;
 
             var vessel = loadVessel(getNumeric(plan, "vesselId", 0), ds);
             var operatorInfo = loadOperator(getNumeric(plan, "operatorId", 0), ds);
@@ -254,7 +259,15 @@
             <cfpdfformparam name="#endNum#ArriveLocation" value="#tripReturnLocation# - End of Trip">
         </cfpdfform>
 
-        <cfreturn fileName>
+        <cfpdf
+            action="protect"
+            source="#destinationPath#"
+            destination="#readonlyPath#"
+            overwrite="true"
+            newownerpassword="#createUUID()#"
+            permissions="AllowPrinting,AllowCopy,AllowScreenReaders">
+
+        <cfreturn readonlyFileName>
     </cffunction>
 
     <cffunction name="loadFloatPlan" access="private" output="false" returntype="struct">

@@ -13,6 +13,7 @@
     var prefix = firstSegment ? "/" + firstSegment : "";
     return prefix + "/api/v1";
   })();
+  var API_ROOT = API_BASE.replace(/\/v1$/, "");
 
   function request(path, options) {
     options = options || {};
@@ -125,6 +126,27 @@
           floatPlanId: floatPlanId
         }
       });
+    },
+
+    createFloatPlanPdf: function (floatPlanId) {
+      var path = API_ROOT + "/api_assets/floatPlanUtils.cfc?method=createPDF&floatPlanId=" + encodeURIComponent(floatPlanId);
+      return fetch(path, {
+        method: "GET",
+        credentials: "include"
+      })
+        .then(function (res) {
+          return res.text().then(function (txt) {
+            var trimmed = (txt || "").trim();
+            if (!res.ok || !trimmed || trimmed.toLowerCase() === "false") {
+              throw {
+                MESSAGE: "Unable to generate float plan PDF.",
+                status: res.status || 500,
+                RAW: txt
+              };
+            }
+            return trimmed;
+          });
+        });
     }
   };
 

@@ -174,6 +174,22 @@
     return isNaN(num) ? 0 : num;
   }
 
+  function getAppPrefix() {
+    var firstSegment = (window.location.pathname.split("/")[1] || "");
+    return firstSegment ? "/" + firstSegment : "";
+  }
+
+  function buildPdfPreviewUrl(fileName, cacheBust) {
+    if (!fileName) {
+      return "";
+    }
+    var url = getAppPrefix() + "/api/api_assets/floatPlans/user_float_plans/" + encodeURIComponent(fileName);
+    if (cacheBust) {
+      url += (url.indexOf("?") === -1 ? "?" : "&") + "t=" + encodeURIComponent(cacheBust);
+    }
+    return url;
+  }
+
   function createEmptyFloatPlan() {
     return {
       FLOATPLANID: 0,
@@ -528,6 +544,7 @@
     var onSaved = options.onSaved;
     var onDeleted = options.onDeleted;
     var initialPlanId = numeric(options.planId || 0);
+    var contactStep = numeric(options.contactStep || 0);
     if (!initialPlanId) {
       initialPlanId = getPlanIdFromQuery();
     }
@@ -572,6 +589,10 @@
         homePortTimezone: "",
         selectedRescueCenterId: 0,
         rescueCenterSyncing: false,
+        pdfPreviewUrl: "",
+        pdfPreviewLoading: false,
+        pdfPreviewError: "",
+        contactStep: contactStep,
         initialPlanId: initialPlanId
       };
     },
@@ -605,6 +626,9 @@
       step: function (nextStep, prevStep) {
         if (nextStep !== prevStep) {
           this.clearStatus();
+          if (nextStep === this.totalSteps) {
+            this.loadPdfPreview();
+          }
         }
       },
       "fp.FLOATPLAN.RESCUE_AUTHORITY": function () {
@@ -629,14 +653,18 @@
         var payload = this.fp ? this.fp.FLOATPLAN || {} : {};
         var constraints = STEP_VALIDATION_CONSTRAINTS[stepNumber];
         var validator = window.validate;
+        var needsContactValidation = stepNumber === this.contactStep;
 
         // If no validator, allow step
-        if (!constraints || typeof validator !== "function") {
+        if ((!constraints || typeof validator !== "function") && !needsContactValidation) {
           return true;
         }
 
         // Validate.js returns object map when format is "grouped"
-        var errors = validator(payload, constraints, { format: "grouped", fullMessages: false });
+        var errors = null;
+        if (constraints && typeof validator === "function") {
+          errors = validator(payload, constraints, { format: "grouped", fullMessages: false });
+        }
 
 
         // Custom cross-field rule (return after departure) for step 2 (or final step 6)
@@ -652,6 +680,14 @@
         if ((stepNumber === 3 || stepNumber === 6) && numeric(this.selectedRescueCenterId) <= 0) {
           if (!errors) errors = {};
           errors[RESCUE_AUTHORITY_SELECTION_FIELD] = [RESCUE_AUTHORITY_SELECTION_MESSAGE];
+        }
+
+        if (needsContactValidation) {
+          var contactCount = (this.fp && this.fp.CONTACTS) ? this.fp.CONTACTS.length : 0;
+          if (contactCount <= 0) {
+            if (!errors) errors = {};
+            errors.CONTACTS = ["Select at least one contact."];
+          }
         }
 
         if (!errors) {
@@ -846,6 +882,38 @@
         return numeric(this.fp.FLOATPLAN.FLOATPLANID || this.initialPlanId);
       },
 
+      loadPdfPreview: function () {
+        var self = this;
+        var planId = this.getPlanId();
+        this.pdfPreviewError = "";
+
+        if (!planId) {
+          this.pdfPreviewUrl = "";
+          this.pdfPreviewLoading = false;
+          this.pdfPreviewError = "Save this float plan to generate a PDF preview.";
+          return;
+        }
+
+        if (!window.Api || typeof window.Api.createFloatPlanPdf !== "function") {
+          this.pdfPreviewUrl = "";
+          this.pdfPreviewLoading = false;
+          this.pdfPreviewError = "PDF preview service is unavailable.";
+          return;
+        }
+
+        this.pdfPreviewLoading = true;
+        window.Api.createFloatPlanPdf(planId)
+          .then(function (fileName) {
+            self.pdfPreviewUrl = buildPdfPreviewUrl(fileName, Date.now());
+            self.pdfPreviewLoading = false;
+          })
+          .catch(function (err) {
+            self.pdfPreviewLoading = false;
+            self.pdfPreviewUrl = "";
+            self.pdfPreviewError = (err && err.MESSAGE) ? err.MESSAGE : "Unable to generate PDF preview.";
+          });
+      },
+
       isPassengerSelected: function (id) {
         var target = numeric(id);
         return this.fp.PASSENGERS.some(function (item) {
@@ -971,6 +1039,9 @@
             self.initialPlanId = numeric(self.fp.FLOATPLAN.FLOATPLANID) || self.initialPlanId;
             self.isLoading = false;
             self.clearStatus();
+            if (self.step === self.totalSteps) {
+              self.loadPdfPreview();
+            }
           })
           .catch(function (err) {
             self.isLoading = false;
@@ -1054,6 +1125,9 @@
           self.initialPlanId = numeric(self.fp.FLOATPLAN.FLOATPLANID) || self.initialPlanId;
           self.setStatus("Float plan saved successfully.", true);
           self.isSaving = false;
+          if (self.step === self.totalSteps) {
+            self.loadPdfPreview();
+          }
           if (typeof onSaved === "function") {
             onSaved(response, self);
           }
@@ -1135,6 +1209,9 @@
     var mountEl = options.mountEl || document.getElementById("wizardApp");
     if (!mountEl) {
       return null;
+    }
+    if (options.contactStep == null && mountEl.dataset && mountEl.dataset.contactStep) {
+      options.contactStep = mountEl.dataset.contactStep;
     }
 
     destroyWizard();

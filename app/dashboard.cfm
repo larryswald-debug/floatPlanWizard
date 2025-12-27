@@ -47,6 +47,16 @@
             margin-bottom: 1rem;
         }
 
+        .wizard-alert.alert-success {
+            padding-top: 0.375rem;
+            padding-bottom: 0.375rem;
+        }
+
+        .wizard-alert.alert-danger {
+            padding-top: 0.375rem;
+            padding-bottom: 0.375rem;
+        }
+
         @media (max-width: 768px) {
             .wizard-container {
                 margin: 1rem;
@@ -249,7 +259,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body card-body wizard-body">
-                <div id="wizardApp" class="wizard-container" data-init="manual">
+                <div id="wizardApp" class="wizard-container" data-init="manual" data-contact-step="4">
 
                     <div v-if="isLoading" class="text-center py-5">
                         <div class="spinner-border text-primary" role="status"></div>
@@ -575,38 +585,26 @@
                             <h2 class="h5 mb-3">Step 6 – Review</h2>
 
                             <h3 class="h6">Review</h3>
-                            <ul class="list-group small mb-3">
-                                <li class="list-group-item"><strong>Plan:</strong> {{ fp.FLOATPLAN.NAME || '(no name)' }}</li>
-                                <li class="list-group-item"><strong>Vessel:</strong> {{ currentVesselName }}</li>
-                                <li class="list-group-item"><strong>Operator:</strong> {{ currentOperatorName }}</li>
-                                <li class="list-group-item">
-                                    <strong>Depart:</strong>
-                                    {{ fp.FLOATPLAN.DEPARTING_FROM || '—' }},
-                                    {{ fp.FLOATPLAN.DEPARTURE_TIME || '—' }}
-                                    ({{ fp.FLOATPLAN.DEPARTURE_TIMEZONE || 'N/A' }})
-                                </li>
-                                <li class="list-group-item">
-                                    <strong>Return:</strong>
-                                    {{ fp.FLOATPLAN.RETURNING_TO || '—' }},
-                                    {{ fp.FLOATPLAN.RETURN_TIME || '—' }}
-                                    ({{ fp.FLOATPLAN.RETURN_TIMEZONE || 'N/A' }})
-                                </li>
-                                <li class="list-group-item">
-                                    <strong>Passengers:</strong>
-                                    <span v-if="fp.PASSENGERS.length === 0">(none)</span>
-                                    <span v-else>{{ passengerSummary }}</span>
-                                </li>
-                                <li class="list-group-item">
-                                    <strong>Contacts:</strong>
-                                    <span v-if="fp.CONTACTS.length === 0">(none)</span>
-                                    <span v-else>{{ contactSummary }}</span>
-                                </li>
-                                <li class="list-group-item">
-                                    <strong>Waypoints:</strong>
-                                    <span v-if="fp.WAYPOINTS.length === 0">(none)</span>
-                                    <span v-else>{{ waypointSummary }}</span>
-                                </li>
-                            </ul>
+                            <div class="mb-3">
+                                <div v-if="pdfPreviewError" class="alert alert-warning small">
+                                    {{ pdfPreviewError }}
+                                </div>
+                                <div v-else-if="pdfPreviewLoading" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status"></div>
+                                    <p class="mt-2 mb-0 small">Generating PDF preview…</p>
+                                </div>
+                                <div v-else-if="pdfPreviewUrl" class="border rounded" style="height: 60vh;">
+                                    <iframe
+                                        :src="pdfPreviewUrl"
+                                        title="Float plan PDF preview"
+                                        class="w-100 h-100"
+                                        style="border: 0;"
+                                        loading="lazy"></iframe>
+                                </div>
+                                <div v-else class="alert alert-secondary small mb-0">
+                                    Save this float plan to generate a PDF preview.
+                                </div>
+                            </div>
 
                             <div class="d-flex gap-2 mb-3" v-if="fp.FLOATPLAN.FLOATPLANID">
                             <button type="button" class="btn-danger w-100" @click="confirmDelete" :disabled="isSaving">
@@ -662,10 +660,10 @@
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="/fpw/assets/js/app/validate.js"></script>
-<script src="/fpw/assets/js/app/floatplanWizard.js"></script>
+<script src="/fpw/assets/js/app/floatplanWizard.js?v=20251227b"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="/fpw/assets/js/app/dashboard.js"></script>
+<script src="/fpw/assets/js/app/dashboard.js?v=20251227b"></script>
 
 
 

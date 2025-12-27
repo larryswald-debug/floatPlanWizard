@@ -479,6 +479,7 @@
         mountEl: wizardMountEl,
         planId: planId,
         startStep: startStep,
+        contactStep: 4,
         onSaved: function () {
           loadFloatPlans(FLOAT_PLAN_LIMIT);
           if (wizardModal) {
