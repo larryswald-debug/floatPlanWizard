@@ -8,7 +8,8 @@
     query: ""
   };
 
-  var FALLBACK_LOGIN_URL = "/fpw/app/login.cfm";
+  var BASE_PATH = window.FPW_BASE || "";
+  var FALLBACK_LOGIN_URL = BASE_PATH + "/app/login.cfm";
 
   function getLoginUrl() {
     if (window.AppAuth && window.AppAuth.loginUrl) {
@@ -246,7 +247,7 @@
         metaPartsInline.push('<span class="list-meta-text">' + escapeHtml(metaText) + "</span>");
       }
       if (updatedText) {
-        metaPartsInline.push('<span class="list-meta-text text-muted">' + escapeHtml(updatedText) + "</span>");
+        metaPartsInline.push('<span class="list-meta-text text-white">' + escapeHtml(updatedText) + "</span>");
       }
       var metaInline = metaPartsInline.length
         ? '<div class="list-meta list-meta-inline">' + metaPartsInline.join('<span class="meta-sep">•</span>') + "</div>"
@@ -261,8 +262,7 @@
             metaInline +
           "</div>" +
           '<div class="list-actions">' +
-            '<button class="btn-secondary" type="button" data-action="view" data-plan-id="' + escapeHtml(id) + '">View</button>' +
-            '<button class="btn-secondary" type="button" data-action="send" data-plan-id="' + escapeHtml(id) + '">Send</button>' +
+            '<button class="btn-secondary" type="button" data-action="view" data-plan-id="' + escapeHtml(id) + '">View &amp; Send</button>' +
             '<button class="btn-secondary" type="button" data-action="clone" data-plan-id="' + escapeHtml(id) + '">Clone</button>' +
             '<button class="btn-secondary" type="button" data-action="edit" data-plan-id="' + escapeHtml(id) + '">Edit</button>' +
             '<button class="btn-danger" type="button" data-action="delete" data-plan-id="' + escapeHtml(id) + '">Delete</button>' +
@@ -440,7 +440,7 @@
           if (cloneModal) {
             cloneModal.hide();
           }
-          window.location.href = "/fpw/app/dashboard.cfm";
+          window.location.href = BASE_PATH + "/app/dashboard.cfm";
         });
       }
       cloneModalEl.dataset.listenersAttached = "true";

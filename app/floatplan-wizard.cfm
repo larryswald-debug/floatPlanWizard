@@ -5,7 +5,7 @@
     <title>Float Plan Wizard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <cfinclude template="/fpw/includes/header_styles.cfm">
+    <cfinclude template="../includes/header_styles.cfm">
 
     <style>
         body.wizard-body {
@@ -84,7 +84,7 @@
             <small>Create or update a float plan in four quick steps.</small>
         </div>
         <div>
-            <a href="/fpw/app/dashboard.cfm" class="btn btn-outline-light btn-sm">Back to Dashboard</a>
+            <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/dashboard.cfm" class="btn btn-outline-light btn-sm">Back to Dashboard</a>
         </div>
     </div>
 </header>
@@ -469,11 +469,11 @@
     </div>
 </main>
 
-<cfinclude template="/fpw/includes/footer_scripts.cfm">
+<cfinclude template="../includes/footer_scripts.cfm">
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-<script src="/fpw/assets/js/app/validate.js"></script>
-<script src="/fpw/assets/js/app/floatplanWizard.js?v=20251227b"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20251227b"></script>
 
 </body>
 </html>

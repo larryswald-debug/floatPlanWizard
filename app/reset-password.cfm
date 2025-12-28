@@ -5,7 +5,7 @@
   <title>Reset Password</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <cfinclude template="/fpw/includes/header_styles.cfm">
+  <cfinclude template="../includes/header_styles.cfm">
 </head>
 <body class="bg-light">
 
@@ -38,7 +38,7 @@
           </form>
 
           <div class="mt-3 small">
-            <a href="/fpw/app/login.cfm">Back to Sign In</a>
+            <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/login.cfm">Back to Sign In</a>
           </div>
 
         </div>
@@ -47,6 +47,6 @@
   </div>
 </div>
 
-<script src="/fpw/assets/js/app/reset-password.js"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/reset-password.js"></script>
 </body>
 </html>

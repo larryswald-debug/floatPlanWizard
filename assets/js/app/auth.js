@@ -2,7 +2,8 @@
 (function (window) {
   "use strict";
 
-  var LOGIN_PATH = "/fpw/app/login.cfm";
+  var BASE_PATH = window.FPW_BASE || "";
+  var LOGIN_PATH = BASE_PATH + "/app/login.cfm";
 
   function redirectToLogin() {
     if (window.location.pathname === LOGIN_PATH) {

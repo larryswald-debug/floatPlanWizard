@@ -6,8 +6,8 @@
     <title>Dashboard - Float Plan Wizard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <cfinclude template="/fpw/includes/header_styles.cfm">
-    <link rel="stylesheet" href="/fpw/assets/css/dashboard-console.css?v=1">
+    <cfinclude template="../includes/header_styles.cfm">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=1">
 
     <style>
         .wizard-body {
@@ -83,7 +83,7 @@
                 Seas: 1–2 ft
             </div>
             <div class="header-actions">
-                <a href="/fpw/app/account.cfm">Account</a>
+                <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/account.cfm">Account</a>
                 <button id="logoutButton">Logout</button>
             </div>
         </div>
@@ -615,8 +615,8 @@
                             <button type="button" class="btn-primary w-100" @click="submitPlan" :disabled="isSaving">
                                 {{ isSaving ? 'Saving…' : 'Save Float Plan' }}
                             </button>
-                            <button type="button" class="btn-primary w-100 mt-2" :disabled="isSaving">
-                                Save &amp; Send
+                            <button type="button" class="btn-primary w-100 mt-2" @click="submitPlanAndSend" :disabled="isSaving">
+                                {{ isSaving ? 'Sending...' : 'Save &amp; Send' }}
                             </button>
                         </section>
 
@@ -656,14 +656,14 @@
     </div>
 </div>
 
-<cfinclude template="/fpw/includes/footer_scripts.cfm">
+<cfinclude template="../includes/footer_scripts.cfm">
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-<script src="/fpw/assets/js/app/validate.js"></script>
-<script src="/fpw/assets/js/app/floatplanWizard.js?v=20251227b"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20251227b"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="/fpw/assets/js/app/dashboard.js?v=20251227b"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20251227d"></script>
 
 
 

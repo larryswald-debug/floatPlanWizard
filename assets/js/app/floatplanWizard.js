@@ -3,6 +3,8 @@
 (function (window, document, Vue) {
   "use strict";
 
+  var BASE_PATH = window.FPW_BASE || "";
+
   if (!Vue) {
     console.error("Vue is required for the float plan wizard.");
   }
@@ -1079,6 +1081,29 @@
         }
       }
       ,
+      applySaveResponse: function (response) {
+        this.fp.FLOATPLAN = normalizeFloatPlan(response.FLOATPLAN || response);
+        this.syncRescueCenterSelection();
+        this.fp.PASSENGERS = sortByOrder(
+          toArray(response.PLAN_PASSENGERS)
+            .map(normalizePassengerSelection)
+            .filter(function (item) { return !!item; }),
+          "SORT_ORDER"
+        );
+        this.fp.CONTACTS = sortByOrder(
+          toArray(response.PLAN_CONTACTS)
+            .map(normalizeContactSelection)
+            .filter(function (item) { return !!item; }),
+          "SORT_ORDER"
+        );
+        this.fp.WAYPOINTS = sortByOrder(
+          toArray(response.PLAN_WAYPOINTS)
+            .map(normalizeWaypointSelection)
+            .filter(function (item) { return !!item; }),
+          "SORT_ORDER"
+        );
+        this.initialPlanId = numeric(this.fp.FLOATPLAN.FLOATPLANID) || this.initialPlanId;
+      },
 
       submitPlan: function () {
         var self = this;
@@ -1101,28 +1126,7 @@
           WAYPOINTS: this.fp.WAYPOINTS
         })
         .then(function (response) {
-          self.fp.FLOATPLAN = normalizeFloatPlan(response.FLOATPLAN || response);
-          self.syncRescueCenterSelection();
-          self.fp.PASSENGERS = sortByOrder(
-            toArray(response.PLAN_PASSENGERS)
-              .map(normalizePassengerSelection)
-              .filter(function (item) { return !!item; }),
-            "SORT_ORDER"
-          );
-          self.fp.CONTACTS = sortByOrder(
-            toArray(response.PLAN_CONTACTS)
-              .map(normalizeContactSelection)
-              .filter(function (item) { return !!item; }),
-            "SORT_ORDER"
-          );
-          self.fp.WAYPOINTS = sortByOrder(
-            toArray(response.PLAN_WAYPOINTS)
-              .map(normalizeWaypointSelection)
-              .filter(function (item) { return !!item; }),
-            "SORT_ORDER"
-          );
-
-          self.initialPlanId = numeric(self.fp.FLOATPLAN.FLOATPLANID) || self.initialPlanId;
+          self.applySaveResponse(response);
           self.setStatus("Float plan saved successfully.", true);
           self.isSaving = false;
           if (self.step === self.totalSteps) {
@@ -1135,6 +1139,54 @@
         .catch(function (err) {
           self.isSaving = false;
           self.handleError(err, "Unable to save float plan.");
+        });
+      },
+
+      submitPlanAndSend: function () {
+        var self = this;
+        if (!window.Api || typeof window.Api.saveFloatPlan !== "function") {
+          this.handleError("API helper not available.", "Unable to save float plan.");
+          return;
+        }
+        if (!window.Api || typeof window.Api.sendFloatPlan !== "function") {
+          this.handleError("API helper not available.", "Unable to send float plan.");
+          return;
+        }
+
+        if (!this.validateStep(this.totalSteps)) {
+          return;
+        }
+        if (!this.fp || !Array.isArray(this.fp.CONTACTS) || this.fp.CONTACTS.length === 0) {
+          this.setStatus("Select at least one contact to send this float plan.", false);
+          return;
+        }
+
+        this.isSaving = true;
+        this.setStatus("Saving and sending your float plan...", true);
+
+        window.Api.saveFloatPlan({
+          FLOATPLAN: this.fp.FLOATPLAN,
+          PASSENGERS: this.fp.PASSENGERS,
+          CONTACTS: this.fp.CONTACTS,
+          WAYPOINTS: this.fp.WAYPOINTS
+        })
+        .then(function (response) {
+          self.applySaveResponse(response);
+          return window.Api.sendFloatPlan(self.getPlanId());
+        })
+        .then(function (response) {
+          self.setStatus(response && response.MESSAGE ? response.MESSAGE : "Float plan sent to selected contacts.", true);
+          self.isSaving = false;
+          if (self.step === self.totalSteps) {
+            self.loadPdfPreview();
+          }
+          if (typeof onSaved === "function") {
+            onSaved(response, self);
+          }
+        })
+        .catch(function (err) {
+          self.isSaving = false;
+          self.handleError(err, "Unable to save and send float plan.");
         });
       },
 
@@ -1166,7 +1218,7 @@
               onDeleted(planId, self);
             } else {
               window.setTimeout(function () {
-                window.location.href = "/fpw/app/dashboard.cfm";
+                window.location.href = BASE_PATH + "/app/dashboard.cfm";
               }, 600);
             }
           })

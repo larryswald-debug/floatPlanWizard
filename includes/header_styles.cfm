@@ -1,4 +1,4 @@
-<cfinclude template="/fpw/includes/html_head.cfm">
+<cfinclude template="html_head.cfm">
 
 <!-- Shared header styles: Bootstrap CSS + app stylesheet -->
 <link
@@ -7,5 +7,4 @@
     integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
     crossorigin="anonymous">
 
-<link rel="stylesheet" href="/fpw/assets/css/app.css">
-
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/app.css">

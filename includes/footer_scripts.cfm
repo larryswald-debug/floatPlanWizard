@@ -4,9 +4,8 @@
   integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
   crossorigin="anonymous"></script>
 
-<script src="/fpw/assets/js/app/api.js"></script>
-<script src="/fpw/assets/js/app/auth.js"></script>
-
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/api.js"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth.js"></script>
 
 
 

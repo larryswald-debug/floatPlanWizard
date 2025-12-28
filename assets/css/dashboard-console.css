@@ -536,6 +536,9 @@ main.dashboard-main{
   gap: 0.35rem;
   margin-top: 0.15rem;
 }
+.list-meta-text.text-muted{
+  color: var(--text) !important;
+}
 .list-item-single .list-meta{
   margin-top: 0;
   flex-wrap: nowrap;

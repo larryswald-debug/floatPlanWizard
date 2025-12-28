@@ -270,6 +270,17 @@
         <cfreturn readonlyFileName>
     </cffunction>
 
+    <cffunction name="getPdfPath" access="public" output="false" returntype="string" hint="Return absolute path to a generated float plan PDF">
+        <cfargument name="fileName" type="string" required="true">
+        <cfscript>
+            var baseDir = getDirectoryFromPath(getCurrentTemplatePath());
+            var apiDir = getDirectoryFromPath(baseDir);
+            var rootDir = getDirectoryFromPath(apiDir);
+            var outputDir = rootDir & "floatPlans/user_float_plans/";
+            return outputDir & arguments.fileName;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="loadFloatPlan" access="private" output="false" returntype="struct">
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfargument name="datasource" type="string" required="true">
