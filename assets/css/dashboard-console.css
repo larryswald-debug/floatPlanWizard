@@ -222,8 +222,9 @@ main.dashboard-main{
     var(--shadow-lg);
   display: flex;
   flex-direction: column;
-  min-height: 260px;
-  max-height: 420px;
+  height: 300px;
+  min-height: 300px;
+  max-height: 300px;
   position: relative;
   overflow: hidden;
 }
@@ -279,6 +280,12 @@ main.dashboard-main{
 .dashboard-card .card-title{
   display: flex;
   flex-direction: column;
+}
+
+.dashboard-card .card-actions{
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
 }
 
 .card-subtitle{
@@ -638,6 +645,24 @@ main.dashboard-main{
 }
 
 .hero-panel .numeric{ font-size: 1.8rem; }
+
+/* Panel styling aligned with Float Plans (without full-width layout) */
+.panel-floatlike{
+  border-color: rgba(53, 208, 198, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 0 0 1px rgba(53,208,198,0.25),
+    0 26px 52px rgba(0,0,0,0.70);
+}
+
+.panel-floatlike .card-header{
+  background: linear-gradient(to bottom, rgba(53,208,198,0.20), rgba(0,0,0,0));
+}
+
+.panel-floatlike h2{
+  font-size: 1.05rem;
+  letter-spacing: 0.12em;
+}
 
 /* On very wide screens, you MAY prefer hero to be 2 columns only.
    If you want that, change grid-column above to: grid-column: span 2; */

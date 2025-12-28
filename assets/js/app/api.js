@@ -99,6 +99,86 @@
       return request(path, { method: "GET" });
     },
 
+    getVessels: function (options) {
+      options = options || {};
+      var params = [];
+
+      if (options.limit) {
+        params.push("limit=" + encodeURIComponent(options.limit));
+      }
+
+      var path = "/vessels.cfc?method=handle";
+      if (params.length) {
+        path += (path.indexOf("?") === -1 ? "?" : "&") + params.join("&");
+      }
+
+      return request(path, { method: "GET" });
+    },
+
+    getContacts: function (options) {
+      options = options || {};
+      var params = [];
+
+      if (options.limit) {
+        params.push("limit=" + encodeURIComponent(options.limit));
+      }
+
+      var path = "/contacts.cfc?method=handle";
+      if (params.length) {
+        path += (path.indexOf("?") === -1 ? "?" : "&") + params.join("&");
+      }
+
+      return request(path, { method: "GET" });
+    },
+
+    getPassengers: function (options) {
+      options = options || {};
+      var params = [];
+
+      if (options.limit) {
+        params.push("limit=" + encodeURIComponent(options.limit));
+      }
+
+      var path = "/passengers.cfc?method=handle";
+      if (params.length) {
+        path += (path.indexOf("?") === -1 ? "?" : "&") + params.join("&");
+      }
+
+      return request(path, { method: "GET" });
+    },
+
+    getOperators: function (options) {
+      options = options || {};
+      var params = [];
+
+      if (options.limit) {
+        params.push("limit=" + encodeURIComponent(options.limit));
+      }
+
+      var path = "/operators.cfc?method=handle";
+      if (params.length) {
+        path += (path.indexOf("?") === -1 ? "?" : "&") + params.join("&");
+      }
+
+      return request(path, { method: "GET" });
+    },
+
+    getWaypoints: function (options) {
+      options = options || {};
+      var params = [];
+
+      if (options.limit) {
+        params.push("limit=" + encodeURIComponent(options.limit));
+      }
+
+      var path = "/waypoints.cfc?method=handle";
+      if (params.length) {
+        path += (path.indexOf("?") === -1 ? "?" : "&") + params.join("&");
+      }
+
+      return request(path, { method: "GET" });
+    },
+
     saveFloatPlan: function (payload) {
       payload = payload || {};
       payload.action = "save";

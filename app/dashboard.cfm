@@ -159,89 +159,83 @@
 
         
 
-        <section class="dashboard-card">
+        <section class="dashboard-card panel-floatlike" id="vesselsPanel">
             <div class="card-header">
-                <h2>Vessels</h2>
-                <button class="btn-primary">+ Add</button>
+                <div class="card-title">
+                    <h2><span class="status-dot status-ok"></span>Vessels</h2>
+                    <small class="card-subtitle" id="vesselsSummary">Loading…</small>
+                </div>
+                <div class="card-actions">
+                    <button class="btn-primary" type="button" id="addVesselBtn">+ Add</button>
+                </div>
             </div>
             <div class="card-body">
-                <div class="list-item">
-                    <div>
-                        Sea Ray 320<br />
-                        <small>Registration: FL1234AB</small>
-                    </div>
-                    <div>
-                        <button class="btn-secondary">Edit</button>
-                        <button class="btn-danger">Delete</button>
-                    </div>
-                </div>
+                <p id="vesselsMessage" class="empty">Loading vessels…</p>
+                <div id="vesselsList"></div>
             </div>
         </section>
 
-        <section class="dashboard-card">
+        <section class="dashboard-card panel-floatlike" id="contactsPanel">
             <div class="card-header">
-                <h2>Contacts</h2>
-                <button class="btn-primary">+ Add</button>
+                <div class="card-title">
+                    <h2><span class="status-dot status-ok"></span>Contacts</h2>
+                    <small class="card-subtitle" id="contactsSummary">Loading…</small>
+                </div>
+                <div class="card-actions">
+                    <button class="btn-primary" id="addContactBtn">+ Add</button>
+                </div>
             </div>
             <div class="card-body">
-                <div class="list-item">
-                    <div>
-                        Abbe Wald<br />
-                        <small>Emergency Contact</small>
-                    </div>
-                    <div>
-                        <button class="btn-secondary">Edit</button>
-                        <button class="btn-danger">Delete</button>
-                    </div>
-                </div>
+                <p id="contactsMessage" class="empty">Loading contacts…</p>
+                <div id="contactsList"></div>
             </div>
         </section>
 
-        <section class="dashboard-card">
+        <section class="dashboard-card panel-floatlike" id="passengersPanel">
             <div class="card-header">
-                <h2>Passengers &amp; Crew</h2>
-                <button class="btn-primary">+ Add</button>
+                <div class="card-title">
+                    <h2><span class="status-dot status-ok"></span>Passengers &amp; Crew</h2>
+                    <small class="card-subtitle" id="passengersSummary">Loading…</small>
+                </div>
+                <div class="card-actions">
+                    <button class="btn-primary" id="addPassengerBtn">+ Add</button>
+                </div>
             </div>
             <div class="card-body">
-                <div class="list-item">
-                    <div>
-                        John Smith<br />
-                        <small>Crew</small>
-                    </div>
-                    <div>
-                        <button class="btn-secondary">Edit</button>
-                        <button class="btn-danger">Delete</button>
-                    </div>
-                </div>
+                <p id="passengersMessage" class="empty">Loading passengers…</p>
+                <div id="passengersList"></div>
             </div>
         </section>
 
-        <section class="dashboard-card">
+        <section class="dashboard-card panel-floatlike" id="operatorsPanel">
             <div class="card-header">
-                <h2>Operators</h2>
-                <button class="btn-primary">+ Add</button>
+                <div class="card-title">
+                    <h2><span class="status-dot status-ok"></span>Operators</h2>
+                    <small class="card-subtitle" id="operatorsSummary">Loading…</small>
+                </div>
+                <div class="card-actions">
+                    <button class="btn-primary" id="addOperatorBtn">+ Add</button>
+                </div>
             </div>
             <div class="card-body">
-                <p class="empty">No operators defined.</p>
+                <p id="operatorsMessage" class="empty">Loading operators…</p>
+                <div id="operatorsList"></div>
             </div>
         </section>
 
-        <section class="dashboard-card full-width">
+        <section class="dashboard-card panel-floatlike full-width" id="waypointsPanel">
             <div class="card-header">
-                <h2>Waypoints</h2>
-                <button class="btn-primary">+ Add</button>
+                <div class="card-title">
+                    <h2><span class="status-dot status-ok"></span>Waypoints</h2>
+                    <small class="card-subtitle" id="waypointsSummary">Loading…</small>
+                </div>
+                <div class="card-actions">
+                    <button class="btn-primary" id="addWaypointBtn">+ Add</button>
+                </div>
             </div>
             <div class="card-body">
-                <div class="list-item">
-                    <div>
-                        Anclote Key<br />
-                        <small>28.178°N, 82.838°W</small>
-                    </div>
-                    <div>
-                        <button class="btn-secondary">Edit</button>
-                        <button class="btn-danger">Delete</button>
-                    </div>
-                </div>
+                <p id="waypointsMessage" class="empty">Loading waypoints…</p>
+                <div id="waypointsList"></div>
             </div>
         </section>
 

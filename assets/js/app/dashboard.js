@@ -8,6 +8,26 @@
     query: ""
   };
 
+  var vesselState = {
+    all: []
+  };
+
+  var contactState = {
+    all: []
+  };
+
+  var passengerState = {
+    all: []
+  };
+
+  var operatorState = {
+    all: []
+  };
+
+  var waypointState = {
+    all: []
+  };
+
   var BASE_PATH = window.FPW_BASE || "";
   var FALLBACK_LOGIN_URL = BASE_PATH + "/app/login.cfm";
 
@@ -162,6 +182,368 @@
     messageEl.textContent = text;
     messageEl.classList.remove("d-none");
     messageEl.classList.toggle("text-danger", !!isError);
+  }
+
+  function setVesselsSummary(text) {
+    var el = document.getElementById("vesselsSummary");
+    if (!el) return;
+    el.textContent = text;
+  }
+
+  function setVesselsMessage(text, isError) {
+    var messageEl = document.getElementById("vesselsMessage");
+    if (!messageEl) return;
+
+    if (!text) {
+      messageEl.textContent = "";
+      messageEl.classList.add("d-none");
+      messageEl.classList.remove("text-danger");
+      return;
+    }
+
+    messageEl.textContent = text;
+    messageEl.classList.remove("d-none");
+    messageEl.classList.toggle("text-danger", !!isError);
+  }
+
+  function setContactsSummary(text) {
+    var el = document.getElementById("contactsSummary");
+    if (!el) return;
+    el.textContent = text;
+  }
+
+  function setContactsMessage(text, isError) {
+    var messageEl = document.getElementById("contactsMessage");
+    if (!messageEl) return;
+
+    if (!text) {
+      messageEl.textContent = "";
+      messageEl.classList.add("d-none");
+      messageEl.classList.remove("text-danger");
+      return;
+    }
+
+    messageEl.textContent = text;
+    messageEl.classList.remove("d-none");
+    messageEl.classList.toggle("text-danger", !!isError);
+  }
+
+  function setPassengersSummary(text) {
+    var el = document.getElementById("passengersSummary");
+    if (!el) return;
+    el.textContent = text;
+  }
+
+  function setPassengersMessage(text, isError) {
+    var messageEl = document.getElementById("passengersMessage");
+    if (!messageEl) return;
+
+    if (!text) {
+      messageEl.textContent = "";
+      messageEl.classList.add("d-none");
+      messageEl.classList.remove("text-danger");
+      return;
+    }
+
+    messageEl.textContent = text;
+    messageEl.classList.remove("d-none");
+    messageEl.classList.toggle("text-danger", !!isError);
+  }
+
+  function setOperatorsSummary(text) {
+    var el = document.getElementById("operatorsSummary");
+    if (!el) return;
+    el.textContent = text;
+  }
+
+  function setOperatorsMessage(text, isError) {
+    var messageEl = document.getElementById("operatorsMessage");
+    if (!messageEl) return;
+
+    if (!text) {
+      messageEl.textContent = "";
+      messageEl.classList.add("d-none");
+      messageEl.classList.remove("text-danger");
+      return;
+    }
+
+    messageEl.textContent = text;
+    messageEl.classList.remove("d-none");
+    messageEl.classList.toggle("text-danger", !!isError);
+  }
+
+  function setWaypointsSummary(text) {
+    var el = document.getElementById("waypointsSummary");
+    if (!el) return;
+    el.textContent = text;
+  }
+
+  function setWaypointsMessage(text, isError) {
+    var messageEl = document.getElementById("waypointsMessage");
+    if (!messageEl) return;
+
+    if (!text) {
+      messageEl.textContent = "";
+      messageEl.classList.add("d-none");
+      messageEl.classList.remove("text-danger");
+      return;
+    }
+
+    messageEl.textContent = text;
+    messageEl.classList.remove("d-none");
+    messageEl.classList.toggle("text-danger", !!isError);
+  }
+
+  function updateVesselsSummary(vessels) {
+    if (!vessels || !vessels.length) {
+      setVesselsSummary("No vessels yet");
+      return;
+    }
+
+    setVesselsSummary(vessels.length + " total");
+  }
+
+  function updateContactsSummary(contacts) {
+    if (!contacts || !contacts.length) {
+      setContactsSummary("No contacts yet");
+      return;
+    }
+
+    setContactsSummary(contacts.length + " total");
+  }
+
+  function updatePassengersSummary(passengers) {
+    if (!passengers || !passengers.length) {
+      setPassengersSummary("No passengers yet");
+      return;
+    }
+
+    setPassengersSummary(passengers.length + " total");
+  }
+
+  function updateOperatorsSummary(operators) {
+    if (!operators || !operators.length) {
+      setOperatorsSummary("No operators yet");
+      return;
+    }
+
+    setOperatorsSummary(operators.length + " total");
+  }
+
+  function updateWaypointsSummary(waypoints) {
+    if (!waypoints || !waypoints.length) {
+      setWaypointsSummary("No waypoints yet");
+      return;
+    }
+
+    setWaypointsSummary(waypoints.length + " total");
+  }
+
+  function renderVesselsList(vessels) {
+    var listEl = document.getElementById("vesselsList");
+    if (!listEl) return;
+
+    if (!vessels || !vessels.length) {
+      listEl.innerHTML = "";
+      setVesselsMessage("You don’t have any vessels yet.", false);
+      return;
+    }
+
+    setVesselsMessage("", false);
+
+    var rows = vessels.map(function (vessel) {
+      var vesselId = pick(vessel, ["VESSELID", "ID"], "");
+      var name = pick(vessel, ["VESSELNAME", "NAME"], "");
+      var reg = pick(vessel, ["REGISTRATION", "REGNO"], "");
+      var nameText = name || "Unnamed vessel";
+      var regText = reg ? "Registration: " + reg : "Registration: N/A";
+
+      return (
+        '<div class="list-item">' +
+          '<div class="list-main">' +
+            '<div class="list-title">' + escapeHtml(nameText) + "</div>" +
+            "<small>" + escapeHtml(regText) + "</small>" +
+          "</div>" +
+          '<div class="list-actions">' +
+            '<button class="btn-secondary" type="button" id="vessel-edit-' + escapeHtml(vesselId) + '">Edit</button>' +
+            '<button class="btn-danger" type="button" id="vessel-delete-' + escapeHtml(vesselId) + '">Delete</button>' +
+          "</div>" +
+        "</div>"
+      );
+    }).join("");
+
+    listEl.innerHTML = rows;
+  }
+
+  function renderContactsList(contacts) {
+    var listEl = document.getElementById("contactsList");
+    if (!listEl) return;
+
+    if (!contacts || !contacts.length) {
+      listEl.innerHTML = "";
+      setContactsMessage("You don’t have any contacts yet.", false);
+      return;
+    }
+
+    setContactsMessage("", false);
+
+    var rows = contacts.map(function (contact) {
+      var contactId = pick(contact, ["CONTACTID", "ID"], "");
+      var name = pick(contact, ["CONTACTNAME", "NAME"], "");
+      var phone = pick(contact, ["PHONE"], "");
+      var email = pick(contact, ["EMAIL"], "");
+      var metaParts = [];
+
+      if (phone) metaParts.push(phone);
+      if (email) metaParts.push(email);
+
+      var metaText = metaParts.length ? metaParts.join(" • ") : "No contact details";
+
+      return (
+        '<div class="list-item">' +
+          '<div class="list-main">' +
+            '<div class="list-title">' + escapeHtml(name || "Unnamed contact") + "</div>" +
+            "<small>" + escapeHtml(metaText) + "</small>" +
+          "</div>" +
+          '<div class="list-actions">' +
+            '<button class="btn-secondary" type="button" id="contact-edit-' + escapeHtml(contactId) + '">Edit</button>' +
+            '<button class="btn-danger" type="button" id="contact-delete-' + escapeHtml(contactId) + '">Delete</button>' +
+          "</div>" +
+        "</div>"
+      );
+    }).join("");
+
+    listEl.innerHTML = rows;
+  }
+
+  function renderPassengersList(passengers) {
+    var listEl = document.getElementById("passengersList");
+    if (!listEl) return;
+
+    if (!passengers || !passengers.length) {
+      listEl.innerHTML = "";
+      setPassengersMessage("You don’t have any passengers yet.", false);
+      return;
+    }
+
+    setPassengersMessage("", false);
+
+    var rows = passengers.map(function (passenger) {
+      var passengerId = pick(passenger, ["PASSENGERID", "ID"], "");
+      var name = pick(passenger, ["PASSENGERNAME", "NAME"], "");
+      var phone = pick(passenger, ["PHONE"], "");
+      var age = pick(passenger, ["AGE"], "");
+      var gender = pick(passenger, ["GENDER"], "");
+      var metaParts = [];
+
+      if (phone) metaParts.push(phone);
+      if (age) metaParts.push("Age " + age);
+      if (gender) metaParts.push(gender);
+
+      var metaText = metaParts.length ? metaParts.join(" • ") : "No passenger details";
+
+      return (
+        '<div class="list-item">' +
+          '<div class="list-main">' +
+            '<div class="list-title">' + escapeHtml(name || "Unnamed passenger") + "</div>" +
+            "<small>" + escapeHtml(metaText) + "</small>" +
+          "</div>" +
+          '<div class="list-actions">' +
+            '<button class="btn-secondary" type="button" id="passenger-edit-' + escapeHtml(passengerId) + '">Edit</button>' +
+            '<button class="btn-danger" type="button" id="passenger-delete-' + escapeHtml(passengerId) + '">Delete</button>' +
+          "</div>" +
+        "</div>"
+      );
+    }).join("");
+
+    listEl.innerHTML = rows;
+  }
+
+  function renderOperatorsList(operators) {
+    var listEl = document.getElementById("operatorsList");
+    if (!listEl) return;
+
+    if (!operators || !operators.length) {
+      listEl.innerHTML = "";
+      setOperatorsMessage("You don’t have any operators yet.", false);
+      return;
+    }
+
+    setOperatorsMessage("", false);
+
+    var rows = operators.map(function (operator) {
+      var operatorId = pick(operator, ["OPERATORID", "ID"], "");
+      var name = pick(operator, ["OPERATORNAME", "NAME"], "");
+      var phone = pick(operator, ["PHONE"], "");
+      var notes = pick(operator, ["NOTES"], "");
+      var metaParts = [];
+
+      if (phone) metaParts.push(phone);
+      if (notes) metaParts.push(notes);
+
+      var metaText = metaParts.length ? metaParts.join(" • ") : "No operator details";
+
+      return (
+        '<div class="list-item">' +
+          '<div class="list-main">' +
+            '<div class="list-title">' + escapeHtml(name || "Unnamed operator") + "</div>" +
+            "<small>" + escapeHtml(metaText) + "</small>" +
+          "</div>" +
+          '<div class="list-actions">' +
+            '<button class="btn-secondary" type="button" id="operator-edit-' + escapeHtml(operatorId) + '">Edit</button>' +
+            '<button class="btn-danger" type="button" id="operator-delete-' + escapeHtml(operatorId) + '">Delete</button>' +
+          "</div>" +
+        "</div>"
+      );
+    }).join("");
+
+    listEl.innerHTML = rows;
+  }
+
+  function renderWaypointsList(waypoints) {
+    var listEl = document.getElementById("waypointsList");
+    if (!listEl) return;
+
+    if (!waypoints || !waypoints.length) {
+      listEl.innerHTML = "";
+      setWaypointsMessage("You don’t have any waypoints yet.", false);
+      return;
+    }
+
+    setWaypointsMessage("", false);
+
+    var rows = waypoints.map(function (waypoint) {
+      var waypointId = pick(waypoint, ["WAYPOINTID", "ID"], "");
+      var name = pick(waypoint, ["WAYPOINTNAME", "NAME"], "");
+      var latitude = pick(waypoint, ["LATITUDE"], "");
+      var longitude = pick(waypoint, ["LONGITUDE"], "");
+      var notes = pick(waypoint, ["NOTES"], "");
+      var metaParts = [];
+
+      if (latitude && longitude) {
+        metaParts.push(latitude + ", " + longitude);
+      }
+      if (notes) {
+        metaParts.push(notes);
+      }
+
+      var metaText = metaParts.length ? metaParts.join(" • ") : "No waypoint details";
+
+      return (
+        '<div class="list-item">' +
+          '<div class="list-main">' +
+            '<div class="list-title">' + escapeHtml(name || "Unnamed waypoint") + "</div>" +
+            "<small>" + escapeHtml(metaText) + "</small>" +
+          "</div>" +
+          '<div class="list-actions">' +
+            '<button class="btn-secondary" type="button" id="waypoint-edit-' + escapeHtml(waypointId) + '">Edit</button>' +
+            '<button class="btn-danger" type="button" id="waypoint-delete-' + escapeHtml(waypointId) + '">Delete</button>' +
+          "</div>" +
+        "</div>"
+      );
+    }).join("");
+
+    listEl.innerHTML = rows;
   }
 
   function renderStatusBadge(status) {
@@ -388,6 +770,236 @@
         setFloatPlansMessage("Unable to load float plans right now.", true);
         setFloatPlansSummary("Error");
         showDashboardAlert("Unable to load float plans. Please try again later.", "danger");
+      });
+  }
+
+  function loadVessels(limit) {
+    limit = limit || 100;
+    setVesselsSummary("Loading…");
+    setVesselsMessage("Loading vessels…", false);
+
+    var listEl = document.getElementById("vesselsList");
+    if (listEl) {
+      listEl.innerHTML = "";
+    }
+
+    if (!window.Api || typeof window.Api.getVessels !== "function") {
+      setVesselsMessage("Vessels API is unavailable.", true);
+      setVesselsSummary("Unavailable");
+      return;
+    }
+
+    Api.getVessels({ limit: limit })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+
+        var vessels = data.VESSELS || data.vessels || [];
+        vessels = vessels.slice().sort(function (a, b) {
+          var aName = pick(a, ["VESSELNAME", "NAME"], "").toLowerCase();
+          var bName = pick(b, ["VESSELNAME", "NAME"], "").toLowerCase();
+          if (aName < bName) return -1;
+          if (aName > bName) return 1;
+          return 0;
+        });
+        vesselState.all = vessels;
+        updateVesselsSummary(vessels);
+        renderVesselsList(vessels);
+      })
+      .catch(function (err) {
+        console.error("Failed to load vessels:", err);
+        setVesselsMessage("Unable to load vessels right now.", true);
+        setVesselsSummary("Error");
+        showDashboardAlert("Unable to load vessels. Please try again later.", "danger");
+      });
+  }
+
+  function loadContacts(limit) {
+    limit = limit || 100;
+    setContactsSummary("Loading…");
+    setContactsMessage("Loading contacts…", false);
+
+    var listEl = document.getElementById("contactsList");
+    if (listEl) {
+      listEl.innerHTML = "";
+    }
+
+    if (!window.Api || typeof window.Api.getContacts !== "function") {
+      setContactsMessage("Contacts API is unavailable.", true);
+      setContactsSummary("Unavailable");
+      return;
+    }
+
+    Api.getContacts({ limit: limit })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+
+        var contacts = data.CONTACTS || data.contacts || [];
+        contacts = contacts.slice().sort(function (a, b) {
+          var aName = pick(a, ["CONTACTNAME", "NAME"], "").toLowerCase();
+          var bName = pick(b, ["CONTACTNAME", "NAME"], "").toLowerCase();
+          if (aName < bName) return -1;
+          if (aName > bName) return 1;
+          return 0;
+        });
+        contactState.all = contacts;
+        updateContactsSummary(contacts);
+        renderContactsList(contacts);
+      })
+      .catch(function (err) {
+        console.error("Failed to load contacts:", err);
+        setContactsMessage("Unable to load contacts right now.", true);
+        setContactsSummary("Error");
+        showDashboardAlert("Unable to load contacts. Please try again later.", "danger");
+      });
+  }
+
+  function loadPassengers(limit) {
+    limit = limit || 100;
+    setPassengersSummary("Loading…");
+    setPassengersMessage("Loading passengers…", false);
+
+    var listEl = document.getElementById("passengersList");
+    if (listEl) {
+      listEl.innerHTML = "";
+    }
+
+    if (!window.Api || typeof window.Api.getPassengers !== "function") {
+      setPassengersMessage("Passengers API is unavailable.", true);
+      setPassengersSummary("Unavailable");
+      return;
+    }
+
+    Api.getPassengers({ limit: limit })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+
+        var passengers = data.PASSENGERS || data.passengers || [];
+        passengers = passengers.slice().sort(function (a, b) {
+          var aName = pick(a, ["PASSENGERNAME", "NAME"], "").toLowerCase();
+          var bName = pick(b, ["PASSENGERNAME", "NAME"], "").toLowerCase();
+          if (aName < bName) return -1;
+          if (aName > bName) return 1;
+          return 0;
+        });
+        passengerState.all = passengers;
+        updatePassengersSummary(passengers);
+        renderPassengersList(passengers);
+      })
+      .catch(function (err) {
+        console.error("Failed to load passengers:", err);
+        setPassengersMessage("Unable to load passengers right now.", true);
+        setPassengersSummary("Error");
+        showDashboardAlert("Unable to load passengers. Please try again later.", "danger");
+      });
+  }
+
+  function loadOperators(limit) {
+    limit = limit || 100;
+    setOperatorsSummary("Loading…");
+    setOperatorsMessage("Loading operators…", false);
+
+    var listEl = document.getElementById("operatorsList");
+    if (listEl) {
+      listEl.innerHTML = "";
+    }
+
+    if (!window.Api || typeof window.Api.getOperators !== "function") {
+      setOperatorsMessage("Operators API is unavailable.", true);
+      setOperatorsSummary("Unavailable");
+      return;
+    }
+
+    Api.getOperators({ limit: limit })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+
+        var operators = data.OPERATORS || data.operators || [];
+        operators = operators.slice().sort(function (a, b) {
+          var aName = pick(a, ["OPERATORNAME", "NAME"], "").toLowerCase();
+          var bName = pick(b, ["OPERATORNAME", "NAME"], "").toLowerCase();
+          if (aName < bName) return -1;
+          if (aName > bName) return 1;
+          return 0;
+        });
+        operatorState.all = operators;
+        updateOperatorsSummary(operators);
+        renderOperatorsList(operators);
+      })
+      .catch(function (err) {
+        console.error("Failed to load operators:", err);
+        setOperatorsMessage("Unable to load operators right now.", true);
+        setOperatorsSummary("Error");
+        showDashboardAlert("Unable to load operators. Please try again later.", "danger");
+      });
+  }
+
+  function loadWaypoints(limit) {
+    limit = limit || 100;
+    setWaypointsSummary("Loading…");
+    setWaypointsMessage("Loading waypoints…", false);
+
+    var listEl = document.getElementById("waypointsList");
+    if (listEl) {
+      listEl.innerHTML = "";
+    }
+
+    if (!window.Api || typeof window.Api.getWaypoints !== "function") {
+      setWaypointsMessage("Waypoints API is unavailable.", true);
+      setWaypointsSummary("Unavailable");
+      return;
+    }
+
+    Api.getWaypoints({ limit: limit })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+
+        var waypoints = data.WAYPOINTS || data.waypoints || [];
+        waypoints = waypoints.slice().sort(function (a, b) {
+          var aName = pick(a, ["WAYPOINTNAME", "NAME"], "").toLowerCase();
+          var bName = pick(b, ["WAYPOINTNAME", "NAME"], "").toLowerCase();
+          if (aName < bName) return -1;
+          if (aName > bName) return 1;
+          return 0;
+        });
+        waypointState.all = waypoints;
+        updateWaypointsSummary(waypoints);
+        renderWaypointsList(waypoints);
+      })
+      .catch(function (err) {
+        console.error("Failed to load waypoints:", err);
+        setWaypointsMessage("Unable to load waypoints right now.", true);
+        setWaypointsSummary("Error");
+        showDashboardAlert("Unable to load waypoints. Please try again later.", "danger");
       });
   }
 
@@ -621,6 +1233,11 @@
 
         populateUserInfo(data.USER);
         loadFloatPlans(FLOAT_PLAN_LIMIT);
+        loadVessels();
+        loadContacts();
+        loadPassengers();
+        loadOperators();
+        loadWaypoints();
       })
       .catch(function (err) {
         console.error("Failed to load current user:", err);
