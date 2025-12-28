@@ -58,6 +58,21 @@
   var cloneModal = null;
   var cloneMessageEl = null;
   var cloneOkButton = null;
+  var vesselModalEl = null;
+  var vesselModal = null;
+  var vesselFormEl = null;
+  var vesselModalTitleEl = null;
+  var vesselMessageEl = null;
+  var vesselIdInput = null;
+  var vesselNameInput = null;
+  var vesselRegistrationInput = null;
+  var vesselTypeInput = null;
+  var vesselLengthInput = null;
+  var vesselMakeInput = null;
+  var vesselModelInput = null;
+  var vesselColorInput = null;
+  var vesselHomePortInput = null;
+  var vesselSaveBtn = null;
 
   function showDashboardAlert(message, type) {
     var alertEl = document.getElementById("dashboardAlert");
@@ -355,18 +370,27 @@
       var vesselId = pick(vessel, ["VESSELID", "ID"], "");
       var name = pick(vessel, ["VESSELNAME", "NAME"], "");
       var reg = pick(vessel, ["REGISTRATION", "REGNO"], "");
+      var vesselType = pick(vessel, ["TYPE", "VESSELTYPE"], "");
+      var length = pick(vessel, ["LENGTH"], "");
+      var color = pick(vessel, ["COLOR"], "");
       var nameText = name || "Unnamed vessel";
-      var regText = reg ? "Registration: " + reg : "Registration: N/A";
+      var metaParts = [];
+      if (reg) metaParts.push("Registration: " + reg);
+      if (vesselType) metaParts.push(vesselType);
+      if (length) metaParts.push("Length: " + length);
+      if (color) metaParts.push("Color: " + color);
+      if (!metaParts.length) metaParts.push("Registration: N/A");
+      var metaText = metaParts.join(" • ");
 
       return (
         '<div class="list-item">' +
           '<div class="list-main">' +
             '<div class="list-title">' + escapeHtml(nameText) + "</div>" +
-            "<small>" + escapeHtml(regText) + "</small>" +
+            "<small>" + escapeHtml(metaText) + "</small>" +
           "</div>" +
           '<div class="list-actions">' +
-            '<button class="btn-secondary" type="button" id="vessel-edit-' + escapeHtml(vesselId) + '">Edit</button>' +
-            '<button class="btn-danger" type="button" id="vessel-delete-' + escapeHtml(vesselId) + '">Delete</button>' +
+            '<button class="btn-secondary" type="button" id="vessel-edit-' + escapeHtml(vesselId) + '" data-action="edit" data-vessel-id="' + escapeHtml(vesselId) + '">Edit</button>' +
+            '<button class="btn-danger" type="button" id="vessel-delete-' + escapeHtml(vesselId) + '" data-action="delete" data-vessel-id="' + escapeHtml(vesselId) + '">Delete</button>' +
           "</div>" +
         "</div>"
       );
@@ -1080,6 +1104,216 @@
     cloneModal.show();
   }
 
+  function ensureVesselModal() {
+    if (!vesselModalEl) {
+      vesselModalEl = document.getElementById("vesselModal");
+      if (vesselModalEl) {
+        vesselFormEl = vesselModalEl.querySelector("#vesselForm");
+        vesselModalTitleEl = vesselModalEl.querySelector("#vesselModalLabel");
+        vesselMessageEl = vesselModalEl.querySelector("#vesselFormMessage");
+        vesselIdInput = vesselModalEl.querySelector("#vesselId");
+        vesselNameInput = vesselModalEl.querySelector("#vesselName");
+        vesselRegistrationInput = vesselModalEl.querySelector("#vesselRegistration");
+        vesselTypeInput = vesselModalEl.querySelector("#vesselType");
+        vesselLengthInput = vesselModalEl.querySelector("#vesselLength");
+        vesselMakeInput = vesselModalEl.querySelector("#vesselMake");
+        vesselModelInput = vesselModalEl.querySelector("#vesselModel");
+        vesselColorInput = vesselModalEl.querySelector("#vesselColor");
+        vesselHomePortInput = vesselModalEl.querySelector("#vesselHomePort");
+        vesselSaveBtn = vesselModalEl.querySelector("#saveVesselBtn");
+      }
+    }
+
+    if (vesselModalEl && !vesselModal && window.bootstrap && window.bootstrap.Modal) {
+      vesselModal = new window.bootstrap.Modal(vesselModalEl);
+    }
+
+    if (vesselModalEl && !vesselModalEl.dataset.listenersAttached) {
+      if (vesselFormEl) {
+        vesselFormEl.addEventListener("submit", function (event) {
+          event.preventDefault();
+        });
+      }
+      if (vesselSaveBtn) {
+        vesselSaveBtn.addEventListener("click", function () {
+          saveVessel();
+        });
+      }
+      vesselModalEl.dataset.listenersAttached = "true";
+    }
+  }
+
+  function setVesselFormMessage(text) {
+    if (!vesselMessageEl) return;
+    if (!text) {
+      vesselMessageEl.textContent = "";
+      vesselMessageEl.classList.add("d-none");
+      return;
+    }
+    vesselMessageEl.textContent = text;
+    vesselMessageEl.classList.remove("d-none");
+  }
+
+  function resetVesselForm() {
+    if (vesselFormEl && vesselFormEl.reset) {
+      vesselFormEl.reset();
+    }
+    if (vesselIdInput) vesselIdInput.value = "0";
+    setVesselFormMessage("");
+  }
+
+  function populateVesselForm(vessel) {
+    if (!vessel) {
+      resetVesselForm();
+      return;
+    }
+    if (vesselIdInput) vesselIdInput.value = pick(vessel, ["VESSELID", "ID"], 0);
+    if (vesselNameInput) vesselNameInput.value = pick(vessel, ["VESSELNAME", "NAME"], "");
+    if (vesselRegistrationInput) vesselRegistrationInput.value = pick(vessel, ["REGISTRATION", "REGNO"], "");
+    if (vesselTypeInput) vesselTypeInput.value = pick(vessel, ["TYPE"], "");
+    if (vesselLengthInput) vesselLengthInput.value = pick(vessel, ["LENGTH"], "");
+    if (vesselMakeInput) vesselMakeInput.value = pick(vessel, ["MAKE"], "");
+    if (vesselModelInput) vesselModelInput.value = pick(vessel, ["MODEL"], "");
+    if (vesselColorInput) vesselColorInput.value = pick(vessel, ["COLOR"], "");
+    if (vesselHomePortInput) vesselHomePortInput.value = pick(vessel, ["HOMEPORT"], "");
+    setVesselFormMessage("");
+  }
+
+  function openVesselModal(vessel) {
+    ensureVesselModal();
+    if (!vesselModalEl || !vesselModal) {
+      return;
+    }
+    var vesselId = vessel ? pick(vessel, ["VESSELID", "ID"], 0) : 0;
+    if (vesselModalTitleEl) {
+      vesselModalTitleEl.textContent = vesselId ? "Edit Vessel" : "Add Vessel";
+    }
+    populateVesselForm(vessel);
+    vesselModal.show();
+  }
+
+  function buildVesselPayload() {
+    return {
+      VESSELID: parseInt(vesselIdInput ? vesselIdInput.value : "0", 10) || 0,
+      VESSELNAME: vesselNameInput ? vesselNameInput.value.trim() : "",
+      REGISTRATION: vesselRegistrationInput ? vesselRegistrationInput.value.trim() : "",
+      TYPE: vesselTypeInput ? vesselTypeInput.value.trim() : "",
+      LENGTH: vesselLengthInput ? vesselLengthInput.value.trim() : "",
+      MAKE: vesselMakeInput ? vesselMakeInput.value.trim() : "",
+      MODEL: vesselModelInput ? vesselModelInput.value.trim() : "",
+      COLOR: vesselColorInput ? vesselColorInput.value.trim() : "",
+      HOMEPORT: vesselHomePortInput ? vesselHomePortInput.value.trim() : ""
+    };
+  }
+
+  function saveVessel() {
+    if (!window.Api || typeof window.Api.saveVessel !== "function") {
+      setVesselFormMessage("Vessel API is unavailable.");
+      return;
+    }
+
+    var payload = buildVesselPayload();
+    if (!payload.VESSELNAME) {
+      setVesselFormMessage("Vessel name is required.");
+      return;
+    }
+
+    if (vesselSaveBtn) {
+      vesselSaveBtn.disabled = true;
+      vesselSaveBtn.textContent = "Saving…";
+    }
+
+    Api.saveVessel({ vessel: payload })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+        if (vesselModal) {
+          vesselModal.hide();
+        }
+        loadVessels();
+      })
+      .catch(function (err) {
+        console.error("Failed to save vessel:", err);
+        setVesselFormMessage((err && err.MESSAGE) ? err.MESSAGE : "Unable to save vessel.");
+      })
+      .finally(function () {
+        if (vesselSaveBtn) {
+          vesselSaveBtn.disabled = false;
+          vesselSaveBtn.textContent = "Save Vessel";
+        }
+      });
+  }
+
+  function findVesselById(vesselId) {
+    var list = vesselState.all || [];
+    for (var i = 0; i < list.length; i++) {
+      var currentId = pick(list[i], ["VESSELID", "ID"], 0);
+      if (String(currentId) === String(vesselId)) {
+        return list[i];
+      }
+    }
+    return null;
+  }
+
+  function deleteVessel(vesselId, triggerButton) {
+    if (!window.Api || typeof window.Api.deleteVessel !== "function") {
+      return;
+    }
+
+    var originalText = "";
+    if (triggerButton) {
+      originalText = triggerButton.textContent;
+      triggerButton.disabled = true;
+      triggerButton.textContent = "Deleting…";
+    }
+
+    Api.deleteVessel(vesselId)
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (!data.SUCCESS) {
+          throw data;
+        }
+        loadVessels();
+      })
+      .catch(function (err) {
+        console.error("Failed to delete vessel:", err);
+        showDashboardAlert((err && err.MESSAGE) ? err.MESSAGE : "Delete failed.", "danger");
+      })
+      .finally(function () {
+        if (triggerButton) {
+          triggerButton.disabled = false;
+          triggerButton.textContent = originalText || "Delete";
+        }
+      });
+  }
+
+  function handleVesselsListClick(event) {
+    var target = event.target;
+    if (!target) return;
+    var button = target.closest("button[data-vessel-id]");
+    if (!button) return;
+
+    var vesselId = button.getAttribute("data-vessel-id");
+    var action = button.getAttribute("data-action");
+    if (!vesselId) return;
+
+    if (action === "edit") {
+      var vessel = findVesselById(vesselId);
+      openVesselModal(vessel);
+    } else if (action === "delete") {
+      if (!window.confirm("Delete this vessel?")) {
+        return;
+      }
+      deleteVessel(vesselId, button);
+    }
+  }
+
   function openWizard(planId, startStep) {
     ensureWizardModal();
     if (!wizardModalEl || !wizardModal) {
@@ -1217,6 +1451,7 @@
     clearDashboardAlert();
     ensureWizardModal();
     ensureCloneModal();
+    ensureVesselModal();
     initFloatPlansFilter();
 
     Api.getCurrentUser()
@@ -1267,9 +1502,21 @@
       });
     }
 
+    var addVesselBtn = document.getElementById("addVesselBtn");
+    if (addVesselBtn) {
+      addVesselBtn.addEventListener("click", function () {
+        openVesselModal(null);
+      });
+    }
+
     var listEl = document.getElementById("floatPlansList");
     if (listEl) {
       listEl.addEventListener("click", handleFloatPlansListClick);
+    }
+
+    var vesselsListEl = document.getElementById("vesselsList");
+    if (vesselsListEl) {
+      vesselsListEl.addEventListener("click", handleVesselsListClick);
     }
   }
 

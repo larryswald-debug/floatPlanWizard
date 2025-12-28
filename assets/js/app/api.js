@@ -179,6 +179,25 @@
       return request(path, { method: "GET" });
     },
 
+    saveVessel: function (payload) {
+      payload = payload || {};
+      payload.action = "save";
+      return request("/vessel.cfc?method=handle", {
+        method: "POST",
+        body: payload
+      });
+    },
+
+    deleteVessel: function (vesselId) {
+      return request("/vessel.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "delete",
+          vesselId: vesselId
+        }
+      });
+    },
+
     saveFloatPlan: function (payload) {
       payload = payload || {};
       payload.action = "save";

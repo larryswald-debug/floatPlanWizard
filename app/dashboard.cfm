@@ -245,6 +245,65 @@
     </div>
 </main>
 
+<div class="modal fade" id="vesselModal" tabindex="-1" aria-labelledby="vesselModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="vesselModalLabel">Vessel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body">
+                <form id="vesselForm" novalidate>
+                    <input type="hidden" id="vesselId" value="0">
+                    <div class="mb-3">
+                        <label class="form-label" for="vesselName">Vessel Name *</label>
+                        <input type="text" class="form-control" id="vesselName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="vesselRegistration">Registration</label>
+                        <input type="text" class="form-control" id="vesselRegistration">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="vesselType">Type</label>
+                            <input type="text" class="form-control" id="vesselType">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="vesselLength">Length</label>
+                            <input type="text" class="form-control" id="vesselLength">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="vesselMake">Make</label>
+                            <input type="text" class="form-control" id="vesselMake">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="vesselModel">Model</label>
+                            <input type="text" class="form-control" id="vesselModel">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="vesselColor">Hull Color</label>
+                            <input type="text" class="form-control" id="vesselColor">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="vesselHomePort">Hailing Port</label>
+                            <input type="text" class="form-control" id="vesselHomePort">
+                        </div>
+                    </div>
+                    <p class="text-danger d-none" id="vesselFormMessage"></p>
+                </form>
+            </div>
+            <div class="modal-footer card-footer">
+                <button type="button" class="btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn-primary" id="saveVesselBtn">Save Vessel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="floatPlanWizardModal" tabindex="-1" aria-labelledby="floatPlanWizardLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content dashboard-card">

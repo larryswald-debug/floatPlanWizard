@@ -368,9 +368,10 @@ main.dashboard-main{
   border-color: rgba(255, 77, 79, 0.55);
 }
 
-/* ---------- Float plan wizard modal uses dashboard panel styling ---------- */
-#floatPlanWizardModal .modal-content.dashboard-card{
-  min-height: auto;
+/* ---------- Modal content should not inherit panel height ---------- */
+.modal-content.dashboard-card{
+  height: auto;
+  min-height: 0;
   max-height: none;
 }
 
@@ -428,6 +429,17 @@ main.dashboard-main{
   color: var(--text);
   background: rgba(255,255,255,0.05);
   letter-spacing: 0.02em;
+}
+
+/* ---------- Vessel modal sizing ---------- */
+#vesselModal .modal-dialog{
+  max-width: 780px;
+}
+
+#vesselModal .modal-content.dashboard-card{
+  height: auto;
+  min-height: 0;
+  max-height: none;
 }
 
 #floatPlanWizardModal .wizard-step-badge--active{
