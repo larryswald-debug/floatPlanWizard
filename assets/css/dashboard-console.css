@@ -298,7 +298,7 @@ main.dashboard-main{
 .dashboard-card .card-body{
   padding: 1rem 1.15rem;
   flex: 1;
-  overscroll-behavior: contain;
+  overscroll-behavior: auto;
   overflow-y: auto;
 }
 
