@@ -179,6 +179,27 @@
       return request(path, { method: "GET" });
     },
 
+    getMarinePlaces: function (payload) {
+      return request("/MarinePOI.cfc?method=getPlacesPOIs", {
+        method: "POST",
+        body: payload || {}
+      });
+    },
+
+    getNavAids: function (payload) {
+      return request("/NavAids.cfc?method=getNavAids", {
+        method: "POST",
+        body: payload || {}
+      });
+    },
+
+    enrichPlace: function (payload) {
+      return request("/PlacesEnrich.cfc?method=enrichPlace", {
+        method: "POST",
+        body: payload || {}
+      });
+    },
+
     savePassenger: function (payload) {
       payload = payload || {};
       payload.action = "save";

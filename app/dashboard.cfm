@@ -63,6 +63,34 @@
                 padding: 1rem;
             }
         }
+
+        #waypointMap {
+            position: relative;
+            z-index: 1;
+        }
+
+        .marine-controls {
+            position: relative;
+            z-index: 2;
+            pointer-events: auto;
+        }
+
+        .dashboard-body .btn-close {
+            background-color: transparent;
+            filter: none;
+            opacity: 1;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M1.5 1.5l13 13m0-13l-13 13' stroke='white' stroke-width='2'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 14px 14px;
+        }
+
+        .dashboard-body .btn-close:hover {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' viewBox='0 0 16 16'%3E%3Cpath d='M1.5 1.5l13 13m0-13l-13 13' stroke='%2335d0c6' stroke-width='2'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 14px 14px;
+        }
     </style>
 </head>
 <body class="dashboard-body">
@@ -368,12 +396,43 @@
             <div class="modal-body card-body">
                 <form id="waypointForm" novalidate>
                     <input type="hidden" id="waypointId" value="0">
-                    <div class="mb-3">
+                    <div id="waypointMap" style="height: 360px; width: 100%; border-radius: 8px;"></div>
+                    <div class="border rounded p-2 mt-2 marine-controls">
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <label class="form-label mb-0">Marine Layers</label>
+                            <small class="text-muted">Optional overlays</small>
+                        </div>
+                        <div class="row g-1 align-items-center">
+                            <div class="col-md-7">
+                                <div class="d-flex flex-wrap gap-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="marineTypeMarina" data-marine-type="marina">
+                                        <label class="form-check-label" for="marineTypeMarina">Marina</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="marineTypeFuel" data-marine-type="fuel">
+                                        <label class="form-check-label" for="marineTypeFuel">Fuel Dock</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="marineTypeRamp" data-marine-type="ramp">
+                                        <label class="form-check-label" for="marineTypeRamp">Boat Ramp</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-5">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="marineTideToggle" disabled>
+                                    <label class="form-check-label" for="marineTideToggle">Tide/Current Stations</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-1 small text-muted" id="marineStatusLine" aria-live="polite">Ready</div>
+                    </div>
+                    <div class="mb-3 mt-3">
                         <label class="form-label" for="waypointName">Name *</label>
                         <input type="text" class="form-control" id="waypointName" required>
                         <div class="invalid-feedback" id="waypointNameError"></div>
                     </div>
-                    <div id="waypointMap" style="height: 320px; width: 100%; border-radius: 8px;"></div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label" for="waypointLatitude">Latitude</label>
@@ -907,7 +966,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20251227b"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20251227j"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20251227ak"></script>
 
 
 
