@@ -105,11 +105,6 @@
             <small>Email: <span id="userEmail">Loading…</span></small>
         </div>
         <div class="header-meta">
-            <div class="weather">
-                <strong>New Port Richey, FL</strong><br />
-                ☀️ 76°F • Winds NE 8kt<br />
-                Seas: 1–2 ft
-            </div>
             <div class="header-actions">
                 <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/account.cfm">Account</a>
                 <button id="logoutButton">Logout</button>
