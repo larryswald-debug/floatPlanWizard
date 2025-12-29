@@ -73,6 +73,21 @@
                     <cfoutput>#serializeJSON(saveResult)#</cfoutput>
                 </cfcase>
 
+                <cfcase value="send">
+                    <cfset var sendId = 0>
+                    <cfif structKeyExists(body, "floatPlanId")>
+                        <cfset sendId = val(body.floatPlanId)>
+                    <cfelseif structKeyExists(url, "floatPlanId")>
+                        <cfset sendId = val(url.floatPlanId)>
+                    <cfelseif structKeyExists(url, "id")>
+                        <cfset sendId = val(url.id)>
+                    </cfif>
+
+                    <cfset var sendResult = sendFloatPlanToContacts(userId, sendId)>
+                    <cfset sendResult.AUTH = true>
+                    <cfoutput>#serializeJSON(sendResult)#</cfoutput>
+                </cfcase>
+
                 <cfcase value="clone">
                     <cfset var cloneId = 0>
                     <cfif structKeyExists(body, "floatPlanId")>
@@ -926,6 +941,203 @@
             }
 
             return selections;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="loadPlanContactEmails" access="private" returntype="array" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var contacts = [];
+            if (arguments.floatPlanId LTE 0) {
+                return contacts;
+            }
+
+            var qContacts = queryExecute("
+                SELECT c.contactId, c.name, c.email
+                FROM floatplan_contacts fc
+                INNER JOIN floatplans fp ON fp.floatplanId = fc.floatplanId
+                INNER JOIN contacts c ON c.contactId = fc.contactId
+                WHERE fp.userId = :userId
+                  AND fp.floatplanId = :planId
+                ORDER BY fc.recId ASC
+            ", {
+                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+            }, { datasource = "fpw" });
+
+            for (var i = 1; i LTE qContacts.recordCount; i++) {
+                arrayAppend(contacts, {
+                    CONTACTID = qContacts.contactId[i],
+                    NAME      = qContacts.name[i],
+                    EMAIL     = qContacts.email[i]
+                });
+            }
+            return contacts;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildFloatPlanPdfPath" access="private" returntype="string" output="false">
+        <cfargument name="fileName" type="string" required="true">
+        <cfscript>
+            var outputDir = "";
+            try {
+                outputDir = expandPath("/fpw/floatPlans/user_float_plans/");
+            } catch (any e) {
+                outputDir = "";
+            }
+            if (!len(trim(outputDir))) {
+                var baseDir = getDirectoryFromPath(getCurrentTemplatePath());
+                var apiDir = getDirectoryFromPath(baseDir);
+                var rootDir = getDirectoryFromPath(apiDir);
+                outputDir = rootDir & "floatPlans/user_float_plans/";
+            }
+            if (right(outputDir, 1) NEQ "/" AND right(outputDir, 1) NEQ "\") {
+                outputDir = outputDir & "/";
+            }
+            return outputDir & arguments.fileName;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveFloatPlanUtilsComponentPath" access="private" returntype="string" output="false">
+        <cfscript>
+            var webRoot = "";
+            var templatePath = getCurrentTemplatePath();
+            var relativePath = "";
+            var firstSegment = "";
+            var prefix = "";
+            try {
+                webRoot = expandPath("/");
+            } catch (any e) {
+                webRoot = "";
+            }
+
+            if (len(webRoot)) {
+                relativePath = replaceNoCase(templatePath, webRoot, "", "one");
+            } else {
+                relativePath = templatePath;
+            }
+
+            relativePath = replace(relativePath, "\", "/", "all");
+            if (left(relativePath, 1) EQ "/") {
+                relativePath = right(relativePath, len(relativePath) - 1);
+            }
+
+            firstSegment = listFirst(relativePath, "/");
+            if (len(firstSegment) AND firstSegment NEQ "api") {
+                prefix = firstSegment;
+            }
+
+            return (len(prefix) ? prefix & "." : "") & "api.api_assets.floatPlanUtils";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="sendFloatPlanToContacts" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                MESSAGE = ""
+            };
+
+            if (arguments.floatPlanId LTE 0) {
+                result.ERROR = "MISSING_PLAN_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            var plan = loadFloatPlan(arguments.userId, arguments.floatPlanId);
+            if (structIsEmpty(plan)) {
+                result.ERROR = "PLAN_NOT_FOUND";
+                result.MESSAGE = "Float plan not found.";
+                return result;
+            }
+
+            var contacts = loadPlanContactEmails(arguments.userId, arguments.floatPlanId);
+            if (!arrayLen(contacts)) {
+                result.ERROR = "NO_CONTACTS";
+                result.MESSAGE = "No contacts are selected for this float plan.";
+                return result;
+            }
+
+            var floatPlanUtils = createObject("component", resolveFloatPlanUtilsComponentPath()).init();
+            var pdfFileName = floatPlanUtils.createPDF(arguments.floatPlanId);
+            if (!len(trim(pdfFileName))) {
+                result.ERROR = "PDF_FAILED";
+                result.MESSAGE = "Unable to generate float plan PDF.";
+                return result;
+            }
+
+            var pdfPath = floatPlanUtils.getPdfPath(pdfFileName);
+            var planName = trim(structKeyExists(plan, "NAME") ? plan.NAME : "");
+            if (!len(planName)) {
+                planName = "Float Plan";
+            }
+
+            var rescueAuthority = trim(structKeyExists(plan, "RESCUE_AUTHORITY") ? plan.RESCUE_AUTHORITY : "");
+            var rescuePhone = trim(structKeyExists(plan, "RESCUE_AUTHORITY_PHONE") ? plan.RESCUE_AUTHORITY_PHONE : "");
+            var safePlanName = encodeForHtml(planName);
+            var safeRescueAuthority = encodeForHtml(rescueAuthority);
+            var safeRescuePhone = encodeForHtml(rescuePhone);
+            var rescueDetails = "";
+            var rescueLabel = "the selected Rescue Authority";
+
+            if (len(rescueAuthority) OR len(rescuePhone)) {
+                rescueLabel = "the selected Rescue Authority listed below";
+                rescueDetails = "<p>Rescue Authority: " & safeRescueAuthority;
+                if (len(rescuePhone)) {
+                    rescueDetails &= " (" & safeRescuePhone & ")";
+                }
+                rescueDetails &= "</p>";
+            }
+
+            var message = "<p>Hello,</p>" &
+                "<p>You are receiving the attached Float Plan (" & safePlanName & ") because you were selected as a contact for this trip.</p>" &
+                "<p>This delivery is a precaution and nothing is wrong at this time.</p>" &
+                "<p>Please keep this PDF available. If the member does not return on time, call " & rescueLabel & ".</p>" &
+                rescueDetails &
+                "<p>Thank you.</p>";
+
+            var subject = "Float Plan Precautionary Delivery: " & planName;
+            var emailList = "";
+            for (var i = 1; i LTE arrayLen(contacts); i++) {
+                var contactEmail = "";
+                if (structKeyExists(contacts[i], "EMAIL") AND NOT isNull(contacts[i].EMAIL)) {
+                    contactEmail = contacts[i].EMAIL;
+                }
+                var emailAddr = trim(toString(contactEmail));
+                if (len(emailAddr)) {
+                    emailList = listAppend(emailList, emailAddr);
+                }
+            }
+
+            var sentCount = listLen(emailList);
+            var skippedCount = arrayLen(contacts) - sentCount;
+            if (!sentCount) {
+                result.ERROR = "NO_EMAILS";
+                result.MESSAGE = "No contact emails were available.";
+                return result;
+            }
+        </cfscript>
+
+        <cfloop list="#emailList#" index="emailAddr">
+            <cfmail
+                from="noreply@floatplanwizard.com"
+                to="#emailAddr#"
+                subject="#subject#"
+                type="html">
+                <cfmailparam type="application/pdf" file="#pdfPath#">
+                #message#
+            </cfmail>
+        </cfloop>
+
+        <cfscript>
+            result.SUCCESS = true;
+            result.SENT_COUNT = sentCount;
+            result.SKIPPED_COUNT = skippedCount;
+            result.MESSAGE = "Float plan sent to " & sentCount & " contact" & (sentCount EQ 1 ? "" : "s") & ".";
+            return result;
         </cfscript>
     </cffunction>
 

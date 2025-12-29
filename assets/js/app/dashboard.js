@@ -8,7 +8,31 @@
     query: ""
   };
 
-  var FALLBACK_LOGIN_URL = "/fpw/app/login.cfm";
+  var GOOGLE_MAPS_API_KEY = (window.GOOGLE_MAPS_API_KEY || "").trim();
+
+  var vesselState = {
+    all: []
+  };
+
+  var contactState = {
+    all: []
+  };
+
+  var passengerState = {
+    all: []
+  };
+
+  var operatorState = {
+    all: []
+  };
+
+  var waypointState = {
+    all: []
+  };
+
+  var BASE_PATH = window.FPW_BASE || "";
+  var FALLBACK_LOGIN_URL = BASE_PATH + "/app/login.cfm";
+  var homePortLatLng = null;
 
   function getLoginUrl() {
     if (window.AppAuth && window.AppAuth.loginUrl) {
@@ -25,6 +49,39 @@
     window.location.href = getLoginUrl();
   }
 
+  function getNested(obj, path, fallback) {
+    if (!obj) return fallback;
+    var current = obj;
+    for (var i = 0; i < path.length; i++) {
+      var key = path[i];
+      if (!current || current[key] === undefined || current[key] === null) {
+        return fallback;
+      }
+      current = current[key];
+    }
+    return current;
+  }
+
+  function resolveHomePortLatLng(user) {
+    var profile = getNested(user, ["PROFILE"], null) || getNested(user, ["profile"], null) || {};
+    var homePort = getNested(profile, ["HOMEPORT"], null)
+      || getNested(profile, ["homePort"], null)
+      || getNested(user, ["HOMEPORT"], null)
+      || getNested(user, ["homePort"], null)
+      || {};
+    var lat = getNested(homePort, ["LAT"], null) || getNested(homePort, ["lat"], null) || getNested(homePort, ["latitude"], null);
+    var lng = getNested(homePort, ["LNG"], null) || getNested(homePort, ["lng"], null) || getNested(homePort, ["longitude"], null);
+    if (lat !== undefined && lat !== null && lng !== undefined && lng !== null) {
+      var latNum = parseFloat(lat);
+      var lngNum = parseFloat(lng);
+      if (!isNaN(latNum) && !isNaN(lngNum)) {
+        return { lat: latNum, lng: lngNum };
+      }
+    }
+    console.warn("Home Port lat/lng missing; using default for waypoint map.");
+    return { lat: 28.2323, lng: -82.7418 };
+  }
+
   function ensureAuthResponse(data) {
     return window.AppAuth ? window.AppAuth.ensureAuthenticated(data) : true;
   }
@@ -37,6 +94,103 @@
   var cloneModal = null;
   var cloneMessageEl = null;
   var cloneOkButton = null;
+  var vesselModalEl = null;
+  var vesselModal = null;
+  var vesselFormEl = null;
+  var vesselModalTitleEl = null;
+  var vesselIdInput = null;
+  var vesselNameInput = null;
+  var vesselRegistrationInput = null;
+  var vesselTypeInput = null;
+  var vesselLengthInput = null;
+  var vesselMakeInput = null;
+  var vesselModelInput = null;
+  var vesselColorInput = null;
+  var vesselHomePortInput = null;
+  var vesselSaveBtn = null;
+  var vesselNameError = null;
+  var vesselTypeError = null;
+  var vesselLengthError = null;
+  var vesselColorError = null;
+  var contactModalEl = null;
+  var contactModal = null;
+  var contactFormEl = null;
+  var contactModalTitleEl = null;
+  var contactIdInput = null;
+  var contactNameInput = null;
+  var contactPhoneInput = null;
+  var contactEmailInput = null;
+  var contactSaveBtn = null;
+  var contactNameError = null;
+  var contactPhoneError = null;
+  var contactEmailError = null;
+  var confirmModalEl = null;
+  var confirmModal = null;
+  var confirmMessageEl = null;
+  var confirmOkBtn = null;
+  var confirmResolver = null;
+  var alertModalEl = null;
+  var alertModal = null;
+  var alertMessageEl = null;
+  var passengerModalEl = null;
+  var passengerModal = null;
+  var passengerFormEl = null;
+  var passengerModalTitleEl = null;
+  var passengerIdInput = null;
+  var passengerNameInput = null;
+  var passengerPhoneInput = null;
+  var passengerAgeInput = null;
+  var passengerGenderInput = null;
+  var passengerNotesInput = null;
+  var passengerSaveBtn = null;
+  var passengerNameError = null;
+  var passengerPhoneError = null;
+  var operatorModalEl = null;
+  var operatorModal = null;
+  var operatorFormEl = null;
+  var operatorModalTitleEl = null;
+  var operatorIdInput = null;
+  var operatorNameInput = null;
+  var operatorPhoneInput = null;
+  var operatorNotesInput = null;
+  var operatorSaveBtn = null;
+  var operatorNameError = null;
+  var operatorPhoneError = null;
+  var waypointModalEl = null;
+  var waypointModal = null;
+  var waypointFormEl = null;
+  var waypointModalTitleEl = null;
+  var waypointIdInput = null;
+  var waypointNameInput = null;
+  var waypointLatitudeInput = null;
+  var waypointLongitudeInput = null;
+  var waypointNotesInput = null;
+  var waypointSaveBtn = null;
+  var waypointNameError = null;
+  var waypointMapEl = null;
+  var waypointMap = null;
+  var waypointMarker = null;
+  var homePortMarker = null;
+  var waypointGeocoder = null;
+  var waypointMapPromise = null;
+  var waypointMapCenter = null;
+  var waypointNameManual = false;
+  var suppressWaypointNameInput = false;
+  var marineTideToggle = null;
+  var marineTypeMarina = null;
+  var marineTypeFuel = null;
+  var marineTypeRamp = null;
+  var marineStatusLine = null;
+  var placeMarkers = [];
+  var placeMarkerCluster = null;
+  var marineInfoWindow = null;
+  var marineIdleTimer = null;
+  var marinePlacesRequestId = 0;
+  var marinePlaceDetailsRequestId = 0;
+  var lastPlacesPois = [];
+  var lastPlacesTypes = [];
+  var lastPlacesCenter = null;
+  var lastPlacesRadius = null;
 
   function showDashboardAlert(message, type) {
     var alertEl = document.getElementById("dashboardAlert");
@@ -163,6 +317,377 @@
     messageEl.classList.toggle("text-danger", !!isError);
   }
 
+  function setVesselsSummary(text) {
+    var el = document.getElementById("vesselsSummary");
+    if (!el) return;
+    el.textContent = text;
+  }
+
+  function setVesselsMessage(text, isError) {
+    var messageEl = document.getElementById("vesselsMessage");
+    if (!messageEl) return;
+
+    if (!text) {
+      messageEl.textContent = "";
+      messageEl.classList.add("d-none");
+      messageEl.classList.remove("text-danger");
+      return;
+    }
+
+    messageEl.textContent = text;
+    messageEl.classList.remove("d-none");
+    messageEl.classList.toggle("text-danger", !!isError);
+  }
+
+  function setContactsSummary(text) {
+    var el = document.getElementById("contactsSummary");
+    if (!el) return;
+    el.textContent = text;
+  }
+
+  function setContactsMessage(text, isError) {
+    var messageEl = document.getElementById("contactsMessage");
+    if (!messageEl) return;
+
+    if (!text) {
+      messageEl.textContent = "";
+      messageEl.classList.add("d-none");
+      messageEl.classList.remove("text-danger");
+      return;
+    }
+
+    messageEl.textContent = text;
+    messageEl.classList.remove("d-none");
+    messageEl.classList.toggle("text-danger", !!isError);
+  }
+
+  function setPassengersSummary(text) {
+    var el = document.getElementById("passengersSummary");
+    if (!el) return;
+    el.textContent = text;
+  }
+
+  function setPassengersMessage(text, isError) {
+    var messageEl = document.getElementById("passengersMessage");
+    if (!messageEl) return;
+
+    if (!text) {
+      messageEl.textContent = "";
+      messageEl.classList.add("d-none");
+      messageEl.classList.remove("text-danger");
+      return;
+    }
+
+    messageEl.textContent = text;
+    messageEl.classList.remove("d-none");
+    messageEl.classList.toggle("text-danger", !!isError);
+  }
+
+  function setOperatorsSummary(text) {
+    var el = document.getElementById("operatorsSummary");
+    if (!el) return;
+    el.textContent = text;
+  }
+
+  function setOperatorsMessage(text, isError) {
+    var messageEl = document.getElementById("operatorsMessage");
+    if (!messageEl) return;
+
+    if (!text) {
+      messageEl.textContent = "";
+      messageEl.classList.add("d-none");
+      messageEl.classList.remove("text-danger");
+      return;
+    }
+
+    messageEl.textContent = text;
+    messageEl.classList.remove("d-none");
+    messageEl.classList.toggle("text-danger", !!isError);
+  }
+
+  function setWaypointsSummary(text) {
+    var el = document.getElementById("waypointsSummary");
+    if (!el) return;
+    el.textContent = text;
+  }
+
+  function setWaypointsMessage(text, isError) {
+    var messageEl = document.getElementById("waypointsMessage");
+    if (!messageEl) return;
+
+    if (!text) {
+      messageEl.textContent = "";
+      messageEl.classList.add("d-none");
+      messageEl.classList.remove("text-danger");
+      return;
+    }
+
+    messageEl.textContent = text;
+    messageEl.classList.remove("d-none");
+    messageEl.classList.toggle("text-danger", !!isError);
+  }
+
+  function updateVesselsSummary(vessels) {
+    if (!vessels || !vessels.length) {
+      setVesselsSummary("No vessels yet");
+      return;
+    }
+
+    setVesselsSummary(vessels.length + " total");
+  }
+
+  function updateContactsSummary(contacts) {
+    if (!contacts || !contacts.length) {
+      setContactsSummary("No contacts yet");
+      return;
+    }
+
+    setContactsSummary(contacts.length + " total");
+  }
+
+  function updatePassengersSummary(passengers) {
+    if (!passengers || !passengers.length) {
+      setPassengersSummary("No passengers yet");
+      return;
+    }
+
+    setPassengersSummary(passengers.length + " total");
+  }
+
+  function updateOperatorsSummary(operators) {
+    if (!operators || !operators.length) {
+      setOperatorsSummary("No operators yet");
+      return;
+    }
+
+    setOperatorsSummary(operators.length + " total");
+  }
+
+  function updateWaypointsSummary(waypoints) {
+    if (!waypoints || !waypoints.length) {
+      setWaypointsSummary("No waypoints yet");
+      return;
+    }
+
+    setWaypointsSummary(waypoints.length + " total");
+  }
+
+  function renderVesselsList(vessels) {
+    var listEl = document.getElementById("vesselsList");
+    if (!listEl) return;
+
+    if (!vessels || !vessels.length) {
+      listEl.innerHTML = "";
+      setVesselsMessage("You don’t have any vessels yet.", false);
+      return;
+    }
+
+    setVesselsMessage("", false);
+
+    var rows = vessels.map(function (vessel) {
+      var vesselId = pick(vessel, ["VESSELID", "ID"], "");
+      var name = pick(vessel, ["VESSELNAME", "NAME"], "");
+      var reg = pick(vessel, ["REGISTRATION", "REGNO"], "");
+      var vesselType = pick(vessel, ["TYPE", "VESSELTYPE"], "");
+      var length = pick(vessel, ["LENGTH"], "");
+      var color = pick(vessel, ["COLOR"], "");
+      var nameText = name || "Unnamed vessel";
+      var metaParts = [];
+      if (reg) metaParts.push("Registration: " + reg);
+      if (vesselType) metaParts.push(vesselType);
+      if (length) metaParts.push("Length: " + length);
+      if (color) metaParts.push("Color: " + color);
+      if (!metaParts.length) metaParts.push("Registration: N/A");
+      var metaText = metaParts.join(" • ");
+
+      return (
+        '<div class="list-item">' +
+          '<div class="list-main">' +
+            '<div class="list-title">' + escapeHtml(nameText) + "</div>" +
+            "<small>" + escapeHtml(metaText) + "</small>" +
+          "</div>" +
+          '<div class="list-actions">' +
+            '<button class="btn-secondary" type="button" id="vessel-edit-' + escapeHtml(vesselId) + '" data-action="edit" data-vessel-id="' + escapeHtml(vesselId) + '">Edit</button>' +
+            '<button class="btn-danger" type="button" id="vessel-delete-' + escapeHtml(vesselId) + '" data-action="delete" data-vessel-id="' + escapeHtml(vesselId) + '">Delete</button>' +
+          "</div>" +
+        "</div>"
+      );
+    }).join("");
+
+    listEl.innerHTML = rows;
+  }
+
+  function renderContactsList(contacts) {
+    var listEl = document.getElementById("contactsList");
+    if (!listEl) return;
+
+    if (!contacts || !contacts.length) {
+      listEl.innerHTML = "";
+      setContactsMessage("You don’t have any contacts yet.", false);
+      return;
+    }
+
+    setContactsMessage("", false);
+
+    var rows = contacts.map(function (contact) {
+      var contactId = pick(contact, ["CONTACTID", "ID"], "");
+      var name = pick(contact, ["CONTACTNAME", "NAME"], "");
+      var phone = pick(contact, ["PHONE"], "");
+      var email = pick(contact, ["EMAIL"], "");
+      var metaParts = [];
+
+      if (phone) metaParts.push(phone);
+      if (email) metaParts.push(email);
+
+      var metaText = metaParts.length ? metaParts.join(" • ") : "No contact details";
+
+      return (
+        '<div class="list-item">' +
+          '<div class="list-main">' +
+            '<div class="list-title">' + escapeHtml(name || "Unnamed contact") + "</div>" +
+            "<small>" + escapeHtml(metaText) + "</small>" +
+          "</div>" +
+          '<div class="list-actions">' +
+            '<button class="btn-secondary" type="button" id="contact-edit-' + escapeHtml(contactId) + '" data-action="edit" data-contact-id="' + escapeHtml(contactId) + '">Edit</button>' +
+            '<button class="btn-danger" type="button" id="contact-delete-' + escapeHtml(contactId) + '" data-action="delete" data-contact-id="' + escapeHtml(contactId) + '">Delete</button>' +
+          "</div>" +
+        "</div>"
+      );
+    }).join("");
+
+    listEl.innerHTML = rows;
+  }
+
+  function renderPassengersList(passengers) {
+    var listEl = document.getElementById("passengersList");
+    if (!listEl) return;
+
+    if (!passengers || !passengers.length) {
+      listEl.innerHTML = "";
+      setPassengersMessage("You don’t have any passengers yet.", false);
+      return;
+    }
+
+    setPassengersMessage("", false);
+
+    var rows = passengers.map(function (passenger) {
+      var passengerId = pick(passenger, ["PASSENGERID", "ID"], "");
+      var name = pick(passenger, ["PASSENGERNAME", "NAME"], "");
+      var phone = pick(passenger, ["PHONE"], "");
+      var age = pick(passenger, ["AGE"], "");
+      var gender = pick(passenger, ["GENDER"], "");
+      var metaParts = [];
+
+      if (phone) metaParts.push(phone);
+      if (age) metaParts.push("Age " + age);
+      if (gender) metaParts.push(gender);
+
+      var metaText = metaParts.length ? metaParts.join(" • ") : "No passenger details";
+
+      return (
+        '<div class="list-item">' +
+          '<div class="list-main">' +
+            '<div class="list-title">' + escapeHtml(name || "Unnamed passenger") + "</div>" +
+            "<small>" + escapeHtml(metaText) + "</small>" +
+          "</div>" +
+          '<div class="list-actions">' +
+            '<button class="btn-secondary" type="button" id="passenger-edit-' + escapeHtml(passengerId) + '" data-action="edit" data-passenger-id="' + escapeHtml(passengerId) + '">Edit</button>' +
+            '<button class="btn-danger" type="button" id="passenger-delete-' + escapeHtml(passengerId) + '" data-action="delete" data-passenger-id="' + escapeHtml(passengerId) + '">Delete</button>' +
+          "</div>" +
+        "</div>"
+      );
+    }).join("");
+
+    listEl.innerHTML = rows;
+  }
+
+  function renderOperatorsList(operators) {
+    var listEl = document.getElementById("operatorsList");
+    if (!listEl) return;
+
+    if (!operators || !operators.length) {
+      listEl.innerHTML = "";
+      setOperatorsMessage("You don’t have any operators yet.", false);
+      return;
+    }
+
+    setOperatorsMessage("", false);
+
+    var rows = operators.map(function (operator) {
+      var operatorId = pick(operator, ["OPERATORID", "ID"], "");
+      var name = pick(operator, ["OPERATORNAME", "NAME"], "");
+      var phone = pick(operator, ["PHONE"], "");
+      var notes = pick(operator, ["NOTES"], "");
+      var metaParts = [];
+
+      if (phone) metaParts.push(phone);
+      if (notes) metaParts.push(notes);
+
+      var metaText = metaParts.length ? metaParts.join(" • ") : "No operator details";
+
+      return (
+        '<div class="list-item">' +
+          '<div class="list-main">' +
+            '<div class="list-title">' + escapeHtml(name || "Unnamed operator") + "</div>" +
+            "<small>" + escapeHtml(metaText) + "</small>" +
+          "</div>" +
+          '<div class="list-actions">' +
+            '<button class="btn-secondary" type="button" id="operator-edit-' + escapeHtml(operatorId) + '" data-action="edit" data-operator-id="' + escapeHtml(operatorId) + '">Edit</button>' +
+            '<button class="btn-danger" type="button" id="operator-delete-' + escapeHtml(operatorId) + '" data-action="delete" data-operator-id="' + escapeHtml(operatorId) + '">Delete</button>' +
+          "</div>" +
+        "</div>"
+      );
+    }).join("");
+
+    listEl.innerHTML = rows;
+  }
+
+  function renderWaypointsList(waypoints) {
+    var listEl = document.getElementById("waypointsList");
+    if (!listEl) return;
+
+    if (!waypoints || !waypoints.length) {
+      listEl.innerHTML = "";
+      setWaypointsMessage("You don’t have any waypoints yet.", false);
+      return;
+    }
+
+    setWaypointsMessage("", false);
+
+    var rows = waypoints.map(function (waypoint) {
+      var waypointId = pick(waypoint, ["WAYPOINTID", "ID"], "");
+      var name = pick(waypoint, ["WAYPOINTNAME", "NAME"], "");
+      var latitude = pick(waypoint, ["LATITUDE"], "");
+      var longitude = pick(waypoint, ["LONGITUDE"], "");
+      var notes = pick(waypoint, ["NOTES"], "");
+      var metaParts = [];
+
+      if (latitude && longitude) {
+        metaParts.push(latitude + ", " + longitude);
+      }
+      if (notes) {
+        metaParts.push(notes);
+      }
+
+      var metaText = metaParts.length ? metaParts.join(" • ") : "No waypoint details";
+
+      return (
+        '<div class="list-item">' +
+          '<div class="list-main">' +
+            '<div class="list-title">' + escapeHtml(name || "Unnamed waypoint") + "</div>" +
+            "<small>" + escapeHtml(metaText) + "</small>" +
+          "</div>" +
+          '<div class="list-actions">' +
+            '<button class="btn-secondary" type="button" id="waypoint-edit-' + escapeHtml(waypointId) + '" data-action="edit" data-waypoint-id="' + escapeHtml(waypointId) + '">Edit</button>' +
+            '<button class="btn-danger" type="button" id="waypoint-delete-' + escapeHtml(waypointId) + '" data-action="delete" data-waypoint-id="' + escapeHtml(waypointId) + '">Delete</button>' +
+          "</div>" +
+        "</div>"
+      );
+    }).join("");
+
+    listEl.innerHTML = rows;
+  }
+
   function renderStatusBadge(status) {
     if (!status) return "";
     var normalized = String(status).toUpperCase();
@@ -246,7 +771,7 @@
         metaPartsInline.push('<span class="list-meta-text">' + escapeHtml(metaText) + "</span>");
       }
       if (updatedText) {
-        metaPartsInline.push('<span class="list-meta-text text-muted">' + escapeHtml(updatedText) + "</span>");
+        metaPartsInline.push('<span class="list-meta-text text-white">' + escapeHtml(updatedText) + "</span>");
       }
       var metaInline = metaPartsInline.length
         ? '<div class="list-meta list-meta-inline">' + metaPartsInline.join('<span class="meta-sep">•</span>') + "</div>"
@@ -261,8 +786,7 @@
             metaInline +
           "</div>" +
           '<div class="list-actions">' +
-            '<button class="btn-secondary" type="button" data-action="view" data-plan-id="' + escapeHtml(id) + '">View</button>' +
-            '<button class="btn-secondary" type="button" data-action="send" data-plan-id="' + escapeHtml(id) + '">Send</button>' +
+            '<button class="btn-secondary" type="button" data-action="view" data-plan-id="' + escapeHtml(id) + '">View &amp; Send</button>' +
             '<button class="btn-secondary" type="button" data-action="clone" data-plan-id="' + escapeHtml(id) + '">Clone</button>' +
             '<button class="btn-secondary" type="button" data-action="edit" data-plan-id="' + escapeHtml(id) + '">Edit</button>' +
             '<button class="btn-danger" type="button" data-action="delete" data-plan-id="' + escapeHtml(id) + '">Delete</button>' +
@@ -391,6 +915,236 @@
       });
   }
 
+  function loadVessels(limit) {
+    limit = limit || 100;
+    setVesselsSummary("Loading…");
+    setVesselsMessage("Loading vessels…", false);
+
+    var listEl = document.getElementById("vesselsList");
+    if (listEl) {
+      listEl.innerHTML = "";
+    }
+
+    if (!window.Api || typeof window.Api.getVessels !== "function") {
+      setVesselsMessage("Vessels API is unavailable.", true);
+      setVesselsSummary("Unavailable");
+      return;
+    }
+
+    Api.getVessels({ limit: limit })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+
+        var vessels = data.VESSELS || data.vessels || [];
+        vessels = vessels.slice().sort(function (a, b) {
+          var aName = pick(a, ["VESSELNAME", "NAME"], "").toLowerCase();
+          var bName = pick(b, ["VESSELNAME", "NAME"], "").toLowerCase();
+          if (aName < bName) return -1;
+          if (aName > bName) return 1;
+          return 0;
+        });
+        vesselState.all = vessels;
+        updateVesselsSummary(vessels);
+        renderVesselsList(vessels);
+      })
+      .catch(function (err) {
+        console.error("Failed to load vessels:", err);
+        setVesselsMessage("Unable to load vessels right now.", true);
+        setVesselsSummary("Error");
+        showDashboardAlert("Unable to load vessels. Please try again later.", "danger");
+      });
+  }
+
+  function loadContacts(limit) {
+    limit = limit || 100;
+    setContactsSummary("Loading…");
+    setContactsMessage("Loading contacts…", false);
+
+    var listEl = document.getElementById("contactsList");
+    if (listEl) {
+      listEl.innerHTML = "";
+    }
+
+    if (!window.Api || typeof window.Api.getContacts !== "function") {
+      setContactsMessage("Contacts API is unavailable.", true);
+      setContactsSummary("Unavailable");
+      return;
+    }
+
+    Api.getContacts({ limit: limit })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+
+        var contacts = data.CONTACTS || data.contacts || [];
+        contacts = contacts.slice().sort(function (a, b) {
+          var aName = pick(a, ["CONTACTNAME", "NAME"], "").toLowerCase();
+          var bName = pick(b, ["CONTACTNAME", "NAME"], "").toLowerCase();
+          if (aName < bName) return -1;
+          if (aName > bName) return 1;
+          return 0;
+        });
+        contactState.all = contacts;
+        updateContactsSummary(contacts);
+        renderContactsList(contacts);
+      })
+      .catch(function (err) {
+        console.error("Failed to load contacts:", err);
+        setContactsMessage("Unable to load contacts right now.", true);
+        setContactsSummary("Error");
+        showDashboardAlert("Unable to load contacts. Please try again later.", "danger");
+      });
+  }
+
+  function loadPassengers(limit) {
+    limit = limit || 100;
+    setPassengersSummary("Loading…");
+    setPassengersMessage("Loading passengers…", false);
+
+    var listEl = document.getElementById("passengersList");
+    if (listEl) {
+      listEl.innerHTML = "";
+    }
+
+    if (!window.Api || typeof window.Api.getPassengers !== "function") {
+      setPassengersMessage("Passengers API is unavailable.", true);
+      setPassengersSummary("Unavailable");
+      return;
+    }
+
+    Api.getPassengers({ limit: limit })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+
+        var passengers = data.PASSENGERS || data.passengers || [];
+        passengers = passengers.slice().sort(function (a, b) {
+          var aName = pick(a, ["PASSENGERNAME", "NAME"], "").toLowerCase();
+          var bName = pick(b, ["PASSENGERNAME", "NAME"], "").toLowerCase();
+          if (aName < bName) return -1;
+          if (aName > bName) return 1;
+          return 0;
+        });
+        passengerState.all = passengers;
+        updatePassengersSummary(passengers);
+        renderPassengersList(passengers);
+      })
+      .catch(function (err) {
+        console.error("Failed to load passengers:", err);
+        setPassengersMessage("Unable to load passengers right now.", true);
+        setPassengersSummary("Error");
+        showDashboardAlert("Unable to load passengers. Please try again later.", "danger");
+      });
+  }
+
+  function loadOperators(limit) {
+    limit = limit || 100;
+    setOperatorsSummary("Loading…");
+    setOperatorsMessage("Loading operators…", false);
+
+    var listEl = document.getElementById("operatorsList");
+    if (listEl) {
+      listEl.innerHTML = "";
+    }
+
+    if (!window.Api || typeof window.Api.getOperators !== "function") {
+      setOperatorsMessage("Operators API is unavailable.", true);
+      setOperatorsSummary("Unavailable");
+      return;
+    }
+
+    Api.getOperators({ limit: limit })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+
+        var operators = data.OPERATORS || data.operators || [];
+        operators = operators.slice().sort(function (a, b) {
+          var aName = pick(a, ["OPERATORNAME", "NAME"], "").toLowerCase();
+          var bName = pick(b, ["OPERATORNAME", "NAME"], "").toLowerCase();
+          if (aName < bName) return -1;
+          if (aName > bName) return 1;
+          return 0;
+        });
+        operatorState.all = operators;
+        updateOperatorsSummary(operators);
+        renderOperatorsList(operators);
+      })
+      .catch(function (err) {
+        console.error("Failed to load operators:", err);
+        setOperatorsMessage("Unable to load operators right now.", true);
+        setOperatorsSummary("Error");
+        showDashboardAlert("Unable to load operators. Please try again later.", "danger");
+      });
+  }
+
+  function loadWaypoints(limit) {
+    limit = limit || 100;
+    setWaypointsSummary("Loading…");
+    setWaypointsMessage("Loading waypoints…", false);
+
+    var listEl = document.getElementById("waypointsList");
+    if (listEl) {
+      listEl.innerHTML = "";
+    }
+
+    if (!window.Api || typeof window.Api.getWaypoints !== "function") {
+      setWaypointsMessage("Waypoints API is unavailable.", true);
+      setWaypointsSummary("Unavailable");
+      return;
+    }
+
+    Api.getWaypoints({ limit: limit })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+
+        var waypoints = data.WAYPOINTS || data.waypoints || [];
+        waypoints = waypoints.slice().sort(function (a, b) {
+          var aName = pick(a, ["WAYPOINTNAME", "NAME"], "").toLowerCase();
+          var bName = pick(b, ["WAYPOINTNAME", "NAME"], "").toLowerCase();
+          if (aName < bName) return -1;
+          if (aName > bName) return 1;
+          return 0;
+        });
+        waypointState.all = waypoints;
+        updateWaypointsSummary(waypoints);
+        renderWaypointsList(waypoints);
+      })
+      .catch(function (err) {
+        console.error("Failed to load waypoints:", err);
+        setWaypointsMessage("Unable to load waypoints right now.", true);
+        setWaypointsSummary("Error");
+        showDashboardAlert("Unable to load waypoints. Please try again later.", "danger");
+      });
+  }
+
   function ensureWizardModal() {
     if (!wizardModalEl) {
       wizardModalEl = document.getElementById("floatPlanWizardModal");
@@ -440,7 +1194,7 @@
           if (cloneModal) {
             cloneModal.hide();
           }
-          window.location.href = "/fpw/app/dashboard.cfm";
+          window.location.href = BASE_PATH + "/app/dashboard.cfm";
         });
       }
       cloneModalEl.dataset.listenersAttached = "true";
@@ -468,6 +1222,1973 @@
     cloneModal.show();
   }
 
+  function ensureVesselModal() {
+    if (!vesselModalEl) {
+      vesselModalEl = document.getElementById("vesselModal");
+      if (vesselModalEl) {
+        vesselFormEl = vesselModalEl.querySelector("#vesselForm");
+        vesselModalTitleEl = vesselModalEl.querySelector("#vesselModalLabel");
+        vesselIdInput = vesselModalEl.querySelector("#vesselId");
+        vesselNameInput = vesselModalEl.querySelector("#vesselName");
+        vesselRegistrationInput = vesselModalEl.querySelector("#vesselRegistration");
+        vesselTypeInput = vesselModalEl.querySelector("#vesselType");
+        vesselLengthInput = vesselModalEl.querySelector("#vesselLength");
+        vesselMakeInput = vesselModalEl.querySelector("#vesselMake");
+        vesselModelInput = vesselModalEl.querySelector("#vesselModel");
+        vesselColorInput = vesselModalEl.querySelector("#vesselColor");
+        vesselHomePortInput = vesselModalEl.querySelector("#vesselHomePort");
+        vesselSaveBtn = vesselModalEl.querySelector("#saveVesselBtn");
+        vesselNameError = vesselModalEl.querySelector("#vesselNameError");
+        vesselTypeError = vesselModalEl.querySelector("#vesselTypeError");
+        vesselLengthError = vesselModalEl.querySelector("#vesselLengthError");
+        vesselColorError = vesselModalEl.querySelector("#vesselColorError");
+      }
+    }
+
+    if (vesselModalEl && !vesselModal && window.bootstrap && window.bootstrap.Modal) {
+      vesselModal = new window.bootstrap.Modal(vesselModalEl);
+    }
+
+    if (vesselModalEl && !vesselModalEl.dataset.listenersAttached) {
+      if (vesselFormEl) {
+        vesselFormEl.addEventListener("submit", function (event) {
+          event.preventDefault();
+        });
+      }
+      if (vesselNameInput) {
+        vesselNameInput.addEventListener("input", function () {
+          clearFieldError(vesselNameInput, vesselNameError);
+        });
+      }
+      if (vesselTypeInput) {
+        vesselTypeInput.addEventListener("input", function () {
+          clearFieldError(vesselTypeInput, vesselTypeError);
+        });
+      }
+      if (vesselLengthInput) {
+        vesselLengthInput.addEventListener("input", function () {
+          clearFieldError(vesselLengthInput, vesselLengthError);
+        });
+      }
+      if (vesselColorInput) {
+        vesselColorInput.addEventListener("input", function () {
+          clearFieldError(vesselColorInput, vesselColorError);
+        });
+      }
+      if (vesselSaveBtn) {
+        vesselSaveBtn.addEventListener("click", function () {
+          saveVessel();
+        });
+      }
+      vesselModalEl.dataset.listenersAttached = "true";
+    }
+  }
+
+  function ensureContactModal() {
+    if (!contactModalEl) {
+      contactModalEl = document.getElementById("contactModal");
+      if (contactModalEl) {
+        contactFormEl = contactModalEl.querySelector("#contactForm");
+        contactModalTitleEl = contactModalEl.querySelector("#contactModalLabel");
+        contactIdInput = contactModalEl.querySelector("#contactId");
+        contactNameInput = contactModalEl.querySelector("#contactName");
+        contactPhoneInput = contactModalEl.querySelector("#contactPhone");
+        contactEmailInput = contactModalEl.querySelector("#contactEmail");
+        contactSaveBtn = contactModalEl.querySelector("#saveContactBtn");
+        contactNameError = contactModalEl.querySelector("#contactNameError");
+        contactPhoneError = contactModalEl.querySelector("#contactPhoneError");
+        contactEmailError = contactModalEl.querySelector("#contactEmailError");
+      }
+    }
+
+    if (contactModalEl && !contactModal && window.bootstrap && window.bootstrap.Modal) {
+      contactModal = new window.bootstrap.Modal(contactModalEl);
+    }
+
+    if (contactModalEl && !contactModalEl.dataset.listenersAttached) {
+      if (contactFormEl) {
+        contactFormEl.addEventListener("submit", function (event) {
+          event.preventDefault();
+        });
+      }
+      if (contactPhoneInput) {
+        contactPhoneInput.addEventListener("input", function () {
+          contactPhoneInput.value = formatUsPhoneInput(contactPhoneInput.value);
+          clearFieldError(contactPhoneInput, contactPhoneError);
+        });
+      }
+      if (contactNameInput) {
+        contactNameInput.addEventListener("input", function () {
+          clearFieldError(contactNameInput, contactNameError);
+        });
+      }
+      if (contactEmailInput) {
+        contactEmailInput.addEventListener("input", function () {
+          clearFieldError(contactEmailInput, contactEmailError);
+        });
+      }
+      if (contactSaveBtn) {
+        contactSaveBtn.addEventListener("click", function () {
+          saveContact();
+        });
+      }
+      contactModalEl.dataset.listenersAttached = "true";
+    }
+  }
+
+  function ensurePassengerModal() {
+    if (!passengerModalEl) {
+      passengerModalEl = document.getElementById("passengerModal");
+      if (passengerModalEl) {
+        passengerFormEl = passengerModalEl.querySelector("#passengerForm");
+        passengerModalTitleEl = passengerModalEl.querySelector("#passengerModalLabel");
+        passengerIdInput = passengerModalEl.querySelector("#passengerId");
+        passengerNameInput = passengerModalEl.querySelector("#passengerName");
+        passengerPhoneInput = passengerModalEl.querySelector("#passengerPhone");
+        passengerAgeInput = passengerModalEl.querySelector("#passengerAge");
+        passengerGenderInput = passengerModalEl.querySelector("#passengerGender");
+        passengerNotesInput = passengerModalEl.querySelector("#passengerNotes");
+        passengerSaveBtn = passengerModalEl.querySelector("#savePassengerBtn");
+        passengerNameError = passengerModalEl.querySelector("#passengerNameError");
+        passengerPhoneError = passengerModalEl.querySelector("#passengerPhoneError");
+      }
+    }
+
+    if (passengerModalEl && !passengerModal && window.bootstrap && window.bootstrap.Modal) {
+      passengerModal = new window.bootstrap.Modal(passengerModalEl);
+    }
+
+    if (passengerModalEl && !passengerModalEl.dataset.listenersAttached) {
+      if (passengerFormEl) {
+        passengerFormEl.addEventListener("submit", function (event) {
+          event.preventDefault();
+        });
+      }
+      if (passengerNameInput) {
+        passengerNameInput.addEventListener("input", function () {
+          clearFieldError(passengerNameInput, passengerNameError);
+        });
+      }
+      if (passengerPhoneInput) {
+        passengerPhoneInput.addEventListener("input", function () {
+          passengerPhoneInput.value = formatUsPhoneInput(passengerPhoneInput.value);
+          clearFieldError(passengerPhoneInput, passengerPhoneError);
+        });
+      }
+      if (passengerSaveBtn) {
+        passengerSaveBtn.addEventListener("click", function () {
+          savePassenger();
+        });
+      }
+      passengerModalEl.dataset.listenersAttached = "true";
+    }
+  }
+
+  function ensureOperatorModal() {
+    if (!operatorModalEl) {
+      operatorModalEl = document.getElementById("operatorModal");
+      if (operatorModalEl) {
+        operatorFormEl = operatorModalEl.querySelector("#operatorForm");
+        operatorModalTitleEl = operatorModalEl.querySelector("#operatorModalLabel");
+        operatorIdInput = operatorModalEl.querySelector("#operatorId");
+        operatorNameInput = operatorModalEl.querySelector("#operatorName");
+        operatorPhoneInput = operatorModalEl.querySelector("#operatorPhone");
+        operatorNotesInput = operatorModalEl.querySelector("#operatorNotes");
+        operatorSaveBtn = operatorModalEl.querySelector("#saveOperatorBtn");
+        operatorNameError = operatorModalEl.querySelector("#operatorNameError");
+        operatorPhoneError = operatorModalEl.querySelector("#operatorPhoneError");
+      }
+    }
+
+    if (operatorModalEl && !operatorModal && window.bootstrap && window.bootstrap.Modal) {
+      operatorModal = new window.bootstrap.Modal(operatorModalEl);
+    }
+
+    if (operatorModalEl && !operatorModalEl.dataset.listenersAttached) {
+      if (operatorFormEl) {
+        operatorFormEl.addEventListener("submit", function (event) {
+          event.preventDefault();
+        });
+      }
+      if (operatorNameInput) {
+        operatorNameInput.addEventListener("input", function () {
+          clearFieldError(operatorNameInput, operatorNameError);
+        });
+      }
+      if (operatorPhoneInput) {
+        operatorPhoneInput.addEventListener("input", function () {
+          operatorPhoneInput.value = formatUsPhoneInput(operatorPhoneInput.value);
+          clearFieldError(operatorPhoneInput, operatorPhoneError);
+        });
+      }
+      if (operatorSaveBtn) {
+        operatorSaveBtn.addEventListener("click", function () {
+          saveOperator();
+        });
+      }
+      operatorModalEl.dataset.listenersAttached = "true";
+    }
+  }
+
+  function ensureWaypointModal() {
+    if (!waypointModalEl) {
+      waypointModalEl = document.getElementById("waypointModal");
+      if (waypointModalEl) {
+        waypointFormEl = waypointModalEl.querySelector("#waypointForm");
+        waypointModalTitleEl = waypointModalEl.querySelector("#waypointModalLabel");
+        waypointIdInput = waypointModalEl.querySelector("#waypointId");
+        waypointNameInput = waypointModalEl.querySelector("#waypointName");
+        waypointLatitudeInput = waypointModalEl.querySelector("#waypointLatitude");
+        waypointLongitudeInput = waypointModalEl.querySelector("#waypointLongitude");
+        waypointNotesInput = waypointModalEl.querySelector("#waypointNotes");
+        waypointSaveBtn = waypointModalEl.querySelector("#saveWaypointBtn");
+        waypointNameError = waypointModalEl.querySelector("#waypointNameError");
+        waypointMapEl = waypointModalEl.querySelector("#waypointMap");
+        marineTideToggle = waypointModalEl.querySelector("#marineTideToggle");
+        marineTypeMarina = waypointModalEl.querySelector("#marineTypeMarina");
+        marineTypeFuel = waypointModalEl.querySelector("#marineTypeFuel");
+        marineTypeRamp = waypointModalEl.querySelector("#marineTypeRamp");
+        marineStatusLine = waypointModalEl.querySelector("#marineStatusLine");
+      }
+    }
+
+    if (waypointModalEl && !waypointModal && window.bootstrap && window.bootstrap.Modal) {
+      waypointModal = new window.bootstrap.Modal(waypointModalEl);
+    }
+
+    if (waypointModalEl && !waypointModalEl.dataset.listenersAttached) {
+      if (waypointFormEl) {
+        waypointFormEl.addEventListener("submit", function (event) {
+          event.preventDefault();
+        });
+      }
+      if (waypointNameInput) {
+        waypointNameInput.addEventListener("input", function () {
+          if (!suppressWaypointNameInput) {
+            waypointNameManual = true;
+          }
+          clearFieldError(waypointNameInput, waypointNameError);
+        });
+      }
+      if (waypointSaveBtn) {
+        waypointSaveBtn.addEventListener("click", function () {
+          saveWaypoint();
+        });
+      }
+      waypointModalEl.addEventListener("shown.bs.modal", function () {
+        if (waypointMap) {
+          window.google.maps.event.trigger(waypointMap, "resize");
+          if (waypointMapCenter) {
+            waypointMap.setCenter(waypointMapCenter);
+          }
+        }
+      });
+      waypointModalEl.dataset.listenersAttached = "true";
+    }
+
+  }
+
+  function ensureConfirmModal() {
+    if (!confirmModalEl) {
+      confirmModalEl = document.getElementById("confirmModal");
+      if (confirmModalEl) {
+        confirmMessageEl = confirmModalEl.querySelector("#confirmModalMessage");
+        confirmOkBtn = confirmModalEl.querySelector("#confirmModalOk");
+      }
+    }
+
+    if (confirmModalEl && !confirmModal && window.bootstrap && window.bootstrap.Modal) {
+      confirmModal = new window.bootstrap.Modal(confirmModalEl);
+    }
+
+    if (confirmModalEl && !confirmModalEl.dataset.listenersAttached) {
+      if (confirmOkBtn) {
+        confirmOkBtn.addEventListener("click", function () {
+          if (confirmResolver) {
+            confirmResolver(true);
+          }
+          confirmResolver = null;
+          if (confirmModal) {
+            confirmModal.hide();
+          }
+        });
+      }
+      confirmModalEl.addEventListener("hidden.bs.modal", function () {
+        if (confirmResolver) {
+          confirmResolver(false);
+          confirmResolver = null;
+        }
+      });
+      confirmModalEl.dataset.listenersAttached = "true";
+    }
+  }
+
+  function showConfirmModal(message) {
+    ensureConfirmModal();
+    if (!confirmModalEl || !confirmModal) {
+      return Promise.resolve(window.confirm(message || "Are you sure?"));
+    }
+    if (confirmMessageEl) {
+      confirmMessageEl.textContent = message || "Are you sure?";
+    }
+    confirmModal.show();
+    return new Promise(function (resolve) {
+      confirmResolver = resolve;
+    });
+  }
+
+  function ensureAlertModal() {
+    if (!alertModalEl) {
+      alertModalEl = document.getElementById("alertModal");
+      if (alertModalEl) {
+        alertMessageEl = alertModalEl.querySelector("#alertModalMessage");
+      }
+    }
+
+    if (alertModalEl && !alertModal && window.bootstrap && window.bootstrap.Modal) {
+      alertModal = new window.bootstrap.Modal(alertModalEl);
+    }
+  }
+
+  function showAlertModal(message) {
+    ensureAlertModal();
+    if (!alertModalEl || !alertModal) {
+      window.alert(message || "");
+      return;
+    }
+    if (alertMessageEl) {
+      alertMessageEl.textContent = message || "";
+    }
+    alertModal.show();
+  }
+
+  function resetContactForm() {
+    if (contactFormEl && contactFormEl.reset) {
+      contactFormEl.reset();
+    }
+    if (contactIdInput) contactIdInput.value = "0";
+    clearContactValidation();
+  }
+
+  function populateContactForm(contact) {
+    if (!contact) {
+      resetContactForm();
+      return;
+    }
+    if (contactIdInput) contactIdInput.value = pick(contact, ["CONTACTID", "ID"], 0);
+    if (contactNameInput) contactNameInput.value = pick(contact, ["CONTACTNAME", "NAME"], "");
+    if (contactPhoneInput) contactPhoneInput.value = pick(contact, ["PHONE"], "");
+    if (contactEmailInput) contactEmailInput.value = pick(contact, ["EMAIL"], "");
+    clearContactValidation();
+  }
+
+  function populatePassengerForm(passenger) {
+    if (!passenger) {
+      resetPassengerForm();
+      return;
+    }
+    if (passengerIdInput) passengerIdInput.value = pick(passenger, ["PASSENGERID", "ID"], 0);
+    if (passengerNameInput) passengerNameInput.value = pick(passenger, ["PASSENGERNAME", "NAME"], "");
+    if (passengerPhoneInput) passengerPhoneInput.value = pick(passenger, ["PHONE"], "");
+    if (passengerAgeInput) passengerAgeInput.value = pick(passenger, ["AGE"], "");
+    if (passengerGenderInput) passengerGenderInput.value = pick(passenger, ["GENDER"], "");
+    if (passengerNotesInput) passengerNotesInput.value = pick(passenger, ["NOTES"], "");
+    clearPassengerValidation();
+  }
+
+  function populateOperatorForm(operator) {
+    if (!operator) {
+      resetOperatorForm();
+      return;
+    }
+    if (operatorIdInput) operatorIdInput.value = pick(operator, ["OPERATORID", "ID"], 0);
+    if (operatorNameInput) operatorNameInput.value = pick(operator, ["OPERATORNAME", "NAME"], "");
+    if (operatorPhoneInput) operatorPhoneInput.value = pick(operator, ["PHONE"], "");
+    if (operatorNotesInput) operatorNotesInput.value = pick(operator, ["NOTES"], "");
+    clearOperatorValidation();
+  }
+
+  function populateWaypointForm(waypoint) {
+    if (!waypoint) {
+      resetWaypointForm();
+      return;
+    }
+    if (waypointIdInput) waypointIdInput.value = pick(waypoint, ["WAYPOINTID", "ID"], 0);
+    if (waypointNameInput) {
+      suppressWaypointNameInput = true;
+      waypointNameInput.value = pick(waypoint, ["WAYPOINTNAME", "NAME"], "");
+      suppressWaypointNameInput = false;
+    }
+    if (waypointLatitudeInput) waypointLatitudeInput.value = pick(waypoint, ["LATITUDE"], "");
+    if (waypointLongitudeInput) waypointLongitudeInput.value = pick(waypoint, ["LONGITUDE"], "");
+    if (waypointNotesInput) waypointNotesInput.value = pick(waypoint, ["NOTES"], "");
+    clearWaypointValidation();
+    waypointNameManual = false;
+  }
+
+  function openWaypointModal(waypoint) {
+    ensureWaypointModal();
+    if (!waypointModalEl || !waypointModal) {
+      return;
+    }
+    var waypointId = waypoint ? pick(waypoint, ["WAYPOINTID", "ID"], 0) : 0;
+    if (waypointModalTitleEl) {
+      waypointModalTitleEl.textContent = waypointId ? "Edit Waypoint" : "Add Waypoint";
+    }
+    populateWaypointForm(waypoint);
+    waypointModal.show();
+  }
+
+  function loadGoogleMaps() {
+    if (window.google && window.google.maps) {
+      return Promise.resolve();
+    }
+    if (!GOOGLE_MAPS_API_KEY) {
+      console.warn("Google Maps API key is missing.");
+      return Promise.reject(new Error("Google Maps API key is missing."));
+    }
+    if (waypointMapPromise) {
+      return waypointMapPromise;
+    }
+    waypointMapPromise = new Promise(function (resolve, reject) {
+      var scriptId = "googleMapsApi";
+      var existing = document.getElementById(scriptId);
+      if (existing) {
+        existing.addEventListener("load", function () { resolve(); });
+        existing.addEventListener("error", function () { reject(new Error("Google Maps load failed.")); });
+        return;
+      }
+      var script = document.createElement("script");
+      script.id = scriptId;
+      script.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(GOOGLE_MAPS_API_KEY);
+      script.async = true;
+      script.defer = true;
+      script.onload = function () { resolve(); };
+      script.onerror = function () { reject(new Error("Google Maps load failed.")); };
+      document.head.appendChild(script);
+    });
+    return waypointMapPromise;
+  }
+
+  function updateWaypointLatLngInputs(lat, lng) {
+    if (waypointLatitudeInput) waypointLatitudeInput.value = lat.toFixed(6);
+    if (waypointLongitudeInput) waypointLongitudeInput.value = lng.toFixed(6);
+  }
+
+  function setMarineStatus(message, kind, allowHtml) {
+    if (!marineStatusLine) {
+      marineStatusLine = document.getElementById("marineStatusLine");
+    }
+    if (!marineStatusLine) return;
+    if (allowHtml) {
+      marineStatusLine.innerHTML = message || "";
+    } else {
+      marineStatusLine.textContent = message || "";
+    }
+    marineStatusLine.classList.remove("text-muted", "text-danger", "text-success", "text-warning");
+    if (kind === "error") {
+      marineStatusLine.classList.add("text-danger");
+    } else if (kind === "warn") {
+      marineStatusLine.classList.add("text-warning");
+    } else if (kind === "success") {
+      marineStatusLine.classList.add("text-success");
+    } else {
+      marineStatusLine.classList.add("text-muted");
+    }
+  }
+
+  function setMarineLoadingStatus(text) {
+    var label = text || "Loading marine POIs…";
+    setMarineStatus(
+      '<span class="spinner-border spinner-border-sm text-light me-1" role="status" aria-hidden="true"></span>' +
+      '<span class="text-light">' + escapeHtml(label) + '</span>',
+      "info",
+      true
+    );
+  }
+
+  function getMarineFiltersFromUI() {
+    var types = [];
+    var marinaInput = document.getElementById("marineTypeMarina");
+    var fuelInput = document.getElementById("marineTypeFuel");
+    var rampInput = document.getElementById("marineTypeRamp");
+    if (marinaInput && marinaInput.checked) types.push("marina");
+    if (fuelInput && fuelInput.checked) types.push("fuel");
+    if (rampInput && rampInput.checked) types.push("ramp");
+    return {
+      placesEnabled: types.length > 0,
+      tideEnabled: !!(marineTideToggle && marineTideToggle.checked),
+      types: types
+    };
+  }
+
+  function getVisibleRadiusNm() {
+    if (!waypointMap || !waypointMap.getBounds) return null;
+    var bounds = waypointMap.getBounds();
+    if (!bounds) return null;
+    var center = waypointMap.getCenter();
+    var northEast = bounds.getNorthEast();
+    if (!center || !northEast) return null;
+    return computeDistanceNm(center.lat(), center.lng(), northEast.lat(), northEast.lng());
+  }
+
+  function clearMarkerCluster(clusterer) {
+    if (!clusterer) return;
+    if (typeof clusterer.clearMarkers === "function") {
+      clusterer.clearMarkers();
+      return;
+    }
+    if (typeof clusterer.setMap === "function") {
+      clusterer.setMap(null);
+    }
+  }
+
+  function clearPlacesPOIs() {
+    placeMarkers.forEach(function (marker) {
+      marker.setMap(null);
+    });
+    placeMarkers = [];
+    clearMarkerCluster(placeMarkerCluster);
+    placeMarkerCluster = null;
+  }
+
+
+  function createClusterer(markers) {
+    if (window.markerClusterer && window.markerClusterer.MarkerClusterer) {
+      return new window.markerClusterer.MarkerClusterer({ map: waypointMap, markers: markers });
+    }
+    return null;
+  }
+
+  function createMarkerIcon(labelText, fillColor) {
+    return {
+      path: window.google.maps.SymbolPath.CIRCLE,
+      scale: 7,
+      fillColor: fillColor,
+      fillOpacity: 0.9,
+      strokeColor: "#ffffff",
+      strokeWeight: 1.5,
+      labelOrigin: new window.google.maps.Point(0, 2)
+    };
+  }
+
+  function formatPlaceTypeLabel(type) {
+    if (type === "marina") return "Marina";
+    if (type === "fuel") return "Fuel Dock";
+    if (type === "ramp") return "Boat Ramp";
+    return "Place";
+  }
+
+  function computeDistanceNm(lat1, lng1, lat2, lng2) {
+    var toRad = function (value) { return value * Math.PI / 180; };
+    var earthRadiusKm = 6371;
+    var dLat = toRad(lat2 - lat1);
+    var dLng = toRad(lng2 - lng1);
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    var km = earthRadiusKm * c;
+    return km / 1.852;
+  }
+
+  function isSubsetArray(subset, superset) {
+    if (!subset || !subset.length) return true;
+    if (!superset || !superset.length) return false;
+    for (var i = 0; i < subset.length; i++) {
+      if (superset.indexOf(subset[i]) === -1) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function canUsePlacesCache(centerLat, centerLng, radiusNm, types) {
+    if (!lastPlacesCenter || lastPlacesRadius === null) return false;
+    var distance = computeDistanceNm(centerLat, centerLng, lastPlacesCenter.lat, lastPlacesCenter.lng);
+    if (distance > 0.5) return false;
+    if (Math.abs(radiusNm - lastPlacesRadius) > 2) return false;
+    return isSubsetArray(types, lastPlacesTypes);
+  }
+
+  function renderPlacesFromCache(types) {
+    clearPlacesPOIs();
+    if (!lastPlacesPois || !lastPlacesPois.length) {
+      setMarineStatus("No results.", "warn");
+      return;
+    }
+    var filtered = lastPlacesPois.filter(function (poi) {
+      return !types.length || types.indexOf(poi.type) !== -1;
+    });
+    if (!filtered.length) {
+      setMarineStatus("No results.", "warn");
+      return;
+    }
+    filtered.forEach(function (poi) {
+      if (poi.lat === undefined || poi.lat === null || poi.lng === undefined || poi.lng === null) return;
+      var labelText = "P";
+      var color = "#2f6fdf";
+      if (poi.type === "marina") {
+        labelText = "M";
+        color = "#1e88e5";
+      } else if (poi.type === "fuel") {
+        labelText = "F";
+        color = "#ff7043";
+      } else if (poi.type === "ramp") {
+        labelText = "R";
+        color = "#43a047";
+      }
+      var marker = new window.google.maps.Marker({
+        position: { lat: poi.lat, lng: poi.lng },
+        map: waypointMap,
+        label: { text: labelText, color: "#fff", fontSize: "10px" },
+        icon: createMarkerIcon(labelText, color)
+      });
+      marker.addListener("click", function () {
+        openMarineInfoWindow(poi, marker, "place");
+      });
+      placeMarkers.push(marker);
+    });
+    placeMarkerCluster = createClusterer(placeMarkers);
+    setMarineStatus("Loaded " + placeMarkers.length + " place" + (placeMarkers.length === 1 ? "" : "s") + ".", "success");
+  }
+
+  function applyPoiToWaypoint(poi) {
+    if (!poi) return;
+    var name = pick(poi, ["name", "NAME"], "");
+    var lat = pick(poi, ["lat", "LAT"], null);
+    var lng = pick(poi, ["lng", "LNG"], null);
+    if (waypointNameInput) {
+      suppressWaypointNameInput = true;
+      waypointNameInput.value = name || "";
+      suppressWaypointNameInput = false;
+    }
+    if (lat !== undefined && lat !== null && lng !== undefined && lng !== null) {
+      updateWaypointLatLngInputs(lat, lng);
+      setWaypointMarker(lat, lng);
+    }
+  }
+
+  function normalizePoi(poi) {
+    if (!poi) return null;
+    return {
+      id: pick(poi, ["id", "ID"], ""),
+      source: pick(poi, ["source", "SOURCE"], ""),
+      type: pick(poi, ["type", "TYPE"], ""),
+      name: pick(poi, ["name", "NAME"], ""),
+      lat: pick(poi, ["lat", "LAT"], null),
+      lng: pick(poi, ["lng", "LNG"], null),
+      summary: pick(poi, ["summary", "SUMMARY"], ""),
+      details: pick(poi, ["details", "DETAILS"], {}) || {}
+    };
+  }
+
+  function buildPlaceInfoContent(poi, extraDetails) {
+    var name = poi.name || "Marine Place";
+    var typeLabel = formatPlaceTypeLabel(poi.type);
+    var distanceText = "";
+    if (homePortLatLng) {
+      var distance = computeDistanceNm(homePortLatLng.lat, homePortLatLng.lng, poi.lat, poi.lng);
+      distanceText = distance ? distance.toFixed(1) + " nm from home port" : "";
+    }
+    var details = extraDetails || {};
+    var detailParts = [];
+    if (details.phone) detailParts.push("Phone: " + escapeHtml(details.phone));
+    if (details.website) detailParts.push("Website: " + escapeHtml(details.website));
+    if (details.hours) detailParts.push("Hours: " + escapeHtml(details.hours));
+    if (details.rating) detailParts.push("Rating: " + escapeHtml(details.rating));
+    if (details.photo) detailParts.push("<img src=\"" + encodeURI(details.photo) + "\" alt=\"\" style=\"max-width:120px;border-radius:6px;\">");
+    var detailHtml = detailParts.length ? "<div class=\"mt-2 small\">" + detailParts.join("<br>") + "</div>" : "";
+    var summaryHtml = poi.summary ? "<div class=\"small text-muted\">" + escapeHtml(poi.summary) + "</div>" : "";
+    var distanceHtml = distanceText ? "<div class=\"small text-muted\">" + escapeHtml(distanceText) + "</div>" : "";
+    return ""
+      + "<div style=\"min-width:220px;color:#1b1b1b\">"
+      + "<div><strong>" + escapeHtml(name) + "</strong></div>"
+      + "<div class=\"small\">" + escapeHtml(typeLabel) + "</div>"
+      + summaryHtml
+      + distanceHtml
+      + "<div class=\"mt-2 d-flex gap-2\">"
+      + "<button type=\"button\" class=\"btn btn-sm btn-primary\" id=\"marineUseWaypointBtn\">Use as Waypoint</button>"
+      + "<button type=\"button\" class=\"btn btn-sm btn-outline-secondary\" id=\"marineMoreDetailsBtn\">More Details</button>"
+      + "</div>"
+      + detailHtml
+      + "</div>";
+  }
+
+
+  function bindMarineInfoWindowActions(poi, type) {
+    var useBtn = document.getElementById("marineUseWaypointBtn");
+    if (useBtn) {
+      useBtn.addEventListener("click", function () {
+        applyPoiToWaypoint(poi);
+        if (marineInfoWindow) marineInfoWindow.close();
+      });
+    }
+    var detailsBtn = document.getElementById("marineMoreDetailsBtn");
+    if (detailsBtn && type === "place") {
+      detailsBtn.addEventListener("click", function () {
+        if (!window.Api || typeof window.Api.enrichPlace !== "function") {
+          return;
+        }
+        detailsBtn.disabled = true;
+        detailsBtn.textContent = "Loading…";
+        var requestId = ++marinePlaceDetailsRequestId;
+        Api.enrichPlace({ lat: poi.lat, lng: poi.lng, name: poi.name || "" })
+          .then(function (data) {
+            if (requestId !== marinePlaceDetailsRequestId) return;
+            if (data && data.SUCCESS && data.DETAILS) {
+              var enriched = data.DETAILS;
+              if (marineInfoWindow) {
+                marineInfoWindow.setContent(buildPlaceInfoContent(poi, {
+                  phone: enriched.PHONE,
+                  website: enriched.WEBSITE,
+                  hours: enriched.HOURS,
+                  rating: enriched.RATING,
+                  photo: enriched.PHOTO
+                }));
+                window.google.maps.event.addListenerOnce(marineInfoWindow, "domready", function () {
+                  bindMarineInfoWindowActions(poi, "place");
+                });
+              }
+            }
+          })
+          .catch(function () {
+            if (marineInfoWindow) {
+              marineInfoWindow.setContent(buildPlaceInfoContent(poi, { }));
+              window.google.maps.event.addListenerOnce(marineInfoWindow, "domready", function () {
+                bindMarineInfoWindowActions(poi, "place");
+              });
+            }
+          });
+      });
+    }
+  }
+
+  function openMarineInfoWindow(poi, marker, type) {
+    if (!marineInfoWindow) {
+      marineInfoWindow = new window.google.maps.InfoWindow();
+    }
+    marineInfoWindow.setContent(buildPlaceInfoContent(poi, null));
+    marineInfoWindow.open(waypointMap, marker);
+    window.google.maps.event.addListenerOnce(marineInfoWindow, "domready", function () {
+      bindMarineInfoWindowActions(poi, type === "nav" ? "nav" : "place");
+    });
+  }
+
+  function loadPlacesPOIs(centerLat, centerLng, radiusNm, types) {
+    if (!window.Api || typeof window.Api.getMarinePlaces !== "function") {
+      return Promise.resolve();
+    }
+    if (!types || !types.length) {
+      clearPlacesPOIs();
+      setMarineStatus("No place types selected.", "warn");
+      return Promise.resolve();
+    }
+    var requestId = ++marinePlacesRequestId;
+    var typeLabel = types && types.length ? types.join(", ") : "none";
+    setMarineLoadingStatus("Loading marine POIs… (" + typeLabel + ")");
+    return Api.getMarinePlaces({
+      lat: centerLat,
+      lng: centerLng,
+      radiusNm: radiusNm,
+      types: types
+    })
+      .then(function (data) {
+        if (requestId !== marinePlacesRequestId) return;
+        if (!data || data.SUCCESS !== true) {
+          throw data;
+        }
+        clearPlacesPOIs();
+        var pois = data.POIS || [];
+        if (!pois.length) {
+          setMarineStatus("No results.", "warn");
+          return;
+        }
+        if (pois.length > 200) {
+          pois = pois.slice(0, 200);
+        }
+        lastPlacesPois = [];
+        pois.forEach(function (poi) {
+          var normalized = normalizePoi(poi);
+          if (!normalized || normalized.lat === undefined || normalized.lat === null || normalized.lng === undefined || normalized.lng === null) return;
+          lastPlacesPois.push(normalized);
+          var labelText = "P";
+          var color = "#2f6fdf";
+          if (normalized.type === "marina") {
+            labelText = "M";
+            color = "#1e88e5";
+          } else if (normalized.type === "fuel") {
+            labelText = "F";
+            color = "#ff7043";
+          } else if (normalized.type === "ramp") {
+            labelText = "R";
+            color = "#43a047";
+          }
+          var marker = new window.google.maps.Marker({
+            position: { lat: normalized.lat, lng: normalized.lng },
+            map: waypointMap,
+            label: { text: labelText, color: "#fff", fontSize: "10px" },
+            icon: createMarkerIcon(labelText, color)
+          });
+          marker.addListener("click", function () {
+            openMarineInfoWindow(normalized, marker, "place");
+          });
+          placeMarkers.push(marker);
+        });
+        lastPlacesTypes = types.slice();
+        lastPlacesCenter = { lat: centerLat, lng: centerLng };
+        lastPlacesRadius = radiusNm;
+        placeMarkerCluster = createClusterer(placeMarkers);
+        setMarineStatus("Loaded " + placeMarkers.length + " place" + (placeMarkers.length === 1 ? "" : "s") + ".", "success");
+      })
+      .catch(function (err) {
+        if (requestId !== marinePlacesRequestId) return;
+        console.warn("Failed to load marine POIs:", err);
+        var detailText = "";
+        if (err && err.DETAIL) {
+          detailText = " (" + err.DETAIL + ")";
+        }
+        setMarineStatus(((err && err.MESSAGE) ? err.MESSAGE : "Error loading POIs.") + detailText, "error");
+      });
+  }
+
+
+  function debounceMapIdleReload(force) {
+    if (!waypointMap) return;
+    if (marineIdleTimer) {
+      clearTimeout(marineIdleTimer);
+    }
+    var delay = force ? 100 : 350;
+    marineIdleTimer = setTimeout(function () {
+      var filters = getMarineFiltersFromUI();
+      var visibleRadius = getVisibleRadiusNm();
+      var effectiveRadius = (visibleRadius && !isNaN(visibleRadius)) ? visibleRadius : 10;
+
+      if (!filters.placesEnabled) {
+        marinePlacesRequestId += 1;
+        clearPlacesPOIs();
+      } else {
+        var center = waypointMap.getCenter();
+        if (center) {
+          if (canUsePlacesCache(center.lat(), center.lng(), effectiveRadius, filters.types)) {
+            marinePlacesRequestId += 1;
+            renderPlacesFromCache(filters.types);
+          } else {
+            loadPlacesPOIs(center.lat(), center.lng(), effectiveRadius, filters.types);
+          }
+        }
+      }
+      if (!filters.placesEnabled) {
+        setMarineStatus("Ready", "info");
+      }
+    }, delay);
+  }
+
+  function setWaypointMarker(lat, lng) {
+    if (!waypointMap) return;
+    var position = { lat: lat, lng: lng };
+    if (!waypointMarker) {
+      waypointMarker = new window.google.maps.Marker({
+        position: position,
+        map: waypointMap,
+        label: { text: "W", color: "#fff" }
+      });
+    } else {
+      waypointMarker.setPosition(position);
+      waypointMarker.setMap(waypointMap);
+    }
+    waypointMapCenter = position;
+  }
+
+  function setHomePortMarker(lat, lng) {
+    if (!waypointMap) return;
+    var position = { lat: lat, lng: lng };
+    if (!homePortMarker) {
+      homePortMarker = new window.google.maps.Marker({
+        position: position,
+        map: waypointMap,
+        label: { text: "H", color: "#fff" }
+      });
+    } else {
+      homePortMarker.setPosition(position);
+      homePortMarker.setMap(waypointMap);
+    }
+  }
+
+  function reverseGeocodeToName(lat, lng, callback) {
+    if (!waypointGeocoder) {
+      callback("");
+      return;
+    }
+    waypointGeocoder.geocode({ location: { lat: lat, lng: lng } }, function (results, status) {
+      if (status !== "OK" || !results || !results.length) {
+        callback("");
+        return;
+      }
+      callback(results[0].formatted_address || "");
+    });
+  }
+
+  function initWaypointMap(centerLatLng) {
+    if (!waypointMapEl) {
+      return Promise.reject(new Error("Waypoint map container missing."));
+    }
+    return loadGoogleMaps().then(function () {
+      if (!waypointMap) {
+        waypointMap = new window.google.maps.Map(waypointMapEl, {
+          center: centerLatLng,
+          zoom: 11,
+          mapTypeControl: false,
+          fullscreenControl: false,
+          streetViewControl: false
+        });
+        marineInfoWindow = new window.google.maps.InfoWindow();
+        waypointGeocoder = new window.google.maps.Geocoder();
+        waypointMap.addListener("click", function (event) {
+          var lat = event.latLng.lat();
+          var lng = event.latLng.lng();
+          setWaypointMarker(lat, lng);
+          updateWaypointLatLngInputs(lat, lng);
+          reverseGeocodeToName(lat, lng, function (name) {
+            if (!name) return;
+            if (waypointNameManual && waypointNameInput && waypointNameInput.value.trim()) {
+              return;
+            }
+            if (waypointNameInput) {
+              suppressWaypointNameInput = true;
+              waypointNameInput.value = name;
+              suppressWaypointNameInput = false;
+            }
+          });
+        });
+        waypointMap.addListener("idle", function () {
+          debounceMapIdleReload(false);
+        });
+      }
+      waypointMapCenter = centerLatLng;
+      waypointMap.setCenter(centerLatLng);
+      var homePort = homePortLatLng || centerLatLng;
+      setHomePortMarker(homePort.lat, homePort.lng);
+    });
+  }
+
+  function openWaypointModalAdd() {
+    var fallback = homePortLatLng || { lat: 28.2323, lng: -82.7418 };
+    openWaypointModal(null);
+    initWaypointMap(fallback)
+      .then(function () {
+        setWaypointMarker(fallback.lat, fallback.lng);
+        updateWaypointLatLngInputs(fallback.lat, fallback.lng);
+        debounceMapIdleReload(true);
+      })
+      .catch(function (err) {
+        console.error("Failed to init waypoint map:", err);
+      });
+  }
+
+  function openWaypointModalEdit(waypoint) {
+    var lat = parseFloat(pick(waypoint, ["LATITUDE"], ""));
+    var lng = parseFloat(pick(waypoint, ["LONGITUDE"], ""));
+    var hasCoords = !isNaN(lat) && !isNaN(lng);
+    var center = hasCoords ? { lat: lat, lng: lng } : (homePortLatLng || { lat: 28.2323, lng: -82.7418 });
+    openWaypointModal(waypoint);
+    var marinaInput = document.getElementById("marineTypeMarina");
+    var fuelInput = document.getElementById("marineTypeFuel");
+    var rampInput = document.getElementById("marineTypeRamp");
+    if (marinaInput) marinaInput.checked = false;
+    if (fuelInput) fuelInput.checked = false;
+    if (rampInput) rampInput.checked = false;
+    initWaypointMap(center)
+      .then(function () {
+        setWaypointMarker(center.lat, center.lng);
+        if (hasCoords) {
+          updateWaypointLatLngInputs(center.lat, center.lng);
+        }
+        debounceMapIdleReload(true);
+      })
+      .catch(function (err) {
+        console.error("Failed to init waypoint map:", err);
+      });
+  }
+
+  function buildWaypointPayload() {
+    return {
+      WAYPOINTID: parseInt(waypointIdInput ? waypointIdInput.value : "0", 10) || 0,
+      WAYPOINTNAME: waypointNameInput ? waypointNameInput.value.trim() : "",
+      LATITUDE: waypointLatitudeInput ? waypointLatitudeInput.value.trim() : "",
+      LONGITUDE: waypointLongitudeInput ? waypointLongitudeInput.value.trim() : "",
+      NOTES: waypointNotesInput ? waypointNotesInput.value.trim() : ""
+    };
+  }
+
+  function saveWaypoint() {
+    if (!window.Api || typeof window.Api.saveWaypoint !== "function") {
+      showAlertModal("Waypoints API is unavailable.");
+      return;
+    }
+
+    var payload = buildWaypointPayload();
+    clearWaypointValidation();
+    var hasError = false;
+    if (!payload.WAYPOINTNAME) {
+      setFieldError(waypointNameInput, waypointNameError, "Name is required.");
+      hasError = true;
+    }
+    if (hasError) {
+      return;
+    }
+
+    if (waypointSaveBtn) {
+      waypointSaveBtn.disabled = true;
+      waypointSaveBtn.textContent = "Saving…";
+    }
+
+    Api.saveWaypoint({ waypoint: payload })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+        if (waypointModal) {
+          waypointModal.hide();
+        }
+        loadWaypoints();
+      })
+      .catch(function (err) {
+        console.error("Failed to save waypoint:", err);
+        showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to save waypoint.");
+      })
+      .finally(function () {
+        if (waypointSaveBtn) {
+          waypointSaveBtn.disabled = false;
+          waypointSaveBtn.textContent = "Save Waypoint";
+        }
+      });
+  }
+
+  function findWaypointById(waypointId) {
+    var list = waypointState.all || [];
+    for (var i = 0; i < list.length; i++) {
+      var currentId = pick(list[i], ["WAYPOINTID", "ID"], 0);
+      if (String(currentId) === String(waypointId)) {
+        return list[i];
+      }
+    }
+    return null;
+  }
+
+  function deleteWaypoint(waypointId, triggerButton) {
+    if (!window.Api || typeof window.Api.deleteWaypoint !== "function") {
+      return;
+    }
+
+    var originalText = "";
+    if (triggerButton) {
+      originalText = triggerButton.textContent;
+      triggerButton.disabled = true;
+      triggerButton.textContent = "Deleting…";
+    }
+
+    Api.deleteWaypoint(waypointId)
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (!data.SUCCESS) {
+          throw data;
+        }
+        loadWaypoints();
+      })
+      .catch(function (err) {
+        console.error("Failed to delete waypoint:", err);
+        showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Delete failed.");
+      })
+      .finally(function () {
+        if (triggerButton) {
+          triggerButton.disabled = false;
+          triggerButton.textContent = originalText || "Delete";
+        }
+      });
+  }
+
+  function handleWaypointsListClick(event) {
+    var target = event.target;
+    if (!target) return;
+    var button = target.closest("button[data-waypoint-id]");
+    if (!button) return;
+
+    var waypointId = button.getAttribute("data-waypoint-id");
+    var action = button.getAttribute("data-action");
+    if (!waypointId) return;
+
+    if (action === "edit") {
+      var waypoint = findWaypointById(waypointId);
+      openWaypointModalEdit(waypoint);
+    } else if (action === "delete") {
+      if (!window.Api || typeof window.Api.canDeleteWaypoint !== "function") {
+        return;
+      }
+      button.disabled = true;
+      Api.canDeleteWaypoint(waypointId)
+        .then(function (data) {
+          if (!ensureAuthResponse(data)) {
+            return;
+          }
+          if (data.SUCCESS !== true) {
+            throw data;
+          }
+          if (!data.CANDELETE) {
+            showAlertModal(data.MESSAGE || "This waypoint cannot be deleted.");
+            return;
+          }
+          var waypoint = findWaypointById(waypointId);
+          var waypointName = waypoint ? pick(waypoint, ["WAYPOINTNAME", "NAME"], "") : "";
+          var confirmText = waypointName ? "Delete " + waypointName + "?" : "Delete this waypoint?";
+          showConfirmModal(confirmText).then(function (confirmed) {
+            if (!confirmed) return;
+            deleteWaypoint(waypointId, button);
+          });
+        })
+        .catch(function (err) {
+          console.error("Failed to check waypoint usage:", err);
+          showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to check waypoint usage.");
+        })
+        .finally(function () {
+          button.disabled = false;
+        });
+    }
+  }
+  function openOperatorModal(operator) {
+    ensureOperatorModal();
+    if (!operatorModalEl || !operatorModal) {
+      return;
+    }
+    var operatorId = operator ? pick(operator, ["OPERATORID", "ID"], 0) : 0;
+    if (operatorModalTitleEl) {
+      operatorModalTitleEl.textContent = operatorId ? "Edit Operator" : "Add Operator";
+    }
+    populateOperatorForm(operator);
+    operatorModal.show();
+  }
+
+  function buildOperatorPayload() {
+    return {
+      OPERATORID: parseInt(operatorIdInput ? operatorIdInput.value : "0", 10) || 0,
+      OPERATORNAME: operatorNameInput ? operatorNameInput.value.trim() : "",
+      PHONE: operatorPhoneInput ? operatorPhoneInput.value.trim() : "",
+      NOTES: operatorNotesInput ? operatorNotesInput.value.trim() : ""
+    };
+  }
+
+  function saveOperator() {
+    if (!window.Api || typeof window.Api.saveOperator !== "function") {
+      showAlertModal("Operators API is unavailable.");
+      return;
+    }
+
+    var payload = buildOperatorPayload();
+    clearOperatorValidation();
+    var hasError = false;
+    if (!payload.OPERATORNAME) {
+      setFieldError(operatorNameInput, operatorNameError, "Name is required.");
+      hasError = true;
+    }
+    if (payload.PHONE && !isValidPhone(payload.PHONE)) {
+      setFieldError(operatorPhoneInput, operatorPhoneError, "Enter a valid US phone number.");
+      hasError = true;
+    }
+    if (hasError) {
+      return;
+    }
+
+    if (operatorSaveBtn) {
+      operatorSaveBtn.disabled = true;
+      operatorSaveBtn.textContent = "Saving…";
+    }
+
+    Api.saveOperator({ operator: payload })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+        if (operatorModal) {
+          operatorModal.hide();
+        }
+        loadOperators();
+      })
+      .catch(function (err) {
+        console.error("Failed to save operator:", err);
+        showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to save operator.");
+      })
+      .finally(function () {
+        if (operatorSaveBtn) {
+          operatorSaveBtn.disabled = false;
+          operatorSaveBtn.textContent = "Save Operator";
+        }
+      });
+  }
+
+  function findOperatorById(operatorId) {
+    var list = operatorState.all || [];
+    for (var i = 0; i < list.length; i++) {
+      var currentId = pick(list[i], ["OPERATORID", "ID"], 0);
+      if (String(currentId) === String(operatorId)) {
+        return list[i];
+      }
+    }
+    return null;
+  }
+
+  function deleteOperator(operatorId, triggerButton) {
+    if (!window.Api || typeof window.Api.deleteOperator !== "function") {
+      return;
+    }
+
+    var originalText = "";
+    if (triggerButton) {
+      originalText = triggerButton.textContent;
+      triggerButton.disabled = true;
+      triggerButton.textContent = "Deleting…";
+    }
+
+    Api.deleteOperator(operatorId)
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (!data.SUCCESS) {
+          throw data;
+        }
+        loadOperators();
+      })
+      .catch(function (err) {
+        console.error("Failed to delete operator:", err);
+        showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Delete failed.");
+      })
+      .finally(function () {
+        if (triggerButton) {
+          triggerButton.disabled = false;
+          triggerButton.textContent = originalText || "Delete";
+        }
+      });
+  }
+
+  function handleOperatorsListClick(event) {
+    var target = event.target;
+    if (!target) return;
+    var button = target.closest("button[data-operator-id]");
+    if (!button) return;
+
+    var operatorId = button.getAttribute("data-operator-id");
+    var action = button.getAttribute("data-action");
+    if (!operatorId) return;
+
+    if (action === "edit") {
+      var operator = findOperatorById(operatorId);
+      openOperatorModal(operator);
+    } else if (action === "delete") {
+      if (!window.Api || typeof window.Api.canDeleteOperator !== "function") {
+        return;
+      }
+      button.disabled = true;
+      Api.canDeleteOperator(operatorId)
+        .then(function (data) {
+          if (!ensureAuthResponse(data)) {
+            return;
+          }
+          if (data.SUCCESS !== true) {
+            throw data;
+          }
+          if (!data.CANDELETE) {
+            showAlertModal(data.MESSAGE || "This operator cannot be deleted.");
+            return;
+          }
+          var operator = findOperatorById(operatorId);
+          var operatorName = operator ? pick(operator, ["OPERATORNAME", "NAME"], "") : "";
+          var confirmText = operatorName ? "Delete " + operatorName + "?" : "Delete this operator?";
+          showConfirmModal(confirmText).then(function (confirmed) {
+            if (!confirmed) return;
+            deleteOperator(operatorId, button);
+          });
+        })
+        .catch(function (err) {
+          console.error("Failed to check operator usage:", err);
+          showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to check operator usage.");
+        })
+        .finally(function () {
+          button.disabled = false;
+        });
+    }
+  }
+
+  function handleMarineControlChange(event) {
+    var target = event.target;
+    if (!target || !target.id) return;
+    if (waypointModalEl && !waypointModalEl.contains(target)) return;
+    var marineIds = {
+      marineTideToggle: true,
+      marineTypeMarina: true,
+      marineTypeFuel: true,
+      marineTypeRamp: true,
+    };
+    if (!marineIds[target.id]) return;
+    ensureWaypointModal();
+    setMarineStatus("Updating marine layers…", "info");
+    debounceMapIdleReload(true);
+  }
+  function openPassengerModal(passenger) {
+    ensurePassengerModal();
+    if (!passengerModalEl || !passengerModal) {
+      return;
+    }
+    var passengerId = passenger ? pick(passenger, ["PASSENGERID", "ID"], 0) : 0;
+    if (passengerModalTitleEl) {
+      passengerModalTitleEl.textContent = passengerId ? "Edit Passenger/Crew" : "Add Passenger/Crew";
+    }
+    populatePassengerForm(passenger);
+    passengerModal.show();
+  }
+
+  function buildPassengerPayload() {
+    return {
+      PASSENGERID: parseInt(passengerIdInput ? passengerIdInput.value : "0", 10) || 0,
+      PASSENGERNAME: passengerNameInput ? passengerNameInput.value.trim() : "",
+      PHONE: passengerPhoneInput ? passengerPhoneInput.value.trim() : "",
+      AGE: passengerAgeInput ? passengerAgeInput.value.trim() : "",
+      GENDER: passengerGenderInput ? passengerGenderInput.value.trim() : "",
+      NOTES: passengerNotesInput ? passengerNotesInput.value.trim() : ""
+    };
+  }
+
+  function savePassenger() {
+    if (!window.Api || typeof window.Api.savePassenger !== "function") {
+      showAlertModal("Passengers API is unavailable.");
+      return;
+    }
+
+    var payload = buildPassengerPayload();
+    clearPassengerValidation();
+    var hasError = false;
+    if (!payload.PASSENGERNAME) {
+      setFieldError(passengerNameInput, passengerNameError, "Name is required.");
+      hasError = true;
+    }
+    if (payload.PHONE && !isValidPhone(payload.PHONE)) {
+      setFieldError(passengerPhoneInput, passengerPhoneError, "Enter a valid US phone number.");
+      hasError = true;
+    }
+    if (hasError) {
+      return;
+    }
+
+    if (passengerSaveBtn) {
+      passengerSaveBtn.disabled = true;
+      passengerSaveBtn.textContent = "Saving…";
+    }
+
+    Api.savePassenger({ passenger: payload })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+        if (passengerModal) {
+          passengerModal.hide();
+        }
+        loadPassengers();
+      })
+      .catch(function (err) {
+        console.error("Failed to save passenger:", err);
+        showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to save passenger.");
+      })
+      .finally(function () {
+        if (passengerSaveBtn) {
+          passengerSaveBtn.disabled = false;
+          passengerSaveBtn.textContent = "Save Passenger";
+        }
+      });
+  }
+
+  function findPassengerById(passengerId) {
+    var list = passengerState.all || [];
+    for (var i = 0; i < list.length; i++) {
+      var currentId = pick(list[i], ["PASSENGERID", "ID"], 0);
+      if (String(currentId) === String(passengerId)) {
+        return list[i];
+      }
+    }
+    return null;
+  }
+
+  function deletePassenger(passengerId, triggerButton) {
+    if (!window.Api || typeof window.Api.deletePassenger !== "function") {
+      return;
+    }
+
+    var originalText = "";
+    if (triggerButton) {
+      originalText = triggerButton.textContent;
+      triggerButton.disabled = true;
+      triggerButton.textContent = "Deleting…";
+    }
+
+    Api.deletePassenger(passengerId)
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (!data.SUCCESS) {
+          throw data;
+        }
+        loadPassengers();
+      })
+      .catch(function (err) {
+        console.error("Failed to delete passenger:", err);
+        showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Delete failed.");
+      })
+      .finally(function () {
+        if (triggerButton) {
+          triggerButton.disabled = false;
+          triggerButton.textContent = originalText || "Delete";
+        }
+      });
+  }
+
+  function handlePassengersListClick(event) {
+    var target = event.target;
+    if (!target) return;
+    var button = target.closest("button[data-passenger-id]");
+    if (!button) return;
+
+    var passengerId = button.getAttribute("data-passenger-id");
+    var action = button.getAttribute("data-action");
+    if (!passengerId) return;
+
+    if (action === "edit") {
+      var passenger = findPassengerById(passengerId);
+      openPassengerModal(passenger);
+    } else if (action === "delete") {
+      if (!window.Api || typeof window.Api.canDeletePassenger !== "function") {
+        return;
+      }
+      button.disabled = true;
+      Api.canDeletePassenger(passengerId)
+        .then(function (data) {
+          if (!ensureAuthResponse(data)) {
+            return;
+          }
+          if (data.SUCCESS !== true) {
+            throw data;
+          }
+          if (!data.CANDELETE) {
+            showAlertModal(data.MESSAGE || "This passenger cannot be deleted.");
+            return;
+          }
+          var passenger = findPassengerById(passengerId);
+          var passengerName = passenger ? pick(passenger, ["PASSENGERNAME", "NAME"], "") : "";
+          var confirmText = passengerName ? "Delete " + passengerName + "?" : "Delete this passenger?";
+          showConfirmModal(confirmText).then(function (confirmed) {
+            if (!confirmed) return;
+            deletePassenger(passengerId, button);
+          });
+        })
+        .catch(function (err) {
+          console.error("Failed to check passenger usage:", err);
+          showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to check passenger usage.");
+        })
+        .finally(function () {
+          button.disabled = false;
+        });
+    }
+  }
+
+  function openContactModal(contact) {
+    ensureContactModal();
+    if (!contactModalEl || !contactModal) {
+      return;
+    }
+    var contactId = contact ? pick(contact, ["CONTACTID", "ID"], 0) : 0;
+    if (contactModalTitleEl) {
+      contactModalTitleEl.textContent = contactId ? "Edit Contact" : "Add Contact";
+    }
+    populateContactForm(contact);
+    contactModal.show();
+  }
+
+  function buildContactPayload() {
+    return {
+      CONTACTID: parseInt(contactIdInput ? contactIdInput.value : "0", 10) || 0,
+      CONTACTNAME: contactNameInput ? contactNameInput.value.trim() : "",
+      PHONE: contactPhoneInput ? contactPhoneInput.value.trim() : "",
+      EMAIL: contactEmailInput ? contactEmailInput.value.trim() : ""
+    };
+  }
+
+  function isValidEmail(value) {
+    if (!value) return false;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  }
+
+  function isValidPhone(value) {
+    if (!value) return false;
+    var digits = String(value).replace(/\D/g, "");
+    if (digits.length === 11 && digits.charAt(0) === "1") {
+      digits = digits.slice(1);
+    }
+    return digits.length === 10;
+  }
+
+  function formatUsPhoneInput(value) {
+    var digits = String(value || "").replace(/\D/g, "");
+    if (digits.charAt(0) === "1" && digits.length > 10) {
+      digits = digits.slice(1);
+    }
+    digits = digits.slice(0, 10);
+
+    if (digits.length <= 3) {
+      return digits.length ? "(" + digits : "";
+    }
+    if (digits.length <= 6) {
+      return "(" + digits.slice(0, 3) + ") " + digits.slice(3);
+    }
+    return "(" + digits.slice(0, 3) + ") " + digits.slice(3, 6) + "-" + digits.slice(6);
+  }
+
+  function saveContact() {
+    if (!window.Api || typeof window.Api.saveContact !== "function") {
+      showAlertModal("Contacts API is unavailable.");
+      return;
+    }
+
+    var payload = buildContactPayload();
+    clearContactValidation();
+    var hasError = false;
+    if (!payload.CONTACTNAME) {
+      setFieldError(contactNameInput, contactNameError, "Contact name is required.");
+      hasError = true;
+    }
+    if (!payload.PHONE) {
+      setFieldError(contactPhoneInput, contactPhoneError, "Phone is required.");
+      hasError = true;
+    } else if (!isValidPhone(payload.PHONE)) {
+      setFieldError(contactPhoneInput, contactPhoneError, "Enter a valid US phone number.");
+      hasError = true;
+    }
+    if (!payload.EMAIL) {
+      setFieldError(contactEmailInput, contactEmailError, "Email is required.");
+      hasError = true;
+    } else if (!isValidEmail(payload.EMAIL)) {
+      setFieldError(contactEmailInput, contactEmailError, "Enter a valid email address.");
+      hasError = true;
+    }
+    if (hasError) {
+      return;
+    }
+
+    if (contactSaveBtn) {
+      contactSaveBtn.disabled = true;
+      contactSaveBtn.textContent = "Saving…";
+    }
+
+    Api.saveContact({ contact: payload })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+        if (contactModal) {
+          contactModal.hide();
+        }
+        loadContacts();
+      })
+      .catch(function (err) {
+        console.error("Failed to save contact:", err);
+        showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to save contact.");
+      })
+      .finally(function () {
+        if (contactSaveBtn) {
+          contactSaveBtn.disabled = false;
+          contactSaveBtn.textContent = "Save Contact";
+        }
+      });
+  }
+
+  function findContactById(contactId) {
+    var list = contactState.all || [];
+    for (var i = 0; i < list.length; i++) {
+      var currentId = pick(list[i], ["CONTACTID", "ID"], 0);
+      if (String(currentId) === String(contactId)) {
+        return list[i];
+      }
+    }
+    return null;
+  }
+
+  function deleteContact(contactId, triggerButton) {
+    if (!window.Api || typeof window.Api.deleteContact !== "function") {
+      return;
+    }
+
+    var originalText = "";
+    if (triggerButton) {
+      originalText = triggerButton.textContent;
+      triggerButton.disabled = true;
+      triggerButton.textContent = "Deleting…";
+    }
+
+    Api.deleteContact(contactId)
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (!data.SUCCESS) {
+          throw data;
+        }
+        loadContacts();
+      })
+      .catch(function (err) {
+        console.error("Failed to delete contact:", err);
+        showDashboardAlert((err && err.MESSAGE) ? err.MESSAGE : "Delete failed.", "danger");
+      })
+      .finally(function () {
+        if (triggerButton) {
+          triggerButton.disabled = false;
+          triggerButton.textContent = originalText || "Delete";
+        }
+      });
+  }
+
+  function handleContactsListClick(event) {
+    var target = event.target;
+    if (!target) return;
+    var button = target.closest("button[data-contact-id]");
+    if (!button) return;
+
+    var contactId = button.getAttribute("data-contact-id");
+    var action = button.getAttribute("data-action");
+    if (!contactId) return;
+
+    if (action === "edit") {
+      var contact = findContactById(contactId);
+      openContactModal(contact);
+    } else if (action === "delete") {
+      if (!window.Api || typeof window.Api.canDeleteContact !== "function") {
+        return;
+      }
+      button.disabled = true;
+      Api.canDeleteContact(contactId)
+        .then(function (data) {
+          if (!ensureAuthResponse(data)) {
+            return;
+          }
+          if (data.SUCCESS !== true) {
+            throw data;
+          }
+          if (!data.CANDELETE) {
+            showAlertModal(data.MESSAGE || "This contact cannot be deleted.");
+            return;
+          }
+          var contact = findContactById(contactId);
+          var contactName = contact ? pick(contact, ["CONTACTNAME", "NAME"], "") : "";
+          var confirmText = contactName ? "Delete " + contactName + "?" : "Delete this contact?";
+          showConfirmModal(confirmText).then(function (confirmed) {
+            if (!confirmed) return;
+            deleteContact(contactId, button);
+          });
+        })
+        .catch(function (err) {
+          console.error("Failed to check contact usage:", err);
+          showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to check contact usage.");
+        })
+        .finally(function () {
+          button.disabled = false;
+        });
+    }
+  }
+
+  function setFieldError(inputEl, errorEl, message) {
+    if (inputEl) {
+      inputEl.classList.add("is-invalid");
+    }
+    if (errorEl) {
+      errorEl.textContent = message || "";
+    }
+  }
+
+  function clearFieldError(inputEl, errorEl) {
+    if (inputEl) {
+      inputEl.classList.remove("is-invalid");
+    }
+    if (errorEl) {
+      errorEl.textContent = "";
+    }
+  }
+
+  function clearVesselValidation() {
+    clearFieldError(vesselNameInput, vesselNameError);
+    clearFieldError(vesselTypeInput, vesselTypeError);
+    clearFieldError(vesselLengthInput, vesselLengthError);
+    clearFieldError(vesselColorInput, vesselColorError);
+  }
+
+  function clearContactValidation() {
+    clearFieldError(contactNameInput, contactNameError);
+    clearFieldError(contactPhoneInput, contactPhoneError);
+    clearFieldError(contactEmailInput, contactEmailError);
+  }
+
+  function clearPassengerValidation() {
+    clearFieldError(passengerNameInput, passengerNameError);
+    clearFieldError(passengerPhoneInput, passengerPhoneError);
+  }
+
+  function clearOperatorValidation() {
+    clearFieldError(operatorNameInput, operatorNameError);
+    clearFieldError(operatorPhoneInput, operatorPhoneError);
+  }
+
+  function clearWaypointValidation() {
+    clearFieldError(waypointNameInput, waypointNameError);
+  }
+
+  function resetVesselForm() {
+    if (vesselFormEl && vesselFormEl.reset) {
+      vesselFormEl.reset();
+    }
+    if (vesselIdInput) vesselIdInput.value = "0";
+    clearVesselValidation();
+  }
+
+  function resetPassengerForm() {
+    if (passengerFormEl && passengerFormEl.reset) {
+      passengerFormEl.reset();
+    }
+    if (passengerIdInput) passengerIdInput.value = "0";
+    clearPassengerValidation();
+  }
+
+  function resetOperatorForm() {
+    if (operatorFormEl && operatorFormEl.reset) {
+      operatorFormEl.reset();
+    }
+    if (operatorIdInput) operatorIdInput.value = "0";
+    clearOperatorValidation();
+  }
+
+  function resetWaypointForm() {
+    if (waypointFormEl && waypointFormEl.reset) {
+      waypointFormEl.reset();
+    }
+    if (waypointIdInput) waypointIdInput.value = "0";
+    clearWaypointValidation();
+    waypointNameManual = false;
+  }
+
+  function populateVesselForm(vessel) {
+    if (!vessel) {
+      resetVesselForm();
+      return;
+    }
+    if (vesselIdInput) vesselIdInput.value = pick(vessel, ["VESSELID", "ID"], 0);
+    if (vesselNameInput) vesselNameInput.value = pick(vessel, ["VESSELNAME", "NAME"], "");
+    if (vesselRegistrationInput) vesselRegistrationInput.value = pick(vessel, ["REGISTRATION", "REGNO"], "");
+    if (vesselTypeInput) vesselTypeInput.value = pick(vessel, ["TYPE"], "");
+    if (vesselLengthInput) vesselLengthInput.value = pick(vessel, ["LENGTH"], "");
+    if (vesselMakeInput) vesselMakeInput.value = pick(vessel, ["MAKE"], "");
+    if (vesselModelInput) vesselModelInput.value = pick(vessel, ["MODEL"], "");
+    if (vesselColorInput) vesselColorInput.value = pick(vessel, ["COLOR"], "");
+    if (vesselHomePortInput) vesselHomePortInput.value = pick(vessel, ["HOMEPORT"], "");
+    clearVesselValidation();
+  }
+
+  function openVesselModal(vessel) {
+    ensureVesselModal();
+    if (!vesselModalEl || !vesselModal) {
+      return;
+    }
+    var vesselId = vessel ? pick(vessel, ["VESSELID", "ID"], 0) : 0;
+    if (vesselModalTitleEl) {
+      vesselModalTitleEl.textContent = vesselId ? "Edit Vessel" : "Add Vessel";
+    }
+    populateVesselForm(vessel);
+    vesselModal.show();
+  }
+
+  function buildVesselPayload() {
+    return {
+      VESSELID: parseInt(vesselIdInput ? vesselIdInput.value : "0", 10) || 0,
+      VESSELNAME: vesselNameInput ? vesselNameInput.value.trim() : "",
+      REGISTRATION: vesselRegistrationInput ? vesselRegistrationInput.value.trim() : "",
+      TYPE: vesselTypeInput ? vesselTypeInput.value.trim() : "",
+      LENGTH: vesselLengthInput ? vesselLengthInput.value.trim() : "",
+      MAKE: vesselMakeInput ? vesselMakeInput.value.trim() : "",
+      MODEL: vesselModelInput ? vesselModelInput.value.trim() : "",
+      COLOR: vesselColorInput ? vesselColorInput.value.trim() : "",
+      HOMEPORT: vesselHomePortInput ? vesselHomePortInput.value.trim() : ""
+    };
+  }
+
+  function saveVessel() {
+    if (!window.Api || typeof window.Api.saveVessel !== "function") {
+      showAlertModal("Vessel API is unavailable.");
+      return;
+    }
+
+    var payload = buildVesselPayload();
+    clearVesselValidation();
+    var hasError = false;
+    if (!payload.VESSELNAME) {
+      setFieldError(vesselNameInput, vesselNameError, "Vessel name is required.");
+      hasError = true;
+    }
+    if (!payload.TYPE) {
+      setFieldError(vesselTypeInput, vesselTypeError, "Vessel type is required.");
+      hasError = true;
+    }
+    if (!payload.LENGTH) {
+      setFieldError(vesselLengthInput, vesselLengthError, "Vessel length is required.");
+      hasError = true;
+    }
+    if (!payload.COLOR) {
+      setFieldError(vesselColorInput, vesselColorError, "Hull color is required.");
+      hasError = true;
+    }
+    if (hasError) {
+      return;
+    }
+
+    if (vesselSaveBtn) {
+      vesselSaveBtn.disabled = true;
+      vesselSaveBtn.textContent = "Saving…";
+    }
+
+    Api.saveVessel({ vessel: payload })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+        if (vesselModal) {
+          vesselModal.hide();
+        }
+        loadVessels();
+      })
+      .catch(function (err) {
+        console.error("Failed to save vessel:", err);
+        showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to save vessel.");
+      })
+      .finally(function () {
+        if (vesselSaveBtn) {
+          vesselSaveBtn.disabled = false;
+          vesselSaveBtn.textContent = "Save Vessel";
+        }
+      });
+  }
+
+  function findVesselById(vesselId) {
+    var list = vesselState.all || [];
+    for (var i = 0; i < list.length; i++) {
+      var currentId = pick(list[i], ["VESSELID", "ID"], 0);
+      if (String(currentId) === String(vesselId)) {
+        return list[i];
+      }
+    }
+    return null;
+  }
+
+  function deleteVessel(vesselId, triggerButton) {
+    if (!window.Api || typeof window.Api.deleteVessel !== "function") {
+      return;
+    }
+
+    var originalText = "";
+    if (triggerButton) {
+      originalText = triggerButton.textContent;
+      triggerButton.disabled = true;
+      triggerButton.textContent = "Deleting…";
+    }
+
+    Api.deleteVessel(vesselId)
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (!data.SUCCESS) {
+          throw data;
+        }
+        loadVessels();
+      })
+      .catch(function (err) {
+        console.error("Failed to delete vessel:", err);
+        showDashboardAlert((err && err.MESSAGE) ? err.MESSAGE : "Delete failed.", "danger");
+      })
+      .finally(function () {
+        if (triggerButton) {
+          triggerButton.disabled = false;
+          triggerButton.textContent = originalText || "Delete";
+        }
+      });
+  }
+
+  function handleVesselsListClick(event) {
+    var target = event.target;
+    if (!target) return;
+    var button = target.closest("button[data-vessel-id]");
+    if (!button) return;
+
+    var vesselId = button.getAttribute("data-vessel-id");
+    var action = button.getAttribute("data-action");
+    if (!vesselId) return;
+
+    if (action === "edit") {
+      var vessel = findVesselById(vesselId);
+      openVesselModal(vessel);
+    } else if (action === "delete") {
+      if (!window.Api || typeof window.Api.canDeleteVessel !== "function") {
+        return;
+      }
+      button.disabled = true;
+      Api.canDeleteVessel(vesselId)
+        .then(function (data) {
+          if (!ensureAuthResponse(data)) {
+            return;
+          }
+          if (data.SUCCESS !== true) {
+            throw data;
+          }
+          if (!data.CANDELETE) {
+            showAlertModal(data.MESSAGE || "This vessel cannot be deleted.");
+            return;
+          }
+          var vessel = findVesselById(vesselId);
+          var vesselName = vessel ? pick(vessel, ["VESSELNAME", "NAME"], "") : "";
+          var confirmText = vesselName ? "Delete " + vesselName + "?" : "Delete this vessel?";
+          showConfirmModal(confirmText).then(function (confirmed) {
+            if (!confirmed) return;
+            deleteVessel(vesselId, button);
+          });
+        })
+        .catch(function (err) {
+          console.error("Failed to check vessel usage:", err);
+          showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to check vessel usage.");
+        })
+        .finally(function () {
+          button.disabled = false;
+        });
+    }
+  }
+
   function openWizard(planId, startStep) {
     ensureWizardModal();
     if (!wizardModalEl || !wizardModal) {
@@ -479,6 +3200,7 @@
         mountEl: wizardMountEl,
         planId: planId,
         startStep: startStep,
+        contactStep: 4,
         onSaved: function () {
           loadFloatPlans(FLOAT_PLAN_LIMIT);
           if (wizardModal) {
@@ -604,6 +3326,13 @@
     clearDashboardAlert();
     ensureWizardModal();
     ensureCloneModal();
+    ensureVesselModal();
+    ensureContactModal();
+    ensurePassengerModal();
+    ensureOperatorModal();
+    ensureWaypointModal();
+    ensureConfirmModal();
+    ensureAlertModal();
     initFloatPlansFilter();
 
     Api.getCurrentUser()
@@ -619,7 +3348,13 @@
         }
 
         populateUserInfo(data.USER);
+        homePortLatLng = resolveHomePortLatLng(data.USER);
         loadFloatPlans(FLOAT_PLAN_LIMIT);
+        loadVessels();
+        loadContacts();
+        loadPassengers();
+        loadOperators();
+        loadWaypoints();
       })
       .catch(function (err) {
         console.error("Failed to load current user:", err);
@@ -649,11 +3384,74 @@
       });
     }
 
+    var addVesselBtn = document.getElementById("addVesselBtn");
+    if (addVesselBtn) {
+      addVesselBtn.addEventListener("click", function () {
+        openVesselModal(null);
+      });
+    }
+
+    var addContactBtn = document.getElementById("addContactBtn");
+    if (addContactBtn) {
+      addContactBtn.addEventListener("click", function () {
+        openContactModal(null);
+      });
+    }
+
+    var addPassengerBtn = document.getElementById("addPassengerBtn");
+    if (addPassengerBtn) {
+      addPassengerBtn.addEventListener("click", function () {
+        openPassengerModal(null);
+      });
+    }
+
+    var addOperatorBtn = document.getElementById("addOperatorBtn");
+    if (addOperatorBtn) {
+      addOperatorBtn.addEventListener("click", function () {
+        openOperatorModal(null);
+      });
+    }
+
+    var addWaypointBtn = document.getElementById("addWaypointBtn");
+    if (addWaypointBtn) {
+      addWaypointBtn.addEventListener("click", function () {
+        openWaypointModalAdd();
+      });
+    }
+
     var listEl = document.getElementById("floatPlansList");
     if (listEl) {
       listEl.addEventListener("click", handleFloatPlansListClick);
     }
+
+    var vesselsListEl = document.getElementById("vesselsList");
+    if (vesselsListEl) {
+      vesselsListEl.addEventListener("click", handleVesselsListClick);
+    }
+
+    var contactsListEl = document.getElementById("contactsList");
+    if (contactsListEl) {
+      contactsListEl.addEventListener("click", handleContactsListClick);
+    }
+
+    var passengersListEl = document.getElementById("passengersList");
+    if (passengersListEl) {
+      passengersListEl.addEventListener("click", handlePassengersListClick);
+    }
+
+    var operatorsListEl = document.getElementById("operatorsList");
+    if (operatorsListEl) {
+      operatorsListEl.addEventListener("click", handleOperatorsListClick);
+    }
+
+    var waypointsListEl = document.getElementById("waypointsList");
+    if (waypointsListEl) {
+      waypointsListEl.addEventListener("click", handleWaypointsListClick);
+    }
+
   }
 
+  document.addEventListener("change", handleMarineControlChange);
+  window.FPW_DASHBOARD_VERSION = "20251227r";
   document.addEventListener("DOMContentLoaded", initDashboard);
 })(window, document);

@@ -3,6 +3,8 @@
 (function (window, document, Vue) {
   "use strict";
 
+  var BASE_PATH = window.FPW_BASE || "";
+
   if (!Vue) {
     console.error("Vue is required for the float plan wizard.");
   }
@@ -172,6 +174,22 @@
   function numeric(value) {
     var num = parseInt(value, 10);
     return isNaN(num) ? 0 : num;
+  }
+
+  function getAppPrefix() {
+    var firstSegment = (window.location.pathname.split("/")[1] || "");
+    return firstSegment ? "/" + firstSegment : "";
+  }
+
+  function buildPdfPreviewUrl(fileName, cacheBust) {
+    if (!fileName) {
+      return "";
+    }
+    var url = getAppPrefix() + "/api/api_assets/floatPlans/user_float_plans/" + encodeURIComponent(fileName);
+    if (cacheBust) {
+      url += (url.indexOf("?") === -1 ? "?" : "&") + "t=" + encodeURIComponent(cacheBust);
+    }
+    return url;
   }
 
   function createEmptyFloatPlan() {
@@ -528,6 +546,7 @@
     var onSaved = options.onSaved;
     var onDeleted = options.onDeleted;
     var initialPlanId = numeric(options.planId || 0);
+    var contactStep = numeric(options.contactStep || 0);
     if (!initialPlanId) {
       initialPlanId = getPlanIdFromQuery();
     }
@@ -572,6 +591,10 @@
         homePortTimezone: "",
         selectedRescueCenterId: 0,
         rescueCenterSyncing: false,
+        pdfPreviewUrl: "",
+        pdfPreviewLoading: false,
+        pdfPreviewError: "",
+        contactStep: contactStep,
         initialPlanId: initialPlanId
       };
     },
@@ -605,6 +628,9 @@
       step: function (nextStep, prevStep) {
         if (nextStep !== prevStep) {
           this.clearStatus();
+          if (nextStep === this.totalSteps) {
+            this.loadPdfPreview();
+          }
         }
       },
       "fp.FLOATPLAN.RESCUE_AUTHORITY": function () {
@@ -629,14 +655,18 @@
         var payload = this.fp ? this.fp.FLOATPLAN || {} : {};
         var constraints = STEP_VALIDATION_CONSTRAINTS[stepNumber];
         var validator = window.validate;
+        var needsContactValidation = stepNumber === this.contactStep;
 
         // If no validator, allow step
-        if (!constraints || typeof validator !== "function") {
+        if ((!constraints || typeof validator !== "function") && !needsContactValidation) {
           return true;
         }
 
         // Validate.js returns object map when format is "grouped"
-        var errors = validator(payload, constraints, { format: "grouped", fullMessages: false });
+        var errors = null;
+        if (constraints && typeof validator === "function") {
+          errors = validator(payload, constraints, { format: "grouped", fullMessages: false });
+        }
 
 
         // Custom cross-field rule (return after departure) for step 2 (or final step 6)
@@ -654,6 +684,14 @@
           errors[RESCUE_AUTHORITY_SELECTION_FIELD] = [RESCUE_AUTHORITY_SELECTION_MESSAGE];
         }
 
+        if (needsContactValidation) {
+          var contactCount = (this.fp && this.fp.CONTACTS) ? this.fp.CONTACTS.length : 0;
+          if (contactCount <= 0) {
+            if (!errors) errors = {};
+            errors.CONTACTS = ["Select at least one contact."];
+          }
+        }
+
         if (!errors) {
           this.clearStatus(); // keep your existing status alert behavior optional
           return true;
@@ -668,9 +706,7 @@
           this.setFieldError(field, msg);
         }
 
-        // Optional: keep a simple top message, but inline is the primary display
-        this.setStatus("Please fix the highlighted fields.", false);
-
+        this.clearStatus();
         this.$nextTick(this.focusFirstError);
         return false;
       },
@@ -846,6 +882,38 @@
         return numeric(this.fp.FLOATPLAN.FLOATPLANID || this.initialPlanId);
       },
 
+      loadPdfPreview: function () {
+        var self = this;
+        var planId = this.getPlanId();
+        this.pdfPreviewError = "";
+
+        if (!planId) {
+          this.pdfPreviewUrl = "";
+          this.pdfPreviewLoading = false;
+          this.pdfPreviewError = "Save this float plan to generate a PDF preview.";
+          return;
+        }
+
+        if (!window.Api || typeof window.Api.createFloatPlanPdf !== "function") {
+          this.pdfPreviewUrl = "";
+          this.pdfPreviewLoading = false;
+          this.pdfPreviewError = "PDF preview service is unavailable.";
+          return;
+        }
+
+        this.pdfPreviewLoading = true;
+        window.Api.createFloatPlanPdf(planId)
+          .then(function (fileName) {
+            self.pdfPreviewUrl = buildPdfPreviewUrl(fileName, Date.now());
+            self.pdfPreviewLoading = false;
+          })
+          .catch(function (err) {
+            self.pdfPreviewLoading = false;
+            self.pdfPreviewUrl = "";
+            self.pdfPreviewError = (err && err.MESSAGE) ? err.MESSAGE : "Unable to generate PDF preview.";
+          });
+      },
+
       isPassengerSelected: function (id) {
         var target = numeric(id);
         return this.fp.PASSENGERS.some(function (item) {
@@ -971,6 +1039,9 @@
             self.initialPlanId = numeric(self.fp.FLOATPLAN.FLOATPLANID) || self.initialPlanId;
             self.isLoading = false;
             self.clearStatus();
+            if (self.step === self.totalSteps) {
+              self.loadPdfPreview();
+            }
           })
           .catch(function (err) {
             self.isLoading = false;
@@ -1008,6 +1079,29 @@
         }
       }
       ,
+      applySaveResponse: function (response) {
+        this.fp.FLOATPLAN = normalizeFloatPlan(response.FLOATPLAN || response);
+        this.syncRescueCenterSelection();
+        this.fp.PASSENGERS = sortByOrder(
+          toArray(response.PLAN_PASSENGERS)
+            .map(normalizePassengerSelection)
+            .filter(function (item) { return !!item; }),
+          "SORT_ORDER"
+        );
+        this.fp.CONTACTS = sortByOrder(
+          toArray(response.PLAN_CONTACTS)
+            .map(normalizeContactSelection)
+            .filter(function (item) { return !!item; }),
+          "SORT_ORDER"
+        );
+        this.fp.WAYPOINTS = sortByOrder(
+          toArray(response.PLAN_WAYPOINTS)
+            .map(normalizeWaypointSelection)
+            .filter(function (item) { return !!item; }),
+          "SORT_ORDER"
+        );
+        this.initialPlanId = numeric(this.fp.FLOATPLAN.FLOATPLANID) || this.initialPlanId;
+      },
 
       submitPlan: function () {
         var self = this;
@@ -1030,30 +1124,12 @@
           WAYPOINTS: this.fp.WAYPOINTS
         })
         .then(function (response) {
-          self.fp.FLOATPLAN = normalizeFloatPlan(response.FLOATPLAN || response);
-          self.syncRescueCenterSelection();
-          self.fp.PASSENGERS = sortByOrder(
-            toArray(response.PLAN_PASSENGERS)
-              .map(normalizePassengerSelection)
-              .filter(function (item) { return !!item; }),
-            "SORT_ORDER"
-          );
-          self.fp.CONTACTS = sortByOrder(
-            toArray(response.PLAN_CONTACTS)
-              .map(normalizeContactSelection)
-              .filter(function (item) { return !!item; }),
-            "SORT_ORDER"
-          );
-          self.fp.WAYPOINTS = sortByOrder(
-            toArray(response.PLAN_WAYPOINTS)
-              .map(normalizeWaypointSelection)
-              .filter(function (item) { return !!item; }),
-            "SORT_ORDER"
-          );
-
-          self.initialPlanId = numeric(self.fp.FLOATPLAN.FLOATPLANID) || self.initialPlanId;
+          self.applySaveResponse(response);
           self.setStatus("Float plan saved successfully.", true);
           self.isSaving = false;
+          if (self.step === self.totalSteps) {
+            self.loadPdfPreview();
+          }
           if (typeof onSaved === "function") {
             onSaved(response, self);
           }
@@ -1061,6 +1137,54 @@
         .catch(function (err) {
           self.isSaving = false;
           self.handleError(err, "Unable to save float plan.");
+        });
+      },
+
+      submitPlanAndSend: function () {
+        var self = this;
+        if (!window.Api || typeof window.Api.saveFloatPlan !== "function") {
+          this.handleError("API helper not available.", "Unable to save float plan.");
+          return;
+        }
+        if (!window.Api || typeof window.Api.sendFloatPlan !== "function") {
+          this.handleError("API helper not available.", "Unable to send float plan.");
+          return;
+        }
+
+        if (!this.validateStep(this.totalSteps)) {
+          return;
+        }
+        if (!this.fp || !Array.isArray(this.fp.CONTACTS) || this.fp.CONTACTS.length === 0) {
+          this.setStatus("Select at least one contact to send this float plan.", false);
+          return;
+        }
+
+        this.isSaving = true;
+        this.setStatus("Saving and sending your float plan...", true);
+
+        window.Api.saveFloatPlan({
+          FLOATPLAN: this.fp.FLOATPLAN,
+          PASSENGERS: this.fp.PASSENGERS,
+          CONTACTS: this.fp.CONTACTS,
+          WAYPOINTS: this.fp.WAYPOINTS
+        })
+        .then(function (response) {
+          self.applySaveResponse(response);
+          return window.Api.sendFloatPlan(self.getPlanId());
+        })
+        .then(function (response) {
+          self.setStatus(response && response.MESSAGE ? response.MESSAGE : "Float plan sent to selected contacts.", true);
+          self.isSaving = false;
+          if (self.step === self.totalSteps) {
+            self.loadPdfPreview();
+          }
+          if (typeof onSaved === "function") {
+            onSaved(response, self);
+          }
+        })
+        .catch(function (err) {
+          self.isSaving = false;
+          self.handleError(err, "Unable to save and send float plan.");
         });
       },
 
@@ -1092,7 +1216,7 @@
               onDeleted(planId, self);
             } else {
               window.setTimeout(function () {
-                window.location.href = "/fpw/app/dashboard.cfm";
+                window.location.href = BASE_PATH + "/app/dashboard.cfm";
               }, 600);
             }
           })
@@ -1135,6 +1259,9 @@
     var mountEl = options.mountEl || document.getElementById("wizardApp");
     if (!mountEl) {
       return null;
+    }
+    if (options.contactStep == null && mountEl.dataset && mountEl.dataset.contactStep) {
+      options.contactStep = mountEl.dataset.contactStep;
     }
 
     destroyWizard();
