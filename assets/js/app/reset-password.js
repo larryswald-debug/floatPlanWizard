@@ -2,6 +2,9 @@
 (function (window, document) {
   "use strict";
 
+  var BASE_PATH = window.FPW_BASE || "";
+  var API_BASE = window.FPW_API_BASE || (BASE_PATH + "/api/v1");
+
   function $(id) { return document.getElementById(id); }
 
   function showAlert(msg, type) {
@@ -49,7 +52,7 @@
       btn.textContent = "Updating…";
 
       try {
-        var data = await fetchJson("/fpw/api/v1/password_reset.cfc?method=handle", {
+        var data = await fetchJson(API_BASE + "/password_reset.cfc?method=handle", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -62,7 +65,7 @@
         showAlert(data.MESSAGE || "Password updated. Redirecting to sign in…", "success");
 
         setTimeout(function () {
-          window.location.href = "/fpw/app/login.cfm";
+          window.location.href = BASE_PATH + "/app/login.cfm";
         }, 900);
 
       } catch (err) {

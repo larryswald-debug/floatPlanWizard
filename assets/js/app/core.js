@@ -3,6 +3,8 @@
 (function (window, document) {
   "use strict";
 
+  var BASE_PATH = window.FPW_BASE || "";
+
   function showLoginAlert(message, type) {
     var alertEl = document.getElementById("loginAlert");
     if (!alertEl) return;
@@ -50,7 +52,7 @@
 
           // Will 404 until we create dashboard.cfm – that’s okay for now
           setTimeout(function () {
-            window.location.href = "/fpw/app/dashboard.cfm";
+            window.location.href = BASE_PATH + "/app/dashboard.cfm";
           }, 800);
         })
         .catch(function (err) {

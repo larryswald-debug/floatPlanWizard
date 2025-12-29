@@ -5,7 +5,7 @@
     <title>Mobile App Login</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <cfinclude template="/fpw/includes/header_styles.cfm">
+    <cfinclude template="../includes/header_styles.cfm">
 
     <style>
         body {
@@ -30,7 +30,7 @@
                 <div class="card-body p-4">
                     <h1 class="h4 mb-3 text-center">Mobile App Login</h1>
                     <p class="text-muted small text-center mb-3">
-                        This form logs in via the <code>/fpw/api/v1/auth.cfc?method=handle</code> endpoint.
+                        This form logs in via the <code><cfoutput>#request.fpwBase#</cfoutput>/api/v1/auth.cfc?method=handle</code> endpoint.
                     </p>
 
                     <div id="loginAlert" class="alert d-none" role="alert"></div>
@@ -68,7 +68,7 @@
             </div>
 
             <div class="mt-3 small">
-  <a href="/fpw/app/forgot-password.cfm">Forgot password?</a>
+  <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/forgot-password.cfm">Forgot password?</a>
 </div>
 
             <p class="text-center text-muted small mt-3">
@@ -78,8 +78,8 @@
     </div>
 </div>
 
-<cfinclude template="/fpw/includes/footer_scripts.cfm">
-<script src="/fpw/assets/js/app/core.js"></script>
+<cfinclude template="../includes/footer_scripts.cfm">
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/core.js"></script>
 
 </body>
 </html>

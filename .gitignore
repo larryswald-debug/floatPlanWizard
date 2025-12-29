@@ -6,6 +6,10 @@ Thumbs.db
 cfusion/logs/
 WEB-INF/cfusion/logs/
 *.log
+git_commands.txt
+prompts.txt
+.pw-home/.npm/
+/api/api_assets/floatPlans
 
 # ===== Docker =====
 docker/volumes/

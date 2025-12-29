@@ -2,6 +2,9 @@
 (function (window, document) {
   "use strict";
 
+  var BASE_PATH = window.FPW_BASE || "";
+  var API_BASE = window.FPW_API_BASE || (BASE_PATH + "/api/v1");
+
   function $(id) { return document.getElementById(id); }
 
   function pick(obj, keys, fallback) {
@@ -29,7 +32,7 @@
       window.AppAuth.redirectToLogin();
       return;
     }
-    window.location.href = "/fpw/app/login.cfm";
+    window.location.href = BASE_PATH + "/app/login.cfm";
   }
 
   function populateHomePort(home) {
@@ -101,7 +104,7 @@
 
   async function loadProfile() {
     try {
-      var data = await fetchJson("/fpw/api/v1/profile.cfc?method=handle", { method: "GET" });
+      var data = await fetchJson(API_BASE + "/profile.cfc?method=handle", { method: "GET" });
 
       if (!ensureAuth(data)) {
         return;
@@ -135,7 +138,7 @@
     if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
 
     try {
-      var data = await fetchJson("/fpw/api/v1/profile.cfc?method=handle", {
+      var data = await fetchJson(API_BASE + "/profile.cfc?method=handle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -186,7 +189,7 @@
     if (btn) { btn.disabled = true; btn.textContent = "Changing…"; }
 
     try {
-      var data = await fetchJson("/fpw/api/v1/profile.cfc?method=handle", {
+      var data = await fetchJson(API_BASE + "/profile.cfc?method=handle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -237,7 +240,7 @@
     if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
 
     try {
-      var data = await fetchJson("/fpw/api/v1/homeport.cfc?method=handle", {
+      var data = await fetchJson(API_BASE + "/homeport.cfc?method=handle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -267,7 +270,7 @@
 
   async function logout() {
     try {
-      await fetchJson("/fpw/api/v1/auth.cfc?method=handle", {
+      await fetchJson(API_BASE + "/auth.cfc?method=handle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "logout" })

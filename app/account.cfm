@@ -5,7 +5,7 @@
   <title>Account Settings</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <cfinclude template="/fpw/includes/header_styles.cfm">
+  <cfinclude template="../includes/header_styles.cfm">
 
   <style>
     .navbar .navbar-brand {
@@ -19,7 +19,7 @@
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-3">
   <div class="container-fluid">
-    <a class="navbar-brand" href="/fpw/app/dashboard.cfm">Mobile App</a>
+    <a class="navbar-brand" href="<cfoutput>#request.fpwBase#</cfoutput>/app/dashboard.cfm">Mobile App</a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
             aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
@@ -28,15 +28,15 @@
     <div class="collapse navbar-collapse" id="mainNav">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
         <li class="nav-item">
-          <a class="nav-link" href="/fpw/app/dashboard.cfm">Dashboard</a>
+          <a class="nav-link" href="<cfoutput>#request.fpwBase#</cfoutput>/app/dashboard.cfm">Dashboard</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link active" aria-current="page" href="/fpw/app/account.cfm">Account</a>
+          <a class="nav-link active" aria-current="page" href="<cfoutput>#request.fpwBase#</cfoutput>/app/account.cfm">Account</a>
         </li>
       </ul>
 
       <div class="d-flex gap-2">
-        <a class="btn btn-outline-light btn-sm" href="/fpw/app/dashboard.cfm">Dashboard</a>
+        <a class="btn btn-outline-light btn-sm" href="<cfoutput>#request.fpwBase#</cfoutput>/app/dashboard.cfm">Dashboard</a>
         <button class="btn btn-outline-light btn-sm" id="logoutButton" type="button">Logout</button>
       </div>
     </div>
@@ -156,8 +156,8 @@
   </div>
 </div>
 
-<cfinclude template="/fpw/includes/footer_scripts.cfm">
-<script src="/fpw/assets/js/app/account.js"></script>
+<cfinclude template="../includes/footer_scripts.cfm">
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/account.js"></script>
 
 </body>
 </html>

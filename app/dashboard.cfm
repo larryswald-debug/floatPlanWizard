@@ -6,8 +6,8 @@
     <title>Dashboard - Float Plan Wizard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <cfinclude template="/fpw/includes/header_styles.cfm">
-    <link rel="stylesheet" href="/fpw/assets/css/dashboard-console.css?v=1">
+    <cfinclude template="../includes/header_styles.cfm">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=1">
 
     <style>
         .wizard-body {
@@ -47,11 +47,49 @@
             margin-bottom: 1rem;
         }
 
+        .wizard-alert.alert-success {
+            padding-top: 0.375rem;
+            padding-bottom: 0.375rem;
+        }
+
+        .wizard-alert.alert-danger {
+            padding-top: 0.375rem;
+            padding-bottom: 0.375rem;
+        }
+
         @media (max-width: 768px) {
             .wizard-container {
                 margin: 1rem;
                 padding: 1rem;
             }
+        }
+
+        #waypointMap {
+            position: relative;
+            z-index: 1;
+        }
+
+        .marine-controls {
+            position: relative;
+            z-index: 2;
+            pointer-events: auto;
+        }
+
+        .dashboard-body .btn-close {
+            background-color: transparent;
+            filter: none;
+            opacity: 1;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M1.5 1.5l13 13m0-13l-13 13' stroke='white' stroke-width='2'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 14px 14px;
+        }
+
+        .dashboard-body .btn-close:hover {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' viewBox='0 0 16 16'%3E%3Cpath d='M1.5 1.5l13 13m0-13l-13 13' stroke='%2335d0c6' stroke-width='2'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 14px 14px;
         }
     </style>
 </head>
@@ -73,7 +111,7 @@
                 Seas: 1–2 ft
             </div>
             <div class="header-actions">
-                <a href="/fpw/app/account.cfm">Account</a>
+                <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/account.cfm">Account</a>
                 <button id="logoutButton">Logout</button>
             </div>
         </div>
@@ -149,89 +187,83 @@
 
         
 
-        <section class="dashboard-card">
+        <section class="dashboard-card panel-floatlike" id="vesselsPanel">
             <div class="card-header">
-                <h2>Vessels</h2>
-                <button class="btn-primary">+ Add</button>
+                <div class="card-title">
+                    <h2><span class="status-dot status-ok"></span>Vessels</h2>
+                    <small class="card-subtitle" id="vesselsSummary">Loading…</small>
+                </div>
+                <div class="card-actions">
+                    <button class="btn-primary" type="button" id="addVesselBtn">+ Add</button>
+                </div>
             </div>
             <div class="card-body">
-                <div class="list-item">
-                    <div>
-                        Sea Ray 320<br />
-                        <small>Registration: FL1234AB</small>
-                    </div>
-                    <div>
-                        <button class="btn-secondary">Edit</button>
-                        <button class="btn-danger">Delete</button>
-                    </div>
-                </div>
+                <p id="vesselsMessage" class="empty">Loading vessels…</p>
+                <div id="vesselsList"></div>
             </div>
         </section>
 
-        <section class="dashboard-card">
+        <section class="dashboard-card panel-floatlike" id="contactsPanel">
             <div class="card-header">
-                <h2>Contacts</h2>
-                <button class="btn-primary">+ Add</button>
+                <div class="card-title">
+                    <h2><span class="status-dot status-ok"></span>Contacts</h2>
+                    <small class="card-subtitle" id="contactsSummary">Loading…</small>
+                </div>
+                <div class="card-actions">
+                    <button class="btn-primary" id="addContactBtn">+ Add</button>
+                </div>
             </div>
             <div class="card-body">
-                <div class="list-item">
-                    <div>
-                        Abbe Wald<br />
-                        <small>Emergency Contact</small>
-                    </div>
-                    <div>
-                        <button class="btn-secondary">Edit</button>
-                        <button class="btn-danger">Delete</button>
-                    </div>
-                </div>
+                <p id="contactsMessage" class="empty">Loading contacts…</p>
+                <div id="contactsList"></div>
             </div>
         </section>
 
-        <section class="dashboard-card">
+        <section class="dashboard-card panel-floatlike" id="passengersPanel">
             <div class="card-header">
-                <h2>Passengers &amp; Crew</h2>
-                <button class="btn-primary">+ Add</button>
+                <div class="card-title">
+                    <h2><span class="status-dot status-ok"></span>Passengers &amp; Crew</h2>
+                    <small class="card-subtitle" id="passengersSummary">Loading…</small>
+                </div>
+                <div class="card-actions">
+                    <button class="btn-primary" id="addPassengerBtn">+ Add</button>
+                </div>
             </div>
             <div class="card-body">
-                <div class="list-item">
-                    <div>
-                        John Smith<br />
-                        <small>Crew</small>
-                    </div>
-                    <div>
-                        <button class="btn-secondary">Edit</button>
-                        <button class="btn-danger">Delete</button>
-                    </div>
-                </div>
+                <p id="passengersMessage" class="empty">Loading passengers…</p>
+                <div id="passengersList"></div>
             </div>
         </section>
 
-        <section class="dashboard-card">
+        <section class="dashboard-card panel-floatlike" id="operatorsPanel">
             <div class="card-header">
-                <h2>Operators</h2>
-                <button class="btn-primary">+ Add</button>
+                <div class="card-title">
+                    <h2><span class="status-dot status-ok"></span>Operators</h2>
+                    <small class="card-subtitle" id="operatorsSummary">Loading…</small>
+                </div>
+                <div class="card-actions">
+                    <button class="btn-primary" id="addOperatorBtn">+ Add</button>
+                </div>
             </div>
             <div class="card-body">
-                <p class="empty">No operators defined.</p>
+                <p id="operatorsMessage" class="empty">Loading operators…</p>
+                <div id="operatorsList"></div>
             </div>
         </section>
 
-        <section class="dashboard-card full-width">
+        <section class="dashboard-card panel-floatlike full-width" id="waypointsPanel">
             <div class="card-header">
-                <h2>Waypoints</h2>
-                <button class="btn-primary">+ Add</button>
+                <div class="card-title">
+                    <h2><span class="status-dot status-ok"></span>Waypoints</h2>
+                    <small class="card-subtitle" id="waypointsSummary">Loading…</small>
+                </div>
+                <div class="card-actions">
+                    <button class="btn-primary" id="addWaypointBtn">+ Add</button>
+                </div>
             </div>
             <div class="card-body">
-                <div class="list-item">
-                    <div>
-                        Anclote Key<br />
-                        <small>28.178°N, 82.838°W</small>
-                    </div>
-                    <div>
-                        <button class="btn-secondary">Edit</button>
-                        <button class="btn-danger">Delete</button>
-                    </div>
-                </div>
+                <p id="waypointsMessage" class="empty">Loading waypoints…</p>
+                <div id="waypointsList"></div>
             </div>
         </section>
 
@@ -241,6 +273,287 @@
     </div>
 </main>
 
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="confirmModalLabel">Please Confirm</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body">
+                <p id="confirmModalMessage" class="mb-0"></p>
+            </div>
+            <div class="modal-footer card-footer">
+                <button type="button" class="btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn-primary" id="confirmModalOk">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="alertModal" tabindex="-1" aria-labelledby="alertModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="alertModalLabel">Notice</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body">
+                <p id="alertModalMessage" class="mb-0"></p>
+            </div>
+            <div class="modal-footer card-footer">
+                <button type="button" class="btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="passengerModal" tabindex="-1" aria-labelledby="passengerModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="passengerModalLabel">Passenger/Crew</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body">
+                <form id="passengerForm" novalidate>
+                    <input type="hidden" id="passengerId" value="0">
+                    <div class="mb-3">
+                        <label class="form-label" for="passengerName">Name *</label>
+                        <input type="text" class="form-control" id="passengerName" required>
+                        <div class="invalid-feedback" id="passengerNameError"></div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="passengerPhone">Phone</label>
+                            <input type="text" class="form-control" id="passengerPhone">
+                            <div class="invalid-feedback" id="passengerPhoneError"></div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label" for="passengerAge">Age</label>
+                            <input type="text" class="form-control" id="passengerAge">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label" for="passengerGender">Gender</label>
+                            <input type="text" class="form-control" id="passengerGender">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="passengerNotes">Notes</label>
+                        <textarea class="form-control" id="passengerNotes" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer card-footer">
+                <button type="button" class="btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn-primary" id="savePassengerBtn">Save Passenger</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="operatorModal" tabindex="-1" aria-labelledby="operatorModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="operatorModalLabel">Operator</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body">
+                <form id="operatorForm" novalidate>
+                    <input type="hidden" id="operatorId" value="0">
+                    <div class="mb-3">
+                        <label class="form-label" for="operatorName">Name *</label>
+                        <input type="text" class="form-control" id="operatorName" required>
+                        <div class="invalid-feedback" id="operatorNameError"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="operatorPhone">Phone</label>
+                        <input type="text" class="form-control" id="operatorPhone">
+                        <div class="invalid-feedback" id="operatorPhoneError"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="operatorNotes">Notes</label>
+                        <textarea class="form-control" id="operatorNotes" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer card-footer">
+                <button type="button" class="btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn-primary" id="saveOperatorBtn">Save Operator</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="waypointModal" tabindex="-1" aria-labelledby="waypointModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="waypointModalLabel">Waypoint</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body">
+                <form id="waypointForm" novalidate>
+                    <input type="hidden" id="waypointId" value="0">
+                    <div id="waypointMap" style="height: 360px; width: 100%; border-radius: 8px;"></div>
+                    <div class="border rounded p-2 mt-2 marine-controls">
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <label class="form-label mb-0">Marine Layers</label>
+                            <small class="text-muted">Optional overlays</small>
+                        </div>
+                        <div class="row g-1 align-items-center">
+                            <div class="col-md-7">
+                                <div class="d-flex flex-wrap gap-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="marineTypeMarina" data-marine-type="marina">
+                                        <label class="form-check-label" for="marineTypeMarina">Marina</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="marineTypeFuel" data-marine-type="fuel">
+                                        <label class="form-check-label" for="marineTypeFuel">Fuel Dock</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="marineTypeRamp" data-marine-type="ramp">
+                                        <label class="form-check-label" for="marineTypeRamp">Boat Ramp</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-5">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="marineTideToggle" disabled>
+                                    <label class="form-check-label" for="marineTideToggle">Tide/Current Stations</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-1 small text-muted" id="marineStatusLine" aria-live="polite">Ready</div>
+                    </div>
+                    <div class="mb-3 mt-3">
+                        <label class="form-label" for="waypointName">Name *</label>
+                        <input type="text" class="form-control" id="waypointName" required>
+                        <div class="invalid-feedback" id="waypointNameError"></div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="waypointLatitude">Latitude</label>
+                            <input type="text" class="form-control" id="waypointLatitude">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="waypointLongitude">Longitude</label>
+                            <input type="text" class="form-control" id="waypointLongitude">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="waypointNotes">Notes</label>
+                        <textarea class="form-control" id="waypointNotes" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer card-footer">
+                <button type="button" class="btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn-primary" id="saveWaypointBtn">Save Waypoint</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="contactModal" tabindex="-1" aria-labelledby="contactModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="contactModalLabel">Contact</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body">
+                <form id="contactForm" novalidate>
+                    <input type="hidden" id="contactId" value="0">
+                    <div class="mb-3">
+                        <label class="form-label" for="contactName">Name *</label>
+                        <input type="text" class="form-control" id="contactName" required>
+                        <div class="invalid-feedback" id="contactNameError"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="contactPhone">Phone *</label>
+                        <input type="text" class="form-control" id="contactPhone" required pattern="^\+?1?\s*(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}$" title="Use a valid US phone number">
+                        <div class="invalid-feedback" id="contactPhoneError"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="contactEmail">Email *</label>
+                        <input type="email" class="form-control" id="contactEmail" required>
+                        <div class="invalid-feedback" id="contactEmailError"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer card-footer">
+                <button type="button" class="btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn-primary" id="saveContactBtn">Save Contact</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="vesselModal" tabindex="-1" aria-labelledby="vesselModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="vesselModalLabel">Vessel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body">
+                <form id="vesselForm" novalidate>
+                    <input type="hidden" id="vesselId" value="0">
+                    <div class="mb-3">
+                        <label class="form-label" for="vesselName">Vessel Name *</label>
+                        <input type="text" class="form-control" id="vesselName" required>
+                        <div class="invalid-feedback" id="vesselNameError"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="vesselRegistration">Registration</label>
+                        <input type="text" class="form-control" id="vesselRegistration">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="vesselType">Type *</label>
+                            <input type="text" class="form-control" id="vesselType" required>
+                            <div class="invalid-feedback" id="vesselTypeError"></div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="vesselLength">Length *</label>
+                            <input type="text" class="form-control" id="vesselLength" required>
+                            <div class="invalid-feedback" id="vesselLengthError"></div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="vesselMake">Make</label>
+                            <input type="text" class="form-control" id="vesselMake">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="vesselModel">Model</label>
+                            <input type="text" class="form-control" id="vesselModel">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="vesselColor">Hull Color *</label>
+                            <input type="text" class="form-control" id="vesselColor" required>
+                            <div class="invalid-feedback" id="vesselColorError"></div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="vesselHomePort">Hailing Port</label>
+                            <input type="text" class="form-control" id="vesselHomePort">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer card-footer">
+                <button type="button" class="btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn-primary" id="saveVesselBtn">Save Vessel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="floatPlanWizardModal" tabindex="-1" aria-labelledby="floatPlanWizardLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content dashboard-card">
@@ -249,7 +562,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body card-body wizard-body">
-                <div id="wizardApp" class="wizard-container" data-init="manual">
+                <div id="wizardApp" class="wizard-container" data-init="manual" data-contact-step="4">
 
                     <div v-if="isLoading" class="text-center py-5">
                         <div class="spinner-border text-primary" role="status"></div>
@@ -575,38 +888,26 @@
                             <h2 class="h5 mb-3">Step 6 – Review</h2>
 
                             <h3 class="h6">Review</h3>
-                            <ul class="list-group small mb-3">
-                                <li class="list-group-item"><strong>Plan:</strong> {{ fp.FLOATPLAN.NAME || '(no name)' }}</li>
-                                <li class="list-group-item"><strong>Vessel:</strong> {{ currentVesselName }}</li>
-                                <li class="list-group-item"><strong>Operator:</strong> {{ currentOperatorName }}</li>
-                                <li class="list-group-item">
-                                    <strong>Depart:</strong>
-                                    {{ fp.FLOATPLAN.DEPARTING_FROM || '—' }},
-                                    {{ fp.FLOATPLAN.DEPARTURE_TIME || '—' }}
-                                    ({{ fp.FLOATPLAN.DEPARTURE_TIMEZONE || 'N/A' }})
-                                </li>
-                                <li class="list-group-item">
-                                    <strong>Return:</strong>
-                                    {{ fp.FLOATPLAN.RETURNING_TO || '—' }},
-                                    {{ fp.FLOATPLAN.RETURN_TIME || '—' }}
-                                    ({{ fp.FLOATPLAN.RETURN_TIMEZONE || 'N/A' }})
-                                </li>
-                                <li class="list-group-item">
-                                    <strong>Passengers:</strong>
-                                    <span v-if="fp.PASSENGERS.length === 0">(none)</span>
-                                    <span v-else>{{ passengerSummary }}</span>
-                                </li>
-                                <li class="list-group-item">
-                                    <strong>Contacts:</strong>
-                                    <span v-if="fp.CONTACTS.length === 0">(none)</span>
-                                    <span v-else>{{ contactSummary }}</span>
-                                </li>
-                                <li class="list-group-item">
-                                    <strong>Waypoints:</strong>
-                                    <span v-if="fp.WAYPOINTS.length === 0">(none)</span>
-                                    <span v-else>{{ waypointSummary }}</span>
-                                </li>
-                            </ul>
+                            <div class="mb-3">
+                                <div v-if="pdfPreviewError" class="alert alert-warning small">
+                                    {{ pdfPreviewError }}
+                                </div>
+                                <div v-else-if="pdfPreviewLoading" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status"></div>
+                                    <p class="mt-2 mb-0 small">Generating PDF preview…</p>
+                                </div>
+                                <div v-else-if="pdfPreviewUrl" class="border rounded" style="height: 60vh;">
+                                    <iframe
+                                        :src="pdfPreviewUrl"
+                                        title="Float plan PDF preview"
+                                        class="w-100 h-100"
+                                        style="border: 0;"
+                                        loading="lazy"></iframe>
+                                </div>
+                                <div v-else class="alert alert-secondary small mb-0">
+                                    Save this float plan to generate a PDF preview.
+                                </div>
+                            </div>
 
                             <div class="d-flex gap-2 mb-3" v-if="fp.FLOATPLAN.FLOATPLANID">
                             <button type="button" class="btn-danger w-100" @click="confirmDelete" :disabled="isSaving">
@@ -617,13 +918,16 @@
                             <button type="button" class="btn-primary w-100" @click="submitPlan" :disabled="isSaving">
                                 {{ isSaving ? 'Saving…' : 'Save Float Plan' }}
                             </button>
+                            <button type="button" class="btn-primary w-100 mt-2" @click="submitPlanAndSend" :disabled="isSaving">
+                                {{ isSaving ? 'Sending...' : 'Save &amp; Send' }}
+                            </button>
                         </section>
 
                         <div class="wizard-nav">
-                            <button type="button" class="btn-secondary" :disabled="step === 1 || isSaving" @click="prevStep">
+                            <button type="button" class="btn-secondary" :disabled="step === 1 || isSaving" @click="clearStatus(); prevStep()">
                                 Back
                             </button>
-                            <button type="button" class="btn-primary" v-if="fp.FLOATPLAN.FLOATPLANID" :disabled="isSaving" @click="submitPlan">
+                            <button type="button" class="btn-primary" v-if="fp.FLOATPLAN.FLOATPLANID && step < totalSteps" :disabled="isSaving" @click="submitPlan">
                                 {{ isSaving ? 'Saving…' : 'Save Float Plan' }}
                             </button>
                             <button type="button" class="btn-primary" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
@@ -655,14 +959,14 @@
     </div>
 </div>
 
-<cfinclude template="/fpw/includes/footer_scripts.cfm">
+<cfinclude template="../includes/footer_scripts.cfm">
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-<script src="/fpw/assets/js/app/validate.js"></script>
-<script src="/fpw/assets/js/app/floatplanWizard.js"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20251227b"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="/fpw/assets/js/app/dashboard.js"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20251227ak"></script>
 
 
 
