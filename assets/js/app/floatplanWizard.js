@@ -706,9 +706,7 @@
           this.setFieldError(field, msg);
         }
 
-        // Optional: keep a simple top message, but inline is the primary display
-        this.setStatus("Please fix the highlighted fields.", false);
-
+        this.clearStatus();
         this.$nextTick(this.focusFirstError);
         return false;
       },

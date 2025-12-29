@@ -245,7 +245,194 @@
     </div>
 </main>
 
-<div class="modal fade" id="vesselModal" tabindex="-1" aria-labelledby="vesselModalLabel" aria-hidden="true">
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="confirmModalLabel">Please Confirm</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body">
+                <p id="confirmModalMessage" class="mb-0"></p>
+            </div>
+            <div class="modal-footer card-footer">
+                <button type="button" class="btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn-primary" id="confirmModalOk">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="alertModal" tabindex="-1" aria-labelledby="alertModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="alertModalLabel">Notice</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body">
+                <p id="alertModalMessage" class="mb-0"></p>
+            </div>
+            <div class="modal-footer card-footer">
+                <button type="button" class="btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="passengerModal" tabindex="-1" aria-labelledby="passengerModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="passengerModalLabel">Passenger/Crew</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body">
+                <form id="passengerForm" novalidate>
+                    <input type="hidden" id="passengerId" value="0">
+                    <div class="mb-3">
+                        <label class="form-label" for="passengerName">Name *</label>
+                        <input type="text" class="form-control" id="passengerName" required>
+                        <div class="invalid-feedback" id="passengerNameError"></div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="passengerPhone">Phone</label>
+                            <input type="text" class="form-control" id="passengerPhone">
+                            <div class="invalid-feedback" id="passengerPhoneError"></div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label" for="passengerAge">Age</label>
+                            <input type="text" class="form-control" id="passengerAge">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label" for="passengerGender">Gender</label>
+                            <input type="text" class="form-control" id="passengerGender">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="passengerNotes">Notes</label>
+                        <textarea class="form-control" id="passengerNotes" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer card-footer">
+                <button type="button" class="btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn-primary" id="savePassengerBtn">Save Passenger</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="operatorModal" tabindex="-1" aria-labelledby="operatorModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="operatorModalLabel">Operator</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body">
+                <form id="operatorForm" novalidate>
+                    <input type="hidden" id="operatorId" value="0">
+                    <div class="mb-3">
+                        <label class="form-label" for="operatorName">Name *</label>
+                        <input type="text" class="form-control" id="operatorName" required>
+                        <div class="invalid-feedback" id="operatorNameError"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="operatorPhone">Phone</label>
+                        <input type="text" class="form-control" id="operatorPhone">
+                        <div class="invalid-feedback" id="operatorPhoneError"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="operatorNotes">Notes</label>
+                        <textarea class="form-control" id="operatorNotes" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer card-footer">
+                <button type="button" class="btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn-primary" id="saveOperatorBtn">Save Operator</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="waypointModal" tabindex="-1" aria-labelledby="waypointModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="waypointModalLabel">Waypoint</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body">
+                <form id="waypointForm" novalidate>
+                    <input type="hidden" id="waypointId" value="0">
+                    <div class="mb-3">
+                        <label class="form-label" for="waypointName">Name *</label>
+                        <input type="text" class="form-control" id="waypointName" required>
+                        <div class="invalid-feedback" id="waypointNameError"></div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="waypointLatitude">Latitude</label>
+                            <input type="text" class="form-control" id="waypointLatitude">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="waypointLongitude">Longitude</label>
+                            <input type="text" class="form-control" id="waypointLongitude">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="waypointNotes">Notes</label>
+                        <textarea class="form-control" id="waypointNotes" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer card-footer">
+                <button type="button" class="btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn-primary" id="saveWaypointBtn">Save Waypoint</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="contactModal" tabindex="-1" aria-labelledby="contactModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="contactModalLabel">Contact</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body">
+                <form id="contactForm" novalidate>
+                    <input type="hidden" id="contactId" value="0">
+                    <div class="mb-3">
+                        <label class="form-label" for="contactName">Name *</label>
+                        <input type="text" class="form-control" id="contactName" required>
+                        <div class="invalid-feedback" id="contactNameError"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="contactPhone">Phone *</label>
+                        <input type="text" class="form-control" id="contactPhone" required pattern="^\+?1?\s*(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}$" title="Use a valid US phone number">
+                        <div class="invalid-feedback" id="contactPhoneError"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="contactEmail">Email *</label>
+                        <input type="email" class="form-control" id="contactEmail" required>
+                        <div class="invalid-feedback" id="contactEmailError"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer card-footer">
+                <button type="button" class="btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn-primary" id="saveContactBtn">Save Contact</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="vesselModal" tabindex="-1" aria-labelledby="vesselModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content dashboard-card">
             <div class="modal-header card-header">
@@ -258,6 +445,7 @@
                     <div class="mb-3">
                         <label class="form-label" for="vesselName">Vessel Name *</label>
                         <input type="text" class="form-control" id="vesselName" required>
+                        <div class="invalid-feedback" id="vesselNameError"></div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="vesselRegistration">Registration</label>
@@ -265,12 +453,14 @@
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label" for="vesselType">Type</label>
-                            <input type="text" class="form-control" id="vesselType">
+                            <label class="form-label" for="vesselType">Type *</label>
+                            <input type="text" class="form-control" id="vesselType" required>
+                            <div class="invalid-feedback" id="vesselTypeError"></div>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label" for="vesselLength">Length</label>
-                            <input type="text" class="form-control" id="vesselLength">
+                            <label class="form-label" for="vesselLength">Length *</label>
+                            <input type="text" class="form-control" id="vesselLength" required>
+                            <div class="invalid-feedback" id="vesselLengthError"></div>
                         </div>
                     </div>
                     <div class="row">
@@ -285,15 +475,15 @@
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label" for="vesselColor">Hull Color</label>
-                            <input type="text" class="form-control" id="vesselColor">
+                            <label class="form-label" for="vesselColor">Hull Color *</label>
+                            <input type="text" class="form-control" id="vesselColor" required>
+                            <div class="invalid-feedback" id="vesselColorError"></div>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label" for="vesselHomePort">Hailing Port</label>
                             <input type="text" class="form-control" id="vesselHomePort">
                         </div>
                     </div>
-                    <p class="text-danger d-none" id="vesselFormMessage"></p>
                 </form>
             </div>
             <div class="modal-footer card-footer">
@@ -716,7 +906,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20251227b"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20251227d"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20251227i"></script>
 
 
 

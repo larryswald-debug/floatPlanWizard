@@ -90,6 +90,15 @@
                 <cfset length      = structKeyExists(vessel, "LENGTH") ? trim(vessel.LENGTH) : (structKeyExists(vessel, "length") ? trim(vessel.length) : "")>
                 <cfset color       = structKeyExists(vessel, "COLOR") ? trim(vessel.COLOR) : (structKeyExists(vessel, "color") ? trim(vessel.color) : "")>
                 <cfset homePort    = structKeyExists(vessel, "HOMEPORT") ? trim(vessel.HOMEPORT) : (structKeyExists(vessel, "homePort") ? trim(vessel.homePort) : "")>
+                <cfif NOT len(vesselType)>
+                    <cfthrow message="Vessel type is required.">
+                </cfif>
+                <cfif NOT len(length)>
+                    <cfthrow message="Vessel length is required.">
+                </cfif>
+                <cfif NOT len(color)>
+                    <cfthrow message="Hull color is required.">
+                </cfif>
 
                 <cfif vesselId GT 0>
                     <cfquery datasource="fpw">
@@ -136,6 +145,53 @@
                 <cfabort>
             </cfif>
 
+            <cfif action EQ "candelete">
+                <cfset vesselId = 0>
+                <cfif structKeyExists(body, "vesselId")>
+                    <cfset vesselId = val(body.vesselId)>
+                <cfelseif structKeyExists(body, "VESSELID")>
+                    <cfset vesselId = val(body.VESSELID)>
+                <cfelseif structKeyExists(url, "vesselId")>
+                    <cfset vesselId = val(url.vesselId)>
+                </cfif>
+
+                <cfif vesselId LTE 0>
+                    <cfthrow message="Vessel id is required.">
+                </cfif>
+
+                <cfquery name="qVesselUsage" datasource="fpw">
+                    SELECT floatPlanName
+                    FROM floatplans
+                    WHERE vesselId = <cfqueryparam cfsqltype="cf_sql_integer" value="#vesselId#">
+                      AND userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                </cfquery>
+
+                <cfif qVesselUsage.recordCount GT 0>
+                    <cfset planNames = []>
+                    <cfloop query="qVesselUsage">
+                        <cfset arrayAppend(planNames, qVesselUsage.floatPlanName)>
+                    </cfloop>
+                    <cfset planCount = arrayLen(planNames)>
+                    <cfset planList = arrayToList(planNames, ", ")>
+                    <cfset response = {
+                        SUCCESS = true,
+                        AUTH    = true,
+                        CANDELETE = false,
+                        MESSAGE = "This vessel is used in " & planCount & " float plan" & (planCount EQ 1 ? "" : "s") & ": " & planList & ". Edit the float plan to remove it before deleting."
+                    }>
+                <cfelse>
+                    <cfset response = {
+                        SUCCESS = true,
+                        AUTH    = true,
+                        CANDELETE = true
+                    }>
+                </cfif>
+
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
             <cfif action EQ "delete">
                 <cfset vesselId = 0>
                 <cfif structKeyExists(body, "vesselId")>
@@ -148,6 +204,31 @@
 
                 <cfif vesselId LTE 0>
                     <cfthrow message="Vessel id is required.">
+                </cfif>
+
+                <cfquery name="qVesselUsage" datasource="fpw">
+                    SELECT floatPlanName
+                    FROM floatplans
+                    WHERE vesselId = <cfqueryparam cfsqltype="cf_sql_integer" value="#vesselId#">
+                      AND userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                </cfquery>
+
+                <cfif qVesselUsage.recordCount GT 0>
+                    <cfset planNames = []>
+                    <cfloop query="qVesselUsage">
+                        <cfset arrayAppend(planNames, qVesselUsage.floatPlanName)>
+                    </cfloop>
+                    <cfset planCount = arrayLen(planNames)>
+                    <cfset planList = arrayToList(planNames, ", ")>
+                    <cfset response = {
+                        SUCCESS = false,
+                        AUTH    = true,
+                        ERROR   = "IN_USE",
+                        MESSAGE = "This vessel is used in " & planCount & " float plan" & (planCount EQ 1 ? "" : "s") & ": " & planList & ". Edit the float plan to remove it before deleting."
+                    }>
+                    <cfoutput>#serializeJSON(response)#</cfoutput>
+                    <cfsetting enablecfoutputonly="false">
+                    <cfabort>
                 </cfif>
 
                 <cfquery datasource="fpw">

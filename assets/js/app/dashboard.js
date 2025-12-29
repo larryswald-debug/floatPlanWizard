@@ -62,7 +62,6 @@
   var vesselModal = null;
   var vesselFormEl = null;
   var vesselModalTitleEl = null;
-  var vesselMessageEl = null;
   var vesselIdInput = null;
   var vesselNameInput = null;
   var vesselRegistrationInput = null;
@@ -73,6 +72,65 @@
   var vesselColorInput = null;
   var vesselHomePortInput = null;
   var vesselSaveBtn = null;
+  var vesselNameError = null;
+  var vesselTypeError = null;
+  var vesselLengthError = null;
+  var vesselColorError = null;
+  var contactModalEl = null;
+  var contactModal = null;
+  var contactFormEl = null;
+  var contactModalTitleEl = null;
+  var contactIdInput = null;
+  var contactNameInput = null;
+  var contactPhoneInput = null;
+  var contactEmailInput = null;
+  var contactSaveBtn = null;
+  var contactNameError = null;
+  var contactPhoneError = null;
+  var contactEmailError = null;
+  var confirmModalEl = null;
+  var confirmModal = null;
+  var confirmMessageEl = null;
+  var confirmOkBtn = null;
+  var confirmResolver = null;
+  var alertModalEl = null;
+  var alertModal = null;
+  var alertMessageEl = null;
+  var passengerModalEl = null;
+  var passengerModal = null;
+  var passengerFormEl = null;
+  var passengerModalTitleEl = null;
+  var passengerIdInput = null;
+  var passengerNameInput = null;
+  var passengerPhoneInput = null;
+  var passengerAgeInput = null;
+  var passengerGenderInput = null;
+  var passengerNotesInput = null;
+  var passengerSaveBtn = null;
+  var passengerNameError = null;
+  var passengerPhoneError = null;
+  var operatorModalEl = null;
+  var operatorModal = null;
+  var operatorFormEl = null;
+  var operatorModalTitleEl = null;
+  var operatorIdInput = null;
+  var operatorNameInput = null;
+  var operatorPhoneInput = null;
+  var operatorNotesInput = null;
+  var operatorSaveBtn = null;
+  var operatorNameError = null;
+  var operatorPhoneError = null;
+  var waypointModalEl = null;
+  var waypointModal = null;
+  var waypointFormEl = null;
+  var waypointModalTitleEl = null;
+  var waypointIdInput = null;
+  var waypointNameInput = null;
+  var waypointLatitudeInput = null;
+  var waypointLongitudeInput = null;
+  var waypointNotesInput = null;
+  var waypointSaveBtn = null;
+  var waypointNameError = null;
 
   function showDashboardAlert(message, type) {
     var alertEl = document.getElementById("dashboardAlert");
@@ -430,8 +488,8 @@
             "<small>" + escapeHtml(metaText) + "</small>" +
           "</div>" +
           '<div class="list-actions">' +
-            '<button class="btn-secondary" type="button" id="contact-edit-' + escapeHtml(contactId) + '">Edit</button>' +
-            '<button class="btn-danger" type="button" id="contact-delete-' + escapeHtml(contactId) + '">Delete</button>' +
+            '<button class="btn-secondary" type="button" id="contact-edit-' + escapeHtml(contactId) + '" data-action="edit" data-contact-id="' + escapeHtml(contactId) + '">Edit</button>' +
+            '<button class="btn-danger" type="button" id="contact-delete-' + escapeHtml(contactId) + '" data-action="delete" data-contact-id="' + escapeHtml(contactId) + '">Delete</button>' +
           "</div>" +
         "</div>"
       );
@@ -473,8 +531,8 @@
             "<small>" + escapeHtml(metaText) + "</small>" +
           "</div>" +
           '<div class="list-actions">' +
-            '<button class="btn-secondary" type="button" id="passenger-edit-' + escapeHtml(passengerId) + '">Edit</button>' +
-            '<button class="btn-danger" type="button" id="passenger-delete-' + escapeHtml(passengerId) + '">Delete</button>' +
+            '<button class="btn-secondary" type="button" id="passenger-edit-' + escapeHtml(passengerId) + '" data-action="edit" data-passenger-id="' + escapeHtml(passengerId) + '">Edit</button>' +
+            '<button class="btn-danger" type="button" id="passenger-delete-' + escapeHtml(passengerId) + '" data-action="delete" data-passenger-id="' + escapeHtml(passengerId) + '">Delete</button>' +
           "</div>" +
         "</div>"
       );
@@ -514,8 +572,8 @@
             "<small>" + escapeHtml(metaText) + "</small>" +
           "</div>" +
           '<div class="list-actions">' +
-            '<button class="btn-secondary" type="button" id="operator-edit-' + escapeHtml(operatorId) + '">Edit</button>' +
-            '<button class="btn-danger" type="button" id="operator-delete-' + escapeHtml(operatorId) + '">Delete</button>' +
+            '<button class="btn-secondary" type="button" id="operator-edit-' + escapeHtml(operatorId) + '" data-action="edit" data-operator-id="' + escapeHtml(operatorId) + '">Edit</button>' +
+            '<button class="btn-danger" type="button" id="operator-delete-' + escapeHtml(operatorId) + '" data-action="delete" data-operator-id="' + escapeHtml(operatorId) + '">Delete</button>' +
           "</div>" +
         "</div>"
       );
@@ -560,8 +618,8 @@
             "<small>" + escapeHtml(metaText) + "</small>" +
           "</div>" +
           '<div class="list-actions">' +
-            '<button class="btn-secondary" type="button" id="waypoint-edit-' + escapeHtml(waypointId) + '">Edit</button>' +
-            '<button class="btn-danger" type="button" id="waypoint-delete-' + escapeHtml(waypointId) + '">Delete</button>' +
+            '<button class="btn-secondary" type="button" id="waypoint-edit-' + escapeHtml(waypointId) + '" data-action="edit" data-waypoint-id="' + escapeHtml(waypointId) + '">Edit</button>' +
+            '<button class="btn-danger" type="button" id="waypoint-delete-' + escapeHtml(waypointId) + '" data-action="delete" data-waypoint-id="' + escapeHtml(waypointId) + '">Delete</button>' +
           "</div>" +
         "</div>"
       );
@@ -1110,7 +1168,6 @@
       if (vesselModalEl) {
         vesselFormEl = vesselModalEl.querySelector("#vesselForm");
         vesselModalTitleEl = vesselModalEl.querySelector("#vesselModalLabel");
-        vesselMessageEl = vesselModalEl.querySelector("#vesselFormMessage");
         vesselIdInput = vesselModalEl.querySelector("#vesselId");
         vesselNameInput = vesselModalEl.querySelector("#vesselName");
         vesselRegistrationInput = vesselModalEl.querySelector("#vesselRegistration");
@@ -1121,6 +1178,10 @@
         vesselColorInput = vesselModalEl.querySelector("#vesselColor");
         vesselHomePortInput = vesselModalEl.querySelector("#vesselHomePort");
         vesselSaveBtn = vesselModalEl.querySelector("#saveVesselBtn");
+        vesselNameError = vesselModalEl.querySelector("#vesselNameError");
+        vesselTypeError = vesselModalEl.querySelector("#vesselTypeError");
+        vesselLengthError = vesselModalEl.querySelector("#vesselLengthError");
+        vesselColorError = vesselModalEl.querySelector("#vesselColorError");
       }
     }
 
@@ -1134,6 +1195,26 @@
           event.preventDefault();
         });
       }
+      if (vesselNameInput) {
+        vesselNameInput.addEventListener("input", function () {
+          clearFieldError(vesselNameInput, vesselNameError);
+        });
+      }
+      if (vesselTypeInput) {
+        vesselTypeInput.addEventListener("input", function () {
+          clearFieldError(vesselTypeInput, vesselTypeError);
+        });
+      }
+      if (vesselLengthInput) {
+        vesselLengthInput.addEventListener("input", function () {
+          clearFieldError(vesselLengthInput, vesselLengthError);
+        });
+      }
+      if (vesselColorInput) {
+        vesselColorInput.addEventListener("input", function () {
+          clearFieldError(vesselColorInput, vesselColorError);
+        });
+      }
       if (vesselSaveBtn) {
         vesselSaveBtn.addEventListener("click", function () {
           saveVessel();
@@ -1143,15 +1224,1069 @@
     }
   }
 
-  function setVesselFormMessage(text) {
-    if (!vesselMessageEl) return;
-    if (!text) {
-      vesselMessageEl.textContent = "";
-      vesselMessageEl.classList.add("d-none");
+  function ensureContactModal() {
+    if (!contactModalEl) {
+      contactModalEl = document.getElementById("contactModal");
+      if (contactModalEl) {
+        contactFormEl = contactModalEl.querySelector("#contactForm");
+        contactModalTitleEl = contactModalEl.querySelector("#contactModalLabel");
+        contactIdInput = contactModalEl.querySelector("#contactId");
+        contactNameInput = contactModalEl.querySelector("#contactName");
+        contactPhoneInput = contactModalEl.querySelector("#contactPhone");
+        contactEmailInput = contactModalEl.querySelector("#contactEmail");
+        contactSaveBtn = contactModalEl.querySelector("#saveContactBtn");
+        contactNameError = contactModalEl.querySelector("#contactNameError");
+        contactPhoneError = contactModalEl.querySelector("#contactPhoneError");
+        contactEmailError = contactModalEl.querySelector("#contactEmailError");
+      }
+    }
+
+    if (contactModalEl && !contactModal && window.bootstrap && window.bootstrap.Modal) {
+      contactModal = new window.bootstrap.Modal(contactModalEl);
+    }
+
+    if (contactModalEl && !contactModalEl.dataset.listenersAttached) {
+      if (contactFormEl) {
+        contactFormEl.addEventListener("submit", function (event) {
+          event.preventDefault();
+        });
+      }
+      if (contactPhoneInput) {
+        contactPhoneInput.addEventListener("input", function () {
+          contactPhoneInput.value = formatUsPhoneInput(contactPhoneInput.value);
+          clearFieldError(contactPhoneInput, contactPhoneError);
+        });
+      }
+      if (contactNameInput) {
+        contactNameInput.addEventListener("input", function () {
+          clearFieldError(contactNameInput, contactNameError);
+        });
+      }
+      if (contactEmailInput) {
+        contactEmailInput.addEventListener("input", function () {
+          clearFieldError(contactEmailInput, contactEmailError);
+        });
+      }
+      if (contactSaveBtn) {
+        contactSaveBtn.addEventListener("click", function () {
+          saveContact();
+        });
+      }
+      contactModalEl.dataset.listenersAttached = "true";
+    }
+  }
+
+  function ensurePassengerModal() {
+    if (!passengerModalEl) {
+      passengerModalEl = document.getElementById("passengerModal");
+      if (passengerModalEl) {
+        passengerFormEl = passengerModalEl.querySelector("#passengerForm");
+        passengerModalTitleEl = passengerModalEl.querySelector("#passengerModalLabel");
+        passengerIdInput = passengerModalEl.querySelector("#passengerId");
+        passengerNameInput = passengerModalEl.querySelector("#passengerName");
+        passengerPhoneInput = passengerModalEl.querySelector("#passengerPhone");
+        passengerAgeInput = passengerModalEl.querySelector("#passengerAge");
+        passengerGenderInput = passengerModalEl.querySelector("#passengerGender");
+        passengerNotesInput = passengerModalEl.querySelector("#passengerNotes");
+        passengerSaveBtn = passengerModalEl.querySelector("#savePassengerBtn");
+        passengerNameError = passengerModalEl.querySelector("#passengerNameError");
+        passengerPhoneError = passengerModalEl.querySelector("#passengerPhoneError");
+      }
+    }
+
+    if (passengerModalEl && !passengerModal && window.bootstrap && window.bootstrap.Modal) {
+      passengerModal = new window.bootstrap.Modal(passengerModalEl);
+    }
+
+    if (passengerModalEl && !passengerModalEl.dataset.listenersAttached) {
+      if (passengerFormEl) {
+        passengerFormEl.addEventListener("submit", function (event) {
+          event.preventDefault();
+        });
+      }
+      if (passengerNameInput) {
+        passengerNameInput.addEventListener("input", function () {
+          clearFieldError(passengerNameInput, passengerNameError);
+        });
+      }
+      if (passengerPhoneInput) {
+        passengerPhoneInput.addEventListener("input", function () {
+          passengerPhoneInput.value = formatUsPhoneInput(passengerPhoneInput.value);
+          clearFieldError(passengerPhoneInput, passengerPhoneError);
+        });
+      }
+      if (passengerSaveBtn) {
+        passengerSaveBtn.addEventListener("click", function () {
+          savePassenger();
+        });
+      }
+      passengerModalEl.dataset.listenersAttached = "true";
+    }
+  }
+
+  function ensureOperatorModal() {
+    if (!operatorModalEl) {
+      operatorModalEl = document.getElementById("operatorModal");
+      if (operatorModalEl) {
+        operatorFormEl = operatorModalEl.querySelector("#operatorForm");
+        operatorModalTitleEl = operatorModalEl.querySelector("#operatorModalLabel");
+        operatorIdInput = operatorModalEl.querySelector("#operatorId");
+        operatorNameInput = operatorModalEl.querySelector("#operatorName");
+        operatorPhoneInput = operatorModalEl.querySelector("#operatorPhone");
+        operatorNotesInput = operatorModalEl.querySelector("#operatorNotes");
+        operatorSaveBtn = operatorModalEl.querySelector("#saveOperatorBtn");
+        operatorNameError = operatorModalEl.querySelector("#operatorNameError");
+        operatorPhoneError = operatorModalEl.querySelector("#operatorPhoneError");
+      }
+    }
+
+    if (operatorModalEl && !operatorModal && window.bootstrap && window.bootstrap.Modal) {
+      operatorModal = new window.bootstrap.Modal(operatorModalEl);
+    }
+
+    if (operatorModalEl && !operatorModalEl.dataset.listenersAttached) {
+      if (operatorFormEl) {
+        operatorFormEl.addEventListener("submit", function (event) {
+          event.preventDefault();
+        });
+      }
+      if (operatorNameInput) {
+        operatorNameInput.addEventListener("input", function () {
+          clearFieldError(operatorNameInput, operatorNameError);
+        });
+      }
+      if (operatorPhoneInput) {
+        operatorPhoneInput.addEventListener("input", function () {
+          operatorPhoneInput.value = formatUsPhoneInput(operatorPhoneInput.value);
+          clearFieldError(operatorPhoneInput, operatorPhoneError);
+        });
+      }
+      if (operatorSaveBtn) {
+        operatorSaveBtn.addEventListener("click", function () {
+          saveOperator();
+        });
+      }
+      operatorModalEl.dataset.listenersAttached = "true";
+    }
+  }
+
+  function ensureWaypointModal() {
+    if (!waypointModalEl) {
+      waypointModalEl = document.getElementById("waypointModal");
+      if (waypointModalEl) {
+        waypointFormEl = waypointModalEl.querySelector("#waypointForm");
+        waypointModalTitleEl = waypointModalEl.querySelector("#waypointModalLabel");
+        waypointIdInput = waypointModalEl.querySelector("#waypointId");
+        waypointNameInput = waypointModalEl.querySelector("#waypointName");
+        waypointLatitudeInput = waypointModalEl.querySelector("#waypointLatitude");
+        waypointLongitudeInput = waypointModalEl.querySelector("#waypointLongitude");
+        waypointNotesInput = waypointModalEl.querySelector("#waypointNotes");
+        waypointSaveBtn = waypointModalEl.querySelector("#saveWaypointBtn");
+        waypointNameError = waypointModalEl.querySelector("#waypointNameError");
+      }
+    }
+
+    if (waypointModalEl && !waypointModal && window.bootstrap && window.bootstrap.Modal) {
+      waypointModal = new window.bootstrap.Modal(waypointModalEl);
+    }
+
+    if (waypointModalEl && !waypointModalEl.dataset.listenersAttached) {
+      if (waypointFormEl) {
+        waypointFormEl.addEventListener("submit", function (event) {
+          event.preventDefault();
+        });
+      }
+      if (waypointNameInput) {
+        waypointNameInput.addEventListener("input", function () {
+          clearFieldError(waypointNameInput, waypointNameError);
+        });
+      }
+      if (waypointSaveBtn) {
+        waypointSaveBtn.addEventListener("click", function () {
+          saveWaypoint();
+        });
+      }
+      waypointModalEl.dataset.listenersAttached = "true";
+    }
+  }
+
+  function ensureConfirmModal() {
+    if (!confirmModalEl) {
+      confirmModalEl = document.getElementById("confirmModal");
+      if (confirmModalEl) {
+        confirmMessageEl = confirmModalEl.querySelector("#confirmModalMessage");
+        confirmOkBtn = confirmModalEl.querySelector("#confirmModalOk");
+      }
+    }
+
+    if (confirmModalEl && !confirmModal && window.bootstrap && window.bootstrap.Modal) {
+      confirmModal = new window.bootstrap.Modal(confirmModalEl);
+    }
+
+    if (confirmModalEl && !confirmModalEl.dataset.listenersAttached) {
+      if (confirmOkBtn) {
+        confirmOkBtn.addEventListener("click", function () {
+          if (confirmResolver) {
+            confirmResolver(true);
+          }
+          confirmResolver = null;
+          if (confirmModal) {
+            confirmModal.hide();
+          }
+        });
+      }
+      confirmModalEl.addEventListener("hidden.bs.modal", function () {
+        if (confirmResolver) {
+          confirmResolver(false);
+          confirmResolver = null;
+        }
+      });
+      confirmModalEl.dataset.listenersAttached = "true";
+    }
+  }
+
+  function showConfirmModal(message) {
+    ensureConfirmModal();
+    if (!confirmModalEl || !confirmModal) {
+      return Promise.resolve(window.confirm(message || "Are you sure?"));
+    }
+    if (confirmMessageEl) {
+      confirmMessageEl.textContent = message || "Are you sure?";
+    }
+    confirmModal.show();
+    return new Promise(function (resolve) {
+      confirmResolver = resolve;
+    });
+  }
+
+  function ensureAlertModal() {
+    if (!alertModalEl) {
+      alertModalEl = document.getElementById("alertModal");
+      if (alertModalEl) {
+        alertMessageEl = alertModalEl.querySelector("#alertModalMessage");
+      }
+    }
+
+    if (alertModalEl && !alertModal && window.bootstrap && window.bootstrap.Modal) {
+      alertModal = new window.bootstrap.Modal(alertModalEl);
+    }
+  }
+
+  function showAlertModal(message) {
+    ensureAlertModal();
+    if (!alertModalEl || !alertModal) {
+      window.alert(message || "");
       return;
     }
-    vesselMessageEl.textContent = text;
-    vesselMessageEl.classList.remove("d-none");
+    if (alertMessageEl) {
+      alertMessageEl.textContent = message || "";
+    }
+    alertModal.show();
+  }
+
+  function resetContactForm() {
+    if (contactFormEl && contactFormEl.reset) {
+      contactFormEl.reset();
+    }
+    if (contactIdInput) contactIdInput.value = "0";
+    clearContactValidation();
+  }
+
+  function populateContactForm(contact) {
+    if (!contact) {
+      resetContactForm();
+      return;
+    }
+    if (contactIdInput) contactIdInput.value = pick(contact, ["CONTACTID", "ID"], 0);
+    if (contactNameInput) contactNameInput.value = pick(contact, ["CONTACTNAME", "NAME"], "");
+    if (contactPhoneInput) contactPhoneInput.value = pick(contact, ["PHONE"], "");
+    if (contactEmailInput) contactEmailInput.value = pick(contact, ["EMAIL"], "");
+    clearContactValidation();
+  }
+
+  function populatePassengerForm(passenger) {
+    if (!passenger) {
+      resetPassengerForm();
+      return;
+    }
+    if (passengerIdInput) passengerIdInput.value = pick(passenger, ["PASSENGERID", "ID"], 0);
+    if (passengerNameInput) passengerNameInput.value = pick(passenger, ["PASSENGERNAME", "NAME"], "");
+    if (passengerPhoneInput) passengerPhoneInput.value = pick(passenger, ["PHONE"], "");
+    if (passengerAgeInput) passengerAgeInput.value = pick(passenger, ["AGE"], "");
+    if (passengerGenderInput) passengerGenderInput.value = pick(passenger, ["GENDER"], "");
+    if (passengerNotesInput) passengerNotesInput.value = pick(passenger, ["NOTES"], "");
+    clearPassengerValidation();
+  }
+
+  function populateOperatorForm(operator) {
+    if (!operator) {
+      resetOperatorForm();
+      return;
+    }
+    if (operatorIdInput) operatorIdInput.value = pick(operator, ["OPERATORID", "ID"], 0);
+    if (operatorNameInput) operatorNameInput.value = pick(operator, ["OPERATORNAME", "NAME"], "");
+    if (operatorPhoneInput) operatorPhoneInput.value = pick(operator, ["PHONE"], "");
+    if (operatorNotesInput) operatorNotesInput.value = pick(operator, ["NOTES"], "");
+    clearOperatorValidation();
+  }
+
+  function populateWaypointForm(waypoint) {
+    if (!waypoint) {
+      resetWaypointForm();
+      return;
+    }
+    if (waypointIdInput) waypointIdInput.value = pick(waypoint, ["WAYPOINTID", "ID"], 0);
+    if (waypointNameInput) waypointNameInput.value = pick(waypoint, ["WAYPOINTNAME", "NAME"], "");
+    if (waypointLatitudeInput) waypointLatitudeInput.value = pick(waypoint, ["LATITUDE"], "");
+    if (waypointLongitudeInput) waypointLongitudeInput.value = pick(waypoint, ["LONGITUDE"], "");
+    if (waypointNotesInput) waypointNotesInput.value = pick(waypoint, ["NOTES"], "");
+    clearWaypointValidation();
+  }
+
+  function openWaypointModal(waypoint) {
+    ensureWaypointModal();
+    if (!waypointModalEl || !waypointModal) {
+      return;
+    }
+    var waypointId = waypoint ? pick(waypoint, ["WAYPOINTID", "ID"], 0) : 0;
+    if (waypointModalTitleEl) {
+      waypointModalTitleEl.textContent = waypointId ? "Edit Waypoint" : "Add Waypoint";
+    }
+    populateWaypointForm(waypoint);
+    waypointModal.show();
+  }
+
+  function buildWaypointPayload() {
+    return {
+      WAYPOINTID: parseInt(waypointIdInput ? waypointIdInput.value : "0", 10) || 0,
+      WAYPOINTNAME: waypointNameInput ? waypointNameInput.value.trim() : "",
+      LATITUDE: waypointLatitudeInput ? waypointLatitudeInput.value.trim() : "",
+      LONGITUDE: waypointLongitudeInput ? waypointLongitudeInput.value.trim() : "",
+      NOTES: waypointNotesInput ? waypointNotesInput.value.trim() : ""
+    };
+  }
+
+  function saveWaypoint() {
+    if (!window.Api || typeof window.Api.saveWaypoint !== "function") {
+      showAlertModal("Waypoints API is unavailable.");
+      return;
+    }
+
+    var payload = buildWaypointPayload();
+    clearWaypointValidation();
+    var hasError = false;
+    if (!payload.WAYPOINTNAME) {
+      setFieldError(waypointNameInput, waypointNameError, "Name is required.");
+      hasError = true;
+    }
+    if (hasError) {
+      return;
+    }
+
+    if (waypointSaveBtn) {
+      waypointSaveBtn.disabled = true;
+      waypointSaveBtn.textContent = "Saving…";
+    }
+
+    Api.saveWaypoint({ waypoint: payload })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+        if (waypointModal) {
+          waypointModal.hide();
+        }
+        loadWaypoints();
+      })
+      .catch(function (err) {
+        console.error("Failed to save waypoint:", err);
+        showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to save waypoint.");
+      })
+      .finally(function () {
+        if (waypointSaveBtn) {
+          waypointSaveBtn.disabled = false;
+          waypointSaveBtn.textContent = "Save Waypoint";
+        }
+      });
+  }
+
+  function findWaypointById(waypointId) {
+    var list = waypointState.all || [];
+    for (var i = 0; i < list.length; i++) {
+      var currentId = pick(list[i], ["WAYPOINTID", "ID"], 0);
+      if (String(currentId) === String(waypointId)) {
+        return list[i];
+      }
+    }
+    return null;
+  }
+
+  function deleteWaypoint(waypointId, triggerButton) {
+    if (!window.Api || typeof window.Api.deleteWaypoint !== "function") {
+      return;
+    }
+
+    var originalText = "";
+    if (triggerButton) {
+      originalText = triggerButton.textContent;
+      triggerButton.disabled = true;
+      triggerButton.textContent = "Deleting…";
+    }
+
+    Api.deleteWaypoint(waypointId)
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (!data.SUCCESS) {
+          throw data;
+        }
+        loadWaypoints();
+      })
+      .catch(function (err) {
+        console.error("Failed to delete waypoint:", err);
+        showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Delete failed.");
+      })
+      .finally(function () {
+        if (triggerButton) {
+          triggerButton.disabled = false;
+          triggerButton.textContent = originalText || "Delete";
+        }
+      });
+  }
+
+  function handleWaypointsListClick(event) {
+    var target = event.target;
+    if (!target) return;
+    var button = target.closest("button[data-waypoint-id]");
+    if (!button) return;
+
+    var waypointId = button.getAttribute("data-waypoint-id");
+    var action = button.getAttribute("data-action");
+    if (!waypointId) return;
+
+    if (action === "edit") {
+      var waypoint = findWaypointById(waypointId);
+      openWaypointModal(waypoint);
+    } else if (action === "delete") {
+      if (!window.Api || typeof window.Api.canDeleteWaypoint !== "function") {
+        return;
+      }
+      button.disabled = true;
+      Api.canDeleteWaypoint(waypointId)
+        .then(function (data) {
+          if (!ensureAuthResponse(data)) {
+            return;
+          }
+          if (data.SUCCESS !== true) {
+            throw data;
+          }
+          if (!data.CANDELETE) {
+            showAlertModal(data.MESSAGE || "This waypoint cannot be deleted.");
+            return;
+          }
+          var waypoint = findWaypointById(waypointId);
+          var waypointName = waypoint ? pick(waypoint, ["WAYPOINTNAME", "NAME"], "") : "";
+          var confirmText = waypointName ? "Delete " + waypointName + "?" : "Delete this waypoint?";
+          showConfirmModal(confirmText).then(function (confirmed) {
+            if (!confirmed) return;
+            deleteWaypoint(waypointId, button);
+          });
+        })
+        .catch(function (err) {
+          console.error("Failed to check waypoint usage:", err);
+          showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to check waypoint usage.");
+        })
+        .finally(function () {
+          button.disabled = false;
+        });
+    }
+  }
+  function openOperatorModal(operator) {
+    ensureOperatorModal();
+    if (!operatorModalEl || !operatorModal) {
+      return;
+    }
+    var operatorId = operator ? pick(operator, ["OPERATORID", "ID"], 0) : 0;
+    if (operatorModalTitleEl) {
+      operatorModalTitleEl.textContent = operatorId ? "Edit Operator" : "Add Operator";
+    }
+    populateOperatorForm(operator);
+    operatorModal.show();
+  }
+
+  function buildOperatorPayload() {
+    return {
+      OPERATORID: parseInt(operatorIdInput ? operatorIdInput.value : "0", 10) || 0,
+      OPERATORNAME: operatorNameInput ? operatorNameInput.value.trim() : "",
+      PHONE: operatorPhoneInput ? operatorPhoneInput.value.trim() : "",
+      NOTES: operatorNotesInput ? operatorNotesInput.value.trim() : ""
+    };
+  }
+
+  function saveOperator() {
+    if (!window.Api || typeof window.Api.saveOperator !== "function") {
+      showAlertModal("Operators API is unavailable.");
+      return;
+    }
+
+    var payload = buildOperatorPayload();
+    clearOperatorValidation();
+    var hasError = false;
+    if (!payload.OPERATORNAME) {
+      setFieldError(operatorNameInput, operatorNameError, "Name is required.");
+      hasError = true;
+    }
+    if (payload.PHONE && !isValidPhone(payload.PHONE)) {
+      setFieldError(operatorPhoneInput, operatorPhoneError, "Enter a valid US phone number.");
+      hasError = true;
+    }
+    if (hasError) {
+      return;
+    }
+
+    if (operatorSaveBtn) {
+      operatorSaveBtn.disabled = true;
+      operatorSaveBtn.textContent = "Saving…";
+    }
+
+    Api.saveOperator({ operator: payload })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+        if (operatorModal) {
+          operatorModal.hide();
+        }
+        loadOperators();
+      })
+      .catch(function (err) {
+        console.error("Failed to save operator:", err);
+        showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to save operator.");
+      })
+      .finally(function () {
+        if (operatorSaveBtn) {
+          operatorSaveBtn.disabled = false;
+          operatorSaveBtn.textContent = "Save Operator";
+        }
+      });
+  }
+
+  function findOperatorById(operatorId) {
+    var list = operatorState.all || [];
+    for (var i = 0; i < list.length; i++) {
+      var currentId = pick(list[i], ["OPERATORID", "ID"], 0);
+      if (String(currentId) === String(operatorId)) {
+        return list[i];
+      }
+    }
+    return null;
+  }
+
+  function deleteOperator(operatorId, triggerButton) {
+    if (!window.Api || typeof window.Api.deleteOperator !== "function") {
+      return;
+    }
+
+    var originalText = "";
+    if (triggerButton) {
+      originalText = triggerButton.textContent;
+      triggerButton.disabled = true;
+      triggerButton.textContent = "Deleting…";
+    }
+
+    Api.deleteOperator(operatorId)
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (!data.SUCCESS) {
+          throw data;
+        }
+        loadOperators();
+      })
+      .catch(function (err) {
+        console.error("Failed to delete operator:", err);
+        showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Delete failed.");
+      })
+      .finally(function () {
+        if (triggerButton) {
+          triggerButton.disabled = false;
+          triggerButton.textContent = originalText || "Delete";
+        }
+      });
+  }
+
+  function handleOperatorsListClick(event) {
+    var target = event.target;
+    if (!target) return;
+    var button = target.closest("button[data-operator-id]");
+    if (!button) return;
+
+    var operatorId = button.getAttribute("data-operator-id");
+    var action = button.getAttribute("data-action");
+    if (!operatorId) return;
+
+    if (action === "edit") {
+      var operator = findOperatorById(operatorId);
+      openOperatorModal(operator);
+    } else if (action === "delete") {
+      if (!window.Api || typeof window.Api.canDeleteOperator !== "function") {
+        return;
+      }
+      button.disabled = true;
+      Api.canDeleteOperator(operatorId)
+        .then(function (data) {
+          if (!ensureAuthResponse(data)) {
+            return;
+          }
+          if (data.SUCCESS !== true) {
+            throw data;
+          }
+          if (!data.CANDELETE) {
+            showAlertModal(data.MESSAGE || "This operator cannot be deleted.");
+            return;
+          }
+          var operator = findOperatorById(operatorId);
+          var operatorName = operator ? pick(operator, ["OPERATORNAME", "NAME"], "") : "";
+          var confirmText = operatorName ? "Delete " + operatorName + "?" : "Delete this operator?";
+          showConfirmModal(confirmText).then(function (confirmed) {
+            if (!confirmed) return;
+            deleteOperator(operatorId, button);
+          });
+        })
+        .catch(function (err) {
+          console.error("Failed to check operator usage:", err);
+          showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to check operator usage.");
+        })
+        .finally(function () {
+          button.disabled = false;
+        });
+    }
+  }
+  function openPassengerModal(passenger) {
+    ensurePassengerModal();
+    if (!passengerModalEl || !passengerModal) {
+      return;
+    }
+    var passengerId = passenger ? pick(passenger, ["PASSENGERID", "ID"], 0) : 0;
+    if (passengerModalTitleEl) {
+      passengerModalTitleEl.textContent = passengerId ? "Edit Passenger/Crew" : "Add Passenger/Crew";
+    }
+    populatePassengerForm(passenger);
+    passengerModal.show();
+  }
+
+  function buildPassengerPayload() {
+    return {
+      PASSENGERID: parseInt(passengerIdInput ? passengerIdInput.value : "0", 10) || 0,
+      PASSENGERNAME: passengerNameInput ? passengerNameInput.value.trim() : "",
+      PHONE: passengerPhoneInput ? passengerPhoneInput.value.trim() : "",
+      AGE: passengerAgeInput ? passengerAgeInput.value.trim() : "",
+      GENDER: passengerGenderInput ? passengerGenderInput.value.trim() : "",
+      NOTES: passengerNotesInput ? passengerNotesInput.value.trim() : ""
+    };
+  }
+
+  function savePassenger() {
+    if (!window.Api || typeof window.Api.savePassenger !== "function") {
+      showAlertModal("Passengers API is unavailable.");
+      return;
+    }
+
+    var payload = buildPassengerPayload();
+    clearPassengerValidation();
+    var hasError = false;
+    if (!payload.PASSENGERNAME) {
+      setFieldError(passengerNameInput, passengerNameError, "Name is required.");
+      hasError = true;
+    }
+    if (payload.PHONE && !isValidPhone(payload.PHONE)) {
+      setFieldError(passengerPhoneInput, passengerPhoneError, "Enter a valid US phone number.");
+      hasError = true;
+    }
+    if (hasError) {
+      return;
+    }
+
+    if (passengerSaveBtn) {
+      passengerSaveBtn.disabled = true;
+      passengerSaveBtn.textContent = "Saving…";
+    }
+
+    Api.savePassenger({ passenger: payload })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+        if (passengerModal) {
+          passengerModal.hide();
+        }
+        loadPassengers();
+      })
+      .catch(function (err) {
+        console.error("Failed to save passenger:", err);
+        showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to save passenger.");
+      })
+      .finally(function () {
+        if (passengerSaveBtn) {
+          passengerSaveBtn.disabled = false;
+          passengerSaveBtn.textContent = "Save Passenger";
+        }
+      });
+  }
+
+  function findPassengerById(passengerId) {
+    var list = passengerState.all || [];
+    for (var i = 0; i < list.length; i++) {
+      var currentId = pick(list[i], ["PASSENGERID", "ID"], 0);
+      if (String(currentId) === String(passengerId)) {
+        return list[i];
+      }
+    }
+    return null;
+  }
+
+  function deletePassenger(passengerId, triggerButton) {
+    if (!window.Api || typeof window.Api.deletePassenger !== "function") {
+      return;
+    }
+
+    var originalText = "";
+    if (triggerButton) {
+      originalText = triggerButton.textContent;
+      triggerButton.disabled = true;
+      triggerButton.textContent = "Deleting…";
+    }
+
+    Api.deletePassenger(passengerId)
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (!data.SUCCESS) {
+          throw data;
+        }
+        loadPassengers();
+      })
+      .catch(function (err) {
+        console.error("Failed to delete passenger:", err);
+        showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Delete failed.");
+      })
+      .finally(function () {
+        if (triggerButton) {
+          triggerButton.disabled = false;
+          triggerButton.textContent = originalText || "Delete";
+        }
+      });
+  }
+
+  function handlePassengersListClick(event) {
+    var target = event.target;
+    if (!target) return;
+    var button = target.closest("button[data-passenger-id]");
+    if (!button) return;
+
+    var passengerId = button.getAttribute("data-passenger-id");
+    var action = button.getAttribute("data-action");
+    if (!passengerId) return;
+
+    if (action === "edit") {
+      var passenger = findPassengerById(passengerId);
+      openPassengerModal(passenger);
+    } else if (action === "delete") {
+      if (!window.Api || typeof window.Api.canDeletePassenger !== "function") {
+        return;
+      }
+      button.disabled = true;
+      Api.canDeletePassenger(passengerId)
+        .then(function (data) {
+          if (!ensureAuthResponse(data)) {
+            return;
+          }
+          if (data.SUCCESS !== true) {
+            throw data;
+          }
+          if (!data.CANDELETE) {
+            showAlertModal(data.MESSAGE || "This passenger cannot be deleted.");
+            return;
+          }
+          var passenger = findPassengerById(passengerId);
+          var passengerName = passenger ? pick(passenger, ["PASSENGERNAME", "NAME"], "") : "";
+          var confirmText = passengerName ? "Delete " + passengerName + "?" : "Delete this passenger?";
+          showConfirmModal(confirmText).then(function (confirmed) {
+            if (!confirmed) return;
+            deletePassenger(passengerId, button);
+          });
+        })
+        .catch(function (err) {
+          console.error("Failed to check passenger usage:", err);
+          showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to check passenger usage.");
+        })
+        .finally(function () {
+          button.disabled = false;
+        });
+    }
+  }
+
+  function openContactModal(contact) {
+    ensureContactModal();
+    if (!contactModalEl || !contactModal) {
+      return;
+    }
+    var contactId = contact ? pick(contact, ["CONTACTID", "ID"], 0) : 0;
+    if (contactModalTitleEl) {
+      contactModalTitleEl.textContent = contactId ? "Edit Contact" : "Add Contact";
+    }
+    populateContactForm(contact);
+    contactModal.show();
+  }
+
+  function buildContactPayload() {
+    return {
+      CONTACTID: parseInt(contactIdInput ? contactIdInput.value : "0", 10) || 0,
+      CONTACTNAME: contactNameInput ? contactNameInput.value.trim() : "",
+      PHONE: contactPhoneInput ? contactPhoneInput.value.trim() : "",
+      EMAIL: contactEmailInput ? contactEmailInput.value.trim() : ""
+    };
+  }
+
+  function isValidEmail(value) {
+    if (!value) return false;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  }
+
+  function isValidPhone(value) {
+    if (!value) return false;
+    var digits = String(value).replace(/\D/g, "");
+    if (digits.length === 11 && digits.charAt(0) === "1") {
+      digits = digits.slice(1);
+    }
+    return digits.length === 10;
+  }
+
+  function formatUsPhoneInput(value) {
+    var digits = String(value || "").replace(/\D/g, "");
+    if (digits.charAt(0) === "1" && digits.length > 10) {
+      digits = digits.slice(1);
+    }
+    digits = digits.slice(0, 10);
+
+    if (digits.length <= 3) {
+      return digits.length ? "(" + digits : "";
+    }
+    if (digits.length <= 6) {
+      return "(" + digits.slice(0, 3) + ") " + digits.slice(3);
+    }
+    return "(" + digits.slice(0, 3) + ") " + digits.slice(3, 6) + "-" + digits.slice(6);
+  }
+
+  function saveContact() {
+    if (!window.Api || typeof window.Api.saveContact !== "function") {
+      showAlertModal("Contacts API is unavailable.");
+      return;
+    }
+
+    var payload = buildContactPayload();
+    clearContactValidation();
+    var hasError = false;
+    if (!payload.CONTACTNAME) {
+      setFieldError(contactNameInput, contactNameError, "Contact name is required.");
+      hasError = true;
+    }
+    if (!payload.PHONE) {
+      setFieldError(contactPhoneInput, contactPhoneError, "Phone is required.");
+      hasError = true;
+    } else if (!isValidPhone(payload.PHONE)) {
+      setFieldError(contactPhoneInput, contactPhoneError, "Enter a valid US phone number.");
+      hasError = true;
+    }
+    if (!payload.EMAIL) {
+      setFieldError(contactEmailInput, contactEmailError, "Email is required.");
+      hasError = true;
+    } else if (!isValidEmail(payload.EMAIL)) {
+      setFieldError(contactEmailInput, contactEmailError, "Enter a valid email address.");
+      hasError = true;
+    }
+    if (hasError) {
+      return;
+    }
+
+    if (contactSaveBtn) {
+      contactSaveBtn.disabled = true;
+      contactSaveBtn.textContent = "Saving…";
+    }
+
+    Api.saveContact({ contact: payload })
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (data.SUCCESS !== true) {
+          throw data;
+        }
+        if (contactModal) {
+          contactModal.hide();
+        }
+        loadContacts();
+      })
+      .catch(function (err) {
+        console.error("Failed to save contact:", err);
+        showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to save contact.");
+      })
+      .finally(function () {
+        if (contactSaveBtn) {
+          contactSaveBtn.disabled = false;
+          contactSaveBtn.textContent = "Save Contact";
+        }
+      });
+  }
+
+  function findContactById(contactId) {
+    var list = contactState.all || [];
+    for (var i = 0; i < list.length; i++) {
+      var currentId = pick(list[i], ["CONTACTID", "ID"], 0);
+      if (String(currentId) === String(contactId)) {
+        return list[i];
+      }
+    }
+    return null;
+  }
+
+  function deleteContact(contactId, triggerButton) {
+    if (!window.Api || typeof window.Api.deleteContact !== "function") {
+      return;
+    }
+
+    var originalText = "";
+    if (triggerButton) {
+      originalText = triggerButton.textContent;
+      triggerButton.disabled = true;
+      triggerButton.textContent = "Deleting…";
+    }
+
+    Api.deleteContact(contactId)
+      .then(function (data) {
+        if (!ensureAuthResponse(data)) {
+          return;
+        }
+        if (!data.SUCCESS) {
+          throw data;
+        }
+        loadContacts();
+      })
+      .catch(function (err) {
+        console.error("Failed to delete contact:", err);
+        showDashboardAlert((err && err.MESSAGE) ? err.MESSAGE : "Delete failed.", "danger");
+      })
+      .finally(function () {
+        if (triggerButton) {
+          triggerButton.disabled = false;
+          triggerButton.textContent = originalText || "Delete";
+        }
+      });
+  }
+
+  function handleContactsListClick(event) {
+    var target = event.target;
+    if (!target) return;
+    var button = target.closest("button[data-contact-id]");
+    if (!button) return;
+
+    var contactId = button.getAttribute("data-contact-id");
+    var action = button.getAttribute("data-action");
+    if (!contactId) return;
+
+    if (action === "edit") {
+      var contact = findContactById(contactId);
+      openContactModal(contact);
+    } else if (action === "delete") {
+      if (!window.Api || typeof window.Api.canDeleteContact !== "function") {
+        return;
+      }
+      button.disabled = true;
+      Api.canDeleteContact(contactId)
+        .then(function (data) {
+          if (!ensureAuthResponse(data)) {
+            return;
+          }
+          if (data.SUCCESS !== true) {
+            throw data;
+          }
+          if (!data.CANDELETE) {
+            showAlertModal(data.MESSAGE || "This contact cannot be deleted.");
+            return;
+          }
+          var contact = findContactById(contactId);
+          var contactName = contact ? pick(contact, ["CONTACTNAME", "NAME"], "") : "";
+          var confirmText = contactName ? "Delete " + contactName + "?" : "Delete this contact?";
+          showConfirmModal(confirmText).then(function (confirmed) {
+            if (!confirmed) return;
+            deleteContact(contactId, button);
+          });
+        })
+        .catch(function (err) {
+          console.error("Failed to check contact usage:", err);
+          showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to check contact usage.");
+        })
+        .finally(function () {
+          button.disabled = false;
+        });
+    }
+  }
+
+  function setFieldError(inputEl, errorEl, message) {
+    if (inputEl) {
+      inputEl.classList.add("is-invalid");
+    }
+    if (errorEl) {
+      errorEl.textContent = message || "";
+    }
+  }
+
+  function clearFieldError(inputEl, errorEl) {
+    if (inputEl) {
+      inputEl.classList.remove("is-invalid");
+    }
+    if (errorEl) {
+      errorEl.textContent = "";
+    }
+  }
+
+  function clearVesselValidation() {
+    clearFieldError(vesselNameInput, vesselNameError);
+    clearFieldError(vesselTypeInput, vesselTypeError);
+    clearFieldError(vesselLengthInput, vesselLengthError);
+    clearFieldError(vesselColorInput, vesselColorError);
+  }
+
+  function clearContactValidation() {
+    clearFieldError(contactNameInput, contactNameError);
+    clearFieldError(contactPhoneInput, contactPhoneError);
+    clearFieldError(contactEmailInput, contactEmailError);
+  }
+
+  function clearPassengerValidation() {
+    clearFieldError(passengerNameInput, passengerNameError);
+    clearFieldError(passengerPhoneInput, passengerPhoneError);
+  }
+
+  function clearOperatorValidation() {
+    clearFieldError(operatorNameInput, operatorNameError);
+    clearFieldError(operatorPhoneInput, operatorPhoneError);
+  }
+
+  function clearWaypointValidation() {
+    clearFieldError(waypointNameInput, waypointNameError);
   }
 
   function resetVesselForm() {
@@ -1159,7 +2294,31 @@
       vesselFormEl.reset();
     }
     if (vesselIdInput) vesselIdInput.value = "0";
-    setVesselFormMessage("");
+    clearVesselValidation();
+  }
+
+  function resetPassengerForm() {
+    if (passengerFormEl && passengerFormEl.reset) {
+      passengerFormEl.reset();
+    }
+    if (passengerIdInput) passengerIdInput.value = "0";
+    clearPassengerValidation();
+  }
+
+  function resetOperatorForm() {
+    if (operatorFormEl && operatorFormEl.reset) {
+      operatorFormEl.reset();
+    }
+    if (operatorIdInput) operatorIdInput.value = "0";
+    clearOperatorValidation();
+  }
+
+  function resetWaypointForm() {
+    if (waypointFormEl && waypointFormEl.reset) {
+      waypointFormEl.reset();
+    }
+    if (waypointIdInput) waypointIdInput.value = "0";
+    clearWaypointValidation();
   }
 
   function populateVesselForm(vessel) {
@@ -1176,7 +2335,7 @@
     if (vesselModelInput) vesselModelInput.value = pick(vessel, ["MODEL"], "");
     if (vesselColorInput) vesselColorInput.value = pick(vessel, ["COLOR"], "");
     if (vesselHomePortInput) vesselHomePortInput.value = pick(vessel, ["HOMEPORT"], "");
-    setVesselFormMessage("");
+    clearVesselValidation();
   }
 
   function openVesselModal(vessel) {
@@ -1208,13 +2367,30 @@
 
   function saveVessel() {
     if (!window.Api || typeof window.Api.saveVessel !== "function") {
-      setVesselFormMessage("Vessel API is unavailable.");
+      showAlertModal("Vessel API is unavailable.");
       return;
     }
 
     var payload = buildVesselPayload();
+    clearVesselValidation();
+    var hasError = false;
     if (!payload.VESSELNAME) {
-      setVesselFormMessage("Vessel name is required.");
+      setFieldError(vesselNameInput, vesselNameError, "Vessel name is required.");
+      hasError = true;
+    }
+    if (!payload.TYPE) {
+      setFieldError(vesselTypeInput, vesselTypeError, "Vessel type is required.");
+      hasError = true;
+    }
+    if (!payload.LENGTH) {
+      setFieldError(vesselLengthInput, vesselLengthError, "Vessel length is required.");
+      hasError = true;
+    }
+    if (!payload.COLOR) {
+      setFieldError(vesselColorInput, vesselColorError, "Hull color is required.");
+      hasError = true;
+    }
+    if (hasError) {
       return;
     }
 
@@ -1238,7 +2414,7 @@
       })
       .catch(function (err) {
         console.error("Failed to save vessel:", err);
-        setVesselFormMessage((err && err.MESSAGE) ? err.MESSAGE : "Unable to save vessel.");
+        showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to save vessel.");
       })
       .finally(function () {
         if (vesselSaveBtn) {
@@ -1307,10 +2483,37 @@
       var vessel = findVesselById(vesselId);
       openVesselModal(vessel);
     } else if (action === "delete") {
-      if (!window.confirm("Delete this vessel?")) {
+      if (!window.Api || typeof window.Api.canDeleteVessel !== "function") {
         return;
       }
-      deleteVessel(vesselId, button);
+      button.disabled = true;
+      Api.canDeleteVessel(vesselId)
+        .then(function (data) {
+          if (!ensureAuthResponse(data)) {
+            return;
+          }
+          if (data.SUCCESS !== true) {
+            throw data;
+          }
+          if (!data.CANDELETE) {
+            showAlertModal(data.MESSAGE || "This vessel cannot be deleted.");
+            return;
+          }
+          var vessel = findVesselById(vesselId);
+          var vesselName = vessel ? pick(vessel, ["VESSELNAME", "NAME"], "") : "";
+          var confirmText = vesselName ? "Delete " + vesselName + "?" : "Delete this vessel?";
+          showConfirmModal(confirmText).then(function (confirmed) {
+            if (!confirmed) return;
+            deleteVessel(vesselId, button);
+          });
+        })
+        .catch(function (err) {
+          console.error("Failed to check vessel usage:", err);
+          showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to check vessel usage.");
+        })
+        .finally(function () {
+          button.disabled = false;
+        });
     }
   }
 
@@ -1452,6 +2655,12 @@
     ensureWizardModal();
     ensureCloneModal();
     ensureVesselModal();
+    ensureContactModal();
+    ensurePassengerModal();
+    ensureOperatorModal();
+    ensureWaypointModal();
+    ensureConfirmModal();
+    ensureAlertModal();
     initFloatPlansFilter();
 
     Api.getCurrentUser()
@@ -1509,6 +2718,34 @@
       });
     }
 
+    var addContactBtn = document.getElementById("addContactBtn");
+    if (addContactBtn) {
+      addContactBtn.addEventListener("click", function () {
+        openContactModal(null);
+      });
+    }
+
+    var addPassengerBtn = document.getElementById("addPassengerBtn");
+    if (addPassengerBtn) {
+      addPassengerBtn.addEventListener("click", function () {
+        openPassengerModal(null);
+      });
+    }
+
+    var addOperatorBtn = document.getElementById("addOperatorBtn");
+    if (addOperatorBtn) {
+      addOperatorBtn.addEventListener("click", function () {
+        openOperatorModal(null);
+      });
+    }
+
+    var addWaypointBtn = document.getElementById("addWaypointBtn");
+    if (addWaypointBtn) {
+      addWaypointBtn.addEventListener("click", function () {
+        openWaypointModal(null);
+      });
+    }
+
     var listEl = document.getElementById("floatPlansList");
     if (listEl) {
       listEl.addEventListener("click", handleFloatPlansListClick);
@@ -1517,6 +2754,26 @@
     var vesselsListEl = document.getElementById("vesselsList");
     if (vesselsListEl) {
       vesselsListEl.addEventListener("click", handleVesselsListClick);
+    }
+
+    var contactsListEl = document.getElementById("contactsList");
+    if (contactsListEl) {
+      contactsListEl.addEventListener("click", handleContactsListClick);
+    }
+
+    var passengersListEl = document.getElementById("passengersList");
+    if (passengersListEl) {
+      passengersListEl.addEventListener("click", handlePassengersListClick);
+    }
+
+    var operatorsListEl = document.getElementById("operatorsList");
+    if (operatorsListEl) {
+      operatorsListEl.addEventListener("click", handleOperatorsListClick);
+    }
+
+    var waypointsListEl = document.getElementById("waypointsList");
+    if (waypointsListEl) {
+      waypointsListEl.addEventListener("click", handleWaypointsListClick);
     }
   }
 

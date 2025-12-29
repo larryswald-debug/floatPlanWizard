@@ -179,6 +179,93 @@
       return request(path, { method: "GET" });
     },
 
+    savePassenger: function (payload) {
+      payload = payload || {};
+      payload.action = "save";
+      return request("/passenger.cfc?method=handle", {
+        method: "POST",
+        body: payload
+      });
+    },
+
+    deletePassenger: function (passengerId) {
+      return request("/passenger.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "delete",
+          passengerId: passengerId
+        }
+      });
+    },
+
+    canDeletePassenger: function (passengerId) {
+      return request("/passenger.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "candelete",
+          passengerId: passengerId
+        }
+      });
+    },
+
+    saveOperator: function (payload) {
+      payload = payload || {};
+      payload.action = "save";
+      return request("/operator.cfc?method=handle", {
+        method: "POST",
+        body: payload
+      });
+    },
+
+    deleteOperator: function (operatorId) {
+      return request("/operator.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "delete",
+          operatorId: operatorId
+        }
+      });
+    },
+
+    canDeleteOperator: function (operatorId) {
+      return request("/operator.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "candelete",
+          operatorId: operatorId
+        }
+      });
+    },
+
+    saveWaypoint: function (payload) {
+      payload = payload || {};
+      payload.action = "save";
+      return request("/waypoint.cfc?method=handle", {
+        method: "POST",
+        body: payload
+      });
+    },
+
+    deleteWaypoint: function (waypointId) {
+      return request("/waypoint.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "delete",
+          waypointId: waypointId
+        }
+      });
+    },
+
+    canDeleteWaypoint: function (waypointId) {
+      return request("/waypoint.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "candelete",
+          waypointId: waypointId
+        }
+      });
+    },
+
     saveVessel: function (payload) {
       payload = payload || {};
       payload.action = "save";
@@ -194,6 +281,45 @@
         body: {
           action: "delete",
           vesselId: vesselId
+        }
+      });
+    },
+
+    canDeleteVessel: function (vesselId) {
+      return request("/vessel.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "candelete",
+          vesselId: vesselId
+        }
+      });
+    },
+
+    saveContact: function (payload) {
+      payload = payload || {};
+      payload.action = "save";
+      return request("/contact.cfc?method=handle", {
+        method: "POST",
+        body: payload
+      });
+    },
+
+    deleteContact: function (contactId) {
+      return request("/contact.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "delete",
+          contactId: contactId
+        }
+      });
+    },
+
+    canDeleteContact: function (contactId) {
+      return request("/contact.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "candelete",
+          contactId: contactId
         }
       });
     },
