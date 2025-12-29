@@ -8,6 +8,8 @@
     query: ""
   };
 
+  var GOOGLE_MAPS_API_KEY = (window.GOOGLE_MAPS_API_KEY || "").trim();
+
   var vesselState = {
     all: []
   };
@@ -30,6 +32,7 @@
 
   var BASE_PATH = window.FPW_BASE || "";
   var FALLBACK_LOGIN_URL = BASE_PATH + "/app/login.cfm";
+  var homePortLatLng = null;
 
   function getLoginUrl() {
     if (window.AppAuth && window.AppAuth.loginUrl) {
@@ -44,6 +47,39 @@
       return;
     }
     window.location.href = getLoginUrl();
+  }
+
+  function getNested(obj, path, fallback) {
+    if (!obj) return fallback;
+    var current = obj;
+    for (var i = 0; i < path.length; i++) {
+      var key = path[i];
+      if (!current || current[key] === undefined || current[key] === null) {
+        return fallback;
+      }
+      current = current[key];
+    }
+    return current;
+  }
+
+  function resolveHomePortLatLng(user) {
+    var profile = getNested(user, ["PROFILE"], null) || getNested(user, ["profile"], null) || {};
+    var homePort = getNested(profile, ["HOMEPORT"], null)
+      || getNested(profile, ["homePort"], null)
+      || getNested(user, ["HOMEPORT"], null)
+      || getNested(user, ["homePort"], null)
+      || {};
+    var lat = getNested(homePort, ["LAT"], null) || getNested(homePort, ["lat"], null) || getNested(homePort, ["latitude"], null);
+    var lng = getNested(homePort, ["LNG"], null) || getNested(homePort, ["lng"], null) || getNested(homePort, ["longitude"], null);
+    if (lat !== undefined && lat !== null && lng !== undefined && lng !== null) {
+      var latNum = parseFloat(lat);
+      var lngNum = parseFloat(lng);
+      if (!isNaN(latNum) && !isNaN(lngNum)) {
+        return { lat: latNum, lng: lngNum };
+      }
+    }
+    console.warn("Home Port lat/lng missing; using default for waypoint map.");
+    return { lat: 28.2323, lng: -82.7418 };
   }
 
   function ensureAuthResponse(data) {
@@ -131,6 +167,15 @@
   var waypointNotesInput = null;
   var waypointSaveBtn = null;
   var waypointNameError = null;
+  var waypointMapEl = null;
+  var waypointMap = null;
+  var waypointMarker = null;
+  var homePortMarker = null;
+  var waypointGeocoder = null;
+  var waypointMapPromise = null;
+  var waypointMapCenter = null;
+  var waypointNameManual = false;
+  var suppressWaypointNameInput = false;
 
   function showDashboardAlert(message, type) {
     var alertEl = document.getElementById("dashboardAlert");
@@ -1383,6 +1428,7 @@
         waypointNotesInput = waypointModalEl.querySelector("#waypointNotes");
         waypointSaveBtn = waypointModalEl.querySelector("#saveWaypointBtn");
         waypointNameError = waypointModalEl.querySelector("#waypointNameError");
+        waypointMapEl = waypointModalEl.querySelector("#waypointMap");
       }
     }
 
@@ -1398,6 +1444,9 @@
       }
       if (waypointNameInput) {
         waypointNameInput.addEventListener("input", function () {
+          if (!suppressWaypointNameInput) {
+            waypointNameManual = true;
+          }
           clearFieldError(waypointNameInput, waypointNameError);
         });
       }
@@ -1406,6 +1455,14 @@
           saveWaypoint();
         });
       }
+      waypointModalEl.addEventListener("shown.bs.modal", function () {
+        if (waypointMap) {
+          window.google.maps.event.trigger(waypointMap, "resize");
+          if (waypointMapCenter) {
+            waypointMap.setCenter(waypointMapCenter);
+          }
+        }
+      });
       waypointModalEl.dataset.listenersAttached = "true";
     }
   }
@@ -1536,11 +1593,16 @@
       return;
     }
     if (waypointIdInput) waypointIdInput.value = pick(waypoint, ["WAYPOINTID", "ID"], 0);
-    if (waypointNameInput) waypointNameInput.value = pick(waypoint, ["WAYPOINTNAME", "NAME"], "");
+    if (waypointNameInput) {
+      suppressWaypointNameInput = true;
+      waypointNameInput.value = pick(waypoint, ["WAYPOINTNAME", "NAME"], "");
+      suppressWaypointNameInput = false;
+    }
     if (waypointLatitudeInput) waypointLatitudeInput.value = pick(waypoint, ["LATITUDE"], "");
     if (waypointLongitudeInput) waypointLongitudeInput.value = pick(waypoint, ["LONGITUDE"], "");
     if (waypointNotesInput) waypointNotesInput.value = pick(waypoint, ["NOTES"], "");
     clearWaypointValidation();
+    waypointNameManual = false;
   }
 
   function openWaypointModal(waypoint) {
@@ -1554,6 +1616,157 @@
     }
     populateWaypointForm(waypoint);
     waypointModal.show();
+  }
+
+  function loadGoogleMaps() {
+    if (window.google && window.google.maps) {
+      return Promise.resolve();
+    }
+    if (!GOOGLE_MAPS_API_KEY) {
+      console.warn("Google Maps API key is missing.");
+      return Promise.reject(new Error("Google Maps API key is missing."));
+    }
+    if (waypointMapPromise) {
+      return waypointMapPromise;
+    }
+    waypointMapPromise = new Promise(function (resolve, reject) {
+      var scriptId = "googleMapsApi";
+      var existing = document.getElementById(scriptId);
+      if (existing) {
+        existing.addEventListener("load", function () { resolve(); });
+        existing.addEventListener("error", function () { reject(new Error("Google Maps load failed.")); });
+        return;
+      }
+      var script = document.createElement("script");
+      script.id = scriptId;
+      script.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(GOOGLE_MAPS_API_KEY);
+      script.async = true;
+      script.defer = true;
+      script.onload = function () { resolve(); };
+      script.onerror = function () { reject(new Error("Google Maps load failed.")); };
+      document.head.appendChild(script);
+    });
+    return waypointMapPromise;
+  }
+
+  function updateWaypointLatLngInputs(lat, lng) {
+    if (waypointLatitudeInput) waypointLatitudeInput.value = lat.toFixed(6);
+    if (waypointLongitudeInput) waypointLongitudeInput.value = lng.toFixed(6);
+  }
+
+  function setWaypointMarker(lat, lng) {
+    if (!waypointMap) return;
+    var position = { lat: lat, lng: lng };
+    if (!waypointMarker) {
+      waypointMarker = new window.google.maps.Marker({
+        position: position,
+        map: waypointMap,
+        label: { text: "W", color: "#fff" }
+      });
+    } else {
+      waypointMarker.setPosition(position);
+      waypointMarker.setMap(waypointMap);
+    }
+    waypointMapCenter = position;
+  }
+
+  function setHomePortMarker(lat, lng) {
+    if (!waypointMap) return;
+    var position = { lat: lat, lng: lng };
+    if (!homePortMarker) {
+      homePortMarker = new window.google.maps.Marker({
+        position: position,
+        map: waypointMap,
+        label: { text: "H", color: "#fff" }
+      });
+    } else {
+      homePortMarker.setPosition(position);
+      homePortMarker.setMap(waypointMap);
+    }
+  }
+
+  function reverseGeocodeToName(lat, lng, callback) {
+    if (!waypointGeocoder) {
+      callback("");
+      return;
+    }
+    waypointGeocoder.geocode({ location: { lat: lat, lng: lng } }, function (results, status) {
+      if (status !== "OK" || !results || !results.length) {
+        callback("");
+        return;
+      }
+      callback(results[0].formatted_address || "");
+    });
+  }
+
+  function initWaypointMap(centerLatLng) {
+    if (!waypointMapEl) {
+      return Promise.reject(new Error("Waypoint map container missing."));
+    }
+    return loadGoogleMaps().then(function () {
+      if (!waypointMap) {
+        waypointMap = new window.google.maps.Map(waypointMapEl, {
+          center: centerLatLng,
+          zoom: 11,
+          mapTypeControl: false,
+          fullscreenControl: false,
+          streetViewControl: false
+        });
+        waypointGeocoder = new window.google.maps.Geocoder();
+        waypointMap.addListener("click", function (event) {
+          var lat = event.latLng.lat();
+          var lng = event.latLng.lng();
+          setWaypointMarker(lat, lng);
+          updateWaypointLatLngInputs(lat, lng);
+          reverseGeocodeToName(lat, lng, function (name) {
+            if (!name) return;
+            if (waypointNameManual && waypointNameInput && waypointNameInput.value.trim()) {
+              return;
+            }
+            if (waypointNameInput) {
+              suppressWaypointNameInput = true;
+              waypointNameInput.value = name;
+              suppressWaypointNameInput = false;
+            }
+          });
+        });
+      }
+      waypointMapCenter = centerLatLng;
+      waypointMap.setCenter(centerLatLng);
+      var homePort = homePortLatLng || centerLatLng;
+      setHomePortMarker(homePort.lat, homePort.lng);
+    });
+  }
+
+  function openWaypointModalAdd() {
+    var fallback = homePortLatLng || { lat: 28.2323, lng: -82.7418 };
+    openWaypointModal(null);
+    initWaypointMap(fallback)
+      .then(function () {
+        setWaypointMarker(fallback.lat, fallback.lng);
+        updateWaypointLatLngInputs(fallback.lat, fallback.lng);
+      })
+      .catch(function (err) {
+        console.error("Failed to init waypoint map:", err);
+      });
+  }
+
+  function openWaypointModalEdit(waypoint) {
+    var lat = parseFloat(pick(waypoint, ["LATITUDE"], ""));
+    var lng = parseFloat(pick(waypoint, ["LONGITUDE"], ""));
+    var hasCoords = !isNaN(lat) && !isNaN(lng);
+    var center = hasCoords ? { lat: lat, lng: lng } : (homePortLatLng || { lat: 28.2323, lng: -82.7418 });
+    openWaypointModal(waypoint);
+    initWaypointMap(center)
+      .then(function () {
+        setWaypointMarker(center.lat, center.lng);
+        if (hasCoords) {
+          updateWaypointLatLngInputs(center.lat, center.lng);
+        }
+      })
+      .catch(function (err) {
+        console.error("Failed to init waypoint map:", err);
+      });
   }
 
   function buildWaypointPayload() {
@@ -1670,7 +1883,7 @@
 
     if (action === "edit") {
       var waypoint = findWaypointById(waypointId);
-      openWaypointModal(waypoint);
+      openWaypointModalEdit(waypoint);
     } else if (action === "delete") {
       if (!window.Api || typeof window.Api.canDeleteWaypoint !== "function") {
         return;
@@ -2319,6 +2532,7 @@
     }
     if (waypointIdInput) waypointIdInput.value = "0";
     clearWaypointValidation();
+    waypointNameManual = false;
   }
 
   function populateVesselForm(vessel) {
@@ -2676,6 +2890,7 @@
         }
 
         populateUserInfo(data.USER);
+        homePortLatLng = resolveHomePortLatLng(data.USER);
         loadFloatPlans(FLOAT_PLAN_LIMIT);
         loadVessels();
         loadContacts();
@@ -2742,7 +2957,7 @@
     var addWaypointBtn = document.getElementById("addWaypointBtn");
     if (addWaypointBtn) {
       addWaypointBtn.addEventListener("click", function () {
-        openWaypointModal(null);
+        openWaypointModalAdd();
       });
     }
 

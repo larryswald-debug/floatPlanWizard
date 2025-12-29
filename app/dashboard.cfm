@@ -373,6 +373,7 @@
                         <input type="text" class="form-control" id="waypointName" required>
                         <div class="invalid-feedback" id="waypointNameError"></div>
                     </div>
+                    <div id="waypointMap" style="height: 320px; width: 100%; border-radius: 8px;"></div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label" for="waypointLatitude">Latitude</label>
@@ -906,7 +907,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20251227b"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20251227i"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20251227j"></script>
 
 
 
