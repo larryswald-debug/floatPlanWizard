@@ -86,6 +86,24 @@
     return '<span class="' + badgeClass + '">' + utils.escapeHtml(label) + "</span>";
   }
 
+  function getStatusLabel(status) {
+    var normalized = String(status || "").toUpperCase();
+    if (!normalized) return "";
+    if (["ACTIVE", "OPEN"].indexOf(normalized) !== -1) {
+      return "Active";
+    }
+    if (["PENDING"].indexOf(normalized) !== -1) {
+      return "Pending";
+    }
+    if (["CLOSED", "COMPLETED"].indexOf(normalized) !== -1) {
+      return "Closed";
+    }
+    if (["CANCELLED", "CANCELED"].indexOf(normalized) !== -1) {
+      return "Cancelled";
+    }
+    return status;
+  }
+
   function renderFloatPlansList(plans, totalCount) {
     var listEl = document.getElementById("floatPlansList");
     if (!listEl) return;
@@ -119,8 +137,10 @@
       var updated = utils.formatPlanDate(utils.pick(plan, ["UPDATEDDATE", "UPDATEDAT", "MODIFIEDDATE"], ""));
       var waypointCount = parseInt(utils.pick(plan, ["WAYPOINTCOUNT", "waypointCount"], 0), 10);
       if (isNaN(waypointCount)) waypointCount = 0;
+      var statusText = getStatusLabel(status);
 
       var metaParts = [];
+      if (statusText) metaParts.push("Status: " + statusText);
       if (depart) metaParts.push("Departs " + depart);
       if (returnBy) metaParts.push("Return " + returnBy);
       if (waypointCount > 0) {
@@ -128,29 +148,23 @@
       }
       if (vessel) metaParts.push(vessel);
       var metaText = metaParts.join(" • ");
-      var statusBadge = renderStatusBadge(status);
       var updatedText = updated ? "Updated " + updated : "";
 
       var metaPartsInline = [];
-      if (statusBadge) {
-        metaPartsInline.push(statusBadge);
-      }
       if (metaText) {
-        metaPartsInline.push('<span class="list-meta-text">' + utils.escapeHtml(metaText) + "</span>");
+        metaPartsInline.push(utils.escapeHtml(metaText));
       }
       if (updatedText) {
-        metaPartsInline.push('<span class="list-meta-text text-white">' + utils.escapeHtml(updatedText) + "</span>");
+        metaPartsInline.push(utils.escapeHtml(updatedText));
       }
       var metaInline = metaPartsInline.length
-        ? '<div class="list-meta list-meta-inline">' + metaPartsInline.join('<span class="meta-sep">•</span>') + "</div>"
+        ? "<small>" + metaPartsInline.join(" • ") + "</small>"
         : "";
 
       return (
-        '<div class="list-item list-item-single" data-plan-id="' + utils.escapeHtml(id) + '">' +
-          '<div class="list-col-name">' +
+        '<div class="list-item" data-plan-id="' + utils.escapeHtml(id) + '">' +
+          '<div class="list-main">' +
             '<div class="list-title">' + utils.escapeHtml(name || "Untitled Plan") + ":</div>" +
-          "</div>" +
-          '<div class="list-col-summary">' +
             metaInline +
           "</div>" +
           '<div class="list-actions">' +

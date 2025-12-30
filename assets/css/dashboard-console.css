@@ -588,14 +588,8 @@ main.dashboard-main{
   min-height: 0;
   overflow-y: auto;
   overflow-x: visible;
-  padding-left: 0;
-  margin-left: 0;
-}
-#floatPlansList .list-item{
   padding-left: 12px;
-}
-#floatPlansList .list-item::after{
-  left: 0;
+  margin-left: -12px;
 }
 .list-item[data-plan-id="236"]{
   width: 50%;
