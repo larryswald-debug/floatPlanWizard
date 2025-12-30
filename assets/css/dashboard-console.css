@@ -6,8 +6,6 @@
    - Modern “ship console” look & feel
    - Status dots (working)
    - Hero/featured panel support (.hero-panel)
-   - System Alerts as FULL-WIDTH strip (.alerts-panel) that spans all columns
-     (place it 2nd in DOM; it will force everything below it)
    ========================================================= */
 
 /* ---------- Theme tokens ---------- */
@@ -590,14 +588,8 @@ main.dashboard-main{
   min-height: 0;
   overflow-y: auto;
   overflow-x: visible;
-  padding-left: 0;
-  margin-left: 0;
-}
-#floatPlansList .list-item{
   padding-left: 12px;
-}
-#floatPlansList .list-item::after{
-  left: 0;
+  margin-left: -12px;
 }
 .list-item[data-plan-id="236"]{
   width: 50%;
@@ -687,90 +679,255 @@ main.dashboard-main{
 }
 
 /* =========================================================
-   SYSTEM ALERTS — FULL-WIDTH CONSOLE STRIP
-   Place .alerts-panel SECOND in DOM to force everything below it
+   SYSTEM ALERTS — FPW PANEL
    ========================================================= */
 
-/* Always span full width (works even when grid is 1 column) */
-.dashboard-grid > .alerts-panel{
+.dashboard-grid > .fpw-alerts{
   grid-column: 1 / -1;
-  min-height: 190px;
 }
 
-/* Visual emphasis so it reads like a system console strip */
-.alerts-panel{
-  border-color: rgba(255, 176, 32, 0.45); /* amber */
+.fpw-card{
+  background: var(--panel);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--panel-border);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.06),
-    0 0 0 1px rgba(255,176,32,0.20),
-    0 22px 44px rgba(0,0,0,0.70);
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  min-height: 225px;
+  position: relative;
+  overflow: hidden;
 }
 
-.alerts-panel .card-header{
-  background: linear-gradient(to bottom, rgba(255,176,32,0.18), rgba(0,0,0,0));
+.fpw-alerts{
+  min-height: 0;
 }
 
-/* Make the alert tiles lay out nicely across the full width */
-.alerts-panel .card-body{
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+.fpw-card::before{
+  content:"";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+}
+
+.fpw-card__header{
+  padding: 0.9rem 1.15rem;
+  border-bottom: 1px solid var(--panel-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.05), rgba(0,0,0,0));
+}
+
+.fpw-card__title{
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.92rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fpw-card__title h2{
+  margin: 0;
+  font-size: 0.92rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fpw-alerts__icon{
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #03161f;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px rgba(53, 208, 198, 0.25);
+}
+
+.fpw-card__actions{
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.fpw-caret{
+  border: 2px solid var(--accent);
+  background: rgba(53, 208, 198, 0.12);
+  color: var(--text);
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.fpw-caret:hover{
+  background: rgba(53, 208, 198, 0.12);
+  border-color: var(--panel-border-strong);
+}
+
+.fpw-caret__icon{
+  font-family: var(--mono);
+  font-size: 1rem;
+  font-weight: 700;
+  transform: rotate(90deg);
+  transition: transform 0.2s ease;
+}
+
+.fpw-caret.collapsed .fpw-caret__icon{
+  transform: rotate(0deg);
+}
+
+.fpw-card__body{
+  padding: 1rem 1.15rem;
+  flex: 1;
+  overscroll-behavior: auto;
+  overflow-y: auto;
+}
+
+.fpw-card__footer{
+  padding: 0.75rem 1.15rem;
+  border-top: 1px solid var(--panel-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(0,0,0,0.08);
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.fpw-link{
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.fpw-link:hover{
+  color: var(--text);
+}
+
+.fpw-alerts__list{
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: row;
   gap: 0.75rem;
+  flex-wrap: nowrap;
+  overflow-x: auto;
 }
 
-/* Alert tiles (inside Alerts panel) */
-.alert-tile{
+.fpw-alert{
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 1rem;
+  padding: 0.85rem 0.9rem 0.85rem 0.6rem;
   border-radius: var(--radius-md);
   border: 1px solid var(--panel-border);
   background: rgba(255,255,255,0.04);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
-  padding: 0.75rem 0.8rem;
-  margin-bottom: 0; /* grid handles spacing */
+  min-width: 280px;
+  flex: 1 1 0;
 }
 
-.alert-top{
-  display: grid;
-  grid-template-columns: 10px 1fr auto;
+.fpw-alert__stripe{
+  width: 6px;
+  border-radius: 6px;
+  background: var(--accent-2);
+  align-self: stretch;
+}
+
+.fpw-alert__main{
+  flex: 1;
+  min-width: 0;
+}
+
+.fpw-alert__meta{
+  display: flex;
   gap: 0.6rem;
   align-items: center;
-  margin-bottom: 0.35rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
-.alert-dot{
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: currentColor;
-  box-shadow: 0 0 10px currentColor;
+.fpw-alert__time{
+  font-family: var(--mono);
+  color: var(--muted);
+  font-size: 0.75rem;
 }
 
-.alert-name{
+.fpw-alert__title{
   font-weight: 600;
-  color: var(--text);
+  margin-top: 0.35rem;
 }
 
-.alert-time{
-  color: var(--muted);
+.fpw-alert__message{
   font-size: 0.85rem;
+  color: var(--text);
+  margin-top: 0.25rem;
 }
 
-.alert-text{
-  color: var(--muted);
-  font-size: 0.88rem;
-  line-height: 1.25rem;
-}
-
-.alert-actions{
-  margin-top: 0.65rem;
+.fpw-alert__pills{
   display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
 }
 
-/* Variants */
-.alert-info{ color: var(--accent-2); }
-.alert-warn{ color: var(--warning); }
-.alert-danger{ color: var(--danger); }
-.alert-ok{ color: var(--success); }
+.fpw-pill{
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  background: rgba(255,255,255,0.04);
+}
+
+.fpw-alert__actions{
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: flex-end;
+}
+
+.fpw-badge{
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #04131c;
+  background: var(--accent);
+}
+
+.fpw-badge--critical{ background: #ff4d4f; color: #1a0d0d; }
+.fpw-badge--warning{ background: #ffb020; color: #241503; }
+.fpw-badge--info{ background: #4ea1ff; color: #0c1a2b; }
+.fpw-badge--success{ background: #28d17c; color: #0a1e13; }
+.fpw-badge--notice{ background: #b9c4cf; color: #0b1118; }
+.fpw-badge--maint{ background: #8f9bb0; color: #0b1118; }
+.fpw-badge--debug{ background: #7c8b99; color: #0b1118; }
+
+.fpw-alert--critical .fpw-alert__stripe{ background: #ff4d4f; }
+.fpw-alert--warning .fpw-alert__stripe{ background: #ffb020; }
+.fpw-alert--info .fpw-alert__stripe{ background: #4ea1ff; }
+.fpw-alert--success .fpw-alert__stripe{ background: #28d17c; }
+.fpw-alert--notice .fpw-alert__stripe{ background: #b9c4cf; }
+.fpw-alert--maint .fpw-alert__stripe{ background: #8f9bb0; }
+.fpw-alert--debug .fpw-alert__stripe{ background: #7c8b99; }
 
 /* =========================================================
    Responsive tweaks
@@ -798,9 +955,22 @@ main.dashboard-main{
     justify-content: flex-end;
   }
 
-  /* Slightly tighter alert tiles on mobile */
-  .alerts-panel .card-body{
-    grid-template-columns: 1fr;
+}
+
+@media (max-width: 576px){
+  .fpw-alerts__list{
+    flex-direction: column;
+    overflow-x: visible;
+  }
+
+  .fpw-alert{
+    flex-direction: column;
+  }
+
+  .fpw-alert__actions{
+    width: 100%;
+    flex-direction: row;
+    justify-content: flex-end;
   }
 }
 
