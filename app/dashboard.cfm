@@ -119,43 +119,105 @@
     <div class="dashboard-grid">
 
         
-        <section class="dashboard-card alerts-panel" aria-label="System Alerts">
-            <div class="card-header">
-                <div class="card-title">
-                <h2><span class="status-dot status-ok"></span>System Alerts</h2>
-                <small class="card-subtitle" id="alertsSummary">Nominal</small>
+        <section class="fpw-card fpw-alerts" aria-label="System Alerts">
+            <div class="fpw-card__header">
+                <div class="fpw-card__title">
+                    <span class="fpw-alerts__icon" aria-hidden="true">!</span>
+                    <h2>System Alerts</h2>
+                    <button class="fpw-caret collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#alertsCollapse" aria-expanded="false" aria-controls="alertsCollapse">
+                        <span class="fpw-caret__icon" aria-hidden="true">></span>
+                    </button>
+                </div>
+                <div class="fpw-card__actions">
+                    <button class="btn btn-sm btn-outline-secondary" type="button">Mark all read</button>
+                    <a class="btn btn-sm btn-primary" href="#">View all</a>
                 </div>
             </div>
 
-            <div class="card-body" id="alertsBody">
-                <div class="alert-tile alert-info">
-                <div class="alert-top">
-                    <span class="alert-dot"></span>
-                    <div class="alert-name">Weather</div>
-                    <div class="alert-time numeric">Now</div>
-                </div>
-                <div class="alert-text">No marine alerts. Wind NE 8kt • Seas 1–2ft.</div>
+            <div id="alertsCollapse" class="collapse">
+                <div class="fpw-card__body">
+                    <div id="alertsEmpty" class="d-none">No alerts right now.</div>
+                    <ul id="alertsList" class="fpw-alerts__list">
+                    <li class="fpw-alert fpw-alert--critical" data-status="CRITICAL">
+                        <span class="fpw-alert__stripe" aria-hidden="true"></span>
+                        <div class="fpw-alert__main">
+                            <div class="fpw-alert__meta">
+                                <span class="fpw-badge fpw-badge--critical">CRITICAL</span>
+                                <span class="fpw-alert__time">2m ago</span>
+                            </div>
+                            <div class="fpw-alert__title">Return window exceeded</div>
+                            <div class="fpw-alert__message">Active float plan passed the expected return time.</div>
+                            <div class="fpw-alert__pills">
+                                <span class="fpw-pill">Provider: FPW</span>
+                                <span class="fpw-pill">Code: FP-401</span>
+                            </div>
+                        </div>
+                        <div class="fpw-alert__actions">
+                            <button class="btn btn-sm btn-outline-secondary" type="button">Details</button>
+                            <button class="btn btn-sm btn-primary" type="button">Dismiss</button>
+                        </div>
+                    </li>
+                    <li class="fpw-alert fpw-alert--warning" data-status="WARNING">
+                        <span class="fpw-alert__stripe" aria-hidden="true"></span>
+                        <div class="fpw-alert__main">
+                            <div class="fpw-alert__meta">
+                                <span class="fpw-badge fpw-badge--warning">WARNING</span>
+                                <span class="fpw-alert__time">35m ago</span>
+                            </div>
+                            <div class="fpw-alert__title">Incomplete contact info</div>
+                            <div class="fpw-alert__message">Two emergency contacts are missing phone numbers.</div>
+                            <div class="fpw-alert__pills">
+                                <span class="fpw-pill">Provider: Contacts</span>
+                            </div>
+                        </div>
+                        <div class="fpw-alert__actions">
+                            <button class="btn btn-sm btn-outline-secondary" type="button">Dismiss</button>
+                        </div>
+                    </li>
+                    <li class="fpw-alert fpw-alert--info" data-status="INFO">
+                        <span class="fpw-alert__stripe" aria-hidden="true"></span>
+                        <div class="fpw-alert__main">
+                            <div class="fpw-alert__meta">
+                                <span class="fpw-badge fpw-badge--info">INFO</span>
+                                <span class="fpw-alert__time">Today</span>
+                            </div>
+                            <div class="fpw-alert__title">Weather update available</div>
+                            <div class="fpw-alert__message">New marine conditions posted for New Port Richey.</div>
+                            <div class="fpw-alert__pills">
+                                <span class="fpw-pill">Provider: NOAA</span>
+                            </div>
+                        </div>
+                        <div class="fpw-alert__actions">
+                            <button class="btn btn-sm btn-outline-secondary" type="button">Details</button>
+                            <button class="btn btn-sm btn-outline-secondary" type="button">Dismiss</button>
+                        </div>
+                    </li>
+                    <li class="fpw-alert fpw-alert--success" data-status="SUCCESS">
+                        <span class="fpw-alert__stripe" aria-hidden="true"></span>
+                        <div class="fpw-alert__main">
+                            <div class="fpw-alert__meta">
+                                <span class="fpw-badge fpw-badge--success">SUCCESS</span>
+                                <span class="fpw-alert__time">Yesterday</span>
+                            </div>
+                            <div class="fpw-alert__title">Float plan submitted</div>
+                            <div class="fpw-alert__message">Your latest plan was delivered to all watchers.</div>
+                            <div class="fpw-alert__pills">
+                                <span class="fpw-pill">Provider: Dispatch</span>
+                            </div>
+                        </div>
+                        <div class="fpw-alert__actions">
+                            <button class="btn btn-sm btn-outline-secondary" type="button">Dismiss</button>
+                        </div>
+                    </li>
+                    </ul>
                 </div>
 
-                <div class="alert-tile alert-warn">
-                <div class="alert-top">
-                    <span class="alert-dot"></span>
-                    <div class="alert-name">Data</div>
-                    <div class="alert-time numeric">Action</div>
-                </div>
-                <div class="alert-text">2 contacts missing phone numbers.</div>
-                </div>
-
-                <div class="alert-tile alert-danger">
-                <div class="alert-top">
-                    <span class="alert-dot"></span>
-                    <div class="alert-name">Check-in</div>
-                    <div class="alert-time numeric">Overdue</div>
-                </div>
-                <div class="alert-text">Active float plan is past return time.</div>
+                <div class="fpw-card__footer">
+                    <span>Showing latest 4 alerts</span>
+                    <a class="fpw-link" href="#">Open alerts center -></a>
                 </div>
             </div>
-            </section>
+        </section>
         
         <section class="dashboard-card hero-panel active" id="floatPlansPanel">
             <div class="card-header">
