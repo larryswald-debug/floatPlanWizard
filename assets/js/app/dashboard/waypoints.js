@@ -294,6 +294,24 @@
     if (waypointLongitudeInput) waypointLongitudeInput.value = lng.toFixed(6);
   }
 
+  function setWaypointLocation(lat, lng, options) {
+    var settings = options || {};
+    setWaypointMarker(lat, lng);
+    updateWaypointLatLngInputs(lat, lng);
+    if (!settings.updateName) return;
+    reverseGeocodeToName(lat, lng, function (name) {
+      if (!name) return;
+      if (waypointNameManual && waypointNameInput && waypointNameInput.value.trim()) {
+        return;
+      }
+      if (waypointNameInput) {
+        suppressWaypointNameInput = true;
+        waypointNameInput.value = name;
+        suppressWaypointNameInput = false;
+      }
+    });
+  }
+
   function setMarineStatus(message, kind, allowHtml) {
     if (!marineStatusLine) {
       marineStatusLine = document.getElementById("marineStatusLine");
@@ -707,10 +725,16 @@
       waypointMarker = new window.google.maps.Marker({
         position: position,
         map: waypointMap,
-        label: { text: "W", color: "#fff" }
+        label: { text: "W", color: "#fff" },
+        draggable: true
+      });
+      waypointMarker.addListener("dragend", function (event) {
+        if (!event || !event.latLng) return;
+        setWaypointLocation(event.latLng.lat(), event.latLng.lng(), { updateName: true });
       });
     } else {
       waypointMarker.setPosition(position);
+      waypointMarker.setDraggable(true);
       waypointMarker.setMap(waypointMap);
     }
     waypointMapCenter = position;
@@ -763,19 +787,7 @@
         waypointMap.addListener("click", function (event) {
           var lat = event.latLng.lat();
           var lng = event.latLng.lng();
-          setWaypointMarker(lat, lng);
-          updateWaypointLatLngInputs(lat, lng);
-          reverseGeocodeToName(lat, lng, function (name) {
-            if (!name) return;
-            if (waypointNameManual && waypointNameInput && waypointNameInput.value.trim()) {
-              return;
-            }
-            if (waypointNameInput) {
-              suppressWaypointNameInput = true;
-              waypointNameInput.value = name;
-              suppressWaypointNameInput = false;
-            }
-          });
+          setWaypointLocation(lat, lng, { updateName: true });
         });
         waypointMap.addListener("idle", function () {
           debounceMapIdleReload(false);

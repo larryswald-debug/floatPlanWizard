@@ -454,6 +454,7 @@
                 <form id="waypointForm" novalidate>
                     <input type="hidden" id="waypointId" value="0">
                     <div id="waypointMap" style="height: 360px; width: 100%; border-radius: 8px;"></div>
+                    <div class="small text-muted mt-1">Tip: drag the marker or click the map to reposition.</div>
                     <div class="border rounded p-2 mt-2 marine-controls">
                         <div class="d-flex align-items-center justify-content-between mb-1">
                             <label class="form-label mb-0">Marine Layers</label>
@@ -1023,7 +1024,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/contacts.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20251227r"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20251227r"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20251227ak"></script>
 
 <!-- Dashboard-specific JS -->
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20251227ak"></script>
