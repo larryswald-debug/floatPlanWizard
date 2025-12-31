@@ -175,7 +175,14 @@
       }
       if (passengerPhoneInput) {
         passengerPhoneInput.addEventListener("input", function () {
+          passengerPhoneInput.value = formatUsPhoneInput(passengerPhoneInput.value);
           utils.clearFieldError(passengerPhoneInput, passengerPhoneError);
+        });
+        passengerPhoneInput.addEventListener("blur", function () {
+          passengerPhoneInput.value = formatUsPhoneInput(passengerPhoneInput.value);
+        });
+        passengerPhoneInput.addEventListener("keyup", function () {
+          passengerPhoneInput.value = formatUsPhoneInput(passengerPhoneInput.value);
         });
       }
       if (passengerSaveBtn) {
@@ -207,7 +214,9 @@
     }
     if (passengerIdInput) passengerIdInput.value = utils.pick(passenger, ["PASSENGERID", "ID"], 0);
     if (passengerNameInput) passengerNameInput.value = utils.pick(passenger, ["PASSENGERNAME", "NAME"], "");
-    if (passengerPhoneInput) passengerPhoneInput.value = utils.pick(passenger, ["PHONE"], "");
+    if (passengerPhoneInput) {
+      passengerPhoneInput.value = formatUsPhoneInput(utils.pick(passenger, ["PHONE"], ""));
+    }
     if (passengerAgeInput) passengerAgeInput.value = utils.pick(passenger, ["AGE"], "");
     if (passengerGenderInput) passengerGenderInput.value = utils.pick(passenger, ["GENDER"], "");
     if (passengerNotesInput) passengerNotesInput.value = utils.pick(passenger, ["NOTES"], "");
@@ -245,6 +254,22 @@
       digits = digits.slice(1);
     }
     return digits.length === 10;
+  }
+
+  function formatUsPhoneInput(value) {
+    var digits = String(value || "").replace(/\D/g, "");
+    if (digits.charAt(0) === "1" && digits.length > 10) {
+      digits = digits.slice(1);
+    }
+    digits = digits.slice(0, 10);
+
+    if (digits.length <= 3) {
+      return digits.length ? "(" + digits : "";
+    }
+    if (digits.length <= 6) {
+      return "(" + digits.slice(0, 3) + ") " + digits.slice(3);
+    }
+    return "(" + digits.slice(0, 3) + ") " + digits.slice(3, 6) + "-" + digits.slice(6);
   }
 
   function savePassenger() {

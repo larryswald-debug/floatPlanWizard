@@ -138,6 +138,10 @@
       var waypointCount = parseInt(utils.pick(plan, ["WAYPOINTCOUNT", "waypointCount"], 0), 10);
       if (isNaN(waypointCount)) waypointCount = 0;
       var statusText = getStatusLabel(status);
+      var normalizedStatus = String(status || "").trim().toUpperCase();
+      var checkInButton = (normalizedStatus === "ACTIVE" || normalizedStatus === "OVERDUE")
+        ? '<button class="btn-success" type="button" data-action="checkin" data-plan-id="' + utils.escapeHtml(id) + '">Check-In</button>'
+        : "";
 
       var metaParts = [];
       if (statusText) metaParts.push("Status: " + statusText);
@@ -168,10 +172,11 @@
             metaInline +
           "</div>" +
           '<div class="list-actions">' +
+            checkInButton +
             '<button class="btn-secondary" type="button" data-action="view" data-plan-id="' + utils.escapeHtml(id) + '">View &amp; Send</button>' +
             '<button class="btn-secondary" type="button" data-action="clone" data-plan-id="' + utils.escapeHtml(id) + '">Clone</button>' +
             '<button class="btn-secondary" type="button" data-action="edit" data-plan-id="' + utils.escapeHtml(id) + '">Edit</button>' +
-            '<button class="btn-danger" type="button" data-action="delete" data-plan-id="' + utils.escapeHtml(id) + '">Delete</button>' +
+            '<button class="btn-danger" type="button" data-action="delete" data-plan-id="' + utils.escapeHtml(id) + '" data-plan-status="' + utils.escapeHtml(status) + '">Delete</button>' +
           "</div>" +
         "</div>"
       );
@@ -414,11 +419,24 @@
       openWizard(planId, 6);
     } else if (action === "clone") {
       cloneFloatPlan(planId, button);
+    } else if (action === "checkin") {
+      utils.showConfirmModal("Check in this float plan?")
+        .then(function (confirmed) {
+          if (!confirmed) return;
+          checkInFloatPlan(planId, button);
+        });
     } else if (action === "delete") {
-      if (!window.confirm("Delete this float plan?")) {
+      var planStatus = button.getAttribute("data-plan-status") || "";
+      var normalizedStatus = String(planStatus).trim().toUpperCase();
+      if (normalizedStatus === "ACTIVE" || normalizedStatus === "OVERDUE") {
+        utils.showAlertModal("Active or overdue float plans cannot be deleted.");
         return;
       }
-      deleteFloatPlan(planId, button);
+      utils.showConfirmModal("Delete this float plan?")
+        .then(function (confirmed) {
+          if (!confirmed) return;
+          deleteFloatPlan(planId, button);
+        });
     }
   }
 
@@ -458,6 +476,37 @@
       });
   }
 
+  function checkInFloatPlan(planId, triggerButton) {
+    if (!window.Api || typeof window.Api.checkInFloatPlan !== "function") {
+      return;
+    }
+
+    var originalText = "";
+    if (triggerButton) {
+      originalText = triggerButton.textContent;
+      triggerButton.disabled = true;
+      triggerButton.textContent = "Checking in...";
+    }
+
+    Api.checkInFloatPlan(planId)
+      .then(function (data) {
+        if (!data.SUCCESS) {
+          throw data;
+        }
+        loadFloatPlans(FLOAT_PLAN_LIMIT);
+      })
+      .catch(function (err) {
+        console.error("Failed to check in float plan:", err);
+        utils.showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Check-in failed.");
+      })
+      .finally(function () {
+        if (triggerButton) {
+          triggerButton.disabled = false;
+          triggerButton.textContent = originalText || "Check-In";
+        }
+      });
+  }
+
   function deleteFloatPlan(planId, triggerButton) {
     if (!window.Api || typeof window.Api.deleteFloatPlan !== "function") {
       return;
@@ -479,7 +528,7 @@
       })
       .catch(function (err) {
         console.error("Failed to delete float plan:", err);
-        utils.showDashboardAlert((err && err.MESSAGE) ? err.MESSAGE : "Delete failed.", "danger");
+        utils.showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Delete failed.");
       })
       .finally(function () {
         if (triggerButton) {

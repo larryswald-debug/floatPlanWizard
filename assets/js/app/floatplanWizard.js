@@ -217,6 +217,42 @@
     };
   }
 
+  function pad2(value) {
+    return value < 10 ? "0" + value : "" + value;
+  }
+
+  function toDateTimeLocal(value) {
+    if (value === undefined || value === null) {
+      return "";
+    }
+    if (value instanceof Date) {
+      return [
+        value.getFullYear(),
+        "-",
+        pad2(value.getMonth() + 1),
+        "-",
+        pad2(value.getDate()),
+        "T",
+        pad2(value.getHours()),
+        ":",
+        pad2(value.getMinutes())
+      ].join("");
+    }
+    var raw = ("" + value).trim();
+    if (!raw) return "";
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw)) {
+      return raw.slice(0, 16);
+    }
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(raw)) {
+      return raw.replace(" ", "T").slice(0, 16);
+    }
+    var parsed = new Date(raw);
+    if (!isNaN(parsed.getTime())) {
+      return toDateTimeLocal(parsed);
+    }
+    return "";
+  }
+
   function normalizeFloatPlan(source) {
     var plan = createEmptyFloatPlan();
     if (source && typeof source === "object") {
@@ -229,6 +265,8 @@
     plan.OPERATORID = numeric(plan.OPERATORID);
     plan.OPERATOR_HAS_PFD = !!plan.OPERATOR_HAS_PFD;
     plan.RESCUE_CENTERID = numeric(plan.RESCUE_CENTERID);
+    plan.DEPARTURE_TIME = toDateTimeLocal(plan.DEPARTURE_TIME);
+    plan.RETURN_TIME = toDateTimeLocal(plan.RETURN_TIME);
     return plan;
   }
 
@@ -1193,7 +1231,28 @@
         if (planId <= 0) {
           return;
         }
-        if (!window.confirm("Delete this float plan? This cannot be undone.")) {
+        var statusVal = "";
+        if (this.fp && this.fp.FLOATPLAN && this.fp.FLOATPLAN.STATUS !== undefined) {
+          statusVal = String(this.fp.FLOATPLAN.STATUS || "").trim().toUpperCase();
+        }
+        if (this.step === this.totalSteps && (statusVal === "ACTIVE" || statusVal === "OVERDUE")) {
+          if (window.FPW && window.FPW.DashboardUtils && window.FPW.DashboardUtils.showAlertModal) {
+            window.FPW.DashboardUtils.showAlertModal("Active or overdue float plans cannot be deleted.");
+          } else {
+            window.alert("Active or overdue float plans cannot be deleted.");
+          }
+          return;
+        }
+        var confirmMessage = "Delete this float plan? This cannot be undone.";
+        if (window.FPW && window.FPW.DashboardUtils && window.FPW.DashboardUtils.showConfirmModal) {
+          window.FPW.DashboardUtils.showConfirmModal(confirmMessage)
+            .then(function (confirmed) {
+              if (!confirmed) return;
+              this.deletePlan(planId);
+            }.bind(this));
+          return;
+        }
+        if (!window.confirm(confirmMessage)) {
           return;
         }
         this.deletePlan(planId);
@@ -1222,7 +1281,11 @@
           })
           .catch(function (err) {
             self.isSaving = false;
-            self.handleError(err, "Unable to delete float plan.");
+            if (window.FPW && window.FPW.DashboardUtils && window.FPW.DashboardUtils.showAlertModal) {
+              window.FPW.DashboardUtils.showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to delete float plan.");
+            } else {
+              window.alert((err && err.MESSAGE) ? err.MESSAGE : "Unable to delete float plan.");
+            }
           });
       }
     },
