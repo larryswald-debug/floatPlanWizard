@@ -10,7 +10,7 @@ component output=false {
      - Always returns valid PNG for GetMap failures (no broken tiles)
      - Diagnostic response header: X-FPW-WMSProxy
      - Tile health counters (app-scope, lock-protected)
-     - stats() remote endpoint to view/reset counters
+     - stats() remote endpoint to view/reset counters (authenticated session required)
      ============================================================================ */
 
   /* -----------------------------
@@ -47,9 +47,6 @@ component output=false {
       }
       application.fpwWmsCounters.byTarget[targetKey][name] += delta;
 
-      // totals
-      if (!structKeyExists(application.fpwWmsCounters.totals, "requests")) application.fpwWmsCounters.totals.requests = 0;
-      if (name == "requests") application.fpwWmsCounters.totals.requests += delta;
     }
   }
 
@@ -348,7 +345,7 @@ component output=false {
     // Upstream non-200
     if (statusCode != 200) {
       writeLog(file="application", type="error",
-        text="WMS proxy upstream error target=#targetKey# status=#statusCode# #statusText# url=#upstreamUrl#");
+        text="WMS proxy upstream error target=#targetKey# status=#statusCode# #statusText# url=#upstreamBase#?REQUEST=#requestType#");
 
       if (fileExists(tempPath)) fileDelete(tempPath);
 
@@ -410,7 +407,7 @@ component output=false {
 
     if (hasServiceException) {
       writeLog(file="application", type="error",
-        text="WMS proxy ServiceException target=#targetKey# url=#upstreamUrl# body=#left(responseText,2000)#");
+        text="WMS proxy ServiceException target=#targetKey# url=#upstreamBase#?REQUEST=#requestType# body=#left(responseText,2000)#");
 
       if (fileExists(tempPath)) fileDelete(tempPath);
 
@@ -510,6 +507,11 @@ component output=false {
   remote void function stats(string reset="") output=true {
     setting enablecfoutputonly=true;
     setting showdebugoutput=false;
+
+    if (!structKeyExists(session, "user") || !isStruct(session.user)) {
+      sendJson(401, { success=false, AUTH=false, error="UNAUTHORIZED", message="Login required." });
+      return;
+    }
 
     initCountersIfNeeded();
 
