@@ -21,6 +21,15 @@
     var radarOpacityControl = null;
     var radarOpacity = 0.6;
     var radarTime = "";
+    var radarWanted = false;
+    var radarVisible = false;
+    var radarCoverageBounds = null;
+    var radarNoteControl = null;
+    var suppressRadarToggle = false;
+    var chartsOverlay = null;
+    var chartsWanted = false;
+    var chartsVisible = false;
+    var chartsZoomNoteControl = null;
     var pendingContext = null;
 
     var defaultCenter = { lat: 27.8, lng: -82.7 };
@@ -36,6 +45,13 @@
     // Selected layer name: "radar_base_reflectivity_time".
     var radarWmsUrl = "/fpw/api/v1/wmsProxy.cfc?method=tile&target=nws-radar";
     var radarLayerName = "radar_base_reflectivity_time";
+    var radarCoverageBbox3857 = {
+      minx: -19592230.379600,
+      miny: 1005534.115038,
+      maxx: 16698456.861354,
+      maxy: 11753184.615300
+    };
+    var chartsZoomThreshold = 6;
 
     // TODO: Optional nowCOAST warnings overlay. Use GetCapabilities on a nowCOAST WMS warnings service to pick layer names.
 
@@ -79,6 +95,63 @@
       return control;
     }
 
+    function createRadarNoteControl() {
+      if (!window.L) return null;
+      var container = null;
+      var control = window.L.control({ position: "topright" });
+      control.onAdd = function () {
+        container = window.L.DomUtil.create("div", "leaflet-control radar-coverage-note");
+        container.style.fontSize = "12px";
+        container.style.padding = "6px 8px";
+        container.style.borderRadius = "6px";
+        container.style.background = "rgba(0, 0, 0, 0.65)";
+        container.style.color = "#fff";
+        container.style.display = "none";
+        container.innerHTML = "Radar hidden (outside coverage)";
+        return container;
+      };
+      control.setVisible = function (visible) {
+        if (!container) return;
+        container.style.display = visible ? "block" : "none";
+      };
+      return control;
+    }
+
+    function createChartsZoomNoteControl() {
+      if (!window.L) return null;
+      var container = null;
+      var control = window.L.control({ position: "topright" });
+      control.onAdd = function () {
+        container = window.L.DomUtil.create("div", "leaflet-control charts-coverage-note");
+        container.style.fontSize = "12px";
+        container.style.padding = "6px 8px";
+        container.style.borderRadius = "6px";
+        container.style.background = "rgba(0, 0, 0, 0.65)";
+        container.style.color = "#fff";
+        container.style.display = "none";
+        container.innerHTML = "NOAA charts are best viewed when zoomed in.";
+        return container;
+      };
+      control.setVisible = function (visible) {
+        if (!container) return;
+        container.style.display = visible ? "block" : "none";
+      };
+      return control;
+    }
+
+    function expandBounds(bounds, factor) {
+      if (!bounds) return bounds;
+      var sw = bounds.getSouthWest();
+      var ne = bounds.getNorthEast();
+      var latSpan = ne.lat - sw.lat;
+      var lngSpan = ne.lng - sw.lng;
+      var latPad = latSpan * factor;
+      var lngPad = lngSpan * factor;
+      var nextSw = window.L.latLng(sw.lat - latPad, sw.lng - lngPad);
+      var nextNe = window.L.latLng(ne.lat + latPad, ne.lng + lngPad);
+      return window.L.latLngBounds(nextSw, nextNe);
+    }
+
     function setRadarOpacity(value) {
       radarOpacity = value;
       if (radarLayer && radarLayer.setOpacity) {
@@ -93,6 +166,78 @@
         if (radarLayer.redraw) {
           radarLayer.redraw();
         }
+      }
+    }
+
+    function updateChartsZoomVisibility() {
+      if (!map || !chartsOverlay) return;
+      var zoom = map.getZoom();
+      if (chartsWanted && zoom <= chartsZoomThreshold) {
+        if (map.hasLayer(chartsOverlay)) {
+          map.removeLayer(chartsOverlay);
+        }
+        chartsVisible = false;
+        if (chartsZoomNoteControl) chartsZoomNoteControl.setVisible(true);
+      } else if (chartsWanted && zoom > chartsZoomThreshold) {
+        if (!map.hasLayer(chartsOverlay)) {
+          chartsOverlay.addTo(map);
+        }
+        chartsVisible = true;
+        if (chartsZoomNoteControl) chartsZoomNoteControl.setVisible(false);
+      } else {
+        if (map.hasLayer(chartsOverlay)) {
+          map.removeLayer(chartsOverlay);
+        }
+        chartsVisible = false;
+        if (chartsZoomNoteControl) chartsZoomNoteControl.setVisible(false);
+      }
+    }
+
+    function ensureRadarCoverageBounds() {
+      if (radarCoverageBounds || !map || !window.L) return;
+      var crs = map.options.crs;
+      var sw = crs.unproject(window.L.point(radarCoverageBbox3857.minx, radarCoverageBbox3857.miny));
+      var ne = crs.unproject(window.L.point(radarCoverageBbox3857.maxx, radarCoverageBbox3857.maxy));
+      radarCoverageBounds = window.L.latLngBounds(sw, ne);
+    }
+
+    function updateRadarVisibility() {
+      if (!map || !radarLayer) return;
+      ensureRadarCoverageBounds();
+      var inCoverage = false;
+      if (radarCoverageBounds) {
+        var viewBounds = map.getBounds();
+        var paddedView = expandBounds(viewBounds, 0.5);
+        inCoverage = radarCoverageBounds.intersects(paddedView);
+      }
+
+      if (radarWanted && inCoverage) {
+        if (!map.hasLayer(radarLayer)) {
+          suppressRadarToggle = true;
+          radarLayer.addTo(map);
+          suppressRadarToggle = false;
+        }
+        radarVisible = true;
+        if (radarNoteControl) radarNoteControl.setVisible(false);
+        if (radarOpacityControl) radarOpacityControl.setEnabled(true);
+      } else if (radarWanted && !inCoverage) {
+        if (map.hasLayer(radarLayer)) {
+          suppressRadarToggle = true;
+          map.removeLayer(radarLayer);
+          suppressRadarToggle = false;
+        }
+        radarVisible = false;
+        if (radarNoteControl) radarNoteControl.setVisible(true);
+        if (radarOpacityControl) radarOpacityControl.setEnabled(false);
+      } else {
+        if (map.hasLayer(radarLayer)) {
+          suppressRadarToggle = true;
+          map.removeLayer(radarLayer);
+          suppressRadarToggle = false;
+        }
+        radarVisible = false;
+        if (radarNoteControl) radarNoteControl.setVisible(false);
+        if (radarOpacityControl) radarOpacityControl.setEnabled(false);
       }
     }
 
@@ -138,12 +283,18 @@
         attributionControl: true
       });
 
-      var chartLayer = window.L.tileLayer.wms(chartWmsUrl, {
+      var osmLayer = window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "\u00A9 OpenStreetMap contributors"
+      }).addTo(map);
+
+      chartsOverlay = window.L.tileLayer.wms(chartWmsUrl, {
         layers: chartLayerNames,
         format: "image/png",
-        transparent: false,
-        version: "1.3.0"
-      }).addTo(map);
+        transparent: true,
+        version: "1.3.0",
+        attribution: "NOAA"
+      });
 
       radarLayer = window.L.tileLayer.wms(radarWmsUrl, {
         layers: radarLayerName,
@@ -159,10 +310,11 @@
       }
 
       var baseLayers = {
-        "NOAA Nautical Chart": chartLayer
+        "OpenStreetMap": osmLayer
       };
       var overlays = {
-        "nowCOAST Radar": radarLayer
+        "NOAA Nautical Charts": chartsOverlay,
+        "NOAA/NWS Radar": radarLayer
       };
 
       layersControl = window.L.control.layers(baseLayers, overlays, { collapsed: false }).addTo(map);
@@ -173,22 +325,47 @@
         radarOpacityControl.addTo(map);
         radarOpacityControl.setEnabled(false);
       }
+      radarNoteControl = createRadarNoteControl();
+      if (radarNoteControl) {
+        radarNoteControl.addTo(map);
+        radarNoteControl.setVisible(false);
+      }
+      chartsZoomNoteControl = createChartsZoomNoteControl();
+      if (chartsZoomNoteControl) {
+        chartsZoomNoteControl.addTo(map);
+        chartsZoomNoteControl.setVisible(false);
+      }
 
       map.on("overlayadd", function (event) {
-        if (radarOpacityControl && event.layer === radarLayer) {
-          radarOpacityControl.setEnabled(true);
-        }
         if (event.layer === radarLayer) {
+          if (suppressRadarToggle) return;
+          radarWanted = true;
           if (radarTime) {
             applyRadarTime(radarTime);
           } else {
             fetchRadarTime();
           }
+          updateRadarVisibility();
         }
       });
       map.on("overlayremove", function (event) {
-        if (radarOpacityControl && event.layer === radarLayer) {
-          radarOpacityControl.setEnabled(false);
+        if (event.layer === radarLayer) {
+          if (suppressRadarToggle) return;
+          radarWanted = false;
+          updateRadarVisibility();
+        }
+      });
+
+      map.on("overlayadd", function (event) {
+        if (event.layer === chartsOverlay) {
+          chartsWanted = true;
+          updateChartsZoomVisibility();
+        }
+      });
+      map.on("overlayremove", function (event) {
+        if (event.layer === chartsOverlay) {
+          chartsWanted = false;
+          updateChartsZoomVisibility();
         }
       });
 
@@ -198,12 +375,19 @@
       });
 
       map.on("moveend", function () {
+        updateRadarVisibility();
         if (onMoveEnd) onMoveEnd();
+      });
+      map.on("zoomend", function () {
+        updateChartsZoomVisibility();
+        updateRadarVisibility();
       });
 
       map.setView([center.lat, center.lng], defaultZoom);
       map.whenReady(function () {
         fetchRadarTime();
+        updateChartsZoomVisibility();
+        updateRadarVisibility();
         if (onMapReady) onMapReady(map);
       });
 
@@ -220,6 +404,14 @@
       layersControl = null;
       radarLayer = null;
       radarOpacityControl = null;
+      radarNoteControl = null;
+      radarCoverageBounds = null;
+      radarWanted = false;
+      radarVisible = false;
+      chartsOverlay = null;
+      chartsWanted = false;
+      chartsVisible = false;
+      chartsZoomNoteControl = null;
       if (onMapDestroy) onMapDestroy();
     }
 
