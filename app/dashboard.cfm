@@ -7,6 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <cfinclude template="../includes/header_styles.cfm">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=1">
 
     <style>
@@ -67,6 +68,45 @@
         #waypointMap {
             position: relative;
             z-index: 1;
+        }
+
+        #waypointMap .radar-opacity-control {
+            background: rgba(255, 255, 255, 0.92);
+            padding: 0.35rem 0.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-size: 0.7rem;
+            min-width: 140px;
+        }
+
+        #waypointMap .radar-opacity-control label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            color: #1b1b1b;
+        }
+
+        #waypointMap .radar-opacity-control input[type="range"] {
+            width: 100%;
+        }
+
+        #waypointMap .radar-opacity-control.is-disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        #waypointMap .marine-poi-icon span {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 600;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.35);
         }
 
         .marine-controls {
@@ -1014,6 +1054,8 @@
 <cfinclude template="../includes/footer_scripts.cfm">
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20251227b"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20251227s"></script>
