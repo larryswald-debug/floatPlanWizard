@@ -94,6 +94,7 @@ component output=false {
   private boolean function isAllowedPath(string upstreamBase) {
     // Require known path patterns
     if ( findNoCase("/arcgis/services/", upstreamBase) == 0
+      && findNoCase("/arcgis/rest/services/", upstreamBase) == 0
       && findNoCase("/geoserver/wms", upstreamBase) == 0
       && findNoCase("/geoserver/ows", upstreamBase) == 0
       && findNoCase("/eventdriven/services/", upstreamBase) == 0
@@ -210,8 +211,8 @@ component output=false {
       sendJson(400, { success=false, error="MISSING_REQUEST", message="REQUEST parameter is required." });
       return;
     }
-    if (!listFindNoCase("GETMAP,GETCAPABILITIES", requestType)) {
-      sendJson(400, { success=false, error="INVALID_REQUEST", message="REQUEST must be GetMap or GetCapabilities." });
+    if (!listFindNoCase("GETMAP,GETCAPABILITIES,GETFEATUREINFO", requestType)) {
+      sendJson(400, { success=false, error="INVALID_REQUEST", message="REQUEST must be GetMap, GetCapabilities, or GetFeatureInfo." });
       return;
     }
 
@@ -252,7 +253,8 @@ component output=false {
     // NOTE: We intentionally DROP TIME for nws-radar GetMap (most robust; avoids ServiceException).
     var wmsKeys = {
       "SERVICE"=true,"REQUEST"=true,"VERSION"=true,"LAYERS"=true,"STYLES"=true,"FORMAT"=true,
-      "TRANSPARENT"=true,"CRS"=true,"SRS"=true,"BBOX"=true,"WIDTH"=true,"HEIGHT"=true,"TIME"=true
+      "TRANSPARENT"=true,"CRS"=true,"SRS"=true,"BBOX"=true,"WIDTH"=true,"HEIGHT"=true,"TIME"=true,
+      "QUERY_LAYERS"=true,"INFO_FORMAT"=true,"FEATURE_COUNT"=true,"I"=true,"J"=true
     };
 
     var queryPairs = [];
@@ -285,7 +287,7 @@ component output=false {
     var upstreamUrl = upstreamBase & (len(queryString) ? "?" & queryString : "");
 
     // Ehcache caching TTLs
-    var ttlSeconds = (requestType == "GETMAP") ? 300 : 3600;
+    var ttlSeconds = (requestType == "GETMAP" || requestType == "GETFEATUREINFO") ? 300 : 3600;
     var cacheKey   = buildCacheKey(targetKey, requestType, upstreamUrl);
 
     // Cache hit?

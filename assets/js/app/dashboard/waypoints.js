@@ -23,6 +23,11 @@
   var waypointMapController = null;
   var waypointNameManual = false;
   var suppressWaypointNameInput = false;
+  // INSERT START (waypoint naming helpers)
+  var waypointNameCache = new Map();
+  var waypointOriginalLatLng = null;
+  var waypointNameResolveId = 0;
+  // INSERT END
   var marineTideToggle = null;
   var marineTypeMarina = null;
   var marineTypeFuel = null;
@@ -181,10 +186,10 @@
         modalEl: waypointModalEl,
         mapEl: waypointMapEl,
         onMapClick: function (lat, lng) {
-          setWaypointLocation(lat, lng, { updateName: true });
+          setWaypointLocation(lat, lng, { updateName: true, reason: "click" });
         },
         onMarkerDragEnd: function (lat, lng) {
-          setWaypointLocation(lat, lng, { updateName: true });
+          setWaypointLocation(lat, lng, { updateName: true, reason: "drag" });
         },
         onMoveEnd: function () {
           debounceMapIdleReload(false);
@@ -235,6 +240,8 @@
     if (waypointIdInput) waypointIdInput.value = "0";
     clearWaypointValidation();
     waypointNameManual = false;
+    waypointNameResolveId = 0;
+    waypointOriginalLatLng = null;
   }
 
   function populateWaypointForm(waypoint) {
@@ -253,6 +260,14 @@
     if (waypointNotesInput) waypointNotesInput.value = utils.pick(waypoint, ["NOTES"], "");
     clearWaypointValidation();
     waypointNameManual = false;
+    waypointNameResolveId = 0;
+    var lat = parseFloat(utils.pick(waypoint, ["LATITUDE"], ""));
+    var lng = parseFloat(utils.pick(waypoint, ["LONGITUDE"], ""));
+    if (!isNaN(lat) && !isNaN(lng)) {
+      waypointOriginalLatLng = { lat: lat, lng: lng };
+    } else {
+      waypointOriginalLatLng = null;
+    }
   }
 
   function openWaypointModal(waypoint) {
@@ -273,32 +288,160 @@
     if (waypointLongitudeInput) waypointLongitudeInput.value = lng.toFixed(6);
   }
 
+  // INSERT START (waypoint naming)
+  function waypointCacheKey(lat, lng) {
+    return lat.toFixed(5) + "," + lng.toFixed(5);
+  }
+
   function formatWaypointName(lat, lng) {
-    return "Waypoint " + lat.toFixed(5) + "," + lng.toFixed(5);
+    return "Waypoint " + lat.toFixed(5) + ", " + lng.toFixed(5);
   }
 
-  function isDefaultWaypointName(value) {
-    if (!value) return false;
-    return /^Waypoint -?\d+\.\d{1,5},-?\d+\.\d{1,5}$/.test(value.trim());
-  }
-
-  function maybeUpdateWaypointName(lat, lng) {
+  function setWaypointNameValue(value) {
     if (!waypointNameInput) return;
-    var current = waypointNameInput.value.trim();
-    if (current && !isDefaultWaypointName(current)) {
-      return;
-    }
     suppressWaypointNameInput = true;
-    waypointNameInput.value = formatWaypointName(lat, lng);
+    waypointNameInput.value = value || "";
     suppressWaypointNameInput = false;
   }
+
+  function setResolvingWaypointName() {
+    if (waypointNameManual) return;
+    setWaypointNameValue("Resolving...");
+  }
+
+  function shouldResolveNameForMove(lat, lng) {
+    if (!waypointOriginalLatLng) return true;
+    return haversineMeters(
+      waypointOriginalLatLng.lat,
+      waypointOriginalLatLng.lng,
+      lat,
+      lng
+    ) > 50;
+  }
+
+  function resolveWaypointName(lat, lng) {
+    var key = waypointCacheKey(lat, lng);
+    if (waypointNameCache.has(key)) {
+      return Promise.resolve(waypointNameCache.get(key));
+    }
+    return getMarineFeatureName(lat, lng)
+      .then(function (marineName) {
+        if (marineName) return marineName;
+        return reverseGeocodeName(lat, lng);
+      })
+      .then(function (resolved) {
+        var finalName = resolved || formatWaypointName(lat, lng);
+        waypointNameCache.set(key, finalName);
+        return finalName;
+      })
+      .catch(function () {
+        var fallback = formatWaypointName(lat, lng);
+        waypointNameCache.set(key, fallback);
+        return fallback;
+      });
+  }
+
+  function getMarineFeatureName(lat, lng) {
+    var url = "/fpw/api/v1/marineName.cfc?method=lookup&lat=" + encodeURIComponent(lat) +
+      "&lng=" + encodeURIComponent(lng);
+    return fetch(url, { credentials: "same-origin" })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data && (data.success || data.SUCCESS)) {
+          return data.name || data.NAME || "";
+        }
+        return "";
+      })
+      .catch(function () { return ""; });
+  }
+
+  function reverseGeocodeName(lat, lng) {
+    if (!window.google || !window.google.maps || !window.google.maps.Geocoder) {
+      return Promise.resolve("");
+    }
+    var geocoder = new window.google.maps.Geocoder();
+    return new Promise(function (resolve) {
+      geocoder.geocode({ location: { lat: lat, lng: lng } }, function (results, status) {
+        if (status !== "OK" || !results || !results.length) {
+          resolve("");
+          return;
+        }
+        var name = pickBestGeocodeName(results);
+        resolve(name || "");
+      });
+    });
+  }
+
+  function pickBestGeocodeName(results) {
+    var preferredTypes = [
+      "natural_feature",
+      "point_of_interest",
+      "establishment",
+      "locality",
+      "sublocality",
+      "sublocality_level_1"
+    ];
+    for (var i = 0; i < results.length; i++) {
+      var result = results[i];
+      if (!result || !result.types) continue;
+      for (var t = 0; t < preferredTypes.length; t++) {
+        if (result.types.indexOf(preferredTypes[t]) !== -1) {
+          var picked = pickComponentName(result, preferredTypes);
+          return cleanGeocodeName(picked || result.formatted_address || "");
+        }
+      }
+    }
+    return cleanGeocodeName(results[0].formatted_address || "");
+  }
+
+  function pickComponentName(result, preferredTypes) {
+    if (!result || !result.address_components) return "";
+    for (var i = 0; i < preferredTypes.length; i++) {
+      for (var j = 0; j < result.address_components.length; j++) {
+        var component = result.address_components[j];
+        if (component.types && component.types.indexOf(preferredTypes[i]) !== -1) {
+          return component.long_name || component.short_name || "";
+        }
+      }
+    }
+    return "";
+  }
+
+  function cleanGeocodeName(value) {
+    if (!value) return "";
+    var cleaned = value.replace(/,\\s*USA$/i, "");
+    cleaned = cleaned.replace(/\\s+\\d{5}(-\\d{4})?$/i, "");
+    return cleaned.trim();
+  }
+
+  function haversineMeters(lat1, lng1, lat2, lng2) {
+    var rad = Math.PI / 180;
+    var dLat = (lat2 - lat1) * rad;
+    var dLng = (lng2 - lng1) * rad;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * rad) * Math.cos(lat2 * rad) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return 6371000 * c;
+  }
+  // INSERT END
 
   function setWaypointLocation(lat, lng, options) {
     var settings = options || {};
     setWaypointMarker(lat, lng);
     updateWaypointLatLngInputs(lat, lng);
     if (!settings.updateName) return;
-    maybeUpdateWaypointName(lat, lng);
+    if (waypointNameManual) return;
+    if (settings.reason === "drag" && !shouldResolveNameForMove(lat, lng)) {
+      return;
+    }
+    setResolvingWaypointName();
+    var resolveId = ++waypointNameResolveId;
+    resolveWaypointName(lat, lng).then(function (name) {
+      if (resolveId !== waypointNameResolveId) return;
+      if (waypointNameManual) return;
+      setWaypointNameValue(name);
+    });
   }
 
   function setMarineStatus(message, kind, allowHtml) {
