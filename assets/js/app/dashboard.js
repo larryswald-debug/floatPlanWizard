@@ -70,6 +70,7 @@
     if (modules.alerts && modules.alerts.init) {
       modules.alerts.init();
     }
+    // TODO: call /api/v1/floatplans.cfc?method=getMonitoredPlans every 60s and render counts/list.
 
     Api.getCurrentUser()
       .then(function (data) {
