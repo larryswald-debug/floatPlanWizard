@@ -172,7 +172,14 @@
     if (confirmMessageEl) {
       confirmMessageEl.textContent = message || "Are you sure?";
     }
+    confirmModalEl.style.zIndex = "2000";
     confirmModal.show();
+    window.setTimeout(function () {
+      var backdrops = document.querySelectorAll(".modal-backdrop");
+      if (backdrops.length) {
+        backdrops[backdrops.length - 1].style.zIndex = "1990";
+      }
+    }, 0);
     return new Promise(function (resolve) {
       confirmResolver = resolve;
     });
@@ -200,7 +207,14 @@
     if (alertMessageEl) {
       alertMessageEl.textContent = message || "";
     }
+    alertModalEl.style.zIndex = "2000";
     alertModal.show();
+    window.setTimeout(function () {
+      var backdrops = document.querySelectorAll(".modal-backdrop");
+      if (backdrops.length) {
+        backdrops[backdrops.length - 1].style.zIndex = "1990";
+      }
+    }, 0);
   }
 
   function setFieldError(inputEl, errorEl, message) {

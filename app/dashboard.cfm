@@ -7,6 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <cfinclude template="../includes/header_styles.cfm">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=1">
 
     <style>
@@ -67,6 +68,45 @@
         #waypointMap {
             position: relative;
             z-index: 1;
+        }
+
+        #waypointMap .radar-opacity-control {
+            background: rgba(255, 255, 255, 0.92);
+            padding: 0.35rem 0.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-size: 0.7rem;
+            min-width: 140px;
+        }
+
+        #waypointMap .radar-opacity-control label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            color: #1b1b1b;
+        }
+
+        #waypointMap .radar-opacity-control input[type="range"] {
+            width: 100%;
+        }
+
+        #waypointMap .radar-opacity-control.is-disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        #waypointMap .marine-poi-icon span {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 600;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.35);
         }
 
         .marine-controls {
@@ -454,6 +494,7 @@
                 <form id="waypointForm" novalidate>
                     <input type="hidden" id="waypointId" value="0">
                     <div id="waypointMap" style="height: 360px; width: 100%; border-radius: 8px;"></div>
+                    <div class="small text-muted mt-1">Tip: drag the marker or click the map to reposition.</div>
                     <div class="border rounded p-2 mt-2 marine-controls">
                         <div class="d-flex align-items-center justify-content-between mb-1">
                             <label class="form-label mb-0">Marine Layers</label>
@@ -966,12 +1007,6 @@
                                 </div>
                             </div>
 
-                            <div class="d-flex gap-2 mb-3" v-if="fp.FLOATPLAN.FLOATPLANID">
-                            <button type="button" class="btn-danger w-100" @click="confirmDelete" :disabled="isSaving">
-                                Delete Float Plan
-                            </button>
-                            </div>
-
                             <button type="button" class="btn-primary w-100" @click="submitPlan" :disabled="isSaving">
                                 {{ isSaving ? 'Saving…' : 'Save Float Plan' }}
                             </button>
@@ -1019,17 +1054,19 @@
 <cfinclude template="../includes/footer_scripts.cfm">
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20251227b"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20251227s"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20251227am"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/vessels.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/contacts.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20251227r"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20251227r"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20251227ak"></script>
 
 <!-- Dashboard-specific JS -->
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20251227ak"></script>

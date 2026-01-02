@@ -169,7 +169,14 @@
       }
       if (operatorPhoneInput) {
         operatorPhoneInput.addEventListener("input", function () {
+          operatorPhoneInput.value = formatUsPhoneInput(operatorPhoneInput.value);
           utils.clearFieldError(operatorPhoneInput, operatorPhoneError);
+        });
+        operatorPhoneInput.addEventListener("blur", function () {
+          operatorPhoneInput.value = formatUsPhoneInput(operatorPhoneInput.value);
+        });
+        operatorPhoneInput.addEventListener("keyup", function () {
+          operatorPhoneInput.value = formatUsPhoneInput(operatorPhoneInput.value);
         });
       }
       if (operatorSaveBtn) {
@@ -201,7 +208,9 @@
     }
     if (operatorIdInput) operatorIdInput.value = utils.pick(operator, ["OPERATORID", "ID"], 0);
     if (operatorNameInput) operatorNameInput.value = utils.pick(operator, ["OPERATORNAME", "NAME"], "");
-    if (operatorPhoneInput) operatorPhoneInput.value = utils.pick(operator, ["PHONE"], "");
+    if (operatorPhoneInput) {
+      operatorPhoneInput.value = formatUsPhoneInput(utils.pick(operator, ["PHONE"], ""));
+    }
     if (operatorNotesInput) operatorNotesInput.value = utils.pick(operator, ["NOTES"], "");
     clearOperatorValidation();
   }
@@ -235,6 +244,22 @@
       digits = digits.slice(1);
     }
     return digits.length === 10;
+  }
+
+  function formatUsPhoneInput(value) {
+    var digits = String(value || "").replace(/\D/g, "");
+    if (digits.charAt(0) === "1" && digits.length > 10) {
+      digits = digits.slice(1);
+    }
+    digits = digits.slice(0, 10);
+
+    if (digits.length <= 3) {
+      return digits.length ? "(" + digits : "";
+    }
+    if (digits.length <= 6) {
+      return "(" + digits.slice(0, 3) + ") " + digits.slice(3);
+    }
+    return "(" + digits.slice(0, 3) + ") " + digits.slice(3, 6) + "-" + digits.slice(6);
   }
 
   function saveOperator() {

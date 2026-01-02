@@ -51,104 +51,15 @@
                 <cfabort>
             </cfif>
 
-            <cfset apiKey = "">
-            <cftry>
-                <cfif structKeyExists(getFunctionList(), "getSystemEnvironment")>
-                    <cfset env = getSystemEnvironment()>
-                    <cfif structKeyExists(env, "GOOGLE_PLACES_API_KEY")>
-                        <cfset apiKey = env["GOOGLE_PLACES_API_KEY"]>
-                    <cfelseif structKeyExists(env, "GOOGLE_MAPS_API_KEY")>
-                        <cfset apiKey = env["GOOGLE_MAPS_API_KEY"]>
-                    </cfif>
-                </cfif>
-            <cfcatch>
-                <cfset apiKey = "">
-            </cfcatch>
-            </cftry>
-
-            <cfif NOT len(trim(apiKey))>
-                <cfset response = {
-                    SUCCESS = false,
-                    AUTH    = true,
-                    ERROR   = "MISSING_API_KEY",
-                    MESSAGE = "Places enrichment is not configured."
-                }>
-                <cfoutput>#serializeJSON(response)#</cfoutput>
-                <cfsetting enablecfoutputonly="false">
-                <cfabort>
-            </cfif>
-
             <cfset lat = val(lat)>
             <cfset lng = val(lng)>
             <cfset name = trim(toString(name))>
 
-            <cfset findUrl = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json">
-            <cfset findQuery = "input=#urlEncodedFormat(name)#&inputtype=textquery&locationbias=circle:800@#lat#,#lng#&fields=place_id,name&key=#urlEncodedFormat(apiKey)#">
-
-            <cfhttp url="#findUrl#?#findQuery#" method="get" result="findRes" timeout="20"></cfhttp>
-
-            <cfset placeId = "">
-            <cftry>
-                <cfset findData = deserializeJSON(findRes.fileContent, false)>
-            <cfcatch>
-                <cfset findData = {}>
-            </cfcatch>
-            </cftry>
-
-            <cfif structKeyExists(findData, "candidates") AND isArray(findData.candidates) AND arrayLen(findData.candidates)>
-                <cfset placeId = findData.candidates[1].place_id>
-            </cfif>
-
-            <cfif NOT len(placeId)>
-                <cfset response = {
-                    SUCCESS = false,
-                    AUTH    = true,
-                    ERROR   = "NOT_FOUND",
-                    MESSAGE = "No matching place found."
-                }>
-                <cfoutput>#serializeJSON(response)#</cfoutput>
-                <cfsetting enablecfoutputonly="false">
-                <cfabort>
-            </cfif>
-
-            <cfset detailsUrl = "https://maps.googleapis.com/maps/api/place/details/json">
-            <cfset detailsQuery = "place_id=#urlEncodedFormat(placeId)#&fields=formatted_phone_number,website,opening_hours,rating,photos&key=#urlEncodedFormat(apiKey)#">
-
-            <cfhttp url="#detailsUrl#?#detailsQuery#" method="get" result="detailsRes" timeout="20"></cfhttp>
-
-            <cfset detailsData = {}>
-            <cftry>
-                <cfset detailsData = deserializeJSON(detailsRes.fileContent, false)>
-            <cfcatch>
-                <cfset detailsData = {}>
-            </cfcatch>
-            </cftry>
-
-            <cfset details = { PHONE = "", WEBSITE = "", HOURS = "", RATING = "", PHOTO = "" }>
-            <cfif structKeyExists(detailsData, "result") AND isStruct(detailsData.result)>
-                <cfset result = detailsData.result>
-                <cfif structKeyExists(result, "formatted_phone_number")>
-                    <cfset details.PHONE = result.formatted_phone_number>
-                </cfif>
-                <cfif structKeyExists(result, "website")>
-                    <cfset details.WEBSITE = result.website>
-                </cfif>
-                <cfif structKeyExists(result, "opening_hours") AND structKeyExists(result.opening_hours, "weekday_text")>
-                    <cfset details.HOURS = arrayToList(result.opening_hours.weekday_text, "; ")>
-                </cfif>
-                <cfif structKeyExists(result, "rating")>
-                    <cfset details.RATING = result.rating>
-                </cfif>
-                <cfif structKeyExists(result, "photos") AND isArray(result.photos) AND arrayLen(result.photos)>
-                    <cfset photoRef = result.photos[1].photo_reference>
-                    <cfset details.PHOTO = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=160&photo_reference=#urlEncodedFormat(photoRef)#&key=#urlEncodedFormat(apiKey)#">
-                </cfif>
-            </cfif>
-
             <cfset response = {
-                SUCCESS = true,
+                SUCCESS = false,
                 AUTH    = true,
-                DETAILS = details
+                ERROR   = "UNAVAILABLE",
+                MESSAGE = "Places enrichment is unavailable."
             }>
 
             <cfoutput>#serializeJSON(response)#</cfoutput>

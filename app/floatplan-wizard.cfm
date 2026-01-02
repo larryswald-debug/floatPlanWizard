@@ -444,12 +444,6 @@
                     </div>
                 </div>
 
-                <div class="d-flex gap-2 mb-3" v-if="fp.FLOATPLAN.FLOATPLANID">
-                    <button type="button" class="btn btn-outline-danger w-100" @click="confirmDelete" :disabled="isSaving">
-                        Delete Float Plan
-                    </button>
-                </div>
-
                 <button type="button" class="btn btn-primary w-100" @click="submitPlan" :disabled="isSaving">
                     {{ isSaving ? 'Saving…' : 'Save Float Plan' }}
                 </button>
