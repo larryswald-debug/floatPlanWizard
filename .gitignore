@@ -10,11 +10,16 @@ git_commands.txt
 prompts.txt
 .pw-home/.npm/
 /api/api_assets/floatPlans
+/tests/
+/testbox/
+/scripts/
+/modules/
 
 # ===== Docker =====
 docker/volumes/
 docker/data/
 *.pid
+box.json
 
 # ===== Environment =====
 .env

@@ -922,7 +922,7 @@
                                     {{ nextButtonLabel }}
                                 </button>
                             </div>
-                            <p class="small text-muted">Tap to toggle each passenger.</p>
+                            <h3 class="h6">Passengers</h3>
                             <div class="list-group">
                                 <button
                                     v-for="p in passengers"
@@ -932,13 +932,13 @@
                                     @click="togglePassenger(p)">
                                     <span>{{ p.PASSENGERNAME }}</span>
                                     <span class="badge" :class="isPassengerSelected(p.PASSENGERID) ? 'bg-success' : 'bg-secondary'">
-                                        {{ isPassengerSelected(p.PASSENGERID) ? 'Included' : 'Tap to add' }}
+                                        {{ isPassengerSelected(p.PASSENGERID) ? 'Included' : 'Click to add' }}
                                     </span>
                                 </button>
                             </div>
 
                             <div class="mt-4">
-                                <p class="small text-muted">Tap to include for notifications.</p>
+                                <h3 class="h6">Contacts</h3>
                                 <div class="list-group">
                                     <button
                                         v-for="c in contacts"
@@ -948,7 +948,7 @@
                                         @click="toggleContact(c)">
                                         <span>{{ c.CONTACTNAME }}</span>
                                         <span class="badge" :class="isContactSelected(c.CONTACTID) ? 'bg-success' : 'bg-secondary'">
-                                            {{ isContactSelected(c.CONTACTID) ? 'Included' : 'Tap to add' }}
+                                            {{ isContactSelected(c.CONTACTID) ? 'Included' : 'Click to add' }}
                                         </span>
                                     </button>
                                 </div>
@@ -975,7 +975,7 @@
                                     @click="toggleWaypoint(w)">
                                     <span>{{ w.WAYPOINTNAME }}</span>
                                     <span class="badge" :class="isWaypointSelected(w.WAYPOINTID) ? 'bg-success' : 'bg-secondary'">
-                                        {{ isWaypointSelected(w.WAYPOINTID) ? 'In Route' : 'Tap to add' }}
+                                        {{ isWaypointSelected(w.WAYPOINTID) ? 'In Route' : 'Click to add' }}
                                     </span>
                                 </button>
                             </div>

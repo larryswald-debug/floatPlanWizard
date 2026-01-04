@@ -9,9 +9,10 @@ component {
     this.scriptProtect      = "all";
     this.clientManagement   = false;
     this.loginStorage       = "session";
+    this.mappings["/testbox"] = expandPath("/testbox");
 
     public boolean function onRequestStart( string targetPage ) {
-        cfsetting( showdebugoutput = true );
+        cfsetting( showdebugoutput = false );
         var normalizedTarget = "/" & lcase( replace( targetPage, "\", "/", "all" ) );
         var isAppPage = left( normalizedTarget, len( "/app/" ) ) EQ "/app/";
         var publicAppPages = [

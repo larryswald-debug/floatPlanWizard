@@ -1136,10 +1136,30 @@
                 return result;
             }
 
-            var nowQuery = queryExecute("SELECT UTC_TIMESTAMP() AS nowUtc", {}, { datasource = "fpw" });
-            var nowUtc = nowQuery.nowUtc[1];
+            var returnTimeInFuture = true;
+            try {
+                var returnTz = trim(structKeyExists(plan, "RETURN_TIMEZONE") ? plan.RETURN_TIMEZONE : "");
+                if (len(returnTz)) {
+                    var zone = createObject("java", "java.time.ZoneId").of(returnTz);
+                    var returnLocal = createObject("java", "java.time.LocalDateTime").of(
+                        datePart("yyyy", plan.RETURN_TIME),
+                        datePart("m", plan.RETURN_TIME),
+                        datePart("d", plan.RETURN_TIME),
+                        datePart("h", plan.RETURN_TIME),
+                        datePart("n", plan.RETURN_TIME),
+                        datePart("s", plan.RETURN_TIME)
+                    );
+                    var returnZoned = returnLocal.atZone(zone);
+                    var nowZoned = createObject("java", "java.time.ZonedDateTime").now(zone);
+                    returnTimeInFuture = returnZoned.isAfter(nowZoned);
+                } else {
+                    returnTimeInFuture = (dateCompare(now(), plan.RETURN_TIME) LT 0);
+                }
+            } catch (any e) {
+                returnTimeInFuture = (dateCompare(now(), plan.RETURN_TIME) LT 0);
+            }
 
-            if (dateCompare(nowUtc, plan.RETURN_TIME) GTE 0) {
+            if (NOT returnTimeInFuture) {
                 result.ERROR = "RETURN_TIME_PAST";
                 result.MESSAGE = "Return time must be in the future before sending a float plan.";
                 return result;
