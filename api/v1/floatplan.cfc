@@ -333,6 +333,11 @@
                 result.MESSAGE = "Please select a vessel.";
                 return result;
             }
+            if (operatorId LTE 0) {
+                result.ERROR = "VALIDATION";
+                result.MESSAGE = "Please select an operator.";
+                return result;
+            }
 
             var ds = "fpw";
 
@@ -868,6 +873,13 @@
                 userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
             }, { datasource = "fpw" });
 
+            try {
+                var notificationsService = createObject("component", resolveNotificationsComponentPath()).init();
+                notificationsService.sendCheckInEmail(arguments.floatPlanId);
+            } catch (any e) {
+                cflog(file="application", text="FloatPlanWizard: Check-in email failed for plan " & arguments.floatPlanId & ": " & e.message);
+            }
+
             result.SUCCESS = true;
             result.FLOATPLANID = arguments.floatPlanId;
             result.STATUS = "CLOSED";
@@ -1098,6 +1110,39 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="resolveNotificationsComponentPath" access="private" returntype="string" output="false">
+        <cfscript>
+            var webRoot = "";
+            var templatePath = getCurrentTemplatePath();
+            var relativePath = "";
+            var firstSegment = "";
+            var prefix = "";
+            try {
+                webRoot = expandPath("/");
+            } catch (any e) {
+                webRoot = "";
+            }
+
+            if (len(webRoot)) {
+                relativePath = replaceNoCase(templatePath, webRoot, "", "one");
+            } else {
+                relativePath = templatePath;
+            }
+
+            relativePath = replace(relativePath, "\", "/", "all");
+            if (left(relativePath, 1) EQ "/") {
+                relativePath = right(relativePath, len(relativePath) - 1);
+            }
+
+            firstSegment = listFirst(relativePath, "/");
+            if (len(firstSegment) AND firstSegment NEQ "api") {
+                prefix = firstSegment;
+            }
+
+            return (len(prefix) ? prefix & "." : "") & "api.v1.notifications";
+        </cfscript>
+    </cffunction>
+
     <cffunction name="sendFloatPlanToContacts" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
@@ -1249,6 +1294,8 @@
                 SET
                     `status` = 'ACTIVE',
                     activatedAt = UTC_TIMESTAMP(),
+                    checkedInAt = NULL,
+                    closedAt = NULL,
                     lastUpdateStatus = UTC_TIMESTAMP()
                 WHERE floatplanId = :planId
                   AND userId = :userId

@@ -15,11 +15,30 @@ component {
         cfsetting( showdebugoutput = false );
         var normalizedTarget = "/" & lcase( replace( targetPage, "\", "/", "all" ) );
         var isAppPage = left( normalizedTarget, len( "/app/" ) ) EQ "/app/";
+        var isAdminPage = left( normalizedTarget, len( "/admin/" ) ) EQ "/admin/";
         var publicAppPages = [
             "/app/login.cfm",
             "/app/forgot-password.cfm",
             "/app/reset-password.cfm"
         ];
+        var publicAdminPages = [
+            "/admin/login.cfm"
+        ];
+
+        var isAdminUser = false;
+        if (structKeyExists(session, "adminAuthenticated") AND session.adminAuthenticated) {
+            isAdminUser = true;
+        } else if (structKeyExists(session, "user") AND isStruct(session.user)) {
+            if (structKeyExists(session.user, "isAdmin") AND session.user.isAdmin) {
+                isAdminUser = true;
+            } else if (structKeyExists(session.user, "ISADMIN") AND session.user.ISADMIN) {
+                isAdminUser = true;
+            } else if (structKeyExists(session.user, "role") AND lcase(session.user.role) EQ "admin") {
+                isAdminUser = true;
+            } else if (structKeyExists(session.user, "ROLE") AND lcase(session.user.ROLE) EQ "admin") {
+                isAdminUser = true;
+            }
+        }
 
         if (
             isAppPage
@@ -30,6 +49,14 @@ component {
             )
         ) {
             location( url = "/fpw/app/login.cfm", addToken = false );
+        }
+
+        if (
+            isAdminPage
+            AND arrayFind( publicAdminPages, normalizedTarget ) EQ 0
+            AND NOT isAdminUser
+        ) {
+            location( url = "/fpw/admin/login.cfm", addToken = false );
         }
 
         return true;
