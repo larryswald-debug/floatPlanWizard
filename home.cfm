@@ -5,9 +5,7 @@
   <title>FloatPlanWizard — Spring 2026 Relaunch</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="FloatPlanWizard helps boaters create float plans, share them, and automatically monitor check-ins and overdue status. Spring 2026 relaunch." />
-<cfinclude  template="includes/header_styles.cfm">
 
-<cfinclude  template="includes/top_nav.cfm">
   <style>
     :root{
       --bg:#0b1220;
@@ -848,7 +846,6 @@
   <script>
     document.getElementById('y').textContent = new Date().getFullYear();
   </script>
-<cfinclude template="includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/core.js"></script>
+
 </body>
 </html>

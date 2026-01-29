@@ -8,7 +8,7 @@
   var modules = window.FPW.DashboardModules || {};
 
   var BASE_PATH = window.FPW_BASE || "";
-  var FALLBACK_LOGIN_URL = BASE_PATH + "/app/login.cfm";
+  var FALLBACK_LOGIN_URL = BASE_PATH + "/index.cfm";
 
   function getLoginUrl() {
     if (window.AppAuth && window.AppAuth.loginUrl) {

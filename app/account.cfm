@@ -9,38 +9,10 @@
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=1">
 
   <style>
-    body.account-body {
-      padding: 0 25px;
-    }
-
-    .account-navbar {
-      background: linear-gradient(135deg, rgba(14, 26, 38, 0.98), rgba(5, 12, 20, 0.98));
-      border-bottom: 1px solid var(--panel-border);
-      box-shadow: 0 2px 18px rgba(0,0,0,0.55);
-      backdrop-filter: blur(10px);
-    }
-
-    .account-navbar .navbar-brand,
-    .account-navbar .nav-link,
-    .account-navbar .navbar-toggler {
-      color: var(--text) !important;
-      font-weight: 600;
-    }
-
-    .account-navbar .nav-link.active {
-      color: var(--accent) !important;
-    }
-
-    .account-navbar .btn-outline-light {
-      border-color: var(--panel-border);
-      color: var(--text);
-      background: rgba(255,255,255,0.04);
-    }
-
-    .account-navbar .btn-outline-light:hover {
-      background: rgba(53, 208, 198, 0.12);
-      border-color: var(--panel-border-strong);
-      color: var(--text);
+    .account-main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0.5rem 20px 1.5rem;
     }
 
     .account-body .card {
@@ -102,43 +74,14 @@
       border-color: var(--panel-border-strong);
     }
 
-    @media (max-width: 768px) {
-      body.account-body {
-        padding: 0 12px;
-      }
-    }
   </style>
 </head>
 
 <body class="dashboard-body account-body">
 
-<nav class="navbar navbar-expand-lg mb-3 account-navbar">
-  <div class="container-fluid">
-    <a class="navbar-brand" href="<cfoutput>#request.fpwBase#</cfoutput>/app/dashboard.cfm">Mobile App</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
-            aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
+<cfinclude template="../includes/top_nav.cfm">
 
-    <div class="collapse navbar-collapse" id="mainNav">
-      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <li class="nav-item">
-          <a class="nav-link" href="<cfoutput>#request.fpwBase#</cfoutput>/app/dashboard.cfm">Dashboard</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link active" aria-current="page" href="<cfoutput>#request.fpwBase#</cfoutput>/app/account.cfm">Account</a>
-        </li>
-      </ul>
-
-      <div class="d-flex gap-2">
-        <a class="btn btn-outline-light btn-sm" href="<cfoutput>#request.fpwBase#</cfoutput>/app/dashboard.cfm">Dashboard</a>
-        <button class="btn btn-outline-light btn-sm" id="logoutButton" type="button">Logout</button>
-      </div>
-    </div>
-  </div>
-</nav>
-
-<div class="container pb-5">
+<div class="account-main pb-5">
   <div class="row g-4">
     <div class="col-12 col-lg-7">
 

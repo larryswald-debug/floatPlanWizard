@@ -131,27 +131,31 @@
             background-position: center;
             background-size: 14px 14px;
         }
+
+        main.dashboard-main {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0.5rem 20px 1.5rem;
+        }
+
+        .dashboard-header {
+            padding: 0;
+            border: 0;
+            box-shadow: none;
+            background: transparent;
+        }
+
+        .dashboard-header .header-grid {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0;
+        }
     </style>
 </head>
 <body class="dashboard-body">
 
+<cfinclude template="../includes/top_nav.cfm">
 
-
-
-<header class="dashboard-header">
-    <div class="header-grid">
-        <div class="user-info">
-            <h1>Welcome, <span id="userName">Loading…</span></h1>
-            <small>Email: <span id="userEmail">Loading…</span></small>
-        </div>
-        <div class="header-meta">
-            <div class="header-actions">
-                <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/account.cfm">Account</a>
-                <button id="logoutButton">Logout</button>
-            </div>
-        </div>
-    </div>
-</header>
 
 <main class="dashboard-main">
     <div id="dashboardAlert" class="alert d-none" role="alert"></div>
@@ -163,7 +167,7 @@
             <div class="fpw-card__header">
                 <div class="fpw-card__title">
                     <span class="fpw-alerts__icon" aria-hidden="true">!</span>
-                    <h2>System Alerts</h2>
+                    <h2>Dashboard</h2>
                     <button class="fpw-caret collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#alertsCollapse" aria-expanded="false" aria-controls="alertsCollapse">
                         <span class="fpw-caret__icon" aria-hidden="true">></span>
                     </button>

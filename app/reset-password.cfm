@@ -38,7 +38,7 @@
           </form>
 
           <div class="mt-3 small">
-            <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/login.cfm">Back to Sign In</a>
+            <a href="<cfoutput>#request.fpwBase#</cfoutput>/index.cfm">Back to Sign In</a>
           </div>
 
         </div>
