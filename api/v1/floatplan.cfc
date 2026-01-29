@@ -118,6 +118,21 @@
                     <cfoutput>#serializeJSON(deleteResult)#</cfoutput>
                 </cfcase>
 
+                <cfcase value="checkin">
+                    <cfset var checkinId = 0>
+                    <cfif structKeyExists(body, "floatPlanId")>
+                        <cfset checkinId = val(body.floatPlanId)>
+                    <cfelseif structKeyExists(url, "floatPlanId")>
+                        <cfset checkinId = val(url.floatPlanId)>
+                    <cfelseif structKeyExists(url, "id")>
+                        <cfset checkinId = val(url.id)>
+                    </cfif>
+
+                    <cfset var checkinResult = checkInFloatPlan(userId, checkinId)>
+                    <cfset checkinResult.AUTH = true>
+                    <cfoutput>#serializeJSON(checkinResult)#</cfoutput>
+                </cfcase>
+
                 <cfdefaultcase>
                     <cfset var invalidResponse = {
                         SUCCESS = false,
@@ -584,7 +599,7 @@
             }
 
             var planExists = queryExecute("
-                SELECT floatplanId
+                SELECT floatplanId, UPPER(TRIM(`status`)) AS statusValue
                   FROM floatplans
                  WHERE floatplanId = :planId
                    AND userId = :userId
@@ -628,7 +643,7 @@
             var foodDays = trim(pickValue(planData, ["FOOD_DAYS_PER_PERSON"], ""));
             var waterDays = trim(pickValue(planData, ["WATER_DAYS_PER_PERSON"], ""));
             var notes = trim(pickValue(planData, ["NOTES"], ""));
-            var status = trim(pickValue(planData, ["STATUS"], "Draft"));
+            var status = "Draft";
 
             transaction {
                 queryExecute("
@@ -653,6 +668,10 @@
                         water,
                         notes,
                         status,
+                        activatedAt,
+                        checkedInAt,
+                        closedAt,
+                        lastUpdateStatus,
                         dateCreated,
                         lastUpdate
                     )
@@ -677,6 +696,10 @@
                         :waterDays,
                         :notes,
                         :status,
+                        NULL,
+                        NULL,
+                        NULL,
+                        NULL,
                         NOW(),
                         NOW()
                     )
@@ -777,7 +800,7 @@
             }
 
             var planExists = queryExecute("
-                SELECT floatplanId
+                SELECT floatplanId, UPPER(TRIM(`status`)) AS statusValue
                   FROM floatplans
                  WHERE floatplanId = :planId
                    AND userId = :userId
@@ -793,11 +816,21 @@
                 return result;
             }
 
+            var planStatus = "";
+            if (listFindNoCase(planExists.columnList, "statusValue") GT 0) {
+                planStatus = trim(toString(planExists["statusValue"][1]));
+            }
+            if (listFindNoCase("DRAFT,CLOSED", planStatus) EQ 0) {
+                result.ERROR = "DELETE_BLOCKED";
+                result.MESSAGE = "Only draft or closed float plans can be deleted.";
+                return result;
+            }
+
             transaction {
                 queryExecute("DELETE FROM floatplan_passengers WHERE floatplanId = :planId", { planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" } }, { datasource = "fpw" });
                 queryExecute("DELETE FROM floatplan_contacts WHERE floatplanId = :planId", { planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" } }, { datasource = "fpw" });
                 queryExecute("DELETE FROM floatplan_waypoints WHERE floatplanId = :planId", { planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" } }, { datasource = "fpw" });
-                queryExecute("DELETE FROM floatplans WHERE floatplanId = :planId AND userId = :userId", {
+                queryExecute("DELETE FROM floatplans WHERE floatplanId = :planId AND userId = :userId AND UPPER(TRIM(`status`)) IN ('DRAFT','CLOSED')", {
                     planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                     userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
                 }, { datasource = "fpw" });
@@ -805,6 +838,39 @@
 
             result.SUCCESS = true;
             result.FLOATPLANID = arguments.floatPlanId;
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="checkInFloatPlan" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var result = { SUCCESS = false };
+            if (arguments.floatPlanId LTE 0) {
+                result.ERROR = "INVALID_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            queryExecute("
+                UPDATE floatplans
+                SET
+                    `status` = 'CLOSED',
+                    checkedInAt = UTC_TIMESTAMP(),
+                    closedAt = UTC_TIMESTAMP(),
+                    lastUpdateStatus = UTC_TIMESTAMP()
+                WHERE floatplanId = :planId
+                  AND userId = :userId
+                  AND UPPER(TRIM(`status`)) IN ('ACTIVE', 'OVERDUE')
+            ", {
+                planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+            }, { datasource = "fpw" });
+
+            result.SUCCESS = true;
+            result.FLOATPLANID = arguments.floatPlanId;
+            result.STATUS = "CLOSED";
             return result;
         </cfscript>
     </cffunction>
@@ -1054,6 +1120,31 @@
                 return result;
             }
 
+            var statusVal = "";
+            if (structKeyExists(plan, "STATUS") AND NOT isNull(plan.STATUS)) {
+                statusVal = ucase(trim(toString(plan.STATUS)));
+            }
+            if (listFindNoCase("DRAFT,CLOSED", statusVal) EQ 0) {
+                result.ERROR = "INVALID_STATUS";
+                result.MESSAGE = "Only draft or closed float plans can be sent.";
+                return result;
+            }
+
+            if (NOT structKeyExists(plan, "RETURN_TIME") OR NOT isDate(plan.RETURN_TIME)) {
+                result.ERROR = "RETURN_TIME_REQUIRED";
+                result.MESSAGE = "Return time is required before sending a float plan.";
+                return result;
+            }
+
+            var nowQuery = queryExecute("SELECT UTC_TIMESTAMP() AS nowUtc", {}, { datasource = "fpw" });
+            var nowUtc = nowQuery.nowUtc[1];
+
+            if (dateCompare(nowUtc, plan.RETURN_TIME) GTE 0) {
+                result.ERROR = "RETURN_TIME_PAST";
+                result.MESSAGE = "Return time must be in the future before sending a float plan.";
+                return result;
+            }
+
             var contacts = loadPlanContactEmails(arguments.userId, arguments.floatPlanId);
             if (!arrayLen(contacts)) {
                 result.ERROR = "NO_CONTACTS";
@@ -1133,6 +1224,20 @@
         </cfloop>
 
         <cfscript>
+            queryExecute("
+                UPDATE floatplans
+                SET
+                    `status` = 'ACTIVE',
+                    activatedAt = UTC_TIMESTAMP(),
+                    lastUpdateStatus = UTC_TIMESTAMP()
+                WHERE floatplanId = :planId
+                  AND userId = :userId
+                  AND UPPER(TRIM(`status`)) IN ('DRAFT', 'CLOSED')
+            ", {
+                planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+            }, { datasource = "fpw" });
+
             result.SUCCESS = true;
             result.SENT_COUNT = sentCount;
             result.SKIPPED_COUNT = skippedCount;

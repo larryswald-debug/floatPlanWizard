@@ -12,27 +12,6 @@ component {
 
     public boolean function onRequestStart( string targetPage ) {
         cfsetting( showdebugoutput = true );
-        var envKey = "";
-        try {
-            if (structKeyExists(getFunctionList(), "getSystemEnvironment")) {
-                var env = getSystemEnvironment();
-                if (structKeyExists(env, "GOOGLE_MAPS_API_KEY")) {
-                    envKey = env["GOOGLE_MAPS_API_KEY"];
-                }
-            }
-        } catch (any e) {
-            envKey = "";
-        }
-        request.googleMapsApiKey = trim(toString(envKey));
-        if (!len(request.googleMapsApiKey)) {
-            var appRoot = getDirectoryFromPath(getCurrentTemplatePath());
-            var localSettingsPath = appRoot & "includes/local-settings.cfm";
-            if (fileExists(localSettingsPath)) {
-                include "includes/local-settings.cfm";
-                request.googleMapsApiKey = trim(toString(request.googleMapsApiKey));
-            }
-        }
-
         var normalizedTarget = "/" & lcase( replace( targetPage, "\", "/", "all" ) );
         var isAppPage = left( normalizedTarget, len( "/app/" ) ) EQ "/app/";
         var publicAppPages = [
