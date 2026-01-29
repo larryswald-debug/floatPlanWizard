@@ -143,26 +143,37 @@
         ? '<button class="btn-success" type="button" data-action="checkin" data-plan-id="' + utils.escapeHtml(id) + '">Check-In</button>'
         : "";
 
-      var metaParts = [];
-      if (statusText) metaParts.push("Status: " + statusText);
-      if (depart) metaParts.push("Departs " + depart);
-      if (returnBy) metaParts.push("Return " + returnBy);
-      if (waypointCount > 0) {
-        metaParts.push(waypointCount + " waypoint" + (waypointCount === 1 ? "" : "s"));
-      }
-      if (vessel) metaParts.push(vessel);
-      var metaText = metaParts.join(" • ");
       var updatedText = updated ? "Updated " + updated : "";
 
       var metaPartsInline = [];
-      if (metaText) {
-        metaPartsInline.push(utils.escapeHtml(metaText));
+      if (statusText) {
+        var statusBadgeClass = "fpw-badge fpw-badge--notice";
+        if (["ACTIVE", "OPEN"].indexOf(normalizedStatus) !== -1) {
+          statusBadgeClass = "fpw-badge fpw-badge--success";
+        } else if (normalizedStatus === "OVERDUE") {
+          statusBadgeClass = "fpw-badge fpw-badge--critical";
+        } else if (normalizedStatus === "PENDING") {
+          statusBadgeClass = "fpw-badge fpw-badge--warning";
+        }
+        metaPartsInline.push('<span class="' + statusBadgeClass + '">' + utils.escapeHtml(statusText) + "</span>");
+      }
+      if (depart) {
+        metaPartsInline.push('<span class="list-meta-text">' + utils.escapeHtml("Departs " + depart) + "</span>");
+      }
+      if (returnBy) {
+        metaPartsInline.push('<span class="list-meta-text">' + utils.escapeHtml("Return " + returnBy) + "</span>");
+      }
+      if (waypointCount > 0) {
+        metaPartsInline.push('<span class="list-meta-text">' + utils.escapeHtml(waypointCount + " waypoint" + (waypointCount === 1 ? "" : "s")) + "</span>");
+      }
+      if (vessel) {
+        metaPartsInline.push('<span class="list-meta-text">' + utils.escapeHtml(vessel) + "</span>");
       }
       if (updatedText) {
-        metaPartsInline.push(utils.escapeHtml(updatedText));
+        metaPartsInline.push('<span class="list-meta-text">' + utils.escapeHtml(updatedText) + "</span>");
       }
       var metaInline = metaPartsInline.length
-        ? "<small>" + metaPartsInline.join(" • ") + "</small>"
+        ? '<div class="list-meta">' + metaPartsInline.join('<span class="list-meta-sep">•</span>') + "</div>"
         : "";
 
       return (

@@ -47,6 +47,12 @@
             align-items: center;
         }
 
+        .list-group-button:hover,
+        .list-group-button:focus {
+            background-color: #f3f5f8;
+            color: #fff;
+        }
+
         .wizard-nav {
             display: flex;
             justify-content: space-between;
@@ -371,7 +377,12 @@
             <!-- Step 5 -->
             <section v-if="step === 5">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h2 class="h5 mb-0">Step 5 – Contacts</h2>
+                    <div class="d-flex align-items-center">
+                        <h2 class="h5 mb-0">Step 5 – Contacts</h2>
+                        <div class="invalid-feedback d-block ms-2" v-if="hasError('CONTACTS')">
+                            {{ getError('CONTACTS') }}
+                        </div>
+                    </div>
                     <button type="button" class="btn btn-primary btn-sm" v-if="step < totalSteps" :disabled="isSaving" @click="nextStep">
                         {{ nextButtonLabel }}
                     </button>
@@ -467,7 +478,7 @@
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20251227b"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20251227c"></script>
 
 </body>
 </html>

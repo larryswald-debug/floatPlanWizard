@@ -38,6 +38,12 @@
             align-items: center;
         }
 
+        .list-group-button:hover,
+        .list-group-button:focus {
+            background-color: #f3f5f8;
+            color: #fff;
+        }
+
         .wizard-nav {
             display: flex;
             justify-content: space-between;
@@ -938,7 +944,12 @@
                             </div>
 
                             <div class="mt-4">
-                                <h3 class="h6">Contacts</h3>
+                                <div class="d-flex align-items-center mb-2">
+                                    <h3 class="h6 mb-0">Contacts</h3>
+                                    <div class="invalid-feedback d-block ms-2" v-if="hasError('CONTACTS')">
+                                        {{ getError('CONTACTS') }}
+                                    </div>
+                                </div>
                                 <div class="list-group">
                                     <button
                                         v-for="c in contacts"
@@ -1057,11 +1068,11 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20251227b"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20251227c"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20251227s"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20251227am"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20251227an"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/vessels.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/contacts.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20251227r"></script>

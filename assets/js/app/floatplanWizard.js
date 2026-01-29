@@ -671,6 +671,14 @@
           }
         }
       },
+      "fp.CONTACTS": {
+        deep: true,
+        handler: function (nextContacts) {
+          if (Array.isArray(nextContacts) && nextContacts.length) {
+            this.clearFieldError("CONTACTS");
+          }
+        }
+      },
       "fp.FLOATPLAN.RESCUE_AUTHORITY": function () {
         this.syncRescueCenterSelection();
       },
@@ -750,8 +758,10 @@
       },
 
       clearFieldError: function (field) {
-        if (this.fieldErrors && this.fieldErrors[field]) {
-          delete this.fieldErrors[field];
+        if (this.fieldErrors && Object.prototype.hasOwnProperty.call(this.fieldErrors, field)) {
+          var nextErrors = Object.assign({}, this.fieldErrors);
+          delete nextErrors[field];
+          this.fieldErrors = nextErrors;
         }
       },
 
@@ -985,16 +995,21 @@
       toggleContact: function (contact) {
         var id = contact ? numeric(contact.CONTACTID) : 0;
         if (!id) return;
+        var removed = false;
         for (var i = 0; i < this.fp.CONTACTS.length; i++) {
           if (numeric(this.fp.CONTACTS[i].CONTACTID) === id) {
             this.fp.CONTACTS.splice(i, 1);
-            return;
+            removed = true;
+            break;
           }
         }
-        this.fp.CONTACTS.push({
-          CONTACTID: id,
-          SORT_ORDER: this.fp.CONTACTS.length + 1
-        });
+        if (!removed) {
+          this.fp.CONTACTS.push({
+            CONTACTID: id,
+            SORT_ORDER: this.fp.CONTACTS.length + 1
+          });
+        }
+        this.clearFieldError("CONTACTS");
       },
 
       isWaypointSelected: function (id) {
