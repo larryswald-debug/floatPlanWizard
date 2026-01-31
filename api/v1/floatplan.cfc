@@ -1136,10 +1136,21 @@
                 return result;
             }
 
-            var nowQuery = queryExecute("SELECT UTC_TIMESTAMP() AS nowUtc", {}, { datasource = "fpw" });
-            var nowUtc = nowQuery.nowUtc[1];
+            var timeQuery = queryExecute("
+                SELECT
+                    NOW() AS nowLocal,
+                    COALESCE(
+                        CONVERT_TZ(:returnTime, NULLIF(:returnTz, ''), @@session.time_zone),
+                        :returnTime
+                    ) AS returnLocal
+            ", {
+                returnTime = { value = plan.RETURN_TIME, cfsqltype = "cf_sql_timestamp" },
+                returnTz = { value = plan.RETURN_TIMEZONE, cfsqltype = "cf_sql_varchar", null = NOT len(plan.RETURN_TIMEZONE) }
+            }, { datasource = "fpw" });
+            var nowLocal = timeQuery.nowLocal[1];
+            var returnLocal = timeQuery.returnLocal[1];
 
-            if (dateCompare(nowUtc, plan.RETURN_TIME) GTE 0) {
+            if (dateCompare(nowLocal, returnLocal) GTE 0) {
                 result.ERROR = "RETURN_TIME_PAST";
                 result.MESSAGE = "Return time must be in the future before sending a float plan.";
                 return result;
