@@ -93,20 +93,107 @@
       .replace(/'/g, "&#39;");
   }
 
-  function formatPlanDate(value) {
+  function parsePlanDateValue(value, assumeUtc) {
+    if (!value && value !== 0) return null;
+    if (Object.prototype.toString.call(value) === "[object Date]") {
+      return isNaN(value.getTime()) ? null : value;
+    }
+
+    var raw = String(value).trim();
+    if (!raw) return null;
+
+    // Normalize common DB datetime formats.
+    raw = raw.replace(/\s+(UT|UTC)$/i, "Z");
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(raw)) {
+      raw = raw.replace(" ", "T");
+    }
+
+    if (assumeUtc) {
+      var monthNameMatch = raw.match(/^([A-Za-z]+),\s*(\d{1,2})\s+(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+      if (monthNameMatch) {
+        var monthMap = {
+          january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+          july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
+        };
+        var monthName = monthNameMatch[1].toLowerCase();
+        if (Object.prototype.hasOwnProperty.call(monthMap, monthName)) {
+          return new Date(Date.UTC(
+            parseInt(monthNameMatch[3], 10),
+            monthMap[monthName],
+            parseInt(monthNameMatch[2], 10),
+            parseInt(monthNameMatch[4], 10),
+            parseInt(monthNameMatch[5], 10),
+            parseInt(monthNameMatch[6] || "0", 10)
+          ));
+        }
+      }
+
+      var match = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?)?(?:\s*(Z|[+\-]\d{2}:?\d{2}))?$/i);
+      if (match) {
+        var year = parseInt(match[1], 10);
+        var month = parseInt(match[2], 10) - 1;
+        var day = parseInt(match[3], 10);
+        var hour = parseInt(match[4] || "0", 10);
+        var minute = parseInt(match[5] || "0", 10);
+        var second = parseInt(match[6] || "0", 10);
+        var tz = (match[7] || "").toUpperCase();
+
+        if (!tz || tz === "Z") {
+          return new Date(Date.UTC(year, month, day, hour, minute, second));
+        }
+
+        if (/^[+\-]\d{2}:?\d{2}$/.test(tz)) {
+          var sign = tz[0] === "-" ? -1 : 1;
+          var tzBody = tz.slice(1).replace(":", "");
+          var tzHours = parseInt(tzBody.slice(0, 2), 10);
+          var tzMinutes = parseInt(tzBody.slice(2, 4), 10);
+          var offsetMinutes = sign * (tzHours * 60 + tzMinutes);
+          var utcMillis = Date.UTC(year, month, day, hour, minute, second) - (offsetMinutes * 60000);
+          return new Date(utcMillis);
+        }
+      }
+    }
+
+    var parsed = new Date(raw);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  function formatPlanDate(value, options) {
     if (!value) return "";
-    var date = new Date(value);
-    if (isNaN(date.getTime())) {
+    var assumeUtc = !!(options && options.assumeUtc);
+    var timeZone = options && options.timeZone ? String(options.timeZone).trim() : "";
+    var includeTimeZone = !!(options && options.includeTimeZone);
+    var date = parsePlanDateValue(value, assumeUtc);
+    if (!date) {
       return String(value);
     }
-    var datePart = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-    var timePart = date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    var dateOptions = { month: "short", day: "numeric" };
+    var timeOptions = { hour: "numeric", minute: "2-digit", hour12: true };
+    if (includeTimeZone) {
+      timeOptions.timeZoneName = "short";
+    }
+    if (timeZone) {
+      dateOptions.timeZone = timeZone;
+      timeOptions.timeZone = timeZone;
+    }
+    var datePart = "";
+    var timePart = "";
+    try {
+      datePart = date.toLocaleDateString(undefined, dateOptions);
+      timePart = date.toLocaleTimeString(undefined, timeOptions);
+    } catch (err) {
+      // Fallback if provided timezone is invalid in this runtime.
+      datePart = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      timePart = date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: true });
+    }
     return datePart + " " + timePart;
   }
 
-  function parsePlanDate(value) {
+  function parsePlanDate(value, options) {
     if (!value) return 0;
-    var date = new Date(value);
+    var assumeUtc = !!(options && options.assumeUtc);
+    var date = parsePlanDateValue(value, assumeUtc);
+    if (!date) return 0;
     var time = date.getTime();
     return isNaN(time) ? 0 : time;
   }

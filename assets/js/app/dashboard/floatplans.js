@@ -131,8 +131,16 @@
         name = "Plan #" + id;
       }
       var status = utils.pick(plan, ["STATUS", "status"], "");
-      var depart = utils.formatPlanDate(utils.pick(plan, ["DEPARTDATETIME", "DEPARTUREDATE", "departAt"], ""));
-      var returnBy = utils.formatPlanDate(utils.pick(plan, ["RETURNDATETIME", "RETURNDATE", "returnAt"], ""));
+      var departureTimezone = utils.pick(plan, ["DEPARTURE_TIMEZONE", "departureTimezone", "departTimezone"], "");
+      var returnTimezone = utils.pick(plan, ["RETURN_TIMEZONE", "returnTimezone"], "");
+      var depart = utils.formatPlanDate(
+        utils.pick(plan, ["DEPARTDATETIME", "DEPARTUREDATE", "departAt"], ""),
+        { assumeUtc: true, timeZone: departureTimezone, includeTimeZone: true }
+      );
+      var returnBy = utils.formatPlanDate(
+        utils.pick(plan, ["RETURNDATETIME", "RETURNDATE", "returnAt"], ""),
+        { assumeUtc: true, timeZone: returnTimezone, includeTimeZone: true }
+      );
       var vessel = utils.pick(plan, ["VESSELNAME", "VESSEL"], "");
       var updated = utils.formatPlanDate(utils.pick(plan, ["UPDATEDDATE", "UPDATEDAT", "MODIFIEDDATE"], ""));
       var waypointCount = parseInt(utils.pick(plan, ["WAYPOINTCOUNT", "waypointCount"], 0), 10);
@@ -192,6 +200,8 @@
     var vessel = utils.pick(plan, ["VESSELNAME", "VESSEL"], "");
     var depart = utils.pick(plan, ["DEPARTDATETIME", "DEPARTUREDATE", "departAt", "DEPARTURE_TIME", "DEPARTING_FROM"], "");
     var returnBy = utils.pick(plan, ["RETURNDATETIME", "RETURNDATE", "returnAt", "RETURN_TIME", "RETURNING_TO", "DESTINATION"], "");
+    var departureTimezone = utils.pick(plan, ["DEPARTURE_TIMEZONE", "departureTimezone", "departTimezone"], "");
+    var returnTimezone = utils.pick(plan, ["RETURN_TIMEZONE", "returnTimezone"], "");
     var updated = utils.pick(plan, ["UPDATEDDATE", "UPDATEDAT", "MODIFIEDDATE"], "");
     var pieces = [
       name,
@@ -200,8 +210,8 @@
       depart,
       returnBy,
       updated,
-      utils.formatPlanDate(depart),
-      utils.formatPlanDate(returnBy),
+      utils.formatPlanDate(depart, { assumeUtc: true, timeZone: departureTimezone, includeTimeZone: true }),
+      utils.formatPlanDate(returnBy, { assumeUtc: true, timeZone: returnTimezone, includeTimeZone: true }),
       utils.formatPlanDate(updated)
     ];
     return utils.normalizeSearch(pieces.join(" "));
