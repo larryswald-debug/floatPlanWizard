@@ -949,13 +949,45 @@
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
             var result = { SUCCESS = false };
+            var updateResult = {};
+            var updateCount = 0;
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
                 result.MESSAGE = "Float plan id is required.";
                 return result;
             }
 
-            queryExecute("
+            var planInfo = queryExecute("
+                SELECT floatplanId, UPPER(TRIM(`status`)) AS statusValue
+                  FROM floatplans
+                 WHERE floatplanId = :planId
+                   AND userId = :userId
+                 LIMIT 1
+            ", {
+                planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+            }, { datasource = "fpw" });
+
+            if (planInfo.recordCount EQ 0) {
+                result.ERROR = "NOT_FOUND";
+                result.MESSAGE = "Float plan not found.";
+                return result;
+            }
+
+            var planStatus = "";
+            if (listFindNoCase(planInfo.columnList, "statusValue") GT 0) {
+                planStatus = trim(toString(planInfo["statusValue"][1]));
+            }
+
+            if (listFindNoCase("ACTIVE,OVERDUE,DUE_NOW,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H", planStatus) EQ 0) {
+                result.ERROR = "CHECKIN_BLOCKED";
+                result.MESSAGE = "Only active or overdue float plans can be checked in.";
+                result.STATUS = planStatus;
+                result.FLOATPLANID = arguments.floatPlanId;
+                return result;
+            }
+
+            updateResult = queryExecute("
                 UPDATE floatplans
                 SET
                     `status` = 'CLOSED',
@@ -964,11 +996,24 @@
                     lastUpdateStatus = UTC_TIMESTAMP()
                 WHERE floatplanId = :planId
                   AND userId = :userId
-                  AND UPPER(TRIM(`status`)) IN ('ACTIVE', 'OVERDUE')
+                  AND UPPER(TRIM(`status`)) IN ('ACTIVE', 'OVERDUE', 'DUE_NOW', 'OVERDUE_1H', 'OVERDUE_2H', 'OVERDUE_3H', 'OVERDUE_4H', 'OVERDUE_12H', 'OVERDUE_24H')
             ", {
                 planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                 userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
             }, { datasource = "fpw" });
+
+            if (isStruct(updateResult) && structKeyExists(updateResult, "recordcount")) {
+                updateCount = updateResult.recordcount;
+            } else if (isQuery(updateResult)) {
+                updateCount = updateResult.recordCount;
+            }
+            if (updateCount LTE 0) {
+                result.ERROR = "NO_UPDATE";
+                result.MESSAGE = "Float plan status was not updated.";
+                result.STATUS = planStatus;
+                result.FLOATPLANID = arguments.floatPlanId;
+                return result;
+            }
 
             result.SUCCESS = true;
             result.FLOATPLANID = arguments.floatPlanId;
