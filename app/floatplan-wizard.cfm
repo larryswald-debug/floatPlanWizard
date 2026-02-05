@@ -416,11 +416,6 @@
                         </span>
                     </button>
                 </div>
-            </section>
-
-            <!-- Step 7 -->
-            <section v-if="step === 7">
-                <h2 class="h5 mb-3">Step 7 – Review</h2>
 
                 <h3 class="h6">Review</h3>
                 <div class="mb-3">
