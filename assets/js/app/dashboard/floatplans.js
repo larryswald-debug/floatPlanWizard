@@ -501,12 +501,7 @@
     Api.checkInFloatPlan(planId)
       .then(function (data) {
         if (!data.SUCCESS) {
-          var statusLabel = utils.pick(data, ["STATUS", "status"], "");
-          var message = (data && data.MESSAGE) ? data.MESSAGE : "Check-in failed.";
-          if (statusLabel) {
-            message += " Current status: " + statusLabel + ".";
-          }
-          throw { MESSAGE: message };
+          throw data;
         }
         loadFloatPlans(FLOAT_PLAN_LIMIT);
       })
