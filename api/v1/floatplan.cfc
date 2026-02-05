@@ -949,7 +949,8 @@
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
             var result = { SUCCESS = false };
-            var local = { updateResult = {}, updateCount = 0 };
+            var updateResult = {};
+            var updateCount = 0;
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
                 result.MESSAGE = "Float plan id is required.";
@@ -986,7 +987,7 @@
                 return result;
             }
 
-            local.updateResult = queryExecute("
+            updateResult = queryExecute("
                 UPDATE floatplans
                 SET
                     `status` = 'CLOSED',
@@ -1001,12 +1002,12 @@
                 userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
             }, { datasource = "fpw" });
 
-            if (isStruct(local.updateResult) && structKeyExists(local.updateResult, "recordcount")) {
-                local.updateCount = local.updateResult.recordcount;
-            } else if (isQuery(local.updateResult)) {
-                local.updateCount = local.updateResult.recordCount;
+            if (isStruct(updateResult) && structKeyExists(updateResult, "recordcount")) {
+                updateCount = updateResult.recordcount;
+            } else if (isQuery(updateResult)) {
+                updateCount = updateResult.recordCount;
             }
-            if (local.updateCount LTE 0) {
+            if (updateCount LTE 0) {
                 result.ERROR = "NO_UPDATE";
                 result.MESSAGE = "Float plan status was not updated.";
                 result.STATUS = planStatus;
