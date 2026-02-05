@@ -10,6 +10,7 @@
         <cfset var plans = []>
         <cfset var jobs  = []>
         <cfset var j     = {}>
+        <cfset var allowedStatuses = "ACTIVE,DUE_NOW,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H">
 
         <cftry>
 
@@ -46,14 +47,14 @@ DB session time_zone: #qClock.sessionTZ#<br><br>
             <!-- Summary counts -->
             <cfset var qCounts = queryExecute("
                 SELECT
-                    SUM(status='ACTIVE') AS activeTotal,
+                    SUM(UPPER(TRIM(status)) IN ('ACTIVE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H')) AS activeTotal,
                     SUM(
-                        status='ACTIVE'
+                        UPPER(TRIM(status)) IN ('ACTIVE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H')
                         AND returnTime IS NOT NULL
                         AND COALESCE(CONVERT_TZ(returnTime, NULLIF(returnTimezone, ''), 'UTC'), returnTime) <= UTC_TIMESTAMP()
                     ) AS activeOverdue,
                     SUM(
-                        status='ACTIVE'
+                        UPPER(TRIM(status)) IN ('ACTIVE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H')
                         AND returnTime IS NOT NULL
                         AND COALESCE(CONVERT_TZ(returnTime, NULLIF(returnTimezone, ''), 'UTC'), returnTime) > UTC_TIMESTAMP()
                     ) AS activeNotOverdue
@@ -79,7 +80,7 @@ ACTIVE NOT overdue: #qCounts.activeNotOverdue#<br><br>
                         COALESCE(CONVERT_TZ(returnTime, NULLIF(returnTimezone, ''), 'UTC'), returnTime)
                     ) AS secondsUntilDue
                 FROM floatplans
-                WHERE status='ACTIVE'
+                WHERE UPPER(TRIM(status)) IN ('ACTIVE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H')
                   AND returnTime IS NOT NULL
                   AND COALESCE(CONVERT_TZ(returnTime, NULLIF(returnTimezone, ''), 'UTC'), returnTime) > UTC_TIMESTAMP()
                 ORDER BY returnUtc ASC
@@ -123,7 +124,7 @@ Rows: #qNot.recordCount#<br>
                         UTC_TIMESTAMP()
                     ) AS overdueSeconds
                 FROM floatplans
-                WHERE status='ACTIVE'
+                WHERE UPPER(TRIM(status)) IN ('ACTIVE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H')
                   AND returnTime IS NOT NULL
                   AND COALESCE(CONVERT_TZ(returnTime, NULLIF(returnTimezone, ''), 'UTC'), returnTime) <= UTC_TIMESTAMP()
                 ORDER BY overdueSeconds DESC
@@ -155,18 +156,22 @@ Jobs built: #arrayLen(jobs)#<br><br>
 JOB → plan=#j.FLOATPLANID# type=#j.ALERTTYPE# overdueSeconds=#j.OVERDUE_SECONDS#
                 </cfoutput>
 
-                <cfset queryExecute("
-                    UPDATE floatplans
-                    SET
-                        status = :statusValue,
-                        lastUpdateStatus = UTC_TIMESTAMP(),
-                        lastUpdate = NOW()
-                    WHERE floatplanId = :floatPlanId
-                ", {
-                    statusValue = { value = left(toString(j.ALERTTYPE), 50), cfsqltype = "cf_sql_varchar" },
-                    floatPlanId = { value = int(val(j.FLOATPLANID)), cfsqltype = "cf_sql_integer" }
-                }, { datasource = "fpw" })>
-                <cfoutput> → STATUS UPDATED (#j.ALERTTYPE#)</cfoutput>
+                <cfif listFindNoCase(allowedStatuses, toString(j.ALERTTYPE)) GT 0>
+                    <cfset queryExecute("
+                        UPDATE floatplans
+                        SET
+                            status = :statusValue,
+                            lastUpdateStatus = UTC_TIMESTAMP(),
+                            lastUpdate = NOW()
+                        WHERE floatplanId = :floatPlanId
+                    ", {
+                        statusValue = { value = left(toString(j.ALERTTYPE), 50), cfsqltype = "cf_sql_varchar" },
+                        floatPlanId = { value = int(val(j.FLOATPLANID)), cfsqltype = "cf_sql_integer" }
+                    }, { datasource = "fpw" })>
+                    <cfoutput> → STATUS UPDATED (#j.ALERTTYPE#)</cfoutput>
+                <cfelse>
+                    <cfoutput> → STATUS SKIPPED (ALERTTYPE NOT ALLOWED)</cfoutput>
+                </cfif>
 
                 <cfif arguments.send EQ 1>
                     <cftry>
