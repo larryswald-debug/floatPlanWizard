@@ -949,6 +949,7 @@
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
             var result = { SUCCESS = false };
+            var allowedStatuses = "ACTIVE,OVERDUE,DUE_NOW,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H";
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
                 result.MESSAGE = "Float plan id is required.";
@@ -964,7 +965,7 @@
                     lastUpdateStatus = UTC_TIMESTAMP()
                 WHERE floatplanId = :planId
                   AND userId = :userId
-                  AND UPPER(TRIM(`status`)) IN ('ACTIVE', 'OVERDUE')
+                  AND UPPER(TRIM(`status`)) IN (#listQualify(allowedStatuses, "'")#)
             ", {
                 planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                 userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }

@@ -265,7 +265,7 @@
                     TIMESTAMPDIFF(MINUTE, fp.checkedInAt, NOW()) AS minutesSinceCheckIn,
                     CASE
                         WHEN fp.returnTime IS NULL THEN NULL
-                        WHEN UPPER(TRIM(fp.status)) = 'OVERDUE' THEN GREATEST(
+                        WHEN UPPER(TRIM(fp.status)) IN ('OVERDUE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H') THEN GREATEST(
                             TIMESTAMPDIFF(
                                 MINUTE,
                                 COALESCE(CONVERT_TZ(fp.returnTime, NULLIF(fp.returnTimezone, ''), @@session.time_zone), fp.returnTime),
@@ -276,7 +276,7 @@
                         ELSE 0
                     END AS minutesOverdue,
                     CASE
-                        WHEN UPPER(TRIM(fp.status)) = 'OVERDUE'
+                        WHEN UPPER(TRIM(fp.status)) IN ('OVERDUE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H')
                          AND fp.returnTime IS NOT NULL
                          AND NOW() > DATE_ADD(
                             COALESCE(CONVERT_TZ(fp.returnTime, NULLIF(fp.returnTimezone, ''), @@session.time_zone), fp.returnTime),
@@ -288,9 +288,9 @@
                 FROM floatplans fp
                 LEFT JOIN vessels v ON fp.vesselId = v.vesselId
                 WHERE fp.userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
-                  AND UPPER(TRIM(fp.status)) IN ('ACTIVE', 'OVERDUE')
+                  AND UPPER(TRIM(fp.status)) IN ('ACTIVE','OVERDUE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H')
                 ORDER BY
-                    CASE WHEN UPPER(TRIM(fp.status)) = 'OVERDUE' THEN 0 ELSE 1 END,
+                    CASE WHEN UPPER(TRIM(fp.status)) IN ('OVERDUE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H') THEN 0 ELSE 1 END,
                     CASE WHEN fp.returnTime IS NULL THEN 1 ELSE 0 END,
                     fp.returnTime ASC
                 LIMIT <cfqueryparam cfsqltype="cf_sql_integer" value="50">
@@ -309,7 +309,7 @@
 
                 <cfif statusUpper EQ "ACTIVE">
                     <cfset counts.active++>
-                <cfelseif statusUpper EQ "OVERDUE">
+                <cfelseif listFindNoCase("OVERDUE,DUE_NOW,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H", statusUpper) GT 0>
                     <cfset counts.overdue++>
                 </cfif>
                 <cfif qPlans.isEscalated EQ 1>

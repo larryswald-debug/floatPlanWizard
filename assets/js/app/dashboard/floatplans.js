@@ -147,7 +147,9 @@
       if (isNaN(waypointCount)) waypointCount = 0;
       var statusText = getStatusLabel(status);
       var normalizedStatus = String(status || "").trim().toUpperCase();
-      var checkInButton = (normalizedStatus === "ACTIVE" || normalizedStatus === "OVERDUE")
+      var isOverdueStatus = ["OVERDUE", "DUE_NOW", "OVERDUE_1H", "OVERDUE_2H", "OVERDUE_3H", "OVERDUE_4H", "OVERDUE_12H", "OVERDUE_24H"]
+        .indexOf(normalizedStatus) !== -1;
+      var checkInButton = (normalizedStatus === "ACTIVE" || isOverdueStatus)
         ? '<button class="btn-success" type="button" data-action="checkin" data-plan-id="' + utils.escapeHtml(id) + '">Check-In</button>'
         : "";
 
@@ -438,7 +440,9 @@
     } else if (action === "delete") {
       var planStatus = button.getAttribute("data-plan-status") || "";
       var normalizedStatus = String(planStatus).trim().toUpperCase();
-      if (normalizedStatus === "ACTIVE" || normalizedStatus === "OVERDUE") {
+      var isOverdueStatus = ["OVERDUE", "DUE_NOW", "OVERDUE_1H", "OVERDUE_2H", "OVERDUE_3H", "OVERDUE_4H", "OVERDUE_12H", "OVERDUE_24H"]
+        .indexOf(normalizedStatus) !== -1;
+      if (normalizedStatus === "ACTIVE" || isOverdueStatus) {
         utils.showAlertModal("Active or overdue float plans cannot be deleted.");
         return;
       }

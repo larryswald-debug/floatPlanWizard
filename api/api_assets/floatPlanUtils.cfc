@@ -13,12 +13,20 @@
             var templatePath = baseDir & "USCGFloatPlan_new.pdf";
             var outputDir = rootDir & "floatPlans/user_float_plans";
 
+            writeLog(file="fpw_pdf", text="createPDF start floatPlanId=#arguments.floatPlanId# baseDir=#baseDir# rootDir=#rootDir# templatePath=#templatePath# outputDir=#outputDir#", type="information");
+
             if (!directoryExists(outputDir)) {
+                writeLog(file="fpw_pdf", text="createPDF outputDir missing; creating #outputDir#", type="information");
                 directoryCreate(outputDir);
+            }
+
+            if (!fileExists(templatePath)) {
+                writeLog(file="fpw_pdf", text="createPDF template missing at #templatePath#", type="error");
             }
 
             var plan = loadFloatPlan(arguments.floatPlanId, ds);
             if (structIsEmpty(plan)) {
+                writeLog(file="fpw_pdf", text="createPDF no plan found for floatPlanId=#arguments.floatPlanId#", type="error");
                 return false;
             }
 
@@ -38,6 +46,8 @@
             var passengers = loadPassengers(arguments.floatPlanId, ds);
             var contacts = loadContacts(arguments.floatPlanId, ds);
             var waypoints = loadWaypoints(arguments.floatPlanId, ds);
+
+            writeLog(file="fpw_pdf", text="createPDF writing destinationPath=#destinationPath# readonlyPath=#readonlyPath#", type="information");
 
             // Plan values
             var tripDepartureDate = formatDate(getAny(plan, "departureTime", ""));
@@ -115,6 +125,7 @@
             var oprNotes = getString(operatorInfo, "notes", "");
         </cfscript>
 
+        <cftry>
         <cfpdfform action="populate" source="#templatePath#" destination="#destinationPath#" overwrite="true">
             <!-- Vessel -->
             <cfpdfformparam name="ID-VesselName" value="#vesselName#">
@@ -266,6 +277,17 @@
             overwrite="true"
             newownerpassword="#createUUID()#"
             permissions="AllowPrinting,AllowCopy,AllowScreenReaders">
+
+        <cfscript>
+            writeLog(file="fpw_pdf", text="createPDF complete readonlyFile=#readonlyFileName# destExists=#fileExists(destinationPath)# readonlyExists=#fileExists(readonlyPath)#", type="information");
+        </cfscript>
+        <cfcatch type="any">
+            <cfscript>
+                writeLog(file="fpw_pdf", text="createPDF ERROR floatPlanId=#arguments.floatPlanId# msg=#cfcatch.message# detail=#cfcatch.detail#", type="error");
+            </cfscript>
+            <cfthrow message="#cfcatch.message#" detail="#cfcatch.detail#">
+        </cfcatch>
+        </cftry>
 
         <cfreturn readonlyFileName>
     </cffunction>
