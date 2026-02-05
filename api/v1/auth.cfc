@@ -13,12 +13,7 @@
             <cfset body     = {}>
 
             <cfif len( trim( rawBody ) )>
-                <cftry>
-                    <cfset body = deserializeJSON( rawBody, false )>
-                <cfcatch>
-                    <cfset body = {}> 
-                </cfcatch>
-                </cftry>
+                <cfset body = deserializeJSON( rawBody, false )>
             </cfif>
 
             <!-- Fallback to FORM fields -->
