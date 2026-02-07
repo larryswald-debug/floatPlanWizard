@@ -251,7 +251,7 @@ Recipients: #toList#
             SET status = 'SENT',
                 attemptCount = attemptCount + 1,
                 lastAttemptAtUTC = UTC_TIMESTAMP(),
-                lastSentAtUTC = UTC_TIMESTAMP(),
+                sentAtUTC = UTC_TIMESTAMP(),
                 lastError = NULL
             WHERE floatPlanId = <cfqueryparam value="#int(arguments.floatPlanId)#" cfsqltype="cf_sql_integer">
               AND alertType   = <cfqueryparam value="#left(arguments.alertType,50)#" cfsqltype="cf_sql_varchar">
