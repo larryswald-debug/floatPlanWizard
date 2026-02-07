@@ -138,6 +138,7 @@
 </div>
 
 <cfinclude template="../includes/footer_scripts.cfm">
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth-utils.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/join.js"></script>
 
 </body>

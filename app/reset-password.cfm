@@ -47,6 +47,7 @@
   </div>
 </div>
 
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth-utils.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/reset-password.js"></script>
 </body>
 </html>

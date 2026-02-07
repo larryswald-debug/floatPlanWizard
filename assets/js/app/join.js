@@ -1,52 +1,21 @@
 (function (window, document) {
   "use strict";
 
-  var BASE_PATH = window.FPW_BASE || "";
-  var API_BASE = window.FPW_API_BASE || (BASE_PATH + "/api/v1");
-
-  function $(id) { return document.getElementById(id); }
-
-  function showAlert(message, type) {
-    var alertEl = $("joinAlert");
-    if (!alertEl) return;
-
-    alertEl.classList.remove("d-none", "alert-success", "alert-danger", "alert-info", "alert-warning");
-    alertEl.classList.add("alert-" + (type || "info"));
-    alertEl.textContent = message;
+  var AuthUtils = window.FPW && window.FPW.AuthUtils;
+  if (!AuthUtils) {
+    console.error("join.js: auth-utils not loaded");
+    return;
   }
 
-  function clearAlert() {
-    var alertEl = $("joinAlert");
-    if (!alertEl) return;
-    alertEl.classList.add("d-none");
-    alertEl.textContent = "";
-  }
-
-  async function fetchJson(url, options) {
-    options = options || {};
-
-    var res = await fetch(url, {
-      method: options.method || "GET",
-      headers: options.headers || {},
-      body: options.body,
-      credentials: "include"
-    });
-
-    var txt = await res.text();
-    var data;
-    try {
-      data = txt ? JSON.parse(txt) : {};
-    } catch (e) {
-      throw { MESSAGE: "Non-JSON response from API", RAW: txt, status: res.status };
-    }
-
-    if (!res.ok || data.SUCCESS === false) {
-      data.status = res.status;
-      throw data;
-    }
-
-    return data;
-  }
+  var $ = AuthUtils.$;
+  var API_BASE = AuthUtils.API_BASE;
+  var showAlert = function (message, type) {
+    AuthUtils.showAlert("joinAlert", message, type);
+  };
+  var clearAlert = function () {
+    AuthUtils.clearAlert("joinAlert");
+  };
+  var fetchJson = AuthUtils.fetchJson;
 
   document.addEventListener("DOMContentLoaded", function () {
     var form = $("joinForm");
