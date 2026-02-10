@@ -150,7 +150,662 @@
             margin: 0 auto;
             padding: 0;
         }
-    </style>
+    
+        /* ================================
+           Weather Cockpit (WOW Panel)
+           ================================ */
+        .fpw-weather-cockpit{
+            background: radial-gradient(1200px 600px at 20% 0%, rgba(45,212,191,.18), transparent 55%),
+                        radial-gradient(900px 500px at 85% 15%, rgba(59,130,246,.14), transparent 60%),
+                        linear-gradient(180deg, #0b1220, #070d18);
+            border: 1px solid rgba(255,255,255,.08);
+            border-radius: 16px;
+            padding: 16px 16px 14px;
+        }
+
+        .fpw-wx__top{
+            display:flex;
+            gap:14px;
+            justify-content:space-between;
+            align-items:flex-start;
+            margin-bottom:14px;
+        }
+        .fpw-wx__titleRow{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            flex-wrap:wrap;
+        }
+        .fpw-wx__dot{
+            width:12px;height:12px;border-radius:50%;
+            box-shadow: 0 0 0 3px rgba(255,255,255,.06);
+        }
+        .fpw-wx__dot.ok{ background:#2dd4bf; }
+        .fpw-wx__dot.warn{ background:#facc15; }
+        .fpw-wx__dot.danger{ background:#ef4444; }
+        .fpw-wx__title{
+            font-size: 1rem;
+            margin:0;
+            font-weight:700;
+            letter-spacing:.2px;
+            color: rgba(255,255,255,.92);
+        }
+        .fpw-wx__badge{
+            font-size:.75rem;
+            font-weight:700;
+            padding:.22rem .55rem;
+            border-radius:999px;
+            background: rgba(59,130,246,.18);
+            border:1px solid rgba(59,130,246,.25);
+            color: rgba(255,255,255,.9);
+        }
+        .fpw-wx__pill{
+            font-size:.75rem;
+            padding:.18rem .5rem;
+            border-radius:999px;
+            background: rgba(255,255,255,.08);
+            border:1px solid rgba(255,255,255,.10);
+            color: rgba(255,255,255,.78);
+        }
+        .fpw-wx__summary{
+            margin-top:6px;
+            color: rgba(255,255,255,.75);
+            font-size:.9rem;
+            line-height:1.25rem;
+            max-width: 840px;
+        }
+        .fpw-wx__muted{ color: rgba(255,255,255,.65); }
+        .fpw-wx__topRight{
+            display:flex;
+            gap:10px;
+            align-items:flex-end;
+            flex-wrap:wrap;
+            justify-content:flex-end;
+        }
+        .fpw-wx__zipInput{
+            width:110px;
+            background: rgba(255,255,255,.08);
+            border:1px solid rgba(255,255,255,.12);
+            color: rgba(255,255,255,.92);
+        }
+        .fpw-wx__zipInput::placeholder{ color: rgba(255,255,255,.55); }
+        .fpw-wx__zipLabel{ font-size:.75rem; color: rgba(255,255,255,.70); margin:0 0 4px; display:block; }
+        .fpw-wx__updateBtn{ box-shadow: 0 10px 18px rgba(0,0,0,.22); }
+        .fpw-wx__detailsBtn{ opacity:.9; }
+
+        .fpw-wx__main{
+            display:grid;
+            grid-template-columns: 300px 1fr;
+            gap: 14px;
+        }
+        @media (max-width: 992px){
+            .fpw-wx__main{ grid-template-columns: 1fr; }
+        }
+
+        .fpw-wx__panel{
+            background: rgba(255,255,255,.05);
+            border:1px solid rgba(255,255,255,.08);
+            border-radius: 14px;
+            padding: 12px;
+            box-shadow: 0 10px 20px rgba(0,0,0,.18);
+        }
+        .fpw-wx__panelHeader{
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            margin-bottom:10px;
+        }
+        .fpw-wx__panelTitle{
+            font-weight:800;
+            font-size:.9rem;
+            letter-spacing:.25px;
+            color: rgba(255,255,255,.88);
+        }
+        .fpw-wx__panelMeta{
+            font-size:.78rem;
+            color: rgba(255,255,255,.65);
+        }
+
+        /* Wind dial */
+        .fpw-wx__dial{ display:flex; justify-content:center; padding: 2px 0 8px; }
+        .fpw-wx__compass{
+            width: 248px;
+            height: 248px;
+            border-radius: 50%;
+            position: relative;
+            background:
+                radial-gradient(circle at 50% 50%, rgba(255,255,255,.08), rgba(255,255,255,.02) 55%, rgba(0,0,0,.25) 100%),
+                conic-gradient(from 180deg, rgba(45,212,191,.22), rgba(59,130,246,.12), rgba(239,68,68,.12), rgba(45,212,191,.22));
+            border: 1px solid rgba(255,255,255,.10);
+            box-shadow: inset 0 0 0 10px rgba(0,0,0,.16), 0 18px 30px rgba(0,0,0,.28);
+            overflow:hidden;
+        }
+        .fpw-wx__compassTicks{
+            position:absolute; inset:0;
+            background:
+                repeating-conic-gradient(
+                  from 0deg,
+                  rgba(255,255,255,.18) 0deg,
+                  rgba(255,255,255,.18) 1deg,
+                  transparent 1deg,
+                  transparent 10deg
+                );
+            opacity:.25;
+            mask: radial-gradient(circle at 50% 50%, transparent 0 64%, #000 66% 100%);
+        }
+        .fpw-wx__needle{
+            position:absolute;
+            left:50%;
+            top: 22px;
+            width: 2px;
+            height: 96px;
+            transform-origin: bottom center;
+            transform: translateX(-50%) rotate(var(--dir));
+            transition: transform 380ms cubic-bezier(.2,.9,.2,1);
+            background: linear-gradient(#2dd4bf, rgba(45,212,191,.15));
+            filter: drop-shadow(0 0 10px rgba(45,212,191,.35));
+        }
+        .fpw-wx__needle::after{
+            content:"";
+            position:absolute;
+            bottom:-7px;
+            left:50%;
+            width: 10px;
+            height: 10px;
+            transform: translateX(-50%);
+            border-radius: 50%;
+            background: rgba(255,255,255,.85);
+            box-shadow: 0 0 0 3px rgba(255,255,255,.10), 0 0 18px rgba(45,212,191,.25);
+        }
+        .fpw-wx__gustHalo{
+            position:absolute; inset: 26px;
+            border-radius:50%;
+            box-shadow: inset 0 0 0 2px rgba(255,255,255,.10);
+            opacity:.55;
+            transition: box-shadow 240ms ease, opacity 240ms ease;
+        }
+        .fpw-wx__dialCenter{
+            position:absolute;
+            inset: 64px;
+            border-radius: 50%;
+            background: rgba(0,0,0,.35);
+            border: 1px solid rgba(255,255,255,.10);
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            padding: 10px;
+            text-align:center;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
+        }
+        .fpw-wx__dialSpeed{
+            font-size: 2rem;
+            font-weight: 900;
+            letter-spacing:.4px;
+            line-height: 1;
+            color: rgba(255,255,255,.95);
+        }
+        .fpw-wx__dialSub{
+            margin-top: 6px;
+            font-size:.82rem;
+            color: rgba(255,255,255,.75);
+            display:flex;
+            gap:6px;
+            align-items:center;
+            flex-wrap:wrap;
+            justify-content:center;
+        }
+        .fpw-wx__dialCond{
+            margin-top: 6px;
+            font-size:.78rem;
+            color: rgba(255,255,255,.62);
+            max-width: 190px;
+            line-height: 1.1rem;
+        }
+        .fpw-wx__cardinals span{
+            position:absolute;
+            font-size:.78rem;
+            font-weight:800;
+            color: rgba(255,255,255,.72);
+            text-shadow: 0 2px 8px rgba(0,0,0,.35);
+        }
+        .fpw-wx__cardinals .n{ top: 10px; left: 50%; transform: translateX(-50%); }
+        .fpw-wx__cardinals .s{ bottom: 10px; left: 50%; transform: translateX(-50%); }
+        .fpw-wx__cardinals .e{ right: 12px; top: 50%; transform: translateY(-50%); }
+        .fpw-wx__cardinals .w{ left: 12px; top: 50%; transform: translateY(-50%); }
+
+        .fpw-wx__miniRow{
+            display:grid;
+            grid-template-columns: 1fr 1fr;
+            gap:10px;
+            margin-top:10px;
+        }
+        .fpw-wx__miniStat{
+            background: rgba(0,0,0,.20);
+            border:1px solid rgba(255,255,255,.08);
+            border-radius: 12px;
+            padding: 10px;
+        }
+        .fpw-wx__miniLabel{
+            font-size:.7rem;
+            color: rgba(255,255,255,.62);
+            text-transform: uppercase;
+            letter-spacing: .6px;
+        }
+        .fpw-wx__miniValue{
+            font-size: .95rem;
+            font-weight: 800;
+            color: rgba(255,255,255,.90);
+            margin-top: 2px;
+        }
+
+        /* Timeline */
+        .fpw-wx__timelineGrid{ display:grid; grid-template-columns: 140px 1fr; gap: 12px; align-items:start; }
+        @media (max-width: 576px){ .fpw-wx__timelineGrid{ grid-template-columns: 1fr; } }
+        .fpw-wx__timelineLegend{
+            display:flex;
+            flex-direction:column;
+            gap:8px;
+            font-size:.78rem;
+            color: rgba(255,255,255,.72);
+            padding-top: 2px;
+        }
+        .fpw-wx__timelineLegend .swatch{
+            display:inline-block;
+            width:10px;height:10px;border-radius:3px;
+            margin-right:8px;
+            border:1px solid rgba(255,255,255,.15);
+        }
+        .swatch.wind{ background: rgba(59,130,246,.45); }
+        .swatch.gust{ background: rgba(250,204,21,.48); }
+        .swatch.rain{ background: rgba(45,212,191,.38); }
+        .swatch.alert{ background: rgba(239,68,68,.55); }
+
+        /* Make the 12-period cards larger + horizontally scrollable */
+        .fpw-wx__timelineBars{
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding-bottom: 10px;
+            scroll-snap-type: x proximity;
+        }
+        .fpw-wx__timelineBars::-webkit-scrollbar{ height: 10px; }
+        .fpw-wx__timelineBars::-webkit-scrollbar-track{ background: rgba(255,255,255,.05); border-radius: 999px; }
+        .fpw-wx__timelineBars::-webkit-scrollbar-thumb{ background: rgba(255,255,255,.14); border-radius: 999px; }
+        .fpw-wx__timelineBars::-webkit-scrollbar-thumb:hover{ background: rgba(255,255,255,.22); }
+
+        .fpw-wx__timelineStage{ position:relative; min-width: max-content; }
+
+        .fpw-wx__bars{
+            display:flex;
+            gap:10px;
+            padding-right: 6px;
+        }
+        .fpw-wx__bar{
+            width: 112px;
+            border-radius: 14px;
+            padding: 10px 10px 9px;
+            border:1px solid rgba(255,255,255,.08);
+            background: rgba(0,0,0,.22);
+            position:relative;
+            overflow:hidden;
+            min-height: 118px;
+            scroll-snap-align: start;
+        }
+        @media (max-width: 576px){
+            .fpw-wx__bar{ width: 100px; min-height: 112px; }
+        }
+
+        .fpw-wx__barTop{
+            display:flex;
+            justify-content:space-between;
+            align-items:baseline;
+            gap:8px;
+        }
+        .fpw-wx__barWhen{
+            font-size:.74rem;
+            color: rgba(255,255,255,.72);
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+            max-width: 92px;
+        }
+        .fpw-wx__barTemp{
+            font-weight:900;
+            font-size:1.05rem;
+            color: rgba(255,255,255,.92);
+            white-space:nowrap;
+        }
+        .fpw-wx__barMeters{
+            margin-top: 8px;
+            display:flex;
+            flex-direction:column;
+            gap:7px;
+        }
+        .fpw-wx__meterRow{
+            height: 7px;
+            border-radius:999px;
+            background: rgba(255,255,255,.06);
+            border:1px solid rgba(255,255,255,.06);
+            overflow:hidden;
+        }
+        .fpw-wx__meterFill{
+            height:100%;
+            border-radius:999px;
+            width: 20%;
+        }
+        .fpw-wx__meterFill.wind{ background: rgba(59,130,246,.72); }
+        .fpw-wx__meterFill.gust{ background: rgba(250,204,21,.78); }
+        .fpw-wx__meterFill.rain{ background: rgba(45,212,191,.60); }
+
+        .fpw-wx__barFlag{
+            position:absolute;
+            right:8px; top:8px;
+            width:10px;height:10px;border-radius:50%;
+            background: rgba(239,68,68,.85);
+            box-shadow: 0 0 0 3px rgba(239,68,68,.15);
+        }
+        .fpw-wx__alertsEmpty{
+            margin-top: 10px;
+            color: rgba(255,255,255,.72);
+            font-size:.85rem;
+        }
+        .fpw-wx__alertsList{
+            list-style:none;
+            padding:0;
+            margin: 10px 0 0;
+            display:flex;
+            gap:10px;
+            flex-wrap:wrap;
+        }
+        .fpw-wx__alertItem{
+            flex: 1 1 340px;
+            background: rgba(0,0,0,.18);
+            border:1px solid rgba(255,255,255,.08);
+            border-radius: 12px;
+            padding: 10px;
+        }
+        .fpw-wx__alertHead{
+            display:flex;
+            gap:8px;
+            align-items:center;
+            margin-bottom: 4px;
+        }
+        .fpw-wx__alertBadge{
+            font-size:.72rem;
+            font-weight:900;
+            letter-spacing:.6px;
+            padding:.16rem .5rem;
+            border-radius:999px;
+            border:1px solid rgba(255,255,255,.12);
+        }
+        .fpw-wx__alertBadge.info{ background: rgba(59,130,246,.18); }
+        .fpw-wx__alertBadge.warning{ background: rgba(250,204,21,.16); }
+        .fpw-wx__alertBadge.critical{ background: rgba(239,68,68,.16); }
+        .fpw-wx__alertTitle{
+            font-weight: 800;
+            color: rgba(255,255,255,.90);
+            font-size: .88rem;
+        }
+        .fpw-wx__alertMsg{
+            color: rgba(255,255,255,.70);
+            font-size: .82rem;
+            line-height: 1.15rem;
+        }
+
+        /* Instruments */
+        .fpw-wx__instruments{
+            margin-top: 14px;
+            display:grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+        @media (max-width: 992px){ .fpw-wx__instruments{ grid-template-columns: repeat(2, 1fr);} }
+        @media (max-width: 576px){ .fpw-wx__instruments{ grid-template-columns: 1fr;} }
+
+        .fpw-wx__gauge{
+            background: rgba(255,255,255,.05);
+            border:1px solid rgba(255,255,255,.08);
+            border-radius: 14px;
+            padding: 12px;
+            box-shadow: 0 10px 20px rgba(0,0,0,.18);
+        }
+        .fpw-wx__gaugeTop{
+            display:flex;
+            justify-content:space-between;
+            align-items:baseline;
+            gap:10px;
+        }
+        .fpw-wx__gaugeLabel{
+            font-size:.75rem;
+            color: rgba(255,255,255,.68);
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing:.6px;
+        }
+        .fpw-wx__gaugeValue{
+            font-size: 1.1rem;
+            font-weight: 900;
+            color: rgba(255,255,255,.92);
+        }
+        .fpw-wx__gaugeFoot{
+            margin-top: 10px;
+            font-size:.75rem;
+            color: rgba(255,255,255,.62);
+        }
+
+        .fpw-wx__arc{
+            margin-top: 10px;
+            height: 84px;
+            border-radius: 12px;
+            background:
+              conic-gradient(from 180deg,
+                rgba(59,130,246,.65) 0deg,
+                rgba(45,212,191,.65) 90deg,
+                rgba(250,204,21,.68) 150deg,
+                rgba(239,68,68,.70) 210deg,
+                rgba(255,255,255,.06) 0deg);
+            mask: radial-gradient(circle at 50% 100%, transparent 0 58%, #000 60% 100%);
+            opacity:.9;
+            position: relative;
+            overflow:hidden;
+        }
+        .fpw-wx__temp{ position:relative; }
+        .fpw-wx__temp .fpw-wx__arc::after{
+            content:"";
+            position:absolute;
+            left: calc((var(--pct) * 1%) - 6px);
+            bottom: 6px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255,255,255,.92);
+            box-shadow: 0 0 0 4px rgba(255,255,255,.12), 0 0 20px rgba(45,212,191,.22);
+        }
+
+        .fpw-wx__spikes{ margin-top: 10px; height: 84px; }
+        .fpw-wx__spikeBars{
+            display:flex;
+            align-items:flex-end;
+            gap: 4px;
+            height: 84px;
+        }
+        .fpw-wx__spike{
+            flex: 1 1 0;
+            border-radius: 6px 6px 10px 10px;
+            background: rgba(250,204,21,.25);
+            border:1px solid rgba(255,255,255,.10);
+            min-width: 6px;
+            position: relative;
+            overflow:hidden;
+        }
+        .fpw-wx__spike.hot{ background: rgba(239,68,68,.22); }
+        .fpw-wx__spike.ok{ background: rgba(59,130,246,.22); }
+        .fpw-wx__spike > i{
+            display:block;
+            width:100%;
+            height: 50%;
+            background: linear-gradient(180deg, rgba(255,255,255,.25), rgba(255,255,255,0));
+            opacity:.35;
+        }
+
+        .fpw-wx__trend{ margin-top: 12px; display:flex; justify-content:center; }
+        .fpw-wx__trendPill{
+            font-size:.8rem;
+            padding:.25rem .65rem;
+            border-radius:999px;
+            border:1px solid rgba(255,255,255,.10);
+            background: rgba(0,0,0,.18);
+            color: rgba(255,255,255,.82);
+        }
+        .fpw-wx__trendPill.up{ border-color: rgba(34,197,94,.25); background: rgba(34,197,94,.10); }
+        .fpw-wx__trendPill.down{ border-color: rgba(239,68,68,.25); background: rgba(239,68,68,.10); }
+        .fpw-wx__trendPill.neutral{ border-color: rgba(59,130,246,.22); background: rgba(59,130,246,.10); }
+
+        .fpw-wx__meter{ margin-top: 12px; height: 10px; border-radius:999px; background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.06); overflow:hidden;}
+        .fpw-wx__meterFill{ height:100%; border-radius:999px; background: rgba(45,212,191,.45); }
+
+        /* Confidence */
+        .fpw-wx__confidence{
+            margin-top: 12px;
+            display:flex;
+            align-items:center;
+            gap:10px;
+            padding: 10px 12px;
+            border-radius: 14px;
+            background: rgba(255,255,255,.04);
+            border: 1px solid rgba(255,255,255,.08);
+        }
+        .fpw-wx__confidenceLabel{
+            font-size:.78rem;
+            color: rgba(255,255,255,.70);
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing:.6px;
+            min-width: 150px;
+        }
+        .fpw-wx__confidenceBarWrap{
+            flex: 1 1 auto;
+            height: 10px;
+            border-radius:999px;
+            background: rgba(255,255,255,.06);
+            border:1px solid rgba(255,255,255,.06);
+            overflow:hidden;
+        }
+        .fpw-wx__confidenceBar{
+            height:100%;
+            border-radius:999px;
+            background: linear-gradient(90deg, rgba(34,197,94,.70), rgba(45,212,191,.70));
+            transition: width 320ms ease;
+        }
+        .fpw-wx__confidenceBar.med{
+            background: linear-gradient(90deg, rgba(250,204,21,.75), rgba(59,130,246,.55));
+        }
+        .fpw-wx__confidenceBar.low{
+            background: linear-gradient(90deg, rgba(239,68,68,.75), rgba(250,204,21,.55));
+            background-size: 22px 22px;
+            animation: fpwWxStripe 1.1s linear infinite;
+        }
+        @keyframes fpwWxStripe{
+            from{ filter: hue-rotate(0deg); }
+            to{ filter: hue-rotate(10deg); }
+        }
+        .fpw-wx__confidenceText{
+            min-width: 80px;
+            text-align:right;
+            font-weight: 900;
+            color: rgba(255,255,255,.90);
+        }
+        /* Enhanced labels + float plan overlay */
+        .fpw-wx__timelineStage{ position:relative; }
+        .fpw-wx__planOverlay{ position:absolute; inset:0; pointer-events:none; }
+        .fpw-wx__planBand{
+            position:absolute;
+            top:6px; bottom:6px;
+            border-radius:12px;
+            background: linear-gradient(90deg, rgba(45,212,191,.12), rgba(45,212,191,.06));
+            border:1px solid rgba(45,212,191,.24);
+            box-shadow: 0 0 0 1px rgba(0,0,0,.25) inset;
+        }
+        .fpw-wx__planBand:before{
+            content:"";
+            position:absolute; inset:0;
+            border-radius:12px;
+            background: linear-gradient(180deg, rgba(255,255,255,.14), transparent 40%);
+            opacity:.55;
+        }
+        .fpw-wx__planLabel{
+            position:absolute;
+            top:-10px; left:10px;
+            padding:4px 8px;
+            border-radius:999px;
+            font-size:.72rem;
+            background: rgba(2,6,23,.78);
+            border:1px solid rgba(45,212,191,.28);
+            color: rgba(229,231,235,.94);
+            letter-spacing:.2px;
+            white-space:nowrap;
+        }
+
+        .fpw-wx__barMeta{
+            display:flex;
+            flex-direction:column;
+            align-items:flex-start;
+            gap:4px;
+            margin-top:6px;
+            font-size:.70rem;
+            color: rgba(255,255,255,.70);
+        }
+        .fpw-wx__barMeta .chip{
+            display:block;
+            width:100%;
+            max-width:100%;
+            padding:2px 8px;
+            border-radius:10px;
+            border:1px solid rgba(255,255,255,.10);
+            background: rgba(255,255,255,.04);
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+            line-height:1.2;
+            font-size:.78rem;
+        }
+        .fpw-wx__barMeta .chip b{
+            color: rgba(255,255,255,.90);
+            font-weight:600;
+        }
+
+        .fpw-wx__meterRow{
+            position:relative;
+            height:8px;
+            border-radius:999px;
+            background: rgba(255,255,255,.06);
+            overflow:hidden;
+        }
+        .fpw-wx__meterRow .val{
+            position:absolute;
+            top:-18px; right:0;
+            font-size:.68rem;
+            color: rgba(255,255,255,.65);
+        }
+
+        .fpw-wx__spikeLabels{
+            display:flex;
+            justify-content:space-between;
+            gap:10px;
+            margin-top:8px;
+            font-size:.7rem;
+            color: rgba(255,255,255,.60);
+        }
+        .fpw-wx__arcLabels{
+            display:flex;
+            justify-content:space-between;
+            margin-top:8px;
+            font-size:.72rem;
+            color: rgba(255,255,255,.65);
+        }
+
+
+</style>
 </head>
 <body class="dashboard-body">
 
@@ -181,93 +836,201 @@
             <div id="alertsCollapse" class="collapse">
                 <div class="fpw-card__body">
 
-  <!-- Weather Panel (Dashboard / ZIP-based, temp for now) -->
-  <section class="fpw-weather text-white" aria-labelledby="weatherPanelTitle">
+  <!-- Weather Panel (Cockpit / ZIP-based) -->
+  <section class="fpw-weather-cockpit" aria-labelledby="weatherPanelTitle">
 
-    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
-      <div>
-        <div class="d-flex align-items-center gap-2 mb-1">
-          <span id="weatherProviderBadge" class="fpw-badge fpw-badge--info">NOAA/NWS</span>
-          <span id="weatherUpdatedAt" class="fpw-pill d-none">Updated: —</span>
+    <!-- Top Row -->
+    <div class="fpw-wx__top">
+      <div class="fpw-wx__topLeft">
+        <div class="fpw-wx__titleRow">
+          <span id="weatherStatusDot" class="fpw-wx__dot ok" aria-hidden="true"></span>
+          <h3 id="weatherPanelTitle" class="fpw-wx__title">—</h3>
+          <span id="weatherProviderBadge" class="fpw-wx__badge">NOAA/NWS</span>
+          <span id="weatherUpdatedAt" class="fpw-wx__pill d-none">Updated: —</span>
         </div>
-        <div class="d-flex align-items-center gap-2">
-          <h3 id="weatherPanelTitle" class="h6 mb-0">—</h3>
-        </div>
-        <div id="weatherSummary" class="text-white mt-1">
+        <div id="weatherSummary" class="fpw-wx__summary">
           Enter a ZIP code to load your local forecast.
         </div>
       </div>
 
-      <div class="d-flex align-items-end gap-2">
-        <div>
-          <label for="weatherZip" class="form-label small mb-1">ZIP</label>
+      <div class="fpw-wx__topRight">
+        <div class="fpw-wx__zipBlock">
+          <label for="weatherZip" class="fpw-wx__zipLabel">ZIP</label>
           <input
             id="weatherZip"
             type="text"
             inputmode="numeric"
             pattern="[0-9]{5}"
             maxlength="5"
-            class="form-control form-control-sm"
-            style="width: 110px;"
+            class="form-control form-control-sm fpw-wx__zipInput"
             value="34652"
             aria-describedby="weatherZipHelp"
           />
           <div id="weatherZipHelp" class="form-text small">Temp (not saved)</div>
         </div>
 
-        <button id="weatherRefreshBtn" class="btn btn-sm btn-primary" type="button">
+        <button id="weatherRefreshBtn" class="btn btn-sm btn-primary fpw-wx__updateBtn" type="button">
           Update
         </button>
-      </div>
-    </div>
 
-    <!-- Loading / Error -->
-    <div id="weatherLoading" class="fpw-pill d-none">Loading weather…</div>
-    <div id="weatherError" class="alert alert-warning d-none mb-3" role="alert"></div>
-
-    <!-- Alerts -->
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <div class="small text-white">Active alerts</div>
-      <div class="d-flex gap-2">
-        <a id="weatherDetailsLink" class="btn btn-sm btn-outline-secondary d-none" href="#" target="_blank" rel="noopener">
+        <a id="weatherDetailsLink" class="btn btn-sm btn-outline-secondary fpw-wx__detailsBtn d-none" href="#" target="_blank" rel="noopener">
           Details
         </a>
       </div>
     </div>
 
-    <div id="weatherAlertsEmpty" class="d-none text-white small">
-      No active marine alerts.
-    </div>
+    <!-- Loading / Error -->
+    <div id="weatherLoading" class="fpw-wx__pill d-none">Loading weather…</div>
+    <div id="weatherError" class="alert alert-warning d-none mb-3" role="alert"></div>
 
-    <ul id="weatherAlertsList" class="fpw-alerts__list flex-column">
-      <!-- JS will render alert items here -->
-    </ul>
+    <!-- Main Cockpit -->
+    <div class="fpw-wx__main">
 
-    <hr class="my-3" style="opacity:.15;">
+      <!-- Wind Dial (Hero) -->
+      <div class="fpw-wx__panel fpw-wx__wind">
+        <div class="fpw-wx__panelHeader">
+          <div class="fpw-wx__panelTitle">Wind</div>
+          <div class="fpw-wx__panelMeta">
+            <span id="weatherNowWhen" class="fpw-wx__muted">Now</span>
+          </div>
+        </div>
 
-    <!-- Forecast -->
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <div class="small text-muted">Forecast (next periods)</div>
-      <div class="d-flex gap-2 small text-muted">
-        <span id="weatherHiLo"></span>
-        <span id="weatherAnchorMeta"></span>
+        <div class="fpw-wx__dial" role="img" aria-label="Wind direction and speed">
+          <div class="fpw-wx__compass">
+            <div class="fpw-wx__compassTicks" aria-hidden="true"></div>
+            <div id="weatherWindNeedle" class="fpw-wx__needle" style="--dir: 0deg;"></div>
+            <div id="weatherGustHalo" class="fpw-wx__gustHalo" aria-hidden="true"></div>
+
+            <div class="fpw-wx__dialCenter">
+              <div id="weatherWindSpeed" class="fpw-wx__dialSpeed">—</div>
+              <div class="fpw-wx__dialSub">
+                <span id="weatherWindDir" class="fpw-wx__dialDir">—</span>
+                <span class="fpw-wx__sep">•</span>
+                <span id="weatherWindGust" class="fpw-wx__dialGust">Gust —</span>
+              </div>
+              <div id="weatherWindCond" class="fpw-wx__dialCond">—</div>
+            </div>
+
+            <div class="fpw-wx__cardinals" aria-hidden="true">
+              <span class="n">N</span><span class="e">E</span><span class="s">S</span><span class="w">W</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="fpw-wx__miniRow">
+          <div class="fpw-wx__miniStat">
+            <div class="fpw-wx__miniLabel">Risk</div>
+            <div id="weatherRiskLabel" class="fpw-wx__miniValue">—</div>
+          </div>
+          <div class="fpw-wx__miniStat">
+            <div class="fpw-wx__miniLabel">Alerts</div>
+            <div id="weatherAlertLabel" class="fpw-wx__miniValue">—</div>
+          </div>
+        </div>
       </div>
+
+      <!-- Risk Timeline -->
+      <div class="fpw-wx__panel fpw-wx__timeline">
+        <div class="fpw-wx__panelHeader">
+          <div class="fpw-wx__panelTitle">Next 12 periods</div>
+          <div class="fpw-wx__panelMeta">
+            <span id="weatherHiLo" class="fpw-wx__muted"></span>
+            <span id="weatherPlanPill" class="fpw-wx__pill d-none">Plan window: —</span>
+          </div>
+        </div>
+
+        <div class="fpw-wx__timelineGrid">
+          <div class="fpw-wx__timelineLegend">
+            <div><span class="swatch wind"></span>Wind</div>
+            <div><span class="swatch gust"></span>Gust</div>
+            <div><span class="swatch rain"></span>Rain</div>
+            <div><span class="swatch alert"></span>Alerts</div>
+          </div>
+
+          <div class="fpw-wx__timelineBars" aria-label="Risk timeline">
+            <div class="fpw-wx__timelineStage">
+              <div id="weatherPlanOverlay" class="fpw-wx__planOverlay d-none" aria-hidden="true"></div>
+              <div id="weatherTimeline" class="fpw-wx__bars"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="weatherAlertsEmpty" class="fpw-wx__alertsEmpty d-none">
+          No active marine alerts.
+        </div>
+
+        <ul id="weatherAlertsList" class="fpw-wx__alertsList">
+          <!-- JS renders alert items (max 2) -->
+        </ul>
+      </div>
+
     </div>
 
-    <div id="weatherForecastEmpty" class="d-none text-muted small">
-      Forecast temporarily unavailable for this location.
+    <!-- Instruments -->
+    <div class="fpw-wx__instruments">
+
+      <!-- Temp Arc -->
+      <div class="fpw-wx__gauge fpw-wx__temp" style="--pct: 50;">
+        <div class="fpw-wx__gaugeTop">
+          <div class="fpw-wx__gaugeLabel">Temp</div>
+          <div id="weatherTempValue" class="fpw-wx__gaugeValue">—</div>
+        </div>
+        <div class="fpw-wx__arc" aria-hidden="true"></div>
+        <div class="fpw-wx__arcLabels" aria-hidden="true">
+          <span id="weatherTempLoLabel" class="fpw-wx__arcLo">—</span>
+          <span id="weatherTempHiLabel" class="fpw-wx__arcHi">—</span>
+        </div>
+        <div class="fpw-wx__gaugeFoot">
+          <span id="weatherTempHiLo" class="fpw-wx__muted">—</span>
+        </div>
+      </div>
+
+      <!-- Gust Spikes -->
+      <div class="fpw-wx__gauge fpw-wx__gusts">
+        <div class="fpw-wx__gaugeTop">
+          <div class="fpw-wx__gaugeLabel">Gusts</div>
+          <div id="weatherGustValue" class="fpw-wx__gaugeValue">—</div>
+        </div>
+        <div class="fpw-wx__spikes" aria-label="Gust spikes">
+          <div id="weatherGustSpikes" class="fpw-wx__spikeBars"></div>
+          <div id="weatherGustLabels" class="fpw-wx__spikeLabels" aria-hidden="true"></div>
+        </div>
+        <div class="fpw-wx__gaugeFoot fpw-wx__muted">Estimated from forecast wind range for next 12 hours</div>
+      </div>
+
+      <!-- Pressure Trend (placeholder unless your API provides it later) -->
+      <div class="fpw-wx__gauge fpw-wx__pressure">
+        <div class="fpw-wx__gaugeTop">
+          <div class="fpw-wx__gaugeLabel">Pressure</div>
+          <div id="weatherPressureValue" class="fpw-wx__gaugeValue">—</div>
+        </div>
+        <div class="fpw-wx__trend">
+          <span id="weatherPressureTrend" class="fpw-wx__trendPill neutral">—</span>
+        </div>
+        <div class="fpw-wx__gaugeFoot fpw-wx__muted">Hook later to buoy/station data</div>
+      </div>
+
+      <!-- Visibility (placeholder unless your API provides it later) -->
+      <div class="fpw-wx__gauge fpw-wx__vis">
+        <div class="fpw-wx__gaugeTop">
+          <div class="fpw-wx__gaugeLabel">Visibility</div>
+          <div id="weatherVisValue" class="fpw-wx__gaugeValue">—</div>
+        </div>
+        <div class="fpw-wx__meter" aria-hidden="true">
+          <div id="weatherVisFill" class="fpw-wx__meterFill" style="width: 60%;"></div>
+        </div>
+        <div class="fpw-wx__gaugeFoot fpw-wx__muted">Hook later to METAR/marine obs</div>
+      </div>
+
     </div>
 
-    <div id="weatherForecastBody" class="d-flex flex-nowrap gap-2 overflow-auto">
-      <!-- JS will render forecast cards here -->
-    </div>
-
-    <!-- Optional: radar toggle placeholder (wire later to Leaflet/nowCOAST WMS) -->
-    <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
-      <button id="weatherRadarToggle" class="btn btn-sm btn-outline-secondary" type="button" disabled>
-        Radar overlay (coming soon)
-      </button>
-      <span class="small text-muted">Marine overlays will integrate into the map view next.</span>
+    <!-- Confidence -->
+    <div class="fpw-wx__confidence">
+      <div class="fpw-wx__confidenceLabel">Forecast confidence</div>
+      <div class="fpw-wx__confidenceBarWrap" aria-hidden="true">
+        <div id="weatherConfidenceBar" class="fpw-wx__confidenceBar high" style="width: 82%;"></div>
+      </div>
+      <div id="weatherConfidenceText" class="fpw-wx__confidenceText">High</div>
     </div>
 
   </section>
