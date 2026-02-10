@@ -321,6 +321,12 @@
             var waterDays       = trim(pickValue(floatPlan, ["waterDaysPerPerson", "WATER_DAYS_PER_PERSON"], ""));
             var notes           = trim(pickValue(floatPlan, ["notes", "NOTES"], ""));
             var doNotSend       = booleanValue(pickValue(floatPlan, ["doNotSend", "DO_NOT_SEND"], false));
+            var departureTimeUtc = "";
+            var returnTimeUtc = "";
+            var departureTzStore = departureTz;
+            var returnTzStore = returnTz;
+            var departureSourceTz = departureTz;
+            var returnSourceTz = returnTz;
 
             if (NOT len(planName)) {
                 result.ERROR = "VALIDATION";
@@ -337,6 +343,44 @@
             var ds = "fpw";
 
             planName = ensureUniquePlanName(arguments.userId, planId, planName, ds);
+
+            if (len(departureTime)) {
+                if (NOT len(departureTz)) {
+                    result.ERROR = "VALIDATION";
+                    result.MESSAGE = "Departure time zone is required when departure time is provided.";
+                    return result;
+                }
+                departureTimeUtc = toUtcTimestamp(
+                    localDateTime = departureTime,
+                    sourceTimeZone = departureTz,
+                    datasource = ds
+                );
+                if (NOT isDate(departureTimeUtc)) {
+                    result.ERROR = "VALIDATION";
+                    result.MESSAGE = "Invalid departure time or timezone.";
+                    return result;
+                }
+                departureTzStore = "UTC";
+            }
+
+            if (len(returnTime)) {
+                if (NOT len(returnTz)) {
+                    result.ERROR = "VALIDATION";
+                    result.MESSAGE = "Return time zone is required when return time is provided.";
+                    return result;
+                }
+                returnTimeUtc = toUtcTimestamp(
+                    localDateTime = returnTime,
+                    sourceTimeZone = returnTz,
+                    datasource = ds
+                );
+                if (NOT isDate(returnTimeUtc)) {
+                    result.ERROR = "VALIDATION";
+                    result.MESSAGE = "Invalid return time or timezone.";
+                    return result;
+                }
+                returnTzStore = "UTC";
+            }
 
             transaction {
                 if (planId LTE 0) {
@@ -355,9 +399,11 @@
                             departing,
                             departureTime,
                             departTimezone,
+                            departureTZ,
                             returning,
                             returnTime,
                             returnTimezone,
+                            returnTZ,
                             food,
                             water,
                             notes,
@@ -379,9 +425,11 @@
                             :departingFrom,
                             :departureTime,
                             :departureTz,
+                            :departureSourceTz,
                             :returningTo,
                             :returnTime,
                             :returnTz,
+                            :returnSourceTz,
                             :foodDays,
                             :waterDays,
                             :notes,
@@ -400,11 +448,13 @@
                         rescuePhone = { value = rescuePhone, cfsqltype = "cf_sql_varchar", null = NOT len(rescuePhone) },
                         rescueCenterId = { value = rescueCenterId, cfsqltype = "cf_sql_integer", null = (rescueCenterId LTE 0) },
                         departingFrom = { value = departingFrom, cfsqltype = "cf_sql_varchar", null = NOT len(departingFrom) },
-                        departureTime = { value = departureTime, cfsqltype = "cf_sql_timestamp", null = NOT len(departureTime) },
-                        departureTz = { value = departureTz, cfsqltype = "cf_sql_varchar", null = NOT len(departureTz) },
+                        departureTime = { value = departureTimeUtc, cfsqltype = "cf_sql_timestamp", null = NOT isDate(departureTimeUtc) },
+                        departureTz = { value = departureTzStore, cfsqltype = "cf_sql_varchar", null = NOT len(departureTzStore) },
+                        departureSourceTz = { value = departureSourceTz, cfsqltype = "cf_sql_varchar", null = NOT len(departureSourceTz) },
                         returningTo = { value = returningTo, cfsqltype = "cf_sql_varchar", null = NOT len(returningTo) },
-                        returnTime = { value = returnTime, cfsqltype = "cf_sql_timestamp", null = NOT len(returnTime) },
-                        returnTz = { value = returnTz, cfsqltype = "cf_sql_varchar", null = NOT len(returnTz) },
+                        returnTime = { value = returnTimeUtc, cfsqltype = "cf_sql_timestamp", null = NOT isDate(returnTimeUtc) },
+                        returnTz = { value = returnTzStore, cfsqltype = "cf_sql_varchar", null = NOT len(returnTzStore) },
+                        returnSourceTz = { value = returnSourceTz, cfsqltype = "cf_sql_varchar", null = NOT len(returnSourceTz) },
                         foodDays = { value = foodDays, cfsqltype = "cf_sql_varchar", null = NOT len(foodDays) },
                         waterDays = { value = waterDays, cfsqltype = "cf_sql_varchar", null = NOT len(waterDays) },
                         notes = { value = notes, cfsqltype = "cf_sql_varchar", null = NOT len(notes) },
@@ -427,9 +477,11 @@
                                departing           = :departingFrom,
                                departureTime       = :departureTime,
                                departTimezone      = :departureTz,
+                               departureTZ         = :departureSourceTz,
                                returning           = :returningTo,
                                returnTime          = :returnTime,
                                returnTimezone      = :returnTz,
+                               returnTZ            = :returnSourceTz,
                                food                = :foodDays,
                                water               = :waterDays,
                                notes               = :notes,
@@ -448,11 +500,13 @@
                         rescuePhone = { value = rescuePhone, cfsqltype = "cf_sql_varchar", null = NOT len(rescuePhone) },
                         rescueCenterId = { value = rescueCenterId, cfsqltype = "cf_sql_integer", null = (rescueCenterId LTE 0) },
                         departingFrom = { value = departingFrom, cfsqltype = "cf_sql_varchar", null = NOT len(departingFrom) },
-                        departureTime = { value = departureTime, cfsqltype = "cf_sql_timestamp", null = NOT len(departureTime) },
-                        departureTz = { value = departureTz, cfsqltype = "cf_sql_varchar", null = NOT len(departureTz) },
+                        departureTime = { value = departureTimeUtc, cfsqltype = "cf_sql_timestamp", null = NOT isDate(departureTimeUtc) },
+                        departureTz = { value = departureTzStore, cfsqltype = "cf_sql_varchar", null = NOT len(departureTzStore) },
+                        departureSourceTz = { value = departureSourceTz, cfsqltype = "cf_sql_varchar", null = NOT len(departureSourceTz) },
                         returningTo = { value = returningTo, cfsqltype = "cf_sql_varchar", null = NOT len(returningTo) },
-                        returnTime = { value = returnTime, cfsqltype = "cf_sql_timestamp", null = NOT len(returnTime) },
-                        returnTz = { value = returnTz, cfsqltype = "cf_sql_varchar", null = NOT len(returnTz) },
+                        returnTime = { value = returnTimeUtc, cfsqltype = "cf_sql_timestamp", null = NOT isDate(returnTimeUtc) },
+                        returnTz = { value = returnTzStore, cfsqltype = "cf_sql_varchar", null = NOT len(returnTzStore) },
+                        returnSourceTz = { value = returnSourceTz, cfsqltype = "cf_sql_varchar", null = NOT len(returnSourceTz) },
                         foodDays = { value = foodDays, cfsqltype = "cf_sql_varchar", null = NOT len(foodDays) },
                         waterDays = { value = waterDays, cfsqltype = "cf_sql_varchar", null = NOT len(waterDays) },
                         notes = { value = notes, cfsqltype = "cf_sql_varchar", null = NOT len(notes) },
@@ -640,10 +694,52 @@
             var returningTo = trim(pickValue(planData, ["RETURNING_TO"], ""));
             var returnTime = trim(pickValue(planData, ["RETURN_TIME"], ""));
             var returnTz = trim(pickValue(planData, ["RETURN_TIMEZONE"], ""));
+            var departureTimeUtc = "";
+            var returnTimeUtc = "";
+            var departureTzStore = departureTz;
+            var returnTzStore = returnTz;
+            var departureSourceTz = departureTz;
+            var returnSourceTz = returnTz;
             var foodDays = trim(pickValue(planData, ["FOOD_DAYS_PER_PERSON"], ""));
             var waterDays = trim(pickValue(planData, ["WATER_DAYS_PER_PERSON"], ""));
             var notes = trim(pickValue(planData, ["NOTES"], ""));
             var status = "Draft";
+
+            if (len(departureTime)) {
+                if (len(departureTz)) {
+                    departureTimeUtc = toUtcTimestamp(
+                        localDateTime = departureTime,
+                        sourceTimeZone = departureTz,
+                        datasource = ds
+                    );
+                    if (NOT isDate(departureTimeUtc)) {
+                        result.ERROR = "INVALID_DEPARTURE_TIME";
+                        result.MESSAGE = "Unable to convert departure time to UTC for clone.";
+                        return result;
+                    }
+                    departureTzStore = "UTC";
+                } else {
+                    departureTimeUtc = departureTime;
+                }
+            }
+
+            if (len(returnTime)) {
+                if (len(returnTz)) {
+                    returnTimeUtc = toUtcTimestamp(
+                        localDateTime = returnTime,
+                        sourceTimeZone = returnTz,
+                        datasource = ds
+                    );
+                    if (NOT isDate(returnTimeUtc)) {
+                        result.ERROR = "INVALID_RETURN_TIME";
+                        result.MESSAGE = "Unable to convert return time to UTC for clone.";
+                        return result;
+                    }
+                    returnTzStore = "UTC";
+                } else {
+                    returnTimeUtc = returnTime;
+                }
+            }
 
             transaction {
                 queryExecute("
@@ -661,9 +757,11 @@
                         departing,
                         departureTime,
                         departTimezone,
+                        departureTZ,
                         returning,
                         returnTime,
                         returnTimezone,
+                        returnTZ,
                         food,
                         water,
                         notes,
@@ -689,9 +787,11 @@
                         :departingFrom,
                         :departureTime,
                         :departureTz,
+                        :departureSourceTz,
                         :returningTo,
                         :returnTime,
                         :returnTz,
+                        :returnSourceTz,
                         :foodDays,
                         :waterDays,
                         :notes,
@@ -714,11 +814,13 @@
                     rescuePhone = { value = rescuePhone, cfsqltype = "cf_sql_varchar", null = NOT len(rescuePhone) },
                     rescueCenterId = { value = rescueCenterId, cfsqltype = "cf_sql_integer", null = (rescueCenterId LTE 0) },
                     departingFrom = { value = departingFrom, cfsqltype = "cf_sql_varchar", null = NOT len(departingFrom) },
-                    departureTime = { value = departureTime, cfsqltype = "cf_sql_timestamp", null = NOT len(departureTime) },
-                    departureTz = { value = departureTz, cfsqltype = "cf_sql_varchar", null = NOT len(departureTz) },
+                    departureTime = { value = departureTimeUtc, cfsqltype = "cf_sql_timestamp", null = NOT isDate(departureTimeUtc) },
+                    departureTz = { value = departureTzStore, cfsqltype = "cf_sql_varchar", null = NOT len(departureTzStore) },
+                    departureSourceTz = { value = departureSourceTz, cfsqltype = "cf_sql_varchar", null = NOT len(departureSourceTz) },
                     returningTo = { value = returningTo, cfsqltype = "cf_sql_varchar", null = NOT len(returningTo) },
-                    returnTime = { value = returnTime, cfsqltype = "cf_sql_timestamp", null = NOT len(returnTime) },
-                    returnTz = { value = returnTz, cfsqltype = "cf_sql_varchar", null = NOT len(returnTz) },
+                    returnTime = { value = returnTimeUtc, cfsqltype = "cf_sql_timestamp", null = NOT isDate(returnTimeUtc) },
+                    returnTz = { value = returnTzStore, cfsqltype = "cf_sql_varchar", null = NOT len(returnTzStore) },
+                    returnSourceTz = { value = returnSourceTz, cfsqltype = "cf_sql_varchar", null = NOT len(returnSourceTz) },
                     foodDays = { value = foodDays, cfsqltype = "cf_sql_varchar", null = NOT len(foodDays) },
                     waterDays = { value = waterDays, cfsqltype = "cf_sql_varchar", null = NOT len(waterDays) },
                     notes = { value = notes, cfsqltype = "cf_sql_varchar", null = NOT len(notes) },
@@ -847,6 +949,7 @@
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
             var result = { SUCCESS = false };
+            var allowedStatuses = "ACTIVE,OVERDUE,DUE_NOW,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H";
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
                 result.MESSAGE = "Float plan id is required.";
@@ -862,7 +965,7 @@
                     lastUpdateStatus = UTC_TIMESTAMP()
                 WHERE floatplanId = :planId
                   AND userId = :userId
-                  AND UPPER(TRIM(`status`)) IN ('ACTIVE', 'OVERDUE')
+                  AND UPPER(TRIM(`status`)) IN (#listQualify(allowedStatuses, "'")#)
             ", {
                 planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                 userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
@@ -895,9 +998,11 @@
                     departing,
                     departureTime,
                     departTimezone,
+                    departureTZ,
                     returning,
                     returnTime,
                     returnTimezone,
+                    returnTZ,
                     food,
                     water,
                     notes,
@@ -912,6 +1017,44 @@
             }, { datasource = "fpw" });
 
             if (qPlan.recordCount EQ 1) {
+                var departureDisplayTz = trim(toString(qPlan.departureTZ[1]));
+                if (!len(departureDisplayTz)) {
+                    departureDisplayTz = trim(toString(qPlan.departTimezone[1]));
+                }
+
+                var returnDisplayTz = trim(toString(qPlan.returnTZ[1]));
+                if (!len(returnDisplayTz)) {
+                    returnDisplayTz = trim(toString(qPlan.returnTimezone[1]));
+                }
+
+                var departureDisplayTime = qPlan.departureTime[1];
+                if (
+                    isDate(departureDisplayTime)
+                    AND ucase(trim(toString(qPlan.departTimezone[1]))) EQ "UTC"
+                    AND len(departureDisplayTz)
+                    AND ucase(departureDisplayTz) NEQ "UTC"
+                ) {
+                    departureDisplayTime = fromUtcTimestamp(
+                        utcDateTime = departureDisplayTime,
+                        targetTimeZone = departureDisplayTz,
+                        datasource = "fpw"
+                    );
+                }
+
+                var returnDisplayTime = qPlan.returnTime[1];
+                if (
+                    isDate(returnDisplayTime)
+                    AND ucase(trim(toString(qPlan.returnTimezone[1]))) EQ "UTC"
+                    AND len(returnDisplayTz)
+                    AND ucase(returnDisplayTz) NEQ "UTC"
+                ) {
+                    returnDisplayTime = fromUtcTimestamp(
+                        utcDateTime = returnDisplayTime,
+                        targetTimeZone = returnDisplayTz,
+                        datasource = "fpw"
+                    );
+                }
+
                 planStruct = {
                     FLOATPLANID          = qPlan.floatplanId,
                     USERID               = qPlan.userId,
@@ -924,11 +1067,11 @@
                     RESCUE_AUTHORITY_PHONE = qPlan.rescueAuthorityPhone,
                     RESCUE_CENTERID      = qPlan.rescueCenterId,
                     DEPARTING_FROM       = qPlan.departing,
-                    DEPARTURE_TIME       = qPlan.departureTime,
-                    DEPARTURE_TIMEZONE   = qPlan.departTimezone,
+                    DEPARTURE_TIME       = departureDisplayTime,
+                    DEPARTURE_TIMEZONE   = departureDisplayTz,
                     RETURNING_TO         = qPlan.returning,
-                    RETURN_TIME          = qPlan.returnTime,
-                    RETURN_TIMEZONE      = qPlan.returnTimezone,
+                    RETURN_TIME          = returnDisplayTime,
+                    RETURN_TIMEZONE      = returnDisplayTz,
                     FOOD_DAYS_PER_PERSON = qPlan.food,
                     WATER_DAYS_PER_PERSON= qPlan.water,
                     NOTES                = qPlan.notes,
@@ -1136,10 +1279,21 @@
                 return result;
             }
 
-            var nowQuery = queryExecute("SELECT UTC_TIMESTAMP() AS nowUtc", {}, { datasource = "fpw" });
-            var nowUtc = nowQuery.nowUtc[1];
+            var timeQuery = queryExecute("
+                SELECT
+                    NOW() AS nowLocal,
+                    COALESCE(
+                        CONVERT_TZ(:returnTime, NULLIF(:returnTz, ''), @@session.time_zone),
+                        :returnTime
+                    ) AS returnLocal
+            ", {
+                returnTime = { value = plan.RETURN_TIME, cfsqltype = "cf_sql_timestamp" },
+                returnTz = { value = plan.RETURN_TIMEZONE, cfsqltype = "cf_sql_varchar", null = NOT len(plan.RETURN_TIMEZONE) }
+            }, { datasource = "fpw" });
+            var nowLocal = timeQuery.nowLocal[1];
+            var returnLocal = timeQuery.returnLocal[1];
 
-            if (dateCompare(nowUtc, plan.RETURN_TIME) GTE 0) {
+            if (dateCompare(nowLocal, returnLocal) GTE 0) {
                 result.ERROR = "RETURN_TIME_PAST";
                 result.MESSAGE = "Return time must be in the future before sending a float plan.";
                 return result;
@@ -1398,6 +1552,69 @@
                 });
             }
             return waypoints;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeTimestampInput" access="private" returntype="string" output="false">
+        <cfargument name="value" required="true">
+        <cfscript>
+            var normalized = trim(toString(arguments.value));
+            if (NOT len(normalized)) {
+                return "";
+            }
+            normalized = replace(normalized, "T", " ", "all");
+            normalized = reReplace(normalized, "\.\d+$", "", "one");
+            if (reFind("^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$", normalized)) {
+                normalized &= ":00";
+            }
+            return normalized;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="toUtcTimestamp" access="private" returntype="any" output="false">
+        <cfargument name="localDateTime" type="string" required="true">
+        <cfargument name="sourceTimeZone" type="string" required="true">
+        <cfargument name="datasource" type="string" required="true">
+        <cfscript>
+            var normalizedInput = normalizeTimestampInput(arguments.localDateTime);
+            if (NOT len(normalizedInput) OR NOT len(trim(arguments.sourceTimeZone))) {
+                return "";
+            }
+
+            var qUtc = queryExecute("
+                SELECT CONVERT_TZ(:localDateTime, :sourceTimeZone, 'UTC') AS utcDateTime
+            ", {
+                localDateTime = { value = normalizedInput, cfsqltype = "cf_sql_timestamp" },
+                sourceTimeZone = { value = trim(arguments.sourceTimeZone), cfsqltype = "cf_sql_varchar" }
+            }, { datasource = arguments.datasource });
+
+            if (qUtc.recordCount EQ 0 OR isNull(qUtc.utcDateTime[1])) {
+                return "";
+            }
+            return qUtc.utcDateTime[1];
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="fromUtcTimestamp" access="private" returntype="any" output="false">
+        <cfargument name="utcDateTime" required="true">
+        <cfargument name="targetTimeZone" type="string" required="true">
+        <cfargument name="datasource" type="string" required="true">
+        <cfscript>
+            if (!isDate(arguments.utcDateTime) OR NOT len(trim(arguments.targetTimeZone))) {
+                return arguments.utcDateTime;
+            }
+
+            var qLocal = queryExecute("
+                SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
+            ", {
+                utcDateTime = { value = arguments.utcDateTime, cfsqltype = "cf_sql_timestamp" },
+                targetTimeZone = { value = trim(arguments.targetTimeZone), cfsqltype = "cf_sql_varchar" }
+            }, { datasource = arguments.datasource });
+
+            if (qLocal.recordCount EQ 0 OR isNull(qLocal.localDateTime[1])) {
+                return arguments.utcDateTime;
+            }
+            return qLocal.localDateTime[1];
         </cfscript>
     </cffunction>
 

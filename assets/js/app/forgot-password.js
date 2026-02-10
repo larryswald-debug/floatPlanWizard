@@ -2,19 +2,18 @@
 (function (window, document) {
   "use strict";
 
-  var BASE_PATH = window.FPW_BASE || "";
-  var API_BASE = window.FPW_API_BASE || (BASE_PATH + "/api/v1");
-
-  function $(id) { return document.getElementById(id); }
-
-  function showAlert(msg, type) {
-    var el = $("fpAlert");
-    if (!el) return;
-
-    el.classList.remove("d-none", "alert-success", "alert-danger", "alert-info", "alert-warning");
-    el.classList.add("alert-" + (type || "info"));
-    el.textContent = msg;
+  var AuthUtils = window.FPW && window.FPW.AuthUtils;
+  if (!AuthUtils) {
+    console.error("forgot-password.js: auth-utils not loaded");
+    return;
   }
+
+  var BASE_PATH = AuthUtils.BASE_PATH;
+  var API_BASE = AuthUtils.API_BASE;
+  var $ = AuthUtils.$;
+  var showAlert = function (msg, type) {
+    AuthUtils.showAlert("fpAlert", msg, type);
+  };
 
   function showDevLink(url) {
     var wrap = $("devLinkWrap");
@@ -26,42 +25,8 @@
     link.href = url;
   }
 
-  // Tries to pull a value from multiple possible key names
-  function pick(obj, keys) {
-    if (!obj) return null;
-    for (var i = 0; i < keys.length; i++) {
-      var k = keys[i];
-      if (obj[k] !== undefined && obj[k] !== null && String(obj[k]).length) {
-        return obj[k];
-      }
-    }
-    return null;
-  }
-
-  async function fetchJson(url, options) {
-    options = options || {};
-    var res = await fetch(url, {
-      method: options.method || "GET",
-      headers: options.headers || {},
-      body: options.body,
-      credentials: "include"
-    });
-
-    var txt = await res.text();
-    var data;
-    try {
-      data = txt ? JSON.parse(txt) : {};
-    } catch (e) {
-      throw { MESSAGE: "Non-JSON response from API", RAW: txt, status: res.status };
-    }
-
-    if (!res.ok) {
-      data.status = res.status;
-      throw data;
-    }
-
-    return data;
-  }
+  var pick = AuthUtils.pick;
+  var fetchJson = AuthUtils.fetchJson;
 
   function resolveResetUrl(data) {
     // Accept many possible key spellings/casing
@@ -119,6 +84,7 @@
         var data = await fetchJson(API_BASE + "/password_reset.cfc?method=handle", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          strictSuccess: false,
           body: JSON.stringify({ action: "request", email: email })
         });
 

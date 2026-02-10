@@ -32,7 +32,7 @@
       window.AppAuth.redirectToLogin();
       return;
     }
-    window.location.href = BASE_PATH + "/app/login.cfm";
+    window.location.href = BASE_PATH + "/index.cfm";
   }
 
   function populateHomePort(home) {

@@ -1,42 +1,59 @@
-component {
+<!--- /Application.cfc (TAGS ONLY) --->
+<cfcomponent output="false" hint="FloatPlanWizard Application.cfc">
 
-    this.name               = "MobileAppExample_FPW";
-    this.applicationTimeout = createTimeSpan(1, 0, 0, 0); // 1 day
-    this.sessionManagement  = true;
-    this.sessionTimeout     = createTimeSpan(0, 1, 0, 0); // 1 hour
-    this.setClientCookies   = true;
+    <!--- ===== APP SETTINGS ===== --->
+    <cfset this.name               = "FPW">
+    <cfset this.applicationTimeout = createTimeSpan(7,0,0,0)>
+    <cfset this.sessionManagement  = true>
+    <cfset this.sessionTimeout     = createTimeSpan(0,4,0,0)>
+    <cfset this.setClientCookies   = true>
+    <cfset this.clientManagement   = false>
+    <cfset this.sessionType        = "j2ee">
 
-    this.scriptProtect      = "all";
-    this.clientManagement   = false;
-    this.loginStorage       = "session";
+    <!--- ===== DATASOURCE (SET ONLY IF NOT ALREADY DEFINED) ===== --->
+    <cfif NOT structKeyExists(this, "fpw") OR NOT len(trim(this.datasource))>
+        <cfset this.DSN = "fpw">
+    </cfif>
 
-    public boolean function onRequestStart( string targetPage ) {
-        cfsetting( showdebugoutput = true );
-        var normalizedTarget = "/" & lcase( replace( targetPage, "\", "/", "all" ) );
-        var isAppPage = left( normalizedTarget, len( "/app/" ) ) EQ "/app/";
-        var publicAppPages = [
-            "/app/login.cfm",
-            "/app/forgot-password.cfm",
-            "/app/reset-password.cfm"
-        ];
+    <!--- ===== PER-APP DEFAULTS ===== --->
+    <cffunction name="onApplicationStart" access="public" returntype="boolean" output="false">
+        <!--- Monitor token used by /api/v1/monitor.cfc --->
+        <cfset application.monitorToken = "abc123">
 
-        if (
-            isAppPage
-            AND arrayFind( publicAppPages, normalizedTarget ) EQ 0
-            AND (
-                NOT structKeyExists( session, "user" )
-                OR NOT structKeyExists( session.user, "userId" )
-            )
-        ) {
-            location( url = "/fpw/app/login.cfm", addToken = false );
-        }
+        <!--- Optional: environment flag --->
+        <cfset application.env = "dev">
+        <cfset application.DSN = "fpw">
 
-        return true;
-    }
+        <!--- Optional: app-level settings struct --->
+        <cfset application.settings = {
+            "monitorToken" = application.monitorToken,
+            "env" = application.env
+        }>
 
-    public void function onError( any exception, string eventName ) {
-        writeOutput("<h1>Application Error</h1>");
-        writeOutput("<p>#encodeForHTML(exception.message)#</p>");
-        // TODO: log to file in real usage
-    }
-}
+        <cfreturn true>
+    </cffunction>
+
+    <cffunction name="onRequestStart" access="public" returntype="boolean" output="false">
+        <!--- Allow a manual restart in dev --->
+        <cfif structKeyExists(url, "appReload") AND url.appReload EQ 1>
+            <cflock scope="application" type="exclusive" timeout="10">
+                <cfset onApplicationStart()>
+            </cflock>
+        </cfif>
+
+        <cfreturn true>
+    </cffunction>
+
+    <cffunction name="onError" access="public" returntype="void" output="false">
+        <cfargument name="exception" type="any" required="true">
+        <cfargument name="eventName" type="string" required="true">
+
+        <cfcontent type="text/plain; charset=utf-8">
+        <cfoutput>
+ERROR in #arguments.eventName#
+#toString(arguments.exception.message)#
+#toString(arguments.exception.detail)#
+        </cfoutput>
+    </cffunction>
+
+</cfcomponent>

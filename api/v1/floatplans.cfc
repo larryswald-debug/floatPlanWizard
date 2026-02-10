@@ -83,7 +83,11 @@
                     fp.floatPlanName,
                     fp.status,
                     fp.departureTime,
+                    fp.departTimezone,
+                    fp.departureTZ,
                     fp.returnTime,
+                    fp.returnTimezone,
+                    fp.returnTZ,
                     fp.vesselId,
                     fp.dateCreated,
                     fp.lastUpdate,
@@ -111,7 +115,9 @@
                     PLANNAME       = qPlans.floatPlanName,
                     STATUS         = qPlans.status,
                     DEPARTDATETIME = qPlans.departureTime,
+                    DEPARTURE_TIMEZONE = len(trim(toString(qPlans.departureTZ))) ? qPlans.departureTZ : qPlans.departTimezone,
                     RETURNDATETIME = qPlans.returnTime,
+                    RETURN_TIMEZONE = len(trim(toString(qPlans.returnTZ))) ? qPlans.returnTZ : qPlans.returnTimezone,
                     VESSELID       = qPlans.vesselId,
                     VESSELNAME     = qPlans.vesselName,
                     CREATEDDATE    = qPlans.dateCreated,
@@ -175,7 +181,7 @@
                 SET status = 'OVERDUE'
                 WHERE UPPER(TRIM(status)) = 'ACTIVE'
                   AND (
-                        (returnTime IS NOT NULL AND returnTime < NOW())
+                        (returnTime IS NOT NULL AND COALESCE(CONVERT_TZ(returnTime, NULLIF(returnTimezone, ''), @@session.time_zone), returnTime) < NOW())
                      OR (checkedInAt IS NOT NULL AND checkedInAt < DATE_SUB(NOW(), INTERVAL <cfqueryparam cfsqltype="cf_sql_integer" value="#variables.CHECKIN_INTERVAL_MINUTES#"> MINUTE))
                   )
             </cfquery>
@@ -259,22 +265,32 @@
                     TIMESTAMPDIFF(MINUTE, fp.checkedInAt, NOW()) AS minutesSinceCheckIn,
                     CASE
                         WHEN fp.returnTime IS NULL THEN NULL
-                        WHEN UPPER(TRIM(fp.status)) = 'OVERDUE' THEN GREATEST(TIMESTAMPDIFF(MINUTE, fp.returnTime, NOW()), 0)
+                        WHEN UPPER(TRIM(fp.status)) IN ('OVERDUE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H') THEN GREATEST(
+                            TIMESTAMPDIFF(
+                                MINUTE,
+                                COALESCE(CONVERT_TZ(fp.returnTime, NULLIF(fp.returnTimezone, ''), @@session.time_zone), fp.returnTime),
+                                NOW()
+                            ),
+                            0
+                        )
                         ELSE 0
                     END AS minutesOverdue,
                     CASE
-                        WHEN UPPER(TRIM(fp.status)) = 'OVERDUE'
+                        WHEN UPPER(TRIM(fp.status)) IN ('OVERDUE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H')
                          AND fp.returnTime IS NOT NULL
-                         AND NOW() > DATE_ADD(fp.returnTime, INTERVAL <cfqueryparam cfsqltype="cf_sql_integer" value="#variables.ESCALATION_DELAY_MINUTES#"> MINUTE)
+                         AND NOW() > DATE_ADD(
+                            COALESCE(CONVERT_TZ(fp.returnTime, NULLIF(fp.returnTimezone, ''), @@session.time_zone), fp.returnTime),
+                            INTERVAL <cfqueryparam cfsqltype="cf_sql_integer" value="#variables.ESCALATION_DELAY_MINUTES#"> MINUTE
+                         )
                         THEN 1
                         ELSE 0
                     END AS isEscalated
                 FROM floatplans fp
                 LEFT JOIN vessels v ON fp.vesselId = v.vesselId
                 WHERE fp.userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
-                  AND UPPER(TRIM(fp.status)) IN ('ACTIVE', 'OVERDUE')
+                  AND UPPER(TRIM(fp.status)) IN ('ACTIVE','OVERDUE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H')
                 ORDER BY
-                    CASE WHEN UPPER(TRIM(fp.status)) = 'OVERDUE' THEN 0 ELSE 1 END,
+                    CASE WHEN UPPER(TRIM(fp.status)) IN ('OVERDUE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H') THEN 0 ELSE 1 END,
                     CASE WHEN fp.returnTime IS NULL THEN 1 ELSE 0 END,
                     fp.returnTime ASC
                 LIMIT <cfqueryparam cfsqltype="cf_sql_integer" value="50">
@@ -293,7 +309,7 @@
 
                 <cfif statusUpper EQ "ACTIVE">
                     <cfset counts.active++>
-                <cfelseif statusUpper EQ "OVERDUE">
+                <cfelseif listFindNoCase("OVERDUE,DUE_NOW,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H", statusUpper) GT 0>
                     <cfset counts.overdue++>
                 </cfif>
                 <cfif qPlans.isEscalated EQ 1>
@@ -340,5 +356,44 @@
 
         <cfsetting enablecfoutputonly="false">
     </cffunction>
+
+    <cffunction name="loadFloatPlanRow" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var row = {};
+            var q = queryExecute("
+                SELECT floatplanId, userId, status, returnTime, returnTimezone,
+                    floatPlanName, departing, returning, departureTime, departTimezone,
+                    rescueAuthority, rescueAuthorityPhone
+                FROM floatplans
+                WHERE floatplanId = :planId AND userId = :userId
+                LIMIT 1
+            ", {
+                planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+            }, { datasource = "fpw" });
+
+            if (q.recordCount EQ 1) {
+                row = {
+                    FLOATPLANID = q.floatplanId[1],
+                    USERID = q.userId[1],
+                    STATUS = q.status[1],
+                    RETURN_TIME = q.returnTime[1],
+                    RETURN_TIMEZONE = q.returnTimezone[1],
+                    NAME = q.floatPlanName[1],
+                    DEPARTING_FROM = q.departing[1],
+                    RETURNING_TO = q.returning[1],
+                    DEPARTURE_TIME = q.departureTime[1],
+                    DEPARTURE_TIMEZONE = q.departTimezone[1],
+                    RESCUE_AUTHORITY = q.rescueAuthority[1],
+                    RESCUE_AUTHORITY_PHONE = q.rescueAuthorityPhone[1]
+                };
+            }
+            return row;
+        </cfscript>
+    </cffunction>
+
+
 
 </cfcomponent>

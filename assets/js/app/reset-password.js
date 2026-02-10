@@ -2,29 +2,19 @@
 (function (window, document) {
   "use strict";
 
-  var BASE_PATH = window.FPW_BASE || "";
-  var API_BASE = window.FPW_API_BASE || (BASE_PATH + "/api/v1");
-
-  function $(id) { return document.getElementById(id); }
-
-  function showAlert(msg, type) {
-    var el = $("rpAlert");
-    el.classList.remove("d-none", "alert-success", "alert-danger", "alert-info", "alert-warning");
-    el.classList.add("alert-" + (type || "info"));
-    el.textContent = msg;
+  var AuthUtils = window.FPW && window.FPW.AuthUtils;
+  if (!AuthUtils) {
+    console.error("reset-password.js: auth-utils not loaded");
+    return;
   }
 
-  async function fetchJson(url, options) {
-    options = options || {};
-    options.credentials = "include";
-    var res = await fetch(url, options);
-    var txt = await res.text();
-    var data;
-    try { data = txt ? JSON.parse(txt) : {}; }
-    catch (e) { throw { MESSAGE: "Non-JSON response", RAW: txt }; }
-    if (!res.ok || data.SUCCESS === false) { throw data; }
-    return data;
-  }
+  var BASE_PATH = AuthUtils.BASE_PATH;
+  var API_BASE = AuthUtils.API_BASE;
+  var $ = AuthUtils.$;
+  var showAlert = function (msg, type) {
+    AuthUtils.showAlert("rpAlert", msg, type);
+  };
+  var fetchJson = AuthUtils.fetchJson;
 
   document.addEventListener("DOMContentLoaded", function () {
     $("resetForm").addEventListener("submit", async function (evt) {

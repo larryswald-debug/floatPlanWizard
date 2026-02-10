@@ -30,7 +30,7 @@
           </form>
 
           <div class="mt-3 d-flex justify-content-between small">
-            <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/login.cfm">Back to Sign In</a>
+            <a href="<cfoutput>#request.fpwBase#</cfoutput>/index.cfm">Back to Sign In</a>
           </div>
 
           <!-- DEV reset link area -->
@@ -45,6 +45,7 @@
   </div>
 </div>
 
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth-utils.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/forgot-password.js"></script>
 </body>
 </html>

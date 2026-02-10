@@ -68,6 +68,30 @@
     });
   }
 
-  document.addEventListener("DOMContentLoaded", initLoginForm);
+  function initLogoutButton() {
+    var logoutBtn = document.getElementById("logoutButton");
+    if (!logoutBtn || !window.Api || typeof window.Api.logout !== "function") {
+      return;
+    }
+
+    logoutBtn.addEventListener("click", function () {
+      Api.logout()
+        .catch(function (err) {
+          console.error("Logout failed:", err);
+        })
+        .finally(function () {
+          if (window.AppAuth && typeof window.AppAuth.redirectToLogin === "function") {
+            window.AppAuth.redirectToLogin();
+          } else {
+            window.location.href = BASE_PATH + "/index.cfm";
+          }
+        });
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    initLoginForm();
+    initLogoutButton();
+  });
 
 })(window, document);

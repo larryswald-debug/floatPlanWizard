@@ -1,0 +1,13 @@
+{
+    "name":"fpw",
+    "version":"0.0.1",
+    "devDependencies":{
+        "testbox":"^6.4.0+17"
+    },
+    "testbox":{
+        "runner":"http://localhost:8500/fpw/tests/runner.cfm"
+    },
+    "installPaths":{
+        "testbox":"testbox/"
+    }
+}
