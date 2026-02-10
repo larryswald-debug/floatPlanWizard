@@ -230,7 +230,7 @@ if (structKeyExists(session, "user") && isStruct(session.user)) {
   .fpwBtn.compact{
     padding: 6px 12px;
     font-size: 13px;
-    line-height: 1.2;
+    line-height: .5;
   }
 
   .d-none{
@@ -277,6 +277,30 @@ if (structKeyExists(session, "user") && isStruct(session.user)) {
     }
   }
 </style>
+<header class="topbar">
+    <div class="wrap">
+      <div class="inner">
+        <div class="brand">
+          <div class="logo" aria-hidden="true"></div>
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <div style="font-size:15px">FloatPlanWizard</div>
+             
+            </div>
+            <div class="tiny">Float plans, check-ins, and overdue alerts — made simple.</div>
+          </div>
+        </div>
+
+        <nav aria-label="Primary">
+          <a href="#features">Features</a>
+          <a href="#how">How it works</a>
+          <a href="#monitoring">Monitoring</a>
+          <a href="#faq">FAQ</a>
+         
+        </nav>
+      </div>
+    </div>
+  </header>
 
 <div class="fpwTopBar">
   <div class="fpwTopBarInner">

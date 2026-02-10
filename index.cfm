@@ -439,30 +439,7 @@
 <body>
 
   <!-- Top Bar -->
-  <header class="topbar">
-    <div class="wrap">
-      <div class="inner">
-        <div class="brand">
-          <div class="logo" aria-hidden="true"></div>
-          <div>
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-              <div style="font-size:15px">FloatPlanWizard</div>
-              <span class="pill"><span class="dot"></span>Spring 2026 Relaunch</span>
-            </div>
-            <div class="tiny">Float plans, check-ins, and overdue alerts — made simple.</div>
-          </div>
-        </div>
-
-        <nav aria-label="Primary">
-          <a href="#features">Features</a>
-          <a href="#how">How it works</a>
-          <a href="#monitoring">Monitoring</a>
-          <a href="#faq">FAQ</a>
-          <a class="btn small primary" href="#signup">Get early access</a>
-        </nav>
-      </div>
-    </div>
-  </header>
+  
 
   <main>
 

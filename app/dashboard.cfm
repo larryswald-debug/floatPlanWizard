@@ -167,7 +167,7 @@
             <div class="fpw-card__header">
                 <div class="fpw-card__title">
                     <span class="fpw-alerts__icon" aria-hidden="true">!</span>
-                    <h2>Dashboard</h2>
+                    <h2>Weather</h2>
                     <button class="fpw-caret collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#alertsCollapse" aria-expanded="false" aria-controls="alertsCollapse">
                         <span class="fpw-caret__icon" aria-hidden="true">></span>
                     </button>
@@ -180,86 +180,99 @@
 
             <div id="alertsCollapse" class="collapse">
                 <div class="fpw-card__body">
-                    <div id="alertsEmpty" class="d-none">No alerts right now.</div>
-                    <ul id="alertsList" class="fpw-alerts__list">
-                    <li class="fpw-alert fpw-alert--critical" data-status="CRITICAL">
-                        <span class="fpw-alert__stripe" aria-hidden="true"></span>
-                        <div class="fpw-alert__main">
-                            <div class="fpw-alert__meta">
-                                <span class="fpw-badge fpw-badge--critical">CRITICAL</span>
-                                <span class="fpw-alert__time">2m ago</span>
-                            </div>
-                            <div class="fpw-alert__title">Return window exceeded</div>
-                            <div class="fpw-alert__message">Active float plan passed the expected return time.</div>
-                            <div class="fpw-alert__pills">
-                                <span class="fpw-pill">Provider: FPW</span>
-                                <span class="fpw-pill">Code: FP-401</span>
-                            </div>
-                        </div>
-                        <div class="fpw-alert__actions">
-                            <button class="btn btn-sm btn-outline-secondary" type="button">Details</button>
-                            <button class="btn btn-sm btn-primary" type="button">Dismiss</button>
-                        </div>
-                    </li>
-                    <li class="fpw-alert fpw-alert--warning" data-status="WARNING">
-                        <span class="fpw-alert__stripe" aria-hidden="true"></span>
-                        <div class="fpw-alert__main">
-                            <div class="fpw-alert__meta">
-                                <span class="fpw-badge fpw-badge--warning">WARNING</span>
-                                <span class="fpw-alert__time">35m ago</span>
-                            </div>
-                            <div class="fpw-alert__title">Incomplete contact info</div>
-                            <div class="fpw-alert__message">Two emergency contacts are missing phone numbers.</div>
-                            <div class="fpw-alert__pills">
-                                <span class="fpw-pill">Provider: Contacts</span>
-                            </div>
-                        </div>
-                        <div class="fpw-alert__actions">
-                            <button class="btn btn-sm btn-outline-secondary" type="button">Dismiss</button>
-                        </div>
-                    </li>
-                    <li class="fpw-alert fpw-alert--info" data-status="INFO">
-                        <span class="fpw-alert__stripe" aria-hidden="true"></span>
-                        <div class="fpw-alert__main">
-                            <div class="fpw-alert__meta">
-                                <span class="fpw-badge fpw-badge--info">INFO</span>
-                                <span class="fpw-alert__time">Today</span>
-                            </div>
-                            <div class="fpw-alert__title">Weather update available</div>
-                            <div class="fpw-alert__message">New marine conditions posted for New Port Richey.</div>
-                            <div class="fpw-alert__pills">
-                                <span class="fpw-pill">Provider: NOAA</span>
-                            </div>
-                        </div>
-                        <div class="fpw-alert__actions">
-                            <button class="btn btn-sm btn-outline-secondary" type="button">Details</button>
-                            <button class="btn btn-sm btn-outline-secondary" type="button">Dismiss</button>
-                        </div>
-                    </li>
-                    <li class="fpw-alert fpw-alert--success" data-status="SUCCESS">
-                        <span class="fpw-alert__stripe" aria-hidden="true"></span>
-                        <div class="fpw-alert__main">
-                            <div class="fpw-alert__meta">
-                                <span class="fpw-badge fpw-badge--success">SUCCESS</span>
-                                <span class="fpw-alert__time">Yesterday</span>
-                            </div>
-                            <div class="fpw-alert__title">Float plan submitted</div>
-                            <div class="fpw-alert__message">Your latest plan was delivered to all watchers.</div>
-                            <div class="fpw-alert__pills">
-                                <span class="fpw-pill">Provider: Dispatch</span>
-                            </div>
-                        </div>
-                        <div class="fpw-alert__actions">
-                            <button class="btn btn-sm btn-outline-secondary" type="button">Dismiss</button>
-                        </div>
-                    </li>
-                    </ul>
-                </div>
 
-                <div class="fpw-card__footer">
-                    <span>Showing latest 4 alerts</span>
-                    <a class="fpw-link" href="#">Open alerts center -></a>
-                </div>
+  <!-- Weather Panel (Dashboard / ZIP-based, temp for now) -->
+  <section class="fpw-weather text-white" aria-labelledby="weatherPanelTitle">
+
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+      <div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span id="weatherProviderBadge" class="fpw-badge fpw-badge--info">NOAA/NWS</span>
+          <span id="weatherUpdatedAt" class="fpw-pill d-none">Updated: —</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <h3 id="weatherPanelTitle" class="h6 mb-0">—</h3>
+        </div>
+        <div id="weatherSummary" class="text-white mt-1">
+          Enter a ZIP code to load your local forecast.
+        </div>
+      </div>
+
+      <div class="d-flex align-items-end gap-2">
+        <div>
+          <label for="weatherZip" class="form-label small mb-1">ZIP</label>
+          <input
+            id="weatherZip"
+            type="text"
+            inputmode="numeric"
+            pattern="[0-9]{5}"
+            maxlength="5"
+            class="form-control form-control-sm"
+            style="width: 110px;"
+            value="34652"
+            aria-describedby="weatherZipHelp"
+          />
+          <div id="weatherZipHelp" class="form-text small">Temp (not saved)</div>
+        </div>
+
+        <button id="weatherRefreshBtn" class="btn btn-sm btn-primary" type="button">
+          Update
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading / Error -->
+    <div id="weatherLoading" class="fpw-pill d-none">Loading weather…</div>
+    <div id="weatherError" class="alert alert-warning d-none mb-3" role="alert"></div>
+
+    <!-- Alerts -->
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div class="small text-white">Active alerts</div>
+      <div class="d-flex gap-2">
+        <a id="weatherDetailsLink" class="btn btn-sm btn-outline-secondary d-none" href="#" target="_blank" rel="noopener">
+          Details
+        </a>
+      </div>
+    </div>
+
+    <div id="weatherAlertsEmpty" class="d-none text-white small">
+      No active marine alerts.
+    </div>
+
+    <ul id="weatherAlertsList" class="fpw-alerts__list flex-column">
+      <!-- JS will render alert items here -->
+    </ul>
+
+    <hr class="my-3" style="opacity:.15;">
+
+    <!-- Forecast -->
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div class="small text-muted">Forecast (next periods)</div>
+      <div class="d-flex gap-2 small text-muted">
+        <span id="weatherHiLo"></span>
+        <span id="weatherAnchorMeta"></span>
+      </div>
+    </div>
+
+    <div id="weatherForecastEmpty" class="d-none text-muted small">
+      Forecast temporarily unavailable for this location.
+    </div>
+
+    <div id="weatherForecastBody" class="d-flex flex-nowrap gap-2 overflow-auto">
+      <!-- JS will render forecast cards here -->
+    </div>
+
+    <!-- Optional: radar toggle placeholder (wire later to Leaflet/nowCOAST WMS) -->
+    <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
+      <button id="weatherRadarToggle" class="btn btn-sm btn-outline-secondary" type="button" disabled>
+        Radar overlay (coming soon)
+      </button>
+      <span class="small text-muted">Marine overlays will integrate into the map view next.</span>
+    </div>
+
+  </section>
+
+</div>
             </div>
         </section>
         
@@ -1073,7 +1086,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20251227ak"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20251227ak"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260210a"></script>
 
 
 
