@@ -376,15 +376,11 @@
       background: rgba(255,255,255,.04);
       padding:14px 16px;
     }
-    summary{
-      cursor:pointer;
-      font-weight:800;
-      list-style:none;
-    }
+    summary{cursor:pointer; font-weight:800; list-style:none;}
     summary::-webkit-details-marker{display:none}
     details p{margin:10px 0 0; color:var(--muted); font-size:13px}
 
-    /* Signup form */
+    /* Signup form (original) */
     .signupRow{
       display:flex;
       gap:10px;
@@ -402,6 +398,67 @@
       outline:none;
     }
     .input::placeholder{color:rgba(255,255,255,.45)}
+
+    /* JOIN BAR (new) */
+    .joinBar{
+      padding: 16px 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.14);
+      background:
+        radial-gradient(520px 260px at 20% 50%, rgba(45,212,191,.16), transparent 62%),
+        radial-gradient(520px 260px at 80% 50%, rgba(96,165,250,.14), transparent 62%),
+        rgba(255,255,255,.04);
+      box-shadow: 0 16px 55px rgba(0,0,0,.35);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .joinBar .left{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .joinBar .headline{
+      font-weight:850;
+      letter-spacing:-.2px;
+    }
+    .joinRow{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:flex-end;
+    }
+    .joinRow .input{
+      width: 240px;
+      max-width: 78vw;
+    }
+    .joinRow .input.pw{width: 180px;}
+    .joinFine{
+      width:100%;
+      color: var(--subtle);
+      font-size:12px;
+      margin-top: 6px;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:space-between;
+    }
+    .linkPill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 12px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.05);
+      color: rgba(255,255,255,.82);
+      font-size:13px;
+    }
 
     /* Footer */
     .footer{
@@ -430,6 +487,9 @@
       .preview{height: 400px}
       .footer .cols{grid-template-columns:1fr}
       nav{gap:10px}
+      .joinRow .input{width:min(380px, 78vw)}
+      .joinRow .input.pw{width:min(380px, 78vw)}
+      .joinFine{justify-content:flex-start}
     }
   </style>
 </head>
@@ -456,13 +516,39 @@
           <a href="#how">How it works</a>
           <a href="#monitoring">Monitoring</a>
           <a href="#faq">FAQ</a>
-          <a class="btn small primary" href="#signup">Get early access</a>
+          <a class="btn small primary" href="#join">Join free</a>
+          <a class="btn small" href="#signup">Get early access</a>
         </nav>
       </div>
     </div>
   </header>
 
   <main>
+
+    <!-- JOIN BAR (new, right below nav) -->
+    <section id="join" style="padding:18px 0 0;">
+      <div class="wrap">
+        <div class="joinBar" role="region" aria-label="Join free bar">
+          <div class="left">
+            <span class="pill"><span class="dot"></span><strong>Join free</strong></span>
+            <div class="headline">Create an account and start building float plans today.</div>
+            <span class="pill" title="No credit card required"><span class="kbd">No card</span> <span class="kbd">Start free</span></span>
+          </div>
+
+          <form class="joinRow" action="#" method="post">
+            <input class="input" type="text" placeholder="Full name" aria-label="Full name" />
+            <input class="input" type="email" placeholder="Email" aria-label="Email" />
+            <input class="input pw" type="password" placeholder="Password" aria-label="Password" />
+            <button class="btn primary" type="button">Join free</button>
+          </form>
+
+          <div class="joinFine">
+            <span>Mockup only — we’ll wire this up after approval.</span>
+            <a class="linkPill" href="#signup" title="Prefer the early-access list?">or get relaunch updates →</a>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- Hero -->
     <section class="hero">
@@ -477,7 +563,7 @@
             </p>
 
             <div class="heroActions">
-              <a class="btn primary" href="#signup">Get early access</a>
+              <a class="btn primary" href="#join">Join free</a>
               <a class="btn" href="#features">See what’s included</a>
               <span class="pill" title="No spam — just a relaunch update."><span class="kbd">No spam</span> <span class="kbd">1–2 emails</span></span>
             </div>
@@ -564,7 +650,7 @@
           </div>
         </div>
 
-        <!-- Why FPW exists (FULL-WIDTH FIX) -->
+        <!-- Why FPW exists -->
         <div class="card" style="margin-top:22px">
           <div class="cardPad">
             <h3 class="cardTitle">Why FPW exists</h3>
@@ -696,12 +782,12 @@
             <h3>Spring 2026 relaunch</h3>
             <p>
               FPW is being refreshed with an updated homepage, cleaner onboarding, and improved monitoring reliability.
-              Join the early-access list to get the relaunch update when it’s ready.
+              Join free now, or get notified when early access opens.
             </p>
           </div>
           <div style="display:flex;gap:12px;flex-wrap:wrap">
-            <a class="btn primary" href="#signup">Get early access</a>
-            <a class="btn" href="#monitoring">See monitoring details</a>
+            <a class="btn primary" href="#join">Join free</a>
+            <a class="btn" href="#signup">Get relaunch update</a>
           </div>
         </div>
       </div>
@@ -771,7 +857,7 @@
       </div>
     </section>
 
-    <!-- Signup -->
+    <!-- Original Signup (early access list) -->
     <section id="signup">
       <div class="wrap">
         <div class="card">
@@ -825,6 +911,7 @@
           <div>
             <div style="font-weight:800; margin-bottom:8px;">Company</div>
             <div class="tiny" style="display:grid; gap:6px;">
+              <a href="#join">Join free</a>
               <a href="#signup">Early access</a>
               <a href="#faq">FAQ</a>
             </div>
@@ -846,6 +933,5 @@
   <script>
     document.getElementById('y').textContent = new Date().getFullYear();
   </script>
-
 </body>
 </html>

@@ -1,0 +1,140 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 2947 >>
+stream
+BT
+/F1 18 Tf
+1 0 0 1 48 740 Tm
+(Float Plan Wizard \(FPW\) - App Summary) Tj
+ET
+BT
+/F1 10.5 Tf
+1 0 0 1 48 718 Tm
+T*
+/F1 12 Tf
+(What it is) Tj
+/F1 10.5 Tf
+T*
+(Float Plan Wizard is a ColdFusion + MySQL web app for creating, managing, and monitoring) Tj
+/F1 10.5 Tf
+T*
+(   boating float plans. It combines plan authoring, contact sharing, check-in status, and overdue) Tj
+/F1 10.5 Tf
+T*
+(   alerting in one workflow.) Tj
+/F1 12 Tf
+T*
+(Who it is for) Tj
+/F1 10.5 Tf
+T*
+(Primary persona: recreational or small-crew vessel operators/owners who need to document trips,) Tj
+/F1 10.5 Tf
+T*
+(   passengers, routes, and emergency contacts before departure.) Tj
+/F1 12 Tf
+T*
+(What it does) Tj
+/F1 10.5 Tf
+T*
+(- Provides session-based login/logout and current-user session retrieval via API endpoints.) Tj
+/F1 10.5 Tf
+T*
+(- Lets users create, edit, clone, delete, send, and check in float plans.) Tj
+/F1 10.5 Tf
+T*
+(- Manages related entities: vessels, operators, passengers, contacts, waypoints, and home port.) Tj
+/F1 10.5 Tf
+T*
+(- Runs a multi-step wizard UI for plan basics, times/route, and plan details.) Tj
+/F1 10.5 Tf
+T*
+(- Generates a populated float plan PDF and supports sending plan emails to designated contacts.) Tj
+/F1 10.5 Tf
+T*
+(- Tracks monitoring states \(for example ACTIVE/OVERDUE\) and exposes monitored-plan data.) Tj
+/F1 10.5 Tf
+T*
+(- Includes marine/map support endpoints \(WMS proxy, marine POIs, navigation aids\) used by) Tj
+/F1 10.5 Tf
+T*
+(  dashboard flows.) Tj
+/F1 12 Tf
+T*
+(How it works \(repo-evidence architecture\)) Tj
+/F1 10.5 Tf
+T*
+(- UI layer: CFML pages in app/ plus vanilla JS modules in assets/js/app/. Dashboard modules call) Tj
+/F1 10.5 Tf
+T*
+(  a shared Api client wrapper.) Tj
+/F1 10.5 Tf
+T*
+(- API layer: CFC endpoints in api/v1/ implement auth, CRUD, monitoring, and utility actions; most) Tj
+/F1 10.5 Tf
+T*
+(  return JSON with SUCCESS/AUTH flags.) Tj
+/F1 10.5 Tf
+T*
+(- Data/services: CFCs use datasource fpw \(MySQL\) through cfquery/queryExecute; session.user) Tj
+/F1 10.5 Tf
+T*
+(  drives auth context.) Tj
+/F1 10.5 Tf
+T*
+(- Flow: Browser -> assets/js/app/api.js \(fetch, credentials include\) -> /api/v1/*.cfc -> MySQL.) Tj
+/F1 10.5 Tf
+T*
+(  Send flow also calls api/api_assets/floatPlanUtils.cfc to create PDFs, then emails contacts.) Tj
+/F1 10.5 Tf
+T*
+(- Monitoring path: scheduled/triggered monitor endpoints evaluate due/overdue plans and can issue) Tj
+/F1 10.5 Tf
+T*
+(  overdue notifications.) Tj
+/F1 12 Tf
+T*
+(How to run \(minimal\)) Tj
+/F1 10.5 Tf
+T*
+(1. From the project root, start services: docker compose up -d --build) Tj
+/F1 10.5 Tf
+T*
+(2. Open the app at http://localhost:8500 \(app pages are under /app/, API under /api/v1/\).) Tj
+/F1 10.5 Tf
+T*
+(3. For browser tests: npm install, then npx playwright test \(or a specific spec path\).) Tj
+/F1 10.5 Tf
+T*
+(4. Default local login credentials: Not found in repo.) Tj
+/F1 10.5 Tf
+T*
+(5. Exact production deployment process: Not found in repo.) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000247 00000 n 
+0000000317 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+3316
+%%EOF

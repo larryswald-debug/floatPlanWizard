@@ -565,6 +565,67 @@
     return "This field is required.";
   }
 
+  function getTimeZoneOffset(timeZone, date) {
+    if (!timeZone || !date) return 0;
+    try {
+      var formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
+      });
+      var parts = formatter.formatToParts(date);
+      var values = {};
+      for (var i = 0; i < parts.length; i++) {
+        var part = parts[i];
+        if (part.type !== "literal") {
+          values[part.type] = part.value;
+        }
+      }
+      var tzMillis = Date.UTC(
+        parseInt(values.year, 10),
+        parseInt(values.month, 10) - 1,
+        parseInt(values.day, 10),
+        parseInt(values.hour, 10),
+        parseInt(values.minute, 10),
+        parseInt(values.second, 10)
+      );
+      return tzMillis - date.getTime();
+    } catch (err) {
+      return 0;
+    }
+  }
+
+  function parseDateTimeInTimeZone(value, timeZone) {
+    if (!value && value !== 0) return null;
+    var raw = String(value).trim();
+    if (!raw) return null;
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(raw)) {
+      raw = raw.replace(" ", "T");
+    }
+    var match = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?/);
+    if (!match) {
+      var parsed = new Date(raw);
+      return isNaN(parsed.getTime()) ? null : parsed;
+    }
+    var year = parseInt(match[1], 10);
+    var month = parseInt(match[2], 10) - 1;
+    var day = parseInt(match[3], 10);
+    var hour = parseInt(match[4] || "0", 10);
+    var minute = parseInt(match[5] || "0", 10);
+    var second = parseInt(match[6] || "0", 10);
+    var utcDate = new Date(Date.UTC(year, month, day, hour, minute, second));
+    if (!timeZone) {
+      return utcDate;
+    }
+    var offset = getTimeZoneOffset(timeZone, utcDate);
+    return new Date(utcDate.getTime() - offset);
+  }
+
   var STEP_VALIDATION_CONSTRAINTS = {
     1: buildFloatplanConstraints(["NAME", "VESSELID", "OPERATORID"]),
     2: buildFloatplanConstraints([
@@ -707,13 +768,18 @@
         }
 
 
-        // Custom cross-field rule (return after departure) for step 2 (or final step 6)
+        // Custom cross-field rules for step 2 (or final step 6)
         if ((stepNumber === 2 || stepNumber === 6) && payload.DEPARTURE_TIME && payload.RETURN_TIME) {
-          var depart = new Date(payload.DEPARTURE_TIME);
-          var ret = new Date(payload.RETURN_TIME);
-          if (!isNaN(depart.getTime()) && !isNaN(ret.getTime()) && ret <= depart) {
+          var depart = parseDateTimeInTimeZone(payload.DEPARTURE_TIME, payload.DEPARTURE_TIMEZONE);
+          var ret = parseDateTimeInTimeZone(payload.RETURN_TIME, payload.RETURN_TIMEZONE);
+          var now = new Date();
+          if (depart && ret && ret <= depart) {
             if (!errors) errors = {};
             errors.RETURN_TIME = ["Return must be after departure."];
+          }
+          if (ret && ret < now) {
+            if (!errors) errors = {};
+            errors.RETURN_TIME = ["Return must be in the future."];
           }
         }
 
