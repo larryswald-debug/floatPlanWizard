@@ -11,6 +11,10 @@
   var BASE_PATH = window.FPW_BASE || "";
   var FALLBACK_LOGIN_URL = BASE_PATH + "/index.cfm";
   var WEATHER_BASE_URL = "http://localhost:8500///fpw/api/v1/weather.cfc?method=handle&action=zip&zip=";
+  var tideResizeObserver = null;
+  var tideLastMarine = null;
+  var tideLastWrapWidth = 0;
+  var weatherRequestSeq = 0;
 
   function getLoginUrl() {
     if (window.AppAuth && window.AppAuth.loginUrl) {
@@ -653,69 +657,316 @@
     }
   }
 
+  function ensureTideResizeObserver() {
+    if (tideResizeObserver || !window.ResizeObserver) return;
+    var wrap = document.getElementById("tideGraph");
+    if (!wrap) return;
+    tideResizeObserver = new window.ResizeObserver(function (entries) {
+      if (!entries || !entries.length) return;
+      var nextWidth = Math.round(entries[0].contentRect && entries[0].contentRect.width ? entries[0].contentRect.width : 0);
+      if (!nextWidth) return;
+      if (Math.abs(nextWidth - tideLastWrapWidth) < 2) return;
+      tideLastWrapWidth = nextWidth;
+      if (tideLastMarine) {
+        renderTideGraph(tideLastMarine);
+      }
+    });
+    tideResizeObserver.observe(wrap);
+  }
+
   function renderTideGraph(marine) {
+    ensureTideResizeObserver();
     var wrap = document.getElementById("tideGraph");
     var svg = document.getElementById("tideGraphSvg");
+    var titleEl = document.getElementById("tideGraphTitle");
     var stationEl = document.getElementById("tideGraphStation");
+    var nowEl = document.getElementById("tideGraphNowValue");
     var startEl = document.getElementById("tideGraphStart");
     var endEl = document.getElementById("tideGraphEnd");
     var emptyEl = document.getElementById("tideGraphEmpty");
 
     if (!wrap || !svg) return;
 
+    tideLastMarine = marine || null;
+
+    var marineMeta = (marine && (marine.META || marine.meta)) ? (marine.META || marine.meta) : {};
     var tide = null;
+    var waterLevelCurrent = null;
     var series = [];
+    var sourceType = "tide";
 
     if (marine) {
       tide = marine.tide || marine.TIDE || null;
+      if (!tide) {
+        tide = marine.waterLevel || marine.WATERLEVEL || null;
+        sourceType = "waterLevel";
+      }
+      waterLevelCurrent = marine.waterLevelCurrent || marine.WATERLEVELCURRENT || null;
+      if (!tide && waterLevelCurrent) {
+        sourceType = "waterLevel";
+      }
     }
     if (tide) {
       series = Array.isArray(tide.series) ? tide.series : (Array.isArray(tide.SERIES) ? tide.SERIES : []);
     }
+    if (titleEl) {
+      titleEl.textContent = (sourceType === "waterLevel") ? "Water Level (ft)" : "Tide (ft)";
+    }
     if (!tide || !series.length) {
       svg.innerHTML = "";
-      if (stationEl) stationEl.textContent = "";
+      if (stationEl) {
+        if (waterLevelCurrent && waterLevelCurrent.stationName) {
+          var fullCurrentStation = String(waterLevelCurrent.stationName).trim();
+          var stationMaxLen2 = 24;
+          var shortCurrentStation = fullCurrentStation;
+          if (fullCurrentStation.length > stationMaxLen2) {
+            shortCurrentStation = fullCurrentStation.slice(0, stationMaxLen2 - 3).trimEnd() + "...";
+          }
+          stationEl.textContent = shortCurrentStation;
+          stationEl.title = fullCurrentStation;
+        } else {
+          stationEl.textContent = "";
+          stationEl.removeAttribute("title");
+        }
+      }
+      if (nowEl) {
+        if (waterLevelCurrent && waterLevelCurrent.h !== undefined && waterLevelCurrent.h !== null && !isNaN(parseFloat(waterLevelCurrent.h))) {
+          nowEl.textContent = "Now " + parseFloat(waterLevelCurrent.h).toFixed(1) + " ft";
+        } else {
+          nowEl.textContent = "Now —";
+        }
+      }
       if (startEl) startEl.textContent = "—";
       if (endEl) endEl.textContent = "—";
-      if (emptyEl) emptyEl.classList.remove("d-none");
+      if (emptyEl) {
+        var emptyMsg = "Tide data unavailable.";
+        if (marineMeta) {
+          if (marineMeta.tideUnavailable) {
+            emptyMsg = marineMeta.tideUnavailable;
+          } else if (marineMeta.waterLevelUnavailable) {
+            emptyMsg = marineMeta.waterLevelUnavailable;
+          } else if (sourceType === "waterLevel") {
+            emptyMsg = "Water level data unavailable.";
+          }
+        }
+        if (waterLevelCurrent && waterLevelCurrent.h !== undefined && waterLevelCurrent.h !== null && !isNaN(parseFloat(waterLevelCurrent.h))) {
+          emptyMsg = "Current water level available; trend graph is unavailable right now.";
+        }
+        emptyEl.textContent = emptyMsg;
+        emptyEl.classList.remove("d-none");
+      }
       wrap.classList.remove("d-none");
       return;
     }
 
     if (emptyEl) emptyEl.classList.add("d-none");
-    if (stationEl) stationEl.textContent = tide.stationName || tide.STATIONNAME || "";
+    if (stationEl) {
+      var fullStation = String(tide.stationName || tide.STATIONNAME || "").trim();
+      var stationMaxLen = 24;
+      var shortStation = fullStation;
+      if (fullStation.length > stationMaxLen) {
+        shortStation = fullStation.slice(0, stationMaxLen - 3).trimEnd() + "...";
+      }
+      stationEl.textContent = shortStation;
+      stationEl.title = fullStation;
+    }
+    wrap.classList.remove("d-none");
 
     var minH = Number.POSITIVE_INFINITY;
     var maxH = Number.NEGATIVE_INFINITY;
+    var points = [];
+
+    function parseTideDate(raw) {
+      if (!raw) return null;
+      var s = String(raw).trim();
+      var d = new Date(s);
+      if (!isNaN(d.getTime())) return d;
+      if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(s)) {
+        d = new Date(s.replace(" ", "T") + "Z");
+        if (!isNaN(d.getTime())) return d;
+        d = new Date(s.replace(" ", "T"));
+        if (!isNaN(d.getTime())) return d;
+      }
+      return null;
+    }
+
     series.forEach(function (p) {
       var h = parseFloat((p && p.h !== undefined) ? p.h : (p ? p.H : NaN));
       if (!Number.isFinite(h)) return;
       if (h < minH) minH = h;
       if (h > maxH) maxH = h;
+      var tRaw = p && (p.t || p.T) ? (p.t || p.T) : "";
+      var dt = parseTideDate(tRaw);
+      points.push({ h: h, tRaw: tRaw, dt: dt });
     });
     if (!Number.isFinite(minH) || !Number.isFinite(maxH) || minH === maxH) {
       minH = (Number.isFinite(minH) ? minH - 1 : 0);
       maxH = (Number.isFinite(maxH) ? maxH + 1 : 1);
     }
 
-    var w = 320;
-    var hgt = 84;
-    var pad = 6;
-    var dx = (w - pad * 2) / (series.length - 1);
+    var wrapRect = wrap.getBoundingClientRect ? wrap.getBoundingClientRect() : null;
+    var wrapWidth = Math.round((wrapRect && wrapRect.width) ? wrapRect.width : (wrap.offsetWidth || wrap.clientWidth || 0));
+    var w = Math.round(wrapWidth || svg.clientWidth || 320);
+    var hgt = Math.round(svg.clientHeight || 84);
+    tideLastWrapWidth = wrapWidth || w;
+    if (w < 120) w = 320;
+    if (hgt < 40) hgt = 120;
+    svg.setAttribute("viewBox", "0 0 " + w + " " + hgt);
+    var padTop = 8;
+    var padBottom = 14;
+    var padLeft = 30;
+    var padRight = 30;
+    var plotW = (w - padLeft - padRight);
+    var plotH = (hgt - padTop - padBottom);
+    var dx = (points.length > 1) ? (plotW / (points.length - 1)) : 0;
     var path = "";
     var area = "";
 
-    series.forEach(function (p, i) {
-      var v = parseFloat((p && p.h !== undefined) ? p.h : (p ? p.H : NaN));
+    points.forEach(function (p, i) {
+      var v = parseFloat(p.h);
       if (!Number.isFinite(v)) v = minH;
-      var x = pad + (dx * i);
-      var y = pad + (hgt - pad * 2) * (1 - ((v - minH) / (maxH - minH)));
+      var x = padLeft + (dx * i);
+      var y = padTop + plotH * (1 - ((v - minH) / (maxH - minH)));
+      p.x = x;
+      p.y = y;
       path += (i === 0 ? "M" : "L") + x.toFixed(2) + " " + y.toFixed(2) + " ";
       area += (i === 0 ? "M" : "L") + x.toFixed(2) + " " + y.toFixed(2) + " ";
     });
 
-    var areaPath = area + "L " + (pad + dx * (series.length - 1)).toFixed(2) + " " + (hgt - pad).toFixed(2)
-      + " L " + pad.toFixed(2) + " " + (hgt - pad).toFixed(2) + " Z";
+    var lastX = padLeft + dx * (points.length - 1);
+    var areaPath = area + "L " + lastX.toFixed(2) + " " + (hgt - padBottom).toFixed(2)
+      + " L " + padLeft.toFixed(2) + " " + (hgt - padBottom).toFixed(2) + " Z";
+
+    function formatAxisHour(raw) {
+      var dt = parseTideDate(raw);
+      if (!dt) return "";
+      var h = dt.getHours() % 12;
+      return String(h === 0 ? 12 : h);
+    }
+
+    var axesOverlay = "";
+    var xAxisY = (hgt - padBottom).toFixed(2);
+    var yAxisX = padLeft.toFixed(2);
+    axesOverlay += "<line class=\"fpw-wx__tideAxisLine\" x1=\"" + yAxisX + "\" y1=\"" + padTop.toFixed(2) + "\" x2=\"" + yAxisX + "\" y2=\"" + xAxisY + "\"/>";
+    axesOverlay += "<line class=\"fpw-wx__tideAxisLine\" x1=\"" + yAxisX + "\" y1=\"" + xAxisY + "\" x2=\"" + (w - padRight).toFixed(2) + "\" y2=\"" + xAxisY + "\"/>";
+
+    var yTicks = 4;
+    var yi;
+    for (yi = 0; yi <= yTicks; yi++) {
+      var fracY = yi / yTicks;
+      var yVal = maxH - ((maxH - minH) * fracY);
+      var yPos = (padTop + (plotH * fracY));
+      axesOverlay += "<line class=\"fpw-wx__tideAxisTick\" x1=\"" + (padLeft - 4).toFixed(2) + "\" y1=\"" + yPos.toFixed(2) + "\" x2=\"" + padLeft.toFixed(2) + "\" y2=\"" + yPos.toFixed(2) + "\"/>";
+      axesOverlay += "<text class=\"fpw-wx__tideAxisLabel y\" x=\"" + (padLeft - 6).toFixed(2) + "\" y=\"" + (yPos + 3).toFixed(2) + "\">" + yVal.toFixed(1) + "</text>";
+    }
+
+    var xTickCount = Math.min(5, points.length);
+    var xi;
+    for (xi = 0; xi < xTickCount; xi++) {
+      var idx = Math.round((xi * (points.length - 1)) / Math.max(1, (xTickCount - 1)));
+      idx = Math.max(0, Math.min(points.length - 1, idx));
+      var px = points[idx].x;
+      var lbl = formatAxisHour(points[idx].tRaw);
+      axesOverlay += "<line class=\"fpw-wx__tideAxisTick\" x1=\"" + px.toFixed(2) + "\" y1=\"" + xAxisY + "\" x2=\"" + px.toFixed(2) + "\" y2=\"" + (hgt - padBottom + 4).toFixed(2) + "\"/>";
+      if (lbl) {
+        axesOverlay += "<text class=\"fpw-wx__tideAxisLabel x\" x=\"" + px.toFixed(2) + "\" y=\"" + (hgt - 1).toFixed(2) + "\">" + lbl + "</text>";
+      }
+    }
+
+    var nowMs = Date.now();
+    var currentH = null;
+    var currentX = null;
+    var currentY = null;
+    var i;
+    for (i = 0; i < points.length - 1; i++) {
+      var a = points[i];
+      var b = points[i + 1];
+      if (!a.dt || !b.dt) continue;
+      var ams = a.dt.getTime();
+      var bms = b.dt.getTime();
+      if (bms <= ams) continue;
+      if (nowMs >= ams && nowMs <= bms) {
+        var r = (nowMs - ams) / (bms - ams);
+        currentH = a.h + ((b.h - a.h) * r);
+        currentX = a.x + ((b.x - a.x) * r);
+        currentY = a.y + ((b.y - a.y) * r);
+        break;
+      }
+    }
+    if (currentH === null) {
+      var nearest = null;
+      points.forEach(function (pnt) {
+        if (!pnt.dt) return;
+        var diff = Math.abs(nowMs - pnt.dt.getTime());
+        if (!nearest || diff < nearest.diff) {
+          nearest = { diff: diff, p: pnt };
+        }
+      });
+      if (nearest && nearest.p) {
+        currentH = nearest.p.h;
+        currentX = nearest.p.x;
+        currentY = nearest.p.y;
+      }
+    }
+
+    var nowOverlay = "";
+    if (currentH !== null && currentX !== null && currentY !== null) {
+      var tickY = currentY.toFixed(2);
+      var guideStartX = padLeft.toFixed(2);
+      nowOverlay = ""
+        + "<line class=\"fpw-wx__tideGuide\" x1=\"" + guideStartX + "\" y1=\"" + tickY + "\" x2=\"" + (w - padRight).toFixed(2) + "\" y2=\"" + tickY + "\"/>"
+        + "<circle class=\"fpw-wx__tideNowHalo\" cx=\"" + currentX.toFixed(2) + "\" cy=\"" + currentY.toFixed(2) + "\" r=\"6\"/>"
+        + "<circle class=\"fpw-wx__tideNowDot\" cx=\"" + currentX.toFixed(2) + "\" cy=\"" + currentY.toFixed(2) + "\" r=\"3\"/>";
+      if (nowEl) nowEl.textContent = "Now " + currentH.toFixed(1) + " ft";
+    } else if (nowEl) {
+      nowEl.textContent = "Now —";
+    }
+
+    var highIdx = -1;
+    var lowIdx = -1;
+    var highVal = Number.NEGATIVE_INFINITY;
+    var lowVal = Number.POSITIVE_INFINITY;
+    points.forEach(function (p, idx) {
+      if (!Number.isFinite(p.h)) return;
+      if (p.h > highVal) {
+        highVal = p.h;
+        highIdx = idx;
+      }
+      if (p.h < lowVal) {
+        lowVal = p.h;
+        lowIdx = idx;
+      }
+    });
+
+    function clamp(n, min, max) {
+      return Math.max(min, Math.min(max, n));
+    }
+
+    function buildExtremaLabel(pt, cls, preferAbove) {
+      if (!pt) return "";
+      var label = pt.h.toFixed(1) + " ft";
+      var textW = Math.max(46, (label.length * 4.2));
+      var tx = clamp(pt.x - (textW / 2), padLeft + 2, (w - padRight - textW - 2));
+      var yOffset = preferAbove ? -7 : 11;
+      var ty = pt.y + yOffset;
+      if (preferAbove && ty < (padTop + 7)) ty = pt.y + 11;
+      if (!preferAbove && ty > (hgt - padBottom - 2)) ty = pt.y - 7;
+      return ""
+        + "<circle class=\"fpw-wx__tideExtDot " + cls + "\" cx=\"" + pt.x.toFixed(2) + "\" cy=\"" + pt.y.toFixed(2) + "\" r=\"2.8\"/>"
+        + "<text class=\"fpw-wx__tideExtLabel " + cls + "\" x=\"" + tx.toFixed(2) + "\" y=\"" + ty.toFixed(2) + "\">" + label + "</text>";
+    }
+
+    var extremaOverlay = "";
+    if (highIdx >= 0) {
+      extremaOverlay += buildExtremaLabel(points[highIdx], "high", true);
+    }
+    if (lowIdx >= 0) {
+      var lowPreferAbove = false;
+      if (highIdx >= 0 && Math.abs(points[highIdx].x - points[lowIdx].x) < 44) {
+        lowPreferAbove = true;
+      }
+      extremaOverlay += buildExtremaLabel(points[lowIdx], "low", lowPreferAbove);
+    }
 
     svg.innerHTML = ""
       + "<defs>"
@@ -724,8 +975,11 @@
       + "<stop offset=\"100%\" stop-color=\"rgba(59,130,246,0)\"/>"
       + "</linearGradient>"
       + "</defs>"
+      + axesOverlay
       + "<path d=\"" + areaPath + "\" fill=\"url(#tideFill)\"/>"
-      + "<path d=\"" + path + "\" fill=\"none\" stroke=\"rgba(59,130,246,.9)\" stroke-width=\"2\"/>";
+      + "<path d=\"" + path + "\" fill=\"none\" stroke=\"rgba(59,130,246,.9)\" stroke-width=\"2\"/>"
+      + extremaOverlay
+      + nowOverlay;
 
     if (startEl) startEl.textContent = series[0] && (series[0].t || series[0].T) ? (series[0].t || series[0].T) : "—";
     if (endEl) endEl.textContent = series[series.length - 1] && (series[series.length - 1].t || series[series.length - 1].T) ? (series[series.length - 1].t || series[series.length - 1].T) : "—";
@@ -853,23 +1107,53 @@
     return zip && zip.length === 5;
   }
 
-  function loadWeather(zip) {
-    var loadingEl = document.getElementById("weatherLoading");
-    if (!loadingEl) {
-      return;
+  function weatherUrl(zip, extras) {
+    var url = WEATHER_BASE_URL + encodeURIComponent(zip) + "&returnformat=json";
+    if (extras) {
+      url += extras;
     }
+    return url;
+  }
 
-    toggleHidden(loadingEl, false);
-    clearWeatherError();
-
-    return fetch(WEATHER_BASE_URL + encodeURIComponent(zip) + "&returnformat=json", { credentials: "same-origin" })
+  function fetchWeatherJson(url) {
+    return fetch(url, { credentials: "same-origin" })
       .then(function (response) {
         if (!response.ok) {
           throw new Error("Request failed with status " + response.status);
         }
         return response.json();
-      })
+      });
+  }
+
+  function hydrateMarineTrend(zip, requestSeq) {
+    return fetchWeatherJson(weatherUrl(zip, "&marineOnly=1&marineMode=full"))
       .then(function (payload) {
+        if (requestSeq !== weatherRequestSeq) return;
+        if (!payload || payload.SUCCESS === false) return;
+        var data = payload.DATA || {};
+        if (data.MARINE) {
+          renderTideGraph(data.MARINE);
+        }
+      })
+      .catch(function () {
+        // Keep initial quick render if trend hydration fails.
+      });
+  }
+
+  function loadWeather(zip) {
+    var loadingEl = document.getElementById("weatherLoading");
+    if (!loadingEl) {
+      return;
+    }
+    weatherRequestSeq += 1;
+    var requestSeq = weatherRequestSeq;
+
+    toggleHidden(loadingEl, false);
+    clearWeatherError();
+
+    return fetchWeatherJson(weatherUrl(zip, "&marineMode=quick"))
+      .then(function (payload) {
+        if (requestSeq !== weatherRequestSeq) return;
         if (!payload || payload.SUCCESS === false) {
           var message = payload && payload.MESSAGE ? payload.MESSAGE : null;
           throw new Error(message || "Weather data unavailable.");
@@ -881,8 +1165,10 @@
         renderWeatherAlerts(data.ALERTS);
         renderWeatherForecast(data.FORECAST);
         renderTideGraph(data.MARINE);
+        hydrateMarineTrend(zip, requestSeq);
       })
       .catch(function (err) {
+        if (requestSeq !== weatherRequestSeq) return;
         renderWeatherSummary("", "");
         renderWeatherAnchor(null);
         renderWeatherAlerts([]);
@@ -1026,6 +1312,6 @@
 
   }
 
-  window.FPW_DASHBOARD_VERSION = "20260211d";
+  window.FPW_DASHBOARD_VERSION = "20260211w";
   document.addEventListener("DOMContentLoaded", initDashboard);
 })(window, document);

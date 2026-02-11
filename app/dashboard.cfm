@@ -8,7 +8,7 @@
 
     <cfinclude template="../includes/header_styles.cfm">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=3">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=14">
 </head>
 <body class="dashboard-body">
 
@@ -134,7 +134,7 @@
       <!-- Risk Timeline -->
       <div class="fpw-wx__panel fpw-wx__timeline">
         <div class="fpw-wx__panelHeader">
-          <div class="fpw-wx__panelTitle">Next 12 periods</div>
+          <div class="fpw-wx__panelTitle">Next 12 hours</div>
           <div class="fpw-wx__panelMeta">
             <span id="weatherHiLo" class="fpw-wx__muted"></span>
             <span id="weatherPlanPill" class="fpw-wx__pill d-none">Plan window: —</span>
@@ -159,12 +159,14 @@
 
         <div id="tideGraph" class="fpw-wx__tideGraph d-none" aria-label="Tide graph">
           <div class="fpw-wx__tideTitle">
-            <span>Tide (ft)</span>
+            <span id="tideGraphTitle">Tide (ft)</span>
+            <span id="tideGraphNowValue" class="fpw-wx__tideNow">Now —</span>
             <span id="tideGraphStation" class="fpw-wx__muted"></span>
           </div>
-          <svg id="tideGraphSvg" class="fpw-wx__tideSvg" viewBox="0 0 320 84" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <svg id="tideGraphSvg" class="fpw-wx__tideSvg" viewBox="0 0 320 84" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
           <div class="fpw-wx__tideAxis">
             <span id="tideGraphStart">—</span>
+            <span class="fpw-wx__tideAxisCenter" aria-hidden="true"></span>
             <span id="tideGraphEnd">—</span>
           </div>
           <div id="tideGraphEmpty" class="fpw-wx__tideEmpty d-none">Tide data unavailable.</div>
@@ -1063,7 +1065,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20251227ak"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260211d"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260211w"></script>
 
 
 

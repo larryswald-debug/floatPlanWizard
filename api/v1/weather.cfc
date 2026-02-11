@@ -18,6 +18,8 @@
         <cfargument name="id" type="any" required="false">
         <cfargument name="floatPlanId" type="any" required="false">
         <cfargument name="zip" type="any" required="false">
+        <cfargument name="marineMode" type="any" required="false">
+        <cfargument name="marineOnly" type="any" required="false">
 
         <cfsetting enablecfoutputonly="true" showdebugoutput="false">
         <cfcontent type="application/json; charset=utf-8">
@@ -36,6 +38,8 @@
             <cfset local.fpId = 0 >
             <cfset local.data = {} >
             <cfset local.zip = "">
+            <cfset local.marineMode = "full">
+            <cfset local.marineOnly = false>
 
             <cfif structKeyExists(session, "user") AND isStruct(session.user)>
                 <cfset local.userStruct = session.user>
@@ -64,6 +68,19 @@
             <cfif structKeyExists(arguments, "action") AND len(trim(arguments.action))>
                 <cfset local.act = lcase(trim(arguments.action))>
             </cfif>
+            <cfif structKeyExists(arguments, "marineMode") AND len(trim(arguments.marineMode))>
+                <cfset local.marineMode = lcase(trim(arguments.marineMode))>
+            <cfelseif isDefined("url.marineMode") AND len(trim(url.marineMode))>
+                <cfset local.marineMode = lcase(trim(url.marineMode))>
+            </cfif>
+            <cfif local.marineMode NEQ "quick" AND local.marineMode NEQ "full">
+                <cfset local.marineMode = "full">
+            </cfif>
+            <cfif structKeyExists(arguments, "marineOnly")>
+                <cfset local.marineOnly = (isBoolean(arguments.marineOnly) ? arguments.marineOnly : (val(arguments.marineOnly) EQ 1))>
+            <cfelseif isDefined("url.marineOnly")>
+                <cfset local.marineOnly = (val(url.marineOnly) EQ 1)>
+            </cfif>
 
             <cfif local.act EQ "get">
 
@@ -87,7 +104,7 @@
                     <cfreturn>
                 </cfif>
 
-                <cfset local.data = getWeatherForFloatPlan(local.userId, local.fpId)>
+                <cfset local.data = getWeatherForFloatPlan(local.userId, local.fpId, local.marineMode, local.marineOnly)>
 
                 <cfset local.resp.SUCCESS = local.data.SUCCESS>
                 <cfset local.resp.MESSAGE = local.data.MESSAGE>
@@ -117,7 +134,7 @@
                     <cfreturn>
                 </cfif>
 
-                <cfset local.data = getWeatherForZip(local.zip)>
+                <cfset local.data = getWeatherForZip(local.zip, local.marineMode, local.marineOnly)>
 
                 <cfset local.resp.SUCCESS = local.data.SUCCESS>
                 <cfset local.resp.MESSAGE = local.data.MESSAGE>
@@ -155,6 +172,8 @@
     <cffunction name="getWeatherForFloatPlan" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="marineMode" type="string" required="false" default="full">
+        <cfargument name="marineOnly" type="boolean" required="false" default="false">
 
         <cfset local.out = {
             "SUCCESS"=false,
@@ -178,30 +197,32 @@
         <cfset local.lat = local.anchor.LAT>
         <cfset local.lon = local.anchor.LON>
 
-        <cfset local.f = getNwsForecast(local.lat, local.lon)>
-        <cfset local.a = getNwsAlerts(local.lat, local.lon)>
         <cfset local.noCache = (isDefined("url.nocache") AND len(url.nocache) AND val(url.nocache) EQ 1)>
-        <cfset local.m = getMarineData(local.lat, local.lon, local.noCache)>
+        <cfset local.f = {} >
+        <cfset local.a = {} >
+        <cfset local.m = getMarineData(local.lat, local.lon, local.noCache, arguments.marineMode)>
 
-        <cfif structKeyExists(local.f, "FORECAST") AND isArray(local.f.FORECAST)>
-            <cfset local.out.FORECAST = local.f.FORECAST>
-        </cfif>
-
-        <cfif structKeyExists(local.a, "ALERTS") AND isArray(local.a.ALERTS)>
-            <cfset local.out.ALERTS = local.a.ALERTS>
+        <cfif NOT arguments.marineOnly>
+            <cfset local.f = getNwsForecast(local.lat, local.lon)>
+            <cfset local.a = getNwsAlerts(local.lat, local.lon)>
+            <cfif structKeyExists(local.f, "FORECAST") AND isArray(local.f.FORECAST)>
+                <cfset local.out.FORECAST = local.f.FORECAST>
+            </cfif>
+            <cfif structKeyExists(local.a, "ALERTS") AND isArray(local.a.ALERTS)>
+                <cfset local.out.ALERTS = local.a.ALERTS>
+            </cfif>
+            <cfset local.out.MAP_LAYERS = getNowCoastBaseLayers()>
+            <cfset local.out.SUMMARY = buildBoaterSummary(local.out.FORECAST, local.out.ALERTS)>
         </cfif>
 
         <cfif isStruct(local.m) AND structCount(local.m) GT 0>
             <cfset local.out.MARINE = local.m>
         </cfif>
 
-        <cfset local.out.MAP_LAYERS = getNowCoastBaseLayers()>
-        <cfset local.out.SUMMARY = buildBoaterSummary(local.out.FORECAST, local.out.ALERTS)>
-
         <cfset local.out.META.anchor = { "lat"=local.lat, "lon"=local.lon }>
         <cfset local.out.META.sources = {} >
-        <cfset local.out.META.sources.forecast = (structKeyExists(local.f,"META") ? local.f.META : {})>
-        <cfset local.out.META.sources.alerts   = (structKeyExists(local.a,"META") ? local.a.META : {})>
+        <cfset local.out.META.sources.forecast = (NOT arguments.marineOnly AND structKeyExists(local.f,"META") ? local.f.META : {})>
+        <cfset local.out.META.sources.alerts   = (NOT arguments.marineOnly AND structKeyExists(local.a,"META") ? local.a.META : {})>
         <cfset local.out.META.sources.marine   = (structKeyExists(local.m,"META") ? local.m.META : {})>
 
         <cfset local.out.SUCCESS = true>
@@ -211,6 +232,8 @@
 
     <cffunction name="getWeatherForZip" access="private" returntype="struct" output="false">
         <cfargument name="zip" type="string" required="true">
+        <cfargument name="marineMode" type="string" required="false" default="full">
+        <cfargument name="marineOnly" type="boolean" required="false" default="false">
 
         <cfset local.out = {
             "SUCCESS"=false,
@@ -237,32 +260,34 @@
         <cfset local.lat = local.geo.LAT>
         <cfset local.lon = local.geo.LON>
 
-        <cfset local.f = getNwsForecast(local.lat, local.lon)>
-        <cfset local.a = getNwsAlerts(local.lat, local.lon)>
         <cfset local.noCache = (isDefined("url.nocache") AND len(url.nocache) AND val(url.nocache) EQ 1)>
-        <cfset local.m = getMarineData(local.lat, local.lon, local.noCache)>
+        <cfset local.f = {} >
+        <cfset local.a = {} >
+        <cfset local.m = getMarineData(local.lat, local.lon, local.noCache, arguments.marineMode)>
 
-        <cfif structKeyExists(local.f, "FORECAST") AND isArray(local.f.FORECAST)>
-            <cfset local.out.FORECAST = local.f.FORECAST>
-        </cfif>
-
-        <cfif structKeyExists(local.a, "ALERTS") AND isArray(local.a.ALERTS)>
-            <cfset local.out.ALERTS = local.a.ALERTS>
+        <cfif NOT arguments.marineOnly>
+            <cfset local.f = getNwsForecast(local.lat, local.lon)>
+            <cfset local.a = getNwsAlerts(local.lat, local.lon)>
+            <cfif structKeyExists(local.f, "FORECAST") AND isArray(local.f.FORECAST)>
+                <cfset local.out.FORECAST = local.f.FORECAST>
+            </cfif>
+            <cfif structKeyExists(local.a, "ALERTS") AND isArray(local.a.ALERTS)>
+                <cfset local.out.ALERTS = local.a.ALERTS>
+            </cfif>
+            <cfset local.out.MAP_LAYERS = getNowCoastBaseLayers()>
+            <cfset local.out.SUMMARY = buildBoaterSummary(local.out.FORECAST, local.out.ALERTS)>
         </cfif>
 
         <cfif isStruct(local.m) AND structCount(local.m) GT 0>
             <cfset local.out.MARINE = local.m>
         </cfif>
 
-        <cfset local.out.MAP_LAYERS = getNowCoastBaseLayers()>
-        <cfset local.out.SUMMARY = buildBoaterSummary(local.out.FORECAST, local.out.ALERTS)>
-
         <cfset local.out.META.anchor = { "lat"=local.lat, "lon"=local.lon }>
         <cfset local.out.META.request = { "zip"=arguments.zip }>
         <cfset local.out.META.sources = {} >
         <cfset local.out.META.sources.geocode  = (structKeyExists(local.geo,"META") ? local.geo.META : {})>
-        <cfset local.out.META.sources.forecast = (structKeyExists(local.f,"META") ? local.f.META : {})>
-        <cfset local.out.META.sources.alerts   = (structKeyExists(local.a,"META") ? local.a.META : {})>
+        <cfset local.out.META.sources.forecast = (NOT arguments.marineOnly AND structKeyExists(local.f,"META") ? local.f.META : {})>
+        <cfset local.out.META.sources.alerts   = (NOT arguments.marineOnly AND structKeyExists(local.a,"META") ? local.a.META : {})>
         <cfset local.out.META.sources.marine   = (structKeyExists(local.m,"META") ? local.m.META : {})>
 
         <cfset local.out.SUCCESS = true>
@@ -537,19 +562,117 @@
         <cfargument name="lat" type="numeric" required="true">
         <cfargument name="lon" type="numeric" required="true">
         <cfargument name="noCache" type="boolean" required="false" default="false">
+        <cfargument name="marineMode" type="string" required="false" default="full">
 
         <cfset local.out = {} >
         <cfset local.meta = {} >
+        <cfset local.maxLocalStationNm = 120>
+        <cfset local.hasLocalTide = false>
+        <cfset local.tide = {} >
+        <cfset local.wl = {} >
+        <cfset local.fetchTrend = (lcase(arguments.marineMode) NEQ "quick")>
 
         <cfset local.tideStation = getNearestCoopsTideStation(arguments.lat, arguments.lon)>
         <cfif structKeyExists(local.tideStation, "SUCCESS") AND local.tideStation.SUCCESS>
-            <cfset local.tide = getCoopsTideData(local.tideStation.STATION_ID, local.tideStation.NAME, arguments.noCache)>
-            <cfif isStruct(local.tide) AND structKeyExists(local.tide, "tide")>
-                <cfset local.out.tide = local.tide.tide>
+            <cfset local.tideDistance = (structKeyExists(local.tideStation, "META") AND structKeyExists(local.tideStation.META, "distanceNm") ? val(local.tideStation.META.distanceNm) : 999999)>
+            <cfif local.tideDistance LTE local.maxLocalStationNm>
+                <cfset local.tide = getCoopsTideData(local.tideStation.STATION_ID, local.tideStation.NAME, arguments.noCache)>
+                <cfif isStruct(local.tide) AND structKeyExists(local.tide, "tide")>
+                    <cfset local.out.tide = local.tide.tide>
+                    <cfset local.hasLocalTide = true>
+                </cfif>
+            <cfelse>
+                <cfset local.meta.tideUnavailable = "No local tide station within " & local.maxLocalStationNm & " nm.">
             </cfif>
             <cfset local.meta.tideStation = (structKeyExists(local.tideStation,"META") ? local.tideStation.META : {})>
             <cfif isStruct(local.tide) AND structKeyExists(local.tide, "META") AND structKeyExists(local.tide.META, "tidePred")>
                 <cfset local.meta.tidePred = local.tide.META.tidePred>
+            </cfif>
+        <cfelse>
+            <cfset local.meta.tideUnavailable = "No tide station available for this location.">
+        </cfif>
+
+        <!--- Great Lakes and inland fallback: observed water level stations --->
+        <cfif NOT local.hasLocalTide>
+            <cfset local.waterLevelCandidates = getNearestCoopsWaterLevelCandidates(arguments.lat, arguments.lon, local.maxLocalStationNm, 10)>
+            <cfif isArray(local.waterLevelCandidates) AND arrayLen(local.waterLevelCandidates)>
+                <cfset local.meta.waterLevelAttempts = []>
+                <cfset local.selectedWlMeta = {} >
+                <cfloop from="1" to="#arrayLen(local.waterLevelCandidates)#" index="local.wci">
+                    <cfset local.candidate = local.waterLevelCandidates[local.wci]>
+                    <cfset local.wl = getCoopsWaterLevelData(local.candidate.STATION_ID, local.candidate.NAME, arguments.noCache, local.fetchTrend)>
+                    <cfset local.tryMeta = {
+                        "stationId"=local.candidate.STATION_ID,
+                        "stationName"=local.candidate.NAME,
+                        "distanceNm"=(structKeyExists(local.candidate, "META") AND structKeyExists(local.candidate.META, "distanceNm") ? local.candidate.META.distanceNm : 0)
+                    }>
+                    <cfif isStruct(local.wl) AND structKeyExists(local.wl, "META") AND structKeyExists(local.wl.META, "waterLevelObs")>
+                        <cfset local.obsMeta = local.wl.META.waterLevelObs>
+                        <cfif structKeyExists(local.obsMeta, "lastStatus")>
+                            <cfset local.tryMeta.lastStatus = local.obsMeta.lastStatus>
+                        </cfif>
+                        <cfif structKeyExists(local.obsMeta, "lastProduct")>
+                            <cfset local.tryMeta.lastProduct = local.obsMeta.lastProduct>
+                        </cfif>
+                        <cfif structKeyExists(local.obsMeta, "lastDatum")>
+                            <cfset local.tryMeta.lastDatum = local.obsMeta.lastDatum>
+                        </cfif>
+                        <cfif structKeyExists(local.obsMeta, "lastError")>
+                            <cfset local.tryMeta.lastError = local.obsMeta.lastError>
+                        </cfif>
+                    </cfif>
+                    <cfset arrayAppend(local.meta.waterLevelAttempts, local.tryMeta)>
+
+                    <cfif isStruct(local.wl) AND structKeyExists(local.wl, "waterLevel")>
+                        <cfset local.out.waterLevel = local.wl.waterLevel>
+                        <cfset local.selectedWlMeta = {
+                            "source"="COOPS_MDAPI_WATER_LEVEL",
+                            "stationId"=local.candidate.STATION_ID,
+                            "stationName"=local.candidate.NAME,
+                            "distanceNm"=(structKeyExists(local.candidate, "META") AND structKeyExists(local.candidate.META, "distanceNm") ? local.candidate.META.distanceNm : 0)
+                        }>
+                        <cfif isStruct(local.wl) AND structKeyExists(local.wl, "META") AND structKeyExists(local.wl.META, "waterLevelObs")>
+                            <cfset local.meta.waterLevelObs = local.wl.META.waterLevelObs>
+                        </cfif>
+                        <cfbreak>
+                    <cfelseif isStruct(local.wl) AND structKeyExists(local.wl, "waterLevelCurrent") AND NOT structKeyExists(local.out, "waterLevelCurrent")>
+                        <cfset local.out.waterLevelCurrent = local.wl.waterLevelCurrent>
+                        <cfif structCount(local.selectedWlMeta) EQ 0>
+                            <cfset local.selectedWlMeta = {
+                                "source"="COOPS_MDAPI_WATER_LEVEL",
+                                "stationId"=local.candidate.STATION_ID,
+                                "stationName"=local.candidate.NAME,
+                                "distanceNm"=(structKeyExists(local.candidate, "META") AND structKeyExists(local.candidate.META, "distanceNm") ? local.candidate.META.distanceNm : 0)
+                            }>
+                        </cfif>
+                        <cfif isStruct(local.wl) AND structKeyExists(local.wl, "META") AND structKeyExists(local.wl.META, "waterLevelObs")>
+                            <cfset local.meta.waterLevelObs = local.wl.META.waterLevelObs>
+                        </cfif>
+                        <cfif NOT local.fetchTrend>
+                            <cfbreak>
+                        </cfif>
+                    </cfif>
+                </cfloop>
+
+                <cfif structKeyExists(local.out, "waterLevel")>
+                    <cfset local.meta.waterLevelStation = local.selectedWlMeta>
+                <cfelseif structKeyExists(local.out, "waterLevelCurrent")>
+                    <cfif structCount(local.selectedWlMeta)>
+                        <cfset local.meta.waterLevelStation = local.selectedWlMeta>
+                    </cfif>
+                <cfelse>
+                    <cfset local.meta.waterLevelUnavailable = "Water level data unavailable for nearby local stations.">
+                    <cfif arrayLen(local.waterLevelCandidates)>
+                        <cfset local.meta.waterLevelStation = {
+                            "source"="COOPS_MDAPI_WATER_LEVEL",
+                            "stationId"=local.waterLevelCandidates[1].STATION_ID,
+                            "stationName"=local.waterLevelCandidates[1].NAME,
+                            "distanceNm"=(structKeyExists(local.waterLevelCandidates[1], "META") AND structKeyExists(local.waterLevelCandidates[1].META, "distanceNm") ? local.waterLevelCandidates[1].META.distanceNm : 0)
+                        }>
+                    </cfif>
+                </cfif>
+            <cfelse>
+                <cfset local.meta.waterLevelUnavailable = "No local water level station within " & local.maxLocalStationNm & " nm.">
             </cfif>
         </cfif>
 
@@ -565,6 +688,329 @@
         <cfif structCount(local.meta) GT 0>
             <cfset local.out.META = local.meta>
         </cfif>
+
+        <cfreturn local.out>
+    </cffunction>
+
+    <cffunction name="getNearestCoopsWaterLevelStation" access="private" returntype="struct" output="false">
+        <cfargument name="lat" type="numeric" required="true">
+        <cfargument name="lon" type="numeric" required="true">
+
+        <cfset local.out = { "SUCCESS"=false, "STATION_ID"="", "NAME"="", "META"={} }>
+        <cfset local.candidates = getNearestCoopsWaterLevelCandidates(arguments.lat, arguments.lon, 999999, 1)>
+        <cfif NOT isArray(local.candidates) OR arrayLen(local.candidates) EQ 0>
+            <cfreturn local.out>
+        </cfif>
+        <cfset local.c = local.candidates[1]>
+        <cfset local.out.SUCCESS = true>
+        <cfset local.out.STATION_ID = local.c.STATION_ID>
+        <cfset local.out.NAME = local.c.NAME>
+        <cfset local.out.META = (structKeyExists(local.c, "META") ? local.c.META : {})>
+        <cfreturn local.out>
+    </cffunction>
+
+    <cffunction name="getNearestCoopsWaterLevelCandidates" access="private" returntype="array" output="false">
+        <cfargument name="lat" type="numeric" required="true">
+        <cfargument name="lon" type="numeric" required="true">
+        <cfargument name="maxDistanceNm" type="numeric" required="false" default="120">
+        <cfargument name="maxCount" type="numeric" required="false" default="10">
+
+        <cfset local.out = []>
+        <cfset local.list = getCoopsWaterLevelStations()>
+        <cfset local.maxNm = val(arguments.maxDistanceNm)>
+        <cfset local.limit = int(arguments.maxCount)>
+
+        <cfif NOT isArray(local.list) OR arrayLen(local.list) EQ 0>
+            <cfreturn local.out>
+        </cfif>
+
+        <cfloop from="1" to="#arrayLen(local.list)#" index="local.i">
+            <cfset local.s = local.list[local.i]>
+            <cfset local.sLat = val(structKeyExists(local.s,"lat") ? local.s.lat : (structKeyExists(local.s,"latitude") ? local.s.latitude : 0))>
+            <cfset local.sLon = val(structKeyExists(local.s,"lng") ? local.s.lng : (structKeyExists(local.s,"lon") ? local.s.lon : (structKeyExists(local.s,"longitude") ? local.s.longitude : 0)))>
+            <cfif local.sLat EQ 0 AND local.sLon EQ 0>
+                <cfcontinue>
+            </cfif>
+            <cfset local.d = distanceNm(arguments.lat, arguments.lon, local.sLat, local.sLon)>
+            <cfif local.maxNm LTE 0 OR local.d LTE local.maxNm>
+                <cfset local.item = {
+                    "STATION_ID"=(structKeyExists(local.s, "id") ? local.s.id : ""),
+                    "NAME"=(structKeyExists(local.s, "name") ? local.s.name : ""),
+                    "META"={"source"="COOPS_MDAPI_WATER_LEVEL","distanceNm"=local.d}
+                }>
+                <cfif len(local.item.STATION_ID)>
+                    <cfset arrayAppend(local.out, local.item)>
+                </cfif>
+            </cfif>
+        </cfloop>
+
+        <cfif arrayLen(local.out) GT 1>
+            <cfloop from="1" to="#arrayLen(local.out)-1#" index="local.a">
+                <cfloop from="#local.a+1#" to="#arrayLen(local.out)#" index="local.b">
+                    <cfif val(local.out[local.b].META.distanceNm) LT val(local.out[local.a].META.distanceNm)>
+                        <cfset local.tmp = local.out[local.a]>
+                        <cfset local.out[local.a] = local.out[local.b]>
+                        <cfset local.out[local.b] = local.tmp>
+                    </cfif>
+                </cfloop>
+            </cfloop>
+        </cfif>
+
+        <cfif local.limit GT 0>
+            <cfloop condition="arrayLen(local.out) GT local.limit">
+                <cfset arrayDeleteAt(local.out, arrayLen(local.out))>
+            </cfloop>
+        </cfif>
+
+        <cfreturn local.out>
+    </cffunction>
+
+    <cffunction name="getCoopsWaterLevelStations" access="private" returntype="array" output="false">
+        <cfset local.cacheKey = "coops_water_level_stations">
+        <cfset local.cached = marineCacheGet(local.cacheKey, 43200)>
+        <cfif isArray(local.cached)>
+            <cfreturn local.cached>
+        </cfif>
+
+        <cfset local.ua = getNwsUserAgent()>
+        <cfset local.list = []>
+        <cfset local.urlList = [
+            "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=waterlevels&units=english",
+            "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=water_level&units=english"
+        ]>
+
+        <cfloop from="1" to="#arrayLen(local.urlList)#" index="local.u">
+            <cfhttp url="#local.urlList[local.u]#" method="get" result="wlsRes" timeout="20">
+                <cfhttpparam type="header" name="User-Agent" value="#local.ua#">
+                <cfhttpparam type="header" name="Accept" value="application/json">
+            </cfhttp>
+
+            <cfif val(wlsRes.statusCode) GTE 200 AND val(wlsRes.statusCode) LT 300>
+                <cftry>
+                    <cfset local.obj = deserializeJSON(wlsRes.fileContent)>
+                    <cfif structKeyExists(local.obj, "stations") AND isArray(local.obj.stations)>
+                        <cfset local.list = local.obj.stations>
+                    <cfelseif structKeyExists(local.obj, "stationList") AND isArray(local.obj.stationList)>
+                        <cfset local.list = local.obj.stationList>
+                    </cfif>
+                    <cfcatch>
+                    </cfcatch>
+                </cftry>
+            </cfif>
+
+            <cfif arrayLen(local.list)>
+                <cfbreak>
+            </cfif>
+        </cfloop>
+
+        <cfif arrayLen(local.list)>
+            <cfset marineCacheSet(local.cacheKey, local.list)>
+        </cfif>
+
+        <cfreturn local.list>
+    </cffunction>
+
+    <cffunction name="getCoopsWaterLevelData" access="private" returntype="struct" output="false">
+        <cfargument name="stationId" type="string" required="true">
+        <cfargument name="stationName" type="string" required="false" default="">
+        <cfargument name="noCache" type="boolean" required="false" default="false">
+        <cfargument name="includeTrend" type="boolean" required="false" default="true">
+
+        <cfset local.cacheKey = "coops_water_level_data:" & arguments.stationId & ":" & (arguments.includeTrend ? "trend" : "current")>
+        <cfif NOT arguments.noCache>
+            <cfset local.cached = marineCacheGet(local.cacheKey, (arguments.includeTrend ? 600 : 120))>
+            <cfif isStruct(local.cached)>
+                <cfreturn local.cached>
+            </cfif>
+        </cfif>
+
+        <cfset local.out = {} >
+        <cfset local.meta = { "obsUrls"=[], "obsStatus"=[], "lastProduct"="", "lastDatum"="", "lastStatus"=0, "lastError"="" } >
+        <cfset local.ua = getNwsUserAgent()>
+        <cfset local.series = []>
+        <cfset local.datumCandidates = ["LWD","IGLD","STND"]>
+        <cfset local.productCandidates = ["water_level","hourly_height"]>
+
+        <cfif arguments.includeTrend>
+            <cfloop from="1" to="#arrayLen(local.productCandidates)#" index="local.prodIdx">
+                <cfset local.product = local.productCandidates[local.prodIdx]>
+                <cfloop from="1" to="#arrayLen(local.datumCandidates)#" index="local.d">
+                    <cfset local.url = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=" & urlEncodedFormat(local.product) & "&application=FPW&datum=" & urlEncodedFormat(local.datumCandidates[local.d]) & "&units=english&time_zone=gmt&format=json&date=recent&station=" & urlEncodedFormat(arguments.stationId)>
+                    <cfset arrayAppend(local.meta.obsUrls, local.url)>
+
+                    <cfhttp url="#local.url#" method="get" result="wlRes" timeout="20">
+                        <cfhttpparam type="header" name="User-Agent" value="#local.ua#">
+                        <cfhttpparam type="header" name="Accept" value="application/json">
+                    </cfhttp>
+
+                    <cfset local.httpStatus = val(wlRes.statusCode)>
+                    <cfset arrayAppend(local.meta.obsStatus, local.httpStatus)>
+                    <cfset local.meta.lastProduct = local.product>
+                    <cfset local.meta.lastDatum = local.datumCandidates[local.d]>
+                    <cfset local.meta.lastStatus = local.httpStatus>
+
+                    <cfif local.httpStatus GTE 200 AND local.httpStatus LT 300>
+                        <cftry>
+                            <cfset local.obj = deserializeJSON(wlRes.fileContent)>
+                            <cfset local.meta.lastError = "">
+                            <cfif structKeyExists(local.obj, "error") AND isStruct(local.obj.error) AND structKeyExists(local.obj.error, "message")>
+                                <cfset local.meta.lastError = local.obj.error.message>
+                            <cfelseif structKeyExists(local.obj, "message") AND isSimpleValue(local.obj.message)>
+                                <cfset local.meta.lastError = local.obj.message>
+                            </cfif>
+                            <cfset local.rows = []>
+                            <cfif structKeyExists(local.obj, "data") AND isArray(local.obj.data)>
+                                <cfset local.rows = local.obj.data>
+                            <cfelseif structKeyExists(local.obj, "predictions") AND isArray(local.obj.predictions)>
+                                <cfset local.rows = local.obj.predictions>
+                            </cfif>
+                            <cfif isArray(local.rows) AND arrayLen(local.rows)>
+                                <cfset local.series = []>
+                                <cfloop from="1" to="#arrayLen(local.rows)#" index="local.i">
+                                    <cfset local.p = local.rows[local.i]>
+                                    <cfif structKeyExists(local.p, "t") AND (structKeyExists(local.p, "v") OR structKeyExists(local.p, "pred"))>
+                                        <cfset local.vRaw = trim(structKeyExists(local.p, "v") ? local.p.v : local.p.pred)>
+                                        <cfif reFind("^-?[0-9]+(\.[0-9]+)?$", local.vRaw)>
+                                            <cfset arrayAppend(local.series, { "t"=local.p.t, "h"=val(local.vRaw) })>
+                                        </cfif>
+                                    </cfif>
+                                </cfloop>
+                                <cfif arrayLen(local.series) GTE 2>
+                                    <cfset local.series = downsampleMarineSeries(local.series, 120)>
+                                    <cfset local.out.waterLevel = {
+                                        "stationId"=arguments.stationId,
+                                        "stationName"=arguments.stationName,
+                                        "tz"="gmt",
+                                        "units"="ft",
+                                        "datum"=local.datumCandidates[local.d],
+                                        "product"=local.product,
+                                        "series"=local.series
+                                    }>
+                                    <cfbreak>
+                                </cfif>
+                            </cfif>
+                            <cfcatch>
+                                <cfset local.meta.lastError = "JSON parse error">
+                            </cfcatch>
+                        </cftry>
+                    </cfif>
+                </cfloop>
+                <cfif structKeyExists(local.out, "waterLevel")>
+                    <cfbreak>
+                </cfif>
+            </cfloop>
+        </cfif>
+
+        <!--- Fallback: latest single reading for current level text --->
+        <cfif NOT structKeyExists(local.out, "waterLevel")>
+            <cfloop from="1" to="#arrayLen(local.datumCandidates)#" index="local.d2">
+                <cfset local.latestUrl = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=water_level&application=FPW&datum=" & urlEncodedFormat(local.datumCandidates[local.d2]) & "&units=english&time_zone=gmt&format=json&date=latest&station=" & urlEncodedFormat(arguments.stationId)>
+                <cfset arrayAppend(local.meta.obsUrls, local.latestUrl)>
+                <cfhttp url="#local.latestUrl#" method="get" result="latestRes" timeout="20">
+                    <cfhttpparam type="header" name="User-Agent" value="#local.ua#">
+                    <cfhttpparam type="header" name="Accept" value="application/json">
+                </cfhttp>
+                <cfset local.latestStatus = val(latestRes.statusCode)>
+                <cfset arrayAppend(local.meta.obsStatus, local.latestStatus)>
+                <cfset local.meta.lastProduct = "water_level_latest">
+                <cfset local.meta.lastDatum = local.datumCandidates[local.d2]>
+                <cfset local.meta.lastStatus = local.latestStatus>
+                <cfif local.latestStatus GTE 200 AND local.latestStatus LT 300>
+                    <cftry>
+                        <cfset local.latestObj = deserializeJSON(latestRes.fileContent)>
+                        <cfset local.meta.lastError = "">
+                        <cfif structKeyExists(local.latestObj, "error") AND isStruct(local.latestObj.error) AND structKeyExists(local.latestObj.error, "message")>
+                            <cfset local.meta.lastError = local.latestObj.error.message>
+                        </cfif>
+                        <cfset local.latestRows = []>
+                        <cfif structKeyExists(local.latestObj, "data") AND isArray(local.latestObj.data)>
+                            <cfset local.latestRows = local.latestObj.data>
+                        <cfelseif structKeyExists(local.latestObj, "predictions") AND isArray(local.latestObj.predictions)>
+                            <cfset local.latestRows = local.latestObj.predictions>
+                        </cfif>
+                        <cfif isArray(local.latestRows) AND arrayLen(local.latestRows)>
+                            <cfset local.latestP = local.latestRows[1]>
+                            <cfif structKeyExists(local.latestP, "t") AND (structKeyExists(local.latestP, "v") OR structKeyExists(local.latestP, "pred"))>
+                                <cfset local.latestRaw = trim(structKeyExists(local.latestP, "v") ? local.latestP.v : local.latestP.pred)>
+                                <cfif reFind("^-?[0-9]+(\.[0-9]+)?$", local.latestRaw)>
+                                    <cfset local.out.waterLevelCurrent = {
+                                        "stationId"=arguments.stationId,
+                                        "stationName"=arguments.stationName,
+                                        "tz"="gmt",
+                                        "units"="ft",
+                                        "datum"=local.datumCandidates[local.d2],
+                                        "t"=local.latestP.t,
+                                        "h"=val(local.latestRaw)
+                                    }>
+                                    <cfbreak>
+                                </cfif>
+                            </cfif>
+                        </cfif>
+                        <cfcatch>
+                            <cfset local.meta.lastError = "JSON parse error">
+                        </cfcatch>
+                    </cftry>
+                </cfif>
+            </cfloop>
+        </cfif>
+
+        <cfset local.out.META = { "waterLevelObs"=local.meta }>
+        <cfif (structKeyExists(local.out, "waterLevel") OR structKeyExists(local.out, "waterLevelCurrent")) AND NOT arguments.noCache>
+            <cfset marineCacheSet(local.cacheKey, local.out)>
+        </cfif>
+
+        <cfreturn local.out>
+    </cffunction>
+
+    <cffunction name="downsampleMarineSeries" access="private" returntype="array" output="false">
+        <cfargument name="series" type="array" required="true">
+        <cfargument name="maxPoints" type="numeric" required="false" default="120">
+
+        <cfset local.n = arrayLen(arguments.series)>
+        <cfset local.maxKeep = int(arguments.maxPoints)>
+        <cfset local.out = []>
+        <cfset local.keep = {} >
+
+        <cfif local.n LTE 0>
+            <cfreturn local.out>
+        </cfif>
+        <cfif local.maxKeep LTE 0 OR local.n LTE local.maxKeep>
+            <cfreturn arguments.series>
+        </cfif>
+
+        <cfset local.minIdx = 1>
+        <cfset local.maxIdx = 1>
+        <cfset local.minH = val(arguments.series[1].h)>
+        <cfset local.maxH = val(arguments.series[1].h)>
+        <cfloop from="2" to="#local.n#" index="local.i">
+            <cfset local.h = val(arguments.series[local.i].h)>
+            <cfif local.h LT local.minH>
+                <cfset local.minH = local.h>
+                <cfset local.minIdx = local.i>
+            </cfif>
+            <cfif local.h GT local.maxH>
+                <cfset local.maxH = local.h>
+                <cfset local.maxIdx = local.i>
+            </cfif>
+        </cfloop>
+
+        <cfset local.keep["1"] = true>
+        <cfset local.keep["#local.n#"] = true>
+        <cfset local.keep["#local.minIdx#"] = true>
+        <cfset local.keep["#local.maxIdx#"] = true>
+
+        <cfloop from="1" to="#local.maxKeep#" index="local.k">
+            <cfset local.idx = int(round(1 + ((local.k - 1) * (local.n - 1)) / (local.maxKeep - 1)))>
+            <cfif local.idx LT 1><cfset local.idx = 1></cfif>
+            <cfif local.idx GT local.n><cfset local.idx = local.n></cfif>
+            <cfset local.keep["#local.idx#"] = true>
+        </cfloop>
+
+        <cfloop from="1" to="#local.n#" index="local.i2">
+            <cfif structKeyExists(local.keep, toString(local.i2))>
+                <cfset arrayAppend(local.out, arguments.series[local.i2])>
+            </cfif>
+        </cfloop>
 
         <cfreturn local.out>
     </cffunction>
