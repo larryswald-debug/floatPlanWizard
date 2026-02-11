@@ -118,6 +118,27 @@
     return { speed: speed, gust: gust };
   }
 
+  function parseApiGustMph(period) {
+    if (!period) return null;
+    var raw = null;
+    if (period.gustMph !== undefined && period.gustMph !== null && period.gustMph !== "") {
+      raw = period.gustMph;
+    } else if (period.GUSTMPH !== undefined && period.GUSTMPH !== null && period.GUSTMPH !== "") {
+      raw = period.GUSTMPH;
+    }
+    if (raw === null) return null;
+    var n = parseFloat(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function resolveGustMph(period, parsedWind) {
+    var apiGust = parseApiGustMph(period);
+    if (apiGust !== null && apiGust >= 0) {
+      return apiGust;
+    }
+    return (parsedWind && parsedWind.gust) ? parsedWind.gust : ((parsedWind && parsedWind.speed) ? parsedWind.speed : 0);
+  }
+
   function formatTimeOfDay(iso) {
     if (!iso) return "";
     try {
@@ -128,6 +149,16 @@
       var ap = hrs >= 12 ? "PM" : "AM";
       var h12 = hrs % 12; if (h12 === 0) h12 = 12;
       return mins ? (h12 + ":" + String(mins).padStart(2, "0") + " " + ap) : (h12 + " " + ap);
+    } catch (e) { return ""; }
+  }
+
+  function formatHourOnly(iso) {
+    if (!iso) return "";
+    try {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return "";
+      var h = d.getHours() % 12;
+      return String(h === 0 ? 12 : h);
     } catch (e) { return ""; }
   }
 
@@ -457,11 +488,11 @@
     var windSpeedRaw = now && now.windSpeed ? now.windSpeed : "";
     var wind = parseWindSpeed(windSpeedRaw);
     var speed = wind.speed;
-    var gust = wind.gust;
+    var gust = resolveGustMph(now, wind);
 
     if (windSpeedEl) windSpeedEl.textContent = speed ? (speed + " mph") : "—";
     if (windDirEl) windDirEl.textContent = windDir || "—";
-    if (windGustEl) windGustEl.textContent = "Gust " + (gust ? (gust + " mph") : "—");
+    if (windGustEl) windGustEl.textContent = "Gust " + (gust ? (Math.round(gust) + " mph") : "—");
     if (windCondEl) windCondEl.textContent = (now && now.shortForecast) ? now.shortForecast : "—";
 
     var deg = compassToDegrees(windDir);
@@ -505,7 +536,8 @@
     var maxGust = 0;
     rows.forEach(function (p) {
       var w = parseWindSpeed(p && p.windSpeed ? p.windSpeed : "");
-      if (w.gust > maxGust) maxGust = w.gust;
+      var gResolved = resolveGustMph(p, w);
+      if (gResolved > maxGust) maxGust = gResolved;
       if (w.speed > maxGust) maxGust = w.speed;
     });
     if (maxGust <= 0) maxGust = 25;
@@ -514,12 +546,13 @@
       timelineEl.innerHTML = "";
       rows.forEach(function (p, idx) {
         var w = parseWindSpeed(p && p.windSpeed ? p.windSpeed : "");
+        var g = resolveGustMph(p, w);
         var t = (p && p.temperature !== undefined && p.temperature !== null) ? parseFloat(p.temperature) : NaN;
 
         var when = formatTimeOfDay(p && p.startTime ? p.startTime : "") || ((p && p.name) ? abbreviateWhen(p.name) : formatForecastWhen(p && p.startTime ? p.startTime : ""));
 
         var windPct = clamp(Math.round((w.speed / maxGust) * 100), 0, 100);
-        var gustPct = clamp(Math.round((w.gust / maxGust) * 100), 0, 100);
+        var gustPct = clamp(Math.round((g / maxGust) * 100), 0, 100);
 
         var rainPct = inferRainPct(p);
 
@@ -544,7 +577,7 @@
         meters.className = "fpw-wx__barMeters";
 
         meters.appendChild(buildMeterRow("wind", windPct, (w.speed ? (w.speed + " mph") : "—")));
-        meters.appendChild(buildMeterRow("gust", gustPct, (w.gust ? (w.gust + " mph") : "—")));
+        meters.appendChild(buildMeterRow("gust", gustPct, (g ? (Math.round(g) + " mph") : "—")));
         meters.appendChild(buildMeterRow("rain", rainPct, (rainPct !== null && rainPct !== undefined ? (rainPct + "%") : "—")));
 
         bar.appendChild(top);
@@ -559,7 +592,7 @@
 
         var chipG = document.createElement("span");
         chipG.className = "chip";
-        chipG.innerHTML = "Gust <b>" + (w.gust ? (w.gust + " mph") : "—") + "</b>";
+        chipG.innerHTML = "Gust <b>" + (g ? (Math.round(g) + " mph") : "—") + "</b>";
 
         var chipR = document.createElement("span");
         chipR.className = "chip";
@@ -571,7 +604,7 @@
         bar.appendChild(meta);
 
         // Flag if risk is high for this period
-        var r = classifyWindRisk(w.gust || w.speed || 0);
+        var r = classifyWindRisk(g || w.speed || 0);
         if (r.level >= 3) {
           var flag = document.createElement("div");
           flag.className = "fpw-wx__barFlag";
@@ -590,7 +623,7 @@
       if (gustLabelsEl) gustLabelsEl.innerHTML = "";
       rows.forEach(function (p) {
         var w = parseWindSpeed(p && p.windSpeed ? p.windSpeed : "");
-        var g = w.gust || w.speed || 0;
+        var g = resolveGustMph(p, w);
         var hPct = clamp(Math.round((g / maxGust) * 100), 2, 100);
 
         var spike = document.createElement("div");
@@ -605,33 +638,18 @@
       });
 
       if (gustLabelsEl) {
-        var firstT = formatTimeOfDay(rows[0] && rows[0].startTime ? rows[0].startTime : "");
-        var lastT = formatTimeOfDay(rows[rows.length - 1] && rows[rows.length - 1].startTime ? rows[rows.length - 1].startTime : "");
-
-        var minG = Number.POSITIVE_INFINITY;
-        var maxG = Number.NEGATIVE_INFINITY;
-        rows.forEach(function (p2) {
-          var w2 = parseWindSpeed(p2 && p2.windSpeed ? p2.windSpeed : "");
-          var g2 = w2.gust || w2.speed || 0;
-          if (g2 < minG) minG = g2;
-          if (g2 > maxG) maxG = g2;
+        gustLabelsEl.style.gridTemplateColumns = "repeat(" + rows.length + ", minmax(0, 1fr))";
+        rows.forEach(function (p2, idx2) {
+          var tick = document.createElement("span");
+          tick.className = "fpw-wx__spikeLabelTick";
+          tick.textContent = formatHourOnly(p2 && p2.startTime ? p2.startTime : "") || "—";
+          gustLabelsEl.appendChild(tick);
         });
-        if (!Number.isFinite(minG)) minG = 0;
-        if (!Number.isFinite(maxG)) maxG = 0;
-
-        var left = document.createElement("span");
-        left.textContent = (firstT || "Start") + " • Min " + Math.round(minG) + " mph";
-
-        var right = document.createElement("span");
-        right.textContent = (lastT || "End") + " • Max " + Math.round(maxG) + " mph";
-
-        gustLabelsEl.appendChild(left);
-        gustLabelsEl.appendChild(right);
       }
     }
 
     if (gustValueEl) {
-      gustValueEl.textContent = (gust || speed) ? ((gust || speed) + " mph") : "—";
+      gustValueEl.textContent = (gust || speed) ? (Math.round(gust || speed) + " mph") : "—";
     }
   }
 
@@ -877,7 +895,7 @@
       });
   }
 
-  function initWeatherPanel() {
+  function initWeatherPanel(initialZip) {
     var refreshBtn = document.getElementById("weatherRefreshBtn");
     var zipInput = document.getElementById("weatherZip");
     if (!refreshBtn) {
@@ -886,18 +904,27 @@
 
     updateWeatherTitleDate();
 
-    function requestWeatherFromInput() {
+    if (zipInput && initialZip) {
+      zipInput.value = normalizeZip(initialZip);
+    }
+
+    function requestWeatherFromInput(invalidZipMessage) {
       var zip = normalizeZip(zipInput ? zipInput.value : "");
       if (zipInput) {
         zipInput.value = zip;
       }
 
       if (!isValidZip(zip)) {
+        var msg = invalidZipMessage;
+        if (!msg) {
+          msg = zip ? "Enter a valid 5-digit ZIP code." : "Home port ZIP is required. Update it in Account settings.";
+        }
         renderWeatherSummary("", "");
         renderWeatherAnchor(null);
         renderWeatherAlerts([]);
         renderWeatherForecast([]);
-        setWeatherError("Enter a valid 5-digit ZIP code.");
+        renderTideGraph(null);
+        setWeatherError(msg);
         return;
       }
 
@@ -908,7 +935,7 @@
       requestWeatherFromInput();
     });
 
-    requestWeatherFromInput();
+    requestWeatherFromInput("Home port ZIP is required. Update it in Account settings.");
   }
 
   function initDashboard() {
@@ -961,6 +988,11 @@
         if (utils.resolveHomePortLatLng) {
           state.homePortLatLng = utils.resolveHomePortLatLng(data.USER);
         }
+        var homePortZip = "";
+        if (utils.resolveHomePortZip) {
+          homePortZip = utils.resolveHomePortZip(data.USER);
+        }
+        initWeatherPanel(homePortZip);
 
         var readyEvent = null;
         if (typeof Event === "function") {
@@ -992,9 +1024,8 @@
       });
     }
 
-    initWeatherPanel();
   }
 
-  window.FPW_DASHBOARD_VERSION = "20251227r";
+  window.FPW_DASHBOARD_VERSION = "20260211d";
   document.addEventListener("DOMContentLoaded", initDashboard);
 })(window, document);

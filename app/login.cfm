@@ -6,22 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <cfinclude template="../includes/header_styles.cfm">
-
-    <style>
-        body {
-            min-height: 100vh;
-        }
-        .login-wrapper {
-            min-height: 100vh;
-        }
-    </style>
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/auth-pages.css?v=1">
 
     <cfif structKeyExists(session, "authenticated") AND NOT isLoggedIn()>
         <cfset structClear(session)>
     </cfif>
 
 </head>
-<body class="bg-light d-flex align-items-center justify-content-center">
+<body class="auth-page-body bg-light d-flex align-items-center justify-content-center">
 
 <div class="container login-wrapper">
     <div class="row justify-content-center">

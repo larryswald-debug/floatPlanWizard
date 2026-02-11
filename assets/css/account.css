@@ -1,0 +1,67 @@
+/* /fpw/assets/css/account.css */
+
+    .account-main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0.5rem 20px 1.5rem;
+    }
+
+    .account-body .card {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      color: var(--text);
+      box-shadow: var(--shadow-md);
+    }
+
+    .account-body .btn,
+    .account-navbar .btn {
+      border-radius: var(--radius-md);
+      padding: 0.4rem 0.75rem;
+      font-size: 0.85rem;
+      min-height: 44px;
+    }
+
+    .account-body .btn.btn-sm,
+    .account-navbar .btn.btn-sm {
+      padding: 0.25rem 0.6rem;
+      font-size: 0.8rem;
+      min-height: 32px;
+    }
+
+    .account-body .text-muted {
+      color: var(--muted) !important;
+    }
+
+    .account-body .form-control {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--panel-border);
+      color: var(--text);
+    }
+
+    .account-body .form-control:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 0.2rem rgba(53, 208, 198, 0.2);
+    }
+
+    .account-body .btn-primary {
+      background: rgba(53, 208, 198, 0.18);
+      border-color: rgba(53, 208, 198, 0.35);
+      color: var(--text);
+    }
+
+    .account-body .btn-primary:hover {
+      background: rgba(53, 208, 198, 0.26);
+      border-color: rgba(53, 208, 198, 0.55);
+    }
+
+    .account-body .btn-outline-primary {
+      background: rgba(255,255,255,0.06);
+      border-color: var(--panel-border);
+      color: var(--text);
+    }
+
+    .account-body .btn-outline-primary:hover {
+      background: rgba(53, 208, 198, 0.14);
+      border-color: var(--panel-border-strong);
+    }
+

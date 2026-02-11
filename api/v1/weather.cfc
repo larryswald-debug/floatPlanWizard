@@ -39,9 +39,8 @@
 
             <cfif structKeyExists(session, "user") AND isStruct(session.user)>
                 <cfset local.userStruct = session.user>
+                <cfset local.userId = resolveUserId(local.userStruct)>
             </cfif>
-
-            <cfset local.userId = 187>
 
             <!--- DEV BYPASS (optional) --->
             <cfif local.userId LTE 0>
@@ -404,9 +403,13 @@
         <cfset local.ua = getNwsUserAgent()>
         <cfset local.pointsUrl = "https://api.weather.gov/points/" & arguments.lat & "," & arguments.lon>
         <cfset local.forecastUrl = "">
+        <cfset local.gridUrl = "">
         <cfset local.pObj = {} >
         <cfset local.httpStatus = 0>
         <cfset local.httpStatus2 = 0>
+        <cfset local.httpStatus3 = 0>
+        <cfset local.gustGrid = { "SUCCESS"=false, "VALUES"=[], "UNIT"="", "META"={} }>
+        <cfset local.meta = {} >
 
         <cfhttp url="#local.pointsUrl#" method="get" result="pRes" timeout="15">
             <cfhttpparam type="header" name="User-Agent" value="#local.ua#">
@@ -432,6 +435,9 @@
         <cfelseif structKeyExists(local.pObj, "properties") AND structKeyExists(local.pObj.properties, "forecast") AND len(local.pObj.properties.forecast)>
             <cfset local.forecastUrl = local.pObj.properties.forecast>
         </cfif>
+        <cfif structKeyExists(local.pObj, "properties") AND structKeyExists(local.pObj.properties, "forecastGridData") AND len(local.pObj.properties.forecastGridData)>
+            <cfset local.gridUrl = local.pObj.properties.forecastGridData>
+        </cfif>
 
         <cfif NOT len(local.forecastUrl)>
             <cfset local.out.META = { "source"="NWS", "step"="points", "status"=local.httpStatus, "url"=local.pointsUrl, "note"="No forecast URL" }>
@@ -449,7 +455,25 @@
             <cfreturn local.out>
         </cfif>
 
-        <cfreturn normalizeNwsForecast(fRes.fileContent, { "source"="NWS", "url"=local.forecastUrl, "status"=local.httpStatus2 })>
+        <cfif len(local.gridUrl)>
+            <cfhttp url="#local.gridUrl#" method="get" result="gRes" timeout="15">
+                <cfhttpparam type="header" name="User-Agent" value="#local.ua#">
+                <cfhttpparam type="header" name="Accept" value="application/geo+json">
+            </cfhttp>
+            <cfset local.httpStatus3 = val(gRes.statusCode)>
+            <cfif local.httpStatus3 GTE 200 AND local.httpStatus3 LT 300>
+                <cfset local.gustGrid = normalizeNwsGustGrid(gRes.fileContent, { "source"="NWS", "step"="forecastGridData", "url"=local.gridUrl, "status"=local.httpStatus3 })>
+            <cfelse>
+                <cfset local.gustGrid.META = { "source"="NWS", "step"="forecastGridData", "url"=local.gridUrl, "status"=local.httpStatus3, "note"="Grid request failed" }>
+            </cfif>
+        </cfif>
+
+        <cfset local.meta = { "source"="NWS", "url"=local.forecastUrl, "status"=local.httpStatus2 }>
+        <cfif isStruct(local.gustGrid) AND structKeyExists(local.gustGrid, "META")>
+            <cfset local.meta.gust = local.gustGrid.META>
+        </cfif>
+
+        <cfreturn normalizeNwsForecast(fRes.fileContent, local.meta, local.gustGrid)>
     </cffunction>
 
     <cffunction name="getNwsAlerts" access="private" returntype="struct" output="false">
@@ -1057,12 +1081,25 @@
     <cffunction name="normalizeNwsForecast" access="private" returntype="struct" output="false">
         <cfargument name="json" type="string" required="true">
         <cfargument name="meta" type="struct" required="true">
+        <cfargument name="gustGrid" type="any" required="false" default="">
 
         <cfset local.out = { "FORECAST"=[], "META"=arguments.meta }>
         <cfset local.obj = {} >
         <cfset local.maxN = 0>
         <cfset local.i = 0>
         <cfset local.p = {} >
+        <cfset local.gustValues = []>
+        <cfset local.gustUnit = "">
+        <cfset local.gust = { "hasValue"=false, "gustMph"=0, "source"="ESTIMATED" }>
+
+        <cfif isStruct(arguments.gustGrid)>
+            <cfif structKeyExists(arguments.gustGrid, "VALUES") AND isArray(arguments.gustGrid.VALUES)>
+                <cfset local.gustValues = arguments.gustGrid.VALUES>
+            </cfif>
+            <cfif structKeyExists(arguments.gustGrid, "UNIT")>
+                <cfset local.gustUnit = arguments.gustGrid.UNIT>
+            </cfif>
+        </cfif>
 
         <cftry>
             <cfset local.obj = deserializeJSON(arguments.json)>
@@ -1075,6 +1112,12 @@
 
                 <cfloop from="1" to="#local.maxN#" index="local.i">
                     <cfset local.p = local.obj.properties.periods[local.i]>
+                    <cfset local.gust = getPeriodGustFromGrid(
+                        (structKeyExists(local.p,"startTime") ? local.p.startTime : ""),
+                        (structKeyExists(local.p,"endTime") ? local.p.endTime : ""),
+                        local.gustValues,
+                        local.gustUnit
+                    )>
                     <cfset arrayAppend(local.out.FORECAST, {
                         "name"=(structKeyExists(local.p,"name") ? local.p.name : ""),
                         "startTime"=(structKeyExists(local.p,"startTime") ? local.p.startTime : ""),
@@ -1083,6 +1126,8 @@
                         "temperatureUnit"=(structKeyExists(local.p,"temperatureUnit") ? local.p.temperatureUnit : ""),
                         "windSpeed"=(structKeyExists(local.p,"windSpeed") ? local.p.windSpeed : ""),
                         "windDirection"=(structKeyExists(local.p,"windDirection") ? local.p.windDirection : ""),
+                        "gustMph"=(local.gust.hasValue ? (round(local.gust.gustMph * 10) / 10) : ""),
+                        "gustSource"=(local.gust.hasValue ? local.gust.source : "ESTIMATED"),
                         "shortForecast"=(structKeyExists(local.p,"shortForecast") ? local.p.shortForecast : ""),
                         "detailedForecast"=(structKeyExists(local.p,"detailedForecast") ? local.p.detailedForecast : "")
                     })>
@@ -1094,6 +1139,223 @@
         </cftry>
 
         <cfreturn local.out>
+    </cffunction>
+
+    <cffunction name="normalizeNwsGustGrid" access="private" returntype="struct" output="false">
+        <cfargument name="json" type="string" required="true">
+        <cfargument name="meta" type="struct" required="true">
+
+        <cfset local.out = { "SUCCESS"=false, "VALUES"=[], "UNIT"="", "META"=arguments.meta }>
+        <cfset local.obj = {} >
+        <cfset local.g = {} >
+
+        <cftry>
+            <cfset local.obj = deserializeJSON(arguments.json)>
+            <cfif structKeyExists(local.obj, "properties") AND structKeyExists(local.obj.properties, "windGust") AND isStruct(local.obj.properties.windGust)>
+                <cfset local.g = local.obj.properties.windGust>
+                <cfif structKeyExists(local.g, "values") AND isArray(local.g.values)>
+                    <cfset local.out.VALUES = local.g.values>
+                    <cfset local.out.SUCCESS = true>
+                </cfif>
+                <cfif structKeyExists(local.g, "uom")>
+                    <cfset local.out.UNIT = local.g.uom>
+                <cfelseif structKeyExists(local.g, "unitCode")>
+                    <cfset local.out.UNIT = local.g.unitCode>
+                </cfif>
+            </cfif>
+            <cfcatch>
+                <cfset local.out.SUCCESS = false>
+                <cfset local.out.META.note = "Invalid gust grid JSON">
+            </cfcatch>
+        </cftry>
+
+        <cfset local.out.META.count = arrayLen(local.out.VALUES)>
+        <cfset local.out.META.unit = local.out.UNIT>
+        <cfreturn local.out>
+    </cffunction>
+
+    <cffunction name="getPeriodGustFromGrid" access="private" returntype="struct" output="false">
+        <cfargument name="periodStartIso" type="string" required="true">
+        <cfargument name="periodEndIso" type="string" required="true">
+        <cfargument name="values" type="array" required="true">
+        <cfargument name="unitCode" type="string" required="false" default="">
+
+        <cfset local.out = { "hasValue"=false, "gustMph"=0, "source"="NWS_GRID" }>
+        <cfset local.periodStart = parseNwsIsoDate(arguments.periodStartIso)>
+        <cfset local.periodEnd = parseNwsIsoDate(arguments.periodEndIso)>
+        <cfset local.i = 0>
+        <cfset local.v = {} >
+        <cfset local.span = {} >
+        <cfset local.overlap = 0>
+        <cfset local.mph = 0>
+        <cfset local.maxMph = -1>
+
+        <cfif NOT isDate(local.periodStart) OR NOT isDate(local.periodEnd) OR local.periodEnd LTE local.periodStart>
+            <cfreturn local.out>
+        </cfif>
+
+        <cfloop from="1" to="#arrayLen(arguments.values)#" index="local.i">
+            <cfset local.v = arguments.values[local.i]>
+            <cfif NOT isStruct(local.v) OR NOT structKeyExists(local.v, "validTime")>
+                <cfcontinue>
+            </cfif>
+            <cfif NOT structKeyExists(local.v, "value") OR NOT isNumeric(local.v.value)>
+                <cfcontinue>
+            </cfif>
+
+            <cfset local.span = parseNwsValidTimeSpan(local.v.validTime)>
+            <cfif NOT local.span.SUCCESS>
+                <cfcontinue>
+            </cfif>
+
+            <cfset local.overlap = getDateRangeOverlapMinutes(local.periodStart, local.periodEnd, local.span.startDate, local.span.endDate)>
+            <cfif local.overlap LTE 0>
+                <cfcontinue>
+            </cfif>
+
+            <cfset local.mph = convertNwsSpeedToMph(val(local.v.value), arguments.unitCode)>
+            <cfif local.mph GT local.maxMph>
+                <cfset local.maxMph = local.mph>
+            </cfif>
+        </cfloop>
+
+        <cfif local.maxMph GTE 0>
+            <cfset local.out.hasValue = true>
+            <cfset local.out.gustMph = local.maxMph>
+        </cfif>
+
+        <cfreturn local.out>
+    </cffunction>
+
+    <cffunction name="parseNwsValidTimeSpan" access="private" returntype="struct" output="false">
+        <cfargument name="validTime" type="string" required="true">
+
+        <cfset local.out = { "SUCCESS"=false, "startDate"="", "endDate"="" }>
+        <cfset local.s = trim(arguments.validTime)>
+        <cfset local.slash = 0>
+        <cfset local.startIso = "">
+        <cfset local.durationIso = "">
+        <cfset local.startDate = "">
+        <cfset local.durationMin = 0>
+
+        <cfif NOT len(local.s)>
+            <cfreturn local.out>
+        </cfif>
+
+        <cfset local.slash = find("/", local.s)>
+        <cfif local.slash GT 0>
+            <cfset local.startIso = left(local.s, local.slash - 1)>
+            <cfset local.durationIso = mid(local.s, local.slash + 1, len(local.s) - local.slash)>
+        <cfelse>
+            <cfset local.startIso = local.s>
+            <cfset local.durationIso = "PT1H">
+        </cfif>
+
+        <cfset local.startDate = parseNwsIsoDate(local.startIso)>
+        <cfif NOT isDate(local.startDate)>
+            <cfreturn local.out>
+        </cfif>
+
+        <cfset local.durationMin = parseIsoDurationMinutes(local.durationIso)>
+        <cfif local.durationMin LTE 0>
+            <cfset local.durationMin = 60>
+        </cfif>
+
+        <cfset local.out.SUCCESS = true>
+        <cfset local.out.startDate = local.startDate>
+        <cfset local.out.endDate = dateAdd("n", local.durationMin, local.startDate)>
+        <cfreturn local.out>
+    </cffunction>
+
+    <cffunction name="parseNwsIsoDate" access="private" returntype="any" output="false">
+        <cfargument name="iso" type="string" required="true">
+
+        <cfset local.d = "">
+        <cfif NOT len(trim(arguments.iso))>
+            <cfreturn "">
+        </cfif>
+
+        <cftry>
+            <cfset local.d = parseDateTime(arguments.iso)>
+            <cfcatch>
+                <cfset local.d = "">
+            </cfcatch>
+        </cftry>
+
+        <cfreturn local.d>
+    </cffunction>
+
+    <cffunction name="parseIsoDurationMinutes" access="private" returntype="numeric" output="false">
+        <cfargument name="durationIso" type="string" required="true">
+
+        <cfset local.s = ucase(trim(arguments.durationIso))>
+        <cfset local.total = 0>
+        <cfset local.n = 0>
+
+        <cfif reFind("([0-9]+)D", local.s)>
+            <cfset local.n = val(reReplace(local.s, ".*?([0-9]+)D.*", "\1"))>
+            <cfset local.total = local.total + (local.n * 1440)>
+        </cfif>
+        <cfif reFind("([0-9]+)H", local.s)>
+            <cfset local.n = val(reReplace(local.s, ".*?([0-9]+)H.*", "\1"))>
+            <cfset local.total = local.total + (local.n * 60)>
+        </cfif>
+        <cfif reFind("([0-9]+)M", local.s)>
+            <cfset local.n = val(reReplace(local.s, ".*?([0-9]+)M.*", "\1"))>
+            <cfset local.total = local.total + local.n>
+        </cfif>
+
+        <cfreturn local.total>
+    </cffunction>
+
+    <cffunction name="getDateRangeOverlapMinutes" access="private" returntype="numeric" output="false">
+        <cfargument name="aStart" type="date" required="true">
+        <cfargument name="aEnd" type="date" required="true">
+        <cfargument name="bStart" type="date" required="true">
+        <cfargument name="bEnd" type="date" required="true">
+
+        <cfset local.start = "">
+        <cfset local.end = "">
+        <cfset local.diff = 0>
+
+        <cfif arguments.aEnd LTE arguments.aStart OR arguments.bEnd LTE arguments.bStart>
+            <cfreturn 0>
+        </cfif>
+
+        <cfset local.start = (arguments.aStart GTE arguments.bStart ? arguments.aStart : arguments.bStart)>
+        <cfset local.end = (arguments.aEnd LTE arguments.bEnd ? arguments.aEnd : arguments.bEnd)>
+        <cfif local.end LTE local.start>
+            <cfreturn 0>
+        </cfif>
+
+        <cfset local.diff = dateDiff("n", local.start, local.end)>
+        <cfreturn (local.diff GT 0 ? local.diff : 0)>
+    </cffunction>
+
+    <cffunction name="convertNwsSpeedToMph" access="private" returntype="numeric" output="false">
+        <cfargument name="speedVal" type="numeric" required="true">
+        <cfargument name="unitCode" type="string" required="false" default="">
+
+        <cfset local.v = val(arguments.speedVal)>
+        <cfset local.u = lcase(trim(arguments.unitCode))>
+
+        <cfif NOT len(local.u)>
+            <cfreturn local.v>
+        </cfif>
+        <cfif find("km_h", local.u) OR find("km/h", local.u) OR find("kmh", local.u)>
+            <cfreturn local.v * 0.621371>
+        </cfif>
+        <cfif find("m_s", local.u) OR find("m/s", local.u) OR find("meter", local.u)>
+            <cfreturn local.v * 2.236936>
+        </cfif>
+        <cfif find("kt", local.u) OR find("knot", local.u) OR find("nautical_mile_per_hour", local.u)>
+            <cfreturn local.v * 1.150779>
+        </cfif>
+        <cfif find("mi_h", local.u) OR find("mph", local.u) OR find("mile_per_hour", local.u)>
+            <cfreturn local.v>
+        </cfif>
+
+        <cfreturn local.v>
     </cffunction>
 
     <cffunction name="normalizeNwsAlerts" access="private" returntype="struct" output="false">

@@ -46,6 +46,21 @@
     return { lat: 28.2323, lng: -82.7418 };
   }
 
+  function resolveHomePortZip(user) {
+    var profile = getNested(user, ["PROFILE"], null) || getNested(user, ["profile"], null) || {};
+    var homePort = getNested(profile, ["HOMEPORT"], null)
+      || getNested(profile, ["homePort"], null)
+      || getNested(user, ["HOMEPORT"], null)
+      || getNested(user, ["homePort"], null)
+      || {};
+    var zip = getNested(homePort, ["ZIP"], null) || getNested(homePort, ["zip"], null);
+    if (zip === undefined || zip === null) {
+      return "";
+    }
+    zip = String(zip).replace(/\D/g, "").slice(0, 5);
+    return zip.length === 5 ? zip : "";
+  }
+
   function ensureAuthResponse(data) {
     return window.AppAuth ? window.AppAuth.ensureAuthenticated(data) : true;
   }
@@ -324,6 +339,7 @@
 
   utils.getNested = getNested;
   utils.resolveHomePortLatLng = resolveHomePortLatLng;
+  utils.resolveHomePortZip = resolveHomePortZip;
   utils.ensureAuthResponse = ensureAuthResponse;
   utils.showDashboardAlert = showDashboardAlert;
   utils.clearDashboardAlert = clearDashboardAlert;
