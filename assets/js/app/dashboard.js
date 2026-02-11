@@ -395,7 +395,7 @@
     }
   }
 
-function renderWeatherForecast(forecast) {
+  function renderWeatherForecast(forecast) {
     var timelineEl = document.getElementById("weatherTimeline");
     var gustSpikesEl = document.getElementById("weatherGustSpikes");
     var gustLabelsEl = document.getElementById("weatherGustLabels");
@@ -440,12 +440,13 @@ function renderWeatherForecast(forecast) {
       if (windCondEl) windCondEl.textContent = "—";
       if (riskLabelEl) riskLabelEl.textContent = "—";
       if (gustValueEl) gustValueEl.textContent = "—";
-      if (windNeedleEl) windNeedleEl.style.setProperty("--dir", "0deg");
-      if (gustHaloEl) gustHaloEl.style.boxShadow = "inset 0 0 0 2px rgba(255,255,255,.10)";
-      var tempWrap = document.querySelector(".fpw-wx__temp");
-      if (tempWrap) tempWrap.style.setProperty("--pct", "50");
-      return;
-    }
+    if (windNeedleEl) windNeedleEl.style.setProperty("--dir", "0deg");
+    if (gustHaloEl) gustHaloEl.style.boxShadow = "inset 0 0 0 2px rgba(255,255,255,.10)";
+    var tempWrap = document.querySelector(".fpw-wx__temp");
+    if (tempWrap) tempWrap.style.setProperty("--pct", "50");
+    renderTideGraph(null);
+    return;
+  }
 
     var now = rows[0];
     var nowWhen = (now && now.name) ? now.name : formatForecastWhen(now && now.startTime ? now.startTime : "");
@@ -634,6 +635,85 @@ function renderWeatherForecast(forecast) {
     }
   }
 
+  function renderTideGraph(marine) {
+    var wrap = document.getElementById("tideGraph");
+    var svg = document.getElementById("tideGraphSvg");
+    var stationEl = document.getElementById("tideGraphStation");
+    var startEl = document.getElementById("tideGraphStart");
+    var endEl = document.getElementById("tideGraphEnd");
+    var emptyEl = document.getElementById("tideGraphEmpty");
+
+    if (!wrap || !svg) return;
+
+    var tide = null;
+    var series = [];
+
+    if (marine) {
+      tide = marine.tide || marine.TIDE || null;
+    }
+    if (tide) {
+      series = Array.isArray(tide.series) ? tide.series : (Array.isArray(tide.SERIES) ? tide.SERIES : []);
+    }
+    if (!tide || !series.length) {
+      svg.innerHTML = "";
+      if (stationEl) stationEl.textContent = "";
+      if (startEl) startEl.textContent = "—";
+      if (endEl) endEl.textContent = "—";
+      if (emptyEl) emptyEl.classList.remove("d-none");
+      wrap.classList.remove("d-none");
+      return;
+    }
+
+    if (emptyEl) emptyEl.classList.add("d-none");
+    if (stationEl) stationEl.textContent = tide.stationName || tide.STATIONNAME || "";
+
+    var minH = Number.POSITIVE_INFINITY;
+    var maxH = Number.NEGATIVE_INFINITY;
+    series.forEach(function (p) {
+      var h = parseFloat((p && p.h !== undefined) ? p.h : (p ? p.H : NaN));
+      if (!Number.isFinite(h)) return;
+      if (h < minH) minH = h;
+      if (h > maxH) maxH = h;
+    });
+    if (!Number.isFinite(minH) || !Number.isFinite(maxH) || minH === maxH) {
+      minH = (Number.isFinite(minH) ? minH - 1 : 0);
+      maxH = (Number.isFinite(maxH) ? maxH + 1 : 1);
+    }
+
+    var w = 320;
+    var hgt = 84;
+    var pad = 6;
+    var dx = (w - pad * 2) / (series.length - 1);
+    var path = "";
+    var area = "";
+
+    series.forEach(function (p, i) {
+      var v = parseFloat((p && p.h !== undefined) ? p.h : (p ? p.H : NaN));
+      if (!Number.isFinite(v)) v = minH;
+      var x = pad + (dx * i);
+      var y = pad + (hgt - pad * 2) * (1 - ((v - minH) / (maxH - minH)));
+      path += (i === 0 ? "M" : "L") + x.toFixed(2) + " " + y.toFixed(2) + " ";
+      area += (i === 0 ? "M" : "L") + x.toFixed(2) + " " + y.toFixed(2) + " ";
+    });
+
+    var areaPath = area + "L " + (pad + dx * (series.length - 1)).toFixed(2) + " " + (hgt - pad).toFixed(2)
+      + " L " + pad.toFixed(2) + " " + (hgt - pad).toFixed(2) + " Z";
+
+    svg.innerHTML = ""
+      + "<defs>"
+      + "<linearGradient id=\"tideFill\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">"
+      + "<stop offset=\"0%\" stop-color=\"rgba(59,130,246,.45)\"/>"
+      + "<stop offset=\"100%\" stop-color=\"rgba(59,130,246,0)\"/>"
+      + "</linearGradient>"
+      + "</defs>"
+      + "<path d=\"" + areaPath + "\" fill=\"url(#tideFill)\"/>"
+      + "<path d=\"" + path + "\" fill=\"none\" stroke=\"rgba(59,130,246,.9)\" stroke-width=\"2\"/>";
+
+    if (startEl) startEl.textContent = series[0] && (series[0].t || series[0].T) ? (series[0].t || series[0].T) : "—";
+    if (endEl) endEl.textContent = series[series.length - 1] && (series[series.length - 1].t || series[series.length - 1].T) ? (series[series.length - 1].t || series[series.length - 1].T) : "—";
+    wrap.classList.remove("d-none");
+  }
+
   function renderWeatherSummary(summary, message) {
     var summaryEl = document.getElementById("weatherSummary");
     if (!summaryEl) return;
@@ -782,12 +862,14 @@ function renderWeatherForecast(forecast) {
         renderWeatherAnchor(data.META);
         renderWeatherAlerts(data.ALERTS);
         renderWeatherForecast(data.FORECAST);
+        renderTideGraph(data.MARINE);
       })
       .catch(function (err) {
         renderWeatherSummary("", "");
         renderWeatherAnchor(null);
         renderWeatherAlerts([]);
         renderWeatherForecast([]);
+        renderTideGraph(null);
         setWeatherError((err && err.message) ? err.message : null);
       })
       .finally(function () {
