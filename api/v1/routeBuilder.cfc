@@ -371,17 +371,35 @@
             }
 
             var newRouteId = 0;
-            var sectionMap = {};
             var templateSectionInfoById = {};
             var segmentMap = {};
-            var sectionFirstRouteOrder = {};
             var selectedSegIdx = 0;
-            var sectionIdForOrder = "";
-            for (selectedSegIdx = 1; selectedSegIdx LTE arrayLen(selectedSegmentRows); selectedSegIdx++) {
-                sectionIdForOrder = toString(selectedSegmentRows[selectedSegIdx].SECTION_ID);
-                if (!structKeyExists(sectionFirstRouteOrder, sectionIdForOrder)) {
-                    sectionFirstRouteOrder[sectionIdForOrder] = selectedSegIdx;
+            var sectionInfoIdx = 0;
+            for (sectionInfoIdx = 1; sectionInfoIdx LTE qTplSections.recordCount; sectionInfoIdx++) {
+                var tplSectionIdInfo = toString(qTplSections.id[sectionInfoIdx]);
+                var sectionNameInfo = trim(toString(qTplSections.name[sectionInfoIdx]));
+                var sectionSlugInfo = trim(toString(qTplSections.slug[sectionInfoIdx]));
+                if (!len(sectionSlugInfo)) {
+                    sectionSlugInfo = lCase(reReplace(sectionNameInfo, "[^A-Za-z0-9]+", "-", "all"));
+                    sectionSlugInfo = reReplace(sectionSlugInfo, "^-+|-+$", "", "all");
                 }
+                if (!len(sectionSlugInfo)) {
+                    sectionSlugInfo = "section-" & sectionInfoIdx;
+                }
+                var sectionShortCodeInfo = trim(toString(qTplSections.short_code[sectionInfoIdx]));
+                if (!len(sectionShortCodeInfo)) {
+                    sectionShortCodeInfo = uCase(reReplace(sectionSlugInfo, "[^A-Za-z0-9]+", "_", "all"));
+                }
+                if (!len(sectionNameInfo)) {
+                    sectionNameInfo = "Section " & sectionInfoIdx;
+                }
+                templateSectionInfoById[tplSectionIdInfo] = {
+                    "NAME"=sectionNameInfo,
+                    "SLUG"=sectionSlugInfo,
+                    "SHORT_CODE"=sectionShortCodeInfo,
+                    "PHASE_NUM"=(isNull(qTplSections.phase_num[sectionInfoIdx]) ? 1 : val(qTplSections.phase_num[sectionInfoIdx])),
+                    "IS_ACTIVE_DEFAULT"=(qTplSections.is_active_default[sectionInfoIdx] EQ 1 ? 1 : 0)
+                };
             }
 
             transaction {
@@ -399,49 +417,18 @@
                 newRouteId = val(routeIns.generatedKey);
 
                 var i = 0;
-                var copiedSectionOrder = 0;
-                for (i = 1; i LTE qTplSections.recordCount; i++) {
-                    var tplSectionId = toString(qTplSections.id[i]);
-                    if (!structKeyExists(sectionFirstRouteOrder, tplSectionId)) {
-                        continue;
-                    }
-                    copiedSectionOrder = sectionFirstRouteOrder[tplSectionId];
-                    var sectionNameVal = trim(toString(qTplSections.name[i]));
-                    var sectionSlugVal = trim(toString(qTplSections.slug[i]));
-                    if (!len(sectionSlugVal)) {
-                        sectionSlugVal = lCase(reReplace(sectionNameVal, "[^A-Za-z0-9]+", "-", "all"));
-                        sectionSlugVal = reReplace(sectionSlugVal, "^-+|-+$", "", "all");
-                    }
-                    if (!len(sectionSlugVal)) {
-                        sectionSlugVal = "section-" & i;
-                    }
-                    var sectionShortCodeVal = trim(toString(qTplSections.short_code[i]));
-                    if (!len(sectionShortCodeVal)) {
-                        sectionShortCodeVal = uCase(reReplace(sectionSlugVal, "[^A-Za-z0-9]+", "_", "all"));
-                    }
-                    queryExecute(
-                        "INSERT INTO loop_sections (route_id, name, slug, short_code, phase_num, order_index, is_active_default)
-                         VALUES (:rid, :name, :slug, :scode, :phaseNum, :orderIndex, :isActive)",
-                        {
-                            rid = { value=newRouteId, cfsqltype="cf_sql_integer" },
-                            name = { value=sectionNameVal, cfsqltype="cf_sql_varchar", null = false },
-                            slug = { value=sectionSlugVal, cfsqltype="cf_sql_varchar", null = false },
-                            scode = { value=sectionShortCodeVal, cfsqltype="cf_sql_varchar", null = false },
-                            phaseNum = { value=qTplSections.phase_num[i], cfsqltype="cf_sql_integer", null = isNull(qTplSections.phase_num[i]) },
-                            orderIndex = { value=copiedSectionOrder, cfsqltype="cf_sql_integer" },
-                            isActive = { value=(qTplSections.is_active_default[i] EQ 1 ? 1 : 0), cfsqltype="cf_sql_integer" }
-                        },
-                        { datasource = application.dsn, result = "secIns" }
-                    );
-                    sectionMap[tplSectionId] = val(secIns.generatedKey);
-                    templateSectionInfoById[tplSectionId] = {
-                        "NAME"=(isNull(qTplSections.name[i]) ? "" : qTplSections.name[i]),
-                        "SHORT_CODE"=(isNull(qTplSections.short_code[i]) ? "" : qTplSections.short_code[i])
-                    };
-                }
-
                 var segRow = {};
                 var localOrderIndex = 0;
+                var currentRunOldSectionId = "";
+                var currentRunSectionId = 0;
+                var currentRunSegmentOrder = 0;
+                var sectionRunCountByTemplate = {};
+                var runNum = 0;
+                var sectionInfo = {};
+                var sectionNameVal = "";
+                var sectionSlugVal = "";
+                var sectionShortCodeVal = "";
+                var sectionOrderIndex = 0;
                 for (i = 1; i LTE arrayLen(selectedSegmentRows); i++) {
                     segRow = selectedSegmentRows[i];
                     var oldSecId = toString(segRow.SECTION_ID);
@@ -451,17 +438,68 @@
                     var rmEndBind = toNullableNumber(segRow.RM_END, "numeric");
                     var startNameVal = trim(toString(segRow.START_NAME));
                     var endNameVal = trim(toString(segRow.END_NAME));
-                    if (!structKeyExists(sectionMap, oldSecId)) {
+                    if (!structKeyExists(templateSectionInfoById, oldSecId)) {
                         continue;
                     }
-                    localOrderIndex = i;
+
+                    if (oldSecId NEQ currentRunOldSectionId) {
+                        currentRunOldSectionId = oldSecId;
+                        currentRunSegmentOrder = 0;
+                        runNum = (structKeyExists(sectionRunCountByTemplate, oldSecId) ? sectionRunCountByTemplate[oldSecId] + 1 : 1);
+                        sectionRunCountByTemplate[oldSecId] = runNum;
+                        sectionInfo = templateSectionInfoById[oldSecId];
+                        sectionOrderIndex = i;
+
+                        sectionNameVal = sectionInfo.NAME;
+                        if (runNum GT 1) {
+                            sectionNameVal &= " (Leg " & runNum & ")";
+                        }
+
+                        sectionSlugVal = sectionInfo.SLUG;
+                        if (runNum GT 1) {
+                            sectionSlugVal &= "-leg-" & runNum;
+                        }
+                        if (len(sectionSlugVal) GT 160) {
+                            sectionSlugVal = left(sectionSlugVal, 160);
+                        }
+
+                        sectionShortCodeVal = sectionInfo.SHORT_CODE;
+                        if (runNum GT 1) {
+                            sectionShortCodeVal &= "_" & runNum;
+                        }
+                        if (len(sectionShortCodeVal) GT 40) {
+                            sectionShortCodeVal = left(sectionShortCodeVal, 40);
+                        }
+                        if (!len(sectionShortCodeVal)) {
+                            sectionShortCodeVal = "SECTION_" & sectionOrderIndex;
+                        }
+
+                        queryExecute(
+                            "INSERT INTO loop_sections (route_id, name, slug, short_code, phase_num, order_index, is_active_default)
+                             VALUES (:rid, :name, :slug, :scode, :phaseNum, :orderIndex, :isActive)",
+                            {
+                                rid = { value=newRouteId, cfsqltype="cf_sql_integer" },
+                                name = { value=sectionNameVal, cfsqltype="cf_sql_varchar", null = false },
+                                slug = { value=sectionSlugVal, cfsqltype="cf_sql_varchar", null = false },
+                                scode = { value=sectionShortCodeVal, cfsqltype="cf_sql_varchar", null = false },
+                                phaseNum = { value=sectionInfo.PHASE_NUM, cfsqltype="cf_sql_integer", null = false },
+                                orderIndex = { value=sectionOrderIndex, cfsqltype="cf_sql_integer" },
+                                isActive = { value=(i EQ 1 ? 1 : 0), cfsqltype="cf_sql_integer" }
+                            },
+                            { datasource = application.dsn, result = "secIns" }
+                        );
+                        currentRunSectionId = val(secIns.generatedKey);
+                    }
+
+                    currentRunSegmentOrder += 1;
+                    localOrderIndex = currentRunSegmentOrder;
                     if (!len(startNameVal)) {
                         startNameVal = "Unknown Start";
                     }
                     if (!len(endNameVal)) {
                         endNameVal = "Unknown End";
                     }
-                    var sectionInfo = (structKeyExists(templateSectionInfoById, oldSecId) ? templateSectionInfoById[oldSecId] : {"NAME"="", "SHORT_CODE"=""});
+                    sectionInfo = templateSectionInfoById[oldSecId];
                     if (isObject(milepointService)) {
                         var rmResolved = milepointService.resolveSegmentRM(sectionInfo.NAME, startNameVal, endNameVal);
                         if ((rmStartBind.isNull OR isNullableZero(rmStartBind)) AND rmResolved.START_FOUND) {
@@ -486,7 +524,7 @@
                          VALUES
                             (:sectionId, :orderIndex, :startName, :endName, :distNm, :lockCount, :rmStart, :rmEnd, :isSignature, :isMilestone, :notes)",
                         {
-                            sectionId = { value=sectionMap[oldSecId], cfsqltype="cf_sql_integer" },
+                            sectionId = { value=currentRunSectionId, cfsqltype="cf_sql_integer" },
                             orderIndex = { value=localOrderIndex, cfsqltype="cf_sql_integer" },
                             startName = { value=startNameVal, cfsqltype="cf_sql_varchar", null = false },
                             endName = { value=endNameVal, cfsqltype="cf_sql_varchar", null = false },
@@ -997,13 +1035,13 @@
         ) />
 
         <cfset var qSegments = queryExecute(
-            "SELECT id, section_id, order_index, start_name, end_name, dist_nm, lock_count,
-                    rm_start, rm_end, is_signature_event, is_milestone_end, notes
-             FROM loop_segments
-             WHERE section_id IN (
-                SELECT id FROM loop_sections WHERE route_id = :rid
-             )
-             ORDER BY section_id ASC, order_index ASC",
+            "SELECT s.id, s.section_id, s.order_index, s.start_name, s.end_name, s.dist_nm, s.lock_count,
+                    s.rm_start, s.rm_end, s.is_signature_event, s.is_milestone_end, s.notes,
+                    sec.order_index AS section_order
+             FROM loop_segments s
+             INNER JOIN loop_sections sec ON sec.id = s.section_id
+             WHERE sec.route_id = :rid
+             ORDER BY sec.order_index ASC, s.order_index ASC",
             { rid = { value=routeId, cfsqltype="cf_sql_integer" } },
             { datasource = application.dsn }
         ) />
