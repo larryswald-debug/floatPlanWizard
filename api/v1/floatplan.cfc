@@ -971,6 +971,28 @@
                 userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
             }, { datasource = "fpw" });
 
+            try {
+                var routeProgressService = createObject("component", resolveApiV1ComponentPath("RouteProgressService")).init();
+                result.ROUTE_PROGRESS = routeProgressService.markCompletionFromFloatPlanCheckin(
+                    userId = arguments.userId,
+                    floatPlanId = arguments.floatPlanId,
+                    routeCode = "GREAT_LOOP_CCW",
+                    datasource = "fpw"
+                );
+            } catch (any routeErr) {
+                writeLog(
+                    type = "warning",
+                    file = "application",
+                    text = "Route progress check-in integration failed. floatPlanId=#arguments.floatPlanId#, userId=#arguments.userId#, message=#routeErr.message#"
+                );
+                result.ROUTE_PROGRESS = {
+                    SUCCESS = false,
+                    MATCHED = false,
+                    MESSAGE = "Route progress update failed",
+                    ERROR = routeErr.message
+                };
+            }
+
             result.SUCCESS = true;
             result.FLOATPLANID = arguments.floatPlanId;
             result.STATUS = "CLOSED";
@@ -1238,6 +1260,40 @@
             }
 
             return (len(prefix) ? prefix & "." : "") & "api.api_assets.floatPlanUtils";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveApiV1ComponentPath" access="private" returntype="string" output="false">
+        <cfargument name="componentName" type="string" required="true">
+        <cfscript>
+            var webRoot = "";
+            var templatePath = getCurrentTemplatePath();
+            var relativePath = "";
+            var firstSegment = "";
+            var prefix = "";
+            try {
+                webRoot = expandPath("/");
+            } catch (any e) {
+                webRoot = "";
+            }
+
+            if (len(webRoot)) {
+                relativePath = replaceNoCase(templatePath, webRoot, "", "one");
+            } else {
+                relativePath = templatePath;
+            }
+
+            relativePath = replace(relativePath, "\", "/", "all");
+            if (left(relativePath, 1) EQ "/") {
+                relativePath = right(relativePath, len(relativePath) - 1);
+            }
+
+            firstSegment = listFirst(relativePath, "/");
+            if (len(firstSegment) AND firstSegment NEQ "api") {
+                prefix = firstSegment;
+            }
+
+            return (len(prefix) ? prefix & "." : "") & "api.v1." & arguments.componentName;
         </cfscript>
     </cffunction>
 

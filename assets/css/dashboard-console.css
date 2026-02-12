@@ -1153,14 +1153,22 @@ main.dashboard-main{
             display:flex;
             gap:14px;
             justify-content:space-between;
-            align-items:flex-start;
+            align-items:center;
             margin-bottom:14px;
+        }
+        .fpw-wx__topLeft{
+            display:flex;
+            align-items:center;
+            gap:12px;
+            flex:1 1 auto;
+            min-width:0;
         }
         .fpw-wx__titleRow{
             display:flex;
             align-items:center;
             gap:10px;
-            flex-wrap:wrap;
+            flex-wrap:nowrap;
+            flex:0 0 auto;
         }
         .fpw-wx__dot{
             width:12px;height:12px;border-radius:50%;
@@ -1194,19 +1202,27 @@ main.dashboard-main{
             color: rgba(255,255,255,.78);
         }
         .fpw-wx__summary{
-            margin-top:6px;
+            margin-top:0;
             color: rgba(255,255,255,.75);
             font-size:.9rem;
-            line-height:1.25rem;
-            max-width: 840px;
+            line-height:1.1rem;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
         }
         .fpw-wx__muted{ color: rgba(255,255,255,.65); }
         .fpw-wx__topRight{
             display:flex;
             gap:10px;
-            align-items:flex-end;
-            flex-wrap:wrap;
+            align-items:center;
+            flex-wrap:nowrap;
             justify-content:flex-end;
+            flex:0 0 auto;
+        }
+        .fpw-wx__zipBlock{
+            display:flex;
+            align-items:center;
+            gap:8px;
         }
         .fpw-wx__zipInput{
             width:110px;
@@ -1215,9 +1231,35 @@ main.dashboard-main{
             color: rgba(255,255,255,.92);
         }
         .fpw-wx__zipInput::placeholder{ color: rgba(255,255,255,.55); }
-        .fpw-wx__zipLabel{ font-size:.75rem; color: rgba(255,255,255,.70); margin:0 0 4px; display:block; }
+        .fpw-wx__zipLabel{ font-size:.75rem; color: rgba(255,255,255,.70); margin:0; display:inline-block; }
+        .fpw-wx__zipBlock .form-text{ display:none; }
         .fpw-wx__updateBtn{ box-shadow: 0 10px 18px rgba(0,0,0,.22); }
         .fpw-wx__detailsBtn{ opacity:.9; }
+        @media (max-width: 992px){
+            .fpw-wx__top{
+                align-items:flex-start;
+                flex-direction:column;
+            }
+            .fpw-wx__topLeft{
+                width:100%;
+                flex-direction:column;
+                align-items:flex-start;
+                gap:8px;
+            }
+            .fpw-wx__titleRow{
+                flex-wrap:wrap;
+            }
+            .fpw-wx__summary{
+                white-space:normal;
+                overflow:visible;
+                text-overflow:clip;
+                line-height:1.25rem;
+            }
+            .fpw-wx__topRight{
+                width:100%;
+                justify-content:flex-start;
+            }
+        }
 
         .fpw-wx__main{
             display:grid;
@@ -1761,36 +1803,160 @@ main.dashboard-main{
         }
 
         .fpw-wx__tideGraph{
-            margin: 10px 0 6px;
-            padding: 10px;
+            --tide-graph-max: 775px;
+            margin: 10px auto 6px;
+            width: 100%;
+            max-width: var(--tide-graph-max);
+            padding: 10px 0;
             border-radius: 12px;
             background: rgba(0,0,0,.20);
             border:1px solid rgba(255,255,255,.08);
+            display:flex;
+            flex-direction:column;
+            align-items:stretch;
         }
         .fpw-wx__tideTitle{
-            display:flex;
-            justify-content:space-between;
+            display:grid;
+            grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);
             align-items:baseline;
+            column-gap:8px;
             font-size:.78rem;
             color: rgba(255,255,255,.80);
             margin-bottom:6px;
+            width:100%;
+            max-width: var(--tide-graph-max);
+            margin-left:auto;
+            margin-right:auto;
+        }
+        .fpw-wx__tideTitle > :first-child{
+            justify-self:start;
+            text-align:left;
+        }
+        .fpw-wx__tideTitle > :nth-child(2){
+            justify-self:center;
+            text-align:center;
+            white-space:nowrap;
+        }
+        .fpw-wx__tideTitle > :last-child{
+            justify-self:end;
+            text-align:right;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+            max-width:100%;
+        }
+        .fpw-wx__tideNow{
+            color: rgba(165,243,252,.95);
+            font-weight: 700;
         }
         .fpw-wx__tideSvg{
             width:100%;
-            height:84px;
+            max-width: var(--tide-graph-max);
+            height:135px;
             display:block;
+            margin: 0 auto;
+        }
+        .fpw-wx__tideAxisLine{
+            stroke: rgba(148,163,184,.55);
+            stroke-width: 1;
+        }
+        .fpw-wx__tideAxisTick{
+            stroke: rgba(148,163,184,.62);
+            stroke-width: 1;
+        }
+        .fpw-wx__tideAxisLabel{
+            fill: rgba(203,213,225,.9);
+            font-size: 9px;
+            font-weight: 600;
+            font-family: Arial, sans-serif;
+        }
+        .fpw-wx__tideAxisLabel.y{
+            text-anchor: end;
+        }
+        .fpw-wx__tideAxisLabel.x{
+            text-anchor: middle;
+        }
+        .fpw-wx__tideGuide{
+            stroke: rgba(56,189,248,.40);
+            stroke-width: 1.35;
+            stroke-dasharray: 2 2;
+        }
+        .fpw-wx__tideTick{
+            stroke: rgba(125,211,252,.82);
+            stroke-width: 1.2;
+        }
+        .fpw-wx__tideTickLabel{
+            fill: rgba(224,242,254,.9);
+            font-size: 8px;
+            font-weight: 800;
+            letter-spacing: .2px;
+        }
+        .fpw-wx__tideNowHalo{
+            fill: rgba(56,189,248,.22);
+        }
+        .fpw-wx__tideNowDot{
+            fill: rgba(186,230,253,.98);
+            stroke: rgba(14,116,144,.9);
+            stroke-width: 1;
+        }
+        .fpw-wx__tideExtDot{
+            stroke-width: 1;
+        }
+        .fpw-wx__tideExtDot.high{
+            fill: rgba(253,224,71,.95);
+            stroke: rgba(180,83,9,.9);
+        }
+        .fpw-wx__tideExtDot.low{
+            fill: rgba(147,197,253,.95);
+            stroke: rgba(30,64,175,.9);
+        }
+        .fpw-wx__tideExtLabel{
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0;
+            font-family: Arial, sans-serif;
+            paint-order: normal;
+            stroke: none;
+        }
+        .fpw-wx__tideExtLabel.high{
+            fill: rgba(253,246,178,.98);
+        }
+        .fpw-wx__tideExtLabel.low{
+            fill: rgba(191,219,254,.98);
         }
         .fpw-wx__tideAxis{
-            display:flex;
-            justify-content:space-between;
+            display:grid;
+            grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);
+            align-items:center;
             font-size:.7rem;
             color: rgba(255,255,255,.60);
             margin-top:6px;
+            width:100%;
+            max-width: var(--tide-graph-max);
+            margin-left:auto;
+            margin-right:auto;
+        }
+        .fpw-wx__tideAxis > :first-child{
+            justify-self:start;
+            text-align:left;
+        }
+        .fpw-wx__tideAxis > :nth-child(2){
+            justify-self:center;
+            text-align:center;
+            min-width:1px;
+        }
+        .fpw-wx__tideAxis > :last-child{
+            justify-self:end;
+            text-align:right;
         }
         .fpw-wx__tideEmpty{
             font-size:.78rem;
             color: rgba(255,255,255,.60);
             margin-top:6px;
+            width:100%;
+            max-width: var(--tide-graph-max);
+            margin-left:auto;
+            margin-right:auto;
         }
 
         .fpw-wx__meterRow{
@@ -1847,6 +2013,367 @@ main.dashboard-main{
 
 .fpw-wx__confidenceBarDefault82 {
   width: 82%;
+}
+
+#expeditionTimelinePanel.expedition-panel {
+  min-height: 340px;
+  --bs-accordion-bg: transparent;
+  --bs-accordion-color: rgba(255,255,255,0.9);
+  --bs-accordion-border-color: var(--panel-border);
+  --bs-accordion-btn-color: rgba(255,255,255,0.94);
+  --bs-accordion-btn-bg: rgba(255,255,255,0.04);
+  --bs-accordion-active-bg: rgba(53,208,198,0.10);
+  --bs-accordion-active-color: rgba(255,255,255,0.98);
+  --bs-list-group-bg: transparent;
+  --bs-list-group-color: rgba(255,255,255,0.88);
+  --bs-list-group-border-color: rgba(255,255,255,0.08);
+}
+
+#expeditionTimelinePanel .card-header {
+  background: linear-gradient(to bottom, rgba(53,208,198,0.20), rgba(0,0,0,0));
+}
+
+#expeditionTimelinePanel .card-actions {
+  justify-content: flex-end;
+  min-width: 260px;
+}
+
+.expedition-state {
+  border: 1px solid var(--panel-border);
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  color: rgba(255,255,255,0.82);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+}
+
+.expedition-state a {
+  color: rgba(130, 214, 255, 0.95);
+}
+
+.expedition-route-list {
+  display: grid;
+  gap: 10px;
+}
+
+.expedition-route-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+}
+
+.expedition-route-card.is-active {
+  border-color: rgba(53,208,198,0.5);
+  box-shadow: inset 0 0 0 1px rgba(53,208,198,0.28);
+}
+
+.expedition-route-name {
+  font-weight: 700;
+  color: rgba(255,255,255,0.96);
+}
+
+.expedition-route-meta {
+  color: rgba(255,255,255,0.78);
+  font-size: 0.84rem;
+}
+
+.expedition-route-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.expedition-accordion .accordion-item {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.expedition-accordion .accordion-collapse,
+.expedition-accordion .accordion-collapse.collapse,
+.expedition-accordion .accordion-collapse.collapsing,
+.expedition-accordion .accordion-collapse.show {
+  background: transparent;
+}
+
+.expedition-accordion .accordion-item + .accordion-item {
+  margin-top: 10px;
+}
+
+.expedition-accordion .accordion-header {
+  margin: 0;
+}
+
+.expedition-accordion .accordion-button {
+  background: linear-gradient(to bottom, rgba(255,255,255,0.06), rgba(255,255,255,0.01));
+  color: rgba(255,255,255,0.95);
+  box-shadow: none;
+  padding: 0.75rem 1rem;
+}
+
+.expedition-accordion .accordion-button:not(.collapsed) {
+  background: linear-gradient(to bottom, rgba(53,208,198,0.16), rgba(53,208,198,0.05));
+  color: rgba(255,255,255,0.98);
+  box-shadow: inset 0 -1px 0 rgba(53,208,198,0.14);
+}
+
+.expedition-accordion .accordion-button:focus {
+  box-shadow: 0 0 0 1px rgba(53,208,198,0.35);
+}
+
+.expedition-accordion .accordion-button::after {
+  filter: invert(1) brightness(0.85);
+  opacity: 0.9;
+}
+
+.expedition-accordion .accordion-body {
+  padding: 0.65rem 0.75rem 0.75rem;
+  background: rgba(0,0,0,0.18);
+}
+
+#expeditionTimelinePanel .expedition-accordion .accordion-item,
+#expeditionTimelinePanel .expedition-accordion .accordion-collapse,
+#expeditionTimelinePanel .expedition-accordion .accordion-body {
+  background: rgba(9, 21, 48, 0.88) !important;
+}
+
+#expeditionTimelinePanel .expedition-accordion .accordion-button {
+  background: linear-gradient(to bottom, rgba(255,255,255,0.06), rgba(255,255,255,0.01)) !important;
+  color: rgba(255,255,255,0.95) !important;
+}
+
+#expeditionTimelinePanel .expedition-accordion .accordion-button:not(.collapsed) {
+  background: linear-gradient(to bottom, rgba(53,208,198,0.16), rgba(53,208,198,0.05)) !important;
+}
+
+#expeditionTimelinePanel .list-group,
+#expeditionTimelinePanel .list-group-item {
+  background: transparent !important;
+  color: rgba(255,255,255,0.88) !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+#expeditionTimelinePanel .accordion,
+#expeditionTimelinePanel .accordion-item,
+#expeditionTimelinePanel .accordion-header,
+#expeditionTimelinePanel .accordion-button,
+#expeditionTimelinePanel .accordion-collapse,
+#expeditionTimelinePanel .accordion-collapse.collapse,
+#expeditionTimelinePanel .accordion-collapse.show,
+#expeditionTimelinePanel .accordion-body {
+  background-color: transparent !important;
+  color: rgba(255,255,255,0.92) !important;
+}
+
+#expeditionTimelinePanel .accordion-button:not(.collapsed) {
+  background: linear-gradient(to bottom, rgba(53,208,198,0.16), rgba(53,208,198,0.05)) !important;
+  color: rgba(255,255,255,0.98) !important;
+}
+
+#expeditionTimelinePanel .accordion-button::after {
+  filter: invert(1) brightness(0.85) !important;
+  opacity: 0.9 !important;
+}
+
+.expedition-section-head {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.expedition-section-name {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.expedition-section-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.expedition-segment {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  padding: 9px 10px;
+  color: rgba(255,255,255,0.88);
+}
+
+.expedition-segment + .expedition-segment {
+  margin-top: 8px;
+}
+
+.expedition-segment-title {
+  font-weight: 650;
+}
+
+.expedition-segment-meta {
+  margin-top: 4px;
+  font-size: 0.76rem;
+  color: rgba(255,255,255,0.62);
+}
+
+.expedition-segment-empty {
+  border: 1px dashed var(--panel-border);
+  border-radius: 10px;
+  padding: 9px 10px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.expedition-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.12rem 0.46rem;
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(255,255,255,0.16);
+  color: rgba(255,255,255,0.9);
+  background: rgba(255,255,255,0.06);
+}
+
+.expedition-badge + .expedition-badge {
+  margin-left: 0.35rem;
+}
+
+.expedition-badge.complete {
+  border-color: rgba(34,197,94,0.45);
+  background: rgba(34,197,94,0.18);
+  color: #bbf7d0;
+}
+
+.expedition-badge.pending {
+  border-color: rgba(148,163,184,0.35);
+  background: rgba(100,116,139,0.2);
+  color: #cbd5e1;
+}
+
+.expedition-badge.signature {
+  border-color: rgba(250,204,21,0.45);
+  background: rgba(250,204,21,0.2);
+  color: #fef08a;
+}
+
+.expedition-badge.milestone {
+  border-color: rgba(56,189,248,0.45);
+  background: rgba(56,189,248,0.18);
+  color: #bae6fd;
+}
+
+.expedition-badge.pct {
+  border-color: rgba(53,208,198,0.55);
+  background: rgba(53,208,198,0.2);
+  color: #ccfbf1;
+  margin-left: 0.45rem;
+}
+
+.routebuilder-modal-body {
+  min-height: 480px;
+}
+
+.routebuilder-statusbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.routebuilder-save-indicator {
+  color: rgba(53, 208, 198, 0.95);
+}
+
+.routebuilder-editor-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.routebuilder-summary {
+  font-family: var(--mono);
+  font-size: 0.92rem;
+  color: rgba(255,255,255,0.86);
+}
+
+.routebuilder-accordion .accordion-body {
+  display: grid;
+  gap: 8px;
+}
+
+.routebuilder-segment {
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  padding: 10px;
+}
+
+.routebuilder-segment-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.routebuilder-segment-row:last-child {
+  margin-bottom: 0;
+}
+
+.routebuilder-field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.routebuilder-field label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.72);
+}
+
+.routebuilder-field .form-control,
+#routeBuilderStep1 .form-control {
+  background: rgba(11, 25, 58, 0.78);
+  border-color: rgba(120, 170, 230, 0.35);
+  color: rgba(238, 248, 255, 0.95);
+}
+
+.routebuilder-field .form-control:focus,
+#routeBuilderStep1 .form-control:focus {
+  background: rgba(11, 25, 58, 0.88);
+  border-color: rgba(53, 208, 198, 0.6);
+  box-shadow: 0 0 0 0.15rem rgba(53, 208, 198, 0.2);
+  color: rgba(238, 248, 255, 0.98);
+}
+
+.routebuilder-field-sm {
+  flex: 0 0 90px;
+}
+
+.routebuilder-field-notes {
+  flex: 2 1 0;
+}
+
+.routebuilder-empty {
+  border: 1px dashed var(--panel-border);
+  border-radius: 10px;
+  padding: 10px;
+  color: rgba(255,255,255,0.72);
+  font-style: italic;
 }
 
 .waypoint-map-frame {

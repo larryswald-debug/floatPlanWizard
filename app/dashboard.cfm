@@ -8,7 +8,7 @@
 
     <cfinclude template="../includes/header_styles.cfm">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=14">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=17">
 </head>
 <body class="dashboard-body">
 
@@ -253,6 +253,37 @@
   </section>
 
 </div>
+            </div>
+        </section>
+
+        <section class="dashboard-card panel-floatlike full-width expedition-panel" id="expeditionTimelinePanel" aria-labelledby="expeditionTimelineTitle">
+            <div class="card-header">
+                <div class="card-title">
+                    <h2 id="expeditionTimelineTitle"><span class="status-dot status-ok"></span>Expedition Timeline</h2>
+                    <small id="expeditionTimelineSubtitle" class="card-subtitle">Great Loop (Counter-Clockwise)</small>
+                </div>
+                <div class="card-actions">
+                    <button type="button" class="btn-secondary" id="openRouteBuilderBtn">Generate My Route</button>
+                    <span id="expeditionTimelineSummary" class="card-subtitle numeric">Loading expedition timeline...</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="expeditionTimelineLoading" class="expedition-state mb-3" role="status">Loading expedition timeline...</div>
+
+                <div id="expeditionTimelineUnauthorized" class="expedition-state d-none mb-3" role="alert">
+                    Session expired. Please <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/login.cfm">log in</a> to view your expedition timeline.
+                </div>
+
+                <div id="expeditionTimelineError" class="expedition-state d-none mb-3" role="alert">
+                    <div id="expeditionTimelineErrorText">Unable to load expedition timeline.</div>
+                    <button type="button" id="expeditionTimelineRetry" class="btn-secondary mt-2">Retry</button>
+                </div>
+
+                <div id="expeditionTimelineBody" class="d-none">
+                    <div id="expeditionRouteList" class="expedition-route-list mb-3"></div>
+                    <div id="expeditionRouteEmpty" class="expedition-state d-none mb-3">No routes yet. Click <strong>Generate My Route</strong> to create your first expedition route.</div>
+                    <div id="expeditionTimelineAccordion" class="accordion expedition-accordion"></div>
+                </div>
             </div>
         </section>
         
@@ -1047,6 +1078,62 @@
     </div>
 </div>
 
+<div class="modal fade" id="routeBuilderModal" tabindex="-1" aria-labelledby="routeBuilderLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="routeBuilderLabel">Generate My Expedition Route</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body routebuilder-modal-body">
+                <div id="routeBuilderAlert" class="alert d-none" role="alert"></div>
+                <div class="routebuilder-statusbar">
+                    <small id="routeBuilderStatus" class="card-subtitle"> </small>
+                    <small id="routeBuilderSaveIndicator" class="card-subtitle routebuilder-save-indicator"> </small>
+                </div>
+
+                <form id="routeBuilderForm" novalidate>
+                    <section id="routeBuilderStep1">
+                        <h2 class="h5 mb-3">Start Your Route</h2>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label" for="routeBuilderStartDate">Start Date *</label>
+                                <input id="routeBuilderStartDate" type="date" class="form-control" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="routeBuilderStartLocation">Start Location *</label>
+                                <input id="routeBuilderStartLocation" list="routeBuilderLocations" class="form-control" placeholder="e.g. Chicago" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="routeBuilderEndLocation">Planned End Location *</label>
+                                <input id="routeBuilderEndLocation" list="routeBuilderLocations" class="form-control" placeholder="e.g. Tarpon Springs" required>
+                            </div>
+                        </div>
+                        <datalist id="routeBuilderLocations"></datalist>
+                    </section>
+
+                    <section id="routeBuilderStep2" class="d-none">
+                        <div class="routebuilder-editor-head">
+                            <div>
+                                <h2 class="h5 mb-1" id="routeBuilderRouteName">Generated Route</h2>
+                                <small class="card-subtitle">Code: <span id="routeBuilderRouteCode"></span></small>
+                            </div>
+                            <div class="routebuilder-summary" id="routeBuilderSummary">—</div>
+                        </div>
+                        <div class="accordion expedition-accordion routebuilder-accordion" id="routeBuilderTimelineEditor"></div>
+                    </section>
+                </form>
+            </div>
+            <div class="modal-footer card-footer">
+                <button type="button" class="btn-secondary d-none" id="routeBuilderBackBtn">Back</button>
+                <button type="button" class="btn-primary" id="routeBuilderGenerateBtn">Generate Route</button>
+                <button type="button" class="btn-primary d-none" id="routeBuilderSaveBtn">Save</button>
+                <button type="button" class="btn-primary d-none" id="routeBuilderDoneBtn">Done</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <cfinclude template="../includes/footer_scripts.cfm">
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
@@ -1057,15 +1144,16 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260211a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20251227am"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20260211a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/vessels.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/contacts.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20251227r"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20251227r"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20251227ak"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260211h"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260211w"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260211ae"></script>
 
 
 

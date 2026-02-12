@@ -200,7 +200,7 @@
         <cfset local.noCache = (isDefined("url.nocache") AND len(url.nocache) AND val(url.nocache) EQ 1)>
         <cfset local.f = {} >
         <cfset local.a = {} >
-        <cfset local.m = getMarineData(local.lat, local.lon, local.noCache, arguments.marineMode)>
+        <cfset local.m = getMarineData(local.lat, local.lon, local.noCache, arguments.marineMode, "")>
 
         <cfif NOT arguments.marineOnly>
             <cfset local.f = getNwsForecast(local.lat, local.lon)>
@@ -263,7 +263,7 @@
         <cfset local.noCache = (isDefined("url.nocache") AND len(url.nocache) AND val(url.nocache) EQ 1)>
         <cfset local.f = {} >
         <cfset local.a = {} >
-        <cfset local.m = getMarineData(local.lat, local.lon, local.noCache, arguments.marineMode)>
+        <cfset local.m = getMarineData(local.lat, local.lon, local.noCache, arguments.marineMode, arguments.zip)>
 
         <cfif NOT arguments.marineOnly>
             <cfset local.f = getNwsForecast(local.lat, local.lon)>
@@ -563,6 +563,7 @@
         <cfargument name="lon" type="numeric" required="true">
         <cfargument name="noCache" type="boolean" required="false" default="false">
         <cfargument name="marineMode" type="string" required="false" default="full">
+        <cfargument name="zipHint" type="string" required="false" default="">
 
         <cfset local.out = {} >
         <cfset local.meta = {} >
@@ -571,6 +572,7 @@
         <cfset local.tide = {} >
         <cfset local.wl = {} >
         <cfset local.fetchTrend = (lcase(arguments.marineMode) NEQ "quick")>
+        <cfset local.maxCandidateCount = (local.fetchTrend ? 10 : 4)>
 
         <cfset local.tideStation = getNearestCoopsTideStation(arguments.lat, arguments.lon)>
         <cfif structKeyExists(local.tideStation, "SUCCESS") AND local.tideStation.SUCCESS>
@@ -594,7 +596,34 @@
 
         <!--- Great Lakes and inland fallback: observed water level stations --->
         <cfif NOT local.hasLocalTide>
-            <cfset local.waterLevelCandidates = getNearestCoopsWaterLevelCandidates(arguments.lat, arguments.lon, local.maxLocalStationNm, 10)>
+            <cfset local.waterLevelCandidates = []>
+            <cfif len(trim(arguments.zipHint)) EQ 5>
+                <cfset local.cachedZipStation = getCachedBestWaterLevelStationForZip(arguments.zipHint)>
+                <cfif isStruct(local.cachedZipStation) AND structKeyExists(local.cachedZipStation, "STATION_ID") AND len(local.cachedZipStation.STATION_ID)>
+                    <cfset arrayAppend(local.waterLevelCandidates, local.cachedZipStation)>
+                </cfif>
+            </cfif>
+
+            <cfset local.fallbackCandidates = getNearestCoopsWaterLevelCandidates(arguments.lat, arguments.lon, local.maxLocalStationNm, local.maxCandidateCount)>
+            <cfif isArray(local.fallbackCandidates) AND arrayLen(local.fallbackCandidates)>
+                <cfloop from="1" to="#arrayLen(local.fallbackCandidates)#" index="local.fcIdx">
+                    <cfset local.fc = local.fallbackCandidates[local.fcIdx]>
+                    <cfset local.existsInList = false>
+                    <cfloop from="1" to="#arrayLen(local.waterLevelCandidates)#" index="local.ci">
+                        <cfif local.waterLevelCandidates[local.ci].STATION_ID EQ local.fc.STATION_ID>
+                            <cfset local.existsInList = true>
+                            <cfbreak>
+                        </cfif>
+                    </cfloop>
+                    <cfif NOT local.existsInList>
+                        <cfset arrayAppend(local.waterLevelCandidates, local.fc)>
+                    </cfif>
+                    <cfif arrayLen(local.waterLevelCandidates) GTE local.maxCandidateCount>
+                        <cfbreak>
+                    </cfif>
+                </cfloop>
+            </cfif>
+
             <cfif isArray(local.waterLevelCandidates) AND arrayLen(local.waterLevelCandidates)>
                 <cfset local.meta.waterLevelAttempts = []>
                 <cfset local.selectedWlMeta = {} >
@@ -656,9 +685,15 @@
 
                 <cfif structKeyExists(local.out, "waterLevel")>
                     <cfset local.meta.waterLevelStation = local.selectedWlMeta>
+                    <cfif len(trim(arguments.zipHint)) EQ 5>
+                        <cfset cacheBestWaterLevelStationForZip(arguments.zipHint, local.selectedWlMeta)>
+                    </cfif>
                 <cfelseif structKeyExists(local.out, "waterLevelCurrent")>
                     <cfif structCount(local.selectedWlMeta)>
                         <cfset local.meta.waterLevelStation = local.selectedWlMeta>
+                        <cfif len(trim(arguments.zipHint)) EQ 5>
+                            <cfset cacheBestWaterLevelStationForZip(arguments.zipHint, local.selectedWlMeta)>
+                        </cfif>
                     </cfif>
                 <cfelse>
                     <cfset local.meta.waterLevelUnavailable = "Water level data unavailable for nearby local stations.">
@@ -690,6 +725,36 @@
         </cfif>
 
         <cfreturn local.out>
+    </cffunction>
+
+    <cffunction name="getCachedBestWaterLevelStationForZip" access="private" returntype="struct" output="false">
+        <cfargument name="zip" type="string" required="true">
+
+        <cfset local.out = {} >
+        <cfset local.key = "coops_water_level_best_zip:" & trim(arguments.zip)>
+        <cfset local.cached = marineCacheGet(local.key, 86400)>
+        <cfif isStruct(local.cached) AND structKeyExists(local.cached, "STATION_ID") AND len(local.cached.STATION_ID)>
+            <cfset local.out = local.cached>
+        </cfif>
+        <cfreturn local.out>
+    </cffunction>
+
+    <cffunction name="cacheBestWaterLevelStationForZip" access="private" returntype="void" output="false">
+        <cfargument name="zip" type="string" required="true">
+        <cfargument name="stationMeta" type="struct" required="true">
+
+        <cfset local.stationId = (structKeyExists(arguments.stationMeta, "stationId") ? trim(arguments.stationMeta.stationId) : "")>
+        <cfif len(trim(arguments.zip)) NEQ 5 OR NOT len(local.stationId)>
+            <cfreturn>
+        </cfif>
+        <cfset local.name = (structKeyExists(arguments.stationMeta, "stationName") ? arguments.stationMeta.stationName : "")>
+        <cfset local.distanceNm = (structKeyExists(arguments.stationMeta, "distanceNm") ? val(arguments.stationMeta.distanceNm) : 0)>
+        <cfset local.key = "coops_water_level_best_zip:" & trim(arguments.zip)>
+        <cfset marineCacheSet(local.key, {
+            "STATION_ID"=local.stationId,
+            "NAME"=local.name,
+            "META"={"source"="COOPS_MDAPI_WATER_LEVEL","distanceNm"=local.distanceNm}
+        })>
     </cffunction>
 
     <cffunction name="getNearestCoopsWaterLevelStation" access="private" returntype="struct" output="false">
@@ -830,6 +895,8 @@
         <cfset local.series = []>
         <cfset local.datumCandidates = ["LWD","IGLD","STND"]>
         <cfset local.productCandidates = ["water_level","hourly_height"]>
+        <cfset local.recentTimeout = (arguments.includeTrend ? 12 : 7)>
+        <cfset local.latestTimeout = (arguments.includeTrend ? 10 : 5)>
 
         <cfif arguments.includeTrend>
             <cfloop from="1" to="#arrayLen(local.productCandidates)#" index="local.prodIdx">
@@ -838,7 +905,7 @@
                     <cfset local.url = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=" & urlEncodedFormat(local.product) & "&application=FPW&datum=" & urlEncodedFormat(local.datumCandidates[local.d]) & "&units=english&time_zone=gmt&format=json&date=recent&station=" & urlEncodedFormat(arguments.stationId)>
                     <cfset arrayAppend(local.meta.obsUrls, local.url)>
 
-                    <cfhttp url="#local.url#" method="get" result="wlRes" timeout="20">
+                    <cfhttp url="#local.url#" method="get" result="wlRes" timeout="#local.recentTimeout#">
                         <cfhttpparam type="header" name="User-Agent" value="#local.ua#">
                         <cfhttpparam type="header" name="Accept" value="application/json">
                     </cfhttp>
@@ -906,7 +973,7 @@
             <cfloop from="1" to="#arrayLen(local.datumCandidates)#" index="local.d2">
                 <cfset local.latestUrl = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=water_level&application=FPW&datum=" & urlEncodedFormat(local.datumCandidates[local.d2]) & "&units=english&time_zone=gmt&format=json&date=latest&station=" & urlEncodedFormat(arguments.stationId)>
                 <cfset arrayAppend(local.meta.obsUrls, local.latestUrl)>
-                <cfhttp url="#local.latestUrl#" method="get" result="latestRes" timeout="20">
+                <cfhttp url="#local.latestUrl#" method="get" result="latestRes" timeout="#local.latestTimeout#">
                     <cfhttpparam type="header" name="User-Agent" value="#local.ua#">
                     <cfhttpparam type="header" name="Accept" value="application/json">
                 </cfhttp>

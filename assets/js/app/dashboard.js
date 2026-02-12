@@ -1224,6 +1224,378 @@
     requestWeatherFromInput("Home port ZIP is required. Update it in Account settings.");
   }
 
+  function formatNumber(value, decimals) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n)) return "0";
+    var places = (typeof decimals === "number") ? decimals : 0;
+    return n.toLocaleString(undefined, {
+      minimumFractionDigits: places,
+      maximumFractionDigits: places
+    });
+  }
+
+  function escapeHtml(value) {
+    return String(value === undefined || value === null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  modules.expeditionTimeline = (function () {
+    var currentRouteCode = "";
+    var panel = null;
+    var summaryEl = null;
+    var subtitleEl = null;
+    var loadingEl = null;
+    var unauthorizedEl = null;
+    var errorEl = null;
+    var errorTextEl = null;
+    var bodyEl = null;
+    var routeListEl = null;
+    var routeEmptyEl = null;
+    var accordionEl = null;
+    var retryBtn = null;
+    var requestSeq = 0;
+
+    function routeUrl(routeCode) {
+      return BASE_PATH + "/api/v1/route.cfc?method=handle&action=getTimeline&routeCode=" + encodeURIComponent(routeCode || "") + "&returnformat=json";
+    }
+
+    function routeBuilderUrl(action, params) {
+      var query = "method=handle&action=" + encodeURIComponent(action) + "&returnformat=json";
+      var k;
+      params = params || {};
+      for (k in params) {
+        if (!Object.prototype.hasOwnProperty.call(params, k)) continue;
+        if (params[k] === undefined || params[k] === null || params[k] === "") continue;
+        query += "&" + encodeURIComponent(k) + "=" + encodeURIComponent(params[k]);
+      }
+      return BASE_PATH + "/api/v1/routeBuilder.cfc?" + query;
+    }
+
+    function setState(stateName, message) {
+      toggleHidden(loadingEl, stateName !== "loading");
+      toggleHidden(unauthorizedEl, stateName !== "unauthorized");
+      toggleHidden(errorEl, stateName !== "error");
+      toggleHidden(bodyEl, stateName !== "ready");
+
+      if (stateName === "loading" && summaryEl) {
+        summaryEl.textContent = "Loading expedition timeline...";
+      }
+      if (stateName === "error" && errorTextEl) {
+        errorTextEl.textContent = message || "Unable to load expedition timeline.";
+      }
+      if (stateName === "unauthorized" && summaryEl) {
+        summaryEl.textContent = "Sign in required";
+      }
+    }
+
+    function renderEmptyRoutes() {
+      if (summaryEl) summaryEl.textContent = "No routes yet";
+      if (subtitleEl) subtitleEl.textContent = "Create your first route";
+      if (routeListEl) routeListEl.innerHTML = "";
+      if (routeEmptyEl) toggleHidden(routeEmptyEl, false);
+      if (accordionEl) accordionEl.innerHTML = '<div class="expedition-segment-empty">Create a route to populate this timeline.</div>';
+      setState("ready");
+    }
+
+    function normalizeStatus(status) {
+      var s = (status || "").toString().toUpperCase();
+      return s === "COMPLETED" ? "COMPLETED" : "NOT_STARTED";
+    }
+
+    function renderSummary(data) {
+      var totals = data && data.TOTALS ? data.TOTALS : {};
+      var pct = Number.isFinite(parseFloat(totals.PCT_COMPLETE)) ? parseFloat(totals.PCT_COMPLETE) : 0;
+      var totalNm = Number.isFinite(parseFloat(totals.TOTAL_NM)) ? parseFloat(totals.TOTAL_NM) : 0;
+      var totalLocks = Number.isFinite(parseFloat(totals.TOTAL_LOCKS)) ? parseFloat(totals.TOTAL_LOCKS) : 0;
+      if (summaryEl) {
+        summaryEl.textContent = Math.round(pct) + "% complete • " + formatNumber(totalNm, 1) + " NM • " + formatNumber(totalLocks, 0) + " locks";
+      }
+      if (subtitleEl && data && data.ROUTE && data.ROUTE.NAME) {
+        subtitleEl.textContent = data.ROUTE.NAME;
+      }
+    }
+
+    function renderRouteList(routes, activeCode) {
+      if (!routeListEl) return;
+      var list = Array.isArray(routes) ? routes : [];
+      if (!list.length) {
+        routeListEl.innerHTML = "";
+        if (routeEmptyEl) toggleHidden(routeEmptyEl, false);
+        return;
+      }
+      if (routeEmptyEl) toggleHidden(routeEmptyEl, true);
+      routeListEl.innerHTML = list.map(function (route) {
+        var totals = route && route.TOTALS ? route.TOTALS : {};
+        var isActive = route && route.SHORT_CODE && activeCode && route.SHORT_CODE === activeCode;
+        var pct = Number.isFinite(parseFloat(totals.PCT_COMPLETE)) ? Math.round(parseFloat(totals.PCT_COMPLETE)) : 0;
+        var nm = Number.isFinite(parseFloat(totals.TOTAL_NM)) ? parseFloat(totals.TOTAL_NM) : 0;
+        var locks = Number.isFinite(parseFloat(totals.TOTAL_LOCKS)) ? parseFloat(totals.TOTAL_LOCKS) : 0;
+        return ''
+          + '<div class="expedition-route-card ' + (isActive ? 'is-active' : '') + '" data-route-code="' + escapeHtml(route.SHORT_CODE || "") + '">'
+          + '  <div>'
+          + '    <div class="expedition-route-name">' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</div>'
+          + '    <div class="expedition-route-meta">' + pct + '% complete • ' + formatNumber(nm, 1) + ' NM • ' + formatNumber(locks, 0) + ' locks</div>'
+          + '  </div>'
+          + '  <div class="expedition-route-actions">'
+          + '    <button type="button" class="btn-secondary js-expedition-open">Open</button>'
+          + '    <button type="button" class="btn-secondary js-expedition-edit">Edit</button>'
+          + '    <button type="button" class="btn-secondary js-expedition-delete">Delete</button>'
+          + '  </div>'
+          + '</div>';
+      }).join("");
+    }
+
+    function segmentBadges(segment) {
+      var progress = segment && segment.PROGRESS ? segment.PROGRESS : {};
+      var status = normalizeStatus(progress.STATUS);
+      var html = "";
+      html += status === "COMPLETED"
+        ? '<span class="expedition-badge complete">Completed</span>'
+        : '<span class="expedition-badge pending">Not started</span>';
+
+      if (segment && segment.IS_SIGNATURE_EVENT) {
+        html += ' <span class="expedition-badge signature">Signature Event</span>';
+      }
+      if (segment && segment.IS_MILESTONE_END) {
+        html += ' <span class="expedition-badge milestone">Milestone</span>';
+      }
+      return html;
+    }
+
+    function renderTimeline(data) {
+      if (!accordionEl) return;
+      var sections = (data && Array.isArray(data.SECTIONS)) ? data.SECTIONS : [];
+      var firstDefaultIndex = -1;
+      var i;
+      for (i = 0; i < sections.length; i += 1) {
+        if (sections[i] && sections[i].IS_ACTIVE_DEFAULT) {
+          firstDefaultIndex = i;
+          break;
+        }
+      }
+      if (firstDefaultIndex < 0 && sections.length) firstDefaultIndex = 0;
+
+      var html = "";
+      for (i = 0; i < sections.length; i += 1) {
+        var section = sections[i] || {};
+        var totals = section.TOTALS || {};
+        var sectionId = "expeditionSection" + i;
+        var headingId = sectionId + "Heading";
+        var collapseId = sectionId + "Collapse";
+        var expanded = i === firstDefaultIndex;
+        var pct = Number.isFinite(parseFloat(totals.PCT_COMPLETE)) ? Math.round(parseFloat(totals.PCT_COMPLETE)) : 0;
+        var nm = Number.isFinite(parseFloat(totals.NM)) ? parseFloat(totals.NM) : 0;
+        var locks = Number.isFinite(parseFloat(totals.LOCKS)) ? parseFloat(totals.LOCKS) : 0;
+        var segments = Array.isArray(section.SEGMENTS) ? section.SEGMENTS : [];
+        var segmentHtml = "";
+        var j;
+        for (j = 0; j < segments.length; j += 1) {
+          var seg = segments[j] || {};
+          var startName = escapeHtml(seg.START_NAME || "Start");
+          var endName = escapeHtml(seg.END_NAME || "End");
+          var distNm = Number.isFinite(parseFloat(seg.DIST_NM)) ? parseFloat(seg.DIST_NM) : 0;
+          var lockCount = Number.isFinite(parseFloat(seg.LOCK_COUNT)) ? parseFloat(seg.LOCK_COUNT) : 0;
+          segmentHtml += ''
+            + '<div class="expedition-segment">'
+            + '  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">'
+            + '    <div class="expedition-segment-title">' + startName + ' \u2192 ' + endName + '</div>'
+            + '    <div>' + segmentBadges(seg) + '</div>'
+            + '  </div>'
+            + '  <div class="expedition-segment-meta">' + formatNumber(distNm, 1) + ' NM \u2022 ' + formatNumber(lockCount, 0) + ' locks</div>'
+            + '</div>';
+        }
+        if (!segmentHtml) {
+          segmentHtml = '<div class="expedition-segment-empty">No segments yet.</div>';
+        }
+
+        html += ''
+          + '<div class="accordion-item">'
+          + '  <h2 class="accordion-header" id="' + headingId + '">'
+          + '    <button class="accordion-button ' + (expanded ? "" : "collapsed") + '" type="button" data-bs-toggle="collapse" data-bs-target="#' + collapseId + '" aria-expanded="' + (expanded ? "true" : "false") + '" aria-controls="' + collapseId + '">'
+          + '      <div class="expedition-section-head">'
+          + '        <span class="expedition-section-name">' + escapeHtml(section.NAME || "Section") + '</span>'
+          + '        <span class="expedition-section-meta">' + formatNumber(nm, 1) + ' NM \u2022 ' + formatNumber(locks, 0) + ' locks <span class="expedition-badge pct">' + pct + '%</span></span>'
+          + '      </div>'
+          + '    </button>'
+          + '  </h2>'
+          + '  <div id="' + collapseId + '" class="accordion-collapse collapse ' + (expanded ? "show" : "") + '" aria-labelledby="' + headingId + '" data-bs-parent="#expeditionTimelineAccordion">'
+          + '    <div class="accordion-body">'
+          + segmentHtml
+          + '    </div>'
+          + '  </div>'
+          + '</div>';
+      }
+
+      accordionEl.innerHTML = html || '<div class="expedition-segment-empty">No timeline data available.</div>';
+    }
+
+    function setActiveRoute(routeCode) {
+      if (!routeCode) return Promise.resolve();
+      return fetch(routeBuilderUrl("setActiveRoute", { routeCode: routeCode }), { credentials: "same-origin" }).catch(function () {
+        return null;
+      });
+    }
+
+    function openEditor(routeCode) {
+      var rb = window.FPW && window.FPW.DashboardModules ? window.FPW.DashboardModules.routeBuilder : null;
+      if (rb && typeof rb.openEditorForRoute === "function") {
+        rb.openEditorForRoute(routeCode);
+      }
+    }
+
+    function deleteRoute(routeCode) {
+      if (!routeCode) return Promise.resolve();
+      return fetchJson(routeBuilderUrl("deleteRoute", { routeCode: routeCode }))
+        .then(function (payload) {
+          if (!payload || payload.SUCCESS === false) {
+            throw new Error((payload && payload.MESSAGE) ? payload.MESSAGE : "Unable to delete route.");
+          }
+          if (currentRouteCode === routeCode) currentRouteCode = "";
+          return load();
+        })
+        .catch(function (err) {
+          setState("error", (err && err.message) ? err.message : "Unable to delete route.");
+        });
+    }
+
+    function fetchJson(url) {
+      return fetch(url, { credentials: "same-origin" })
+        .then(function (response) {
+          if (response.status === 401 || response.status === 403) {
+            var authErr = new Error("Unauthorized");
+            authErr.code = "UNAUTHORIZED";
+            throw authErr;
+          }
+          return response.json();
+        });
+    }
+
+    function load(routeCodeOverride) {
+      requestSeq += 1;
+      var currentSeq = requestSeq;
+      setState("loading");
+
+      return fetchJson(routeBuilderUrl("listUserRoutes"))
+        .then(function (routesPayload) {
+          if (currentSeq !== requestSeq) return null;
+          if (!routesPayload || routesPayload.SUCCESS === false) {
+            if (routesPayload && routesPayload.AUTH === false) {
+              setState("unauthorized");
+              return null;
+            }
+            throw new Error((routesPayload && routesPayload.MESSAGE) ? routesPayload.MESSAGE : "Unable to load routes.");
+          }
+          var routes = Array.isArray(routesPayload.ROUTES) ? routesPayload.ROUTES : [];
+          if (!routes.length) {
+            renderEmptyRoutes();
+            return null;
+          }
+          var selected = routeCodeOverride || currentRouteCode || routesPayload.ACTIVE_ROUTE_CODE || routes[0].SHORT_CODE;
+          var hasSelected = routes.some(function (route) {
+            return route && route.SHORT_CODE === selected;
+          });
+          if (!hasSelected) selected = routes[0].SHORT_CODE;
+          currentRouteCode = selected;
+          renderRouteList(routes, selected);
+          return fetchJson(routeUrl(selected));
+        })
+        .then(function (payload) {
+          if (currentSeq !== requestSeq || !payload) return;
+          if (!payload || payload.SUCCESS === false) {
+            if (payload && payload.AUTH === false) {
+              setState("unauthorized");
+              return;
+            }
+            throw new Error((payload && payload.MESSAGE) ? payload.MESSAGE : "Unable to load expedition timeline.");
+          }
+          renderSummary(payload);
+          renderTimeline(payload);
+          setState("ready");
+        })
+        .catch(function (err) {
+          if (currentSeq !== requestSeq) return;
+          if (err && err.code === "UNAUTHORIZED") {
+            setState("unauthorized");
+            return;
+          }
+          setState("error", (err && err.message) ? err.message : "Unable to load expedition timeline.");
+        });
+    }
+
+    function init() {
+      panel = document.getElementById("expeditionTimelinePanel");
+      if (!panel) return;
+      summaryEl = document.getElementById("expeditionTimelineSummary");
+      subtitleEl = document.getElementById("expeditionTimelineSubtitle");
+      loadingEl = document.getElementById("expeditionTimelineLoading");
+      unauthorizedEl = document.getElementById("expeditionTimelineUnauthorized");
+      errorEl = document.getElementById("expeditionTimelineError");
+      errorTextEl = document.getElementById("expeditionTimelineErrorText");
+      bodyEl = document.getElementById("expeditionTimelineBody");
+      routeListEl = document.getElementById("expeditionRouteList");
+      routeEmptyEl = document.getElementById("expeditionRouteEmpty");
+      accordionEl = document.getElementById("expeditionTimelineAccordion");
+      retryBtn = document.getElementById("expeditionTimelineRetry");
+
+      if (retryBtn) {
+        retryBtn.addEventListener("click", function () {
+          load();
+        });
+      }
+      if (routeListEl) {
+        routeListEl.addEventListener("click", function (event) {
+          var target = event.target;
+          if (!target) return;
+          var card = target.closest(".expedition-route-card");
+          if (!card) return;
+          var routeCode = card.getAttribute("data-route-code");
+          if (!routeCode) return;
+          if (target.classList.contains("js-expedition-edit")) {
+            setActiveRoute(routeCode);
+            openEditor(routeCode);
+            return;
+          }
+          if (target.classList.contains("js-expedition-delete")) {
+            var confirmDelete = function () {
+              deleteRoute(routeCode);
+            };
+            if (utils && typeof utils.showConfirmModal === "function") {
+              utils.showConfirmModal("Delete this route?")
+                .then(function (confirmed) {
+                  if (!confirmed) return;
+                  confirmDelete();
+                });
+            } else {
+              if (!window.confirm("Delete this route?")) return;
+              confirmDelete();
+            }
+            return;
+          }
+          if (target.classList.contains("js-expedition-open") || target.closest(".expedition-route-card")) {
+            setActiveRoute(routeCode);
+            load(routeCode);
+          }
+        });
+      }
+      document.addEventListener("fpw:routes-updated", function (event) {
+        var routeCode = event && event.detail ? event.detail.routeCode : "";
+        load(routeCode);
+      });
+      load();
+    }
+
+    return {
+      init: init,
+      load: load
+    };
+  })();
+
+  window.FPW.DashboardModules = modules;
+
   function initDashboard() {
     if (utils.clearDashboardAlert) {
       utils.clearDashboardAlert();
@@ -1255,6 +1627,12 @@
     }
     if (modules.alerts && modules.alerts.init) {
       modules.alerts.init();
+    }
+    if (modules.expeditionTimeline && modules.expeditionTimeline.init) {
+      modules.expeditionTimeline.init();
+    }
+    if (modules.routeBuilder && modules.routeBuilder.init) {
+      modules.routeBuilder.init();
     }
     // TODO: call /api/v1/floatplans.cfc?method=getMonitoredPlans every 60s and render counts/list.
 
@@ -1312,6 +1690,6 @@
 
   }
 
-  window.FPW_DASHBOARD_VERSION = "20260211w";
+  window.FPW_DASHBOARD_VERSION = "20260211y";
   document.addEventListener("DOMContentLoaded", initDashboard);
 })(window, document);
