@@ -403,7 +403,7 @@
         <div class="modal-content dashboard-card">
             <div class="modal-header card-header">
                 <h5 class="modal-title card-title" id="confirmModalLabel">Please Confirm</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" id="routeBuilderCloseBtn" aria-label="Close"></button>
             </div>
             <div class="modal-body card-body">
                 <p id="confirmModalMessage" class="mb-0"></p>
@@ -1125,7 +1125,6 @@
                 </form>
             </div>
             <div class="modal-footer card-footer">
-                <button type="button" class="btn-secondary d-none" id="routeBuilderBackBtn">Back</button>
                 <button type="button" class="btn-primary" id="routeBuilderGenerateBtn">Generate Route</button>
                 <button type="button" class="btn-primary d-none" id="routeBuilderSaveBtn">Save</button>
                 <button type="button" class="btn-primary d-none" id="routeBuilderDoneBtn">Done</button>

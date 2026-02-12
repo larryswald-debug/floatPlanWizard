@@ -16,7 +16,7 @@
   var startLocationEl = null;
   var endLocationEl = null;
   var generateBtn = null;
-  var backBtn = null;
+  var closeBtn = null;
   var saveBtn = null;
   var doneBtn = null;
   var step1El = null;
@@ -38,6 +38,8 @@
   var originalSegments = {};
   var isDirty = false;
   var isSaving = false;
+  var allowResetOnHide = false;
+  var isConfirmingDiscard = false;
 
   function escapeHtml(value) {
     if (utils.escapeHtml) return utils.escapeHtml(value);
@@ -119,14 +121,12 @@
     if (stepNum === 1) {
       step1El.classList.remove("d-none");
       step2El.classList.add("d-none");
-      if (backBtn) backBtn.classList.add("d-none");
       if (saveBtn) saveBtn.classList.add("d-none");
       if (doneBtn) doneBtn.classList.add("d-none");
       if (generateBtn) generateBtn.classList.remove("d-none");
     } else {
       step1El.classList.add("d-none");
       step2El.classList.remove("d-none");
-      if (backBtn) backBtn.classList.remove("d-none");
       if (saveBtn) saveBtn.classList.remove("d-none");
       if (doneBtn) doneBtn.classList.remove("d-none");
       if (generateBtn) generateBtn.classList.add("d-none");
@@ -203,11 +203,45 @@
   }
 
   function confirmDiscardIfDirty() {
-    if (!isDirty) return Promise.resolve(true);
+    var hasChanges = hasUnsavedChanges();
+    if (!hasChanges) return Promise.resolve(true);
+    if (!isDirty) {
+      markDirty(true);
+      setStatus("You have unsaved changes.");
+    }
     if (utils.showConfirmModal) {
       return utils.showConfirmModal("You have unsaved route changes. Discard changes?");
     }
     return Promise.resolve(window.confirm("You have unsaved route changes. Discard changes?"));
+  }
+
+  function hasUnsavedChanges() {
+    if (!step2El || step2El.classList.contains("d-none")) return false;
+    if (isDirty) return true;
+    return Object.keys(collectChangesBySegment()).length > 0;
+  }
+
+  function runDiscardFlow(onConfirm) {
+    if (typeof onConfirm !== "function") return;
+    if (isConfirmingDiscard) return;
+    if (!hasUnsavedChanges()) {
+      onConfirm();
+      return;
+    }
+    if (!isDirty) {
+      markDirty(true);
+      setStatus("You have unsaved changes.");
+    }
+    isConfirmingDiscard = true;
+    confirmDiscardIfDirty()
+      .then(function (confirmed) {
+        if (!confirmed) return;
+        markDirty(false);
+        onConfirm();
+      })
+      .finally(function () {
+        isConfirmingDiscard = false;
+      });
   }
 
   function collectKnownLocationsFromTimeline(payload) {
@@ -497,10 +531,14 @@
     currentRouteCode = "";
     currentTimeline = null;
     originalSegments = {};
+    allowResetOnHide = false;
     setStep(1);
     setStatus("");
     markDirty(false);
     clearAlert();
+    if (startDateEl) startDateEl.value = "";
+    if (startLocationEl) startLocationEl.value = "";
+    if (endLocationEl) endLocationEl.value = "";
     if (summaryEl) summaryEl.textContent = "—";
     if (routeNameEl) routeNameEl.textContent = "Generated Route";
     if (routeCodeEl) routeCodeEl.textContent = "";
@@ -510,6 +548,7 @@
   function openModal() {
     if (!modalEl || !modal) return;
     resetModal();
+    allowResetOnHide = false;
     if (startDateEl && !startDateEl.value) {
       var d = new Date();
       var yyyy = d.getFullYear();
@@ -523,6 +562,7 @@
   function openEditorForRoute(routeCode) {
     if (!routeCode || !modal) return;
     resetModal();
+    allowResetOnHide = false;
     currentRouteCode = String(routeCode);
     clearAlert();
     setStatus("Loading route...");
@@ -558,6 +598,15 @@
     }
   }
 
+  function closeRouteBuilder() {
+    if (modal) {
+      allowResetOnHide = true;
+      modal.hide();
+      return;
+    }
+    resetModal();
+  }
+
   function bindEvents() {
     if (openBtn) {
       openBtn.addEventListener("click", function () {
@@ -579,12 +628,10 @@
         generateRoute();
       });
     }
-    if (backBtn) {
-      backBtn.addEventListener("click", function () {
-        confirmDiscardIfDirty().then(function (confirmed) {
-          if (!confirmed) return;
-          markDirty(false);
-          setStep(1);
+    if (closeBtn) {
+      closeBtn.addEventListener("click", function () {
+        runDiscardFlow(function () {
+          closeRouteBuilder();
         });
       });
     }
@@ -595,9 +642,9 @@
     }
     if (doneBtn) {
       doneBtn.addEventListener("click", function () {
-        var maybeSave = isDirty ? saveAllChanges() : Promise.resolve(false);
+        var maybeSave = hasUnsavedChanges() ? saveAllChanges() : Promise.resolve(false);
         maybeSave.then(function () {
-          if (modal) modal.hide();
+          closeRouteBuilder();
           notifyRoutesUpdated(currentRouteCode);
         });
       });
@@ -607,17 +654,17 @@
       timelineEl.addEventListener("change", onEditorInput, true);
     }
     if (modalEl && !modalEl.dataset.rbListeners) {
-      modalEl.addEventListener("click", function (e) {
-        var dismissBtn = e.target && e.target.closest ? e.target.closest('[data-bs-dismiss="modal"]') : null;
-        if (!dismissBtn || !isDirty) return;
+      modalEl.addEventListener("hide.bs.modal", function (e) {
+        if (allowResetOnHide) return;
+        if (!hasUnsavedChanges()) {
+          allowResetOnHide = true;
+          return;
+        }
         e.preventDefault();
-        e.stopPropagation();
-        confirmDiscardIfDirty().then(function (confirmed) {
-          if (!confirmed) return;
-          markDirty(false);
-          if (modal) modal.hide();
+        runDiscardFlow(function () {
+          closeRouteBuilder();
         });
-      }, true);
+      });
       modalEl.addEventListener("hidden.bs.modal", function () {
         resetModal();
       });
@@ -639,7 +686,7 @@
     startLocationEl = document.getElementById("routeBuilderStartLocation");
     endLocationEl = document.getElementById("routeBuilderEndLocation");
     generateBtn = document.getElementById("routeBuilderGenerateBtn");
-    backBtn = document.getElementById("routeBuilderBackBtn");
+    closeBtn = document.getElementById("routeBuilderCloseBtn");
     saveBtn = document.getElementById("routeBuilderSaveBtn");
     doneBtn = document.getElementById("routeBuilderDoneBtn");
     step1El = document.getElementById("routeBuilderStep1");

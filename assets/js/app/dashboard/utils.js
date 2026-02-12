@@ -9,6 +9,7 @@
   var confirmMessageEl = null;
   var confirmOkBtn = null;
   var confirmResolver = null;
+  var confirmPendingResult = null;
   var alertModalEl = null;
   var alertModal = null;
   var alertMessageEl = null;
@@ -247,20 +248,22 @@
     if (confirmModalEl && !confirmModalEl.dataset.listenersAttached) {
       if (confirmOkBtn) {
         confirmOkBtn.addEventListener("click", function () {
-          if (confirmResolver) {
-            confirmResolver(true);
-          }
-          confirmResolver = null;
+          confirmPendingResult = true;
           if (confirmModal) {
             confirmModal.hide();
+          } else if (confirmResolver) {
+            confirmResolver(true);
+            confirmResolver = null;
+            confirmPendingResult = null;
           }
         });
       }
       confirmModalEl.addEventListener("hidden.bs.modal", function () {
         if (confirmResolver) {
-          confirmResolver(false);
+          confirmResolver(confirmPendingResult === true);
           confirmResolver = null;
         }
+        confirmPendingResult = null;
       });
       confirmModalEl.dataset.listenersAttached = "true";
     }
@@ -271,6 +274,11 @@
     if (!confirmModalEl || !confirmModal) {
       return Promise.resolve(window.confirm(message || "Are you sure?"));
     }
+    if (confirmResolver) {
+      confirmResolver(false);
+      confirmResolver = null;
+    }
+    confirmPendingResult = null;
     if (confirmMessageEl) {
       confirmMessageEl.textContent = message || "Are you sure?";
     }
