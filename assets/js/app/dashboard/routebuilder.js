@@ -13,6 +13,7 @@
   var openBtn = null;
   var formEl = null;
   var startDateEl = null;
+  var directionEl = null;
   var startLocationEl = null;
   var endLocationEl = null;
   var generateBtn = null;
@@ -74,6 +75,10 @@
       query += "&" + encodeURIComponent(k) + "=" + encodeURIComponent(params[k]);
     }
     return BASE_PATH + "/api/v1/routeBuilder.cfc?" + query;
+  }
+
+  function normalizeDirection(value) {
+    return String(value || "").toUpperCase() === "CW" ? "CW" : "CCW";
   }
 
   function notifyRoutesUpdated(routeCode) {
@@ -466,8 +471,9 @@
     }
   }
 
-  function loadCanonicalLocations() {
-    return fetchJson(apiUrl("listCanonicalLocations"), { credentials: "same-origin" })
+  function loadCanonicalLocations(directionOverride) {
+    var direction = normalizeDirection(directionOverride || (directionEl ? directionEl.value : "CCW"));
+    return fetchJson(apiUrl("listCanonicalLocations", { direction: direction }), { credentials: "same-origin" })
       .then(function (payload) {
         if (!payload || payload.SUCCESS === false || !Array.isArray(payload.LOCATIONS)) {
           throw new Error("No canonical locations");
@@ -488,8 +494,8 @@
             var sections = Array.isArray(payload.SECTIONS) ? payload.SECTIONS : [];
             var i;
             var j;
-            var startName;
-            var endName;
+            var segList = [];
+            var seg;
 
             function addName(name) {
               var v = String(name || "").trim();
@@ -508,11 +514,22 @@
             for (i = 0; i < sections.length; i += 1) {
               var segs = Array.isArray(sections[i].SEGMENTS) ? sections[i].SEGMENTS : [];
               for (j = 0; j < segs.length; j += 1) {
-                startName = segs[j].START_NAME;
-                endName = segs[j].END_NAME;
-                addStart(startName);
-                addName(startName);
-                addName(endName);
+                segList.push(segs[j]);
+              }
+            }
+            if (direction === "CW") {
+              for (i = segList.length - 1; i >= 0; i -= 1) {
+                seg = segList[i] || {};
+                addStart(seg.END_NAME);
+                addName(seg.END_NAME);
+                addName(seg.START_NAME);
+              }
+            } else {
+              for (i = 0; i < segList.length; i += 1) {
+                seg = segList[i] || {};
+                addStart(seg.START_NAME);
+                addName(seg.START_NAME);
+                addName(seg.END_NAME);
               }
             }
             setCanonicalLocations({
@@ -529,6 +546,7 @@
   function readStep1() {
     return {
       startDate: startDateEl ? String(startDateEl.value || "").trim() : "",
+      direction: directionEl ? normalizeDirection(directionEl.value) : "CCW",
       startLocation: startLocationEl ? String(startLocationEl.value || "").trim() : "",
       endLocation: endLocationEl ? String(endLocationEl.value || "").trim() : ""
     };
@@ -690,6 +708,7 @@
     markDirty(false);
     clearAlert();
     if (startDateEl) startDateEl.value = "";
+    if (directionEl) directionEl.value = "CCW";
     if (startLocationEl) startLocationEl.value = "";
     if (endLocationEl) endLocationEl.value = "";
     if (summaryEl) summaryEl.textContent = "—";
@@ -703,6 +722,7 @@
   function openModal() {
     if (!modalEl || !modal) return;
     resetModal();
+    loadCanonicalLocations(directionEl ? directionEl.value : "CCW");
     allowResetOnHide = false;
     if (startDateEl && !startDateEl.value) {
       var d = new Date();
@@ -792,6 +812,17 @@
         }
       });
     }
+    if (directionEl) {
+      directionEl.addEventListener("change", function () {
+        if (startLocationEl) startLocationEl.value = "";
+        if (endLocationEl) endLocationEl.value = "";
+        canonicalLocations = [];
+        startLocations = [];
+        canonicalOrderByLocation = {};
+        renderStep1LocationSelects();
+        loadCanonicalLocations(directionEl.value);
+      });
+    }
     if (closeBtn) {
       closeBtn.addEventListener("click", function () {
         runDiscardFlow(function () {
@@ -847,6 +878,7 @@
 
     formEl = document.getElementById("routeBuilderForm");
     startDateEl = document.getElementById("routeBuilderStartDate");
+    directionEl = document.getElementById("routeBuilderDirection");
     startLocationEl = document.getElementById("routeBuilderStartLocation");
     endLocationEl = document.getElementById("routeBuilderEndLocation");
     generateBtn = document.getElementById("routeBuilderGenerateBtn");
@@ -865,7 +897,7 @@
     saveIndicatorEl = document.getElementById("routeBuilderSaveIndicator");
 
     bindEvents();
-    loadCanonicalLocations();
+    loadCanonicalLocations(directionEl ? directionEl.value : "CCW");
     resetModal();
   }
 

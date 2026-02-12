@@ -32,7 +32,8 @@
                 <cfset var startDate = pickArg(body, "startDate", "startDate", "") />
                 <cfset var startLocation = pickArg(body, "startLocation", "startLocation", "") />
                 <cfset var endLocation = pickArg(body, "endLocation", "endLocation", "") />
-                <cfset var generated = generateRoute(userId, startDate, startLocation, endLocation) />
+                <cfset var direction = pickArg(body, "direction", "direction", "CCW") />
+                <cfset var generated = generateRoute(userId, startDate, startLocation, endLocation, direction) />
                 <cfoutput>#serializeJSON(generated)#</cfoutput>
                 <cfreturn>
 
@@ -42,7 +43,8 @@
                 <cfreturn>
 
             <cfelseif act EQ "listcanonicallocations">
-                <cfset var canonical = listCanonicalLocations() />
+                <cfset var canonicalDirection = pickArg(body, "direction", "direction", "CCW") />
+                <cfset var canonical = listCanonicalLocations(canonicalDirection) />
                 <cfoutput>#serializeJSON(canonical)#</cfoutput>
                 <cfreturn>
 
@@ -148,6 +150,7 @@
         <cfargument name="startDate" type="string" required="true">
         <cfargument name="startLocation" type="string" required="true">
         <cfargument name="endLocation" type="string" required="true">
+        <cfargument name="direction" type="string" required="false" default="CCW">
         <cfscript>
             var out = { "SUCCESS"=true, "AUTH"=true, "MESSAGE"="OK", "WARNINGS"=[] };
             var milepointService = getMilepointService();
@@ -183,9 +186,10 @@
             }
 
             var templateRouteId = qTpl.id[1];
+            var directionVal = normalizeDirection(arguments.direction);
             var shortCode = "USER_ROUTE_" & int(arguments.userId) & "_" & dateTimeFormat(now(), "yyyymmddHHnnss");
             var routeName = "My Great Loop Route";
-            var routeDesc = "Generated from GREAT_LOOP_CCW on " & dateFormat(now(), "yyyy-mm-dd") & " (" & startLocRaw & " to " & endLocRaw & ")";
+            var routeDesc = "Generated from GREAT_LOOP_CCW (" & directionVal & ") on " & dateFormat(now(), "yyyy-mm-dd") & " (" & startLocRaw & " to " & endLocRaw & ")";
 
             var qTplSections = queryExecute(
                 "SELECT id, name, short_code, phase_num, order_index, is_active_default
@@ -207,22 +211,67 @@
                 { datasource = application.dsn }
             );
 
-            var matchInfo = findFocusSegments(templateRouteId, startLocRaw, endLocRaw);
+            var segmentRows = [];
+            var routeOrderCounter = 0;
+            var segIdx = 0;
+            if (directionVal EQ "CW") {
+                for (segIdx = qTplSegments.recordCount; segIdx GTE 1; segIdx--) {
+                    routeOrderCounter += 1;
+                    arrayAppend(segmentRows, {
+                        "TEMPLATE_SEGMENT_ID"=qTplSegments.id[segIdx],
+                        "SECTION_ID"=qTplSegments.section_id[segIdx],
+                        "ORDER_INDEX"=qTplSegments.order_index[segIdx],
+                        "SECTION_ORDER"=qTplSegments.section_order[segIdx],
+                        "START_NAME"=qTplSegments.end_name[segIdx],
+                        "END_NAME"=qTplSegments.start_name[segIdx],
+                        "DIST_NM"=qTplSegments.dist_nm[segIdx],
+                        "LOCK_COUNT"=qTplSegments.lock_count[segIdx],
+                        "RM_START"=qTplSegments.rm_end[segIdx],
+                        "RM_END"=qTplSegments.rm_start[segIdx],
+                        "IS_SIGNATURE_EVENT"=qTplSegments.is_signature_event[segIdx],
+                        "IS_MILESTONE_END"=qTplSegments.is_milestone_end[segIdx],
+                        "NOTES"=qTplSegments.notes[segIdx],
+                        "ROUTE_ORDER"=routeOrderCounter
+                    });
+                }
+            } else {
+                for (segIdx = 1; segIdx LTE qTplSegments.recordCount; segIdx++) {
+                    routeOrderCounter += 1;
+                    arrayAppend(segmentRows, {
+                        "TEMPLATE_SEGMENT_ID"=qTplSegments.id[segIdx],
+                        "SECTION_ID"=qTplSegments.section_id[segIdx],
+                        "ORDER_INDEX"=qTplSegments.order_index[segIdx],
+                        "SECTION_ORDER"=qTplSegments.section_order[segIdx],
+                        "START_NAME"=qTplSegments.start_name[segIdx],
+                        "END_NAME"=qTplSegments.end_name[segIdx],
+                        "DIST_NM"=qTplSegments.dist_nm[segIdx],
+                        "LOCK_COUNT"=qTplSegments.lock_count[segIdx],
+                        "RM_START"=qTplSegments.rm_start[segIdx],
+                        "RM_END"=qTplSegments.rm_end[segIdx],
+                        "IS_SIGNATURE_EVENT"=qTplSegments.is_signature_event[segIdx],
+                        "IS_MILESTONE_END"=qTplSegments.is_milestone_end[segIdx],
+                        "NOTES"=qTplSegments.notes[segIdx],
+                        "ROUTE_ORDER"=routeOrderCounter
+                    });
+                }
+            }
+
+            var matchInfo = findFocusSegments(templateRouteId, startLocRaw, endLocRaw, directionVal);
             var trimEnabled = false;
             var trimStartOrder = 0;
             var trimEndOrder = 0;
             var endFallbackUsed = false;
             if (!matchInfo.START_FOUND OR val(matchInfo.START_ORDER) LTE 0) {
-                return {
-                    "SUCCESS"=false,
-                    "AUTH"=true,
-                    "MESSAGE"="Start location not found in route template",
-                    "ERROR"={"MESSAGE"="The selected start location could not be matched in GREAT_LOOP_CCW."}
-                };
-            }
+                    return {
+                        "SUCCESS"=false,
+                        "AUTH"=true,
+                        "MESSAGE"="Start location not found in route template",
+                        "ERROR"={"MESSAGE"="The selected start location could not be matched in GREAT_LOOP_CCW (" & directionVal & ")."}
+                    };
+                }
             trimStartOrder = val(matchInfo.START_ORDER);
             if (!matchInfo.END_FOUND OR val(matchInfo.END_ORDER) LTE 0) {
-                if (qTplSegments.recordCount LTE 0) {
+                if (arrayLen(segmentRows) LTE 0) {
                     return {
                         "SUCCESS"=false,
                         "AUTH"=true,
@@ -230,7 +279,7 @@
                         "ERROR"={"MESSAGE"="GREAT_LOOP_CCW has no loop_segments to generate from."}
                     };
                 }
-                trimEndOrder = (val(qTplSegments.section_order[qTplSegments.recordCount]) * 10000) + val(qTplSegments.order_index[qTplSegments.recordCount]);
+                trimEndOrder = segmentRows[arrayLen(segmentRows)].ROUTE_ORDER;
                 endFallbackUsed = true;
             } else {
                 trimEndOrder = val(matchInfo.END_ORDER);
@@ -239,7 +288,7 @@
                         "SUCCESS"=false,
                         "AUTH"=true,
                         "MESSAGE"="Planned end location must be after start location",
-                        "ERROR"={"MESSAGE"="Selected end location appears before selected start location in GREAT_LOOP_CCW order."}
+                        "ERROR"={"MESSAGE"="Selected end location appears before selected start location in " & directionVal & " route order."}
                     };
                 }
             }
@@ -272,7 +321,9 @@
                 newRouteId = val(routeIns.generatedKey);
 
                 var i = 0;
+                var copiedSectionOrder = 0;
                 for (i = 1; i LTE qTplSections.recordCount; i++) {
+                    copiedSectionOrder = (directionVal EQ "CW" ? (qTplSections.recordCount - i + 1) : i);
                     queryExecute(
                         "INSERT INTO loop_sections (route_id, name, short_code, phase_num, order_index, is_active_default)
                          VALUES (:rid, :name, :scode, :phaseNum, :orderIndex, :isActive)",
@@ -281,7 +332,7 @@
                             name = { value=qTplSections.name[i], cfsqltype="cf_sql_varchar" },
                             scode = { value=qTplSections.short_code[i], cfsqltype="cf_sql_varchar", null = isNull(qTplSections.short_code[i]) },
                             phaseNum = { value=qTplSections.phase_num[i], cfsqltype="cf_sql_integer", null = isNull(qTplSections.phase_num[i]) },
-                            orderIndex = { value=qTplSections.order_index[i], cfsqltype="cf_sql_integer" },
+                            orderIndex = { value=copiedSectionOrder, cfsqltype="cf_sql_integer" },
                             isActive = { value=(qTplSections.is_active_default[i] EQ 1 ? 1 : 0), cfsqltype="cf_sql_integer" }
                         },
                         { datasource = application.dsn, result = "secIns" }
@@ -293,15 +344,19 @@
                     };
                 }
 
-                for (i = 1; i LTE qTplSegments.recordCount; i++) {
-                    var oldSecId = toString(qTplSegments.section_id[i]);
-                    var distNmBind = toNullableNumber(qTplSegments.dist_nm[i], "numeric");
-                    var lockCountBind = toNullableNumber(qTplSegments.lock_count[i], "integer");
-                    var rmStartBind = toNullableNumber(qTplSegments.rm_start[i], "numeric");
-                    var rmEndBind = toNullableNumber(qTplSegments.rm_end[i], "numeric");
-                    var startNameVal = trim(toString(qTplSegments.start_name[i]));
-                    var endNameVal = trim(toString(qTplSegments.end_name[i]));
-                    var globalOrder = (val(qTplSegments.section_order[i]) * 10000) + val(qTplSegments.order_index[i]);
+                var sectionSegmentCounter = {};
+                var segRow = {};
+                var localOrderIndex = 0;
+                for (i = 1; i LTE arrayLen(segmentRows); i++) {
+                    segRow = segmentRows[i];
+                    var oldSecId = toString(segRow.SECTION_ID);
+                    var distNmBind = toNullableNumber(segRow.DIST_NM, "numeric");
+                    var lockCountBind = toNullableNumber(segRow.LOCK_COUNT, "integer");
+                    var rmStartBind = toNullableNumber(segRow.RM_START, "numeric");
+                    var rmEndBind = toNullableNumber(segRow.RM_END, "numeric");
+                    var startNameVal = trim(toString(segRow.START_NAME));
+                    var endNameVal = trim(toString(segRow.END_NAME));
+                    var globalOrder = val(segRow.ROUTE_ORDER);
                     if (!structKeyExists(sectionMap, oldSecId)) {
                         continue;
                     }
@@ -333,6 +388,11 @@
                             rmUnresolvedCount += 1;
                         }
                     }
+                    if (!structKeyExists(sectionSegmentCounter, oldSecId)) {
+                        sectionSegmentCounter[oldSecId] = 0;
+                    }
+                    sectionSegmentCounter[oldSecId] = sectionSegmentCounter[oldSecId] + 1;
+                    localOrderIndex = sectionSegmentCounter[oldSecId];
                     queryExecute(
                         "INSERT INTO loop_segments
                             (section_id, order_index, start_name, end_name, dist_nm, lock_count, rm_start, rm_end, is_signature_event, is_milestone_end, notes)
@@ -340,20 +400,20 @@
                             (:sectionId, :orderIndex, :startName, :endName, :distNm, :lockCount, :rmStart, :rmEnd, :isSignature, :isMilestone, :notes)",
                         {
                             sectionId = { value=sectionMap[oldSecId], cfsqltype="cf_sql_integer" },
-                            orderIndex = { value=qTplSegments.order_index[i], cfsqltype="cf_sql_integer" },
+                            orderIndex = { value=localOrderIndex, cfsqltype="cf_sql_integer" },
                             startName = { value=startNameVal, cfsqltype="cf_sql_varchar", null = false },
                             endName = { value=endNameVal, cfsqltype="cf_sql_varchar", null = false },
                             distNm = { value=distNmBind.value, cfsqltype="cf_sql_decimal", null = distNmBind.isNull },
                             lockCount = { value=lockCountBind.value, cfsqltype="cf_sql_integer", null = lockCountBind.isNull },
                             rmStart = { value=rmStartBind.value, cfsqltype="cf_sql_decimal", null = rmStartBind.isNull },
                             rmEnd = { value=rmEndBind.value, cfsqltype="cf_sql_decimal", null = rmEndBind.isNull },
-                            isSignature = { value=(qTplSegments.is_signature_event[i] EQ 1 ? 1 : 0), cfsqltype="cf_sql_integer" },
-                            isMilestone = { value=(qTplSegments.is_milestone_end[i] EQ 1 ? 1 : 0), cfsqltype="cf_sql_integer" },
-                            notes = { value=qTplSegments.notes[i], cfsqltype="cf_sql_varchar", null = isNull(qTplSegments.notes[i]) }
+                            isSignature = { value=(segRow.IS_SIGNATURE_EVENT EQ 1 ? 1 : 0), cfsqltype="cf_sql_integer" },
+                            isMilestone = { value=(segRow.IS_MILESTONE_END EQ 1 ? 1 : 0), cfsqltype="cf_sql_integer" },
+                            notes = { value=segRow.NOTES, cfsqltype="cf_sql_varchar", null = isNull(segRow.NOTES) }
                         },
                         { datasource = application.dsn, result = "segIns" }
                     );
-                    segmentMap[toString(qTplSegments.id[i])] = val(segIns.generatedKey);
+                    segmentMap[toString(segRow.TEMPLATE_SEGMENT_ID)] = val(segIns.generatedKey);
                 }
 
                 queryExecute(
@@ -378,6 +438,7 @@
             var timeline = getTimeline(arguments.userId, shortCode);
             out.ROUTE_CODE = shortCode;
             out.ROUTE_ID = newRouteId;
+            out.DIRECTION = directionVal;
             out.START_DATE = startDateVal;
             out.START_LOCATION = startLocRaw;
             out.END_LOCATION = endLocRaw;
@@ -396,6 +457,7 @@
     </cffunction>
 
     <cffunction name="listCanonicalLocations" access="private" returntype="struct" output="false">
+        <cfargument name="direction" type="string" required="false" default="CCW">
         <cfscript>
             var out = {
                 "SUCCESS"=true,
@@ -436,12 +498,20 @@
             var seen = {};
             var seenStarts = {};
             var seenEnds = {};
+            var directionVal = normalizeDirection(arguments.direction);
             var i = 0;
+            var srcIdx = 0;
             var locationValue = "";
             var locationKey = "";
+            var orientedStart = "";
+            var orientedEnd = "";
 
             for (i = 1; i LTE qNodes.recordCount; i++) {
-                locationValue = trim(toString(qNodes.start_name[i]));
+                srcIdx = (directionVal EQ "CW" ? (qNodes.recordCount - i + 1) : i);
+                orientedStart = (directionVal EQ "CW" ? qNodes.end_name[srcIdx] : qNodes.start_name[srcIdx]);
+                orientedEnd = (directionVal EQ "CW" ? qNodes.start_name[srcIdx] : qNodes.end_name[srcIdx]);
+
+                locationValue = trim(toString(orientedStart));
                 if (len(locationValue)) {
                     locationKey = normalizeText(locationValue);
                     if (!len(locationKey)) locationKey = lCase(locationValue);
@@ -455,7 +525,7 @@
                     }
                 }
 
-                locationValue = trim(toString(qNodes.end_name[i]));
+                locationValue = trim(toString(orientedEnd));
                 if (len(locationValue)) {
                     locationKey = normalizeText(locationValue);
                     if (!len(locationKey)) locationKey = lCase(locationValue);
@@ -469,6 +539,7 @@
                     }
                 }
             }
+            out.DIRECTION = directionVal;
             return out;
         </cfscript>
     </cffunction>
@@ -978,6 +1049,7 @@
         <cfargument name="templateRouteId" type="numeric" required="true">
         <cfargument name="startLocation" type="string" required="true">
         <cfargument name="endLocation" type="string" required="true">
+        <cfargument name="direction" type="string" required="false" default="CCW">
         <cfscript>
             var out = {
                 "START_SEGMENT_ID"=0,
@@ -989,6 +1061,7 @@
             };
             var sNorm = normalizeText(arguments.startLocation);
             var eNorm = normalizeText(arguments.endLocation);
+            var directionVal = normalizeDirection(arguments.direction);
             if (!len(sNorm) OR !len(eNorm)) {
                 return out;
             }
@@ -1010,15 +1083,17 @@
             var eBest = 0;
             var segStart = "";
             var segEnd = "";
-            var globalOrder = 0;
+            var routeOrder = 0;
             var candidateOrder = 0;
             var candidateSegId = 0;
             var candidateStartValid = false;
             var candidateEndValid = false;
+            var srcIdx = 0;
             for (i = 1; i LTE q.recordCount; i++) {
-                segStart = normalizeText(q.start_name[i]);
-                segEnd = normalizeText(q.end_name[i]);
-                globalOrder = (val(q.section_order[i]) * 10000) + val(q.seg_order[i]);
+                srcIdx = (directionVal EQ "CW" ? (q.recordCount - i + 1) : i);
+                segStart = normalizeText(directionVal EQ "CW" ? q.end_name[srcIdx] : q.start_name[srcIdx]);
+                segEnd = normalizeText(directionVal EQ "CW" ? q.start_name[srcIdx] : q.end_name[srcIdx]);
+                routeOrder = i;
 
                 sScore = 0;
                 candidateStartValid = false;
@@ -1027,15 +1102,15 @@
                 if (len(sNorm)) {
                     if (sNorm EQ segStart) {
                         sScore = 300;
-                        candidateSegId = q.id[i];
-                        candidateOrder = globalOrder;
+                        candidateSegId = q.id[srcIdx];
+                        candidateOrder = routeOrder;
                         candidateStartValid = true;
                     } else if (
                         len(segStart) AND (findNoCase(sNorm, segStart) GT 0 OR findNoCase(segStart, sNorm) GT 0)
                     ) {
                         sScore = 120;
-                        candidateSegId = q.id[i];
-                        candidateOrder = globalOrder;
+                        candidateSegId = q.id[srcIdx];
+                        candidateOrder = routeOrder;
                         candidateStartValid = true;
                     }
                 }
@@ -1061,15 +1136,15 @@
                 if (len(eNorm)) {
                     if (eNorm EQ segEnd) {
                         eScore = 300;
-                        candidateSegId = q.id[i];
-                        candidateOrder = globalOrder;
+                        candidateSegId = q.id[srcIdx];
+                        candidateOrder = routeOrder;
                         candidateEndValid = true;
                     } else if (
                         len(segEnd) AND (findNoCase(eNorm, segEnd) GT 0 OR findNoCase(segEnd, eNorm) GT 0)
                     ) {
                         eScore = 120;
-                        candidateSegId = q.id[i];
-                        candidateOrder = globalOrder;
+                        candidateSegId = q.id[srcIdx];
+                        candidateOrder = routeOrder;
                         candidateEndValid = true;
                     }
                 }
@@ -1122,6 +1197,15 @@
             v = reReplace(v, "[^a-z0-9]+", " ", "all");
             v = reReplace(v, "\s+", " ", "all");
             return trim(v);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeDirection" access="private" returntype="string" output="false">
+        <cfargument name="direction" type="any" required="false" default="CCW">
+        <cfscript>
+            var d = uCase(trim(toString(arguments.direction)));
+            if (d EQ "CW") return "CW";
+            return "CCW";
         </cfscript>
     </cffunction>
 
