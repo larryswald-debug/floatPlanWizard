@@ -287,6 +287,8 @@
             var wrapRangeUsed = false;
             var selectedSegmentRows = [];
             var selectedIdx = 0;
+            var fullLoopPick = {};
+            var pointToPointPick = {};
             if (!matchInfo.START_FOUND OR val(matchInfo.START_ORDER) LTE 0) {
                 return {
                     "SUCCESS"=false,
@@ -298,36 +300,51 @@
             trimStartOrder = val(matchInfo.START_ORDER);
 
             if (tripTypeVal EQ "FULL_LOOP") {
-                for (selectedIdx = trimStartOrder; selectedIdx LTE arrayLen(segmentRows); selectedIdx++) {
-                    arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
-                }
-                for (selectedIdx = 1; selectedIdx LT trimStartOrder; selectedIdx++) {
-                    arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
-                }
-                if (arrayLen(selectedSegmentRows) GT 0) {
-                    trimEndOrder = selectedSegmentRows[arrayLen(selectedSegmentRows)].ROUTE_ORDER;
+                fullLoopPick = pickBestFullLoopSelection(segmentRows, startLocRaw, trimStartOrder);
+                if (fullLoopPick.SUCCESS) {
+                    selectedSegmentRows = fullLoopPick.ROWS;
+                    trimStartOrder = fullLoopPick.START_ORDER;
+                    trimEndOrder = fullLoopPick.END_ORDER;
                 } else {
-                    trimEndOrder = 0;
-                }
-            } else {
-                if (!matchInfo.END_FOUND OR val(matchInfo.END_ORDER) LTE 0) {
-                    trimEndOrder = segmentRows[arrayLen(segmentRows)].ROUTE_ORDER;
-                    endFallbackUsed = true;
-                } else {
-                    trimEndOrder = val(matchInfo.END_ORDER);
-                }
-
-                if (trimEndOrder GTE trimStartOrder) {
-                    for (selectedIdx = trimStartOrder; selectedIdx LTE trimEndOrder; selectedIdx++) {
-                        arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
-                    }
-                } else {
-                    wrapRangeUsed = true;
                     for (selectedIdx = trimStartOrder; selectedIdx LTE arrayLen(segmentRows); selectedIdx++) {
                         arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
                     }
-                    for (selectedIdx = 1; selectedIdx LTE trimEndOrder; selectedIdx++) {
+                    for (selectedIdx = 1; selectedIdx LT trimStartOrder; selectedIdx++) {
                         arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
+                    }
+                    if (arrayLen(selectedSegmentRows) GT 0) {
+                        trimEndOrder = selectedSegmentRows[arrayLen(selectedSegmentRows)].ROUTE_ORDER;
+                    } else {
+                        trimEndOrder = 0;
+                    }
+                }
+            } else {
+                pointToPointPick = pickBestPointToPointSelection(segmentRows, startLocRaw, endLocRaw, trimStartOrder);
+                if (pointToPointPick.SUCCESS) {
+                    selectedSegmentRows = pointToPointPick.ROWS;
+                    trimStartOrder = pointToPointPick.START_ORDER;
+                    trimEndOrder = pointToPointPick.END_ORDER;
+                    wrapRangeUsed = pointToPointPick.WRAP_RANGE;
+                } else {
+                    if (!matchInfo.END_FOUND OR val(matchInfo.END_ORDER) LTE 0) {
+                        trimEndOrder = segmentRows[arrayLen(segmentRows)].ROUTE_ORDER;
+                        endFallbackUsed = true;
+                    } else {
+                        trimEndOrder = val(matchInfo.END_ORDER);
+                    }
+
+                    if (trimEndOrder GTE trimStartOrder) {
+                        for (selectedIdx = trimStartOrder; selectedIdx LTE trimEndOrder; selectedIdx++) {
+                            arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
+                        }
+                    } else {
+                        wrapRangeUsed = true;
+                        for (selectedIdx = trimStartOrder; selectedIdx LTE arrayLen(segmentRows); selectedIdx++) {
+                            arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
+                        }
+                        for (selectedIdx = 1; selectedIdx LTE trimEndOrder; selectedIdx++) {
+                            arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
+                        }
                     }
                 }
             }
@@ -338,6 +355,18 @@
                     "AUTH"=true,
                     "MESSAGE"="Unable to build route range from selected start/end",
                     "ERROR"={"MESSAGE"="Could not resolve a valid contiguous route range from your selected start and end locations."}
+                };
+            }
+            var continuityIssue = findRouteContinuityIssue(selectedSegmentRows);
+            if (continuityIssue.HAS_BREAK) {
+                return {
+                    "SUCCESS"=false,
+                    "AUTH"=true,
+                    "MESSAGE"="Template route continuity error",
+                    "ERROR"={
+                        "MESSAGE"="Template continuity break between '" & continuityIssue.PREV_END_RAW & "' and '" & continuityIssue.NEXT_START_RAW & "'.",
+                        "DETAIL"="GREAT_LOOP_CCW has non-contiguous segment ordering at route order " & continuityIssue.NEXT_ROUTE_ORDER & ". Update template segment ordering/data."
+                    }
                 };
             }
 
@@ -1247,6 +1276,202 @@
                 return 80;
             }
             return 0;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="findRouteContinuityIssue" access="private" returntype="struct" output="false">
+        <cfargument name="segmentRows" type="array" required="true">
+        <cfscript>
+            var out = {
+                "HAS_BREAK"=false,
+                "NEXT_ROUTE_ORDER"=0,
+                "PREV_END_RAW"="",
+                "NEXT_START_RAW"=""
+            };
+            var i = 0;
+            var prevEndRaw = "";
+            var nextStartRaw = "";
+            var prevEndNorm = "";
+            var nextStartNorm = "";
+            for (i = 2; i LTE arrayLen(arguments.segmentRows); i++) {
+                prevEndRaw = trim(toString(arguments.segmentRows[i - 1].END_NAME));
+                nextStartRaw = trim(toString(arguments.segmentRows[i].START_NAME));
+                prevEndNorm = normalizeText(prevEndRaw);
+                nextStartNorm = normalizeText(nextStartRaw);
+                if (!len(prevEndNorm) OR !len(nextStartNorm)) {
+                    out.HAS_BREAK = true;
+                } else if (
+                    areLocationNamesEquivalent(prevEndRaw, nextStartRaw)
+                ) {
+                    continue;
+                } else {
+                    out.HAS_BREAK = true;
+                }
+                if (out.HAS_BREAK) {
+                    out.NEXT_ROUTE_ORDER = val(arguments.segmentRows[i].ROUTE_ORDER);
+                    out.PREV_END_RAW = prevEndRaw;
+                    out.NEXT_START_RAW = nextStartRaw;
+                    return out;
+                }
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="pickBestFullLoopSelection" access="private" returntype="struct" output="false">
+        <cfargument name="segmentRows" type="array" required="true">
+        <cfargument name="startLocation" type="string" required="true">
+        <cfargument name="fallbackStartOrder" type="numeric" required="true">
+        <cfscript>
+            var out = { "SUCCESS"=false, "ROWS"=[], "START_ORDER"=val(arguments.fallbackStartOrder), "END_ORDER"=0 };
+            var startNorm = normalizeText(arguments.startLocation);
+            var n = arrayLen(arguments.segmentRows);
+            var candidateStarts = [];
+            var i = 0;
+            var k = 0;
+            var idx = 0;
+            var seg = {};
+            var rows = [];
+            var valid = false;
+            var returnsToStart = false;
+            var prevSeg = {};
+            var bestRows = [];
+            var bestStart = 0;
+            if (!len(startNorm) OR n LTE 0) return out;
+
+            for (i = 1; i LTE n; i++) {
+                if (areLocationNamesEquivalent(arguments.segmentRows[i].START_NAME, arguments.startLocation)) {
+                    arrayAppend(candidateStarts, i);
+                }
+            }
+            if (!arrayLen(candidateStarts)) return out;
+
+            for (i = 1; i LTE arrayLen(candidateStarts); i++) {
+                rows = [];
+                valid = true;
+                for (k = 0; k LT n; k++) {
+                    idx = ((candidateStarts[i] - 1 + k) MOD n) + 1;
+                    seg = arguments.segmentRows[idx];
+                    if (k GT 0 AND areLocationNamesEquivalent(seg.START_NAME, arguments.startLocation)) {
+                        break;
+                    }
+                    if (arrayLen(rows) GT 0) {
+                        prevSeg = rows[arrayLen(rows)];
+                        if (!areLocationNamesEquivalent(prevSeg.END_NAME, seg.START_NAME)) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                    arrayAppend(rows, seg);
+                }
+                if (!valid OR !arrayLen(rows)) {
+                    continue;
+                }
+                returnsToStart = areLocationNamesEquivalent(rows[arrayLen(rows)].END_NAME, arguments.startLocation);
+                if (!returnsToStart) {
+                    continue;
+                }
+                if (arrayLen(rows) GT arrayLen(bestRows)) {
+                    bestRows = rows;
+                    bestStart = candidateStarts[i];
+                }
+            }
+
+            if (arrayLen(bestRows)) {
+                out.SUCCESS = true;
+                out.ROWS = bestRows;
+                out.START_ORDER = bestRows[1].ROUTE_ORDER;
+                out.END_ORDER = bestRows[arrayLen(bestRows)].ROUTE_ORDER;
+                return out;
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="pickBestPointToPointSelection" access="private" returntype="struct" output="false">
+        <cfargument name="segmentRows" type="array" required="true">
+        <cfargument name="startLocation" type="string" required="true">
+        <cfargument name="endLocation" type="string" required="true">
+        <cfargument name="fallbackStartOrder" type="numeric" required="true">
+        <cfscript>
+            var out = { "SUCCESS"=false, "ROWS"=[], "START_ORDER"=val(arguments.fallbackStartOrder), "END_ORDER"=0, "WRAP_RANGE"=false };
+            var n = arrayLen(arguments.segmentRows);
+            var startNorm = normalizeText(arguments.startLocation);
+            var endNorm = normalizeText(arguments.endLocation);
+            var candidateStarts = [];
+            var i = 0;
+            var k = 0;
+            var idx = 0;
+            var seg = {};
+            var rows = [];
+            var prevSeg = {};
+            var valid = false;
+            var reachedEnd = false;
+            var bestRows = [];
+            if (!len(startNorm) OR !len(endNorm) OR n LTE 0) return out;
+
+            for (i = 1; i LTE n; i++) {
+                if (areLocationNamesEquivalent(arguments.segmentRows[i].START_NAME, arguments.startLocation)) {
+                    arrayAppend(candidateStarts, i);
+                }
+            }
+            if (!arrayLen(candidateStarts)) return out;
+
+            for (i = 1; i LTE arrayLen(candidateStarts); i++) {
+                rows = [];
+                valid = true;
+                reachedEnd = false;
+                for (k = 0; k LT n; k++) {
+                    idx = ((candidateStarts[i] - 1 + k) MOD n) + 1;
+                    seg = arguments.segmentRows[idx];
+                    if (k GT 0 AND areLocationNamesEquivalent(seg.START_NAME, arguments.startLocation)) {
+                        break;
+                    }
+                    if (arrayLen(rows) GT 0) {
+                        prevSeg = rows[arrayLen(rows)];
+                        if (!areLocationNamesEquivalent(prevSeg.END_NAME, seg.START_NAME)) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                    arrayAppend(rows, seg);
+                    if (areLocationNamesEquivalent(seg.END_NAME, arguments.endLocation)) {
+                        reachedEnd = true;
+                        break;
+                    }
+                }
+                if (!valid OR !reachedEnd OR !arrayLen(rows)) {
+                    continue;
+                }
+                if (!arrayLen(bestRows) OR arrayLen(rows) LT arrayLen(bestRows)) {
+                    bestRows = rows;
+                }
+            }
+
+            if (arrayLen(bestRows)) {
+                out.SUCCESS = true;
+                out.ROWS = bestRows;
+                out.START_ORDER = bestRows[1].ROUTE_ORDER;
+                out.END_ORDER = bestRows[arrayLen(bestRows)].ROUTE_ORDER;
+                if (out.END_ORDER LT out.START_ORDER) {
+                    out.WRAP_RANGE = true;
+                }
+                return out;
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="areLocationNamesEquivalent" access="private" returntype="boolean" output="false">
+        <cfargument name="a" type="any" required="true">
+        <cfargument name="b" type="any" required="true">
+        <cfscript>
+            var an = normalizeText(arguments.a);
+            var bn = normalizeText(arguments.b);
+            if (!len(an) OR !len(bn)) return false;
+            if (an EQ bn) return true;
+            if (findNoCase(an, bn) GT 0 OR findNoCase(bn, an) GT 0) return true;
+            return false;
         </cfscript>
     </cffunction>
 
