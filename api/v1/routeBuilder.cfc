@@ -207,7 +207,7 @@
             var routeDesc = "Generated from GREAT_LOOP_CCW (" & directionVal & ") on " & dateFormat(now(), "yyyy-mm-dd") & " (" & startLocRaw & " to " & endLocRaw & ")";
 
             var qTplSections = queryExecute(
-                "SELECT id, name, short_code, phase_num, order_index, is_active_default
+                "SELECT id, name, slug, short_code, phase_num, order_index, is_active_default
                  FROM loop_sections
                  WHERE route_id = :rid
                  ORDER BY order_index ASC",
@@ -357,11 +357,12 @@
 
             transaction {
                 queryExecute(
-                    "INSERT INTO loop_routes (name, short_code, description, is_default)
-                     VALUES (:name, :code, :descr, 0)",
+                    "INSERT INTO loop_routes (name, code, short_code, description, is_default)
+                     VALUES (:name, :code, :shortCode, :descr, 0)",
                     {
                         name = { value=routeName, cfsqltype="cf_sql_varchar" },
                         code = { value=shortCode, cfsqltype="cf_sql_varchar" },
+                        shortCode = { value=shortCode, cfsqltype="cf_sql_varchar" },
                         descr = { value=routeDesc, cfsqltype="cf_sql_varchar" }
                     },
                     { datasource = application.dsn, result = "routeIns" }
@@ -376,13 +377,27 @@
                         continue;
                     }
                     copiedSectionOrder = sectionFirstRouteOrder[tplSectionId];
+                    var sectionNameVal = trim(toString(qTplSections.name[i]));
+                    var sectionSlugVal = trim(toString(qTplSections.slug[i]));
+                    if (!len(sectionSlugVal)) {
+                        sectionSlugVal = lCase(reReplace(sectionNameVal, "[^A-Za-z0-9]+", "-", "all"));
+                        sectionSlugVal = reReplace(sectionSlugVal, "^-+|-+$", "", "all");
+                    }
+                    if (!len(sectionSlugVal)) {
+                        sectionSlugVal = "section-" & i;
+                    }
+                    var sectionShortCodeVal = trim(toString(qTplSections.short_code[i]));
+                    if (!len(sectionShortCodeVal)) {
+                        sectionShortCodeVal = uCase(reReplace(sectionSlugVal, "[^A-Za-z0-9]+", "_", "all"));
+                    }
                     queryExecute(
-                        "INSERT INTO loop_sections (route_id, name, short_code, phase_num, order_index, is_active_default)
-                         VALUES (:rid, :name, :scode, :phaseNum, :orderIndex, :isActive)",
+                        "INSERT INTO loop_sections (route_id, name, slug, short_code, phase_num, order_index, is_active_default)
+                         VALUES (:rid, :name, :slug, :scode, :phaseNum, :orderIndex, :isActive)",
                         {
                             rid = { value=newRouteId, cfsqltype="cf_sql_integer" },
-                            name = { value=qTplSections.name[i], cfsqltype="cf_sql_varchar" },
-                            scode = { value=qTplSections.short_code[i], cfsqltype="cf_sql_varchar", null = isNull(qTplSections.short_code[i]) },
+                            name = { value=sectionNameVal, cfsqltype="cf_sql_varchar", null = false },
+                            slug = { value=sectionSlugVal, cfsqltype="cf_sql_varchar", null = false },
+                            scode = { value=sectionShortCodeVal, cfsqltype="cf_sql_varchar", null = false },
                             phaseNum = { value=qTplSections.phase_num[i], cfsqltype="cf_sql_integer", null = isNull(qTplSections.phase_num[i]) },
                             orderIndex = { value=copiedSectionOrder, cfsqltype="cf_sql_integer" },
                             isActive = { value=(qTplSections.is_active_default[i] EQ 1 ? 1 : 0), cfsqltype="cf_sql_integer" }
