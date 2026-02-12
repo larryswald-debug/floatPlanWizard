@@ -176,6 +176,10 @@
         <cfargument name="endName" type="string" required="false" default="">
         <cfscript>
             var sectionNorm = normalizeName(arguments.sectionName);
+            var startNorm = normalizeName(arguments.startName);
+            var endNorm = normalizeName(arguments.endName);
+            var nodeNorm = trim(startNorm & " " & endNorm);
+
             if (findNoCase("great lakes", sectionNorm)) return "GREAT_LAKES";
             if (findNoCase("trent severn", sectionNorm)) return "TRENT_SEVERN";
             if (findNoCase("st lawrence", sectionNorm) OR findNoCase("saint lawrence", sectionNorm)) return "ST_LAWRENCE";
@@ -192,8 +196,34 @@
             if (findNoCase("ohio", sectionNorm)) return "OHIO";
             if (findNoCase("tennessee river", sectionNorm)) return "TENNESSEE";
             if (findNoCase("tenn tom", sectionNorm) OR findNoCase("tenn-tom", sectionNorm)) return "TENN_TOM";
-            if (findNoCase("intracoastal", sectionNorm) OR findNoCase("icw", sectionNorm)) return "ICW";
+
+            if (containsAny(nodeNorm, ["waterford","amsterdam","utica","syracuse","rochester","lockport","tonawanda","oswego"])) return "ERIE_CANAL";
+            if (containsAny(nodeNorm, ["new york harbor","battery","haverstraw","poughkeepsie","catskill","albany","troy"])) return "HUDSON";
+            if (containsAny(nodeNorm, ["norfolk","myrtle beach","charleston","savannah","brunswick","saint augustine","st augustine","jacksonville","cape canaveral","miami"])) return "ATLANTIC_ICW";
+            if (containsAny(nodeNorm, ["port mayaca","clewiston","stuart"])) return "OKEECHOBEE";
+            if (containsAny(nodeNorm, ["sarasota","tampa","tarpon springs","carrabelle","panama city","pensacola"])) return "GULF_ICW";
+            if (containsAny(nodeNorm, ["paris landing","clifton","pickwick","chattanooga","knoxville"])) return "TENNESSEE";
+            if (containsAny(nodeNorm, ["aliceville","demopolis","coffeeville"])) return "TENN_TOM";
+            if (containsAny(nodeNorm, ["pittsburgh","cincinnati","louisville","evansville"])) return "OHIO";
+            if (containsAny(nodeNorm, ["cape girardeau","saint louis","st louis","grafton"])) return "MISSISSIPPI";
+            if (containsAny(nodeNorm, ["joliet","peoria","lockport","grafton"])) return "ILLINOIS";
+
+            if ((findNoCase("intracoastal", sectionNorm) OR findNoCase("icw", sectionNorm)) AND containsAny(nodeNorm, ["norfolk","charleston","savannah","miami"])) return "ATLANTIC_ICW";
+            if ((findNoCase("intracoastal", sectionNorm) OR findNoCase("icw", sectionNorm)) AND containsAny(nodeNorm, ["fort myers","sarasota","tampa","mobile"])) return "GULF_ICW";
             return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="containsAny" access="private" returntype="boolean" output="false">
+        <cfargument name="haystack" type="string" required="true">
+        <cfargument name="needles" type="array" required="true">
+        <cfscript>
+            var i = 0;
+            if (!len(arguments.haystack)) return false;
+            for (i = 1; i LTE arrayLen(arguments.needles); i++) {
+                if (findNoCase(arguments.needles[i], arguments.haystack) GT 0) return true;
+            }
+            return false;
         </cfscript>
     </cffunction>
 
