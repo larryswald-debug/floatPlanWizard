@@ -955,24 +955,108 @@
             var segStart = "";
             var segEnd = "";
             var globalOrder = 0;
+            var nextOrder = 0;
+            var prevOrder = 0;
+            var candidateOrder = 0;
+            var candidateSegId = 0;
+            var candidateStartValid = false;
+            var candidateEndValid = false;
             for (i = 1; i LTE q.recordCount; i++) {
                 segStart = normalizeText(q.start_name[i]);
                 segEnd = normalizeText(q.end_name[i]);
                 globalOrder = (val(q.section_order[i]) * 10000) + val(q.seg_order[i]);
+                nextOrder = (i LT q.recordCount ? (val(q.section_order[i + 1]) * 10000) + val(q.seg_order[i + 1]) : 0);
+                prevOrder = (i GT 1 ? (val(q.section_order[i - 1]) * 10000) + val(q.seg_order[i - 1]) : 0);
 
-                sScore = scoreNodeMatch(sNorm, segStart, segEnd);
-                if (sScore GT sBest) {
+                sScore = 0;
+                candidateStartValid = false;
+                candidateSegId = 0;
+                candidateOrder = 0;
+                if (len(sNorm)) {
+                    if (sNorm EQ segStart) {
+                        sScore = 300;
+                        candidateSegId = q.id[i];
+                        candidateOrder = globalOrder;
+                        candidateStartValid = true;
+                    } else if (sNorm EQ segEnd AND i LT q.recordCount) {
+                        sScore = 250;
+                        candidateSegId = q.id[i + 1];
+                        candidateOrder = nextOrder;
+                        candidateStartValid = true;
+                    } else if (
+                        len(segStart) AND (findNoCase(sNorm, segStart) GT 0 OR findNoCase(segStart, sNorm) GT 0)
+                    ) {
+                        sScore = 120;
+                        candidateSegId = q.id[i];
+                        candidateOrder = globalOrder;
+                        candidateStartValid = true;
+                    } else if (
+                        len(segEnd) AND (findNoCase(sNorm, segEnd) GT 0 OR findNoCase(segEnd, sNorm) GT 0) AND i LT q.recordCount
+                    ) {
+                        sScore = 80;
+                        candidateSegId = q.id[i + 1];
+                        candidateOrder = nextOrder;
+                        candidateStartValid = true;
+                    }
+                }
+                if (
+                    candidateStartValid
+                    AND
+                    (
+                        sScore GT sBest
+                        OR
+                        (sScore EQ sBest AND sBest GT 0 AND (out.START_ORDER EQ 0 OR candidateOrder LT out.START_ORDER))
+                    )
+                ) {
                     sBest = sScore;
-                    out.START_SEGMENT_ID = q.id[i];
-                    out.START_ORDER = globalOrder;
+                    out.START_SEGMENT_ID = candidateSegId;
+                    out.START_ORDER = candidateOrder;
                     out.START_FOUND = true;
                 }
 
-                eScore = scoreNodeMatch(eNorm, segStart, segEnd);
-                if (eScore GT eBest) {
+                eScore = 0;
+                candidateEndValid = false;
+                candidateSegId = 0;
+                candidateOrder = 0;
+                if (len(eNorm)) {
+                    if (eNorm EQ segEnd) {
+                        eScore = 300;
+                        candidateSegId = q.id[i];
+                        candidateOrder = globalOrder;
+                        candidateEndValid = true;
+                    } else if (eNorm EQ segStart AND i GT 1) {
+                        eScore = 250;
+                        candidateSegId = q.id[i - 1];
+                        candidateOrder = prevOrder;
+                        candidateEndValid = true;
+                    } else if (
+                        len(segEnd) AND (findNoCase(eNorm, segEnd) GT 0 OR findNoCase(segEnd, eNorm) GT 0)
+                    ) {
+                        eScore = 120;
+                        candidateSegId = q.id[i];
+                        candidateOrder = globalOrder;
+                        candidateEndValid = true;
+                    } else if (
+                        len(segStart) AND (findNoCase(eNorm, segStart) GT 0 OR findNoCase(segStart, eNorm) GT 0) AND i GT 1
+                    ) {
+                        eScore = 80;
+                        candidateSegId = q.id[i - 1];
+                        candidateOrder = prevOrder;
+                        candidateEndValid = true;
+                    }
+                }
+                if (
+                    candidateEndValid
+                    AND
+                    (
+                        eScore GT eBest
+                        OR
+                        (eScore EQ eBest AND eBest GT 0 AND (out.END_ORDER EQ 0 OR candidateOrder LT out.END_ORDER))
+                    )
+                ) {
                     eBest = eScore;
-                    out.END_SEGMENT_ID = q.id[i];
-                    out.END_ORDER = globalOrder;
+                    out.END_SEGMENT_ID = candidateSegId;
+                    out.END_ORDER = candidateOrder;
                     out.END_FOUND = true;
                 }
             }
