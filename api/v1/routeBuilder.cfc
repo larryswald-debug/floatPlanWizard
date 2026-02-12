@@ -4,6 +4,7 @@
         <cfargument name="action" type="string" required="false" default="getTimeline">
         <cfargument name="routeCode" type="string" required="false" default="">
         <cfargument name="segmentId" type="numeric" required="false" default="0">
+        <cfargument name="direction" type="string" required="false" default="">
         <cfsetting enablecfoutputonly="true" showdebugoutput="false">
         <cfcontent type="application/json; charset=utf-8">
         <cfheader name="Cache-Control" value="no-store, no-cache, must-revalidate">
@@ -32,9 +33,9 @@
                 <cfset var startDate = pickArg(body, "startDate", "startDate", "") />
                 <cfset var startLocation = pickArg(body, "startLocation", "startLocation", "") />
                 <cfset var endLocation = pickArg(body, "endLocation", "endLocation", "") />
-                <cfset var direction = pickArg(body, "direction", "direction", "CCW") />
+                <cfset var directionArg = pickArg(body, "direction", "direction", "CCW") />
                 <cfset var tripType = pickArg(body, "tripType", "tripType", "POINT_TO_POINT") />
-                <cfset var generated = generateRoute(userId, startDate, startLocation, endLocation, direction, tripType) />
+                <cfset var generated = generateRoute(userId, startDate, startLocation, endLocation, directionArg, tripType) />
                 <cfoutput>#serializeJSON(generated)#</cfoutput>
                 <cfreturn>
 
@@ -344,6 +345,15 @@
             var sectionMap = {};
             var templateSectionInfoById = {};
             var segmentMap = {};
+            var sectionFirstRouteOrder = {};
+            var selectedSegIdx = 0;
+            var sectionIdForOrder = "";
+            for (selectedSegIdx = 1; selectedSegIdx LTE arrayLen(selectedSegmentRows); selectedSegIdx++) {
+                sectionIdForOrder = toString(selectedSegmentRows[selectedSegIdx].SECTION_ID);
+                if (!structKeyExists(sectionFirstRouteOrder, sectionIdForOrder)) {
+                    sectionFirstRouteOrder[sectionIdForOrder] = selectedSegIdx;
+                }
+            }
 
             transaction {
                 queryExecute(
@@ -361,7 +371,11 @@
                 var i = 0;
                 var copiedSectionOrder = 0;
                 for (i = 1; i LTE qTplSections.recordCount; i++) {
-                    copiedSectionOrder = (directionVal EQ "CW" ? (qTplSections.recordCount - i + 1) : i);
+                    var tplSectionId = toString(qTplSections.id[i]);
+                    if (!structKeyExists(sectionFirstRouteOrder, tplSectionId)) {
+                        continue;
+                    }
+                    copiedSectionOrder = sectionFirstRouteOrder[tplSectionId];
                     queryExecute(
                         "INSERT INTO loop_sections (route_id, name, short_code, phase_num, order_index, is_active_default)
                          VALUES (:rid, :name, :scode, :phaseNum, :orderIndex, :isActive)",
@@ -375,14 +389,13 @@
                         },
                         { datasource = application.dsn, result = "secIns" }
                     );
-                    sectionMap[toString(qTplSections.id[i])] = val(secIns.generatedKey);
-                    templateSectionInfoById[toString(qTplSections.id[i])] = {
+                    sectionMap[tplSectionId] = val(secIns.generatedKey);
+                    templateSectionInfoById[tplSectionId] = {
                         "NAME"=(isNull(qTplSections.name[i]) ? "" : qTplSections.name[i]),
                         "SHORT_CODE"=(isNull(qTplSections.short_code[i]) ? "" : qTplSections.short_code[i])
                     };
                 }
 
-                var sectionSegmentCounter = {};
                 var segRow = {};
                 var localOrderIndex = 0;
                 for (i = 1; i LTE arrayLen(selectedSegmentRows); i++) {
@@ -397,6 +410,7 @@
                     if (!structKeyExists(sectionMap, oldSecId)) {
                         continue;
                     }
+                    localOrderIndex = i;
                     if (!len(startNameVal)) {
                         startNameVal = "Unknown Start";
                     }
@@ -422,11 +436,6 @@
                             rmUnresolvedCount += 1;
                         }
                     }
-                    if (!structKeyExists(sectionSegmentCounter, oldSecId)) {
-                        sectionSegmentCounter[oldSecId] = 0;
-                    }
-                    sectionSegmentCounter[oldSecId] = sectionSegmentCounter[oldSecId] + 1;
-                    localOrderIndex = sectionSegmentCounter[oldSecId];
                     queryExecute(
                         "INSERT INTO loop_segments
                             (section_id, order_index, start_name, end_name, dist_nm, lock_count, rm_start, rm_end, is_signature_event, is_milestone_end, notes)
