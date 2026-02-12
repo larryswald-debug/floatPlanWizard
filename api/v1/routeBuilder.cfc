@@ -208,9 +208,50 @@
             );
 
             var matchInfo = findFocusSegments(templateRouteId, startLocRaw, endLocRaw);
-            var trimEnabled = (matchInfo.START_FOUND AND matchInfo.END_FOUND AND matchInfo.END_ORDER GTE matchInfo.START_ORDER);
-            var trimStartOrder = (trimEnabled ? matchInfo.START_ORDER : 0);
-            var trimEndOrder = (trimEnabled ? matchInfo.END_ORDER : 0);
+            var trimEnabled = false;
+            var trimStartOrder = 0;
+            var trimEndOrder = 0;
+            var endFallbackUsed = false;
+            if (!matchInfo.START_FOUND OR val(matchInfo.START_ORDER) LTE 0) {
+                return {
+                    "SUCCESS"=false,
+                    "AUTH"=true,
+                    "MESSAGE"="Start location not found in route template",
+                    "ERROR"={"MESSAGE"="The selected start location could not be matched in GREAT_LOOP_CCW."}
+                };
+            }
+            trimStartOrder = val(matchInfo.START_ORDER);
+            if (!matchInfo.END_FOUND OR val(matchInfo.END_ORDER) LTE 0) {
+                if (qTplSegments.recordCount LTE 0) {
+                    return {
+                        "SUCCESS"=false,
+                        "AUTH"=true,
+                        "MESSAGE"="Template route has no segments",
+                        "ERROR"={"MESSAGE"="GREAT_LOOP_CCW has no loop_segments to generate from."}
+                    };
+                }
+                trimEndOrder = (val(qTplSegments.section_order[qTplSegments.recordCount]) * 10000) + val(qTplSegments.order_index[qTplSegments.recordCount]);
+                endFallbackUsed = true;
+            } else {
+                trimEndOrder = val(matchInfo.END_ORDER);
+                if (trimEndOrder LT trimStartOrder) {
+                    return {
+                        "SUCCESS"=false,
+                        "AUTH"=true,
+                        "MESSAGE"="Planned end location must be after start location",
+                        "ERROR"={"MESSAGE"="Selected end location appears before selected start location in GREAT_LOOP_CCW order."}
+                    };
+                }
+            }
+            trimEnabled = (trimStartOrder GT 0 AND trimEndOrder GTE trimStartOrder);
+            if (!trimEnabled) {
+                return {
+                    "SUCCESS"=false,
+                    "AUTH"=true,
+                    "MESSAGE"="Unable to build route range from selected start/end",
+                    "ERROR"={"MESSAGE"="Could not resolve a valid contiguous route range from your selected start and end locations."}
+                };
+            }
 
             var newRouteId = 0;
             var sectionMap = {};
@@ -329,13 +370,10 @@
                 );
             }
 
-            if (!matchInfo.START_FOUND OR !matchInfo.END_FOUND) {
-                arrayAppend(out.WARNINGS, "Could not find exact start/end in template; route generated from template—please adjust.");
-            } else if (matchInfo.END_ORDER LT matchInfo.START_ORDER) {
-                arrayAppend(out.WARNINGS, "End appears before start in template order; route generated from template—please adjust.");
-            } else {
-                out.TRIMMED_TO_SELECTION = true;
+            if (endFallbackUsed) {
+                arrayAppend(out.WARNINGS, "Could not match planned end location exactly; generated from selected start to template end.");
             }
+            out.TRIMMED_TO_SELECTION = true;
 
             var timeline = getTimeline(arguments.userId, shortCode);
             out.ROUTE_CODE = shortCode;
@@ -359,7 +397,15 @@
 
     <cffunction name="listCanonicalLocations" access="private" returntype="struct" output="false">
         <cfscript>
-            var out = { "SUCCESS"=true, "AUTH"=true, "MESSAGE"="OK", "TEMPLATE_ROUTE_CODE"="GREAT_LOOP_CCW", "LOCATIONS"=[] };
+            var out = {
+                "SUCCESS"=true,
+                "AUTH"=true,
+                "MESSAGE"="OK",
+                "TEMPLATE_ROUTE_CODE"="GREAT_LOOP_CCW",
+                "LOCATIONS"=[],
+                "START_LOCATIONS"=[],
+                "END_LOCATIONS"=[]
+            };
             var qTpl = queryExecute(
                 "SELECT id
                  FROM loop_routes
@@ -388,6 +434,8 @@
             );
 
             var seen = {};
+            var seenStarts = {};
+            var seenEnds = {};
             var i = 0;
             var locationValue = "";
             var locationKey = "";
@@ -397,6 +445,10 @@
                 if (len(locationValue)) {
                     locationKey = normalizeText(locationValue);
                     if (!len(locationKey)) locationKey = lCase(locationValue);
+                    if (!structKeyExists(seenStarts, locationKey)) {
+                        seenStarts[locationKey] = true;
+                        arrayAppend(out.START_LOCATIONS, locationValue);
+                    }
                     if (!structKeyExists(seen, locationKey)) {
                         seen[locationKey] = true;
                         arrayAppend(out.LOCATIONS, locationValue);
@@ -407,6 +459,10 @@
                 if (len(locationValue)) {
                     locationKey = normalizeText(locationValue);
                     if (!len(locationKey)) locationKey = lCase(locationValue);
+                    if (!structKeyExists(seenEnds, locationKey)) {
+                        seenEnds[locationKey] = true;
+                        arrayAppend(out.END_LOCATIONS, locationValue);
+                    }
                     if (!structKeyExists(seen, locationKey)) {
                         seen[locationKey] = true;
                         arrayAppend(out.LOCATIONS, locationValue);
@@ -955,8 +1011,6 @@
             var segStart = "";
             var segEnd = "";
             var globalOrder = 0;
-            var nextOrder = 0;
-            var prevOrder = 0;
             var candidateOrder = 0;
             var candidateSegId = 0;
             var candidateStartValid = false;
@@ -965,8 +1019,6 @@
                 segStart = normalizeText(q.start_name[i]);
                 segEnd = normalizeText(q.end_name[i]);
                 globalOrder = (val(q.section_order[i]) * 10000) + val(q.seg_order[i]);
-                nextOrder = (i LT q.recordCount ? (val(q.section_order[i + 1]) * 10000) + val(q.seg_order[i + 1]) : 0);
-                prevOrder = (i GT 1 ? (val(q.section_order[i - 1]) * 10000) + val(q.seg_order[i - 1]) : 0);
 
                 sScore = 0;
                 candidateStartValid = false;
@@ -978,24 +1030,12 @@
                         candidateSegId = q.id[i];
                         candidateOrder = globalOrder;
                         candidateStartValid = true;
-                    } else if (sNorm EQ segEnd AND i LT q.recordCount) {
-                        sScore = 250;
-                        candidateSegId = q.id[i + 1];
-                        candidateOrder = nextOrder;
-                        candidateStartValid = true;
                     } else if (
                         len(segStart) AND (findNoCase(sNorm, segStart) GT 0 OR findNoCase(segStart, sNorm) GT 0)
                     ) {
                         sScore = 120;
                         candidateSegId = q.id[i];
                         candidateOrder = globalOrder;
-                        candidateStartValid = true;
-                    } else if (
-                        len(segEnd) AND (findNoCase(sNorm, segEnd) GT 0 OR findNoCase(segEnd, sNorm) GT 0) AND i LT q.recordCount
-                    ) {
-                        sScore = 80;
-                        candidateSegId = q.id[i + 1];
-                        candidateOrder = nextOrder;
                         candidateStartValid = true;
                     }
                 }
@@ -1024,24 +1064,12 @@
                         candidateSegId = q.id[i];
                         candidateOrder = globalOrder;
                         candidateEndValid = true;
-                    } else if (eNorm EQ segStart AND i GT 1) {
-                        eScore = 250;
-                        candidateSegId = q.id[i - 1];
-                        candidateOrder = prevOrder;
-                        candidateEndValid = true;
                     } else if (
                         len(segEnd) AND (findNoCase(eNorm, segEnd) GT 0 OR findNoCase(segEnd, eNorm) GT 0)
                     ) {
                         eScore = 120;
                         candidateSegId = q.id[i];
                         candidateOrder = globalOrder;
-                        candidateEndValid = true;
-                    } else if (
-                        len(segStart) AND (findNoCase(eNorm, segStart) GT 0 OR findNoCase(segStart, eNorm) GT 0) AND i GT 1
-                    ) {
-                        eScore = 80;
-                        candidateSegId = q.id[i - 1];
-                        candidateOrder = prevOrder;
                         candidateEndValid = true;
                     }
                 }

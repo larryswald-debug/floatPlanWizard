@@ -33,6 +33,8 @@
   var currentRouteCode = "";
   var currentTimeline = null;
   var canonicalLocations = [];
+  var startLocations = [];
+  var canonicalOrderByLocation = {};
   var knownLocations = [];
   var loadSeq = 0;
   var saveSeq = 0;
@@ -274,35 +276,94 @@
     renderLocationDatalist();
   }
 
+  function canonicalKey(name) {
+    return String(name === undefined || name === null ? "" : name).trim().toLowerCase();
+  }
+
+  function getCanonicalIndex(name) {
+    var key = canonicalKey(name);
+    if (!key) return -1;
+    if (!Object.prototype.hasOwnProperty.call(canonicalOrderByLocation, key)) return -1;
+    return canonicalOrderByLocation[key];
+  }
+
   function setCanonicalLocations(locations) {
-    var list = Array.isArray(locations) ? locations : [];
+    var allList = Array.isArray(locations && locations.all) ? locations.all : [];
+    var startList = Array.isArray(locations && locations.starts) ? locations.starts : [];
+    if (!allList.length && startList.length) {
+      allList = startList.slice();
+    }
+    if (!startList.length && allList.length) {
+      startList = allList.slice();
+    }
     var seen = {};
+    var seenStarts = {};
     var ordered = [];
+    var orderedStarts = [];
     var i;
     var name;
-    for (i = 0; i < list.length; i += 1) {
-      name = String(list[i] || "").trim();
+    var key;
+    canonicalOrderByLocation = {};
+    for (i = 0; i < allList.length; i += 1) {
+      name = String(allList[i] || "").trim();
       if (!name) continue;
-      if (seen[name]) continue;
-      seen[name] = true;
+      key = canonicalKey(name);
+      if (seen[key]) continue;
+      seen[key] = true;
       ordered.push(name);
+      canonicalOrderByLocation[key] = ordered.length - 1;
+    }
+    for (i = 0; i < startList.length; i += 1) {
+      name = String(startList[i] || "").trim();
+      if (!name) continue;
+      key = canonicalKey(name);
+      if (seenStarts[key]) continue;
+      if (!Object.prototype.hasOwnProperty.call(canonicalOrderByLocation, key)) continue;
+      seenStarts[key] = true;
+      orderedStarts.push(name);
     }
     canonicalLocations = ordered;
+    startLocations = orderedStarts.length ? orderedStarts : ordered.slice();
     renderStep1LocationSelects();
+  }
+
+  function renderEndLocationSelect(startValue, desiredEndValue) {
+    if (!endLocationEl) return;
+    var startIdx = getCanonicalIndex(startValue);
+    var placeholder = (startIdx >= 0) ? "Select planned end location" : "Select start location first";
+    var endOptions = ['<option value="">' + placeholder + "</option>"];
+    var i;
+    var name;
+    var desired = String(desiredEndValue || "").trim();
+
+    for (i = 0; i < canonicalLocations.length; i += 1) {
+      if (startIdx >= 0 && i <= startIdx) continue;
+      name = canonicalLocations[i];
+      endOptions.push('<option value="' + escapeHtml(name) + '">' + escapeHtml(name) + "</option>");
+    }
+
+    endLocationEl.innerHTML = endOptions.join("");
+    endLocationEl.disabled = (startIdx < 0);
+    if (endLocationEl.disabled) {
+      endLocationEl.value = "";
+      return;
+    }
+    endLocationEl.value = desired;
+    if (endLocationEl.value !== desired) {
+      endLocationEl.value = "";
+    }
   }
 
   function renderStep1LocationSelects() {
     var startValue = startLocationEl ? String(startLocationEl.value || "").trim() : "";
     var endValue = endLocationEl ? String(endLocationEl.value || "").trim() : "";
     var startOptions = ['<option value="">Select start location</option>'];
-    var endOptions = ['<option value="">Select planned end location</option>'];
     var i;
     var name;
 
-    for (i = 0; i < canonicalLocations.length; i += 1) {
-      name = canonicalLocations[i];
+    for (i = 0; i < startLocations.length; i += 1) {
+      name = startLocations[i];
       startOptions.push('<option value="' + escapeHtml(name) + '">' + escapeHtml(name) + "</option>");
-      endOptions.push('<option value="' + escapeHtml(name) + '">' + escapeHtml(name) + "</option>");
     }
 
     if (startLocationEl) {
@@ -312,13 +373,7 @@
         startLocationEl.value = "";
       }
     }
-    if (endLocationEl) {
-      endLocationEl.innerHTML = endOptions.join("");
-      endLocationEl.value = endValue;
-      if (endLocationEl.value !== endValue) {
-        endLocationEl.value = "";
-      }
-    }
+    renderEndLocationSelect(startLocationEl ? startLocationEl.value : "", endValue);
   }
 
   function renderLocationDatalist() {
@@ -417,14 +472,19 @@
         if (!payload || payload.SUCCESS === false || !Array.isArray(payload.LOCATIONS)) {
           throw new Error("No canonical locations");
         }
-        setCanonicalLocations(payload.LOCATIONS);
+        setCanonicalLocations({
+          all: payload.LOCATIONS,
+          starts: (Array.isArray(payload.START_LOCATIONS) ? payload.START_LOCATIONS : [])
+        });
       })
       .catch(function () {
         return fetchJson(apiUrl("getTimeline", { routeCode: TEMPLATE_CODE }), { credentials: "same-origin" })
           .then(function (payload) {
             if (!payload || payload.SUCCESS === false) return;
             var seen = {};
+            var seenStarts = {};
             var ordered = [];
+            var orderedStarts = [];
             var sections = Array.isArray(payload.SECTIONS) ? payload.SECTIONS : [];
             var i;
             var j;
@@ -438,16 +498,27 @@
               ordered.push(v);
             }
 
+            function addStart(name) {
+              var v = String(name || "").trim();
+              if (!v || seenStarts[v]) return;
+              seenStarts[v] = true;
+              orderedStarts.push(v);
+            }
+
             for (i = 0; i < sections.length; i += 1) {
               var segs = Array.isArray(sections[i].SEGMENTS) ? sections[i].SEGMENTS : [];
               for (j = 0; j < segs.length; j += 1) {
                 startName = segs[j].START_NAME;
                 endName = segs[j].END_NAME;
+                addStart(startName);
                 addName(startName);
                 addName(endName);
               }
             }
-            setCanonicalLocations(ordered);
+            setCanonicalLocations({
+              all: ordered,
+              starts: orderedStarts
+            });
           });
       })
       .catch(function () {
@@ -625,6 +696,7 @@
     if (routeNameEl) routeNameEl.textContent = "Generated Route";
     if (routeCodeEl) routeCodeEl.textContent = "";
     if (timelineEl) timelineEl.innerHTML = "";
+    renderStep1LocationSelects();
     renderLocationDatalist();
   }
 
@@ -709,6 +781,15 @@
     if (generateBtn) {
       generateBtn.addEventListener("click", function () {
         generateRoute();
+      });
+    }
+    if (startLocationEl) {
+      startLocationEl.addEventListener("change", function () {
+        var priorEnd = endLocationEl ? String(endLocationEl.value || "").trim() : "";
+        renderEndLocationSelect(startLocationEl.value, priorEnd);
+        if (priorEnd && endLocationEl && !endLocationEl.value) {
+          setStatus("Select an end location after the chosen start.");
+        }
       });
     }
     if (closeBtn) {
