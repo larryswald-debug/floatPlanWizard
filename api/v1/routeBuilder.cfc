@@ -303,7 +303,11 @@
                 for (selectedIdx = 1; selectedIdx LT trimStartOrder; selectedIdx++) {
                     arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
                 }
-                trimEndOrder = (arrayLen(selectedSegmentRows) ? selectedSegmentRows[arrayLen(selectedSegmentRows)].ROUTE_ORDER : 0);
+                if (arrayLen(selectedSegmentRows) GT 0) {
+                    trimEndOrder = selectedSegmentRows[arrayLen(selectedSegmentRows)].ROUTE_ORDER;
+                } else {
+                    trimEndOrder = 0;
+                }
             } else {
                 if (!matchInfo.END_FOUND OR val(matchInfo.END_ORDER) LTE 0) {
                     trimEndOrder = segmentRows[arrayLen(segmentRows)].ROUTE_ORDER;
@@ -327,7 +331,7 @@
                 }
             }
 
-            if (!arrayLen(selectedSegmentRows)) {
+            if (arrayLen(selectedSegmentRows) EQ 0) {
                 return {
                     "SUCCESS"=false,
                     "AUTH"=true,
