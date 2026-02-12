@@ -33,7 +33,8 @@
                 <cfset var startLocation = pickArg(body, "startLocation", "startLocation", "") />
                 <cfset var endLocation = pickArg(body, "endLocation", "endLocation", "") />
                 <cfset var direction = pickArg(body, "direction", "direction", "CCW") />
-                <cfset var generated = generateRoute(userId, startDate, startLocation, endLocation, direction) />
+                <cfset var tripType = pickArg(body, "tripType", "tripType", "POINT_TO_POINT") />
+                <cfset var generated = generateRoute(userId, startDate, startLocation, endLocation, direction, tripType) />
                 <cfoutput>#serializeJSON(generated)#</cfoutput>
                 <cfreturn>
 
@@ -151,21 +152,34 @@
         <cfargument name="startLocation" type="string" required="true">
         <cfargument name="endLocation" type="string" required="true">
         <cfargument name="direction" type="string" required="false" default="CCW">
+        <cfargument name="tripType" type="string" required="false" default="POINT_TO_POINT">
         <cfscript>
             var out = { "SUCCESS"=true, "AUTH"=true, "MESSAGE"="OK", "WARNINGS"=[] };
             var milepointService = getMilepointService();
             var rmAutoFillCount = 0;
             var rmUnresolvedCount = 0;
+            var tripTypeVal = normalizeTripType(arguments.tripType);
             var startDateVal = trim(arguments.startDate);
             var startLocRaw = trim(arguments.startLocation);
             var endLocRaw = trim(arguments.endLocation);
-            if (!len(startDateVal) OR !len(startLocRaw) OR !len(endLocRaw)) {
+            if (!len(startDateVal) OR !len(startLocRaw)) {
                 return {
                     "SUCCESS"=false,
                     "AUTH"=true,
                     "MESSAGE"="Missing required fields",
-                    "ERROR"={"MESSAGE"="startDate, startLocation, and endLocation are required"}
+                    "ERROR"={"MESSAGE"="startDate and startLocation are required"}
                 };
+            }
+            if (tripTypeVal NEQ "FULL_LOOP" AND !len(endLocRaw)) {
+                return {
+                    "SUCCESS"=false,
+                    "AUTH"=true,
+                    "MESSAGE"="Missing required fields",
+                    "ERROR"={"MESSAGE"="endLocation is required for point-to-point routes"}
+                };
+            }
+            if (tripTypeVal EQ "FULL_LOOP") {
+                endLocRaw = startLocRaw;
             }
 
             var qTpl = queryExecute(
@@ -256,44 +270,64 @@
                 }
             }
 
+            if (arrayLen(segmentRows) LTE 0) {
+                return {
+                    "SUCCESS"=false,
+                    "AUTH"=true,
+                    "MESSAGE"="Template route has no segments",
+                    "ERROR"={"MESSAGE"="GREAT_LOOP_CCW has no loop_segments to generate from."}
+                };
+            }
+
             var matchInfo = findFocusSegments(templateRouteId, startLocRaw, endLocRaw, directionVal);
-            var trimEnabled = false;
             var trimStartOrder = 0;
             var trimEndOrder = 0;
             var endFallbackUsed = false;
+            var wrapRangeUsed = false;
+            var selectedSegmentRows = [];
+            var selectedIdx = 0;
             if (!matchInfo.START_FOUND OR val(matchInfo.START_ORDER) LTE 0) {
-                    return {
-                        "SUCCESS"=false,
-                        "AUTH"=true,
-                        "MESSAGE"="Start location not found in route template",
-                        "ERROR"={"MESSAGE"="The selected start location could not be matched in GREAT_LOOP_CCW (" & directionVal & ")."}
-                    };
-                }
+                return {
+                    "SUCCESS"=false,
+                    "AUTH"=true,
+                    "MESSAGE"="Start location not found in route template",
+                    "ERROR"={"MESSAGE"="The selected start location could not be matched in GREAT_LOOP_CCW (" & directionVal & ")."}
+                };
+            }
             trimStartOrder = val(matchInfo.START_ORDER);
-            if (!matchInfo.END_FOUND OR val(matchInfo.END_ORDER) LTE 0) {
-                if (arrayLen(segmentRows) LTE 0) {
-                    return {
-                        "SUCCESS"=false,
-                        "AUTH"=true,
-                        "MESSAGE"="Template route has no segments",
-                        "ERROR"={"MESSAGE"="GREAT_LOOP_CCW has no loop_segments to generate from."}
-                    };
+
+            if (tripTypeVal EQ "FULL_LOOP") {
+                for (selectedIdx = trimStartOrder; selectedIdx LTE arrayLen(segmentRows); selectedIdx++) {
+                    arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
                 }
-                trimEndOrder = segmentRows[arrayLen(segmentRows)].ROUTE_ORDER;
-                endFallbackUsed = true;
+                for (selectedIdx = 1; selectedIdx LT trimStartOrder; selectedIdx++) {
+                    arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
+                }
+                trimEndOrder = (arrayLen(selectedSegmentRows) ? selectedSegmentRows[arrayLen(selectedSegmentRows)].ROUTE_ORDER : 0);
             } else {
-                trimEndOrder = val(matchInfo.END_ORDER);
-                if (trimEndOrder LT trimStartOrder) {
-                    return {
-                        "SUCCESS"=false,
-                        "AUTH"=true,
-                        "MESSAGE"="Planned end location must be after start location",
-                        "ERROR"={"MESSAGE"="Selected end location appears before selected start location in " & directionVal & " route order."}
-                    };
+                if (!matchInfo.END_FOUND OR val(matchInfo.END_ORDER) LTE 0) {
+                    trimEndOrder = segmentRows[arrayLen(segmentRows)].ROUTE_ORDER;
+                    endFallbackUsed = true;
+                } else {
+                    trimEndOrder = val(matchInfo.END_ORDER);
+                }
+
+                if (trimEndOrder GTE trimStartOrder) {
+                    for (selectedIdx = trimStartOrder; selectedIdx LTE trimEndOrder; selectedIdx++) {
+                        arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
+                    }
+                } else {
+                    wrapRangeUsed = true;
+                    for (selectedIdx = trimStartOrder; selectedIdx LTE arrayLen(segmentRows); selectedIdx++) {
+                        arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
+                    }
+                    for (selectedIdx = 1; selectedIdx LTE trimEndOrder; selectedIdx++) {
+                        arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
+                    }
                 }
             }
-            trimEnabled = (trimStartOrder GT 0 AND trimEndOrder GTE trimStartOrder);
-            if (!trimEnabled) {
+
+            if (!arrayLen(selectedSegmentRows)) {
                 return {
                     "SUCCESS"=false,
                     "AUTH"=true,
@@ -347,8 +381,8 @@
                 var sectionSegmentCounter = {};
                 var segRow = {};
                 var localOrderIndex = 0;
-                for (i = 1; i LTE arrayLen(segmentRows); i++) {
-                    segRow = segmentRows[i];
+                for (i = 1; i LTE arrayLen(selectedSegmentRows); i++) {
+                    segRow = selectedSegmentRows[i];
                     var oldSecId = toString(segRow.SECTION_ID);
                     var distNmBind = toNullableNumber(segRow.DIST_NM, "numeric");
                     var lockCountBind = toNullableNumber(segRow.LOCK_COUNT, "integer");
@@ -356,11 +390,7 @@
                     var rmEndBind = toNullableNumber(segRow.RM_END, "numeric");
                     var startNameVal = trim(toString(segRow.START_NAME));
                     var endNameVal = trim(toString(segRow.END_NAME));
-                    var globalOrder = val(segRow.ROUTE_ORDER);
                     if (!structKeyExists(sectionMap, oldSecId)) {
-                        continue;
-                    }
-                    if (trimEnabled AND (globalOrder LT trimStartOrder OR globalOrder GT trimEndOrder)) {
                         continue;
                     }
                     if (!len(startNameVal)) {
@@ -433,7 +463,12 @@
             if (endFallbackUsed) {
                 arrayAppend(out.WARNINGS, "Could not match planned end location exactly; generated from selected start to template end.");
             }
+            if (wrapRangeUsed) {
+                arrayAppend(out.WARNINGS, "Route range wrapped across the loop origin.");
+            }
             out.TRIMMED_TO_SELECTION = true;
+            out.WRAP_RANGE = wrapRangeUsed;
+            out.TRIP_TYPE = tripTypeVal;
 
             var timeline = getTimeline(arguments.userId, shortCode);
             out.ROUTE_CODE = shortCode;
@@ -1206,6 +1241,15 @@
             var d = uCase(trim(toString(arguments.direction)));
             if (d EQ "CW") return "CW";
             return "CCW";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeTripType" access="private" returntype="string" output="false">
+        <cfargument name="tripType" type="any" required="false" default="POINT_TO_POINT">
+        <cfscript>
+            var t = uCase(trim(toString(arguments.tripType)));
+            if (t EQ "FULL_LOOP") return "FULL_LOOP";
+            return "POINT_TO_POINT";
         </cfscript>
     </cffunction>
 

@@ -14,6 +14,7 @@
   var formEl = null;
   var startDateEl = null;
   var directionEl = null;
+  var tripTypeEl = null;
   var startLocationEl = null;
   var endLocationEl = null;
   var generateBtn = null;
@@ -79,6 +80,10 @@
 
   function normalizeDirection(value) {
     return String(value || "").toUpperCase() === "CW" ? "CW" : "CCW";
+  }
+
+  function normalizeTripType(value) {
+    return String(value || "").toUpperCase() === "FULL_LOOP" ? "FULL_LOOP" : "POINT_TO_POINT";
   }
 
   function notifyRoutesUpdated(routeCode) {
@@ -334,6 +339,13 @@
 
   function renderEndLocationSelect(startValue, desiredEndValue) {
     if (!endLocationEl) return;
+    var tripType = normalizeTripType(tripTypeEl ? tripTypeEl.value : "POINT_TO_POINT");
+    if (tripType === "FULL_LOOP") {
+      endLocationEl.innerHTML = '<option value="">Full loop returns to selected start</option>';
+      endLocationEl.disabled = true;
+      endLocationEl.value = "";
+      return;
+    }
     var startIdx = getCanonicalIndex(startValue);
     var placeholder = (startIdx >= 0) ? "Select planned end location" : "Select start location first";
     var endOptions = ['<option value="">' + placeholder + "</option>"];
@@ -547,13 +559,18 @@
     return {
       startDate: startDateEl ? String(startDateEl.value || "").trim() : "",
       direction: directionEl ? normalizeDirection(directionEl.value) : "CCW",
+      tripType: tripTypeEl ? normalizeTripType(tripTypeEl.value) : "POINT_TO_POINT",
       startLocation: startLocationEl ? String(startLocationEl.value || "").trim() : "",
       endLocation: endLocationEl ? String(endLocationEl.value || "").trim() : ""
     };
   }
 
   function validateStep1(input) {
-    if (!input.startDate || !input.startLocation || !input.endLocation) {
+    if (!input.startDate || !input.startLocation) {
+      showAlert("Start date and start location are required.", "danger");
+      return false;
+    }
+    if (input.tripType !== "FULL_LOOP" && !input.endLocation) {
       showAlert("Start date, start location, and planned end location are required.", "danger");
       return false;
     }
@@ -709,6 +726,7 @@
     clearAlert();
     if (startDateEl) startDateEl.value = "";
     if (directionEl) directionEl.value = "CCW";
+    if (tripTypeEl) tripTypeEl.value = "POINT_TO_POINT";
     if (startLocationEl) startLocationEl.value = "";
     if (endLocationEl) endLocationEl.value = "";
     if (summaryEl) summaryEl.textContent = "—";
@@ -823,6 +841,15 @@
         loadCanonicalLocations(directionEl.value);
       });
     }
+    if (tripTypeEl) {
+      tripTypeEl.addEventListener("change", function () {
+        if (normalizeTripType(tripTypeEl.value) === "FULL_LOOP") {
+          if (endLocationEl) endLocationEl.value = "";
+          setStatus("Full loop selected. End location will return to your start.");
+        }
+        renderEndLocationSelect(startLocationEl ? startLocationEl.value : "", endLocationEl ? endLocationEl.value : "");
+      });
+    }
     if (closeBtn) {
       closeBtn.addEventListener("click", function () {
         runDiscardFlow(function () {
@@ -879,6 +906,7 @@
     formEl = document.getElementById("routeBuilderForm");
     startDateEl = document.getElementById("routeBuilderStartDate");
     directionEl = document.getElementById("routeBuilderDirection");
+    tripTypeEl = document.getElementById("routeBuilderTripType");
     startLocationEl = document.getElementById("routeBuilderStartLocation");
     endLocationEl = document.getElementById("routeBuilderEndLocation");
     generateBtn = document.getElementById("routeBuilderGenerateBtn");

@@ -1096,15 +1096,22 @@
                     <section id="routeBuilderStep1">
                         <h2 class="h5 mb-3">Start Your Route</h2>
                         <div class="row g-3">
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label class="form-label" for="routeBuilderStartDate">Start Date *</label>
                                 <input id="routeBuilderStartDate" type="date" class="form-control" required>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label class="form-label" for="routeBuilderDirection">Direction *</label>
                                 <select id="routeBuilderDirection" class="form-select" required>
                                     <option value="CCW" selected>Counterclockwise (Default)</option>
                                     <option value="CW">Clockwise (Reverse)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="routeBuilderTripType">Trip Type *</label>
+                                <select id="routeBuilderTripType" class="form-select" required>
+                                    <option value="POINT_TO_POINT" selected>Point-to-Point</option>
+                                    <option value="FULL_LOOP">Full Loop</option>
                                 </select>
                             </div>
                             <div class="col-md-3">
@@ -1160,7 +1167,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20251227r"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20251227r"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20251227ak"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260212e"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260212f"></script>
 
 <!-- Dashboard-specific JS -->
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260212c"></script>
