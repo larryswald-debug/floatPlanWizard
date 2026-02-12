@@ -32,6 +32,7 @@
 
   var currentRouteCode = "";
   var currentTimeline = null;
+  var canonicalLocations = [];
   var knownLocations = [];
   var loadSeq = 0;
   var saveSeq = 0;
@@ -273,6 +274,53 @@
     renderLocationDatalist();
   }
 
+  function setCanonicalLocations(locations) {
+    var list = Array.isArray(locations) ? locations : [];
+    var seen = {};
+    var ordered = [];
+    var i;
+    var name;
+    for (i = 0; i < list.length; i += 1) {
+      name = String(list[i] || "").trim();
+      if (!name) continue;
+      if (seen[name]) continue;
+      seen[name] = true;
+      ordered.push(name);
+    }
+    canonicalLocations = ordered;
+    renderStep1LocationSelects();
+  }
+
+  function renderStep1LocationSelects() {
+    var startValue = startLocationEl ? String(startLocationEl.value || "").trim() : "";
+    var endValue = endLocationEl ? String(endLocationEl.value || "").trim() : "";
+    var startOptions = ['<option value="">Select start location</option>'];
+    var endOptions = ['<option value="">Select planned end location</option>'];
+    var i;
+    var name;
+
+    for (i = 0; i < canonicalLocations.length; i += 1) {
+      name = canonicalLocations[i];
+      startOptions.push('<option value="' + escapeHtml(name) + '">' + escapeHtml(name) + "</option>");
+      endOptions.push('<option value="' + escapeHtml(name) + '">' + escapeHtml(name) + "</option>");
+    }
+
+    if (startLocationEl) {
+      startLocationEl.innerHTML = startOptions.join("");
+      startLocationEl.value = startValue;
+      if (startLocationEl.value !== startValue) {
+        startLocationEl.value = "";
+      }
+    }
+    if (endLocationEl) {
+      endLocationEl.innerHTML = endOptions.join("");
+      endLocationEl.value = endValue;
+      if (endLocationEl.value !== endValue) {
+        endLocationEl.value = "";
+      }
+    }
+  }
+
   function renderLocationDatalist() {
     if (!locationsListEl) return;
     locationsListEl.innerHTML = knownLocations.map(function (name) {
@@ -363,11 +411,44 @@
     }
   }
 
-  function loadTemplateLocations() {
-    return fetchJson(apiUrl("getTimeline", { routeCode: TEMPLATE_CODE }), { credentials: "same-origin" })
+  function loadCanonicalLocations() {
+    return fetchJson(apiUrl("listCanonicalLocations"), { credentials: "same-origin" })
       .then(function (payload) {
-        if (!payload || payload.SUCCESS === false) return;
-        collectKnownLocationsFromTimeline(payload);
+        if (!payload || payload.SUCCESS === false || !Array.isArray(payload.LOCATIONS)) {
+          throw new Error("No canonical locations");
+        }
+        setCanonicalLocations(payload.LOCATIONS);
+      })
+      .catch(function () {
+        return fetchJson(apiUrl("getTimeline", { routeCode: TEMPLATE_CODE }), { credentials: "same-origin" })
+          .then(function (payload) {
+            if (!payload || payload.SUCCESS === false) return;
+            var seen = {};
+            var ordered = [];
+            var sections = Array.isArray(payload.SECTIONS) ? payload.SECTIONS : [];
+            var i;
+            var j;
+            var startName;
+            var endName;
+
+            function addName(name) {
+              var v = String(name || "").trim();
+              if (!v || seen[v]) return;
+              seen[v] = true;
+              ordered.push(v);
+            }
+
+            for (i = 0; i < sections.length; i += 1) {
+              var segs = Array.isArray(sections[i].SEGMENTS) ? sections[i].SEGMENTS : [];
+              for (j = 0; j < segs.length; j += 1) {
+                startName = segs[j].START_NAME;
+                endName = segs[j].END_NAME;
+                addName(startName);
+                addName(endName);
+              }
+            }
+            setCanonicalLocations(ordered);
+          });
       })
       .catch(function () {
         // best effort only
@@ -531,6 +612,7 @@
     currentRouteCode = "";
     currentTimeline = null;
     originalSegments = {};
+    knownLocations = canonicalLocations.slice();
     allowResetOnHide = false;
     setStep(1);
     setStatus("");
@@ -543,6 +625,7 @@
     if (routeNameEl) routeNameEl.textContent = "Generated Route";
     if (routeCodeEl) routeCodeEl.textContent = "";
     if (timelineEl) timelineEl.innerHTML = "";
+    renderLocationDatalist();
   }
 
   function openModal() {
@@ -701,7 +784,7 @@
     saveIndicatorEl = document.getElementById("routeBuilderSaveIndicator");
 
     bindEvents();
-    loadTemplateLocations();
+    loadCanonicalLocations();
     resetModal();
   }
 

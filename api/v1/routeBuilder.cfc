@@ -41,6 +41,11 @@
                 <cfoutput>#serializeJSON(listed)#</cfoutput>
                 <cfreturn>
 
+            <cfelseif act EQ "listcanonicallocations">
+                <cfset var canonical = listCanonicalLocations() />
+                <cfoutput>#serializeJSON(canonical)#</cfoutput>
+                <cfreturn>
+
             <cfelseif act EQ "setactiveroute">
                 <cfset var activeCode = trim(arguments.routeCode) />
                 <cfif NOT len(activeCode)>
@@ -348,6 +353,66 @@
             out.RM_AUTOFILL_COUNT = rmAutoFillCount;
             out.RM_UNRESOLVED_COUNT = rmUnresolvedCount;
             structAppend(out, timeline, true);
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="listCanonicalLocations" access="private" returntype="struct" output="false">
+        <cfscript>
+            var out = { "SUCCESS"=true, "AUTH"=true, "MESSAGE"="OK", "TEMPLATE_ROUTE_CODE"="GREAT_LOOP_CCW", "LOCATIONS"=[] };
+            var qTpl = queryExecute(
+                "SELECT id
+                 FROM loop_routes
+                 WHERE short_code = :code
+                 LIMIT 1",
+                { code = { value=out.TEMPLATE_ROUTE_CODE, cfsqltype="cf_sql_varchar" } },
+                { datasource = application.dsn }
+            );
+            if (qTpl.recordCount EQ 0) {
+                return {
+                    "SUCCESS"=false,
+                    "AUTH"=true,
+                    "MESSAGE"="Template route not found",
+                    "ERROR"={"MESSAGE"=out.TEMPLATE_ROUTE_CODE & " was not found in loop_routes"}
+                };
+            }
+
+            var qNodes = queryExecute(
+                "SELECT s.start_name, s.end_name
+                 FROM loop_segments s
+                 INNER JOIN loop_sections sec ON sec.id = s.section_id
+                 WHERE sec.route_id = :rid
+                 ORDER BY sec.order_index ASC, s.order_index ASC",
+                { rid = { value=val(qTpl.id[1]), cfsqltype="cf_sql_integer" } },
+                { datasource = application.dsn }
+            );
+
+            var seen = {};
+            var i = 0;
+            var locationValue = "";
+            var locationKey = "";
+
+            for (i = 1; i LTE qNodes.recordCount; i++) {
+                locationValue = trim(toString(qNodes.start_name[i]));
+                if (len(locationValue)) {
+                    locationKey = normalizeText(locationValue);
+                    if (!len(locationKey)) locationKey = lCase(locationValue);
+                    if (!structKeyExists(seen, locationKey)) {
+                        seen[locationKey] = true;
+                        arrayAppend(out.LOCATIONS, locationValue);
+                    }
+                }
+
+                locationValue = trim(toString(qNodes.end_name[i]));
+                if (len(locationValue)) {
+                    locationKey = normalizeText(locationValue);
+                    if (!len(locationKey)) locationKey = lCase(locationValue);
+                    if (!structKeyExists(seen, locationKey)) {
+                        seen[locationKey] = true;
+                        arrayAppend(out.LOCATIONS, locationValue);
+                    }
+                }
+            }
             return out;
         </cfscript>
     </cffunction>

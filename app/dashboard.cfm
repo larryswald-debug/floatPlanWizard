@@ -282,7 +282,7 @@
                 <div id="expeditionTimelineBody" class="d-none">
                     <div id="expeditionRouteList" class="expedition-route-list mb-3"></div>
                     <div id="expeditionRouteEmpty" class="expedition-state d-none mb-3">No routes yet. Click <strong>Generate My Route</strong> to create your first expedition route.</div>
-                    <div id="expeditionTimelineAccordion" class="accordion expedition-accordion"></div>
+                    <div id="expeditionTimelineAccordion" class="expedition-route-overview"></div>
                 </div>
             </div>
         </section>
@@ -1102,11 +1102,15 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label" for="routeBuilderStartLocation">Start Location *</label>
-                                <input id="routeBuilderStartLocation" list="routeBuilderLocations" class="form-control" placeholder="e.g. Chicago" required>
+                                <select id="routeBuilderStartLocation" class="form-select" required>
+                                    <option value="">Select start location</option>
+                                </select>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label" for="routeBuilderEndLocation">Planned End Location *</label>
-                                <input id="routeBuilderEndLocation" list="routeBuilderLocations" class="form-control" placeholder="e.g. Tarpon Springs" required>
+                                <select id="routeBuilderEndLocation" class="form-select" required>
+                                    <option value="">Select planned end location</option>
+                                </select>
                             </div>
                         </div>
                         <datalist id="routeBuilderLocations"></datalist>
@@ -1127,7 +1131,7 @@
             <div class="modal-footer card-footer">
                 <button type="button" class="btn-primary" id="routeBuilderGenerateBtn">Generate Route</button>
                 <button type="button" class="btn-primary d-none" id="routeBuilderSaveBtn">Save</button>
-                <button type="button" class="btn-primary d-none" id="routeBuilderDoneBtn">Done</button>
+                <button type="button" class="btn-primary d-none" id="routeBuilderDoneBtn">Save & Close</button>
             </div>
         </div>
     </div>
@@ -1140,7 +1144,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20251227b"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260211a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260212a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20260211a"></script>
@@ -1149,10 +1153,10 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20251227r"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20251227r"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20251227ak"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260211h"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260212b"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260211ae"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260212c"></script>
 
 
 

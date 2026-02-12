@@ -1297,7 +1297,10 @@
       if (subtitleEl) subtitleEl.textContent = "Create your first route";
       if (routeListEl) routeListEl.innerHTML = "";
       if (routeEmptyEl) toggleHidden(routeEmptyEl, false);
-      if (accordionEl) accordionEl.innerHTML = '<div class="expedition-segment-empty">Create a route to populate this timeline.</div>';
+      if (accordionEl) {
+        accordionEl.innerHTML = "";
+        toggleHidden(accordionEl, true);
+      }
       setState("ready");
     }
 
@@ -1341,96 +1344,18 @@
           + '    <div class="expedition-route-meta">' + pct + '% complete • ' + formatNumber(nm, 1) + ' NM • ' + formatNumber(locks, 0) + ' locks</div>'
           + '  </div>'
           + '  <div class="expedition-route-actions">'
-          + '    <button type="button" class="btn-secondary js-expedition-open">Open</button>'
-          + '    <button type="button" class="btn-secondary js-expedition-edit">Edit</button>'
+          + '    <button type="button" class="btn-secondary js-expedition-view-edit">View / Edit</button>'
           + '    <button type="button" class="btn-secondary js-expedition-delete">Delete</button>'
           + '  </div>'
           + '</div>';
       }).join("");
     }
 
-    function segmentBadges(segment) {
-      var progress = segment && segment.PROGRESS ? segment.PROGRESS : {};
-      var status = normalizeStatus(progress.STATUS);
-      var html = "";
-      html += status === "COMPLETED"
-        ? '<span class="expedition-badge complete">Completed</span>'
-        : '<span class="expedition-badge pending">Not started</span>';
-
-      if (segment && segment.IS_SIGNATURE_EVENT) {
-        html += ' <span class="expedition-badge signature">Signature Event</span>';
-      }
-      if (segment && segment.IS_MILESTONE_END) {
-        html += ' <span class="expedition-badge milestone">Milestone</span>';
-      }
-      return html;
-    }
-
     function renderTimeline(data) {
       if (!accordionEl) return;
-      var sections = (data && Array.isArray(data.SECTIONS)) ? data.SECTIONS : [];
-      var firstDefaultIndex = -1;
-      var i;
-      for (i = 0; i < sections.length; i += 1) {
-        if (sections[i] && sections[i].IS_ACTIVE_DEFAULT) {
-          firstDefaultIndex = i;
-          break;
-        }
-      }
-      if (firstDefaultIndex < 0 && sections.length) firstDefaultIndex = 0;
-
-      var html = "";
-      for (i = 0; i < sections.length; i += 1) {
-        var section = sections[i] || {};
-        var totals = section.TOTALS || {};
-        var sectionId = "expeditionSection" + i;
-        var headingId = sectionId + "Heading";
-        var collapseId = sectionId + "Collapse";
-        var expanded = i === firstDefaultIndex;
-        var pct = Number.isFinite(parseFloat(totals.PCT_COMPLETE)) ? Math.round(parseFloat(totals.PCT_COMPLETE)) : 0;
-        var nm = Number.isFinite(parseFloat(totals.NM)) ? parseFloat(totals.NM) : 0;
-        var locks = Number.isFinite(parseFloat(totals.LOCKS)) ? parseFloat(totals.LOCKS) : 0;
-        var segments = Array.isArray(section.SEGMENTS) ? section.SEGMENTS : [];
-        var segmentHtml = "";
-        var j;
-        for (j = 0; j < segments.length; j += 1) {
-          var seg = segments[j] || {};
-          var startName = escapeHtml(seg.START_NAME || "Start");
-          var endName = escapeHtml(seg.END_NAME || "End");
-          var distNm = Number.isFinite(parseFloat(seg.DIST_NM)) ? parseFloat(seg.DIST_NM) : 0;
-          var lockCount = Number.isFinite(parseFloat(seg.LOCK_COUNT)) ? parseFloat(seg.LOCK_COUNT) : 0;
-          segmentHtml += ''
-            + '<div class="expedition-segment">'
-            + '  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">'
-            + '    <div class="expedition-segment-title">' + startName + ' \u2192 ' + endName + '</div>'
-            + '    <div>' + segmentBadges(seg) + '</div>'
-            + '  </div>'
-            + '  <div class="expedition-segment-meta">' + formatNumber(distNm, 1) + ' NM \u2022 ' + formatNumber(lockCount, 0) + ' locks</div>'
-            + '</div>';
-        }
-        if (!segmentHtml) {
-          segmentHtml = '<div class="expedition-segment-empty">No segments yet.</div>';
-        }
-
-        html += ''
-          + '<div class="accordion-item">'
-          + '  <h2 class="accordion-header" id="' + headingId + '">'
-          + '    <button class="accordion-button ' + (expanded ? "" : "collapsed") + '" type="button" data-bs-toggle="collapse" data-bs-target="#' + collapseId + '" aria-expanded="' + (expanded ? "true" : "false") + '" aria-controls="' + collapseId + '">'
-          + '      <div class="expedition-section-head">'
-          + '        <span class="expedition-section-name">' + escapeHtml(section.NAME || "Section") + '</span>'
-          + '        <span class="expedition-section-meta">' + formatNumber(nm, 1) + ' NM \u2022 ' + formatNumber(locks, 0) + ' locks <span class="expedition-badge pct">' + pct + '%</span></span>'
-          + '      </div>'
-          + '    </button>'
-          + '  </h2>'
-          + '  <div id="' + collapseId + '" class="accordion-collapse collapse ' + (expanded ? "show" : "") + '" aria-labelledby="' + headingId + '" data-bs-parent="#expeditionTimelineAccordion">'
-          + '    <div class="accordion-body">'
-          + segmentHtml
-          + '    </div>'
-          + '  </div>'
-          + '</div>';
-      }
-
-      accordionEl.innerHTML = html || '<div class="expedition-segment-empty">No timeline data available.</div>';
+      // Keep dashboard panel condensed: route card only, no expandable rows.
+      accordionEl.innerHTML = "";
+      toggleHidden(accordionEl, true);
     }
 
     function setActiveRoute(routeCode) {
@@ -1554,7 +1479,7 @@
           if (!card) return;
           var routeCode = card.getAttribute("data-route-code");
           if (!routeCode) return;
-          if (target.classList.contains("js-expedition-edit")) {
+          if (target.classList.contains("js-expedition-view-edit")) {
             setActiveRoute(routeCode);
             openEditor(routeCode);
             return;
@@ -1574,10 +1499,6 @@
               confirmDelete();
             }
             return;
-          }
-          if (target.classList.contains("js-expedition-open") || target.closest(".expedition-route-card")) {
-            setActiveRoute(routeCode);
-            load(routeCode);
           }
         });
       }
