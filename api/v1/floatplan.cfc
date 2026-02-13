@@ -320,6 +320,8 @@
             var foodDays        = trim(pickValue(floatPlan, ["foodDaysPerPerson", "FOOD_DAYS_PER_PERSON"], ""));
             var waterDays       = trim(pickValue(floatPlan, ["waterDaysPerPerson", "WATER_DAYS_PER_PERSON"], ""));
             var notes           = trim(pickValue(floatPlan, ["notes", "NOTES"], ""));
+            var routeInstanceId = val(pickValue(floatPlan, ["routeInstanceId", "ROUTE_INSTANCE_ID", "route_instance_id"], 0));
+            var routeDayNumber  = val(pickValue(floatPlan, ["routeDayNumber", "ROUTE_DAY_NUMBER", "route_day_number"], 0));
             var doNotSend       = booleanValue(pickValue(floatPlan, ["doNotSend", "DO_NOT_SEND"], false));
             var departureTimeUtc = "";
             var returnTimeUtc = "";
@@ -407,6 +409,8 @@
                             food,
                             water,
                             notes,
+                            route_instance_id,
+                            route_day_number,
                             status,
                             dateCreated,
                             lastUpdate
@@ -433,6 +437,8 @@
                             :foodDays,
                             :waterDays,
                             :notes,
+                            :routeInstanceId,
+                            :routeDayNumber,
                             'Draft',
                             NOW(),
                             NOW()
@@ -458,6 +464,8 @@
                         foodDays = { value = foodDays, cfsqltype = "cf_sql_varchar", null = NOT len(foodDays) },
                         waterDays = { value = waterDays, cfsqltype = "cf_sql_varchar", null = NOT len(waterDays) },
                         notes = { value = notes, cfsqltype = "cf_sql_varchar", null = NOT len(notes) },
+                        routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer", null = (routeInstanceId LTE 0) },
+                        routeDayNumber = { value = routeDayNumber, cfsqltype = "cf_sql_integer", null = (routeDayNumber LTE 0) },
                         doNotSend = { value = doNotSend, cfsqltype = "cf_sql_bit" }
                     }, { datasource = ds });
 
@@ -485,6 +493,8 @@
                                food                = :foodDays,
                                water               = :waterDays,
                                notes               = :notes,
+                               route_instance_id   = :routeInstanceId,
+                               route_day_number    = :routeDayNumber,
                                lastUpdate          = NOW()
                          WHERE floatplanId = :planId
                            AND userId = :userId
@@ -510,6 +520,8 @@
                         foodDays = { value = foodDays, cfsqltype = "cf_sql_varchar", null = NOT len(foodDays) },
                         waterDays = { value = waterDays, cfsqltype = "cf_sql_varchar", null = NOT len(waterDays) },
                         notes = { value = notes, cfsqltype = "cf_sql_varchar", null = NOT len(notes) },
+                        routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer", null = (routeInstanceId LTE 0) },
+                        routeDayNumber = { value = routeDayNumber, cfsqltype = "cf_sql_integer", null = (routeDayNumber LTE 0) },
                         doNotSend = { value = doNotSend, cfsqltype = "cf_sql_bit" }
                     }, { datasource = ds });
 
@@ -1028,6 +1040,8 @@
                     food,
                     water,
                     notes,
+                    route_instance_id,
+                    route_day_number,
                     status
                 FROM floatplans
                 WHERE floatplanId = :planId
@@ -1097,6 +1111,8 @@
                     FOOD_DAYS_PER_PERSON = qPlan.food,
                     WATER_DAYS_PER_PERSON= qPlan.water,
                     NOTES                = qPlan.notes,
+                    ROUTE_INSTANCE_ID    = qPlan.route_instance_id,
+                    ROUTE_DAY_NUMBER     = qPlan.route_day_number,
                     DO_NOT_SEND          = false,
                     STATUS               = qPlan.status
                 };
@@ -1479,6 +1495,8 @@
                 FOOD_DAYS_PER_PERSON = "",
                 WATER_DAYS_PER_PERSON= "",
                 NOTES                = "",
+                ROUTE_INSTANCE_ID    = 0,
+                ROUTE_DAY_NUMBER     = 0,
                 DO_NOT_SEND          = false,
                 STATUS               = "Draft"
             };

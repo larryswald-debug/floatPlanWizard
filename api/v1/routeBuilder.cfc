@@ -373,6 +373,7 @@
             var newRouteId = 0;
             var templateSectionInfoById = {};
             var segmentMap = {};
+            var routeInstanceId = 0;
             var selectedSegIdx = 0;
             var sectionInfoIdx = 0;
             for (sectionInfoIdx = 1; sectionInfoIdx LTE qTplSections.recordCount; sectionInfoIdx++) {
@@ -553,6 +554,25 @@
                     },
                     { datasource = application.dsn }
                 );
+
+                queryExecute(
+                    "INSERT INTO route_instances
+                        (user_id, template_route_code, generated_route_id, generated_route_code, direction, trip_type, start_location, end_location, status)
+                     VALUES
+                        (:userId, :templateCode, :generatedRouteId, :generatedRouteCode, :direction, :tripType, :startLocation, :endLocation, 'PLANNED')",
+                    {
+                        userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
+                        templateCode = { value="GREAT_LOOP_CCW", cfsqltype="cf_sql_varchar" },
+                        generatedRouteId = { value=newRouteId, cfsqltype="cf_sql_integer" },
+                        generatedRouteCode = { value=shortCode, cfsqltype="cf_sql_varchar" },
+                        direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
+                        tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
+                        startLocation = { value=startLocRaw, cfsqltype="cf_sql_varchar" },
+                        endLocation = { value=endLocRaw, cfsqltype="cf_sql_varchar", null=NOT len(endLocRaw) }
+                    },
+                    { datasource = application.dsn, result = "routeInstIns" }
+                );
+                routeInstanceId = val(routeInstIns.generatedKey);
             }
 
             if (endFallbackUsed) {
@@ -568,6 +588,7 @@
             var timeline = getTimeline(arguments.userId, shortCode);
             out.ROUTE_CODE = shortCode;
             out.ROUTE_ID = newRouteId;
+            out.ROUTE_INSTANCE_ID = routeInstanceId;
             out.DIRECTION = directionVal;
             out.START_DATE = startDateVal;
             out.START_LOCATION = startLocRaw;
