@@ -8,10 +8,13 @@
   var BASE_PATH = window.FPW_BASE || "";
 
   var PACE_PRESETS = [
-    { key: "RELAXED", label: "Relaxed", cruising_speed: 10.0, max_nm_day: 75 },
-    { key: "BALANCED", label: "Balanced", cruising_speed: 12.0, max_nm_day: 100 },
-    { key: "AGGRESSIVE", label: "Aggressive", cruising_speed: 14.0, max_nm_day: 130 }
+    { key: "RELAXED", label: "Relaxed", factor: 0.25 },
+    { key: "BALANCED", label: "Balanced", factor: 0.50 },
+    { key: "AGGRESSIVE", label: "Aggressive", factor: 1.00 }
   ];
+  var DEFAULT_MAX_SPEED_KN = 20;
+  var DEFAULT_WEATHER_FACTOR_PCT = 0;
+  var DEFAULT_RESERVE_PCT = 20;
 
   var dom = {};
   var modal = null;
@@ -31,8 +34,7 @@
     previewReqSeq: 0,
     previewTimer: 0,
     manualOverrides: {
-      cruisingSpeed: false,
-      maxNmDay: false
+      cruisingSpeed: false
     },
     freshStartSession: false,
     modalMode: "generator",
@@ -70,6 +72,15 @@
     return n.toLocaleString(undefined, {
       minimumFractionDigits: places,
       maximumFractionDigits: places
+    });
+  }
+
+  function formatCurrency(value) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n)) return "--";
+    return "$" + n.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     });
   }
 
@@ -173,6 +184,43 @@
     return String(value || "").toUpperCase() === "CW" ? "CW" : "CCW";
   }
 
+  function getDirectionValue() {
+    if (dom.directionEl && dom.directionEl.value !== undefined && dom.directionEl.value !== null && dom.directionEl.value !== "") {
+      return normalizeDirection(dom.directionEl.value);
+    }
+    if (dom.directionToggleEl) {
+      return dom.directionToggleEl.checked ? "CW" : "CCW";
+    }
+    return "CCW";
+  }
+
+  function setDirectionValue(value) {
+    var normalized = normalizeDirection(value);
+    if (dom.directionEl) {
+      dom.directionEl.value = normalized;
+    }
+    if (dom.directionToggleEl) {
+      dom.directionToggleEl.checked = (normalized === "CW");
+    }
+    if (dom.directionStateEl) {
+      dom.directionStateEl.textContent = (normalized === "CW")
+        ? "Clockwise (CW)"
+        : "Counterclockwise (CCW)";
+    }
+  }
+
+  function hasLocationSelections() {
+    var startVal = dom.startSelectEl ? String(dom.startSelectEl.value || "").trim() : "";
+    var endVal = dom.endSelectEl ? String(dom.endSelectEl.value || "").trim() : "";
+    return !!(startVal && endVal);
+  }
+
+  function updateDirectionControlAvailability() {
+    var enabled = hasLocationSelections();
+    if (dom.directionToggleEl) dom.directionToggleEl.disabled = !enabled;
+    if (dom.directionEl) dom.directionEl.disabled = !enabled;
+  }
+
   function getSelectedPaceIndex() {
     if (!dom.paceEl) return 0;
     var idx = parseInt(dom.paceEl.value, 10);
@@ -196,27 +244,36 @@
 
   function updatePaceLabel() {
     if (!dom.paceLabelEl) return;
-    dom.paceLabelEl.textContent = getSelectedPacePreset().label;
+    var preset = getSelectedPacePreset();
+    var percent = Math.round((Number.isFinite(preset.factor) ? preset.factor : 1) * 100);
+    dom.paceLabelEl.textContent = preset.label + " (" + percent + "%)";
+  }
+
+  function getMaxSpeedKn() {
+    var value = parseFloat(dom.cruisingSpeedEl ? dom.cruisingSpeedEl.value : "");
+    if (!Number.isFinite(value) || value <= 0) {
+      value = DEFAULT_MAX_SPEED_KN;
+    }
+    return value;
+  }
+
+  function getEffectiveCruisingSpeed() {
+    var preset = getSelectedPacePreset();
+    var factor = Number.isFinite(preset.factor) ? preset.factor : 1;
+    var speed = getMaxSpeedKn() * factor;
+    if (!Number.isFinite(speed) || speed <= 0) speed = DEFAULT_MAX_SPEED_KN;
+    return Math.round(speed * 10) / 10;
   }
 
   function applyPaceDefaults(force) {
-    var preset = getSelectedPacePreset();
-    if (dom.cruisingSpeedEl && (force || !state.manualOverrides.cruisingSpeed)) {
-      dom.cruisingSpeedEl.value = String(preset.cruising_speed);
-    }
-    if (dom.maxNmDayEl && (force || !state.manualOverrides.maxNmDay)) {
-      dom.maxNmDayEl.value = String(preset.max_nm_day);
+    if (dom.cruisingSpeedEl && (force || !String(dom.cruisingSpeedEl.value || "").trim().length)) {
+      dom.cruisingSpeedEl.value = String(DEFAULT_MAX_SPEED_KN);
     }
   }
 
   function updatePaceOverrideUI() {
-    var hasOverride = !!(state.manualOverrides.cruisingSpeed || state.manualOverrides.maxNmDay);
-    if (dom.paceOverrideHintEl) {
-      dom.paceOverrideHintEl.classList.toggle("d-none", !hasOverride);
-    }
-    if (dom.resetPaceBtn) {
-      dom.resetPaceBtn.classList.toggle("d-none", !hasOverride);
-    }
+    if (dom.paceOverrideHintEl) dom.paceOverrideHintEl.classList.add("d-none");
+    if (dom.resetPaceBtn) dom.resetPaceBtn.classList.add("d-none");
   }
 
   function getUserScope() {
@@ -264,22 +321,28 @@
     if (!state.activeTemplateCode) return;
     var payload = {
       template_code: state.activeTemplateCode,
-      direction: dom.directionEl ? normalizeDirection(dom.directionEl.value) : "CCW",
+      direction: getDirectionValue(),
       start_segment_id: dom.startSelectEl ? String(dom.startSelectEl.value || "") : "",
       end_segment_id: dom.endSelectEl ? String(dom.endSelectEl.value || "") : "",
       start_date: dom.startDateEl ? String(dom.startDateEl.value || "") : "",
       pace: getSelectedPacePreset().key,
       pace_index: getSelectedPaceIndex(),
-      cruising_speed: dom.cruisingSpeedEl ? String(dom.cruisingSpeedEl.value || "") : "",
-      max_nm_day: dom.maxNmDayEl ? String(dom.maxNmDayEl.value || "") : "",
+      cruising_speed: String(getMaxSpeedKn()),
+      effective_cruising_speed: String(getEffectiveCruisingSpeed()),
+      underway_hours_per_day: dom.underwayHoursEl ? String(dom.underwayHoursEl.value || "") : "8",
       comfort_profile: dom.comfortProfileEl ? String(dom.comfortProfileEl.value || "") : "",
       overnight_bias: dom.overnightBiasEl ? String(dom.overnightBiasEl.value || "") : "",
+      fuel_burn_gph: dom.fuelBurnGphEl ? String(dom.fuelBurnGphEl.value || "") : "",
+      idle_burn_gph: dom.idleBurnGphEl ? String(dom.idleBurnGphEl.value || "") : "",
+      idle_hours_total: dom.idleHoursTotalEl ? String(dom.idleHoursTotalEl.value || "") : "",
+      weather_factor_pct: dom.weatherFactorPctEl ? String(dom.weatherFactorPctEl.value || "") : String(DEFAULT_WEATHER_FACTOR_PCT),
+      reserve_pct: dom.reservePctEl ? String(dom.reservePctEl.value || "") : String(DEFAULT_RESERVE_PCT),
+      fuel_price_per_gal: dom.fuelPricePerGalEl ? String(dom.fuelPricePerGalEl.value || "") : "",
       optional_stop_flags: Object.keys(state.selectedStopCodes).filter(function (code) {
         return !!state.selectedStopCodes[code];
       }),
       overrides: {
-        cruisingSpeed: !!state.manualOverrides.cruisingSpeed,
-        maxNmDay: !!state.manualOverrides.maxNmDay
+        cruisingSpeed: !!state.manualOverrides.cruisingSpeed
       }
     };
     try {
@@ -295,8 +358,8 @@
     if (dom.startDateEl && draft.start_date) {
       dom.startDateEl.value = String(draft.start_date);
     }
-    if (dom.directionEl && draft.direction) {
-      dom.directionEl.value = normalizeDirection(draft.direction);
+    if (draft.direction) {
+      setDirectionValue(draft.direction);
     }
 
     if (dom.paceEl && draft.pace_index !== undefined && draft.pace_index !== null && draft.pace_index !== "") {
@@ -307,21 +370,38 @@
     }
 
     state.manualOverrides.cruisingSpeed = !!(draft.overrides && draft.overrides.cruisingSpeed);
-    state.manualOverrides.maxNmDay = !!(draft.overrides && draft.overrides.maxNmDay);
 
     applyPaceDefaults(false);
 
     if (dom.cruisingSpeedEl && draft.cruising_speed !== undefined && draft.cruising_speed !== null && draft.cruising_speed !== "") {
       dom.cruisingSpeedEl.value = String(draft.cruising_speed);
     }
-    if (dom.maxNmDayEl && draft.max_nm_day !== undefined && draft.max_nm_day !== null && draft.max_nm_day !== "") {
-      dom.maxNmDayEl.value = String(draft.max_nm_day);
+    if (dom.underwayHoursEl && draft.underway_hours_per_day !== undefined && draft.underway_hours_per_day !== null && draft.underway_hours_per_day !== "") {
+      dom.underwayHoursEl.value = String(draft.underway_hours_per_day);
     }
     if (dom.comfortProfileEl && draft.comfort_profile) {
       dom.comfortProfileEl.value = String(draft.comfort_profile);
     }
     if (dom.overnightBiasEl && draft.overnight_bias) {
       dom.overnightBiasEl.value = String(draft.overnight_bias);
+    }
+    if (dom.fuelBurnGphEl && draft.fuel_burn_gph !== undefined && draft.fuel_burn_gph !== null) {
+      dom.fuelBurnGphEl.value = String(draft.fuel_burn_gph || "");
+    }
+    if (dom.idleBurnGphEl && draft.idle_burn_gph !== undefined && draft.idle_burn_gph !== null) {
+      dom.idleBurnGphEl.value = String(draft.idle_burn_gph || "");
+    }
+    if (dom.idleHoursTotalEl && draft.idle_hours_total !== undefined && draft.idle_hours_total !== null) {
+      dom.idleHoursTotalEl.value = String(draft.idle_hours_total || "");
+    }
+    if (dom.weatherFactorPctEl && draft.weather_factor_pct !== undefined && draft.weather_factor_pct !== null) {
+      dom.weatherFactorPctEl.value = String(draft.weather_factor_pct || DEFAULT_WEATHER_FACTOR_PCT);
+    }
+    if (dom.reservePctEl && draft.reserve_pct !== undefined && draft.reserve_pct !== null) {
+      dom.reservePctEl.value = String(draft.reserve_pct || DEFAULT_RESERVE_PCT);
+    }
+    if (dom.fuelPricePerGalEl && draft.fuel_price_per_gal !== undefined && draft.fuel_price_per_gal !== null) {
+      dom.fuelPricePerGalEl.value = String(draft.fuel_price_per_gal || "");
     }
 
     state.selectedStopCodes = {};
@@ -339,8 +419,13 @@
   function clearPreview() {
     if (dom.totalNmEl) dom.totalNmEl.innerHTML = "0 <small>NM</small>";
     if (dom.estimatedDaysEl) dom.estimatedDaysEl.textContent = "0";
+    if (dom.estimatedDaysSubEl) dom.estimatedDaysSubEl.textContent = "Pace-driven estimate";
     if (dom.lockCountEl) dom.lockCountEl.textContent = "0";
     if (dom.offshoreCountEl) dom.offshoreCountEl.textContent = "0";
+    if (dom.estimatedFuelEl) dom.estimatedFuelEl.innerHTML = "-- <small>gal</small>";
+    if (dom.estimatedFuelSubEl) dom.estimatedFuelSubEl.textContent = "Required = base + reserve";
+    if (dom.fuelCostEl) dom.fuelCostEl.innerHTML = "-- <small>USD</small>";
+    if (dom.fuelCostSubEl) dom.fuelCostSubEl.textContent = "Required fuel x price";
     if (dom.legCountEl) dom.legCountEl.textContent = "0 legs";
     if (dom.legListEl) dom.legListEl.innerHTML = '<div class="fpw-routegen__empty">Pick template/start/end to see a live preview.</div>';
   }
@@ -746,6 +831,7 @@
 
     renderSelect(dom.startSelectEl, startDisplayOptions, "Select start location", selectedStart);
     renderSelect(dom.endSelectEl, endDisplayOptions, "Select end location", selectedEnd);
+    updateDirectionControlAvailability();
 
     renderOptionalStops();
     state.suppressAutoSelectOnce = false;
@@ -836,8 +922,8 @@
       setActiveTemplate(templateCode, { restoreDraft: false, rememberSelection: false });
     }
 
-    if (dom.directionEl && (inputs.direction !== undefined || inputs.DIRECTION !== undefined)) {
-      dom.directionEl.value = normalizeDirection(inputs.direction !== undefined ? inputs.direction : inputs.DIRECTION);
+    if (inputs.direction !== undefined || inputs.DIRECTION !== undefined) {
+      setDirectionValue(inputs.direction !== undefined ? inputs.direction : inputs.DIRECTION);
     }
     if (dom.startDateEl && (inputs.start_date !== undefined || inputs.START_DATE !== undefined)) {
       dom.startDateEl.value = String(inputs.start_date !== undefined ? inputs.start_date : inputs.START_DATE);
@@ -848,21 +934,48 @@
 
     updatePaceLabel();
     state.manualOverrides.cruisingSpeed = false;
-    state.manualOverrides.maxNmDay = false;
     applyPaceDefaults(true);
     updatePaceOverrideUI();
 
     if (dom.cruisingSpeedEl && (inputs.cruising_speed !== undefined || inputs.CRUISING_SPEED !== undefined)) {
       dom.cruisingSpeedEl.value = String(inputs.cruising_speed !== undefined ? inputs.cruising_speed : inputs.CRUISING_SPEED);
     }
-    if (dom.maxNmDayEl && (inputs.max_nm_day !== undefined || inputs.MAX_NM_DAY !== undefined)) {
-      dom.maxNmDayEl.value = String(inputs.max_nm_day !== undefined ? inputs.max_nm_day : inputs.MAX_NM_DAY);
+    if (dom.underwayHoursEl && (inputs.underway_hours_per_day !== undefined || inputs.UNDERWAY_HOURS_PER_DAY !== undefined)) {
+      dom.underwayHoursEl.value = String(
+        inputs.underway_hours_per_day !== undefined ? inputs.underway_hours_per_day : inputs.UNDERWAY_HOURS_PER_DAY
+      );
     }
     if (dom.comfortProfileEl && (inputs.comfort_profile !== undefined || inputs.COMFORT_PROFILE !== undefined)) {
       dom.comfortProfileEl.value = String(inputs.comfort_profile !== undefined ? inputs.comfort_profile : inputs.COMFORT_PROFILE);
     }
     if (dom.overnightBiasEl && (inputs.overnight_bias !== undefined || inputs.OVERNIGHT_BIAS !== undefined)) {
       dom.overnightBiasEl.value = String(inputs.overnight_bias !== undefined ? inputs.overnight_bias : inputs.OVERNIGHT_BIAS);
+    }
+    if (dom.fuelBurnGphEl && (inputs.fuel_burn_gph !== undefined || inputs.FUEL_BURN_GPH !== undefined)) {
+      dom.fuelBurnGphEl.value = String(inputs.fuel_burn_gph !== undefined ? inputs.fuel_burn_gph : inputs.FUEL_BURN_GPH);
+    }
+    if (dom.idleBurnGphEl && (inputs.idle_burn_gph !== undefined || inputs.IDLE_BURN_GPH !== undefined)) {
+      dom.idleBurnGphEl.value = String(inputs.idle_burn_gph !== undefined ? inputs.idle_burn_gph : inputs.IDLE_BURN_GPH);
+    }
+    if (dom.idleHoursTotalEl && (inputs.idle_hours_total !== undefined || inputs.IDLE_HOURS_TOTAL !== undefined)) {
+      dom.idleHoursTotalEl.value = String(
+        inputs.idle_hours_total !== undefined ? inputs.idle_hours_total : inputs.IDLE_HOURS_TOTAL
+      );
+    }
+    if (dom.weatherFactorPctEl && (inputs.weather_factor_pct !== undefined || inputs.WEATHER_FACTOR_PCT !== undefined)) {
+      dom.weatherFactorPctEl.value = String(
+        inputs.weather_factor_pct !== undefined ? inputs.weather_factor_pct : inputs.WEATHER_FACTOR_PCT
+      );
+    }
+    if (dom.reservePctEl && (inputs.reserve_pct !== undefined || inputs.RESERVE_PCT !== undefined)) {
+      dom.reservePctEl.value = String(
+        inputs.reserve_pct !== undefined ? inputs.reserve_pct : inputs.RESERVE_PCT
+      );
+    }
+    if (dom.fuelPricePerGalEl && (inputs.fuel_price_per_gal !== undefined || inputs.FUEL_PRICE_PER_GAL !== undefined)) {
+      dom.fuelPricePerGalEl.value = String(
+        inputs.fuel_price_per_gal !== undefined ? inputs.fuel_price_per_gal : inputs.FUEL_PRICE_PER_GAL
+      );
     }
 
     state.selectedStopCodes = {};
@@ -886,13 +999,19 @@
 
     state.editorBaseline = {
       template_code: templateCode || state.activeTemplateCode,
-      direction: dom.directionEl ? normalizeDirection(dom.directionEl.value) : "CCW",
+      direction: getDirectionValue(),
       start_date: dom.startDateEl ? String(dom.startDateEl.value || "") : "",
       pace_index: getSelectedPaceIndex(),
       cruising_speed: dom.cruisingSpeedEl ? String(dom.cruisingSpeedEl.value || "") : "",
-      max_nm_day: dom.maxNmDayEl ? String(dom.maxNmDayEl.value || "") : "",
+      underway_hours_per_day: dom.underwayHoursEl ? String(dom.underwayHoursEl.value || "") : "8",
       comfort_profile: dom.comfortProfileEl ? String(dom.comfortProfileEl.value || "") : "PREFER_INSIDE",
       overnight_bias: dom.overnightBiasEl ? String(dom.overnightBiasEl.value || "") : "MARINAS",
+      fuel_burn_gph: dom.fuelBurnGphEl ? String(dom.fuelBurnGphEl.value || "") : "",
+      idle_burn_gph: dom.idleBurnGphEl ? String(dom.idleBurnGphEl.value || "") : "",
+      idle_hours_total: dom.idleHoursTotalEl ? String(dom.idleHoursTotalEl.value || "") : "",
+      weather_factor_pct: dom.weatherFactorPctEl ? String(dom.weatherFactorPctEl.value || "") : String(DEFAULT_WEATHER_FACTOR_PCT),
+      reserve_pct: dom.reservePctEl ? String(dom.reservePctEl.value || "") : String(DEFAULT_RESERVE_PCT),
+      fuel_price_per_gal: dom.fuelPricePerGalEl ? String(dom.fuelPricePerGalEl.value || "") : "",
       optional_stop_flags: Object.keys(state.selectedStopCodes).filter(function (code) {
         return !!state.selectedStopCodes[code];
       }),
@@ -913,16 +1032,22 @@
     var opts = options || {};
     var restoreDraft = (opts.restoreDraft !== undefined) ? !!opts.restoreDraft : !state.freshStartSession;
     var rememberSelection = (opts.rememberSelection !== undefined) ? !!opts.rememberSelection : true;
+    var allowEmpty = !!opts.allowEmpty;
+    var freshGeneratorMode = (state.modalMode === "generator" && state.freshStartSession);
     var desired = String(templateCode || "").trim();
     var template = getTemplateByCode(desired);
 
-    if (!template && state.templates.length) {
+    if (!template && !allowEmpty && !freshGeneratorMode && state.templates.length) {
       template = state.templates[0];
     }
     if (!template) {
       state.activeTemplateCode = "";
       renderTemplateSelect();
       updateTemplateMeta(null);
+      if (dom.previewTemplateEl) {
+        dom.previewTemplateEl.textContent = "Template: -";
+      }
+      state.pendingDraft = null;
       return;
     }
 
@@ -959,17 +1084,24 @@
 
     return {
       template_code: state.activeTemplateCode,
-      direction: dom.directionEl ? normalizeDirection(dom.directionEl.value) : "CCW",
+      direction: getDirectionValue(),
       start_segment_id: dom.startSelectEl ? String(dom.startSelectEl.value || "") : "",
       end_segment_id: dom.endSelectEl ? String(dom.endSelectEl.value || "") : "",
       start_location_label: selectedStartMeta ? String(selectedStartMeta.LABEL || selectedStartMeta.label || "") : "",
       end_location_label: selectedEndMeta ? String(selectedEndMeta.LABEL || selectedEndMeta.label || "") : "",
       start_date: dom.startDateEl ? String(dom.startDateEl.value || "") : "",
       pace: getSelectedPacePreset().key,
-      cruising_speed: dom.cruisingSpeedEl ? String(dom.cruisingSpeedEl.value || "") : "",
-      max_nm_day: dom.maxNmDayEl ? String(dom.maxNmDayEl.value || "") : "",
+      cruising_speed: String(getMaxSpeedKn()),
+      effective_cruising_speed: String(getEffectiveCruisingSpeed()),
+      underway_hours_per_day: dom.underwayHoursEl ? String(dom.underwayHoursEl.value || "") : "8",
       comfort_profile: dom.comfortProfileEl ? String(dom.comfortProfileEl.value || "") : "PREFER_INSIDE",
       overnight_bias: dom.overnightBiasEl ? String(dom.overnightBiasEl.value || "") : "MARINAS",
+      fuel_burn_gph: dom.fuelBurnGphEl ? String(dom.fuelBurnGphEl.value || "") : "",
+      idle_burn_gph: dom.idleBurnGphEl ? String(dom.idleBurnGphEl.value || "") : "",
+      idle_hours_total: dom.idleHoursTotalEl ? String(dom.idleHoursTotalEl.value || "") : "",
+      weather_factor_pct: dom.weatherFactorPctEl ? String(dom.weatherFactorPctEl.value || "") : String(DEFAULT_WEATHER_FACTOR_PCT),
+      reserve_pct: dom.reservePctEl ? String(dom.reservePctEl.value || "") : String(DEFAULT_RESERVE_PCT),
+      fuel_price_per_gal: dom.fuelPricePerGalEl ? String(dom.fuelPricePerGalEl.value || "") : "",
       optional_stop_flags: selectedStops
     };
   }
@@ -987,7 +1119,7 @@
 
     var requestPayload = {
       template_code: state.activeTemplateCode,
-      direction: dom.directionEl ? normalizeDirection(dom.directionEl.value) : "CCW"
+      direction: getDirectionValue()
     };
 
     setStatus("Loading available start/end locations...");
@@ -1062,6 +1194,7 @@
     var sourceData = payload && payload.DATA ? payload.DATA : payload;
     var totals = sourceData && sourceData.totals ? sourceData.totals : (sourceData && sourceData.TOTALS ? sourceData.TOTALS : {});
     var legs = sourceData && sourceData.legs ? sourceData.legs : (sourceData && sourceData.LEGS ? sourceData.LEGS : []);
+    var paceLabel = getSelectedPacePreset().label;
 
     var totalNm = parseFloat(
       totals.total_nm !== undefined ? totals.total_nm :
@@ -1081,18 +1214,95 @@
         (totals.OFFSHORE_LEG_COUNT !== undefined ? totals.OFFSHORE_LEG_COUNT : 0),
       10
     );
+    var estimatedFuelGallons = parseFloat(
+      totals.required_fuel_gallons !== undefined ? totals.required_fuel_gallons :
+        (totals.REQUIRED_FUEL_GALLONS !== undefined ? totals.REQUIRED_FUEL_GALLONS :
+          (totals.estimated_fuel_gallons !== undefined ? totals.estimated_fuel_gallons :
+            (totals.ESTIMATED_FUEL_GALLONS !== undefined ? totals.ESTIMATED_FUEL_GALLONS : NaN)))
+    );
+    var baseFuelGallons = parseFloat(
+      totals.base_fuel_gallons !== undefined ? totals.base_fuel_gallons :
+        (totals.BASE_FUEL_GALLONS !== undefined ? totals.BASE_FUEL_GALLONS : NaN)
+    );
+    var reserveFuelGallons = parseFloat(
+      totals.reserve_fuel_gallons !== undefined ? totals.reserve_fuel_gallons :
+        (totals.RESERVE_FUEL_GALLONS !== undefined ? totals.RESERVE_FUEL_GALLONS : NaN)
+    );
+    var reservePct = parseFloat(
+      totals.reserve_pct !== undefined ? totals.reserve_pct :
+        (totals.RESERVE_PCT !== undefined ? totals.RESERVE_PCT : NaN)
+    );
+    var fuelCostEstimate = parseFloat(
+      totals.fuel_cost_estimate !== undefined ? totals.fuel_cost_estimate :
+        (totals.FUEL_COST_ESTIMATE !== undefined ? totals.FUEL_COST_ESTIMATE : NaN)
+    );
+    var runHours = parseFloat(
+      totals.run_hours !== undefined ? totals.run_hours :
+        (totals.TOTAL_RUN_HOURS !== undefined ? totals.TOTAL_RUN_HOURS :
+          (totals.total_run_hours !== undefined ? totals.total_run_hours : NaN))
+    );
+    var idleHours = parseFloat(
+      totals.idle_hours !== undefined ? totals.idle_hours :
+        (totals.IDLE_HOURS_TOTAL !== undefined ? totals.IDLE_HOURS_TOTAL : NaN)
+    );
+    var totalHours = parseFloat(
+      totals.total_hours !== undefined ? totals.total_hours :
+        (totals.TOTAL_HOURS !== undefined ? totals.TOTAL_HOURS : NaN)
+    );
+    var fuelPricePerGal = parseFloat(
+      totals.fuel_price_per_gal !== undefined ? totals.fuel_price_per_gal :
+        (totals.FUEL_PRICE_PER_GAL !== undefined ? totals.FUEL_PRICE_PER_GAL : NaN)
+    );
 
     if (dom.totalNmEl) dom.totalNmEl.innerHTML = formatNumber(Number.isFinite(totalNm) ? totalNm : 0, 1) + ' <small>NM</small>';
     if (dom.estimatedDaysEl) dom.estimatedDaysEl.textContent = String(Number.isFinite(estimatedDays) ? Math.max(0, Math.round(estimatedDays)) : 0);
     if (dom.lockCountEl) dom.lockCountEl.textContent = String(Number.isFinite(lockCount) ? Math.max(0, lockCount) : 0);
     if (dom.offshoreCountEl) dom.offshoreCountEl.textContent = String(Number.isFinite(offshoreLegCount) ? Math.max(0, offshoreLegCount) : 0);
+    if (dom.estimatedFuelEl) {
+      if (Number.isFinite(estimatedFuelGallons) && estimatedFuelGallons >= 0) {
+        dom.estimatedFuelEl.innerHTML = formatNumber(estimatedFuelGallons, 1) + ' <small>gal</small>';
+      } else {
+        dom.estimatedFuelEl.innerHTML = "-- <small>gal</small>";
+      }
+    }
+    if (dom.fuelCostEl) {
+      if (Number.isFinite(fuelCostEstimate) && fuelCostEstimate >= 0 && Number.isFinite(fuelPricePerGal) && fuelPricePerGal > 0) {
+        dom.fuelCostEl.innerHTML = formatCurrency(fuelCostEstimate) + ' <small>USD</small>';
+      } else {
+        dom.fuelCostEl.innerHTML = "-- <small>USD</small>";
+      }
+    }
 
     if (dom.legCountEl) {
       dom.legCountEl.textContent = String(Array.isArray(legs) ? legs.length : 0) + " legs";
     }
 
     if (dom.estimatedDaysSubEl) {
-      dom.estimatedDaysSubEl.textContent = fromTimeline ? "Generated route timeline" : ("Pace: " + getSelectedPacePreset().label);
+      if (fromTimeline) {
+        dom.estimatedDaysSubEl.textContent = "Generated route timeline";
+      } else if (Number.isFinite(runHours) && Number.isFinite(idleHours) && Number.isFinite(totalHours)) {
+        dom.estimatedDaysSubEl.textContent = "Run " + formatNumber(runHours, 1) + "h + Idle " + formatNumber(idleHours, 1) + "h = " + formatNumber(totalHours, 1) + "h";
+      } else {
+        dom.estimatedDaysSubEl.textContent = "Pace: " + paceLabel;
+      }
+    }
+    if (dom.estimatedFuelSubEl) {
+      if (fromTimeline) {
+        dom.estimatedFuelSubEl.textContent = "Fuel estimate unavailable from timeline";
+      } else if (Number.isFinite(baseFuelGallons) && Number.isFinite(reserveFuelGallons) && Number.isFinite(reservePct)) {
+        dom.estimatedFuelSubEl.textContent = "Base " + formatNumber(baseFuelGallons, 1) + " + Reserve (" + formatNumber(reservePct, 0) + "%) " + formatNumber(reserveFuelGallons, 1);
+      } else {
+        dom.estimatedFuelSubEl.textContent = "Required = base + reserve";
+      }
+    }
+    if (dom.fuelCostSubEl) {
+      if (fromTimeline) {
+        dom.fuelCostSubEl.textContent = "Cost estimate unavailable from timeline";
+      } else if (Number.isFinite(fuelPricePerGal) && fuelPricePerGal > 0) {
+        dom.fuelCostSubEl.textContent = "Required fuel x $" + formatNumber(fuelPricePerGal, 2) + "/gal";
+      } else {
+        dom.fuelCostSubEl.textContent = "Enter fuel price to estimate";
+      }
     }
 
     renderLegs(legs);
@@ -1373,11 +1583,20 @@
     state.selectedStopCodes = {};
     state.pendingDraft = null;
     state.manualOverrides.cruisingSpeed = false;
-    state.manualOverrides.maxNmDay = false;
     state.editorBaseline = null;
     state.suppressAutoSelectOnce = false;
+    state.activeTemplateCode = "";
 
-    if (dom.directionEl) dom.directionEl.value = "CCW";
+    if (dom.templateSelectEl) {
+      dom.templateSelectEl.innerHTML = '<option value="">Select template</option>';
+      dom.templateSelectEl.value = "";
+      dom.templateSelectEl.disabled = false;
+    }
+    updateTemplateMeta(null);
+    if (dom.previewTemplateEl) {
+      dom.previewTemplateEl.textContent = "Template: -";
+    }
+    setDirectionValue("CCW");
     if (dom.startDateEl) dom.startDateEl.value = "";
     if (dom.startSelectEl) {
       dom.startSelectEl.innerHTML = '<option value="">Select start location</option>';
@@ -1388,12 +1607,20 @@
       dom.endSelectEl.value = "";
     }
     if (dom.paceEl) dom.paceEl.value = "0";
+    if (dom.underwayHoursEl) dom.underwayHoursEl.value = "8";
     if (dom.comfortProfileEl) dom.comfortProfileEl.value = "PREFER_INSIDE";
     if (dom.overnightBiasEl) dom.overnightBiasEl.value = "MARINAS";
+    if (dom.fuelBurnGphEl) dom.fuelBurnGphEl.value = "";
+    if (dom.idleBurnGphEl) dom.idleBurnGphEl.value = "";
+    if (dom.idleHoursTotalEl) dom.idleHoursTotalEl.value = "";
+    if (dom.weatherFactorPctEl) dom.weatherFactorPctEl.value = String(DEFAULT_WEATHER_FACTOR_PCT);
+    if (dom.reservePctEl) dom.reservePctEl.value = String(DEFAULT_RESERVE_PCT);
+    if (dom.fuelPricePerGalEl) dom.fuelPricePerGalEl.value = "";
     setTodayIfMissing();
     updatePaceLabel();
     applyPaceDefaults(true);
     updatePaceOverrideUI();
+    updateDirectionControlAvailability();
     setModalModeUI();
   }
 
@@ -1451,13 +1678,14 @@
         if (!freshStart) {
           preferred = readTemplateMemory();
         }
-        if (!preferred && state.templates.length) {
+        if (!freshStart && !preferred && state.templates.length) {
           preferred = String(state.templates[0].SHORT_CODE || state.templates[0].CODE || "").trim();
         }
 
         setActiveTemplate(preferred, {
           restoreDraft: !freshStart,
-          rememberSelection: !freshStart
+          rememberSelection: !freshStart,
+          allowEmpty: freshStart
         });
         return fetchOptions();
       })
@@ -1489,6 +1717,7 @@
 
   function onFormChange() {
     clearError();
+    updateDirectionControlAvailability();
     if (state.modalMode !== "editor") {
       saveDraft();
     }
@@ -1502,12 +1731,13 @@
 
     // In fresh "new route" sessions, align template change to default direction first.
     // Users can still switch to CW explicitly afterward.
-    if (state.freshStartSession && dom.directionEl) {
-      dom.directionEl.value = "CCW";
+    if (state.freshStartSession) {
+      setDirectionValue("CCW");
     }
 
     if (dom.startSelectEl) dom.startSelectEl.value = "";
     if (dom.endSelectEl) dom.endSelectEl.value = "";
+    updateDirectionControlAvailability();
 
     setActiveTemplate(code);
     fetchOptions().then(function () {
@@ -1531,12 +1761,18 @@
       end_label: ""
     };
     state.manualOverrides.cruisingSpeed = false;
-    state.manualOverrides.maxNmDay = false;
     state.suppressAutoSelectOnce = true;
 
     if (dom.paceEl) dom.paceEl.value = "0";
+    if (dom.underwayHoursEl) dom.underwayHoursEl.value = "8";
     if (dom.comfortProfileEl) dom.comfortProfileEl.value = "PREFER_INSIDE";
     if (dom.overnightBiasEl) dom.overnightBiasEl.value = "MARINAS";
+    if (dom.fuelBurnGphEl) dom.fuelBurnGphEl.value = "";
+    if (dom.idleBurnGphEl) dom.idleBurnGphEl.value = "";
+    if (dom.idleHoursTotalEl) dom.idleHoursTotalEl.value = "";
+    if (dom.weatherFactorPctEl) dom.weatherFactorPctEl.value = String(DEFAULT_WEATHER_FACTOR_PCT);
+    if (dom.reservePctEl) dom.reservePctEl.value = String(DEFAULT_RESERVE_PCT);
+    if (dom.fuelPricePerGalEl) dom.fuelPricePerGalEl.value = "";
 
     applyPaceDefaults(true);
     updatePaceLabel();
@@ -1545,6 +1781,7 @@
 
     if (dom.startSelectEl) dom.startSelectEl.value = "";
     if (dom.endSelectEl) dom.endSelectEl.value = "";
+    updateDirectionControlAvailability();
 
     clearPreview();
     setStatus("Waiting for required fields.");
@@ -1567,14 +1804,11 @@
     setStatus("Resetting to saved route...");
 
     state.manualOverrides.cruisingSpeed = false;
-    state.manualOverrides.maxNmDay = false;
 
     if (baseline.template_code) {
       setActiveTemplate(String(baseline.template_code), { restoreDraft: false, rememberSelection: false });
     }
-    if (dom.directionEl) {
-      dom.directionEl.value = normalizeDirection(baseline.direction);
-    }
+    setDirectionValue(baseline.direction);
     if (dom.startDateEl) {
       dom.startDateEl.value = String(baseline.start_date || "");
     }
@@ -1587,9 +1821,15 @@
     updatePaceLabel();
 
     if (dom.cruisingSpeedEl) dom.cruisingSpeedEl.value = String(baseline.cruising_speed || "");
-    if (dom.maxNmDayEl) dom.maxNmDayEl.value = String(baseline.max_nm_day || "");
+    if (dom.underwayHoursEl) dom.underwayHoursEl.value = String(baseline.underway_hours_per_day || "8");
     if (dom.comfortProfileEl) dom.comfortProfileEl.value = String(baseline.comfort_profile || "PREFER_INSIDE");
     if (dom.overnightBiasEl) dom.overnightBiasEl.value = String(baseline.overnight_bias || "MARINAS");
+    if (dom.fuelBurnGphEl) dom.fuelBurnGphEl.value = String(baseline.fuel_burn_gph || "");
+    if (dom.idleBurnGphEl) dom.idleBurnGphEl.value = String(baseline.idle_burn_gph || "");
+    if (dom.idleHoursTotalEl) dom.idleHoursTotalEl.value = String(baseline.idle_hours_total || "");
+    if (dom.weatherFactorPctEl) dom.weatherFactorPctEl.value = String(baseline.weather_factor_pct || DEFAULT_WEATHER_FACTOR_PCT);
+    if (dom.reservePctEl) dom.reservePctEl.value = String(baseline.reserve_pct || DEFAULT_RESERVE_PCT);
+    if (dom.fuelPricePerGalEl) dom.fuelPricePerGalEl.value = String(baseline.fuel_price_per_gal || "");
     updatePaceOverrideUI();
 
     state.selectedStopCodes = {};
@@ -1641,6 +1881,34 @@
       start_label: endLabel,
       end_label: startLabel
     };
+  }
+
+  function onDirectionControlChange() {
+    clearError();
+    setDirectionValue(dom.directionToggleEl ? (dom.directionToggleEl.checked ? "CW" : "CCW") : getDirectionValue());
+    setStatus("Switching direction...");
+    queueDirectionSwapDraft();
+
+    if (dom.directionToggleEl) dom.directionToggleEl.disabled = true;
+    if (dom.directionEl) dom.directionEl.disabled = true;
+    if (dom.startSelectEl) dom.startSelectEl.disabled = true;
+    if (dom.endSelectEl) dom.endSelectEl.disabled = true;
+    if (dom.previewBtn) dom.previewBtn.disabled = true;
+    if (dom.generateBtn) dom.generateBtn.disabled = true;
+    if (dom.saveBtn) dom.saveBtn.disabled = true;
+
+    fetchOptions()
+      .then(function () {
+        onFormChange();
+      })
+      .finally(function () {
+        updateDirectionControlAvailability();
+        if (dom.startSelectEl) dom.startSelectEl.disabled = false;
+        if (dom.endSelectEl) dom.endSelectEl.disabled = false;
+        if (dom.previewBtn) dom.previewBtn.disabled = false;
+        if (dom.generateBtn) dom.generateBtn.disabled = false;
+        if (dom.saveBtn) dom.saveBtn.disabled = false;
+      });
   }
 
   function onStopToggleClick(event) {
@@ -1698,32 +1966,10 @@
       dom.optionalStopsEl.addEventListener("click", onStopToggleClick);
     }
 
-    if (dom.directionEl) {
-      dom.directionEl.addEventListener("change", function () {
-        clearError();
-        setStatus("Switching direction...");
-        queueDirectionSwapDraft();
-
-        if (dom.directionEl) dom.directionEl.disabled = true;
-        if (dom.startSelectEl) dom.startSelectEl.disabled = true;
-        if (dom.endSelectEl) dom.endSelectEl.disabled = true;
-        if (dom.previewBtn) dom.previewBtn.disabled = true;
-        if (dom.generateBtn) dom.generateBtn.disabled = true;
-        if (dom.saveBtn) dom.saveBtn.disabled = true;
-
-        fetchOptions()
-          .then(function () {
-            onFormChange();
-          })
-          .finally(function () {
-            if (dom.directionEl) dom.directionEl.disabled = false;
-            if (dom.startSelectEl) dom.startSelectEl.disabled = false;
-            if (dom.endSelectEl) dom.endSelectEl.disabled = false;
-            if (dom.previewBtn) dom.previewBtn.disabled = false;
-            if (dom.generateBtn) dom.generateBtn.disabled = false;
-            if (dom.saveBtn) dom.saveBtn.disabled = false;
-          });
-      });
+    if (dom.directionToggleEl) {
+      dom.directionToggleEl.addEventListener("change", onDirectionControlChange);
+    } else if (dom.directionEl) {
+      dom.directionEl.addEventListener("change", onDirectionControlChange);
     }
 
     if (dom.startDateEl) {
@@ -1759,18 +2005,39 @@
       });
     }
 
-    if (dom.maxNmDayEl) {
-      dom.maxNmDayEl.addEventListener("input", function () {
-        state.manualOverrides.maxNmDay = true;
-        updatePaceOverrideUI();
-        onFormChange();
-      });
+    if (dom.underwayHoursEl) {
+      dom.underwayHoursEl.addEventListener("input", onFormChange);
+      dom.underwayHoursEl.addEventListener("change", onFormChange);
+    }
+    if (dom.fuelBurnGphEl) {
+      dom.fuelBurnGphEl.addEventListener("input", onFormChange);
+      dom.fuelBurnGphEl.addEventListener("change", onFormChange);
+    }
+    if (dom.idleBurnGphEl) {
+      dom.idleBurnGphEl.addEventListener("input", onFormChange);
+      dom.idleBurnGphEl.addEventListener("change", onFormChange);
+    }
+    if (dom.idleHoursTotalEl) {
+      dom.idleHoursTotalEl.addEventListener("input", onFormChange);
+      dom.idleHoursTotalEl.addEventListener("change", onFormChange);
+    }
+    if (dom.weatherFactorPctEl) {
+      dom.weatherFactorPctEl.addEventListener("input", onFormChange);
+      dom.weatherFactorPctEl.addEventListener("change", onFormChange);
+    }
+    if (dom.reservePctEl) {
+      dom.reservePctEl.addEventListener("input", onFormChange);
+      dom.reservePctEl.addEventListener("change", onFormChange);
+    }
+    if (dom.fuelPricePerGalEl) {
+      dom.fuelPricePerGalEl.addEventListener("input", onFormChange);
+      dom.fuelPricePerGalEl.addEventListener("change", onFormChange);
     }
 
     if (dom.resetPaceBtn) {
       dom.resetPaceBtn.addEventListener("click", function () {
         state.manualOverrides.cruisingSpeed = false;
-        state.manualOverrides.maxNmDay = false;
+        if (dom.cruisingSpeedEl) dom.cruisingSpeedEl.value = String(DEFAULT_MAX_SPEED_KN);
         applyPaceDefaults(true);
         updatePaceOverrideUI();
         onFormChange();
@@ -1822,15 +2089,23 @@
     dom.endSelectEl = document.getElementById("routeGenEndLocation");
     dom.startDateEl = document.getElementById("routeGenStartDate");
     dom.directionEl = document.getElementById("routeGenDirection");
+    dom.directionToggleEl = document.getElementById("routeGenDirectionToggle");
+    dom.directionStateEl = document.getElementById("routeGenDirectionState");
     dom.paceEl = document.getElementById("routeGenPace");
     dom.paceLabelEl = document.getElementById("routeGenPaceLabel");
     dom.paceOverrideHintEl = document.getElementById("routeGenPaceOverrideHint");
     dom.resetPaceBtn = document.getElementById("routeGenResetPaceBtn");
 
     dom.cruisingSpeedEl = document.getElementById("routeGenCruisingSpeed");
-    dom.maxNmDayEl = document.getElementById("routeGenMaxNmDay");
+    dom.underwayHoursEl = document.getElementById("routeGenUnderwayHoursPerDay");
     dom.comfortProfileEl = document.getElementById("routeGenComfortProfile");
     dom.overnightBiasEl = document.getElementById("routeGenOvernightBias");
+    dom.fuelBurnGphEl = document.getElementById("routeGenFuelBurnGph");
+    dom.idleBurnGphEl = document.getElementById("routeGenIdleBurnGph");
+    dom.idleHoursTotalEl = document.getElementById("routeGenIdleHoursTotal");
+    dom.weatherFactorPctEl = document.getElementById("routeGenWeatherFactorPct");
+    dom.reservePctEl = document.getElementById("routeGenReservePct");
+    dom.fuelPricePerGalEl = document.getElementById("routeGenFuelPricePerGal");
     dom.optionalStopsEl = document.getElementById("routeGenOptionalStops");
 
     dom.previewTemplateEl = document.getElementById("routeGenPreviewTemplate");
@@ -1839,6 +2114,10 @@
     dom.estimatedDaysSubEl = document.getElementById("routeGenEstimatedDaysSub");
     dom.lockCountEl = document.getElementById("routeGenLockCount");
     dom.offshoreCountEl = document.getElementById("routeGenOffshoreCount");
+    dom.estimatedFuelEl = document.getElementById("routeGenEstimatedFuel");
+    dom.estimatedFuelSubEl = document.getElementById("routeGenEstimatedFuelSub");
+    dom.fuelCostEl = document.getElementById("routeGenFuelCost");
+    dom.fuelCostSubEl = document.getElementById("routeGenFuelCostSub");
     dom.legCountEl = document.getElementById("routeGenLegCount");
     dom.legListEl = document.getElementById("routeGenLegList");
 
