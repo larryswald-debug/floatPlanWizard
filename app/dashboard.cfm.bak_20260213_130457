@@ -1081,9 +1081,71 @@
 <div class="modal fade" id="routeBuilderModal" tabindex="-1" aria-labelledby="routeBuilderLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content dashboard-card">
-            <div class="modal-body card-body routebuilder-modal-body p-0">
-                <h5 id="routeBuilderLabel" class="visually-hidden">Route Generator</h5>
-                <cfinclude template="../includes/modals/route_generator_modal.cfm">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="routeBuilderLabel">Generate My Expedition Route</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body routebuilder-modal-body">
+                <div id="routeBuilderAlert" class="alert d-none" role="alert"></div>
+                <div class="routebuilder-statusbar">
+                    <small id="routeBuilderStatus" class="card-subtitle"> </small>
+                    <small id="routeBuilderSaveIndicator" class="card-subtitle routebuilder-save-indicator"> </small>
+                </div>
+
+                <form id="routeBuilderForm" novalidate>
+                    <section id="routeBuilderStep1">
+                        <h2 class="h5 mb-3">Start Your Route</h2>
+                        <div class="row g-3">
+                            <div class="col-md-2">
+                                <label class="form-label" for="routeBuilderStartDate">Start Date *</label>
+                                <input id="routeBuilderStartDate" type="date" class="form-control" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="routeBuilderDirection">Direction *</label>
+                                <select id="routeBuilderDirection" class="form-select" required>
+                                    <option value="CCW" selected>Counterclockwise (Default)</option>
+                                    <option value="CW">Clockwise (Reverse)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="routeBuilderTripType">Trip Type *</label>
+                                <select id="routeBuilderTripType" class="form-select" required>
+                                    <option value="POINT_TO_POINT" selected>Point-to-Point</option>
+                                    <option value="FULL_LOOP">Full Loop</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="routeBuilderStartLocation">Start Location *</label>
+                                <select id="routeBuilderStartLocation" class="form-select" required>
+                                    <option value="">Select start location</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="routeBuilderEndLocation">Planned End Location *</label>
+                                <select id="routeBuilderEndLocation" class="form-select" required>
+                                    <option value="">Select planned end location</option>
+                                </select>
+                            </div>
+                        </div>
+                        <datalist id="routeBuilderLocations"></datalist>
+                    </section>
+
+                    <section id="routeBuilderStep2" class="d-none">
+                        <div class="routebuilder-editor-head">
+                            <div>
+                                <h2 class="h5 mb-1" id="routeBuilderRouteName">Generated Route</h2>
+                                <small class="card-subtitle">Code: <span id="routeBuilderRouteCode"></span></small>
+                            </div>
+                            <div class="routebuilder-summary" id="routeBuilderSummary">—</div>
+                        </div>
+                        <div class="accordion expedition-accordion routebuilder-accordion" id="routeBuilderTimelineEditor"></div>
+                    </section>
+                </form>
+            </div>
+            <div class="modal-footer card-footer">
+                <button type="button" class="btn-primary" id="routeBuilderGenerateBtn">Generate Route</button>
+                <button type="button" class="btn-primary d-none" id="routeBuilderSaveBtn">Save</button>
+                <button type="button" class="btn-primary d-none" id="routeBuilderDoneBtn">Save & Close</button>
             </div>
         </div>
     </div>
@@ -1105,7 +1167,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20251227r"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20251227r"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20251227ak"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260214routegen17"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260212f"></script>
 
 <!-- Dashboard-specific JS -->
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260213b"></script>

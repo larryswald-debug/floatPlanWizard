@@ -39,9 +39,7 @@
     pendingDraft: null,
     lastGeneratedRouteCode: "",
     activeRouteCode: "",
-    modalInitSeq: 0,
-    editorBaseline: null,
-    suppressAutoSelectOnce: false
+    modalInitSeq: 0
   };
 
   function isActiveModalInit(seq) {
@@ -154,7 +152,6 @@
     var isEditor = state.modalMode === "editor";
     if (dom.generateBtn) dom.generateBtn.classList.toggle("d-none", isEditor);
     if (dom.saveBtn) dom.saveBtn.classList.toggle("d-none", !isEditor);
-    if (dom.resetBtn) dom.resetBtn.textContent = isEditor ? "Reset to Saved" : "Reset";
     if (dom.hintLineEl) {
       dom.hintLineEl.textContent = isEditor
         ? "Editing existing route: Preview updates, then Save Route to update this route."
@@ -470,28 +467,6 @@
     return optionLabelText(row).toLowerCase();
   }
 
-  function findOptionByLabel(list, label) {
-    var target = String(label || "").trim().toLowerCase();
-    if (!target || !Array.isArray(list)) return null;
-    var i;
-    for (i = 0; i < list.length; i += 1) {
-      if (optionLabelKey(list[i]) === target) {
-        return list[i];
-      }
-    }
-    return null;
-  }
-
-  function resolveSelectionSegmentId(list, preferredSegmentId, preferredLabel) {
-    var byId = getSelectedOptionMeta(list, preferredSegmentId);
-    if (byId) return optionSegmentId(byId);
-
-    var byLabel = findOptionByLabel(list, preferredLabel);
-    if (byLabel) return optionSegmentId(byLabel);
-
-    return "";
-  }
-
   function uniqueStartOptionsForDisplay(list) {
     var rows = Array.isArray(list) ? list : [];
     var chosen = {};
@@ -692,10 +667,7 @@
     var i = 0;
     var selectedStartExists = false;
     var selectedEndExists = false;
-    var suppressAutoSelectOnce = !!state.suppressAutoSelectOnce;
-    var allowAutoSelect = !(state.modalMode === "generator" && state.freshStartSession) && !suppressAutoSelectOnce;
-    var pendingStartLabel = "";
-    var pendingEndLabel = "";
+    var allowAutoSelect = !(state.modalMode === "generator" && state.freshStartSession);
 
     if (state.pendingDraft) {
       if (state.pendingDraft.start_segment_id !== undefined && state.pendingDraft.start_segment_id !== null && state.pendingDraft.start_segment_id !== "") {
@@ -704,17 +676,7 @@
       if (state.pendingDraft.end_segment_id !== undefined && state.pendingDraft.end_segment_id !== null && state.pendingDraft.end_segment_id !== "") {
         selectedEnd = String(state.pendingDraft.end_segment_id);
       }
-      if (state.pendingDraft.start_label !== undefined && state.pendingDraft.start_label !== null) {
-        pendingStartLabel = String(state.pendingDraft.start_label || "").trim();
-      }
-      if (state.pendingDraft.end_label !== undefined && state.pendingDraft.end_label !== null) {
-        pendingEndLabel = String(state.pendingDraft.end_label || "").trim();
-      }
       state.pendingDraft = null;
-    }
-
-    if (!getSelectedOptionMeta(startDisplayOptions, selectedStart) && pendingStartLabel) {
-      selectedStart = resolveSelectionSegmentId(startDisplayOptions, selectedStart, pendingStartLabel);
     }
 
     for (i = 0; i < startDisplayOptions.length; i += 1) {
@@ -730,10 +692,6 @@
     var selectedStartMeta = getSelectedOptionMeta(state.options.startOptions, selectedStart);
     var endDisplayOptions = uniqueEndOptionsForDisplay(state.options.endOptions, selectedStart, selectedStartMeta);
 
-    if (!getSelectedOptionMeta(endDisplayOptions, selectedEnd) && pendingEndLabel) {
-      selectedEnd = resolveSelectionSegmentId(endDisplayOptions, selectedEnd, pendingEndLabel);
-    }
-
     for (i = 0; i < endDisplayOptions.length; i += 1) {
       if (optionSegmentId(endDisplayOptions[i]) === selectedEnd) {
         selectedEndExists = true;
@@ -748,7 +706,6 @@
     renderSelect(dom.endSelectEl, endDisplayOptions, "Select end location", selectedEnd);
 
     renderOptionalStops();
-    state.suppressAutoSelectOnce = false;
   }
 
   function extractUserId(payload) {
@@ -881,30 +838,6 @@
       end_segment_id: String(
         inputs.end_segment_id !== undefined ? inputs.end_segment_id :
           (inputs.END_SEGMENT_ID !== undefined ? inputs.END_SEGMENT_ID : "")
-      ).trim()
-    };
-
-    state.editorBaseline = {
-      template_code: templateCode || state.activeTemplateCode,
-      direction: dom.directionEl ? normalizeDirection(dom.directionEl.value) : "CCW",
-      start_date: dom.startDateEl ? String(dom.startDateEl.value || "") : "",
-      pace_index: getSelectedPaceIndex(),
-      cruising_speed: dom.cruisingSpeedEl ? String(dom.cruisingSpeedEl.value || "") : "",
-      max_nm_day: dom.maxNmDayEl ? String(dom.maxNmDayEl.value || "") : "",
-      comfort_profile: dom.comfortProfileEl ? String(dom.comfortProfileEl.value || "") : "PREFER_INSIDE",
-      overnight_bias: dom.overnightBiasEl ? String(dom.overnightBiasEl.value || "") : "MARINAS",
-      optional_stop_flags: Object.keys(state.selectedStopCodes).filter(function (code) {
-        return !!state.selectedStopCodes[code];
-      }),
-      start_segment_id: state.pendingDraft.start_segment_id,
-      end_segment_id: state.pendingDraft.end_segment_id,
-      start_label: String(
-        inputs.start_location_label !== undefined ? inputs.start_location_label :
-          (inputs.START_LOCATION_LABEL !== undefined ? inputs.START_LOCATION_LABEL : "")
-      ).trim(),
-      end_label: String(
-        inputs.end_location_label !== undefined ? inputs.end_location_label :
-          (inputs.END_LOCATION_LABEL !== undefined ? inputs.END_LOCATION_LABEL : "")
       ).trim()
     };
   }
@@ -1374,8 +1307,6 @@
     state.pendingDraft = null;
     state.manualOverrides.cruisingSpeed = false;
     state.manualOverrides.maxNmDay = false;
-    state.editorBaseline = null;
-    state.suppressAutoSelectOnce = false;
 
     if (dom.directionEl) dom.directionEl.value = "CCW";
     if (dom.startDateEl) dom.startDateEl.value = "";
@@ -1515,134 +1446,6 @@
     });
   }
 
-  function resetGeneratorSelections() {
-    clearError();
-    if (state.previewTimer) {
-      window.clearTimeout(state.previewTimer);
-      state.previewTimer = 0;
-    }
-    invalidateAsyncResponses();
-
-    state.selectedStopCodes = {};
-    state.pendingDraft = {
-      start_segment_id: "",
-      end_segment_id: "",
-      start_label: "",
-      end_label: ""
-    };
-    state.manualOverrides.cruisingSpeed = false;
-    state.manualOverrides.maxNmDay = false;
-    state.suppressAutoSelectOnce = true;
-
-    if (dom.paceEl) dom.paceEl.value = "0";
-    if (dom.comfortProfileEl) dom.comfortProfileEl.value = "PREFER_INSIDE";
-    if (dom.overnightBiasEl) dom.overnightBiasEl.value = "MARINAS";
-
-    applyPaceDefaults(true);
-    updatePaceLabel();
-    updatePaceOverrideUI();
-    renderOptions();
-
-    if (dom.startSelectEl) dom.startSelectEl.value = "";
-    if (dom.endSelectEl) dom.endSelectEl.value = "";
-
-    clearPreview();
-    setStatus("Waiting for required fields.");
-    saveDraft();
-  }
-
-  function resetEditorToBaseline() {
-    var baseline = state.editorBaseline;
-    if (!baseline || typeof baseline !== "object") {
-      showError("No baseline found for this route.");
-      return;
-    }
-
-    clearError();
-    if (state.previewTimer) {
-      window.clearTimeout(state.previewTimer);
-      state.previewTimer = 0;
-    }
-    invalidateAsyncResponses();
-    setStatus("Resetting to saved route...");
-
-    state.manualOverrides.cruisingSpeed = false;
-    state.manualOverrides.maxNmDay = false;
-
-    if (baseline.template_code) {
-      setActiveTemplate(String(baseline.template_code), { restoreDraft: false, rememberSelection: false });
-    }
-    if (dom.directionEl) {
-      dom.directionEl.value = normalizeDirection(baseline.direction);
-    }
-    if (dom.startDateEl) {
-      dom.startDateEl.value = String(baseline.start_date || "");
-    }
-    if (dom.paceEl) {
-      var idx = parseInt(baseline.pace_index, 10);
-      dom.paceEl.value = String(Number.isFinite(idx) && idx >= 0 && idx <= 2 ? idx : 0);
-    }
-
-    applyPaceDefaults(true);
-    updatePaceLabel();
-
-    if (dom.cruisingSpeedEl) dom.cruisingSpeedEl.value = String(baseline.cruising_speed || "");
-    if (dom.maxNmDayEl) dom.maxNmDayEl.value = String(baseline.max_nm_day || "");
-    if (dom.comfortProfileEl) dom.comfortProfileEl.value = String(baseline.comfort_profile || "PREFER_INSIDE");
-    if (dom.overnightBiasEl) dom.overnightBiasEl.value = String(baseline.overnight_bias || "MARINAS");
-    updatePaceOverrideUI();
-
-    state.selectedStopCodes = {};
-    if (Array.isArray(baseline.optional_stop_flags)) {
-      baseline.optional_stop_flags.forEach(function (code) {
-        state.selectedStopCodes[String(code)] = true;
-      });
-    }
-
-    state.pendingDraft = {
-      start_segment_id: String(baseline.start_segment_id || ""),
-      end_segment_id: String(baseline.end_segment_id || ""),
-      start_label: String(baseline.start_label || ""),
-      end_label: String(baseline.end_label || "")
-    };
-
-    fetchOptions()
-      .then(function () {
-        return previewRoute(true);
-      })
-      .catch(function (err) {
-        if (err && err.code === "UNAUTHORIZED") {
-          redirectToLogin();
-          return;
-        }
-        showError((err && err.message) ? err.message : "Unable to reset this route.");
-      });
-  }
-
-  function onResetClick() {
-    if (state.modalMode === "editor") {
-      resetEditorToBaseline();
-      return;
-    }
-    resetGeneratorSelections();
-  }
-
-  function queueDirectionSwapDraft() {
-    var currentStartId = dom.startSelectEl ? String(dom.startSelectEl.value || "").trim() : "";
-    var currentEndId = dom.endSelectEl ? String(dom.endSelectEl.value || "").trim() : "";
-    var startMeta = getSelectedOptionMeta(state.options.startOptions, currentStartId);
-    var endMeta = getSelectedOptionMeta(state.options.endOptions, currentEndId);
-    var startLabel = startMeta ? optionLabelText(startMeta) : "";
-    var endLabel = endMeta ? optionLabelText(endMeta) : "";
-
-    state.pendingDraft = {
-      start_segment_id: currentEndId,
-      end_segment_id: currentStartId,
-      start_label: endLabel,
-      end_label: startLabel
-    };
-  }
-
   function onStopToggleClick(event) {
     var target = event.target;
     if (!target) return;
@@ -1678,10 +1481,6 @@
       });
     }
 
-    if (dom.resetBtn) {
-      dom.resetBtn.addEventListener("click", onResetClick);
-    }
-
     if (dom.generateBtn) {
       dom.generateBtn.addEventListener("click", generateRoute);
     }
@@ -1700,29 +1499,11 @@
 
     if (dom.directionEl) {
       dom.directionEl.addEventListener("change", function () {
-        clearError();
-        setStatus("Switching direction...");
-        queueDirectionSwapDraft();
-
-        if (dom.directionEl) dom.directionEl.disabled = true;
-        if (dom.startSelectEl) dom.startSelectEl.disabled = true;
-        if (dom.endSelectEl) dom.endSelectEl.disabled = true;
-        if (dom.previewBtn) dom.previewBtn.disabled = true;
-        if (dom.generateBtn) dom.generateBtn.disabled = true;
-        if (dom.saveBtn) dom.saveBtn.disabled = true;
-
-        fetchOptions()
-          .then(function () {
-            onFormChange();
-          })
-          .finally(function () {
-            if (dom.directionEl) dom.directionEl.disabled = false;
-            if (dom.startSelectEl) dom.startSelectEl.disabled = false;
-            if (dom.endSelectEl) dom.endSelectEl.disabled = false;
-            if (dom.previewBtn) dom.previewBtn.disabled = false;
-            if (dom.generateBtn) dom.generateBtn.disabled = false;
-            if (dom.saveBtn) dom.saveBtn.disabled = false;
-          });
+        if (dom.startSelectEl) dom.startSelectEl.value = "";
+        if (dom.endSelectEl) dom.endSelectEl.value = "";
+        fetchOptions().then(function () {
+          onFormChange();
+        });
       });
     }
 
@@ -1808,7 +1589,6 @@
     dom.closeBtn = document.getElementById("routeGenCloseBtn");
     dom.cancelBtn = document.getElementById("routeGenCancelBtn");
     dom.previewBtn = document.getElementById("routeGenPreviewBtn");
-    dom.resetBtn = document.getElementById("routeGenResetBtn");
     dom.saveBtn = document.getElementById("routeGenSaveBtn");
     dom.generateBtn = document.getElementById("routeGenGenerateBtn");
     dom.hintLineEl = document.getElementById("routeGenHintLine");

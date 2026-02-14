@@ -1344,6 +1344,7 @@
           + '    <div class="expedition-route-meta">' + pct + '% complete • ' + formatNumber(nm, 1) + ' NM • ' + formatNumber(locks, 0) + ' locks</div>'
           + '  </div>'
           + '  <div class="expedition-route-actions">'
+          + '    <button type="button" class="btn-secondary js-expedition-build-floatplans">Build Float Plans</button>'
           + '    <button type="button" class="btn-secondary js-expedition-view-edit">View / Edit</button>'
           + '    <button type="button" class="btn-secondary js-expedition-delete">Delete</button>'
           + '  </div>'
@@ -1387,8 +1388,97 @@
         });
     }
 
-    function fetchJson(url) {
-      return fetch(url, { credentials: "same-origin" })
+    function requestBuildFloatPlans(routeCode, rebuild) {
+      if (!routeCode) return Promise.resolve({ SUCCESS: false, MESSAGE: "routeCode is required." });
+      return fetchJson(routeBuilderUrl("buildFloatPlansFromRoute"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json; charset=utf-8"
+        },
+        body: JSON.stringify({
+          routeCode: routeCode,
+          mode: "DAILY",
+          rebuild: rebuild ? 1 : 0
+        })
+      });
+    }
+
+    function buildFloatPlans(routeCode, triggerButton) {
+      if (!routeCode) return Promise.resolve();
+      var originalText = "";
+      if (triggerButton) {
+        originalText = triggerButton.textContent;
+        triggerButton.disabled = true;
+        triggerButton.textContent = "Building...";
+      }
+
+      return requestBuildFloatPlans(routeCode, false)
+        .then(function (payload) {
+          if (!payload || payload.SUCCESS === true) {
+            return payload;
+          }
+
+          var errorCode = payload && payload.ERROR && payload.ERROR.CODE
+            ? String(payload.ERROR.CODE).toUpperCase()
+            : "";
+
+          if (errorCode === "FLOATPLANS_ALREADY_EXIST") {
+            var ask = (utils && typeof utils.showConfirmModal === "function")
+              ? utils.showConfirmModal("Draft float plans already exist for this route. Rebuild and replace them?")
+              : Promise.resolve(window.confirm("Draft float plans already exist for this route. Rebuild and replace them?"));
+            return ask.then(function (confirmed) {
+              if (!confirmed) return { CANCELLED: true };
+              return requestBuildFloatPlans(routeCode, true);
+            });
+          }
+          return payload;
+        })
+        .then(function (payload) {
+          if (!payload || payload.CANCELLED) return;
+          if (!payload || payload.SUCCESS === false) {
+            throw new Error((payload && payload.MESSAGE) ? payload.MESSAGE : "Unable to build float plans from route.");
+          }
+          var createdCount = Number.isFinite(parseInt(payload.CREATED_COUNT, 10))
+            ? parseInt(payload.CREATED_COUNT, 10)
+            : 0;
+          if (utils && typeof utils.showDashboardAlert === "function") {
+            utils.showDashboardAlert(
+              "Created " + createdCount + " draft float plan" + (createdCount === 1 ? "" : "s") + " from route.",
+              "success"
+            );
+          }
+          if (document && typeof window.CustomEvent === "function") {
+            document.dispatchEvent(new window.CustomEvent("fpw:floatplans-updated", {
+              detail: {
+                routeCode: routeCode,
+                routeInstanceId: payload.ROUTE_INSTANCE_ID || 0,
+                createdCount: createdCount
+              }
+            }));
+          }
+        })
+        .catch(function (err) {
+          var msg = (err && err.message) ? err.message : "Unable to build float plans from route.";
+          if (utils && typeof utils.showAlertModal === "function") {
+            utils.showAlertModal(msg);
+          } else {
+            setState("error", msg);
+          }
+        })
+        .finally(function () {
+          if (triggerButton) {
+            triggerButton.disabled = false;
+            triggerButton.textContent = originalText || "Build Float Plans";
+          }
+        });
+    }
+
+    function fetchJson(url, options) {
+      var fetchOptions = options || {};
+      if (!Object.prototype.hasOwnProperty.call(fetchOptions, "credentials")) {
+        fetchOptions.credentials = "same-origin";
+      }
+      return fetch(url, fetchOptions)
         .then(function (response) {
           if (response.status === 401 || response.status === 403) {
             var authErr = new Error("Unauthorized");
@@ -1482,6 +1572,10 @@
           if (target.classList.contains("js-expedition-view-edit")) {
             setActiveRoute(routeCode);
             openEditor(routeCode);
+            return;
+          }
+          if (target.classList.contains("js-expedition-build-floatplans")) {
+            buildFloatPlans(routeCode, target);
             return;
           }
           if (target.classList.contains("js-expedition-delete")) {

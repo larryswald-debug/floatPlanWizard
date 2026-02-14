@@ -1,0 +1,571 @@
+<!-- VERSION A: Full-width Mission Control overlay (instrumentation list only) -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FPW Mission Control (Mockup A)</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:rgba(255,255,255,.06);
+      --panel2:rgba(255,255,255,.08);
+      --line:rgba(255,255,255,.10);
+      --text:rgba(255,255,255,.92);
+      --muted:rgba(255,255,255,.70);
+      --subtle:rgba(255,255,255,.55);
+      --brand:#2dd4bf;
+      --warn:#f59e0b;
+      --danger:#fb7185;
+      --shadow: 0 18px 60px rgba(0,0,0,.55);
+      --radius:18px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      color:var(--text);
+      background:
+        radial-gradient(1000px 600px at 70% 0%, rgba(45,212,191,.10), transparent 55%),
+        radial-gradient(900px 500px at 10% 10%, rgba(56,189,248,.10), transparent 60%),
+        linear-gradient(180deg, #08101d, #070b13 60%, #060a12);
+    }
+
+    /* Fake app underlay */
+    .app-underlay{
+      height:100%;
+      padding:22px;
+      opacity:.35;
+      filter:saturate(.9);
+    }
+    .app-underlay .card{
+      height:160px;
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      background:var(--panel);
+      margin-bottom:16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+
+    /* Overlay */
+    .overlay{
+      position:fixed; inset:0;
+      display:flex;
+      flex-direction:column;
+      background: rgba(2,6,12,.78);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .overlay__frame{
+      margin:18px;
+      border:1px solid var(--line);
+      border-radius:22px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03)),
+        radial-gradient(900px 500px at 20% 0%, rgba(45,212,191,.08), transparent 60%);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:16px 18px;
+      border-bottom:1px solid var(--line);
+      background: rgba(0,0,0,.20);
+    }
+    .topbar__title{
+      display:flex; flex-direction:column; gap:2px;
+    }
+    .topbar__title h1{
+      font-size:18px; margin:0;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-weight:800;
+    }
+    .topbar__title .sub{
+      font-size:12px; color:var(--muted);
+    }
+    .topbar__actions{
+      display:flex; gap:10px; align-items:center;
+    }
+    .pill{
+      font-family:var(--mono);
+      font-size:12px;
+      padding:8px 10px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:rgba(0,0,0,.22);
+      color:var(--muted);
+    }
+    .btn{
+      appearance:none; border:1px solid var(--line);
+      background:rgba(255,255,255,.06);
+      color:var(--text);
+      border-radius:12px;
+      padding:10px 12px;
+      font-weight:700;
+      cursor:pointer;
+    }
+    .btn:active{transform:translateY(1px)}
+    .btn--primary{
+      border-color: rgba(45,212,191,.45);
+      background: rgba(45,212,191,.12);
+      box-shadow: 0 0 0 4px rgba(45,212,191,.12) inset;
+    }
+    .btn--icon{
+      width:40px; height:40px;
+      display:grid; place-items:center;
+      border-radius:12px;
+      font-size:18px;
+      line-height:1;
+    }
+
+    .content{
+      display:grid;
+      grid-template-columns: 420px 1fr;
+      gap:14px;
+      padding:14px;
+      min-height:0;
+      flex:1;
+    }
+    .panel{
+      border:1px solid var(--line);
+      border-radius:18px;
+      background: var(--panel);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+    .panel__hdr{
+      padding:14px 14px 12px;
+      border-bottom:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .panel__hdr .kicker{
+      font-size:11px;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      color:var(--muted);
+      font-weight:800;
+    }
+    .panel__hdr .title{
+      font-size:14px; margin-top:4px;
+      color:var(--text);
+      font-weight:800;
+    }
+    .panel__body{
+      padding:14px;
+      overflow:auto;
+      min-height:0;
+    }
+
+    .group{margin-bottom:14px}
+    .label{
+      font-size:11px;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      color:var(--subtle);
+      font-weight:800;
+      margin-bottom:8px;
+    }
+
+    .segmented{
+      display:flex; gap:8px; flex-wrap:wrap;
+    }
+    .segmented button{
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      color:var(--muted);
+      padding:10px 12px;
+      border-radius:12px;
+      font-weight:800;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      cursor:pointer;
+    }
+    .segmented button.active{
+      color:var(--text);
+      border-color: rgba(45,212,191,.45);
+      background: rgba(45,212,191,.10);
+      box-shadow: 0 0 0 4px rgba(45,212,191,.10) inset;
+    }
+
+    .toggleRow{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:10px 12px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background: rgba(0,0,0,.16);
+      gap:10px;
+    }
+    .toggleRow + .toggleRow{margin-top:10px}
+    .toggleRow .left{
+      display:flex; flex-direction:column; gap:4px;
+    }
+    .toggleRow .left .name{font-weight:850}
+    .toggleRow .left .desc{font-size:12px; color:var(--muted)}
+    .switch{
+      width:46px; height:26px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.06);
+      position:relative;
+      flex:0 0 auto;
+    }
+    .switch::after{
+      content:"";
+      width:20px; height:20px;
+      border-radius:999px;
+      background: rgba(255,255,255,.75);
+      position:absolute;
+      top:2px; left:2px;
+      transition: all .18s ease;
+      box-shadow: 0 6px 14px rgba(0,0,0,.35);
+    }
+    .switch.on{
+      border-color: rgba(45,212,191,.45);
+      background: rgba(45,212,191,.12);
+    }
+    .switch.on::after{
+      left:24px;
+      background: rgba(45,212,191,.95);
+    }
+
+    .fieldGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+    }
+    .field{
+      border:1px solid var(--line);
+      border-radius:14px;
+      background: rgba(0,0,0,.16);
+      padding:10px 12px;
+    }
+    .field .fLabel{
+      font-size:11px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:var(--subtle);
+      font-weight:850;
+      margin-bottom:6px;
+    }
+    .field .fValue{
+      font-family:var(--mono);
+      font-size:14px;
+      color:var(--text);
+    }
+    .field .fHint{
+      margin-top:6px;
+      font-size:12px; color:var(--muted);
+    }
+
+    /* Right panel - telemetry */
+    .telemetryGrid{
+      display:grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap:10px;
+    }
+    .metric{
+      border:1px solid var(--line);
+      border-radius:16px;
+      background: rgba(0,0,0,.16);
+      padding:12px;
+      min-height:88px;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+    }
+    .metric .mLabel{
+      font-size:11px;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      color:var(--subtle);
+      font-weight:850;
+    }
+    .metric .mValue{
+      font-family:var(--mono);
+      font-size:22px;
+      font-weight:900;
+      letter-spacing:.02em;
+    }
+    .metric .mDelta{
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    .listBox{
+      border:1px solid var(--line);
+      border-radius:18px;
+      background: rgba(0,0,0,.16);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+      margin-top:12px;
+    }
+    .listHdr{
+      padding:12px 12px 10px;
+      border-bottom:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .listHdr .k{
+      font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+      color:var(--muted); font-weight:900;
+    }
+    .listHdr .tiny{
+      font-family:var(--mono);
+      font-size:12px;
+      color:var(--muted);
+    }
+    .waypoints{
+      overflow:auto;
+      min-height:0;
+      padding:6px;
+    }
+    .wp{
+      display:flex; gap:10px; align-items:center;
+      padding:10px 10px;
+      border-radius:14px;
+      border:1px solid transparent;
+      cursor:default;
+    }
+    .wp:hover{
+      background: rgba(255,255,255,.04);
+      border-color: rgba(255,255,255,.06);
+    }
+    .wp .idx{
+      width:34px;
+      text-align:center;
+      font-family:var(--mono);
+      color:var(--muted);
+      font-weight:800;
+      flex:0 0 auto;
+    }
+    .wp .route{
+      flex:1;
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:baseline;
+    }
+    .wp .route .names{
+      font-weight:850;
+    }
+    .wp .route .nm{
+      font-family:var(--mono);
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+    }
+
+    .bottombar{
+      padding:12px 14px;
+      border-top:1px solid var(--line);
+      background: rgba(0,0,0,.28);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+
+    @media (max-width: 980px){
+      .content{grid-template-columns: 1fr; }
+      .telemetryGrid{grid-template-columns: repeat(2, 1fr);}
+    }
+  </style>
+</head>
+<body>
+  <div class="app-underlay">
+    <div class="card"></div>
+    <div class="card"></div>
+    <div class="card"></div>
+  </div>
+
+  <div class="overlay">
+    <div class="overlay__frame">
+      <div class="topbar">
+        <div class="topbar__title">
+          <h1>FPW — Mission Control</h1>
+          <div class="sub">Configure an expedition route. Live telemetry updates as you adjust settings.</div>
+        </div>
+        <div class="topbar__actions">
+          <div class="pill">ESC to close</div>
+          <button class="btn btn--icon" aria-label="Close">✕</button>
+        </div>
+      </div>
+
+      <div class="content">
+        <!-- LEFT: Mission Config -->
+        <section class="panel">
+          <div class="panel__hdr">
+            <div>
+              <div class="kicker">Mission Config</div>
+              <div class="title">Route Source & Parameters</div>
+            </div>
+            <div class="pill">Read-only mock</div>
+          </div>
+          <div class="panel__body">
+            <div class="group">
+              <div class="label">Route Source</div>
+              <div class="segmented">
+                <button class="active">Gulf Coast</button>
+                <button>Great Loop</button>
+                <button>Florida East</button>
+                <button>Custom</button>
+              </div>
+            </div>
+
+            <div class="group">
+              <div class="label">Direction</div>
+              <div class="toggleRow">
+                <div class="left">
+                  <div class="name">Counterclockwise</div>
+                  <div class="desc">Default orientation for this template.</div>
+                </div>
+                <div class="pill">CCW</div>
+              </div>
+              <div style="height:10px"></div>
+              <div class="toggleRow">
+                <div class="left">
+                  <div class="name">Clockwise</div>
+                  <div class="desc">Reverse route order (start/end per leg swaps).</div>
+                </div>
+                <div class="pill">CW</div>
+              </div>
+            </div>
+
+            <div class="group">
+              <div class="label">Start Parameters</div>
+              <div class="fieldGrid">
+                <div class="field">
+                  <div class="fLabel">Start Date</div>
+                  <div class="fValue">02/13/2026</div>
+                  <div class="fHint">Used for timeline scheduling.</div>
+                </div>
+                <div class="field">
+                  <div class="fLabel">Cruising Speed</div>
+                  <div class="fValue">10.0 kn</div>
+                  <div class="fHint">Affects ETA estimates.</div>
+                </div>
+                <div class="field">
+                  <div class="fLabel">Max NM / Day</div>
+                  <div class="fValue">75</div>
+                  <div class="fHint">Relaxed pacing.</div>
+                </div>
+                <div class="field">
+                  <div class="fLabel">Comfort</div>
+                  <div class="fValue">Prefer Inside</div>
+                  <div class="fHint">Avoid offshore when possible.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="group">
+              <div class="label">Optional Add-ons</div>
+              <div class="toggleRow">
+                <div class="left">
+                  <div class="name">Ship Island (Out & Back)</div>
+                  <div class="desc">Adds ~1 day • Offshore leg</div>
+                </div>
+                <div class="switch"></div>
+              </div>
+              <div class="toggleRow">
+                <div class="left">
+                  <div class="name">Grand Isle (Side Trip)</div>
+                  <div class="desc">Adds ~1–2 days • Offshore possible</div>
+                </div>
+                <div class="switch on"></div>
+              </div>
+              <div class="toggleRow">
+                <div class="left">
+                  <div class="name">Cedar Key Overnight</div>
+                  <div class="desc">Adds ~1 day • Quiet harbor</div>
+                </div>
+                <div class="switch"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- RIGHT: Telemetry -->
+        <section class="panel">
+          <div class="panel__hdr">
+            <div>
+              <div class="kicker">Route Instrumentation</div>
+              <div class="title">Telemetry & Waypoints</div>
+            </div>
+            <div class="pill">Template: GULF-WEST</div>
+          </div>
+
+          <div class="panel__body">
+            <div class="telemetryGrid">
+              <div class="metric">
+                <div class="mLabel">Total Distance</div>
+                <div class="mValue">1,395 <span style="font-size:14px;color:var(--muted)">NM</span></div>
+                <div class="mDelta">+140 NM (detour)</div>
+              </div>
+              <div class="metric">
+                <div class="mLabel">Estimated Days</div>
+                <div class="mValue">21</div>
+                <div class="mDelta">+2 days (detour)</div>
+              </div>
+              <div class="metric">
+                <div class="mLabel">Locks</div>
+                <div class="mValue">0</div>
+                <div class="mDelta">No inland locks</div>
+              </div>
+              <div class="metric">
+                <div class="mLabel">Offshore Legs</div>
+                <div class="mValue">3</div>
+                <div class="mDelta">Grand Isle adds 1</div>
+              </div>
+            </div>
+
+            <div class="listBox">
+              <div class="listHdr">
+                <div class="k">Route Path Preview</div>
+                <div class="tiny">19 legs</div>
+              </div>
+              <div class="waypoints">
+                <div class="wp"><div class="idx">01</div><div class="route"><div class="names">Tarpon Springs → Cedar Key</div><div class="nm">85.0 NM</div></div></div>
+                <div class="wp"><div class="idx">02</div><div class="route"><div class="names">Cedar Key → Apalachicola</div><div class="nm">170.0 NM</div></div></div>
+                <div class="wp"><div class="idx">03</div><div class="route"><div class="names">Apalachicola → Panama City</div><div class="nm">75.0 NM</div></div></div>
+                <div class="wp"><div class="idx">04</div><div class="route"><div class="names">Panama City → Destin</div><div class="nm">45.0 NM</div></div></div>
+                <div class="wp"><div class="idx">05</div><div class="route"><div class="names">Destin → Pensacola</div><div class="nm">45.0 NM</div></div></div>
+                <div class="wp"><div class="idx">06</div><div class="route"><div class="names">Pensacola → Gulf Shores / Orange Beach</div><div class="nm">35.0 NM</div></div></div>
+                <div class="wp"><div class="idx">07</div><div class="route"><div class="names">Gulf Shores / Orange Beach → Dauphin Island</div><div class="nm">25.0 NM</div></div></div>
+                <div class="wp"><div class="idx">08</div><div class="route"><div class="names">Dauphin Island → Mobile</div><div class="nm">15.0 NM</div></div></div>
+                <div class="wp"><div class="idx">09</div><div class="route"><div class="names">Mobile → Biloxi / Gulfport</div><div class="nm">75.0 NM</div></div></div>
+                <div class="wp"><div class="idx">10</div><div class="route"><div class="names">Biloxi / Gulfport → New Orleans</div><div class="nm">85.0 NM</div></div></div>
+                <!-- ... -->
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="bottombar">
+        <div class="pill">route: USER_ROUTE_187_20260213_1615</div>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button class="btn">Cancel</button>
+          <button class="btn btn--primary">🚀 Generate Route</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

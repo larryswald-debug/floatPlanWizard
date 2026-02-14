@@ -118,6 +118,23 @@
                     <cfoutput>#serializeJSON(deleteResult)#</cfoutput>
                 </cfcase>
 
+                <cfcase value="deleteallbyuser,deleteallbyuserid">
+                    <cfset var targetUserId = 0>
+                    <cfif structKeyExists(body, "targetUserId")>
+                        <cfset targetUserId = val(body.targetUserId)>
+                    <cfelseif structKeyExists(body, "userId")>
+                        <cfset targetUserId = val(body.userId)>
+                    <cfelseif structKeyExists(url, "targetUserId")>
+                        <cfset targetUserId = val(url.targetUserId)>
+                    <cfelseif structKeyExists(url, "userId")>
+                        <cfset targetUserId = val(url.userId)>
+                    </cfif>
+
+                    <cfset var bulkDeleteResult = deleteAllFloatPlansByUser(userId, targetUserId)>
+                    <cfset bulkDeleteResult.AUTH = true>
+                    <cfoutput>#serializeJSON(bulkDeleteResult)#</cfoutput>
+                </cfcase>
+
                 <cfcase value="checkin">
                     <cfset var checkinId = 0>
                     <cfif structKeyExists(body, "floatPlanId")>
@@ -953,6 +970,88 @@
             result.SUCCESS = true;
             result.FLOATPLANID = arguments.floatPlanId;
             return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="deleteAllFloatPlansByUser" access="private" returntype="struct" output="false">
+        <cfargument name="requestingUserId" type="numeric" required="true">
+        <cfargument name="targetUserId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                TARGET_USER_ID = arguments.targetUserId,
+                DELETED_COUNT = 0,
+                SKIPPED_COUNT = 0,
+                DELETED_IDS = [],
+                SKIPPED = []
+            };
+            var qPlans = queryNew("");
+            var i = 0;
+            var planId = 0;
+            var planStatus = "";
+            var deleteRes = {};
+
+            if (!isAdminBulkDeleteUser(arguments.requestingUserId)) {
+                result.ERROR = "FORBIDDEN";
+                result.MESSAGE = "This action is restricted to admin access.";
+                return result;
+            }
+
+            if (arguments.targetUserId LTE 0) {
+                result.ERROR = "INVALID_USER_ID";
+                result.MESSAGE = "A valid target userId is required.";
+                return result;
+            }
+
+            qPlans = queryExecute(
+                "SELECT floatplanId, UPPER(TRIM(`status`)) AS statusValue
+                   FROM floatplans
+                  WHERE userId = :userId
+                  ORDER BY floatplanId DESC",
+                {
+                    userId = { value = arguments.targetUserId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+
+            if (qPlans.recordCount EQ 0) {
+                result.SUCCESS = true;
+                result.MESSAGE = "No float plans found for user.";
+                return result;
+            }
+
+            for (i = 1; i LTE qPlans.recordCount; i++) {
+                planId = val(qPlans.floatplanId[i]);
+                planStatus = trim(toString(qPlans.statusValue[i]));
+                deleteRes = deleteFloatPlan(arguments.targetUserId, planId);
+                if (structKeyExists(deleteRes, "SUCCESS") AND deleteRes.SUCCESS) {
+                    arrayAppend(result.DELETED_IDS, planId);
+                } else {
+                    arrayAppend(result.SKIPPED, {
+                        FLOATPLANID = planId,
+                        STATUS = planStatus,
+                        ERROR = structKeyExists(deleteRes, "ERROR") ? deleteRes.ERROR : "DELETE_FAILED",
+                        MESSAGE = structKeyExists(deleteRes, "MESSAGE") ? deleteRes.MESSAGE : "Unable to delete float plan."
+                    });
+                }
+            }
+
+            result.DELETED_COUNT = arrayLen(result.DELETED_IDS);
+            result.SKIPPED_COUNT = arrayLen(result.SKIPPED);
+            result.SUCCESS = true;
+            result.MESSAGE = "Processed " & qPlans.recordCount & " plan(s): " & result.DELETED_COUNT & " deleted, " & result.SKIPPED_COUNT & " skipped.";
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="isAdminBulkDeleteUser" access="private" returntype="boolean" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfscript>
+            var allowedIds = "187";
+            if (structKeyExists(application, "adminBulkDeleteUserIds")) {
+                allowedIds = toString(application.adminBulkDeleteUserIds);
+            }
+            return listFindNoCase(allowedIds, trim(toString(arguments.userId))) GT 0;
         </cfscript>
     </cffunction>
 

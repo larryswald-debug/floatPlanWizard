@@ -1,0 +1,44 @@
+require("./test-hooks");
+
+if (!process.env.FPW_EMAIL || !process.env.FPW_PASSWORD) {
+  throw new Error("Missing FPW_EMAIL / FPW_PASSWORD env vars");
+}
+
+const { test, expect } = require("@playwright/test");
+
+test("Route Builder generates route from template and opens timeline editor", async ({ page }) => {
+  await page.goto("/fpw/index.cfm", { waitUntil: "domcontentloaded" });
+
+  await page.fill('input[name="email"], input[name="EMAIL"]', process.env.FPW_EMAIL || "");
+  await page.fill('input[type="password"], input[name="password"], input[name="PASSWORD"]', process.env.FPW_PASSWORD || "");
+  await page.click('button[type="submit"], input[type="submit"]');
+  await page.waitForLoadState("networkidle");
+  await expect(page).not.toHaveURL(/index\.cfm$/i);
+
+  await page.goto("/fpw/app/dashboard.cfm", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#openRouteBuilderBtn")).toBeVisible({ timeout: 15000 });
+
+  await page.click("#openRouteBuilderBtn");
+  await expect(page.locator("#routeBuilderModal")).toBeVisible({ timeout: 15000 });
+
+  const today = new Date().toISOString().slice(0, 10);
+  await page.fill("#routeBuilderStartDate", today);
+  await page.selectOption("#routeBuilderDirection", "CCW");
+
+  await page.waitForFunction(() => {
+    const sel = document.getElementById("routeBuilderTemplateRoute");
+    return !!sel && sel.options.length > 1 && !sel.disabled;
+  }, { timeout: 20000 });
+
+  await page.selectOption("#routeBuilderTemplateRoute", { index: 1 });
+  await page.fill("#routeBuilderRouteNameInput", "E2E Template Route");
+
+  await page.click("#routeBuilderGenerateBtn");
+
+  await page.waitForSelector("#routeBuilderStep2:not(.d-none)", { timeout: 30000 });
+  await expect(page.locator("#routeBuilderRouteCode")).toContainText("USER_ROUTE_", { timeout: 30000 });
+  await expect(page.locator("#routeBuilderTimelineEditor .routebuilder-segment").first()).toBeVisible({ timeout: 30000 });
+
+  await page.click("#routeBuilderDoneBtn");
+  await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 15000 });
+});

@@ -582,6 +582,9 @@
     document.addEventListener("fpw:dashboard:user-ready", function () {
       loadFloatPlans(FLOAT_PLAN_LIMIT);
     });
+    document.addEventListener("fpw:floatplans-updated", function () {
+      loadFloatPlans(FLOAT_PLAN_LIMIT);
+    });
   }
 
   window.FPW.DashboardModules.floatplans = {

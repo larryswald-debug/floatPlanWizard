@@ -1534,10 +1534,6 @@
     state.manualOverrides.maxNmDay = false;
     state.suppressAutoSelectOnce = true;
 
-    if (dom.paceEl) dom.paceEl.value = "0";
-    if (dom.comfortProfileEl) dom.comfortProfileEl.value = "PREFER_INSIDE";
-    if (dom.overnightBiasEl) dom.overnightBiasEl.value = "MARINAS";
-
     applyPaceDefaults(true);
     updatePaceLabel();
     updatePaceOverrideUI();

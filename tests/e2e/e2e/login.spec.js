@@ -21,9 +21,14 @@ test("FPW login succeeds", async ({ page }) => {
   // Assert we are no longer on login page
   await expect(page).not.toHaveURL(/index\.cfm$/i);
 
-  // Assert something dashboard-specific exists
-  // Pick ONE that you know exists after login
-  await expect(
-    page.locator("#userHeader, .dashboard, text=Dashboard")
-  ).toBeVisible({ timeout: 5000 });
+  // Assert at least one dashboard indicator exists after login.
+  const userHeader = page.locator("#userHeader");
+  const dashboardPanel = page.locator(".dashboard");
+  const dashboardText = page.getByText("Dashboard");
+  const anyVisible = await Promise.any([
+    userHeader.waitFor({ state: "visible", timeout: 5000 }),
+    dashboardPanel.waitFor({ state: "visible", timeout: 5000 }),
+    dashboardText.waitFor({ state: "visible", timeout: 5000 })
+  ]).then(() => true).catch(() => false);
+  await expect(anyVisible).toBeTruthy();
 });
