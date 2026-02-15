@@ -20,26 +20,45 @@ test("Route Builder generates route from template and opens timeline editor", as
 
   await page.click("#openRouteBuilderBtn");
   await expect(page.locator("#routeBuilderModal")).toBeVisible({ timeout: 15000 });
+  await expect(page.locator("#fpwRouteGen")).toBeVisible({ timeout: 15000 });
 
   const today = new Date().toISOString().slice(0, 10);
-  await page.selectOption("#routeBuilderMode", "TEMPLATE");
-  await page.fill("#routeBuilderStartDate", today);
-  await page.selectOption("#routeBuilderDirection", "CCW");
+  await page.waitForFunction(() => {
+    const sel = document.getElementById("routeGenTemplateSelect");
+    return !!sel && !sel.disabled && sel.options.length > 1;
+  }, { timeout: 20000 });
+  await page.selectOption("#routeGenTemplateSelect", { index: 1 });
+
+  await page.fill("#routeGenStartDate", today);
 
   await page.waitForFunction(() => {
-    const sel = document.getElementById("routeBuilderTemplateRoute");
-    return !!sel && sel.options.length > 1 && !sel.disabled;
+    const sel = document.getElementById("routeGenStartLocation");
+    return !!sel && sel.options.length > 1;
   }, { timeout: 20000 });
+  await page.selectOption("#routeGenStartLocation", { index: 1 });
 
-  await page.selectOption("#routeBuilderTemplateRoute", { index: 1 });
-  await page.fill("#routeBuilderRouteNameInput", "E2E Template Route");
+  await page.waitForFunction(() => {
+    const sel = document.getElementById("routeGenEndLocation");
+    return !!sel && sel.options.length > 1;
+  }, { timeout: 20000 });
+  await page.selectOption("#routeGenEndLocation", { index: 1 });
 
-  await page.click("#routeBuilderGenerateBtn");
+  await page.click("#routeGenPreviewBtn");
+  await page.waitForFunction(() => {
+    const txt = document.getElementById("routeGenLegCount");
+    if (!txt) return false;
+    const n = parseInt((txt.textContent || "").replace(/[^0-9]/g, ""), 10);
+    return Number.isFinite(n) && n > 0;
+  }, { timeout: 30000 });
+  await expect(page.locator("#routeGenLegList .fpw-routegen__leglocks").first()).toHaveText(/[0-9]+/, { timeout: 10000 });
 
-  await page.waitForSelector("#routeBuilderStep2:not(.d-none)", { timeout: 30000 });
-  await expect(page.locator("#routeBuilderRouteCode")).toContainText("USER_ROUTE_", { timeout: 30000 });
-  await expect(page.locator("#routeBuilderTimelineEditor .routebuilder-segment").first()).toBeVisible({ timeout: 30000 });
+  await page.click("#routeGenGenerateBtn");
+  await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 30000 });
+  await expect(page.locator("#dashboardAlert")).toContainText("Route generated successfully.", { timeout: 30000 });
 
-  await page.click("#routeBuilderDoneBtn");
+  await page.click("#openRouteBuilderBtn");
+  await expect(page.locator("#routeBuilderModal")).toBeVisible({ timeout: 15000 });
+  await expect(page.locator("#routeGenRouteCode")).toContainText("Draft", { timeout: 10000 });
+  await page.click("#routeGenCancelBtn");
   await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 15000 });
 });

@@ -2285,6 +2285,12 @@ main.dashboard-main{
   min-height: 480px;
 }
 
+#routeBuilderModal .modal-dialog.routebuilder-modal-fullwidth {
+  width: 100vw;
+  max-width: 100vw;
+  margin: 0;
+}
+
 .routebuilder-statusbar {
   display: flex;
   justify-content: space-between;

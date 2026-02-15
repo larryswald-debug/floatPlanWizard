@@ -275,6 +275,29 @@
       font-weight: 900;
     }
 
+    .fpw-routegen__fuelmeta {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .fpw-routegen__fuelmetatitle {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--rg-subtle);
+      font-weight: 900;
+    }
+
+    .fpw-routegen__fuelderived {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--rg-muted);
+      line-height: 1.35;
+    }
+
     .fpw-routegen .form-select,
     .fpw-routegen .form-control {
       background: rgba(0, 0, 0, 0.2);
@@ -568,6 +591,34 @@
       color: var(--rg-muted);
     }
 
+    .fpw-routegen__legcols {
+      padding: 8px 9px;
+      border-bottom: 1px solid var(--rg-line);
+      background: rgba(255, 255, 255, 0.03);
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr) 62px 78px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .fpw-routegen__legcols span {
+      font-size: 10px;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--rg-subtle);
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .fpw-routegen__legcols span:first-child {
+      text-align: center;
+    }
+
+    .fpw-routegen__legcols span:nth-child(3),
+    .fpw-routegen__legcols span:nth-child(4) {
+      text-align: right;
+    }
+
     .fpw-routegen__leglist {
       overflow: auto;
       min-height: 220px;
@@ -576,7 +627,8 @@
     }
 
     .fpw-routegen__leg {
-      display: flex;
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr) 62px 78px;
       gap: 10px;
       align-items: center;
       padding: 9px;
@@ -590,21 +642,14 @@
     }
 
     .fpw-routegen__legidx {
-      width: 32px;
       text-align: center;
       color: var(--rg-muted);
       font-family: var(--rg-mono);
       font-size: 12px;
       font-weight: 800;
-      flex: 0 0 auto;
     }
 
     .fpw-routegen__legroute {
-      flex: 1;
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 10px;
       min-width: 0;
     }
 
@@ -612,6 +657,15 @@
       font-size: 13px;
       font-weight: 900;
       line-height: 1.3;
+      overflow-wrap: anywhere;
+    }
+
+    .fpw-routegen__leglocks {
+      font-family: var(--rg-mono);
+      font-size: 12px;
+      color: var(--rg-muted);
+      white-space: nowrap;
+      text-align: right;
     }
 
     .fpw-routegen__legnm {
@@ -619,6 +673,7 @@
       font-size: 12px;
       color: var(--rg-muted);
       white-space: nowrap;
+      text-align: right;
     }
 
     .fpw-routegen__flag {
@@ -723,6 +778,20 @@
       .fpw-routegen__actions .btn-primary,
       .fpw-routegen__actions .btn-secondary {
         flex: 1 1 auto;
+      }
+
+      .fpw-routegen__legcols,
+      .fpw-routegen__leg {
+        grid-template-columns: 26px minmax(0, 1fr) 56px 70px;
+        gap: 6px;
+      }
+
+      .fpw-routegen__legcols {
+        padding: 8px 8px;
+      }
+
+      .fpw-routegen__leg {
+        padding: 8px;
       }
     }
   </style>
@@ -854,8 +923,12 @@
                   </select>
                 </div>
                 <div class="fpw-routegen__field">
-                  <label for="routeGenFuelBurnGph">Fuel burn (GPH)</label>
+                  <label id="routeGenFuelBurnLabel" for="routeGenFuelBurnGph">Fuel burn at max speed (GPH)</label>
                   <input id="routeGenFuelBurnGph" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
+                  <div class="fpw-routegen__fuelmeta">
+                    <div id="routeGenFuelBurnHint" class="fpw-routegen__help mt-1">FPW derives pace and weather adjusted burn from max speed burn.</div>
+                    <div id="routeGenFuelBurnDerived" class="fpw-routegen__fuelderived">Derived burn at current pace + weather: -- GPH</div>
+                  </div>
                 </div>
                 <div class="fpw-routegen__field">
                   <label for="routeGenIdleBurnGph">Idle burn (GPH)</label>
@@ -912,16 +985,6 @@
               <div id="routeGenEstimatedDaysSub" class="fpw-routegen__metricsub">Pace-driven estimate</div>
             </div>
             <div class="fpw-routegen__metric">
-              <div class="fpw-routegen__metriclabel">Locks</div>
-              <div id="routeGenLockCount" class="fpw-routegen__metricvalue">0</div>
-              <div class="fpw-routegen__metricsub">Total lock count</div>
-            </div>
-            <div class="fpw-routegen__metric">
-              <div class="fpw-routegen__metriclabel">Offshore legs</div>
-              <div id="routeGenOffshoreCount" class="fpw-routegen__metricvalue">0</div>
-              <div class="fpw-routegen__metricsub">Includes optional stops</div>
-            </div>
-            <div class="fpw-routegen__metric">
               <div class="fpw-routegen__metriclabel">Estimated fuel</div>
               <div id="routeGenEstimatedFuel" class="fpw-routegen__metricvalue">-- <small>gal</small></div>
               <div id="routeGenEstimatedFuelSub" class="fpw-routegen__metricsub">Required = base + reserve</div>
@@ -931,12 +994,28 @@
               <div id="routeGenFuelCost" class="fpw-routegen__metricvalue">-- <small>USD</small></div>
               <div id="routeGenFuelCostSub" class="fpw-routegen__metricsub">Required fuel x price</div>
             </div>
+            <div class="fpw-routegen__metric">
+              <div class="fpw-routegen__metriclabel">Locks</div>
+              <div id="routeGenLockCount" class="fpw-routegen__metricvalue">0</div>
+              <div class="fpw-routegen__metricsub">Total lock count</div>
+            </div>
+            <div class="fpw-routegen__metric">
+              <div class="fpw-routegen__metriclabel">Offshore legs</div>
+              <div id="routeGenOffshoreCount" class="fpw-routegen__metricvalue">0</div>
+              <div class="fpw-routegen__metricsub">Includes optional stops</div>
+            </div>
           </div>
 
           <div class="fpw-routegen__listbox">
             <div class="fpw-routegen__listhdr">
               <div class="fpw-routegen__kicker">Route path preview</div>
               <div id="routeGenLegCount" class="fpw-routegen__tiny">0 legs</div>
+            </div>
+            <div class="fpw-routegen__legcols" aria-hidden="true">
+              <span>#</span>
+              <span>Leg</span>
+              <span>Locks</span>
+              <span>NM</span>
             </div>
             <div id="routeGenLegList" class="fpw-routegen__leglist">
               <div class="fpw-routegen__empty">Pick template/start/end to see a live preview.</div>

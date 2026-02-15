@@ -347,7 +347,15 @@
 
             var templateRouteId = qTpl.id[1];
             var directionVal = normalizeDirection(arguments.direction);
-            var shortCode = "USER_ROUTE_" & int(arguments.userId) & "_" & dateTimeFormat(now(), "yyyymmddHHnnss");
+            var shortCode = allocateUserRouteCode(arguments.userId);
+            if (!len(shortCode)) {
+                return {
+                    "SUCCESS"=false,
+                    "AUTH"=true,
+                    "MESSAGE"="Unable to allocate user route code",
+                    "ERROR"={"MESSAGE"="Could not generate a unique USER_ROUTE code."}
+                };
+            }
             var routeName = "My Great Loop Route";
             var routeDesc = "Generated from GREAT_LOOP_CCW (" & directionVal & ") on " & dateFormat(now(), "yyyy-mm-dd") & " (" & startLocRaw & " to " & endLocRaw & ")";
 
@@ -784,7 +792,6 @@
             var newRouteId = 0;
             var newSectionId = 0;
             var routeInstanceId = 0;
-            var nowStamp = "";
             var startLocationVal = "";
             var endLocationVal = "";
             var templateCodeOut = "";
@@ -793,8 +800,6 @@
             var distBind = {};
             var lockBind = {};
             var notesBind = {};
-            var loopTry = 0;
-            var qCodeCheck = queryNew("");
 
             if (templateRouteIdVal LTE 0 AND !len(templateRouteCodeVal)) {
                 out.MESSAGE = "Missing required fields";
@@ -919,27 +924,8 @@
                 }
             }
 
-            nowStamp = dateTimeFormat(now(), "yyyymmddHHnnss");
-            shortCode = "USER_ROUTE_" & int(arguments.userId) & "_" & nowStamp;
-            for (loopTry = 0; loopTry LTE 20; loopTry++) {
-                if (loopTry GT 0) {
-                    shortCode = "USER_ROUTE_" & int(arguments.userId) & "_" & nowStamp & "_" & loopTry;
-                }
-                qCodeCheck = queryExecute(
-                    "SELECT id
-                     FROM loop_routes
-                     WHERE short_code = :scode
-                     LIMIT 1",
-                    {
-                        scode = { value=shortCode, cfsqltype="cf_sql_varchar" }
-                    },
-                    { datasource = application.dsn }
-                );
-                if (qCodeCheck.recordCount EQ 0) {
-                    break;
-                }
-            }
-            if (qCodeCheck.recordCount GT 0) {
+            shortCode = allocateUserRouteCode(arguments.userId);
+            if (!len(shortCode)) {
                 out.MESSAGE = "Unable to allocate user route code";
                 out.ERROR = { "MESSAGE"="Could not generate a unique USER_ROUTE code." };
                 return out;
@@ -2600,9 +2586,22 @@
             input.start_location_label = trim(toString(pickArg(arguments.body, "start_location_label", "startLocationLabel", "")));
             input.end_location_label = trim(toString(pickArg(arguments.body, "end_location_label", "endLocationLabel", "")));
             input.start_date = trim(toString(pickArg(arguments.body, "start_date", "startDate", "")));
-            input.pace = uCase(trim(toString(pickArg(arguments.body, "pace", "pace", "RELAXED"))));
+            input.pace = routegenNormalizePace(pickArg(arguments.body, "pace", "pace", "RELAXED"));
             input.cruising_speed = trim(toString(pickArg(arguments.body, "cruising_speed", "cruisingSpeed", "")));
-            input.max_nm_day = trim(toString(pickArg(arguments.body, "max_nm_day", "maxNmDay", "")));
+            input.effective_cruising_speed = trim(toString(pickArg(arguments.body, "effective_cruising_speed", "effectiveCruisingSpeed", "")));
+            input.underway_hours_per_day = trim(toString(pickArg(arguments.body, "underway_hours_per_day", "underwayHoursPerDay", "")));
+            input.fuel_burn_gph = trim(toString(pickArg(arguments.body, "fuel_burn_gph", "fuelBurnGph", "")));
+            input.fuel_burn_gph_input = trim(
+                toString(pickArg(arguments.body, "fuel_burn_gph_input", "fuelBurnGphInput", input.fuel_burn_gph))
+            );
+            input.fuel_burn_basis = routegenNormalizeFuelBurnBasis(
+                pickArg(arguments.body, "fuel_burn_basis", "fuelBurnBasis", "MAX_SPEED")
+            );
+            input.idle_burn_gph = trim(toString(pickArg(arguments.body, "idle_burn_gph", "idleBurnGph", "")));
+            input.idle_hours_total = trim(toString(pickArg(arguments.body, "idle_hours_total", "idleHoursTotal", "")));
+            input.weather_factor_pct = trim(toString(pickArg(arguments.body, "weather_factor_pct", "weatherFactorPct", pickArg(arguments.body, "weather_factor", "weatherFactor", ""))));
+            input.reserve_pct = trim(toString(pickArg(arguments.body, "reserve_pct", "reservePct", "")));
+            input.fuel_price_per_gal = trim(toString(pickArg(arguments.body, "fuel_price_per_gal", "fuelPricePerGal", "")));
             input.comfort_profile = trim(toString(pickArg(arguments.body, "comfort_profile", "comfortProfile", "PREFER_INSIDE")));
             input.overnight_bias = trim(toString(pickArg(arguments.body, "overnight_bias", "overnightBias", "MARINAS")));
             input.route_name = trim(toString(pickArg(arguments.body, "route_name", "routeName", "")));
@@ -2613,17 +2612,310 @@
         </cfscript>
     </cffunction>
 
-    <cffunction name="routegenPaceDefaults" access="private" returntype="struct" output="false">
+    <cffunction name="routegenNormalizePace" access="private" returntype="string" output="false">
         <cfargument name="pace" type="any" required="false" default="RELAXED">
         <cfscript>
             var paceVal = uCase(trim(toString(arguments.pace)));
+            if (paceVal EQ "BALANCED") return "BALANCED";
+            if (paceVal EQ "AGGRESSIVE") return "AGGRESSIVE";
+            return "RELAXED";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenPaceDefaults" access="private" returntype="struct" output="false">
+        <cfargument name="pace" type="any" required="false" default="RELAXED">
+        <cfscript>
+            var paceVal = routegenNormalizePace(arguments.pace);
             if (paceVal EQ "BALANCED") {
-                return { "CRUISING_SPEED"=12.0, "MAX_NM_DAY"=100 };
+                return { "MAX_SPEED_KN"=20.0, "PACE_FACTOR"=0.50 };
             }
             if (paceVal EQ "AGGRESSIVE") {
-                return { "CRUISING_SPEED"=14.0, "MAX_NM_DAY"=130 };
+                return { "MAX_SPEED_KN"=20.0, "PACE_FACTOR"=1.00 };
             }
-            return { "CRUISING_SPEED"=10.0, "MAX_NM_DAY"=75 };
+            return { "MAX_SPEED_KN"=20.0, "PACE_FACTOR"=0.25 };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenNormalizeCruisingSpeed" access="private" returntype="numeric" output="false">
+        <cfargument name="speedKn" type="any" required="false" default="">
+        <cfargument name="defaultSpeedKn" type="numeric" required="false" default="20">
+        <cfscript>
+            var speedVal = val(arguments.speedKn);
+            var fallbackVal = val(arguments.defaultSpeedKn);
+            if (fallbackVal LTE 0) fallbackVal = 20;
+            if (speedVal LTE 0) speedVal = fallbackVal;
+            if (speedVal LT 1) speedVal = 1;
+            if (speedVal GT 60) speedVal = 60;
+            return roundTo2(speedVal);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenComputeEffectiveCruisingSpeed" access="private" returntype="numeric" output="false">
+        <cfargument name="maxSpeedKn" type="any" required="false" default="">
+        <cfargument name="pace" type="any" required="false" default="RELAXED">
+        <cfscript>
+            var paceDefaults = routegenPaceDefaults(arguments.pace);
+            var maxSpeedVal = routegenNormalizeCruisingSpeed(arguments.maxSpeedKn, paceDefaults.MAX_SPEED_KN);
+            var factorVal = val(paceDefaults.PACE_FACTOR);
+            var effectiveSpeed = 0;
+            if (factorVal LTE 0) factorVal = 0.25;
+            effectiveSpeed = maxSpeedVal * factorVal;
+            if (effectiveSpeed LT 1) effectiveSpeed = 1;
+            return roundTo2(effectiveSpeed);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenEstimateDaysBySpeed" access="private" returntype="numeric" output="false">
+        <cfargument name="distanceNm" type="any" required="false" default="0">
+        <cfargument name="effectiveCruisingSpeed" type="any" required="false" default="10">
+        <cfargument name="underwayHoursPerDay" type="any" required="false" default="8">
+        <cfscript>
+            var distanceVal = val(arguments.distanceNm);
+            var speedVal = routegenNormalizeCruisingSpeed(arguments.effectiveCruisingSpeed, 10);
+            var underwayHoursVal = routegenNormalizeUnderwayHours(arguments.underwayHoursPerDay);
+            var runHours = 0;
+            if (distanceVal LTE 0) return 0;
+            if (speedVal LTE 0) speedVal = 10;
+            runHours = distanceVal / speedVal;
+            if (runHours LTE 0) return 0;
+            return ceiling(runHours / underwayHoursVal);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenNormalizeUnderwayHours" access="private" returntype="numeric" output="false">
+        <cfargument name="hours" type="any" required="false" default="8">
+        <cfscript>
+            var v = val(arguments.hours);
+            if (v LTE 0) v = 8;
+            if (v LT 1) v = 1;
+            if (v GT 24) v = 24;
+            return v;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenNormalizeFuelBurnGph" access="private" returntype="numeric" output="false">
+        <cfargument name="fuelBurnGph" type="any" required="false" default="">
+        <cfscript>
+            var valueVal = val(arguments.fuelBurnGph);
+            if (valueVal LTE 0) return 0;
+            if (valueVal GT 1000) valueVal = 1000;
+            return roundTo2(valueVal);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenNormalizeFuelBurnBasis" access="private" returntype="string" output="false">
+        <cfargument name="basis" type="any" required="false" default="MAX_SPEED">
+        <cfscript>
+            var basisVal = uCase(trim(toString(arguments.basis)));
+            if (basisVal EQ "SELECTED_PACE") return "SELECTED_PACE";
+            return "MAX_SPEED";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenNormalizeIdleHoursTotal" access="private" returntype="numeric" output="false">
+        <cfargument name="idleHoursTotal" type="any" required="false" default="">
+        <cfscript>
+            var rawVal = trim(toString(arguments.idleHoursTotal));
+            var hoursVal = 0;
+            if (!len(rawVal)) return 0;
+            hoursVal = val(rawVal);
+            if (hoursVal LTE 0) return 0;
+            if (hoursVal GT 10000) hoursVal = 10000;
+            return roundTo2(hoursVal);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenNormalizeWeatherFactorPct" access="private" returntype="numeric" output="false">
+        <cfargument name="weatherFactorPct" type="any" required="false" default="">
+        <cfscript>
+            var rawVal = trim(toString(arguments.weatherFactorPct));
+            var pctVal = 0;
+            if (!len(rawVal)) return 0;
+            pctVal = val(rawVal);
+            if (pctVal LT 0) pctVal = 0;
+            if (pctVal GT 60) pctVal = 60;
+            return roundTo2(pctVal);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenNormalizeReservePct" access="private" returntype="numeric" output="false">
+        <cfargument name="reservePct" type="any" required="false" default="">
+        <cfargument name="defaultPct" type="numeric" required="false" default="20">
+        <cfscript>
+            var rawVal = trim(toString(arguments.reservePct));
+            var pctVal = 0;
+            if (!len(rawVal)) {
+                pctVal = val(arguments.defaultPct);
+            } else {
+                pctVal = val(rawVal);
+            }
+            if (pctVal LT 0) pctVal = 0;
+            if (pctVal GT 100) pctVal = 100;
+            return roundTo2(pctVal);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenNormalizeFuelPricePerGal" access="private" returntype="numeric" output="false">
+        <cfargument name="fuelPricePerGal" type="any" required="false" default="">
+        <cfscript>
+            var rawVal = trim(toString(arguments.fuelPricePerGal));
+            var priceVal = 0;
+            if (!len(rawVal)) return 0;
+            priceVal = val(rawVal);
+            if (priceVal LTE 0) return 0;
+            if (priceVal GT 1000) priceVal = 1000;
+            return roundTo2(priceVal);
+        </cfscript>
+    </cffunction>
+
+    <!--- Fuel model helpers (pure) --->
+    <cffunction name="paceAdjustedBurnGph" access="private" returntype="numeric" output="false">
+        <cfargument name="maxBurnGph" type="any" required="false" default="0">
+        <cfargument name="paceRatio" type="any" required="false" default="1">
+        <cfargument name="burnExponent" type="any" required="false" default="3.0">
+        <cfscript>
+            var maxBurnVal = routegenNormalizeFuelBurnGph(arguments.maxBurnGph);
+            var ratioVal = val(arguments.paceRatio);
+            var expVal = val(arguments.burnExponent);
+            if (maxBurnVal LTE 0) return 0;
+            if (expVal LT 1) expVal = 1;
+            if (expVal GT 6) expVal = 6;
+            if (ratioVal LTE 0) ratioVal = 1;
+            if (ratioVal LT 0.05) ratioVal = 0.05;
+            if (ratioVal GT 1) ratioVal = 1;
+            return roundTo2(maxBurnVal * (ratioVal ^ expVal));
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="calculateFuelEstimate" access="private" returntype="struct" output="false">
+        <cfargument name="args" type="struct" required="false" default="#structNew()#">
+        <cfscript>
+            var out = {
+                "paceRatio"=0,
+                "effectiveSpeedKnots"=0,
+                "paceAdjustedBurnGph"=0,
+                "weatherAdjustedSpeedKnots"=0,
+                "weatherAdjustedBurnGph"=0,
+                "cruiseHours"=0,
+                "cruiseFuelGallons"=0,
+                "idleFuelGallons"=0,
+                "baseFuelGallons"=0,
+                "reserveGallons"=0,
+                "requiredFuelGallons"=0,
+                "totalFuelCost"=0
+            };
+            var src = (isStruct(arguments.args) ? arguments.args : {});
+            var distanceVal = val(structKeyExists(src, "distanceNm") ? src.distanceNm : 0);
+            var maxSpeedVal = val(structKeyExists(src, "maxSpeedKnots") ? src.maxSpeedKnots : 0);
+            var maxBurnVal = routegenNormalizeFuelBurnGph(structKeyExists(src, "maxBurnGph") ? src.maxBurnGph : 0);
+            var paceRatioVal = 0;
+            var pacePctVal = val(structKeyExists(src, "pacePct") ? src.pacePct : 0);
+            var paceEnumVal = routegenNormalizePace(structKeyExists(src, "pace") ? src.pace : "");
+            var weatherPctVal = val(structKeyExists(src, "weatherPct") ? src.weatherPct : 0);
+            var weatherAdj = 0;
+            var reservePctVal = val(structKeyExists(src, "reservePct") ? src.reservePct : 0);
+            var reserveGallonsVal = val(structKeyExists(src, "reserveGallons") ? src.reserveGallons : 0);
+            var idleFuelGallonsVal = val(structKeyExists(src, "idleFuelGallons") ? src.idleFuelGallons : 0);
+            var fuelPriceVal = val(structKeyExists(src, "fuelPricePerGallon") ? src.fuelPricePerGallon : 0);
+
+            if (distanceVal LTE 0 OR maxSpeedVal LTE 0 OR maxBurnVal LTE 0) {
+                return out;
+            }
+
+            // Pace enum is primary source (RELAXED/BALANCED/AGGRESSIVE => 25/50/100).
+            if (paceEnumVal EQ "RELAXED") {
+                paceRatioVal = 0.25;
+            } else if (paceEnumVal EQ "BALANCED") {
+                paceRatioVal = 0.50;
+            } else if (paceEnumVal EQ "AGGRESSIVE") {
+                paceRatioVal = 1.00;
+            }
+
+            // Fallback to pacePct or explicit paceRatio if enum was not provided.
+            if (paceRatioVal LTE 0) {
+                if (pacePctVal GT 1) {
+                    paceRatioVal = pacePctVal / 100;
+                } else if (pacePctVal GT 0) {
+                    paceRatioVal = pacePctVal;
+                } else if (structKeyExists(src, "paceRatio")) {
+                    paceRatioVal = val(src.paceRatio);
+                } else {
+                    paceRatioVal = 1;
+                }
+            }
+
+            if (paceRatioVal LT 0.05) paceRatioVal = 0.05;
+            if (paceRatioVal GT 1) paceRatioVal = 1;
+            if (weatherPctVal LT 0) weatherPctVal = 0;
+            if (weatherPctVal GT 60) weatherPctVal = 60;
+            if (idleFuelGallonsVal LT 0) idleFuelGallonsVal = 0;
+            weatherAdj = weatherPctVal / 100;
+
+            out.paceRatio = roundTo2(paceRatioVal);
+            out.effectiveSpeedKnots = roundTo2(maxSpeedVal * paceRatioVal);
+            out.paceAdjustedBurnGph = paceAdjustedBurnGph(maxBurnVal, paceRatioVal, 3.0);
+            out.weatherAdjustedSpeedKnots = roundTo2(out.effectiveSpeedKnots * (1 - weatherAdj));
+            if (out.weatherAdjustedSpeedKnots LT 0.5) out.weatherAdjustedSpeedKnots = 0.5;
+            out.weatherAdjustedBurnGph = roundTo2(out.paceAdjustedBurnGph * (1 + weatherAdj));
+            out.cruiseHours = roundTo2(distanceVal / out.weatherAdjustedSpeedKnots);
+            out.cruiseFuelGallons = roundTo2(out.cruiseHours * out.weatherAdjustedBurnGph);
+            out.idleFuelGallons = roundTo2(idleFuelGallonsVal);
+            out.baseFuelGallons = roundTo2(out.cruiseFuelGallons + out.idleFuelGallons);
+
+            if (reserveGallonsVal GT 0) {
+                out.reserveGallons = roundTo2(reserveGallonsVal);
+            } else {
+                if (reservePctVal LTE 0) reservePctVal = 20;
+                out.reserveGallons = roundTo2(out.baseFuelGallons * (reservePctVal / 100));
+            }
+
+            out.requiredFuelGallons = roundTo2(out.baseFuelGallons + out.reserveGallons);
+            out.totalFuelCost = (fuelPriceVal GT 0 ? round((out.requiredFuelGallons * fuelPriceVal) * 100) / 100 : 0);
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="calculateFuelUsedGallons" access="private" returntype="numeric" output="false">
+        <cfargument name="distanceNm" type="any" required="false" default="0">
+        <cfargument name="cruiseSpeedKnots" type="any" required="false" default="0">
+        <cfargument name="cruiseBurnGph" type="any" required="false" default="0">
+        <cfscript>
+            var distanceVal = val(arguments.distanceNm);
+            var cruiseSpeedVal = val(arguments.cruiseSpeedKnots);
+            var cruiseBurnVal = routegenNormalizeFuelBurnGph(arguments.cruiseBurnGph);
+            var hoursVal = 0;
+            var fuelUsedGallonsVal = 0;
+
+            // Knots are nautical miles per hour (NM/h), so NM ÷ knots = hours.
+            // Fuel burn is GPH at that cruise speed.
+            if (distanceVal LTE 0) return 0;
+            if (cruiseSpeedVal LTE 0 OR cruiseBurnVal LTE 0) return 0;
+
+            hoursVal = distanceVal / cruiseSpeedVal;
+            if (hoursVal LTE 0) return 0;
+
+            fuelUsedGallonsVal = hoursVal * cruiseBurnVal;
+            if (fuelUsedGallonsVal LT 0) return 0;
+
+            // Return numeric rounded to 1 decimal for stable display and storage.
+            return round(fuelUsedGallonsVal * 10) / 10;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="calculateFuelUsedGallonsExampleAssertions" access="private" returntype="array" output="false">
+        <cfscript>
+            var out = [];
+            var actualA = calculateFuelUsedGallons(500, 10, 8);
+            var actualB = calculateFuelUsedGallons(120, 8, 4);
+            var actualC = calculateFuelUsedGallons(120, 0, 4);
+
+            // A) 500 NM @ 10 kn, 8 GPH => 50 hours, 400 gallons
+            arrayAppend(out, { "CASE"="A", "EXPECTED"=400, "ACTUAL"=actualA, "PASS"=(actualA EQ 400) });
+            // B) 120 NM @ 8 kn, 4 GPH => 15 hours, 60 gallons
+            arrayAppend(out, { "CASE"="B", "EXPECTED"=60, "ACTUAL"=actualB, "PASS"=(actualB EQ 60) });
+            // C) Invalid speed => 0 gallons
+            arrayAppend(out, { "CASE"="C", "EXPECTED"=0, "ACTUAL"=actualC, "PASS"=(actualC EQ 0) });
+            return out;
         </cfscript>
     </cffunction>
 
@@ -2675,6 +2967,107 @@
 
             arrayAppend(out, item);
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenHasInputsJsonColumn" access="private" returntype="boolean" output="false">
+        <cfscript>
+            var qCol = queryNew("");
+            var hasCol = false;
+
+            qCol = queryExecute(
+                "SELECT COUNT(*) AS cnt
+                 FROM information_schema.columns
+                 WHERE table_schema = DATABASE()
+                   AND table_name = 'route_instances'
+                   AND column_name = 'routegen_inputs_json'",
+                {},
+                { datasource = application.dsn }
+            );
+            hasCol = (qCol.recordCount GT 0 AND val(qCol.cnt[1]) GT 0);
+            return hasCol;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenSerializeInputsForInstance" access="private" returntype="string" output="false">
+        <cfargument name="inputData" type="any" required="false" default="">
+        <cfscript>
+            var payload = {};
+            var fuelBurnVal = 0;
+            var fuelBurnInputVal = 0;
+            var fuelBurnBasisVal = "MAX_SPEED";
+            var idleBurnVal = 0;
+            var idleHoursVal = 0;
+            var weatherPctVal = 0;
+            var reservePctVal = 20;
+            var fuelPriceVal = 0;
+            if (!isStruct(arguments.inputData)) return "";
+            payload = duplicate(arguments.inputData);
+            payload.pace = routegenNormalizePace(structKeyExists(payload, "pace") ? payload.pace : "RELAXED");
+            payload.underway_hours_per_day = routegenNormalizeUnderwayHours(
+                structKeyExists(payload, "underway_hours_per_day") ? payload.underway_hours_per_day : 8
+            );
+            fuelBurnVal = routegenNormalizeFuelBurnGph(
+                structKeyExists(payload, "fuel_burn_gph") ? payload.fuel_burn_gph : ""
+            );
+            fuelBurnInputVal = routegenNormalizeFuelBurnGph(
+                structKeyExists(payload, "fuel_burn_gph_input")
+                    ? payload.fuel_burn_gph_input
+                    : (structKeyExists(payload, "fuel_burn_gph") ? payload.fuel_burn_gph : "")
+            );
+            fuelBurnBasisVal = routegenNormalizeFuelBurnBasis(
+                structKeyExists(payload, "fuel_burn_basis") ? payload.fuel_burn_basis : "MAX_SPEED"
+            );
+            idleBurnVal = routegenNormalizeFuelBurnGph(
+                structKeyExists(payload, "idle_burn_gph") ? payload.idle_burn_gph : ""
+            );
+            idleHoursVal = routegenNormalizeIdleHoursTotal(
+                structKeyExists(payload, "idle_hours_total") ? payload.idle_hours_total : ""
+            );
+            weatherPctVal = routegenNormalizeWeatherFactorPct(
+                structKeyExists(payload, "weather_factor_pct") ? payload.weather_factor_pct : ""
+            );
+            reservePctVal = routegenNormalizeReservePct(
+                structKeyExists(payload, "reserve_pct") ? payload.reserve_pct : "",
+                20
+            );
+            fuelPriceVal = routegenNormalizeFuelPricePerGal(
+                structKeyExists(payload, "fuel_price_per_gal") ? payload.fuel_price_per_gal : ""
+            );
+            payload.fuel_burn_gph = (fuelBurnVal GT 0 ? fuelBurnVal : "");
+            payload.fuel_burn_gph_input = (fuelBurnInputVal GT 0 ? fuelBurnInputVal : "");
+            payload.fuel_burn_basis = fuelBurnBasisVal;
+            payload.idle_burn_gph = (idleBurnVal GT 0 ? idleBurnVal : "");
+            payload.idle_hours_total = (idleHoursVal GT 0 ? idleHoursVal : "");
+            payload.weather_factor_pct = weatherPctVal;
+            payload.reserve_pct = reservePctVal;
+            payload.fuel_price_per_gal = (fuelPriceVal GT 0 ? fuelPriceVal : "");
+            payload.optional_stop_flags = routegenNormalizeStopFlags(
+                structKeyExists(payload, "optional_stop_flags") ? payload.optional_stop_flags : []
+            );
+            try {
+                return serializeJSON(payload);
+            } catch (any e) {
+                return "";
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenParseStoredInputs" access="private" returntype="struct" output="false">
+        <cfargument name="rawJson" type="any" required="false" default="">
+        <cfscript>
+            var parsed = {};
+            var raw = trim(toString(arguments.rawJson));
+            if (!len(raw)) return {};
+            try {
+                parsed = deserializeJSON(raw, false);
+                if (isStruct(parsed)) {
+                    return parsed;
+                }
+            } catch (any e) {
+                return {};
+            }
+            return {};
         </cfscript>
     </cffunction>
 
@@ -2791,7 +3184,8 @@
     <cffunction name="routegenLoadDetours" access="private" returntype="struct" output="false">
         <cfargument name="templateRouteId" type="numeric" required="true">
         <cfargument name="direction" type="string" required="false" default="CCW">
-        <cfargument name="defaultMaxNmDay" type="numeric" required="false" default="75">
+        <cfargument name="effectiveCruisingSpeed" type="numeric" required="false" default="10">
+        <cfargument name="underwayHoursPerDay" type="numeric" required="false" default="8">
         <cfscript>
             var out = { "DETOURS"=[], "BY_CODE"={} };
             var qDetours = queryExecute(
@@ -2886,8 +3280,8 @@
             var srcIdx = 0;
             var j = 0;
             var leg = {};
-            var maxNmDayVal = val(arguments.defaultMaxNmDay);
-            if (maxNmDayVal LTE 0) maxNmDayVal = 75;
+            var effectiveSpeedVal = routegenNormalizeCruisingSpeed(arguments.effectiveCruisingSpeed, 10);
+            var underwayHoursVal = routegenNormalizeUnderwayHours(arguments.underwayHoursPerDay);
 
             for (i = 1; i LTE arrayLen(detourOrder); i++) {
                 code = detourOrder[i];
@@ -2914,7 +3308,11 @@
                     if (leg.IS_OFFSHORE) detourDefs[code].OFFSHORE_LEG_DELTA += 1;
                 }
                 detourDefs[code].DELTA_NM = roundTo2(detourDefs[code].DELTA_NM);
-                detourDefs[code].DELTA_DAYS = (detourDefs[code].DELTA_NM GT 0 ? ceiling(detourDefs[code].DELTA_NM / maxNmDayVal) : 0);
+                detourDefs[code].DELTA_DAYS = routegenEstimateDaysBySpeed(
+                    detourDefs[code].DELTA_NM,
+                    effectiveSpeedVal,
+                    underwayHoursVal
+                );
                 arrayAppend(out.DETOURS, detourDefs[code]);
                 out.BY_CODE[code] = detourDefs[code];
             }
@@ -2956,12 +3354,35 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="routegenIsLoopTemplate" access="private" returntype="boolean" output="false">
+        <cfargument name="legs" type="array" required="true">
+        <cfscript>
+            if (arrayLen(arguments.legs) LTE 0) return false;
+
+            var firstLeg = arguments.legs[1];
+            var lastLeg = arguments.legs[arrayLen(arguments.legs)];
+            var firstStartName = trim(toString(firstLeg.START_NAME));
+            var lastEndName = trim(toString(lastLeg.END_NAME));
+            var firstStartPortId = val(firstLeg.START_PORT_ID);
+            var lastEndPortId = val(lastLeg.END_PORT_ID);
+
+            if (len(firstStartName) AND len(lastEndName) AND areLocationNamesEquivalent(firstStartName, lastEndName)) {
+                return true;
+            }
+            if (firstStartPortId GT 0 AND lastEndPortId GT 0 AND firstStartPortId EQ lastEndPortId) {
+                return true;
+            }
+            return false;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="routegenBuildSelection" access="private" returntype="array" output="false">
         <cfargument name="legs" type="array" required="true">
         <cfargument name="startSegmentId" type="any" required="false" default="">
         <cfargument name="endSegmentId" type="any" required="false" default="">
         <cfargument name="startLabel" type="string" required="false" default="">
         <cfargument name="endLabel" type="string" required="false" default="">
+        <cfargument name="allowWrap" type="boolean" required="false" default="true">
         <cfscript>
             var selected = [];
             var n = arrayLen(arguments.legs);
@@ -2980,18 +3401,31 @@
             if (startIdx LTE 0) startIdx = 1;
             if (endIdx LTE 0) endIdx = n;
 
-            if (startIdx EQ endIdx AND n GT 1) {
-                for (i = startIdx; i LTE n; i++) {
-                    arrayAppend(selected, duplicate(arguments.legs[i]));
-                }
-                for (i = 1; i LT startIdx; i++) {
-                    arrayAppend(selected, duplicate(arguments.legs[i]));
+            if (startIdx EQ endIdx) {
+                if (
+                    arguments.allowWrap
+                    AND n GT 1
+                    AND len(trim(arguments.startLabel))
+                    AND len(trim(arguments.endLabel))
+                    AND areLocationNamesEquivalent(arguments.startLabel, arguments.endLabel)
+                ) {
+                    for (i = startIdx; i LTE n; i++) {
+                        arrayAppend(selected, duplicate(arguments.legs[i]));
+                    }
+                    for (i = 1; i LT startIdx; i++) {
+                        arrayAppend(selected, duplicate(arguments.legs[i]));
+                    }
+                } else {
+                    arrayAppend(selected, duplicate(arguments.legs[startIdx]));
                 }
             } else if (endIdx GTE startIdx) {
                 for (i = startIdx; i LTE endIdx; i++) {
                     arrayAppend(selected, duplicate(arguments.legs[i]));
                 }
             } else {
+                if (!arguments.allowWrap) {
+                    return [];
+                }
                 for (i = startIdx; i LTE n; i++) {
                     arrayAppend(selected, duplicate(arguments.legs[i]));
                 }
@@ -3063,8 +3497,16 @@
 
     <cffunction name="routegenComputeTotals" access="private" returntype="struct" output="false">
         <cfargument name="legs" type="array" required="true">
-        <cfargument name="maxNmDay" type="numeric" required="false" default="75">
         <cfargument name="cruisingSpeed" type="numeric" required="false" default="10">
+        <cfargument name="underwayHoursPerDay" type="numeric" required="false" default="8">
+        <cfargument name="fuelBurnGph" type="any" required="false" default="">
+        <cfargument name="idleBurnGph" type="any" required="false" default="">
+        <cfargument name="idleHoursTotal" type="any" required="false" default="">
+        <cfargument name="reservePct" type="any" required="false" default="20">
+        <cfargument name="fuelPricePerGal" type="any" required="false" default="">
+        <cfargument name="maxSpeedKnots" type="any" required="false" default="">
+        <cfargument name="pace" type="any" required="false" default="RELAXED">
+        <cfargument name="weatherPct" type="any" required="false" default="">
         <cfscript>
             var totalNm = 0.0;
             var lockCount = 0;
@@ -3072,33 +3514,96 @@
             var i = 0;
             var leg = {};
             var dist = 0.0;
-            var maxNmDayVal = val(arguments.maxNmDay);
-            if (maxNmDayVal LTE 0) {
-                maxNmDayVal = val(arguments.cruisingSpeed) * 8;
-            }
-            if (maxNmDayVal LTE 0) maxNmDayVal = 75;
+            var paceVal = routegenNormalizePace(arguments.pace);
+            var paceDefaults = routegenPaceDefaults(paceVal);
+            var paceRatioVal = val(paceDefaults.PACE_FACTOR);
+            var maxSpeedVal = routegenNormalizeCruisingSpeed(arguments.maxSpeedKnots, paceDefaults.MAX_SPEED_KN);
+            var effectiveSpeedVal = 0.0;
+            var weatherPctVal = routegenNormalizeWeatherFactorPct(arguments.weatherPct);
+            var weatherAdj = weatherPctVal / 100;
+            var cruisingSpeedVal = routegenNormalizeCruisingSpeed(arguments.cruisingSpeed, 10);
+            var underwayHoursVal = routegenNormalizeUnderwayHours(arguments.underwayHoursPerDay);
+            var totalRunHours = 0.0;
+            var fuelBurnVal = routegenNormalizeFuelBurnGph(arguments.fuelBurnGph);
+            var idleBurnVal = routegenNormalizeFuelBurnGph(arguments.idleBurnGph);
+            var idleHoursVal = routegenNormalizeIdleHoursTotal(arguments.idleHoursTotal);
+            var reservePctVal = routegenNormalizeReservePct(arguments.reservePct, 20);
+            var fuelPriceVal = routegenNormalizeFuelPricePerGal(arguments.fuelPricePerGal);
+            var totalHours = 0.0;
+            var daysByTime = 0;
+            var cruiseFuelGallonsVal = 0.0;
+            var idleFuelGallonsVal = 0.0;
+            var baseFuelGallonsVal = 0.0;
+            var reserveFuelGallonsVal = 0.0;
+            var requiredFuelGallonsVal = 0.0;
+            var fuelCostEstimateVal = 0.0;
+            var fuelEstimate = {};
+
+            if (paceRatioVal LT 0.05) paceRatioVal = 0.05;
+            if (paceRatioVal GT 1) paceRatioVal = 1;
+            effectiveSpeedVal = roundTo2(maxSpeedVal * paceRatioVal);
+            cruisingSpeedVal = roundTo2(effectiveSpeedVal * (1 - weatherAdj));
+            if (cruisingSpeedVal LT 0.5) cruisingSpeedVal = 0.5;
 
             for (i = 1; i LTE arrayLen(arguments.legs); i++) {
                 leg = arguments.legs[i];
                 dist = val(leg.DIST_NM);
                 if (dist LT 0) dist = 0;
                 totalNm += dist;
+                if (dist GT 0 AND cruisingSpeedVal GT 0) {
+                    totalRunHours += (dist / cruisingSpeedVal);
+                }
                 lockCount += val(leg.LOCK_COUNT);
                 if (leg.IS_OFFSHORE) offshoreCount += 1;
             }
 
+            totalHours = totalRunHours + idleHoursVal;
             var estimatedDays = 0;
-            if (totalNm GT 0) {
-                estimatedDays = ceiling(totalNm / maxNmDayVal);
+            if (totalHours GT 0) {
+                daysByTime = ceiling(totalHours / underwayHoursVal);
+                estimatedDays = daysByTime;
                 if (estimatedDays LT 1) estimatedDays = 1;
             }
+
+            idleFuelGallonsVal = (idleBurnVal GT 0 AND idleHoursVal GT 0 ? round((idleBurnVal * idleHoursVal) * 10) / 10 : 0);
+            fuelEstimate = calculateFuelEstimate({
+                "distanceNm"=totalNm,
+                "maxSpeedKnots"=maxSpeedVal,
+                "maxBurnGph"=fuelBurnVal,
+                "pace"=paceVal,
+                "weatherPct"=weatherPctVal,
+                "idleFuelGallons"=idleFuelGallonsVal,
+                "reservePct"=reservePctVal,
+                "fuelPricePerGallon"=fuelPriceVal
+            });
+
+            cruiseFuelGallonsVal = roundTo2(val(fuelEstimate.cruiseFuelGallons));
+            baseFuelGallonsVal = roundTo2(val(fuelEstimate.baseFuelGallons));
+            reserveFuelGallonsVal = roundTo2(val(fuelEstimate.reserveGallons));
+            requiredFuelGallonsVal = roundTo2(val(fuelEstimate.requiredFuelGallons));
+            fuelCostEstimateVal = roundTo2(val(fuelEstimate.totalFuelCost));
 
             return {
                 "TOTAL_NM"=roundTo2(totalNm),
                 "ESTIMATED_DAYS"=estimatedDays,
                 "LOCK_COUNT"=lockCount,
                 "OFFSHORE_LEG_COUNT"=offshoreCount,
-                "MAX_NM_DAY_USED"=maxNmDayVal
+                "CRUISING_SPEED_USED"=cruisingSpeedVal,
+                "UNDERWAY_HOURS_PER_DAY"=underwayHoursVal,
+                "TOTAL_RUN_HOURS"=roundTo2(totalRunHours),
+                "IDLE_HOURS_TOTAL"=roundTo2(idleHoursVal),
+                "TOTAL_HOURS"=roundTo2(totalHours),
+                "CRUISE_FUEL_GALLONS"=cruiseFuelGallonsVal,
+                "IDLE_FUEL_GALLONS"=idleFuelGallonsVal,
+                "BASE_FUEL_GALLONS"=baseFuelGallonsVal,
+                "RESERVE_PCT"=reservePctVal,
+                "RESERVE_FUEL_GALLONS"=reserveFuelGallonsVal,
+                "REQUIRED_FUEL_GALLONS"=requiredFuelGallonsVal,
+                "FUEL_PRICE_PER_GAL"=fuelPriceVal,
+                "FUEL_COST_ESTIMATE"=fuelCostEstimateVal,
+                "DAYS_BY_TIME"=daysByTime,
+                "ESTIMATED_FUEL_GALLONS"=requiredFuelGallonsVal,
+                "FUEL_ESTIMATE"=fuelEstimate
             };
         </cfscript>
     </cffunction>
@@ -3121,12 +3626,30 @@
             }
 
             var directionVal = normalizeDirection(arguments.input.direction);
-            var paceDefaults = routegenPaceDefaults(arguments.input.pace);
-            var cruisingSpeedVal = val(arguments.input.cruising_speed);
-            var maxNmDayVal = val(arguments.input.max_nm_day);
-            if (cruisingSpeedVal LTE 0) cruisingSpeedVal = paceDefaults.CRUISING_SPEED;
-            if (maxNmDayVal LTE 0) maxNmDayVal = paceDefaults.MAX_NM_DAY;
-            if (maxNmDayVal LTE 0) maxNmDayVal = 75;
+            var paceVal = routegenNormalizePace(arguments.input.pace);
+            var paceDefaults = routegenPaceDefaults(paceVal);
+            var maxSpeedVal = routegenNormalizeCruisingSpeed(arguments.input.cruising_speed, paceDefaults.MAX_SPEED_KN);
+            var baseCruiseSpeedVal = routegenComputeEffectiveCruisingSpeed(maxSpeedVal, paceVal);
+            var underwayHoursVal = routegenNormalizeUnderwayHours(arguments.input.underway_hours_per_day);
+            var fuelBurnGphVal = routegenNormalizeFuelBurnGph(arguments.input.fuel_burn_gph);
+            var fuelBurnInputGphVal = routegenNormalizeFuelBurnGph(
+                structKeyExists(arguments.input, "fuel_burn_gph_input") ? arguments.input.fuel_burn_gph_input : arguments.input.fuel_burn_gph
+            );
+            var fuelBurnBasisVal = routegenNormalizeFuelBurnBasis(
+                structKeyExists(arguments.input, "fuel_burn_basis") ? arguments.input.fuel_burn_basis : "MAX_SPEED"
+            );
+            var idleBurnGphVal = routegenNormalizeFuelBurnGph(arguments.input.idle_burn_gph);
+            var idleHoursTotalVal = routegenNormalizeIdleHoursTotal(arguments.input.idle_hours_total);
+            var weatherFactorPctVal = routegenNormalizeWeatherFactorPct(arguments.input.weather_factor_pct);
+            var weatherFactorVal = weatherFactorPctVal / 100;
+            var reservePctVal = routegenNormalizeReservePct(arguments.input.reserve_pct, 20);
+            var fuelPricePerGalVal = routegenNormalizeFuelPricePerGal(arguments.input.fuel_price_per_gal);
+            var paceRatioVal = val(paceDefaults.PACE_FACTOR);
+            var weatherAdjustedSpeedVal = roundTo2(baseCruiseSpeedVal * (1 - weatherFactorVal));
+            var paceAdjustedBurnVal = paceAdjustedBurnGph(fuelBurnGphVal, paceRatioVal, 3.0);
+            var weatherAdjustedBurnVal = roundTo2(paceAdjustedBurnVal * (1 + weatherFactorVal));
+            var fuelEstimateOut = {};
+            if (weatherAdjustedSpeedVal LT 0.5) weatherAdjustedSpeedVal = 0.5;
 
             var mainLegs = routegenLoadMainLegs(templateInfo.ID, directionVal);
             if (!arrayLen(mainLegs)) {
@@ -3134,23 +3657,43 @@
                 out.ERROR = { "MESSAGE"="Selected template has no route_template_segments." };
                 return out;
             }
+            var templateIsLoop = routegenIsLoopTemplate(mainLegs);
 
             var selectedLegs = routegenBuildSelection(
                 legs = mainLegs,
                 startSegmentId = arguments.input.start_segment_id,
                 endSegmentId = arguments.input.end_segment_id,
                 startLabel = arguments.input.start_location_label,
-                endLabel = arguments.input.end_location_label
+                endLabel = arguments.input.end_location_label,
+                allowWrap = templateIsLoop
             );
+            if (!arrayLen(selectedLegs)) {
+                out.MESSAGE = "Invalid start/end selection";
+                out.ERROR = { "MESSAGE"="End location must be after the selected start location for this template and direction." };
+                return out;
+            }
 
-            var detourData = routegenLoadDetours(templateInfo.ID, directionVal, maxNmDayVal);
+            var detourData = routegenLoadDetours(templateInfo.ID, directionVal, weatherAdjustedSpeedVal, underwayHoursVal);
             var selectedStopCodes = routegenNormalizeStopFlags(arguments.input.optional_stop_flags);
             var finalLegs = routegenAppendDetours(
                 baseLegs = selectedLegs,
                 detourByCode = detourData.BY_CODE,
                 selectedCodes = selectedStopCodes
             );
-            var totals = routegenComputeTotals(finalLegs, maxNmDayVal, cruisingSpeedVal);
+            var totals = routegenComputeTotals(
+                legs = finalLegs,
+                cruisingSpeed = weatherAdjustedSpeedVal,
+                underwayHoursPerDay = underwayHoursVal,
+                fuelBurnGph = fuelBurnGphVal,
+                idleBurnGph = idleBurnGphVal,
+                idleHoursTotal = idleHoursTotalVal,
+                reservePct = reservePctVal,
+                fuelPricePerGal = fuelPricePerGalVal,
+                maxSpeedKnots = maxSpeedVal,
+                pace = paceVal,
+                weatherPct = weatherFactorPctVal
+            );
+            fuelEstimateOut = (structKeyExists(totals, "FUEL_ESTIMATE") AND isStruct(totals.FUEL_ESTIMATE) ? totals.FUEL_ESTIMATE : {});
 
             out.SUCCESS = true;
             out.MESSAGE = "OK";
@@ -3159,7 +3702,8 @@
                     "id"=templateInfo.ID,
                     "code"=(len(templateInfo.SHORT_CODE) ? templateInfo.SHORT_CODE : templateInfo.CODE),
                     "name"=templateInfo.NAME,
-                    "description"=templateInfo.DESCRIPTION
+                    "description"=templateInfo.DESCRIPTION,
+                    "is_loop"=(templateIsLoop ? true : false)
                 },
                 "inputs"={
                     "template_code"=(len(templateInfo.SHORT_CODE) ? templateInfo.SHORT_CODE : templateInfo.CODE),
@@ -3167,9 +3711,20 @@
                     "start_segment_id"=arguments.input.start_segment_id,
                     "end_segment_id"=arguments.input.end_segment_id,
                     "start_date"=arguments.input.start_date,
-                    "pace"=uCase(arguments.input.pace),
-                    "cruising_speed"=cruisingSpeedVal,
-                    "max_nm_day"=maxNmDayVal,
+                    "pace"=paceVal,
+                    "cruising_speed"=maxSpeedVal,
+                    "effective_cruising_speed"=(structKeyExists(fuelEstimateOut, "effectiveSpeedKnots") AND val(fuelEstimateOut.effectiveSpeedKnots) GT 0 ? fuelEstimateOut.effectiveSpeedKnots : baseCruiseSpeedVal),
+                    "weather_adjusted_speed_kn"=totals.CRUISING_SPEED_USED,
+                    "underway_hours_per_day"=underwayHoursVal,
+                    "fuel_burn_gph"=(fuelBurnGphVal GT 0 ? fuelBurnGphVal : ""),
+                    "fuel_burn_gph_input"=(fuelBurnInputGphVal GT 0 ? fuelBurnInputGphVal : ""),
+                    "fuel_burn_basis"=fuelBurnBasisVal,
+                    "weather_adjusted_fuel_burn_gph"=(structKeyExists(fuelEstimateOut, "weatherAdjustedBurnGph") AND val(fuelEstimateOut.weatherAdjustedBurnGph) GT 0 ? fuelEstimateOut.weatherAdjustedBurnGph : (weatherAdjustedBurnVal GT 0 ? weatherAdjustedBurnVal : "")),
+                    "idle_burn_gph"=(idleBurnGphVal GT 0 ? idleBurnGphVal : ""),
+                    "idle_hours_total"=(idleHoursTotalVal GT 0 ? idleHoursTotalVal : ""),
+                    "weather_factor_pct"=weatherFactorPctVal,
+                    "reserve_pct"=reservePctVal,
+                    "fuel_price_per_gal"=(fuelPricePerGalVal GT 0 ? fuelPricePerGalVal : ""),
                     "comfort_profile"=arguments.input.comfort_profile,
                     "overnight_bias"=arguments.input.overnight_bias,
                     "optional_stop_flags"=selectedStopCodes
@@ -3178,7 +3733,39 @@
                     "total_nm"=totals.TOTAL_NM,
                     "estimated_days"=totals.ESTIMATED_DAYS,
                     "lock_count"=totals.LOCK_COUNT,
-                    "offshore_leg_count"=totals.OFFSHORE_LEG_COUNT
+                    "offshore_leg_count"=totals.OFFSHORE_LEG_COUNT,
+                    "max_speed_kn"=maxSpeedVal,
+                    "effective_cruising_speed"=baseCruiseSpeedVal,
+                    "weather_adjusted_speed_kn"=totals.CRUISING_SPEED_USED,
+                    "underway_hours_per_day"=totals.UNDERWAY_HOURS_PER_DAY,
+                    "run_hours"=totals.TOTAL_RUN_HOURS,
+                    "idle_hours"=totals.IDLE_HOURS_TOTAL,
+                    "total_hours"=totals.TOTAL_HOURS,
+                    "days_by_time"=totals.DAYS_BY_TIME,
+                    "cruise_fuel_gallons"=totals.CRUISE_FUEL_GALLONS,
+                    "idle_fuel_gallons"=totals.IDLE_FUEL_GALLONS,
+                    "base_fuel_gallons"=totals.BASE_FUEL_GALLONS,
+                    "reserve_pct"=totals.RESERVE_PCT,
+                    "reserve_fuel_gallons"=totals.RESERVE_FUEL_GALLONS,
+                    "required_fuel_gallons"=totals.REQUIRED_FUEL_GALLONS,
+                    "fuel_price_per_gal"=totals.FUEL_PRICE_PER_GAL,
+                    "fuel_cost_estimate"=totals.FUEL_COST_ESTIMATE,
+                    "total_run_hours"=totals.TOTAL_RUN_HOURS,
+                    "estimated_fuel_gallons"=totals.ESTIMATED_FUEL_GALLONS
+                },
+                "fuelEstimate"={
+                    "paceRatio"=(structKeyExists(fuelEstimateOut, "paceRatio") ? fuelEstimateOut.paceRatio : 0),
+                    "effectiveSpeedKnots"=(structKeyExists(fuelEstimateOut, "effectiveSpeedKnots") ? fuelEstimateOut.effectiveSpeedKnots : 0),
+                    "paceAdjustedBurnGph"=(structKeyExists(fuelEstimateOut, "paceAdjustedBurnGph") ? fuelEstimateOut.paceAdjustedBurnGph : 0),
+                    "weatherAdjustedSpeedKnots"=(structKeyExists(fuelEstimateOut, "weatherAdjustedSpeedKnots") ? fuelEstimateOut.weatherAdjustedSpeedKnots : 0),
+                    "weatherAdjustedBurnGph"=(structKeyExists(fuelEstimateOut, "weatherAdjustedBurnGph") ? fuelEstimateOut.weatherAdjustedBurnGph : 0),
+                    "cruiseHours"=(structKeyExists(fuelEstimateOut, "cruiseHours") ? fuelEstimateOut.cruiseHours : 0),
+                    "cruiseFuelGallons"=(structKeyExists(fuelEstimateOut, "cruiseFuelGallons") ? fuelEstimateOut.cruiseFuelGallons : 0),
+                    "idleFuelGallons"=(structKeyExists(fuelEstimateOut, "idleFuelGallons") ? fuelEstimateOut.idleFuelGallons : 0),
+                    "baseFuelGallons"=(structKeyExists(fuelEstimateOut, "baseFuelGallons") ? fuelEstimateOut.baseFuelGallons : 0),
+                    "reserveGallons"=(structKeyExists(fuelEstimateOut, "reserveGallons") ? fuelEstimateOut.reserveGallons : 0),
+                    "requiredFuelGallons"=(structKeyExists(fuelEstimateOut, "requiredFuelGallons") ? fuelEstimateOut.requiredFuelGallons : 0),
+                    "totalFuelCost"=(structKeyExists(fuelEstimateOut, "totalFuelCost") ? fuelEstimateOut.totalFuelCost : 0)
                 },
                 "legs"=[],
                 "optional_stops"=(structKeyExists(detourData, "DETOURS") ? detourData.DETOURS : [])
@@ -3234,9 +3821,11 @@
                 out.ERROR = { "MESSAGE"="Selected template has no route_template_segments." };
                 return out;
             }
+            var templateIsLoop = routegenIsLoopTemplate(mainLegs);
 
-            var paceDefaults = routegenPaceDefaults("RELAXED");
-            var detourData = routegenLoadDetours(templateInfo.ID, directionVal, paceDefaults.MAX_NM_DAY);
+            var defaultPace = routegenPaceDefaults("BALANCED");
+            var defaultEffectiveSpeed = routegenComputeEffectiveCruisingSpeed(defaultPace.MAX_SPEED_KN, "BALANCED");
+            var detourData = routegenLoadDetours(templateInfo.ID, directionVal, defaultEffectiveSpeed, 8);
             var startOptions = [];
             var endOptions = [];
             var i = 0;
@@ -3283,9 +3872,11 @@
                     "id"=templateInfo.ID,
                     "code"=(len(templateInfo.SHORT_CODE) ? templateInfo.SHORT_CODE : templateInfo.CODE),
                     "name"=templateInfo.NAME,
-                    "description"=templateInfo.DESCRIPTION
+                    "description"=templateInfo.DESCRIPTION,
+                    "is_loop"=(templateIsLoop ? true : false)
                 },
                 "direction"=directionVal,
+                "is_loop"=(templateIsLoop ? true : false),
                 "startOptions"=startOptions,
                 "endOptions"=endOptions,
                 "optionalStops"=optionalStops,
@@ -3363,13 +3954,19 @@
                 return out;
             }
 
-            var qInst = queryExecute(
-                "SELECT template_route_code, direction, trip_type, start_location, end_location, created_at
+            var hasInputsJsonCol = routegenHasInputsJsonColumn();
+            var qInstSql = "SELECT template_route_code, direction, trip_type, start_location, end_location, created_at";
+            if (hasInputsJsonCol) {
+                qInstSql &= ", routegen_inputs_json";
+            }
+            qInstSql &= "
                  FROM route_instances
                  WHERE generated_route_id = :rid
                    AND user_id = :uid
                  ORDER BY id DESC
-                 LIMIT 1",
+                 LIMIT 1";
+            var qInst = queryExecute(
+                qInstSql,
                 {
                     rid = { value=routeInfo.ROUTE_ID, cfsqltype="cf_sql_integer" },
                     uid = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
@@ -3416,10 +4013,76 @@
                 endIdx = (tripTypeVal EQ "FULL_LOOP" ? startIdx : arrayLen(mainLegs));
             }
 
-            var paceDefaults = routegenPaceDefaults("RELAXED");
-            var startDateVal = dateFormat(now(), "yyyy-mm-dd");
-            if (!isNull(qInst.created_at[1])) {
-                startDateVal = dateFormat(qInst.created_at[1], "yyyy-mm-dd");
+            var storedInputs = {};
+            if (hasInputsJsonCol AND !isNull(qInst.routegen_inputs_json[1])) {
+                storedInputs = routegenParseStoredInputs(qInst.routegen_inputs_json[1]);
+            }
+            var paceVal = routegenNormalizePace(
+                structKeyExists(storedInputs, "pace") ? storedInputs.pace : "RELAXED"
+            );
+            var paceDefaults = routegenPaceDefaults(paceVal);
+            var maxSpeedVal = routegenNormalizeCruisingSpeed(
+                structKeyExists(storedInputs, "cruising_speed") ? storedInputs.cruising_speed : "",
+                paceDefaults.MAX_SPEED_KN
+            );
+            var underwayHoursVal = routegenNormalizeUnderwayHours(
+                structKeyExists(storedInputs, "underway_hours_per_day") ? storedInputs.underway_hours_per_day : 8
+            );
+            var effectiveSpeedVal = routegenComputeEffectiveCruisingSpeed(maxSpeedVal, paceVal);
+            var fuelBurnGphVal = routegenNormalizeFuelBurnGph(
+                structKeyExists(storedInputs, "fuel_burn_gph") ? storedInputs.fuel_burn_gph : ""
+            );
+            var fuelBurnInputGphVal = routegenNormalizeFuelBurnGph(
+                structKeyExists(storedInputs, "fuel_burn_gph_input")
+                    ? storedInputs.fuel_burn_gph_input
+                    : (structKeyExists(storedInputs, "fuel_burn_gph") ? storedInputs.fuel_burn_gph : "")
+            );
+            var fuelBurnBasisVal = routegenNormalizeFuelBurnBasis(
+                structKeyExists(storedInputs, "fuel_burn_basis") ? storedInputs.fuel_burn_basis : "MAX_SPEED"
+            );
+            var idleBurnGphVal = routegenNormalizeFuelBurnGph(
+                structKeyExists(storedInputs, "idle_burn_gph") ? storedInputs.idle_burn_gph : ""
+            );
+            var idleHoursTotalVal = routegenNormalizeIdleHoursTotal(
+                structKeyExists(storedInputs, "idle_hours_total") ? storedInputs.idle_hours_total : ""
+            );
+            var weatherFactorPctVal = routegenNormalizeWeatherFactorPct(
+                structKeyExists(storedInputs, "weather_factor_pct") ? storedInputs.weather_factor_pct : ""
+            );
+            var reservePctVal = routegenNormalizeReservePct(
+                structKeyExists(storedInputs, "reserve_pct") ? storedInputs.reserve_pct : "",
+                20
+            );
+            var fuelPricePerGalVal = routegenNormalizeFuelPricePerGal(
+                structKeyExists(storedInputs, "fuel_price_per_gal") ? storedInputs.fuel_price_per_gal : ""
+            );
+            var comfortProfileVal = uCase(
+                trim(toString(structKeyExists(storedInputs, "comfort_profile") ? storedInputs.comfort_profile : "PREFER_INSIDE"))
+            );
+            if (!listFindNoCase("PREFER_INSIDE,BALANCED,OFFSHORE_OK", comfortProfileVal)) {
+                comfortProfileVal = "PREFER_INSIDE";
+            }
+            var overnightBiasVal = uCase(
+                trim(toString(structKeyExists(storedInputs, "overnight_bias") ? storedInputs.overnight_bias : "MARINAS"))
+            );
+            if (!listFindNoCase("MARINAS,ANCHORAGES,MIXED", overnightBiasVal)) {
+                overnightBiasVal = "MARINAS";
+            }
+            var optionalStopFlags = routegenNormalizeStopFlags(
+                structKeyExists(storedInputs, "optional_stop_flags") ? storedInputs.optional_stop_flags : []
+            );
+            var storedStartDate = trim(
+                toString(structKeyExists(storedInputs, "start_date") ? storedInputs.start_date : "")
+            );
+            var startDateVal = "";
+            if (len(storedStartDate) AND reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", storedStartDate)) {
+                startDateVal = storedStartDate;
+            }
+            if (!len(startDateVal)) {
+                startDateVal = dateFormat(now(), "yyyy-mm-dd");
+                if (!isNull(qInst.created_at[1])) {
+                    startDateVal = dateFormat(qInst.created_at[1], "yyyy-mm-dd");
+                }
             }
 
             out.SUCCESS = true;
@@ -3444,28 +4107,41 @@
                     "start_location_label"=startLabel,
                     "end_location_label"=endLabel,
                     "start_date"=startDateVal,
-                    "pace"="RELAXED",
-                    "cruising_speed"=paceDefaults.CRUISING_SPEED,
-                    "max_nm_day"=paceDefaults.MAX_NM_DAY,
-                    "comfort_profile"="BALANCED",
-                    "overnight_bias"="MARINAS",
-                    "optional_stop_flags"=[]
+                    "pace"=paceVal,
+                    "cruising_speed"=maxSpeedVal,
+                    "effective_cruising_speed"=effectiveSpeedVal,
+                    "underway_hours_per_day"=underwayHoursVal,
+                    "fuel_burn_gph"=(fuelBurnGphVal GT 0 ? fuelBurnGphVal : ""),
+                    "fuel_burn_gph_input"=(fuelBurnInputGphVal GT 0 ? fuelBurnInputGphVal : ""),
+                    "fuel_burn_basis"=fuelBurnBasisVal,
+                    "idle_burn_gph"=(idleBurnGphVal GT 0 ? idleBurnGphVal : ""),
+                    "idle_hours_total"=(idleHoursTotalVal GT 0 ? idleHoursTotalVal : ""),
+                    "weather_factor_pct"=weatherFactorPctVal,
+                    "reserve_pct"=reservePctVal,
+                    "fuel_price_per_gal"=(fuelPricePerGalVal GT 0 ? fuelPricePerGalVal : ""),
+                    "comfort_profile"=comfortProfileVal,
+                    "overnight_bias"=overnightBiasVal,
+                    "optional_stop_flags"=optionalStopFlags
                 }
             };
             return out;
         </cfscript>
     </cffunction>
 
-    <cffunction name="routegenAllocateUserRouteCode" access="private" returntype="string" output="false">
+    <cffunction name="allocateUserRouteCode" access="private" returntype="string" output="false">
         <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="maxAttempts" type="numeric" required="false" default="100">
         <cfscript>
-            var stamp = dateTimeFormat(now(), "yyyymmddHHnnss");
-            var baseCode = "USER_ROUTE_" & int(arguments.userId) & "_" & stamp;
             var tryNum = 0;
+            var stamp = "";
+            var token = "";
             var candidate = "";
             var q = queryNew("");
-            for (tryNum = 0; tryNum LTE 50; tryNum++) {
-                candidate = (tryNum EQ 0 ? baseCode : (baseCode & "_" & tryNum));
+            var maxTry = max(1, int(arguments.maxAttempts));
+            for (tryNum = 1; tryNum LTE maxTry; tryNum++) {
+                stamp = dateTimeFormat(now(), "yyyymmddHHnnss");
+                token = lCase(left(replace(createUUID(), "-", "", "all"), 8));
+                candidate = "USER_ROUTE_" & int(arguments.userId) & "_" & stamp & "_" & token;
                 q = queryExecute(
                     "SELECT id
                      FROM loop_routes
@@ -3481,6 +4157,13 @@
                 }
             }
             return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenAllocateUserRouteCode" access="private" returntype="string" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfscript>
+            return allocateUserRouteCode(arguments.userId);
         </cfscript>
     </cffunction>
 
@@ -3524,8 +4207,22 @@
             var directionVal = normalizeDirection(arguments.input.direction);
             var startLocationVal = trim(toString(legs[1].start_name));
             var endLocationVal = trim(toString(legs[arrayLen(legs)].end_name));
-            var tripTypeVal = (arguments.input.start_segment_id EQ arguments.input.end_segment_id ? "FULL_LOOP" : "POINT_TO_POINT");
+            var templateIsLoop = (
+                structKeyExists(data, "template")
+                AND isStruct(data.template)
+                AND (
+                    (structKeyExists(data.template, "is_loop") AND data.template.is_loop)
+                    OR (structKeyExists(data.template, "IS_LOOP") AND data.template.IS_LOOP)
+                )
+            );
+            var tripTypeVal = ((templateIsLoop AND arguments.input.start_segment_id EQ arguments.input.end_segment_id) ? "FULL_LOOP" : "POINT_TO_POINT");
             var routeDesc = "Generated from template " & templateCodeVal & " (" & directionVal & ") on " & dateFormat(now(), "yyyy-mm-dd");
+            var instanceInputs = (structKeyExists(data, "inputs") AND isStruct(data.inputs) ? duplicate(data.inputs) : {});
+            if (!len(trim(toString(structKeyExists(instanceInputs, "start_date") ? instanceInputs.start_date : "")))) {
+                instanceInputs.start_date = trim(toString(arguments.input.start_date));
+            }
+            var instanceInputsJson = routegenSerializeInputsForInstance(instanceInputs);
+            var hasInputsJsonCol = routegenHasInputsJsonColumn();
             var newRouteId = 0;
             var newSectionId = 0;
             var routeInstanceId = 0;
@@ -3612,23 +4309,44 @@
                     { datasource = application.dsn }
                 );
 
-                queryExecute(
-                    "INSERT INTO route_instances
-                        (user_id, template_route_code, generated_route_id, generated_route_code, direction, trip_type, start_location, end_location, status)
-                     VALUES
-                        (:userId, :templateCode, :generatedRouteId, :generatedRouteCode, :direction, :tripType, :startLocation, :endLocation, 'PLANNED')",
-                    {
-                        userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
-                        templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" },
-                        generatedRouteId = { value=newRouteId, cfsqltype="cf_sql_integer" },
-                        generatedRouteCode = { value=routeCode, cfsqltype="cf_sql_varchar" },
-                        direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
-                        tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
-                        startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
-                        endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) }
-                    },
-                    { datasource = application.dsn, result = "routegenInstIns" }
-                );
+                if (hasInputsJsonCol) {
+                    queryExecute(
+                        "INSERT INTO route_instances
+                            (user_id, template_route_code, generated_route_id, generated_route_code, direction, trip_type, start_location, end_location, routegen_inputs_json, status)
+                         VALUES
+                            (:userId, :templateCode, :generatedRouteId, :generatedRouteCode, :direction, :tripType, :startLocation, :endLocation, :routegenInputsJson, 'PLANNED')",
+                        {
+                            userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
+                            templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" },
+                            generatedRouteId = { value=newRouteId, cfsqltype="cf_sql_integer" },
+                            generatedRouteCode = { value=routeCode, cfsqltype="cf_sql_varchar" },
+                            direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
+                            tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
+                            startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
+                            endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) },
+                            routegenInputsJson = { value=instanceInputsJson, cfsqltype="cf_sql_longvarchar", null=NOT len(instanceInputsJson) }
+                        },
+                        { datasource = application.dsn, result = "routegenInstIns" }
+                    );
+                } else {
+                    queryExecute(
+                        "INSERT INTO route_instances
+                            (user_id, template_route_code, generated_route_id, generated_route_code, direction, trip_type, start_location, end_location, status)
+                         VALUES
+                            (:userId, :templateCode, :generatedRouteId, :generatedRouteCode, :direction, :tripType, :startLocation, :endLocation, 'PLANNED')",
+                        {
+                            userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
+                            templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" },
+                            generatedRouteId = { value=newRouteId, cfsqltype="cf_sql_integer" },
+                            generatedRouteCode = { value=routeCode, cfsqltype="cf_sql_varchar" },
+                            direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
+                            tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
+                            startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
+                            endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) }
+                        },
+                        { datasource = application.dsn, result = "routegenInstIns" }
+                    );
+                }
                 routeInstanceId = val(routegenInstIns.generatedKey);
             }
 
@@ -3710,8 +4428,22 @@
             var directionVal = normalizeDirection(arguments.input.direction);
             var startLocationVal = trim(toString(legs[1].start_name));
             var endLocationVal = trim(toString(legs[arrayLen(legs)].end_name));
-            var tripTypeVal = (arguments.input.start_segment_id EQ arguments.input.end_segment_id ? "FULL_LOOP" : "POINT_TO_POINT");
+            var templateIsLoop = (
+                structKeyExists(data, "template")
+                AND isStruct(data.template)
+                AND (
+                    (structKeyExists(data.template, "is_loop") AND data.template.is_loop)
+                    OR (structKeyExists(data.template, "IS_LOOP") AND data.template.IS_LOOP)
+                )
+            );
+            var tripTypeVal = ((templateIsLoop AND arguments.input.start_segment_id EQ arguments.input.end_segment_id) ? "FULL_LOOP" : "POINT_TO_POINT");
             var routeDesc = "Updated from template " & templateCodeVal & " (" & directionVal & ") on " & dateFormat(now(), "yyyy-mm-dd");
+            var instanceInputs = (structKeyExists(data, "inputs") AND isStruct(data.inputs) ? duplicate(data.inputs) : {});
+            if (!len(trim(toString(structKeyExists(instanceInputs, "start_date") ? instanceInputs.start_date : "")))) {
+                instanceInputs.start_date = trim(toString(arguments.input.start_date));
+            }
+            var instanceInputsJson = routegenSerializeInputsForInstance(instanceInputs);
+            var hasInputsJsonCol = routegenHasInputsJsonColumn();
             var totals = (structKeyExists(data, "totals") ? data.totals : {});
             var totalNmBind = toNullableNumber((structKeyExists(totals, "total_nm") ? totals.total_nm : ""), "numeric");
             var totalLocksBind = toNullableNumber((structKeyExists(totals, "lock_count") ? totals.lock_count : ""), "integer");
@@ -3828,46 +4560,94 @@
 
                 if (qInst.recordCount GT 0) {
                     routeInstanceId = val(qInst.id[1]);
-                    queryExecute(
-                        "UPDATE route_instances
-                         SET template_route_code = :templateCode,
-                             generated_route_code = :generatedRouteCode,
-                             direction = :direction,
-                             trip_type = :tripType,
-                             start_location = :startLocation,
-                             end_location = :endLocation,
-                             status = 'PLANNED',
-                             updated_at = NOW()
-                         WHERE id = :id",
-                        {
-                            templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" },
-                            generatedRouteCode = { value=routeCodeVal, cfsqltype="cf_sql_varchar" },
-                            direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
-                            tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
-                            startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
-                            endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) },
-                            id = { value=routeInstanceId, cfsqltype="cf_sql_integer" }
-                        },
-                        { datasource = application.dsn }
-                    );
+                    if (hasInputsJsonCol) {
+                        queryExecute(
+                            "UPDATE route_instances
+                             SET template_route_code = :templateCode,
+                                 generated_route_code = :generatedRouteCode,
+                                 direction = :direction,
+                                 trip_type = :tripType,
+                                 start_location = :startLocation,
+                                 end_location = :endLocation,
+                                 routegen_inputs_json = :routegenInputsJson,
+                                 status = 'PLANNED',
+                                 updated_at = NOW()
+                             WHERE id = :id",
+                            {
+                                templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" },
+                                generatedRouteCode = { value=routeCodeVal, cfsqltype="cf_sql_varchar" },
+                                direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
+                                tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
+                                startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
+                                endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) },
+                                routegenInputsJson = { value=instanceInputsJson, cfsqltype="cf_sql_longvarchar", null=NOT len(instanceInputsJson) },
+                                id = { value=routeInstanceId, cfsqltype="cf_sql_integer" }
+                            },
+                            { datasource = application.dsn }
+                        );
+                    } else {
+                        queryExecute(
+                            "UPDATE route_instances
+                             SET template_route_code = :templateCode,
+                                 generated_route_code = :generatedRouteCode,
+                                 direction = :direction,
+                                 trip_type = :tripType,
+                                 start_location = :startLocation,
+                                 end_location = :endLocation,
+                                 status = 'PLANNED',
+                                 updated_at = NOW()
+                             WHERE id = :id",
+                            {
+                                templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" },
+                                generatedRouteCode = { value=routeCodeVal, cfsqltype="cf_sql_varchar" },
+                                direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
+                                tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
+                                startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
+                                endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) },
+                                id = { value=routeInstanceId, cfsqltype="cf_sql_integer" }
+                            },
+                            { datasource = application.dsn }
+                        );
+                    }
                 } else {
-                    queryExecute(
-                        "INSERT INTO route_instances
-                            (user_id, template_route_code, generated_route_id, generated_route_code, direction, trip_type, start_location, end_location, status)
-                         VALUES
-                            (:userId, :templateCode, :generatedRouteId, :generatedRouteCode, :direction, :tripType, :startLocation, :endLocation, 'PLANNED')",
-                        {
-                            userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
-                            templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" },
-                            generatedRouteId = { value=routeId, cfsqltype="cf_sql_integer" },
-                            generatedRouteCode = { value=routeCodeVal, cfsqltype="cf_sql_varchar" },
-                            direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
-                            tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
-                            startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
-                            endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) }
-                        },
-                        { datasource = application.dsn, result = "routegenUpdInstIns" }
-                    );
+                    if (hasInputsJsonCol) {
+                        queryExecute(
+                            "INSERT INTO route_instances
+                                (user_id, template_route_code, generated_route_id, generated_route_code, direction, trip_type, start_location, end_location, routegen_inputs_json, status)
+                             VALUES
+                                (:userId, :templateCode, :generatedRouteId, :generatedRouteCode, :direction, :tripType, :startLocation, :endLocation, :routegenInputsJson, 'PLANNED')",
+                            {
+                                userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
+                                templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" },
+                                generatedRouteId = { value=routeId, cfsqltype="cf_sql_integer" },
+                                generatedRouteCode = { value=routeCodeVal, cfsqltype="cf_sql_varchar" },
+                                direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
+                                tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
+                                startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
+                                endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) },
+                                routegenInputsJson = { value=instanceInputsJson, cfsqltype="cf_sql_longvarchar", null=NOT len(instanceInputsJson) }
+                            },
+                            { datasource = application.dsn, result = "routegenUpdInstIns" }
+                        );
+                    } else {
+                        queryExecute(
+                            "INSERT INTO route_instances
+                                (user_id, template_route_code, generated_route_id, generated_route_code, direction, trip_type, start_location, end_location, status)
+                             VALUES
+                                (:userId, :templateCode, :generatedRouteId, :generatedRouteCode, :direction, :tripType, :startLocation, :endLocation, 'PLANNED')",
+                            {
+                                userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
+                                templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" },
+                                generatedRouteId = { value=routeId, cfsqltype="cf_sql_integer" },
+                                generatedRouteCode = { value=routeCodeVal, cfsqltype="cf_sql_varchar" },
+                                direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
+                                tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
+                                startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
+                                endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) }
+                            },
+                            { datasource = application.dsn, result = "routegenUpdInstIns" }
+                        );
+                    }
                     routeInstanceId = val(routegenUpdInstIns.generatedKey);
                 }
             }
