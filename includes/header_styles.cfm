@@ -8,3 +8,4 @@
     crossorigin="anonymous">
 
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/app.css">
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=1">

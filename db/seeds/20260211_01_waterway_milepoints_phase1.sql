@@ -1,0 +1,18 @@
+INSERT INTO waterway_milepoints (waterway_code, location_name, alias_name, rm_value, source, is_active) VALUES
+('ILLINOIS', 'Chicago', NULL, 327.00, 'USACE', 1),
+('ILLINOIS', 'Joliet', NULL, 286.00, 'USACE', 1),
+('ILLINOIS', 'Peoria', NULL, 164.00, 'USACE', 1),
+('ILLINOIS', 'Grafton', NULL, 0.00, 'USACE', 1),
+('ILLINOIS', 'Lockport', NULL, 291.00, 'USACE', 1),
+('OHIO', 'Cairo', NULL, 981.00, 'USACE', 1),
+('OHIO', 'Paducah', NULL, 934.00, 'USACE', 1),
+('TENNESSEE', 'Paducah', NULL, 22.00, 'USACE', 1),
+('TENNESSEE', 'Pickwick', NULL, 206.00, 'USACE', 1),
+('TENN_TOM', 'Pickwick', NULL, 450.00, 'USACE', 1),
+('TENN_TOM', 'Demopolis', NULL, 213.00, 'USACE', 1),
+('GREAT_LAKES', 'Chicago', NULL, 0.00, 'FPW_ROUTE', 1),
+('GREAT_LAKES', 'St. Joseph', 'Saint Joseph', 90.00, 'FPW_ROUTE', 1),
+('GREAT_LAKES', 'South Haven', NULL, 115.00, 'FPW_ROUTE', 1),
+('GREAT_LAKES', 'Grand Haven', NULL, 160.00, 'FPW_ROUTE', 1),
+('GREAT_LAKES', 'Ludington', NULL, 212.00, 'FPW_ROUTE', 1),
+('TENN_TOM', 'Mobile', NULL, 0.00, 'USACE', 1);

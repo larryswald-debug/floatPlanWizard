@@ -118,6 +118,23 @@
                     <cfoutput>#serializeJSON(deleteResult)#</cfoutput>
                 </cfcase>
 
+                <cfcase value="deleteallbyuser,deleteallbyuserid">
+                    <cfset var targetUserId = 0>
+                    <cfif structKeyExists(body, "targetUserId")>
+                        <cfset targetUserId = val(body.targetUserId)>
+                    <cfelseif structKeyExists(body, "userId")>
+                        <cfset targetUserId = val(body.userId)>
+                    <cfelseif structKeyExists(url, "targetUserId")>
+                        <cfset targetUserId = val(url.targetUserId)>
+                    <cfelseif structKeyExists(url, "userId")>
+                        <cfset targetUserId = val(url.userId)>
+                    </cfif>
+
+                    <cfset var bulkDeleteResult = deleteAllFloatPlansByUser(userId, targetUserId)>
+                    <cfset bulkDeleteResult.AUTH = true>
+                    <cfoutput>#serializeJSON(bulkDeleteResult)#</cfoutput>
+                </cfcase>
+
                 <cfcase value="checkin">
                     <cfset var checkinId = 0>
                     <cfif structKeyExists(body, "floatPlanId")>
@@ -320,6 +337,8 @@
             var foodDays        = trim(pickValue(floatPlan, ["foodDaysPerPerson", "FOOD_DAYS_PER_PERSON"], ""));
             var waterDays       = trim(pickValue(floatPlan, ["waterDaysPerPerson", "WATER_DAYS_PER_PERSON"], ""));
             var notes           = trim(pickValue(floatPlan, ["notes", "NOTES"], ""));
+            var routeInstanceId = val(pickValue(floatPlan, ["routeInstanceId", "ROUTE_INSTANCE_ID", "route_instance_id"], 0));
+            var routeDayNumber  = val(pickValue(floatPlan, ["routeDayNumber", "ROUTE_DAY_NUMBER", "route_day_number"], 0));
             var doNotSend       = booleanValue(pickValue(floatPlan, ["doNotSend", "DO_NOT_SEND"], false));
             var departureTimeUtc = "";
             var returnTimeUtc = "";
@@ -407,6 +426,8 @@
                             food,
                             water,
                             notes,
+                            route_instance_id,
+                            route_day_number,
                             status,
                             dateCreated,
                             lastUpdate
@@ -433,6 +454,8 @@
                             :foodDays,
                             :waterDays,
                             :notes,
+                            :routeInstanceId,
+                            :routeDayNumber,
                             'Draft',
                             NOW(),
                             NOW()
@@ -458,6 +481,8 @@
                         foodDays = { value = foodDays, cfsqltype = "cf_sql_varchar", null = NOT len(foodDays) },
                         waterDays = { value = waterDays, cfsqltype = "cf_sql_varchar", null = NOT len(waterDays) },
                         notes = { value = notes, cfsqltype = "cf_sql_varchar", null = NOT len(notes) },
+                        routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer", null = (routeInstanceId LTE 0) },
+                        routeDayNumber = { value = routeDayNumber, cfsqltype = "cf_sql_integer", null = (routeDayNumber LTE 0) },
                         doNotSend = { value = doNotSend, cfsqltype = "cf_sql_bit" }
                     }, { datasource = ds });
 
@@ -485,6 +510,8 @@
                                food                = :foodDays,
                                water               = :waterDays,
                                notes               = :notes,
+                               route_instance_id   = :routeInstanceId,
+                               route_day_number    = :routeDayNumber,
                                lastUpdate          = NOW()
                          WHERE floatplanId = :planId
                            AND userId = :userId
@@ -510,6 +537,8 @@
                         foodDays = { value = foodDays, cfsqltype = "cf_sql_varchar", null = NOT len(foodDays) },
                         waterDays = { value = waterDays, cfsqltype = "cf_sql_varchar", null = NOT len(waterDays) },
                         notes = { value = notes, cfsqltype = "cf_sql_varchar", null = NOT len(notes) },
+                        routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer", null = (routeInstanceId LTE 0) },
+                        routeDayNumber = { value = routeDayNumber, cfsqltype = "cf_sql_integer", null = (routeDayNumber LTE 0) },
                         doNotSend = { value = doNotSend, cfsqltype = "cf_sql_bit" }
                     }, { datasource = ds });
 
@@ -944,6 +973,88 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="deleteAllFloatPlansByUser" access="private" returntype="struct" output="false">
+        <cfargument name="requestingUserId" type="numeric" required="true">
+        <cfargument name="targetUserId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                TARGET_USER_ID = arguments.targetUserId,
+                DELETED_COUNT = 0,
+                SKIPPED_COUNT = 0,
+                DELETED_IDS = [],
+                SKIPPED = []
+            };
+            var qPlans = queryNew("");
+            var i = 0;
+            var planId = 0;
+            var planStatus = "";
+            var deleteRes = {};
+
+            if (!isAdminBulkDeleteUser(arguments.requestingUserId)) {
+                result.ERROR = "FORBIDDEN";
+                result.MESSAGE = "This action is restricted to admin access.";
+                return result;
+            }
+
+            if (arguments.targetUserId LTE 0) {
+                result.ERROR = "INVALID_USER_ID";
+                result.MESSAGE = "A valid target userId is required.";
+                return result;
+            }
+
+            qPlans = queryExecute(
+                "SELECT floatplanId, UPPER(TRIM(`status`)) AS statusValue
+                   FROM floatplans
+                  WHERE userId = :userId
+                  ORDER BY floatplanId DESC",
+                {
+                    userId = { value = arguments.targetUserId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+
+            if (qPlans.recordCount EQ 0) {
+                result.SUCCESS = true;
+                result.MESSAGE = "No float plans found for user.";
+                return result;
+            }
+
+            for (i = 1; i LTE qPlans.recordCount; i++) {
+                planId = val(qPlans.floatplanId[i]);
+                planStatus = trim(toString(qPlans.statusValue[i]));
+                deleteRes = deleteFloatPlan(arguments.targetUserId, planId);
+                if (structKeyExists(deleteRes, "SUCCESS") AND deleteRes.SUCCESS) {
+                    arrayAppend(result.DELETED_IDS, planId);
+                } else {
+                    arrayAppend(result.SKIPPED, {
+                        FLOATPLANID = planId,
+                        STATUS = planStatus,
+                        ERROR = structKeyExists(deleteRes, "ERROR") ? deleteRes.ERROR : "DELETE_FAILED",
+                        MESSAGE = structKeyExists(deleteRes, "MESSAGE") ? deleteRes.MESSAGE : "Unable to delete float plan."
+                    });
+                }
+            }
+
+            result.DELETED_COUNT = arrayLen(result.DELETED_IDS);
+            result.SKIPPED_COUNT = arrayLen(result.SKIPPED);
+            result.SUCCESS = true;
+            result.MESSAGE = "Processed " & qPlans.recordCount & " plan(s): " & result.DELETED_COUNT & " deleted, " & result.SKIPPED_COUNT & " skipped.";
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="isAdminBulkDeleteUser" access="private" returntype="boolean" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfscript>
+            var allowedIds = "187";
+            if (structKeyExists(application, "adminBulkDeleteUserIds")) {
+                allowedIds = toString(application.adminBulkDeleteUserIds);
+            }
+            return listFindNoCase(allowedIds, trim(toString(arguments.userId))) GT 0;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="checkInFloatPlan" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
@@ -970,6 +1081,28 @@
                 planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                 userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
             }, { datasource = "fpw" });
+
+            try {
+                var routeProgressService = createObject("component", resolveApiV1ComponentPath("RouteProgressService")).init();
+                result.ROUTE_PROGRESS = routeProgressService.markCompletionFromFloatPlanCheckin(
+                    userId = arguments.userId,
+                    floatPlanId = arguments.floatPlanId,
+                    routeCode = "GREAT_LOOP_CCW",
+                    datasource = "fpw"
+                );
+            } catch (any routeErr) {
+                writeLog(
+                    type = "warning",
+                    file = "application",
+                    text = "Route progress check-in integration failed. floatPlanId=#arguments.floatPlanId#, userId=#arguments.userId#, message=#routeErr.message#"
+                );
+                result.ROUTE_PROGRESS = {
+                    SUCCESS = false,
+                    MATCHED = false,
+                    MESSAGE = "Route progress update failed",
+                    ERROR = routeErr.message
+                };
+            }
 
             result.SUCCESS = true;
             result.FLOATPLANID = arguments.floatPlanId;
@@ -1006,6 +1139,8 @@
                     food,
                     water,
                     notes,
+                    route_instance_id,
+                    route_day_number,
                     status
                 FROM floatplans
                 WHERE floatplanId = :planId
@@ -1075,6 +1210,8 @@
                     FOOD_DAYS_PER_PERSON = qPlan.food,
                     WATER_DAYS_PER_PERSON= qPlan.water,
                     NOTES                = qPlan.notes,
+                    ROUTE_INSTANCE_ID    = qPlan.route_instance_id,
+                    ROUTE_DAY_NUMBER     = qPlan.route_day_number,
                     DO_NOT_SEND          = false,
                     STATUS               = qPlan.status
                 };
@@ -1238,6 +1375,40 @@
             }
 
             return (len(prefix) ? prefix & "." : "") & "api.api_assets.floatPlanUtils";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveApiV1ComponentPath" access="private" returntype="string" output="false">
+        <cfargument name="componentName" type="string" required="true">
+        <cfscript>
+            var webRoot = "";
+            var templatePath = getCurrentTemplatePath();
+            var relativePath = "";
+            var firstSegment = "";
+            var prefix = "";
+            try {
+                webRoot = expandPath("/");
+            } catch (any e) {
+                webRoot = "";
+            }
+
+            if (len(webRoot)) {
+                relativePath = replaceNoCase(templatePath, webRoot, "", "one");
+            } else {
+                relativePath = templatePath;
+            }
+
+            relativePath = replace(relativePath, "\", "/", "all");
+            if (left(relativePath, 1) EQ "/") {
+                relativePath = right(relativePath, len(relativePath) - 1);
+            }
+
+            firstSegment = listFirst(relativePath, "/");
+            if (len(firstSegment) AND firstSegment NEQ "api") {
+                prefix = firstSegment;
+            }
+
+            return (len(prefix) ? prefix & "." : "") & "api.v1." & arguments.componentName;
         </cfscript>
     </cffunction>
 
@@ -1423,6 +1594,8 @@
                 FOOD_DAYS_PER_PERSON = "",
                 WATER_DAYS_PER_PERSON= "",
                 NOTES                = "",
+                ROUTE_INSTANCE_ID    = 0,
+                ROUTE_DAY_NUMBER     = 0,
                 DO_NOT_SEND          = false,
                 STATUS               = "Draft"
             };

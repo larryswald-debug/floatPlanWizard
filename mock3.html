@@ -1,0 +1,648 @@
+<!-- VERSION A (IMPROVED): Mission Control overlay - user-friendly route generator mock -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FPW Mission Control (Mockup A Improved)</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:rgba(255,255,255,.06);
+      --panel2:rgba(255,255,255,.085);
+      --line:rgba(255,255,255,.10);
+      --text:rgba(255,255,255,.92);
+      --muted:rgba(255,255,255,.70);
+      --subtle:rgba(255,255,255,.55);
+      --brand:#2dd4bf;
+      --warn:#f59e0b;
+      --danger:#fb7185;
+      --ok:#34d399;
+      --shadow: 0 18px 60px rgba(0,0,0,.55);
+      --radius:18px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      color:var(--text);
+      background:
+        radial-gradient(1000px 600px at 70% 0%, rgba(45,212,191,.10), transparent 55%),
+        radial-gradient(900px 500px at 10% 10%, rgba(56,189,248,.10), transparent 60%),
+        linear-gradient(180deg, #08101d, #070b13 60%, #060a12);
+    }
+
+    /* Fake app underlay */
+    .app-underlay{height:100%;padding:22px;opacity:.35;filter:saturate(.9);}
+    .app-underlay .card{height:160px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);margin-bottom:16px;box-shadow:0 10px 30px rgba(0,0,0,.35);}
+
+    /* Overlay */
+    .overlay{
+      position:fixed; inset:0;
+      display:flex; flex-direction:column;
+      background: rgba(2,6,12,.78);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .overlay__frame{
+      margin:18px;
+      border:1px solid var(--line);
+      border-radius:22px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03)),
+        radial-gradient(900px 500px at 20% 0%, rgba(45,212,191,.08), transparent 60%);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex; flex-direction:column;
+      min-height:0;
+    }
+
+    /* Topbar */
+    .topbar{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 18px;
+      border-bottom:1px solid var(--line);
+      background: rgba(0,0,0,.22);
+      gap:12px;
+    }
+    .topbar__title{display:flex;flex-direction:column;gap:2px;min-width:240px}
+    .topbar__title h1{
+      font-size:16px;margin:0;letter-spacing:.10em;
+      text-transform:uppercase;font-weight:900;
+    }
+    .topbar__title .sub{font-size:12px;color:var(--muted)}
+    .topbar__actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+    .pill{
+      font-family:var(--mono);
+      font-size:12px;
+      padding:7px 10px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:rgba(0,0,0,.22);
+      color:var(--muted);
+      white-space:nowrap;
+    }
+    .pill--ok{border-color:rgba(52,211,153,.35);color:rgba(167,243,208,.95);background:rgba(52,211,153,.10)}
+    .pill--warn{border-color:rgba(245,158,11,.35);color:rgba(253,230,138,.95);background:rgba(245,158,11,.10)}
+    .pill--danger{border-color:rgba(251,113,133,.35);color:rgba(254,202,202,.95);background:rgba(251,113,133,.10)}
+    .btn{
+      appearance:none;border:1px solid var(--line);
+      background:rgba(255,255,255,.06);
+      color:var(--text);
+      border-radius:12px;
+      padding:10px 12px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btn:active{transform:translateY(1px)}
+    .btn--primary{
+      border-color: rgba(45,212,191,.45);
+      background: rgba(45,212,191,.12);
+      box-shadow: 0 0 0 4px rgba(45,212,191,.12) inset;
+    }
+    .btn--ghost{background:rgba(0,0,0,.12)}
+    .btn--icon{width:40px;height:40px;display:grid;place-items:center;border-radius:12px;font-size:18px;line-height:1}
+
+    /* Content */
+    .content{
+      display:grid;
+      grid-template-columns: 440px 1fr;
+      gap:14px;
+      padding:14px;
+      min-height:0;
+      flex:1;
+    }
+    .panel{
+      border:1px solid var(--line);
+      border-radius:18px;
+      background: var(--panel);
+      overflow:hidden;
+      display:flex;flex-direction:column;
+      min-height:0;
+    }
+    .panel__hdr{
+      padding:14px 14px 12px;
+      border-bottom:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+    }
+    .panel__hdr .kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:900;}
+    .panel__hdr .title{font-size:14px;margin-top:4px;color:var(--text);font-weight:900;}
+    .panel__body{padding:14px;overflow:auto;min-height:0;}
+
+    /* Stepper */
+    .stepper{
+      display:flex; gap:8px; flex-wrap:wrap;
+      margin-bottom:12px;
+    }
+    .step{
+      padding:7px 10px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:rgba(0,0,0,.16);
+      color:var(--muted);
+      font-size:12px;
+      font-weight:850;
+      letter-spacing:.02em;
+      display:flex; gap:8px; align-items:center;
+    }
+    .step .n{
+      width:18px;height:18px;border-radius:999px;
+      display:grid;place-items:center;
+      background:rgba(255,255,255,.08);
+      border:1px solid rgba(255,255,255,.10);
+      font-family:var(--mono);
+      font-size:11px;
+      color:var(--muted);
+    }
+    .step.active{
+      color:var(--text);
+      border-color: rgba(45,212,191,.35);
+      background: rgba(45,212,191,.10);
+      box-shadow: 0 0 0 4px rgba(45,212,191,.08) inset;
+    }
+    .step.active .n{border-color:rgba(45,212,191,.35);color:rgba(167,243,208,.95);}
+
+    .group{margin-bottom:14px}
+    .label{
+      font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+      color:var(--subtle);font-weight:900;margin-bottom:8px;
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+    }
+    .help{
+      font-size:12px;color:var(--muted);letter-spacing:0;text-transform:none;font-weight:700;
+    }
+
+    /* Route source buttons */
+    .segmented{display:flex;gap:8px;flex-wrap:wrap;}
+    .segmented button{
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      color:var(--muted);
+      padding:10px 12px;
+      border-radius:12px;
+      font-weight:900;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      cursor:pointer;
+    }
+    .segmented button.active{
+      color:var(--text);
+      border-color: rgba(45,212,191,.45);
+      background: rgba(45,212,191,.10);
+      box-shadow: 0 0 0 4px rgba(45,212,191,.10) inset;
+    }
+
+    /* Direction as true choice */
+    .choiceRow{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+    }
+    .choice{
+      border:1px solid var(--line);
+      border-radius:16px;
+      background: rgba(0,0,0,.16);
+      padding:12px;
+      cursor:pointer;
+      position:relative;
+    }
+    .choice.active{
+      border-color: rgba(45,212,191,.45);
+      background: rgba(45,212,191,.10);
+      box-shadow: 0 0 0 4px rgba(45,212,191,.10) inset;
+    }
+    .choice .top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;}
+    .choice .name{font-weight:950}
+    .choice .tag{font-family:var(--mono);font-size:12px;color:var(--muted)}
+    .choice .desc{font-size:12px;color:var(--muted);line-height:1.35}
+    .choice .dot{
+      width:12px;height:12px;border-radius:999px;
+      border:2px solid rgba(255,255,255,.22);
+      background:rgba(0,0,0,.22);
+    }
+    .choice.active .dot{
+      border-color: rgba(45,212,191,.55);
+      background: rgba(45,212,191,.95);
+      box-shadow: 0 0 0 6px rgba(45,212,191,.12);
+    }
+
+    /* Editable-looking fields */
+    .fieldGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    .input{
+      border:1px solid var(--line);
+      border-radius:14px;
+      background: rgba(0,0,0,.16);
+      padding:10px 12px;
+    }
+    .input .iLabel{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--subtle);font-weight:900;margin-bottom:6px;}
+    .input .iControl{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:12px;
+      padding:10px 10px;
+      background: rgba(255,255,255,.04);
+      font-family:var(--mono);
+      color:var(--text);
+      font-size:14px;
+    }
+    .input .iHint{margin-top:6px;font-size:12px;color:var(--muted);}
+    .kbd{font-family:var(--mono);font-size:12px;color:var(--muted);opacity:.9}
+
+    /* Add-ons with impact chips */
+    .toggleRow{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:10px 12px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background: rgba(0,0,0,.16);
+      gap:10px;
+    }
+    .toggleRow + .toggleRow{margin-top:10px}
+    .toggleRow .left{display:flex;flex-direction:column;gap:4px;min-width:0}
+    .toggleRow .left .name{font-weight:950}
+    .toggleRow .left .desc{font-size:12px;color:var(--muted)}
+    .chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+    .chip{
+      font-family:var(--mono);
+      font-size:11px;
+      padding:6px 8px;
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:999px;
+      color:var(--muted);
+      background:rgba(0,0,0,.18);
+      white-space:nowrap;
+    }
+    .chip--warn{border-color:rgba(245,158,11,.35);color:rgba(253,230,138,.95);background:rgba(245,158,11,.10)}
+    .switch{
+      width:46px;height:26px;border-radius:999px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.06);
+      position:relative;
+      flex:0 0 auto;
+    }
+    .switch::after{
+      content:"";
+      width:20px;height:20px;border-radius:999px;
+      background: rgba(255,255,255,.75);
+      position:absolute;top:2px;left:2px;
+      transition: all .18s ease;
+      box-shadow:0 6px 14px rgba(0,0,0,.35);
+    }
+    .switch.on{border-color:rgba(45,212,191,.45);background:rgba(45,212,191,.12);}
+    .switch.on::after{left:24px;background:rgba(45,212,191,.95);}
+
+    /* Right: telemetry + notes */
+    .telemetryGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+    .metric{
+      border:1px solid var(--line);
+      border-radius:16px;
+      background: rgba(0,0,0,.16);
+      padding:12px;
+      min-height:92px;
+      display:flex;flex-direction:column;justify-content:space-between;
+    }
+    .metric .mLabel{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--subtle);font-weight:900;}
+    .metric .mValue{font-family:var(--mono);font-size:22px;font-weight:950;letter-spacing:.02em;}
+    .metric .mDelta{font-size:12px;color:var(--muted);}
+
+    .noteBar{
+      margin-top:10px;
+      border:1px solid var(--line);
+      border-radius:16px;
+      background: rgba(0,0,0,.16);
+      padding:12px;
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+    }
+    .noteIcon{
+      width:28px;height:28px;border-radius:12px;
+      display:grid;place-items:center;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(255,255,255,.05);
+      flex:0 0 auto;
+      font-weight:950;
+    }
+    .noteText{font-size:12px;color:var(--muted);line-height:1.4}
+    .noteText b{color:var(--text)}
+
+    .listBox{
+      border:1px solid var(--line);
+      border-radius:18px;
+      background: rgba(0,0,0,.16);
+      overflow:hidden;
+      display:flex;flex-direction:column;
+      min-height:0;
+      margin-top:12px;
+    }
+    .listHdr{
+      padding:12px 12px 10px;
+      border-bottom:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+    }
+    .listHdr .k{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:950;}
+    .listHdr .tiny{font-family:var(--mono);font-size:12px;color:var(--muted);}
+    .waypoints{overflow:auto;min-height:0;padding:6px;}
+    .wp{
+      display:flex;gap:10px;align-items:center;
+      padding:10px 10px;
+      border-radius:14px;
+      border:1px solid transparent;
+      cursor:default;
+    }
+    .wp:hover{background: rgba(255,255,255,.04);border-color: rgba(255,255,255,.06);}
+    .wp .idx{
+      width:34px;text-align:center;
+      font-family:var(--mono);color:var(--muted);
+      font-weight:850;flex:0 0 auto;
+    }
+    .wp .route{
+      flex:1;
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:baseline;
+    }
+    .wp .route .names{font-weight:950;}
+    .wp .route .nm{font-family:var(--mono);color:var(--muted);font-size:12px;white-space:nowrap;}
+
+    .bottombar{
+      padding:12px 14px;
+      border-top:1px solid var(--line);
+      background: rgba(0,0,0,.28);
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      flex-wrap:wrap;
+    }
+    .ctaRow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .hintLine{font-size:12px;color:var(--muted)}
+    .hintLine b{color:var(--text)}
+    .btnRow{display:flex;gap:10px;align-items:center}
+
+    @media (max-width: 980px){
+      .content{grid-template-columns:1fr;}
+      .telemetryGrid{grid-template-columns:repeat(2,1fr);}
+      .choiceRow{grid-template-columns:1fr;}
+      .fieldGrid{grid-template-columns:1fr;}
+    }
+  </style>
+</head>
+<body>
+  <div class="app-underlay">
+    <div class="card"></div>
+    <div class="card"></div>
+    <div class="card"></div>
+  </div>
+
+  <div class="overlay">
+    <div class="overlay__frame">
+      <div class="topbar">
+        <div class="topbar__title">
+          <h1>FPW — Route Generator</h1>
+          <div class="sub">Pick a template, set pacing, add optional stops, then preview the route.</div>
+        </div>
+        <div class="topbar__actions">
+          <div class="pill pill--ok">Auto-saves draft</div>
+          <div class="pill">ESC to close</div>
+          <button class="btn btn--icon" aria-label="Close">✕</button>
+        </div>
+      </div>
+
+      <div class="content">
+        <!-- LEFT: Mission Config -->
+        <section class="panel">
+          <div class="panel__hdr">
+            <div>
+              <div class="kicker">Setup</div>
+              <div class="title">Route Source & Settings</div>
+            </div>
+            <div class="pill">Draft</div>
+          </div>
+
+          <div class="panel__body">
+            <!-- Stepper (visual only for now) -->
+            <div class="stepper" aria-label="Route generator steps">
+              <div class="step active"><span class="n">1</span>Template</div>
+              <div class="step"><span class="n">2</span>Direction</div>
+              <div class="step"><span class="n">3</span>Pacing</div>
+              <div class="step"><span class="n">4</span>Options</div>
+              <div class="step"><span class="n">5</span>Review</div>
+            </div>
+
+            <div class="group">
+              <div class="label">
+                <span>Route Template</span>
+                <span class="help">Start anywhere, end anywhere (when wired up)</span>
+              </div>
+              <div class="segmented">
+                <button class="active">Gulf Coast</button>
+                <button>Great Loop</button>
+                <button>Florida East</button>
+                <button>Custom</button>
+              </div>
+            </div>
+
+            <div class="group">
+              <div class="label">
+                <span>Direction</span>
+                <span class="help">One choice (can be reversed later)</span>
+              </div>
+              <div class="choiceRow">
+                <div class="choice active" role="button" aria-pressed="true">
+                  <div class="top">
+                    <div class="name">Counterclockwise</div>
+                    <div class="tag">CCW</div>
+                    <div class="dot" aria-hidden="true"></div>
+                  </div>
+                  <div class="desc">Default orientation for this template. Keeps legs in standard order.</div>
+                </div>
+                <div class="choice" role="button" aria-pressed="false">
+                  <div class="top">
+                    <div class="name">Clockwise</div>
+                    <div class="tag">CW</div>
+                    <div class="dot" aria-hidden="true"></div>
+                  </div>
+                  <div class="desc">Reverses the route order. Start/end per leg swap automatically.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="group">
+              <div class="label">
+                <span>Start & Pacing</span>
+                <span class="help">These drive ETA + daily leg sizing</span>
+              </div>
+              <div class="fieldGrid">
+                <div class="input">
+                  <div class="iLabel">Start date</div>
+                  <div class="iControl">
+                    <span>02/13/2026</span>
+                    <span class="kbd">📅</span>
+                  </div>
+                  <div class="iHint">Used for timeline scheduling.</div>
+                </div>
+
+                <div class="input">
+                  <div class="iLabel">Cruising speed</div>
+                  <div class="iControl">
+                    <span>10.0 kn</span>
+                    <span class="kbd">⇅</span>
+                  </div>
+                  <div class="iHint">Affects ETA estimates.</div>
+                </div>
+
+                <div class="input">
+                  <div class="iLabel">Max NM / day</div>
+                  <div class="iControl">
+                    <span>75</span>
+                    <span class="kbd">⇅</span>
+                  </div>
+                  <div class="iHint">Relaxed pacing.</div>
+                </div>
+
+                <div class="input">
+                  <div class="iLabel">Comfort profile</div>
+                  <div class="iControl">
+                    <span>Prefer Inside</span>
+                    <span class="kbd">▾</span>
+                  </div>
+                  <div class="iHint">Avoid offshore when possible.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="group">
+              <div class="label">
+                <span>Optional Stops</span>
+                <span class="help">Toggle to see immediate impact</span>
+              </div>
+
+              <div class="toggleRow">
+                <div class="left">
+                  <div class="name">Ship Island (Out & Back)</div>
+                  <div class="desc">Good day trip; can add offshore exposure.</div>
+                </div>
+                <div class="chips">
+                  <span class="chip">+~1 day</span>
+                  <span class="chip">+~35 NM</span>
+                  <span class="chip chip--warn">Offshore</span>
+                </div>
+                <div class="switch"></div>
+              </div>
+
+              <div class="toggleRow">
+                <div class="left">
+                  <div class="name">Grand Isle (Side Trip)</div>
+                  <div class="desc">Fun detour; some legs may be offshore depending on routing.</div>
+                </div>
+                <div class="chips">
+                  <span class="chip">+~2 days</span>
+                  <span class="chip">+~140 NM</span>
+                  <span class="chip chip--warn">Offshore +1</span>
+                </div>
+                <div class="switch on"></div>
+              </div>
+
+              <div class="toggleRow">
+                <div class="left">
+                  <div class="name">Cedar Key Overnight</div>
+                  <div class="desc">Quiet harbor; breaks a long run into two easier days.</div>
+                </div>
+                <div class="chips">
+                  <span class="chip">+~1 day</span>
+                  <span class="chip">+0–10 NM</span>
+                  <span class="chip">Inside</span>
+                </div>
+                <div class="switch"></div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- RIGHT: Telemetry -->
+        <section class="panel">
+          <div class="panel__hdr">
+            <div>
+              <div class="kicker">Preview</div>
+              <div class="title">Route Summary & Legs</div>
+            </div>
+            <div class="pill">Template: GULF-WEST</div>
+          </div>
+
+          <div class="panel__body">
+            <div class="telemetryGrid">
+              <div class="metric">
+                <div class="mLabel">Total distance</div>
+                <div class="mValue">1,395 <span style="font-size:14px;color:var(--muted)">NM</span></div>
+                <div class="mDelta">Grand Isle detour included</div>
+              </div>
+              <div class="metric">
+                <div class="mLabel">Estimated days</div>
+                <div class="mValue">21</div>
+                <div class="mDelta">Based on 75 NM/day</div>
+              </div>
+              <div class="metric">
+                <div class="mLabel">Locks</div>
+                <div class="mValue">0</div>
+                <div class="mDelta">No inland locks</div>
+              </div>
+              <div class="metric">
+                <div class="mLabel">Offshore legs</div>
+                <div class="mValue">3</div>
+                <div class="mDelta">Grand Isle adds +1</div>
+              </div>
+            </div>
+
+            <div class="noteBar">
+              <div class="noteIcon">!</div>
+              <div class="noteText">
+                <b>Heads up:</b> Offshore legs are included. If you switch Comfort to <b>Prefer Inside</b>, FPW should attempt
+                to reroute those legs when possible (and flag when it’s not).
+              </div>
+            </div>
+
+            <div class="listBox">
+              <div class="listHdr">
+                <div class="k">Route path preview</div>
+                <div class="tiny">19 legs • click a leg to edit later</div>
+              </div>
+              <div class="waypoints">
+                <div class="wp"><div class="idx">01</div><div class="route"><div class="names">Tarpon Springs → Cedar Key</div><div class="nm">85.0 NM</div></div></div>
+                <div class="wp"><div class="idx">02</div><div class="route"><div class="names">Cedar Key → Apalachicola</div><div class="nm">170.0 NM</div></div></div>
+                <div class="wp"><div class="idx">03</div><div class="route"><div class="names">Apalachicola → Panama City</div><div class="nm">75.0 NM</div></div></div>
+                <div class="wp"><div class="idx">04</div><div class="route"><div class="names">Panama City → Destin</div><div class="nm">45.0 NM</div></div></div>
+                <div class="wp"><div class="idx">05</div><div class="route"><div class="names">Destin → Pensacola</div><div class="nm">45.0 NM</div></div></div>
+                <div class="wp"><div class="idx">06</div><div class="route"><div class="names">Pensacola → Gulf Shores / Orange Beach</div><div class="nm">35.0 NM</div></div></div>
+                <div class="wp"><div class="idx">07</div><div class="route"><div class="names">Gulf Shores / Orange Beach → Dauphin Island</div><div class="nm">25.0 NM</div></div></div>
+                <div class="wp"><div class="idx">08</div><div class="route"><div class="names">Dauphin Island → Mobile</div><div class="nm">15.0 NM</div></div></div>
+                <div class="wp"><div class="idx">09</div><div class="route"><div class="names">Mobile → Biloxi / Gulfport</div><div class="nm">75.0 NM</div></div></div>
+                <div class="wp"><div class="idx">10</div><div class="route"><div class="names">Biloxi / Gulfport → New Orleans</div><div class="nm">85.0 NM</div></div></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="bottombar">
+        <div>
+          <div class="pill">route: USER_ROUTE_187_20260213_1615</div>
+          <div class="hintLine">Next: <b>Preview</b> then <b>Generate</b> (you can edit legs afterward)</div>
+        </div>
+        <div class="ctaRow">
+          <div class="btnRow">
+            <button class="btn btn--ghost">Preview</button>
+            <button class="btn">Cancel</button>
+            <button class="btn btn--primary">🚀 Generate Route</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

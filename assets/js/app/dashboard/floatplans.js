@@ -508,6 +508,14 @@
           throw data;
         }
         loadFloatPlans(FLOAT_PLAN_LIMIT);
+        if (
+          window.FPW
+          && window.FPW.DashboardModules
+          && window.FPW.DashboardModules.expeditionTimeline
+          && typeof window.FPW.DashboardModules.expeditionTimeline.load === "function"
+        ) {
+          window.FPW.DashboardModules.expeditionTimeline.load();
+        }
       })
       .catch(function (err) {
         console.error("Failed to check in float plan:", err);
@@ -572,6 +580,9 @@
     }
 
     document.addEventListener("fpw:dashboard:user-ready", function () {
+      loadFloatPlans(FLOAT_PLAN_LIMIT);
+    });
+    document.addEventListener("fpw:floatplans-updated", function () {
       loadFloatPlans(FLOAT_PLAN_LIMIT);
     });
   }
