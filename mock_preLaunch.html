@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FloatPlanWizard — Pre-Launch</title>
+
+<style>
+:root{
+  --bg:#0b1220;
+  --panel:rgba(255,255,255,.05);
+  --panel2:rgba(255,255,255,.08);
+  --line:rgba(255,255,255,.10);
+  --text:rgba(255,255,255,.92);
+  --muted:rgba(255,255,255,.65);
+  --brand:#2dd4bf;
+  --brandSoft:rgba(45,212,191,.15);
+  --danger:#ef4444;
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;
+  background:var(--bg);
+  color:var(--text);
+}
+
+.container{
+  max-width:1200px;
+  margin:auto;
+  padding:60px 24px;
+}
+
+/* NAV */
+
+.nav{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:20px 24px;
+  border-bottom:1px solid var(--line);
+  backdrop-filter:blur(10px);
+}
+
+.nav-logo{
+  font-size:20px;
+  font-weight:600;
+  letter-spacing:.5px;
+}
+
+.nav-cta{
+  background:var(--brand);
+  color:#000;
+  padding:10px 18px;
+  border-radius:6px;
+  font-weight:600;
+  text-decoration:none;
+}
+
+/* HERO */
+
+.hero{
+  text-align:center;
+  padding:100px 20px 80px;
+}
+
+.hero h1{
+  font-size:46px;
+  margin-bottom:20px;
+}
+
+.hero p{
+  font-size:20px;
+  color:var(--muted);
+  max-width:720px;
+  margin:0 auto 30px;
+}
+
+.hero-buttons a{
+  margin:8px;
+  padding:14px 24px;
+  border-radius:8px;
+  text-decoration:none;
+  font-weight:600;
+}
+
+.primary{
+  background:var(--brand);
+  color:#000;
+}
+
+.secondary{
+  border:1px solid var(--line);
+  color:var(--text);
+}
+
+/* FEATURE GRID */
+
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:24px;
+}
+
+.card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:26px;
+  transition:.3s ease;
+}
+
+.card:hover{
+  background:var(--panel2);
+  transform:translateY(-4px);
+}
+
+.card h3{
+  margin-top:0;
+  color:var(--brand);
+}
+
+.section-title{
+  text-align:center;
+  font-size:30px;
+  margin-bottom:50px;
+}
+
+/* MISSION PANEL */
+
+.mission{
+  background:linear-gradient(145deg,var(--panel),var(--panel2));
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:40px;
+  text-align:center;
+}
+
+.mission h2{
+  font-size:34px;
+  margin-bottom:20px;
+}
+
+.mission p{
+  color:var(--muted);
+  font-size:18px;
+}
+
+/* FOOTER */
+
+.footer{
+  text-align:center;
+  padding:50px 20px;
+  border-top:1px solid var(--line);
+  color:var(--muted);
+  font-size:14px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="nav">
+  <div class="nav-logo">FloatPlanWizard</div>
+  <a href="#" class="nav-cta">Join Pre-Launch</a>
+</div>
+
+<section class="hero">
+  <h1>Before You Leave the Dock,<br>Activate Mission Control.</h1>
+  <p>
+    FloatPlanWizard is a complete cruise management system for serious boaters. 
+    Plan routes, automate check-ins, monitor weather, and keep your family and crew 
+    informed — so someone always knows where you are.
+  </p>
+  <div class="hero-buttons">
+    <a href="#" class="primary">Request Early Access</a>
+    <a href="#" class="secondary">See How It Works</a>
+  </div>
+</section>
+
+<section class="container">
+  <h2 class="section-title">Everything You Need To Cruise Smarter</h2>
+
+  <div class="grid">
+
+    <div class="card">
+      <h3>Route Intelligence</h3>
+      <p>Create structured multi-leg routes in minutes. Start anywhere, end anywhere, 
+      reverse direction, and generate daily cruise plans automatically.</p>
+    </div>
+
+    <div class="card">
+      <h3>Automated Check-In Monitoring</h3>
+      <p>Schedule daily confirmations. If you miss a check-in, your contacts are notified 
+      automatically. No more forgotten updates.</p>
+    </div>
+
+    <div class="card">
+      <h3>Family “In The Loop” Dashboard</h3>
+      <p>Your designated contacts can see trip details, expected arrival times, 
+      and status updates — privately and securely.</p>
+    </div>
+
+    <div class="card">
+      <h3>Weather Awareness</h3>
+      <p>Integrated marine weather and risk visibility for every leg of your trip. 
+      Know before you go.</p>
+    </div>
+
+    <div class="card">
+      <h3>Emergency Escalation Logic</h3>
+      <p>Define exactly who gets notified and when. Escalation timing is built in 
+      so your float plan doesn’t sit ignored.</p>
+    </div>
+
+    <div class="card">
+      <h3>Captain Dashboard</h3>
+      <p>Mission-control cockpit interface designed for real-world cruising. 
+      View trip status, fuel planning, timelines, and alerts at a glance.</p>
+    </div>
+
+  </div>
+</section>
+
+<section class="container">
+  <div class="mission">
+    <h2>This Is More Than A Float Plan.</h2>
+    <p>
+      It’s a private cruise management platform for your boat.
+      <br><br>
+      Whether you’re running the Great Loop, crossing the Gulf, or cruising 
+      your local coast — FloatPlanWizard keeps your people informed 
+      automatically so you can focus on the water.
+    </p>
+  </div>
+</section>
+
+<section class="container">
+  <h2 class="section-title">Launching Spring 2026</h2>
+  <div class="mission">
+    <p>
+      We’re preparing the first production release of FloatPlanWizard.
+      Early access members will receive priority onboarding and founder pricing.
+    </p>
+    <br>
+    <a href="#" class="primary">Get On The List</a>
+  </div>
+</section>
+
+<div class="footer">
+  © 2026 FloatPlanWizard · Built for boaters who cruise beyond the horizon.
+</div>
+
+</body>
+</html>

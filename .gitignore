@@ -32,3 +32,8 @@ node_modules/
 # ===== Temp =====
 tmp/
 temp/
+
+admin/
+*.pdf
+*.rollback-*
+*.bak*
