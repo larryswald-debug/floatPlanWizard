@@ -10,6 +10,12 @@
     <cfset this.clientManagement   = false>
     <cfset this.sessionType        = "j2ee">
 
+    <!--- Local TestBox library mapping for /fpw/tests runner --->
+    <cfif NOT structKeyExists(this, "mappings") OR NOT isStruct(this.mappings)>
+        <cfset this.mappings = {}>
+    </cfif>
+    <cfset this.mappings["/testbox"] = expandPath("/fpw/testbox")>
+
     <!--- ===== DATASOURCE (SET ONLY IF NOT ALREADY DEFINED) ===== --->
     <cfif NOT structKeyExists(this, "fpw") OR NOT len(trim(this.datasource))>
         <cfset this.DSN = "fpw">
