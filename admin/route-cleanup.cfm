@@ -12,11 +12,13 @@ hasInput = false;
 hasValidUserId = false;
 message = "";
 messageType = "info";
+legOverrideTableExists = false;
 
 summary = {
     totalRoutes = 0,
     totalInstances = 0,
-    orphanInstances = 0
+    orphanInstances = 0,
+    totalOverrides = 0
 };
 routes = queryNew("routeId,routeName,routeCode,sectionCount,segmentCount,totalNm,totalLocks,hasInstance");
 
@@ -61,6 +63,16 @@ if (hasInput AND isNumeric(targetUserIdRaw) AND val(targetUserIdRaw) GT 0) {
 }
 
 if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType)) {
+    legOverrideTableQ = queryExecute(
+        "SELECT COUNT(*) AS tableCount
+           FROM information_schema.tables
+          WHERE table_schema = DATABASE()
+            AND table_name = 'route_leg_user_overrides'",
+        {},
+        { datasource = "fpw" }
+    );
+    legOverrideTableExists = (legOverrideTableQ.recordCount GT 0 AND val(legOverrideTableQ.tableCount[1]) GT 0);
+
     if (actionType EQ "delete" OR actionType EQ "forcedelete") {
         forceExpected = "FORCE DELETE ROUTES " & targetUserId;
         if (actionType EQ "forcedelete" AND forceConfirmRaw NEQ forceExpected) {
@@ -89,6 +101,34 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
             );
             forceRouteCount = (forceRoutesQ.recordCount GT 0) ? val(forceRoutesQ.routeCount[1]) : 0;
             forceInstanceCount = (forceInstancesQ.recordCount GT 0) ? val(forceInstancesQ.instanceCount[1]) : 0;
+            forceLegOverrideCount = 0;
+            if (legOverrideTableExists) {
+                forceLegOverridesQ = queryExecute(
+                    "SELECT COUNT(*) AS overrideCount
+                       FROM route_leg_user_overrides rluo
+                      WHERE rluo.user_id = :userId
+                        AND (
+                            rluo.route_id IN (
+                                SELECT r.id
+                                  FROM loop_routes r
+                                 WHERE r.short_code LIKE :prefix
+                            )
+                            OR rluo.segment_id IN (
+                                SELECT s.id
+                                  FROM loop_segments s
+                                  INNER JOIN loop_sections sec ON sec.id = s.section_id
+                                  INNER JOIN loop_routes r2 ON r2.id = sec.route_id
+                                 WHERE r2.short_code LIKE :prefix
+                            )
+                        )",
+                    {
+                        userId = { value = targetUserId, cfsqltype = "cf_sql_integer" },
+                        prefix = { value = routePrefix, cfsqltype = "cf_sql_varchar" }
+                    },
+                    { datasource = "fpw" }
+                );
+                forceLegOverrideCount = (forceLegOverridesQ.recordCount GT 0) ? val(forceLegOverridesQ.overrideCount[1]) : 0;
+            }
 
             snapshotRoutesQ = queryExecute(
                 "SELECT *
@@ -161,6 +201,34 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
                 },
                 { datasource = "fpw" }
             );
+            snapshotLegOverridesQ = queryNew("");
+            if (legOverrideTableExists) {
+                snapshotLegOverridesQ = queryExecute(
+                    "SELECT *
+                       FROM route_leg_user_overrides rluo
+                      WHERE rluo.user_id = :userId
+                        AND (
+                            rluo.route_id IN (
+                                SELECT r.id
+                                  FROM loop_routes r
+                                 WHERE r.short_code LIKE :prefix
+                            )
+                            OR rluo.segment_id IN (
+                                SELECT s.id
+                                  FROM loop_segments s
+                                  INNER JOIN loop_sections sec ON sec.id = s.section_id
+                                  INNER JOIN loop_routes r2 ON r2.id = sec.route_id
+                                 WHERE r2.short_code LIKE :prefix
+                            )
+                        )
+                      ORDER BY rluo.id",
+                    {
+                        userId = { value = targetUserId, cfsqltype = "cf_sql_integer" },
+                        prefix = { value = routePrefix, cfsqltype = "cf_sql_varchar" }
+                    },
+                    { datasource = "fpw" }
+                );
+            }
 
             tmpDir = expandPath("../tmp/");
             if (!directoryExists(tmpDir)) {
@@ -174,16 +242,18 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
                 routePrefix = routePrefix,
                 totalRoutes = forceRouteCount,
                 totalRouteInstances = forceInstanceCount,
+                totalRouteLegOverrides = forceLegOverrideCount,
                 loop_routes = queryToStructArray(snapshotRoutesQ),
                 loop_sections = queryToStructArray(snapshotSectionsQ),
                 loop_segments = queryToStructArray(snapshotSegmentsQ),
                 user_route_progress = queryToStructArray(snapshotProgressQ),
                 route_instances = queryToStructArray(snapshotInstancesQ),
+                route_leg_user_overrides = queryToStructArray(snapshotLegOverridesQ),
                 linked_floatplans = queryToStructArray(snapshotFloatplansQ)
             };
             fileWrite(snapshotPath, serializeJSON(snapshotData));
 
-            if (forceRouteCount GT 0 OR forceInstanceCount GT 0) {
+            if (forceRouteCount GT 0 OR forceInstanceCount GT 0 OR forceLegOverrideCount GT 0) {
                 transaction {
                     queryExecute(
                         "UPDATE floatplans fp
@@ -198,6 +268,32 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
                         },
                         { datasource = "fpw" }
                     );
+                    if (legOverrideTableExists) {
+                        queryExecute(
+                            "DELETE rluo
+                               FROM route_leg_user_overrides rluo
+                              WHERE rluo.user_id = :userId
+                                AND (
+                                    rluo.route_id IN (
+                                        SELECT r.id
+                                          FROM loop_routes r
+                                         WHERE r.short_code LIKE :prefix
+                                    )
+                                    OR rluo.segment_id IN (
+                                        SELECT s.id
+                                          FROM loop_segments s
+                                          INNER JOIN loop_sections sec ON sec.id = s.section_id
+                                          INNER JOIN loop_routes r2 ON r2.id = sec.route_id
+                                         WHERE r2.short_code LIKE :prefix
+                                    )
+                                )",
+                            {
+                                userId = { value = targetUserId, cfsqltype = "cf_sql_integer" },
+                                prefix = { value = routePrefix, cfsqltype = "cf_sql_varchar" }
+                            },
+                            { datasource = "fpw" }
+                        );
+                    }
                     queryExecute(
                         "DELETE urp
                            FROM user_route_progress urp
@@ -250,33 +346,64 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
                         { datasource = "fpw" }
                     );
                 }
-                message = "Force deleted " & forceRouteCount & " route(s) and " & forceInstanceCount & " route instance(s) for user " & targetUserId & ". Snapshot: /fpw/tmp/" & snapshotFile;
+                message = "Force deleted " & forceRouteCount & " route(s), " & forceInstanceCount & " route instance(s), and " & forceLegOverrideCount & " route-leg override record(s) for user " & targetUserId & ". Snapshot: /fpw/tmp/" & snapshotFile;
+                if (!legOverrideTableExists) {
+                    message &= " Override table not found; skipped override cleanup.";
+                }
                 if (snapshotFloatplansQ.recordCount GT 0) {
                     message &= " Unlinked " & snapshotFloatplansQ.recordCount & " float plan(s) from deleted route instances.";
                 }
                 messageType = "success";
             } else {
-                message = "No routes or route instances found for user " & targetUserId & ". Empty snapshot created: /fpw/tmp/" & snapshotFile;
+                message = "No routes, route instances, or route-leg overrides found for user " & targetUserId & ". Empty snapshot created: /fpw/tmp/" & snapshotFile;
                 messageType = "info";
             }
         }
     }
 
-    summaryQ = queryExecute(
-        "SELECT
+    summarySql = "
+        SELECT
             (SELECT COUNT(*) FROM loop_routes WHERE short_code LIKE :prefix) AS totalRoutes,
-            (SELECT COUNT(*) FROM route_instances WHERE user_id = :userId AND generated_route_code LIKE :prefix) AS totalInstances,
+            (SELECT COUNT(*) FROM route_instances WHERE user_id = :userIdText AND generated_route_code LIKE :prefix) AS totalInstances,
             (SELECT COUNT(*)
                FROM route_instances ri
-              WHERE ri.user_id = :userId
+              WHERE ri.user_id = :userIdText
                 AND ri.generated_route_code LIKE :prefix
                 AND NOT EXISTS (
                     SELECT 1 FROM loop_routes r WHERE r.short_code = ri.generated_route_code
-                )) AS orphanInstances",
-        {
-            userId = { value = toString(targetUserId), cfsqltype = "cf_sql_varchar" },
-            prefix = { value = routePrefix, cfsqltype = "cf_sql_varchar" }
-        },
+                )) AS orphanInstances,";
+    if (legOverrideTableExists) {
+        summarySql &= "
+            (SELECT COUNT(*)
+               FROM route_leg_user_overrides rluo
+              WHERE rluo.user_id = :userIdInt
+                AND (
+                    rluo.route_id IN (
+                        SELECT r.id
+                          FROM loop_routes r
+                         WHERE r.short_code LIKE :prefix
+                    )
+                    OR rluo.segment_id IN (
+                        SELECT s.id
+                          FROM loop_segments s
+                          INNER JOIN loop_sections sec ON sec.id = s.section_id
+                          INNER JOIN loop_routes r2 ON r2.id = sec.route_id
+                         WHERE r2.short_code LIKE :prefix
+                    )
+                )) AS totalOverrides";
+    } else {
+        summarySql &= " 0 AS totalOverrides";
+    }
+    summaryParams = {
+        userIdText = { value = toString(targetUserId), cfsqltype = "cf_sql_varchar" },
+        prefix = { value = routePrefix, cfsqltype = "cf_sql_varchar" }
+    };
+    if (legOverrideTableExists) {
+        summaryParams.userIdInt = { value = targetUserId, cfsqltype = "cf_sql_integer" };
+    }
+    summaryQ = queryExecute(
+        summarySql,
+        summaryParams,
         { datasource = "fpw" }
     );
 
@@ -308,6 +435,7 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
         summary.totalRoutes = val(summaryQ.totalRoutes[1]);
         summary.totalInstances = val(summaryQ.totalInstances[1]);
         summary.orphanInstances = val(summaryQ.orphanInstances[1]);
+        summary.totalOverrides = val(summaryQ.totalOverrides[1]);
     }
 }
 </cfscript>
@@ -354,7 +482,7 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
       <strong>Instructions</strong>
       <ol>
         <li>Enter a numeric user id and click <strong>Preview</strong>.</li>
-        <li><strong>Delete All Route Artifacts</strong> removes user routes, route instances, and unlinks related float plans.</li>
+        <li><strong>Delete All Route Artifacts</strong> removes user routes, route instances, route-leg overrides, and unlinks related float plans.</li>
         <li><strong>Force Delete All Route Artifacts</strong> does the same delete flow, but requires explicit typed confirmation.</li>
         <li>Delete actions always write a rollback snapshot JSON file under <code>/fpw/tmp/</code> before deleting.</li>
       </ol>
@@ -365,12 +493,12 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
         <label for="targetUserId"><strong>User ID</strong></label>
         <input id="targetUserId" name="targetUserId" type="text" value="<cfoutput>#encodeForHtmlAttribute(targetUserIdRaw)#</cfoutput>" placeholder="e.g. 187">
         <button type="submit" name="actionType" value="preview">Preview</button>
-        <button type="submit" name="actionType" value="delete" class="danger" onclick="return confirm('Delete all route artifacts (routes, route instances, and links) for this user?');">Delete All Route Artifacts</button>
+        <button type="submit" name="actionType" value="delete" class="danger" onclick="return confirm('Delete all route artifacts (routes, route instances, route-leg overrides, and links) for this user?');">Delete All Route Artifacts</button>
       </div>
       <div class="row" style="margin-top:10px;">
         <label for="forceConfirm"><strong>Force Confirm</strong></label>
         <input id="forceConfirm" name="forceConfirm" type="text" value="<cfoutput>#encodeForHtmlAttribute(forceConfirmRaw)#</cfoutput>" placeholder="FORCE DELETE ROUTES 187" style="width: 320px;">
-        <button type="submit" name="actionType" value="forcedelete" class="danger" onclick="return confirm('Force delete will remove route artifacts and route instances for this user. Continue?');">Force Delete All Route Artifacts</button>
+        <button type="submit" name="actionType" value="forcedelete" class="danger" onclick="return confirm('Force delete will remove routes, route instances, route-leg overrides, and links for this user. Continue?');">Force Delete All Route Artifacts</button>
       </div>
     </form>
 
@@ -384,6 +512,7 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
         <div class="stat"><strong>User Routes:</strong> <cfoutput>#summary.totalRoutes#</cfoutput></div>
         <div class="stat"><strong>Route Instances:</strong> <cfoutput>#summary.totalInstances#</cfoutput></div>
         <div class="stat"><strong>Orphan Instances:</strong> <cfoutput>#summary.orphanInstances#</cfoutput></div>
+        <div class="stat"><strong>Leg Overrides:</strong> <cfoutput>#summary.totalOverrides#</cfoutput></div>
       </div>
 
       <table>

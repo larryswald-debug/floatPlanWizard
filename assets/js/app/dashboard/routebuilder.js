@@ -16,6 +16,7 @@
   var DEFAULT_WEATHER_FACTOR_PCT = 0;
   var DEFAULT_RESERVE_PCT = 20;
   var FUEL_BURN_BASIS_MAX = "MAX_SPEED";
+  var MAX_ENDPOINT_FIT_NM = 1200;
 
   var dom = {};
   var modal = null;
@@ -43,9 +44,25 @@
     pendingDraft: null,
     lastGeneratedRouteCode: "",
     activeRouteCode: "",
+    activeRouteId: 0,
     modalInitSeq: 0,
     editorBaseline: null,
-    suppressAutoSelectOnce: false
+    suppressAutoSelectOnce: false,
+    previewLegs: [],
+    selectedLegOrder: 0,
+    selectedLegData: null,
+    selectedLegHasOverride: false,
+    selectedLegSource: "default",
+    legMapLoadSeq: 0,
+    legMap: {
+      map: null,
+      drawnItems: null,
+      activeLayer: null,
+      searchMarker: null,
+      startMarker: null,
+      endMarker: null,
+      initialized: false
+    }
   };
 
   function isActiveModalInit(seq) {
@@ -295,6 +312,420 @@
     return Math.round(n * 100) / 100;
   }
 
+  function toInt(value, fallback) {
+    var n = parseInt(value, 10);
+    if (!Number.isFinite(n)) return (fallback !== undefined ? fallback : 0);
+    return n;
+  }
+
+  function getLegField(leg, key) {
+    if (!leg || typeof leg !== "object") return undefined;
+    if (Object.prototype.hasOwnProperty.call(leg, key)) return leg[key];
+    var upper = String(key || "").toUpperCase();
+    if (Object.prototype.hasOwnProperty.call(leg, upper)) return leg[upper];
+    return undefined;
+  }
+
+  function normalizeLegList(legs) {
+    var list = Array.isArray(legs) ? legs : [];
+    return list.map(function (leg, idx) {
+      var row = (leg && typeof leg === "object") ? Object.assign({}, leg) : {};
+      var order = toInt(getLegField(row, "order_index"), idx + 1);
+      if (!Number.isFinite(order) || order <= 0) order = idx + 1;
+      row.order_index = order;
+      row.route_id = toInt(getLegField(row, "route_id"), 0);
+      row.route_leg_id = toInt(getLegField(row, "route_leg_id"), 0);
+      row.segment_id = toInt(getLegField(row, "segment_id"), 0);
+      row.has_user_override = !!(getLegField(row, "has_user_override"));
+      row.dist_nm = roundTo2(parseFloat(getLegField(row, "dist_nm")));
+      row.dist_nm_default = roundTo2(parseFloat(getLegField(row, "dist_nm_default")));
+      if (!Number.isFinite(row.dist_nm_default) || row.dist_nm_default <= 0) {
+        row.dist_nm_default = row.dist_nm;
+      }
+      return row;
+    });
+  }
+
+  function getLegByOrder(order) {
+    var wanted = toInt(order, 0);
+    if (wanted <= 0) return null;
+    var i;
+    for (i = 0; i < state.previewLegs.length; i += 1) {
+      if (toInt(state.previewLegs[i].order_index, 0) === wanted) return state.previewLegs[i];
+    }
+    return null;
+  }
+
+  function clearSelectedLegRows() {
+    if (!dom.legListEl) return;
+    dom.legListEl.querySelectorAll(".fpw-routegen__leg.is-selected").forEach(function (el) {
+      el.classList.remove("is-selected");
+    });
+  }
+
+  function selectLegRow(order) {
+    clearSelectedLegRows();
+    if (!dom.legListEl) return;
+    var wanted = String(toInt(order, 0));
+    if (!wanted || wanted === "0") return;
+    var row = dom.legListEl.querySelector('.fpw-routegen__leg[data-leg-order="' + wanted + '"]');
+    if (row) row.classList.add("is-selected");
+  }
+
+  function setLegMapStatus(message) {
+    if (!dom.legMapStatusEl) return;
+    dom.legMapStatusEl.textContent = message || "";
+  }
+
+  function setLegMapNm(value) {
+    if (!dom.legMapNmEl) return;
+    var nm = parseFloat(value);
+    dom.legMapNmEl.textContent = Number.isFinite(nm) ? formatNumber(nm, 2) : "0.00";
+  }
+
+  function canPersistLegOverride(leg) {
+    return getLegOverrideSaveMode(leg) !== "";
+  }
+
+  function getLegOverrideSaveMode(leg) {
+    var routeCode = String(state.activeRouteCode || "").trim();
+    var routeLegId = toInt(getLegField(leg, "route_leg_id"), 0);
+    var segmentId = toInt(getLegField(leg, "segment_id"), 0);
+    if (!leg) return "";
+    if (state.modalMode === "editor" && routeCode && routeLegId > 0) {
+      return "route_leg";
+    }
+    if (segmentId > 0) {
+      return "segment";
+    }
+    return "";
+  }
+
+  function sourceLabelFromCode(source) {
+    if (source === "user_override") return "user override";
+    if (source === "user_segment") return "your saved segment";
+    return "default";
+  }
+
+  function updateLegMapButtons(leg, hasOverride) {
+    var allowSave = canPersistLegOverride(leg);
+    if (dom.legSaveBtn) dom.legSaveBtn.disabled = !allowSave;
+    if (dom.legClearBtn) dom.legClearBtn.disabled = !leg;
+    if (dom.legRevertBtn) dom.legRevertBtn.disabled = !(allowSave && !!hasOverride);
+  }
+
+  function moveLegMapPanelToDock() {
+    if (!dom.legMapPanelEl || !dom.legMapDockEl) return;
+    if (dom.legMapPanelEl.parentNode !== dom.legMapDockEl) {
+      dom.legMapDockEl.appendChild(dom.legMapPanelEl);
+    }
+  }
+
+  function moveLegMapPanelToOverlayDock() {
+    if (!dom.legMapPanelEl || !dom.legOverlayDockEl) return;
+    if (dom.legMapPanelEl.parentNode !== dom.legOverlayDockEl) {
+      dom.legOverlayDockEl.appendChild(dom.legMapPanelEl);
+    }
+  }
+
+  function isLegMapOverlayOpen() {
+    return !!(dom.legOverlayEl && dom.legOverlayEl.classList.contains("is-open"));
+  }
+
+  function closeLegMapPanel() {
+    if (dom.legMapPanelEl) dom.legMapPanelEl.classList.remove("is-open");
+    if (dom.legOverlayEl) {
+      dom.legOverlayEl.classList.remove("is-open");
+      dom.legOverlayEl.setAttribute("aria-hidden", "true");
+    }
+    document.body.classList.remove("fpw-routegen--overlay-open");
+    moveLegMapPanelToDock();
+  }
+
+  function closeLegMapAndRefreshPane() {
+    resetLegMapSelection();
+    if (Array.isArray(state.previewLegs) && state.previewLegs.length) {
+      renderLegs(state.previewLegs);
+      refreshTotalsFromLegs();
+    }
+  }
+
+  function openLegMapPanel() {
+    if (!dom.legMapPanelEl) return;
+    moveLegMapPanelToOverlayDock();
+    if (dom.legOverlayEl) {
+      dom.legOverlayEl.classList.add("is-open");
+      dom.legOverlayEl.setAttribute("aria-hidden", "false");
+    }
+    document.body.classList.add("fpw-routegen--overlay-open");
+    dom.legMapPanelEl.classList.remove("is-open");
+    void dom.legMapPanelEl.offsetWidth;
+    dom.legMapPanelEl.classList.add("is-open");
+    if (state.legMap && state.legMap.map) {
+      window.setTimeout(function () {
+        if (state.legMap && state.legMap.map) {
+          state.legMap.map.invalidateSize();
+        }
+      }, 240);
+    }
+  }
+
+  function resetLegMapSelection() {
+    state.legMapLoadSeq += 1;
+    closeLegMapPanel();
+    state.selectedLegOrder = 0;
+    state.selectedLegData = null;
+    state.selectedLegHasOverride = false;
+    state.selectedLegSource = "default";
+    clearSelectedLegRows();
+    if (dom.legMapTitleEl) dom.legMapTitleEl.textContent = "Select a leg to edit geometry";
+    if (dom.legMapSourceEl) dom.legMapSourceEl.textContent = "Source: default";
+    if (dom.legMapHintEl) dom.legMapHintEl.textContent = "Draw or edit polyline, then save override.";
+    setLegMapStatus("Click any leg row to load map tools.");
+    setLegMapNm(0);
+    updateLegMapButtons(null, false);
+    if (state.legMap && state.legMap.activeLayer && state.legMap.drawnItems) {
+      state.legMap.drawnItems.removeLayer(state.legMap.activeLayer);
+      state.legMap.activeLayer = null;
+    }
+    clearLegMapSearchMarker();
+    clearLegMapEndpointMarkers();
+    if (dom.legSearchInputEl) dom.legSearchInputEl.value = "";
+  }
+
+  function toRadians(value) {
+    return value * (Math.PI / 180);
+  }
+
+  function haversineMeters(lat1, lon1, lat2, lon2) {
+    var earthRadius = 6371008.8;
+    var dLat = toRadians(lat2 - lat1);
+    var dLon = toRadians(lon2 - lon1);
+    var phi1 = toRadians(lat1);
+    var phi2 = toRadians(lat2);
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+      + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    if (a < 0) a = 0;
+    if (a > 1) a = 1;
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  function calculatePolylineNm(points) {
+    var list = Array.isArray(points) ? points : [];
+    if (list.length < 2) return 0;
+    var i;
+    var totalMeters = 0;
+    for (i = 1; i < list.length; i += 1) {
+      totalMeters += haversineMeters(
+        parseFloat(list[i - 1].lat),
+        parseFloat(list[i - 1].lon),
+        parseFloat(list[i].lat),
+        parseFloat(list[i].lon)
+      );
+    }
+    return roundTo2(totalMeters / 1852);
+  }
+
+  function extractMapPoints(layer) {
+    if (!layer || typeof layer.getLatLngs !== "function") return [];
+    var latlngs = layer.getLatLngs();
+    if (!Array.isArray(latlngs)) return [];
+    if (latlngs.length && Array.isArray(latlngs[0])) {
+      latlngs = latlngs[0];
+    }
+    return latlngs
+      .filter(function (pt) {
+        return pt && Number.isFinite(pt.lat) && Number.isFinite(pt.lng);
+      })
+      .map(function (pt) {
+        return {
+          lat: Math.round(pt.lat * 1000000) / 1000000,
+          lon: Math.round(pt.lng * 1000000) / 1000000
+        };
+      });
+  }
+
+  function setLegMapLayer(points) {
+    if (!state.legMap.drawnItems) return null;
+    if (state.legMap.activeLayer) {
+      state.legMap.drawnItems.removeLayer(state.legMap.activeLayer);
+      state.legMap.activeLayer = null;
+    }
+    if (!Array.isArray(points) || points.length < 2) return null;
+    var latlngs = points.map(function (p) {
+      return [parseFloat(p.lat), parseFloat(p.lon)];
+    });
+    var layer = window.L.polyline(latlngs, {
+      color: "#5ab3ff",
+      weight: 4,
+      opacity: 0.95
+    });
+    state.legMap.activeLayer = layer;
+    state.legMap.drawnItems.addLayer(layer);
+    return layer;
+  }
+
+  function updateLegMapNmFromLayer() {
+    var points = extractMapPoints(state.legMap.activeLayer);
+    var nm = calculatePolylineNm(points);
+    setLegMapNm(nm);
+    return {
+      points: points,
+      nm: nm
+    };
+  }
+
+  function ensureLegMap() {
+    if (state.legMap.initialized) return true;
+    if (!dom.legMapEl || !window.L || !window.L.Control || !window.L.Control.Draw) {
+      return false;
+    }
+
+    state.legMap.map = window.L.map(dom.legMapEl, {
+      center: [39.5, -95.5],
+      zoom: 4,
+      zoomControl: true
+    });
+    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors",
+      maxZoom: 19
+    }).addTo(state.legMap.map);
+
+    state.legMap.drawnItems = new window.L.FeatureGroup();
+    state.legMap.map.addLayer(state.legMap.drawnItems);
+
+    var drawControl = new window.L.Control.Draw({
+      draw: {
+        polyline: {
+          shapeOptions: {
+            color: "#5ab3ff",
+            weight: 4,
+            opacity: 0.95
+          }
+        },
+        polygon: false,
+        rectangle: false,
+        circle: false,
+        marker: false,
+        circlemarker: false
+      },
+      edit: {
+        featureGroup: state.legMap.drawnItems,
+        edit: true,
+        remove: true
+      }
+    });
+    state.legMap.map.addControl(drawControl);
+
+    state.legMap.map.on(window.L.Draw.Event.CREATED, function (evt) {
+      if (state.legMap.activeLayer) {
+        state.legMap.drawnItems.removeLayer(state.legMap.activeLayer);
+      }
+      state.legMap.activeLayer = evt.layer;
+      state.legMap.drawnItems.addLayer(evt.layer);
+      updateLegMapNmFromLayer();
+      setLegMapStatus("Draft geometry updated. Save to persist your override.");
+    });
+    state.legMap.map.on(window.L.Draw.Event.EDITED, function () {
+      updateLegMapNmFromLayer();
+      setLegMapStatus("Draft geometry updated. Save to persist your override.");
+    });
+    state.legMap.map.on(window.L.Draw.Event.DELETED, function () {
+      state.legMap.activeLayer = null;
+      setLegMapNm(0);
+      setLegMapStatus("Geometry cleared. Draw a new line to save override.");
+    });
+
+    state.legMap.initialized = true;
+    return true;
+  }
+
+  function clearLegMapSearchMarker() {
+    if (state.legMap && state.legMap.searchMarker && state.legMap.map) {
+      state.legMap.map.removeLayer(state.legMap.searchMarker);
+      state.legMap.searchMarker = null;
+    }
+  }
+
+  function clearLegMapEndpointMarkers() {
+    if (!state.legMap || !state.legMap.map) return;
+    if (state.legMap.startMarker) {
+      state.legMap.map.removeLayer(state.legMap.startMarker);
+      state.legMap.startMarker = null;
+    }
+    if (state.legMap.endMarker) {
+      state.legMap.map.removeLayer(state.legMap.endMarker);
+      state.legMap.endMarker = null;
+    }
+  }
+
+  function setLegMapEndpointMarkers(startPoint, endPoint) {
+    if (!state.legMap.map || !window.L) return;
+    clearLegMapEndpointMarkers();
+    if (startPoint) {
+      state.legMap.startMarker = window.L.marker([startPoint.lat, startPoint.lon], { title: "Start" });
+      state.legMap.startMarker.addTo(state.legMap.map);
+      state.legMap.startMarker.bindTooltip("Start", { permanent: true, direction: "top", offset: [0, -12] });
+    }
+    if (endPoint) {
+      state.legMap.endMarker = window.L.marker([endPoint.lat, endPoint.lon], { title: "End" });
+      state.legMap.endMarker.addTo(state.legMap.map);
+      state.legMap.endMarker.bindTooltip("End", { permanent: true, direction: "top", offset: [0, -12] });
+    }
+  }
+
+  function setLegMapSearchMarker(lat, lon, label) {
+    if (!state.legMap.map || !window.L) return;
+    clearLegMapSearchMarker();
+    state.legMap.searchMarker = window.L.marker([lat, lon]);
+    if (label) {
+      state.legMap.searchMarker.bindPopup(escapeHtml(label));
+    }
+    state.legMap.searchMarker.addTo(state.legMap.map);
+    if (label) state.legMap.searchMarker.openPopup();
+  }
+
+  function runLegMapSearch() {
+    var query = String(dom.legSearchInputEl ? dom.legSearchInputEl.value : "").trim();
+    if (!query) {
+      setLegMapStatus("Enter a location to search.");
+      return;
+    }
+    if (!ensureLegMap()) {
+      setLegMapStatus("Map unavailable.");
+      return;
+    }
+
+    setLegMapStatus("Searching map...");
+    var geocodeUrl = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=" + encodeURIComponent(query);
+    fetch(geocodeUrl, {
+      method: "GET",
+      credentials: "omit",
+      headers: { "Accept": "application/json" }
+    })
+      .then(function (response) {
+        if (!response.ok) throw new Error("Lookup failed.");
+        return response.json();
+      })
+      .then(function (rows) {
+        var first = (Array.isArray(rows) && rows.length) ? rows[0] : null;
+        var lat = first ? parseFloat(first.lat) : NaN;
+        var lon = first ? parseFloat(first.lon) : NaN;
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+          setLegMapStatus("No results found.");
+          return;
+        }
+        var label = String(first.display_name || query);
+        setLegMapSearchMarker(lat, lon, label);
+        state.legMap.map.setView([lat, lon], 11);
+        setLegMapStatus("Search result loaded.");
+      })
+      .catch(function () {
+        setLegMapStatus("Search failed. Try another place.");
+      });
+  }
+
   function normalizeFuelBurnBasis(value) {
     // Burn basis is locked to max speed in dev.
     return FUEL_BURN_BASIS_MAX;
@@ -525,6 +956,7 @@
   }
 
   function clearPreview() {
+    state.previewLegs = [];
     if (dom.totalNmEl) dom.totalNmEl.innerHTML = "0 <small>NM</small>";
     if (dom.estimatedDaysEl) dom.estimatedDaysEl.textContent = "0";
     if (dom.estimatedDaysSubEl) dom.estimatedDaysSubEl.textContent = "Pace-driven estimate";
@@ -536,6 +968,7 @@
     if (dom.fuelCostSubEl) dom.fuelCostSubEl.textContent = "Required fuel x price";
     if (dom.legCountEl) dom.legCountEl.textContent = "0 legs";
     if (dom.legListEl) dom.legListEl.innerHTML = '<div class="fpw-routegen__empty">Pick template/start/end to see a live preview.</div>';
+    resetLegMapSelection();
   }
 
   function getTemplateByCode(code) {
@@ -1036,6 +1469,18 @@
   function applyEditContext(editData) {
     var data = editData || {};
     var inputs = data && data.inputs ? data.inputs : data;
+    var routeMeta = data && data.route ? data.route : {};
+    var ctxRouteCode = String(
+      routeMeta.route_code !== undefined ? routeMeta.route_code :
+        (routeMeta.ROUTE_CODE !== undefined ? routeMeta.ROUTE_CODE : "")
+    ).trim();
+    var ctxRouteId = toInt(
+      routeMeta.route_id !== undefined ? routeMeta.route_id :
+        (routeMeta.ROUTE_ID !== undefined ? routeMeta.ROUTE_ID : 0),
+      0
+    );
+    if (ctxRouteCode) state.activeRouteCode = ctxRouteCode;
+    state.activeRouteId = ctxRouteId;
     if (!inputs || typeof inputs !== "object") return;
 
     var templateCode = String(
@@ -1223,6 +1668,7 @@
 
     return {
       template_code: state.activeTemplateCode,
+      route_code: (state.modalMode === "editor" ? String(state.activeRouteCode || "").trim() : ""),
       direction: getDirectionValue(),
       start_segment_id: dom.startSelectEl ? String(dom.startSelectEl.value || "") : "",
       end_segment_id: dom.endSelectEl ? String(dom.endSelectEl.value || "") : "",
@@ -1303,9 +1749,10 @@
 
   function renderLegs(legs) {
     if (!dom.legListEl) return;
-    var list = Array.isArray(legs) ? legs : [];
+    var list = normalizeLegList(legs);
     if (!list.length) {
       dom.legListEl.innerHTML = '<div class="fpw-routegen__empty">No legs available for the current selection.</div>';
+      closeLegMapPanel();
       return;
     }
 
@@ -1320,6 +1767,8 @@
       var startName = String(leg.start_name !== undefined ? leg.start_name : (leg.START_NAME !== undefined ? leg.START_NAME : "")).trim();
       var endName = String(leg.end_name !== undefined ? leg.end_name : (leg.END_NAME !== undefined ? leg.END_NAME : "")).trim();
       var nm = parseFloat(leg.dist_nm !== undefined ? leg.dist_nm : leg.DIST_NM);
+      var routeLegId = toInt(leg.route_leg_id !== undefined ? leg.route_leg_id : leg.ROUTE_LEG_ID, 0);
+      var segmentId = toInt(leg.segment_id !== undefined ? leg.segment_id : leg.SEGMENT_ID, 0);
       var lockCount = parseInt(
         leg.lock_count !== undefined ? leg.lock_count :
           (leg.LOCK_COUNT !== undefined ? leg.LOCK_COUNT : 0),
@@ -1327,14 +1776,17 @@
       );
       var isOffshore = !!(leg.is_offshore || leg.IS_OFFSHORE);
       var isOptional = !!(leg.is_optional || leg.IS_OPTIONAL);
+      var hasOverride = !!(leg.has_user_override || leg.HAS_USER_OVERRIDE);
       if (!Number.isFinite(lockCount) || lockCount < 0) lockCount = 0;
 
       var flags = "";
       if (isOffshore) flags += '<span class="fpw-routegen__flag">Offshore</span>';
       if (isOptional) flags += '<span class="fpw-routegen__flag">Optional</span>';
+      if (hasOverride) flags += '<span class="fpw-routegen__flag fpw-routegen__flag--override">Override</span>';
+      var isSelected = (toInt(order, 0) === toInt(state.selectedLegOrder, 0));
 
       return ''
-        + '<div class="fpw-routegen__leg">'
+        + '<div class="fpw-routegen__leg ' + (isSelected ? 'is-selected' : '') + '" data-leg-order="' + String(order) + '" data-route-leg-id="' + String(routeLegId) + '" data-segment-id="' + String(segmentId) + '">'
         + '  <div class="fpw-routegen__legidx">' + String(order).padStart(2, "0") + '</div>'
         + '  <div class="fpw-routegen__legroute">'
         + '    <div class="fpw-routegen__legname">' + escapeHtml((startName || "Start") + " -> " + (endName || "End")) + flags + '</div>'
@@ -1343,6 +1795,406 @@
         + '  <div class="fpw-routegen__legnm">' + formatNumber(Number.isFinite(nm) ? nm : 0, 1) + ' NM</div>'
         + '</div>';
     }).join("");
+
+    if (isLegMapOverlayOpen()) moveLegMapPanelToOverlayDock();
+    else moveLegMapPanelToDock();
+  }
+
+  function refreshTotalsFromLegs() {
+    if (!Array.isArray(state.previewLegs) || !state.previewLegs.length) return;
+    var totalNm = 0;
+    var totalLocks = 0;
+    var offshoreCount = 0;
+    state.previewLegs.forEach(function (leg) {
+      totalNm += parseFloat(getLegField(leg, "dist_nm")) || 0;
+      totalLocks += toInt(getLegField(leg, "lock_count"), 0);
+      if (getLegField(leg, "is_offshore")) offshoreCount += 1;
+    });
+    if (dom.totalNmEl) dom.totalNmEl.innerHTML = formatNumber(roundTo2(totalNm), 1) + " <small>NM</small>";
+    if (dom.lockCountEl) dom.lockCountEl.textContent = String(totalLocks);
+    if (dom.offshoreCountEl) dom.offshoreCountEl.textContent = String(offshoreCount);
+  }
+
+  function buildLegGeometryPayload(leg) {
+    return {
+      route_code: (state.modalMode === "editor" ? String(state.activeRouteCode || "").trim() : ""),
+      route_leg_id: toInt(getLegField(leg, "route_leg_id"), 0),
+      segment_id: toInt(getLegField(leg, "segment_id"), 0),
+      leg_order: toInt(getLegField(leg, "order_index"), 0)
+    };
+  }
+
+  function applyLegUpdate(order, patch) {
+    var orderNum = toInt(order, 0);
+    if (orderNum <= 0) return;
+    state.previewLegs = state.previewLegs.map(function (leg) {
+      if (toInt(getLegField(leg, "order_index"), 0) !== orderNum) return leg;
+      return Object.assign({}, leg, patch || {});
+    });
+  }
+
+  function fitMapToLayer(layer) {
+    if (!layer || !state.legMap.map) return;
+    var bounds = layer.getBounds();
+    if (bounds && bounds.isValid()) {
+      state.legMap.map.fitBounds(bounds, { padding: [24, 24] });
+      return;
+    }
+    state.legMap.map.setView([39.5, -95.5], 4);
+  }
+
+  function fitMapToPoints(points) {
+    if (!state.legMap.map || !window.L || !Array.isArray(points) || points.length < 2) return false;
+    var latlngs = points
+      .map(function (point) {
+        var parsed = parseLegMapPoint(point);
+        if (!parsed) return null;
+        return [parsed.lat, parsed.lon];
+      })
+      .filter(function (latlng) {
+        return Array.isArray(latlng) && Number.isFinite(latlng[0]) && Number.isFinite(latlng[1]);
+      });
+    if (latlngs.length < 2) return false;
+    var bounds = window.L.latLngBounds(latlngs);
+    if (!bounds || !bounds.isValid()) return false;
+    state.legMap.map.fitBounds(bounds, { padding: [24, 24] });
+    return true;
+  }
+
+  function parseLegMapPoint(rawPoint) {
+    if (!rawPoint || typeof rawPoint !== "object") return null;
+    var lat = parseFloat(rawPoint.lat !== undefined ? rawPoint.lat : rawPoint.latitude);
+    var lon = parseFloat(
+      rawPoint.lon !== undefined ? rawPoint.lon :
+        (rawPoint.lng !== undefined ? rawPoint.lng : rawPoint.longitude)
+    );
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return { lat: lat, lon: lon };
+  }
+
+  function parseLegFieldPoint(leg, prefix) {
+    var lat = getLegField(leg, prefix + "_lat");
+    var lon = getLegField(leg, prefix + "_lon");
+    if (lon === undefined) lon = getLegField(leg, prefix + "_lng");
+    if (lon === undefined) lon = getLegField(leg, prefix + "_longitude");
+    return parseLegMapPoint({ lat: lat, lon: lon });
+  }
+
+  function resolveLegEndpointPoints(leg, geometryData) {
+    var data = geometryData || {};
+    var startPoint = parseLegMapPoint(data.leg_start_point) || parseLegFieldPoint(leg, "start") || parseLegMapPoint(data.default_start_point);
+    var endPoint = parseLegMapPoint(data.leg_end_point) || parseLegFieldPoint(leg, "end") || parseLegMapPoint(data.default_end_point);
+    return {
+      startPoint: startPoint,
+      endPoint: endPoint
+    };
+  }
+
+  function fitMapToEndpointPins(startPoint, endPoint) {
+    if (!state.legMap.map || !window.L) {
+      return { applied: false, tooFar: false };
+    }
+    if (!startPoint && endPoint) {
+      state.legMap.map.setView([endPoint.lat, endPoint.lon], 10);
+      return { applied: true, tooFar: false };
+    }
+    if (!startPoint) {
+      return { applied: false, tooFar: false };
+    }
+    if (!endPoint) {
+      state.legMap.map.setView([startPoint.lat, startPoint.lon], 10);
+      return { applied: true, tooFar: false };
+    }
+    var distanceNm = roundTo2(haversineMeters(startPoint.lat, startPoint.lon, endPoint.lat, endPoint.lon) / 1852);
+    if (distanceNm > MAX_ENDPOINT_FIT_NM) {
+      state.legMap.map.setView([startPoint.lat, startPoint.lon], 10);
+      return { applied: true, tooFar: true, distanceNm: distanceNm };
+    }
+    var bounds = window.L.latLngBounds([
+      [startPoint.lat, startPoint.lon],
+      [endPoint.lat, endPoint.lon]
+    ]);
+    if (!bounds || !bounds.isValid()) {
+      state.legMap.map.setView([startPoint.lat, startPoint.lon], 10);
+      return { applied: true, tooFar: false };
+    }
+    state.legMap.map.fitBounds(bounds, { padding: [24, 24] });
+    return { applied: true, tooFar: false, distanceNm: distanceNm };
+  }
+
+
+  function loadLegGeometry(leg, options) {
+    var opts = options || {};
+    if (!leg) return Promise.resolve(null);
+    if (!ensureLegMap()) {
+      setLegMapStatus("Map library unavailable.");
+      return Promise.resolve(null);
+    }
+
+    var expectedOrder = toInt(getLegField(leg, "order_index"), 0);
+    state.selectedLegData = leg;
+    state.selectedLegOrder = expectedOrder;
+    state.selectedLegHasOverride = !!getLegField(leg, "has_user_override");
+    state.selectedLegSource = "default";
+    state.legMapLoadSeq += 1;
+    var loadSeq = state.legMapLoadSeq;
+    selectLegRow(state.selectedLegOrder);
+    openLegMapPanel();
+    if (dom.legMapTitleEl) {
+      var startName = String(getLegField(leg, "start_name") || "Start");
+      var endName = String(getLegField(leg, "end_name") || "End");
+      dom.legMapTitleEl.textContent = startName + " -> " + endName;
+    }
+    clearLegMapSearchMarker();
+    clearLegMapEndpointMarkers();
+    setLegMapLayer([]);
+    setLegMapNm(0);
+    setLegMapStatus("Loading geometry...");
+    updateLegMapButtons(leg, !!getLegField(leg, "has_user_override"));
+
+    return fetchJson(apiUrl("routegen_getleggeometry"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify(buildLegGeometryPayload(leg))
+    })
+      .then(function (payload) {
+        if (loadSeq !== state.legMapLoadSeq) return null;
+        if (expectedOrder > 0 && state.selectedLegOrder !== expectedOrder) return null;
+        if (!payload || payload.SUCCESS === false) {
+          throw new Error((payload && payload.MESSAGE) ? payload.MESSAGE : "Unable to load leg geometry.");
+        }
+        var data = payload.DATA || {};
+        var points = Array.isArray(data.points) ? data.points : [];
+        var source = String(data.source || "default");
+        var sourceLabel = sourceLabelFromCode(source);
+        var hasOverride = !!data.has_override;
+        var hasSegmentOverride = !!data.has_segment_override;
+        var hasAnyOverride = hasOverride || hasSegmentOverride || source === "user_segment";
+        var computedNm = parseFloat(data.computed_nm);
+        state.selectedLegHasOverride = hasAnyOverride;
+        state.selectedLegSource = source;
+
+        if (dom.legMapSourceEl) {
+          dom.legMapSourceEl.textContent = "Source: " + sourceLabel;
+        }
+        setLegMapNm(computedNm);
+        updateLegMapButtons(leg, hasAnyOverride);
+        if (dom.legMapHintEl) {
+          dom.legMapHintEl.textContent = canPersistLegOverride(leg)
+            ? "Draw or edit polyline, then save override."
+            : "This leg cannot be saved because it has no segment id.";
+        }
+
+        var shouldDrawUserPolyline = hasAnyOverride && points.length >= 2;
+        var layer = setLegMapLayer(shouldDrawUserPolyline ? points : []);
+        var endpointPoints = resolveLegEndpointPoints(leg, data);
+        setLegMapEndpointMarkers(endpointPoints.startPoint, endpointPoints.endPoint);
+        var endpointView = fitMapToEndpointPins(endpointPoints.startPoint, endpointPoints.endPoint);
+        if (layer) {
+          if (!endpointView.applied) {
+            fitMapToLayer(layer);
+          }
+          if (!opts.silent) {
+            if (endpointView.tooFar) {
+              setLegMapStatus("Loaded geometry. Endpoints are far apart, centered on start.");
+            } else {
+              setLegMapStatus(source === "user_segment" ? "Loaded your saved segment geometry." : "Geometry loaded.");
+            }
+          }
+        } else {
+          var zoomedToBounds = endpointView.applied;
+          if (!zoomedToBounds && !shouldDrawUserPolyline && points.length >= 2) {
+            zoomedToBounds = fitMapToPoints(points);
+          }
+          if (!zoomedToBounds && state.legMap.map) {
+            if (expectedOrder <= 0 || state.selectedLegOrder === expectedOrder) {
+              state.legMap.map.setView([39.5, -95.5], 4);
+            }
+          }
+          if (endpointView.tooFar) {
+            setLegMapStatus("No saved geometry for this leg. Endpoints are far apart, centered on start.");
+          } else {
+            setLegMapStatus("No saved geometry for this leg. Draw a polyline to set override.");
+          }
+        }
+        return data;
+      })
+      .catch(function (err) {
+        if (loadSeq !== state.legMapLoadSeq) return null;
+        if (expectedOrder > 0 && state.selectedLegOrder !== expectedOrder) return null;
+        if (err && err.code === "UNAUTHORIZED") {
+          redirectToLogin();
+          return null;
+        }
+        setLegMapStatus((err && err.message) ? err.message : "Unable to load leg geometry.");
+        return null;
+      });
+  }
+
+  function onLegListClick(event) {
+    var target = event.target;
+    if (!target) return;
+    var row = target.closest(".fpw-routegen__leg[data-leg-order]");
+    if (!row || !dom.legListEl || !dom.legListEl.contains(row)) return;
+    var order = toInt(row.getAttribute("data-leg-order"), 0);
+    var leg = getLegByOrder(order);
+    if (!leg) return;
+    loadLegGeometry(leg);
+  }
+
+  function clearLegDrawing() {
+    if (!state.legMap.drawnItems) return;
+    if (state.legMap.activeLayer) {
+      state.legMap.drawnItems.removeLayer(state.legMap.activeLayer);
+      state.legMap.activeLayer = null;
+    }
+    setLegMapNm(0);
+    setLegMapStatus("Geometry cleared. Draw a new line, then save override.");
+  }
+
+  function saveLegOverride() {
+    var leg = state.selectedLegData;
+    var saveMode = getLegOverrideSaveMode(leg);
+    var saveAction = "";
+    var payload = {};
+    if (!leg) {
+      setLegMapStatus("Select a leg first.");
+      return;
+    }
+    if (!saveMode) {
+      setLegMapStatus("This leg cannot be saved because no segment data is available.");
+      return;
+    }
+    var points = extractMapPoints(state.legMap.activeLayer);
+    if (points.length < 2) {
+      clearLegOverride();
+      return;
+    }
+
+    if (saveMode === "route_leg") {
+      saveAction = "routegen_savelegoverride";
+      payload = buildLegGeometryPayload(leg);
+    } else {
+      saveAction = "routegen_savesegmentoverride";
+      payload = {
+        segment_id: toInt(getLegField(leg, "segment_id"), 0)
+      };
+    }
+    payload.geometry = points;
+    payload.override_fields = {};
+    setLegMapStatus("Saving override...");
+    if (dom.legSaveBtn) dom.legSaveBtn.disabled = true;
+
+    fetchJson(apiUrl(saveAction), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify(payload)
+    })
+      .then(function (res) {
+        if (!res || res.SUCCESS === false) {
+          throw new Error((res && res.MESSAGE) ? res.MESSAGE : "Unable to save leg override.");
+        }
+        var data = res.DATA || {};
+        var source = String(data.source || (saveMode === "route_leg" ? "user_override" : "user_segment"));
+        var nm = parseFloat(data.computed_nm);
+        var patch = {
+          has_user_override: true,
+          dist_nm: roundTo2(nm)
+        };
+        if (saveMode === "route_leg") {
+          patch.route_leg_id = toInt(data.route_leg_id, toInt(getLegField(leg, "route_leg_id"), 0));
+        }
+        applyLegUpdate(getLegField(leg, "order_index"), patch);
+        state.selectedLegData = getLegByOrder(getLegField(leg, "order_index")) || leg;
+        renderLegs(state.previewLegs);
+        selectLegRow(getLegField(leg, "order_index"));
+        refreshTotalsFromLegs();
+        setLegMapNm(nm);
+        if (dom.legMapSourceEl) dom.legMapSourceEl.textContent = "Source: " + sourceLabelFromCode(source);
+        state.selectedLegHasOverride = true;
+        state.selectedLegSource = source;
+        updateLegMapButtons(state.selectedLegData, true);
+        setLegMapStatus("Override saved.");
+      })
+      .catch(function (err) {
+        if (err && err.code === "UNAUTHORIZED") {
+          redirectToLogin();
+          return;
+        }
+        setLegMapStatus((err && err.message) ? err.message : "Unable to save override.");
+      })
+      .finally(function () {
+        if (dom.legSaveBtn) dom.legSaveBtn.disabled = false;
+      });
+  }
+
+  function clearLegOverride() {
+    var leg = state.selectedLegData;
+    var saveMode = getLegOverrideSaveMode(leg);
+    var clearAction = "";
+    var clearPayload = {};
+    if (!leg) {
+      setLegMapStatus("Select a leg first.");
+      return;
+    }
+    if (!saveMode) {
+      setLegMapStatus("This leg cannot be reverted because no segment data is available.");
+      return;
+    }
+    if (saveMode === "route_leg") {
+      clearAction = "routegen_clearlegoverride";
+      clearPayload = {
+        route_code: String(state.activeRouteCode || "").trim(),
+        route_leg_id: toInt(getLegField(leg, "route_leg_id"), 0)
+      };
+    } else {
+      clearAction = "routegen_clearsegmentoverride";
+      clearPayload = {
+        segment_id: toInt(getLegField(leg, "segment_id"), 0)
+      };
+    }
+    setLegMapStatus("Reverting override...");
+    if (dom.legRevertBtn) dom.legRevertBtn.disabled = true;
+    fetchJson(apiUrl(clearAction), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify(clearPayload)
+    })
+      .then(function (res) {
+        if (!res || res.SUCCESS === false) {
+          throw new Error((res && res.MESSAGE) ? res.MESSAGE : "Unable to clear leg override.");
+        }
+        var data = res.DATA || {};
+        var defaultNm = parseFloat(data.default_nm);
+        applyLegUpdate(getLegField(leg, "order_index"), {
+          has_user_override: false,
+          dist_nm: roundTo2(defaultNm)
+        });
+        state.selectedLegData = getLegByOrder(getLegField(leg, "order_index")) || leg;
+        renderLegs(state.previewLegs);
+        selectLegRow(getLegField(leg, "order_index"));
+        refreshTotalsFromLegs();
+        setLegMapNm(defaultNm);
+        if (dom.legMapSourceEl) dom.legMapSourceEl.textContent = "Source: default";
+        state.selectedLegHasOverride = false;
+        state.selectedLegSource = "default";
+        updateLegMapButtons(state.selectedLegData, false);
+        setLegMapStatus("Override reverted to default.");
+        loadLegGeometry(state.selectedLegData, { silent: true });
+      })
+      .catch(function (err) {
+        if (err && err.code === "UNAUTHORIZED") {
+          redirectToLogin();
+          return;
+        }
+        setLegMapStatus((err && err.message) ? err.message : "Unable to clear override.");
+      })
+      .finally(function () {
+        if (dom.legRevertBtn) dom.legRevertBtn.disabled = false;
+      });
   }
 
   function renderPreviewPayload(payload, fromTimeline) {
@@ -1460,7 +2312,26 @@
       }
     }
 
-    renderLegs(legs);
+    state.previewLegs = normalizeLegList(legs);
+    renderLegs(state.previewLegs);
+    if (!state.previewLegs.length) {
+      resetLegMapSelection();
+      return;
+    }
+    if (state.selectedLegOrder > 0) {
+      var selected = getLegByOrder(state.selectedLegOrder);
+      if (selected) {
+        state.selectedLegData = selected;
+        selectLegRow(state.selectedLegOrder);
+        var hasLoadedOverride = !!getLegField(selected, "has_user_override");
+        if (state.selectedLegHasOverride && state.selectedLegData && toInt(getLegField(state.selectedLegData, "order_index"), 0) === toInt(getLegField(selected, "order_index"), 0)) {
+          hasLoadedOverride = true;
+        }
+        updateLegMapButtons(selected, hasLoadedOverride);
+      } else {
+        resetLegMapSelection();
+      }
+    }
   }
 
   function schedulePreview() {
@@ -1675,11 +2546,16 @@
         }
 
         var sections = Array.isArray(payload.SECTIONS) ? payload.SECTIONS : [];
+        var routeMeta = payload.ROUTE || {};
+        var routeId = toInt(routeMeta.ID !== undefined ? routeMeta.ID : routeMeta.route_id, 0);
+        state.activeRouteId = routeId;
         var flatLegs = [];
         sections.forEach(function (section) {
           var segs = Array.isArray(section.SEGMENTS) ? section.SEGMENTS : [];
           segs.forEach(function (seg) {
             flatLegs.push({
+              ROUTE_ID: routeId,
+              ROUTE_LEG_ID: seg.ID,
               ORDER_INDEX: seg.ORDER_INDEX,
               START_NAME: seg.START_NAME,
               END_NAME: seg.END_NAME,
@@ -1741,6 +2617,10 @@
     state.editorBaseline = null;
     state.suppressAutoSelectOnce = false;
     state.activeTemplateCode = "";
+    state.activeRouteId = 0;
+    state.previewLegs = [];
+    state.selectedLegOrder = 0;
+    state.selectedLegData = null;
 
     if (dom.templateSelectEl) {
       dom.templateSelectEl.innerHTML = '<option value="">Select template</option>';
@@ -2130,6 +3010,56 @@
       dom.optionalStopsEl.addEventListener("click", onStopToggleClick);
     }
 
+    if (dom.legListEl) {
+      dom.legListEl.addEventListener("click", onLegListClick);
+    }
+
+    if (dom.legSaveBtn) {
+      dom.legSaveBtn.addEventListener("click", saveLegOverride);
+    }
+
+    if (dom.legRevertBtn) {
+      dom.legRevertBtn.addEventListener("click", clearLegOverride);
+    }
+
+    if (dom.legClearBtn) {
+      dom.legClearBtn.addEventListener("click", clearLegDrawing);
+    }
+
+    if (dom.legSearchBtn) {
+      dom.legSearchBtn.addEventListener("click", runLegMapSearch);
+    }
+
+    if (dom.legSearchInputEl) {
+      dom.legSearchInputEl.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          runLegMapSearch();
+        }
+      });
+    }
+
+    if (dom.legSearchClearBtn) {
+      dom.legSearchClearBtn.addEventListener("click", function () {
+        clearLegMapSearchMarker();
+        setLegMapStatus("Search pin cleared.");
+      });
+    }
+
+    if (dom.legOverlayCloseBtn) {
+      dom.legOverlayCloseBtn.addEventListener("click", function () {
+        closeLegMapAndRefreshPane();
+      });
+    }
+
+    if (dom.legOverlayEl) {
+      dom.legOverlayEl.addEventListener("click", function (event) {
+        if (event.target === dom.legOverlayEl) {
+          closeLegMapAndRefreshPane();
+        }
+      });
+    }
+
     if (dom.directionToggleEl) {
       dom.directionToggleEl.addEventListener("change", onDirectionControlChange);
     } else if (dom.directionEl) {
@@ -2224,8 +3154,20 @@
           window.clearTimeout(state.previewTimer);
           state.previewTimer = 0;
         }
+        resetLegMapSelection();
       });
       dom.modalEl.dataset.routegenBound = "true";
+    }
+
+    if (dom.modalEl && !dom.modalEl.dataset.routegenEscBound) {
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && isLegMapOverlayOpen()) {
+          event.preventDefault();
+          event.stopPropagation();
+          closeLegMapAndRefreshPane();
+        }
+      });
+      dom.modalEl.dataset.routegenEscBound = "true";
     }
   }
 
@@ -2287,6 +3229,23 @@
     dom.fuelCostSubEl = document.getElementById("routeGenFuelCostSub");
     dom.legCountEl = document.getElementById("routeGenLegCount");
     dom.legListEl = document.getElementById("routeGenLegList");
+    dom.legMapDockEl = document.getElementById("routeGenLegMapDock");
+    dom.legOverlayEl = document.getElementById("routeGenLegOverlay");
+    dom.legOverlayDockEl = document.getElementById("routeGenLegOverlayDock");
+    dom.legMapPanelEl = document.getElementById("routeGenLegMapPanel");
+    dom.legMapEl = document.getElementById("routeGenLegMap");
+    dom.legMapTitleEl = document.getElementById("routeGenLegMapTitle");
+    dom.legMapSourceEl = document.getElementById("routeGenLegMapSource");
+    dom.legOverlayCloseBtn = document.getElementById("routeGenLegOverlayCloseBtn");
+    dom.legSearchInputEl = document.getElementById("routeGenLegMapSearchInput");
+    dom.legSearchBtn = document.getElementById("routeGenLegMapSearchBtn");
+    dom.legSearchClearBtn = document.getElementById("routeGenLegMapSearchClearBtn");
+    dom.legMapNmEl = document.getElementById("routeGenLegMapNm");
+    dom.legMapHintEl = document.getElementById("routeGenLegMapHint");
+    dom.legMapStatusEl = document.getElementById("routeGenLegMapStatus");
+    dom.legSaveBtn = document.getElementById("routeGenLegSaveBtn");
+    dom.legRevertBtn = document.getElementById("routeGenLegRevertBtn");
+    dom.legClearBtn = document.getElementById("routeGenLegClearBtn");
 
     return true;
   }

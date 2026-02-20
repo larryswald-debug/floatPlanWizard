@@ -30,13 +30,13 @@
             <cfset var act = lCase(trim(arguments.action)) />
 
             <cfif act EQ "generateroute">
-                <cfset var startDate = pickArg(body, "startDate", "startDate", "") />
-                <cfset var startLocation = pickArg(body, "startLocation", "startLocation", "") />
-                <cfset var endLocation = pickArg(body, "endLocation", "endLocation", "") />
-                <cfset var directionArg = pickArg(body, "direction", "direction", "CCW") />
-                <cfset var tripType = pickArg(body, "tripType", "tripType", "POINT_TO_POINT") />
-                <cfset var generated = generateRoute(userId, startDate, startLocation, endLocation, directionArg, tripType) />
-                <cfoutput>#serializeJSON(generated)#</cfoutput>
+                <cfoutput>#serializeJSON({
+                    "SUCCESS"=false,
+                    "AUTH"=true,
+                    "MESSAGE"="Legacy action disabled",
+                    "ERROR"={"MESSAGE"="Action 'generateRoute' is disabled. Use 'routegen_generate'."},
+                    "REPLACEMENT_ACTION"="routegen_generate"
+                })#</cfoutput>
                 <cfreturn>
 
             <cfelseif act EQ "listroutetemplates">
@@ -60,22 +60,13 @@
                 <cfreturn>
 
             <cfelseif act EQ "generateroutefromtemplate">
-                <cfset var templateRouteId = val(pickArg(body, "templateRouteId", "template_route_id", 0)) />
-                <cfset var templateRouteCode = trim(pickArg(body, "templateRouteCode", "template_route_code", "")) />
-                <cfset var templateDirection = trim(pickArg(body, "direction", "direction", "CCW")) />
-                <cfset var templateMode = trim(pickArg(body, "mode", "mode", "FULL_TEMPLATE")) />
-                <cfset var templateName = trim(pickArg(body, "routeName", "route_name", "")) />
-                <cfset var templateSetActive = toBoolean(pickArg(body, "setActive", "set_active", true), true) />
-                <cfset var generatedFromTemplate = generateRouteFromTemplate(
-                    userId = userId,
-                    templateRouteId = templateRouteId,
-                    templateRouteCode = templateRouteCode,
-                    direction = templateDirection,
-                    mode = templateMode,
-                    routeName = templateName,
-                    setActive = templateSetActive
-                ) />
-                <cfoutput>#serializeJSON(generatedFromTemplate)#</cfoutput>
+                <cfoutput>#serializeJSON({
+                    "SUCCESS"=false,
+                    "AUTH"=true,
+                    "MESSAGE"="Legacy action disabled",
+                    "ERROR"={"MESSAGE"="Action 'generateRouteFromTemplate' is disabled. Use 'routegen_generate'."},
+                    "REPLACEMENT_ACTION"="routegen_generate"
+                })#</cfoutput>
                 <cfreturn>
 
             <cfelseif act EQ "listuserroutes">
@@ -84,9 +75,13 @@
                 <cfreturn>
 
             <cfelseif act EQ "listcanonicallocations">
-                <cfset var canonicalDirection = pickArg(body, "direction", "direction", "CCW") />
-                <cfset var canonical = listCanonicalLocations(canonicalDirection) />
-                <cfoutput>#serializeJSON(canonical)#</cfoutput>
+                <cfoutput>#serializeJSON({
+                    "SUCCESS"=false,
+                    "AUTH"=true,
+                    "MESSAGE"="Legacy action disabled",
+                    "ERROR"={"MESSAGE"="Action 'listCanonicalLocations' is disabled. Use 'routegen_getoptions'."},
+                    "REPLACEMENT_ACTION"="routegen_getoptions"
+                })#</cfoutput>
                 <cfreturn>
 
             <cfelseif act EQ "routegen_getoptions">
@@ -136,6 +131,82 @@
                     input = routegenUpdateInput
                 ) />
                 <cfoutput>#serializeJSON(routegenUpdateRes)#</cfoutput>
+                <cfreturn>
+
+            <cfelseif act EQ "routegen_getleggeometry">
+                <cfset var routegenLegGeometryRouteCode = trim(pickArg(body, "route_code", "routeCode", "")) />
+                <cfset var routegenLegGeometryLegId = val(pickArg(body, "route_leg_id", "routeLegId", 0)) />
+                <cfset var routegenLegGeometrySegmentId = val(pickArg(body, "segment_id", "segmentId", 0)) />
+                <cfset var routegenLegGeometryOrder = val(pickArg(body, "leg_order", "legOrder", 0)) />
+                <cfset var routegenLegGeometryRes = routegenGetLegGeometry(
+                    userId = userId,
+                    routeCode = routegenLegGeometryRouteCode,
+                    routeLegId = routegenLegGeometryLegId,
+                    segmentId = routegenLegGeometrySegmentId,
+                    legOrder = routegenLegGeometryOrder
+                ) />
+                <cfoutput>#serializeJSON(routegenLegGeometryRes)#</cfoutput>
+                <cfreturn>
+
+            <cfelseif act EQ "routegen_savelegoverride">
+                <cfset var routegenSaveOverrideRouteCode = trim(pickArg(body, "route_code", "routeCode", "")) />
+                <cfset var routegenSaveOverrideLegId = val(pickArg(body, "route_leg_id", "routeLegId", 0)) />
+                <cfset var routegenSaveOverrideOrder = val(pickArg(body, "leg_order", "legOrder", 0)) />
+                <cfset var routegenSaveOverrideSegmentId = val(pickArg(body, "segment_id", "segmentId", 0)) />
+                <cfset var routegenSaveOverrideGeometry = pickArg(body, "geometry", "points", []) />
+                <cfset var routegenSaveOverrideFields = pickArg(body, "override_fields", "overrideFields", {}) />
+                <cfset var routegenSaveOverrideRes = routegenSaveLegOverride(
+                    userId = userId,
+                    routeCode = routegenSaveOverrideRouteCode,
+                    routeLegId = routegenSaveOverrideLegId,
+                    legOrder = routegenSaveOverrideOrder,
+                    segmentId = routegenSaveOverrideSegmentId,
+                    geometryRaw = routegenSaveOverrideGeometry,
+                    overrideFieldsRaw = routegenSaveOverrideFields
+                ) />
+                <cfoutput>#serializeJSON(routegenSaveOverrideRes)#</cfoutput>
+                <cfreturn>
+
+            <cfelseif act EQ "routegen_clearlegoverride">
+                <cfset var routegenClearOverrideRouteCode = trim(pickArg(body, "route_code", "routeCode", "")) />
+                <cfset var routegenClearOverrideLegId = val(pickArg(body, "route_leg_id", "routeLegId", 0)) />
+                <cfset var routegenClearOverrideRes = routegenClearLegOverride(
+                    userId = userId,
+                    routeCode = routegenClearOverrideRouteCode,
+                    routeLegId = routegenClearOverrideLegId
+                ) />
+                <cfoutput>#serializeJSON(routegenClearOverrideRes)#</cfoutput>
+                <cfreturn>
+
+            <cfelseif act EQ "routegen_savesegmentoverride">
+                <cfset var routegenSaveSegmentOverrideId = val(pickArg(body, "segment_id", "segmentId", 0)) />
+                <cfset var routegenSaveSegmentOverrideGeometry = pickArg(body, "geometry", "points", []) />
+                <cfset var routegenSaveSegmentOverrideFields = pickArg(body, "override_fields", "overrideFields", {}) />
+                <cfset var routegenSaveSegmentOverrideRes = routegenSaveSegmentOverride(
+                    userId = userId,
+                    segmentId = routegenSaveSegmentOverrideId,
+                    geometryRaw = routegenSaveSegmentOverrideGeometry,
+                    overrideFieldsRaw = routegenSaveSegmentOverrideFields
+                ) />
+                <cfoutput>#serializeJSON(routegenSaveSegmentOverrideRes)#</cfoutput>
+                <cfreturn>
+
+            <cfelseif act EQ "routegen_clearsegmentoverride">
+                <cfset var routegenClearSegmentOverrideId = val(pickArg(body, "segment_id", "segmentId", 0)) />
+                <cfset var routegenClearSegmentOverrideRes = routegenClearSegmentOverride(
+                    userId = userId,
+                    segmentId = routegenClearSegmentOverrideId
+                ) />
+                <cfoutput>#serializeJSON(routegenClearSegmentOverrideRes)#</cfoutput>
+                <cfreturn>
+
+            <cfelseif act EQ "routegen_listlegoverrides">
+                <cfset var routegenListOverrideRouteCode = trim(pickArg(body, "route_code", "routeCode", "")) />
+                <cfset var routegenListOverrideRes = routegenListLegOverrides(
+                    userId = userId,
+                    routeCode = routegenListOverrideRouteCode
+                ) />
+                <cfoutput>#serializeJSON(routegenListOverrideRes)#</cfoutput>
                 <cfreturn>
 
             <cfelseif act EQ "buildfloatplansfromroute">
@@ -210,25 +281,12 @@
                 <cfreturn>
 
             <cfelseif act EQ "updatesegment">
-                <cfset var segIdLocal = val(arguments.segmentId) />
-                <cfif segIdLocal LTE 0>
-                    <cfset segIdLocal = val(pickArg(body, "segmentId", "segmentId", 0)) />
-                </cfif>
-                <cfset var rc = trim(arguments.routeCode) />
-                <cfif NOT len(rc)>
-                    <cfset rc = trim(pickArg(body, "routeCode", "routeCode", "")) />
-                </cfif>
-                <cfif segIdLocal LTE 0 OR NOT len(rc)>
-                    <cfoutput>#serializeJSON({
-                        "SUCCESS"=false,
-                        "AUTH"=true,
-                        "MESSAGE"="segmentId and routeCode required",
-                        "ERROR"={"MESSAGE"="segmentId and routeCode are required"}
-                    })#</cfoutput>
-                    <cfreturn>
-                </cfif>
-                <cfset var upd = updateSegment(userId, rc, segIdLocal, body) />
-                <cfoutput>#serializeJSON(upd)#</cfoutput>
+                <cfoutput>#serializeJSON({
+                    "SUCCESS"=false,
+                    "AUTH"=true,
+                    "MESSAGE"="Legacy action disabled",
+                    "ERROR"={"MESSAGE"="Action 'updateSegment' is disabled. Use routegen preview/update and leg overrides."}
+                })#</cfoutput>
                 <cfreturn>
 
             <cfelse>
@@ -291,7 +349,6 @@
             return out;
         </cfscript>
     </cffunction>
-
     <cffunction name="generateRoute" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="startDate" type="string" required="true">
@@ -300,466 +357,15 @@
         <cfargument name="direction" type="string" required="false" default="CCW">
         <cfargument name="tripType" type="string" required="false" default="POINT_TO_POINT">
         <cfscript>
-            var out = { "SUCCESS"=true, "AUTH"=true, "MESSAGE"="OK", "WARNINGS"=[] };
-            var milepointService = getMilepointService();
-            var rmAutoFillCount = 0;
-            var rmUnresolvedCount = 0;
-            var tripTypeVal = normalizeTripType(arguments.tripType);
-            var startDateVal = trim(arguments.startDate);
-            var startLocRaw = trim(arguments.startLocation);
-            var endLocRaw = trim(arguments.endLocation);
-            if (!len(startDateVal) OR !len(startLocRaw)) {
-                return {
-                    "SUCCESS"=false,
-                    "AUTH"=true,
-                    "MESSAGE"="Missing required fields",
-                    "ERROR"={"MESSAGE"="startDate and startLocation are required"}
-                };
-            }
-            if (tripTypeVal NEQ "FULL_LOOP" AND !len(endLocRaw)) {
-                return {
-                    "SUCCESS"=false,
-                    "AUTH"=true,
-                    "MESSAGE"="Missing required fields",
-                    "ERROR"={"MESSAGE"="endLocation is required for point-to-point routes"}
-                };
-            }
-            if (tripTypeVal EQ "FULL_LOOP") {
-                endLocRaw = startLocRaw;
-            }
-
-            var qTpl = queryExecute(
-                "SELECT id, name, short_code, description
-                 FROM loop_routes
-                 WHERE short_code = 'GREAT_LOOP_CCW'
-                 LIMIT 1",
-                {},
-                { datasource = application.dsn }
-            );
-            if (qTpl.recordCount EQ 0) {
-                return {
-                    "SUCCESS"=false,
-                    "AUTH"=true,
-                    "MESSAGE"="Template route not found",
-                    "ERROR"={"MESSAGE"="GREAT_LOOP_CCW was not found in loop_routes"}
-                };
-            }
-
-            var templateRouteId = qTpl.id[1];
-            var directionVal = normalizeDirection(arguments.direction);
-            var shortCode = allocateUserRouteCode(arguments.userId);
-            if (!len(shortCode)) {
-                return {
-                    "SUCCESS"=false,
-                    "AUTH"=true,
-                    "MESSAGE"="Unable to allocate user route code",
-                    "ERROR"={"MESSAGE"="Could not generate a unique USER_ROUTE code."}
-                };
-            }
-            var routeName = "My Great Loop Route";
-            var routeDesc = "Generated from GREAT_LOOP_CCW (" & directionVal & ") on " & dateFormat(now(), "yyyy-mm-dd") & " (" & startLocRaw & " to " & endLocRaw & ")";
-
-            var qTplSections = queryExecute(
-                "SELECT id, name, slug, short_code, phase_num, order_index, is_active_default
-                 FROM loop_sections
-                 WHERE route_id = :rid
-                 ORDER BY order_index ASC",
-                { rid = { value=templateRouteId, cfsqltype="cf_sql_integer" } },
-                { datasource = application.dsn }
-            );
-
-            var qTplSegments = queryExecute(
-                "SELECT s.id, s.section_id, s.order_index, s.start_name, s.end_name, s.dist_nm, s.lock_count, s.rm_start, s.rm_end, s.is_signature_event, s.is_milestone_end, s.notes,
-                        sec.order_index AS section_order
-                 FROM loop_segments s
-                 INNER JOIN loop_sections sec ON sec.id = s.section_id
-                 WHERE sec.route_id = :rid
-                 ORDER BY sec.order_index ASC, s.order_index ASC",
-                { rid = { value=templateRouteId, cfsqltype="cf_sql_integer" } },
-                { datasource = application.dsn }
-            );
-
-            var segmentRows = [];
-            var routeOrderCounter = 0;
-            var segIdx = 0;
-            if (directionVal EQ "CW") {
-                for (segIdx = qTplSegments.recordCount; segIdx GTE 1; segIdx--) {
-                    routeOrderCounter += 1;
-                    arrayAppend(segmentRows, {
-                        "TEMPLATE_SEGMENT_ID"=qTplSegments.id[segIdx],
-                        "SECTION_ID"=qTplSegments.section_id[segIdx],
-                        "ORDER_INDEX"=qTplSegments.order_index[segIdx],
-                        "SECTION_ORDER"=qTplSegments.section_order[segIdx],
-                        "START_NAME"=qTplSegments.end_name[segIdx],
-                        "END_NAME"=qTplSegments.start_name[segIdx],
-                        "DIST_NM"=qTplSegments.dist_nm[segIdx],
-                        "LOCK_COUNT"=qTplSegments.lock_count[segIdx],
-                        "RM_START"=qTplSegments.rm_end[segIdx],
-                        "RM_END"=qTplSegments.rm_start[segIdx],
-                        "IS_SIGNATURE_EVENT"=qTplSegments.is_signature_event[segIdx],
-                        "IS_MILESTONE_END"=qTplSegments.is_milestone_end[segIdx],
-                        "NOTES"=qTplSegments.notes[segIdx],
-                        "ROUTE_ORDER"=routeOrderCounter
-                    });
-                }
-            } else {
-                for (segIdx = 1; segIdx LTE qTplSegments.recordCount; segIdx++) {
-                    routeOrderCounter += 1;
-                    arrayAppend(segmentRows, {
-                        "TEMPLATE_SEGMENT_ID"=qTplSegments.id[segIdx],
-                        "SECTION_ID"=qTplSegments.section_id[segIdx],
-                        "ORDER_INDEX"=qTplSegments.order_index[segIdx],
-                        "SECTION_ORDER"=qTplSegments.section_order[segIdx],
-                        "START_NAME"=qTplSegments.start_name[segIdx],
-                        "END_NAME"=qTplSegments.end_name[segIdx],
-                        "DIST_NM"=qTplSegments.dist_nm[segIdx],
-                        "LOCK_COUNT"=qTplSegments.lock_count[segIdx],
-                        "RM_START"=qTplSegments.rm_start[segIdx],
-                        "RM_END"=qTplSegments.rm_end[segIdx],
-                        "IS_SIGNATURE_EVENT"=qTplSegments.is_signature_event[segIdx],
-                        "IS_MILESTONE_END"=qTplSegments.is_milestone_end[segIdx],
-                        "NOTES"=qTplSegments.notes[segIdx],
-                        "ROUTE_ORDER"=routeOrderCounter
-                    });
-                }
-            }
-
-            if (arrayLen(segmentRows) LTE 0) {
-                return {
-                    "SUCCESS"=false,
-                    "AUTH"=true,
-                    "MESSAGE"="Template route has no segments",
-                    "ERROR"={"MESSAGE"="GREAT_LOOP_CCW has no loop_segments to generate from."}
-                };
-            }
-
-            var matchInfo = findFocusSegments(templateRouteId, startLocRaw, endLocRaw, directionVal);
-            var trimStartOrder = 0;
-            var trimEndOrder = 0;
-            var endFallbackUsed = false;
-            var wrapRangeUsed = false;
-            var selectedSegmentRows = [];
-            var selectedIdx = 0;
-            var fullLoopPick = {};
-            var pointToPointPick = {};
-            if (!matchInfo.START_FOUND OR val(matchInfo.START_ORDER) LTE 0) {
-                return {
-                    "SUCCESS"=false,
-                    "AUTH"=true,
-                    "MESSAGE"="Start location not found in route template",
-                    "ERROR"={"MESSAGE"="The selected start location could not be matched in GREAT_LOOP_CCW (" & directionVal & ")."}
-                };
-            }
-            trimStartOrder = val(matchInfo.START_ORDER);
-
-            if (tripTypeVal EQ "FULL_LOOP") {
-                fullLoopPick = pickBestFullLoopSelection(segmentRows, startLocRaw, trimStartOrder);
-                if (fullLoopPick.SUCCESS) {
-                    selectedSegmentRows = fullLoopPick.ROWS;
-                    trimStartOrder = fullLoopPick.START_ORDER;
-                    trimEndOrder = fullLoopPick.END_ORDER;
-                } else {
-                    for (selectedIdx = trimStartOrder; selectedIdx LTE arrayLen(segmentRows); selectedIdx++) {
-                        arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
-                    }
-                    for (selectedIdx = 1; selectedIdx LT trimStartOrder; selectedIdx++) {
-                        arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
-                    }
-                    if (arrayLen(selectedSegmentRows) GT 0) {
-                        trimEndOrder = selectedSegmentRows[arrayLen(selectedSegmentRows)].ROUTE_ORDER;
-                    } else {
-                        trimEndOrder = 0;
-                    }
-                }
-            } else {
-                pointToPointPick = pickBestPointToPointSelection(segmentRows, startLocRaw, endLocRaw, trimStartOrder);
-                if (pointToPointPick.SUCCESS) {
-                    selectedSegmentRows = pointToPointPick.ROWS;
-                    trimStartOrder = pointToPointPick.START_ORDER;
-                    trimEndOrder = pointToPointPick.END_ORDER;
-                    wrapRangeUsed = pointToPointPick.WRAP_RANGE;
-                } else {
-                    if (!matchInfo.END_FOUND OR val(matchInfo.END_ORDER) LTE 0) {
-                        trimEndOrder = segmentRows[arrayLen(segmentRows)].ROUTE_ORDER;
-                        endFallbackUsed = true;
-                    } else {
-                        trimEndOrder = val(matchInfo.END_ORDER);
-                    }
-
-                    if (trimEndOrder GTE trimStartOrder) {
-                        for (selectedIdx = trimStartOrder; selectedIdx LTE trimEndOrder; selectedIdx++) {
-                            arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
-                        }
-                    } else {
-                        wrapRangeUsed = true;
-                        for (selectedIdx = trimStartOrder; selectedIdx LTE arrayLen(segmentRows); selectedIdx++) {
-                            arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
-                        }
-                        for (selectedIdx = 1; selectedIdx LTE trimEndOrder; selectedIdx++) {
-                            arrayAppend(selectedSegmentRows, segmentRows[selectedIdx]);
-                        }
-                    }
-                }
-            }
-
-            if (arrayLen(selectedSegmentRows) EQ 0) {
-                return {
-                    "SUCCESS"=false,
-                    "AUTH"=true,
-                    "MESSAGE"="Unable to build route range from selected start/end",
-                    "ERROR"={"MESSAGE"="Could not resolve a valid contiguous route range from your selected start and end locations."}
-                };
-            }
-            var continuityIssue = findRouteContinuityIssue(selectedSegmentRows);
-            if (continuityIssue.HAS_BREAK) {
-                return {
-                    "SUCCESS"=false,
-                    "AUTH"=true,
-                    "MESSAGE"="Template route continuity error",
-                    "ERROR"={
-                        "MESSAGE"="Template continuity break between '" & continuityIssue.PREV_END_RAW & "' and '" & continuityIssue.NEXT_START_RAW & "'.",
-                        "DETAIL"="GREAT_LOOP_CCW has non-contiguous segment ordering at route order " & continuityIssue.NEXT_ROUTE_ORDER & ". Update template segment ordering/data."
-                    }
-                };
-            }
-
-            var newRouteId = 0;
-            var templateSectionInfoById = {};
-            var segmentMap = {};
-            var routeInstanceId = 0;
-            var selectedSegIdx = 0;
-            var sectionInfoIdx = 0;
-            for (sectionInfoIdx = 1; sectionInfoIdx LTE qTplSections.recordCount; sectionInfoIdx++) {
-                var tplSectionIdInfo = toString(qTplSections.id[sectionInfoIdx]);
-                var sectionNameInfo = trim(toString(qTplSections.name[sectionInfoIdx]));
-                var sectionSlugInfo = trim(toString(qTplSections.slug[sectionInfoIdx]));
-                if (!len(sectionSlugInfo)) {
-                    sectionSlugInfo = lCase(reReplace(sectionNameInfo, "[^A-Za-z0-9]+", "-", "all"));
-                    sectionSlugInfo = reReplace(sectionSlugInfo, "^-+|-+$", "", "all");
-                }
-                if (!len(sectionSlugInfo)) {
-                    sectionSlugInfo = "section-" & sectionInfoIdx;
-                }
-                var sectionShortCodeInfo = trim(toString(qTplSections.short_code[sectionInfoIdx]));
-                if (!len(sectionShortCodeInfo)) {
-                    sectionShortCodeInfo = uCase(reReplace(sectionSlugInfo, "[^A-Za-z0-9]+", "_", "all"));
-                }
-                if (!len(sectionNameInfo)) {
-                    sectionNameInfo = "Section " & sectionInfoIdx;
-                }
-                templateSectionInfoById[tplSectionIdInfo] = {
-                    "NAME"=sectionNameInfo,
-                    "SLUG"=sectionSlugInfo,
-                    "SHORT_CODE"=sectionShortCodeInfo,
-                    "PHASE_NUM"=(isNull(qTplSections.phase_num[sectionInfoIdx]) ? 1 : val(qTplSections.phase_num[sectionInfoIdx])),
-                    "IS_ACTIVE_DEFAULT"=(qTplSections.is_active_default[sectionInfoIdx] EQ 1 ? 1 : 0)
-                };
-            }
-
-            transaction {
-                queryExecute(
-                    "INSERT INTO loop_routes (name, code, short_code, description, is_default)
-                     VALUES (:name, :code, :shortCode, :descr, 0)",
-                    {
-                        name = { value=routeName, cfsqltype="cf_sql_varchar" },
-                        code = { value=shortCode, cfsqltype="cf_sql_varchar" },
-                        shortCode = { value=shortCode, cfsqltype="cf_sql_varchar" },
-                        descr = { value=routeDesc, cfsqltype="cf_sql_varchar" }
-                    },
-                    { datasource = application.dsn, result = "routeIns" }
-                );
-                newRouteId = val(routeIns.generatedKey);
-
-                var i = 0;
-                var segRow = {};
-                var localOrderIndex = 0;
-                var currentRunOldSectionId = "";
-                var currentRunSectionId = 0;
-                var currentRunSegmentOrder = 0;
-                var sectionRunCountByTemplate = {};
-                var runNum = 0;
-                var sectionInfo = {};
-                var sectionNameVal = "";
-                var sectionSlugVal = "";
-                var sectionShortCodeVal = "";
-                var sectionOrderIndex = 0;
-                for (i = 1; i LTE arrayLen(selectedSegmentRows); i++) {
-                    segRow = selectedSegmentRows[i];
-                    var oldSecId = toString(segRow.SECTION_ID);
-                    var distNmBind = toNullableNumber(segRow.DIST_NM, "numeric");
-                    var lockCountBind = toNullableNumber(segRow.LOCK_COUNT, "integer");
-                    var rmStartBind = toNullableNumber(segRow.RM_START, "numeric");
-                    var rmEndBind = toNullableNumber(segRow.RM_END, "numeric");
-                    var startNameVal = trim(toString(segRow.START_NAME));
-                    var endNameVal = trim(toString(segRow.END_NAME));
-                    if (!structKeyExists(templateSectionInfoById, oldSecId)) {
-                        continue;
-                    }
-
-                    if (oldSecId NEQ currentRunOldSectionId) {
-                        currentRunOldSectionId = oldSecId;
-                        currentRunSegmentOrder = 0;
-                        runNum = (structKeyExists(sectionRunCountByTemplate, oldSecId) ? sectionRunCountByTemplate[oldSecId] + 1 : 1);
-                        sectionRunCountByTemplate[oldSecId] = runNum;
-                        sectionInfo = templateSectionInfoById[oldSecId];
-                        sectionOrderIndex = i;
-
-                        sectionNameVal = sectionInfo.NAME;
-                        if (runNum GT 1) {
-                            sectionNameVal &= " (Leg " & runNum & ")";
-                        }
-
-                        sectionSlugVal = sectionInfo.SLUG;
-                        if (runNum GT 1) {
-                            sectionSlugVal &= "-leg-" & runNum;
-                        }
-                        if (len(sectionSlugVal) GT 160) {
-                            sectionSlugVal = left(sectionSlugVal, 160);
-                        }
-
-                        sectionShortCodeVal = sectionInfo.SHORT_CODE;
-                        if (runNum GT 1) {
-                            sectionShortCodeVal &= "_" & runNum;
-                        }
-                        if (len(sectionShortCodeVal) GT 40) {
-                            sectionShortCodeVal = left(sectionShortCodeVal, 40);
-                        }
-                        if (!len(sectionShortCodeVal)) {
-                            sectionShortCodeVal = "SECTION_" & sectionOrderIndex;
-                        }
-
-                        queryExecute(
-                            "INSERT INTO loop_sections (route_id, name, slug, short_code, phase_num, order_index, is_active_default)
-                             VALUES (:rid, :name, :slug, :scode, :phaseNum, :orderIndex, :isActive)",
-                            {
-                                rid = { value=newRouteId, cfsqltype="cf_sql_integer" },
-                                name = { value=sectionNameVal, cfsqltype="cf_sql_varchar", null = false },
-                                slug = { value=sectionSlugVal, cfsqltype="cf_sql_varchar", null = false },
-                                scode = { value=sectionShortCodeVal, cfsqltype="cf_sql_varchar", null = false },
-                                phaseNum = { value=sectionInfo.PHASE_NUM, cfsqltype="cf_sql_integer", null = false },
-                                orderIndex = { value=sectionOrderIndex, cfsqltype="cf_sql_integer" },
-                                isActive = { value=(i EQ 1 ? 1 : 0), cfsqltype="cf_sql_integer" }
-                            },
-                            { datasource = application.dsn, result = "secIns" }
-                        );
-                        currentRunSectionId = val(secIns.generatedKey);
-                    }
-
-                    currentRunSegmentOrder += 1;
-                    localOrderIndex = currentRunSegmentOrder;
-                    if (!len(startNameVal)) {
-                        startNameVal = "Unknown Start";
-                    }
-                    if (!len(endNameVal)) {
-                        endNameVal = "Unknown End";
-                    }
-                    sectionInfo = templateSectionInfoById[oldSecId];
-                    if (isObject(milepointService)) {
-                        var rmResolved = milepointService.resolveSegmentRM(sectionInfo.NAME, startNameVal, endNameVal);
-                        if ((rmStartBind.isNull OR isNullableZero(rmStartBind)) AND rmResolved.START_FOUND) {
-                            rmStartBind = { "isNull"=false, "value"=rmResolved.RM_START };
-                        }
-                        if ((rmEndBind.isNull OR isNullableZero(rmEndBind)) AND rmResolved.END_FOUND) {
-                            rmEndBind = { "isNull"=false, "value"=rmResolved.RM_END };
-                        }
-                        if (!len(rmResolved.WATERWAY_CODE)) {
-                            if (isNullableZero(rmStartBind)) rmStartBind = { "isNull"=true, "value"=0 };
-                            if (isNullableZero(rmEndBind)) rmEndBind = { "isNull"=true, "value"=0 };
-                        }
-                        if (rmResolved.AUTOFILLED) {
-                            rmAutoFillCount += 1;
-                        } else if (len(rmResolved.WATERWAY_CODE) AND (NOT rmResolved.START_FOUND OR NOT rmResolved.END_FOUND)) {
-                            rmUnresolvedCount += 1;
-                        }
-                    }
-                    queryExecute(
-                        "INSERT INTO loop_segments
-                            (section_id, order_index, start_name, end_name, dist_nm, lock_count, rm_start, rm_end, is_signature_event, is_milestone_end, notes)
-                         VALUES
-                            (:sectionId, :orderIndex, :startName, :endName, :distNm, :lockCount, :rmStart, :rmEnd, :isSignature, :isMilestone, :notes)",
-                        {
-                            sectionId = { value=currentRunSectionId, cfsqltype="cf_sql_integer" },
-                            orderIndex = { value=localOrderIndex, cfsqltype="cf_sql_integer" },
-                            startName = { value=startNameVal, cfsqltype="cf_sql_varchar", null = false },
-                            endName = { value=endNameVal, cfsqltype="cf_sql_varchar", null = false },
-                            distNm = { value=distNmBind.value, cfsqltype="cf_sql_decimal", null = distNmBind.isNull },
-                            lockCount = { value=lockCountBind.value, cfsqltype="cf_sql_integer", null = lockCountBind.isNull },
-                            rmStart = { value=rmStartBind.value, cfsqltype="cf_sql_decimal", null = rmStartBind.isNull },
-                            rmEnd = { value=rmEndBind.value, cfsqltype="cf_sql_decimal", null = rmEndBind.isNull },
-                            isSignature = { value=(segRow.IS_SIGNATURE_EVENT EQ 1 ? 1 : 0), cfsqltype="cf_sql_integer" },
-                            isMilestone = { value=(segRow.IS_MILESTONE_END EQ 1 ? 1 : 0), cfsqltype="cf_sql_integer" },
-                            notes = { value=segRow.NOTES, cfsqltype="cf_sql_varchar", null = isNull(segRow.NOTES) }
-                        },
-                        { datasource = application.dsn, result = "segIns" }
-                    );
-                    segmentMap[toString(segRow.TEMPLATE_SEGMENT_ID)] = val(segIns.generatedKey);
-                }
-
-                queryExecute(
-                    "INSERT INTO user_route_progress (user_id, segment_id, status, completed_at)
-                     SELECT :uid, s.id, 'NOT_STARTED', NULL
-                     FROM loop_segments s
-                     INNER JOIN loop_sections sec ON sec.id = s.section_id
-                     WHERE sec.route_id = :rid",
-                    {
-                        uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
-                        rid = { value=newRouteId, cfsqltype="cf_sql_integer" }
-                    },
-                    { datasource = application.dsn }
-                );
-
-                queryExecute(
-                    "INSERT INTO route_instances
-                        (user_id, template_route_code, generated_route_id, generated_route_code, direction, trip_type, start_location, end_location, status)
-                     VALUES
-                        (:userId, :templateCode, :generatedRouteId, :generatedRouteCode, :direction, :tripType, :startLocation, :endLocation, 'PLANNED')",
-                    {
-                        userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
-                        templateCode = { value="GREAT_LOOP_CCW", cfsqltype="cf_sql_varchar" },
-                        generatedRouteId = { value=newRouteId, cfsqltype="cf_sql_integer" },
-                        generatedRouteCode = { value=shortCode, cfsqltype="cf_sql_varchar" },
-                        direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
-                        tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
-                        startLocation = { value=startLocRaw, cfsqltype="cf_sql_varchar" },
-                        endLocation = { value=endLocRaw, cfsqltype="cf_sql_varchar", null=NOT len(endLocRaw) }
-                    },
-                    { datasource = application.dsn, result = "routeInstIns" }
-                );
-                routeInstanceId = val(routeInstIns.generatedKey);
-            }
-
-            if (endFallbackUsed) {
-                arrayAppend(out.WARNINGS, "Could not match planned end location exactly; generated from selected start to template end.");
-            }
-            if (wrapRangeUsed) {
-                arrayAppend(out.WARNINGS, "Route range wrapped across the loop origin.");
-            }
-            out.TRIMMED_TO_SELECTION = true;
-            out.WRAP_RANGE = wrapRangeUsed;
-            out.TRIP_TYPE = tripTypeVal;
-
-            var timeline = getTimeline(arguments.userId, shortCode);
-            out.ROUTE_CODE = shortCode;
-            out.ROUTE_ID = newRouteId;
-            out.ROUTE_INSTANCE_ID = routeInstanceId;
-            out.DIRECTION = directionVal;
-            out.START_DATE = startDateVal;
-            out.START_LOCATION = startLocRaw;
-            out.END_LOCATION = endLocRaw;
-            out.FOCUS = {
-                "START_SEGMENT_ID"=(structKeyExists(segmentMap, toString(matchInfo.START_SEGMENT_ID)) ? segmentMap[toString(matchInfo.START_SEGMENT_ID)] : 0),
-                "END_SEGMENT_ID"=(structKeyExists(segmentMap, toString(matchInfo.END_SEGMENT_ID)) ? segmentMap[toString(matchInfo.END_SEGMENT_ID)] : 0),
-                "START_FOUND"=matchInfo.START_FOUND,
-                "END_FOUND"=matchInfo.END_FOUND
+            return {
+                "SUCCESS"=false,
+                "AUTH"=true,
+                "MESSAGE"="Legacy action disabled",
+                "ERROR"={"MESSAGE"="Action 'generateRoute' is disabled. Use 'routegen_generate'."},
+                "REPLACEMENT_ACTION"="routegen_generate"
             };
-            session.expeditionRouteCode = shortCode;
-            out.RM_AUTOFILL_COUNT = rmAutoFillCount;
-            out.RM_UNRESOLVED_COUNT = rmUnresolvedCount;
-            structAppend(out, timeline, true);
-            return out;
         </cfscript>
     </cffunction>
-
     <cffunction name="generateRouteFromTemplate" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="templateRouteId" type="numeric" required="false" default="0">
@@ -769,282 +375,16 @@
         <cfargument name="routeName" type="string" required="false" default="">
         <cfargument name="setActive" type="any" required="false" default="true">
         <cfscript>
-            var out = {
+            return {
                 "SUCCESS"=false,
                 "AUTH"=true,
-                "MESSAGE"="Unable to generate route from template",
-                "DATA"={}
+                "MESSAGE"="Legacy action disabled",
+                "ERROR"={"MESSAGE"="Action 'generateRouteFromTemplate' is disabled. Use 'routegen_generate'."},
+                "REPLACEMENT_ACTION"="routegen_generate"
             };
-            var templateRouteIdVal = val(arguments.templateRouteId);
-            var templateRouteCodeVal = trim(arguments.templateRouteCode);
-            var directionVal = normalizeDirection(arguments.direction);
-            var modeVal = uCase(trim(toString(arguments.mode)));
-            var setActiveVal = toBoolean(arguments.setActive, true);
-            var routeNameVal = trim(arguments.routeName);
-            var qTemplate = queryNew("");
-            var qTemplateSegments = queryNew("");
-            var legs = [];
-            var i = 0;
-            var srcIdx = 0;
-            var leg = {};
-            var shortCode = "";
-            var routeDesc = "";
-            var newRouteId = 0;
-            var newSectionId = 0;
-            var routeInstanceId = 0;
-            var startLocationVal = "";
-            var endLocationVal = "";
-            var templateCodeOut = "";
-            var templateNameOut = "";
-            var templateShortCodeOut = "";
-            var distBind = {};
-            var lockBind = {};
-            var notesBind = {};
-
-            if (templateRouteIdVal LTE 0 AND !len(templateRouteCodeVal)) {
-                out.MESSAGE = "Missing required fields";
-                out.ERROR = { "MESSAGE"="templateRouteId or templateRouteCode is required." };
-                return out;
-            }
-
-            if (modeVal NEQ "FULL_TEMPLATE") {
-                out.MESSAGE = "Unsupported mode";
-                out.ERROR = { "MESSAGE"="Only FULL_TEMPLATE mode is supported in this phase." };
-                return out;
-            }
-
-            if (templateRouteIdVal GT 0) {
-                qTemplate = queryExecute(
-                    "SELECT id, code, short_code, name, description
-                     FROM loop_routes
-                     WHERE id = :rid
-                       AND is_active = 1
-                       AND short_code NOT LIKE :userPrefix
-                       AND code NOT LIKE :userPrefix
-                     LIMIT 1",
-                    {
-                        rid = { value=templateRouteIdVal, cfsqltype="cf_sql_integer" },
-                        userPrefix = { value="USER_ROUTE_%", cfsqltype="cf_sql_varchar" }
-                    },
-                    { datasource = application.dsn }
-                );
-            } else {
-                qTemplate = queryExecute(
-                    "SELECT id, code, short_code, name, description
-                     FROM loop_routes
-                     WHERE is_active = 1
-                       AND short_code NOT LIKE :userPrefix
-                       AND code NOT LIKE :userPrefix
-                       AND (short_code = :rcode OR code = :rcode)
-                     ORDER BY CASE WHEN short_code = :rcode THEN 0 ELSE 1 END, id ASC
-                     LIMIT 1",
-                    {
-                        userPrefix = { value="USER_ROUTE_%", cfsqltype="cf_sql_varchar" },
-                        rcode = { value=templateRouteCodeVal, cfsqltype="cf_sql_varchar" }
-                    },
-                    { datasource = application.dsn }
-                );
-            }
-
-            if (qTemplate.recordCount EQ 0) {
-                out.MESSAGE = "Template route not found";
-                out.ERROR = { "MESSAGE"="No active canonical template matched the provided templateRouteId/templateRouteCode." };
-                return out;
-            }
-
-            templateRouteIdVal = val(qTemplate.id[1]);
-            templateCodeOut = (isNull(qTemplate.code[1]) ? "" : trim(toString(qTemplate.code[1])));
-            templateShortCodeOut = (isNull(qTemplate.short_code[1]) ? "" : trim(toString(qTemplate.short_code[1])));
-            templateNameOut = (isNull(qTemplate.name[1]) ? "" : trim(toString(qTemplate.name[1])));
-
-            qTemplateSegments = queryExecute(
-                "SELECT
-                    rts.order_index,
-                    sl.id AS segment_id,
-                    p1.id AS start_port_id,
-                    COALESCE(NULLIF(TRIM(p1.name), ''), TRIM(sl.start_port_name), '') AS start_port,
-                    p2.id AS end_port_id,
-                    COALESCE(NULLIF(TRIM(p2.name), ''), TRIM(sl.end_port_name), '') AS end_port,
-                    sl.dist_nm,
-                    sl.lock_count,
-                    sl.is_offshore,
-                    sl.is_icw,
-                    sl.notes
-                 FROM route_template_segments rts
-                 INNER JOIN segment_library sl ON sl.id = rts.segment_id
-                 LEFT JOIN ports p1 ON p1.id = sl.start_port_id
-                 LEFT JOIN ports p2 ON p2.id = sl.end_port_id
-                 WHERE rts.route_id = :rid
-                 ORDER BY rts.order_index ASC, rts.id ASC",
-                {
-                    rid = { value=templateRouteIdVal, cfsqltype="cf_sql_integer" }
-                },
-                { datasource = application.dsn }
-            );
-
-            if (qTemplateSegments.recordCount EQ 0) {
-                out.MESSAGE = "Template route has no segments";
-                out.ERROR = { "MESSAGE"="The selected template route has no route_template_segments. Use Custom Start / End mode or migrate this template to route_template_segments." };
-                return out;
-            }
-
-            for (i = 1; i LTE qTemplateSegments.recordCount; i++) {
-                srcIdx = (directionVal EQ "CW" ? (qTemplateSegments.recordCount - i + 1) : i);
-                leg = {
-                    "ORDER_INDEX"=i,
-                    "SEGMENT_ID"=val(qTemplateSegments.segment_id[srcIdx]),
-                    "START_PORT_ID"=(directionVal EQ "CW"
-                        ? (isNull(qTemplateSegments.end_port_id[srcIdx]) ? 0 : val(qTemplateSegments.end_port_id[srcIdx]))
-                        : (isNull(qTemplateSegments.start_port_id[srcIdx]) ? 0 : val(qTemplateSegments.start_port_id[srcIdx]))),
-                    "START_PORT"=(directionVal EQ "CW"
-                        ? (isNull(qTemplateSegments.end_port[srcIdx]) ? "" : trim(toString(qTemplateSegments.end_port[srcIdx])))
-                        : (isNull(qTemplateSegments.start_port[srcIdx]) ? "" : trim(toString(qTemplateSegments.start_port[srcIdx])))),
-                    "END_PORT_ID"=(directionVal EQ "CW"
-                        ? (isNull(qTemplateSegments.start_port_id[srcIdx]) ? 0 : val(qTemplateSegments.start_port_id[srcIdx]))
-                        : (isNull(qTemplateSegments.end_port_id[srcIdx]) ? 0 : val(qTemplateSegments.end_port_id[srcIdx]))),
-                    "END_PORT"=(directionVal EQ "CW"
-                        ? (isNull(qTemplateSegments.start_port[srcIdx]) ? "" : trim(toString(qTemplateSegments.start_port[srcIdx])))
-                        : (isNull(qTemplateSegments.end_port[srcIdx]) ? "" : trim(toString(qTemplateSegments.end_port[srcIdx])))),
-                    "DIST_NM"=(isNull(qTemplateSegments.dist_nm[srcIdx]) ? 0 : val(qTemplateSegments.dist_nm[srcIdx])),
-                    "LOCK_COUNT"=(isNull(qTemplateSegments.lock_count[srcIdx]) ? 0 : val(qTemplateSegments.lock_count[srcIdx])),
-                    "IS_OFFSHORE"=(qTemplateSegments.is_offshore[srcIdx] EQ 1 ? 1 : 0),
-                    "IS_ICW"=(qTemplateSegments.is_icw[srcIdx] EQ 1 ? 1 : 0),
-                    "NOTES"=(isNull(qTemplateSegments.notes[srcIdx]) ? "" : toString(qTemplateSegments.notes[srcIdx]))
-                };
-                if (!len(leg.START_PORT)) leg.START_PORT = "Unknown Start";
-                if (!len(leg.END_PORT)) leg.END_PORT = "Unknown End";
-                arrayAppend(legs, leg);
-            }
-
-            if (!len(routeNameVal)) {
-                if (len(templateNameOut)) {
-                    routeNameVal = templateNameOut & " Route";
-                } else {
-                    routeNameVal = "My Route";
-                }
-            }
-
-            shortCode = allocateUserRouteCode(arguments.userId);
-            if (!len(shortCode)) {
-                out.MESSAGE = "Unable to allocate user route code";
-                out.ERROR = { "MESSAGE"="Could not generate a unique USER_ROUTE code." };
-                return out;
-            }
-
-            startLocationVal = legs[1].START_PORT;
-            endLocationVal = legs[arrayLen(legs)].END_PORT;
-            routeDesc = "Generated from template " & (len(templateShortCodeOut) ? templateShortCodeOut : templateCodeOut) & " (" & directionVal & ")";
-
-            transaction {
-                queryExecute(
-                    "INSERT INTO loop_routes
-                        (code, name, short_code, description, is_active, version, is_default)
-                     VALUES
-                        (:code, :name, :shortCode, :descr, 1, 1, 0)",
-                    {
-                        code = { value=shortCode, cfsqltype="cf_sql_varchar" },
-                        name = { value=routeNameVal, cfsqltype="cf_sql_varchar" },
-                        shortCode = { value=shortCode, cfsqltype="cf_sql_varchar" },
-                        descr = { value=routeDesc, cfsqltype="cf_sql_varchar", null=NOT len(routeDesc) }
-                    },
-                    { datasource = application.dsn, result = "routeInsFromTpl" }
-                );
-                newRouteId = val(routeInsFromTpl.generatedKey);
-
-                queryExecute(
-                    "INSERT INTO loop_sections
-                        (route_id, name, slug, short_code, phase_num, order_index, is_active_default)
-                     VALUES
-                        (:rid, :name, :slug, :shortCode, 1, 1, 1)",
-                    {
-                        rid = { value=newRouteId, cfsqltype="cf_sql_integer" },
-                        name = { value="Route", cfsqltype="cf_sql_varchar" },
-                        slug = { value="route", cfsqltype="cf_sql_varchar" },
-                        shortCode = { value="ROUTE", cfsqltype="cf_sql_varchar" }
-                    },
-                    { datasource = application.dsn, result = "secInsFromTpl" }
-                );
-                newSectionId = val(secInsFromTpl.generatedKey);
-
-                for (i = 1; i LTE arrayLen(legs); i++) {
-                    distBind = toNullableNumber(legs[i].DIST_NM, "numeric");
-                    lockBind = toNullableNumber(legs[i].LOCK_COUNT, "integer");
-                    notesBind = toNullableString(legs[i].NOTES);
-                    if (!notesBind.isNull AND len(notesBind.value) GT 255) {
-                        notesBind.value = left(notesBind.value, 255);
-                    }
-                    queryExecute(
-                        "INSERT INTO loop_segments
-                            (section_id, order_index, start_name, end_name, dist_nm, lock_count, rm_start, rm_end, is_signature_event, is_milestone_end, notes)
-                         VALUES
-                            (:sectionId, :orderIndex, :startName, :endName, :distNm, :lockCount, NULL, NULL, 0, 0, :notes)",
-                        {
-                            sectionId = { value=newSectionId, cfsqltype="cf_sql_integer" },
-                            orderIndex = { value=i, cfsqltype="cf_sql_integer" },
-                            startName = { value=legs[i].START_PORT, cfsqltype="cf_sql_varchar" },
-                            endName = { value=legs[i].END_PORT, cfsqltype="cf_sql_varchar" },
-                            distNm = { value=distBind.value, cfsqltype="cf_sql_decimal", null=distBind.isNull },
-                            lockCount = { value=lockBind.value, cfsqltype="cf_sql_integer", null=lockBind.isNull },
-                            notes = { value=notesBind.value, cfsqltype="cf_sql_varchar", null=notesBind.isNull }
-                        },
-                        { datasource = application.dsn }
-                    );
-                }
-
-                queryExecute(
-                    "INSERT INTO user_route_progress (user_id, segment_id, status, completed_at)
-                     SELECT :uid, s.id, 'NOT_STARTED', NULL
-                     FROM loop_segments s
-                     INNER JOIN loop_sections sec ON sec.id = s.section_id
-                     WHERE sec.route_id = :rid",
-                    {
-                        uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
-                        rid = { value=newRouteId, cfsqltype="cf_sql_integer" }
-                    },
-                    { datasource = application.dsn }
-                );
-
-                queryExecute(
-                    "INSERT INTO route_instances
-                        (user_id, template_route_code, generated_route_id, generated_route_code, direction, trip_type, start_location, end_location, status)
-                     VALUES
-                        (:userId, :templateCode, :generatedRouteId, :generatedRouteCode, :direction, 'FULL_LOOP', :startLocation, :endLocation, 'PLANNED')",
-                    {
-                        userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
-                        templateCode = { value=(len(templateShortCodeOut) ? templateShortCodeOut : templateCodeOut), cfsqltype="cf_sql_varchar" },
-                        generatedRouteId = { value=newRouteId, cfsqltype="cf_sql_integer" },
-                        generatedRouteCode = { value=shortCode, cfsqltype="cf_sql_varchar" },
-                        direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
-                        startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar" },
-                        endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) }
-                    },
-                    { datasource = application.dsn, result = "routeInstInsFromTpl" }
-                );
-                routeInstanceId = val(routeInstInsFromTpl.generatedKey);
-            }
-
-            if (setActiveVal) {
-                session.expeditionRouteCode = shortCode;
-            }
-
-            out.SUCCESS = true;
-            out.MESSAGE = "OK";
-            out.DATA = {
-                "ROUTE_CODE"=shortCode,
-                "ROUTE_ID"=newRouteId,
-                "ROUTE_INSTANCE_ID"=routeInstanceId,
-                "TEMPLATE"={
-                    "ID"=templateRouteIdVal,
-                    "CODE"=(len(templateCodeOut) ? templateCodeOut : templateShortCodeOut),
-                    "NAME"=templateNameOut
-                },
-                "DIRECTION"=directionVal,
-                "MODE"=modeVal,
-                "NEXT_ACTION_HINT"="getTimeline"
-            };
-            return out;
         </cfscript>
     </cffunction>
+
 
     <cffunction name="getRouteTemplatePreview" access="private" returntype="struct" output="false">
         <cfargument name="routeId" type="numeric" required="false" default="0">
@@ -1162,94 +502,19 @@
             return out;
         </cfscript>
     </cffunction>
-
     <cffunction name="listCanonicalLocations" access="private" returntype="struct" output="false">
         <cfargument name="direction" type="string" required="false" default="CCW">
         <cfscript>
-            var out = {
-                "SUCCESS"=true,
+            return {
+                "SUCCESS"=false,
                 "AUTH"=true,
-                "MESSAGE"="OK",
-                "TEMPLATE_ROUTE_CODE"="GREAT_LOOP_CCW",
-                "LOCATIONS"=[],
-                "START_LOCATIONS"=[],
-                "END_LOCATIONS"=[]
+                "MESSAGE"="Legacy action disabled",
+                "ERROR"={"MESSAGE"="Action 'listCanonicalLocations' is disabled. Use 'routegen_getoptions'."},
+                "REPLACEMENT_ACTION"="routegen_getoptions"
             };
-            var qTpl = queryExecute(
-                "SELECT id
-                 FROM loop_routes
-                 WHERE short_code = :code
-                 LIMIT 1",
-                { code = { value=out.TEMPLATE_ROUTE_CODE, cfsqltype="cf_sql_varchar" } },
-                { datasource = application.dsn }
-            );
-            if (qTpl.recordCount EQ 0) {
-                return {
-                    "SUCCESS"=false,
-                    "AUTH"=true,
-                    "MESSAGE"="Template route not found",
-                    "ERROR"={"MESSAGE"=out.TEMPLATE_ROUTE_CODE & " was not found in loop_routes"}
-                };
-            }
-
-            var qNodes = queryExecute(
-                "SELECT s.start_name, s.end_name
-                 FROM loop_segments s
-                 INNER JOIN loop_sections sec ON sec.id = s.section_id
-                 WHERE sec.route_id = :rid
-                 ORDER BY sec.order_index ASC, s.order_index ASC",
-                { rid = { value=val(qTpl.id[1]), cfsqltype="cf_sql_integer" } },
-                { datasource = application.dsn }
-            );
-
-            var seen = {};
-            var seenStarts = {};
-            var seenEnds = {};
-            var directionVal = normalizeDirection(arguments.direction);
-            var i = 0;
-            var srcIdx = 0;
-            var locationValue = "";
-            var locationKey = "";
-            var orientedStart = "";
-            var orientedEnd = "";
-
-            for (i = 1; i LTE qNodes.recordCount; i++) {
-                srcIdx = (directionVal EQ "CW" ? (qNodes.recordCount - i + 1) : i);
-                orientedStart = (directionVal EQ "CW" ? qNodes.end_name[srcIdx] : qNodes.start_name[srcIdx]);
-                orientedEnd = (directionVal EQ "CW" ? qNodes.start_name[srcIdx] : qNodes.end_name[srcIdx]);
-
-                locationValue = trim(toString(orientedStart));
-                if (len(locationValue)) {
-                    locationKey = normalizeText(locationValue);
-                    if (!len(locationKey)) locationKey = lCase(locationValue);
-                    if (!structKeyExists(seenStarts, locationKey)) {
-                        seenStarts[locationKey] = true;
-                        arrayAppend(out.START_LOCATIONS, locationValue);
-                    }
-                    if (!structKeyExists(seen, locationKey)) {
-                        seen[locationKey] = true;
-                        arrayAppend(out.LOCATIONS, locationValue);
-                    }
-                }
-
-                locationValue = trim(toString(orientedEnd));
-                if (len(locationValue)) {
-                    locationKey = normalizeText(locationValue);
-                    if (!len(locationKey)) locationKey = lCase(locationValue);
-                    if (!structKeyExists(seenEnds, locationKey)) {
-                        seenEnds[locationKey] = true;
-                        arrayAppend(out.END_LOCATIONS, locationValue);
-                    }
-                    if (!structKeyExists(seen, locationKey)) {
-                        seen[locationKey] = true;
-                        arrayAppend(out.LOCATIONS, locationValue);
-                    }
-                }
-            }
-            out.DIRECTION = directionVal;
-            return out;
         </cfscript>
     </cffunction>
+
 
     <cffunction name="getRouteTemplateDetours" access="private" returntype="struct" output="false">
         <cfargument name="routeId" type="numeric" required="false" default="0">
@@ -1398,159 +663,21 @@
             return out;
         </cfscript>
     </cffunction>
-
     <cffunction name="updateSegment" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="routeCode" type="string" required="true">
         <cfargument name="segmentId" type="numeric" required="true">
         <cfargument name="body" type="struct" required="true">
         <cfscript>
-            var out = { "SUCCESS"=false, "AUTH"=true, "MESSAGE"="Update failed" };
-            var qOwner = queryExecute(
-                "SELECT s.id, sec.name AS section_name, sec.short_code AS section_short_code
-                 FROM loop_segments s
-                 INNER JOIN loop_sections sec ON sec.id = s.section_id
-                 INNER JOIN loop_routes r ON r.id = sec.route_id
-                 WHERE s.id = :sid
-                   AND r.short_code = :rcode
-                 LIMIT 1",
-                {
-                    sid = { value=arguments.segmentId, cfsqltype="cf_sql_integer" },
-                    rcode = { value=arguments.routeCode, cfsqltype="cf_sql_varchar" }
-                },
-                { datasource = application.dsn }
-            );
-            if (qOwner.recordCount EQ 0) {
-                return {
-                    "SUCCESS"=false,
-                    "AUTH"=true,
-                    "MESSAGE"="Segment not found for route",
-                    "ERROR"={"MESSAGE"="Segment does not belong to routeCode"}
-                };
-            }
-
-            var qCurrent = queryExecute(
-                "SELECT start_name, end_name, dist_nm, lock_count, rm_start, rm_end, notes
-                 FROM loop_segments
-                 WHERE id = :sid
-                 LIMIT 1",
-                { sid = { value=arguments.segmentId, cfsqltype="cf_sql_integer" } },
-                { datasource = application.dsn }
-            );
-            if (qCurrent.recordCount EQ 0) {
-                return {
-                    "SUCCESS"=false,
-                    "AUTH"=true,
-                    "MESSAGE"="Segment not found",
-                    "ERROR"={"MESSAGE"="Unable to load current segment values."}
-                };
-            }
-
-            var hasStartName = structKeyExists(arguments.body, "start_name");
-            var hasEndName = structKeyExists(arguments.body, "end_name");
-            var hasDistNm = structKeyExists(arguments.body, "dist_nm");
-            var hasLockCount = structKeyExists(arguments.body, "lock_count");
-            var hasRmStart = structKeyExists(arguments.body, "rm_start");
-            var hasRmEnd = structKeyExists(arguments.body, "rm_end");
-            var hasNotes = structKeyExists(arguments.body, "notes");
-
-            var startNameRaw = hasStartName ? pickStruct(arguments.body, "start_name", "") : qCurrent.start_name[1];
-            var endNameRaw = hasEndName ? pickStruct(arguments.body, "end_name", "") : qCurrent.end_name[1];
-            var distNmRaw = hasDistNm ? pickStruct(arguments.body, "dist_nm", "") : qCurrent.dist_nm[1];
-            var lockCountRaw = hasLockCount ? pickStruct(arguments.body, "lock_count", "") : qCurrent.lock_count[1];
-            var rmStartRaw = hasRmStart ? pickStruct(arguments.body, "rm_start", "") : qCurrent.rm_start[1];
-            var rmEndRaw = hasRmEnd ? pickStruct(arguments.body, "rm_end", "") : qCurrent.rm_end[1];
-            var notesRaw = hasNotes ? pickStruct(arguments.body, "notes", "") : qCurrent.notes[1];
-
-            var startNameVal = trim(toString(startNameRaw));
-            var endNameVal = trim(toString(endNameRaw));
-            if (!len(startNameVal)) startNameVal = "Unknown Start";
-            if (!len(endNameVal)) endNameVal = "Unknown End";
-
-            var startName = { "isNull"=false, "value"=startNameVal };
-            var endName = { "isNull"=false, "value"=endNameVal };
-            var distNm = toNullableNumber(distNmRaw, "numeric");
-            var lockCount = toNullableNumber(lockCountRaw, "integer");
-            var rmStart = toNullableNumber(rmStartRaw, "numeric");
-            var rmEnd = toNullableNumber(rmEndRaw, "numeric");
-            var notes = toNullableString(notesRaw);
-            var rmAutofilledStart = false;
-            var rmAutofilledEnd = false;
-
-            if ((hasStartName OR hasEndName) AND isObject(getMilepointService())) {
-                var milepointService = getMilepointService();
-                var rmResolved = milepointService.resolveSegmentRM(
-                    (isNull(qOwner.section_name[1]) ? "" : qOwner.section_name[1]),
-                    startName.value,
-                    endName.value
-                );
-                if (NOT hasRmStart AND rmResolved.START_FOUND) {
-                    rmStart = { "isNull"=false, "value"=rmResolved.RM_START };
-                    rmAutofilledStart = true;
-                }
-                if (NOT hasRmEnd AND rmResolved.END_FOUND) {
-                    rmEnd = { "isNull"=false, "value"=rmResolved.RM_END };
-                    rmAutofilledEnd = true;
-                }
-                if (NOT hasRmStart AND NOT rmResolved.START_FOUND AND isNullableZero(rmStart)) {
-                    rmStart = { "isNull"=true, "value"=0 };
-                }
-                if (NOT hasRmEnd AND NOT rmResolved.END_FOUND AND isNullableZero(rmEnd)) {
-                    rmEnd = { "isNull"=true, "value"=0 };
-                }
-            }
-
-            queryExecute(
-                "UPDATE loop_segments
-                 SET start_name = :startName,
-                     end_name = :endName,
-                     dist_nm = :distNm,
-                     lock_count = :lockCount,
-                     rm_start = :rmStart,
-                     rm_end = :rmEnd,
-                     notes = :notes
-                 WHERE id = :sid",
-                {
-                    startName = { value=startName.value, cfsqltype="cf_sql_varchar", null=startName.isNull },
-                    endName = { value=endName.value, cfsqltype="cf_sql_varchar", null=endName.isNull },
-                    distNm = { value=distNm.value, cfsqltype="cf_sql_decimal", null=distNm.isNull },
-                    lockCount = { value=lockCount.value, cfsqltype="cf_sql_integer", null=lockCount.isNull },
-                    rmStart = { value=rmStart.value, cfsqltype="cf_sql_decimal", null=rmStart.isNull },
-                    rmEnd = { value=rmEnd.value, cfsqltype="cf_sql_decimal", null=rmEnd.isNull },
-                    notes = { value=notes.value, cfsqltype="cf_sql_varchar", null=notes.isNull },
-                    sid = { value=arguments.segmentId, cfsqltype="cf_sql_integer" }
-                },
-                { datasource = application.dsn }
-            );
-
-            var qSeg = queryExecute(
-                "SELECT id, start_name, end_name, dist_nm, lock_count, rm_start, rm_end, notes
-                 FROM loop_segments
-                 WHERE id = :sid
-                 LIMIT 1",
-                { sid = { value=arguments.segmentId, cfsqltype="cf_sql_integer" } },
-                { datasource = application.dsn }
-            );
-
-            if (qSeg.recordCount EQ 1) {
-                out.SUCCESS = true;
-                out.MESSAGE = "Segment updated";
-                out.RM_AUTOFILLED_START = rmAutofilledStart;
-                out.RM_AUTOFILLED_END = rmAutofilledEnd;
-                out.SEGMENT = {
-                    "ID"=qSeg.id[1],
-                    "START_NAME"=(isNull(qSeg.start_name[1]) ? "" : qSeg.start_name[1]),
-                    "END_NAME"=(isNull(qSeg.end_name[1]) ? "" : qSeg.end_name[1]),
-                    "DIST_NM"=(isNull(qSeg.dist_nm[1]) ? "" : val(qSeg.dist_nm[1])),
-                    "LOCK_COUNT"=(isNull(qSeg.lock_count[1]) ? "" : val(qSeg.lock_count[1])),
-                    "RM_START"=(isNull(qSeg.rm_start[1]) ? "" : val(qSeg.rm_start[1])),
-                    "RM_END"=(isNull(qSeg.rm_end[1]) ? "" : val(qSeg.rm_end[1])),
-                    "NOTES"=(isNull(qSeg.notes[1]) ? "" : qSeg.notes[1])
-                };
-            }
-            return out;
+            return {
+                "SUCCESS"=false,
+                "AUTH"=true,
+                "MESSAGE"="Legacy action disabled",
+                "ERROR"={"MESSAGE"="Action 'updateSegment' is disabled. Use routegen preview/update and leg overrides."}
+            };
         </cfscript>
     </cffunction>
+
 
     <cffunction name="listUserRoutes" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
@@ -1738,14 +865,73 @@
                 return out;
             }
 
+            var fpLegJoinSql = "";
+            var fpSegJoinSql = "";
+            var fpUsoJoinSql = "";
+            var fpDistExpr = "ril.base_dist_nm";
+            var fpSegmentSql = "";
+
+            if (!routegenHasNormalizedLegRows(routeInstanceIdVal)) {
+                out.MESSAGE = "Route instance has no normalized legs";
+                out.ERROR = { "CODE"="EMPTY_ROUTE_INSTANCE", "MESSAGE"="No normalized route_instance_legs were found for this route instance." };
+                return out;
+            }
+
+            if (routegenHasLegOverrideTable()) {
+                fpLegJoinSql =
+                    " LEFT JOIN route_leg_user_overrides rluo_leg
+                        ON rluo_leg.user_id = :uidNum
+                       AND rluo_leg.route_id = :routeId
+                       AND (
+                            (ril.source_loop_segment_id IS NOT NULL AND rluo_leg.route_leg_id = ril.source_loop_segment_id)
+                            OR
+                            (ril.source_loop_segment_id IS NULL AND rluo_leg.route_leg_order = ril.leg_order)
+                       )";
+                fpSegJoinSql =
+                    " LEFT JOIN route_leg_user_overrides rluo_seg
+                        ON rluo_seg.user_id = :uidNum
+                       AND rluo_seg.route_id = 0
+                       AND rluo_seg.segment_id = ril.segment_id";
+                fpDistExpr = "COALESCE(rluo_leg.computed_nm, rluo_seg.computed_nm, ril.base_dist_nm)";
+            }
+            if (routegenHasUserSegmentOverrideTable()) {
+                fpUsoJoinSql =
+                    " LEFT JOIN user_segment_overrides uso
+                        ON uso.user_id = :uidNum
+                       AND uso.segment_id = ril.segment_id";
+                if (routegenHasLegOverrideTable()) {
+                    fpDistExpr = "COALESCE(rluo_leg.computed_nm, rluo_seg.computed_nm, uso.computed_nm, ril.base_dist_nm)";
+                } else {
+                    fpDistExpr = "COALESCE(uso.computed_nm, ril.base_dist_nm)";
+                }
+            }
+
+            fpSegmentSql =
+                "SELECT
+                    COALESCE(ris.id, 0) AS section_id,
+                    COALESCE(ris.name, 'Section') AS section_name,
+                    COALESCE(ris.section_order, 1) AS section_order,
+                    COALESCE(ril.source_loop_segment_id, ril.id) AS segment_id,
+                    ril.leg_order AS segment_order,
+                    ril.start_name,
+                    ril.end_name,
+                    " & fpDistExpr & " AS dist_nm,
+                    COALESCE(ril.lock_count, 0) AS lock_count
+                 FROM route_instance_legs ril
+                 LEFT JOIN route_instance_sections ris ON ris.id = ril.route_instance_section_id"
+                & fpLegJoinSql
+                & fpSegJoinSql
+                & fpUsoJoinSql
+                & "
+                 WHERE ril.route_instance_id = :routeInstanceId
+                 ORDER BY COALESCE(ris.section_order, 1) ASC, ril.leg_order ASC, ril.id ASC";
             qSegments = queryExecute(
-                "SELECT sec.id AS section_id, sec.name AS section_name, sec.order_index AS section_order,
-                        s.id AS segment_id, s.order_index AS segment_order, s.start_name, s.end_name, s.dist_nm, s.lock_count
-                 FROM loop_sections sec
-                 INNER JOIN loop_segments s ON s.section_id = sec.id
-                 WHERE sec.route_id = :rid
-                 ORDER BY sec.order_index ASC, s.order_index ASC",
-                { rid = { value=generatedRouteId, cfsqltype="cf_sql_integer" } },
+                fpSegmentSql,
+                {
+                    routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" },
+                    routeId = { value=generatedRouteId, cfsqltype="cf_sql_integer" },
+                    uidNum = { value=arguments.userId, cfsqltype="cf_sql_integer" }
+                },
                 { datasource = application.dsn }
             );
             if (qSegments.recordCount EQ 0) {
@@ -1965,16 +1151,21 @@
         </cfscript>
     </cffunction>
 
-    <cffunction name="deleteRoute" access="private" returntype="struct" output="false">
-        <cfargument name="userId" type="numeric" required="true">
-        <cfargument name="routeCode" type="string" required="true">
-        <cfscript>
-            var code = trim(arguments.routeCode);
-            if (!isUserOwnedRoute(arguments.userId, code)) {
-                return {
-                    "SUCCESS"=false,
-                    "AUTH"=true,
-                    "MESSAGE"="Route not found",
+	    <cffunction name="deleteRoute" access="private" returntype="struct" output="false">
+	        <cfargument name="userId" type="numeric" required="true">
+	        <cfargument name="routeCode" type="string" required="true">
+	        <cfscript>
+	            var code = trim(arguments.routeCode);
+	            var userIdText = toString(arguments.userId);
+	            var qRouteInstancesTbl = queryNew("");
+	            var hasRouteInstancesTbl = false;
+	            var qFloatplanRouteCols = queryNew("");
+	            var hasFloatplanRouteCols = false;
+	            if (!isUserOwnedRoute(arguments.userId, code)) {
+	                return {
+	                    "SUCCESS"=false,
+	                    "AUTH"=true,
+	                    "MESSAGE"="Route not found",
                     "ERROR"={"MESSAGE"="Route is not available for this user."}
                 };
             }
@@ -1994,38 +1185,132 @@
                     "MESSAGE"="Route not found",
                     "ERROR"={"MESSAGE"="Route does not exist."}
                 };
-            }
+	            }
 
-            var routeId = val(qRoute.id[1]);
-            transaction {
-                queryExecute(
-                    "DELETE FROM user_route_progress
-                     WHERE segment_id IN (
-                        SELECT s.id
-                        FROM loop_segments s
-                        INNER JOIN loop_sections sec ON sec.id = s.section_id
-                        WHERE sec.route_id = :rid
-                     )",
-                    { rid = { value=routeId, cfsqltype="cf_sql_integer" } },
-                    { datasource = application.dsn }
-                );
-                queryExecute(
-                    "DELETE FROM loop_segments
-                     WHERE section_id IN (
-                        SELECT id FROM loop_sections WHERE route_id = :rid
-                     )",
-                    { rid = { value=routeId, cfsqltype="cf_sql_integer" } },
-                    { datasource = application.dsn }
-                );
-                queryExecute(
-                    "DELETE FROM loop_sections
-                     WHERE route_id = :rid",
-                    { rid = { value=routeId, cfsqltype="cf_sql_integer" } },
-                    { datasource = application.dsn }
-                );
-                queryExecute(
-                    "DELETE FROM loop_routes
-                     WHERE id = :rid",
+	            var routeId = val(qRoute.id[1]);
+	            qRouteInstancesTbl = queryExecute(
+	                "SELECT COUNT(*) AS cnt
+	                 FROM information_schema.tables
+	                 WHERE table_schema = DATABASE()
+	                   AND table_name = 'route_instances'",
+	                {},
+	                { datasource = application.dsn }
+	            );
+	            hasRouteInstancesTbl = (qRouteInstancesTbl.recordCount GT 0 AND val(qRouteInstancesTbl.cnt[1]) GT 0);
+	            if (hasRouteInstancesTbl) {
+	                qFloatplanRouteCols = queryExecute(
+	                    "SELECT COUNT(*) AS cnt
+	                     FROM information_schema.columns
+	                     WHERE table_schema = DATABASE()
+	                       AND table_name = 'floatplans'
+	                       AND column_name IN ('route_instance_id', 'route_day_number')",
+	                    {},
+	                    { datasource = application.dsn }
+	                );
+	                hasFloatplanRouteCols = (qFloatplanRouteCols.recordCount GT 0 AND val(qFloatplanRouteCols.cnt[1]) GTE 2);
+	            }
+	            transaction {
+	                if (hasRouteInstancesTbl AND hasFloatplanRouteCols) {
+	                    queryExecute(
+	                        "UPDATE floatplans fp
+	                           INNER JOIN route_instances ri ON ri.id = fp.route_instance_id
+	                           SET fp.route_instance_id = NULL,
+	                               fp.route_day_number = NULL
+	                         WHERE ri.user_id = :uid
+	                           AND (
+	                               ri.generated_route_id = :rid
+	                               OR ri.generated_route_code = :rcode
+	                           )",
+	                        {
+	                            uid = { value=userIdText, cfsqltype="cf_sql_varchar" },
+	                            rid = { value=routeId, cfsqltype="cf_sql_integer" },
+	                            rcode = { value=code, cfsqltype="cf_sql_varchar" }
+	                        },
+	                        { datasource = application.dsn }
+	                    );
+	                }
+	                if (routegenHasLegOverrideTable()) {
+	                    queryExecute(
+	                        "DELETE rluo
+	                           FROM route_leg_user_overrides rluo
+	                          WHERE rluo.user_id = :uid
+	                            AND rluo.route_id = :rid",
+	                        {
+	                            uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+	                            rid = { value=routeId, cfsqltype="cf_sql_integer" }
+	                        },
+	                        { datasource = application.dsn }
+	                    );
+	                }
+	                if (hasRouteInstancesTbl) {
+                        if (routegenHasNormalizedTables()) {
+                            queryExecute(
+                                "DELETE rilp
+                                 FROM route_instance_leg_progress rilp
+                                 INNER JOIN route_instances ri ON ri.id = rilp.route_instance_id
+                                 WHERE ri.user_id = :uid
+                                   AND (
+                                       ri.generated_route_id = :rid
+                                       OR ri.generated_route_code = :rcode
+                                   )",
+                                {
+                                    uid = { value=userIdText, cfsqltype="cf_sql_varchar" },
+                                    rid = { value=routeId, cfsqltype="cf_sql_integer" },
+                                    rcode = { value=code, cfsqltype="cf_sql_varchar" }
+                                },
+                                { datasource = application.dsn }
+                            );
+                            queryExecute(
+                                "DELETE ril
+                                 FROM route_instance_legs ril
+                                 INNER JOIN route_instances ri ON ri.id = ril.route_instance_id
+                                 WHERE ri.user_id = :uid
+                                   AND (
+                                       ri.generated_route_id = :rid
+                                       OR ri.generated_route_code = :rcode
+                                   )",
+                                {
+                                    uid = { value=userIdText, cfsqltype="cf_sql_varchar" },
+                                    rid = { value=routeId, cfsqltype="cf_sql_integer" },
+                                    rcode = { value=code, cfsqltype="cf_sql_varchar" }
+                                },
+                                { datasource = application.dsn }
+                            );
+                            queryExecute(
+                                "DELETE ris
+                                 FROM route_instance_sections ris
+                                 INNER JOIN route_instances ri ON ri.id = ris.route_instance_id
+                                 WHERE ri.user_id = :uid
+                                   AND (
+                                       ri.generated_route_id = :rid
+                                       OR ri.generated_route_code = :rcode
+                                   )",
+                                {
+                                    uid = { value=userIdText, cfsqltype="cf_sql_varchar" },
+                                    rid = { value=routeId, cfsqltype="cf_sql_integer" },
+                                    rcode = { value=code, cfsqltype="cf_sql_varchar" }
+                                },
+                                { datasource = application.dsn }
+                            );
+                        }
+	                    queryExecute(
+	                        "DELETE FROM route_instances
+	                         WHERE user_id = :uid
+	                           AND (
+	                               generated_route_id = :rid
+	                               OR generated_route_code = :rcode
+	                           )",
+	                        {
+	                            uid = { value=userIdText, cfsqltype="cf_sql_varchar" },
+	                            rid = { value=routeId, cfsqltype="cf_sql_integer" },
+	                            rcode = { value=code, cfsqltype="cf_sql_varchar" }
+	                        },
+	                        { datasource = application.dsn }
+	                    );
+	                }
+	                queryExecute(
+	                    "DELETE FROM loop_routes
+	                     WHERE id = :rid",
                     { rid = { value=routeId, cfsqltype="cf_sql_integer" } },
                     { datasource = application.dsn }
                 );
@@ -2074,40 +1359,122 @@
             "IS_DEFAULT"=(qRoute.is_default[1] EQ 1)
         } />
 
-        <cfset var qSections = queryExecute(
-            "SELECT id, name, short_code, phase_num, order_index, is_active_default
-             FROM loop_sections
-             WHERE route_id = :rid
-             ORDER BY order_index ASC",
-            { rid = { value=routeId, cfsqltype="cf_sql_integer" } },
-            { datasource = application.dsn }
-        ) />
+        <cfset var routeInstanceIdVal = routegenResolveLatestRouteInstanceId(arguments.userId, routeId) />
+        <cfset var qSections = queryNew("") />
+        <cfset var qSegments = queryNew("") />
+        <cfset var qProg = queryNew("") />
+        <cfset var qSegmentsSql = "" />
+        <cfset var normalizedLegJoinSql = "" />
+        <cfset var normalizedSegJoinSql = "" />
+        <cfset var normalizedUsoJoinSql = "" />
+        <cfset var normalizedDistExpr = "ril.base_dist_nm" />
+        <cfset var normalizedBinds = {} />
 
-        <cfset var qSegments = queryExecute(
-            "SELECT s.id, s.section_id, s.order_index, s.start_name, s.end_name, s.dist_nm, s.lock_count,
-                    s.rm_start, s.rm_end, s.is_signature_event, s.is_milestone_end, s.notes,
-                    sec.order_index AS section_order
-             FROM loop_segments s
-             INNER JOIN loop_sections sec ON sec.id = s.section_id
-             WHERE sec.route_id = :rid
-             ORDER BY sec.order_index ASC, s.order_index ASC",
-            { rid = { value=routeId, cfsqltype="cf_sql_integer" } },
-            { datasource = application.dsn }
-        ) />
+        <cfif NOT routegenHasNormalizedLegRows(routeInstanceIdVal)>
+            <cfset resp.SUCCESS = false />
+            <cfset resp.MESSAGE = "Route timeline unavailable" />
+            <cfset resp.ERROR = { "MESSAGE"="Route instance has no normalized leg rows." } />
+            <cfreturn resp />
+        </cfif>
 
-        <cfset var qProg = queryExecute(
-            "SELECT segment_id, status, completed_at
-             FROM user_route_progress
-             WHERE user_id = :uid
-               AND segment_id IN (
-                 SELECT s.id
-                 FROM loop_segments s
-                 JOIN loop_sections sec ON sec.id = s.section_id
-                 WHERE sec.route_id = :rid
-               )",
+        <cfset qSections = queryExecute(
+            "SELECT
+                id,
+                name,
+                '' AS short_code,
+                COALESCE(phase_num, 1) AS phase_num,
+                section_order AS order_index,
+                CASE WHEN section_order = 1 THEN 1 ELSE 0 END AS is_active_default
+             FROM route_instance_sections
+             WHERE route_instance_id = :routeInstanceId
+             ORDER BY section_order ASC, id ASC",
             {
-                uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
-                rid = { value=routeId, cfsqltype="cf_sql_integer" }
+                routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" }
+            },
+            { datasource = application.dsn }
+        ) />
+
+        <cfset normalizedBinds = {
+            routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" },
+            routeId = { value=routeId, cfsqltype="cf_sql_integer" },
+            uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+            uidNum = { value=arguments.userId, cfsqltype="cf_sql_integer" }
+        } />
+
+        <cfif routegenHasLegOverrideTable()>
+            <cfset normalizedLegJoinSql =
+                " LEFT JOIN route_leg_user_overrides rluo_leg
+                    ON rluo_leg.user_id = :uidNum
+                   AND rluo_leg.route_id = :routeId
+                   AND (
+                        (ril.source_loop_segment_id IS NOT NULL AND rluo_leg.route_leg_id = ril.source_loop_segment_id)
+                        OR
+                        (ril.source_loop_segment_id IS NULL AND rluo_leg.route_leg_order = ril.leg_order)
+                   )" />
+            <cfset normalizedSegJoinSql =
+                " LEFT JOIN route_leg_user_overrides rluo_seg
+                    ON rluo_seg.user_id = :uidNum
+                   AND rluo_seg.route_id = 0
+                   AND rluo_seg.segment_id = ril.segment_id" />
+            <cfset normalizedDistExpr = "COALESCE(rluo_leg.computed_nm, rluo_seg.computed_nm, ril.base_dist_nm)" />
+        </cfif>
+
+        <cfif routegenHasUserSegmentOverrideTable()>
+            <cfset normalizedUsoJoinSql =
+                " LEFT JOIN user_segment_overrides uso
+                    ON uso.user_id = :uidNum
+                   AND uso.segment_id = ril.segment_id" />
+            <cfif routegenHasLegOverrideTable()>
+                <cfset normalizedDistExpr = "COALESCE(rluo_leg.computed_nm, rluo_seg.computed_nm, uso.computed_nm, ril.base_dist_nm)" />
+            <cfelse>
+                <cfset normalizedDistExpr = "COALESCE(uso.computed_nm, ril.base_dist_nm)" />
+            </cfif>
+        </cfif>
+
+        <cfset qSegmentsSql =
+            "SELECT
+                COALESCE(ril.source_loop_segment_id, ril.id) AS id,
+                COALESCE(ris.id, 0) AS section_id,
+                ril.leg_order AS order_index,
+                ril.start_name,
+                ril.end_name,
+                " & normalizedDistExpr & " AS dist_nm,
+                COALESCE(ril.lock_count, 0) AS lock_count,
+                NULL AS rm_start,
+                NULL AS rm_end,
+                0 AS is_signature_event,
+                0 AS is_milestone_end,
+                COALESCE(ril.notes, '') AS notes,
+                COALESCE(ris.section_order, 1) AS section_order
+             FROM route_instance_legs ril
+             LEFT JOIN route_instance_sections ris ON ris.id = ril.route_instance_section_id"
+            & normalizedLegJoinSql
+            & normalizedSegJoinSql
+            & normalizedUsoJoinSql
+            & "
+             WHERE ril.route_instance_id = :routeInstanceId
+             ORDER BY COALESCE(ris.section_order, 1) ASC, ril.leg_order ASC, ril.id ASC" />
+        <cfset qSegments = queryExecute(
+            qSegmentsSql,
+            normalizedBinds,
+            { datasource = application.dsn }
+        ) />
+
+        <cfset qProg = queryExecute(
+            "SELECT
+                COALESCE(ril.source_loop_segment_id, ril.id) AS segment_id,
+                rilp.status,
+                rilp.completed_at
+             FROM route_instance_leg_progress rilp
+             INNER JOIN route_instance_legs ril
+                ON ril.route_instance_id = rilp.route_instance_id
+               AND ril.leg_order = rilp.leg_order
+             WHERE rilp.route_instance_id = :routeInstanceId
+               AND rilp.user_id = :uid
+             ORDER BY ril.leg_order ASC",
+            {
+                routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" },
+                uid = { value=arguments.userId, cfsqltype="cf_sql_integer" }
             },
             { datasource = application.dsn }
         ) />
@@ -2580,6 +1947,7 @@
         <cfscript>
             var input = {};
             input.template_code = trim(toString(pickArg(arguments.body, "template_code", "templateCode", "")));
+            input.route_code = trim(toString(pickArg(arguments.body, "route_code", "routeCode", "")));
             input.direction = normalizeDirection(pickArg(arguments.body, "direction", "direction", "CCW"));
             input.start_segment_id = trim(toString(pickArg(arguments.body, "start_segment_id", "startSegmentId", "")));
             input.end_segment_id = trim(toString(pickArg(arguments.body, "end_segment_id", "endSegmentId", "")));
@@ -3126,8 +2494,12 @@
                     sl.id AS segment_id,
                     p1.id AS start_port_id,
                     COALESCE(NULLIF(TRIM(p1.name), ''), TRIM(sl.start_port_name), '') AS start_port,
+                    p1.lat AS start_lat,
+                    p1.lng AS start_lng,
                     p2.id AS end_port_id,
                     COALESCE(NULLIF(TRIM(p2.name), ''), TRIM(sl.end_port_name), '') AS end_port,
+                    p2.lat AS end_lat,
+                    p2.lng AS end_lng,
                     sl.dist_nm,
                     sl.lock_count,
                     sl.is_offshore,
@@ -3168,6 +2540,10 @@
                     "END_PORT_ID"=(directionVal EQ "CW" ? (isNull(q.start_port_id[srcIdx]) ? 0 : val(q.start_port_id[srcIdx])) : (isNull(q.end_port_id[srcIdx]) ? 0 : val(q.end_port_id[srcIdx]))),
                     "START_NAME"=startName,
                     "END_NAME"=endName,
+                    "START_LAT"=(directionVal EQ "CW" ? (isNull(q.end_lat[srcIdx]) ? "" : q.end_lat[srcIdx]) : (isNull(q.start_lat[srcIdx]) ? "" : q.start_lat[srcIdx])),
+                    "START_LNG"=(directionVal EQ "CW" ? (isNull(q.end_lng[srcIdx]) ? "" : q.end_lng[srcIdx]) : (isNull(q.start_lng[srcIdx]) ? "" : q.start_lng[srcIdx])),
+                    "END_LAT"=(directionVal EQ "CW" ? (isNull(q.start_lat[srcIdx]) ? "" : q.start_lat[srcIdx]) : (isNull(q.end_lat[srcIdx]) ? "" : q.end_lat[srcIdx])),
+                    "END_LNG"=(directionVal EQ "CW" ? (isNull(q.start_lng[srcIdx]) ? "" : q.start_lng[srcIdx]) : (isNull(q.end_lng[srcIdx]) ? "" : q.end_lng[srcIdx])),
                     "DIST_NM"=(isNull(q.dist_nm[srcIdx]) ? 0 : val(q.dist_nm[srcIdx])),
                     "LOCK_COUNT"=(isNull(q.lock_count[srcIdx]) ? 0 : val(q.lock_count[srcIdx])),
                     "IS_OFFSHORE"=(q.is_offshore[srcIdx] EQ 1),
@@ -3236,8 +2612,12 @@
                     sl.id AS segment_id,
                     p1.id AS start_port_id,
                     COALESCE(NULLIF(TRIM(p1.name), ''), TRIM(sl.start_port_name), '') AS start_port,
+                    p1.lat AS start_lat,
+                    p1.lng AS start_lng,
                     p2.id AS end_port_id,
                     COALESCE(NULLIF(TRIM(p2.name), ''), TRIM(sl.end_port_name), '') AS end_port,
+                    p2.lat AS end_lat,
+                    p2.lng AS end_lng,
                     sl.dist_nm,
                     sl.lock_count,
                     sl.is_offshore,
@@ -3266,8 +2646,12 @@
                     "SEGMENT_ID"=val(qSeg.segment_id[i]),
                     "START_PORT_ID"=(isNull(qSeg.start_port_id[i]) ? 0 : val(qSeg.start_port_id[i])),
                     "START_NAME"=(isNull(qSeg.start_port[i]) ? "" : trim(toString(qSeg.start_port[i]))),
+                    "START_LAT"=(isNull(qSeg.start_lat[i]) ? "" : qSeg.start_lat[i]),
+                    "START_LNG"=(isNull(qSeg.start_lng[i]) ? "" : qSeg.start_lng[i]),
                     "END_PORT_ID"=(isNull(qSeg.end_port_id[i]) ? 0 : val(qSeg.end_port_id[i])),
                     "END_NAME"=(isNull(qSeg.end_port[i]) ? "" : trim(toString(qSeg.end_port[i]))),
+                    "END_LAT"=(isNull(qSeg.end_lat[i]) ? "" : qSeg.end_lat[i]),
+                    "END_LNG"=(isNull(qSeg.end_lng[i]) ? "" : qSeg.end_lng[i]),
                     "DIST_NM"=(isNull(qSeg.dist_nm[i]) ? 0 : val(qSeg.dist_nm[i])),
                     "LOCK_COUNT"=(isNull(qSeg.lock_count[i]) ? 0 : val(qSeg.lock_count[i])),
                     "IS_OFFSHORE"=(qSeg.is_offshore[i] EQ 1),
@@ -3293,10 +2677,16 @@
                     if (directionVal EQ "CW") {
                         var swapStartName = leg.START_NAME;
                         var swapStartPort = leg.START_PORT_ID;
+                        var swapStartLat = leg.START_LAT;
+                        var swapStartLng = leg.START_LNG;
                         leg.START_NAME = leg.END_NAME;
                         leg.START_PORT_ID = leg.END_PORT_ID;
+                        leg.START_LAT = leg.END_LAT;
+                        leg.START_LNG = leg.END_LNG;
                         leg.END_NAME = swapStartName;
                         leg.END_PORT_ID = swapStartPort;
+                        leg.END_LAT = swapStartLat;
+                        leg.END_LNG = swapStartLng;
                     }
                     if (!len(leg.START_NAME)) leg.START_NAME = "Unknown Start";
                     if (!len(leg.END_NAME)) leg.END_NAME = "Unknown End";
@@ -3609,6 +2999,7 @@
     </cffunction>
 
     <cffunction name="routegenBuildPreview" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="false" default="0">
         <cfargument name="input" type="struct" required="true">
         <cfscript>
             var out = {
@@ -3680,6 +3071,45 @@
                 detourByCode = detourData.BY_CODE,
                 selectedCodes = selectedStopCodes
             );
+            var routeInfo = {};
+            var routeLegMap = {};
+            var routeLegOverrideMap = {};
+            var legRouteLegId = 0;
+            var legOverrideKey = "";
+            var legOverrideRow = {};
+
+            if (arguments.userId GT 0 AND len(trim(toString(arguments.input.route_code)))) {
+                routeInfo = routegenResolveUserRoute(arguments.userId, arguments.input.route_code);
+            }
+            if (structCount(routeInfo)) {
+                routeLegMap = routegenLoadRouteLegMap(routeInfo.ROUTE_ID, arguments.userId);
+                routeLegOverrideMap = routegenLoadLegOverridesByRoute(arguments.userId, routeInfo.ROUTE_ID);
+            }
+
+            var i = 0;
+            for (i = 1; i LTE arrayLen(finalLegs); i++) {
+                legRouteLegId = 0;
+                if (structKeyExists(routeLegMap, toString(i))) {
+                    legRouteLegId = val(routeLegMap[toString(i)].ROUTE_LEG_ID);
+                }
+                finalLegs[i].ROUTE_LEG_ID = legRouteLegId;
+                finalLegs[i].ROUTE_ID = (structCount(routeInfo) ? routeInfo.ROUTE_ID : 0);
+                finalLegs[i].DIST_NM_DEFAULT = roundTo2(val(finalLegs[i].DIST_NM));
+                finalLegs[i].HAS_USER_OVERRIDE = false;
+                finalLegs[i].OVERRIDE_FIELDS = {};
+                if (legRouteLegId GT 0) {
+                    legOverrideKey = toString(legRouteLegId);
+                    if (structKeyExists(routeLegOverrideMap, legOverrideKey)) {
+                        legOverrideRow = routeLegOverrideMap[legOverrideKey];
+                        finalLegs[i].HAS_USER_OVERRIDE = true;
+                        finalLegs[i].DIST_NM = roundTo2(val(legOverrideRow.COMPUTED_NM));
+                        if (structKeyExists(legOverrideRow, "OVERRIDE_FIELDS") AND isStruct(legOverrideRow.OVERRIDE_FIELDS)) {
+                            finalLegs[i].OVERRIDE_FIELDS = legOverrideRow.OVERRIDE_FIELDS;
+                        }
+                    }
+                }
+            }
+
             var totals = routegenComputeTotals(
                 legs = finalLegs,
                 cruisingSpeed = weatherAdjustedSpeedVal,
@@ -3698,6 +3128,10 @@
             out.SUCCESS = true;
             out.MESSAGE = "OK";
             out.DATA = {
+                "route"={
+                    "route_id"=(structCount(routeInfo) ? routeInfo.ROUTE_ID : 0),
+                    "route_code"=(structCount(routeInfo) ? routeInfo.ROUTE_CODE : trim(toString(arguments.input.route_code)))
+                },
                 "template"={
                     "id"=templateInfo.ID,
                     "code"=(len(templateInfo.SHORT_CODE) ? templateInfo.SHORT_CODE : templateInfo.CODE),
@@ -3707,6 +3141,7 @@
                 },
                 "inputs"={
                     "template_code"=(len(templateInfo.SHORT_CODE) ? templateInfo.SHORT_CODE : templateInfo.CODE),
+                    "route_code"=trim(toString(arguments.input.route_code)),
                     "direction"=directionVal,
                     "start_segment_id"=arguments.input.start_segment_id,
                     "end_segment_id"=arguments.input.end_segment_id,
@@ -3771,19 +3206,27 @@
                 "optional_stops"=(structKeyExists(detourData, "DETOURS") ? detourData.DETOURS : [])
             };
 
-            var i = 0;
             for (i = 1; i LTE arrayLen(finalLegs); i++) {
                 arrayAppend(out.DATA.legs, {
                     "order_index"=i,
+                    "route_id"=val(finalLegs[i].ROUTE_ID),
+                    "route_leg_id"=val(finalLegs[i].ROUTE_LEG_ID),
                     "segment_id"=val(finalLegs[i].SEGMENT_ID),
                     "start_name"=toString(finalLegs[i].START_NAME),
                     "end_name"=toString(finalLegs[i].END_NAME),
+                    "start_lat"=(structKeyExists(finalLegs[i], "START_LAT") ? finalLegs[i].START_LAT : ""),
+                    "start_lng"=(structKeyExists(finalLegs[i], "START_LNG") ? finalLegs[i].START_LNG : ""),
+                    "end_lat"=(structKeyExists(finalLegs[i], "END_LAT") ? finalLegs[i].END_LAT : ""),
+                    "end_lng"=(structKeyExists(finalLegs[i], "END_LNG") ? finalLegs[i].END_LNG : ""),
                     "dist_nm"=roundTo2(val(finalLegs[i].DIST_NM)),
+                    "dist_nm_default"=roundTo2(val(finalLegs[i].DIST_NM_DEFAULT)),
                     "lock_count"=val(finalLegs[i].LOCK_COUNT),
                     "is_offshore"=(finalLegs[i].IS_OFFSHORE ? true : false),
                     "is_icw"=(finalLegs[i].IS_ICW ? true : false),
                     "is_optional"=(finalLegs[i].IS_OPTIONAL ? true : false),
+                    "has_user_override"=(finalLegs[i].HAS_USER_OVERRIDE ? true : false),
                     "detour_code"=toString(finalLegs[i].DETOUR_CODE),
+                    "override_fields"=(isStruct(finalLegs[i].OVERRIDE_FIELDS) ? finalLegs[i].OVERRIDE_FIELDS : {}),
                     "flags"={
                         "offshore"=(finalLegs[i].IS_OFFSHORE ? true : false),
                         "optional"=(finalLegs[i].IS_OPTIONAL ? true : false)
@@ -3894,7 +3337,10 @@
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="input" type="struct" required="true">
         <cfscript>
-            var preview = routegenBuildPreview(arguments.input);
+            var preview = routegenBuildPreview(
+                userId = arguments.userId,
+                input = arguments.input
+            );
             return preview;
         </cfscript>
     </cffunction>
@@ -3955,7 +3401,7 @@
             }
 
             var hasInputsJsonCol = routegenHasInputsJsonColumn();
-            var qInstSql = "SELECT template_route_code, direction, trip_type, start_location, end_location, created_at";
+            var qInstSql = "SELECT id, template_route_code, direction, trip_type, start_location, end_location, created_at";
             if (hasInputsJsonCol) {
                 qInstSql &= ", routegen_inputs_json";
             }
@@ -3999,8 +3445,26 @@
                 return out;
             }
 
-            var startLabel = trim(toString(qInst.start_location[1]));
-            var endLabel = trim(toString(qInst.end_location[1]));
+            var startLabel = "";
+            var endLabel = "";
+            var qNormLegBounds = queryExecute(
+                "SELECT leg_order, start_name, end_name
+                 FROM route_instance_legs
+                 WHERE route_instance_id = :routeInstanceId
+                 ORDER BY leg_order ASC, id ASC",
+                {
+                    routeInstanceId = { value=val(qInst.id[1]), cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+
+            if (qNormLegBounds.recordCount GT 0) {
+                startLabel = trim(toString(qNormLegBounds.start_name[1]));
+                endLabel = trim(toString(qNormLegBounds.end_name[qNormLegBounds.recordCount]));
+            } else {
+                startLabel = trim(toString(qInst.start_location[1]));
+                endLabel = trim(toString(qInst.end_location[1]));
+            }
             if (!len(startLabel)) startLabel = trim(toString(mainLegs[1].START_NAME));
             if (!len(endLabel)) {
                 endLabel = (tripTypeVal EQ "FULL_LOOP" ? startLabel : trim(toString(mainLegs[arrayLen(mainLegs)].END_NAME)));
@@ -4101,6 +3565,7 @@
                 },
                 "inputs"={
                     "template_code"=(len(templateInfo.SHORT_CODE) ? templateInfo.SHORT_CODE : templateInfo.CODE),
+                    "route_code"=routeInfo.ROUTE_CODE,
                     "direction"=directionVal,
                     "start_segment_id"=val(mainLegs[startIdx].SEGMENT_ID),
                     "end_segment_id"=val(mainLegs[endIdx].SEGMENT_ID),
@@ -4125,6 +3590,1665 @@
                 }
             };
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenHasLegOverrideTable" access="private" returntype="boolean" output="false">
+        <cfscript>
+            var qTbl = queryExecute(
+                "SELECT COUNT(*) AS cnt
+                 FROM information_schema.tables
+                 WHERE table_schema = DATABASE()
+                   AND table_name = 'route_leg_user_overrides'",
+                {},
+                { datasource = application.dsn }
+            );
+            return (qTbl.recordCount GT 0 AND val(qTbl.cnt[1]) GT 0);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenHasSegmentGeometryTable" access="private" returntype="boolean" output="false">
+        <cfscript>
+            var qTbl = queryExecute(
+                "SELECT COUNT(*) AS cnt
+                 FROM information_schema.tables
+                 WHERE table_schema = DATABASE()
+                   AND table_name = 'segment_geometries'",
+                {},
+                { datasource = application.dsn }
+            );
+            return (qTbl.recordCount GT 0 AND val(qTbl.cnt[1]) GT 0);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenHasNormalizedTables" access="private" returntype="boolean" output="false">
+        <cfscript>
+            var qTbl = queryNew("");
+            if (structKeyExists(request, "routegenHasNormalizedTables")) {
+                return request.routegenHasNormalizedTables;
+            }
+            qTbl = queryExecute(
+                "SELECT COUNT(*) AS cnt
+                 FROM information_schema.tables
+                 WHERE table_schema = DATABASE()
+                   AND table_name IN (
+                       'route_instance_sections',
+                       'route_instance_legs',
+                       'route_instance_leg_progress'
+                   )",
+                {},
+                { datasource = application.dsn }
+            );
+            request.routegenHasNormalizedTables = (qTbl.recordCount GT 0 AND val(qTbl.cnt[1]) GTE 3);
+            return request.routegenHasNormalizedTables;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenHasLoopSourceSegmentColumn" access="private" returntype="boolean" output="false">
+        <cfscript>
+            var qCol = queryNew("");
+            if (structKeyExists(request, "routegenHasLoopSourceSegmentColumn")) {
+                return request.routegenHasLoopSourceSegmentColumn;
+            }
+            qCol = queryExecute(
+                "SELECT COUNT(*) AS cnt
+                 FROM information_schema.columns
+                 WHERE table_schema = DATABASE()
+                   AND table_name = 'loop_segments'
+                   AND column_name = 'source_segment_id'",
+                {},
+                { datasource = application.dsn }
+            );
+            request.routegenHasLoopSourceSegmentColumn = (qCol.recordCount GT 0 AND val(qCol.cnt[1]) GT 0);
+            return request.routegenHasLoopSourceSegmentColumn;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenHasUserSegmentOverrideTable" access="private" returntype="boolean" output="false">
+        <cfscript>
+            var qTbl = queryNew("");
+            if (structKeyExists(request, "routegenHasUserSegmentOverrideTable")) {
+                return request.routegenHasUserSegmentOverrideTable;
+            }
+            qTbl = queryExecute(
+                "SELECT COUNT(*) AS cnt
+                 FROM information_schema.tables
+                 WHERE table_schema = DATABASE()
+                   AND table_name = 'user_segment_overrides'",
+                {},
+                { datasource = application.dsn }
+            );
+            request.routegenHasUserSegmentOverrideTable = (qTbl.recordCount GT 0 AND val(qTbl.cnt[1]) GT 0);
+            return request.routegenHasUserSegmentOverrideTable;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenResolveLatestRouteInstanceId" access="private" returntype="numeric" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeId" type="numeric" required="true">
+        <cfscript>
+            var q = queryNew("");
+            if (arguments.userId LTE 0 OR arguments.routeId LTE 0) return 0;
+            q = queryExecute(
+                "SELECT id
+                 FROM route_instances
+                 WHERE generated_route_id = :rid
+                   AND user_id = :uid
+                 ORDER BY id DESC
+                 LIMIT 1",
+                {
+                    rid = { value=arguments.routeId, cfsqltype="cf_sql_integer" },
+                    uid = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
+                },
+                { datasource = application.dsn }
+            );
+            if (q.recordCount EQ 0) return 0;
+            return val(q.id[1]);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenHasNormalizedLegRows" access="private" returntype="boolean" output="false">
+        <cfargument name="routeInstanceId" type="numeric" required="true">
+        <cfscript>
+            var q = queryNew("");
+            if (!routegenHasNormalizedTables()) return false;
+            if (arguments.routeInstanceId LTE 0) return false;
+            q = queryExecute(
+                "SELECT COUNT(*) AS cnt
+                 FROM route_instance_legs
+                 WHERE route_instance_id = :routeInstanceId",
+                {
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+            return (q.recordCount GT 0 AND val(q.cnt[1]) GT 0);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenSyncNormalizedRouteInstance" access="private" returntype="void" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeId" type="numeric" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="true">
+        <cfscript>
+            var sqlInsertLegs = "";
+            var segmentExpr = "";
+
+            if (!routegenHasNormalizedTables()) return;
+            if (arguments.userId LTE 0 OR arguments.routeId LTE 0 OR arguments.routeInstanceId LTE 0) return;
+
+            queryExecute(
+                "DELETE FROM route_instance_leg_progress
+                 WHERE route_instance_id = :routeInstanceId",
+                {
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+
+            queryExecute(
+                "DELETE FROM route_instance_legs
+                 WHERE route_instance_id = :routeInstanceId",
+                {
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+
+            queryExecute(
+                "DELETE FROM route_instance_sections
+                 WHERE route_instance_id = :routeInstanceId",
+                {
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+
+            queryExecute(
+                "INSERT INTO route_instance_sections
+                    (route_instance_id, section_order, name, phase_num, source_section_id)
+                 SELECT
+                    :routeInstanceId,
+                    sec.order_index,
+                    COALESCE(NULLIF(TRIM(sec.name), ''), CONCAT('Section ', sec.order_index)),
+                    sec.phase_num,
+                    sec.id
+                 FROM loop_sections sec
+                 WHERE sec.route_id = :routeId
+                 ORDER BY sec.order_index ASC, sec.id ASC",
+                {
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" },
+                    routeId = { value=arguments.routeId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+
+            segmentExpr = (routegenHasLoopSourceSegmentColumn() ? "NULLIF(s.source_segment_id, 0)" : "NULL");
+            sqlInsertLegs =
+                "INSERT INTO route_instance_legs
+                    (route_instance_id, route_instance_section_id, leg_order, segment_id, source_loop_segment_id,
+                     is_reversed, is_optional, detour_code, start_name, end_name,
+                     start_lat, start_lng, end_lat, end_lng, base_dist_nm, lock_count, notes)
+                 SELECT
+                    :routeInstanceId,
+                    ris.id,
+                    ROW_NUMBER() OVER (ORDER BY sec.order_index ASC, s.order_index ASC, s.id ASC),
+                    " & segmentExpr & ",
+                    s.id,
+                    0,
+                    0,
+                    NULL,
+                    s.start_name,
+                    s.end_name,
+                    s.start_lat,
+                    s.start_lng,
+                    s.end_lat,
+                    s.end_lng,
+                    s.dist_nm,
+                    s.lock_count,
+                    s.notes
+                 FROM loop_segments s
+                 INNER JOIN loop_sections sec ON sec.id = s.section_id
+                 INNER JOIN route_instance_sections ris
+                    ON ris.route_instance_id = :routeInstanceId
+                   AND ris.source_section_id = sec.id
+                 WHERE sec.route_id = :routeId";
+            queryExecute(
+                sqlInsertLegs,
+                {
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" },
+                    routeId = { value=arguments.routeId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+
+            if (routegenHasLegOverrideTable()) {
+                queryExecute(
+                    "UPDATE route_instance_legs ril
+                     INNER JOIN route_leg_user_overrides rluo
+                        ON rluo.route_id = :routeId
+                       AND rluo.route_leg_id = ril.source_loop_segment_id
+                     SET ril.segment_id = rluo.segment_id
+                     WHERE ril.route_instance_id = :routeInstanceId
+                       AND (ril.segment_id IS NULL OR ril.segment_id = 0)
+                       AND rluo.segment_id IS NOT NULL
+                       AND rluo.segment_id > 0",
+                    {
+                        routeId = { value=arguments.routeId, cfsqltype="cf_sql_integer" },
+                        routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource = application.dsn }
+                );
+            }
+
+            queryExecute(
+                "INSERT INTO route_instance_leg_progress
+                    (user_id, route_instance_id, leg_order, status, completed_at)
+                 SELECT
+                    :userId,
+                    :routeInstanceId,
+                    ril.leg_order,
+                    COALESCE(NULLIF(TRIM(up.status), ''), 'NOT_STARTED'),
+                    up.completed_at
+                 FROM route_instance_legs ril
+                 LEFT JOIN user_route_progress up
+                    ON up.user_id = :userId
+                   AND up.segment_id = ril.source_loop_segment_id
+                 WHERE ril.route_instance_id = :routeInstanceId",
+                {
+                    userId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenRebuildNormalizedInstanceLegs" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="true">
+        <cfargument name="legs" type="array" required="true">
+        <cfscript>
+            var out = { "SECTION_ID"=0, "LEG_ID_BY_ORDER"={} };
+            var i = 0;
+            var leg = {};
+            var legOrderVal = 0;
+            var segmentIdVal = 0;
+            var isOptionalVal = 0;
+            var detourCodeVal = "";
+            var notesVal = "";
+            var distBind = {};
+            var lockBind = {};
+            var startLatBind = {};
+            var startLngBind = {};
+            var endLatBind = {};
+            var endLngBind = {};
+            var notesBind = {};
+
+            if (!routegenHasNormalizedTables()) return out;
+            if (arguments.userId LTE 0 OR arguments.routeInstanceId LTE 0 OR !arrayLen(arguments.legs)) return out;
+
+            queryExecute(
+                "DELETE FROM route_instance_leg_progress
+                 WHERE route_instance_id = :routeInstanceId",
+                {
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+            queryExecute(
+                "DELETE FROM route_instance_legs
+                 WHERE route_instance_id = :routeInstanceId",
+                {
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+            queryExecute(
+                "DELETE FROM route_instance_sections
+                 WHERE route_instance_id = :routeInstanceId",
+                {
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+
+            queryExecute(
+                "INSERT INTO route_instance_sections
+                    (route_instance_id, section_order, name, phase_num, source_section_id)
+                 VALUES
+                    (:routeInstanceId, 1, 'Route', 1, NULL)",
+                {
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn, result = "routegenNormSecIns" }
+            );
+            out.SECTION_ID = val(routegenNormSecIns.generatedKey);
+
+            for (i = 1; i LTE arrayLen(arguments.legs); i++) {
+                leg = arguments.legs[i];
+                legOrderVal = val(structKeyExists(leg, "order_index") ? leg.order_index : i);
+                if (legOrderVal LTE 0) legOrderVal = i;
+                segmentIdVal = val(structKeyExists(leg, "segment_id") ? leg.segment_id : (structKeyExists(leg, "SEGMENT_ID") ? leg.SEGMENT_ID : 0));
+                isOptionalVal = (toBoolean(structKeyExists(leg, "is_optional") ? leg.is_optional : false, false) ? 1 : 0);
+                detourCodeVal = trim(toString(structKeyExists(leg, "detour_code") ? leg.detour_code : ""));
+                notesVal = trim(toString(structKeyExists(leg, "notes") ? leg.notes : ""));
+                if (isOptionalVal EQ 1 AND len(detourCodeVal)) {
+                    if (len(notesVal)) notesVal &= " ";
+                    notesVal &= "[Optional stop: " & detourCodeVal & "]";
+                }
+
+                distBind = toNullableNumber((structKeyExists(leg, "dist_nm") ? leg.dist_nm : 0), "numeric");
+                lockBind = toNullableNumber((structKeyExists(leg, "lock_count") ? leg.lock_count : 0), "integer");
+                startLatBind = toNullableNumber((structKeyExists(leg, "start_lat") ? leg.start_lat : ""), "numeric");
+                startLngBind = toNullableNumber((structKeyExists(leg, "start_lng") ? leg.start_lng : ""), "numeric");
+                endLatBind = toNullableNumber((structKeyExists(leg, "end_lat") ? leg.end_lat : ""), "numeric");
+                endLngBind = toNullableNumber((structKeyExists(leg, "end_lng") ? leg.end_lng : ""), "numeric");
+                notesBind = toNullableString(notesVal);
+                if (!notesBind.isNull AND len(notesBind.value) GT 255) {
+                    notesBind.value = left(notesBind.value, 255);
+                }
+
+                queryExecute(
+                    "INSERT INTO route_instance_legs
+                        (route_instance_id, route_instance_section_id, leg_order, segment_id, source_loop_segment_id,
+                         is_reversed, is_optional, detour_code, start_name, end_name,
+                         start_lat, start_lng, end_lat, end_lng, base_dist_nm, lock_count, notes)
+                     VALUES
+                        (:routeInstanceId, :sectionId, :legOrder, :segmentId, NULL,
+                         0, :isOptional, :detourCode, :startName, :endName,
+                         :startLat, :startLng, :endLat, :endLng, :distNm, :lockCount, :notes)",
+                    {
+                        routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" },
+                        sectionId = { value=out.SECTION_ID, cfsqltype="cf_sql_integer" },
+                        legOrder = { value=legOrderVal, cfsqltype="cf_sql_integer" },
+                        segmentId = { value=segmentIdVal, cfsqltype="cf_sql_integer", null=(segmentIdVal LTE 0) },
+                        isOptional = { value=isOptionalVal, cfsqltype="cf_sql_integer" },
+                        detourCode = { value=detourCodeVal, cfsqltype="cf_sql_varchar", null=NOT len(detourCodeVal) },
+                        startName = { value=trim(toString(structKeyExists(leg, "start_name") ? leg.start_name : "")), cfsqltype="cf_sql_varchar", null=NOT len(trim(toString(structKeyExists(leg, "start_name") ? leg.start_name : ""))) },
+                        endName = { value=trim(toString(structKeyExists(leg, "end_name") ? leg.end_name : "")), cfsqltype="cf_sql_varchar", null=NOT len(trim(toString(structKeyExists(leg, "end_name") ? leg.end_name : ""))) },
+                        startLat = { value=startLatBind.value, cfsqltype="cf_sql_decimal", null=startLatBind.isNull },
+                        startLng = { value=startLngBind.value, cfsqltype="cf_sql_decimal", null=startLngBind.isNull },
+                        endLat = { value=endLatBind.value, cfsqltype="cf_sql_decimal", null=endLatBind.isNull },
+                        endLng = { value=endLngBind.value, cfsqltype="cf_sql_decimal", null=endLngBind.isNull },
+                        distNm = { value=distBind.value, cfsqltype="cf_sql_decimal", null=distBind.isNull },
+                        lockCount = { value=lockBind.value, cfsqltype="cf_sql_integer", null=lockBind.isNull },
+                        notes = { value=notesBind.value, cfsqltype="cf_sql_varchar", null=notesBind.isNull }
+                    },
+                    { datasource = application.dsn, result = "routegenNormLegIns" }
+                );
+                out.LEG_ID_BY_ORDER[toString(legOrderVal)] = val(routegenNormLegIns.generatedKey);
+            }
+
+            queryExecute(
+                "INSERT INTO route_instance_leg_progress
+                    (user_id, route_instance_id, leg_order, status, completed_at)
+                 SELECT
+                    :userId,
+                    :routeInstanceId,
+                    ril.leg_order,
+                    'NOT_STARTED',
+                    NULL
+                 FROM route_instance_legs ril
+                 WHERE ril.route_instance_id = :routeInstanceId",
+                {
+                    userId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenParseJsonStruct" access="private" returntype="struct" output="false">
+        <cfargument name="rawJson" type="any" required="false" default="">
+        <cfscript>
+            var raw = trim(toString(arguments.rawJson));
+            var parsed = {};
+            if (!len(raw)) return {};
+            try {
+                parsed = deserializeJSON(raw, false);
+                if (isStruct(parsed)) return parsed;
+            } catch (any ignored) {}
+            return {};
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenNormalizeOverridePoints" access="private" returntype="struct" output="false">
+        <cfargument name="pointsRaw" type="any" required="true">
+        <cfscript>
+            var out = { "ok"=false, "message"="", "detail"="", "points"=[] };
+            var i = 0;
+            var p = {};
+            var latRaw = "";
+            var lonRaw = "";
+            var latVal = 0.0;
+            var lonVal = 0.0;
+
+            if (!isArray(arguments.pointsRaw)) {
+                out.message = "Geometry must be an array of points.";
+                out.detail = "Use [{lat, lon}, ...].";
+                return out;
+            }
+
+            for (i = 1; i LTE arrayLen(arguments.pointsRaw); i++) {
+                if (!isStruct(arguments.pointsRaw[i])) {
+                    out.message = "Point ##" & i & " is invalid.";
+                    out.detail = "Each point must be an object.";
+                    return out;
+                }
+                p = arguments.pointsRaw[i];
+                latRaw = "";
+                lonRaw = "";
+                if (structKeyExists(p, "lat")) latRaw = p.lat;
+                else if (structKeyExists(p, "latitude")) latRaw = p.latitude;
+                if (structKeyExists(p, "lon")) lonRaw = p.lon;
+                else if (structKeyExists(p, "lng")) lonRaw = p.lng;
+                else if (structKeyExists(p, "longitude")) lonRaw = p.longitude;
+
+                if (!len(trim(toString(latRaw))) OR !len(trim(toString(lonRaw)))) {
+                    out.message = "Point ##" & i & " is missing lat/lon.";
+                    out.detail = "Each point must include lat and lon (or lng).";
+                    return out;
+                }
+                if (!isNumeric(latRaw) OR !isNumeric(lonRaw)) {
+                    out.message = "Point ##" & i & " has invalid coordinates.";
+                    out.detail = "Latitude/longitude must be numeric.";
+                    return out;
+                }
+
+                latVal = val(latRaw);
+                lonVal = val(lonRaw);
+                if (latVal LT -90 OR latVal GT 90) {
+                    out.message = "Point ##" & i & " latitude out of range.";
+                    out.detail = "Latitude must be between -90 and 90.";
+                    return out;
+                }
+                if (lonVal LT -180 OR lonVal GT 180) {
+                    out.message = "Point ##" & i & " longitude out of range.";
+                    out.detail = "Longitude must be between -180 and 180.";
+                    return out;
+                }
+                arrayAppend(out.points, { "lat"=latVal, "lon"=lonVal });
+            }
+            out.ok = true;
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenParsePointsJson" access="private" returntype="array" output="false">
+        <cfargument name="rawJson" type="any" required="false" default="">
+        <cfscript>
+            var raw = trim(toString(arguments.rawJson));
+            var parsed = [];
+            var normalized = {};
+            if (!len(raw)) return [];
+            try {
+                parsed = deserializeJSON(raw, false);
+                if (!isArray(parsed)) return [];
+            } catch (any ignored) {
+                return [];
+            }
+            normalized = routegenNormalizeOverridePoints(parsed);
+            if (!normalized.ok) return [];
+            return normalized.points;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenLoadRouteLegMap" access="private" returntype="struct" output="false">
+        <cfargument name="routeId" type="numeric" required="true">
+        <cfargument name="userId" type="numeric" required="false" default="0">
+        <cfscript>
+            var out = {};
+            var qRouteInst = queryNew("");
+            var qLegs = queryNew("");
+            var i = 0;
+            var routeInstanceIdVal = 0;
+            var legOrderVal = 0;
+            if (arguments.routeId LTE 0) return out;
+            if (!routegenHasNormalizedTables()) return out;
+
+            if (arguments.userId GT 0) {
+                routeInstanceIdVal = routegenResolveLatestRouteInstanceId(arguments.userId, arguments.routeId);
+            }
+            if (routeInstanceIdVal LTE 0) {
+                qRouteInst = queryExecute(
+                    "SELECT id
+                     FROM route_instances
+                     WHERE generated_route_id = :rid
+                     ORDER BY id DESC
+                     LIMIT 1",
+                    {
+                        rid = { value=arguments.routeId, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource = application.dsn }
+                );
+                if (qRouteInst.recordCount EQ 0) return out;
+                routeInstanceIdVal = val(qRouteInst.id[1]);
+            }
+
+            qLegs = queryExecute(
+                "SELECT
+                    COALESCE(ril.source_loop_segment_id, ril.id) AS route_leg_id,
+                    ril.leg_order,
+                    ril.start_name,
+                    ril.end_name,
+                    ril.base_dist_nm
+                 FROM route_instance_legs ril
+                 WHERE ril.route_instance_id = :routeInstanceId
+                 ORDER BY ril.leg_order ASC, ril.id ASC",
+                {
+                    routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+            for (i = 1; i LTE qLegs.recordCount; i++) {
+                legOrderVal = (isNull(qLegs.leg_order[i]) ? i : val(qLegs.leg_order[i]));
+                if (legOrderVal LTE 0) legOrderVal = i;
+                out[toString(legOrderVal)] = {
+                    "ROUTE_LEG_ID"=val(qLegs.route_leg_id[i]),
+                    "ROUTE_LEG_ORDER"=legOrderVal,
+                    "DIST_NM"=(isNull(qLegs.base_dist_nm[i]) ? 0 : val(qLegs.base_dist_nm[i])),
+                    "START_NAME"=(isNull(qLegs.start_name[i]) ? "" : trim(toString(qLegs.start_name[i]))),
+                    "END_NAME"=(isNull(qLegs.end_name[i]) ? "" : trim(toString(qLegs.end_name[i])))
+                };
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenResolveRouteLegOrder" access="private" returntype="numeric" output="false">
+        <cfargument name="routeId" type="numeric" required="true">
+        <cfargument name="routeLegId" type="numeric" required="true">
+        <cfargument name="userId" type="numeric" required="false" default="0">
+        <cfscript>
+            var legMap = routegenLoadRouteLegMap(arguments.routeId, arguments.userId);
+            var k = "";
+            for (k in legMap) {
+                if (val(legMap[k].ROUTE_LEG_ID) EQ val(arguments.routeLegId)) {
+                    return val(k);
+                }
+            }
+            return 0;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenReadRouteLeg" access="private" returntype="struct" output="false">
+        <cfargument name="routeId" type="numeric" required="true">
+        <cfargument name="routeLegId" type="numeric" required="true">
+        <cfargument name="userId" type="numeric" required="false" default="0">
+        <cfscript>
+            var qLeg = queryNew("");
+            var row = {};
+            var startLat = "";
+            var startLng = "";
+            var endLat = "";
+            var endLng = "";
+            var sql = "";
+            var binds = {};
+            if (arguments.routeId LTE 0 OR arguments.routeLegId LTE 0) return {};
+            if (!routegenHasNormalizedTables()) return {};
+
+            sql = "SELECT
+                    COALESCE(ril.source_loop_segment_id, ril.id) AS route_leg_id,
+                    ril.leg_order AS order_index,
+                    ril.start_name,
+                    ril.end_name,
+                    ril.base_dist_nm AS dist_nm,
+                    ril.start_lat,
+                    ril.start_lng,
+                    ril.end_lat,
+                    ril.end_lng
+                 FROM route_instance_legs ril
+                 INNER JOIN route_instances ri ON ri.id = ril.route_instance_id
+                 WHERE ri.generated_route_id = :rid
+                   AND (
+                        COALESCE(ril.source_loop_segment_id, ril.id) = :legId
+                        OR ril.id = :legIdExact
+                   )";
+            binds = {
+                rid = { value=arguments.routeId, cfsqltype="cf_sql_integer" },
+                legId = { value=arguments.routeLegId, cfsqltype="cf_sql_integer" },
+                legIdExact = { value=arguments.routeLegId, cfsqltype="cf_sql_integer" }
+            };
+            if (arguments.userId GT 0) {
+                sql &= " AND ri.user_id = :uid";
+                binds.uid = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" };
+            }
+            sql &= " ORDER BY ri.id DESC, ril.leg_order ASC, ril.id ASC LIMIT 1";
+            qLeg = queryExecute(sql, binds, { datasource = application.dsn });
+
+            if (qLeg.recordCount EQ 0) return {};
+            row = {
+                "ROUTE_LEG_ID"=val(qLeg.route_leg_id[1]),
+                "ORDER_INDEX"=(isNull(qLeg.order_index[1]) ? 0 : val(qLeg.order_index[1])),
+                "START_NAME"=(isNull(qLeg.start_name[1]) ? "" : trim(toString(qLeg.start_name[1]))),
+                "END_NAME"=(isNull(qLeg.end_name[1]) ? "" : trim(toString(qLeg.end_name[1]))),
+                "DIST_NM"=(isNull(qLeg.dist_nm[1]) ? 0 : val(qLeg.dist_nm[1])),
+                "START_POINT"={},
+                "END_POINT"={}
+            };
+            startLat = (isNull(qLeg.start_lat[1]) ? "" : qLeg.start_lat[1]);
+            startLng = (isNull(qLeg.start_lng[1]) ? "" : qLeg.start_lng[1]);
+            if (isNumeric(startLat) AND isNumeric(startLng)) {
+                row.START_POINT = {
+                    "lat"=val(startLat),
+                    "lon"=val(startLng)
+                };
+            }
+            endLat = (isNull(qLeg.end_lat[1]) ? "" : qLeg.end_lat[1]);
+            endLng = (isNull(qLeg.end_lng[1]) ? "" : qLeg.end_lng[1]);
+            if (isNumeric(endLat) AND isNumeric(endLng)) {
+                row.END_POINT = {
+                    "lat"=val(endLat),
+                    "lon"=val(endLng)
+                };
+            }
+            return row;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenReadLegOverride" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeId" type="numeric" required="true">
+        <cfargument name="routeLegId" type="numeric" required="true">
+        <cfscript>
+            var q = queryNew("");
+            var row = {};
+            if (!routegenHasLegOverrideTable()) return {};
+            if (arguments.userId LTE 0 OR arguments.routeId LTE 0 OR arguments.routeLegId LTE 0) return {};
+            q = queryExecute(
+                "SELECT
+                    route_leg_id,
+                    route_leg_order,
+                    segment_id,
+                    computed_nm,
+                    geometry_json,
+                    override_fields_json
+                 FROM route_leg_user_overrides
+                 WHERE user_id = :uid
+                   AND route_id = :rid
+                   AND route_leg_id = :legId
+                 LIMIT 1",
+                {
+                    uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                    rid = { value=arguments.routeId, cfsqltype="cf_sql_integer" },
+                    legId = { value=arguments.routeLegId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+            if (q.recordCount EQ 0) return {};
+            row = {
+                "ROUTE_LEG_ID"=val(q.route_leg_id[1]),
+                "ROUTE_LEG_ORDER"=(isNull(q.route_leg_order[1]) ? 0 : val(q.route_leg_order[1])),
+                "SEGMENT_ID"=(isNull(q.segment_id[1]) ? 0 : val(q.segment_id[1])),
+                "COMPUTED_NM"=(isNull(q.computed_nm[1]) ? 0 : val(q.computed_nm[1])),
+                "POINTS"=routegenParsePointsJson(isNull(q.geometry_json[1]) ? "" : toString(q.geometry_json[1])),
+                "OVERRIDE_FIELDS"=routegenParseJsonStruct(isNull(q.override_fields_json[1]) ? "" : q.override_fields_json[1])
+            };
+            return row;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenReadLatestOverrideBySegment" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="segmentId" type="numeric" required="true">
+        <cfscript>
+            var q = queryNew("");
+            var row = {};
+            if (!routegenHasLegOverrideTable()) return {};
+            if (arguments.userId LTE 0 OR arguments.segmentId LTE 0) return {};
+            q = queryExecute(
+                "SELECT
+                    route_id,
+                    route_leg_id,
+                    route_leg_order,
+                    segment_id,
+                    computed_nm,
+                    geometry_json,
+                    override_fields_json
+                 FROM route_leg_user_overrides
+                 WHERE user_id = :uid
+                   AND segment_id = :segmentId
+                 ORDER BY updated_at DESC, id DESC
+                 LIMIT 1",
+                {
+                    uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                    segmentId = { value=arguments.segmentId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+            if (q.recordCount EQ 0) return {};
+            row = {
+                "ROUTE_ID"=(isNull(q.route_id[1]) ? 0 : val(q.route_id[1])),
+                "ROUTE_LEG_ID"=val(q.route_leg_id[1]),
+                "ROUTE_LEG_ORDER"=(isNull(q.route_leg_order[1]) ? 0 : val(q.route_leg_order[1])),
+                "SEGMENT_ID"=(isNull(q.segment_id[1]) ? 0 : val(q.segment_id[1])),
+                "COMPUTED_NM"=(isNull(q.computed_nm[1]) ? 0 : val(q.computed_nm[1])),
+                "POINTS"=routegenParsePointsJson(isNull(q.geometry_json[1]) ? "" : toString(q.geometry_json[1])),
+                "OVERRIDE_FIELDS"=routegenParseJsonStruct(isNull(q.override_fields_json[1]) ? "" : q.override_fields_json[1])
+            };
+            return row;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenLoadLegOverridesByRoute" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeId" type="numeric" required="true">
+        <cfscript>
+            var out = {};
+            var q = queryNew("");
+            var i = 0;
+            if (!routegenHasLegOverrideTable()) return out;
+            if (arguments.userId LTE 0 OR arguments.routeId LTE 0) return out;
+            q = queryExecute(
+                "SELECT
+                    route_leg_id,
+                    route_leg_order,
+                    segment_id,
+                    computed_nm,
+                    geometry_json,
+                    override_fields_json
+                 FROM route_leg_user_overrides
+                 WHERE user_id = :uid
+                   AND route_id = :rid",
+                {
+                    uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                    rid = { value=arguments.routeId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+            for (i = 1; i LTE q.recordCount; i++) {
+                out[toString(q.route_leg_id[i])] = {
+                    "ROUTE_LEG_ID"=val(q.route_leg_id[i]),
+                    "ROUTE_LEG_ORDER"=(isNull(q.route_leg_order[i]) ? 0 : val(q.route_leg_order[i])),
+                    "SEGMENT_ID"=(isNull(q.segment_id[i]) ? 0 : val(q.segment_id[i])),
+                    "COMPUTED_NM"=(isNull(q.computed_nm[i]) ? 0 : val(q.computed_nm[i])),
+                    "POINTS"=routegenParsePointsJson(isNull(q.geometry_json[i]) ? "" : toString(q.geometry_json[i])),
+                    "OVERRIDE_FIELDS"=routegenParseJsonStruct(isNull(q.override_fields_json[i]) ? "" : q.override_fields_json[i])
+                };
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenLoadDefaultLegGeometry" access="private" returntype="struct" output="false">
+        <cfargument name="segmentId" type="numeric" required="true">
+        <cfscript>
+            var out = {
+                "HAS_GEOMETRY"=false,
+                "POINTS"=[],
+                "DIST_NM"=0,
+                "START_NAME"="",
+                "END_NAME"="",
+                "START_POINT"={},
+                "END_POINT"={}
+            };
+            var qGeom = queryNew("");
+            var qSeg = queryNew("");
+            var rawGeom = "";
+            var startLat = "";
+            var startLng = "";
+            var endLat = "";
+            var endLng = "";
+            if (arguments.segmentId LTE 0) return out;
+
+            if (routegenHasSegmentGeometryTable()) {
+                qGeom = queryExecute(
+                    "SELECT polyline_json, dist_nm_calc
+                     FROM segment_geometries
+                     WHERE segment_id = :segmentId
+                     ORDER BY version DESC
+                     LIMIT 1",
+                    {
+                        segmentId = { value=arguments.segmentId, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource = application.dsn }
+                );
+                if (qGeom.recordCount GT 0) {
+                    rawGeom = (isNull(qGeom.polyline_json[1]) ? "" : toString(qGeom.polyline_json[1]));
+                    out.POINTS = routegenParsePointsJson(rawGeom);
+                    out.HAS_GEOMETRY = (arrayLen(out.POINTS) GTE 2);
+                    if (!isNull(qGeom.dist_nm_calc[1])) {
+                        out.DIST_NM = roundTo2(val(qGeom.dist_nm_calc[1]));
+                    }
+                }
+            }
+
+            qSeg = queryExecute(
+                "SELECT
+                    sl.dist_nm,
+                    COALESCE(NULLIF(TRIM(p1.name), ''), TRIM(sl.start_port_name), '') AS start_name,
+                    COALESCE(NULLIF(TRIM(p2.name), ''), TRIM(sl.end_port_name), '') AS end_name,
+                    p1.lat AS start_lat,
+                    p1.lng AS start_lng,
+                    p2.lat AS end_lat,
+                    p2.lng AS end_lng
+                 FROM segment_library sl
+                 LEFT JOIN ports p1 ON p1.id = sl.start_port_id
+                 LEFT JOIN ports p2 ON p2.id = sl.end_port_id
+                 WHERE sl.id = :segmentId
+                 LIMIT 1",
+                {
+                    segmentId = { value=arguments.segmentId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+            if (qSeg.recordCount GT 0) {
+                if (out.DIST_NM LTE 0 AND !isNull(qSeg.dist_nm[1])) {
+                    out.DIST_NM = roundTo2(val(qSeg.dist_nm[1]));
+                }
+                out.START_NAME = (isNull(qSeg.start_name[1]) ? "" : trim(toString(qSeg.start_name[1])));
+                out.END_NAME = (isNull(qSeg.end_name[1]) ? "" : trim(toString(qSeg.end_name[1])));
+
+                startLat = (isNull(qSeg.start_lat[1]) ? "" : qSeg.start_lat[1]);
+                startLng = (isNull(qSeg.start_lng[1]) ? "" : qSeg.start_lng[1]);
+                if (isNumeric(startLat) AND isNumeric(startLng)) {
+                    out.START_POINT = {
+                        "lat"=val(startLat),
+                        "lon"=val(startLng)
+                    };
+                }
+
+                endLat = (isNull(qSeg.end_lat[1]) ? "" : qSeg.end_lat[1]);
+                endLng = (isNull(qSeg.end_lng[1]) ? "" : qSeg.end_lng[1]);
+                if (isNumeric(endLat) AND isNumeric(endLng)) {
+                    out.END_POINT = {
+                        "lat"=val(endLat),
+                        "lon"=val(endLng)
+                    };
+                }
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenGetLegGeometry" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeCode" type="string" required="false" default="">
+        <cfargument name="routeLegId" type="numeric" required="false" default="0">
+        <cfargument name="segmentId" type="numeric" required="false" default="0">
+        <cfargument name="legOrder" type="numeric" required="false" default="0">
+        <cfscript>
+            var out = {
+                "SUCCESS"=false,
+                "AUTH"=true,
+                "MESSAGE"="Unable to load leg geometry",
+                "DATA"={}
+            };
+            var routeCodeVal = trim(arguments.routeCode);
+            var routeInfo = {};
+            var routeLegIdVal = val(arguments.routeLegId);
+            var segmentIdVal = val(arguments.segmentId);
+            var legOrderVal = val(arguments.legOrder);
+            var routeLegMap = {};
+            var legRow = {};
+            var overrideRow = {};
+            var segmentOverrideRow = {};
+            var defaultGeom = {};
+            var routeInstanceIdVal = 0;
+            var useNormalizedRead = false;
+            var qNormLeg = queryNew("");
+            var normSql = "";
+            var normParams = {};
+            var normRouteLegId = 0;
+            var normStartLat = "";
+            var normStartLng = "";
+            var normEndLat = "";
+            var normEndLng = "";
+            var effectivePoints = [];
+            var effectiveNm = 0;
+            var defaultNm = 0;
+            var hasExactOverride = false;
+            var hasSegmentOverride = false;
+            var sourceVal = "default";
+
+            if (len(routeCodeVal)) {
+                routeInfo = routegenResolveUserRoute(arguments.userId, routeCodeVal);
+                if (!structCount(routeInfo)) {
+                    out.MESSAGE = "Route not found";
+                    out.ERROR = { "MESSAGE"="Route not found or not owned by user." };
+                    return out;
+                }
+
+                routeInstanceIdVal = routegenResolveLatestRouteInstanceId(arguments.userId, routeInfo.ROUTE_ID);
+                useNormalizedRead = routegenHasNormalizedLegRows(routeInstanceIdVal);
+                if (!useNormalizedRead) {
+                    out.MESSAGE = "Route geometry unavailable";
+                    out.ERROR = { "MESSAGE"="Route instance has no normalized leg rows." };
+                    return out;
+                }
+
+                if (useNormalizedRead) {
+                    normSql = "SELECT
+                            ril.id,
+                            ril.leg_order,
+                            ril.segment_id,
+                            ril.source_loop_segment_id,
+                            ril.start_name,
+                            ril.end_name,
+                            ril.base_dist_nm,
+                            ril.start_lat,
+                            ril.start_lng,
+                            ril.end_lat,
+                            ril.end_lng
+                         FROM route_instance_legs ril
+                         WHERE ril.route_instance_id = :routeInstanceId";
+                    normParams = {
+                        routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" }
+                    };
+
+                    if (legOrderVal GT 0) {
+                        normSql &= " AND ril.leg_order = :legOrder";
+                        normParams.legOrder = { value=legOrderVal, cfsqltype="cf_sql_integer" };
+                    } else if (routeLegIdVal GT 0) {
+                        normSql &= " AND (COALESCE(ril.source_loop_segment_id, ril.id) = :routeLegId OR ril.id = :routeLegIdExact)";
+                        normParams.routeLegId = { value=routeLegIdVal, cfsqltype="cf_sql_integer" };
+                        normParams.routeLegIdExact = { value=routeLegIdVal, cfsqltype="cf_sql_integer" };
+                    } else if (segmentIdVal GT 0) {
+                        normSql &= " AND ril.segment_id = :segmentId";
+                        normParams.segmentId = { value=segmentIdVal, cfsqltype="cf_sql_integer" };
+                    }
+
+                    normSql &= " ORDER BY ril.leg_order ASC, ril.id ASC LIMIT 1";
+                    qNormLeg = queryExecute(
+                        normSql,
+                        normParams,
+                        { datasource = application.dsn }
+                    );
+
+                    if (qNormLeg.recordCount GT 0) {
+                        normRouteLegId = (
+                            isNull(qNormLeg.source_loop_segment_id[1]) OR val(qNormLeg.source_loop_segment_id[1]) LTE 0
+                                ? val(qNormLeg.id[1])
+                                : val(qNormLeg.source_loop_segment_id[1])
+                        );
+                        legRow = {
+                            "ROUTE_LEG_ID"=normRouteLegId,
+                            "ORDER_INDEX"=(isNull(qNormLeg.leg_order[1]) ? 0 : val(qNormLeg.leg_order[1])),
+                            "START_NAME"=(isNull(qNormLeg.start_name[1]) ? "" : trim(toString(qNormLeg.start_name[1]))),
+                            "END_NAME"=(isNull(qNormLeg.end_name[1]) ? "" : trim(toString(qNormLeg.end_name[1]))),
+                            "DIST_NM"=(isNull(qNormLeg.base_dist_nm[1]) ? 0 : val(qNormLeg.base_dist_nm[1])),
+                            "START_POINT"={},
+                            "END_POINT"={}
+                        };
+                        routeLegIdVal = normRouteLegId;
+                        legOrderVal = (legOrderVal GT 0 ? legOrderVal : val(legRow.ORDER_INDEX));
+                        if (segmentIdVal LTE 0 AND !isNull(qNormLeg.segment_id[1])) {
+                            segmentIdVal = val(qNormLeg.segment_id[1]);
+                        }
+
+                        normStartLat = (isNull(qNormLeg.start_lat[1]) ? "" : qNormLeg.start_lat[1]);
+                        normStartLng = (isNull(qNormLeg.start_lng[1]) ? "" : qNormLeg.start_lng[1]);
+                        if (isNumeric(normStartLat) AND isNumeric(normStartLng)) {
+                            legRow.START_POINT = {
+                                "lat"=val(normStartLat),
+                                "lon"=val(normStartLng)
+                            };
+                        }
+
+                        normEndLat = (isNull(qNormLeg.end_lat[1]) ? "" : qNormLeg.end_lat[1]);
+                        normEndLng = (isNull(qNormLeg.end_lng[1]) ? "" : qNormLeg.end_lng[1]);
+                        if (isNumeric(normEndLat) AND isNumeric(normEndLng)) {
+                            legRow.END_POINT = {
+                                "lat"=val(normEndLat),
+                                "lon"=val(normEndLng)
+                            };
+                        }
+                    }
+                }
+
+                if (!structCount(legRow)) {
+                    out.MESSAGE = "Leg not found";
+                    out.ERROR = { "MESSAGE"="Requested route leg was not found in this route instance." };
+                    return out;
+                }
+                if (segmentIdVal LTE 0) {
+                    segmentIdVal = 0;
+                }
+
+                if (routeLegIdVal GT 0) {
+                    overrideRow = routegenReadLegOverride(arguments.userId, routeInfo.ROUTE_ID, routeLegIdVal);
+                }
+            }
+
+            if (!structCount(overrideRow) AND segmentIdVal GT 0) {
+                segmentOverrideRow = routegenReadLatestOverrideBySegment(arguments.userId, segmentIdVal);
+            }
+
+            defaultGeom = routegenLoadDefaultLegGeometry(segmentIdVal);
+            defaultNm = roundTo2(val(defaultGeom.DIST_NM));
+            if (structCount(legRow) AND defaultNm LTE 0) {
+                defaultNm = roundTo2(val(legRow.DIST_NM));
+            }
+
+            if (structCount(overrideRow)) {
+                effectivePoints = (structKeyExists(overrideRow, "POINTS") AND isArray(overrideRow.POINTS) ? overrideRow.POINTS : []);
+                effectiveNm = roundTo2(val(overrideRow.COMPUTED_NM));
+                hasExactOverride = true;
+                sourceVal = "user_override";
+            } else if (structCount(segmentOverrideRow)) {
+                effectivePoints = (structKeyExists(segmentOverrideRow, "POINTS") AND isArray(segmentOverrideRow.POINTS) ? segmentOverrideRow.POINTS : []);
+                effectiveNm = roundTo2(val(segmentOverrideRow.COMPUTED_NM));
+                if (effectiveNm LTE 0 AND arrayLen(effectivePoints) GTE 2) {
+                    effectiveNm = roundTo2(routegenCalculatePolylineNm(effectivePoints));
+                }
+                if (effectiveNm LTE 0) {
+                    effectiveNm = defaultNm;
+                }
+                hasSegmentOverride = true;
+                sourceVal = "user_segment";
+            } else {
+                effectivePoints = (structKeyExists(defaultGeom, "POINTS") AND isArray(defaultGeom.POINTS) ? defaultGeom.POINTS : []);
+                effectiveNm = defaultNm;
+                sourceVal = "default";
+            }
+
+            out.SUCCESS = true;
+            out.MESSAGE = "OK";
+            out.DATA = {
+                "route_id"=(structCount(routeInfo) ? routeInfo.ROUTE_ID : 0),
+                "route_code"=(structCount(routeInfo) ? routeInfo.ROUTE_CODE : ""),
+                "route_leg_id"=routeLegIdVal,
+                "leg_order"=legOrderVal,
+                "segment_id"=segmentIdVal,
+                "has_override"=hasExactOverride,
+                "has_segment_override"=hasSegmentOverride,
+                "source"=sourceVal,
+                "computed_nm"=roundTo2(effectiveNm),
+                "default_nm"=roundTo2(defaultNm),
+                "leg_start_point"=(
+                    structCount(legRow) AND structKeyExists(legRow, "START_POINT") AND isStruct(legRow.START_POINT)
+                        ? legRow.START_POINT
+                        : {}
+                ),
+                "leg_end_point"=(
+                    structCount(legRow) AND structKeyExists(legRow, "END_POINT") AND isStruct(legRow.END_POINT)
+                        ? legRow.END_POINT
+                        : {}
+                ),
+                "default_start_name"=(structKeyExists(defaultGeom, "START_NAME") ? defaultGeom.START_NAME : ""),
+                "default_end_name"=(structKeyExists(defaultGeom, "END_NAME") ? defaultGeom.END_NAME : ""),
+                "default_start_point"=(
+                    structKeyExists(defaultGeom, "START_POINT") AND isStruct(defaultGeom.START_POINT)
+                        ? defaultGeom.START_POINT
+                        : {}
+                ),
+                "default_end_point"=(
+                    structKeyExists(defaultGeom, "END_POINT") AND isStruct(defaultGeom.END_POINT)
+                        ? defaultGeom.END_POINT
+                        : {}
+                ),
+                "points"=effectivePoints
+            };
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenSaveLegOverride" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeCode" type="string" required="true">
+        <cfargument name="routeLegId" type="numeric" required="true">
+        <cfargument name="legOrder" type="numeric" required="false" default="0">
+        <cfargument name="segmentId" type="numeric" required="false" default="0">
+        <cfargument name="geometryRaw" type="any" required="true">
+        <cfargument name="overrideFieldsRaw" type="any" required="false" default="">
+        <cfscript>
+            var out = {
+                "SUCCESS"=false,
+                "AUTH"=true,
+                "MESSAGE"="Unable to save leg override",
+                "DATA"={}
+            };
+            var routeCodeVal = trim(arguments.routeCode);
+            var routeInfo = {};
+            var legRow = {};
+            var normalized = {};
+            var points = [];
+            var nm = 0;
+            var computedNm = 0;
+            var geometryJson = "";
+            var overrideFields = {};
+            var overrideFieldsJson = "";
+            var segmentIdVal = val(arguments.segmentId);
+            var legOrderVal = val(arguments.legOrder);
+
+            if (!len(routeCodeVal)) {
+                out.MESSAGE = "Route code required";
+                out.ERROR = { "MESSAGE"="route_code is required." };
+                return out;
+            }
+            if (arguments.routeLegId LTE 0) {
+                out.MESSAGE = "Route leg required";
+                out.ERROR = { "MESSAGE"="route_leg_id is required." };
+                return out;
+            }
+            if (!routegenHasLegOverrideTable()) {
+                out.MESSAGE = "Override table missing";
+                out.ERROR = { "MESSAGE"="Database migration for route_leg_user_overrides has not been applied." };
+                return out;
+            }
+
+            routeInfo = routegenResolveUserRoute(arguments.userId, routeCodeVal);
+            if (!structCount(routeInfo)) {
+                out.MESSAGE = "Route not found";
+                out.ERROR = { "MESSAGE"="Route not found or not owned by user." };
+                return out;
+            }
+            legRow = routegenReadRouteLeg(routeInfo.ROUTE_ID, arguments.routeLegId, arguments.userId);
+            if (!structCount(legRow)) {
+                out.MESSAGE = "Leg not found";
+                out.ERROR = { "MESSAGE"="Requested route leg was not found in this route." };
+                return out;
+            }
+
+            if (legOrderVal LTE 0) {
+                legOrderVal = routegenResolveRouteLegOrder(routeInfo.ROUTE_ID, arguments.routeLegId, arguments.userId);
+            }
+            if (legOrderVal LTE 0) {
+                legOrderVal = val(legRow.ORDER_INDEX);
+            }
+            if (segmentIdVal LT 0) segmentIdVal = 0;
+
+            normalized = routegenNormalizeOverridePoints(arguments.geometryRaw);
+            if (!normalized.ok) {
+                out.MESSAGE = "Validation failed";
+                out.ERROR = { "MESSAGE"=normalized.message, "DETAIL"=normalized.detail };
+                return out;
+            }
+            points = normalized.points;
+            if (arrayLen(points) LT 2) {
+                out.MESSAGE = "Validation failed";
+                out.ERROR = { "MESSAGE"="At least two points are required." };
+                return out;
+            }
+
+            nm = routegenCalculatePolylineNm(points);
+            computedNm = roundTo2(nm);
+            geometryJson = serializeJSON(points);
+
+            if (isStruct(arguments.overrideFieldsRaw)) {
+                overrideFields = duplicate(arguments.overrideFieldsRaw);
+            }
+            if (structCount(overrideFields)) {
+                overrideFieldsJson = serializeJSON(overrideFields);
+            }
+
+            queryExecute(
+                "INSERT INTO route_leg_user_overrides
+                    (user_id, route_id, route_leg_id, route_leg_order, segment_id, geometry_json, computed_nm, override_fields_json)
+                 VALUES
+                    (:userId, :routeId, :routeLegId, :routeLegOrder, :segmentId, :geometryJson, :computedNm, :overrideFieldsJson)
+                 ON DUPLICATE KEY UPDATE
+                    route_id = VALUES(route_id),
+                    route_leg_order = VALUES(route_leg_order),
+                    segment_id = VALUES(segment_id),
+                    geometry_json = VALUES(geometry_json),
+                    computed_nm = VALUES(computed_nm),
+                    override_fields_json = VALUES(override_fields_json),
+                    updated_at = NOW()",
+                {
+                    userId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                    routeId = { value=routeInfo.ROUTE_ID, cfsqltype="cf_sql_integer" },
+                    routeLegId = { value=arguments.routeLegId, cfsqltype="cf_sql_integer" },
+                    routeLegOrder = { value=legOrderVal, cfsqltype="cf_sql_integer" },
+                    segmentId = { value=segmentIdVal, cfsqltype="cf_sql_integer", null=(segmentIdVal LTE 0) },
+                    geometryJson = { value=geometryJson, cfsqltype="cf_sql_longvarchar" },
+                    computedNm = { value=computedNm, cfsqltype="cf_sql_decimal", scale=2 },
+                    overrideFieldsJson = { value=overrideFieldsJson, cfsqltype="cf_sql_longvarchar", null=NOT len(overrideFieldsJson) }
+                },
+                { datasource = application.dsn }
+            );
+
+            out.SUCCESS = true;
+            out.MESSAGE = "Leg override saved";
+            out.DATA = {
+                "route_id"=routeInfo.ROUTE_ID,
+                "route_code"=routeInfo.ROUTE_CODE,
+                "route_leg_id"=arguments.routeLegId,
+                "leg_order"=legOrderVal,
+                "segment_id"=segmentIdVal,
+                "has_override"=true,
+                "computed_nm"=computedNm,
+                "default_nm"=roundTo2(val(legRow.DIST_NM))
+            };
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenSaveSegmentOverride" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="segmentId" type="numeric" required="true">
+        <cfargument name="geometryRaw" type="any" required="true">
+        <cfargument name="overrideFieldsRaw" type="any" required="false" default="">
+        <cfscript>
+            var out = {
+                "SUCCESS"=false,
+                "AUTH"=true,
+                "MESSAGE"="Unable to save segment override",
+                "DATA"={}
+            };
+            var segmentIdVal = abs(val(arguments.segmentId));
+            var syntheticRouteLegId = 0;
+            var normalized = {};
+            var points = [];
+            var geometryJson = "";
+            var overrideFields = {};
+            var overrideFieldsJson = "";
+            var computedNm = 0;
+            var defaultGeom = {};
+            var defaultNm = 0;
+
+            if (segmentIdVal LTE 0) {
+                out.MESSAGE = "Segment required";
+                out.ERROR = { "MESSAGE"="segment_id is required." };
+                return out;
+            }
+            if (!routegenHasLegOverrideTable()) {
+                out.MESSAGE = "Override table missing";
+                out.ERROR = { "MESSAGE"="Database migration for route_leg_user_overrides has not been applied." };
+                return out;
+            }
+
+            normalized = routegenNormalizeOverridePoints(arguments.geometryRaw);
+            if (!normalized.ok) {
+                out.MESSAGE = "Validation failed";
+                out.ERROR = { "MESSAGE"=normalized.message, "DETAIL"=normalized.detail };
+                return out;
+            }
+            points = normalized.points;
+            if (arrayLen(points) LT 2) {
+                out.MESSAGE = "Validation failed";
+                out.ERROR = { "MESSAGE"="At least two points are required." };
+                return out;
+            }
+
+            computedNm = roundTo2(routegenCalculatePolylineNm(points));
+            geometryJson = serializeJSON(points);
+            syntheticRouteLegId = 0 - segmentIdVal;
+
+            if (isStruct(arguments.overrideFieldsRaw)) {
+                overrideFields = duplicate(arguments.overrideFieldsRaw);
+            }
+            if (structCount(overrideFields)) {
+                overrideFieldsJson = serializeJSON(overrideFields);
+            }
+
+            queryExecute(
+                "INSERT INTO route_leg_user_overrides
+                    (user_id, route_id, route_leg_id, route_leg_order, segment_id, geometry_json, computed_nm, override_fields_json)
+                 VALUES
+                    (:userId, 0, :routeLegId, 0, :segmentId, :geometryJson, :computedNm, :overrideFieldsJson)
+                 ON DUPLICATE KEY UPDATE
+                    route_id = 0,
+                    route_leg_order = 0,
+                    segment_id = VALUES(segment_id),
+                    geometry_json = VALUES(geometry_json),
+                    computed_nm = VALUES(computed_nm),
+                    override_fields_json = VALUES(override_fields_json),
+                    updated_at = NOW()",
+                {
+                    userId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                    routeLegId = { value=syntheticRouteLegId, cfsqltype="cf_sql_integer" },
+                    segmentId = { value=segmentIdVal, cfsqltype="cf_sql_integer" },
+                    geometryJson = { value=geometryJson, cfsqltype="cf_sql_longvarchar" },
+                    computedNm = { value=computedNm, cfsqltype="cf_sql_decimal", scale=2 },
+                    overrideFieldsJson = { value=overrideFieldsJson, cfsqltype="cf_sql_longvarchar", null=NOT len(overrideFieldsJson) }
+                },
+                { datasource = application.dsn }
+            );
+
+            defaultGeom = routegenLoadDefaultLegGeometry(segmentIdVal);
+            defaultNm = roundTo2(val(defaultGeom.DIST_NM));
+
+            out.SUCCESS = true;
+            out.MESSAGE = "Segment override saved";
+            out.DATA = {
+                "route_id"=0,
+                "route_code"="",
+                "route_leg_id"=syntheticRouteLegId,
+                "segment_id"=segmentIdVal,
+                "has_override"=false,
+                "has_segment_override"=true,
+                "source"="user_segment",
+                "computed_nm"=computedNm,
+                "default_nm"=defaultNm
+            };
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenClearSegmentOverride" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="segmentId" type="numeric" required="true">
+        <cfscript>
+            var out = {
+                "SUCCESS"=false,
+                "AUTH"=true,
+                "MESSAGE"="Unable to clear segment override",
+                "DATA"={}
+            };
+            var segmentIdVal = abs(val(arguments.segmentId));
+            var syntheticRouteLegId = 0;
+            var defaultGeom = {};
+            var defaultNm = 0;
+
+            if (segmentIdVal LTE 0) {
+                out.MESSAGE = "Segment required";
+                out.ERROR = { "MESSAGE"="segment_id is required." };
+                return out;
+            }
+            if (!routegenHasLegOverrideTable()) {
+                out.MESSAGE = "Override table missing";
+                out.ERROR = { "MESSAGE"="Database migration for route_leg_user_overrides has not been applied." };
+                return out;
+            }
+
+            syntheticRouteLegId = 0 - segmentIdVal;
+            queryExecute(
+                "DELETE FROM route_leg_user_overrides
+                 WHERE user_id = :uid
+                   AND route_id = 0
+                   AND route_leg_id = :legId
+                   AND segment_id = :segmentId",
+                {
+                    uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                    legId = { value=syntheticRouteLegId, cfsqltype="cf_sql_integer" },
+                    segmentId = { value=segmentIdVal, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+
+            defaultGeom = routegenLoadDefaultLegGeometry(segmentIdVal);
+            defaultNm = roundTo2(val(defaultGeom.DIST_NM));
+
+            out.SUCCESS = true;
+            out.MESSAGE = "Segment override cleared";
+            out.DATA = {
+                "route_id"=0,
+                "route_code"="",
+                "route_leg_id"=syntheticRouteLegId,
+                "segment_id"=segmentIdVal,
+                "has_override"=false,
+                "has_segment_override"=false,
+                "source"="default",
+                "computed_nm"=defaultNm,
+                "default_nm"=defaultNm
+            };
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenClearLegOverride" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeCode" type="string" required="true">
+        <cfargument name="routeLegId" type="numeric" required="true">
+        <cfscript>
+            var out = {
+                "SUCCESS"=false,
+                "AUTH"=true,
+                "MESSAGE"="Unable to clear leg override",
+                "DATA"={}
+            };
+            var routeCodeVal = trim(arguments.routeCode);
+            var routeInfo = {};
+            var legRow = {};
+            var legOrderVal = 0;
+
+            if (!len(routeCodeVal)) {
+                out.MESSAGE = "Route code required";
+                out.ERROR = { "MESSAGE"="route_code is required." };
+                return out;
+            }
+            if (arguments.routeLegId LTE 0) {
+                out.MESSAGE = "Route leg required";
+                out.ERROR = { "MESSAGE"="route_leg_id is required." };
+                return out;
+            }
+            routeInfo = routegenResolveUserRoute(arguments.userId, routeCodeVal);
+            if (!structCount(routeInfo)) {
+                out.MESSAGE = "Route not found";
+                out.ERROR = { "MESSAGE"="Route not found or not owned by user." };
+                return out;
+            }
+            legRow = routegenReadRouteLeg(routeInfo.ROUTE_ID, arguments.routeLegId, arguments.userId);
+            if (!structCount(legRow)) {
+                out.MESSAGE = "Leg not found";
+                out.ERROR = { "MESSAGE"="Requested route leg was not found in this route." };
+                return out;
+            }
+
+            if (routegenHasLegOverrideTable()) {
+                queryExecute(
+                    "DELETE FROM route_leg_user_overrides
+                     WHERE user_id = :uid
+                       AND route_id = :rid
+                       AND route_leg_id = :legId",
+                    {
+                        uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                        rid = { value=routeInfo.ROUTE_ID, cfsqltype="cf_sql_integer" },
+                        legId = { value=arguments.routeLegId, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource = application.dsn }
+                );
+            }
+
+            legOrderVal = routegenResolveRouteLegOrder(routeInfo.ROUTE_ID, arguments.routeLegId, arguments.userId);
+
+            out.SUCCESS = true;
+            out.MESSAGE = "Leg override cleared";
+            out.DATA = {
+                "route_id"=routeInfo.ROUTE_ID,
+                "route_code"=routeInfo.ROUTE_CODE,
+                "route_leg_id"=arguments.routeLegId,
+                "leg_order"=legOrderVal,
+                "has_override"=false,
+                "default_nm"=roundTo2(val(legRow.DIST_NM)),
+                "computed_nm"=roundTo2(val(legRow.DIST_NM))
+            };
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenListLegOverrides" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeCode" type="string" required="true">
+        <cfscript>
+            var out = {
+                "SUCCESS"=false,
+                "AUTH"=true,
+                "MESSAGE"="Unable to load leg overrides",
+                "DATA"={ "overrides"=[] }
+            };
+            var routeCodeVal = trim(arguments.routeCode);
+            var routeInfo = {};
+            var q = queryNew("");
+            var i = 0;
+
+            if (!len(routeCodeVal)) {
+                out.MESSAGE = "Route code required";
+                out.ERROR = { "MESSAGE"="route_code is required." };
+                return out;
+            }
+            routeInfo = routegenResolveUserRoute(arguments.userId, routeCodeVal);
+            if (!structCount(routeInfo)) {
+                out.MESSAGE = "Route not found";
+                out.ERROR = { "MESSAGE"="Route not found or not owned by user." };
+                return out;
+            }
+
+            if (routegenHasLegOverrideTable()) {
+                q = queryExecute(
+                    "SELECT route_leg_id, route_leg_order, segment_id, computed_nm
+                     FROM route_leg_user_overrides
+                     WHERE user_id = :uid
+                       AND route_id = :rid
+                     ORDER BY route_leg_order ASC, route_leg_id ASC",
+                    {
+                        uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                        rid = { value=routeInfo.ROUTE_ID, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource = application.dsn }
+                );
+                for (i = 1; i LTE q.recordCount; i++) {
+                    arrayAppend(out.DATA.overrides, {
+                        "route_leg_id"=val(q.route_leg_id[i]),
+                        "leg_order"=(isNull(q.route_leg_order[i]) ? 0 : val(q.route_leg_order[i])),
+                        "segment_id"=(isNull(q.segment_id[i]) ? 0 : val(q.segment_id[i])),
+                        "computed_nm"=(isNull(q.computed_nm[i]) ? 0 : roundTo2(val(q.computed_nm[i])))
+                    });
+                }
+            }
+
+            out.SUCCESS = true;
+            out.MESSAGE = "OK";
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenRemapLegOverrideIds" access="private" returntype="void" output="false">
+        <cfargument name="routeId" type="numeric" required="true">
+        <cfargument name="oldLegMapByOrder" type="struct" required="true">
+        <cfargument name="newLegIdByOrder" type="struct" required="true">
+        <cfargument name="legs" type="array" required="true">
+        <cfscript>
+            var orderKey = "";
+            var orderNum = 0;
+            var oldLegId = 0;
+            var newLegId = 0;
+            var segmentId = 0;
+            if (!routegenHasLegOverrideTable()) return;
+            if (arguments.routeId LTE 0) return;
+
+            for (orderKey in arguments.newLegIdByOrder) {
+                orderNum = val(orderKey);
+                newLegId = val(arguments.newLegIdByOrder[orderKey]);
+                if (orderNum LTE 0 OR newLegId LTE 0) continue;
+
+                oldLegId = 0;
+                if (
+                    structKeyExists(arguments.oldLegMapByOrder, orderKey)
+                    AND isStruct(arguments.oldLegMapByOrder[orderKey])
+                    AND structKeyExists(arguments.oldLegMapByOrder[orderKey], "ROUTE_LEG_ID")
+                ) {
+                    oldLegId = val(arguments.oldLegMapByOrder[orderKey].ROUTE_LEG_ID);
+                }
+
+                segmentId = 0;
+                if (
+                    orderNum LTE arrayLen(arguments.legs)
+                    AND isStruct(arguments.legs[orderNum])
+                    AND structKeyExists(arguments.legs[orderNum], "segment_id")
+                ) {
+                    segmentId = val(arguments.legs[orderNum].segment_id);
+                }
+
+                if (oldLegId GT 0 AND oldLegId NEQ newLegId) {
+                    queryExecute(
+                        "UPDATE route_leg_user_overrides
+                         SET route_leg_id = :newLegId,
+                             route_leg_order = :legOrder,
+                             segment_id = :segmentId,
+                             updated_at = NOW()
+                         WHERE route_id = :routeId
+                           AND route_leg_id = :oldLegId",
+                        {
+                            newLegId = { value=newLegId, cfsqltype="cf_sql_integer" },
+                            legOrder = { value=orderNum, cfsqltype="cf_sql_integer" },
+                            segmentId = { value=segmentId, cfsqltype="cf_sql_integer", null=(segmentId LTE 0) },
+                            routeId = { value=arguments.routeId, cfsqltype="cf_sql_integer" },
+                            oldLegId = { value=oldLegId, cfsqltype="cf_sql_integer" }
+                        },
+                        { datasource = application.dsn }
+                    );
+                } else if (oldLegId EQ newLegId AND oldLegId GT 0) {
+                    queryExecute(
+                        "UPDATE route_leg_user_overrides
+                         SET route_leg_order = :legOrder,
+                             segment_id = :segmentId,
+                             updated_at = NOW()
+                         WHERE route_id = :routeId
+                           AND route_leg_id = :legId",
+                        {
+                            legOrder = { value=orderNum, cfsqltype="cf_sql_integer" },
+                            segmentId = { value=segmentId, cfsqltype="cf_sql_integer", null=(segmentId LTE 0) },
+                            routeId = { value=arguments.routeId, cfsqltype="cf_sql_integer" },
+                            legId = { value=oldLegId, cfsqltype="cf_sql_integer" }
+                        },
+                        { datasource = application.dsn }
+                    );
+                }
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenToRadians" access="private" returntype="numeric" output="false">
+        <cfargument name="deg" type="numeric" required="true">
+        <cfreturn arguments.deg * (pi() / 180)>
+    </cffunction>
+
+    <cffunction name="routegenAtn2Compat" access="private" returntype="numeric" output="false">
+        <cfargument name="y" type="numeric" required="true">
+        <cfargument name="x" type="numeric" required="true">
+        <cfscript>
+            var piVal = pi();
+            if (arguments.x GT 0) {
+                return atn(arguments.y / arguments.x);
+            }
+            if (arguments.x LT 0 AND arguments.y GTE 0) {
+                return atn(arguments.y / arguments.x) + piVal;
+            }
+            if (arguments.x LT 0 AND arguments.y LT 0) {
+                return atn(arguments.y / arguments.x) - piVal;
+            }
+            if (arguments.x EQ 0 AND arguments.y GT 0) {
+                return piVal / 2;
+            }
+            if (arguments.x EQ 0 AND arguments.y LT 0) {
+                return -piVal / 2;
+            }
+            return 0;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenHaversineMeters" access="private" returntype="numeric" output="false">
+        <cfargument name="lat1" type="numeric" required="true">
+        <cfargument name="lon1" type="numeric" required="true">
+        <cfargument name="lat2" type="numeric" required="true">
+        <cfargument name="lon2" type="numeric" required="true">
+        <cfscript>
+            var earthRadiusMeters = 6371008.8;
+            var dLat = routegenToRadians(arguments.lat2 - arguments.lat1);
+            var dLon = routegenToRadians(arguments.lon2 - arguments.lon1);
+            var phi1 = routegenToRadians(arguments.lat1);
+            var phi2 = routegenToRadians(arguments.lat2);
+            var a = (sin(dLat / 2) ^ 2) + cos(phi1) * cos(phi2) * (sin(dLon / 2) ^ 2);
+            if (a LT 0) a = 0;
+            if (a GT 1) a = 1;
+            var c = 2 * routegenAtn2Compat(sqr(a), sqr(1 - a));
+            return earthRadiusMeters * c;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenCalculatePolylineNm" access="private" returntype="numeric" output="false">
+        <cfargument name="points" type="array" required="true">
+        <cfscript>
+            var totalMeters = 0.0;
+            var i = 0;
+            if (arrayLen(arguments.points) LT 2) {
+                return 0;
+            }
+            for (i = 2; i LTE arrayLen(arguments.points); i++) {
+                totalMeters += routegenHaversineMeters(
+                    arguments.points[i - 1].lat,
+                    arguments.points[i - 1].lon,
+                    arguments.points[i].lat,
+                    arguments.points[i].lon
+                );
+            }
+            return totalMeters / 1852;
         </cfscript>
     </cffunction>
 
@@ -4178,7 +5302,10 @@
                 "DATA"={}
             };
 
-            var preview = routegenBuildPreview(arguments.input);
+            var preview = routegenBuildPreview(
+                userId = arguments.userId,
+                input = arguments.input
+            );
             if (!preview.SUCCESS) {
                 return preview;
             }
@@ -4188,6 +5315,11 @@
             if (!arrayLen(legs)) {
                 out.MESSAGE = "Preview returned no legs";
                 out.ERROR = { "MESSAGE"="No route legs available for generation." };
+                return out;
+            }
+            if (!routegenHasNormalizedTables()) {
+                out.MESSAGE = "Normalized route tables are unavailable";
+                out.ERROR = { "MESSAGE"="route_instance_* tables are required for route generation." };
                 return out;
             }
 
@@ -4224,14 +5356,8 @@
             var instanceInputsJson = routegenSerializeInputsForInstance(instanceInputs);
             var hasInputsJsonCol = routegenHasInputsJsonColumn();
             var newRouteId = 0;
-            var newSectionId = 0;
             var routeInstanceId = 0;
-            var i = 0;
-            var leg = {};
-            var distBind = {};
-            var lockBind = {};
-            var notesBind = {};
-            var notesVal = "";
+            var rebuildRes = {};
 
             transaction {
                 queryExecute(
@@ -4248,66 +5374,6 @@
                     { datasource = application.dsn, result = "routegenRouteIns" }
                 );
                 newRouteId = val(routegenRouteIns.generatedKey);
-
-                queryExecute(
-                    "INSERT INTO loop_sections
-                        (route_id, name, slug, short_code, phase_num, order_index, is_active_default)
-                     VALUES
-                        (:rid, :name, :slug, :shortCode, 1, 1, 1)",
-                    {
-                        rid = { value=newRouteId, cfsqltype="cf_sql_integer" },
-                        name = { value="Route", cfsqltype="cf_sql_varchar" },
-                        slug = { value="route", cfsqltype="cf_sql_varchar" },
-                        shortCode = { value="ROUTE", cfsqltype="cf_sql_varchar" }
-                    },
-                    { datasource = application.dsn, result = "routegenSecIns" }
-                );
-                newSectionId = val(routegenSecIns.generatedKey);
-
-                for (i = 1; i LTE arrayLen(legs); i++) {
-                    leg = legs[i];
-                    distBind = toNullableNumber(leg.dist_nm, "numeric");
-                    lockBind = toNullableNumber(leg.lock_count, "integer");
-                    notesVal = trim(toString(structKeyExists(leg, "notes") ? leg.notes : ""));
-                    if (toBoolean(leg.is_optional, false) AND len(trim(toString(leg.detour_code)))) {
-                        if (len(notesVal)) notesVal &= " ";
-                        notesVal &= "[Optional stop: " & trim(toString(leg.detour_code)) & "]";
-                    }
-                    notesBind = toNullableString(notesVal);
-                    if (!notesBind.isNull AND len(notesBind.value) GT 255) {
-                        notesBind.value = left(notesBind.value, 255);
-                    }
-
-                    queryExecute(
-                        "INSERT INTO loop_segments
-                            (section_id, order_index, start_name, end_name, dist_nm, lock_count, rm_start, rm_end, is_signature_event, is_milestone_end, notes)
-                         VALUES
-                            (:sectionId, :orderIndex, :startName, :endName, :distNm, :lockCount, NULL, NULL, 0, 0, :notes)",
-                        {
-                            sectionId = { value=newSectionId, cfsqltype="cf_sql_integer" },
-                            orderIndex = { value=i, cfsqltype="cf_sql_integer" },
-                            startName = { value=trim(toString(leg.start_name)), cfsqltype="cf_sql_varchar" },
-                            endName = { value=trim(toString(leg.end_name)), cfsqltype="cf_sql_varchar" },
-                            distNm = { value=distBind.value, cfsqltype="cf_sql_decimal", null=distBind.isNull },
-                            lockCount = { value=lockBind.value, cfsqltype="cf_sql_integer", null=lockBind.isNull },
-                            notes = { value=notesBind.value, cfsqltype="cf_sql_varchar", null=notesBind.isNull }
-                        },
-                        { datasource = application.dsn }
-                    );
-                }
-
-                queryExecute(
-                    "INSERT INTO user_route_progress (user_id, segment_id, status, completed_at)
-                     SELECT :uid, s.id, 'NOT_STARTED', NULL
-                     FROM loop_segments s
-                     INNER JOIN loop_sections sec ON sec.id = s.section_id
-                     WHERE sec.route_id = :rid",
-                    {
-                        uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
-                        rid = { value=newRouteId, cfsqltype="cf_sql_integer" }
-                    },
-                    { datasource = application.dsn }
-                );
 
                 if (hasInputsJsonCol) {
                     queryExecute(
@@ -4348,6 +5414,11 @@
                     );
                 }
                 routeInstanceId = val(routegenInstIns.generatedKey);
+                rebuildRes = routegenRebuildNormalizedInstanceLegs(
+                    userId = arguments.userId,
+                    routeInstanceId = routeInstanceId,
+                    legs = legs
+                );
             }
 
             session.expeditionRouteCode = routeCode;
@@ -4400,7 +5471,13 @@
                 return out;
             }
 
-            var preview = routegenBuildPreview(arguments.input);
+            if (!len(trim(toString(arguments.input.route_code)))) {
+                arguments.input.route_code = trim(arguments.routeCode);
+            }
+            var preview = routegenBuildPreview(
+                userId = arguments.userId,
+                input = arguments.input
+            );
             if (!preview.SUCCESS) {
                 return preview;
             }
@@ -4410,6 +5487,11 @@
             if (!arrayLen(legs)) {
                 out.MESSAGE = "Preview returned no legs";
                 out.ERROR = { "MESSAGE"="No route legs available for update." };
+                return out;
+            }
+            if (!routegenHasNormalizedTables()) {
+                out.MESSAGE = "Normalized route tables are unavailable";
+                out.ERROR = { "MESSAGE"="route_instance_* tables are required for route updates." };
                 return out;
             }
 
@@ -4447,16 +5529,12 @@
             var totals = (structKeyExists(data, "totals") ? data.totals : {});
             var totalNmBind = toNullableNumber((structKeyExists(totals, "total_nm") ? totals.total_nm : ""), "numeric");
             var totalLocksBind = toNullableNumber((structKeyExists(totals, "lock_count") ? totals.lock_count : ""), "integer");
+            var oldLegMapByOrder = routegenLoadRouteLegMap(routeId, arguments.userId);
+            var newLegIdByOrder = {};
 
-            var newSectionId = 0;
+            var rebuildRes = {};
             var routeInstanceId = 0;
             var qInst = queryNew("");
-            var i = 0;
-            var leg = {};
-            var distBind = {};
-            var lockBind = {};
-            var notesBind = {};
-            var notesVal = "";
 
             transaction {
                 queryExecute(
@@ -4472,73 +5550,6 @@
                         descr = { value=routeDesc, cfsqltype="cf_sql_varchar", null=NOT len(routeDesc) },
                         totalNm = { value=totalNmBind.value, cfsqltype="cf_sql_decimal", null=totalNmBind.isNull },
                         totalLocks = { value=totalLocksBind.value, cfsqltype="cf_sql_integer", null=totalLocksBind.isNull },
-                        rid = { value=routeId, cfsqltype="cf_sql_integer" }
-                    },
-                    { datasource = application.dsn }
-                );
-
-                queryExecute(
-                    "DELETE FROM loop_sections
-                     WHERE route_id = :rid",
-                    { rid = { value=routeId, cfsqltype="cf_sql_integer" } },
-                    { datasource = application.dsn }
-                );
-
-                queryExecute(
-                    "INSERT INTO loop_sections
-                        (route_id, name, slug, short_code, phase_num, order_index, is_active_default)
-                     VALUES
-                        (:rid, :name, :slug, :shortCode, 1, 1, 1)",
-                    {
-                        rid = { value=routeId, cfsqltype="cf_sql_integer" },
-                        name = { value="Route", cfsqltype="cf_sql_varchar" },
-                        slug = { value="route", cfsqltype="cf_sql_varchar" },
-                        shortCode = { value="ROUTE", cfsqltype="cf_sql_varchar" }
-                    },
-                    { datasource = application.dsn, result = "routegenUpdSecIns" }
-                );
-                newSectionId = val(routegenUpdSecIns.generatedKey);
-
-                for (i = 1; i LTE arrayLen(legs); i++) {
-                    leg = legs[i];
-                    distBind = toNullableNumber(leg.dist_nm, "numeric");
-                    lockBind = toNullableNumber(leg.lock_count, "integer");
-                    notesVal = trim(toString(structKeyExists(leg, "notes") ? leg.notes : ""));
-                    if (toBoolean(leg.is_optional, false) AND len(trim(toString(leg.detour_code)))) {
-                        if (len(notesVal)) notesVal &= " ";
-                        notesVal &= "[Optional stop: " & trim(toString(leg.detour_code)) & "]";
-                    }
-                    notesBind = toNullableString(notesVal);
-                    if (!notesBind.isNull AND len(notesBind.value) GT 255) {
-                        notesBind.value = left(notesBind.value, 255);
-                    }
-
-                    queryExecute(
-                        "INSERT INTO loop_segments
-                            (section_id, order_index, start_name, end_name, dist_nm, lock_count, rm_start, rm_end, is_signature_event, is_milestone_end, notes)
-                         VALUES
-                            (:sectionId, :orderIndex, :startName, :endName, :distNm, :lockCount, NULL, NULL, 0, 0, :notes)",
-                        {
-                            sectionId = { value=newSectionId, cfsqltype="cf_sql_integer" },
-                            orderIndex = { value=i, cfsqltype="cf_sql_integer" },
-                            startName = { value=trim(toString(leg.start_name)), cfsqltype="cf_sql_varchar" },
-                            endName = { value=trim(toString(leg.end_name)), cfsqltype="cf_sql_varchar" },
-                            distNm = { value=distBind.value, cfsqltype="cf_sql_decimal", null=distBind.isNull },
-                            lockCount = { value=lockBind.value, cfsqltype="cf_sql_integer", null=lockBind.isNull },
-                            notes = { value=notesBind.value, cfsqltype="cf_sql_varchar", null=notesBind.isNull }
-                        },
-                        { datasource = application.dsn }
-                    );
-                }
-
-                queryExecute(
-                    "INSERT INTO user_route_progress (user_id, segment_id, status, completed_at)
-                     SELECT :uid, s.id, 'NOT_STARTED', NULL
-                     FROM loop_segments s
-                     INNER JOIN loop_sections sec ON sec.id = s.section_id
-                     WHERE sec.route_id = :rid",
-                    {
-                        uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
                         rid = { value=routeId, cfsqltype="cf_sql_integer" }
                     },
                     { datasource = application.dsn }
@@ -4650,6 +5661,13 @@
                     }
                     routeInstanceId = val(routegenUpdInstIns.generatedKey);
                 }
+                rebuildRes = routegenRebuildNormalizedInstanceLegs(
+                    userId = arguments.userId,
+                    routeInstanceId = routeInstanceId,
+                    legs = legs
+                );
+                newLegIdByOrder = (structKeyExists(rebuildRes, "LEG_ID_BY_ORDER") AND isStruct(rebuildRes.LEG_ID_BY_ORDER) ? rebuildRes.LEG_ID_BY_ORDER : {});
+                routegenRemapLegOverrideIds(routeId, oldLegMapByOrder, newLegIdByOrder, legs);
             }
 
             session.expeditionRouteCode = routeCodeVal;

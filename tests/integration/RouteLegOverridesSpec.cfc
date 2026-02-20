@@ -17,12 +17,6 @@ component extends="testbox.system.BaseSpec" output="false" {
     }
 
     variables.ctx.baseUrl = scheme & "://" & host & portPart;
-    variables.ctx.routeBuilderActionBase = variables.ctx.baseUrl & "/fpw/api/v1/routeBuilder.cfc?method=handle&action=";
-    variables.ctx.floatPlanSaveUrl = variables.ctx.baseUrl & "/fpw/api/v1/floatplan.cfc?method=handle&action=save";
-    variables.ctx.floatPlanBootstrapUrl = variables.ctx.baseUrl & "/fpw/api/v1/floatplan.cfc?method=handle&action=bootstrap";
-    variables.ctx.forceVesselId = structKeyExists( url, "testVesselId" ) && isNumeric( url.testVesselId )
-      ? val( url.testVesselId )
-      : 0;
     variables.ctx.forceUserId = structKeyExists( url, "testUserId" ) && isNumeric( url.testUserId )
       ? val( url.testUserId )
       : 187;
@@ -32,22 +26,15 @@ component extends="testbox.system.BaseSpec" output="false" {
   }
 
   function run() {
-    describe( "Route Generator 2.0 Phase 1 linkage", function() {
-      it( "creates route_instance on routegen_generate and persists link on floatplan save", function() {
+    describe( "Route Builder leg override APIs", function() {
+      it( "saves and clears user leg geometry override", function() {
         if ( !variables.ctx.sessionReady ) {
           skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
         }
 
-        var bootstrap = apiGetJson( variables.ctx.floatPlanBootstrapUrl & "&id=0" );
-        var vesselId = variables.ctx.forceVesselId > 0
-          ? variables.ctx.forceVesselId
-          : extractIdFromList( bootstrap, "VESSELS", "VESSELID" );
-        if ( vesselId LTE 0 ) {
-          skip( "No vessel available for test user. Provide testVesselId." );
-        }
-
-        var optionsRes = apiPostJson( variables.ctx.routeBuilderActionBase & "routegen_getoptions", {
-          direction = "CCW"
+        var optionsRes = routeBuilderPost( "routegen_getoptions", {
+          direction = "CCW",
+          tripType = "POINT_TO_POINT"
         } );
         expect( pickBool( optionsRes, "SUCCESS" ) ).toBeTrue( "routegen_getoptions failed: #serializeJSON(optionsRes)#" );
 
@@ -78,47 +65,83 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( startSegmentId ).toBeGT( 0, "Invalid start segment from routegen_getoptions: #serializeJSON(optionsRes)#" );
         expect( endSegmentId ).toBeGT( 0, "Invalid end segment from routegen_getoptions: #serializeJSON(optionsRes)#" );
 
-        var genRes = apiPostJson( variables.ctx.routeBuilderActionBase & "routegen_generate", {
+        var generateRes = routeBuilderPost( "routegen_generate", {
           template_code = templateCode,
           start_segment_id = startSegmentId,
           end_segment_id = endSegmentId,
           start_date = dateFormat( now(), "yyyy-mm-dd" ),
           direction = "CCW"
         } );
-        expect( pickBool( genRes, "SUCCESS" ) ).toBeTrue( "routegen_generate failed: #serializeJSON(genRes)#" );
+        expect( pickBool( generateRes, "SUCCESS" ) ).toBeTrue( "routegen_generate failed: #serializeJSON(generateRes)#" );
 
-        var routeInstanceId = val( pickFirst( genRes, [ "ROUTE_INSTANCE_ID", "route_instance_id", "routeInstanceId" ], 0 ) );
-        expect( routeInstanceId ).toBeGT( 0, "Expected ROUTE_INSTANCE_ID in routegen_generate response: #serializeJSON(genRes)#" );
+        var routeCode = trim( toString( pickFirst( generateRes, [ "ROUTE_CODE", "route_code", "routeCode" ], "" ) ) );
+        expect( len( routeCode ) ).toBeGT( 0, "Missing routeCode from routegen_generate: #serializeJSON(generateRes)#" );
 
-        var departDt = dateAdd( "h", 2, now() );
-        var returnDt = dateAdd( "h", 6, now() );
-        var saveRes = apiPostJson( variables.ctx.floatPlanSaveUrl, {
-          FLOATPLAN = {
-            floatPlanName = "Route Instance Link Spec " & uniqueSuffix(),
-            vesselId = vesselId,
-            departingFrom = "Test Dock",
-            departureTime = dtString( departDt ),
-            departureTimezone = "America/New_York",
-            returningTo = "Test Dock",
-            returnTime = dtString( returnDt ),
-            returnTimezone = "America/New_York",
-            routeInstanceId = routeInstanceId,
-            routeDayNumber = 1
-          }
+        var editContextRes = routeBuilderPost( "routegen_geteditcontext", {
+          route_code = routeCode
         } );
-        expect( pickBool( saveRes, "SUCCESS" ) ).toBeTrue( "Floatplan save failed: #serializeJSON(saveRes)#" );
+        expect( pickBool( editContextRes, "SUCCESS" ) ).toBeTrue( "routegen_geteditcontext failed: #serializeJSON(editContextRes)#" );
 
-        var floatPlanId = extractId( saveRes );
-        expect( len( floatPlanId ) ).toBeGT( 0, "Could not extract floatPlanId from save response: #serializeJSON(saveRes)#" );
+        var inputs = ( structKeyExists( editContextRes, "DATA" ) && isStruct( editContextRes.DATA ) && structKeyExists( editContextRes.DATA, "inputs" ) )
+          ? duplicate( editContextRes.DATA.inputs )
+          : {};
+        inputs.route_code = routeCode;
 
-        var getRes = apiGetJson( variables.ctx.floatPlanBootstrapUrl & "&id=" & urlEncodedFormat( floatPlanId ) );
-        var plan = structKeyExists( getRes, "FLOATPLAN" ) && isStruct( getRes.FLOATPLAN ) ? getRes.FLOATPLAN : {};
-        expect( isStruct( plan ) ).toBeTrue( "Could not extract FLOATPLAN from bootstrap response: #serializeJSON(getRes)#" );
+        var previewRes = routeBuilderPost( "routegen_preview", inputs );
+        expect( pickBool( previewRes, "SUCCESS" ) ).toBeTrue( "routegen_preview failed: #serializeJSON(previewRes)#" );
 
-        var savedRouteInstanceId = val( pickFirst( plan, [ "ROUTE_INSTANCE_ID", "route_instance_id", "routeInstanceId" ], 0 ) );
-        var savedRouteDayNumber = val( pickFirst( plan, [ "ROUTE_DAY_NUMBER", "route_day_number", "routeDayNumber" ], 0 ) );
-        expect( savedRouteInstanceId ).toBe( routeInstanceId );
-        expect( savedRouteDayNumber ).toBe( 1 );
+        var legs = ( structKeyExists( previewRes, "DATA" ) && isStruct( previewRes.DATA ) && structKeyExists( previewRes.DATA, "legs" ) && isArray( previewRes.DATA.legs ) )
+          ? previewRes.DATA.legs
+          : [];
+        expect( arrayLen( legs ) ).toBeGT( 0, "routegen_preview returned no legs: #serializeJSON(previewRes)#" );
+
+        var firstLeg = legs[ 1 ];
+        var routeLegId = val( pickFirst( firstLeg, [ "route_leg_id", "ROUTE_LEG_ID" ], 0 ) );
+        var legOrder = val( pickFirst( firstLeg, [ "order_index", "ORDER_INDEX" ], 0 ) );
+        var segmentId = val( pickFirst( firstLeg, [ "segment_id", "SEGMENT_ID" ], 0 ) );
+
+        expect( routeLegId ).toBeGT( 0, "Expected preview leg to include route_leg_id: #serializeJSON(firstLeg)#" );
+        expect( legOrder ).toBeGT( 0, "Expected preview leg order index: #serializeJSON(firstLeg)#" );
+
+        var saveRes = routeBuilderPost( "routegen_savelegoverride", {
+          route_code = routeCode,
+          route_leg_id = routeLegId,
+          leg_order = legOrder,
+          segment_id = segmentId,
+          geometry = [
+            { lat = 41.900000, lon = -87.600000 },
+            { lat = 42.050000, lon = -87.100000 },
+            { lat = 42.200000, lon = -86.700000 }
+          ]
+        } );
+        expect( pickBool( saveRes, "SUCCESS" ) ).toBeTrue( "routegen_savelegoverride failed: #serializeJSON(saveRes)#" );
+
+        var savedNm = val( pickNested( saveRes, [ "DATA", "computed_nm" ], 0 ) );
+        expect( savedNm ).toBeGT( 0, "Expected computed_nm > 0 from save: #serializeJSON(saveRes)#" );
+
+        var getRes = routeBuilderPost( "routegen_getleggeometry", {
+          route_code = routeCode,
+          route_leg_id = routeLegId,
+          leg_order = legOrder,
+          segment_id = segmentId
+        } );
+        expect( pickBool( getRes, "SUCCESS" ) ).toBeTrue( "routegen_getleggeometry failed: #serializeJSON(getRes)#" );
+        expect( !!pickNested( getRes, [ "DATA", "has_override" ], false ) ).toBeTrue( "Expected has_override=true after save: #serializeJSON(getRes)#" );
+
+        var clearRes = routeBuilderPost( "routegen_clearlegoverride", {
+          route_code = routeCode,
+          route_leg_id = routeLegId
+        } );
+        expect( pickBool( clearRes, "SUCCESS" ) ).toBeTrue( "routegen_clearlegoverride failed: #serializeJSON(clearRes)#" );
+
+        var getAfterClearRes = routeBuilderPost( "routegen_getleggeometry", {
+          route_code = routeCode,
+          route_leg_id = routeLegId,
+          leg_order = legOrder,
+          segment_id = segmentId
+        } );
+        expect( pickBool( getAfterClearRes, "SUCCESS" ) ).toBeTrue( "routegen_getleggeometry(after clear) failed: #serializeJSON(getAfterClearRes)#" );
+        expect( !!pickNested( getAfterClearRes, [ "DATA", "has_override" ], true ) ).toBeFalse( "Expected has_override=false after clear: #serializeJSON(getAfterClearRes)#" );
       } );
     } );
   }
@@ -152,10 +175,12 @@ component extends="testbox.system.BaseSpec" output="false" {
     return cookiePairs;
   }
 
-  private struct function apiPostJson( required string url, required struct body ) {
+  private struct function routeBuilderPost( required string action, required struct body ) {
+    var urlPath = variables.ctx.baseUrl & "/fpw/api/v1/routeBuilder.cfc?method=handle&action=" & urlEncodedFormat( arguments.action );
     var sessionCookies = getSessionCookies();
     var res = {};
-    cfhttp( method="POST", url=arguments.url, timeout="60", result="res" ) {
+
+    cfhttp( method="POST", url=urlPath, timeout="60", result="res" ) {
       cfhttpparam( type="header", name="Accept", value="application/json" );
       cfhttpparam( type="header", name="Content-Type", value="application/json; charset=utf-8" );
       cfhttpparam( type="body", value=serializeJSON( arguments.body ) );
@@ -163,18 +188,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         cfhttpparam( type="cookie", name=cookiePair.name, value=cookiePair.value );
       }
     }
-    return decodeJsonResponse( res );
-  }
 
-  private struct function apiGetJson( required string url ) {
-    var sessionCookies = getSessionCookies();
-    var res = {};
-    cfhttp( method="GET", url=arguments.url, timeout="60", result="res" ) {
-      cfhttpparam( type="header", name="Accept", value="application/json" );
-      for ( var cookiePair in sessionCookies ) {
-        cfhttpparam( type="cookie", name=cookiePair.name, value=cookiePair.value );
-      }
-    }
     return decodeJsonResponse( res );
   }
 
@@ -204,34 +218,14 @@ component extends="testbox.system.BaseSpec" output="false" {
     return arguments.defaultValue;
   }
 
-  private string function extractId( required struct saveRes ) {
-    if ( structKeyExists( arguments.saveRes, "floatPlanId" ) ) return toString( arguments.saveRes.floatPlanId );
-    if ( structKeyExists( arguments.saveRes, "FLOATPLANID" ) ) return toString( arguments.saveRes.FLOATPLANID );
-    if ( structKeyExists( arguments.saveRes, "id" ) ) return toString( arguments.saveRes.id );
-    return "";
-  }
-
-  private numeric function extractIdFromList( required struct payload, required string listKey, required string idKey ) {
-    if ( !structKeyExists( arguments.payload, arguments.listKey ) || !isArray( arguments.payload[ arguments.listKey ] ) ) {
-      return 0;
-    }
-    for ( var item in arguments.payload[ arguments.listKey ] ) {
-      if ( isStruct( item ) && structKeyExists( item, arguments.idKey ) && isNumeric( item[ arguments.idKey ] ) ) {
-        return val( item[ arguments.idKey ] );
+  private any function pickNested( required struct source, required array keys, any fallback = "" ) {
+    var cur = arguments.source;
+    for ( var key in arguments.keys ) {
+      if ( !isStruct( cur ) || !structKeyExists( cur, key ) ) {
+        return arguments.fallback;
       }
+      cur = cur[ key ];
     }
-    return 0;
+    return cur;
   }
-
-  private string function dtString( required any dt ) {
-    if ( !isDate( arguments.dt ) ) {
-      throw( message="dtString requires a date value", detail="Got: #serializeJSON(arguments.dt)#" );
-    }
-    return dateTimeFormat( arguments.dt, "yyyy-mm-dd" ) & " " & timeFormat( arguments.dt, "HH:mm:ss" );
-  }
-
-  private string function uniqueSuffix() {
-    return dateTimeFormat( now(), "yyyymmddHHnnss" ) & "-" & right( createUUID(), 6 );
-  }
-
 }

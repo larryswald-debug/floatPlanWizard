@@ -62,3 +62,58 @@ test("Route Builder generates route from template and opens timeline editor", as
   await page.click("#routeGenCancelBtn");
   await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 15000 });
 });
+
+test("Route Builder leg row opens map editor panel", async ({ page }) => {
+  await page.goto("/fpw/index.cfm", { waitUntil: "domcontentloaded" });
+
+  await page.fill('input[name="email"], input[name="EMAIL"]', process.env.FPW_EMAIL || "");
+  await page.fill('input[type="password"], input[name="password"], input[name="PASSWORD"]', process.env.FPW_PASSWORD || "");
+  await page.click('button[type="submit"], input[type="submit"]');
+  await page.waitForLoadState("networkidle");
+  await expect(page).not.toHaveURL(/index\.cfm$/i);
+
+  await page.goto("/fpw/app/dashboard.cfm", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#openRouteBuilderBtn")).toBeVisible({ timeout: 15000 });
+
+  await page.click("#openRouteBuilderBtn");
+  await expect(page.locator("#routeBuilderModal")).toBeVisible({ timeout: 15000 });
+  await expect(page.locator("#fpwRouteGen")).toBeVisible({ timeout: 15000 });
+
+  const today = new Date().toISOString().slice(0, 10);
+  await page.waitForFunction(() => {
+    const sel = document.getElementById("routeGenTemplateSelect");
+    return !!sel && !sel.disabled && sel.options.length > 1;
+  }, { timeout: 20000 });
+  await page.selectOption("#routeGenTemplateSelect", { index: 1 });
+
+  await page.fill("#routeGenStartDate", today);
+
+  await page.waitForFunction(() => {
+    const sel = document.getElementById("routeGenStartLocation");
+    return !!sel && sel.options.length > 1;
+  }, { timeout: 20000 });
+  await page.selectOption("#routeGenStartLocation", { index: 1 });
+
+  await page.waitForFunction(() => {
+    const sel = document.getElementById("routeGenEndLocation");
+    return !!sel && sel.options.length > 1;
+  }, { timeout: 20000 });
+  await page.selectOption("#routeGenEndLocation", { index: 1 });
+
+  await page.click("#routeGenPreviewBtn");
+  await page.waitForFunction(() => {
+    const rows = document.querySelectorAll("#routeGenLegList .fpw-routegen__leg");
+    return rows.length > 0;
+  }, { timeout: 30000 });
+
+  await page.click("#routeGenLegList .fpw-routegen__leg");
+  await expect(page.locator("#routeGenLegMapPanel")).toHaveClass(/is-open/, { timeout: 10000 });
+  await expect(page.locator("#routeGenLegMap")).toBeVisible({ timeout: 10000 });
+  await expect(page.locator("#routeGenLegMapTitle")).toContainText("->", { timeout: 10000 });
+  await expect(page.locator("#routeGenLegSaveBtn")).toBeEnabled();
+  await page.click("#routeGenLegOverlayCloseBtn");
+  await expect(page.locator("#routeGenLegOverlay")).not.toHaveClass(/is-open/, { timeout: 10000 });
+
+  await page.click("#routeGenCancelBtn");
+  await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 15000 });
+});

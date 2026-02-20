@@ -18,6 +18,7 @@
       --rg-sans: ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
       color: var(--rg-text);
       font-family: var(--rg-sans);
+      height: 100%;
       min-height: 100%;
       background:
         radial-gradient(900px 500px at 75% 0%, rgba(45, 212, 191, 0.1), transparent 60%),
@@ -30,6 +31,7 @@
     }
 
     .fpw-routegen__frame {
+      height: 100%;
       min-height: 100%;
       border: 1px solid var(--rg-line);
       border-radius: 18px;
@@ -188,6 +190,8 @@
       padding: 12px;
       overflow: auto;
       min-height: 0;
+      display: flex;
+      flex-direction: column;
     }
 
     .fpw-routegen__section {
@@ -564,13 +568,22 @@
       line-height: 1.3;
     }
 
-    .fpw-routegen__listbox {
+    .fpw-routegen__listlayout {
       margin-top: 10px;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+    }
+
+    .fpw-routegen__listbox {
       border: 1px solid var(--rg-line);
       border-radius: 14px;
       background: rgba(0, 0, 0, 0.16);
       overflow: hidden;
       min-height: 0;
+      height: 100%;
+      flex: 1 1 auto;
       display: flex;
       flex-direction: column;
     }
@@ -621,9 +634,10 @@
 
     .fpw-routegen__leglist {
       overflow: auto;
-      min-height: 220px;
-      max-height: 420px;
+      min-height: 0;
+      max-height: none;
       padding: 6px;
+      flex: 1 1 auto;
     }
 
     .fpw-routegen__leg {
@@ -634,11 +648,17 @@
       padding: 9px;
       border-radius: 10px;
       border: 1px solid transparent;
+      cursor: pointer;
     }
 
     .fpw-routegen__leg:hover {
       background: rgba(255, 255, 255, 0.04);
       border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    .fpw-routegen__leg.is-selected {
+      background: rgba(45, 212, 191, 0.12);
+      border-color: rgba(45, 212, 191, 0.45);
     }
 
     .fpw-routegen__legidx {
@@ -688,6 +708,147 @@
       font-weight: 900;
       padding: 3px 6px;
       vertical-align: middle;
+    }
+
+    .fpw-routegen__flag--override {
+      border-color: rgba(45, 212, 191, 0.46);
+      background: rgba(45, 212, 191, 0.16);
+      color: #99f6e4;
+    }
+
+    .fpw-routegen__legpanel {
+      margin: 0;
+      border: 1px solid var(--rg-line);
+      border-radius: 14px;
+      background: rgba(8, 14, 24, 0.94);
+      padding: 10px;
+      height: 100%;
+      opacity: 0;
+      transform: translateY(20px) scale(0.98);
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      transition:
+        transform 0.24s ease,
+        opacity 0.2s ease,
+        box-shadow 0.2s ease;
+    }
+
+    .fpw-routegen__legpanel.is-open {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
+    }
+
+    .fpw-routegen__legpanelhead {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .fpw-routegen__legclose {
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--rg-text);
+      width: 34px;
+      height: 34px;
+      line-height: 1;
+      font-size: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+
+    .fpw-routegen__legclose:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .fpw-routegen__legpanelmeta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: var(--rg-muted);
+    }
+
+    .fpw-routegen__legpanelmeta strong {
+      color: var(--rg-text);
+      font-family: var(--rg-mono);
+    }
+
+    .fpw-routegen__legsearch {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 8px;
+      margin-bottom: 8px;
+      align-items: center;
+    }
+
+    .fpw-routegen__legsearch .form-control {
+      min-width: 0;
+    }
+
+    .fpw-routegen__legmapstatus {
+      font-size: 12px;
+      color: var(--rg-muted);
+      margin-bottom: 8px;
+      min-height: 18px;
+    }
+
+    .fpw-routegen__legmap {
+      height: auto;
+      min-height: 300px;
+      border-radius: 12px;
+      border: 1px solid var(--rg-line);
+      overflow: hidden;
+      background: rgba(0, 0, 0, 0.2);
+      margin-bottom: 8px;
+      flex: 1 1 auto;
+    }
+
+    .fpw-routegen__legmapdock {
+      display: none;
+    }
+
+    .fpw-routegen__legoverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 2100;
+      background: rgba(3, 8, 15, 0.78);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 0.2s ease, visibility 0.2s ease;
+    }
+
+    .fpw-routegen__legoverlay.is-open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    body.fpw-routegen--overlay-open {
+      overflow: hidden;
+    }
+
+    .fpw-routegen__legoverlaydock {
+      position: absolute;
+      inset: 18px;
+      min-height: 0;
+    }
+
+    .fpw-routegen__legpanelactions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
     }
 
     .fpw-routegen__empty {
@@ -780,6 +941,15 @@
         flex: 1 1 auto;
       }
 
+      .fpw-routegen__legpanelactions {
+        justify-content: stretch;
+      }
+
+      .fpw-routegen__legpanelactions .btn-primary,
+      .fpw-routegen__legpanelactions .btn-secondary {
+        flex: 1 1 auto;
+      }
+
       .fpw-routegen__legcols,
       .fpw-routegen__leg {
         grid-template-columns: 26px minmax(0, 1fr) 56px 70px;
@@ -792,6 +962,18 @@
 
       .fpw-routegen__leg {
         padding: 8px;
+      }
+
+      .fpw-routegen__legmap {
+        min-height: 260px;
+      }
+
+      .fpw-routegen__legoverlaydock {
+        inset: 8px;
+      }
+
+      .fpw-routegen__legsearch {
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -1006,20 +1188,62 @@
             </div>
           </div>
 
-          <div class="fpw-routegen__listbox">
-            <div class="fpw-routegen__listhdr">
-              <div class="fpw-routegen__kicker">Route path preview</div>
-              <div id="routeGenLegCount" class="fpw-routegen__tiny">0 legs</div>
+          <div id="routeGenLegLayout" class="fpw-routegen__listlayout">
+            <div class="fpw-routegen__listbox">
+              <div class="fpw-routegen__listhdr">
+                <div class="fpw-routegen__kicker">Route path preview</div>
+                <div id="routeGenLegCount" class="fpw-routegen__tiny">0 legs</div>
+              </div>
+              <div class="fpw-routegen__legcols" aria-hidden="true">
+                <span>#</span>
+                <span>Leg</span>
+                <span>Locks</span>
+                <span>NM</span>
+              </div>
+              <div id="routeGenLegList" class="fpw-routegen__leglist">
+                <div class="fpw-routegen__empty">Pick template/start/end to see a live preview.</div>
+              </div>
             </div>
-            <div class="fpw-routegen__legcols" aria-hidden="true">
-              <span>#</span>
-              <span>Leg</span>
-              <span>Locks</span>
-              <span>NM</span>
+            <div id="routeGenLegMapDock" class="fpw-routegen__legmapdock">
+              <div id="routeGenLegMapPanel" class="fpw-routegen__legpanel" aria-live="polite">
+                <div class="fpw-routegen__legpanelhead">
+                  <div>
+                    <div class="fpw-routegen__kicker">Leg Geometry</div>
+                    <div id="routeGenLegMapTitle" class="fpw-routegen__paneltitle">Select a leg to edit geometry</div>
+                  </div>
+                  <div class="d-flex align-items-start gap-2">
+                    <div id="routeGenLegMapSource" class="fpw-routegen__tiny">Source: default</div>
+                    <button type="button" id="routeGenLegOverlayCloseBtn" class="fpw-routegen__legclose" aria-label="Close map panel">&times;</button>
+                  </div>
+                </div>
+                <div class="fpw-routegen__legpanelmeta">
+                  <span>Computed NM:</span>
+                  <strong id="routeGenLegMapNm">0.00</strong>
+                  <span id="routeGenLegMapHint" class="fpw-routegen__tiny">Draw or edit polyline, then save override.</span>
+                </div>
+                <div class="fpw-routegen__legsearch">
+                  <input
+                    id="routeGenLegMapSearchInput"
+                    type="text"
+                    class="form-control form-control-sm"
+                    placeholder="Search place, marina, city..."
+                    autocomplete="off">
+                  <button type="button" id="routeGenLegMapSearchBtn" class="btn-secondary">Search</button>
+                  <button type="button" id="routeGenLegMapSearchClearBtn" class="btn-secondary">Clear Pin</button>
+                </div>
+                <div id="routeGenLegMapStatus" class="fpw-routegen__legmapstatus">Click any leg row to load map tools.</div>
+                <div id="routeGenLegMap" class="fpw-routegen__legmap"></div>
+                <div class="fpw-routegen__legpanelactions">
+                  <button type="button" id="routeGenLegClearBtn" class="btn-secondary">Clear Draw</button>
+                  <button type="button" id="routeGenLegRevertBtn" class="btn-secondary">Revert to Default</button>
+                  <button type="button" id="routeGenLegSaveBtn" class="btn-primary">Save Overrides</button>
+                </div>
+              </div>
             </div>
-            <div id="routeGenLegList" class="fpw-routegen__leglist">
-              <div class="fpw-routegen__empty">Pick template/start/end to see a live preview.</div>
-            </div>
+          </div>
+
+          <div id="routeGenLegOverlay" class="fpw-routegen__legoverlay" aria-hidden="true">
+            <div id="routeGenLegOverlayDock" class="fpw-routegen__legoverlaydock"></div>
           </div>
         </div>
       </section>
