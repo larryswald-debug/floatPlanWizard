@@ -3454,6 +3454,59 @@
     openModal("editor", routeCode, { freshStart: false });
   }
 
+  function isTestHookReady() {
+    return !!(dom.root && dom.legMapEl && dom.legSaveBtn);
+  }
+
+  function selectLegByOrderForTest(order) {
+    var wanted = toInt(order, 0);
+    var leg = getLegByOrder(wanted);
+    if (!leg) return Promise.resolve(false);
+    return loadLegGeometry(leg).then(function () {
+      return true;
+    }).catch(function () {
+      return false;
+    });
+  }
+
+  function setDraftGeometryForTest(points) {
+    if (!isTestHookReady()) return false;
+    if (!state.selectedLegData) return false;
+    if (!ensureLegMap()) return false;
+
+    var normalized = [];
+    (Array.isArray(points) ? points : []).forEach(function (point) {
+      var parsed = parseLegMapPoint(point);
+      if (parsed) normalized.push(parsed);
+    });
+
+    if (normalized.length < 2) return false;
+    setLegMapLayer(normalized);
+    state.legMapDraftPoints = normalized.slice(0);
+    state.legMapClearIntent = false;
+    updateLegMapNmFromLayer();
+    setLegMapStatus("Test geometry loaded.");
+    return true;
+  }
+
+  function snapshotForTest() {
+    return {
+      selectedLegOrder: state.selectedLegOrder,
+      status: dom.legMapStatusEl ? String(dom.legMapStatusEl.textContent || "").trim() : "",
+      source: dom.legMapSourceEl ? String(dom.legMapSourceEl.textContent || "").trim() : "",
+      nm: dom.legMapNmEl ? String(dom.legMapNmEl.textContent || "").trim() : ""
+    };
+  }
+
+  function buildTestHookApi() {
+    return {
+      isReady: isTestHookReady,
+      selectLegByOrder: selectLegByOrderForTest,
+      setDraftGeometry: setDraftGeometryForTest,
+      snapshot: snapshotForTest
+    };
+  }
+
   function init() {
     if (!cacheDom()) return;
 
@@ -3470,4 +3523,8 @@
     reloadTimeline: reloadTimeline,
     openEditorForRoute: openEditorForRoute
   };
+
+  if (window.__FPW_ENABLE_TEST_HOOKS) {
+    window.FPW.DashboardModules.routeBuilder.test = buildTestHookApi();
+  }
 })(window, document);
