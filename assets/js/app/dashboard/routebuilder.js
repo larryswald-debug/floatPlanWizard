@@ -17,6 +17,8 @@
   var DEFAULT_RESERVE_PCT = 20;
   var FUEL_BURN_BASIS_MAX = "MAX_SPEED";
   var MAX_ENDPOINT_FIT_NM = 1200;
+  var LEG_MAP_FIT_MAX_ZOOM = 12;
+  var LEG_MAP_POST_OPEN_FIT_DELAY_MS = 300;
 
   var dom = {};
   var modal = null;
@@ -53,6 +55,8 @@
     selectedLegData: null,
     selectedLegHasOverride: false,
     selectedLegSource: "default",
+    legMapClearIntent: false,
+    legMapDraftPoints: [],
     legMapLoadSeq: 0,
     legMap: {
       map: null,
@@ -472,6 +476,8 @@
 
   function resetLegMapSelection() {
     state.legMapLoadSeq += 1;
+    state.legMapClearIntent = false;
+    state.legMapDraftPoints = [];
     closeLegMapPanel();
     state.selectedLegOrder = 0;
     state.selectedLegData = null;
@@ -544,6 +550,62 @@
           lon: Math.round(pt.lng * 1000000) / 1000000
         };
       });
+  }
+
+  function extractInProgressDrawPoints() {
+    if (!state.legMap || !state.legMap.map) return [];
+    var map = state.legMap.map;
+    var toolbars = map._toolbars;
+    if (!toolbars || !toolbars.draw || !toolbars.draw._modes) return [];
+    var polyMode = toolbars.draw._modes.polyline;
+    if (!polyMode || !polyMode.handler) return [];
+    var handler = polyMode.handler;
+    if (typeof handler.enabled === "function" && !handler.enabled()) return [];
+    if (handler._poly) {
+      return extractMapPoints(handler._poly);
+    }
+    if (!Array.isArray(handler._markers)) return [];
+    return handler._markers
+      .map(function (marker) {
+        return (marker && typeof marker.getLatLng === "function") ? marker.getLatLng() : null;
+      })
+      .filter(function (pt) {
+        return pt && Number.isFinite(pt.lat) && Number.isFinite(pt.lng);
+      })
+      .map(function (pt) {
+        return {
+          lat: Math.round(pt.lat * 1000000) / 1000000,
+          lon: Math.round(pt.lng * 1000000) / 1000000
+        };
+      });
+  }
+
+  function extractDrawVertexPoints(evt) {
+    var out = [];
+    if (!evt || !evt.layers || typeof evt.layers.eachLayer !== "function") return out;
+    evt.layers.eachLayer(function (layer) {
+      var point = (layer && typeof layer.getLatLng === "function") ? layer.getLatLng() : null;
+      if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return;
+      out.push({
+        lat: Math.round(point.lat * 1000000) / 1000000,
+        lon: Math.round(point.lng * 1000000) / 1000000
+      });
+    });
+    return out;
+  }
+
+  function completeInProgressPolylineDraw() {
+    if (!state.legMap || !state.legMap.map) return false;
+    var toolbars = state.legMap.map._toolbars;
+    if (!toolbars || !toolbars.draw || !toolbars.draw._modes) return false;
+    var polyMode = toolbars.draw._modes.polyline;
+    if (!polyMode || !polyMode.handler) return false;
+    var handler = polyMode.handler;
+    if (typeof handler.enabled !== "function" || !handler.enabled()) return false;
+    if (!Array.isArray(handler._markers) || handler._markers.length < 2) return false;
+    if (typeof handler.completeShape !== "function") return false;
+    handler.completeShape();
+    return true;
   }
 
   function setLegMapLayer(points) {
@@ -624,15 +686,29 @@
       }
       state.legMap.activeLayer = evt.layer;
       state.legMap.drawnItems.addLayer(evt.layer);
+      state.legMapClearIntent = false;
+      state.legMapDraftPoints = extractMapPoints(evt.layer);
       updateLegMapNmFromLayer();
       setLegMapStatus("Draft geometry updated. Save to persist your override.");
     });
+    state.legMap.map.on(window.L.Draw.Event.DRAWSTART, function () {
+      state.legMapClearIntent = false;
+      state.legMapDraftPoints = [];
+      setLegMapStatus("Click to trace points, then double-click the last point to finish.");
+    });
+    state.legMap.map.on(window.L.Draw.Event.DRAWVERTEX, function (evt) {
+      state.legMapDraftPoints = extractDrawVertexPoints(evt);
+    });
     state.legMap.map.on(window.L.Draw.Event.EDITED, function () {
+      state.legMapClearIntent = false;
+      state.legMapDraftPoints = extractMapPoints(state.legMap.activeLayer);
       updateLegMapNmFromLayer();
       setLegMapStatus("Draft geometry updated. Save to persist your override.");
     });
     state.legMap.map.on(window.L.Draw.Event.DELETED, function () {
       state.legMap.activeLayer = null;
+      state.legMapClearIntent = true;
+      state.legMapDraftPoints = [];
       setLegMapNm(0);
       setLegMapStatus("Geometry cleared. Draw a new line to save override.");
     });
@@ -1837,7 +1913,7 @@
     if (!layer || !state.legMap.map) return;
     var bounds = layer.getBounds();
     if (bounds && bounds.isValid()) {
-      state.legMap.map.fitBounds(bounds, { padding: [24, 24] });
+      state.legMap.map.fitBounds(bounds, { padding: [24, 24], maxZoom: LEG_MAP_FIT_MAX_ZOOM });
       return;
     }
     state.legMap.map.setView([39.5, -95.5], 4);
@@ -1857,7 +1933,7 @@
     if (latlngs.length < 2) return false;
     var bounds = window.L.latLngBounds(latlngs);
     if (!bounds || !bounds.isValid()) return false;
-    state.legMap.map.fitBounds(bounds, { padding: [24, 24] });
+    state.legMap.map.fitBounds(bounds, { padding: [24, 24], maxZoom: LEG_MAP_FIT_MAX_ZOOM });
     return true;
   }
 
@@ -1918,8 +1994,50 @@
       state.legMap.map.setView([startPoint.lat, startPoint.lon], 10);
       return { applied: true, tooFar: false };
     }
-    state.legMap.map.fitBounds(bounds, { padding: [24, 24] });
+    state.legMap.map.fitBounds(bounds, { padding: [24, 24], maxZoom: LEG_MAP_FIT_MAX_ZOOM });
     return { applied: true, tooFar: false, distanceNm: distanceNm };
+  }
+
+  function applyLegMapViewport(leg, geometryData, points, layer, expectedOrder, shouldDrawUserPolyline) {
+    var endpointPoints = resolveLegEndpointPoints(leg, geometryData);
+    setLegMapEndpointMarkers(endpointPoints.startPoint, endpointPoints.endPoint);
+    var endpointView = fitMapToEndpointPins(endpointPoints.startPoint, endpointPoints.endPoint);
+    var zoomedToBounds = endpointView.applied;
+
+    if (layer) {
+      if (!endpointView.applied) {
+        fitMapToLayer(layer);
+      }
+      return endpointView;
+    }
+
+    if (!zoomedToBounds && !shouldDrawUserPolyline && points.length >= 2) {
+      zoomedToBounds = fitMapToPoints(points);
+    }
+    if (!zoomedToBounds && state.legMap.map) {
+      if (expectedOrder <= 0 || state.selectedLegOrder === expectedOrder) {
+        state.legMap.map.setView([39.5, -95.5], 4);
+      }
+    }
+    return endpointView;
+  }
+
+  function schedulePostOpenViewportRefit(loadSeq, expectedOrder, leg, geometryData, points, shouldDrawUserPolyline) {
+    if (!state.legMap || !state.legMap.map) return;
+    window.setTimeout(function () {
+      if (loadSeq !== state.legMapLoadSeq) return;
+      if (expectedOrder > 0 && state.selectedLegOrder !== expectedOrder) return;
+      if (!state.legMap || !state.legMap.map) return;
+      state.legMap.map.invalidateSize();
+      applyLegMapViewport(
+        leg,
+        geometryData,
+        points,
+        state.legMap.activeLayer,
+        expectedOrder,
+        shouldDrawUserPolyline
+      );
+    }, LEG_MAP_POST_OPEN_FIT_DELAY_MS);
   }
 
 
@@ -1936,10 +2054,15 @@
     state.selectedLegOrder = expectedOrder;
     state.selectedLegHasOverride = !!getLegField(leg, "has_user_override");
     state.selectedLegSource = "default";
+    state.legMapClearIntent = false;
+    state.legMapDraftPoints = [];
     state.legMapLoadSeq += 1;
     var loadSeq = state.legMapLoadSeq;
     selectLegRow(state.selectedLegOrder);
     openLegMapPanel();
+    if (state.legMap && state.legMap.map) {
+      state.legMap.map.invalidateSize();
+    }
     if (dom.legMapTitleEl) {
       var startName = String(getLegField(leg, "start_name") || "Start");
       var endName = String(getLegField(leg, "end_name") || "End");
@@ -1988,13 +2111,25 @@
 
         var shouldDrawUserPolyline = hasAnyOverride && points.length >= 2;
         var layer = setLegMapLayer(shouldDrawUserPolyline ? points : []);
-        var endpointPoints = resolveLegEndpointPoints(leg, data);
-        setLegMapEndpointMarkers(endpointPoints.startPoint, endpointPoints.endPoint);
-        var endpointView = fitMapToEndpointPins(endpointPoints.startPoint, endpointPoints.endPoint);
+        var endpointView = applyLegMapViewport(
+          leg,
+          data,
+          points,
+          layer,
+          expectedOrder,
+          shouldDrawUserPolyline
+        );
+
+        schedulePostOpenViewportRefit(
+          loadSeq,
+          expectedOrder,
+          leg,
+          data,
+          points,
+          shouldDrawUserPolyline
+        );
+
         if (layer) {
-          if (!endpointView.applied) {
-            fitMapToLayer(layer);
-          }
           if (!opts.silent) {
             if (endpointView.tooFar) {
               setLegMapStatus("Loaded geometry. Endpoints are far apart, centered on start.");
@@ -2003,15 +2138,6 @@
             }
           }
         } else {
-          var zoomedToBounds = endpointView.applied;
-          if (!zoomedToBounds && !shouldDrawUserPolyline && points.length >= 2) {
-            zoomedToBounds = fitMapToPoints(points);
-          }
-          if (!zoomedToBounds && state.legMap.map) {
-            if (expectedOrder <= 0 || state.selectedLegOrder === expectedOrder) {
-              state.legMap.map.setView([39.5, -95.5], 4);
-            }
-          }
           if (endpointView.tooFar) {
             setLegMapStatus("No saved geometry for this leg. Endpoints are far apart, centered on start.");
           } else {
@@ -2049,6 +2175,8 @@
       state.legMap.drawnItems.removeLayer(state.legMap.activeLayer);
       state.legMap.activeLayer = null;
     }
+    state.legMapClearIntent = true;
+    state.legMapDraftPoints = [];
     setLegMapNm(0);
     setLegMapStatus("Geometry cleared. Draw a new line, then save override.");
   }
@@ -2068,9 +2196,34 @@
     }
     var points = extractMapPoints(state.legMap.activeLayer);
     if (points.length < 2) {
-      clearLegOverride();
+      if (Array.isArray(state.legMapDraftPoints) && state.legMapDraftPoints.length >= 2) {
+        points = state.legMapDraftPoints.slice(0);
+        setLegMapLayer(points);
+        updateLegMapNmFromLayer();
+      }
+    }
+    if (points.length < 2) {
+      if (completeInProgressPolylineDraw()) {
+        points = extractMapPoints(state.legMap.activeLayer);
+      }
+    }
+    if (points.length < 2) {
+      points = extractInProgressDrawPoints();
+      if (points.length >= 2) {
+        setLegMapLayer(points);
+        updateLegMapNmFromLayer();
+      }
+    }
+    if (points.length < 2) {
+      if (state.legMapClearIntent) {
+        clearLegOverride();
+      } else {
+        setLegMapStatus("Finish drawing the route line (double-click the last point), then save override.");
+      }
       return;
     }
+    state.legMapClearIntent = false;
+    state.legMapDraftPoints = points.slice(0);
 
     if (saveMode === "route_leg") {
       saveAction = "routegen_savelegoverride";
@@ -2135,6 +2288,8 @@
     var saveMode = getLegOverrideSaveMode(leg);
     var clearAction = "";
     var clearPayload = {};
+    state.legMapClearIntent = false;
+    state.legMapDraftPoints = [];
     if (!leg) {
       setLegMapStatus("Select a leg first.");
       return;
@@ -2969,6 +3124,32 @@
     onFormChange();
   }
 
+  function onSetupPanelWheel(event) {
+    if (!dom.setupPanelBodyEl) return;
+    if (!dom.modalEl || !dom.modalEl.classList.contains("show")) return;
+    if (isLegMapOverlayOpen()) return;
+    if (event.ctrlKey) return;
+    if (!dom.setupPanelBodyEl.contains(event.target)) return;
+
+    var maxScroll = dom.setupPanelBodyEl.scrollHeight - dom.setupPanelBodyEl.clientHeight;
+    if (maxScroll <= 0) return;
+
+    var delta = Number(event.deltaY) || 0;
+    if (!delta) return;
+
+    var nextTop = dom.setupPanelBodyEl.scrollTop + delta;
+    if (nextTop < 0) nextTop = 0;
+    if (nextTop > maxScroll) nextTop = maxScroll;
+
+    if (nextTop === dom.setupPanelBodyEl.scrollTop) {
+      event.preventDefault();
+      return;
+    }
+
+    dom.setupPanelBodyEl.scrollTop = nextTop;
+    event.preventDefault();
+  }
+
   function bindEvents() {
     if (dom.openBtn) {
       dom.openBtn.addEventListener("click", function () {
@@ -3008,6 +3189,16 @@
 
     if (dom.optionalStopsEl) {
       dom.optionalStopsEl.addEventListener("click", onStopToggleClick);
+    }
+
+    if (dom.setupPanelBodyEl && !dom.setupPanelBodyEl.dataset.routegenWheelBound) {
+      dom.setupPanelBodyEl.addEventListener("wheel", onSetupPanelWheel, { passive: false, capture: true });
+      dom.setupPanelBodyEl.dataset.routegenWheelBound = "true";
+    }
+
+    if (dom.modalEl && !dom.modalEl.dataset.routegenSetupWheelBound) {
+      dom.modalEl.addEventListener("wheel", onSetupPanelWheel, { passive: false, capture: true });
+      dom.modalEl.dataset.routegenSetupWheelBound = "true";
     }
 
     if (dom.legListEl) {
@@ -3216,6 +3407,7 @@
     dom.reservePctEl = document.getElementById("routeGenReservePct");
     dom.fuelPricePerGalEl = document.getElementById("routeGenFuelPricePerGal");
     dom.optionalStopsEl = document.getElementById("routeGenOptionalStops");
+    dom.setupPanelBodyEl = document.getElementById("routeGenSetupPanelBody");
 
     dom.previewTemplateEl = document.getElementById("routeGenPreviewTemplate");
     dom.totalNmEl = document.getElementById("routeGenTotalNm");

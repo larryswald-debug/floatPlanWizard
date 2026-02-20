@@ -114,7 +114,7 @@ if (isAuthorized AND structKeyExists(form, "runBackfill")) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Port State Backfill</title>
-    <cfinclude template="../../includes/header_styles.cfm">
+    <cfinclude template="../includes/header_styles.cfm">
     <style>
         .psb-shell {
             max-width: 1100px;
@@ -261,7 +261,7 @@ if (isAuthorized AND structKeyExists(form, "runBackfill")) {
     </style>
 </head>
 <body>
-<cfinclude template="../../includes/top_nav.cfm">
+<cfinclude template="../includes/top_nav.cfm">
 
 <div class="psb-shell">
     <div class="psb-card">
@@ -270,7 +270,7 @@ if (isAuthorized AND structKeyExists(form, "runBackfill")) {
             Runs <code>scripts/backfill-port-state-from-latlng.js</code> to fill missing <code>ports.state</code> from existing <code>lat/lng</code> using reverse geocoding.
         </p>
         <div class="psb-row">
-            <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/admin/wpi_port_populate.cfm">Open WPI Port Populate</a>
+            <a href="<cfoutput>#request.fpwBase#</cfoutput>/admin/wpi_port_populate.cfm">Open WPI Port Populate</a>
         </div>
     </div>
 
@@ -479,6 +479,6 @@ if (isAuthorized AND structKeyExists(form, "runBackfill")) {
     </cfif>
 </div>
 
-<cfinclude template="../../includes/footer_scripts.cfm">
+<cfinclude template="../includes/footer_scripts.cfm">
 </body>
 </html>

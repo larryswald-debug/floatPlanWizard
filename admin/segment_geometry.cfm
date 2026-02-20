@@ -52,7 +52,7 @@ request.fpwBase = "/fpw";
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Segment Geometry Editor</title>
 
-    <cfinclude template="../../includes/header_styles.cfm">
+    <cfinclude template="../includes/header_styles.cfm">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
@@ -293,7 +293,7 @@ request.fpwBase = "/fpw";
 </head>
 <body>
 
-<cfinclude template="../../includes/top_nav.cfm">
+<cfinclude template="../includes/top_nav.cfm">
 
 <main class="sg-page">
     <div class="sg-shell">
@@ -368,7 +368,7 @@ request.fpwBase = "/fpw";
     </div>
 </main>
 
-<cfinclude template="../../includes/footer_scripts.cfm">
+<cfinclude template="../includes/footer_scripts.cfm">
 
 <script>
     window.FPW_BASE = "<cfoutput>#request.fpwBase#</cfoutput>";

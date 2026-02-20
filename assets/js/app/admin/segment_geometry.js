@@ -1,7 +1,7 @@
 /*
 Manual test steps:
 1) Login as admin.
-2) Open /fpw/app/admin/segment_geometry.cfm.
+2) Open /fpw/admin/segment_geometry.cfm.
 3) Select a segment and click Load (expect no geometry first time for untouched rows).
 4) Draw one polyline roughly matching the route.
 5) Click Save and confirm status shows success with version=1 and dist_nm_calc.

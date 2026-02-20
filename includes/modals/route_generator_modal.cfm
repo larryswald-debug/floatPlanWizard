@@ -150,6 +150,8 @@
       padding: 12px;
       flex: 1;
       min-height: 0;
+      height: 100%;
+      overflow: hidden;
     }
 
     .fpw-routegen__panel {
@@ -158,6 +160,7 @@
       background: var(--rg-panel);
       overflow: hidden;
       min-height: 0;
+      height: 100%;
       display: flex;
       flex-direction: column;
     }
@@ -188,10 +191,18 @@
 
     .fpw-routegen__panelbody {
       padding: 12px;
-      overflow: auto;
+      overflow-x: hidden;
+      overflow-y: auto;
       min-height: 0;
+      flex: 1 1 auto;
       display: flex;
       flex-direction: column;
+    }
+
+    #routeGenSetupPanelBody {
+      display: block;
+      overflow-x: hidden;
+      overflow-y: auto;
     }
 
     .fpw-routegen__section {
@@ -1007,7 +1018,7 @@
           <span class="fpw-routegen__pill">Auto-save draft</span>
         </div>
 
-        <div class="fpw-routegen__panelbody">
+        <div id="routeGenSetupPanelBody" class="fpw-routegen__panelbody">
           <div class="fpw-routegen__section">
             <div class="fpw-routegen__labelrow">
               <span class="fpw-routegen__label">Template</span>

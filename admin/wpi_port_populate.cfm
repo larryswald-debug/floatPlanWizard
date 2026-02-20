@@ -284,7 +284,7 @@ if (isAuthorized) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>WPI Port Coordinate Populate</title>
-    <cfinclude template="../../includes/header_styles.cfm">
+    <cfinclude template="../includes/header_styles.cfm">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <style>
         .wpi-shell {
@@ -635,7 +635,7 @@ if (isAuthorized) {
     </style>
 </head>
 <body>
-<cfinclude template="../../includes/top_nav.cfm">
+<cfinclude template="../includes/top_nav.cfm">
 
 <div class="wpi-shell">
     <div class="wpi-card">
@@ -862,7 +862,7 @@ if (isAuthorized) {
                 portQueryEncoded = urlEncodedFormat(portSearchRaw);
                 prevPage = (portPage GT 1 ? portPage - 1 : 1);
                 nextPage = (portPage LT portTotalPages ? portPage + 1 : portTotalPages);
-                basePortsPath = request.fpwBase & "/app/admin/wpi_port_populate.cfm";
+                basePortsPath = request.fpwBase & "/admin/wpi_port_populate.cfm";
                 prevHref = basePortsPath & "?portQ=" & portQueryEncoded & "&portPageSize=" & portPageSize & "&portPage=" & prevPage;
                 nextHref = basePortsPath & "?portQ=" & portQueryEncoded & "&portPageSize=" & portPageSize & "&portPage=" & nextPage;
             </cfscript>
@@ -1062,7 +1062,7 @@ if (isAuthorized) {
     </div>
 </div>
 
-<cfinclude template="../../includes/footer_scripts.cfm">
+<cfinclude template="../includes/footer_scripts.cfm">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function (window, document) {

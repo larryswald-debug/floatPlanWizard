@@ -75,6 +75,9 @@ if (structKeyExists(session, "user") && isStruct(session.user)) {
               <a class="nav-link" href="<cfoutput>#request.fpwBase#</cfoutput>/app/dashboard.cfm">Dashboard</a>
             </li>
             <li class="nav-item">
+              <a class="nav-link" href="<cfoutput>#request.fpwBase#</cfoutput>/admin/route-cleanup.cfm">Admin</a>
+            </li>
+            <li class="nav-item">
               <a class="nav-link" href="#">TBD 1</a>
             </li>
             <li class="nav-item">
