@@ -641,7 +641,7 @@ if (isAuthorized) {
     <div class="wpi-card">
         <h3 style="margin-top:0;">WPI Port Coordinate Populate</h3>
         <p style="margin-bottom:0;">
-            Queries NGA WPI for missing <code>ports.lat/lng</code>. Default mode is dry-run. Use apply to write updates and backfill <code>loop_segments</code>.
+            Queries NGA WPI for missing <code>ports.lat/lng</code>. Default mode is dry-run. Use apply to write updates and backfill <code>segment_library</code> endpoint links.
         </p>
     </div>
 
@@ -676,7 +676,7 @@ if (isAuthorized) {
                 <div class="wpi-row">
                     <label><input type="checkbox" name="apply" value="1" <cfif boolLike(form.apply, false)>checked</cfif>> Apply DB updates</label>
                     <label><input type="checkbox" name="fuzzy" value="1" <cfif boolLike(form.fuzzy, false)>checked</cfif>> Enable fuzzy fallback matching</label>
-                    <label><input type="checkbox" name="noBackfill" value="1" <cfif boolLike(form.noBackfill, false)>checked</cfif>> Skip loop_segments backfill</label>
+                    <label><input type="checkbox" name="noBackfill" value="1" <cfif boolLike(form.noBackfill, false)>checked</cfif>> Skip segment endpoint backfill</label>
                 </div>
 
                 <div style="margin-top:12px;">

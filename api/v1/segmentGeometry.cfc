@@ -1,4 +1,4 @@
-<cfcomponent output="false" hint="Canonical segment geometry API for loop_segments.">
+<cfcomponent output="false" hint="Canonical segment geometry API for segment_library.">
 
     <cffunction name="handle" access="remote" returntype="void" output="true">
         <cfargument name="action" type="string" required="false" default="">
@@ -81,20 +81,31 @@
         <cfscript>
             var qSegments = queryExecute(
                 "SELECT
-                    s.id,
-                    s.section_id,
-                    s.order_index,
-                    s.start_name,
-                    s.end_name,
-                    s.dist_nm,
-                    s.dist_nm_calc,
-                    s.active_geom_version,
-                    sec.order_index AS section_order
-                 FROM loop_segments s
-                 LEFT JOIN loop_sections sec ON sec.id = s.section_id
-                 ORDER BY COALESCE(sec.order_index, 2147483647) ASC,
-                          COALESCE(s.order_index, 2147483647) ASC,
-                          s.id ASC",
+                    sl.id,
+                    NULL AS section_id,
+                    COALESCE(rtso.first_order_index, 2147483647) AS order_index,
+                    COALESCE(NULLIF(TRIM(p1.name), ''), TRIM(sl.start_port_name), '') AS start_name,
+                    COALESCE(NULLIF(TRIM(p2.name), ''), TRIM(sl.end_port_name), '') AS end_name,
+                    sl.dist_nm,
+                    g.dist_nm_calc,
+                    g.version AS active_geom_version
+                 FROM segment_library sl
+                 LEFT JOIN ports p1 ON p1.id = sl.start_port_id
+                 LEFT JOIN ports p2 ON p2.id = sl.end_port_id
+                 LEFT JOIN (
+                    SELECT segment_id, MIN(order_index) AS first_order_index
+                    FROM route_template_segments
+                    GROUP BY segment_id
+                 ) rtso ON rtso.segment_id = sl.id
+                 LEFT JOIN (
+                    SELECT segment_id, MAX(version) AS latest_version
+                    FROM segment_geometries
+                    GROUP BY segment_id
+                 ) gv ON gv.segment_id = sl.id
+                 LEFT JOIN segment_geometries g
+                    ON g.segment_id = gv.segment_id
+                   AND g.version = gv.latest_version
+                 ORDER BY COALESCE(rtso.first_order_index, 2147483647) ASC, sl.id ASC",
                 {},
                 { datasource = Application.dsn }
             );
@@ -126,8 +137,8 @@
             }
 
             var qSegment = queryExecute(
-                "SELECT id, active_geom_version
-                 FROM loop_segments
+                "SELECT id
+                 FROM segment_library
                  WHERE id = :segmentId
                  LIMIT 1",
                 {
@@ -135,63 +146,34 @@
                 },
                 { datasource = Application.dsn }
             );
-            var activeVersion = 0;
             var qGeom = queryNew("");
             var polylineRaw = "";
             var points = [];
 
             if (qSegment.recordCount EQ 0) {
-                return buildResponse(false, true, "Segment not found", {}, "segmentId was not found.", "No loop_segments row exists for that id.");
+                return buildResponse(false, true, "Segment not found", {}, "segmentId was not found.", "No segment_library row exists for that id.");
             }
 
-            activeVersion = (isNull(qSegment.active_geom_version[1]) ? 0 : val(qSegment.active_geom_version[1]));
-
-            if (activeVersion GT 0) {
-                qGeom = queryExecute(
-                    "SELECT
-                        segment_id,
-                        version,
-                        polyline_json,
-                        dist_nm_calc,
-                        point_count,
-                        source,
-                        created_at,
-                        simplify_tolerance_m,
-                        created_by
-                     FROM segment_geometries
-                     WHERE segment_id = :segmentId
-                       AND version = :version
-                     LIMIT 1",
-                    {
-                        segmentId = { value = arguments.segmentId, cfsqltype = "cf_sql_integer" },
-                        version = { value = activeVersion, cfsqltype = "cf_sql_integer" }
-                    },
-                    { datasource = Application.dsn }
-                );
-            }
-
-            if (activeVersion LTE 0 OR qGeom.recordCount EQ 0) {
-                qGeom = queryExecute(
-                    "SELECT
-                        segment_id,
-                        version,
-                        polyline_json,
-                        dist_nm_calc,
-                        point_count,
-                        source,
-                        created_at,
-                        simplify_tolerance_m,
-                        created_by
-                     FROM segment_geometries
-                     WHERE segment_id = :segmentId
-                     ORDER BY version DESC
-                     LIMIT 1",
-                    {
-                        segmentId = { value = arguments.segmentId, cfsqltype = "cf_sql_integer" }
-                    },
-                    { datasource = Application.dsn }
-                );
-            }
+            qGeom = queryExecute(
+                "SELECT
+                    segment_id,
+                    version,
+                    polyline_json,
+                    dist_nm_calc,
+                    point_count,
+                    source,
+                    created_at,
+                    simplify_tolerance_m,
+                    created_by
+                 FROM segment_geometries
+                 WHERE segment_id = :segmentId
+                 ORDER BY version DESC
+                 LIMIT 1",
+                {
+                    segmentId = { value = arguments.segmentId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = Application.dsn }
+            );
 
             if (qGeom.recordCount EQ 0) {
                 return buildResponse(true, true, "OK", {
@@ -283,7 +265,7 @@
 
             qSegment = queryExecute(
                 "SELECT id
-                 FROM loop_segments
+                 FROM segment_library
                  WHERE id = :segmentId
                  LIMIT 1",
                 {
@@ -293,7 +275,7 @@
             );
 
             if (qSegment.recordCount EQ 0) {
-                return buildResponse(false, true, "Segment not found", {}, "segmentId was not found.", "No loop_segments row exists for that id.");
+                return buildResponse(false, true, "Segment not found", {}, "segmentId was not found.", "No segment_library row exists for that id.");
             }
 
             nm = calculatePolylineNm(normalized.points);
@@ -328,23 +310,6 @@
                         simplifyToleranceM = { value = simplifyVal, cfsqltype = "cf_sql_decimal", scale = 2, null = simplifyIsNull },
                         source = { value = sourceRaw, cfsqltype = "cf_sql_varchar" },
                         createdBy = { value = createdBy, cfsqltype = "cf_sql_integer", null = (createdBy LTE 0) }
-                    },
-                    { datasource = Application.dsn }
-                );
-
-                queryExecute(
-                    "UPDATE loop_segments
-                     SET
-                        active_geom_version = :activeGeomVersion,
-                        dist_nm_calc = :distNmCalc,
-                        geom_updated_at = NOW(),
-                        geom_source = :geomSource
-                     WHERE id = :segmentId",
-                    {
-                        activeGeomVersion = { value = nextVersion, cfsqltype = "cf_sql_integer" },
-                        distNmCalc = { value = distNmCalc, cfsqltype = "cf_sql_decimal", scale = 2 },
-                        geomSource = { value = sourceRaw, cfsqltype = "cf_sql_varchar" },
-                        segmentId = { value = segmentId, cfsqltype = "cf_sql_integer" }
                     },
                     { datasource = Application.dsn }
                 );

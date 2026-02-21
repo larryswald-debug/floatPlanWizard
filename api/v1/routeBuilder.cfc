@@ -148,6 +148,23 @@
                 <cfoutput>#serializeJSON(routegenLegGeometryRes)#</cfoutput>
                 <cfreturn>
 
+            <cfelseif act EQ "routegen_getleglocks">
+                <cfset var routegenLegLocksRouteCode = trim(pickArg(body, "route_code", "routeCode", "")) />
+                <cfset var routegenLegLocksTemplateCode = trim(pickArg(body, "template_code", "templateCode", "")) />
+                <cfset var routegenLegLocksLegId = val(pickArg(body, "route_leg_id", "routeLegId", 0)) />
+                <cfset var routegenLegLocksSegmentId = val(pickArg(body, "segment_id", "segmentId", 0)) />
+                <cfset var routegenLegLocksOrder = val(pickArg(body, "leg_order", "legOrder", 0)) />
+                <cfset var routegenLegLocksRes = routegenGetLegLocks(
+                    userId = userId,
+                    routeCode = routegenLegLocksRouteCode,
+                    templateCode = routegenLegLocksTemplateCode,
+                    routeLegId = routegenLegLocksLegId,
+                    segmentId = routegenLegLocksSegmentId,
+                    legOrder = routegenLegLocksOrder
+                ) />
+                <cfoutput>#serializeJSON(routegenLegLocksRes)#</cfoutput>
+                <cfreturn>
+
             <cfelseif act EQ "routegen_savelegoverride">
                 <cfset var routegenSaveOverrideRouteCode = trim(pickArg(body, "route_code", "routeCode", "")) />
                 <cfset var routegenSaveOverrideLegId = val(pickArg(body, "route_leg_id", "routeLegId", 0)) />
@@ -868,7 +885,9 @@
             var fpLegJoinSql = "";
             var fpSegJoinSql = "";
             var fpUsoJoinSql = "";
+            var fpLockJoinSql = "";
             var fpDistExpr = "ril.base_dist_nm";
+            var fpLockExpr = "COALESCE(ril.lock_count, 0)";
             var fpSegmentSql = "";
 
             if (!routegenHasNormalizedLegRows(routeInstanceIdVal)) {
@@ -905,6 +924,17 @@
                     fpDistExpr = "COALESCE(uso.computed_nm, ril.base_dist_nm)";
                 }
             }
+            if (routegenHasRouteLegLocksTable()) {
+                fpLockJoinSql =
+                    " LEFT JOIN (
+                        SELECT route_code, leg, COUNT(*) AS lock_count
+                        FROM route_leg_locks
+                        GROUP BY route_code, leg
+                      ) rll
+                        ON rll.route_code COLLATE utf8mb4_unicode_ci = ri.template_route_code
+                       AND rll.leg = ril.leg_order";
+                fpLockExpr = "COALESCE(rll.lock_count, ril.lock_count, 0)";
+            }
 
             fpSegmentSql =
                 "SELECT
@@ -916,12 +946,14 @@
                     ril.start_name,
                     ril.end_name,
                     " & fpDistExpr & " AS dist_nm,
-                    COALESCE(ril.lock_count, 0) AS lock_count
+                    " & fpLockExpr & " AS lock_count
                  FROM route_instance_legs ril
+                 INNER JOIN route_instances ri ON ri.id = ril.route_instance_id
                  LEFT JOIN route_instance_sections ris ON ris.id = ril.route_instance_section_id"
                 & fpLegJoinSql
                 & fpSegJoinSql
                 & fpUsoJoinSql
+                & fpLockJoinSql
                 & "
                  WHERE ril.route_instance_id = :routeInstanceId
                  ORDER BY COALESCE(ris.section_order, 1) ASC, ril.leg_order ASC, ril.id ASC";
@@ -1367,7 +1399,9 @@
         <cfset var normalizedLegJoinSql = "" />
         <cfset var normalizedSegJoinSql = "" />
         <cfset var normalizedUsoJoinSql = "" />
+        <cfset var normalizedLockJoinSql = "" />
         <cfset var normalizedDistExpr = "ril.base_dist_nm" />
+        <cfset var normalizedLockExpr = "COALESCE(ril.lock_count, 0)" />
         <cfset var normalizedBinds = {} />
 
         <cfif NOT routegenHasNormalizedLegRows(routeInstanceIdVal)>
@@ -1431,6 +1465,18 @@
             </cfif>
         </cfif>
 
+        <cfif routegenHasRouteLegLocksTable()>
+            <cfset normalizedLockJoinSql =
+                " LEFT JOIN (
+                    SELECT route_code, leg, COUNT(*) AS lock_count
+                    FROM route_leg_locks
+                    GROUP BY route_code, leg
+                  ) rll
+                    ON rll.route_code COLLATE utf8mb4_unicode_ci = ri.template_route_code
+                   AND rll.leg = ril.leg_order" />
+            <cfset normalizedLockExpr = "COALESCE(rll.lock_count, ril.lock_count, 0)" />
+        </cfif>
+
         <cfset qSegmentsSql =
             "SELECT
                 COALESCE(ril.source_loop_segment_id, ril.id) AS id,
@@ -1439,7 +1485,7 @@
                 ril.start_name,
                 ril.end_name,
                 " & normalizedDistExpr & " AS dist_nm,
-                COALESCE(ril.lock_count, 0) AS lock_count,
+                " & normalizedLockExpr & " AS lock_count,
                 NULL AS rm_start,
                 NULL AS rm_end,
                 0 AS is_signature_event,
@@ -1447,10 +1493,12 @@
                 COALESCE(ril.notes, '') AS notes,
                 COALESCE(ris.section_order, 1) AS section_order
              FROM route_instance_legs ril
+             INNER JOIN route_instances ri ON ri.id = ril.route_instance_id
              LEFT JOIN route_instance_sections ris ON ris.id = ril.route_instance_section_id"
             & normalizedLegJoinSql
             & normalizedSegJoinSql
             & normalizedUsoJoinSql
+            & normalizedLockJoinSql
             & "
              WHERE ril.route_instance_id = :routeInstanceId
              ORDER BY COALESCE(ris.section_order, 1) ASC, ril.leg_order ASC, ril.id ASC" />
@@ -1613,11 +1661,18 @@
             }
 
             var q = queryExecute(
-                "SELECT s.id, s.start_name, s.end_name, sec.order_index AS section_order, s.order_index AS seg_order
-                 FROM loop_segments s
-                 INNER JOIN loop_sections sec ON sec.id = s.section_id
-                 WHERE sec.route_id = :rid
-                 ORDER BY sec.order_index ASC, s.order_index ASC",
+                "SELECT
+                    sl.id,
+                    COALESCE(NULLIF(TRIM(p1.name), ''), TRIM(sl.start_port_name), '') AS start_name,
+                    COALESCE(NULLIF(TRIM(p2.name), ''), TRIM(sl.end_port_name), '') AS end_name,
+                    1 AS section_order,
+                    rts.order_index AS seg_order
+                 FROM route_template_segments rts
+                 INNER JOIN segment_library sl ON sl.id = rts.segment_id
+                 LEFT JOIN ports p1 ON p1.id = sl.start_port_id
+                 LEFT JOIN ports p2 ON p2.id = sl.end_port_id
+                 WHERE rts.route_id = :rid
+                 ORDER BY rts.order_index ASC, rts.id ASC",
                 { rid = { value=arguments.templateRouteId, cfsqltype="cf_sql_integer" } },
                 { datasource = application.dsn }
             );
@@ -2488,7 +2543,25 @@
         <cfargument name="templateRouteId" type="numeric" required="true">
         <cfargument name="direction" type="string" required="false" default="CCW">
         <cfscript>
-            var q = queryExecute(
+            var q = queryNew("");
+            var hasRouteLegLocks = routegenHasRouteLegLocksTable();
+            var lockExpr = "COALESCE(sl.lock_count, 0)";
+            var lockJoinSql = "";
+            var sqlMainLegs = "";
+
+            if (hasRouteLegLocks) {
+                lockExpr = "COALESCE(rll.lock_count, sl.lock_count, 0)";
+                lockJoinSql =
+                    " LEFT JOIN (
+                        SELECT route_code, leg, COUNT(*) AS lock_count
+                        FROM route_leg_locks
+                        GROUP BY route_code, leg
+                      ) rll
+                        ON rll.route_code COLLATE utf8mb4_unicode_ci = rt.short_code
+                       AND rll.leg = rts.order_index";
+            }
+
+            sqlMainLegs =
                 "SELECT
                     rts.order_index AS template_order,
                     sl.id AS segment_id,
@@ -2501,16 +2574,22 @@
                     p2.lat AS end_lat,
                     p2.lng AS end_lng,
                     sl.dist_nm,
-                    sl.lock_count,
+                    " & lockExpr & " AS lock_count,
                     sl.is_offshore,
                     sl.is_icw,
                     sl.notes
                  FROM route_template_segments rts
+                 INNER JOIN loop_routes rt ON rt.id = rts.route_id
                  INNER JOIN segment_library sl ON sl.id = rts.segment_id
                  LEFT JOIN ports p1 ON p1.id = sl.start_port_id
-                 LEFT JOIN ports p2 ON p2.id = sl.end_port_id
+                 LEFT JOIN ports p2 ON p2.id = sl.end_port_id"
+                & lockJoinSql
+                & "
                  WHERE rts.route_id = :rid
-                 ORDER BY rts.order_index ASC, rts.id ASC",
+                 ORDER BY rts.order_index ASC, rts.id ASC";
+
+            q = queryExecute(
+                sqlMainLegs,
                 {
                     rid = { value=arguments.templateRouteId, cfsqltype="cf_sql_integer" }
                 },
@@ -3607,6 +3686,63 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="routegenHasRouteLegLocksTable" access="private" returntype="boolean" output="false">
+        <cfscript>
+            var qTbl = queryNew("");
+            if (structKeyExists(request, "routegenHasRouteLegLocksTable")) {
+                return request.routegenHasRouteLegLocksTable;
+            }
+            qTbl = queryExecute(
+                "SELECT COUNT(*) AS cnt
+                 FROM information_schema.tables
+                 WHERE table_schema = DATABASE()
+                   AND table_name = 'route_leg_locks'",
+                {},
+                { datasource = application.dsn }
+            );
+            request.routegenHasRouteLegLocksTable = (qTbl.recordCount GT 0 AND val(qTbl.cnt[1]) GT 0);
+            return request.routegenHasRouteLegLocksTable;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenHasCanonicalLocksTable" access="private" returntype="boolean" output="false">
+        <cfscript>
+            var qTbl = queryNew("");
+            if (structKeyExists(request, "routegenHasCanonicalLocksTable")) {
+                return request.routegenHasCanonicalLocksTable;
+            }
+            qTbl = queryExecute(
+                "SELECT COUNT(*) AS cnt
+                 FROM information_schema.tables
+                 WHERE table_schema = DATABASE()
+                   AND table_name = 'canonical_locks'",
+                {},
+                { datasource = application.dsn }
+            );
+            request.routegenHasCanonicalLocksTable = (qTbl.recordCount GT 0 AND val(qTbl.cnt[1]) GT 0);
+            return request.routegenHasCanonicalLocksTable;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenHasLockDelayModelTable" access="private" returntype="boolean" output="false">
+        <cfscript>
+            var qTbl = queryNew("");
+            if (structKeyExists(request, "routegenHasLockDelayModelTable")) {
+                return request.routegenHasLockDelayModelTable;
+            }
+            qTbl = queryExecute(
+                "SELECT COUNT(*) AS cnt
+                 FROM information_schema.tables
+                 WHERE table_schema = DATABASE()
+                   AND table_name = 'lock_delay_model'",
+                {},
+                { datasource = application.dsn }
+            );
+            request.routegenHasLockDelayModelTable = (qTbl.recordCount GT 0 AND val(qTbl.cnt[1]) GT 0);
+            return request.routegenHasLockDelayModelTable;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="routegenHasSegmentGeometryTable" access="private" returntype="boolean" output="false">
         <cfscript>
             var qTbl = queryExecute(
@@ -3641,26 +3777,6 @@
             );
             request.routegenHasNormalizedTables = (qTbl.recordCount GT 0 AND val(qTbl.cnt[1]) GTE 3);
             return request.routegenHasNormalizedTables;
-        </cfscript>
-    </cffunction>
-
-    <cffunction name="routegenHasLoopSourceSegmentColumn" access="private" returntype="boolean" output="false">
-        <cfscript>
-            var qCol = queryNew("");
-            if (structKeyExists(request, "routegenHasLoopSourceSegmentColumn")) {
-                return request.routegenHasLoopSourceSegmentColumn;
-            }
-            qCol = queryExecute(
-                "SELECT COUNT(*) AS cnt
-                 FROM information_schema.columns
-                 WHERE table_schema = DATABASE()
-                   AND table_name = 'loop_segments'
-                   AND column_name = 'source_segment_id'",
-                {},
-                { datasource = application.dsn }
-            );
-            request.routegenHasLoopSourceSegmentColumn = (qCol.recordCount GT 0 AND val(qCol.cnt[1]) GT 0);
-            return request.routegenHasLoopSourceSegmentColumn;
         </cfscript>
     </cffunction>
 
@@ -3732,10 +3848,39 @@
         <cfargument name="routeInstanceId" type="numeric" required="true">
         <cfscript>
             var sqlInsertLegs = "";
-            var segmentExpr = "";
+            var directionVal = "CCW";
+            var qInst = queryNew("");
+            var lockJoinSql = "";
+            var lockExpr = "COALESCE(sl.lock_count, 0)";
 
             if (!routegenHasNormalizedTables()) return;
             if (arguments.userId LTE 0 OR arguments.routeId LTE 0 OR arguments.routeInstanceId LTE 0) return;
+
+            if (routegenHasRouteLegLocksTable()) {
+                lockJoinSql =
+                    " LEFT JOIN (
+                        SELECT route_code, leg, COUNT(*) AS lock_count
+                        FROM route_leg_locks
+                        GROUP BY route_code, leg
+                      ) rll
+                        ON rll.route_code COLLATE utf8mb4_unicode_ci = rt.short_code
+                       AND rll.leg = rts.order_index";
+                lockExpr = "COALESCE(rll.lock_count, sl.lock_count, 0)";
+            }
+
+            qInst = queryExecute(
+                "SELECT direction
+                 FROM route_instances
+                 WHERE id = :routeInstanceId
+                 LIMIT 1",
+                {
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+            if (qInst.recordCount GT 0 AND !isNull(qInst.direction[1])) {
+                directionVal = normalizeDirection(qInst.direction[1]);
+            }
 
             queryExecute(
                 "DELETE FROM route_instance_leg_progress
@@ -3767,23 +3912,14 @@
             queryExecute(
                 "INSERT INTO route_instance_sections
                     (route_instance_id, section_order, name, phase_num, source_section_id)
-                 SELECT
-                    :routeInstanceId,
-                    sec.order_index,
-                    COALESCE(NULLIF(TRIM(sec.name), ''), CONCAT('Section ', sec.order_index)),
-                    sec.phase_num,
-                    sec.id
-                 FROM loop_sections sec
-                 WHERE sec.route_id = :routeId
-                 ORDER BY sec.order_index ASC, sec.id ASC",
+                 VALUES
+                    (:routeInstanceId, 1, 'Route', 1, NULL)",
                 {
-                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" },
-                    routeId = { value=arguments.routeId, cfsqltype="cf_sql_integer" }
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
                 },
                 { datasource = application.dsn }
             );
 
-            segmentExpr = (routegenHasLoopSourceSegmentColumn() ? "NULLIF(s.source_segment_id, 0)" : "NULL");
             sqlInsertLegs =
                 "INSERT INTO route_instance_legs
                     (route_instance_id, route_instance_section_id, leg_order, segment_id, source_loop_segment_id,
@@ -3791,28 +3927,38 @@
                      start_lat, start_lng, end_lat, end_lng, base_dist_nm, lock_count, notes)
                  SELECT
                     :routeInstanceId,
-                    ris.id,
-                    ROW_NUMBER() OVER (ORDER BY sec.order_index ASC, s.order_index ASC, s.id ASC),
-                    " & segmentExpr & ",
-                    s.id,
-                    0,
-                    0,
+                    ris.id AS route_instance_section_id,
+                    ROW_NUMBER() OVER (
+                        ORDER BY " & (directionVal EQ "CW" ? "rts.order_index DESC, rts.id DESC" : "rts.order_index ASC, rts.id ASC") & "
+                    ) AS leg_order,
+                    sl.id AS segment_id,
+                    sl.id AS source_loop_segment_id,
+                    " & (directionVal EQ "CW" ? "1" : "0") & " AS is_reversed,
+                    COALESCE(rts.is_optional, 0) AS is_optional,
                     NULL,
-                    s.start_name,
-                    s.end_name,
-                    s.start_lat,
-                    s.start_lng,
-                    s.end_lat,
-                    s.end_lng,
-                    s.dist_nm,
-                    s.lock_count,
-                    s.notes
-                 FROM loop_segments s
-                 INNER JOIN loop_sections sec ON sec.id = s.section_id
+                    " & (directionVal EQ "CW"
+                        ? "COALESCE(NULLIF(TRIM(p2.name), ''), TRIM(sl.end_port_name), '')"
+                        : "COALESCE(NULLIF(TRIM(p1.name), ''), TRIM(sl.start_port_name), '')") & " AS start_name,
+                    " & (directionVal EQ "CW"
+                        ? "COALESCE(NULLIF(TRIM(p1.name), ''), TRIM(sl.start_port_name), '')"
+                        : "COALESCE(NULLIF(TRIM(p2.name), ''), TRIM(sl.end_port_name), '')") & " AS end_name,
+                    " & (directionVal EQ "CW" ? "p2.lat" : "p1.lat") & " AS start_lat,
+                    " & (directionVal EQ "CW" ? "p2.lng" : "p1.lng") & " AS start_lng,
+                    " & (directionVal EQ "CW" ? "p1.lat" : "p2.lat") & " AS end_lat,
+                    " & (directionVal EQ "CW" ? "p1.lng" : "p2.lng") & " AS end_lng,
+                    sl.dist_nm AS base_dist_nm,
+                    " & lockExpr & " AS lock_count,
+                    sl.notes
+                 FROM route_template_segments rts
+                 INNER JOIN loop_routes rt ON rt.id = rts.route_id
+                 INNER JOIN segment_library sl ON sl.id = rts.segment_id
+                 LEFT JOIN ports p1 ON p1.id = sl.start_port_id
+                 LEFT JOIN ports p2 ON p2.id = sl.end_port_id
+                 " & lockJoinSql & "
                  INNER JOIN route_instance_sections ris
                     ON ris.route_instance_id = :routeInstanceId
-                   AND ris.source_section_id = sec.id
-                 WHERE sec.route_id = :routeId";
+                   AND ris.section_order = 1
+                 WHERE rts.route_id = :routeId";
             queryExecute(
                 sqlInsertLegs,
                 {
@@ -3853,7 +3999,7 @@
                  FROM route_instance_legs ril
                  LEFT JOIN user_route_progress up
                     ON up.user_id = :userId
-                   AND up.segment_id = ril.source_loop_segment_id
+                   AND up.segment_id = ril.segment_id
                  WHERE ril.route_instance_id = :routeInstanceId",
                 {
                     userId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
@@ -4683,6 +4829,336 @@
                 ),
                 "points"=effectivePoints
             };
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenGetLegLocks" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeCode" type="string" required="false" default="">
+        <cfargument name="templateCode" type="string" required="false" default="">
+        <cfargument name="routeLegId" type="numeric" required="false" default="0">
+        <cfargument name="segmentId" type="numeric" required="false" default="0">
+        <cfargument name="legOrder" type="numeric" required="false" default="0">
+        <cfscript>
+            var out = {
+                "SUCCESS"=false,
+                "AUTH"=true,
+                "MESSAGE"="Unable to load lock details",
+                "DATA"={}
+            };
+            var routeCodeVal = trim(arguments.routeCode);
+            var templateCodeVal = trim(arguments.templateCode);
+            var routeInfo = {};
+            var routeInstanceIdVal = 0;
+            var routeLegIdVal = val(arguments.routeLegId);
+            var segmentIdVal = val(arguments.segmentId);
+            var legOrderVal = val(arguments.legOrder);
+            var startNameVal = "";
+            var endNameVal = "";
+            var qInst = queryNew("");
+            var qLeg = queryNew("");
+            var qMap = queryNew("");
+            var qLocks = queryNew("");
+            var qMapSql = "";
+            var qMapParams = {};
+            var qLocksSql = "";
+            var mapShortCodeVal = "";
+            var mapRouteCodeVal = "";
+            var mapLegOrderVal = 0;
+            var totalBaseCycleMin = 0;
+            var totalBestWaitMin = 0;
+            var totalTypicalWaitMin = 0;
+            var totalWorstWaitMin = 0;
+            var hasDelayModel = routegenHasLockDelayModelTable();
+            var i = 0;
+            var lockRow = {};
+            var routeLegResolved = 0;
+
+            if (!routegenHasRouteLegLocksTable()) {
+                out.MESSAGE = "Lock data unavailable";
+                out.ERROR = { "MESSAGE"="route_leg_locks table is missing." };
+                return out;
+            }
+            if (!routegenHasCanonicalLocksTable()) {
+                out.MESSAGE = "Lock data unavailable";
+                out.ERROR = { "MESSAGE"="canonical_locks table is missing." };
+                return out;
+            }
+
+            if (len(routeCodeVal)) {
+                routeInfo = routegenResolveUserRoute(arguments.userId, routeCodeVal);
+                if (!structCount(routeInfo)) {
+                    out.MESSAGE = "Route not found";
+                    out.ERROR = { "MESSAGE"="Route not found or not owned by user." };
+                    return out;
+                }
+
+                routeInstanceIdVal = routegenResolveLatestRouteInstanceId(arguments.userId, routeInfo.ROUTE_ID);
+                if (routeInstanceIdVal LTE 0) {
+                    out.MESSAGE = "Route locks unavailable";
+                    out.ERROR = { "MESSAGE"="Route instance could not be resolved." };
+                    return out;
+                }
+
+                qInst = queryExecute(
+                    "SELECT template_route_code
+                     FROM route_instances
+                     WHERE id = :routeInstanceId
+                     LIMIT 1",
+                    {
+                        routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource = application.dsn }
+                );
+                if (!len(templateCodeVal) AND qInst.recordCount GT 0 AND !isNull(qInst.template_route_code[1])) {
+                    templateCodeVal = trim(toString(qInst.template_route_code[1]));
+                }
+
+                var qLegSql =
+                    "SELECT
+                        ril.id,
+                        ril.leg_order,
+                        ril.segment_id,
+                        ril.source_loop_segment_id,
+                        ril.start_name,
+                        ril.end_name
+                     FROM route_instance_legs ril
+                     WHERE ril.route_instance_id = :routeInstanceId";
+                var qLegParams = {
+                    routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" }
+                };
+
+                if (legOrderVal GT 0) {
+                    qLegSql &= " AND ril.leg_order = :legOrder";
+                    qLegParams.legOrder = { value=legOrderVal, cfsqltype="cf_sql_integer" };
+                } else if (routeLegIdVal GT 0) {
+                    qLegSql &= " AND (COALESCE(ril.source_loop_segment_id, ril.id) = :routeLegId OR ril.id = :routeLegIdExact)";
+                    qLegParams.routeLegId = { value=routeLegIdVal, cfsqltype="cf_sql_integer" };
+                    qLegParams.routeLegIdExact = { value=routeLegIdVal, cfsqltype="cf_sql_integer" };
+                } else if (segmentIdVal GT 0) {
+                    qLegSql &= " AND ril.segment_id = :segmentId";
+                    qLegParams.segmentId = { value=segmentIdVal, cfsqltype="cf_sql_integer" };
+                } else {
+                    out.MESSAGE = "Leg required";
+                    out.ERROR = { "MESSAGE"="Provide leg_order, route_leg_id, or segment_id." };
+                    return out;
+                }
+
+                qLegSql &= " ORDER BY ril.leg_order ASC, ril.id ASC LIMIT 1";
+                qLeg = queryExecute(qLegSql, qLegParams, { datasource = application.dsn });
+                if (qLeg.recordCount EQ 0) {
+                    out.MESSAGE = "Leg not found";
+                    out.ERROR = { "MESSAGE"="Requested leg was not found in this route instance." };
+                    return out;
+                }
+
+                routeLegResolved = (
+                    isNull(qLeg.source_loop_segment_id[1]) OR val(qLeg.source_loop_segment_id[1]) LTE 0
+                        ? val(qLeg.id[1])
+                        : val(qLeg.source_loop_segment_id[1])
+                );
+                routeLegIdVal = routeLegResolved;
+                if (legOrderVal LTE 0) {
+                    legOrderVal = (isNull(qLeg.leg_order[1]) ? 0 : val(qLeg.leg_order[1]));
+                }
+                if (segmentIdVal LTE 0 AND !isNull(qLeg.segment_id[1])) {
+                    segmentIdVal = val(qLeg.segment_id[1]);
+                }
+                startNameVal = (isNull(qLeg.start_name[1]) ? "" : trim(toString(qLeg.start_name[1])));
+                endNameVal = (isNull(qLeg.end_name[1]) ? "" : trim(toString(qLeg.end_name[1])));
+            }
+
+            if (segmentIdVal LTE 0) {
+                out.MESSAGE = "Segment required";
+                out.ERROR = { "MESSAGE"="segment_id is required to resolve lock details." };
+                return out;
+            }
+
+            qMapSql =
+                "SELECT
+                    rt.short_code,
+                    rt.code,
+                    rts.order_index
+                 FROM route_template_segments rts
+                 INNER JOIN loop_routes rt ON rt.id = rts.route_id
+                 WHERE rts.segment_id = :segmentId";
+            qMapParams = {
+                segmentId = { value=segmentIdVal, cfsqltype="cf_sql_integer" }
+            };
+            if (len(templateCodeVal)) {
+                qMapSql &= "
+                    AND (rt.short_code = :templateCode OR rt.code = :templateCode)";
+                qMapParams.templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" };
+                qMapSql &= "
+                 ORDER BY
+                    CASE
+                        WHEN rt.short_code = :templateCode THEN 0
+                        WHEN rt.code = :templateCode THEN 1
+                        ELSE 2
+                    END,
+                    rts.order_index ASC,
+                    rt.id ASC
+                 LIMIT 1";
+            } else {
+                qMapSql &= "
+                 ORDER BY rt.is_default DESC, rt.id ASC, rts.order_index ASC
+                 LIMIT 1";
+            }
+            qMap = queryExecute(qMapSql, qMapParams, { datasource = application.dsn });
+
+            if (qMap.recordCount EQ 0 AND len(templateCodeVal)) {
+                qMap = queryExecute(
+                    "SELECT
+                        rt.short_code,
+                        rt.code,
+                        rts.order_index
+                     FROM route_template_segments rts
+                     INNER JOIN loop_routes rt ON rt.id = rts.route_id
+                     WHERE rts.segment_id = :segmentId
+                     ORDER BY rt.is_default DESC, rt.id ASC, rts.order_index ASC
+                     LIMIT 1",
+                    {
+                        segmentId = { value=segmentIdVal, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource = application.dsn }
+                );
+            }
+
+            if (qMap.recordCount EQ 0) {
+                out.SUCCESS = true;
+                out.MESSAGE = "No lock mapping for this leg";
+                out.DATA = {
+                    "route_code"=(structCount(routeInfo) ? routeInfo.ROUTE_CODE : routeCodeVal),
+                    "template_code"=templateCodeVal,
+                    "template_route_code"=templateCodeVal,
+                    "route_leg_id"=routeLegIdVal,
+                    "leg_order"=legOrderVal,
+                    "segment_id"=segmentIdVal,
+                    "start_name"=startNameVal,
+                    "end_name"=endNameVal,
+                    "lock_count"=0,
+                    "totals"={
+                        "base_cycle_min"=0,
+                        "best_wait_min"=0,
+                        "typical_wait_min"=0,
+                        "worst_wait_min"=0
+                    },
+                    "locks"=[]
+                };
+                return out;
+            }
+
+            mapShortCodeVal = (isNull(qMap.short_code[1]) ? "" : trim(toString(qMap.short_code[1])));
+            mapRouteCodeVal = (isNull(qMap.code[1]) ? "" : trim(toString(qMap.code[1])));
+            mapLegOrderVal = (isNull(qMap.order_index[1]) ? 0 : val(qMap.order_index[1]));
+
+            qLocksSql =
+                "SELECT
+                    rll.seq,
+                    rll.lock_code,
+                    COALESCE(cl.name, rll.lock_code) AS lock_name,
+                    COALESCE(cl.waterway, '') AS waterway,
+                    COALESCE(cl.state, '') AS state_code,
+                    COALESCE(cl.country, '') AS country_code,
+                    cl.lat,
+                    cl.lng,
+                    COALESCE(cl.lock_type, '') AS lock_type,
+                    cl.chamber_length_ft,
+                    cl.chamber_width_ft,
+                    COALESCE(cl.agency, '') AS agency,
+                    COALESCE(cl.source, '') AS source_url,
+                    COALESCE(cl.notes, '') AS lock_notes,"
+                    & (hasDelayModel ? "
+                    ldm.base_cycle_min,
+                    ldm.best_wait_min,
+                    ldm.typical_wait_min,
+                    ldm.worst_wait_min,
+                    COALESCE(ldm.notes, '') AS delay_notes" : "
+                    NULL AS base_cycle_min,
+                    NULL AS best_wait_min,
+                    NULL AS typical_wait_min,
+                    NULL AS worst_wait_min,
+                    '' AS delay_notes")
+                    & "
+                 FROM route_leg_locks rll
+                 LEFT JOIN canonical_locks cl ON cl.lock_code = rll.lock_code"
+                    & (hasDelayModel ? "
+                 LEFT JOIN lock_delay_model ldm ON ldm.lock_code = rll.lock_code" : "")
+                    & "
+                 WHERE rll.route_code COLLATE utf8mb4_unicode_ci = :routeShortCode
+                   AND rll.leg = :templateLeg
+                 ORDER BY rll.seq ASC, rll.lock_code ASC";
+            qLocks = queryExecute(
+                qLocksSql,
+                {
+                    routeShortCode = { value=mapShortCodeVal, cfsqltype="cf_sql_varchar" },
+                    templateLeg = { value=mapLegOrderVal, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+
+            out.SUCCESS = true;
+            out.MESSAGE = "OK";
+            out.DATA = {
+                "route_code"=(structCount(routeInfo) ? routeInfo.ROUTE_CODE : routeCodeVal),
+                "template_code"=mapShortCodeVal,
+                "template_route_code"=mapRouteCodeVal,
+                "template_leg_order"=mapLegOrderVal,
+                "route_leg_id"=routeLegIdVal,
+                "leg_order"=legOrderVal,
+                "segment_id"=segmentIdVal,
+                "start_name"=startNameVal,
+                "end_name"=endNameVal,
+                "lock_count"=0,
+                "totals"={
+                    "base_cycle_min"=0,
+                    "best_wait_min"=0,
+                    "typical_wait_min"=0,
+                    "worst_wait_min"=0
+                },
+                "locks"=[]
+            };
+
+            for (i = 1; i LTE qLocks.recordCount; i++) {
+                lockRow = {
+                    "seq"=(isNull(qLocks.seq[i]) ? i : val(qLocks.seq[i])),
+                    "lock_code"=(isNull(qLocks.lock_code[i]) ? "" : trim(toString(qLocks.lock_code[i]))),
+                    "name"=(isNull(qLocks.lock_name[i]) ? "" : trim(toString(qLocks.lock_name[i]))),
+                    "waterway"=(isNull(qLocks.waterway[i]) ? "" : trim(toString(qLocks.waterway[i]))),
+                    "state_code"=(isNull(qLocks.state_code[i]) ? "" : trim(toString(qLocks.state_code[i]))),
+                    "country_code"=(isNull(qLocks.country_code[i]) ? "" : trim(toString(qLocks.country_code[i]))),
+                    "lat"=(isNull(qLocks.lat[i]) ? javacast("null", "") : val(qLocks.lat[i])),
+                    "lng"=(isNull(qLocks.lng[i]) ? javacast("null", "") : val(qLocks.lng[i])),
+                    "lock_type"=(isNull(qLocks.lock_type[i]) ? "" : trim(toString(qLocks.lock_type[i]))),
+                    "chamber_length_ft"=(isNull(qLocks.chamber_length_ft[i]) ? 0 : val(qLocks.chamber_length_ft[i])),
+                    "chamber_width_ft"=(isNull(qLocks.chamber_width_ft[i]) ? 0 : val(qLocks.chamber_width_ft[i])),
+                    "agency"=(isNull(qLocks.agency[i]) ? "" : trim(toString(qLocks.agency[i]))),
+                    "source_url"=(isNull(qLocks.source_url[i]) ? "" : trim(toString(qLocks.source_url[i]))),
+                    "lock_notes"=(isNull(qLocks.lock_notes[i]) ? "" : trim(toString(qLocks.lock_notes[i]))),
+                    "base_cycle_min"=(isNull(qLocks.base_cycle_min[i]) ? 0 : val(qLocks.base_cycle_min[i])),
+                    "best_wait_min"=(isNull(qLocks.best_wait_min[i]) ? 0 : val(qLocks.best_wait_min[i])),
+                    "typical_wait_min"=(isNull(qLocks.typical_wait_min[i]) ? 0 : val(qLocks.typical_wait_min[i])),
+                    "worst_wait_min"=(isNull(qLocks.worst_wait_min[i]) ? 0 : val(qLocks.worst_wait_min[i])),
+                    "delay_notes"=(isNull(qLocks.delay_notes[i]) ? "" : trim(toString(qLocks.delay_notes[i])))
+                };
+                arrayAppend(out.DATA.locks, lockRow);
+                totalBaseCycleMin += val(lockRow.base_cycle_min);
+                totalBestWaitMin += val(lockRow.best_wait_min);
+                totalTypicalWaitMin += val(lockRow.typical_wait_min);
+                totalWorstWaitMin += val(lockRow.worst_wait_min);
+            }
+
+            out.DATA.lock_count = arrayLen(out.DATA.locks);
+            out.DATA.totals = {
+                "base_cycle_min"=totalBaseCycleMin,
+                "best_wait_min"=totalBestWaitMin,
+                "typical_wait_min"=totalTypicalWaitMin,
+                "worst_wait_min"=totalWorstWaitMin
+            };
+            if (!len(out.MESSAGE)) {
+                out.MESSAGE = (out.DATA.lock_count GT 0 ? "OK" : "No locks mapped for this leg");
+            }
             return out;
         </cfscript>
     </cffunction>

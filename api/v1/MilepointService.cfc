@@ -27,11 +27,17 @@
             }
 
             var qSeg = queryExecute(
-                "SELECT s.id, s.start_name, s.end_name, sec.name AS section_name
-                 FROM loop_segments s
-                 INNER JOIN loop_sections sec ON sec.id = s.section_id
-                 WHERE sec.route_id = :rid
-                 ORDER BY sec.order_index ASC, s.order_index ASC",
+                "SELECT
+                    sl.id,
+                    COALESCE(NULLIF(TRIM(p1.name), ''), TRIM(sl.start_port_name), '') AS start_name,
+                    COALESCE(NULLIF(TRIM(p2.name), ''), TRIM(sl.end_port_name), '') AS end_name,
+                    COALESCE(NULLIF(TRIM(sl.region), ''), 'Route') AS section_name
+                 FROM route_template_segments rts
+                 INNER JOIN segment_library sl ON sl.id = rts.segment_id
+                 LEFT JOIN ports p1 ON p1.id = sl.start_port_id
+                 LEFT JOIN ports p2 ON p2.id = sl.end_port_id
+                 WHERE rts.route_id = :rid
+                 ORDER BY rts.order_index ASC, rts.id ASC",
                 { rid = { value=qRoute.id[1], cfsqltype="cf_sql_integer" } },
                 { datasource = application.dsn }
             );

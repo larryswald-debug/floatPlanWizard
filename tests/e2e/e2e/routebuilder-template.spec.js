@@ -63,7 +63,7 @@ test("Route Builder generates route from template and opens timeline editor", as
   await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 15000 });
 });
 
-test("Route Builder leg row opens map editor panel", async ({ page }) => {
+test("Route Builder leg row opens lock panel, then map editor from button", async ({ page }) => {
   await page.goto("/fpw/index.cfm", { waitUntil: "domcontentloaded" });
 
   await page.fill('input[name="email"], input[name="EMAIL"]', process.env.FPW_EMAIL || "");
@@ -107,10 +107,34 @@ test("Route Builder leg row opens map editor panel", async ({ page }) => {
   }, { timeout: 30000 });
 
   await page.click("#routeGenLegList .fpw-routegen__leg");
+  await expect(page.locator("#routeGenLegList .fpw-routegen__leglockpanel")).toBeVisible({ timeout: 10000 });
+  await expect(page.locator("#routeGenLegList .fpw-routegen__leglockhead")).toContainText("Lock Navigation Details", { timeout: 10000 });
+  await page.waitForFunction(() => {
+    const panel = document.querySelector("#routeGenLegList .fpw-routegen__leglockpanel");
+    if (!panel) return false;
+    return !!panel.querySelector(".fpw-routegen__locksummary, .fpw-routegen__lockstate");
+  }, { timeout: 15000 });
+  await page.evaluate(() => {
+    const btn = document.querySelector('#routeGenLegList .fpw-routegen__leg [data-leg-action="open-map"]');
+    if (!btn) throw new Error("Open map button not found.");
+    btn.click();
+  });
   await expect(page.locator("#routeGenLegMapPanel")).toHaveClass(/is-open/, { timeout: 10000 });
   await expect(page.locator("#routeGenLegMap")).toBeVisible({ timeout: 10000 });
   await expect(page.locator("#routeGenLegMapTitle")).toContainText("->", { timeout: 10000 });
+  await expect(page.locator("#routeGenLegMap .leaflet-tooltip").filter({ hasText: "Start" }).first()).toBeVisible({ timeout: 10000 });
+  await expect(page.locator("#routeGenLegMap .leaflet-tooltip").filter({ hasText: "End" }).first()).toBeVisible({ timeout: 10000 });
   await expect(page.locator("#routeGenLegSaveBtn")).toBeEnabled();
+  await page.click("#routeGenLegOverlayCloseBtn");
+  await expect(page.locator("#routeGenLegOverlay")).not.toHaveClass(/is-open/, { timeout: 10000 });
+  await page.evaluate(() => {
+    const btn = document.querySelector('#routeGenLegList .fpw-routegen__leg [data-leg-action="open-map"]');
+    if (!btn) throw new Error("Open map button not found for reopen check.");
+    btn.click();
+  });
+  await expect(page.locator("#routeGenLegMapPanel")).toHaveClass(/is-open/, { timeout: 10000 });
+  await expect(page.locator("#routeGenLegMap .leaflet-tooltip").filter({ hasText: "Start" }).first()).toBeVisible({ timeout: 10000 });
+  await expect(page.locator("#routeGenLegMap .leaflet-tooltip").filter({ hasText: "End" }).first()).toBeVisible({ timeout: 10000 });
   await page.click("#routeGenLegOverlayCloseBtn");
   await expect(page.locator("#routeGenLegOverlay")).not.toHaveClass(/is-open/, { timeout: 10000 });
 
@@ -174,7 +198,11 @@ test("Route Builder saves and clears leg override via deterministic geometry hoo
   });
   expect(legOrder).not.toEqual("");
 
-  await page.click(`#routeGenLegList .fpw-routegen__leg[data-leg-order="${legOrder}"]`);
+  await page.evaluate((orderText) => {
+    const btn = document.querySelector(`#routeGenLegList .fpw-routegen__leg[data-leg-order="${orderText}"] [data-leg-action="open-map"]`);
+    if (!btn) throw new Error("Open map button not found for selected leg.");
+    btn.click();
+  }, legOrder);
   await expect(page.locator("#routeGenLegMapPanel")).toHaveClass(/is-open/, { timeout: 10000 });
   await expect(page.locator("#routeGenLegMap")).toBeVisible({ timeout: 10000 });
 

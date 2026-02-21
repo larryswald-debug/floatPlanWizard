@@ -620,7 +620,7 @@
       border-bottom: 1px solid var(--rg-line);
       background: rgba(255, 255, 255, 0.03);
       display: grid;
-      grid-template-columns: 32px minmax(0, 1fr) 62px 78px;
+      grid-template-columns: 32px minmax(0, 1fr) 62px 78px 110px;
       gap: 10px;
       align-items: center;
     }
@@ -639,7 +639,8 @@
     }
 
     .fpw-routegen__legcols span:nth-child(3),
-    .fpw-routegen__legcols span:nth-child(4) {
+    .fpw-routegen__legcols span:nth-child(4),
+    .fpw-routegen__legcols span:nth-child(5) {
       text-align: right;
     }
 
@@ -651,15 +652,21 @@
       flex: 1 1 auto;
     }
 
+    .fpw-routegen__legwrap {
+      display: block;
+      margin-bottom: 4px;
+    }
+
     .fpw-routegen__leg {
       display: grid;
-      grid-template-columns: 32px minmax(0, 1fr) 62px 78px;
+      grid-template-columns: 32px minmax(0, 1fr) 62px 78px 110px;
       gap: 10px;
       align-items: center;
       padding: 9px;
       border-radius: 10px;
       border: 1px solid transparent;
       cursor: pointer;
+      transition: background 0.18s ease, border-color 0.18s ease;
     }
 
     .fpw-routegen__leg:hover {
@@ -670,6 +677,11 @@
     .fpw-routegen__leg.is-selected {
       background: rgba(45, 212, 191, 0.12);
       border-color: rgba(45, 212, 191, 0.45);
+    }
+
+    .fpw-routegen__leg.is-expanded {
+      border-color: rgba(45, 212, 191, 0.55);
+      box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.15);
     }
 
     .fpw-routegen__legidx {
@@ -705,6 +717,154 @@
       color: var(--rg-muted);
       white-space: nowrap;
       text-align: right;
+    }
+
+    .fpw-routegen__legmapaction {
+      display: flex;
+      justify-content: flex-end;
+      min-width: 0;
+    }
+
+    .fpw-routegen__legmapbtn {
+      min-width: 102px;
+      font-size: 11px;
+      white-space: nowrap;
+      padding: 5px 8px;
+      line-height: 1.2;
+    }
+
+    .fpw-routegen__leglockpanel {
+      margin: 6px 2px 0 40px;
+      border: 1px solid rgba(45, 212, 191, 0.22);
+      border-radius: 12px;
+      background: rgba(7, 16, 29, 0.92);
+      padding: 10px;
+      animation: fpwRouteGenLegSlideDown 0.18s ease;
+    }
+
+    @keyframes fpwRouteGenLegSlideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .fpw-routegen__leglockhead {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .fpw-routegen__leglockheadactions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .fpw-routegen__leglockinlineactions {
+      margin-top: 8px;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .fpw-routegen__lockstate {
+      border: 1px dashed rgba(255, 255, 255, 0.2);
+      border-radius: 10px;
+      padding: 8px 10px;
+      color: var(--rg-muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .fpw-routegen__lockstate--error {
+      border-color: rgba(248, 113, 113, 0.45);
+      color: #fecaca;
+      background: rgba(127, 29, 29, 0.2);
+    }
+
+    .fpw-routegen__locksummary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .fpw-routegen__lockchip {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .fpw-routegen__lockchip span {
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--rg-subtle);
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .fpw-routegen__lockchip strong {
+      font-family: var(--rg-mono);
+      font-size: 13px;
+      color: var(--rg-text);
+    }
+
+    .fpw-routegen__locklist {
+      display: grid;
+      gap: 8px;
+      max-height: 320px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .fpw-routegen__lockitem {
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 8px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .fpw-routegen__lockitemhead {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .fpw-routegen__lockitemtitle {
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1.3;
+    }
+
+    .fpw-routegen__lockitemcode {
+      font-family: var(--rg-mono);
+      font-size: 11px;
+      color: var(--rg-muted);
+      white-space: nowrap;
+    }
+
+    .fpw-routegen__lockitemmeta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 4px 12px;
+      font-size: 12px;
+      color: var(--rg-muted);
+      line-height: 1.3;
     }
 
     .fpw-routegen__flag {
@@ -963,7 +1123,7 @@
 
       .fpw-routegen__legcols,
       .fpw-routegen__leg {
-        grid-template-columns: 26px minmax(0, 1fr) 56px 70px;
+        grid-template-columns: 26px minmax(0, 1fr) 52px 66px 90px;
         gap: 6px;
       }
 
@@ -975,6 +1135,11 @@
         padding: 8px;
       }
 
+      .fpw-routegen__legmapbtn {
+        min-width: 84px;
+        padding: 4px 6px;
+      }
+
       .fpw-routegen__legmap {
         min-height: 260px;
       }
@@ -984,6 +1149,18 @@
       }
 
       .fpw-routegen__legsearch {
+        grid-template-columns: 1fr;
+      }
+
+      .fpw-routegen__leglockpanel {
+        margin-left: 0;
+      }
+
+      .fpw-routegen__locksummary {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .fpw-routegen__lockitemmeta {
         grid-template-columns: 1fr;
       }
     }
@@ -1210,6 +1387,7 @@
                 <span>Leg</span>
                 <span>Locks</span>
                 <span>NM</span>
+                <span>Geometry</span>
               </div>
               <div id="routeGenLegList" class="fpw-routegen__leglist">
                 <div class="fpw-routegen__empty">Pick template/start/end to see a live preview.</div>
@@ -1242,7 +1420,7 @@
                   <button type="button" id="routeGenLegMapSearchBtn" class="btn-secondary">Search</button>
                   <button type="button" id="routeGenLegMapSearchClearBtn" class="btn-secondary">Clear Pin</button>
                 </div>
-                <div id="routeGenLegMapStatus" class="fpw-routegen__legmapstatus">Click any leg row to load map tools.</div>
+                <div id="routeGenLegMapStatus" class="fpw-routegen__legmapstatus">Open lock details on a leg, then click Edit Geometry.</div>
                 <div id="routeGenLegMap" class="fpw-routegen__legmap"></div>
                 <div class="fpw-routegen__legpanelactions">
                   <button type="button" id="routeGenLegClearBtn" class="btn-secondary">Clear Draw</button>

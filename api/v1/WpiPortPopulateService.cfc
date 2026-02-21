@@ -745,10 +745,18 @@
             var q = queryExecute(
                 "
                 SELECT
-                  SUM(CASE WHEN start_lat IS NULL OR start_lng IS NULL THEN 1 ELSE 0 END) AS missing_start,
-                  SUM(CASE WHEN end_lat IS NULL OR end_lng IS NULL THEN 1 ELSE 0 END) AS missing_end,
-                  SUM(CASE WHEN start_lat IS NULL OR start_lng IS NULL OR end_lat IS NULL OR end_lng IS NULL THEN 1 ELSE 0 END) AS missing_any
-                FROM loop_segments
+                  SUM(CASE WHEN sl.start_port_id IS NULL OR pstart.lat IS NULL OR pstart.lng IS NULL THEN 1 ELSE 0 END) AS missing_start,
+                  SUM(CASE WHEN sl.end_port_id IS NULL OR pend.lat IS NULL OR pend.lng IS NULL THEN 1 ELSE 0 END) AS missing_end,
+                  SUM(
+                    CASE
+                      WHEN sl.start_port_id IS NULL OR pstart.lat IS NULL OR pstart.lng IS NULL
+                        OR sl.end_port_id IS NULL OR pend.lat IS NULL OR pend.lng IS NULL
+                      THEN 1 ELSE 0
+                    END
+                  ) AS missing_any
+                FROM segment_library sl
+                LEFT JOIN ports pstart ON pstart.id = sl.start_port_id
+                LEFT JOIN ports pend ON pend.id = sl.end_port_id
                 ",
                 {},
                 { datasource = getDatasource() }
@@ -769,27 +777,23 @@
 
             queryExecute(
                 "
-                UPDATE loop_segments s
+                UPDATE segment_library sl
                 INNER JOIN (
                   SELECT
                     MD5(LOWER(TRIM(CONVERT(name USING utf8mb4)))) AS normalized_key,
-                    MIN(lat) AS lat,
-                    MIN(lng) AS lng
+                    MIN(id) AS port_id
                   FROM ports
                   WHERE name IS NOT NULL
                     AND LENGTH(TRIM(name)) > 0
-                    AND lat IS NOT NULL
-                    AND lng IS NOT NULL
                   GROUP BY MD5(LOWER(TRIM(CONVERT(name USING utf8mb4))))
                   HAVING COUNT(*) = 1
                 ) p
-                  ON MD5(LOWER(TRIM(CONVERT(s.start_name USING utf8mb4)))) = p.normalized_key
+                  ON MD5(LOWER(TRIM(CONVERT(sl.start_port_name USING utf8mb4)))) = p.normalized_key
                 SET
-                  s.start_lat = COALESCE(s.start_lat, p.lat),
-                  s.start_lng = COALESCE(s.start_lng, p.lng)
-                WHERE s.start_name IS NOT NULL
-                  AND LENGTH(TRIM(s.start_name)) > 0
-                  AND (s.start_lat IS NULL OR s.start_lng IS NULL)
+                  sl.start_port_id = COALESCE(sl.start_port_id, p.port_id)
+                WHERE sl.start_port_name IS NOT NULL
+                  AND LENGTH(TRIM(sl.start_port_name)) > 0
+                  AND (sl.start_port_id IS NULL OR sl.start_port_id = 0)
                 ",
                 {},
                 { datasource = getDatasource() }
@@ -797,27 +801,23 @@
 
             queryExecute(
                 "
-                UPDATE loop_segments s
+                UPDATE segment_library sl
                 INNER JOIN (
                   SELECT
                     MD5(LOWER(TRIM(CONVERT(name USING utf8mb4)))) AS normalized_key,
-                    MIN(lat) AS lat,
-                    MIN(lng) AS lng
+                    MIN(id) AS port_id
                   FROM ports
                   WHERE name IS NOT NULL
                     AND LENGTH(TRIM(name)) > 0
-                    AND lat IS NOT NULL
-                    AND lng IS NOT NULL
                   GROUP BY MD5(LOWER(TRIM(CONVERT(name USING utf8mb4))))
                   HAVING COUNT(*) = 1
                 ) p
-                  ON MD5(LOWER(TRIM(CONVERT(s.end_name USING utf8mb4)))) = p.normalized_key
+                  ON MD5(LOWER(TRIM(CONVERT(sl.end_port_name USING utf8mb4)))) = p.normalized_key
                 SET
-                  s.end_lat = COALESCE(s.end_lat, p.lat),
-                  s.end_lng = COALESCE(s.end_lng, p.lng)
-                WHERE s.end_name IS NOT NULL
-                  AND LENGTH(TRIM(s.end_name)) > 0
-                  AND (s.end_lat IS NULL OR s.end_lng IS NULL)
+                  sl.end_port_id = COALESCE(sl.end_port_id, p.port_id)
+                WHERE sl.end_port_name IS NOT NULL
+                  AND LENGTH(TRIM(sl.end_port_name)) > 0
+                  AND (sl.end_port_id IS NULL OR sl.end_port_id = 0)
                 ",
                 {},
                 { datasource = getDatasource() }

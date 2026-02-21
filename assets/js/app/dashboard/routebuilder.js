@@ -19,6 +19,7 @@
   var MAX_ENDPOINT_FIT_NM = 1200;
   var LEG_MAP_FIT_MAX_ZOOM = 12;
   var LEG_MAP_POST_OPEN_FIT_DELAY_MS = 300;
+  var LEG_MAP_POST_OPEN_REFIT_SECOND_DELAY_MS = 650;
 
   var dom = {};
   var modal = null;
@@ -55,9 +56,17 @@
     selectedLegData: null,
     selectedLegHasOverride: false,
     selectedLegSource: "default",
+    lockPanel: {
+      expandedOrder: 0,
+      loadingOrder: 0,
+      requestSeq: 0,
+      detailByOrder: {},
+      errorByOrder: {}
+    },
     legMapClearIntent: false,
     legMapDraftPoints: [],
     legMapLoadSeq: 0,
+    legEndpointCacheByOrder: {},
     legMap: {
       map: null,
       drawnItems: null,
@@ -376,6 +385,199 @@
     if (row) row.classList.add("is-selected");
   }
 
+  function resetLegLockPanelState() {
+    state.lockPanel.expandedOrder = 0;
+    state.lockPanel.loadingOrder = 0;
+    state.lockPanel.requestSeq = 0;
+    state.lockPanel.detailByOrder = {};
+    state.lockPanel.errorByOrder = {};
+  }
+
+  function getLegLockPayload(leg) {
+    return {
+      route_code: (state.modalMode === "editor" ? String(state.activeRouteCode || "").trim() : ""),
+      template_code: String(state.activeTemplateCode || "").trim(),
+      route_leg_id: toInt(getLegField(leg, "route_leg_id"), 0),
+      segment_id: toInt(getLegField(leg, "segment_id"), 0),
+      leg_order: toInt(getLegField(leg, "order_index"), 0)
+    };
+  }
+
+  function formatCoord(value) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n)) return "--";
+    return formatNumber(n, 5);
+  }
+
+  function renderLegLockPanelBody(leg, order) {
+    var orderKey = String(toInt(order, 0));
+    var isLoading = (toInt(state.lockPanel.loadingOrder, 0) === toInt(order, 0));
+    var errorText = String(state.lockPanel.errorByOrder[orderKey] || "").trim();
+    var details = state.lockPanel.detailByOrder[orderKey];
+    var html = "";
+    var totals = details && typeof details === "object" ? (details.totals || details.TOTALS || {}) : {};
+    var locks = details && typeof details === "object"
+      ? (Array.isArray(details.locks) ? details.locks : (Array.isArray(details.LOCKS) ? details.LOCKS : []))
+      : [];
+    var lockCount = parseInt(
+      details && details.lock_count !== undefined
+        ? details.lock_count
+        : (details && details.LOCK_COUNT !== undefined ? details.LOCK_COUNT : locks.length),
+      10
+    );
+    if (!Number.isFinite(lockCount) || lockCount < 0) lockCount = 0;
+
+    html += '<div class="fpw-routegen__leglockhead">';
+    html += '  <div class="fpw-routegen__kicker">Lock Navigation Details</div>';
+    html += '  <div class="fpw-routegen__leglockheadactions">';
+    html += '    <button type="button" class="btn-secondary btn-sm" data-leg-action="collapse-locks">Hide</button>';
+    html += "  </div>";
+    html += "</div>";
+
+    if (isLoading) {
+      html += '<div class="fpw-routegen__lockstate">Loading lock details...</div>';
+      return html;
+    }
+    if (errorText) {
+      html += '<div class="fpw-routegen__lockstate fpw-routegen__lockstate--error">' + escapeHtml(errorText) + "</div>";
+      html += '<div class="fpw-routegen__leglockinlineactions">';
+      html += '  <button type="button" class="btn-secondary btn-sm" data-leg-action="reload-locks">Retry</button>';
+      html += "</div>";
+      return html;
+    }
+
+    html += '<div class="fpw-routegen__locksummary">';
+    html += '  <div class="fpw-routegen__lockchip"><span>Locks</span><strong>' + formatNumber(lockCount, 0) + "</strong></div>";
+    html += '  <div class="fpw-routegen__lockchip"><span>Best</span><strong>' + formatNumber(parseFloat(totals.best_wait_min), 0) + " min</strong></div>";
+    html += '  <div class="fpw-routegen__lockchip"><span>Typical</span><strong>' + formatNumber(parseFloat(totals.typical_wait_min), 0) + " min</strong></div>";
+    html += '  <div class="fpw-routegen__lockchip"><span>Worst</span><strong>' + formatNumber(parseFloat(totals.worst_wait_min), 0) + " min</strong></div>";
+    html += "</div>";
+
+    if (!locks.length) {
+      html += '<div class="fpw-routegen__lockstate">No locks mapped for this leg.</div>';
+      return html;
+    }
+
+    html += '<div class="fpw-routegen__locklist">';
+    locks.forEach(function (lock) {
+      var seq = toInt(lock.seq !== undefined ? lock.seq : lock.SEQ, 0);
+      var code = String(lock.lock_code !== undefined ? lock.lock_code : (lock.LOCK_CODE || "")).trim();
+      var name = String(lock.name !== undefined ? lock.name : (lock.NAME || code || "Lock")).trim();
+      var waterway = String(lock.waterway !== undefined ? lock.waterway : (lock.WATERWAY || "")).trim();
+      var stateCode = String(lock.state_code !== undefined ? lock.state_code : (lock.STATE_CODE || "")).trim();
+      var countryCode = String(lock.country_code !== undefined ? lock.country_code : (lock.COUNTRY_CODE || "")).trim();
+      var lockType = String(lock.lock_type !== undefined ? lock.lock_type : (lock.LOCK_TYPE || "")).trim();
+      var agency = String(lock.agency !== undefined ? lock.agency : (lock.AGENCY || "")).trim();
+      var sourceUrl = String(lock.source_url !== undefined ? lock.source_url : (lock.SOURCE_URL || "")).trim();
+      var lockNotes = String(lock.lock_notes !== undefined ? lock.lock_notes : (lock.LOCK_NOTES || "")).trim();
+      var delayNotes = String(lock.delay_notes !== undefined ? lock.delay_notes : (lock.DELAY_NOTES || "")).trim();
+      var bestWait = parseFloat(lock.best_wait_min !== undefined ? lock.best_wait_min : lock.BEST_WAIT_MIN);
+      var typicalWait = parseFloat(lock.typical_wait_min !== undefined ? lock.typical_wait_min : lock.TYPICAL_WAIT_MIN);
+      var worstWait = parseFloat(lock.worst_wait_min !== undefined ? lock.worst_wait_min : lock.WORST_WAIT_MIN);
+      var chamberLen = parseInt(lock.chamber_length_ft !== undefined ? lock.chamber_length_ft : lock.CHAMBER_LENGTH_FT, 10);
+      var chamberWid = parseInt(lock.chamber_width_ft !== undefined ? lock.chamber_width_ft : lock.CHAMBER_WIDTH_FT, 10);
+      var latText = formatCoord(lock.lat !== undefined ? lock.lat : lock.LAT);
+      var lngText = formatCoord(lock.lng !== undefined ? lock.lng : lock.LNG);
+
+      html += '<div class="fpw-routegen__lockitem">';
+      html += '  <div class="fpw-routegen__lockitemhead">';
+      html += '    <div class="fpw-routegen__lockitemtitle">' + escapeHtml((seq > 0 ? ("#" + seq + " ") : "") + name) + "</div>";
+      html += '    <div class="fpw-routegen__lockitemcode">' + escapeHtml(code || "--") + "</div>";
+      html += "  </div>";
+      html += '  <div class="fpw-routegen__lockitemmeta">';
+      html += "    <span>" + escapeHtml(waterway || "Waterway not set") + "</span>";
+      html += "    <span>" + escapeHtml((stateCode || "--") + (countryCode ? (", " + countryCode) : "")) + "</span>";
+      html += "    <span>" + escapeHtml(lockType || "--") + "</span>";
+      html += "    <span>Chamber " + (Number.isFinite(chamberLen) && chamberLen > 0 ? chamberLen : "--") + " x " + (Number.isFinite(chamberWid) && chamberWid > 0 ? chamberWid : "--") + " ft</span>";
+      html += "    <span>Best/Typical/Worst: " + formatNumber(bestWait, 0) + "/" + formatNumber(typicalWait, 0) + "/" + formatNumber(worstWait, 0) + " min</span>";
+      html += "    <span>Lat/Lng: " + latText + ", " + lngText + "</span>";
+      html += "    <span>Agency: " + escapeHtml(agency || "--") + "</span>";
+      if (lockNotes) html += "    <span>Notes: " + escapeHtml(lockNotes) + "</span>";
+      if (delayNotes) html += "    <span>Delay notes: " + escapeHtml(delayNotes) + "</span>";
+      if (sourceUrl) html += "    <span>Source: " + escapeHtml(sourceUrl) + "</span>";
+      html += "  </div>";
+      html += "</div>";
+    });
+    html += "</div>";
+    return html;
+  }
+
+  function renderLegLockPanel(leg, order) {
+    if (toInt(state.lockPanel.expandedOrder, 0) !== toInt(order, 0)) return "";
+    return ''
+      + '<div class="fpw-routegen__leglockpanel is-open" data-leg-order="' + String(order) + '">'
+      + renderLegLockPanelBody(leg, order)
+      + "</div>";
+  }
+
+  function fetchLegLockDetails(leg, options) {
+    var opts = options || {};
+    if (!leg) return Promise.resolve(null);
+    var order = toInt(getLegField(leg, "order_index"), 0);
+    if (order <= 0) return Promise.resolve(null);
+    var orderKey = String(order);
+    if (!opts.force && state.lockPanel.detailByOrder[orderKey]) {
+      return Promise.resolve(state.lockPanel.detailByOrder[orderKey]);
+    }
+
+    state.lockPanel.requestSeq += 1;
+    var requestSeq = state.lockPanel.requestSeq;
+    state.lockPanel.loadingOrder = order;
+    delete state.lockPanel.errorByOrder[orderKey];
+    renderLegs(state.previewLegs);
+    selectLegRow(order);
+
+    return fetchJson(apiUrl("routegen_getleglocks"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify(getLegLockPayload(leg))
+    })
+      .then(function (res) {
+        if (requestSeq !== state.lockPanel.requestSeq) return null;
+        if (!res || res.SUCCESS === false) {
+          throw new Error((res && res.MESSAGE) ? res.MESSAGE : "Unable to load lock details.");
+        }
+        state.lockPanel.detailByOrder[orderKey] = res.DATA || {};
+        delete state.lockPanel.errorByOrder[orderKey];
+        state.lockPanel.loadingOrder = 0;
+        renderLegs(state.previewLegs);
+        selectLegRow(order);
+        return state.lockPanel.detailByOrder[orderKey];
+      })
+      .catch(function (err) {
+        if (requestSeq !== state.lockPanel.requestSeq) return null;
+        if (err && err.code === "UNAUTHORIZED") {
+          redirectToLogin();
+          return null;
+        }
+        state.lockPanel.loadingOrder = 0;
+        state.lockPanel.errorByOrder[orderKey] = (err && err.message) ? err.message : "Unable to load lock details.";
+        renderLegs(state.previewLegs);
+        selectLegRow(order);
+        return null;
+      });
+  }
+
+  function toggleLegLockPanel(leg) {
+    if (!leg) return;
+    var order = toInt(getLegField(leg, "order_index"), 0);
+    if (order <= 0) return;
+    if (toInt(state.lockPanel.expandedOrder, 0) === order) {
+      state.lockPanel.expandedOrder = 0;
+      state.lockPanel.loadingOrder = 0;
+      renderLegs(state.previewLegs);
+      selectLegRow(order);
+      return;
+    }
+    state.lockPanel.expandedOrder = order;
+    state.selectedLegOrder = order;
+    state.selectedLegData = leg;
+    renderLegs(state.previewLegs);
+    selectLegRow(order);
+    fetchLegLockDetails(leg);
+  }
+
   function setLegMapStatus(message) {
     if (!dom.legMapStatusEl) return;
     dom.legMapStatusEl.textContent = message || "";
@@ -483,11 +685,12 @@
     state.selectedLegData = null;
     state.selectedLegHasOverride = false;
     state.selectedLegSource = "default";
+    state.legEndpointCacheByOrder = {};
     clearSelectedLegRows();
     if (dom.legMapTitleEl) dom.legMapTitleEl.textContent = "Select a leg to edit geometry";
     if (dom.legMapSourceEl) dom.legMapSourceEl.textContent = "Source: default";
     if (dom.legMapHintEl) dom.legMapHintEl.textContent = "Draw or edit polyline, then save override.";
-    setLegMapStatus("Click any leg row to load map tools.");
+    setLegMapStatus("Open lock details on a leg, then click Edit Geometry.");
     setLegMapNm(0);
     updateLegMapButtons(null, false);
     if (state.legMap && state.legMap.activeLayer && state.legMap.drawnItems) {
@@ -1033,6 +1236,7 @@
 
   function clearPreview() {
     state.previewLegs = [];
+    resetLegLockPanelState();
     if (dom.totalNmEl) dom.totalNmEl.innerHTML = "0 <small>NM</small>";
     if (dom.estimatedDaysEl) dom.estimatedDaysEl.textContent = "0";
     if (dom.estimatedDaysSubEl) dom.estimatedDaysSubEl.textContent = "Pace-driven estimate";
@@ -1860,15 +2064,20 @@
       if (isOptional) flags += '<span class="fpw-routegen__flag">Optional</span>';
       if (hasOverride) flags += '<span class="fpw-routegen__flag fpw-routegen__flag--override">Override</span>';
       var isSelected = (toInt(order, 0) === toInt(state.selectedLegOrder, 0));
+      var isExpanded = (toInt(order, 0) === toInt(state.lockPanel.expandedOrder, 0));
 
       return ''
-        + '<div class="fpw-routegen__leg ' + (isSelected ? 'is-selected' : '') + '" data-leg-order="' + String(order) + '" data-route-leg-id="' + String(routeLegId) + '" data-segment-id="' + String(segmentId) + '">'
-        + '  <div class="fpw-routegen__legidx">' + String(order).padStart(2, "0") + '</div>'
-        + '  <div class="fpw-routegen__legroute">'
-        + '    <div class="fpw-routegen__legname">' + escapeHtml((startName || "Start") + " -> " + (endName || "End")) + flags + '</div>'
+        + '<div class="fpw-routegen__legwrap" data-leg-order="' + String(order) + '">'
+        + '  <div class="fpw-routegen__leg ' + (isSelected ? 'is-selected' : '') + ' ' + (isExpanded ? 'is-expanded' : '') + '" data-leg-order="' + String(order) + '" data-route-leg-id="' + String(routeLegId) + '" data-segment-id="' + String(segmentId) + '">'
+        + '    <div class="fpw-routegen__legidx">' + String(order).padStart(2, "0") + '</div>'
+        + '    <div class="fpw-routegen__legroute">'
+        + '      <div class="fpw-routegen__legname">' + escapeHtml((startName || "Start") + " -> " + (endName || "End")) + flags + '</div>'
+        + '    </div>'
+        + '    <div class="fpw-routegen__leglocks">' + formatNumber(lockCount, 0) + '</div>'
+        + '    <div class="fpw-routegen__legnm">' + formatNumber(Number.isFinite(nm) ? nm : 0, 1) + ' NM</div>'
+        + '    <div class="fpw-routegen__legmapaction"><button type="button" class="btn-secondary btn-sm fpw-routegen__legmapbtn" data-leg-action="open-map">Edit Geometry</button></div>'
         + '  </div>'
-        + '  <div class="fpw-routegen__leglocks">' + formatNumber(lockCount, 0) + '</div>'
-        + '  <div class="fpw-routegen__legnm">' + formatNumber(Number.isFinite(nm) ? nm : 0, 1) + ' NM</div>'
+        + renderLegLockPanel(leg, order)
         + '</div>';
     }).join("");
 
@@ -1956,13 +2165,66 @@
     return parseLegMapPoint({ lat: lat, lon: lon });
   }
 
-  function resolveLegEndpointPoints(leg, geometryData) {
-    var data = geometryData || {};
-    var startPoint = parseLegMapPoint(data.leg_start_point) || parseLegFieldPoint(leg, "start") || parseLegMapPoint(data.default_start_point);
-    var endPoint = parseLegMapPoint(data.leg_end_point) || parseLegFieldPoint(leg, "end") || parseLegMapPoint(data.default_end_point);
+  function readPolylineEndpoints(points) {
+    var list = Array.isArray(points) ? points : [];
+    if (list.length < 2) return { startPoint: null, endPoint: null };
+    var startPoint = parseLegMapPoint(list[0]);
+    var endPoint = parseLegMapPoint(list[list.length - 1]);
     return {
       startPoint: startPoint,
       endPoint: endPoint
+    };
+  }
+
+  function cacheLegEndpointPoints(order, startPoint, endPoint) {
+    var key = String(toInt(order, 0));
+    if (!key || key === "0") return;
+    state.legEndpointCacheByOrder[key] = {
+      startPoint: startPoint || null,
+      endPoint: endPoint || null
+    };
+  }
+
+  function readCachedLegEndpointPoints(order) {
+    var key = String(toInt(order, 0));
+    if (!key || key === "0") return { startPoint: null, endPoint: null };
+    var cached = state.legEndpointCacheByOrder[key];
+    if (!cached || typeof cached !== "object") return { startPoint: null, endPoint: null };
+    return {
+      startPoint: parseLegMapPoint(cached.startPoint),
+      endPoint: parseLegMapPoint(cached.endPoint)
+    };
+  }
+
+  function fillMissingEndpointPoints(primary, fallback) {
+    var p = primary || { startPoint: null, endPoint: null };
+    var f = fallback || { startPoint: null, endPoint: null };
+    return {
+      startPoint: p.startPoint || f.startPoint || null,
+      endPoint: p.endPoint || f.endPoint || null
+    };
+  }
+
+  function resolveLegEndpointPoints(leg, geometryData) {
+    var data = geometryData || {};
+    var order = toInt(getLegField(leg, "order_index"), 0);
+    var fromLeg = {
+      startPoint: parseLegMapPoint(data.leg_start_point) || parseLegFieldPoint(leg, "start"),
+      endPoint: parseLegMapPoint(data.leg_end_point) || parseLegFieldPoint(leg, "end")
+    };
+    var fromDefault = {
+      startPoint: parseLegMapPoint(data.default_start_point),
+      endPoint: parseLegMapPoint(data.default_end_point)
+    };
+    var fromPolyline = readPolylineEndpoints(Array.isArray(data.points) ? data.points : []);
+    var fromCache = readCachedLegEndpointPoints(order);
+    var merged = fillMissingEndpointPoints(fromLeg, fromDefault);
+    merged = fillMissingEndpointPoints(merged, fromPolyline);
+    merged = fillMissingEndpointPoints(merged, fromCache);
+    cacheLegEndpointPoints(order, merged.startPoint, merged.endPoint);
+    return {
+      startPoint: merged.startPoint,
+      endPoint: merged.endPoint
     };
   }
 
@@ -2024,7 +2286,7 @@
 
   function schedulePostOpenViewportRefit(loadSeq, expectedOrder, leg, geometryData, points, shouldDrawUserPolyline) {
     if (!state.legMap || !state.legMap.map) return;
-    window.setTimeout(function () {
+    var runRefit = function () {
       if (loadSeq !== state.legMapLoadSeq) return;
       if (expectedOrder > 0 && state.selectedLegOrder !== expectedOrder) return;
       if (!state.legMap || !state.legMap.map) return;
@@ -2037,7 +2299,9 @@
         expectedOrder,
         shouldDrawUserPolyline
       );
-    }, LEG_MAP_POST_OPEN_FIT_DELAY_MS);
+    };
+    window.setTimeout(runRefit, LEG_MAP_POST_OPEN_FIT_DELAY_MS);
+    window.setTimeout(runRefit, LEG_MAP_POST_OPEN_REFIT_SECOND_DELAY_MS);
   }
 
 
@@ -2161,12 +2425,40 @@
   function onLegListClick(event) {
     var target = event.target;
     if (!target) return;
+    var actionBtn = target.closest("[data-leg-action]");
+    if (actionBtn && dom.legListEl && dom.legListEl.contains(actionBtn)) {
+      var action = String(actionBtn.getAttribute("data-leg-action") || "").trim().toLowerCase();
+      var orderContainer = actionBtn.closest("[data-leg-order]");
+      var actionOrder = toInt(orderContainer ? orderContainer.getAttribute("data-leg-order") : 0, 0);
+      var actionLeg = getLegByOrder(actionOrder);
+      if (!actionLeg) return;
+
+      if (action === "open-map") {
+        loadLegGeometry(actionLeg);
+        return;
+      }
+      if (action === "reload-locks") {
+        fetchLegLockDetails(actionLeg, { force: true });
+        return;
+      }
+      if (action === "collapse-locks") {
+        state.lockPanel.expandedOrder = 0;
+        state.lockPanel.loadingOrder = 0;
+        renderLegs(state.previewLegs);
+        selectLegRow(actionOrder);
+        return;
+      }
+    }
+
     var row = target.closest(".fpw-routegen__leg[data-leg-order]");
     if (!row || !dom.legListEl || !dom.legListEl.contains(row)) return;
     var order = toInt(row.getAttribute("data-leg-order"), 0);
     var leg = getLegByOrder(order);
     if (!leg) return;
-    loadLegGeometry(leg);
+    state.selectedLegOrder = order;
+    state.selectedLegData = leg;
+    selectLegRow(order);
+    toggleLegLockPanel(leg);
   }
 
   function clearLegDrawing() {
@@ -2467,6 +2759,7 @@
       }
     }
 
+    resetLegLockPanelState();
     state.previewLegs = normalizeLegList(legs);
     renderLegs(state.previewLegs);
     if (!state.previewLegs.length) {
@@ -2776,6 +3069,7 @@
     state.previewLegs = [];
     state.selectedLegOrder = 0;
     state.selectedLegData = null;
+    resetLegLockPanelState();
 
     if (dom.templateSelectEl) {
       dom.templateSelectEl.innerHTML = '<option value="">Select template</option>';
@@ -2807,12 +3101,14 @@
     if (dom.weatherFactorPctEl) dom.weatherFactorPctEl.value = String(DEFAULT_WEATHER_FACTOR_PCT);
     if (dom.reservePctEl) dom.reservePctEl.value = String(DEFAULT_RESERVE_PCT);
     if (dom.fuelPricePerGalEl) dom.fuelPricePerGalEl.value = "";
+    if (dom.setupPanelBodyEl) dom.setupPanelBodyEl.scrollTop = 0;
     setTodayIfMissing();
     updatePaceLabel();
     applyPaceDefaults(true);
     updatePaceOverrideUI();
     updateFuelBurnBasisUI();
     updateDirectionControlAvailability();
+    renderOptions();
     setModalModeUI();
   }
 
@@ -3345,6 +3641,7 @@
           window.clearTimeout(state.previewTimer);
           state.previewTimer = 0;
         }
+        if (dom.setupPanelBodyEl) dom.setupPanelBodyEl.scrollTop = 0;
         resetLegMapSelection();
       });
       dom.modalEl.dataset.routegenBound = "true";

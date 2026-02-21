@@ -7,7 +7,7 @@ Manual test steps:
 5) Click Save and confirm status shows success with version=1 and dist_nm_calc.
 6) Reload page and click Load again; confirm polyline reappears and version persists.
 7) Draw a revised polyline and click Save; confirm version increments to 2.
-8) Verify loop_segments.active_geom_version and loop_segments.dist_nm_calc updated in DB.
+8) Verify a new segment_geometries version row is written with dist_nm_calc.
 9) Confirm existing route generator still behaves normally (this feature is additive).
 */
 (function (window, document) {

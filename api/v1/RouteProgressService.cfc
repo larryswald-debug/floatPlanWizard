@@ -64,17 +64,38 @@
             }
 
             var routeId = qRoute.id[1];
-            var qSeg = queryExecute("
-                SELECT s.id, s.start_name, s.end_name
-                FROM loop_segments s
-                INNER JOIN loop_sections sec ON sec.id = s.section_id
-                WHERE sec.route_id = :routeId
-                ORDER BY sec.order_index ASC, s.order_index ASC
+            var qInst = queryExecute("
+                SELECT id
+                FROM route_instances
+                WHERE generated_route_id = :routeId
+                  AND user_id = :userIdText
+                ORDER BY id DESC
+                LIMIT 1
             ", {
-                routeId = { value = routeId, cfsqltype = "cf_sql_integer" }
+                routeId = { value = routeId, cfsqltype = "cf_sql_integer" },
+                userIdText = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+            }, { datasource = arguments.datasource });
+            if (qInst.recordCount EQ 0) {
+                out.MESSAGE = "No normalized route instance found for this user/route.";
+                return out;
+            }
+
+            var routeInstanceId = val(qInst.id[1]);
+            var qSeg = queryExecute("
+                SELECT
+                    leg_order,
+                    COALESCE(source_loop_segment_id, segment_id, id) AS segment_id,
+                    start_name,
+                    end_name
+                FROM route_instance_legs
+                WHERE route_instance_id = :routeInstanceId
+                ORDER BY leg_order ASC, id ASC
+            ", {
+                routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" }
             }, { datasource = arguments.datasource });
 
             var bestId = 0;
+            var bestLegOrder = 0;
             var bestScore = 0;
             var i = 0;
             var segStart = "";
@@ -87,25 +108,27 @@
                 score = matchScore(departNorm, returnNorm, segStart, segEnd);
                 if (score GT bestScore) {
                     bestScore = score;
-                    bestId = qSeg.id[i];
+                    bestId = val(qSeg.segment_id[i]);
+                    bestLegOrder = val(qSeg.leg_order[i]);
                 }
             }
 
-            if (bestScore LT 85 OR bestId LTE 0) {
+            if (bestScore LT 85 OR bestId LTE 0 OR bestLegOrder LTE 0) {
                 out.MESSAGE = "No confident segment match for this check-in.";
                 out.SCORE = bestScore;
                 return out;
             }
 
             queryExecute("
-                INSERT INTO user_route_progress (user_id, segment_id, status, completed_at)
-                VALUES (:userId, :segmentId, 'COMPLETED', NOW())
+                INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, status, completed_at)
+                VALUES (:userId, :routeInstanceId, :legOrder, 'COMPLETED', NOW())
                 ON DUPLICATE KEY UPDATE
                     status = 'COMPLETED',
                     completed_at = NOW()
             ", {
                 userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
-                segmentId = { value = bestId, cfsqltype = "cf_sql_integer" }
+                routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" },
+                legOrder = { value = bestLegOrder, cfsqltype = "cf_sql_integer" }
             }, { datasource = arguments.datasource });
 
             out.MATCHED = true;
