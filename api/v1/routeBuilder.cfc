@@ -4010,6 +4010,79 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="routegenLoadCanonicalSegmentMap" access="private" returntype="struct" output="false">
+        <cfargument name="segmentIds" type="array" required="true">
+        <cfscript>
+            var out = {};
+            var ids = [];
+            var seen = {};
+            var sid = 0;
+            var i = 0;
+            var sidKey = "";
+            var q = queryNew("");
+            var startNameVal = "";
+            var endNameVal = "";
+            var startLatVal = "";
+            var startLngVal = "";
+            var endLatVal = "";
+            var endLngVal = "";
+
+            for (i = 1; i LTE arrayLen(arguments.segmentIds); i++) {
+                sid = val(arguments.segmentIds[i]);
+                if (sid LTE 0) continue;
+                sidKey = toString(sid);
+                if (structKeyExists(seen, sidKey)) continue;
+                seen[sidKey] = true;
+                arrayAppend(ids, sid);
+            }
+            if (!arrayLen(ids)) return out;
+
+            q = queryExecute(
+                "SELECT
+                    sl.id AS segment_id,
+                    COALESCE(NULLIF(TRIM(p1.name), ''), TRIM(sl.start_port_name), '') AS start_name,
+                    COALESCE(NULLIF(TRIM(p2.name), ''), TRIM(sl.end_port_name), '') AS end_name,
+                    p1.lat AS start_lat,
+                    p1.lng AS start_lng,
+                    p2.lat AS end_lat,
+                    p2.lng AS end_lng
+                 FROM segment_library sl
+                 LEFT JOIN ports p1 ON p1.id = sl.start_port_id
+                 LEFT JOIN ports p2 ON p2.id = sl.end_port_id
+                 WHERE sl.id IN (:segmentIds)",
+                {
+                    segmentIds = {
+                        value = arrayToList(ids),
+                        cfsqltype = "cf_sql_integer",
+                        list = true
+                    }
+                },
+                { datasource = application.dsn }
+            );
+
+            for (i = 1; i LTE q.recordCount; i++) {
+                sid = val(q.segment_id[i]);
+                if (sid LTE 0) continue;
+                startNameVal = (isNull(q.start_name[i]) ? "" : trim(toString(q.start_name[i])));
+                endNameVal = (isNull(q.end_name[i]) ? "" : trim(toString(q.end_name[i])));
+                startLatVal = (isNull(q.start_lat[i]) ? "" : q.start_lat[i]);
+                startLngVal = (isNull(q.start_lng[i]) ? "" : q.start_lng[i]);
+                endLatVal = (isNull(q.end_lat[i]) ? "" : q.end_lat[i]);
+                endLngVal = (isNull(q.end_lng[i]) ? "" : q.end_lng[i]);
+                out[toString(sid)] = {
+                    "SEGMENT_ID"=sid,
+                    "START_NAME"=startNameVal,
+                    "END_NAME"=endNameVal,
+                    "START_LAT"=startLatVal,
+                    "START_LNG"=startLngVal,
+                    "END_LAT"=endLatVal,
+                    "END_LNG"=endLngVal
+                };
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="routegenRebuildNormalizedInstanceLegs" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="routeInstanceId" type="numeric" required="true">
@@ -4020,9 +4093,23 @@
             var leg = {};
             var legOrderVal = 0;
             var segmentIdVal = 0;
+            var segmentIds = [];
+            var canonicalBySegment = {};
+            var canonical = {};
+            var segmentKey = "";
             var isOptionalVal = 0;
+            var isReversedVal = 0;
             var detourCodeVal = "";
             var notesVal = "";
+            var legStartNameVal = "";
+            var legEndNameVal = "";
+            var canonicalStartNameVal = "";
+            var canonicalEndNameVal = "";
+            var startLatRaw = "";
+            var startLngRaw = "";
+            var endLatRaw = "";
+            var endLngRaw = "";
+            var inputReverseFlag = false;
             var distBind = {};
             var lockBind = {};
             var startLatBind = {};
@@ -4033,6 +4120,14 @@
 
             if (!routegenHasNormalizedTables()) return out;
             if (arguments.userId LTE 0 OR arguments.routeInstanceId LTE 0 OR !arrayLen(arguments.legs)) return out;
+            for (i = 1; i LTE arrayLen(arguments.legs); i++) {
+                leg = arguments.legs[i];
+                segmentIdVal = val(structKeyExists(leg, "segment_id") ? leg.segment_id : (structKeyExists(leg, "SEGMENT_ID") ? leg.SEGMENT_ID : 0));
+                if (segmentIdVal GT 0) {
+                    arrayAppend(segmentIds, segmentIdVal);
+                }
+            }
+            canonicalBySegment = routegenLoadCanonicalSegmentMap(segmentIds);
 
             queryExecute(
                 "DELETE FROM route_instance_leg_progress
@@ -4077,8 +4172,59 @@
                 if (legOrderVal LTE 0) legOrderVal = i;
                 segmentIdVal = val(structKeyExists(leg, "segment_id") ? leg.segment_id : (structKeyExists(leg, "SEGMENT_ID") ? leg.SEGMENT_ID : 0));
                 isOptionalVal = (toBoolean(structKeyExists(leg, "is_optional") ? leg.is_optional : false, false) ? 1 : 0);
+                inputReverseFlag = toBoolean(structKeyExists(leg, "is_reversed") ? leg.is_reversed : false, false);
                 detourCodeVal = trim(toString(structKeyExists(leg, "detour_code") ? leg.detour_code : ""));
                 notesVal = trim(toString(structKeyExists(leg, "notes") ? leg.notes : ""));
+                legStartNameVal = trim(toString(structKeyExists(leg, "start_name") ? leg.start_name : ""));
+                legEndNameVal = trim(toString(structKeyExists(leg, "end_name") ? leg.end_name : ""));
+                startLatRaw = (structKeyExists(leg, "start_lat") ? leg.start_lat : "");
+                startLngRaw = (structKeyExists(leg, "start_lng") ? leg.start_lng : "");
+                endLatRaw = (structKeyExists(leg, "end_lat") ? leg.end_lat : "");
+                endLngRaw = (structKeyExists(leg, "end_lng") ? leg.end_lng : "");
+                isReversedVal = (inputReverseFlag ? 1 : 0);
+
+                if (segmentIdVal GT 0) {
+                    segmentKey = toString(segmentIdVal);
+                    if (structKeyExists(canonicalBySegment, segmentKey)) {
+                        canonical = canonicalBySegment[segmentKey];
+                        canonicalStartNameVal = trim(toString(structKeyExists(canonical, "START_NAME") ? canonical.START_NAME : ""));
+                        canonicalEndNameVal = trim(toString(structKeyExists(canonical, "END_NAME") ? canonical.END_NAME : ""));
+
+                        if (
+                            len(legStartNameVal) AND len(legEndNameVal)
+                            AND len(canonicalStartNameVal) AND len(canonicalEndNameVal)
+                        ) {
+                            if (
+                                areLocationNamesEquivalent(legStartNameVal, canonicalEndNameVal)
+                                AND areLocationNamesEquivalent(legEndNameVal, canonicalStartNameVal)
+                            ) {
+                                isReversedVal = 1;
+                            } else if (
+                                areLocationNamesEquivalent(legStartNameVal, canonicalStartNameVal)
+                                AND areLocationNamesEquivalent(legEndNameVal, canonicalEndNameVal)
+                            ) {
+                                isReversedVal = 0;
+                            }
+                        }
+
+                        if (isReversedVal EQ 1) {
+                            if (len(canonicalEndNameVal)) legStartNameVal = canonicalEndNameVal;
+                            if (len(canonicalStartNameVal)) legEndNameVal = canonicalStartNameVal;
+                            if (isNumeric(canonical.END_LAT)) startLatRaw = canonical.END_LAT;
+                            if (isNumeric(canonical.END_LNG)) startLngRaw = canonical.END_LNG;
+                            if (isNumeric(canonical.START_LAT)) endLatRaw = canonical.START_LAT;
+                            if (isNumeric(canonical.START_LNG)) endLngRaw = canonical.START_LNG;
+                        } else {
+                            if (len(canonicalStartNameVal)) legStartNameVal = canonicalStartNameVal;
+                            if (len(canonicalEndNameVal)) legEndNameVal = canonicalEndNameVal;
+                            if (isNumeric(canonical.START_LAT)) startLatRaw = canonical.START_LAT;
+                            if (isNumeric(canonical.START_LNG)) startLngRaw = canonical.START_LNG;
+                            if (isNumeric(canonical.END_LAT)) endLatRaw = canonical.END_LAT;
+                            if (isNumeric(canonical.END_LNG)) endLngRaw = canonical.END_LNG;
+                        }
+                    }
+                }
+
                 if (isOptionalVal EQ 1 AND len(detourCodeVal)) {
                     if (len(notesVal)) notesVal &= " ";
                     notesVal &= "[Optional stop: " & detourCodeVal & "]";
@@ -4086,10 +4232,10 @@
 
                 distBind = toNullableNumber((structKeyExists(leg, "dist_nm") ? leg.dist_nm : 0), "numeric");
                 lockBind = toNullableNumber((structKeyExists(leg, "lock_count") ? leg.lock_count : 0), "integer");
-                startLatBind = toNullableNumber((structKeyExists(leg, "start_lat") ? leg.start_lat : ""), "numeric");
-                startLngBind = toNullableNumber((structKeyExists(leg, "start_lng") ? leg.start_lng : ""), "numeric");
-                endLatBind = toNullableNumber((structKeyExists(leg, "end_lat") ? leg.end_lat : ""), "numeric");
-                endLngBind = toNullableNumber((structKeyExists(leg, "end_lng") ? leg.end_lng : ""), "numeric");
+                startLatBind = toNullableNumber(startLatRaw, "numeric");
+                startLngBind = toNullableNumber(startLngRaw, "numeric");
+                endLatBind = toNullableNumber(endLatRaw, "numeric");
+                endLngBind = toNullableNumber(endLngRaw, "numeric");
                 notesBind = toNullableString(notesVal);
                 if (!notesBind.isNull AND len(notesBind.value) GT 255) {
                     notesBind.value = left(notesBind.value, 255);
@@ -4102,21 +4248,22 @@
                          start_lat, start_lng, end_lat, end_lng, base_dist_nm, lock_count, notes)
                      VALUES
                         (:routeInstanceId, :sectionId, :legOrder, :segmentId, NULL,
-                         0, :isOptional, :detourCode, :startName, :endName,
+                         :isReversed, :isOptional, :detourCode, :startName, :endName,
                          :startLat, :startLng, :endLat, :endLng, :distNm, :lockCount, :notes)",
                     {
                         routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" },
                         sectionId = { value=out.SECTION_ID, cfsqltype="cf_sql_integer" },
                         legOrder = { value=legOrderVal, cfsqltype="cf_sql_integer" },
                         segmentId = { value=segmentIdVal, cfsqltype="cf_sql_integer", null=(segmentIdVal LTE 0) },
+                        isReversed = { value=isReversedVal, cfsqltype="cf_sql_integer" },
                         isOptional = { value=isOptionalVal, cfsqltype="cf_sql_integer" },
                         detourCode = { value=detourCodeVal, cfsqltype="cf_sql_varchar", null=NOT len(detourCodeVal) },
-                        startName = { value=trim(toString(structKeyExists(leg, "start_name") ? leg.start_name : "")), cfsqltype="cf_sql_varchar", null=NOT len(trim(toString(structKeyExists(leg, "start_name") ? leg.start_name : ""))) },
-                        endName = { value=trim(toString(structKeyExists(leg, "end_name") ? leg.end_name : "")), cfsqltype="cf_sql_varchar", null=NOT len(trim(toString(structKeyExists(leg, "end_name") ? leg.end_name : ""))) },
-                        startLat = { value=startLatBind.value, cfsqltype="cf_sql_decimal", null=startLatBind.isNull },
-                        startLng = { value=startLngBind.value, cfsqltype="cf_sql_decimal", null=startLngBind.isNull },
-                        endLat = { value=endLatBind.value, cfsqltype="cf_sql_decimal", null=endLatBind.isNull },
-                        endLng = { value=endLngBind.value, cfsqltype="cf_sql_decimal", null=endLngBind.isNull },
+                        startName = { value=legStartNameVal, cfsqltype="cf_sql_varchar", null=NOT len(legStartNameVal) },
+                        endName = { value=legEndNameVal, cfsqltype="cf_sql_varchar", null=NOT len(legEndNameVal) },
+                        startLat = { value=startLatBind.value, cfsqltype="cf_sql_decimal", null=startLatBind.isNull, scale=7 },
+                        startLng = { value=startLngBind.value, cfsqltype="cf_sql_decimal", null=startLngBind.isNull, scale=7 },
+                        endLat = { value=endLatBind.value, cfsqltype="cf_sql_decimal", null=endLatBind.isNull, scale=7 },
+                        endLng = { value=endLngBind.value, cfsqltype="cf_sql_decimal", null=endLngBind.isNull, scale=7 },
                         distNm = { value=distBind.value, cfsqltype="cf_sql_decimal", null=distBind.isNull },
                         lockCount = { value=lockBind.value, cfsqltype="cf_sql_integer", null=lockBind.isNull },
                         notes = { value=notesBind.value, cfsqltype="cf_sql_varchar", null=notesBind.isNull }
@@ -4611,6 +4758,36 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="routegenResolvePortPointByName" access="private" returntype="struct" output="false">
+        <cfargument name="portName" type="string" required="false" default="">
+        <cfscript>
+            var out = {};
+            var nameVal = trim(arguments.portName);
+            var q = queryNew("");
+            if (!len(nameVal)) return out;
+            q = queryExecute(
+                "SELECT lat, lng
+                 FROM ports
+                 WHERE LOWER(TRIM(name)) = LOWER(TRIM(:name))
+                   AND lat IS NOT NULL
+                   AND lng IS NOT NULL
+                 ORDER BY id ASC
+                 LIMIT 1",
+                {
+                    name = { value=nameVal, cfsqltype="cf_sql_varchar" }
+                },
+                { datasource = application.dsn }
+            );
+            if (q.recordCount EQ 0) return out;
+            if (!isNumeric(q.lat[1]) OR !isNumeric(q.lng[1])) return out;
+            out = {
+                "lat"=val(q.lat[1]),
+                "lon"=val(q.lng[1])
+            };
+            return out;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="routegenGetLegGeometry" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="routeCode" type="string" required="false" default="">
@@ -4644,6 +4821,7 @@
             var normStartLng = "";
             var normEndLat = "";
             var normEndLng = "";
+            var fallbackPoint = {};
             var effectivePoints = [];
             var effectiveNm = 0;
             var defaultNm = 0;
@@ -4790,6 +4968,29 @@
                 effectivePoints = (structKeyExists(defaultGeom, "POINTS") AND isArray(defaultGeom.POINTS) ? defaultGeom.POINTS : []);
                 effectiveNm = defaultNm;
                 sourceVal = "default";
+            }
+
+            if (
+                structCount(legRow)
+                AND (!structKeyExists(legRow, "START_POINT") OR !isStruct(legRow.START_POINT) OR !structCount(legRow.START_POINT))
+            ) {
+                fallbackPoint = routegenResolvePortPointByName(
+                    structKeyExists(legRow, "START_NAME") ? legRow.START_NAME : ""
+                );
+                if (structCount(fallbackPoint)) {
+                    legRow.START_POINT = fallbackPoint;
+                }
+            }
+            if (
+                structCount(legRow)
+                AND (!structKeyExists(legRow, "END_POINT") OR !isStruct(legRow.END_POINT) OR !structCount(legRow.END_POINT))
+            ) {
+                fallbackPoint = routegenResolvePortPointByName(
+                    structKeyExists(legRow, "END_NAME") ? legRow.END_NAME : ""
+                );
+                if (structCount(fallbackPoint)) {
+                    legRow.END_POINT = fallbackPoint;
+                }
             }
 
             out.SUCCESS = true;

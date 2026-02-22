@@ -66,7 +66,7 @@
     legMapClearIntent: false,
     legMapDraftPoints: [],
     legMapLoadSeq: 0,
-    legEndpointCacheByOrder: {},
+    legEndpointCacheByKey: {},
     legMap: {
       map: null,
       drawnItems: null,
@@ -685,7 +685,6 @@
     state.selectedLegData = null;
     state.selectedLegHasOverride = false;
     state.selectedLegSource = "default";
-    state.legEndpointCacheByOrder = {};
     clearSelectedLegRows();
     if (dom.legMapTitleEl) dom.legMapTitleEl.textContent = "Select a leg to edit geometry";
     if (dom.legMapSourceEl) dom.legMapSourceEl.textContent = "Source: default";
@@ -2176,19 +2175,31 @@
     };
   }
 
-  function cacheLegEndpointPoints(order, startPoint, endPoint) {
-    var key = String(toInt(order, 0));
-    if (!key || key === "0") return;
-    state.legEndpointCacheByOrder[key] = {
+  function endpointCacheKey(leg, geometryData) {
+    var routeCode = String(
+      (geometryData && geometryData.route_code !== undefined ? geometryData.route_code : state.activeRouteCode) || ""
+    ).trim();
+    var order = toInt(getLegField(leg, "order_index"), toInt(geometryData && geometryData.leg_order, 0));
+    var segmentId = toInt(
+      getLegField(leg, "segment_id"),
+      toInt(geometryData && geometryData.segment_id, 0)
+    );
+    return [routeCode || "preview", String(order), String(segmentId)].join("|");
+  }
+
+  function cacheLegEndpointPoints(leg, geometryData, startPoint, endPoint) {
+    var key = endpointCacheKey(leg, geometryData);
+    if (!key || key === "preview|0|0") return;
+    state.legEndpointCacheByKey[key] = {
       startPoint: startPoint || null,
       endPoint: endPoint || null
     };
   }
 
-  function readCachedLegEndpointPoints(order) {
-    var key = String(toInt(order, 0));
-    if (!key || key === "0") return { startPoint: null, endPoint: null };
-    var cached = state.legEndpointCacheByOrder[key];
+  function readCachedLegEndpointPoints(leg, geometryData) {
+    var key = endpointCacheKey(leg, geometryData);
+    if (!key || key === "preview|0|0") return { startPoint: null, endPoint: null };
+    var cached = state.legEndpointCacheByKey[key];
     if (!cached || typeof cached !== "object") return { startPoint: null, endPoint: null };
     return {
       startPoint: parseLegMapPoint(cached.startPoint),
@@ -2207,7 +2218,6 @@
 
   function resolveLegEndpointPoints(leg, geometryData) {
     var data = geometryData || {};
-    var order = toInt(getLegField(leg, "order_index"), 0);
     var fromLeg = {
       startPoint: parseLegMapPoint(data.leg_start_point) || parseLegFieldPoint(leg, "start"),
       endPoint: parseLegMapPoint(data.leg_end_point) || parseLegFieldPoint(leg, "end")
@@ -2217,11 +2227,11 @@
       endPoint: parseLegMapPoint(data.default_end_point)
     };
     var fromPolyline = readPolylineEndpoints(Array.isArray(data.points) ? data.points : []);
-    var fromCache = readCachedLegEndpointPoints(order);
+    var fromCache = readCachedLegEndpointPoints(leg, data);
     var merged = fillMissingEndpointPoints(fromLeg, fromDefault);
     merged = fillMissingEndpointPoints(merged, fromPolyline);
     merged = fillMissingEndpointPoints(merged, fromCache);
-    cacheLegEndpointPoints(order, merged.startPoint, merged.endPoint);
+    cacheLegEndpointPoints(leg, data, merged.startPoint, merged.endPoint);
     return {
       startPoint: merged.startPoint,
       endPoint: merged.endPoint

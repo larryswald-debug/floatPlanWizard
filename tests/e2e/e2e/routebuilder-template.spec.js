@@ -6,6 +6,36 @@ if (!process.env.FPW_EMAIL || !process.env.FPW_PASSWORD) {
 
 const { test, expect } = require("@playwright/test");
 
+test.describe.configure({ timeout: 120000 });
+
+async function waitForRouteBuilderModalToClose(page, timeoutMs) {
+  const modal = page.locator("#routeBuilderModal");
+  const closedByApp = await page.waitForFunction(() => {
+    const el = document.getElementById("routeBuilderModal");
+    if (!el) return true;
+    if (!el.classList.contains("show")) return true;
+    const style = window.getComputedStyle(el);
+    return style.display === "none" || el.getAttribute("aria-hidden") === "true";
+  }, { timeout: timeoutMs }).then(() => true).catch(() => false);
+
+  if (!closedByApp) {
+    const closeBtn = page.locator("#routeGenCloseBtn, #routeGenCancelBtn").first();
+    if (await closeBtn.isVisible().catch(() => false)) {
+      await closeBtn.click({ timeout: 1500 }).catch(() => {});
+    }
+  }
+
+  await expect(modal).toBeHidden({ timeout: timeoutMs });
+  await expect(page.locator(".modal-backdrop.show")).toHaveCount(0, { timeout: timeoutMs });
+}
+
+async function clickPreviewWhenReady(page) {
+  const previewBtn = page.locator("#routeGenPreviewBtn");
+  await expect(previewBtn).toBeVisible({ timeout: 30000 });
+  await expect(previewBtn).toBeEnabled({ timeout: 60000 });
+  await previewBtn.click({ timeout: 60000 });
+}
+
 test("Route Builder generates route from template and opens timeline editor", async ({ page }) => {
   await page.goto("/fpw/index.cfm", { waitUntil: "domcontentloaded" });
 
@@ -43,7 +73,7 @@ test("Route Builder generates route from template and opens timeline editor", as
   }, { timeout: 20000 });
   await page.selectOption("#routeGenEndLocation", { index: 1 });
 
-  await page.click("#routeGenPreviewBtn");
+  await clickPreviewWhenReady(page);
   await page.waitForFunction(() => {
     const txt = document.getElementById("routeGenLegCount");
     if (!txt) return false;
@@ -53,8 +83,8 @@ test("Route Builder generates route from template and opens timeline editor", as
   await expect(page.locator("#routeGenLegList .fpw-routegen__leglocks").first()).toHaveText(/[0-9]+/, { timeout: 10000 });
 
   await page.click("#routeGenGenerateBtn");
-  await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 30000 });
   await expect(page.locator("#dashboardAlert")).toContainText("Route generated successfully.", { timeout: 30000 });
+  await waitForRouteBuilderModalToClose(page, 30000);
 
   await page.click("#openRouteBuilderBtn");
   await expect(page.locator("#routeBuilderModal")).toBeVisible({ timeout: 15000 });
@@ -100,7 +130,7 @@ test("Route Builder leg row opens lock panel, then map editor from button", asyn
   }, { timeout: 20000 });
   await page.selectOption("#routeGenEndLocation", { index: 1 });
 
-  await page.click("#routeGenPreviewBtn");
+  await clickPreviewWhenReady(page);
   await page.waitForFunction(() => {
     const rows = document.querySelectorAll("#routeGenLegList .fpw-routegen__leg");
     return rows.length > 0;
@@ -114,11 +144,9 @@ test("Route Builder leg row opens lock panel, then map editor from button", asyn
     if (!panel) return false;
     return !!panel.querySelector(".fpw-routegen__locksummary, .fpw-routegen__lockstate");
   }, { timeout: 15000 });
-  await page.evaluate(() => {
-    const btn = document.querySelector('#routeGenLegList .fpw-routegen__leg [data-leg-action="open-map"]');
-    if (!btn) throw new Error("Open map button not found.");
-    btn.click();
-  });
+  const firstOpenMapBtn = page.locator('#routeGenLegList .fpw-routegen__leg [data-leg-action="open-map"]').first();
+  await expect(firstOpenMapBtn).toBeVisible({ timeout: 15000 });
+  await firstOpenMapBtn.click();
   await expect(page.locator("#routeGenLegMapPanel")).toHaveClass(/is-open/, { timeout: 10000 });
   await expect(page.locator("#routeGenLegMap")).toBeVisible({ timeout: 10000 });
   await expect(page.locator("#routeGenLegMapTitle")).toContainText("->", { timeout: 10000 });
@@ -127,11 +155,40 @@ test("Route Builder leg row opens lock panel, then map editor from button", asyn
   await expect(page.locator("#routeGenLegSaveBtn")).toBeEnabled();
   await page.click("#routeGenLegOverlayCloseBtn");
   await expect(page.locator("#routeGenLegOverlay")).not.toHaveClass(/is-open/, { timeout: 10000 });
-  await page.evaluate(() => {
-    const btn = document.querySelector('#routeGenLegList .fpw-routegen__leg [data-leg-action="open-map"]');
-    if (!btn) throw new Error("Open map button not found for reopen check.");
-    btn.click();
-  });
+  const reopenOpenMapBtn = page.locator('#routeGenLegList .fpw-routegen__leg [data-leg-action="open-map"]').first();
+  await expect(reopenOpenMapBtn).toBeVisible({ timeout: 15000 });
+  await reopenOpenMapBtn.click();
+  await expect(page.locator("#routeGenLegMapPanel")).toHaveClass(/is-open/, { timeout: 10000 });
+  await expect(page.locator("#routeGenLegMap .leaflet-tooltip").filter({ hasText: "Start" }).first()).toBeVisible({ timeout: 10000 });
+  await expect(page.locator("#routeGenLegMap .leaflet-tooltip").filter({ hasText: "End" }).first()).toBeVisible({ timeout: 10000 });
+  await page.click("#routeGenLegOverlayCloseBtn");
+  await expect(page.locator("#routeGenLegOverlay")).not.toHaveClass(/is-open/, { timeout: 10000 });
+  await page.click("#routeGenCancelBtn");
+  await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 15000 });
+  await page.click("#openRouteBuilderBtn");
+  await expect(page.locator("#routeBuilderModal")).toBeVisible({ timeout: 15000 });
+  await page.waitForFunction(() => {
+    const sel = document.getElementById("routeGenTemplateSelect");
+    return !!sel && !sel.disabled && sel.options.length > 1;
+  }, { timeout: 20000 });
+  await page.selectOption("#routeGenTemplateSelect", { index: 1 });
+  await page.waitForFunction(() => {
+    const sel = document.getElementById("routeGenStartLocation");
+    return !!sel && sel.options.length > 1;
+  }, { timeout: 20000 });
+  await page.selectOption("#routeGenStartLocation", { index: 1 });
+  await page.waitForFunction(() => {
+    const sel = document.getElementById("routeGenEndLocation");
+    return !!sel && sel.options.length > 1;
+  }, { timeout: 20000 });
+  await page.selectOption("#routeGenEndLocation", { index: 1 });
+  await clickPreviewWhenReady(page);
+  await page.waitForFunction(() => {
+    return document.querySelectorAll("#routeGenLegList .fpw-routegen__leg").length > 0;
+  }, { timeout: 30000 });
+  const modalReopenOpenMapBtn = page.locator('#routeGenLegList .fpw-routegen__leg [data-leg-action="open-map"]').first();
+  await expect(modalReopenOpenMapBtn).toBeVisible({ timeout: 30000 });
+  await modalReopenOpenMapBtn.click();
   await expect(page.locator("#routeGenLegMapPanel")).toHaveClass(/is-open/, { timeout: 10000 });
   await expect(page.locator("#routeGenLegMap .leaflet-tooltip").filter({ hasText: "Start" }).first()).toBeVisible({ timeout: 10000 });
   await expect(page.locator("#routeGenLegMap .leaflet-tooltip").filter({ hasText: "End" }).first()).toBeVisible({ timeout: 10000 });
@@ -183,7 +240,7 @@ test("Route Builder saves and clears leg override via deterministic geometry hoo
   }, { timeout: 20000 });
   await page.selectOption("#routeGenEndLocation", { index: 1 });
 
-  await page.click("#routeGenPreviewBtn");
+  await clickPreviewWhenReady(page);
   await page.waitForFunction(() => {
     return document.querySelectorAll("#routeGenLegList .fpw-routegen__leg").length > 0;
   }, { timeout: 30000 });

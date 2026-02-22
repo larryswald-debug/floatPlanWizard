@@ -143,7 +143,203 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( pickBool( getAfterClearRes, "SUCCESS" ) ).toBeTrue( "routegen_getleggeometry(after clear) failed: #serializeJSON(getAfterClearRes)#" );
         expect( !!pickNested( getAfterClearRes, [ "DATA", "has_override" ], true ) ).toBeFalse( "Expected has_override=false after clear: #serializeJSON(getAfterClearRes)#" );
       } );
+
+      it( "rejects malformed geometry and invalid leg references", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var legCtx = buildRouteLegContext();
+        expect( legCtx.routeLegId ).toBeGT( 0, "Setup route_leg_id missing: #serializeJSON(legCtx)#" );
+
+        var malformedRes = routeBuilderPost( "routegen_savelegoverride", {
+          route_code = legCtx.routeCode,
+          route_leg_id = legCtx.routeLegId,
+          leg_order = legCtx.legOrder,
+          segment_id = legCtx.segmentId,
+          geometry = { lat = 41.9, lon = -87.6 }
+        } );
+        expect( pickBool( malformedRes, "SUCCESS" ) ).toBeFalse( "Malformed geometry should fail: #serializeJSON(malformedRes)#" );
+        expect(
+          findNoCase(
+            "Geometry",
+            toString( pickNested( malformedRes, [ "ERROR", "MESSAGE" ], "" ) )
+          ) GT 0
+        ).toBeTrue( "Expected geometry validation message: #serializeJSON(malformedRes)#" );
+
+        var outOfRangeRes = routeBuilderPost( "routegen_savelegoverride", {
+          route_code = legCtx.routeCode,
+          route_leg_id = legCtx.routeLegId,
+          leg_order = legCtx.legOrder,
+          segment_id = legCtx.segmentId,
+          geometry = [
+            { lat = 91.000000, lon = -87.600000 },
+            { lat = 92.000000, lon = -87.100000 }
+          ]
+        } );
+        expect( pickBool( outOfRangeRes, "SUCCESS" ) ).toBeFalse( "Out-of-range latitude should fail: #serializeJSON(outOfRangeRes)#" );
+        expect(
+          findNoCase(
+            "latitude out of range",
+            lCase( toString( pickNested( outOfRangeRes, [ "ERROR", "MESSAGE" ], "" ) ) )
+          ) GT 0
+        ).toBeTrue( "Expected latitude range validation message: #serializeJSON(outOfRangeRes)#" );
+
+        var badLegIdRes = routeBuilderPost( "routegen_savelegoverride", {
+          route_code = legCtx.routeCode,
+          route_leg_id = legCtx.routeLegId + 999999,
+          leg_order = legCtx.legOrder,
+          segment_id = legCtx.segmentId,
+          geometry = [
+            { lat = 41.900000, lon = -87.600000 },
+            { lat = 42.050000, lon = -87.100000 }
+          ]
+        } );
+        expect( pickBool( badLegIdRes, "SUCCESS" ) ).toBeFalse( "Unknown route_leg_id should fail: #serializeJSON(badLegIdRes)#" );
+        expect(
+          findNoCase(
+            "not found",
+            lCase( toString( pickNested( badLegIdRes, [ "ERROR", "MESSAGE" ], "" ) ) )
+          ) GT 0
+        ).toBeTrue( "Expected leg-not-found message: #serializeJSON(badLegIdRes)#" );
+      } );
+
+      it( "requires authenticated session for route override endpoints", function() {
+        var anonRes = routeBuilderPostAnonymous( "routegen_getleggeometry", {
+          route_code = "NON_EXISTENT_ROUTE",
+          route_leg_id = 1,
+          leg_order = 1,
+          segment_id = 1
+        } );
+        expect( pickBool( anonRes, "SUCCESS" ) ).toBeFalse( "Anonymous request should not succeed: #serializeJSON(anonRes)#" );
+        expect( !!pickFirst( anonRes, [ "AUTH", "auth" ], true ) ).toBeFalse( "Anonymous request should have AUTH=false: #serializeJSON(anonRes)#" );
+        expect(
+          findNoCase(
+            "unauthorized",
+            lCase( toString( pickFirst( anonRes, [ "MESSAGE", "message" ], "" ) ) )
+          ) GT 0
+        ).toBeTrue( "Anonymous request should return unauthorized message: #serializeJSON(anonRes)#" );
+      } );
     } );
+  }
+
+  private struct function buildRouteLegContext() {
+    var optionsRes = routeBuilderPost( "routegen_getoptions", {
+      direction = "CCW",
+      tripType = "POINT_TO_POINT"
+    } );
+    if ( !pickBool( optionsRes, "SUCCESS" ) ) {
+      throw(
+        type = "RouteLegOverridesSpec.Setup",
+        message = "routegen_getoptions failed",
+        detail = serializeJSON( optionsRes )
+      );
+    }
+
+    var optionsData = ( structKeyExists( optionsRes, "DATA" ) && isStruct( optionsRes.DATA ) )
+      ? optionsRes.DATA
+      : {};
+    var templateRow = ( structKeyExists( optionsData, "template" ) && isStruct( optionsData.template ) )
+      ? optionsData.template
+      : {};
+    var templateCode = trim( toString( pickFirst( templateRow, [ "code", "CODE", "short_code", "SHORT_CODE" ], "" ) ) );
+    var startOptions = ( structKeyExists( optionsData, "startOptions" ) && isArray( optionsData.startOptions ) )
+      ? optionsData.startOptions
+      : [];
+    var endOptions = ( structKeyExists( optionsData, "endOptions" ) && isArray( optionsData.endOptions ) )
+      ? optionsData.endOptions
+      : [];
+
+    if ( !len( templateCode ) || !arrayLen( startOptions ) || !arrayLen( endOptions ) ) {
+      throw(
+        type = "RouteLegOverridesSpec.Setup",
+        message = "Route options missing required data",
+        detail = serializeJSON( optionsRes )
+      );
+    }
+
+    var startSegmentId = val( pickFirst( startOptions[ 1 ], [ "segment_id", "SEGMENT_ID" ], 0 ) );
+    var endChoiceIndex = ( arrayLen( endOptions ) GTE 5 ? 5 : arrayLen( endOptions ) );
+    var endSegmentId = val( pickFirst( endOptions[ endChoiceIndex ], [ "segment_id", "SEGMENT_ID" ], 0 ) );
+    if ( endSegmentId LTE 0 ) endSegmentId = startSegmentId;
+    if ( endSegmentId EQ startSegmentId AND arrayLen( endOptions ) GTE 2 ) {
+      endSegmentId = val( pickFirst( endOptions[ 2 ], [ "segment_id", "SEGMENT_ID" ], endSegmentId ) );
+    }
+    if ( startSegmentId LTE 0 || endSegmentId LTE 0 ) {
+      throw(
+        type = "RouteLegOverridesSpec.Setup",
+        message = "Invalid start/end segment ids",
+        detail = serializeJSON( optionsRes )
+      );
+    }
+
+    var generateRes = routeBuilderPost( "routegen_generate", {
+      template_code = templateCode,
+      start_segment_id = startSegmentId,
+      end_segment_id = endSegmentId,
+      start_date = dateFormat( now(), "yyyy-mm-dd" ),
+      direction = "CCW"
+    } );
+    if ( !pickBool( generateRes, "SUCCESS" ) ) {
+      throw(
+        type = "RouteLegOverridesSpec.Setup",
+        message = "routegen_generate failed",
+        detail = serializeJSON( generateRes )
+      );
+    }
+
+    var routeCode = trim( toString( pickFirst( generateRes, [ "ROUTE_CODE", "route_code", "routeCode" ], "" ) ) );
+    if ( !len( routeCode ) ) {
+      throw(
+        type = "RouteLegOverridesSpec.Setup",
+        message = "routegen_generate returned no route code",
+        detail = serializeJSON( generateRes )
+      );
+    }
+
+    var editContextRes = routeBuilderPost( "routegen_geteditcontext", {
+      route_code = routeCode
+    } );
+    if ( !pickBool( editContextRes, "SUCCESS" ) ) {
+      throw(
+        type = "RouteLegOverridesSpec.Setup",
+        message = "routegen_geteditcontext failed",
+        detail = serializeJSON( editContextRes )
+      );
+    }
+
+    var inputs = ( structKeyExists( editContextRes, "DATA" ) && isStruct( editContextRes.DATA ) && structKeyExists( editContextRes.DATA, "inputs" ) )
+      ? duplicate( editContextRes.DATA.inputs )
+      : {};
+    inputs.route_code = routeCode;
+
+    var previewRes = routeBuilderPost( "routegen_preview", inputs );
+    if ( !pickBool( previewRes, "SUCCESS" ) ) {
+      throw(
+        type = "RouteLegOverridesSpec.Setup",
+        message = "routegen_preview failed",
+        detail = serializeJSON( previewRes )
+      );
+    }
+
+    var legs = ( structKeyExists( previewRes, "DATA" ) && isStruct( previewRes.DATA ) && structKeyExists( previewRes.DATA, "legs" ) && isArray( previewRes.DATA.legs ) )
+      ? previewRes.DATA.legs
+      : [];
+    if ( !arrayLen( legs ) ) {
+      throw(
+        type = "RouteLegOverridesSpec.Setup",
+        message = "routegen_preview returned no legs",
+        detail = serializeJSON( previewRes )
+      );
+    }
+
+    var firstLeg = legs[ 1 ];
+    return {
+      routeCode = routeCode,
+      routeLegId = val( pickFirst( firstLeg, [ "route_leg_id", "ROUTE_LEG_ID" ], 0 ) ),
+      legOrder = val( pickFirst( firstLeg, [ "order_index", "ORDER_INDEX" ], 0 ) ),
+      segmentId = val( pickFirst( firstLeg, [ "segment_id", "SEGMENT_ID" ], 0 ) )
+    };
   }
 
   private void function ensureSessionUser() {
@@ -187,6 +383,19 @@ component extends="testbox.system.BaseSpec" output="false" {
       for ( var cookiePair in sessionCookies ) {
         cfhttpparam( type="cookie", name=cookiePair.name, value=cookiePair.value );
       }
+    }
+
+    return decodeJsonResponse( res );
+  }
+
+  private struct function routeBuilderPostAnonymous( required string action, required struct body ) {
+    var urlPath = variables.ctx.baseUrl & "/fpw/api/v1/routeBuilder.cfc?method=handle&action=" & urlEncodedFormat( arguments.action );
+    var res = {};
+
+    cfhttp( method="POST", url=urlPath, timeout="60", result="res" ) {
+      cfhttpparam( type="header", name="Accept", value="application/json" );
+      cfhttpparam( type="header", name="Content-Type", value="application/json; charset=utf-8" );
+      cfhttpparam( type="body", value=serializeJSON( arguments.body ) );
     }
 
     return decodeJsonResponse( res );

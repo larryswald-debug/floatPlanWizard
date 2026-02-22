@@ -1,3 +1,5 @@
+const { devices } = require("@playwright/test");
+
 module.exports = {
   testDir: "./tests",
   use: {
@@ -8,11 +10,34 @@ module.exports = {
   projects: [
     {
       name: "chromium",
+      testIgnore: /.*\.mobile\.spec\.js/,
       use: { browserName: "chromium" }
     },
     {
       name: "firefox",
+      testIgnore: /.*\.mobile\.spec\.js/,
       use: { browserName: "firefox" }
+    },
+    {
+      name: "webkit",
+      testIgnore: /.*\.mobile\.spec\.js/,
+      use: { browserName: "webkit" }
+    },
+    {
+      name: "mobile-chromium",
+      testMatch: /.*\.mobile\.spec\.js/,
+      use: {
+        ...devices["Pixel 5"],
+        browserName: "chromium"
+      }
+    },
+    {
+      name: "mobile-webkit",
+      testMatch: /.*\.mobile\.spec\.js/,
+      use: {
+        ...devices["iPhone 13"],
+        browserName: "webkit"
+      }
     }
   ]
 };
