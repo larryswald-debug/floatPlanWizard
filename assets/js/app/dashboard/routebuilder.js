@@ -367,7 +367,7 @@
     html += '      <div class="col-sm-4">Locks: <strong>' + formatNumber(day.lockCount, 0) + "</strong></div>";
     html += "    </div>";
     html += '    <div class="row g-2 small">';
-    html += '      <div class="col-sm-4">Required: <strong>' + formatNumber(day.requiredFuelGallons, 1) + " gal</strong></div>";
+    html += '      <div class="col-sm-4">Required: <strong data-testid="required-fuel">' + formatNumber(day.requiredFuelGallons, 1) + " gal</strong></div>";
     html += '      <div class="col-sm-4">Reserve: <strong>' + formatNumber(day.reserveGallons, 1) + " gal</strong></div>";
     html += '      <div class="col-sm-4">Confidence: <strong>' + formatNumber(day.confidence, 0) + "%</strong></div>";
     html += "    </div>";
@@ -418,6 +418,15 @@
       })
     };
     refreshExpandedLegPanel();
+  }
+
+  function extractPreviewLegsFromPayload(payload) {
+    var source = (payload && typeof payload === "object") ? payload : {};
+    var data = (source.DATA && typeof source.DATA === "object")
+      ? source.DATA
+      : ((source.data && typeof source.data === "object") ? source.data : source);
+    var legs = Array.isArray(data.legs) ? data.legs : (Array.isArray(data.LEGS) ? data.LEGS : []);
+    return Array.isArray(legs) ? legs : [];
   }
 
   function buildCruiseTimeline(routeId, startDate, maxHoursPerDay, previewLegsRaw) {
@@ -3437,10 +3446,12 @@
     })
       .then(function (resPayload) {
         var activeRouteId = toInt(state.activeRouteId, 0);
+        var previewLegsForTimeline = [];
         if (seq !== state.previewReqSeq) return null;
         if (!resPayload || resPayload.SUCCESS === false) {
           throw new Error((resPayload && resPayload.MESSAGE) ? resPayload.MESSAGE : "Preview failed.");
         }
+        previewLegsForTimeline = extractPreviewLegsFromPayload(resPayload);
         renderPreviewPayload(resPayload, false);
         setStatus(forceRefresh ? "Preview updated." : "Preview ready.");
         if (state.modalMode !== "editor") {
@@ -3451,7 +3462,7 @@
             activeRouteId,
             dom.startDateEl ? String(dom.startDateEl.value || "").trim() : "",
             state.cruiseTimeline.maxHoursPerDay,
-            state.previewLegs
+            (previewLegsForTimeline.length ? previewLegsForTimeline : state.previewLegs)
           ).then(function () {
             return resPayload;
           });
