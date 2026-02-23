@@ -325,6 +325,73 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( val( pickFirst( aliasDays[ 1 ], [ "reserve_gallons" ], 0 ) ) ).toBeGT( 0 );
       } );
 
+      it( "uses weather-adjusted speed for timeline hours and day bucketing", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var legCtx = buildRouteLegContext();
+        var startDate = dateFormat( now(), "yyyy-mm-dd" );
+
+        var previewRes = routeBuilderPost( "routegen_preview", legCtx.inputs );
+        expect( pickBool( previewRes, "SUCCESS" ) ).toBeTrue( "routegen_preview failed for weather hours test: #serializeJSON(previewRes)#" );
+        var previewData = ( structKeyExists( previewRes, "DATA" ) && isStruct( previewRes.DATA ) )
+          ? previewRes.DATA
+          : {};
+        var previewLegs = ( structKeyExists( previewData, "legs" ) && isArray( previewData.legs ) )
+          ? duplicate( previewData.legs )
+          : [];
+        expect( arrayLen( previewLegs ) ).toBeGT( 0, "No preview legs returned for weather hours test: #serializeJSON(previewRes)#" );
+
+        var baseRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = startDate,
+          maxHoursPerDay = 6.5,
+          previewLegs = previewLegs,
+          inputOverrides = {
+            pace = "BALANCED",
+            cruising_speed = 20,
+            weather_factor_pct = 0,
+            fuel_burn_gph = 8,
+            reserve_pct = 20
+          }
+        } );
+        expect( !!pickFirst( baseRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "base weather timeline failed: #serializeJSON(baseRes)#" );
+        var baseDays = ( structKeyExists( baseRes, "days" ) && isArray( baseRes.days ) ) ? baseRes.days : [];
+        var baseSummary = ( structKeyExists( baseRes, "route_summary" ) && isStruct( baseRes.route_summary ) ) ? baseRes.route_summary : {};
+        expect( arrayLen( baseDays ) ).toBeGT( 0, "Base timeline days missing: #serializeJSON(baseRes)#" );
+        var baseTotalHours = sumTimelineEstHours( baseDays );
+        var baseTotalDays = val( pickFirst( baseSummary, [ "total_days" ], arrayLen( baseDays ) ) );
+
+        var weatherRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = startDate,
+          maxHoursPerDay = 6.5,
+          previewLegs = previewLegs,
+          inputOverrides = {
+            pace = "BALANCED",
+            cruising_speed = 20,
+            weather_factor_pct = 30,
+            fuel_burn_gph = 8,
+            reserve_pct = 20
+          }
+        } );
+        expect( !!pickFirst( weatherRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "weather timeline failed: #serializeJSON(weatherRes)#" );
+        var weatherDays = ( structKeyExists( weatherRes, "days" ) && isArray( weatherRes.days ) ) ? weatherRes.days : [];
+        var weatherSummary = ( structKeyExists( weatherRes, "route_summary" ) && isStruct( weatherRes.route_summary ) ) ? weatherRes.route_summary : {};
+        expect( arrayLen( weatherDays ) ).toBeGT( 0, "Weather timeline days missing: #serializeJSON(weatherRes)#" );
+        var weatherTotalHours = sumTimelineEstHours( weatherDays );
+        var weatherTotalDays = val( pickFirst( weatherSummary, [ "total_days" ], arrayLen( weatherDays ) ) );
+
+        expect( weatherTotalHours ).toBeGT( baseTotalHours );
+        expect( weatherTotalDays GTE baseTotalDays ).toBeTrue( "Higher weather factor should not reduce day count." );
+
+        var weatherMeta = ( structKeyExists( weatherRes, "timeline_meta" ) && isStruct( weatherRes.timeline_meta ) )
+          ? weatherRes.timeline_meta
+          : {};
+        expect( toString( pickFirst( weatherMeta, [ "hours_source", "HOURS_SOURCE" ], "" ) ) ).toBe( "weather_adjusted_speed" );
+      } );
+
       it( "applies generateCruiseTimeline inputOverrides without persisting route inputs", function() {
         if ( !variables.ctx.sessionReady ) {
           skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
@@ -625,6 +692,16 @@ component extends="testbox.system.BaseSpec" output="false" {
       if ( legId EQ arguments.routeLegId ) return true;
     }
     return false;
+  }
+
+  private numeric function sumTimelineEstHours( required array days ) {
+    var total = 0;
+    if ( !isArray( arguments.days ) ) return 0;
+    for ( var row in arguments.days ) {
+      if ( !isStruct( row ) ) continue;
+      total += val( pickFirst( row, [ "est_hours", "EST_HOURS" ], 0 ) );
+    }
+    return round( total * 100 ) / 100;
   }
 
   private boolean function routeInstancesHasInputsJsonColumn() {

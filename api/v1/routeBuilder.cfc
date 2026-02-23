@@ -1938,7 +1938,8 @@
                     "fuel_key"="",
                     "fuel_resolved"=false,
                     "distance_source"="route_instance_legs",
-                    "preview_legs_ignored"=false
+                    "preview_legs_ignored"=false,
+                    "hours_source"="weather_adjusted_speed"
                 },
                 "days"=[]
             };
@@ -1959,6 +1960,7 @@
             var paceRatioVal = 0;
             var maxSpeedVal = 0;
             var effectiveSpeedVal = 0;
+            var weatherAdjustedSpeedTimelineVal = 0;
             var fuelMeta = {
                 "fuel_burn_gph"=0,
                 "fuel_source"="missing",
@@ -2096,7 +2098,8 @@
                 "fuel_key"=trim(toString(fuelMeta.fuel_key)),
                 "fuel_resolved"=(fuelBurnGphVal GT 0),
                 "distance_source"=segSource,
-                "preview_legs_ignored"=previewLegsIgnored
+                "preview_legs_ignored"=previewLegsIgnored,
+                "hours_source"="weather_adjusted_speed"
             };
             paceVal = routegenNormalizePace(structKeyExists(effectiveInputs, "pace") ? effectiveInputs.pace : "RELAXED");
             paceDefaults = routegenPaceDefaults(paceVal);
@@ -2116,6 +2119,7 @@
                     ? effectiveInputs.weather_factor_pct
                     : (structKeyExists(effectiveInputs, "weather_factor") ? effectiveInputs.weather_factor : "")
             );
+            weatherAdjustedSpeedTimelineVal = routegenComputeWeatherAdjustedSpeedKn(effectiveSpeedVal, weatherFactorPctVal);
             reservePctVal = routegenNormalizeReservePct(
                 structKeyExists(effectiveInputs, "reserve_pct") ? effectiveInputs.reserve_pct : "",
                 20
@@ -2230,7 +2234,7 @@
 
                 if (segDistNm LT 0) segDistNm = 0;
                 if (segLockCount LT 0) segLockCount = 0;
-                segHours = (effectiveSpeedVal GT 0 ? (segDistNm / effectiveSpeedVal) : 0);
+                segHours = (segDistNm GT 0 ? (segDistNm / weatherAdjustedSpeedTimelineVal) : 0);
                 if (segHours LT 0) segHours = 0;
 
                 if ((currentDay.est_hours + segHours) GT maxHoursVal AND currentDay.total_dist_nm GT 0) {
@@ -2799,6 +2803,21 @@
             effectiveSpeed = maxSpeedVal * factorVal;
             if (effectiveSpeed LT 1) effectiveSpeed = 1;
             return roundTo2(effectiveSpeed);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenComputeWeatherAdjustedSpeedKn" access="private" returntype="numeric" output="false">
+        <cfargument name="effectiveSpeedKn" type="numeric" required="true">
+        <cfargument name="weatherPct" type="numeric" required="true">
+        <cfscript>
+            var effectiveVal = val(arguments.effectiveSpeedKn);
+            var weatherPctVal = val(arguments.weatherPct);
+            var adjustedVal = 0;
+            if (weatherPctVal LT 0) weatherPctVal = 0;
+            if (weatherPctVal GT 60) weatherPctVal = 60;
+            adjustedVal = roundTo2(effectiveVal * (1 - (weatherPctVal / 100)));
+            if (adjustedVal LT 0.5) adjustedVal = 0.5;
+            return adjustedVal;
         </cfscript>
     </cffunction>
 
