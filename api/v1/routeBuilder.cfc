@@ -297,6 +297,18 @@
                 <cfoutput>#serializeJSON(tl)#</cfoutput>
                 <cfreturn>
 
+            <cfelseif act EQ "generatecruisetimeline">
+                <cfset var cruiseRouteId = val(pickArg(body, "routeId", "route_id", 0)) />
+                <cfset var cruiseStartDate = trim(toString(pickArg(body, "startDate", "start_date", ""))) />
+                <cfset var cruiseMaxHoursPerDay = val(pickArg(body, "maxHoursPerDay", "max_hours_per_day", 6.5)) />
+                <cfset var cruiseTimeline = generateCruiseTimeline(
+                    routeId = cruiseRouteId,
+                    startDate = cruiseStartDate,
+                    maxHoursPerDay = cruiseMaxHoursPerDay
+                ) />
+                <cfoutput>#serializeJSON(cruiseTimeline)#</cfoutput>
+                <cfreturn>
+
             <cfelseif act EQ "updatesegment">
                 <cfoutput>#serializeJSON({
                     "SUCCESS"=false,
@@ -1637,6 +1649,383 @@
         } />
         <cfset resp.SECTIONS = filteredSections />
         <cfreturn resp />
+    </cffunction>
+
+    <cffunction name="generateCruiseTimeline" access="private" returntype="struct" output="false">
+        <cfargument name="routeId" type="numeric" required="true">
+        <cfargument name="startDate" type="string" required="true">
+        <cfargument name="maxHoursPerDay" type="numeric" required="false" default="6.5">
+        <cfscript>
+            var out = {
+                "success"=false,
+                "route_summary"={
+                    "total_days"=0,
+                    "total_nm"=0,
+                    "total_required_fuel"=0
+                },
+                "days"=[]
+            };
+            var userStruct = {};
+            var userId = 0;
+            var routeIdVal = val(arguments.routeId);
+            var startDateVal = trim(toString(arguments.startDate));
+            var maxHoursVal = val(arguments.maxHoursPerDay);
+            var currentDate = now();
+            var hasInputsJsonCol = false;
+            var qInstSql = "";
+            var qInst = queryNew("");
+            var routeInstanceIdVal = 0;
+            var storedInputs = {};
+            var paceVal = "RELAXED";
+            var paceDefaults = {};
+            var paceRatioVal = 0;
+            var maxSpeedVal = 0;
+            var effectiveSpeedVal = 0;
+            var fuelBurnGphVal = 0;
+            var reservePctVal = 20;
+            var normalizedLegJoinSql = "";
+            var normalizedSegJoinSql = "";
+            var normalizedUsoJoinSql = "";
+            var normalizedLockJoinSql = "";
+            var normalizedDistExpr = "ril.base_dist_nm";
+            var normalizedLockExpr = "COALESCE(ril.lock_count, 0)";
+            var qSegmentsSql = "";
+            var qSegments = queryNew("");
+            var i = 0;
+            var segIdVal = 0;
+            var segStartName = "";
+            var segEndName = "";
+            var segDistNm = 0;
+            var segLockCount = 0;
+            var segHours = 0;
+            var legIndex = 1;
+            var days = [];
+            var totalCruiseNm = 0;
+            var totalRequiredFuel = 0;
+            var currentDay = {
+                "date"="",
+                "leg_index"=1,
+                "start_name"="",
+                "end_name"="",
+                "total_dist_nm"=0,
+                "est_hours"=0,
+                "cruise_fuel_gallons"=0,
+                "reserve_gallons"=0,
+                "required_fuel_gallons"=0,
+                "fuel_confidence_score"=0,
+                "risk_color"="GREEN",
+                "lock_count"=0,
+                "segment_ids"=[]
+            };
+            var fuelEstimate = {};
+            var requiredFuelGallonsVal = 0;
+            var reserveGallonsVal = 0;
+            var reserveRatio = 0;
+            var fuelConfidenceScore = 100;
+
+            if (structKeyExists(session, "user") AND isStruct(session.user)) {
+                userStruct = session.user;
+            }
+            userId = resolveUserId(userStruct);
+            if (userId LTE 0) {
+                out.message = "Unauthorized";
+                out.error = { "message"="No logged-in user session." };
+                return out;
+            }
+
+            if (routeIdVal LTE 0) {
+                out.message = "routeId required";
+                out.error = { "message"="routeId must be a positive numeric value." };
+                return out;
+            }
+            if (!len(startDateVal) OR !reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", startDateVal)) {
+                out.message = "Invalid startDate";
+                out.error = { "message"="startDate must be yyyy-mm-dd." };
+                return out;
+            }
+            try {
+                currentDate = parseDateTime(startDateVal);
+            } catch (any eDate) {
+                out.message = "Invalid startDate";
+                out.error = { "message"="Unable to parse startDate." };
+                return out;
+            }
+            if (maxHoursVal LTE 0) maxHoursVal = 6.5;
+            if (maxHoursVal LT 4) maxHoursVal = 4;
+            if (maxHoursVal GT 12) maxHoursVal = 12;
+            maxHoursVal = roundTo2(maxHoursVal);
+
+            hasInputsJsonCol = routegenHasInputsJsonColumn();
+            qInstSql = "SELECT id, template_route_code";
+            if (hasInputsJsonCol) {
+                qInstSql &= ", routegen_inputs_json";
+            }
+            qInstSql &= "
+                FROM route_instances
+                WHERE generated_route_id = :routeId
+                  AND user_id = :uid
+                ORDER BY id DESC
+                LIMIT 1";
+            qInst = queryExecute(
+                qInstSql,
+                {
+                    routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" },
+                    uid = { value=toString(userId), cfsqltype="cf_sql_varchar" }
+                },
+                { datasource = application.dsn }
+            );
+            if (qInst.recordCount EQ 0) {
+                out.message = "Route not found";
+                out.error = { "message"="Route not found or not owned by user." };
+                return out;
+            }
+
+            routeInstanceIdVal = val(qInst.id[1]);
+            if (!routegenHasNormalizedLegRows(routeInstanceIdVal)) {
+                out.message = "Route timeline unavailable";
+                out.error = { "message"="Route instance has no normalized leg rows." };
+                return out;
+            }
+
+            if (hasInputsJsonCol AND !isNull(qInst.routegen_inputs_json[1])) {
+                storedInputs = routegenParseStoredInputs(qInst.routegen_inputs_json[1]);
+            }
+            paceVal = routegenNormalizePace(structKeyExists(storedInputs, "pace") ? storedInputs.pace : "RELAXED");
+            paceDefaults = routegenPaceDefaults(paceVal);
+            paceRatioVal = val(paceDefaults.PACE_FACTOR);
+            if (paceRatioVal LT 0.05) paceRatioVal = 0.05;
+            if (paceRatioVal GT 1) paceRatioVal = 1;
+            maxSpeedVal = routegenNormalizeCruisingSpeed(
+                structKeyExists(storedInputs, "cruising_speed") ? storedInputs.cruising_speed : "",
+                paceDefaults.MAX_SPEED_KN
+            );
+            effectiveSpeedVal = routegenComputeEffectiveCruisingSpeed(maxSpeedVal, paceVal);
+            if (effectiveSpeedVal LTE 0) effectiveSpeedVal = 1;
+            fuelBurnGphVal = routegenNormalizeFuelBurnGph(
+                structKeyExists(storedInputs, "fuel_burn_gph") ? storedInputs.fuel_burn_gph : ""
+            );
+            reservePctVal = routegenNormalizeReservePct(
+                structKeyExists(storedInputs, "reserve_pct") ? storedInputs.reserve_pct : "",
+                20
+            );
+
+            if (routegenHasLegOverrideTable()) {
+                normalizedLegJoinSql =
+                    " LEFT JOIN route_leg_user_overrides rluo_leg
+                        ON rluo_leg.user_id = :uidNum
+                       AND rluo_leg.route_id = :routeId
+                       AND (
+                            (ril.source_loop_segment_id IS NOT NULL AND rluo_leg.route_leg_id = ril.source_loop_segment_id)
+                            OR
+                            (ril.source_loop_segment_id IS NULL AND rluo_leg.route_leg_order = ril.leg_order)
+                       )";
+                normalizedSegJoinSql =
+                    " LEFT JOIN route_leg_user_overrides rluo_seg
+                        ON rluo_seg.user_id = :uidNum
+                       AND rluo_seg.route_id = 0
+                       AND rluo_seg.segment_id = ril.segment_id";
+                normalizedDistExpr = "COALESCE(rluo_leg.computed_nm, rluo_seg.computed_nm, ril.base_dist_nm)";
+            }
+            if (routegenHasUserSegmentOverrideTable()) {
+                normalizedUsoJoinSql =
+                    " LEFT JOIN user_segment_overrides uso
+                        ON uso.user_id = :uidNum
+                       AND uso.segment_id = ril.segment_id";
+                if (routegenHasLegOverrideTable()) {
+                    normalizedDistExpr = "COALESCE(rluo_leg.computed_nm, rluo_seg.computed_nm, uso.computed_nm, ril.base_dist_nm)";
+                } else {
+                    normalizedDistExpr = "COALESCE(uso.computed_nm, ril.base_dist_nm)";
+                }
+            }
+            if (routegenHasRouteLegLocksTable()) {
+                normalizedLockJoinSql =
+                    " LEFT JOIN (
+                        SELECT route_code, leg, COUNT(*) AS lock_count
+                        FROM route_leg_locks
+                        GROUP BY route_code, leg
+                      ) rll
+                        ON rll.route_code COLLATE utf8mb4_unicode_ci = ri.template_route_code
+                       AND rll.leg = ril.leg_order";
+                normalizedLockExpr = "COALESCE(rll.lock_count, ril.lock_count, 0)";
+            }
+
+            qSegmentsSql =
+                "SELECT
+                    COALESCE(ril.source_loop_segment_id, ril.id) AS id,
+                    ril.start_name,
+                    ril.end_name,
+                    " & normalizedDistExpr & " AS dist_nm,
+                    " & normalizedLockExpr & " AS lock_count
+                 FROM route_instance_legs ril
+                 INNER JOIN route_instances ri ON ri.id = ril.route_instance_id"
+                & normalizedLegJoinSql
+                & normalizedSegJoinSql
+                & normalizedUsoJoinSql
+                & normalizedLockJoinSql
+                & "
+                 WHERE ril.route_instance_id = :routeInstanceId
+                 ORDER BY ril.leg_order ASC, ril.id ASC";
+            qSegments = queryExecute(
+                qSegmentsSql,
+                {
+                    routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" },
+                    routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" },
+                    uidNum = { value=userId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+            if (qSegments.recordCount EQ 0) {
+                out.message = "Route has no segments";
+                out.error = { "message"="No route segments are available for this route instance." };
+                return out;
+            }
+
+            currentDay = {
+                "date"=dateFormat(currentDate, "yyyy-mm-dd"),
+                "leg_index"=legIndex,
+                "start_name"="",
+                "end_name"="",
+                "total_dist_nm"=0,
+                "est_hours"=0,
+                "cruise_fuel_gallons"=0,
+                "reserve_gallons"=0,
+                "required_fuel_gallons"=0,
+                "fuel_confidence_score"=0,
+                "risk_color"="GREEN",
+                "lock_count"=0,
+                "segment_ids"=[]
+            };
+
+            for (i = 1; i LTE qSegments.recordCount; i++) {
+                segIdVal = (isNull(qSegments.id[i]) ? 0 : val(qSegments.id[i]));
+                segStartName = (isNull(qSegments.start_name[i]) ? "" : trim(toString(qSegments.start_name[i])));
+                segEndName = (isNull(qSegments.end_name[i]) ? "" : trim(toString(qSegments.end_name[i])));
+                segDistNm = (isNull(qSegments.dist_nm[i]) ? 0 : val(qSegments.dist_nm[i]));
+                segLockCount = (isNull(qSegments.lock_count[i]) ? 0 : val(qSegments.lock_count[i]));
+
+                if (segDistNm LT 0) segDistNm = 0;
+                if (segLockCount LT 0) segLockCount = 0;
+                segHours = (effectiveSpeedVal GT 0 ? (segDistNm / effectiveSpeedVal) : 0);
+                if (segHours LT 0) segHours = 0;
+
+                if ((currentDay.est_hours + segHours) GT maxHoursVal AND currentDay.total_dist_nm GT 0) {
+                    fuelEstimate = calculateFuelEstimate({
+                        "distanceNm"=currentDay.total_dist_nm,
+                        "maxSpeedKnots"=maxSpeedVal,
+                        "maxBurnGph"=fuelBurnGphVal,
+                        "pace"=paceVal,
+                        "paceRatio"=paceRatioVal,
+                        "weatherPct"=0,
+                        "idleFuelGallons"=0,
+                        "reservePct"=reservePctVal
+                    });
+                    currentDay.cruise_fuel_gallons = roundTo2(val(fuelEstimate.cruiseFuelGallons));
+                    currentDay.reserve_gallons = roundTo2(val(fuelEstimate.reserveGallons));
+                    currentDay.required_fuel_gallons = roundTo2(val(fuelEstimate.requiredFuelGallons));
+                    requiredFuelGallonsVal = val(currentDay.required_fuel_gallons);
+                    reserveGallonsVal = val(currentDay.reserve_gallons);
+                    reserveRatio = (requiredFuelGallonsVal GT 0 ? (reserveGallonsVal / requiredFuelGallonsVal) : 0);
+
+                    fuelConfidenceScore = 100;
+                    if (requiredFuelGallonsVal GT 0 AND reserveRatio LT 0.20) fuelConfidenceScore -= 25;
+                    if (requiredFuelGallonsVal GT 0 AND reserveRatio LT 0.15) fuelConfidenceScore -= 40;
+                    if (val(currentDay.est_hours) GT 8) fuelConfidenceScore -= 10;
+                    if (fuelConfidenceScore LT 0) fuelConfidenceScore = 0;
+                    if (fuelConfidenceScore GT 100) fuelConfidenceScore = 100;
+                    currentDay.fuel_confidence_score = fuelConfidenceScore;
+                    if (fuelConfidenceScore GTE 80) {
+                        currentDay.risk_color = "GREEN";
+                    } else if (fuelConfidenceScore GTE 60) {
+                        currentDay.risk_color = "YELLOW";
+                    } else {
+                        currentDay.risk_color = "RED";
+                    }
+
+                    currentDay.total_dist_nm = roundTo2(currentDay.total_dist_nm);
+                    currentDay.est_hours = roundTo2(currentDay.est_hours);
+
+                    totalCruiseNm += val(currentDay.total_dist_nm);
+                    totalRequiredFuel += requiredFuelGallonsVal;
+                    arrayAppend(days, duplicate(currentDay));
+
+                    currentDate = dateAdd("d", 1, currentDate);
+                    legIndex += 1;
+                    currentDay = {
+                        "date"=dateFormat(currentDate, "yyyy-mm-dd"),
+                        "leg_index"=legIndex,
+                        "start_name"=segStartName,
+                        "end_name"=segEndName,
+                        "total_dist_nm"=segDistNm,
+                        "est_hours"=segHours,
+                        "cruise_fuel_gallons"=0,
+                        "reserve_gallons"=0,
+                        "required_fuel_gallons"=0,
+                        "fuel_confidence_score"=0,
+                        "risk_color"="GREEN",
+                        "lock_count"=segLockCount,
+                        "segment_ids"=[]
+                    };
+                    arrayAppend(currentDay.segment_ids, segIdVal);
+                } else {
+                    if (!len(currentDay.start_name)) currentDay.start_name = segStartName;
+                    currentDay.total_dist_nm += segDistNm;
+                    currentDay.est_hours += segHours;
+                    currentDay.lock_count += segLockCount;
+                    arrayAppend(currentDay.segment_ids, segIdVal);
+                    currentDay.end_name = segEndName;
+                }
+            }
+
+            if (currentDay.total_dist_nm GT 0 OR arrayLen(currentDay.segment_ids) GT 0) {
+                fuelEstimate = calculateFuelEstimate({
+                    "distanceNm"=currentDay.total_dist_nm,
+                    "maxSpeedKnots"=maxSpeedVal,
+                    "maxBurnGph"=fuelBurnGphVal,
+                    "pace"=paceVal,
+                    "paceRatio"=paceRatioVal,
+                    "weatherPct"=0,
+                    "idleFuelGallons"=0,
+                    "reservePct"=reservePctVal
+                });
+                currentDay.cruise_fuel_gallons = roundTo2(val(fuelEstimate.cruiseFuelGallons));
+                currentDay.reserve_gallons = roundTo2(val(fuelEstimate.reserveGallons));
+                currentDay.required_fuel_gallons = roundTo2(val(fuelEstimate.requiredFuelGallons));
+                requiredFuelGallonsVal = val(currentDay.required_fuel_gallons);
+                reserveGallonsVal = val(currentDay.reserve_gallons);
+                reserveRatio = (requiredFuelGallonsVal GT 0 ? (reserveGallonsVal / requiredFuelGallonsVal) : 0);
+
+                fuelConfidenceScore = 100;
+                if (requiredFuelGallonsVal GT 0 AND reserveRatio LT 0.20) fuelConfidenceScore -= 25;
+                if (requiredFuelGallonsVal GT 0 AND reserveRatio LT 0.15) fuelConfidenceScore -= 40;
+                if (val(currentDay.est_hours) GT 8) fuelConfidenceScore -= 10;
+                if (fuelConfidenceScore LT 0) fuelConfidenceScore = 0;
+                if (fuelConfidenceScore GT 100) fuelConfidenceScore = 100;
+                currentDay.fuel_confidence_score = fuelConfidenceScore;
+                if (fuelConfidenceScore GTE 80) {
+                    currentDay.risk_color = "GREEN";
+                } else if (fuelConfidenceScore GTE 60) {
+                    currentDay.risk_color = "YELLOW";
+                } else {
+                    currentDay.risk_color = "RED";
+                }
+
+                currentDay.total_dist_nm = roundTo2(currentDay.total_dist_nm);
+                currentDay.est_hours = roundTo2(currentDay.est_hours);
+
+                totalCruiseNm += val(currentDay.total_dist_nm);
+                totalRequiredFuel += requiredFuelGallonsVal;
+                arrayAppend(days, duplicate(currentDay));
+            }
+
+            out.success = true;
+            out.route_summary = {
+                "total_days"=arrayLen(days),
+                "total_nm"=roundTo2(totalCruiseNm),
+                "total_required_fuel"=roundTo2(totalRequiredFuel)
+            };
+            out.days = days;
+            return out;
+        </cfscript>
     </cffunction>
 
     <cffunction name="findFocusSegments" access="private" returntype="struct" output="false">

@@ -127,6 +127,99 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( pickBool( editContextAfter, "SUCCESS" ) ).toBeTrue( "routegen_geteditcontext failed after update: #serializeJSON(editContextAfter)#" );
       } );
 
+      it( "generates cruise timeline day rollups and validates bad input", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var legCtx = buildRouteLegContext();
+        expect( legCtx.routeId ).toBeGT( 0, "routeId setup failed: #serializeJSON(legCtx)#" );
+
+        var timelineRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = dateFormat( now(), "yyyy-mm-dd" ),
+          maxHoursPerDay = 6.5
+        } );
+        expect( !!pickFirst( timelineRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "generateCruiseTimeline failed: #serializeJSON(timelineRes)#" );
+
+        var routeSummary = structKeyExists( timelineRes, "route_summary" ) && isStruct( timelineRes.route_summary )
+          ? timelineRes.route_summary
+          : {};
+        expect( val( pickFirst( routeSummary, [ "total_days" ], 0 ) ) ).toBeGT( 0, "route_summary.total_days should be > 0: #serializeJSON(timelineRes)#" );
+
+        var days = structKeyExists( timelineRes, "days" ) && isArray( timelineRes.days )
+          ? timelineRes.days
+          : [];
+        expect( arrayLen( days ) ).toBeGT( 0, "days should be populated: #serializeJSON(timelineRes)#" );
+        expect( structKeyExists( days[ 1 ], "date" ) ).toBeTrue();
+        expect( structKeyExists( days[ 1 ], "segment_ids" ) ).toBeTrue();
+        expect( structKeyExists( days[ 1 ], "risk_color" ) ).toBeTrue();
+        expect( structKeyExists( days[ 1 ], "fuel_confidence_score" ) ).toBeTrue();
+
+        var minBoundRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = dateFormat( now(), "yyyy-mm-dd" ),
+          maxHoursPerDay = 4
+        } );
+        expect( !!pickFirst( minBoundRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "generateCruiseTimeline min bound failed: #serializeJSON(minBoundRes)#" );
+
+        var maxBoundRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = dateFormat( now(), "yyyy-mm-dd" ),
+          maxHoursPerDay = 12
+        } );
+        expect( !!pickFirst( maxBoundRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "generateCruiseTimeline max bound failed: #serializeJSON(maxBoundRes)#" );
+
+        var zeroHoursRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = dateFormat( now(), "yyyy-mm-dd" ),
+          maxHoursPerDay = 0
+        } );
+        expect( !!pickFirst( zeroHoursRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "generateCruiseTimeline zero hours should default to 6.5: #serializeJSON(zeroHoursRes)#" );
+
+        var negativeHoursRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = dateFormat( now(), "yyyy-mm-dd" ),
+          maxHoursPerDay = -2
+        } );
+        expect( !!pickFirst( negativeHoursRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "generateCruiseTimeline negative hours should default to 6.5: #serializeJSON(negativeHoursRes)#" );
+
+        var overMaxHoursRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = dateFormat( now(), "yyyy-mm-dd" ),
+          maxHoursPerDay = 100
+        } );
+        expect( !!pickFirst( overMaxHoursRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "generateCruiseTimeline >max hours should clamp to 12: #serializeJSON(overMaxHoursRes)#" );
+
+        var zeroSummary = structKeyExists( zeroHoursRes, "route_summary" ) && isStruct( zeroHoursRes.route_summary )
+          ? zeroHoursRes.route_summary
+          : {};
+        var negativeSummary = structKeyExists( negativeHoursRes, "route_summary" ) && isStruct( negativeHoursRes.route_summary )
+          ? negativeHoursRes.route_summary
+          : {};
+        var maxSummary = structKeyExists( maxBoundRes, "route_summary" ) && isStruct( maxBoundRes.route_summary )
+          ? maxBoundRes.route_summary
+          : {};
+        var overMaxSummary = structKeyExists( overMaxHoursRes, "route_summary" ) && isStruct( overMaxHoursRes.route_summary )
+          ? overMaxHoursRes.route_summary
+          : {};
+        expect( val( pickFirst( zeroSummary, [ "total_days" ], 0 ) ) ).toBe( val( pickFirst( routeSummary, [ "total_days" ], 0 ) ) );
+        expect( val( pickFirst( negativeSummary, [ "total_days" ], 0 ) ) ).toBe( val( pickFirst( routeSummary, [ "total_days" ], 0 ) ) );
+        expect( val( pickFirst( overMaxSummary, [ "total_days" ], 0 ) ) ).toBe( val( pickFirst( maxSummary, [ "total_days" ], 0 ) ) );
+
+        var badDateRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = "02/21/2026"
+        } );
+        expect( !!pickFirst( badDateRes, [ "success", "SUCCESS" ], true ) ).toBeFalse( "invalid startDate should fail: #serializeJSON(badDateRes)#" );
+
+        var badRouteRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = 0,
+          startDate = dateFormat( now(), "yyyy-mm-dd" )
+        } );
+        expect( !!pickFirst( badRouteRes, [ "success", "SUCCESS" ], true ) ).toBeFalse( "routeId=0 should fail: #serializeJSON(badRouteRes)#" );
+      } );
+
       it( "returns route-not-found and unauthorized errors for guarded actions", function() {
         if ( !variables.ctx.sessionReady ) {
           skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
@@ -260,7 +353,13 @@ component extends="testbox.system.BaseSpec" output="false" {
     }
 
     var firstLeg = legs[ 1 ];
+    var routeId = val( pickFirst( generateRes, [ "ROUTE_ID", "route_id" ], 0 ) );
+    if ( routeId LTE 0 && structKeyExists( generateRes, "DATA" ) && isStruct( generateRes.DATA ) ) {
+      routeId = val( pickFirst( generateRes.DATA, [ "route_id", "ROUTE_ID" ], 0 ) );
+    }
+
     return {
+      routeId = routeId,
       routeCode = routeCode,
       templateCode = templateCode,
       routeLegId = val( pickFirst( firstLeg, [ "route_leg_id", "ROUTE_LEG_ID" ], 0 ) ),
