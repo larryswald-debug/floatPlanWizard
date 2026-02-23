@@ -67,6 +67,15 @@
     legMapDraftPoints: [],
     legMapLoadSeq: 0,
     legEndpointCacheByKey: {},
+    cruiseTimeline: {
+      requestSeq: 0,
+      maxHoursPerDay: 6.5,
+      lastRouteId: 0,
+      lastStartDate: "",
+      status: "idle",
+      message: "",
+      payload: null
+    },
     legMap: {
       map: null,
       drawnItems: null,
@@ -114,6 +123,395 @@
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     });
+  }
+
+  function clampCruiseTimelineHours(value) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n) || n <= 0) n = 6.5;
+    if (n < 4) n = 4;
+    if (n > 12) n = 12;
+    return Math.round(n * 2) / 2;
+  }
+
+  function formatCruiseTimelineHoursInput(value) {
+    var n = clampCruiseTimelineHours(value);
+    if (Math.abs(n - Math.round(n)) < 0.001) return String(Math.round(n));
+    return n.toFixed(1);
+  }
+
+  function isValidCruiseStartDate(value) {
+    return /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(String(value || "").trim());
+  }
+
+  function toOneDecimal(value) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n)) return 0;
+    return Math.round(n * 10) / 10;
+  }
+
+  function toConfidenceInt(value) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n)) n = 0;
+    n = Math.round(n);
+    if (n < 0) n = 0;
+    if (n > 100) n = 100;
+    return n;
+  }
+
+  function timelineRiskBadgeClass(riskColor) {
+    var risk = String(riskColor || "").trim().toUpperCase();
+    if (risk === "RED") return "bg-danger";
+    if (risk === "YELLOW") return "bg-warning text-dark";
+    return "bg-success";
+  }
+
+  function getCruiseTimelineMaxHoursFromUi() {
+    var inputEl = document.getElementById("routeGenTimelineMaxHours");
+    var value = inputEl ? inputEl.value : state.cruiseTimeline.maxHoursPerDay;
+    var clamped = clampCruiseTimelineHours(value);
+    dom.cruiseTimelineMaxHoursEl = inputEl || null;
+    state.cruiseTimeline.maxHoursPerDay = clamped;
+    if (inputEl) {
+      inputEl.value = formatCruiseTimelineHoursInput(clamped);
+    }
+    return clamped;
+  }
+
+  function extractApiMessage(payload, fallback) {
+    var message = "";
+    if (payload && typeof payload === "object") {
+      if (payload.message !== undefined && payload.message !== null) message = String(payload.message);
+      else if (payload.MESSAGE !== undefined && payload.MESSAGE !== null) message = String(payload.MESSAGE);
+      else if (payload.error && typeof payload.error === "object" && payload.error.message !== undefined && payload.error.message !== null) message = String(payload.error.message);
+      else if (payload.ERROR && typeof payload.ERROR === "object" && payload.ERROR.MESSAGE !== undefined && payload.ERROR.MESSAGE !== null) message = String(payload.ERROR.MESSAGE);
+    }
+    message = message.trim();
+    return message || fallback || "Request failed.";
+  }
+
+  function removeLegacyCruiseTimelineContainer() {
+    var legacyEl = document.getElementById("fpwCruiseTimeline");
+    if (legacyEl && legacyEl.parentNode) {
+      legacyEl.parentNode.removeChild(legacyEl);
+    }
+    if (dom.cruiseTimelineEl === legacyEl) {
+      dom.cruiseTimelineEl = null;
+    }
+    dom.cruiseTimelineMaxHoursEl = null;
+    dom.cruiseTimelineRebuildBtn = null;
+  }
+
+  function refreshExpandedLegPanel() {
+    var expandedOrder = toInt(state.lockPanel.expandedOrder, 0);
+    var selectedOrder = toInt(state.selectedLegOrder, 0);
+    if (expandedOrder <= 0) return;
+    if (!Array.isArray(state.previewLegs) || !state.previewLegs.length) return;
+    renderLegs(state.previewLegs);
+    selectLegRow(selectedOrder > 0 ? selectedOrder : expandedOrder);
+  }
+
+  function normalizeCruiseTimelineSegmentIds(segmentIds) {
+    if (!Array.isArray(segmentIds)) return [];
+    return segmentIds.map(function (id) {
+      return toInt(id, 0);
+    }).filter(function (id) {
+      return id > 0;
+    });
+  }
+
+  function normalizeCruiseTimelineDay(row, idx) {
+    var item = (row && typeof row === "object") ? row : {};
+    var riskColor = String(item.risk_color !== undefined ? item.risk_color : item.RISK_COLOR || "GREEN").trim().toUpperCase();
+    if (!riskColor) riskColor = "GREEN";
+    return {
+      legIndex: toInt(item.leg_index !== undefined ? item.leg_index : item.LEG_INDEX, idx + 1),
+      dateText: String(item.date !== undefined ? item.date : (item.DATE || "")).trim(),
+      startName: String(item.start_name !== undefined ? item.start_name : (item.START_NAME || "Start")).trim() || "Start",
+      endName: String(item.end_name !== undefined ? item.end_name : (item.END_NAME || "End")).trim() || "End",
+      totalDistNm: toOneDecimal(item.total_dist_nm !== undefined ? item.total_dist_nm : item.TOTAL_DIST_NM),
+      estHours: toOneDecimal(item.est_hours !== undefined ? item.est_hours : item.EST_HOURS),
+      lockCount: toInt(item.lock_count !== undefined ? item.lock_count : item.LOCK_COUNT, 0),
+      requiredFuelGallons: toOneDecimal(item.required_fuel_gallons !== undefined ? item.required_fuel_gallons : item.REQUIRED_FUEL_GALLONS),
+      reserveGallons: toOneDecimal(item.reserve_gallons !== undefined ? item.reserve_gallons : item.RESERVE_GALLONS),
+      confidence: toConfidenceInt(item.fuel_confidence_score !== undefined ? item.fuel_confidence_score : item.FUEL_CONFIDENCE_SCORE),
+      riskColor: riskColor,
+      badgeClass: timelineRiskBadgeClass(riskColor),
+      segmentIds: normalizeCruiseTimelineSegmentIds(item.segment_ids !== undefined ? item.segment_ids : item.SEGMENT_IDS)
+    };
+  }
+
+  function getCruiseTimelineDayForLeg(leg, order) {
+    var payload = state.cruiseTimeline.payload;
+    var days = payload && Array.isArray(payload.days) ? payload.days : [];
+    var orderNum = toInt(order, 0);
+    var routeLegId = toInt(getLegField(leg, "route_leg_id"), 0);
+    var segmentId = toInt(getLegField(leg, "segment_id"), 0);
+    var match = null;
+
+    if (!days.length) return null;
+
+    if (routeLegId > 0 || segmentId > 0) {
+      days.some(function (day) {
+        if (!day || typeof day !== "object") return false;
+        var ids = Array.isArray(day.segmentIds) ? day.segmentIds : [];
+        if (routeLegId > 0 && ids.indexOf(routeLegId) >= 0) {
+          match = day;
+          return true;
+        }
+        if (segmentId > 0 && ids.indexOf(segmentId) >= 0) {
+          match = day;
+          return true;
+        }
+        return false;
+      });
+      if (match) return match;
+    }
+
+    if (orderNum > 0) {
+      match = days.find(function (day) {
+        return toInt(day.legIndex, 0) === orderNum;
+      }) || null;
+      if (match) return match;
+      if (days[orderNum - 1]) return days[orderNum - 1];
+    }
+
+    return null;
+  }
+
+  function renderCruiseTimelineInlineForLeg(leg, order) {
+    var status = String(state.cruiseTimeline.status || "idle").trim().toLowerCase();
+    var message = String(state.cruiseTimeline.message || "").trim();
+    var payload = state.cruiseTimeline.payload && typeof state.cruiseTimeline.payload === "object"
+      ? state.cruiseTimeline.payload
+      : null;
+    var summary = payload && payload.summary ? payload.summary : null;
+    var day = getCruiseTimelineDayForLeg(leg, order);
+    var routeIdVal = toInt(state.activeRouteId, 0);
+    var startDateVal = dom.startDateEl ? String(dom.startDateEl.value || "").trim() : String(state.cruiseTimeline.lastStartDate || "").trim();
+    var maxHours = clampCruiseTimelineHours(state.cruiseTimeline.maxHoursPerDay);
+    var html = "";
+
+    state.cruiseTimeline.maxHoursPerDay = maxHours;
+
+    html += '<div class="fpw-routegen__legtimeline mt-3">';
+    html += '  <div class="fpw-routegen__legtimelinehead d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">';
+    html += '    <div>';
+    html += '      <div class="fpw-routegen__kicker">Timeline</div>';
+    html += '      <div class="fpw-routegen__paneltitle">Cruise Timeline</div>';
+    html += "    </div>";
+    html += '    <div class="d-flex align-items-center gap-2">';
+    html += '      <label for="routeGenTimelineMaxHours" class="mb-0 small text-muted">Max hrs/day</label>';
+    html += '      <input id="routeGenTimelineMaxHours" type="number" min="4" max="12" step="0.5" class="form-control form-control-sm" style="width:88px;" value="' + escapeHtml(formatCruiseTimelineHoursInput(maxHours)) + '">';
+    html += '      <button type="button" id="routeGenTimelineRebuildBtn" class="btn-secondary btn-sm">Rebuild Timeline</button>';
+    html += "    </div>";
+    html += "  </div>";
+
+    if (!routeIdVal) {
+      html += '<div class="fpw-routegen__help mb-0">Generate or open a saved route to build a cruise timeline.</div>';
+      html += "</div>";
+      return html;
+    }
+    if (!isValidCruiseStartDate(startDateVal)) {
+      html += '<div class="alert alert-danger py-2 mb-0">Select a valid start date (yyyy-mm-dd) to build the cruise timeline.</div>';
+      html += "</div>";
+      return html;
+    }
+
+    if (status === "loading") {
+      html += '<div class="d-flex align-items-center gap-2 text-muted small"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span><span>Building Cruise Timeline...</span></div>';
+      html += "</div>";
+      return html;
+    }
+    if (status === "error") {
+      html += '<div class="alert alert-danger py-2 mb-0">' + escapeHtml(message || "Unable to build cruise timeline.") + "</div>";
+      html += "</div>";
+      return html;
+    }
+    if (status === "note") {
+      html += '<div class="fpw-routegen__help mb-0">' + escapeHtml(message || "Generate or open a route to build a cruise timeline.") + "</div>";
+      html += "</div>";
+      return html;
+    }
+
+    if (!payload || !Array.isArray(payload.days) || !payload.days.length) {
+      html += '<div class="alert alert-secondary py-2 mb-0">No timeline days generated.</div>';
+      html += "</div>";
+      return html;
+    }
+
+    if (!day) {
+      html += '<div class="alert alert-secondary py-2 mb-0">No cruise timeline day is mapped to this leg yet.</div>';
+      html += "</div>";
+      return html;
+    }
+
+    if (summary && typeof summary === "object") {
+      html += '<div class="small text-muted mb-2">';
+      html += 'Route total: '
+        + formatNumber(toInt(summary.totalDays, 0), 0) + " days"
+        + " · " + formatNumber(toOneDecimal(summary.totalNm), 1) + " nm"
+        + " · " + formatNumber(toOneDecimal(summary.totalRequiredFuel), 1) + " gal";
+      html += "</div>";
+    }
+
+    html += '<div class="card bg-transparent border-secondary text-light mb-0">';
+    html += '  <div class="card-body py-2 px-3">';
+    html += '    <div class="d-flex justify-content-between align-items-center gap-2">';
+    html += '      <div class="fw-semibold">Day ' + formatNumber(day.legIndex, 0) + " - " + escapeHtml(day.dateText || "--") + "</div>";
+    html += '      <span class="badge ' + day.badgeClass + '">' + escapeHtml(day.riskColor || "GREEN") + "</span>";
+    html += "    </div>";
+    html += '    <div class="small text-secondary mb-2">' + escapeHtml(day.startName + " -> " + day.endName) + "</div>";
+    html += '    <div class="row g-2 small mb-1">';
+    html += '      <div class="col-sm-4">Distance: <strong>' + formatNumber(day.totalDistNm, 1) + " nm</strong></div>";
+    html += '      <div class="col-sm-4">Hours: <strong>' + formatNumber(day.estHours, 1) + " hrs</strong></div>";
+    html += '      <div class="col-sm-4">Locks: <strong>' + formatNumber(day.lockCount, 0) + "</strong></div>";
+    html += "    </div>";
+    html += '    <div class="row g-2 small">';
+    html += '      <div class="col-sm-4">Required: <strong>' + formatNumber(day.requiredFuelGallons, 1) + " gal</strong></div>";
+    html += '      <div class="col-sm-4">Reserve: <strong>' + formatNumber(day.reserveGallons, 1) + " gal</strong></div>";
+    html += '      <div class="col-sm-4">Confidence: <strong>' + formatNumber(day.confidence, 0) + "%</strong></div>";
+    html += "    </div>";
+    html += "  </div>";
+    html += "</div>";
+    html += "</div>";
+    return html;
+  }
+
+  function renderCruiseTimelineNote(message) {
+    state.cruiseTimeline.status = "note";
+    state.cruiseTimeline.message = String(message || "").trim();
+    state.cruiseTimeline.payload = null;
+    refreshExpandedLegPanel();
+  }
+
+  function renderCruiseTimelineLoading() {
+    state.cruiseTimeline.status = "loading";
+    state.cruiseTimeline.message = "";
+    state.cruiseTimeline.payload = null;
+    refreshExpandedLegPanel();
+  }
+
+  function renderCruiseTimelineError(message) {
+    state.cruiseTimeline.status = "error";
+    state.cruiseTimeline.message = String(message || "Unable to build cruise timeline.").trim();
+    state.cruiseTimeline.payload = null;
+    refreshExpandedLegPanel();
+  }
+
+  function renderCruiseTimeline(data) {
+    var payload = (data && typeof data === "object") ? data : {};
+    var summary = (payload.route_summary && typeof payload.route_summary === "object")
+      ? payload.route_summary
+      : (payload.ROUTE_SUMMARY && typeof payload.ROUTE_SUMMARY === "object" ? payload.ROUTE_SUMMARY : {});
+    var days = Array.isArray(payload.days) ? payload.days : (Array.isArray(payload.DAYS) ? payload.DAYS : []);
+
+    state.cruiseTimeline.status = "ready";
+    state.cruiseTimeline.message = "";
+    state.cruiseTimeline.payload = {
+      summary: {
+        totalDays: toInt(summary.total_days !== undefined ? summary.total_days : summary.TOTAL_DAYS, 0),
+        totalNm: toOneDecimal(summary.total_nm !== undefined ? summary.total_nm : summary.TOTAL_NM),
+        totalRequiredFuel: toOneDecimal(summary.total_required_fuel !== undefined ? summary.total_required_fuel : summary.TOTAL_REQUIRED_FUEL)
+      },
+      days: days.map(function (day, idx) {
+        return normalizeCruiseTimelineDay(day, idx);
+      })
+    };
+    refreshExpandedLegPanel();
+  }
+
+  function buildCruiseTimeline(routeId, startDate, maxHoursPerDay, previewLegsRaw) {
+    var routeIdVal = toInt(routeId, 0);
+    var startDateVal = String(startDate || "").trim();
+    var maxHoursVal = clampCruiseTimelineHours(maxHoursPerDay);
+    var inputOverrides = collectTimelineInputOverrides();
+    var previewLegs = collectTimelinePreviewLegs(
+      Array.isArray(previewLegsRaw) ? previewLegsRaw : state.previewLegs
+    );
+    var requestBody = {};
+    var reqSeq = 0;
+
+    state.cruiseTimeline.maxHoursPerDay = maxHoursVal;
+
+    if (!routeIdVal) {
+      renderCruiseTimelineNote("Generate or open a saved route to build a cruise timeline.");
+      return Promise.resolve(null);
+    }
+    if (!isValidCruiseStartDate(startDateVal)) {
+      renderCruiseTimelineError("Select a valid start date (yyyy-mm-dd) to build the cruise timeline.");
+      return Promise.resolve(null);
+    }
+
+    state.cruiseTimeline.lastRouteId = routeIdVal;
+    state.cruiseTimeline.lastStartDate = startDateVal;
+    // Request-id guard: only the latest in-flight timeline response may render.
+    state.cruiseTimeline.requestSeq += 1;
+    reqSeq = state.cruiseTimeline.requestSeq;
+
+    renderCruiseTimelineLoading();
+
+    requestBody = {
+      routeId: routeIdVal,
+      startDate: startDateVal,
+      maxHoursPerDay: maxHoursVal,
+      inputOverrides: inputOverrides
+    };
+    if (previewLegs.length) {
+      requestBody.previewLegs = previewLegs;
+    }
+
+    return fetchJson(apiUrl("generateCruiseTimeline"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify(requestBody)
+    })
+      .then(function (payload) {
+        if (reqSeq !== state.cruiseTimeline.requestSeq) return null;
+        if (!payload || payload.success === false || payload.SUCCESS === false) {
+          throw new Error(extractApiMessage(payload, "Unable to build cruise timeline."));
+        }
+        renderCruiseTimeline(payload);
+        return payload;
+      })
+      .catch(function (err) {
+        if (reqSeq !== state.cruiseTimeline.requestSeq) return null;
+        if (err && err.code === "UNAUTHORIZED") {
+          redirectToLogin();
+          return null;
+        }
+        renderCruiseTimelineError((err && err.message) ? err.message : "Unable to build cruise timeline.");
+        return null;
+      });
+  }
+
+  function ensureCruiseTimelineForCurrentRoute() {
+    var routeIdVal = toInt(state.activeRouteId, 0);
+    var startDateVal = dom.startDateEl ? String(dom.startDateEl.value || "").trim() : "";
+    var hasMatchingRoute = routeIdVal > 0 && routeIdVal === toInt(state.cruiseTimeline.lastRouteId, 0);
+    var hasMatchingDate = startDateVal && startDateVal === String(state.cruiseTimeline.lastStartDate || "").trim();
+    if (!routeIdVal) return Promise.resolve(null);
+    if (!isValidCruiseStartDate(startDateVal)) return Promise.resolve(null);
+    if (
+      state.cruiseTimeline.status === "ready"
+      && state.cruiseTimeline.payload
+      && hasMatchingRoute
+      && hasMatchingDate
+    ) {
+      return Promise.resolve(state.cruiseTimeline.payload);
+    }
+    if (state.cruiseTimeline.status === "loading" && hasMatchingRoute && hasMatchingDate) {
+      return Promise.resolve(null);
+    }
+    return buildCruiseTimeline(routeIdVal, startDateVal, state.cruiseTimeline.maxHoursPerDay);
+  }
+
+  function rebuildCruiseTimelineFromCurrentState() {
+    return buildCruiseTimeline(
+      state.activeRouteId,
+      dom.startDateEl ? String(dom.startDateEl.value || "").trim() : "",
+      getCruiseTimelineMaxHoursFromUi()
+    );
   }
 
   function coerceBool(value, fallback) {
@@ -393,6 +791,107 @@
     state.lockPanel.errorByOrder = {};
   }
 
+  function legNameSignature(leg, key) {
+    return String(getLegField(leg, key) || "").trim().toLowerCase();
+  }
+
+  function findMatchingLegByIdentity(targetLeg, candidateLegs) {
+    var list = Array.isArray(candidateLegs) ? candidateLegs : [];
+    var routeLegId = toInt(getLegField(targetLeg, "route_leg_id"), 0);
+    var segmentId = toInt(getLegField(targetLeg, "segment_id"), 0);
+    var orderIndex = toInt(getLegField(targetLeg, "order_index"), 0);
+    var startKey = legNameSignature(targetLeg, "start_name");
+    var endKey = legNameSignature(targetLeg, "end_name");
+    var match = null;
+    if (!targetLeg || !list.length) return null;
+
+    if (routeLegId > 0) {
+      match = list.find(function (leg) {
+        return toInt(getLegField(leg, "route_leg_id"), 0) === routeLegId;
+      }) || null;
+      if (match) return match;
+    }
+
+    if (segmentId > 0 && startKey && endKey) {
+      match = list.find(function (leg) {
+        return toInt(getLegField(leg, "segment_id"), 0) === segmentId
+          && legNameSignature(leg, "start_name") === startKey
+          && legNameSignature(leg, "end_name") === endKey;
+      }) || null;
+      if (match) return match;
+    }
+
+    if (segmentId > 0) {
+      match = list.find(function (leg) {
+        return toInt(getLegField(leg, "segment_id"), 0) === segmentId;
+      }) || null;
+      if (match) return match;
+    }
+
+    if (orderIndex > 0) {
+      return list.find(function (leg) {
+        return toInt(getLegField(leg, "order_index"), 0) === orderIndex;
+      }) || null;
+    }
+    return null;
+  }
+
+  function preserveLockPanelAcrossPreview(previousLegs, nextLegs, previousLockPanelState) {
+    var priorLegs = Array.isArray(previousLegs) ? previousLegs : [];
+    var upcomingLegs = Array.isArray(nextLegs) ? nextLegs : [];
+    var previousState = (previousLockPanelState && typeof previousLockPanelState === "object") ? previousLockPanelState : {};
+    var previousExpandedOrder = toInt(previousState.expandedOrder, 0);
+    var previousRequestSeq = toInt(previousState.requestSeq, 0);
+    var previousDetails = (previousState.detailByOrder && typeof previousState.detailByOrder === "object") ? previousState.detailByOrder : {};
+    var previousErrors = (previousState.errorByOrder && typeof previousState.errorByOrder === "object") ? previousState.errorByOrder : {};
+    var remappedDetails = {};
+    var remappedErrors = {};
+    var restoredExpandedOrder = 0;
+    var previousExpandedLeg = null;
+    var restoredExpandedLeg = null;
+
+    priorLegs.forEach(function (leg) {
+      var previousOrder = toInt(getLegField(leg, "order_index"), 0);
+      var previousKey = String(previousOrder);
+      var matchedLeg = null;
+      var nextOrder = 0;
+      var nextKey = "";
+      if (previousOrder <= 0) return;
+      matchedLeg = findMatchingLegByIdentity(leg, upcomingLegs);
+      if (!matchedLeg) return;
+      nextOrder = toInt(getLegField(matchedLeg, "order_index"), 0);
+      if (nextOrder <= 0) return;
+      nextKey = String(nextOrder);
+      if (Object.prototype.hasOwnProperty.call(previousDetails, previousKey)) {
+        remappedDetails[nextKey] = previousDetails[previousKey];
+      }
+      if (Object.prototype.hasOwnProperty.call(previousErrors, previousKey)) {
+        remappedErrors[nextKey] = previousErrors[previousKey];
+      }
+    });
+
+    if (previousExpandedOrder > 0) {
+      previousExpandedLeg = priorLegs.find(function (leg) {
+        return toInt(getLegField(leg, "order_index"), 0) === previousExpandedOrder;
+      }) || null;
+      if (previousExpandedLeg) {
+        restoredExpandedLeg = findMatchingLegByIdentity(previousExpandedLeg, upcomingLegs);
+        if (restoredExpandedLeg) {
+          restoredExpandedOrder = toInt(getLegField(restoredExpandedLeg, "order_index"), 0);
+        }
+      }
+    }
+
+    return {
+      expandedOrder: restoredExpandedOrder,
+      loadingOrder: 0,
+      requestSeq: previousRequestSeq + 1,
+      detailByOrder: remappedDetails,
+      errorByOrder: remappedErrors,
+      restoredLeg: restoredExpandedLeg
+    };
+  }
+
   function getLegLockPayload(leg) {
     return {
       route_code: (state.modalMode === "editor" ? String(state.activeRouteCode || "").trim() : ""),
@@ -436,6 +935,7 @@
 
     if (isLoading) {
       html += '<div class="fpw-routegen__lockstate">Loading lock details...</div>';
+      html += renderCruiseTimelineInlineForLeg(leg, order);
       return html;
     }
     if (errorText) {
@@ -443,6 +943,7 @@
       html += '<div class="fpw-routegen__leglockinlineactions">';
       html += '  <button type="button" class="btn-secondary btn-sm" data-leg-action="reload-locks">Retry</button>';
       html += "</div>";
+      html += renderCruiseTimelineInlineForLeg(leg, order);
       return html;
     }
 
@@ -455,6 +956,7 @@
 
     if (!locks.length) {
       html += '<div class="fpw-routegen__lockstate">No locks mapped for this leg.</div>';
+      html += renderCruiseTimelineInlineForLeg(leg, order);
       return html;
     }
 
@@ -499,6 +1001,7 @@
       html += "</div>";
     });
     html += "</div>";
+    html += renderCruiseTimelineInlineForLeg(leg, order);
     return html;
   }
 
@@ -576,6 +1079,7 @@
     renderLegs(state.previewLegs);
     selectLegRow(order);
     fetchLegLockDetails(leg);
+    ensureCruiseTimelineForCurrentRoute();
   }
 
   function setLegMapStatus(message) {
@@ -1235,6 +1739,13 @@
 
   function clearPreview() {
     state.previewLegs = [];
+    state.cruiseTimeline.requestSeq += 1;
+    state.cruiseTimeline.lastRouteId = 0;
+    state.cruiseTimeline.lastStartDate = "";
+    state.cruiseTimeline.status = "idle";
+    state.cruiseTimeline.message = "";
+    state.cruiseTimeline.payload = null;
+    removeLegacyCruiseTimelineContainer();
     resetLegLockPanelState();
     if (dom.totalNmEl) dom.totalNmEl.innerHTML = "0 <small>NM</small>";
     if (dom.estimatedDaysEl) dom.estimatedDaysEl.textContent = "0";
@@ -1972,6 +2483,75 @@
     };
   }
 
+  function collectTimelineInputOverrides() {
+    var payload = collectFormPayload();
+    return {
+      pace: String(payload.pace || ""),
+      pace_index: getSelectedPaceIndex(),
+      cruising_speed: String(payload.cruising_speed || ""),
+      max_speed_kn: String(payload.cruising_speed || ""),
+      fuel_burn_gph: String(payload.fuel_burn_gph || ""),
+      reserve_pct: String(payload.reserve_pct || DEFAULT_RESERVE_PCT),
+      weather_factor_pct: String(payload.weather_factor_pct || DEFAULT_WEATHER_FACTOR_PCT)
+    };
+  }
+
+  function collectTimelinePreviewLegs(legsRaw) {
+    var src = Array.isArray(legsRaw) ? legsRaw : [];
+    return src
+      .map(function (row, idx) {
+        var leg = row && typeof row === "object" ? row : {};
+        var order = toInt(
+          leg.order_index !== undefined ? leg.order_index :
+            (leg.ORDER_INDEX !== undefined ? leg.ORDER_INDEX :
+              (leg.leg_order !== undefined ? leg.leg_order : leg.LEG_ORDER)),
+          idx + 1
+        );
+        var routeLegId = toInt(leg.route_leg_id !== undefined ? leg.route_leg_id : leg.ROUTE_LEG_ID, 0);
+        var segmentId = toInt(leg.segment_id !== undefined ? leg.segment_id : leg.SEGMENT_ID, 0);
+        var id = toInt(leg.id !== undefined ? leg.id : leg.ID, 0);
+        var distNm = parseFloat(
+          leg.dist_nm !== undefined ? leg.dist_nm :
+            (leg.DIST_NM !== undefined ? leg.DIST_NM :
+              (leg.distance_nm !== undefined ? leg.distance_nm : leg.DISTANCE_NM))
+        );
+        var lockCount = toInt(
+          leg.lock_count !== undefined ? leg.lock_count :
+            (leg.LOCK_COUNT !== undefined ? leg.LOCK_COUNT :
+              (leg.locks !== undefined ? leg.locks : leg.LOCKS)),
+          0
+        );
+        var startName = String(
+          leg.start_name !== undefined ? leg.start_name : (leg.START_NAME || "")
+        ).trim();
+        var endName = String(
+          leg.end_name !== undefined ? leg.end_name : (leg.END_NAME || "")
+        ).trim();
+        if (!Number.isFinite(distNm)) distNm = NaN;
+        if (distNm < 0) distNm = 0;
+        if (lockCount < 0) lockCount = 0;
+        return {
+          order_index: order,
+          route_leg_id: routeLegId,
+          segment_id: segmentId,
+          id: id,
+          start_name: startName,
+          end_name: endName,
+          dist_nm: distNm,
+          lock_count: lockCount
+        };
+      })
+      .filter(function (row) {
+        if (!row || typeof row !== "object") return false;
+        if (!Number.isFinite(row.dist_nm)) return false;
+        if (toInt(row.order_index, 0) <= 0) return false;
+        return (toInt(row.route_leg_id, 0) > 0 || toInt(row.segment_id, 0) > 0 || toInt(row.id, 0) > 0);
+      })
+      .sort(function (a, b) {
+        return toInt(a.order_index, 0) - toInt(b.order_index, 0);
+      });
+  }
+
   function canPreview(payload) {
     var p = payload || collectFormPayload();
     return !!(p.template_code && p.start_segment_id && p.end_segment_id && p.start_date);
@@ -2659,6 +3239,14 @@
     var totals = sourceData && sourceData.totals ? sourceData.totals : (sourceData && sourceData.TOTALS ? sourceData.TOTALS : {});
     var legs = sourceData && sourceData.legs ? sourceData.legs : (sourceData && sourceData.LEGS ? sourceData.LEGS : []);
     var paceLabel = getSelectedPacePreset().label;
+    var previousLegs = Array.isArray(state.previewLegs) ? state.previewLegs.slice(0) : [];
+    var previousLockPanelState = {
+      expandedOrder: toInt(state.lockPanel.expandedOrder, 0),
+      requestSeq: toInt(state.lockPanel.requestSeq, 0),
+      detailByOrder: Object.assign({}, state.lockPanel.detailByOrder || {}),
+      errorByOrder: Object.assign({}, state.lockPanel.errorByOrder || {})
+    };
+    var lockPanelRestore = null;
 
     var totalNm = parseFloat(
       totals.total_nm !== undefined ? totals.total_nm :
@@ -2769,9 +3357,22 @@
       }
     }
 
-    resetLegLockPanelState();
     state.previewLegs = normalizeLegList(legs);
+    lockPanelRestore = preserveLockPanelAcrossPreview(previousLegs, state.previewLegs, previousLockPanelState);
+    state.lockPanel.expandedOrder = toInt(lockPanelRestore.expandedOrder, 0);
+    state.lockPanel.loadingOrder = toInt(lockPanelRestore.loadingOrder, 0);
+    state.lockPanel.requestSeq = toInt(lockPanelRestore.requestSeq, toInt(state.lockPanel.requestSeq, 0));
+    state.lockPanel.detailByOrder = lockPanelRestore.detailByOrder || {};
+    state.lockPanel.errorByOrder = lockPanelRestore.errorByOrder || {};
     renderLegs(state.previewLegs);
+    if (state.lockPanel.expandedOrder > 0 && lockPanelRestore && lockPanelRestore.restoredLeg) {
+      var restoredKey = String(state.lockPanel.expandedOrder);
+      var hasCachedDetails = !!state.lockPanel.detailByOrder[restoredKey];
+      var hasCachedError = !!String(state.lockPanel.errorByOrder[restoredKey] || "").trim();
+      if (!hasCachedDetails && !hasCachedError) {
+        fetchLegLockDetails(lockPanelRestore.restoredLeg);
+      }
+    }
     if (!state.previewLegs.length) {
       resetLegMapSelection();
       return;
@@ -2835,6 +3436,7 @@
       body: JSON.stringify(payload)
     })
       .then(function (resPayload) {
+        var activeRouteId = toInt(state.activeRouteId, 0);
         if (seq !== state.previewReqSeq) return null;
         if (!resPayload || resPayload.SUCCESS === false) {
           throw new Error((resPayload && resPayload.MESSAGE) ? resPayload.MESSAGE : "Preview failed.");
@@ -2843,6 +3445,16 @@
         setStatus(forceRefresh ? "Preview updated." : "Preview ready.");
         if (state.modalMode !== "editor") {
           saveDraft();
+        }
+        if (activeRouteId > 0) {
+          return buildCruiseTimeline(
+            activeRouteId,
+            dom.startDateEl ? String(dom.startDateEl.value || "").trim() : "",
+            state.cruiseTimeline.maxHoursPerDay,
+            state.previewLegs
+          ).then(function () {
+            return resPayload;
+          });
         }
         return resPayload;
       })
@@ -2894,9 +3506,15 @@
           data.route_code !== undefined ? data.route_code :
             (data.ROUTE_CODE !== undefined ? data.ROUTE_CODE : (responsePayload.ROUTE_CODE !== undefined ? responsePayload.ROUTE_CODE : ""))
         ).trim();
+        var routeId = toInt(
+          data.route_id !== undefined ? data.route_id :
+            (data.ROUTE_ID !== undefined ? data.ROUTE_ID : (responsePayload.ROUTE_ID !== undefined ? responsePayload.ROUTE_ID : 0)),
+          0
+        );
 
         state.lastGeneratedRouteCode = routeCode;
         state.activeRouteCode = routeCode;
+        state.activeRouteId = routeId;
         setRouteCodeBadge(routeCode || "Generated");
         setStatus("Route generated.");
 
@@ -2905,6 +3523,12 @@
         }
 
         notifyRoutesUpdated(routeCode);
+        buildCruiseTimeline(
+          state.activeRouteId,
+          dom.startDateEl ? String(dom.startDateEl.value || "").trim() : "",
+          state.cruiseTimeline.maxHoursPerDay,
+          state.previewLegs
+        );
 
         if (modal) {
           modal.hide();
@@ -2965,8 +3589,14 @@
           data.route_code !== undefined ? data.route_code :
             (data.ROUTE_CODE !== undefined ? data.ROUTE_CODE : routeCode)
         ).trim();
+        var savedRouteId = toInt(
+          data.route_id !== undefined ? data.route_id :
+            (data.ROUTE_ID !== undefined ? data.ROUTE_ID : state.activeRouteId),
+          state.activeRouteId
+        );
 
         state.activeRouteCode = savedRouteCode || routeCode;
+        state.activeRouteId = savedRouteId;
         setRouteCodeBadge(state.activeRouteCode);
         setStatus("Route saved.");
 
@@ -3036,6 +3666,7 @@
         };
 
         renderPreviewPayload(previewLike, true);
+        rebuildCruiseTimelineFromCurrentState();
         setStatus("Route loaded.");
       })
       .catch(function (err) {
@@ -3430,6 +4061,27 @@
     onFormChange();
   }
 
+  function onCruiseTimelineClick(event) {
+    var target = event.target;
+    var rebuildBtn = null;
+    if (!target || !dom.root) return;
+    rebuildBtn = target.closest("#routeGenTimelineRebuildBtn");
+    if (!rebuildBtn || !dom.root.contains(rebuildBtn)) return;
+    event.preventDefault();
+    getCruiseTimelineMaxHoursFromUi();
+    rebuildCruiseTimelineFromCurrentState();
+  }
+
+  function onCruiseTimelineInputChange(event) {
+    var target = event.target;
+    var clamped = 0;
+    if (!target || target.id !== "routeGenTimelineMaxHours") return;
+    dom.cruiseTimelineMaxHoursEl = target;
+    clamped = clampCruiseTimelineHours(target.value);
+    state.cruiseTimeline.maxHoursPerDay = clamped;
+    target.value = formatCruiseTimelineHoursInput(clamped);
+  }
+
   function onSetupPanelWheel(event) {
     if (!dom.setupPanelBodyEl) return;
     if (!dom.modalEl || !dom.modalEl.classList.contains("show")) return;
@@ -3495,6 +4147,12 @@
 
     if (dom.optionalStopsEl) {
       dom.optionalStopsEl.addEventListener("click", onStopToggleClick);
+    }
+
+    if (dom.root && !dom.root.dataset.routegenCruiseTimelineBound) {
+      dom.root.addEventListener("click", onCruiseTimelineClick);
+      dom.root.addEventListener("change", onCruiseTimelineInputChange);
+      dom.root.dataset.routegenCruiseTimelineBound = "true";
     }
 
     if (dom.setupPanelBodyEl && !dom.setupPanelBodyEl.dataset.routegenWheelBound) {
@@ -3727,7 +4385,11 @@
     dom.fuelCostEl = document.getElementById("routeGenFuelCost");
     dom.fuelCostSubEl = document.getElementById("routeGenFuelCostSub");
     dom.legCountEl = document.getElementById("routeGenLegCount");
+    dom.legLayoutEl = document.getElementById("routeGenLegLayout");
     dom.legListEl = document.getElementById("routeGenLegList");
+    dom.cruiseTimelineEl = document.getElementById("fpwCruiseTimeline");
+    dom.cruiseTimelineMaxHoursEl = null;
+    dom.cruiseTimelineRebuildBtn = null;
     dom.legMapDockEl = document.getElementById("routeGenLegMapDock");
     dom.legOverlayEl = document.getElementById("routeGenLegOverlay");
     dom.legOverlayDockEl = document.getElementById("routeGenLegOverlayDock");
@@ -3746,6 +4408,7 @@
     dom.legRevertBtn = document.getElementById("routeGenLegRevertBtn");
     dom.legClearBtn = document.getElementById("routeGenLegClearBtn");
 
+    removeLegacyCruiseTimelineContainer();
     return true;
   }
 

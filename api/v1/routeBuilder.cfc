@@ -301,10 +301,25 @@
                 <cfset var cruiseRouteId = val(pickArg(body, "routeId", "route_id", 0)) />
                 <cfset var cruiseStartDate = trim(toString(pickArg(body, "startDate", "start_date", ""))) />
                 <cfset var cruiseMaxHoursPerDay = val(pickArg(body, "maxHoursPerDay", "max_hours_per_day", 6.5)) />
+                <cfset var cruiseInputOverridesRaw = pickArg(body, "inputOverrides", "input_overrides", {}) />
+                <cfset var cruiseInputOverrides = (isStruct(cruiseInputOverridesRaw) ? cruiseInputOverridesRaw : {}) />
+                <cfset var cruisePreviewLegsRaw = [] />
+                <cfif structKeyExists(body, "previewLegs")>
+                    <cfset cruisePreviewLegsRaw = body.previewLegs />
+                <cfelseif structKeyExists(body, "preview_legs")>
+                    <cfset cruisePreviewLegsRaw = body.preview_legs />
+                <cfelseif structKeyExists(body, "legsOverride")>
+                    <cfset cruisePreviewLegsRaw = body.legsOverride />
+                <cfelseif structKeyExists(body, "legs_override")>
+                    <cfset cruisePreviewLegsRaw = body.legs_override />
+                </cfif>
+                <cfset var cruisePreviewLegs = (isArray(cruisePreviewLegsRaw) ? cruisePreviewLegsRaw : []) />
                 <cfset var cruiseTimeline = generateCruiseTimeline(
                     routeId = cruiseRouteId,
                     startDate = cruiseStartDate,
-                    maxHoursPerDay = cruiseMaxHoursPerDay
+                    maxHoursPerDay = cruiseMaxHoursPerDay,
+                    inputOverrides = cruiseInputOverrides,
+                    previewLegs = cruisePreviewLegs
                 ) />
                 <cfoutput>#serializeJSON(cruiseTimeline)#</cfoutput>
                 <cfreturn>
@@ -1651,10 +1666,264 @@
         <cfreturn resp />
     </cffunction>
 
+    <cffunction name="resolveTimelineFuelBurnFromInputs" access="private" returntype="struct" output="false">
+        <cfargument name="routeInputs" type="struct" required="true">
+        <cfscript>
+            var out = {
+                "fuel_burn_gph"=0,
+                "fuel_source"="missing",
+                "fuel_key"=""
+            };
+            var primaryKey = "fuel_burn_gph";
+            var aliasKeys = [ "fuelBurnGph", "max_burn_gph", "maxBurnGph", "burn_gph", "burnGph" ];
+            var key = "";
+            var rawValue = "";
+            var textValue = "";
+            var numericVal = 0;
+            var i = 0;
+
+            if (!isStruct(arguments.routeInputs)) {
+                return out;
+            }
+
+            if (structKeyExists(arguments.routeInputs, primaryKey)) {
+                rawValue = arguments.routeInputs[primaryKey];
+                numericVal = 0;
+                if (isSimpleValue(rawValue)) {
+                    textValue = trim(toString(rawValue));
+                    if (len(textValue) AND isNumeric(textValue)) {
+                        numericVal = val(textValue);
+                    }
+                } else if (isNumeric(rawValue)) {
+                    numericVal = val(rawValue);
+                }
+                if (numericVal GT 0) {
+                    out.fuel_burn_gph = numericVal;
+                    out.fuel_source = "route_inputs";
+                    out.fuel_key = primaryKey;
+                    return out;
+                }
+            }
+
+            for (i = 1; i LTE arrayLen(aliasKeys); i++) {
+                key = aliasKeys[i];
+                if (!structKeyExists(arguments.routeInputs, key)) {
+                    continue;
+                }
+                rawValue = arguments.routeInputs[key];
+                numericVal = 0;
+                if (isSimpleValue(rawValue)) {
+                    textValue = trim(toString(rawValue));
+                    if (len(textValue) AND isNumeric(textValue)) {
+                        numericVal = val(textValue);
+                    }
+                } else if (isNumeric(rawValue)) {
+                    numericVal = val(rawValue);
+                }
+                if (numericVal GT 0) {
+                    out.fuel_burn_gph = numericVal;
+                    out.fuel_source = "route_inputs_alias";
+                    out.fuel_key = key;
+                    return out;
+                }
+            }
+
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenNormalizeTimelineInputOverrides" access="private" returntype="struct" output="false">
+        <cfargument name="inputOverrides" type="any" required="false" default="#structNew()#">
+        <cfscript>
+            var src = (isStruct(arguments.inputOverrides) ? arguments.inputOverrides : {});
+            var out = {};
+            var paceIndexVal = 0;
+            var hasFuelOverride = false;
+            var fuelRaw = "";
+
+            if (structKeyExists(src, "pace")) {
+                out.pace = routegenNormalizePace(src.pace);
+            } else if (structKeyExists(src, "pace_index")) {
+                paceIndexVal = val(src.pace_index);
+                out.pace = (paceIndexVal GTE 2 ? "AGGRESSIVE" : (paceIndexVal EQ 1 ? "BALANCED" : "RELAXED"));
+            } else if (structKeyExists(src, "paceIndex")) {
+                paceIndexVal = val(src.paceIndex);
+                out.pace = (paceIndexVal GTE 2 ? "AGGRESSIVE" : (paceIndexVal EQ 1 ? "BALANCED" : "RELAXED"));
+            }
+
+            if (structKeyExists(src, "cruising_speed")) {
+                out.cruising_speed = routegenNormalizeCruisingSpeed(src.cruising_speed, 20);
+            } else if (structKeyExists(src, "cruisingSpeed")) {
+                out.cruising_speed = routegenNormalizeCruisingSpeed(src.cruisingSpeed, 20);
+            } else if (structKeyExists(src, "max_speed_kn")) {
+                out.cruising_speed = routegenNormalizeCruisingSpeed(src.max_speed_kn, 20);
+            } else if (structKeyExists(src, "maxSpeedKn")) {
+                out.cruising_speed = routegenNormalizeCruisingSpeed(src.maxSpeedKn, 20);
+            }
+
+            if (structKeyExists(src, "fuel_burn_gph")) {
+                fuelRaw = src.fuel_burn_gph;
+                hasFuelOverride = true;
+            } else if (structKeyExists(src, "fuelBurnGph")) {
+                fuelRaw = src.fuelBurnGph;
+                hasFuelOverride = true;
+            } else if (structKeyExists(src, "max_burn_gph")) {
+                fuelRaw = src.max_burn_gph;
+                hasFuelOverride = true;
+            } else if (structKeyExists(src, "maxBurnGph")) {
+                fuelRaw = src.maxBurnGph;
+                hasFuelOverride = true;
+            } else if (structKeyExists(src, "burn_gph")) {
+                fuelRaw = src.burn_gph;
+                hasFuelOverride = true;
+            } else if (structKeyExists(src, "burnGph")) {
+                fuelRaw = src.burnGph;
+                hasFuelOverride = true;
+            }
+            if (hasFuelOverride) {
+                out.fuel_burn_gph = routegenNormalizeFuelBurnGph(fuelRaw);
+            }
+
+            if (structKeyExists(src, "reserve_pct")) {
+                out.reserve_pct = routegenNormalizeReservePct(src.reserve_pct, 20);
+            } else if (structKeyExists(src, "reservePct")) {
+                out.reserve_pct = routegenNormalizeReservePct(src.reservePct, 20);
+            }
+
+            if (structKeyExists(src, "weather_factor_pct")) {
+                out.weather_factor_pct = routegenNormalizeWeatherFactorPct(src.weather_factor_pct);
+            } else if (structKeyExists(src, "weatherFactorPct")) {
+                out.weather_factor_pct = routegenNormalizeWeatherFactorPct(src.weatherFactorPct);
+            } else if (structKeyExists(src, "weather_factor")) {
+                out.weather_factor_pct = routegenNormalizeWeatherFactorPct(src.weather_factor);
+            } else if (structKeyExists(src, "weatherFactor")) {
+                out.weather_factor_pct = routegenNormalizeWeatherFactorPct(src.weatherFactor);
+            }
+
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenBuildTimelineInputs" access="private" returntype="struct" output="false">
+        <cfargument name="storedInputs" type="any" required="false" default="#structNew()#">
+        <cfargument name="inputOverrides" type="any" required="false" default="#structNew()#">
+        <cfscript>
+            var merged = (isStruct(arguments.storedInputs) ? duplicate(arguments.storedInputs) : {});
+            var overrides = routegenNormalizeTimelineInputOverrides(arguments.inputOverrides);
+            for (var key in overrides) {
+                merged[key] = overrides[key];
+            }
+            return merged;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenTimelinePickLegValue" access="private" returntype="any" output="false">
+        <cfargument name="row" type="any" required="true">
+        <cfargument name="keys" type="array" required="true">
+        <cfargument name="fallback" type="any" required="false" default="">
+        <cfscript>
+            if (!isStruct(arguments.row)) return arguments.fallback;
+            for (var key in arguments.keys) {
+                if (structKeyExists(arguments.row, key)) {
+                    return arguments.row[key];
+                }
+            }
+            return arguments.fallback;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenNormalizeTimelinePreviewLegs" access="private" returntype="array" output="false">
+        <cfargument name="previewLegsRaw" type="any" required="false" default="#[]#">
+        <cfscript>
+            var src = (isArray(arguments.previewLegsRaw) ? arguments.previewLegsRaw : []);
+            var byOrder = {};
+            var orderKeys = [];
+            var out = [];
+            var i = 0;
+            var row = {};
+            var orderRaw = "";
+            var orderVal = 0;
+            var routeLegIdRaw = "";
+            var routeLegIdVal = 0;
+            var segmentIdRaw = "";
+            var segmentIdVal = 0;
+            var idRaw = "";
+            var idVal = 0;
+            var distRaw = "";
+            var distVal = 0;
+            var lockRaw = "";
+            var lockVal = 0;
+            var startNameVal = "";
+            var endNameVal = "";
+            var orderKey = "";
+
+            for (i = 1; i LTE arrayLen(src); i++) {
+                row = src[i];
+                if (!isStruct(row)) continue;
+
+                orderRaw = routegenTimelinePickLegValue(
+                    row,
+                    ["order_index", "ORDER_INDEX", "order", "ORDER", "leg_order", "LEG_ORDER"],
+                    ""
+                );
+                if (!isNumeric(orderRaw)) continue;
+                orderVal = int(val(orderRaw));
+                if (orderVal LTE 0) continue;
+                orderKey = toString(orderVal);
+                if (structKeyExists(byOrder, orderKey)) continue;
+
+                routeLegIdRaw = routegenTimelinePickLegValue(row, ["route_leg_id", "ROUTE_LEG_ID"], "");
+                routeLegIdVal = (isNumeric(routeLegIdRaw) ? int(val(routeLegIdRaw)) : 0);
+                segmentIdRaw = routegenTimelinePickLegValue(row, ["segment_id", "SEGMENT_ID"], "");
+                segmentIdVal = (isNumeric(segmentIdRaw) ? int(val(segmentIdRaw)) : 0);
+                idRaw = routegenTimelinePickLegValue(row, ["id", "ID"], "");
+                idVal = (isNumeric(idRaw) ? int(val(idRaw)) : 0);
+                if (routeLegIdVal LTE 0 AND segmentIdVal LTE 0 AND idVal LTE 0) continue;
+
+                distRaw = routegenTimelinePickLegValue(row, ["dist_nm", "DIST_NM", "distance_nm", "DISTANCE_NM"], "");
+                if (!isNumeric(distRaw)) continue;
+                distVal = val(distRaw);
+                if (distVal LT 0) distVal = 0;
+
+                lockRaw = routegenTimelinePickLegValue(row, ["lock_count", "LOCK_COUNT", "locks", "LOCKS"], "");
+                lockVal = (isNumeric(lockRaw) ? int(val(lockRaw)) : 0);
+                if (lockVal LT 0) lockVal = 0;
+
+                startNameVal = trim(toString(routegenTimelinePickLegValue(row, ["start_name", "START_NAME"], "")));
+                endNameVal = trim(toString(routegenTimelinePickLegValue(row, ["end_name", "END_NAME"], "")));
+
+                byOrder[orderKey] = {
+                    "order_index"=orderVal,
+                    "id"=(routeLegIdVal GT 0 ? routeLegIdVal : (segmentIdVal GT 0 ? segmentIdVal : idVal)),
+                    "route_leg_id"=routeLegIdVal,
+                    "segment_id"=segmentIdVal,
+                    "start_name"=startNameVal,
+                    "end_name"=endNameVal,
+                    "dist_nm"=roundTo2(distVal),
+                    "lock_count"=lockVal
+                };
+                arrayAppend(orderKeys, orderVal);
+            }
+
+            if (arrayLen(orderKeys) GT 1) {
+                arraySort(orderKeys, "numeric", "asc");
+            }
+            for (i = 1; i LTE arrayLen(orderKeys); i++) {
+                orderKey = toString(orderKeys[i]);
+                if (structKeyExists(byOrder, orderKey)) {
+                    arrayAppend(out, byOrder[orderKey]);
+                }
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="generateCruiseTimeline" access="private" returntype="struct" output="false">
         <cfargument name="routeId" type="numeric" required="true">
         <cfargument name="startDate" type="string" required="true">
         <cfargument name="maxHoursPerDay" type="numeric" required="false" default="6.5">
+        <cfargument name="inputOverrides" type="struct" required="false" default="#structNew()#">
+        <cfargument name="previewLegs" type="any" required="false" default="#[]#">
         <cfscript>
             var out = {
                 "success"=false,
@@ -1662,6 +1931,14 @@
                     "total_days"=0,
                     "total_nm"=0,
                     "total_required_fuel"=0
+                },
+                "timeline_meta"={
+                    "fuel_burn_gph"=0,
+                    "fuel_source"="missing",
+                    "fuel_key"="",
+                    "fuel_resolved"=false,
+                    "distance_source"="route_instance_legs",
+                    "preview_legs_ignored"=false
                 },
                 "days"=[]
             };
@@ -1676,12 +1953,20 @@
             var qInst = queryNew("");
             var routeInstanceIdVal = 0;
             var storedInputs = {};
+            var effectiveInputs = {};
             var paceVal = "RELAXED";
             var paceDefaults = {};
             var paceRatioVal = 0;
             var maxSpeedVal = 0;
             var effectiveSpeedVal = 0;
+            var fuelMeta = {
+                "fuel_burn_gph"=0,
+                "fuel_source"="missing",
+                "fuel_key"="",
+                "fuel_resolved"=false
+            };
             var fuelBurnGphVal = 0;
+            var weatherFactorPctVal = 0;
             var reservePctVal = 20;
             var normalizedLegJoinSql = "";
             var normalizedSegJoinSql = "";
@@ -1691,6 +1976,12 @@
             var normalizedLockExpr = "COALESCE(ril.lock_count, 0)";
             var qSegmentsSql = "";
             var qSegments = queryNew("");
+            var previewLegsProvided = (isArray(arguments.previewLegs) AND arrayLen(arguments.previewLegs) GT 0);
+            var normalizedPreviewLegs = [];
+            var usePreviewLegs = false;
+            var previewLegsIgnored = false;
+            var previewLeg = {};
+            var segSource = "route_instance_legs";
             var i = 0;
             var segIdVal = 0;
             var segStartName = "";
@@ -1781,7 +2072,13 @@
             }
 
             routeInstanceIdVal = val(qInst.id[1]);
-            if (!routegenHasNormalizedLegRows(routeInstanceIdVal)) {
+            normalizedPreviewLegs = routegenNormalizeTimelinePreviewLegs(arguments.previewLegs);
+            usePreviewLegs = (arrayLen(normalizedPreviewLegs) GT 0);
+            previewLegsIgnored = (previewLegsProvided AND !usePreviewLegs);
+            if (usePreviewLegs) {
+                segSource = "preview_legs";
+            }
+            if (!usePreviewLegs AND !routegenHasNormalizedLegRows(routeInstanceIdVal)) {
                 out.message = "Route timeline unavailable";
                 out.error = { "message"="Route instance has no normalized leg rows." };
                 return out;
@@ -1790,90 +2087,118 @@
             if (hasInputsJsonCol AND !isNull(qInst.routegen_inputs_json[1])) {
                 storedInputs = routegenParseStoredInputs(qInst.routegen_inputs_json[1]);
             }
-            paceVal = routegenNormalizePace(structKeyExists(storedInputs, "pace") ? storedInputs.pace : "RELAXED");
+            effectiveInputs = routegenBuildTimelineInputs(storedInputs, arguments.inputOverrides);
+            fuelMeta = resolveTimelineFuelBurnFromInputs(effectiveInputs);
+            fuelBurnGphVal = routegenNormalizeFuelBurnGph(fuelMeta.fuel_burn_gph);
+            out.timeline_meta = {
+                "fuel_burn_gph"=roundTo2(fuelBurnGphVal),
+                "fuel_source"=trim(toString(fuelMeta.fuel_source)),
+                "fuel_key"=trim(toString(fuelMeta.fuel_key)),
+                "fuel_resolved"=(fuelBurnGphVal GT 0),
+                "distance_source"=segSource,
+                "preview_legs_ignored"=previewLegsIgnored
+            };
+            paceVal = routegenNormalizePace(structKeyExists(effectiveInputs, "pace") ? effectiveInputs.pace : "RELAXED");
             paceDefaults = routegenPaceDefaults(paceVal);
             paceRatioVal = val(paceDefaults.PACE_FACTOR);
             if (paceRatioVal LT 0.05) paceRatioVal = 0.05;
             if (paceRatioVal GT 1) paceRatioVal = 1;
             maxSpeedVal = routegenNormalizeCruisingSpeed(
-                structKeyExists(storedInputs, "cruising_speed") ? storedInputs.cruising_speed : "",
+                structKeyExists(effectiveInputs, "cruising_speed")
+                    ? effectiveInputs.cruising_speed
+                    : (structKeyExists(effectiveInputs, "max_speed_kn") ? effectiveInputs.max_speed_kn : ""),
                 paceDefaults.MAX_SPEED_KN
             );
             effectiveSpeedVal = routegenComputeEffectiveCruisingSpeed(maxSpeedVal, paceVal);
             if (effectiveSpeedVal LTE 0) effectiveSpeedVal = 1;
-            fuelBurnGphVal = routegenNormalizeFuelBurnGph(
-                structKeyExists(storedInputs, "fuel_burn_gph") ? storedInputs.fuel_burn_gph : ""
+            weatherFactorPctVal = routegenNormalizeWeatherFactorPct(
+                structKeyExists(effectiveInputs, "weather_factor_pct")
+                    ? effectiveInputs.weather_factor_pct
+                    : (structKeyExists(effectiveInputs, "weather_factor") ? effectiveInputs.weather_factor : "")
             );
             reservePctVal = routegenNormalizeReservePct(
-                structKeyExists(storedInputs, "reserve_pct") ? storedInputs.reserve_pct : "",
+                structKeyExists(effectiveInputs, "reserve_pct") ? effectiveInputs.reserve_pct : "",
                 20
             );
 
-            if (routegenHasLegOverrideTable()) {
-                normalizedLegJoinSql =
-                    " LEFT JOIN route_leg_user_overrides rluo_leg
-                        ON rluo_leg.user_id = :uidNum
-                       AND rluo_leg.route_id = :routeId
-                       AND (
-                            (ril.source_loop_segment_id IS NOT NULL AND rluo_leg.route_leg_id = ril.source_loop_segment_id)
-                            OR
-                            (ril.source_loop_segment_id IS NULL AND rluo_leg.route_leg_order = ril.leg_order)
-                       )";
-                normalizedSegJoinSql =
-                    " LEFT JOIN route_leg_user_overrides rluo_seg
-                        ON rluo_seg.user_id = :uidNum
-                       AND rluo_seg.route_id = 0
-                       AND rluo_seg.segment_id = ril.segment_id";
-                normalizedDistExpr = "COALESCE(rluo_leg.computed_nm, rluo_seg.computed_nm, ril.base_dist_nm)";
-            }
-            if (routegenHasUserSegmentOverrideTable()) {
-                normalizedUsoJoinSql =
-                    " LEFT JOIN user_segment_overrides uso
-                        ON uso.user_id = :uidNum
-                       AND uso.segment_id = ril.segment_id";
-                if (routegenHasLegOverrideTable()) {
-                    normalizedDistExpr = "COALESCE(rluo_leg.computed_nm, rluo_seg.computed_nm, uso.computed_nm, ril.base_dist_nm)";
-                } else {
-                    normalizedDistExpr = "COALESCE(uso.computed_nm, ril.base_dist_nm)";
+            if (usePreviewLegs) {
+                qSegments = queryNew("id,start_name,end_name,dist_nm,lock_count");
+                for (i = 1; i LTE arrayLen(normalizedPreviewLegs); i++) {
+                    previewLeg = normalizedPreviewLegs[i];
+                    queryAddRow(qSegments, 1);
+                    querySetCell(qSegments, "id", val(previewLeg.id));
+                    querySetCell(qSegments, "start_name", trim(toString(previewLeg.start_name)));
+                    querySetCell(qSegments, "end_name", trim(toString(previewLeg.end_name)));
+                    querySetCell(qSegments, "dist_nm", val(previewLeg.dist_nm));
+                    querySetCell(qSegments, "lock_count", val(previewLeg.lock_count));
                 }
-            }
-            if (routegenHasRouteLegLocksTable()) {
-                normalizedLockJoinSql =
-                    " LEFT JOIN (
-                        SELECT route_code, leg, COUNT(*) AS lock_count
-                        FROM route_leg_locks
-                        GROUP BY route_code, leg
-                      ) rll
-                        ON rll.route_code COLLATE utf8mb4_unicode_ci = ri.template_route_code
-                       AND rll.leg = ril.leg_order";
-                normalizedLockExpr = "COALESCE(rll.lock_count, ril.lock_count, 0)";
-            }
+            } else {
+                if (routegenHasLegOverrideTable()) {
+                    normalizedLegJoinSql =
+                        " LEFT JOIN route_leg_user_overrides rluo_leg
+                            ON rluo_leg.user_id = :uidNum
+                           AND rluo_leg.route_id = :routeId
+                           AND (
+                                (ril.source_loop_segment_id IS NOT NULL AND rluo_leg.route_leg_id = ril.source_loop_segment_id)
+                                OR
+                                (ril.source_loop_segment_id IS NULL AND rluo_leg.route_leg_order = ril.leg_order)
+                           )";
+                    normalizedSegJoinSql =
+                        " LEFT JOIN route_leg_user_overrides rluo_seg
+                            ON rluo_seg.user_id = :uidNum
+                           AND rluo_seg.route_id = 0
+                           AND rluo_seg.segment_id = ril.segment_id";
+                    normalizedDistExpr = "COALESCE(rluo_leg.computed_nm, rluo_seg.computed_nm, ril.base_dist_nm)";
+                }
+                if (routegenHasUserSegmentOverrideTable()) {
+                    normalizedUsoJoinSql =
+                        " LEFT JOIN user_segment_overrides uso
+                            ON uso.user_id = :uidNum
+                           AND uso.segment_id = ril.segment_id";
+                    if (routegenHasLegOverrideTable()) {
+                        normalizedDistExpr = "COALESCE(rluo_leg.computed_nm, rluo_seg.computed_nm, uso.computed_nm, ril.base_dist_nm)";
+                    } else {
+                        normalizedDistExpr = "COALESCE(uso.computed_nm, ril.base_dist_nm)";
+                    }
+                }
+                if (routegenHasRouteLegLocksTable()) {
+                    normalizedLockJoinSql =
+                        " LEFT JOIN (
+                            SELECT route_code, leg, COUNT(*) AS lock_count
+                            FROM route_leg_locks
+                            GROUP BY route_code, leg
+                          ) rll
+                            ON rll.route_code COLLATE utf8mb4_unicode_ci = ri.template_route_code
+                           AND rll.leg = ril.leg_order";
+                    normalizedLockExpr = "COALESCE(rll.lock_count, ril.lock_count, 0)";
+                }
 
-            qSegmentsSql =
-                "SELECT
-                    COALESCE(ril.source_loop_segment_id, ril.id) AS id,
-                    ril.start_name,
-                    ril.end_name,
-                    " & normalizedDistExpr & " AS dist_nm,
-                    " & normalizedLockExpr & " AS lock_count
-                 FROM route_instance_legs ril
-                 INNER JOIN route_instances ri ON ri.id = ril.route_instance_id"
-                & normalizedLegJoinSql
-                & normalizedSegJoinSql
-                & normalizedUsoJoinSql
-                & normalizedLockJoinSql
-                & "
-                 WHERE ril.route_instance_id = :routeInstanceId
-                 ORDER BY ril.leg_order ASC, ril.id ASC";
-            qSegments = queryExecute(
-                qSegmentsSql,
-                {
-                    routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" },
-                    routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" },
-                    uidNum = { value=userId, cfsqltype="cf_sql_integer" }
-                },
-                { datasource = application.dsn }
-            );
+                qSegmentsSql =
+                    "SELECT
+                        COALESCE(ril.source_loop_segment_id, ril.id) AS id,
+                        ril.start_name,
+                        ril.end_name,
+                        " & normalizedDistExpr & " AS dist_nm,
+                        " & normalizedLockExpr & " AS lock_count
+                     FROM route_instance_legs ril
+                     INNER JOIN route_instances ri ON ri.id = ril.route_instance_id"
+                    & normalizedLegJoinSql
+                    & normalizedSegJoinSql
+                    & normalizedUsoJoinSql
+                    & normalizedLockJoinSql
+                    & "
+                     WHERE ril.route_instance_id = :routeInstanceId
+                     ORDER BY ril.leg_order ASC, ril.id ASC";
+                qSegments = queryExecute(
+                    qSegmentsSql,
+                    {
+                        routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" },
+                        routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" },
+                        uidNum = { value=userId, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource = application.dsn }
+                );
+            }
             if (qSegments.recordCount EQ 0) {
                 out.message = "Route has no segments";
                 out.error = { "message"="No route segments are available for this route instance." };
@@ -1915,7 +2240,7 @@
                         "maxBurnGph"=fuelBurnGphVal,
                         "pace"=paceVal,
                         "paceRatio"=paceRatioVal,
-                        "weatherPct"=0,
+                        "weatherPct"=weatherFactorPctVal,
                         "idleFuelGallons"=0,
                         "reservePct"=reservePctVal
                     });
@@ -1983,7 +2308,7 @@
                     "maxBurnGph"=fuelBurnGphVal,
                     "pace"=paceVal,
                     "paceRatio"=paceRatioVal,
-                    "weatherPct"=0,
+                    "weatherPct"=weatherFactorPctVal,
                     "idleFuelGallons"=0,
                     "reservePct"=reservePctVal
                 });

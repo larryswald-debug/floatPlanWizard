@@ -220,6 +220,249 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( !!pickFirst( badRouteRes, [ "success", "SUCCESS" ], true ) ).toBeFalse( "routeId=0 should fail: #serializeJSON(badRouteRes)#" );
       } );
 
+      it( "resolves timeline fuel from route input keys and returns timeline_meta", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+        if ( !routeInstancesHasInputsJsonColumn() ) {
+          skip( "route_instances.routegen_inputs_json not present in this environment." );
+        }
+
+        var startDate = dateFormat( now(), "yyyy-mm-dd" );
+
+        // A) Canonical key present => route_inputs
+        var canonicalCtx = buildRouteLegContext();
+        setRouteInstanceInputsJson( canonicalCtx.routeId, {
+          fuel_burn_gph = 12.5,
+          reserve_pct = 20,
+          pace = "RELAXED",
+          cruising_speed = 20
+        } );
+        var canonicalRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = canonicalCtx.routeId,
+          startDate = startDate,
+          maxHoursPerDay = 6.5
+        } );
+        expect( !!pickFirst( canonicalRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "generateCruiseTimeline canonical failed: #serializeJSON(canonicalRes)#" );
+        var canonicalMeta = ( structKeyExists( canonicalRes, "timeline_meta" ) && isStruct( canonicalRes.timeline_meta ) )
+          ? canonicalRes.timeline_meta
+          : {};
+        expect( toString( pickFirst( canonicalMeta, [ "fuel_source" ], "" ) ) ).toBe( "route_inputs" );
+        expect( toString( pickFirst( canonicalMeta, [ "fuel_key" ], "" ) ) ).toBe( "fuel_burn_gph" );
+        expect( val( pickFirst( canonicalMeta, [ "fuel_burn_gph" ], 0 ) ) ).toBeGT( 0 );
+        expect( !!pickFirst( canonicalMeta, [ "fuel_resolved" ], false ) ).toBeTrue();
+        var canonicalSummary = ( structKeyExists( canonicalRes, "route_summary" ) && isStruct( canonicalRes.route_summary ) )
+          ? canonicalRes.route_summary
+          : {};
+        expect( val( pickFirst( canonicalSummary, [ "total_required_fuel" ], 0 ) ) ).toBeGT( 0 );
+        var canonicalDays = ( structKeyExists( canonicalRes, "days" ) && isArray( canonicalRes.days ) )
+          ? canonicalRes.days
+          : [];
+        expect( arrayLen( canonicalDays ) ).toBeGT( 0 );
+        expect( val( pickFirst( canonicalDays[ 1 ], [ "required_fuel_gallons" ], 0 ) ) ).toBeGT( 0 );
+        expect( val( pickFirst( canonicalDays[ 1 ], [ "reserve_gallons" ], 0 ) ) ).toBeGT( 0 );
+
+        // B) Missing fuel keys => missing
+        var missingCtx = buildRouteLegContext();
+        setRouteInstanceInputsJson( missingCtx.routeId, {
+          reserve_pct = 20,
+          pace = "RELAXED",
+          cruising_speed = 20
+        } );
+        var missingRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = missingCtx.routeId,
+          startDate = startDate,
+          maxHoursPerDay = 6.5
+        } );
+        expect( !!pickFirst( missingRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "generateCruiseTimeline missing failed: #serializeJSON(missingRes)#" );
+        var missingMeta = ( structKeyExists( missingRes, "timeline_meta" ) && isStruct( missingRes.timeline_meta ) )
+          ? missingRes.timeline_meta
+          : {};
+        expect( toString( pickFirst( missingMeta, [ "fuel_source" ], "" ) ) ).toBe( "missing" );
+        expect( val( pickFirst( missingMeta, [ "fuel_burn_gph" ], -1 ) ) ).toBe( 0 );
+        expect( !!pickFirst( missingMeta, [ "fuel_resolved" ], true ) ).toBeFalse();
+        var missingSummary = ( structKeyExists( missingRes, "route_summary" ) && isStruct( missingRes.route_summary ) )
+          ? missingRes.route_summary
+          : {};
+        expect( val( pickFirst( missingSummary, [ "total_required_fuel" ], -1 ) ) ).toBe( 0 );
+        var missingDays = ( structKeyExists( missingRes, "days" ) && isArray( missingRes.days ) )
+          ? missingRes.days
+          : [];
+        expect( arrayLen( missingDays ) ).toBeGT( 0 );
+        expect( val( pickFirst( missingDays[ 1 ], [ "required_fuel_gallons" ], -1 ) ) ).toBe( 0 );
+        expect( val( pickFirst( missingDays[ 1 ], [ "reserve_gallons" ], -1 ) ) ).toBe( 0 );
+
+        // C) Alias key present => route_inputs_alias
+        var aliasCtx = buildRouteLegContext();
+        setRouteInstanceInputsJson( aliasCtx.routeId, {
+          maxBurnGph = 11.25,
+          reserve_pct = 20,
+          pace = "RELAXED",
+          cruising_speed = 20
+        } );
+        var aliasRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = aliasCtx.routeId,
+          startDate = startDate,
+          maxHoursPerDay = 6.5
+        } );
+        expect( !!pickFirst( aliasRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "generateCruiseTimeline alias failed: #serializeJSON(aliasRes)#" );
+        var aliasMeta = ( structKeyExists( aliasRes, "timeline_meta" ) && isStruct( aliasRes.timeline_meta ) )
+          ? aliasRes.timeline_meta
+          : {};
+        expect( toString( pickFirst( aliasMeta, [ "fuel_source" ], "" ) ) ).toBe( "route_inputs_alias" );
+        expect( toString( pickFirst( aliasMeta, [ "fuel_key" ], "" ) ) ).toBe( "maxBurnGph" );
+        expect( val( pickFirst( aliasMeta, [ "fuel_burn_gph" ], 0 ) ) ).toBeGT( 0 );
+        expect( !!pickFirst( aliasMeta, [ "fuel_resolved" ], false ) ).toBeTrue();
+        var aliasSummary = ( structKeyExists( aliasRes, "route_summary" ) && isStruct( aliasRes.route_summary ) )
+          ? aliasRes.route_summary
+          : {};
+        expect( val( pickFirst( aliasSummary, [ "total_required_fuel" ], 0 ) ) ).toBeGT( 0 );
+        var aliasDays = ( structKeyExists( aliasRes, "days" ) && isArray( aliasRes.days ) )
+          ? aliasRes.days
+          : [];
+        expect( arrayLen( aliasDays ) ).toBeGT( 0 );
+        expect( val( pickFirst( aliasDays[ 1 ], [ "required_fuel_gallons" ], 0 ) ) ).toBeGT( 0 );
+        expect( val( pickFirst( aliasDays[ 1 ], [ "reserve_gallons" ], 0 ) ) ).toBeGT( 0 );
+      } );
+
+      it( "applies generateCruiseTimeline inputOverrides without persisting route inputs", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+        if ( !routeInstancesHasInputsJsonColumn() ) {
+          skip( "route_instances.routegen_inputs_json not present in this environment." );
+        }
+
+        var legCtx = buildRouteLegContext();
+        var startDate = dateFormat( now(), "yyyy-mm-dd" );
+
+        setRouteInstanceInputsJson( legCtx.routeId, {
+          fuel_burn_gph = 8,
+          reserve_pct = 20,
+          weather_factor_pct = 0,
+          pace = "RELAXED",
+          cruising_speed = 20
+        } );
+
+        var baseRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = startDate,
+          maxHoursPerDay = 6.5
+        } );
+        expect( !!pickFirst( baseRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "baseline timeline failed: #serializeJSON(baseRes)#" );
+        var baseSummary = ( structKeyExists( baseRes, "route_summary" ) && isStruct( baseRes.route_summary ) )
+          ? baseRes.route_summary
+          : {};
+        var baseRequiredFuel = val( pickFirst( baseSummary, [ "total_required_fuel" ], 0 ) );
+        expect( baseRequiredFuel ).toBeGT( 0 );
+
+        var overrideRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = startDate,
+          maxHoursPerDay = 6.5,
+          inputOverrides = {
+            fuel_burn_gph = 16,
+            reserve_pct = 35,
+            weather_factor_pct = 10,
+            pace = "BALANCED",
+            cruising_speed = 22
+          }
+        } );
+        expect( !!pickFirst( overrideRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "override timeline failed: #serializeJSON(overrideRes)#" );
+        var overrideSummary = ( structKeyExists( overrideRes, "route_summary" ) && isStruct( overrideRes.route_summary ) )
+          ? overrideRes.route_summary
+          : {};
+        var overrideRequiredFuel = val( pickFirst( overrideSummary, [ "total_required_fuel" ], 0 ) );
+        expect( overrideRequiredFuel ).toBeGT( baseRequiredFuel );
+
+        var overrideMeta = ( structKeyExists( overrideRes, "timeline_meta" ) && isStruct( overrideRes.timeline_meta ) )
+          ? overrideRes.timeline_meta
+          : {};
+        expect( val( pickFirst( overrideMeta, [ "fuel_burn_gph" ], 0 ) ) ).toBeGT( 8 );
+
+        var baseAgainRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = startDate,
+          maxHoursPerDay = 6.5
+        } );
+        expect( !!pickFirst( baseAgainRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "baseline timeline after override failed: #serializeJSON(baseAgainRes)#" );
+        var baseAgainSummary = ( structKeyExists( baseAgainRes, "route_summary" ) && isStruct( baseAgainRes.route_summary ) )
+          ? baseAgainRes.route_summary
+          : {};
+        expect( val( pickFirst( baseAgainSummary, [ "total_required_fuel" ], -1 ) ) ).toBe( baseRequiredFuel );
+      } );
+
+      it( "uses previewLegs as the distance source for timeline totals when provided", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var legCtx = buildRouteLegContext();
+        var startDate = dateFormat( now(), "yyyy-mm-dd" );
+
+        var baselineRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = startDate,
+          maxHoursPerDay = 6.5
+        } );
+        expect( !!pickFirst( baselineRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "baseline timeline failed: #serializeJSON(baselineRes)#" );
+        var baselineSummary = ( structKeyExists( baselineRes, "route_summary" ) && isStruct( baselineRes.route_summary ) )
+          ? baselineRes.route_summary
+          : {};
+        var baselineNm = val( pickFirst( baselineSummary, [ "total_nm", "TOTAL_NM" ], 0 ) );
+
+        var previewRes = routeBuilderPost( "routegen_preview", legCtx.inputs );
+        expect( pickBool( previewRes, "SUCCESS" ) ).toBeTrue( "routegen_preview failed for previewLegs test: #serializeJSON(previewRes)#" );
+        var previewData = ( structKeyExists( previewRes, "DATA" ) && isStruct( previewRes.DATA ) )
+          ? previewRes.DATA
+          : {};
+        var previewLegs = ( structKeyExists( previewData, "legs" ) && isArray( previewData.legs ) )
+          ? duplicate( previewData.legs )
+          : [];
+        expect( arrayLen( previewLegs ) ).toBeGT( 0, "No preview legs returned for previewLegs timeline test: #serializeJSON(previewRes)#" );
+
+        var firstDist = val( pickFirst( previewLegs[ 1 ], [ "dist_nm", "DIST_NM" ], 0 ) );
+        previewLegs[ 1 ].dist_nm = round( ( firstDist + 7.5 ) * 10 ) / 10;
+
+        var expectedNm = 0;
+        for ( var i = 1; i LTE arrayLen( previewLegs ); i++ ) {
+          expectedNm += val( pickFirst( previewLegs[ i ], [ "dist_nm", "DIST_NM" ], 0 ) );
+        }
+        expectedNm = round( expectedNm * 100 ) / 100;
+
+        var previewTimelineRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = startDate,
+          maxHoursPerDay = 6.5,
+          previewLegs = previewLegs
+        } );
+        expect( !!pickFirst( previewTimelineRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "previewLegs timeline failed: #serializeJSON(previewTimelineRes)#" );
+        var previewSummary = ( structKeyExists( previewTimelineRes, "route_summary" ) && isStruct( previewTimelineRes.route_summary ) )
+          ? previewTimelineRes.route_summary
+          : {};
+        var previewNm = val( pickFirst( previewSummary, [ "total_nm", "TOTAL_NM" ], 0 ) );
+        expect( previewNm ).toBe( expectedNm );
+        expect( previewNm ).toBeGT( baselineNm );
+
+        var previewMeta = ( structKeyExists( previewTimelineRes, "timeline_meta" ) && isStruct( previewTimelineRes.timeline_meta ) )
+          ? previewTimelineRes.timeline_meta
+          : {};
+        expect( toString( pickFirst( previewMeta, [ "distance_source", "DISTANCE_SOURCE" ], "" ) ) ).toBe( "preview_legs" );
+
+        var ignoredPreviewRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = startDate,
+          maxHoursPerDay = 6.5,
+          previewLegs = [ { foo = "bar" } ]
+        } );
+        expect( !!pickFirst( ignoredPreviewRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "invalid previewLegs should fallback to persisted rows: #serializeJSON(ignoredPreviewRes)#" );
+        var ignoredMeta = ( structKeyExists( ignoredPreviewRes, "timeline_meta" ) && isStruct( ignoredPreviewRes.timeline_meta ) )
+          ? ignoredPreviewRes.timeline_meta
+          : {};
+        expect( toString( pickFirst( ignoredMeta, [ "distance_source", "DISTANCE_SOURCE" ], "" ) ) ).toBe( "route_instance_legs" );
+        expect( !!pickFirst( ignoredMeta, [ "preview_legs_ignored", "PREVIEW_LEGS_IGNORED" ], false ) ).toBeTrue();
+      } );
+
       it( "returns route-not-found and unauthorized errors for guarded actions", function() {
         if ( !variables.ctx.sessionReady ) {
           skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
@@ -382,6 +625,62 @@ component extends="testbox.system.BaseSpec" output="false" {
       if ( legId EQ arguments.routeLegId ) return true;
     }
     return false;
+  }
+
+  private boolean function routeInstancesHasInputsJsonColumn() {
+    var qCol = queryExecute(
+      "SELECT COUNT(*) AS cnt
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND table_name = 'route_instances'
+         AND column_name = 'routegen_inputs_json'",
+      {},
+      { datasource = application.dsn }
+    );
+    return ( qCol.recordCount GT 0 && val( qCol.cnt[ 1 ] ) GT 0 );
+  }
+
+  private void function setRouteInstanceInputsJson( required numeric routeId, required struct routeInputs ) {
+    var routeIdVal = val( arguments.routeId );
+    if ( routeIdVal LTE 0 ) {
+      throw(
+        type = "RouteBuilderActionsSpec.Setup",
+        message = "setRouteInstanceInputsJson requires routeId > 0",
+        detail = serializeJSON( arguments )
+      );
+    }
+
+    var qInst = queryExecute(
+      "SELECT id
+       FROM route_instances
+       WHERE generated_route_id = :routeId
+         AND user_id = :uid
+       ORDER BY id DESC
+       LIMIT 1",
+      {
+        routeId = { value = routeIdVal, cfsqltype = "cf_sql_integer" },
+        uid = { value = toString( variables.ctx.forceUserId ), cfsqltype = "cf_sql_varchar" }
+      },
+      { datasource = application.dsn }
+    );
+    if ( qInst.recordCount EQ 0 ) {
+      throw(
+        type = "RouteBuilderActionsSpec.Setup",
+        message = "No route_instances row found for generated route",
+        detail = "routeId=#routeIdVal#, userId=#variables.ctx.forceUserId#"
+      );
+    }
+
+    queryExecute(
+      "UPDATE route_instances
+       SET routegen_inputs_json = :inputsJson
+       WHERE id = :id",
+      {
+        inputsJson = { value = serializeJSON( isStruct( arguments.routeInputs ) ? arguments.routeInputs : {} ), cfsqltype = "cf_sql_longvarchar" },
+        id = { value = val( qInst.id[ 1 ] ), cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = application.dsn }
+    );
   }
 
   private void function rememberCreatedRouteCode( required string routeCode ) {
