@@ -278,6 +278,30 @@
     return null;
   }
 
+  function getSelectedLegTimelineMetrics(leg) {
+    var legObj = (leg && typeof leg === "object") ? leg : {};
+    var distNm = roundTo2(parseFloat(getLegField(legObj, "dist_nm")));
+    var lockCount = toInt(getLegField(legObj, "lock_count"), 0);
+    var weatherPct = getWeatherFactorPct();
+    var weatherAdjustedSpeed = roundTo2(getEffectiveCruisingSpeed() * (1 - (weatherPct / 100)));
+    var estHours = 0;
+
+    if (!Number.isFinite(distNm) || distNm < 0) distNm = 0;
+    if (!Number.isFinite(lockCount) || lockCount < 0) lockCount = 0;
+    if (!Number.isFinite(weatherAdjustedSpeed) || weatherAdjustedSpeed < 0.5) weatherAdjustedSpeed = 0.5;
+    if (distNm > 0 && weatherAdjustedSpeed > 0) {
+      estHours = roundTo2(distNm / weatherAdjustedSpeed);
+    }
+
+    return {
+      startName: String(getLegField(legObj, "start_name") || "Start").trim() || "Start",
+      endName: String(getLegField(legObj, "end_name") || "End").trim() || "End",
+      distNm: distNm,
+      estHours: estHours,
+      lockCount: lockCount
+    };
+  }
+
   function renderCruiseTimelineInlineForLeg(leg, order) {
     var status = String(state.cruiseTimeline.status || "idle").trim().toLowerCase();
     var message = String(state.cruiseTimeline.message || "").trim();
@@ -286,6 +310,7 @@
       : null;
     var summary = payload && payload.summary ? payload.summary : null;
     var day = getCruiseTimelineDayForLeg(leg, order);
+    var selectedLegMetrics = getSelectedLegTimelineMetrics(leg);
     var routeIdVal = toInt(state.activeRouteId, 0);
     var startDateVal = dom.startDateEl ? String(dom.startDateEl.value || "").trim() : String(state.cruiseTimeline.lastStartDate || "").trim();
     var maxHours = clampCruiseTimelineHours(state.cruiseTimeline.maxHoursPerDay);
@@ -360,12 +385,21 @@
     html += '      <div class="fw-semibold">Day ' + formatNumber(day.legIndex, 0) + " - " + escapeHtml(day.dateText || "--") + "</div>";
     html += '      <span class="badge ' + day.badgeClass + '">' + escapeHtml(day.riskColor || "GREEN") + "</span>";
     html += "    </div>";
-    html += '    <div class="small text-secondary mb-2">' + escapeHtml(day.startName + " -> " + day.endName) + "</div>";
+    html += '    <div class="small text-light opacity-75 mb-2">Selected leg: ' + escapeHtml(selectedLegMetrics.startName + " -> " + selectedLegMetrics.endName) + "</div>";
     html += '    <div class="row g-2 small mb-1">';
-    html += '      <div class="col-sm-4">Distance: <strong>' + formatNumber(day.totalDistNm, 1) + " nm</strong></div>";
-    html += '      <div class="col-sm-4">Hours: <strong>' + formatNumber(day.estHours, 1) + " hrs</strong></div>";
-    html += '      <div class="col-sm-4">Locks: <strong>' + formatNumber(day.lockCount, 0) + "</strong></div>";
+    html += '      <div class="col-sm-4">Leg distance: <strong>' + formatNumber(selectedLegMetrics.distNm, 1) + " nm</strong></div>";
+    html += '      <div class="col-sm-4">Leg hours: <strong>' + formatNumber(selectedLegMetrics.estHours, 1) + " hrs</strong></div>";
+    html += '      <div class="col-sm-4">Leg locks: <strong>' + formatNumber(selectedLegMetrics.lockCount, 0) + "</strong></div>";
     html += "    </div>";
+    html += '    <div class="small text-uppercase text-light opacity-75 mt-2 mb-1">Day Rollup</div>';
+    html += '    <div class="small text-light opacity-75 mb-1">Grouped legs: <strong>' + formatNumber((Array.isArray(day.segmentIds) ? day.segmentIds.length : 0), 0) + "</strong></div>";
+    html += '    <div class="small text-light opacity-75 mb-2">' + escapeHtml(day.startName + " -> " + day.endName) + "</div>";
+    html += '    <div class="row g-2 small mb-1">';
+    html += '      <div class="col-sm-4">Day distance: <strong>' + formatNumber(day.totalDistNm, 1) + " nm</strong></div>";
+    html += '      <div class="col-sm-4">Grouped day hours: <strong>' + formatNumber(day.estHours, 1) + " hrs</strong></div>";
+    html += '      <div class="col-sm-4">Day locks: <strong>' + formatNumber(day.lockCount, 0) + "</strong></div>";
+    html += "    </div>";
+    html += '    <div class="small text-light opacity-75 mb-2">Day rollup may include multiple legs based on Max hrs/day.</div>';
     html += '    <div class="row g-2 small">';
     html += '      <div class="col-sm-4">Required: <strong data-testid="required-fuel">' + formatNumber(day.requiredFuelGallons, 1) + " gal</strong></div>";
     html += '      <div class="col-sm-4">Reserve: <strong>' + formatNumber(day.reserveGallons, 1) + " gal</strong></div>";
