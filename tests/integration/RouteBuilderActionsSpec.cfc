@@ -392,6 +392,87 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( toString( pickFirst( weatherMeta, [ "hours_source", "HOURS_SOURCE" ], "" ) ) ).toBe( "weather_adjusted_speed" );
       } );
 
+      it( "applies exposure override levels to weather-adjusted timeline hours", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+        if ( !segmentLibraryHasExposureLevelColumn() ) {
+          skip( "segment_library.exposure_level not present in this environment." );
+        }
+
+        var legCtx = buildRouteLegContext();
+        var startDate = dateFormat( now(), "yyyy-mm-dd" );
+        var segmentId = getRouteInstanceFirstSegmentId( legCtx.routeId );
+        expect( segmentId ).toBeGT( 0, "Unable to find route_instance_legs.segment_id for exposure test." );
+
+        var originalExposure = readSegmentExposureLevel( segmentId );
+        if ( !originalExposure.found ) {
+          throw(
+            type = "RouteBuilderActionsSpec.Setup",
+            message = "segment_library row not found for segment_id used in exposure test",
+            detail = "segmentId=#segmentId#"
+          );
+        }
+
+        var lowHoursRes = {};
+        var highHoursRes = {};
+        var lowHours = 0;
+        var highHours = 0;
+        try {
+          writeSegmentExposureLevel( segmentId, 0 );
+          lowHoursRes = routeBuilderPost( "generateCruiseTimeline", {
+            routeId = legCtx.routeId,
+            startDate = startDate,
+            maxHoursPerDay = 6.5,
+            inputOverrides = {
+              pace = "BALANCED",
+              cruising_speed = 20,
+              weather_factor_pct = 30,
+              fuel_burn_gph = 8,
+              reserve_pct = 20
+            }
+          } );
+          expect( !!pickFirst( lowHoursRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "exposure_level=0 timeline failed: #serializeJSON(lowHoursRes)#" );
+          lowHours = sumTimelineEstHours( structKeyExists( lowHoursRes, "days" ) && isArray( lowHoursRes.days ) ? lowHoursRes.days : [] );
+
+          writeSegmentExposureLevel( segmentId, 3 );
+          highHoursRes = routeBuilderPost( "generateCruiseTimeline", {
+            routeId = legCtx.routeId,
+            startDate = startDate,
+            maxHoursPerDay = 6.5,
+            inputOverrides = {
+              pace = "BALANCED",
+              cruising_speed = 20,
+              weather_factor_pct = 30,
+              fuel_burn_gph = 8,
+              reserve_pct = 20
+            }
+          } );
+          expect( !!pickFirst( highHoursRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "exposure_level=3 timeline failed: #serializeJSON(highHoursRes)#" );
+          highHours = sumTimelineEstHours( structKeyExists( highHoursRes, "days" ) && isArray( highHoursRes.days ) ? highHoursRes.days : [] );
+        } finally {
+          if ( originalExposure.isNull ) {
+            writeSegmentExposureLevel( segmentId, javacast( "null", "" ) );
+          } else {
+            writeSegmentExposureLevel( segmentId, originalExposure.value );
+          }
+        }
+
+        expect( highHours ).toBeGT( lowHours );
+
+        var exposureMeta = ( structKeyExists( highHoursRes, "timeline_meta" ) && isStruct( highHoursRes.timeline_meta ) )
+          ? highHoursRes.timeline_meta
+          : {};
+        var exposureSources = ( structKeyExists( exposureMeta, "exposure_sources" ) && isStruct( exposureMeta.exposure_sources ) )
+          ? exposureMeta.exposure_sources
+          : {};
+
+        expect( !!pickFirst( exposureMeta, [ "exposure_enabled", "EXPOSURE_ENABLED" ], false ) ).toBeTrue();
+        expect( val( pickFirst( exposureMeta, [ "exposure_max_level", "EXPOSURE_MAX_LEVEL" ], 0 ) ) ).toBe( 3 );
+        expect( val( pickFirst( exposureMeta, [ "effective_weather_pct_max", "EFFECTIVE_WEATHER_PCT_MAX" ], 0 ) ) ).toBeGT( 0 );
+        expect( val( pickFirst( exposureSources, [ "override", "OVERRIDE" ], 0 ) ) ).toBeGTE( 1 );
+      } );
+
       it( "applies generateCruiseTimeline inputOverrides without persisting route inputs", function() {
         if ( !variables.ctx.sessionReady ) {
           skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
@@ -715,6 +796,95 @@ component extends="testbox.system.BaseSpec" output="false" {
       { datasource = application.dsn }
     );
     return ( qCol.recordCount GT 0 && val( qCol.cnt[ 1 ] ) GT 0 );
+  }
+
+  private boolean function segmentLibraryHasExposureLevelColumn() {
+    var qCol = queryExecute(
+      "SELECT COUNT(*) AS cnt
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND table_name = 'segment_library'
+         AND column_name = 'exposure_level'",
+      {},
+      { datasource = application.dsn }
+    );
+    return ( qCol.recordCount GT 0 && val( qCol.cnt[ 1 ] ) GT 0 );
+  }
+
+  private numeric function getRouteInstanceFirstSegmentId( required numeric routeId ) {
+    var routeIdVal = val( arguments.routeId );
+    if ( routeIdVal LTE 0 ) return 0;
+    var qSeg = queryExecute(
+      "SELECT ril.segment_id
+       FROM route_instance_legs ril
+       INNER JOIN route_instances ri ON ri.id = ril.route_instance_id
+       WHERE ri.generated_route_id = :routeId
+         AND ri.user_id = :uid
+         AND ril.segment_id IS NOT NULL
+         AND COALESCE(ril.base_dist_nm, 0) > 0
+       ORDER BY ril.leg_order ASC, ril.id ASC
+       LIMIT 1",
+      {
+        routeId = { value = routeIdVal, cfsqltype = "cf_sql_integer" },
+        uid = { value = toString( variables.ctx.forceUserId ), cfsqltype = "cf_sql_varchar" }
+      },
+      { datasource = application.dsn }
+    );
+    if ( qSeg.recordCount EQ 0 || isNull( qSeg.segment_id[ 1 ] ) ) return 0;
+    return val( qSeg.segment_id[ 1 ] );
+  }
+
+  private struct function readSegmentExposureLevel( required numeric segmentId ) {
+    var segIdVal = val( arguments.segmentId );
+    if ( segIdVal LTE 0 ) return { found = false, isNull = true, value = 0 };
+    var qSeg = queryExecute(
+      "SELECT exposure_level
+       FROM segment_library
+       WHERE id = :segmentId
+       LIMIT 1",
+      {
+        segmentId = { value = segIdVal, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = application.dsn }
+    );
+    if ( qSeg.recordCount EQ 0 ) return { found = false, isNull = true, value = 0 };
+    if ( isNull( qSeg.exposure_level[ 1 ] ) ) {
+      return { found = true, isNull = true, value = 0 };
+    }
+    return {
+      found = true,
+      isNull = false,
+      value = int( val( qSeg.exposure_level[ 1 ] ) )
+    };
+  }
+
+  private void function writeSegmentExposureLevel( required numeric segmentId, required any exposureLevel ) {
+    var segIdVal = val( arguments.segmentId );
+    if ( segIdVal LTE 0 ) {
+      throw(
+        type = "RouteBuilderActionsSpec.Setup",
+        message = "writeSegmentExposureLevel requires segmentId > 0",
+        detail = serializeJSON( arguments )
+      );
+    }
+    var isNullLevel = isNull( arguments.exposureLevel );
+    var levelVal = ( isNullLevel ? 0 : int( val( arguments.exposureLevel ) ) );
+    if ( !isNullLevel ) {
+      if ( levelVal LT 0 ) levelVal = 0;
+      if ( levelVal GT 3 ) levelVal = 3;
+    }
+    queryExecute(
+      "UPDATE segment_library
+       SET exposure_level = :exposureLevel
+       WHERE id = :segmentId",
+      {
+        exposureLevel = isNullLevel
+          ? { value = 0, null = true, cfsqltype = "cf_sql_tinyint" }
+          : { value = levelVal, cfsqltype = "cf_sql_tinyint" },
+        segmentId = { value = segIdVal, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = application.dsn }
+    );
   }
 
   private void function setRouteInstanceInputsJson( required numeric routeId, required struct routeInputs ) {

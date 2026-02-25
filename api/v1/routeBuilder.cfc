@@ -1853,6 +1853,12 @@
             var distVal = 0;
             var lockRaw = "";
             var lockVal = 0;
+            var isOffshoreRaw = "";
+            var isOffshoreVal = 0;
+            var isIcwRaw = "";
+            var isIcwVal = 0;
+            var exposureOverrideRaw = "";
+            var exposureOverrideVal = "";
             var startNameVal = "";
             var endNameVal = "";
             var orderKey = "";
@@ -1888,6 +1894,18 @@
                 lockRaw = routegenTimelinePickLegValue(row, ["lock_count", "LOCK_COUNT", "locks", "LOCKS"], "");
                 lockVal = (isNumeric(lockRaw) ? int(val(lockRaw)) : 0);
                 if (lockVal LT 0) lockVal = 0;
+                isOffshoreRaw = routegenTimelinePickLegValue(row, ["is_offshore", "IS_OFFSHORE", "offshore", "OFFSHORE"], "");
+                isOffshoreVal = (isNumeric(isOffshoreRaw) AND val(isOffshoreRaw) GT 0 ? 1 : 0);
+                isIcwRaw = routegenTimelinePickLegValue(row, ["is_icw", "IS_ICW", "icw", "ICW"], "");
+                isIcwVal = (isNumeric(isIcwRaw) AND val(isIcwRaw) GT 0 ? 1 : 0);
+                exposureOverrideRaw = routegenTimelinePickLegValue(row, ["exposure_level", "EXPOSURE_LEVEL"], "");
+                exposureOverrideVal = "";
+                if (isNumeric(exposureOverrideRaw)) {
+                    exposureOverrideVal = int(val(exposureOverrideRaw));
+                    if (exposureOverrideVal LT 0 OR exposureOverrideVal GT 3) {
+                        exposureOverrideVal = "";
+                    }
+                }
 
                 startNameVal = trim(toString(routegenTimelinePickLegValue(row, ["start_name", "START_NAME"], "")));
                 endNameVal = trim(toString(routegenTimelinePickLegValue(row, ["end_name", "END_NAME"], "")));
@@ -1900,7 +1918,10 @@
                     "start_name"=startNameVal,
                     "end_name"=endNameVal,
                     "dist_nm"=roundTo2(distVal),
-                    "lock_count"=lockVal
+                    "lock_count"=lockVal,
+                    "is_offshore"=isOffshoreVal,
+                    "is_icw"=isIcwVal,
+                    "exposure_level"=exposureOverrideVal
                 };
                 arrayAppend(orderKeys, orderVal);
             }
@@ -1939,7 +1960,16 @@
                     "fuel_resolved"=false,
                     "distance_source"="route_instance_legs",
                     "preview_legs_ignored"=false,
-                    "hours_source"="weather_adjusted_speed"
+                    "hours_source"="weather_adjusted_speed",
+                    "exposure_enabled"=true,
+                    "exposure_max_level"=0,
+                    "exposure_sources"={
+                        "override"=0,
+                        "auto_offshore"=0,
+                        "auto_inshore"=0
+                    },
+                    "exposure_coefficient_max"=0,
+                    "effective_weather_pct_max"=0
                 },
                 "days"=[]
             };
@@ -1960,7 +1990,6 @@
             var paceRatioVal = 0;
             var maxSpeedVal = 0;
             var effectiveSpeedVal = 0;
-            var weatherAdjustedSpeedTimelineVal = 0;
             var fuelMeta = {
                 "fuel_burn_gph"=0,
                 "fuel_source"="missing",
@@ -1976,6 +2005,8 @@
             var normalizedLockJoinSql = "";
             var normalizedDistExpr = "ril.base_dist_nm";
             var normalizedLockExpr = "COALESCE(ril.lock_count, 0)";
+            var hasExposureLevelCol = false;
+            var normalizedExposureExpr = "NULL";
             var qSegmentsSql = "";
             var qSegments = queryNew("");
             var previewLegsProvided = (isArray(arguments.previewLegs) AND arrayLen(arguments.previewLegs) GT 0);
@@ -1990,7 +2021,22 @@
             var segEndName = "";
             var segDistNm = 0;
             var segLockCount = 0;
+            var segIsOffshoreVal = 0;
+            var segExposureOverrideVal = "";
+            var exposureInfo = {};
+            var exposureSourceVal = "";
+            var exposureCoeffVal = 1;
+            var effectiveWeatherPctSegVal = 0;
+            var weatherAdjustedSpeedThisSegVal = 0;
             var segHours = 0;
+            var exposureSourceCounts = {
+                "override"=0,
+                "auto_offshore"=0,
+                "auto_inshore"=0
+            };
+            var exposureMaxLevelVal = 0;
+            var exposureCoeffMaxVal = 0;
+            var effectiveWeatherPctMaxVal = 0;
             var legIndex = 1;
             var days = [];
             var totalCruiseNm = 0;
@@ -2008,7 +2054,11 @@
                 "fuel_confidence_score"=0,
                 "risk_color"="GREEN",
                 "lock_count"=0,
-                "segment_ids"=[]
+                "segment_ids"=[],
+                "exposure_max_level"=0,
+                "effective_weather_pct_max"=0,
+                "exposure_override_count"=0,
+                "offshore_segment_count"=0
             };
             var fuelEstimate = {};
             var requiredFuelGallonsVal = 0;
@@ -2085,6 +2135,8 @@
                 out.error = { "message"="Route instance has no normalized leg rows." };
                 return out;
             }
+            hasExposureLevelCol = routegenHasSegmentExposureLevelColumn();
+            normalizedExposureExpr = (hasExposureLevelCol ? "sl.exposure_level" : "NULL");
 
             if (hasInputsJsonCol AND !isNull(qInst.routegen_inputs_json[1])) {
                 storedInputs = routegenParseStoredInputs(qInst.routegen_inputs_json[1]);
@@ -2099,7 +2151,16 @@
                 "fuel_resolved"=(fuelBurnGphVal GT 0),
                 "distance_source"=segSource,
                 "preview_legs_ignored"=previewLegsIgnored,
-                "hours_source"="weather_adjusted_speed"
+                "hours_source"="weather_adjusted_speed",
+                "exposure_enabled"=true,
+                "exposure_max_level"=0,
+                "exposure_sources"={
+                    "override"=0,
+                    "auto_offshore"=0,
+                    "auto_inshore"=0
+                },
+                "exposure_coefficient_max"=0,
+                "effective_weather_pct_max"=0
             };
             paceVal = routegenNormalizePace(structKeyExists(effectiveInputs, "pace") ? effectiveInputs.pace : "RELAXED");
             paceDefaults = routegenPaceDefaults(paceVal);
@@ -2119,14 +2180,13 @@
                     ? effectiveInputs.weather_factor_pct
                     : (structKeyExists(effectiveInputs, "weather_factor") ? effectiveInputs.weather_factor : "")
             );
-            weatherAdjustedSpeedTimelineVal = routegenComputeWeatherAdjustedSpeedKn(effectiveSpeedVal, weatherFactorPctVal);
             reservePctVal = routegenNormalizeReservePct(
                 structKeyExists(effectiveInputs, "reserve_pct") ? effectiveInputs.reserve_pct : "",
                 20
             );
 
             if (usePreviewLegs) {
-                qSegments = queryNew("id,start_name,end_name,dist_nm,lock_count");
+                qSegments = queryNew("id,start_name,end_name,dist_nm,lock_count,is_offshore,is_icw,exposure_level,segment_id");
                 for (i = 1; i LTE arrayLen(normalizedPreviewLegs); i++) {
                     previewLeg = normalizedPreviewLegs[i];
                     queryAddRow(qSegments, 1);
@@ -2135,6 +2195,14 @@
                     querySetCell(qSegments, "end_name", trim(toString(previewLeg.end_name)));
                     querySetCell(qSegments, "dist_nm", val(previewLeg.dist_nm));
                     querySetCell(qSegments, "lock_count", val(previewLeg.lock_count));
+                    querySetCell(qSegments, "is_offshore", val(previewLeg.is_offshore));
+                    querySetCell(qSegments, "is_icw", val(previewLeg.is_icw));
+                    querySetCell(
+                        qSegments,
+                        "exposure_level",
+                        (isNumeric(previewLeg.exposure_level) ? int(val(previewLeg.exposure_level)) : "")
+                    );
+                    querySetCell(qSegments, "segment_id", val(previewLeg.segment_id));
                 }
             } else {
                 if (routegenHasLegOverrideTable()) {
@@ -2183,9 +2251,14 @@
                         ril.start_name,
                         ril.end_name,
                         " & normalizedDistExpr & " AS dist_nm,
-                        " & normalizedLockExpr & " AS lock_count
+                        " & normalizedLockExpr & " AS lock_count,
+                        COALESCE(sl.is_offshore, 0) AS is_offshore,
+                        COALESCE(sl.is_icw, 0) AS is_icw,
+                        " & normalizedExposureExpr & " AS exposure_level,
+                        ril.segment_id
                      FROM route_instance_legs ril
-                     INNER JOIN route_instances ri ON ri.id = ril.route_instance_id"
+                     INNER JOIN route_instances ri ON ri.id = ril.route_instance_id
+                     LEFT JOIN segment_library sl ON sl.id = ril.segment_id"
                     & normalizedLegJoinSql
                     & normalizedSegJoinSql
                     & normalizedUsoJoinSql
@@ -2222,7 +2295,11 @@
                 "fuel_confidence_score"=0,
                 "risk_color"="GREEN",
                 "lock_count"=0,
-                "segment_ids"=[]
+                "segment_ids"=[],
+                "exposure_max_level"=0,
+                "effective_weather_pct_max"=0,
+                "exposure_override_count"=0,
+                "offshore_segment_count"=0
             };
 
             for (i = 1; i LTE qSegments.recordCount; i++) {
@@ -2231,11 +2308,45 @@
                 segEndName = (isNull(qSegments.end_name[i]) ? "" : trim(toString(qSegments.end_name[i])));
                 segDistNm = (isNull(qSegments.dist_nm[i]) ? 0 : val(qSegments.dist_nm[i]));
                 segLockCount = (isNull(qSegments.lock_count[i]) ? 0 : val(qSegments.lock_count[i]));
+                segIsOffshoreVal = (
+                    structKeyExists(qSegments, "is_offshore") AND !isNull(qSegments.is_offshore[i]) AND val(qSegments.is_offshore[i]) GT 0
+                        ? 1
+                        : 0
+                );
+                segExposureOverrideVal = (
+                    structKeyExists(qSegments, "exposure_level") AND !isNull(qSegments.exposure_level[i])
+                        ? qSegments.exposure_level[i]
+                        : ""
+                );
 
                 if (segDistNm LT 0) segDistNm = 0;
                 if (segLockCount LT 0) segLockCount = 0;
-                segHours = (segDistNm GT 0 ? (segDistNm / weatherAdjustedSpeedTimelineVal) : 0);
+                exposureInfo = routegenResolveExposureLevel(segIsOffshoreVal, segExposureOverrideVal);
+                exposureSourceVal = trim(toString(structKeyExists(exposureInfo, "source") ? exposureInfo.source : "auto_inshore"));
+                exposureCoeffVal = routegenExposureCoefficient(
+                    structKeyExists(exposureInfo, "level_used") ? val(exposureInfo.level_used) : 0
+                );
+                effectiveWeatherPctSegVal = routegenComputeEffectiveWeatherPct(
+                    weatherFactorPctVal,
+                    structKeyExists(exposureInfo, "level_used") ? val(exposureInfo.level_used) : 0
+                );
+                weatherAdjustedSpeedThisSegVal = routegenComputeWeatherAdjustedSpeedKn(effectiveSpeedVal, effectiveWeatherPctSegVal);
+                segHours = (segDistNm GT 0 ? (segDistNm / weatherAdjustedSpeedThisSegVal) : 0);
                 if (segHours LT 0) segHours = 0;
+
+                if (structKeyExists(exposureInfo, "level_used") AND val(exposureInfo.level_used) GT exposureMaxLevelVal) {
+                    exposureMaxLevelVal = val(exposureInfo.level_used);
+                }
+                if (exposureCoeffVal GT exposureCoeffMaxVal) {
+                    exposureCoeffMaxVal = exposureCoeffVal;
+                }
+                if (effectiveWeatherPctSegVal GT effectiveWeatherPctMaxVal) {
+                    effectiveWeatherPctMaxVal = effectiveWeatherPctSegVal;
+                }
+                if (!structKeyExists(exposureSourceCounts, exposureSourceVal)) {
+                    exposureSourceCounts[exposureSourceVal] = 0;
+                }
+                exposureSourceCounts[exposureSourceVal] = val(exposureSourceCounts[exposureSourceVal]) + 1;
 
                 if ((currentDay.est_hours + segHours) GT maxHoursVal AND currentDay.total_dist_nm GT 0) {
                     fuelEstimate = calculateFuelEstimate({
@@ -2292,7 +2403,11 @@
                         "fuel_confidence_score"=0,
                         "risk_color"="GREEN",
                         "lock_count"=segLockCount,
-                        "segment_ids"=[]
+                        "segment_ids"=[],
+                        "exposure_max_level"=(structKeyExists(exposureInfo, "level_used") ? val(exposureInfo.level_used) : 0),
+                        "effective_weather_pct_max"=roundTo2(effectiveWeatherPctSegVal),
+                        "exposure_override_count"=(exposureSourceVal EQ "override" ? 1 : 0),
+                        "offshore_segment_count"=(segIsOffshoreVal EQ 1 ? 1 : 0)
                     };
                     arrayAppend(currentDay.segment_ids, segIdVal);
                 } else {
@@ -2300,6 +2415,18 @@
                     currentDay.total_dist_nm += segDistNm;
                     currentDay.est_hours += segHours;
                     currentDay.lock_count += segLockCount;
+                    if (structKeyExists(exposureInfo, "level_used") AND val(exposureInfo.level_used) GT val(currentDay.exposure_max_level)) {
+                        currentDay.exposure_max_level = val(exposureInfo.level_used);
+                    }
+                    if (effectiveWeatherPctSegVal GT val(currentDay.effective_weather_pct_max)) {
+                        currentDay.effective_weather_pct_max = roundTo2(effectiveWeatherPctSegVal);
+                    }
+                    if (exposureSourceVal EQ "override") {
+                        currentDay.exposure_override_count += 1;
+                    }
+                    if (segIsOffshoreVal EQ 1) {
+                        currentDay.offshore_segment_count += 1;
+                    }
                     arrayAppend(currentDay.segment_ids, segIdVal);
                     currentDay.end_name = segEndName;
                 }
@@ -2345,6 +2472,12 @@
                 totalRequiredFuel += requiredFuelGallonsVal;
                 arrayAppend(days, duplicate(currentDay));
             }
+
+            out.timeline_meta.exposure_enabled = true;
+            out.timeline_meta.exposure_max_level = exposureMaxLevelVal;
+            out.timeline_meta.exposure_sources = exposureSourceCounts;
+            out.timeline_meta.exposure_coefficient_max = roundTo2(exposureCoeffMaxVal);
+            out.timeline_meta.effective_weather_pct_max = roundTo2(effectiveWeatherPctMaxVal);
 
             out.success = true;
             out.route_summary = {
@@ -2806,6 +2939,63 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="routegenResolveExposureLevel" access="private" returntype="struct" output="false">
+        <cfargument name="isOffshoreVal" type="any" required="true">
+        <cfargument name="exposureOverrideVal" type="any" required="true">
+        <cfscript>
+            var overrideVal = arguments.exposureOverrideVal;
+            var levelVal = 0;
+            var sourceVal = "auto_inshore";
+            if (isNumeric(overrideVal)) {
+                levelVal = int(val(overrideVal));
+                if (levelVal GTE 0 AND levelVal LTE 3) {
+                    return {
+                        "level_used"=levelVal,
+                        "source"="override"
+                    };
+                }
+            }
+            if (isNumeric(arguments.isOffshoreVal) AND val(arguments.isOffshoreVal) EQ 1) {
+                levelVal = 3;
+                sourceVal = "auto_offshore";
+            } else {
+                levelVal = 0;
+                sourceVal = "auto_inshore";
+            }
+            return {
+                "level_used"=levelVal,
+                "source"=sourceVal
+            };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenExposureCoefficient" access="private" returntype="numeric" output="false">
+        <cfargument name="level" type="numeric" required="true">
+        <cfscript>
+            var levelVal = int(val(arguments.level));
+            if (levelVal EQ 0) return 0.60;
+            if (levelVal EQ 1) return 0.85;
+            if (levelVal EQ 2) return 1.00;
+            if (levelVal EQ 3) return 1.25;
+            return 1.00;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenComputeEffectiveWeatherPct" access="private" returntype="numeric" output="false">
+        <cfargument name="weatherPct" type="numeric" required="true">
+        <cfargument name="exposureLevel" type="numeric" required="true">
+        <cfscript>
+            var weatherVal = val(arguments.weatherPct);
+            var coeff = routegenExposureCoefficient(arguments.exposureLevel);
+            var effectiveVal = 0;
+            if (weatherVal LT 0) weatherVal = 0;
+            effectiveVal = weatherVal * coeff;
+            if (effectiveVal LT 0) effectiveVal = 0;
+            if (effectiveVal GT 70) effectiveVal = 70;
+            return roundTo2(effectiveVal);
+        </cfscript>
+    </cffunction>
+
     <cffunction name="routegenComputeWeatherAdjustedSpeedKn" access="private" returntype="numeric" output="false">
         <cfargument name="effectiveSpeedKn" type="numeric" required="true">
         <cfargument name="weatherPct" type="numeric" required="true">
@@ -2814,7 +3004,7 @@
             var weatherPctVal = val(arguments.weatherPct);
             var adjustedVal = 0;
             if (weatherPctVal LT 0) weatherPctVal = 0;
-            if (weatherPctVal GT 60) weatherPctVal = 60;
+            if (weatherPctVal GT 70) weatherPctVal = 70;
             adjustedVal = roundTo2(effectiveVal * (1 - (weatherPctVal / 100)));
             if (adjustedVal LT 0.5) adjustedVal = 0.5;
             return adjustedVal;
@@ -3137,6 +3327,24 @@
                  WHERE table_schema = DATABASE()
                    AND table_name = 'route_instances'
                    AND column_name = 'routegen_inputs_json'",
+                {},
+                { datasource = application.dsn }
+            );
+            hasCol = (qCol.recordCount GT 0 AND val(qCol.cnt[1]) GT 0);
+            return hasCol;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenHasSegmentExposureLevelColumn" access="private" returntype="boolean" output="false">
+        <cfscript>
+            var qCol = queryNew("");
+            var hasCol = false;
+            qCol = queryExecute(
+                "SELECT COUNT(*) AS cnt
+                 FROM information_schema.columns
+                 WHERE table_schema = DATABASE()
+                   AND table_name = 'segment_library'
+                   AND column_name = 'exposure_level'",
                 {},
                 { datasource = application.dsn }
             );
@@ -5882,25 +6090,28 @@
                 qLegSql &= " ORDER BY ril.leg_order ASC, ril.id ASC LIMIT 1";
                 qLeg = queryExecute(qLegSql, qLegParams, { datasource = application.dsn });
                 if (qLeg.recordCount EQ 0) {
-                    out.MESSAGE = "Leg not found";
-                    out.ERROR = { "MESSAGE"="Requested leg was not found in this route instance." };
-                    return out;
+                    // Fallback: if segment_id is already present, continue via segment/template mapping.
+                    if (segmentIdVal LTE 0) {
+                        out.MESSAGE = "Leg not found";
+                        out.ERROR = { "MESSAGE"="Requested leg was not found in this route instance." };
+                        return out;
+                    }
+                } else {
+                    routeLegResolved = (
+                        isNull(qLeg.source_loop_segment_id[1]) OR val(qLeg.source_loop_segment_id[1]) LTE 0
+                            ? val(qLeg.id[1])
+                            : val(qLeg.source_loop_segment_id[1])
+                    );
+                    routeLegIdVal = routeLegResolved;
+                    if (legOrderVal LTE 0) {
+                        legOrderVal = (isNull(qLeg.leg_order[1]) ? 0 : val(qLeg.leg_order[1]));
+                    }
+                    if (segmentIdVal LTE 0 AND !isNull(qLeg.segment_id[1])) {
+                        segmentIdVal = val(qLeg.segment_id[1]);
+                    }
+                    startNameVal = (isNull(qLeg.start_name[1]) ? "" : trim(toString(qLeg.start_name[1])));
+                    endNameVal = (isNull(qLeg.end_name[1]) ? "" : trim(toString(qLeg.end_name[1])));
                 }
-
-                routeLegResolved = (
-                    isNull(qLeg.source_loop_segment_id[1]) OR val(qLeg.source_loop_segment_id[1]) LTE 0
-                        ? val(qLeg.id[1])
-                        : val(qLeg.source_loop_segment_id[1])
-                );
-                routeLegIdVal = routeLegResolved;
-                if (legOrderVal LTE 0) {
-                    legOrderVal = (isNull(qLeg.leg_order[1]) ? 0 : val(qLeg.leg_order[1]));
-                }
-                if (segmentIdVal LTE 0 AND !isNull(qLeg.segment_id[1])) {
-                    segmentIdVal = val(qLeg.segment_id[1]);
-                }
-                startNameVal = (isNull(qLeg.start_name[1]) ? "" : trim(toString(qLeg.start_name[1])));
-                endNameVal = (isNull(qLeg.end_name[1]) ? "" : trim(toString(qLeg.end_name[1])));
             }
 
             if (segmentIdVal LTE 0) {

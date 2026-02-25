@@ -325,7 +325,7 @@
     html += '      <div class="fpw-routegen__paneltitle">Cruise Timeline</div>';
     html += "    </div>";
     html += '    <div class="d-flex align-items-center gap-2">';
-    html += '      <label for="routeGenTimelineMaxHours" class="mb-0 small text-muted">Max hrs/day</label>';
+    html += '      <label for="routeGenTimelineMaxHours" class="mb-0 small text-light opacity-75">Max hrs/day</label>';
     html += '      <input id="routeGenTimelineMaxHours" type="number" min="4" max="12" step="0.5" class="form-control form-control-sm" style="width:88px;" value="' + escapeHtml(formatCruiseTimelineHoursInput(maxHours)) + '">';
     html += '      <button type="button" id="routeGenTimelineRebuildBtn" class="btn-secondary btn-sm">Rebuild Timeline</button>';
     html += "    </div>";
@@ -343,7 +343,7 @@
     }
 
     if (status === "loading") {
-      html += '<div class="d-flex align-items-center gap-2 text-muted small"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span><span>Building Cruise Timeline...</span></div>';
+      html += '<div class="d-flex align-items-center gap-2 text-light opacity-75 small"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span><span>Building Cruise Timeline...</span></div>';
       html += "</div>";
       return html;
     }
@@ -371,7 +371,7 @@
     }
 
     if (summary && typeof summary === "object") {
-      html += '<div class="small text-muted mb-2">';
+      html += '<div class="small text-light opacity-75 mb-2">';
       html += 'Route total: '
         + formatNumber(toInt(summary.totalDays, 0), 0) + " days"
         + " · " + formatNumber(toOneDecimal(summary.totalNm), 1) + " nm"

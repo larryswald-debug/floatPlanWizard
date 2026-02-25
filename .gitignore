@@ -37,3 +37,4 @@ temp/
 *.pdf
 *.rollback-*
 *.bak*
+*.snapshot*
