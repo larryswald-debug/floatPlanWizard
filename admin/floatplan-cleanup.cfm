@@ -333,6 +333,7 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
       <a href="/fpw/admin/floatplan-cleanup.cfm" class="active">FloatPlan Cleanup</a>
       <a href="/fpw/admin/route-cleanup.cfm">Route Cleanup</a>
       <a href="/fpw/admin/fuel-calculator.cfm">Fuel Calculator</a>
+      <a href="/fpw/admin/waypoint-manager.cfm">Waypoint Manager</a>
     </nav>
     <h1>Admin FloatPlan Cleanup</h1>
     <p class="hint">Dev-only utility for cleanup by user id.</p>

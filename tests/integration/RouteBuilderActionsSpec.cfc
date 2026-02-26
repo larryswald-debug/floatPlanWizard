@@ -2,7 +2,9 @@ component extends="testbox.system.BaseSpec" output="false" {
 
   function beforeAll() {
     variables.ctx = {
-      createdRouteCodes = []
+      createdRouteCodes = [],
+      createdMyRouteIds = [],
+      createdWaypointIds = []
     };
 
     if ( structKeyExists( CGI, "SCRIPT_NAME" ) && findNoCase( "/testbox/", CGI.SCRIPT_NAME ) ) {
@@ -35,6 +37,21 @@ component extends="testbox.system.BaseSpec" output="false" {
 
     for ( var i = 1; i LTE arrayLen( variables.ctx.createdRouteCodes ); i++ ) {
       routeBuilderPost( "deleteRoute", { routeCode = variables.ctx.createdRouteCodes[ i ] } );
+    }
+    for ( var j = 1; j LTE arrayLen( variables.ctx.createdMyRouteIds ); j++ ) {
+      routeBuilderPost( "deleteUserRoute", { route_id = variables.ctx.createdMyRouteIds[ j ] } );
+    }
+    for ( var k = 1; k LTE arrayLen( variables.ctx.createdWaypointIds ); k++ ) {
+      queryExecute(
+        "DELETE FROM waypoints
+         WHERE wpId = :wpId
+           AND userId = :uid",
+        {
+          wpId = { value = variables.ctx.createdWaypointIds[ k ], cfsqltype = "cf_sql_integer" },
+          uid = { value = variables.ctx.forceUserId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = application.dsn }
+      );
     }
   }
 
@@ -611,6 +628,106 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( !!pickFirst( ignoredMeta, [ "preview_legs_ignored", "PREVIEW_LEGS_IGNORED" ], false ) ).toBeTrue();
       } );
 
+      it( "supports My Routes leg geometry overrides and enforces per-user ownership", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+        if ( !hasUserRouteTables() ) {
+          skip( "user_routes/user_route_legs not present in this environment." );
+        }
+        if ( !hasUserRouteWaypointColumns() ) {
+          skip( "Waypoint columns for user_routes/user_route_legs are not present in this environment." );
+        }
+
+        var myCtx = buildMyRouteContext();
+        expect( myCtx.routeId ).toBeGT( 0, "my route setup failed: #serializeJSON(myCtx)#" );
+        expect( myCtx.routeLegId ).toBeGT( 0, "my route leg setup failed: #serializeJSON(myCtx)#" );
+
+        var defaultGeometryRes = routeBuilderPost( "getRouteLegOverrideGeometry", {
+          route_id = myCtx.routeId,
+          route_leg_id = myCtx.routeLegId
+        } );
+        expect( pickBool( defaultGeometryRes, "SUCCESS" ) ).toBeTrue( "getRouteLegOverrideGeometry failed before save: #serializeJSON(defaultGeometryRes)#" );
+        var defaultGeometryData = structKeyExists( defaultGeometryRes, "DATA" ) && isStruct( defaultGeometryRes.DATA ) ? defaultGeometryRes.DATA : {};
+        expect( toString( pickFirst( defaultGeometryData, [ "geometry_source", "GEOMETRY_SOURCE" ], "" ) ) ).toBe( "default_line" );
+        var defaultPoints = pickFirst( defaultGeometryData, [ "points", "POINTS" ], [] );
+        expect( isArray( defaultPoints ) ).toBeTrue();
+        expect( arrayLen( defaultPoints ) ).toBe( 2 );
+
+        var defaultTimelineRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = myCtx.routeId,
+          routeType = "my_route",
+          startDate = dateFormat( now(), "yyyy-mm-dd" ),
+          maxHoursPerDay = 6.5,
+          inputOverrides = {
+            pace = "RELAXED",
+            cruising_speed = 20,
+            fuel_burn_gph = 8,
+            reserve_pct = 20
+          }
+        } );
+        expect( !!pickFirst( defaultTimelineRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "generateCruiseTimeline my_route default failed: #serializeJSON(defaultTimelineRes)#" );
+        var defaultSummary = ( structKeyExists( defaultTimelineRes, "route_summary" ) && isStruct( defaultTimelineRes.route_summary ) )
+          ? defaultTimelineRes.route_summary
+          : {};
+        var defaultNm = val( pickFirst( defaultSummary, [ "total_nm", "TOTAL_NM" ], 0 ) );
+        expect( defaultNm ).toBeGT( 0 );
+
+        var saveOverrideRes = routeBuilderPost( "saveRouteLegOverrideGeometry", {
+          route_id = myCtx.routeId,
+          route_leg_id = myCtx.routeLegId,
+          points = [
+            { lat = 41.880000, lon = -87.620000 },
+            { lat = 42.200000, lon = -87.100000 },
+            { lat = 42.350000, lon = -86.700000 }
+          ]
+        } );
+        expect( pickBool( saveOverrideRes, "SUCCESS" ) ).toBeTrue( "saveRouteLegOverrideGeometry failed: #serializeJSON(saveOverrideRes)#" );
+        var savedNm = val( pickFirst( saveOverrideRes.DATA, [ "computed_nm", "COMPUTED_NM" ], 0 ) );
+        expect( savedNm ).toBeGT( 0 );
+
+        var getRouteRes = routeBuilderPost( "getUserRoute", { route_id = myCtx.routeId } );
+        expect( pickBool( getRouteRes, "SUCCESS" ) ).toBeTrue( "getUserRoute failed: #serializeJSON(getRouteRes)#" );
+        var routeData = structKeyExists( getRouteRes, "DATA" ) && isStruct( getRouteRes.DATA ) ? getRouteRes.DATA : {};
+        var routeLegs = structKeyExists( routeData, "legs" ) && isArray( routeData.legs ) ? routeData.legs : [];
+        expect( arrayLen( routeLegs ) ).toBeGT( 0 );
+        var routeLeg = routeLegs[ 1 ];
+        expect( !!pickFirst( routeLeg, [ "has_user_override", "HAS_USER_OVERRIDE" ], false ) ).toBeTrue();
+        expect( val( pickFirst( routeLeg, [ "dist_nm", "DIST_NM" ], 0 ) ) ).toBe( savedNm );
+
+        var overrideTimelineRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = myCtx.routeId,
+          routeType = "my_route",
+          startDate = dateFormat( now(), "yyyy-mm-dd" ),
+          maxHoursPerDay = 6.5,
+          inputOverrides = {
+            pace = "RELAXED",
+            cruising_speed = 20,
+            fuel_burn_gph = 8,
+            reserve_pct = 20
+          }
+        } );
+        expect( !!pickFirst( overrideTimelineRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "generateCruiseTimeline my_route override failed: #serializeJSON(overrideTimelineRes)#" );
+        var overrideSummary = ( structKeyExists( overrideTimelineRes, "route_summary" ) && isStruct( overrideTimelineRes.route_summary ) )
+          ? overrideTimelineRes.route_summary
+          : {};
+        var overrideNm = val( pickFirst( overrideSummary, [ "total_nm", "TOTAL_NM" ], 0 ) );
+        expect( overrideNm ).toBe( savedNm );
+        expect( overrideNm EQ defaultNm ).toBeFalse();
+
+        var otherUserId = variables.ctx.forceUserId + 999;
+        var forbiddenRes = routeBuilderPostAsUser( "saveRouteLegOverrideGeometry", {
+          route_id = myCtx.routeId,
+          route_leg_id = myCtx.routeLegId,
+          points = [
+            { lat = 41.9, lon = -87.6 },
+            { lat = 42.0, lon = -87.4 }
+          ]
+        }, otherUserId );
+        expect( pickBool( forbiddenRes, "SUCCESS" ) ).toBeFalse( "Other user should not be able to override this route: #serializeJSON(forbiddenRes)#" );
+        expect( val( pickFirst( forbiddenRes, [ "STATUS_CODE", "status_code" ], 0 ) ) ).toBe( 403 );
+      } );
+
       it( "returns route-not-found and unauthorized errors for guarded actions", function() {
         if ( !variables.ctx.sessionReady ) {
           skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
@@ -760,6 +877,96 @@ component extends="testbox.system.BaseSpec" output="false" {
     };
   }
 
+  private struct function buildMyRouteContext() {
+    var waypointStartId = createWaypointForUser(
+      variables.ctx.forceUserId,
+      "Spec Start " & uniqueSuffix(),
+      41.880000,
+      -87.620000
+    );
+    var waypointEndId = createWaypointForUser(
+      variables.ctx.forceUserId,
+      "Spec End " & uniqueSuffix(),
+      42.100000,
+      -87.100000
+    );
+    if ( waypointStartId LTE 0 || waypointEndId LTE 0 ) {
+      throw(
+        type = "RouteBuilderActionsSpec.Setup",
+        message = "Failed to create setup waypoints for My Route",
+        detail = "start=#waypointStartId#, end=#waypointEndId#"
+      );
+    }
+
+    var routeName = "Spec My Route " & uniqueSuffix();
+    var createRes = routeBuilderPost( "createUserRoute", { route_name = routeName } );
+    if ( !pickBool( createRes, "SUCCESS" ) ) {
+      throw(
+        type = "RouteBuilderActionsSpec.Setup",
+        message = "createUserRoute failed",
+        detail = serializeJSON( createRes )
+      );
+    }
+    var routeData = ( structKeyExists( createRes, "DATA" ) && isStruct( createRes.DATA ) )
+      ? createRes.DATA
+      : {};
+    var routeId = val( pickFirst( routeData, [ "route_id", "ROUTE_ID" ], 0 ) );
+    if ( routeId LTE 0 ) {
+      throw(
+        type = "RouteBuilderActionsSpec.Setup",
+        message = "createUserRoute returned invalid route_id",
+        detail = serializeJSON( createRes )
+      );
+    }
+    rememberCreatedMyRouteId( routeId );
+
+    var setStartRes = routeBuilderPost( "setUserRouteStartWaypoint", {
+      route_id = routeId,
+      start_waypoint_id = waypointStartId
+    } );
+    if ( !pickBool( setStartRes, "SUCCESS" ) ) {
+      throw(
+        type = "RouteBuilderActionsSpec.Setup",
+        message = "setUserRouteStartWaypoint failed",
+        detail = serializeJSON( setStartRes )
+      );
+    }
+
+    var addLegRes = routeBuilderPost( "addWaypointLegToUserRoute", {
+      route_id = routeId,
+      end_waypoint_id = waypointEndId
+    } );
+    if ( !pickBool( addLegRes, "SUCCESS" ) ) {
+      throw(
+        type = "RouteBuilderActionsSpec.Setup",
+        message = "addWaypointLegToUserRoute failed",
+        detail = serializeJSON( addLegRes )
+      );
+    }
+    var addLegData = ( structKeyExists( addLegRes, "DATA" ) && isStruct( addLegRes.DATA ) )
+      ? addLegRes.DATA
+      : {};
+    var legs = ( structKeyExists( addLegData, "legs" ) && isArray( addLegData.legs ) )
+      ? addLegData.legs
+      : [];
+    if ( !arrayLen( legs ) ) {
+      throw(
+        type = "RouteBuilderActionsSpec.Setup",
+        message = "My Route returned no legs after add",
+        detail = serializeJSON( addLegRes )
+      );
+    }
+    var firstLeg = legs[ 1 ];
+    return {
+      routeId = routeId,
+      routeLegId = val( pickFirst( firstLeg, [ "route_leg_id", "ROUTE_LEG_ID" ], 0 ) ),
+      segmentId = val( pickFirst( firstLeg, [ "segment_id", "SEGMENT_ID" ], 0 ) ),
+      startWaypointId = waypointStartId,
+      endWaypointId = waypointEndId,
+      defaultNm = val( pickFirst( firstLeg, [ "dist_nm", "DIST_NM" ], 0 ) )
+    };
+  }
+
   private boolean function listContainsLeg( required struct payload, required numeric routeLegId ) {
     var data = structKeyExists( arguments.payload, "DATA" ) && isStruct( arguments.payload.DATA )
       ? arguments.payload.DATA
@@ -809,6 +1016,33 @@ component extends="testbox.system.BaseSpec" output="false" {
       { datasource = application.dsn }
     );
     return ( qCol.recordCount GT 0 && val( qCol.cnt[ 1 ] ) GT 0 );
+  }
+
+  private boolean function hasUserRouteTables() {
+    var qTbl = queryExecute(
+      "SELECT COUNT(*) AS cnt
+       FROM information_schema.tables
+       WHERE table_schema = DATABASE()
+         AND table_name IN ('user_routes', 'user_route_legs')",
+      {},
+      { datasource = application.dsn }
+    );
+    return ( qTbl.recordCount GT 0 && val( qTbl.cnt[ 1 ] ) GTE 2 );
+  }
+
+  private boolean function hasUserRouteWaypointColumns() {
+    var qCol = queryExecute(
+      "SELECT COUNT(*) AS cnt
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND (
+           (table_name = 'user_routes' AND column_name = 'start_waypoint_id')
+           OR (table_name = 'user_route_legs' AND column_name IN ('start_waypoint_id', 'end_waypoint_id'))
+         )",
+      {},
+      { datasource = application.dsn }
+    );
+    return ( qCol.recordCount GT 0 && val( qCol.cnt[ 1 ] ) GTE 3 );
   }
 
   private numeric function getRouteInstanceFirstSegmentId( required numeric routeId ) {
@@ -938,6 +1172,84 @@ component extends="testbox.system.BaseSpec" output="false" {
     }
   }
 
+  private void function rememberCreatedMyRouteId( required numeric routeId ) {
+    var rid = val( arguments.routeId );
+    if ( rid LTE 0 ) return;
+    if ( arrayFind( variables.ctx.createdMyRouteIds, rid ) EQ 0 ) {
+      arrayAppend( variables.ctx.createdMyRouteIds, rid );
+    }
+  }
+
+  private void function rememberCreatedWaypointId( required numeric waypointId ) {
+    var wid = val( arguments.waypointId );
+    if ( wid LTE 0 ) return;
+    if ( arrayFind( variables.ctx.createdWaypointIds, wid ) EQ 0 ) {
+      arrayAppend( variables.ctx.createdWaypointIds, wid );
+    }
+  }
+
+  private numeric function createWaypointForUser(
+    required numeric userId,
+    required string name,
+    required any latitude,
+    required any longitude,
+    string notes = ""
+  ) {
+    var uid = val( arguments.userId );
+    var waypointName = trim( toString( arguments.name ) );
+    var latText = trim( toString( arguments.latitude ) );
+    var lngText = trim( toString( arguments.longitude ) );
+    var noteText = trim( toString( arguments.notes ) );
+    var insertRes = {};
+    var waypointId = 0;
+
+    if ( uid LTE 0 ) {
+      throw(
+        type = "RouteBuilderActionsSpec.Setup",
+        message = "createWaypointForUser requires userId > 0",
+        detail = serializeJSON( arguments )
+      );
+    }
+    if ( !len( waypointName ) ) {
+      throw(
+        type = "RouteBuilderActionsSpec.Setup",
+        message = "createWaypointForUser requires waypoint name",
+        detail = serializeJSON( arguments )
+      );
+    }
+    if ( !isNumeric( latText ) || !isNumeric( lngText ) ) {
+      throw(
+        type = "RouteBuilderActionsSpec.Setup",
+        message = "createWaypointForUser requires numeric latitude and longitude",
+        detail = serializeJSON( arguments )
+      );
+    }
+
+    queryExecute(
+      "INSERT INTO waypoints (userId, name, latitude, longitude, notes)
+       VALUES (:uid, :name, :latitude, :longitude, :notes)",
+      {
+        uid = { value = uid, cfsqltype = "cf_sql_integer" },
+        name = { value = left( waypointName, 255 ), cfsqltype = "cf_sql_varchar" },
+        latitude = { value = latText, cfsqltype = "cf_sql_varchar" },
+        longitude = { value = lngText, cfsqltype = "cf_sql_varchar" },
+        notes = { value = noteText, cfsqltype = "cf_sql_varchar" }
+      },
+      { datasource = application.dsn, result = "insertRes" }
+    );
+
+    waypointId = val( structKeyExists( insertRes, "generatedKey" ) ? insertRes.generatedKey : 0 );
+    if ( waypointId LTE 0 ) {
+      throw(
+        type = "RouteBuilderActionsSpec.Setup",
+        message = "createWaypointForUser failed to return generated waypoint id",
+        detail = serializeJSON( insertRes )
+      );
+    }
+    rememberCreatedWaypointId( waypointId );
+    return waypointId;
+  }
+
   private void function ensureSessionUser() {
     try {
       if ( !structKeyExists( session, "user" ) || !isStruct( session.user ) ) {
@@ -955,6 +1267,31 @@ component extends="testbox.system.BaseSpec" output="false" {
 
   private struct function routeBuilderPost( required string action, struct body = {} ) {
     return apiPostJson( variables.ctx.routeBuilderActionBase & arguments.action, body, true );
+  }
+
+  private struct function routeBuilderPostAsUser( required string action, struct body = {}, required numeric userId ) {
+    var originalUser = {};
+    if ( structKeyExists( session, "user" ) && isStruct( session.user ) ) {
+      originalUser = duplicate( session.user );
+    }
+    session.user = {
+      userId = val( arguments.userId ),
+      id = val( arguments.userId ),
+      USERID = val( arguments.userId )
+    };
+    try {
+      return routeBuilderPost( arguments.action, arguments.body );
+    } finally {
+      if ( structCount( originalUser ) ) {
+        session.user = originalUser;
+      } else {
+        session.user = {
+          userId = variables.ctx.forceUserId,
+          id = variables.ctx.forceUserId,
+          USERID = variables.ctx.forceUserId
+        };
+      }
+    }
   }
 
   private struct function routeBuilderPostAnonymous( required string action, struct body = {} ) {

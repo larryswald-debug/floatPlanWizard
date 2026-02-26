@@ -534,6 +534,62 @@
       color: rgba(167, 243, 208, 0.98);
     }
 
+    .fpw-routegen__inlineactions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .fpw-routegen__inlineactions .form-control,
+    .fpw-routegen__inlineactions .form-select {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .fpw-routegen__myroutelegs {
+      margin-top: 8px;
+      border: 1px solid var(--rg-line);
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.16);
+      max-height: 210px;
+      overflow: auto;
+      display: grid;
+      gap: 6px;
+      padding: 8px;
+    }
+
+    .fpw-routegen__myrouteleg {
+      border: 1px solid var(--rg-line);
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 8px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .fpw-routegen__myroutelegname {
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    .fpw-routegen__myroutelegmeta {
+      margin-top: 2px;
+      font-size: 12px;
+      color: var(--rg-muted);
+      font-family: var(--rg-mono);
+    }
+
+    .fpw-routegen__myroutelegactions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
     .fpw-routegen__metrics {
       display: grid;
       grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -1205,6 +1261,62 @@
               <label for="routeGenTemplateSelect">Route template</label>
               <select id="routeGenTemplateSelect" class="form-select form-select-sm" aria-label="Template selection"></select>
               <div id="routeGenTemplateMeta" class="fpw-routegen__help mt-2"></div>
+            </div>
+          </div>
+
+          <div class="fpw-routegen__section">
+            <div class="fpw-routegen__labelrow">
+              <span class="fpw-routegen__label">My Routes</span>
+              <span class="fpw-routegen__help">Create waypoint-driven custom routes, then load and edit geometry.</span>
+            </div>
+            <div class="fpw-routegen__grid2">
+              <div class="fpw-routegen__field">
+                <label for="routeGenMyRouteName">Create route</label>
+                <div class="fpw-routegen__inlineactions">
+                  <input id="routeGenMyRouteName" type="text" class="form-control form-control-sm" placeholder="Route name">
+                  <button type="button" id="routeGenMyRouteCreateBtn" class="btn-secondary btn-sm">Create</button>
+                </div>
+              </div>
+              <div class="fpw-routegen__field">
+                <label for="routeGenMyRouteSelect">My routes</label>
+                <div class="fpw-routegen__inlineactions">
+                  <select id="routeGenMyRouteSelect" class="form-select form-select-sm">
+                    <option value="">Select route</option>
+                  </select>
+                  <button type="button" id="routeGenMyRouteLoadBtn" class="btn-secondary btn-sm">Load</button>
+                  <button type="button" id="routeGenMyRouteDeleteBtn" class="btn-secondary btn-sm">Delete</button>
+                </div>
+              </div>
+            </div>
+            <div class="fpw-routegen__grid2 mt-2">
+              <div class="fpw-routegen__field">
+                <label for="routeGenMyRouteStartWaypointSelect">Route start waypoint</label>
+                <div class="fpw-routegen__inlineactions">
+                  <select id="routeGenMyRouteStartWaypointSelect" class="form-select form-select-sm">
+                    <option value="">Select start waypoint</option>
+                  </select>
+                  <button type="button" id="routeGenMyRouteSetStartBtn" class="btn-secondary btn-sm">Set Start</button>
+                </div>
+              </div>
+              <div class="fpw-routegen__field">
+                <label for="routeGenMyRouteEndWaypointSelect">Add leg by waypoint</label>
+                <div class="fpw-routegen__inlineactions">
+                  <select id="routeGenMyRouteEndWaypointSelect" class="form-select form-select-sm">
+                    <option value="">Select end waypoint</option>
+                  </select>
+                  <button type="button" id="routeGenMyRouteAddWaypointLegBtn" class="btn-secondary btn-sm">Add Leg</button>
+                </div>
+              </div>
+            </div>
+            <div id="routeGenMyRouteStartMeta" class="fpw-routegen__help mt-2">Set a route start waypoint, then add legs by choosing each next waypoint.</div>
+            <div class="fpw-routegen__field mt-2">
+              <label for="routeGenMyRouteLegList">Leg sequence</label>
+              <div class="fpw-routegen__inlineactions">
+                <span class="fpw-routegen__help">Click Load to render this route in the right preview panel.</span>
+              </div>
+            </div>
+            <div id="routeGenMyRouteLegList" class="fpw-routegen__myroutelegs">
+              <div class="fpw-routegen__empty">Create or select a My Route to manage legs.</div>
             </div>
           </div>
 

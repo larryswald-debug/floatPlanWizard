@@ -9,7 +9,7 @@
     <cfinclude template="../includes/header_styles.cfm">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=22">
 </head>
 <body class="dashboard-body">
 
@@ -30,10 +30,39 @@
                     <button class="fpw-caret collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#alertsCollapse" aria-expanded="false" aria-controls="alertsCollapse">
                         <span class="fpw-caret__icon" aria-hidden="true">></span>
                     </button>
+                    <div class="fpw-wx__titleRow fpw-wx__titleRow--header">
+                      <span id="weatherProviderBadge" class="fpw-wx__badge">NOAA/NWS</span>
+                      <h3 id="weatherPanelTitle" class="fpw-wx__title">—</h3>
+                      <span id="weatherUpdatedAt" class="fpw-wx__pill d-none">Updated: —</span>
+                      <div id="weatherSummary" class="fpw-wx__summary fpw-wx__summary--header">
+                        Enter a ZIP code to load your local forecast.
+                      </div>
+                    </div>
                 </div>
-                <div class="fpw-card__actions">
-                    <button class="btn btn-sm btn-outline-secondary" type="button">Mark all read</button>
-                    <a class="btn btn-sm btn-primary" href="#">View all</a>
+                <div class="fpw-card__actions fpw-card__actions--weather">
+                    <div class="fpw-wx__topRight fpw-wx__topRight--header">
+                        <div class="fpw-wx__zipBlock">
+                          <label for="weatherZip" class="fpw-wx__zipLabel">ZIP</label>
+                          <input
+                            id="weatherZip"
+                            type="text"
+                            inputmode="numeric"
+                            pattern="[0-9]{5}"
+                            maxlength="5"
+                            class="form-control form-control-sm fpw-wx__zipInput"
+                            aria-describedby="weatherZipHelp"
+                          />
+                          <div id="weatherZipHelp" class="form-text small">Temp (not saved)</div>
+                        </div>
+
+                        <button id="weatherRefreshBtn" class="btn btn-sm btn-primary fpw-wx__updateBtn" type="button">
+                          Update
+                        </button>
+
+                        <a id="weatherDetailsLink" class="btn btn-sm btn-outline-secondary fpw-wx__detailsBtn d-none" href="#" target="_blank" rel="noopener">
+                          Details
+                        </a>
+                    </div>
                 </div>
             </div>
 
@@ -42,45 +71,6 @@
 
   <!-- Weather Panel (Cockpit / ZIP-based) -->
   <section class="fpw-weather-cockpit" aria-labelledby="weatherPanelTitle">
-
-    <!-- Top Row -->
-    <div class="fpw-wx__top">
-      <div class="fpw-wx__topLeft">
-        <div class="fpw-wx__titleRow">
-          <span id="weatherStatusDot" class="fpw-wx__dot ok" aria-hidden="true"></span>
-          <h3 id="weatherPanelTitle" class="fpw-wx__title">—</h3>
-          <span id="weatherProviderBadge" class="fpw-wx__badge">NOAA/NWS</span>
-          <span id="weatherUpdatedAt" class="fpw-wx__pill d-none">Updated: —</span>
-        </div>
-        <div id="weatherSummary" class="fpw-wx__summary">
-          Enter a ZIP code to load your local forecast.
-        </div>
-      </div>
-
-      <div class="fpw-wx__topRight">
-        <div class="fpw-wx__zipBlock">
-          <label for="weatherZip" class="fpw-wx__zipLabel">ZIP</label>
-          <input
-            id="weatherZip"
-            type="text"
-            inputmode="numeric"
-            pattern="[0-9]{5}"
-            maxlength="5"
-            class="form-control form-control-sm fpw-wx__zipInput"
-            aria-describedby="weatherZipHelp"
-          />
-          <div id="weatherZipHelp" class="form-text small">Temp (not saved)</div>
-        </div>
-
-        <button id="weatherRefreshBtn" class="btn btn-sm btn-primary fpw-wx__updateBtn" type="button">
-          Update
-        </button>
-
-        <a id="weatherDetailsLink" class="btn btn-sm btn-outline-secondary fpw-wx__detailsBtn d-none" href="#" target="_blank" rel="noopener">
-          Details
-        </a>
-      </div>
-    </div>
 
     <!-- Loading / Error -->
     <div id="weatherLoading" class="fpw-wx__pill d-none">Loading weather…</div>
@@ -1107,7 +1097,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20251227r"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20251227r"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20251227ak"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260224routegen-cruisetimeline4"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260225routegen-myroutes6"></script>
 
 <!-- Dashboard-specific JS -->
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260213b"></script>
