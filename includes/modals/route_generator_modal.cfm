@@ -145,7 +145,7 @@
 
     .fpw-routegen__content {
       display: grid;
-      grid-template-columns: minmax(340px, 460px) minmax(0, 1fr);
+      grid-template-columns: 1fr 2fr;
       gap: 12px;
       padding: 12px;
       flex: 1;
@@ -1229,8 +1229,6 @@
         <div class="fpw-routegen__subtitle">Simple mode plus advanced controls. Preview before generating your route.</div>
       </div>
       <div class="fpw-routegen__topactions">
-        <span class="fpw-routegen__pill fpw-routegen__pill--ok">Simple Mode</span>
-        <span class="fpw-routegen__pill">Use close button</span>
         <button type="button" id="routeGenCloseBtn" class="fpw-routegen__iconbtn" aria-label="Close">&times;</button>
       </div>
     </div>
@@ -1248,7 +1246,6 @@
             <div class="fpw-routegen__kicker">Setup</div>
             <div class="fpw-routegen__paneltitle">Start -> End -> Pace</div>
           </div>
-          <span class="fpw-routegen__pill">Auto-save draft</span>
         </div>
 
         <div id="routeGenSetupPanelBody" class="fpw-routegen__panelbody">

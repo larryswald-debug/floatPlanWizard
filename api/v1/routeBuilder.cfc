@@ -2108,6 +2108,8 @@
                     "fuel_burn_gph"=(fuelBurnGphVal GT 0 ? fuelBurnGphVal : ""),
                     "fuel_burn_gph_input"=(fuelBurnInputGphVal GT 0 ? fuelBurnInputGphVal : ""),
                     "fuel_burn_basis"=fuelBurnBasisVal,
+                    "idle_burn_gph"=(idleBurnGphVal GT 0 ? idleBurnGphVal : ""),
+                    "idle_hours_total"=(idleHoursTotalVal GT 0 ? idleHoursTotalVal : ""),
                     "weather_factor_pct"=weatherFactorPctVal,
                     "reserve_pct"=reservePctVal,
                     "fuel_price_per_gal"=(fuelPricePerGalVal GT 0 ? fuelPricePerGalVal : "")
@@ -5535,12 +5537,75 @@
         <cfargument name="rawJson" type="any" required="false" default="">
         <cfscript>
             var parsed = {};
+            var normalized = {};
+            var aliasMap = {};
+            var canonicalKey = "";
+            var aliasKeys = [];
+            var aliasKey = "";
+            var aliasIndex = 0;
+            var needsCanonical = true;
+            var existingVal = "";
+            var candidateVal = "";
             var raw = trim(toString(arguments.rawJson));
             if (!len(raw)) return {};
             try {
                 parsed = deserializeJSON(raw, false);
                 if (isStruct(parsed)) {
-                    return parsed;
+                    normalized = duplicate(parsed);
+                    aliasMap = {
+                        "underway_hours_per_day" = [ "underwayHoursPerDay", "UNDERWAY_HOURS_PER_DAY" ],
+                        "cruising_speed" = [ "cruisingSpeed", "max_speed_kn", "maxSpeedKn", "CRUISING_SPEED", "MAX_SPEED_KN" ],
+                        "fuel_burn_gph" = [ "fuelBurnGph", "max_burn_gph", "maxBurnGph", "burn_gph", "burnGph", "FUEL_BURN_GPH" ],
+                        "fuel_burn_gph_input" = [ "fuelBurnGphInput", "fuel_burn_input_gph", "fuelBurnInputGph", "FUEL_BURN_GPH_INPUT" ],
+                        "fuel_burn_basis" = [ "fuelBurnBasis", "FUEL_BURN_BASIS" ],
+                        "idle_burn_gph" = [ "idleBurnGph", "idleBurnGPH", "idle_burn", "idleBurn", "IDLE_BURN_GPH", "IDLE_BURN" ],
+                        "idle_hours_total" = [ "idleHoursTotal", "idle_hours", "idleHours", "IDLE_HOURS_TOTAL", "IDLE_HOURS" ],
+                        "weather_factor_pct" = [ "weatherFactorPct", "weather_factor", "weatherFactor", "WEATHER_FACTOR_PCT", "WEATHER_FACTOR" ],
+                        "reserve_pct" = [ "reservePct", "RESERVE_PCT" ],
+                        "fuel_price_per_gal" = [ "fuelPricePerGal", "FUEL_PRICE_PER_GAL" ],
+                        "comfort_profile" = [ "comfortProfile", "COMFORT_PROFILE" ],
+                        "overnight_bias" = [ "overnightBias", "OVERNIGHT_BIAS" ],
+                        "optional_stop_flags" = [ "optionalStopFlags", "OPTIONAL_STOP_FLAGS" ],
+                        "start_date" = [ "startDate", "START_DATE" ],
+                        "route_type" = [ "routeType", "ROUTE_TYPE" ],
+                        "route_id" = [ "routeId", "ROUTE_ID" ],
+                        "start_segment_id" = [ "startSegmentId", "START_SEGMENT_ID" ],
+                        "end_segment_id" = [ "endSegmentId", "END_SEGMENT_ID" ]
+                    };
+
+                    for (canonicalKey in aliasMap) {
+                        aliasKeys = aliasMap[canonicalKey];
+                        needsCanonical = true;
+                        if (structKeyExists(normalized, canonicalKey)) {
+                            existingVal = normalized[canonicalKey];
+                            if (!isNull(existingVal)) {
+                                if (isSimpleValue(existingVal)) {
+                                    needsCanonical = !len(trim(toString(existingVal)));
+                                } else if (isArray(existingVal)) {
+                                    needsCanonical = (arrayLen(existingVal) EQ 0);
+                                } else if (isStruct(existingVal)) {
+                                    needsCanonical = (structCount(existingVal) EQ 0);
+                                } else {
+                                    needsCanonical = false;
+                                }
+                            }
+                        }
+                        if (!needsCanonical) continue;
+
+                        for (aliasIndex = 1; aliasIndex LTE arrayLen(aliasKeys); aliasIndex++) {
+                            aliasKey = aliasKeys[aliasIndex];
+                            if (!structKeyExists(normalized, aliasKey)) continue;
+                            candidateVal = normalized[aliasKey];
+                            if (isNull(candidateVal)) continue;
+                            if (isSimpleValue(candidateVal) AND !len(trim(toString(candidateVal)))) continue;
+                            if (isArray(candidateVal) AND arrayLen(candidateVal) EQ 0) continue;
+                            if (isStruct(candidateVal) AND structCount(candidateVal) EQ 0) continue;
+                            normalized[canonicalKey] = candidateVal;
+                            break;
+                        }
+                    }
+
+                    return normalized;
                 }
             } catch (any e) {
                 return {};
