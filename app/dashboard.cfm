@@ -9,7 +9,7 @@
     <cfinclude template="../includes/header_styles.cfm">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=22">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260227e">
 </head>
 <body class="dashboard-body">
 
@@ -70,7 +70,7 @@
                 <div class="fpw-card__body">
 
   <!-- Weather Panel (Cockpit / ZIP-based) -->
-  <section class="fpw-weather-cockpit" aria-labelledby="weatherPanelTitle">
+  <section class="fpw-weather-cockpit wx-panel wx-panel--cockpit" aria-labelledby="weatherPanelTitle">
 
     <!-- Loading / Error -->
     <div id="weatherLoading" class="fpw-wx__pill d-none">Loading weather…</div>
@@ -175,59 +175,269 @@
     </div>
 
     <!-- Instruments -->
-    <div class="fpw-wx__instruments">
-
-      <!-- Temp Arc -->
-      <div class="fpw-wx__gauge fpw-wx__temp fpw-wx__gaugePctDefault">
-        <div class="fpw-wx__gaugeTop">
-          <div class="fpw-wx__gaugeLabel">Temp</div>
-          <div id="weatherTempValue" class="fpw-wx__gaugeValue">—</div>
-        </div>
-        <div class="fpw-wx__arc" aria-hidden="true"></div>
-        <div class="fpw-wx__arcLabels" aria-hidden="true">
-          <span id="weatherTempLoLabel" class="fpw-wx__arcLo">—</span>
-          <span id="weatherTempHiLabel" class="fpw-wx__arcHi">—</span>
-        </div>
-        <div class="fpw-wx__gaugeFoot">
-          <span id="weatherTempHiLo" class="fpw-wx__muted">—</span>
-        </div>
-      </div>
+    <div class="fpw-wx__instruments wx-row">
 
       <!-- Gust Spikes -->
-      <div class="fpw-wx__gauge fpw-wx__gusts">
-        <div class="fpw-wx__gaugeTop">
+      <div class="fpw-wx__gauge wx-card fpw-wx__gusts">
+        <div class="fpw-wx__gaugeTop wx-card__head">
           <div class="fpw-wx__gaugeLabel">Gusts</div>
           <div id="weatherGustValue" class="fpw-wx__gaugeValue">—</div>
         </div>
-        <div class="fpw-wx__spikes" aria-label="Gust spikes">
+        <div class="fpw-wx__spikes wx-card__viz" aria-label="Gust spikes">
           <div id="weatherGustSpikes" class="fpw-wx__spikeBars"></div>
           <div id="weatherGustLabels" class="fpw-wx__spikeLabels" aria-hidden="true"></div>
         </div>
-        <div class="fpw-wx__gaugeFoot fpw-wx__muted">Gust forecast for next 12 hours</div>
+        <div class="fpw-wx__gaugeFoot wx-card__foot fpw-wx__muted">Gust forecast for next 12 hours</div>
       </div>
 
-      <!-- Pressure Trend (placeholder unless your API provides it later) -->
-      <div class="fpw-wx__gauge fpw-wx__pressure">
-        <div class="fpw-wx__gaugeTop">
-          <div class="fpw-wx__gaugeLabel">Pressure</div>
-          <div id="weatherPressureValue" class="fpw-wx__gaugeValue">—</div>
+      <!-- Wave Height -->
+      <div class="fpw-wx__gauge wx-card cockpit-card wave-card sea-radar-card wave-calm" data-severity="calm">
+        <div class="sea-radar-head wx-card__head">
+          <div id="seaWaveTitleLabel" class="card-label">WAVE HEIGHT</div>
         </div>
-        <div class="fpw-wx__trend">
-          <span id="weatherPressureTrend" class="fpw-wx__trendPill neutral">—</span>
+
+        <div class="sea-radar-shell wx-card__viz">
+          <svg class="sea-radar-svg" viewBox="0 0 760 430" aria-hidden="true">
+            <defs>
+              <linearGradient id="seaNeedleGlowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="rgba(130,244,255,.96)"></stop>
+                <stop offset="100%" stop-color="rgba(39,188,255,.86)"></stop>
+              </linearGradient>
+              <linearGradient id="seaWaveFrontGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="rgba(54,210,255,.18)"></stop>
+                <stop offset="50%" stop-color="rgba(78,228,255,.50)"></stop>
+                <stop offset="100%" stop-color="rgba(54,210,255,.18)"></stop>
+              </linearGradient>
+              <linearGradient id="seaWaveBackGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="rgba(44,164,255,.14)"></stop>
+                <stop offset="50%" stop-color="rgba(73,198,255,.30)"></stop>
+                <stop offset="100%" stop-color="rgba(44,164,255,.14)"></stop>
+              </linearGradient>
+              <clipPath id="seaRadarWaveMask">
+                <path d="M152 336 Q380 214 608 336 L608 398 L152 398 Z"></path>
+              </clipPath>
+            </defs>
+
+            <path class="sea-radar-outer-frame" d="M96 304 A284 284 0 0 1 664 304"></path>
+            <path class="sea-radar-outer-glow" d="M96 304 A284 284 0 0 1 664 304"></path>
+            <path class="sea-radar-track" d="M120 304 A260 260 0 0 1 640 304"></path>
+
+            <path class="sea-radar-zone zone-calm" d="M120 304 A260 260 0 0 1 196.15 120.15"></path>
+            <path class="sea-radar-zone zone-moderate" d="M196.15 120.15 A260 260 0 0 1 380 44"></path>
+            <path class="sea-radar-zone zone-rough" d="M380 44 A260 260 0 0 1 563.85 120.15"></path>
+            <path class="sea-radar-zone zone-severe" d="M563.85 120.15 A260 260 0 0 1 640 304"></path>
+
+            <g id="seaRadarTicks">
+              <line class="tick major" x1="120" y1="304" x2="145" y2="304"></line>
+              <line class="tick major" x1="196.15" y1="120.15" x2="213.82" y2="137.82"></line>
+              <line class="tick major" x1="380" y1="44" x2="380" y2="69"></line>
+              <line class="tick major" x1="563.85" y1="120.15" x2="546.18" y2="137.82"></line>
+              <line class="tick major" x1="640" y1="304" x2="615" y2="304"></line>
+
+              <line class="tick minor" x1="154.39" y1="220.96" x2="167.33" y2="226.32"></line>
+              <line class="tick minor" x1="270.08" y1="82.79" x2="277.15" y2="95.04"></line>
+              <line class="tick minor" x1="489.92" y1="82.79" x2="482.85" y2="95.04"></line>
+              <line class="tick minor" x1="605.61" y1="220.96" x2="592.67" y2="226.32"></line>
+            </g>
+
+            <g id="seaRadarGrid">
+              <path class="grid-ring" d="M166 304 A214 214 0 0 1 594 304"></path>
+              <path class="grid-ring" d="M210 304 A170 170 0 0 1 550 304"></path>
+              <path class="grid-ring" d="M250 304 A130 130 0 0 1 510 304"></path>
+              <path class="grid-ring" d="M292 304 A88 88 0 0 1 468 304"></path>
+              <line class="grid-ray" x1="380" y1="304" x2="120" y2="304"></line>
+              <line class="grid-ray" x1="380" y1="304" x2="196.15" y2="120.15"></line>
+              <line class="grid-ray" x1="380" y1="304" x2="380" y2="44"></line>
+              <line class="grid-ray" x1="380" y1="304" x2="563.85" y2="120.15"></line>
+              <line class="grid-ray" x1="380" y1="304" x2="640" y2="304"></line>
+            </g>
+
+            <g id="seaWaveLayer" clip-path="url(#seaRadarWaveMask)">
+              <g id="seaWaveAmp">
+                <g id="seaWaveBackTrack" class="sea-wave-track sea-wave-back-track">
+                  <path class="sea-wave-back" d="M-140 338 C-92 322 -50 354 -2 338 C46 322 88 354 136 338 C184 322 226 354 274 338 C322 322 364 354 412 338 C460 322 502 354 550 338 C598 322 640 354 688 338 C736 322 778 354 826 338 L826 430 L-140 430 Z"></path>
+                  <path class="sea-wave-back" d="M140 338 C188 322 230 354 278 338 C326 322 368 354 416 338 C464 322 506 354 554 338 C602 322 644 354 692 338 C740 322 782 354 830 338 C878 322 920 354 968 338 L968 430 L140 430 Z"></path>
+                </g>
+                <g id="seaWaveFrontTrack" class="sea-wave-track sea-wave-front-track">
+                  <path class="sea-wave-front" d="M-140 346 C-92 328 -50 362 -2 346 C46 328 88 362 136 346 C184 328 226 362 274 346 C322 328 364 362 412 346 C460 328 502 362 550 346 C598 328 640 362 688 346 C736 328 778 362 826 346 L826 430 L-140 430 Z"></path>
+                  <path class="sea-wave-front" d="M140 346 C188 328 230 362 278 346 C326 328 368 362 416 346 C464 328 506 362 554 346 C602 328 644 362 692 346 C740 328 782 362 830 346 C878 328 920 362 968 346 L968 430 L140 430 Z"></path>
+                </g>
+              </g>
+            </g>
+
+            <path class="sea-radar-bowl" d="M152 336 Q380 214 608 336 L608 398 L152 398 Z"></path>
+
+            <g id="seaNeedle" class="sea-radar-needle">
+              <line class="sea-radar-needle-line" x1="380" y1="304" x2="380" y2="44"></line>
+              <circle class="sea-radar-needle-tip-glow" cx="380" cy="44" r="14"></circle>
+              <circle class="sea-radar-needle-tip" cx="380" cy="44" r="8"></circle>
+              <circle class="sea-radar-hub" cx="380" cy="304" r="25"></circle>
+              <circle class="sea-radar-hub-core" cx="380" cy="304" r="11"></circle>
+            </g>
+
+          </svg>
+
+          <div class="sea-radar-readout">
+            <span id="wxWaveHeight">--</span>
+            <span class="unit">ft</span>
+          </div>
+          <div class="sea-radar-current">CURRENT SEAS</div>
         </div>
-        <div class="fpw-wx__gaugeFoot fpw-wx__muted">Hook later to buoy/station data</div>
+
+        <div class="sea-radar-metrics wx-card__foot">
+          <div class="sea-metric">
+            <div class="m-label">BEAUFORT</div>
+            <div id="seaBeaufortLevel" class="m-value">Level --</div>
+          </div>
+          <div class="sea-metric">
+            <div class="m-label">WAVE PERIOD</div>
+            <div id="seaWavePeriodValue" class="m-value">--</div>
+          </div>
+          <div class="sea-metric">
+            <div class="m-label">DIRECTION</div>
+            <div id="seaWaveDirectionValue" class="m-value">--</div>
+          </div>
+          <div class="sea-metric">
+            <div class="m-label">TREND</div>
+            <div id="seaWaveTrendValue" class="m-value">STEADY</div>
+          </div>
+        </div>
       </div>
 
-      <!-- Visibility (placeholder unless your API provides it later) -->
-      <div class="fpw-wx__gauge fpw-wx__vis">
-        <div class="fpw-wx__gaugeTop">
-          <div class="fpw-wx__gaugeLabel">Visibility</div>
-          <div id="weatherVisValue" class="fpw-wx__gaugeValue">—</div>
+      <!-- Pressure -->
+      <div class="fpw-wx__gauge wx-card fpw-wx__pressure pressure-card" data-trend="steady">
+        <div class="pressure-head wx-card__head">
+          <div class="pressure-label">PRESSURE</div>
+          <div class="pressure-readout">
+            <span class="pressure-value" id="weatherPressureValue">—</span>
+            <span class="pressure-unit">inHg</span>
+          </div>
         </div>
-        <div class="fpw-wx__meter" aria-hidden="true">
-          <div id="weatherVisFill" class="fpw-wx__meterFill fpw-wx__meterFillDefault60"></div>
+
+        <div class="pressure-sub wx-card__value" id="weatherPressureTrendRow">
+          <div class="pressure-trend">
+            <span class="trend-arrow" id="weatherPressureTrend">→</span>
+            <span class="trend-text" id="weatherPressureTrendLabel">Steady</span>
+          </div>
+          <div class="pressure-rate" id="weatherPressureRate">—</div>
         </div>
-        <div class="fpw-wx__gaugeFoot fpw-wx__muted">Hook later to METAR/marine obs</div>
+
+        <div class="pressure-dial-slot wx-card__viz">
+          <div class="sea-radar-shell">
+            <svg class="sea-radar-svg" viewBox="0 0 760 430" aria-hidden="true">
+              <defs>
+                <linearGradient id="pressureNeedleGlowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="rgba(130,244,255,.96)"></stop>
+                  <stop offset="100%" stop-color="rgba(39,188,255,.86)"></stop>
+                </linearGradient>
+                <linearGradient id="pressureWaveFrontGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="rgba(54,210,255,.18)"></stop>
+                  <stop offset="50%" stop-color="rgba(78,228,255,.50)"></stop>
+                  <stop offset="100%" stop-color="rgba(54,210,255,.18)"></stop>
+                </linearGradient>
+                <linearGradient id="pressureWaveBackGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="rgba(44,164,255,.14)"></stop>
+                  <stop offset="50%" stop-color="rgba(73,198,255,.30)"></stop>
+                  <stop offset="100%" stop-color="rgba(44,164,255,.14)"></stop>
+                </linearGradient>
+                <clipPath id="pressureRadarWaveMask">
+                  <path d="M152 336 Q380 214 608 336 L608 398 L152 398 Z"></path>
+                </clipPath>
+              </defs>
+
+              <path class="sea-radar-outer-frame" d="M96 304 A284 284 0 0 1 664 304"></path>
+              <path class="sea-radar-outer-glow" d="M96 304 A284 284 0 0 1 664 304"></path>
+              <path class="sea-radar-track" d="M120 304 A260 260 0 0 1 640 304"></path>
+
+              <path class="sea-radar-zone zone-calm" d="M120 304 A260 260 0 0 1 196.15 120.15"></path>
+              <path class="sea-radar-zone zone-moderate" d="M196.15 120.15 A260 260 0 0 1 380 44"></path>
+              <path class="sea-radar-zone zone-rough" d="M380 44 A260 260 0 0 1 563.85 120.15"></path>
+              <path class="sea-radar-zone zone-severe" d="M563.85 120.15 A260 260 0 0 1 640 304"></path>
+
+              <g id="pressureRadarTicks">
+                <line class="tick major" x1="120" y1="304" x2="145" y2="304"></line>
+                <line class="tick major" x1="196.15" y1="120.15" x2="213.82" y2="137.82"></line>
+                <line class="tick major" x1="380" y1="44" x2="380" y2="69"></line>
+                <line class="tick major" x1="563.85" y1="120.15" x2="546.18" y2="137.82"></line>
+                <line class="tick major" x1="640" y1="304" x2="615" y2="304"></line>
+
+                <line class="tick minor" x1="154.39" y1="220.96" x2="167.33" y2="226.32"></line>
+                <line class="tick minor" x1="270.08" y1="82.79" x2="277.15" y2="95.04"></line>
+                <line class="tick minor" x1="489.92" y1="82.79" x2="482.85" y2="95.04"></line>
+                <line class="tick minor" x1="605.61" y1="220.96" x2="592.67" y2="226.32"></line>
+              </g>
+
+              <g id="pressureRadarGrid">
+                <path class="grid-ring" d="M166 304 A214 214 0 0 1 594 304"></path>
+                <path class="grid-ring" d="M210 304 A170 170 0 0 1 550 304"></path>
+                <path class="grid-ring" d="M250 304 A130 130 0 0 1 510 304"></path>
+                <path class="grid-ring" d="M292 304 A88 88 0 0 1 468 304"></path>
+                <line class="grid-ray" x1="380" y1="304" x2="120" y2="304"></line>
+                <line class="grid-ray" x1="380" y1="304" x2="196.15" y2="120.15"></line>
+                <line class="grid-ray" x1="380" y1="304" x2="380" y2="44"></line>
+                <line class="grid-ray" x1="380" y1="304" x2="563.85" y2="120.15"></line>
+                <line class="grid-ray" x1="380" y1="304" x2="640" y2="304"></line>
+              </g>
+
+              <g id="pressureWaveLayer" clip-path="url(#pressureRadarWaveMask)">
+                <g id="pressureWaveAmp">
+                  <g id="pressureWaveBackTrack" class="sea-wave-track sea-wave-back-track">
+                    <path class="sea-wave-back" d="M-140 338 C-92 322 -50 354 -2 338 C46 322 88 354 136 338 C184 322 226 354 274 338 C322 322 364 354 412 338 C460 322 502 354 550 338 C598 322 640 354 688 338 C736 322 778 354 826 338 L826 430 L-140 430 Z"></path>
+                    <path class="sea-wave-back" d="M140 338 C188 322 230 354 278 338 C326 322 368 354 416 338 C464 322 506 354 554 338 C602 322 644 354 692 338 C740 322 782 354 830 338 C878 322 920 354 968 338 L968 430 L140 430 Z"></path>
+                  </g>
+                  <g id="pressureWaveFrontTrack" class="sea-wave-track sea-wave-front-track">
+                    <path class="sea-wave-front" d="M-140 346 C-92 328 -50 362 -2 346 C46 328 88 362 136 346 C184 328 226 362 274 346 C322 328 364 362 412 346 C460 328 502 362 550 346 C598 328 640 362 688 346 C736 328 778 362 826 346 L826 430 L-140 430 Z"></path>
+                    <path class="sea-wave-front" d="M140 346 C188 328 230 362 278 346 C326 328 368 362 416 346 C464 328 506 362 554 346 C602 328 644 362 692 346 C740 328 782 362 830 346 C878 328 920 362 968 346 L968 430 L140 430 Z"></path>
+                  </g>
+                </g>
+              </g>
+
+              <path class="sea-radar-bowl" d="M152 336 Q380 214 608 336 L608 398 L152 398 Z"></path>
+
+              <g id="pressureNeedle" class="sea-radar-needle">
+                <line class="sea-radar-needle-line" x1="380" y1="304" x2="380" y2="44"></line>
+                <circle class="sea-radar-needle-tip-glow" cx="380" cy="44" r="14"></circle>
+                <circle class="sea-radar-needle-tip" cx="380" cy="44" r="8"></circle>
+                <circle class="sea-radar-hub" cx="380" cy="304" r="25"></circle>
+                <circle class="sea-radar-hub-core" cx="380" cy="304" r="11"></circle>
+              </g>
+
+            </svg>
+          </div>
+        </div>
+
+        <div class="pressure-spark wx-card__foot" aria-hidden="true">
+          <div class="spark-line" id="weatherPressureSparklineLine"></div>
+        </div>
+      </div>
+
+      <!-- Visibility -->
+      <div class="fpw-wx__gauge wx-card fpw-wx__vis">
+        <div class="vis-horizon" id="visHorizon" data-vis-state="unknown">
+          <div class="vis-hdr wx-card__head">
+            <div class="vis-title">VISIBILITY</div>
+            <div class="vis-readout">
+              <div class="vis-value" id="visValue">— <span class="vis-unit">mi</span></div>
+              <div class="vis-status" id="visStatus">UNKNOWN</div>
+            </div>
+          </div>
+
+          <div class="vis-scene wx-card__viz" aria-label="Forward visibility scene">
+            <div class="vis-fog" id="visFog"></div>
+
+            <div class="vis-horizonLine"></div>
+
+            <div class="vis-grid">
+              <span class="vis-gridLine"></span><span class="vis-gridLine"></span><span class="vis-gridLine"></span>
+              <span class="vis-gridLine"></span><span class="vis-gridLine"></span><span class="vis-gridLine"></span>
+              <span class="vis-gridLine"></span><span class="vis-gridLine"></span>
+            </div>
+
+            <div class="vis-rangeText" id="visRangeText">Range: —</div>
+          </div>
+
+          <div class="vis-foot wx-card__foot" id="visFootnote">Based on latest METAR</div>
+        </div>
       </div>
 
     </div>
@@ -638,6 +848,20 @@
                             <label class="form-label" for="vesselLength">Length *</label>
                             <input type="text" class="form-control" id="vesselLength" required>
                             <div class="invalid-feedback" id="vesselLengthError"></div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label" for="vesselMaxSpeed">Max Speed (KPH)</label>
+                            <input type="number" class="form-control" id="vesselMaxSpeed" min="0" step="0.01" inputmode="decimal">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label" for="vesselMostEfficientSpeed">Most Efficient Speed (KPH)</label>
+                            <input type="number" class="form-control" id="vesselMostEfficientSpeed" min="0" step="0.01" inputmode="decimal">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label" for="vesselGallonsPerHour">Gallons Per Hour @ Efficient Cruising Speed</label>
+                            <input type="number" class="form-control" id="vesselGallonsPerHour" min="0" step="0.01" inputmode="decimal">
                         </div>
                     </div>
                     <div class="row">
@@ -1085,22 +1309,22 @@
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20251227b"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260212a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20260213a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/vessels.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/contacts.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20251227r"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20251227r"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20251227ak"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260225routegen-myroutes6"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260227c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js?v=20260227c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260227c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260227c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js?v=20260227c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js?v=20260227c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20260227c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/vessels.js?v=20260227c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/contacts.js?v=20260227c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20260227c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260227c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260227c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260227c"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260213b"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260227c"></script>
 
 
 

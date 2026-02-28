@@ -17,6 +17,9 @@
   var vesselRegistrationInput = null;
   var vesselTypeInput = null;
   var vesselLengthInput = null;
+  var vesselMaxSpeedInput = null;
+  var vesselMostEfficientSpeedInput = null;
+  var vesselGallonsPerHourInput = null;
   var vesselMakeInput = null;
   var vesselModelInput = null;
   var vesselColorInput = null;
@@ -76,12 +79,18 @@
       var reg = utils.pick(vessel, ["REGISTRATION", "REGNO"], "");
       var vesselType = utils.pick(vessel, ["TYPE", "VESSELTYPE"], "");
       var length = utils.pick(vessel, ["LENGTH"], "");
+      var maxSpeed = utils.pick(vessel, ["MAX_SPEED"], "");
+      var mostEfficientSpeed = utils.pick(vessel, ["MOST_EFFICIENT_SPEED"], "");
+      var gallonsPerHour = utils.pick(vessel, ["GALLONS_PER_HOUR"], "");
       var color = utils.pick(vessel, ["COLOR"], "");
       var nameText = name || "Unnamed vessel";
       var metaParts = [];
       if (reg) metaParts.push("Registration: " + reg);
       if (vesselType) metaParts.push(vesselType);
       if (length) metaParts.push("Length: " + length);
+      if (maxSpeed) metaParts.push("Max: " + maxSpeed + " kph");
+      if (mostEfficientSpeed) metaParts.push("Efficient: " + mostEfficientSpeed + " kph");
+      if (gallonsPerHour) metaParts.push("Efficient burn: " + gallonsPerHour + " gph");
       if (color) metaParts.push("Color: " + color);
       if (!metaParts.length) metaParts.push("Registration: N/A");
       var metaText = metaParts.join(" • ");
@@ -160,6 +169,9 @@
         vesselRegistrationInput = vesselModalEl.querySelector("#vesselRegistration");
         vesselTypeInput = vesselModalEl.querySelector("#vesselType");
         vesselLengthInput = vesselModalEl.querySelector("#vesselLength");
+        vesselMaxSpeedInput = vesselModalEl.querySelector("#vesselMaxSpeed");
+        vesselMostEfficientSpeedInput = vesselModalEl.querySelector("#vesselMostEfficientSpeed");
+        vesselGallonsPerHourInput = vesselModalEl.querySelector("#vesselGallonsPerHour");
         vesselMakeInput = vesselModalEl.querySelector("#vesselMake");
         vesselModelInput = vesselModalEl.querySelector("#vesselModel");
         vesselColorInput = vesselModalEl.querySelector("#vesselColor");
@@ -236,6 +248,9 @@
     if (vesselRegistrationInput) vesselRegistrationInput.value = utils.pick(vessel, ["REGISTRATION", "REGNO"], "");
     if (vesselTypeInput) vesselTypeInput.value = utils.pick(vessel, ["TYPE"], "");
     if (vesselLengthInput) vesselLengthInput.value = utils.pick(vessel, ["LENGTH"], "");
+    if (vesselMaxSpeedInput) vesselMaxSpeedInput.value = utils.pick(vessel, ["MAX_SPEED"], "");
+    if (vesselMostEfficientSpeedInput) vesselMostEfficientSpeedInput.value = utils.pick(vessel, ["MOST_EFFICIENT_SPEED"], "");
+    if (vesselGallonsPerHourInput) vesselGallonsPerHourInput.value = utils.pick(vessel, ["GALLONS_PER_HOUR"], "");
     if (vesselMakeInput) vesselMakeInput.value = utils.pick(vessel, ["MAKE"], "");
     if (vesselModelInput) vesselModelInput.value = utils.pick(vessel, ["MODEL"], "");
     if (vesselColorInput) vesselColorInput.value = utils.pick(vessel, ["COLOR"], "");
@@ -263,6 +278,9 @@
       REGISTRATION: vesselRegistrationInput ? vesselRegistrationInput.value.trim() : "",
       TYPE: vesselTypeInput ? vesselTypeInput.value.trim() : "",
       LENGTH: vesselLengthInput ? vesselLengthInput.value.trim() : "",
+      MAX_SPEED: vesselMaxSpeedInput ? vesselMaxSpeedInput.value.trim() : "",
+      MOST_EFFICIENT_SPEED: vesselMostEfficientSpeedInput ? vesselMostEfficientSpeedInput.value.trim() : "",
+      GALLONS_PER_HOUR: vesselGallonsPerHourInput ? vesselGallonsPerHourInput.value.trim() : "",
       MAKE: vesselMakeInput ? vesselMakeInput.value.trim() : "",
       MODEL: vesselModelInput ? vesselModelInput.value.trim() : "",
       COLOR: vesselColorInput ? vesselColorInput.value.trim() : "",

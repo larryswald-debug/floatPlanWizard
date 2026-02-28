@@ -15,6 +15,7 @@
   var tideLastMarine = null;
   var tideLastWrapWidth = 0;
   var weatherRequestSeq = 0;
+  var seaStateLastWaveHeight = null;
 
   function getLoginUrl() {
     if (window.AppAuth && window.AppAuth.loginUrl) {
@@ -82,6 +83,51 @@
     n = parseFloat(n);
     if (isNaN(n)) return min;
     return Math.max(min, Math.min(max, n));
+  }
+
+  function tempColorAtF(tempF, alpha) {
+    var scale = [
+      { t: -10, c: [52, 111, 255] },  // deep cold blue
+      { t: 32, c: [74, 168, 255] },   // freezing blue
+      { t: 50, c: [74, 204, 154] },   // mild green
+      { t: 68, c: [243, 204, 84] },   // warm yellow
+      { t: 80, c: [245, 149, 62] },   // hot orange
+      { t: 95, c: [227, 74, 58] }     // very hot red
+    ];
+    var i = 0;
+    var lo = null;
+    var hi = null;
+    var mix = 0;
+    var r = 0;
+    var g = 0;
+    var b = 0;
+    var a = Number.isFinite(alpha) ? alpha : 1;
+    var tVal = Number.isFinite(tempF) ? tempF : 50;
+
+    if (tVal <= scale[0].t) {
+      return "rgba(" + scale[0].c[0] + "," + scale[0].c[1] + "," + scale[0].c[2] + "," + a + ")";
+    }
+    if (tVal >= scale[scale.length - 1].t) {
+      return "rgba(" + scale[scale.length - 1].c[0] + "," + scale[scale.length - 1].c[1] + "," + scale[scale.length - 1].c[2] + "," + a + ")";
+    }
+
+    for (i = 0; i < scale.length - 1; i += 1) {
+      if (tVal >= scale[i].t && tVal <= scale[i + 1].t) {
+        lo = scale[i];
+        hi = scale[i + 1];
+        break;
+      }
+    }
+    if (!lo || !hi) {
+      lo = scale[0];
+      hi = scale[1];
+    }
+
+    mix = (tVal - lo.t) / (hi.t - lo.t);
+    r = Math.round(lo.c[0] + ((hi.c[0] - lo.c[0]) * mix));
+    g = Math.round(lo.c[1] + ((hi.c[1] - lo.c[1]) * mix));
+    b = Math.round(lo.c[2] + ((hi.c[2] - lo.c[2]) * mix));
+    return "rgba(" + r + "," + g + "," + b + "," + a + ")";
   }
 
   function compassToDegrees(dir) {
@@ -532,9 +578,19 @@
     if (tempLoLabelEl) tempLoLabelEl.textContent = Math.round(lo) + "°";
     if (tempHiLabelEl) tempHiLabelEl.textContent = Math.round(hi) + "°";
     var pct = Number.isFinite(nowTemp) ? Math.round(((nowTemp - lo) / (hi - lo)) * 100) : 50;
-    pct = clamp(pct, 2, 98);
+    pct = clamp(pct, 4, 94);
     var tempWrapEl = document.querySelector(".fpw-wx__temp");
-    if (tempWrapEl) tempWrapEl.style.setProperty("--pct", pct);
+    if (tempWrapEl) {
+      var midTemp = lo + ((hi - lo) * 0.55);
+      var markerTemp = Number.isFinite(nowTemp) ? nowTemp : midTemp;
+      tempWrapEl.style.setProperty("--pct", pct);
+      tempWrapEl.style.setProperty("--temp-cold", tempColorAtF(lo, 0.70));
+      tempWrapEl.style.setProperty("--temp-mid", tempColorAtF(midTemp, 0.68));
+      // Peak color tracks forecast high temp (absolute weather scale).
+      tempWrapEl.style.setProperty("--temp-hot", tempColorAtF(hi, 0.74));
+      tempWrapEl.style.setProperty("--temp-marker", tempColorAtF(markerTemp, 0.95));
+      tempWrapEl.style.setProperty("--temp-marker-glow", tempColorAtF(markerTemp, 0.30));
+    }
 
     // Build timeline bars + gust spikes
     var maxGust = 0;
@@ -1037,6 +1093,448 @@
     metaEl.textContent = "";
   }
 
+  function setVisibilityHorizon(visMi, stationId, obsTimeIso) {
+    var root = document.getElementById("visHorizon");
+    if (!root) return;
+
+    var valEl = document.getElementById("visValue");
+    var statusEl = document.getElementById("visStatus");
+    var fogEl = document.getElementById("visFog");
+    var rangeEl = document.getElementById("visRangeText");
+    var foot = document.getElementById("visFootnote");
+    var horizonLine = root.querySelector(".vis-horizonLine");
+    var grid = root.querySelector(".vis-grid");
+    var hasNum = (typeof visMi === "number") && isFinite(visMi);
+    var label = "";
+    var state = "clear";
+    var status = "CLEAR";
+    var capped = 0;
+    var fog = 0;
+    var localObsText = "";
+
+    if (!valEl || !statusEl || !fogEl || !rangeEl || !foot || !horizonLine || !grid) return;
+
+    if (!hasNum) {
+      valEl.innerHTML = "— <span class=\"vis-unit\">mi</span>";
+      statusEl.textContent = "UNKNOWN";
+      root.setAttribute("data-vis-state", "unknown");
+      fogEl.style.opacity = "0.35";
+      grid.style.opacity = "0.30";
+      horizonLine.style.opacity = "0.55";
+      horizonLine.style.boxShadow = "0 0 8px rgba(255,255,255,.08)";
+      rangeEl.textContent = "Range: —";
+      foot.textContent = "No METAR visibility available";
+      return;
+    }
+
+    label = (visMi >= 10) ? "10+" : (visMi < 1 ? visMi.toFixed(1) : Math.round(visMi).toString());
+    valEl.innerHTML = label + " <span class=\"vis-unit\">mi</span>";
+    rangeEl.textContent = "Range: " + label + " mi";
+
+    if (visMi < 1) {
+      state = "fog";
+      status = "FOG";
+    } else if (visMi < 2) {
+      state = "restricted";
+      status = "RESTRICTED";
+    } else if (visMi < 4) {
+      state = "haze";
+      status = "HAZE";
+    } else if (visMi < 7) {
+      state = "good";
+      status = "GOOD";
+    }
+
+    root.setAttribute("data-vis-state", state);
+    statusEl.textContent = status;
+
+    capped = Math.max(0, Math.min(10, visMi));
+    fog = (10 - capped) / 10;
+    fogEl.style.opacity = (0.10 + fog * 0.55).toFixed(2);
+    grid.style.opacity = (0.65 - fog * 0.35).toFixed(2);
+    horizonLine.style.opacity = (0.95 - fog * 0.35).toFixed(2);
+    horizonLine.style.boxShadow = "0 0 " + (8 + (1 - fog) * 10) + "px rgba(255,255,255," + (0.08 + (1 - fog) * 0.10) + ")";
+
+    if (stationId && obsTimeIso) {
+      localObsText = "";
+      try {
+        localObsText = (new Date(obsTimeIso)).toLocaleString();
+      } catch (eObsTime) {
+        localObsText = String(obsTimeIso);
+      }
+      foot.textContent = "METAR " + stationId + " • " + localObsText;
+    } else {
+      foot.textContent = "Based on latest METAR";
+    }
+  }
+
+  // Surface obs (METAR) hydration for pressure + visibility cards.
+  function renderWeatherSurface(surface) {
+    var pressureCardEl = document.querySelector(".fpw-wx__pressure");
+    var pressureTrendRowEl = document.getElementById("weatherPressureTrendRow");
+    var pressureNeedleEl = document.getElementById("pressureNeedle");
+    var pressureValueEl = document.getElementById("weatherPressureValue");
+    var pressureArrowEl = document.getElementById("weatherPressureTrend");
+    var pressureTrendLabelEl = document.getElementById("weatherPressureTrendLabel");
+    var pressureRateEl = document.getElementById("weatherPressureRate");
+    var pressureSparklineLineEl = document.getElementById("weatherPressureSparklineLine");
+    var visCardEl = document.querySelector(".fpw-wx__vis");
+    var data = surface || {};
+    var pressureRaw = (data.pressure_inhg !== undefined && data.pressure_inhg !== null) ? data.pressure_inhg : data.PRESSURE_INHG;
+    var visibilityRaw = (data.visibility_mi !== undefined && data.visibility_mi !== null) ? data.visibility_mi : data.VISIBILITY_MI;
+    var trendRaw = (data.pressure_trend !== undefined && data.pressure_trend !== null) ? data.pressure_trend : data.PRESSURE_TREND;
+    var pressureRateRaw = (data.pressure_rate_per_hr !== undefined && data.pressure_rate_per_hr !== null) ? data.pressure_rate_per_hr : data.PRESSURE_RATE_PER_HR;
+    var stationRaw = (data.station_id !== undefined && data.station_id !== null) ? data.station_id : data.STATION_ID;
+    var obsTimeRaw = (data.observation_time !== undefined && data.observation_time !== null) ? data.observation_time : data.OBSERVATION_TIME;
+    var pressureNum = parseFloat(pressureRaw);
+    var visibilityNum = parseFloat(visibilityRaw);
+    var pressureRateNum = parseFloat(pressureRateRaw);
+    var stationTxt = stationRaw ? String(stationRaw).trim() : "";
+    var obsTimeTxt = "";
+    var obsDate = null;
+    var trendTxt = trendRaw ? String(trendRaw).trim().toLowerCase() : "";
+    var trendArrow = "→";
+    var trendLabel = "Unknown";
+    var trendRateText = "—";
+    var obsLabel = "";
+    var sparklinePoints = "0,15 20,15 40,15 60,15 80,15 100,15";
+    var sparklineWidth = "55%";
+    var hasTrendState = false;
+    var hasTrendData = false;
+
+    if (obsTimeRaw !== undefined && obsTimeRaw !== null && String(obsTimeRaw).trim()) {
+      obsDate = new Date(obsTimeRaw);
+      if (obsDate && !Number.isNaN(obsDate.getTime())) {
+        obsTimeTxt = obsDate.toLocaleString();
+      } else {
+        obsTimeTxt = String(obsTimeRaw).trim();
+      }
+    }
+
+    if (!trendTxt && Number.isFinite(pressureRateNum)) {
+      if (pressureRateNum >= 0.06) {
+        trendTxt = "rapid_rise";
+      } else if (pressureRateNum > 0.01) {
+        trendTxt = "rising";
+      } else if (pressureRateNum <= -0.06) {
+        trendTxt = "rapid_fall";
+      } else if (pressureRateNum < -0.01) {
+        trendTxt = "falling";
+      } else {
+        trendTxt = "steady";
+      }
+    }
+
+    if (trendTxt === "up") trendTxt = "rising";
+    if (trendTxt === "down") trendTxt = "falling";
+    if (
+      trendTxt !== "rapid_fall"
+      && trendTxt !== "falling"
+      && trendTxt !== "steady"
+      && trendTxt !== "rising"
+      && trendTxt !== "rapid_rise"
+    ) {
+      trendTxt = "";
+    }
+
+    if (trendTxt === "rapid_fall") {
+      trendArrow = "↓";
+      trendLabel = "Rapid Fall";
+      sparklinePoints = "0,6 20,9 40,12 60,16 80,21 100,25";
+      sparklineWidth = "90%";
+      hasTrendState = true;
+    } else if (trendTxt === "falling") {
+      trendArrow = "↓";
+      trendLabel = "Falling";
+      sparklinePoints = "0,10 20,12 40,14 60,16 80,18 100,20";
+      sparklineWidth = "78%";
+      hasTrendState = true;
+    } else if (trendTxt === "steady") {
+      trendArrow = "→";
+      trendLabel = "Steady";
+      sparklinePoints = "0,15 20,15 40,15 60,15 80,15 100,15";
+      sparklineWidth = "55%";
+      hasTrendState = true;
+    } else if (trendTxt === "rising") {
+      trendArrow = "↑";
+      trendLabel = "Rising";
+      sparklinePoints = "0,20 20,18 40,16 60,14 80,12 100,10";
+      sparklineWidth = "78%";
+      hasTrendState = true;
+    } else if (trendTxt === "rapid_rise") {
+      trendArrow = "↑";
+      trendLabel = "Rapid Rise";
+      sparklinePoints = "0,25 20,21 40,17 60,13 80,9 100,6";
+      sparklineWidth = "90%";
+      hasTrendState = true;
+    }
+
+    if (pressureCardEl) {
+      hasTrendData = hasTrendState && Number.isFinite(pressureRateNum);
+      if (hasTrendData) {
+        pressureCardEl.setAttribute("data-trend", trendTxt);
+      } else {
+        pressureCardEl.removeAttribute("data-trend");
+      }
+    }
+
+    if (pressureTrendRowEl) {
+      // Keep row space reserved so dial position does not shift when trend appears/disappears.
+      pressureTrendRowEl.classList.remove("d-none");
+      if (hasTrendData) {
+        pressureTrendRowEl.classList.remove("pressure-sub--hidden");
+        pressureTrendRowEl.removeAttribute("aria-hidden");
+      } else {
+        pressureTrendRowEl.classList.add("pressure-sub--hidden");
+        pressureTrendRowEl.setAttribute("aria-hidden", "true");
+      }
+    }
+
+    if (pressureValueEl) {
+      if (Number.isFinite(pressureNum) && pressureNum > 0) {
+        pressureValueEl.textContent = pressureNum.toFixed(2);
+      } else {
+        pressureValueEl.textContent = "—";
+      }
+    }
+
+    if (pressureNeedleEl) {
+      var pressureMin = 28.8;
+      var pressureMax = 30.8;
+      var pressureClamped = Number.isFinite(pressureNum) && pressureNum > 0 ? Math.max(pressureMin, Math.min(pressureMax, pressureNum)) : 29.8;
+      var pressureRatio = (pressureClamped - pressureMin) / (pressureMax - pressureMin);
+      // Map exactly to this semicircle dial: 28.8 (left) -> 29.8 (top) -> 30.8 (right).
+      var pressureAngle = -90 + (pressureRatio * 180);
+      pressureNeedleEl.style.transform = "rotate(" + pressureAngle.toFixed(2) + "deg)";
+    }
+
+    if (pressureArrowEl) {
+      pressureArrowEl.textContent = trendArrow;
+    }
+
+    if (pressureTrendLabelEl) {
+      pressureTrendLabelEl.textContent = trendLabel;
+    }
+
+    if (pressureRateEl) {
+      if (Number.isFinite(pressureRateNum)) {
+        trendRateText = (pressureRateNum >= 0 ? "+" : "") + pressureRateNum.toFixed(2) + "/hr";
+      }
+      pressureRateEl.textContent = trendRateText;
+    }
+
+    if (pressureSparklineLineEl) {
+      if (
+        pressureSparklineLineEl.tagName
+        && pressureSparklineLineEl.tagName.toLowerCase() === "polyline"
+      ) {
+        pressureSparklineLineEl.setAttribute("points", sparklinePoints);
+      } else {
+        pressureSparklineLineEl.style.width = sparklineWidth;
+      }
+    }
+
+    setVisibilityHorizon(
+      (Number.isFinite(visibilityNum) ? visibilityNum : NaN),
+      stationTxt,
+      (obsTimeRaw !== undefined && obsTimeRaw !== null ? String(obsTimeRaw) : "")
+    );
+
+    if (stationTxt) {
+      obsLabel = "Obs: " + stationTxt + (obsTimeTxt ? " • " + obsTimeTxt + " (local)" : "");
+    }
+
+    [pressureCardEl, pressureNeedleEl, pressureValueEl, pressureArrowEl, pressureTrendLabelEl, pressureRateEl, visCardEl, document.getElementById("visValue"), document.getElementById("visStatus"), document.getElementById("visFootnote")].forEach(function (el) {
+      if (!el) return;
+      if (obsLabel) {
+        el.setAttribute("title", obsLabel);
+      } else {
+        el.removeAttribute("title");
+      }
+    });
+  }
+
+  function formatWaveDirection(directionDeg) {
+    var labels = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+    var normalized = 0;
+    var idx = 0;
+    var rounded = 0;
+    if (!Number.isFinite(directionDeg)) {
+      return "--";
+    }
+    normalized = directionDeg % 360;
+    if (normalized < 0) normalized += 360;
+    idx = Math.round(normalized / 45) % 8;
+    rounded = Math.round(normalized);
+    if (rounded < 10) return labels[idx] + " 00" + rounded + "°";
+    if (rounded < 100) return labels[idx] + " 0" + rounded + "°";
+    return labels[idx] + " " + rounded + "°";
+  }
+
+  function renderWaveHeight(marine) {
+    var waveEl = document.getElementById("wxWaveHeight");
+    var waveCard = document.querySelector(".wave-card");
+    var needle = document.getElementById("seaNeedle");
+    var waveAmp = document.getElementById("seaWaveAmp");
+    var frontTrack = document.getElementById("seaWaveFrontTrack");
+    var backTrack = document.getElementById("seaWaveBackTrack");
+    var beaufortEl = document.getElementById("seaBeaufortLevel");
+    var periodEl = document.getElementById("seaWavePeriodValue");
+    var directionEl = document.getElementById("seaWaveDirectionValue");
+    var trendEl = document.getElementById("seaWaveTrendValue");
+    var titleLabelEl = document.getElementById("seaWaveTitleLabel");
+    var marineData = marine || {};
+    var wavesData = marineData.waves || marineData.WAVES || {};
+    var waveHeightFt = NaN;
+    var hasWaveReading = false;
+    var periodSec = NaN;
+    var directionDeg = NaN;
+    var maxScale = 12;
+    var clamped = 0;
+    var ratio = 0;
+    var angle = -120;
+    var ampScale = 0.8;
+    var ampShift = 14;
+    var severity = "calm";
+    var beaufortLevel = 0;
+    var trendLabel = "STEADY";
+    var trendClass = "steady";
+    var delta = 0;
+    var frontSpeed = 6;
+    var backSpeed = 9;
+
+    if (marineData.wave_height_ft !== undefined && marineData.wave_height_ft !== null) {
+      waveHeightFt = parseFloat(marineData.wave_height_ft);
+    } else if (marineData.WAVE_HEIGHT_FT !== undefined && marineData.WAVE_HEIGHT_FT !== null) {
+      waveHeightFt = parseFloat(marineData.WAVE_HEIGHT_FT);
+    } else if (wavesData.height !== undefined && wavesData.height !== null) {
+      waveHeightFt = parseFloat(wavesData.height);
+    }
+
+    if (Number.isFinite(waveHeightFt) && waveHeightFt >= 0) {
+      hasWaveReading = true;
+    } else {
+      waveHeightFt = 0;
+    }
+
+    if (hasWaveReading) {
+      clamped = Math.min(Math.max(waveHeightFt, 0), maxScale);
+    } else {
+      clamped = 0;
+    }
+    ratio = clamped / maxScale;
+    angle = -90 + (ratio * 180);
+    ampScale = 0.8 + (ratio * 0.72);
+    ampShift = 14 - (ratio * 18);
+
+    if (waveEl) {
+      waveEl.textContent = hasWaveReading ? clamped.toFixed(1) : "--";
+    }
+    if (titleLabelEl) {
+      titleLabelEl.textContent = hasWaveReading ? "WAVE HEIGHT" : "NO WAVE OBSERVATION";
+    }
+
+    if (needle) {
+      needle.style.transform = "rotate(" + angle.toFixed(2) + "deg)";
+    }
+
+    if (waveAmp) {
+      waveAmp.style.transform = "translateY(" + ampShift.toFixed(1) + "px) scaleY(" + ampScale.toFixed(2) + ")";
+    }
+
+    if (clamped < 2) {
+      severity = "calm";
+      frontSpeed = 6;
+      backSpeed = 9;
+    } else if (clamped < 5) {
+      severity = "moderate";
+      frontSpeed = 5;
+      backSpeed = 8;
+    } else if (clamped < 8) {
+      severity = "rough";
+      frontSpeed = 4;
+      backSpeed = 6.5;
+    } else {
+      severity = "severe";
+      frontSpeed = 3;
+      backSpeed = 5;
+    }
+
+    if (frontTrack) {
+      frontTrack.style.animationDuration = frontSpeed + "s";
+    }
+    if (backTrack) {
+      backTrack.style.animationDuration = backSpeed + "s";
+    }
+
+    if (waveCard) {
+      waveCard.classList.remove("wave-calm", "wave-moderate", "wave-rough", "wave-severe");
+      waveCard.classList.add("wave-" + severity);
+      waveCard.setAttribute("data-severity", severity);
+      if (hasWaveReading) {
+        waveCard.classList.remove("no-wave-data");
+      } else {
+        waveCard.classList.add("no-wave-data");
+      }
+    }
+
+    if (wavesData.period !== undefined && wavesData.period !== null) {
+      periodSec = parseFloat(wavesData.period);
+    }
+    if (wavesData.directionDeg !== undefined && wavesData.directionDeg !== null) {
+      directionDeg = parseFloat(wavesData.directionDeg);
+    }
+
+    if (beaufortEl) {
+      if (hasWaveReading) {
+        beaufortLevel = Math.max(0, Math.min(12, Math.round(clamped / 0.8)));
+        beaufortEl.textContent = "Level " + beaufortLevel;
+      } else {
+        beaufortEl.textContent = "Level --";
+      }
+    }
+
+    if (periodEl) {
+      if (Number.isFinite(periodSec) && periodSec > 0) {
+        periodEl.textContent = periodSec.toFixed(periodSec < 10 ? 1 : 0) + " s";
+      } else {
+        periodEl.textContent = "--";
+      }
+    }
+
+    if (directionEl) {
+      if (Number.isFinite(directionDeg) && directionDeg >= 0) {
+        directionEl.textContent = formatWaveDirection(directionDeg);
+      } else {
+        directionEl.textContent = "--";
+      }
+    }
+
+    if (!hasWaveReading) {
+      seaStateLastWaveHeight = null;
+    }
+    if (hasWaveReading && Number.isFinite(seaStateLastWaveHeight)) {
+      delta = clamped - seaStateLastWaveHeight;
+      if (delta > 0.15) {
+        trendLabel = "RISING";
+        trendClass = "rising";
+      } else if (delta < -0.15) {
+        trendLabel = "FALLING";
+        trendClass = "falling";
+      }
+    }
+
+    if (hasWaveReading) {
+      seaStateLastWaveHeight = clamped;
+    }
+
+    if (trendEl) {
+      trendEl.classList.remove("rising", "falling", "steady");
+      trendEl.classList.add(trendClass);
+      trendEl.textContent = trendLabel;
+    }
+  }
+
   function formatForecastWhen(startTime) {
     if (!startTime) {
       return "";
@@ -1133,6 +1631,7 @@
         var data = payload.DATA || {};
         if (data.MARINE) {
           renderTideGraph(data.MARINE);
+          renderWaveHeight(data.MARINE);
         }
       })
       .catch(function () {
@@ -1164,7 +1663,9 @@
         renderWeatherAnchor(data.META);
         renderWeatherAlerts(data.ALERTS);
         renderWeatherForecast(data.FORECAST);
+        renderWeatherSurface(data.surface || data.SURFACE || null);
         renderTideGraph(data.MARINE);
+        renderWaveHeight(data.MARINE);
         hydrateMarineTrend(zip, requestSeq);
       })
       .catch(function (err) {
@@ -1173,7 +1674,9 @@
         renderWeatherAnchor(null);
         renderWeatherAlerts([]);
         renderWeatherForecast([]);
+        renderWeatherSurface(null);
         renderTideGraph(null);
+        renderWaveHeight(null);
         setWeatherError((err && err.message) ? err.message : null);
       })
       .finally(function () {
@@ -1209,7 +1712,9 @@
         renderWeatherAnchor(null);
         renderWeatherAlerts([]);
         renderWeatherForecast([]);
+        renderWeatherSurface(null);
         renderTideGraph(null);
+        renderWaveHeight(null);
         setWeatherError(msg);
         return;
       }

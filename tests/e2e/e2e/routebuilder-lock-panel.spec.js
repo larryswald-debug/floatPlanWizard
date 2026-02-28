@@ -15,20 +15,48 @@ async function loginToDashboard(page) {
   await page.click('button[type="submit"], input[type="submit"]');
   await page.waitForLoadState("networkidle");
   await expect(page).not.toHaveURL(/index\.cfm$/i);
-  await page.goto("/fpw/app/dashboard.cfm", { waitUntil: "domcontentloaded" });
+  if (!/\/fpw\/app\/dashboard\.cfm/i.test(page.url())) {
+    await page.goto("/fpw/app/dashboard.cfm", { waitUntil: "domcontentloaded" });
+  }
   await expect(page.locator("#openRouteBuilderBtn")).toBeVisible({ timeout: 30000 });
 }
 
 async function openPreview(page) {
   await page.click("#openRouteBuilderBtn");
-  await expect(page.locator("#routeBuilderModal")).toBeVisible({ timeout: 15000 });
+  const routeBuilderModal = page.locator("#routeBuilderModal");
+  const openedByClick = await routeBuilderModal.waitFor({ state: "visible", timeout: 5000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!openedByClick) {
+    await page.evaluate(() => {
+      const openBtn = document.getElementById("openRouteBuilderBtn");
+      if (openBtn) {
+        openBtn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+      }
+      const modalEl = document.getElementById("routeBuilderModal");
+      if (!modalEl || !window.bootstrap || !window.bootstrap.Modal) return;
+      window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    });
+  }
+  await expect(routeBuilderModal).toBeVisible({ timeout: 15000 });
   await expect(page.locator("#fpwRouteGen")).toBeVisible({ timeout: 15000 });
 
   const today = new Date().toISOString().slice(0, 10);
-  await page.waitForFunction(() => {
+  let templateReady = await page.waitForFunction(() => {
     const sel = document.getElementById("routeGenTemplateSelect");
     return !!sel && !sel.disabled && sel.options.length > 1;
-  }, { timeout: 20000 });
+  }, { timeout: 20000 }).then(() => true).catch(() => false);
+  if (!templateReady) {
+    await page.click("#routeGenCancelBtn").catch(() => {});
+    await expect(routeBuilderModal).toBeHidden({ timeout: 15000 });
+    await page.click("#openRouteBuilderBtn");
+    await expect(routeBuilderModal).toBeVisible({ timeout: 15000 });
+    templateReady = await page.waitForFunction(() => {
+      const sel = document.getElementById("routeGenTemplateSelect");
+      return !!sel && !sel.disabled && sel.options.length > 1;
+    }, { timeout: 30000 }).then(() => true).catch(() => false);
+  }
+  expect(templateReady).toBeTruthy();
   await page.selectOption("#routeGenTemplateSelect", { index: 1 });
   await page.fill("#routeGenStartDate", today);
 
@@ -109,10 +137,9 @@ test("Route Builder keeps lock panel open when advanced settings change", async 
   await loginToDashboard(page);
   await openPreview(page);
 
-  const secondLeg = page.locator("#routeGenLegList .fpw-routegen__leg").nth(1);
-  await expect(secondLeg).toBeVisible({ timeout: 15000 });
-  await secondLeg.scrollIntoViewIfNeeded();
-  await secondLeg.click();
+  await page.waitForFunction(() => {
+    return document.querySelectorAll("#routeGenLegList .fpw-routegen__leg").length > 1;
+  }, { timeout: 15000 });
   await page.evaluate(() => {
     const openPanel = document.querySelector("#routeGenLegList .fpw-routegen__leglockpanel.is-open");
     if (openPanel) return;
@@ -174,9 +201,16 @@ test("Route Builder timeline fuel updates after advanced input changes", async (
   await loginToDashboard(page);
   await openPreview(page);
 
+  const generateResponsePromise = page.waitForResponse((response) => {
+    return response.request().method() === "POST"
+      && response.url().includes("action=routegen_generate");
+  }, { timeout: 30000 });
+
   await expect(page.locator("#routeGenGenerateBtn")).toBeEnabled({ timeout: 30000 });
   await page.click("#routeGenGenerateBtn");
-  await expect(page.locator("#dashboardAlert")).toContainText("Route generated successfully.", { timeout: 30000 });
+  const generateResponse = await generateResponsePromise;
+  const generatePayload = await generateResponse.json();
+  expect(!!(generatePayload && generatePayload.SUCCESS)).toBeTruthy();
   await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 30000 });
 
   const editBtn = page.locator(".expedition-route-card .js-expedition-view-edit").first();

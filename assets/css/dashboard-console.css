@@ -1674,23 +1674,288 @@ main.dashboard-main{
             color: rgba(255,255,255,.62);
         }
 
-        .fpw-wx__arc{
+        /* Scoped weather card spacing system */
+        .wx-panel--cockpit{
+            --card-pad-x: 18px;
+            --card-pad-y: 16px;
+            --card-gap: 16px;
+            --wx-card-height: 199px;
+            --hdr-gap: 10px;
+            --val-gap: 10px;
+            --viz-gap: 10px;
+            --title-size: .95rem;
+            --value-size: 2.6rem;
+            --sub-size: .95rem;
+        }
+
+        .wx-panel--cockpit .fpw-wx__instruments{
+            gap: var(--card-gap);
+            align-items: start;
+        }
+
+        .wx-panel--cockpit .wx-row{
+            align-items: flex-start;
+        }
+
+        .wx-panel--cockpit .wx-row .wx-card{
+            padding: var(--card-pad-y) var(--card-pad-x);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            height: var(--wx-card-height);
+            min-height: var(--wx-card-height);
+            max-height: var(--wx-card-height);
+            overflow: hidden;
+        }
+
+        .wx-panel--cockpit .wx-row .wx-card .card-title{
+            margin-bottom: 10px;
+        }
+
+        .wx-panel--cockpit .wx-card__head{
+            margin-bottom: var(--hdr-gap);
+        }
+
+        .wx-panel--cockpit .wx-card__value{
+            margin-bottom: var(--val-gap);
+        }
+
+        .wx-panel--cockpit .wx-card__viz{
+            margin-bottom: var(--viz-gap);
+        }
+
+        .wx-panel--cockpit .wx-card__foot{
+            margin-top: 0;
+        }
+
+        /* Card-specific tightening to match gust density */
+        .wx-panel--cockpit .fpw-wx__gusts .fpw-wx__spikes{
+            margin-top: 4px;
+        }
+
+        .wx-panel--cockpit .fpw-wx__gusts .fpw-wx__spikeBars{
+            height: 66px;
+        }
+
+        .wx-panel--cockpit .fpw-wx__gusts .fpw-wx__gaugeFoot{
+            margin-top: 6px;
+        }
+
+        .wx-panel--cockpit .fpw-wx__gusts{
+            background:
+              radial-gradient(120% 140% at 50% -10%, rgba(39,188,255,.22), rgba(0,0,0,0) 55%),
+              radial-gradient(100% 100% at 8% 12%, rgba(22,163,255,.14), rgba(0,0,0,0) 45%),
+              radial-gradient(120% 120% at 92% 10%, rgba(68,95,255,.16), rgba(0,0,0,0) 55%),
+              linear-gradient(180deg, rgba(8,18,38,.97), rgba(5,11,24,.99));
+        }
+
+        .wx-panel--cockpit .sea-radar-head{
+            margin-bottom: 0;
+        }
+
+        .wx-panel--cockpit .sea-radar-card .card-label{
+            transform: translateY(13px);
+            color: rgba(95,180,255);
+        }
+
+        .wx-panel--cockpit .wave-card.sea-radar-card.no-wave-data .card-label{
+            color: rgba(90,165,255,.75);
+        }
+
+        .wx-panel--cockpit .sea-radar-shell{
+            margin-top: 6px !important;
+            margin-bottom: 2px;
+            width: min(100%, 272px);
+            height: 140px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .wx-panel--cockpit .sea-radar-svg{
+            transform: translateY(3px);
+        }
+
+        .wx-panel--cockpit .sea-radar-readout{
+            top: 58%;
+            color: rgba(95,180,255,.95);
+        }
+
+        .wx-panel--cockpit .sea-radar-readout .unit{
+            color: rgba(95,180,255,.70);
+        }
+
+        .wx-panel--cockpit .wave-card.sea-radar-card::after{
+            display: none;
+        }
+
+        .wx-panel--cockpit .pressure-card{
+            padding: var(--card-pad-y) var(--card-pad-x);
+        }
+
+        .wx-panel--cockpit .pressure-value{
+            font-size: 24px;
+        }
+
+        .wx-panel--cockpit .pressure-card .pressure-head{
+            margin-bottom: 6px;
+        }
+
+        .wx-panel--cockpit .pressure-sub{
+            margin-top: 0;
+            min-height: 22px;
+            height: 22px;
+            padding: 0;
+            align-items: center;
+        }
+
+        .wx-panel--cockpit .pressure-card .pressure-sub.pressure-sub--hidden{
+            visibility: hidden;
+        }
+
+        .wx-panel--cockpit .pressure-card .pressure-trend{
+            font-size: 12px;
+            line-height: 1;
+            gap: 4px;
+        }
+
+        .wx-panel--cockpit .pressure-card .trend-text{
+            font-size: 11px;
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        .wx-panel--cockpit .pressure-card .pressure-rate{
+            font-size: 10px;
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        .wx-panel--cockpit .pressure-card .pressure-dial-slot{
+            width: 213.812px;
+            height: 138.203px;
+            margin: 6px auto 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform: translateY(-43.6px);
+        }
+
+        .wx-panel--cockpit .pressure-card .pressure-gauge-wrap{
+            width: 100%;
+            height: 100%;
+        }
+
+        .wx-panel--cockpit .pressure-card .pressure-gauge-wrap .barometer{
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background: none;
+            display: block;
+        }
+
+        .wx-panel--cockpit .pressure-card .pressure-gauge-wrap .baro-svg{
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            display: block;
+        }
+
+        .wx-panel--cockpit .pressure-card .baro-scale{
+            margin-top: -6px;
+            font-size: 7px;
+        }
+
+        .wx-panel--cockpit .pressure-spark{
+            margin-top: 6px;
+            padding: 0;
+            display: none;
+        }
+
+        .wx-panel--cockpit #visHorizon{
+            gap: 6px;
+            min-height: 100%;
+        }
+
+        .wx-panel--cockpit .vis-status{
+            margin-top: 3px;
+        }
+
+        .wx-panel--cockpit .vis-value{
+            font-size: 30px;
+        }
+
+        .wx-panel--cockpit .vis-scene{
+            height: 56px;
+        }
+
+        .wx-panel--cockpit .vis-horizonLine{
+            top: 36px;
+        }
+
+        .wx-panel--cockpit .vis-gridLine{
+            top: 44px;
+        }
+
+        .wx-panel--cockpit .vis-foot{
+            margin-top: 0;
+            font-size: 11px;
+        }
+
+        @media (max-width: 992px){
+            .wx-panel--cockpit{
+                --card-pad-x: 14px;
+                --card-pad-y: 13px;
+                --card-gap: 12px;
+            }
+        }
+
+        .fpw-wx__arcWrap{
             margin-top: 10px;
-            height: 84px;
+            position: relative;
+        }
+        .fpw-wx__arc{
+            margin-top: 0;
+            height: 136px;
             border-radius: 12px;
             background:
               conic-gradient(from 180deg,
-                rgba(59,130,246,.65) 0deg,
-                rgba(45,212,191,.65) 90deg,
-                rgba(250,204,21,.68) 150deg,
-                rgba(239,68,68,.70) 210deg,
-                rgba(255,255,255,.06) 0deg);
-            mask: radial-gradient(circle at 50% 100%, transparent 0 58%, #000 60% 100%);
+                var(--temp-cold, rgba(59,130,246,.65)) 0deg,
+                var(--temp-mid, rgba(45,212,191,.65)) 90deg,
+                var(--temp-hot, rgba(239,68,68,.70)) 210deg,
+                rgba(255,255,255,.06) 360deg);
+            -webkit-mask: radial-gradient(circle at 50% 100%, transparent 0 52%, #000 54% 100%);
+            mask: radial-gradient(circle at 50% 100%, transparent 0 52%, #000 54% 100%);
             opacity:.9;
             position: relative;
             overflow:hidden;
         }
-        .fpw-wx__temp{ position:relative; }
+        .fpw-wx__arcCenterText{
+            position:absolute;
+            left:0;
+            right:0;
+            top:calc(60% + 10px);
+            transform: translateY(-50%);
+            display:flex;
+            justify-content:center;
+            pointer-events:none;
+        }
+        .fpw-wx__temp #weatherTempHiLo{
+            font-size: 1rem;
+            font-weight: 600;
+            color: rgba(255,255,255,.90);
+            text-shadow: 0 2px 14px rgba(0,0,0,.45);
+        }
+        .fpw-wx__temp{
+            position:relative;
+            --temp-cold: rgba(59,130,246,.65);
+            --temp-mid: rgba(45,212,191,.65);
+            --temp-hot: rgba(239,68,68,.70);
+            --temp-marker: rgba(255,255,255,.92);
+            --temp-marker-glow: rgba(45,212,191,.22);
+        }
         .fpw-wx__temp .fpw-wx__arc::after{
             content:"";
             position:absolute;
@@ -1699,8 +1964,9 @@ main.dashboard-main{
             width: 12px;
             height: 12px;
             border-radius: 50%;
-            background: rgba(255,255,255,.92);
-            box-shadow: 0 0 0 4px rgba(255,255,255,.12), 0 0 20px rgba(45,212,191,.22);
+            background: var(--temp-marker, rgba(255,255,255,.92));
+            box-shadow: 0 0 0 4px rgba(255,255,255,.12), 0 0 20px var(--temp-marker-glow, rgba(45,212,191,.22));
+            z-index: 2;
         }
 
         .fpw-wx__spikes{ margin-top: 10px; }
@@ -1708,7 +1974,7 @@ main.dashboard-main{
             display:flex;
             align-items:flex-end;
             gap: 4px;
-            height: 84px;
+            height: 124px;
         }
         .fpw-wx__spike{
             flex: 1 1 0;
@@ -1741,6 +2007,873 @@ main.dashboard-main{
         .fpw-wx__trendPill.up{ border-color: rgba(34,197,94,.25); background: rgba(34,197,94,.10); }
         .fpw-wx__trendPill.down{ border-color: rgba(239,68,68,.25); background: rgba(239,68,68,.10); }
         .fpw-wx__trendPill.neutral{ border-color: rgba(59,130,246,.22); background: rgba(59,130,246,.10); }
+
+        .pressure-card{
+          background: radial-gradient(120% 120% at 20% 10%, rgba(70,120,255,.10), rgba(0,0,0,0) 45%),
+                      radial-gradient(100% 140% at 80% 10%, rgba(0,220,255,.10), rgba(0,0,0,0) 55%),
+                      linear-gradient(180deg, rgba(15,25,45,.92), rgba(8,14,26,.92));
+          border-radius: 11px;
+          padding: 11px 11px 9px;
+          border: 1px solid rgba(255,255,255,.06);
+          box-shadow:
+            inset 0 0 0 1px rgba(255,255,255,.03),
+            0 18px 40px rgba(0,0,0,.45);
+          color: rgba(255,255,255,.92);
+        }
+
+        .pressure-head{
+          display:flex;
+          align-items:baseline;
+          justify-content:space-between;
+          gap:8px;
+        }
+
+        .pressure-label{
+          letter-spacing:2px;
+          font-size:8px;
+          color: rgba(90,165,255,.75);
+        }
+
+        .pressure-readout{
+          display:flex;
+          align-items:baseline;
+          gap:5px;
+        }
+
+        .pressure-value{
+          font-size:28px;
+          font-weight:700;
+          line-height:1;
+          color: rgba(95,180,255,.95);
+          text-shadow: 0 0 16px rgba(80,170,255,.28);
+        }
+
+        .pressure-unit{
+          font-size:11px;
+          color: rgba(95,180,255,.70);
+        }
+
+        .pressure-sub{
+          margin-top:4px;
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          color: rgba(95,180,255,.85);
+        }
+
+        .pressure-trend{
+          display:flex;
+          gap:5px;
+          align-items:center;
+          font-size:13px;
+          margin-top: 0;
+        }
+
+        .trend-text{
+          font-size:12px;
+          opacity:.9;
+        }
+
+        .pressure-rate{
+          font-size:11px;
+          opacity:.55;
+        }
+
+        .barometer{
+          margin-top:7px;
+          position:relative;
+          padding:5px 4px 0;
+          border-radius:9px;
+          background: radial-gradient(120% 120% at 50% 25%, rgba(120,190,255,.10), rgba(0,0,0,0) 55%);
+          --angle: calc(
+            (-120deg) + ( (var(--p) - var(--pMin)) / (var(--pMax) - var(--pMin)) ) * 240deg
+          );
+        }
+
+        .baro-svg{
+          width:150%;
+          height:114px;
+          display:block;
+          margin-left:-25%;
+          filter: drop-shadow(0 10px 22px rgba(0,0,0,.45));
+        }
+
+        .baro-arc{
+          fill:none;
+          stroke-linecap:round;
+          stroke-width:10;
+        }
+
+        .baro-arc.base{
+          stroke: rgba(95,180,255,.22);
+        }
+
+        .baro-arc.glow{
+          stroke: rgba(95,180,255,.55);
+          stroke-width:12;
+          opacity:.35;
+          filter: blur(1.2px);
+        }
+
+        .wx-panel--cockpit .pressure-card .baro-radar-track{
+          stroke-width: 23;
+        }
+
+        .wx-panel--cockpit .pressure-card .baro-radar-zone{
+          stroke-width: 19;
+        }
+
+        .wx-panel--cockpit .pressure-card .baro-dial{
+          transform: none;
+          transform-origin: 120px 140px;
+        }
+
+        .baro-ticks .major line{
+          stroke: rgba(180,220,255,.22);
+          stroke-width:3;
+          stroke-linecap:round;
+        }
+
+        .baro-needle{
+          transform-origin: 120px 140px;
+          transform: rotate(var(--angle));
+          transition: transform 420ms cubic-bezier(.2,.9,.2,1);
+        }
+
+        .needle{
+          stroke: rgba(95,180,255,.95);
+          stroke-width:4.2;
+          stroke-linecap:round;
+          filter: drop-shadow(0 0 10px rgba(95,180,255,.35));
+        }
+
+        .hub{
+          fill: rgba(10,16,28,.95);
+          stroke: rgba(95,180,255,.65);
+          stroke-width:2;
+          filter: drop-shadow(0 0 14px rgba(95,180,255,.25));
+        }
+
+        .hub-inner{
+          fill: rgba(95,180,255,.85);
+          opacity:.85;
+        }
+
+        .lens{
+          fill: rgba(255,255,255,.03);
+          stroke: rgba(255,255,255,.05);
+          stroke-width:1;
+        }
+
+        .baro-scale{
+          margin-top:-3px;
+          display:flex;
+          justify-content:space-between;
+          padding:0 4px 2px;
+          color: rgba(180,220,255,.40);
+          font-size:8px;
+          letter-spacing:.5px;
+        }
+
+        .pressure-spark{
+          margin-top:7px;
+          padding:5px 4px 2px;
+        }
+
+        .spark-line{
+          height:2px;
+          width:70%;
+          margin:0 auto;
+          border-radius:999px;
+          background: rgba(95,180,255,.85);
+          box-shadow: 0 0 14px rgba(95,180,255,.25);
+          transition: width .3s ease, opacity .3s ease;
+        }
+
+        .pressure-card[data-trend="rapid_fall"]{
+          color:#ff4d4f;
+          box-shadow:
+            inset 0 0 0 1px rgba(255,77,79,.4),
+            0 0 18px rgba(255,77,79,.4);
+        }
+
+        .pressure-card[data-trend="falling"]{
+          color:#f5c542;
+        }
+
+        .pressure-card[data-trend="steady"]{
+          color:#4da6ff;
+        }
+
+        .pressure-card[data-trend="rising"]{
+          color:#2bd1a3;
+        }
+
+        .pressure-card[data-trend="rapid_rise"]{
+          color:#19ff88;
+          box-shadow:
+            inset 0 0 0 1px rgba(25,255,136,.4),
+            0 0 18px rgba(25,255,136,.35);
+        }
+
+        /* ===== Visibility: Forward Horizon + Depth Fade ===== */
+        .vis-horizon{
+          display:flex;
+          flex-direction:column;
+          gap:10px;
+        }
+
+        .vis-hdr{
+          display:flex;
+          align-items:flex-start;
+          justify-content:space-between;
+          gap:12px;
+        }
+
+        .vis-title{
+          font-size:12px;
+          letter-spacing:1.2px;
+          opacity:.65;
+        }
+
+        .vis-readout{
+          text-align:right;
+        }
+
+        .vis-value{
+          font-size:34px;
+          font-weight:600;
+          line-height:1.0;
+        }
+
+        .vis-unit{
+          font-size:14px;
+          opacity:.65;
+          font-weight:500;
+        }
+
+        .vis-status{
+          margin-top:6px;
+          font-size:12px;
+          letter-spacing:1.2px;
+          opacity:.75;
+        }
+
+        .vis-scene{
+          position:relative;
+          border-radius:14px;
+          height:88px;
+          overflow:hidden;
+          background:
+            radial-gradient(120% 90% at 50% 110%, rgba(43,209,163,.10), rgba(0,0,0,0) 55%),
+            linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0));
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
+        }
+
+        .vis-fog{
+          position:absolute;
+          inset:0;
+          background: radial-gradient(120% 120% at 50% 65%, rgba(255,255,255,.22), rgba(255,255,255,0) 60%),
+                      linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,0));
+          opacity:0;
+          transition: opacity .35s ease;
+          pointer-events:none;
+        }
+
+        .vis-horizonLine{
+          position:absolute;
+          left:10px;
+          right:10px;
+          top:54px;
+          height:2px;
+          background: rgba(255,255,255,.14);
+          box-shadow: 0 0 10px rgba(255,255,255,.10);
+          opacity:.9;
+          transition: opacity .35s ease, box-shadow .35s ease;
+        }
+
+        .vis-grid{
+          position:absolute;
+          inset:0;
+          transform: perspective(500px) rotateX(55deg);
+          transform-origin: 50% 70%;
+          opacity:.55;
+          transition: opacity .35s ease;
+        }
+
+        .vis-gridLine{
+          position:absolute;
+          left:50%;
+          width:1px;
+          top:62px;
+          bottom:-40px;
+          background: rgba(255,255,255,.10);
+          filter: blur(.2px);
+          transform-origin: top;
+        }
+
+        .vis-gridLine:nth-child(1){ transform: translateX(-80px) skewX(-8deg); opacity:.20; }
+        .vis-gridLine:nth-child(2){ transform: translateX(-55px) skewX(-6deg); opacity:.28; }
+        .vis-gridLine:nth-child(3){ transform: translateX(-32px) skewX(-4deg); opacity:.36; }
+        .vis-gridLine:nth-child(4){ transform: translateX(-12px) skewX(-2deg); opacity:.44; }
+        .vis-gridLine:nth-child(5){ transform: translateX(12px) skewX(2deg); opacity:.44; }
+        .vis-gridLine:nth-child(6){ transform: translateX(32px) skewX(4deg); opacity:.36; }
+        .vis-gridLine:nth-child(7){ transform: translateX(55px) skewX(6deg); opacity:.28; }
+        .vis-gridLine:nth-child(8){ transform: translateX(80px) skewX(8deg); opacity:.20; }
+
+        .vis-rangeText{
+          position:absolute;
+          left:12px;
+          bottom:10px;
+          font-size:12px;
+          opacity:.65;
+          letter-spacing:.6px;
+        }
+
+        .vis-foot{
+          font-size:12px;
+          opacity:.55;
+        }
+
+        #visHorizon[data-vis-state="fog"]{ color: rgba(255,80,80,.95); }
+        #visHorizon[data-vis-state="restricted"]{ color: rgba(245,197,66,.95); }
+        #visHorizon[data-vis-state="haze"]{ color: rgba(245,197,66,.85); }
+        #visHorizon[data-vis-state="good"]{ color: rgba(77,166,255,.95); }
+        #visHorizon[data-vis-state="clear"]{ color: rgba(43,209,163,.95); }
+        #visHorizon[data-vis-state="unknown"]{ color: rgba(255,255,255,.82); }
+
+        /* Wave Height cockpit card */
+        .wave-card{
+          display:flex;
+          flex-direction:column;
+          justify-content:space-between;
+          gap:10px;
+          transition: box-shadow .25s ease;
+        }
+
+        .wave-card .card-label{
+          font-size:12px;
+          letter-spacing:1.2px;
+          opacity:.65;
+        }
+
+        .wave-card .card-value{
+          display:flex;
+          align-items:flex-end;
+          gap:8px;
+          line-height:1;
+        }
+
+        .wave-card .card-value #wxWaveHeight{
+          font-size:34px;
+          font-weight:600;
+        }
+
+        .wave-card .card-value .unit{
+          font-size:14px;
+          opacity:.65;
+          font-weight:500;
+          margin-bottom:4px;
+        }
+
+        .wave-card .card-subtext{
+          font-size:12px;
+          opacity:.6;
+          letter-spacing:.6px;
+        }
+
+        .wave-card.calm { box-shadow: 0 0 8px rgba(0, 200, 120, 0.4); }
+        .wave-card.moderate { box-shadow: 0 0 8px rgba(255, 180, 0, 0.4); }
+        .wave-card.rough { box-shadow: 0 0 8px rgba(255, 60, 60, 0.5); }
+
+        /* Wave Height mini swell gauge (additive) */
+        .wave-gauge {
+            position: relative;
+            height: 90px;
+            margin-top: 8px;
+            background: radial-gradient(circle at center, #0f1b2a 0%, #081018 70%);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .wave-surface {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .wave {
+            position: absolute;
+            bottom: 0;
+            width: 200%;
+            height: 60%;
+            background: rgba(0, 180, 255, 0.35);
+            border-radius: 40%;
+        }
+
+        .wave-front {
+            animation: swellMove 6s linear infinite;
+            background: rgba(0, 200, 255, 0.45);
+        }
+
+        .wave-back {
+            animation: swellMove 10s linear infinite reverse;
+            opacity: 0.6;
+        }
+
+        @keyframes swellMove {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        .wave-card.wave-calm .wave { height: 25%; }
+        .wave-card.wave-moderate .wave { height: 45%; }
+        .wave-card.wave-rough .wave { height: 65%; }
+        .wave-card.wave-severe .wave { height: 85%; }
+
+        .wave-readout {
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            font-size: 1.6rem;
+            font-weight: 600;
+            color: #e6f6ff;
+            text-shadow: 0 0 6px rgba(0,200,255,0.6);
+            line-height: 1;
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+
+        .wave-readout .unit {
+            font-size: 14px;
+            opacity: 0.75;
+            font-weight: 500;
+        }
+
+        .wave-card.wave-calm { box-shadow: 0 0 8px rgba(0, 200, 120, 0.4); }
+        .wave-card.wave-moderate { box-shadow: 0 0 8px rgba(255, 180, 0, 0.4); }
+        .wave-card.wave-rough { box-shadow: 0 0 8px rgba(255, 60, 60, 0.5); }
+        .wave-card.wave-severe { box-shadow: 0 0 10px rgba(255, 40, 40, 0.65); }
+
+        /* Circular radar sea-state gauge (additive) */
+        .sea-gauge {
+            position: relative;
+            width: 180px;
+            height: 120px;
+            margin: 0 auto;
+        }
+
+        .sea-arc {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .arc {
+            fill: none;
+            stroke-width: 8;
+            opacity: 0.6;
+        }
+
+        .arc-calm { stroke: #00d084; }
+        .arc-moderate { stroke: #f0c000; }
+        .arc-rough { stroke: #ff7a00; }
+        .arc-severe { stroke: #ff3b3b; }
+
+        .sea-needle {
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            width: 4px;
+            height: 85px;
+            background: linear-gradient(to top, #fff, #00d4ff);
+            transform-origin: bottom center;
+            transform: translateX(-50%) rotate(-90deg);
+            transition: transform 0.6s ease-out;
+            box-shadow: 0 0 8px rgba(0,200,255,0.8);
+            border-radius: 8px;
+            z-index: 3;
+        }
+
+        .sea-swell-overlay {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 60%;
+            overflow: hidden;
+            border-radius: 0 0 100px 100px;
+            z-index: 1;
+        }
+
+        .sea-wave {
+            position: absolute;
+            bottom: 0;
+            width: 200%;
+            height: 40%;
+            background: rgba(0, 180, 255, 0.35);
+            border-radius: 40%;
+            animation: seaSwell 6s linear infinite;
+        }
+
+        @keyframes seaSwell {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        .sea-readout {
+            position: absolute;
+            bottom: -10px;
+            width: 100%;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #e6f6ff;
+            text-shadow: 0 0 6px rgba(0,200,255,0.6);
+            z-index: 4;
+            line-height: 1;
+        }
+
+        .sea-readout .unit {
+            font-size: 0.85rem;
+            opacity: 0.8;
+            margin-left: 4px;
+            font-weight: 500;
+        }
+
+        /* Sea state radar panel (full-width instrument) */
+        .fpw-wx__instruments .wave-card.sea-radar-card{
+            grid-column: auto;
+            position: relative;
+            padding: 12px;
+            border-radius: 14px;
+            overflow: hidden;
+            background:
+              radial-gradient(120% 140% at 50% -10%, rgba(39,188,255,.22), rgba(0,0,0,0) 55%),
+              radial-gradient(100% 100% at 8% 12%, rgba(22,163,255,.14), rgba(0,0,0,0) 45%),
+              radial-gradient(120% 120% at 92% 10%, rgba(68,95,255,.16), rgba(0,0,0,0) 55%),
+              linear-gradient(180deg, rgba(8,18,38,.97), rgba(5,11,24,.99));
+            border: 1px solid rgba(135,168,215,.24);
+            box-shadow:
+              inset 0 0 0 1px rgba(255,255,255,.04),
+              0 10px 22px rgba(0,0,0,.30),
+              0 0 14px rgba(22,163,255,.14);
+            min-height: 0;
+        }
+
+        .wave-card.sea-radar-card::after{
+            content:"";
+            position:absolute;
+            left:14%;
+            right:14%;
+            bottom: 8px;
+            height: 1px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(255,197,58,0), rgba(255,197,58,.90), rgba(255,197,58,0));
+            filter: drop-shadow(0 0 8px rgba(255,180,40,.55));
+            pointer-events:none;
+        }
+
+        .sea-radar-head{
+            position: relative;
+            z-index: 3;
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            gap: 2px;
+            margin-bottom: 2px;
+        }
+
+        .sea-radar-card .card-label{
+            font-size: clamp(.90rem, 1.2vw, 1.05rem);
+            line-height: 1;
+            letter-spacing: .18em;
+            font-weight: 600;
+            color: rgba(95,180,255);
+            text-shadow: 0 0 20px rgba(84,170,255,.22);
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .wave-card.sea-radar-card.no-wave-data .card-label{
+            font-size: clamp(.68rem, .98vw, .80rem);
+            letter-spacing: .08em;
+            color: rgba(255,214,170,.90);
+        }
+
+        .sea-radar-shell{
+            position: relative;
+            margin: -9px auto 0;
+            width: min(100%, 270px);
+            padding-top: 0;
+        }
+
+        .sea-radar-svg{
+            width: 100%;
+            height: auto;
+            display:block;
+            shape-rendering: geometricPrecision;
+            text-rendering: geometricPrecision;
+            filter: drop-shadow(0 18px 28px rgba(0,0,0,.42));
+        }
+
+        .sea-radar-outer-frame{
+            fill:none;
+            stroke: rgba(148,182,235,.46);
+            stroke-width: 3;
+            stroke-linecap: round;
+        }
+
+        .sea-radar-outer-glow{
+            fill:none;
+            stroke: rgba(86,170,255,.34);
+            stroke-width: 6;
+            stroke-linecap: round;
+            filter: blur(1.2px);
+        }
+
+        .sea-radar-track{
+            fill:none;
+            stroke: rgba(255,255,255,.08);
+            stroke-width: 23;
+            stroke-linecap: round;
+        }
+
+        .sea-radar-zone{
+            fill:none;
+            stroke-width: 19;
+            stroke-linecap: round;
+            filter: drop-shadow(0 0 8px rgba(0,0,0,.42));
+        }
+        .sea-radar-zone.zone-calm{ stroke: rgba(170,225,255,.95); }
+        .sea-radar-zone.zone-moderate{ stroke: rgba(140,210,255,.90); }
+        .sea-radar-zone.zone-rough{ stroke: rgba(110,195,255,.80); }
+        .sea-radar-zone.zone-severe{ stroke: rgba(95,180,255,.65); }
+
+        .tick{
+            stroke-linecap: round;
+            opacity:.92;
+        }
+        .tick.major{
+            stroke: rgba(255,243,215,.88);
+            stroke-width: 4;
+        }
+        .tick.minor{
+            stroke: rgba(255,214,136,.58);
+            stroke-width: 2.5;
+        }
+
+        .grid-ring,
+        .grid-ray{
+            fill:none;
+            stroke: rgba(30,179,255,.33);
+            stroke-width: 1.2;
+        }
+
+        .sea-radar-num{
+            fill: rgba(255,244,225,.95);
+            font-size: 40px;
+            font-weight: 400;
+            letter-spacing: .02em;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+
+        .sea-radar-zone-label{
+            font-size: 56px;
+            font-weight: 800;
+            letter-spacing: .14em;
+            text-anchor: middle;
+            filter: drop-shadow(0 0 7px rgba(0,0,0,.35));
+        }
+        .sea-radar-zone-label.zone-label-calm{
+            fill: rgba(67,232,168,.95);
+            transform: rotate(-58deg);
+            transform-origin: 150px 196px;
+        }
+        .sea-radar-zone-label.zone-label-moderate{
+            fill: rgba(255,196,65,.96);
+        }
+        .sea-radar-zone-label.zone-label-rough{
+            fill: rgba(255,170,62,.96);
+            transform: rotate(34deg);
+            transform-origin: 560px 168px;
+        }
+        .sea-radar-zone-label.zone-label-severe{
+            fill: rgba(255,86,78,.98);
+            transform: rotate(89deg);
+            transform-origin: 637px 250px;
+        }
+
+        #seaWaveAmp{
+            transform-origin: 380px 346px;
+            transition: transform .45s ease;
+        }
+        .sea-wave-track{
+            animation: seaRadarWaveShift 6s linear infinite;
+            will-change: transform;
+        }
+        .sea-wave-back-track{
+            animation-duration: 9s;
+            animation-direction: reverse;
+            opacity: .72;
+        }
+        .sea-wave-front-track{
+            animation-duration: 6s;
+            opacity: .95;
+        }
+        .sea-wave-front{
+            fill: url(#seaWaveFrontGrad);
+        }
+        .sea-wave-back{
+            fill: url(#seaWaveBackGrad);
+        }
+        @keyframes seaRadarWaveShift{
+            from { transform: translateX(0); }
+            to { transform: translateX(-280px); }
+        }
+
+        .sea-radar-bowl{
+            fill: rgba(7,15,33,.88);
+            stroke: rgba(74,198,255,.44);
+            stroke-width: 2;
+            filter: drop-shadow(0 -4px 10px rgba(68,177,255,.26));
+        }
+
+        .sea-radar-needle{
+            transform-origin: 380px 304px;
+            transform: rotate(-90deg);
+            transition: transform .62s cubic-bezier(.22,.92,.2,1);
+        }
+        .sea-radar-needle-line{
+            stroke: rgba(77,223,255,.86);
+            stroke-width: 4;
+            stroke-linecap: round;
+            filter: drop-shadow(0 0 8px rgba(66,207,255,.45));
+            opacity: .96;
+        }
+        .sea-radar-needle-tip-glow{
+            fill: rgba(90,220,255,.20);
+            filter: drop-shadow(0 0 8px rgba(74,210,255,.52));
+        }
+        .sea-radar-needle-tip{
+            fill: rgba(214,249,255,.98);
+            stroke: rgba(86,215,255,.84);
+            stroke-width: 2;
+        }
+        .sea-radar-hub{
+            fill: rgba(10,18,40,.95);
+            stroke: rgba(162,206,255,.65);
+            stroke-width: 2.3;
+        }
+        .sea-radar-hub-core{
+            fill: rgba(202,240,255,.92);
+        }
+
+        .sea-radar-readout{
+            position:absolute;
+            left:50%;
+            top: 58%;
+            transform: translate(calc(-50% + 6px), calc(-50% - 9px));
+            display:flex;
+            align-items:flex-end;
+            gap: 2px;
+            font-size: 25px;
+            line-height: 1;
+            font-weight: 600;
+            color: rgba(241,250,255,.98);
+            text-shadow: 0 0 18px rgba(60,190,255,.28);
+            white-space: nowrap;
+            z-index: 3;
+            pointer-events: none;
+        }
+
+        .sea-radar-readout .unit{
+            font-size: calc(.46em - 2px);
+            margin-bottom: 0;
+            display: inline-block;
+            transform: translateY(-24px);
+            color: rgba(225,240,252,.9);
+            font-weight: 800;
+        }
+
+        .sea-radar-current{
+            display: none;
+        }
+
+        .sea-radar-metrics{
+            display: none;
+        }
+
+        .sea-metric{
+            padding: 16px 16px 12px;
+            min-height: 106px;
+            display:flex;
+            flex-direction:column;
+            justify-content:center;
+            gap: 10px;
+        }
+        .sea-metric + .sea-metric{
+            border-left: 1px solid rgba(122,163,220,.20);
+        }
+
+        .sea-metric .m-label{
+            font-size: clamp(.68rem, 1.2vw, 1.65rem);
+            letter-spacing: .11em;
+            color: rgba(231,240,251,.9);
+            font-weight: 800;
+        }
+
+        .sea-metric .m-value{
+            font-size: clamp(1.28rem, 2.8vw, 4.1rem);
+            line-height: 1;
+            font-weight: 900;
+            color: rgba(243,248,255,.98);
+            text-shadow: 0 0 12px rgba(80,190,255,.18);
+            white-space: nowrap;
+        }
+
+        #seaBeaufortLevel{
+            color: #4cff86;
+        }
+        #seaWaveTrendValue.rising{
+            color: #ffb635;
+        }
+        #seaWaveTrendValue.falling{
+            color: #ff7a7a;
+        }
+        #seaWaveTrendValue.steady{
+            color: rgba(223,236,252,.95);
+        }
+
+        .wave-card.sea-radar-card[data-severity="calm"]{
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,.04), 0 24px 48px rgba(0,0,0,.48), 0 0 26px rgba(34,211,146,.20);
+        }
+        .wave-card.sea-radar-card[data-severity="moderate"]{
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,.04), 0 24px 48px rgba(0,0,0,.48), 0 0 26px rgba(242,194,10,.24);
+        }
+        .wave-card.sea-radar-card[data-severity="rough"]{
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,.04), 0 24px 48px rgba(0,0,0,.48), 0 0 26px rgba(255,143,31,.24);
+        }
+        .wave-card.sea-radar-card[data-severity="severe"]{
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,.04), 0 24px 48px rgba(0,0,0,.48), 0 0 30px rgba(255,61,57,.28);
+        }
+
+        @media (max-width: 992px){
+            .sea-radar-zone-label{
+                font-size: 46px;
+            }
+        }
+
+        @media (max-width: 576px){
+            .sea-radar-zone-label{
+                font-size: 40px;
+            }
+        }
 
         .fpw-wx__meter{ margin-top: 12px; height: 10px; border-radius:999px; background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.06); overflow:hidden;}
         .fpw-wx__meterFill{ height:100%; border-radius:999px; background: rgba(45,212,191,.45); }

@@ -22,8 +22,15 @@ async function login(page) {
 
 async function openAccount(page) {
   await page.goto("/fpw/app/account.cfm", { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle");
   await expect(page.locator("#homePortForm")).toBeVisible({ timeout: 30000 });
   await expect(page.locator("#saveHomePortBtn")).toBeVisible({ timeout: 30000 });
+  await page.waitForFunction(() => {
+    var emailEl = document.getElementById("emailDisplay");
+    if (!emailEl) return false;
+    var text = String(emailEl.textContent || "").trim().toLowerCase();
+    return !!text && text !== "loading…" && text !== "loading...";
+  }, { timeout: 30000 });
 }
 
 async function readHomePort(page) {

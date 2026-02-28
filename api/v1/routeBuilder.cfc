@@ -287,12 +287,17 @@
                 <cfset var routegenLegGeometryLegId = val(pickArg(body, "route_leg_id", "routeLegId", 0)) />
                 <cfset var routegenLegGeometrySegmentId = val(pickArg(body, "segment_id", "segmentId", 0)) />
                 <cfset var routegenLegGeometryOrder = val(pickArg(body, "leg_order", "legOrder", 0)) />
+                <cfset var routegenLegGeometryIgnoreSegmentOverride = toBoolean(
+                    pickArg(body, "ignore_segment_override", "ignoreSegmentOverride", false),
+                    false
+                ) />
                 <cfset var routegenLegGeometryRes = routegenGetLegGeometry(
                     userId = userId,
                     routeCode = routegenLegGeometryRouteCode,
                     routeLegId = routegenLegGeometryLegId,
                     segmentId = routegenLegGeometrySegmentId,
-                    legOrder = routegenLegGeometryOrder
+                    legOrder = routegenLegGeometryOrder,
+                    ignoreSegmentOverride = routegenLegGeometryIgnoreSegmentOverride
                 ) />
                 <cfoutput>#serializeJSON(routegenLegGeometryRes)#</cfoutput>
                 <cfreturn>
@@ -336,10 +341,17 @@
             <cfelseif act EQ "routegen_clearlegoverride">
                 <cfset var routegenClearOverrideRouteCode = trim(pickArg(body, "route_code", "routeCode", "")) />
                 <cfset var routegenClearOverrideLegId = val(pickArg(body, "route_leg_id", "routeLegId", 0)) />
+                <cfset var routegenClearOverrideSegmentId = val(pickArg(body, "segment_id", "segmentId", 0)) />
+                <cfset var routegenClearOverrideClearSegment = toBoolean(
+                    pickArg(body, "clear_segment_override", "clearSegmentOverride", false),
+                    false
+                ) />
                 <cfset var routegenClearOverrideRes = routegenClearLegOverride(
                     userId = userId,
                     routeCode = routegenClearOverrideRouteCode,
-                    routeLegId = routegenClearOverrideLegId
+                    routeLegId = routegenClearOverrideLegId,
+                    segmentId = routegenClearOverrideSegmentId,
+                    clearSegmentOverride = routegenClearOverrideClearSegment
                 ) />
                 <cfoutput>#serializeJSON(routegenClearOverrideRes)#</cfoutput>
                 <cfreturn>
@@ -7723,6 +7735,7 @@
             sql = "SELECT
                     COALESCE(ril.source_loop_segment_id, ril.id) AS route_leg_id,
                     ril.leg_order AS order_index,
+                    ril.segment_id,
                     ril.start_name,
                     ril.end_name,
                     ril.base_dist_nm AS dist_nm,
@@ -7753,6 +7766,7 @@
             row = {
                 "ROUTE_LEG_ID"=val(qLeg.route_leg_id[1]),
                 "ORDER_INDEX"=(isNull(qLeg.order_index[1]) ? 0 : val(qLeg.order_index[1])),
+                "SEGMENT_ID"=(isNull(qLeg.segment_id[1]) ? 0 : val(qLeg.segment_id[1])),
                 "START_NAME"=(isNull(qLeg.start_name[1]) ? "" : trim(toString(qLeg.start_name[1]))),
                 "END_NAME"=(isNull(qLeg.end_name[1]) ? "" : trim(toString(qLeg.end_name[1]))),
                 "DIST_NM"=(isNull(qLeg.dist_nm[1]) ? 0 : val(qLeg.dist_nm[1])),
@@ -8030,6 +8044,7 @@
         <cfargument name="routeLegId" type="numeric" required="false" default="0">
         <cfargument name="segmentId" type="numeric" required="false" default="0">
         <cfargument name="legOrder" type="numeric" required="false" default="0">
+        <cfargument name="ignoreSegmentOverride" type="boolean" required="false" default="false">
         <cfscript>
             var out = {
                 "SUCCESS"=false,
@@ -8174,7 +8189,7 @@
                 }
             }
 
-            if (!structCount(overrideRow) AND segmentIdVal GT 0) {
+            if (!structCount(overrideRow) AND segmentIdVal GT 0 AND NOT arguments.ignoreSegmentOverride) {
                 segmentOverrideRow = routegenReadLatestOverrideBySegment(arguments.userId, segmentIdVal);
             }
 
@@ -8901,6 +8916,8 @@
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="routeCode" type="string" required="true">
         <cfargument name="routeLegId" type="numeric" required="true">
+        <cfargument name="segmentId" type="numeric" required="false" default="0">
+        <cfargument name="clearSegmentOverride" type="boolean" required="false" default="false">
         <cfscript>
             var out = {
                 "SUCCESS"=false,
@@ -8912,6 +8929,8 @@
             var routeInfo = {};
             var legRow = {};
             var legOrderVal = 0;
+            var segmentIdVal = val(arguments.segmentId);
+            var syntheticRouteLegId = 0;
 
             if (!len(routeCodeVal)) {
                 out.MESSAGE = "Route code required";
@@ -8935,6 +8954,9 @@
                 out.ERROR = { "MESSAGE"="Requested route leg was not found in this route." };
                 return out;
             }
+            if (segmentIdVal LTE 0 AND structKeyExists(legRow, "SEGMENT_ID")) {
+                segmentIdVal = val(legRow.SEGMENT_ID);
+            }
 
             if (routegenHasLegOverrideTable()) {
                 queryExecute(
@@ -8949,6 +8971,23 @@
                     },
                     { datasource = application.dsn }
                 );
+
+                if (arguments.clearSegmentOverride AND segmentIdVal GT 0) {
+                    syntheticRouteLegId = 0 - segmentIdVal;
+                    queryExecute(
+                        "DELETE FROM route_leg_user_overrides
+                         WHERE user_id = :uid
+                           AND route_id = 0
+                           AND route_leg_id = :segmentLegId
+                           AND segment_id = :segmentId",
+                        {
+                            uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                            segmentLegId = { value=syntheticRouteLegId, cfsqltype="cf_sql_integer" },
+                            segmentId = { value=segmentIdVal, cfsqltype="cf_sql_integer" }
+                        },
+                        { datasource = application.dsn }
+                    );
+                }
             }
 
             legOrderVal = routegenResolveRouteLegOrder(routeInfo.ROUTE_ID, arguments.routeLegId, arguments.userId);
@@ -8960,7 +8999,10 @@
                 "route_code"=routeInfo.ROUTE_CODE,
                 "route_leg_id"=arguments.routeLegId,
                 "leg_order"=legOrderVal,
+                "segment_id"=segmentIdVal,
                 "has_override"=false,
+                "has_segment_override"=false,
+                "source"="default",
                 "default_nm"=roundTo2(val(legRow.DIST_NM)),
                 "computed_nm"=roundTo2(val(legRow.DIST_NM))
             };

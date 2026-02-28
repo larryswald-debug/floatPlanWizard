@@ -3455,14 +3455,20 @@
     clearLegMapEndpointMarkers();
     setLegMapLayer([]);
     setLegMapNm(0);
-    setLegMapStatus("Loading geometry...");
+    if (!opts.silent) {
+      setLegMapStatus("Loading geometry...");
+    }
     updateLegMapButtons(leg, !!getLegField(leg, "has_user_override"));
+    var geometryPayload = buildLegGeometryPayload(leg);
+    if (opts.ignoreSegmentOverride) {
+      geometryPayload.ignore_segment_override = true;
+    }
 
     return fetchJson(apiUrl(geometryAction), {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json; charset=utf-8" },
-      body: JSON.stringify(buildLegGeometryPayload(leg))
+      body: JSON.stringify(geometryPayload)
     })
       .then(function (payload) {
         if (loadSeq !== state.legMapLoadSeq) return null;
@@ -3520,7 +3526,7 @@
               setLegMapStatus(source === "user_segment" ? "Loaded your saved segment geometry." : "Geometry loaded.");
             }
           }
-        } else {
+        } else if (!opts.silent) {
           if (endpointView.tooFar) {
             setLegMapStatus("No saved geometry for this leg. Endpoints are far apart, centered on start.");
           } else {
@@ -3750,7 +3756,9 @@
       clearAction = "routegen_clearlegoverride";
       clearPayload = {
         route_code: String(state.activeRouteCode || "").trim(),
-        route_leg_id: toInt(getLegField(leg, "route_leg_id"), 0)
+        route_leg_id: toInt(getLegField(leg, "route_leg_id"), 0),
+        segment_id: toInt(getLegField(leg, "segment_id"), 0),
+        clear_segment_override: true
       };
     } else {
       clearAction = "routegen_clearsegmentoverride";
@@ -3811,7 +3819,7 @@
         state.selectedLegSource = "default";
         updateLegMapButtons(state.selectedLegData, false);
         setLegMapStatus("Override reverted to default.");
-        loadLegGeometry(state.selectedLegData, { silent: true });
+        loadLegGeometry(state.selectedLegData, { silent: true, ignoreSegmentOverride: true });
       })
       .catch(function (err) {
         if (err && err.code === "UNAUTHORIZED") {

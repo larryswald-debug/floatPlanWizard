@@ -1306,6 +1306,19 @@ component extends="testbox.system.BaseSpec" output="false" {
         arrayAppend( cookiePairs, { name = name, value = cookie[ name ] } );
       }
     }
+    var hasJsession = false;
+    for ( var cookiePair in cookiePairs ) {
+      if ( uCase( toString( cookiePair.name ) ) EQ "JSESSIONID" ) {
+        hasJsession = true;
+        break;
+      }
+    }
+    if ( !hasJsession AND structKeyExists( session, "sessionid" ) ) {
+      var sessionIdVal = trim( toString( session.sessionid ) );
+      if ( len( sessionIdVal ) ) {
+        arrayAppend( cookiePairs, { name = "JSESSIONID", value = sessionIdVal } );
+      }
+    }
     return cookiePairs;
   }
 
