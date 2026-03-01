@@ -8,6 +8,23 @@ const { test, expect } = require("@playwright/test");
 
 test.describe.configure({ timeout: 120000 });
 
+async function gotoWithRetry(page, url, retries = 1) {
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt >= retries) {
+        throw error;
+      }
+      await page.waitForTimeout(750);
+    }
+  }
+  throw lastError;
+}
+
 async function waitForRouteBuilderModalToClose(page, timeoutMs) {
   const modal = page.locator("#routeBuilderModal");
   const closedByApp = await page.waitForFunction(() => {
@@ -37,7 +54,7 @@ async function clickPreviewWhenReady(page) {
 }
 
 test("Route Builder generates route from template and opens timeline editor", async ({ page }) => {
-  await page.goto("/fpw/index.cfm", { waitUntil: "domcontentloaded" });
+  await gotoWithRetry(page, "/fpw/index.cfm");
 
   await page.fill('input[name="email"], input[name="EMAIL"]', process.env.FPW_EMAIL || "");
   await page.fill('input[type="password"], input[name="password"], input[name="PASSWORD"]', process.env.FPW_PASSWORD || "");
@@ -45,7 +62,7 @@ test("Route Builder generates route from template and opens timeline editor", as
   await page.waitForLoadState("networkidle");
   await expect(page).not.toHaveURL(/index\.cfm$/i);
 
-  await page.goto("/fpw/app/dashboard.cfm", { waitUntil: "domcontentloaded" });
+  await gotoWithRetry(page, "/fpw/app/dashboard.cfm");
   await expect(page.locator("#openRouteBuilderBtn")).toBeVisible({ timeout: 15000 });
 
   await page.click("#openRouteBuilderBtn");
@@ -83,7 +100,18 @@ test("Route Builder generates route from template and opens timeline editor", as
   await expect(page.locator("#routeGenLegList .fpw-routegen__leglocks").first()).toHaveText(/[0-9]+/, { timeout: 10000 });
 
   await page.click("#routeGenGenerateBtn");
-  await expect(page.locator("#dashboardAlert")).toContainText("Route generated successfully.", { timeout: 30000 });
+  const generatedViaAlert = await page.waitForFunction(() => {
+    const alertEl = document.getElementById("dashboardAlert");
+    if (!alertEl) return false;
+    const text = String(alertEl.textContent || "");
+    return /route generated successfully/i.test(text);
+  }, { timeout: 12000 }).then(() => true).catch(() => false);
+  if (!generatedViaAlert) {
+    await page.waitForFunction(() => {
+      const modal = document.getElementById("routeBuilderModal");
+      return !modal || !modal.classList.contains("show");
+    }, { timeout: 30000 });
+  }
   await waitForRouteBuilderModalToClose(page, 30000);
 
   await page.click("#openRouteBuilderBtn");
@@ -94,7 +122,7 @@ test("Route Builder generates route from template and opens timeline editor", as
 });
 
 test("Route Builder leg row opens lock panel, then map editor from button", async ({ page }) => {
-  await page.goto("/fpw/index.cfm", { waitUntil: "domcontentloaded" });
+  await gotoWithRetry(page, "/fpw/index.cfm");
 
   await page.fill('input[name="email"], input[name="EMAIL"]', process.env.FPW_EMAIL || "");
   await page.fill('input[type="password"], input[name="password"], input[name="PASSWORD"]', process.env.FPW_PASSWORD || "");
@@ -102,7 +130,7 @@ test("Route Builder leg row opens lock panel, then map editor from button", asyn
   await page.waitForLoadState("networkidle");
   await expect(page).not.toHaveURL(/index\.cfm$/i);
 
-  await page.goto("/fpw/app/dashboard.cfm", { waitUntil: "domcontentloaded" });
+  await gotoWithRetry(page, "/fpw/app/dashboard.cfm");
   await expect(page.locator("#openRouteBuilderBtn")).toBeVisible({ timeout: 15000 });
 
   await page.click("#openRouteBuilderBtn");

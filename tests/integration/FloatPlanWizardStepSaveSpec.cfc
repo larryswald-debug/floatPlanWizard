@@ -28,6 +28,9 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.ctx.forceVesselId = structKeyExists( url, "testVesselId" ) && isNumeric( url.testVesselId )
       ? val( url.testVesselId )
       : 0;
+    variables.ctx.forceUserId = structKeyExists( url, "testUserId" ) && isNumeric( url.testUserId )
+      ? val( url.testUserId )
+      : 187;
     variables.ctx.forceOperatorId = structKeyExists( url, "testOperatorId" ) && isNumeric( url.testOperatorId )
       ? val( url.testOperatorId )
       : 0;
@@ -237,8 +240,10 @@ component extends="testbox.system.BaseSpec" output="false" {
       if ( !structKeyExists( session, "user" ) || !isStruct( session.user ) ) {
         session.user = {};
       }
-      if ( !structKeyExists( session.user, "userId" ) || !isNumeric( session.user.userId ) ) {
-        var fallbackId = structKeyExists( url, "testUserId" ) ? url.testUserId : 1;
+      if ( !structKeyExists( session.user, "userId" ) || !isNumeric( session.user.userId ) || val( session.user.userId ) LTE 0 ) {
+        var fallbackId = structKeyExists( variables, "ctx" ) && structKeyExists( variables.ctx, "forceUserId" )
+          ? variables.ctx.forceUserId
+          : 187;
         session.user.userId = val( fallbackId );
         session.user.id = session.user.userId;
         session.user.USERID = session.user.userId;
@@ -251,33 +256,40 @@ component extends="testbox.system.BaseSpec" output="false" {
   private array function getSessionCookies() {
     var cookiePairs = [];
     var cookieNames = [ "CFID", "CFTOKEN", "JSESSIONID" ];
+    var runtimeCfid = "";
+    var runtimeCftoken = "";
+    try { runtimeCfid = trim( toString( CFID ) ); } catch ( any _cfidErr ) {}
+    try { runtimeCftoken = trim( toString( CFTOKEN ) ); } catch ( any _cftErr ) {}
+
     for ( var name in cookieNames ) {
+      var cookieVal = "";
       if ( structKeyExists( cookie, name ) ) {
-        arrayAppend( cookiePairs, { name = name, value = cookie[ name ] } );
+        cookieVal = trim( toString( cookie[ name ] ) );
+      } else if ( name EQ "CFID" && len( runtimeCfid ) ) {
+        cookieVal = runtimeCfid;
+      } else if ( name EQ "CFTOKEN" && len( runtimeCftoken ) ) {
+        cookieVal = runtimeCftoken;
+      } else if ( name EQ "JSESSIONID" && structKeyExists( session, "sessionid" ) ) {
+        cookieVal = trim( toString( session.sessionid ) );
+      }
+      if ( len( cookieVal ) ) {
+        arrayAppend( cookiePairs, { name = name, value = cookieVal } );
       }
     }
-    var hasJsession = false;
-    for ( var cookiePair in cookiePairs ) {
-      if ( uCase( toString( cookiePair.name ) ) EQ "JSESSIONID" ) {
-        hasJsession = true;
-        break;
-      }
-    }
-    if ( !hasJsession AND structKeyExists( session, "sessionid" ) ) {
-      var sessionIdVal = trim( toString( session.sessionid ) );
-      if ( len( sessionIdVal ) ) {
-        arrayAppend( cookiePairs, { name = "JSESSIONID", value = sessionIdVal } );
-      }
-    }
+
     return cookiePairs;
   }
 
   private struct function apiPostJson( required string url, required struct body ) {
     var sessionCookies = getSessionCookies();
+    var testHeaderUserId = resolveTestHeaderUserId();
     var res = {};
     cfhttp( method="POST", url=arguments.url, timeout="60", result="res" ) {
       cfhttpparam( type="header", name="Accept", value="application/json" );
       cfhttpparam( type="header", name="Content-Type", value="application/json; charset=utf-8" );
+      if ( testHeaderUserId GT 0 ) {
+        cfhttpparam( type="header", name="X-FPW-Test-UserId", value=toString( testHeaderUserId ) );
+      }
       cfhttpparam( type="body", value=serializeJSON( arguments.body ) );
       for ( var cookiePair in sessionCookies ) {
         cfhttpparam( type="cookie", name=cookiePair.name, value=cookiePair.value );
@@ -288,9 +300,13 @@ component extends="testbox.system.BaseSpec" output="false" {
 
   private struct function apiGetJson( required string url ) {
     var sessionCookies = getSessionCookies();
+    var testHeaderUserId = resolveTestHeaderUserId();
     var res = {};
     cfhttp( method="GET", url=arguments.url, timeout="60", result="res" ) {
       cfhttpparam( type="header", name="Accept", value="application/json" );
+      if ( testHeaderUserId GT 0 ) {
+        cfhttpparam( type="header", name="X-FPW-Test-UserId", value=toString( testHeaderUserId ) );
+      }
       for ( var cookiePair in sessionCookies ) {
         cfhttpparam( type="cookie", name=cookiePair.name, value=cookiePair.value );
       }
@@ -309,6 +325,17 @@ component extends="testbox.system.BaseSpec" output="false" {
     } catch ( any e ) {
       return { success=false, message="Response was not JSON", raw=raw, error=e.message };
     }
+  }
+
+  private numeric function resolveTestHeaderUserId() {
+    var userId = 0;
+    if ( structKeyExists( session, "user" ) && isStruct( session.user ) && structKeyExists( session.user, "userId" ) && isNumeric( session.user.userId ) ) {
+      userId = val( session.user.userId );
+    }
+    if ( userId LTE 0 && structKeyExists( variables, "ctx" ) && structKeyExists( variables.ctx, "forceUserId" ) && isNumeric( variables.ctx.forceUserId ) ) {
+      userId = val( variables.ctx.forceUserId );
+    }
+    return ( userId GT 0 ? userId : 0 );
   }
 
   private boolean function pickBool( required struct payload, required string key ) {

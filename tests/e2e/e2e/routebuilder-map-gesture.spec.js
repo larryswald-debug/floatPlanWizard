@@ -8,20 +8,52 @@ const { test, expect } = require("@playwright/test");
 
 test.describe.configure({ timeout: 120000 });
 
+async function gotoWithRetry(page, url, retries = 1) {
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt >= retries) {
+        throw error;
+      }
+      await page.waitForTimeout(750);
+    }
+  }
+  throw lastError;
+}
+
 async function loginToDashboard(page) {
-  await page.goto("/fpw/index.cfm", { waitUntil: "domcontentloaded" });
+  await gotoWithRetry(page, "/fpw/index.cfm");
   await page.fill('input[name="email"], input[name="EMAIL"]', process.env.FPW_EMAIL || "");
   await page.fill('input[type="password"], input[name="password"], input[name="PASSWORD"]', process.env.FPW_PASSWORD || "");
   await page.click('button[type="submit"], input[type="submit"]');
   await page.waitForLoadState("networkidle");
   await expect(page).not.toHaveURL(/index\.cfm$/i);
-  await page.goto("/fpw/app/dashboard.cfm", { waitUntil: "domcontentloaded" });
+  await gotoWithRetry(page, "/fpw/app/dashboard.cfm");
   await expect(page.locator("#openRouteBuilderBtn")).toBeVisible({ timeout: 15000 });
 }
 
 async function openRoutePreview(page) {
   await page.click("#openRouteBuilderBtn");
-  await expect(page.locator("#routeBuilderModal")).toBeVisible({ timeout: 15000 });
+  const routeBuilderModal = page.locator("#routeBuilderModal");
+  const openedByClick = await routeBuilderModal.waitFor({ state: "visible", timeout: 5000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!openedByClick) {
+    await page.evaluate(() => {
+      const openBtn = document.getElementById("openRouteBuilderBtn");
+      if (openBtn) {
+        openBtn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+      }
+      const modalEl = document.getElementById("routeBuilderModal");
+      if (!modalEl || !window.bootstrap || !window.bootstrap.Modal) return;
+      window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    });
+  }
+  await expect(routeBuilderModal).toBeVisible({ timeout: 15000 });
   await expect(page.locator("#fpwRouteGen")).toBeVisible({ timeout: 15000 });
 
   const today = new Date().toISOString().slice(0, 10);

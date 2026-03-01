@@ -8,15 +8,32 @@ const { test, expect } = require("@playwright/test");
 
 test.describe.configure({ timeout: 120000 });
 
+async function gotoWithRetry(page, url, retries = 1) {
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt >= retries) {
+        throw error;
+      }
+      await page.waitForTimeout(750);
+    }
+  }
+  throw lastError;
+}
+
 async function loginToDashboard(page) {
-  await page.goto("/fpw/index.cfm", { waitUntil: "domcontentloaded" });
+  await gotoWithRetry(page, "/fpw/index.cfm");
   await page.fill('input[name="email"], input[name="EMAIL"]', process.env.FPW_EMAIL || "");
   await page.fill('input[type="password"], input[name="password"], input[name="PASSWORD"]', process.env.FPW_PASSWORD || "");
   await page.click('button[type="submit"], input[type="submit"]');
   await page.waitForLoadState("networkidle");
   await expect(page).not.toHaveURL(/index\.cfm$/i);
   if (!/\/fpw\/app\/dashboard\.cfm/i.test(page.url())) {
-    await page.goto("/fpw/app/dashboard.cfm", { waitUntil: "domcontentloaded" });
+    await gotoWithRetry(page, "/fpw/app/dashboard.cfm");
   }
   await expect(page.locator("#openRouteBuilderBtn")).toBeVisible({ timeout: 30000 });
 }

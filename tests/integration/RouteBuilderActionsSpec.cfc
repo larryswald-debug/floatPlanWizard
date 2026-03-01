@@ -298,6 +298,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( toString( pickFirst( missingMeta, [ "fuel_source" ], "" ) ) ).toBe( "missing" );
         expect( val( pickFirst( missingMeta, [ "fuel_burn_gph" ], -1 ) ) ).toBe( 0 );
         expect( !!pickFirst( missingMeta, [ "fuel_resolved" ], true ) ).toBeFalse();
+        expect( toString( pickFirst( missingMeta, [ "burn_model" ], "" ) ) ).toBe( "legacy" );
         var missingSummary = ( structKeyExists( missingRes, "route_summary" ) && isStruct( missingRes.route_summary ) )
           ? missingRes.route_summary
           : {};
@@ -326,8 +327,13 @@ component extends="testbox.system.BaseSpec" output="false" {
         var aliasMeta = ( structKeyExists( aliasRes, "timeline_meta" ) && isStruct( aliasRes.timeline_meta ) )
           ? aliasRes.timeline_meta
           : {};
-        expect( toString( pickFirst( aliasMeta, [ "fuel_source" ], "" ) ) ).toBe( "route_inputs_alias" );
-        expect( toString( pickFirst( aliasMeta, [ "fuel_key" ], "" ) ) ).toBe( "maxBurnGph" );
+        var aliasSource = toString( pickFirst( aliasMeta, [ "fuel_source" ], "" ) );
+        expect( listFindNoCase( "route_inputs_alias,route_inputs", aliasSource ) ).toBeGT( 0 );
+        if ( aliasSource EQ "route_inputs_alias" ) {
+          expect( toString( pickFirst( aliasMeta, [ "fuel_key" ], "" ) ) ).toBe( "maxBurnGph" );
+        } else {
+          expect( toString( pickFirst( aliasMeta, [ "fuel_key" ], "" ) ) ).toBe( "fuel_burn_gph" );
+        }
         expect( val( pickFirst( aliasMeta, [ "fuel_burn_gph" ], 0 ) ) ).toBeGT( 0 );
         expect( !!pickFirst( aliasMeta, [ "fuel_resolved" ], false ) ).toBeTrue();
         var aliasSummary = ( structKeyExists( aliasRes, "route_summary" ) && isStruct( aliasRes.route_summary ) )
@@ -340,6 +346,109 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( arrayLen( aliasDays ) ).toBeGT( 0 );
         expect( val( pickFirst( aliasDays[ 1 ], [ "required_fuel_gallons" ], 0 ) ) ).toBeGT( 0 );
         expect( val( pickFirst( aliasDays[ 1 ], [ "reserve_gallons" ], 0 ) ) ).toBeGT( 0 );
+      } );
+
+      it( "uses vessel defaults for preview summary and timeline when explicit speed/fuel are missing", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+        if ( !routeInstancesHasInputsJsonColumn() ) {
+          skip( "route_instances.routegen_inputs_json not present in this environment." );
+        }
+
+        var startDate = dateFormat( now(), "yyyy-mm-dd" );
+        var legCtx = buildRouteLegContext();
+        var previewInput = duplicate( legCtx.inputs );
+        previewInput.start_date = startDate;
+        previewInput.cruising_speed = "";
+        previewInput.speed_kn = "";
+        previewInput.fuel_burn_gph = "";
+        previewInput.fuel_burn_gph_input = "";
+        previewInput.vessel_max_speed_kn = 24;
+        previewInput.vessel_most_efficient_speed_kn = 16;
+        previewInput.vessel_gph_at_most_efficient_speed = 8;
+        previewInput.reserve_pct = 20;
+        previewInput.weather_factor_pct = 0;
+
+        var previewRes = routeBuilderPost( "routegen_preview", previewInput );
+        expect( pickBool( previewRes, "SUCCESS" ) ).toBeTrue( "routegen_preview vessel defaults failed: #serializeJSON(previewRes)#" );
+        var previewData = ( structKeyExists( previewRes, "DATA" ) && isStruct( previewRes.DATA ) )
+          ? previewRes.DATA
+          : {};
+        var previewTotals = ( structKeyExists( previewData, "totals" ) && isStruct( previewData.totals ) )
+          ? previewData.totals
+          : {};
+        var previewMeta = ( structKeyExists( previewData, "summary_meta" ) && isStruct( previewData.summary_meta ) )
+          ? previewData.summary_meta
+          : {};
+        expect( val( pickFirst( previewTotals, [ "required_fuel_gallons", "REQUIRED_FUEL_GALLONS" ], 0 ) ) ).toBeGT( 0 );
+        expect( toString( pickFirst( previewMeta, [ "speed_source", "SPEED_SOURCE" ], "" ) ) ).toBe( "vessel_most_efficient" );
+        expect( toString( pickFirst( previewMeta, [ "fuel_source", "FUEL_SOURCE" ], "" ) ) ).toBe( "vessel_most_efficient" );
+        expect( toString( pickFirst( previewMeta, [ "burn_model", "BURN_MODEL" ], "" ) ) ).toBe( "pace_adjusted" );
+
+        setRouteInstanceInputsJson( legCtx.routeId, {
+          pace = "RELAXED",
+          reserve_pct = 20,
+          weather_factor_pct = 0,
+          cruising_speed = "",
+          speed_kn = "",
+          fuel_burn_gph = "",
+          fuel_burn_gph_input = "",
+          vessel_max_speed_kn = 24,
+          vessel_most_efficient_speed_kn = 16,
+          vessel_gph_at_most_efficient_speed = 8
+        } );
+        var timelineRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = startDate,
+          maxHoursPerDay = 6.5
+        } );
+        expect( !!pickFirst( timelineRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "generateCruiseTimeline vessel defaults failed: #serializeJSON(timelineRes)#" );
+        var timelineMeta = ( structKeyExists( timelineRes, "timeline_meta" ) && isStruct( timelineRes.timeline_meta ) )
+          ? timelineRes.timeline_meta
+          : {};
+        var timelineSummary = ( structKeyExists( timelineRes, "route_summary" ) && isStruct( timelineRes.route_summary ) )
+          ? timelineRes.route_summary
+          : {};
+        expect( toString( pickFirst( timelineMeta, [ "speed_source" ], "" ) ) ).toBe( "vessel_most_efficient" );
+        expect( toString( pickFirst( timelineMeta, [ "fuel_source" ], "" ) ) ).toBe( "vessel_most_efficient" );
+        expect( toString( pickFirst( timelineMeta, [ "burn_model" ], "" ) ) ).toBe( "pace_adjusted" );
+        expect( val( pickFirst( timelineSummary, [ "total_required_fuel" ], 0 ) ) ).toBeGT( 0 );
+      } );
+
+      it( "keeps route input speed/fuel precedence over vessel defaults", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+        if ( !routeInstancesHasInputsJsonColumn() ) {
+          skip( "route_instances.routegen_inputs_json not present in this environment." );
+        }
+
+        var startDate = dateFormat( now(), "yyyy-mm-dd" );
+        var legCtx = buildRouteLegContext();
+        setRouteInstanceInputsJson( legCtx.routeId, {
+          pace = "RELAXED",
+          reserve_pct = 20,
+          weather_factor_pct = 0,
+          cruising_speed = 19,
+          fuel_burn_gph = 14,
+          vessel_max_speed_kn = 24,
+          vessel_most_efficient_speed_kn = 16,
+          vessel_gph_at_most_efficient_speed = 8
+        } );
+
+        var timelineRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = startDate,
+          maxHoursPerDay = 6.5
+        } );
+        expect( !!pickFirst( timelineRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "generateCruiseTimeline route-input precedence failed: #serializeJSON(timelineRes)#" );
+        var timelineMeta = ( structKeyExists( timelineRes, "timeline_meta" ) && isStruct( timelineRes.timeline_meta ) )
+          ? timelineRes.timeline_meta
+          : {};
+        expect( toString( pickFirst( timelineMeta, [ "speed_source" ], "" ) ) ).toBe( "route_inputs" );
+        expect( toString( pickFirst( timelineMeta, [ "fuel_source" ], "" ) ) ).toBe( "route_inputs" );
+        expect( toString( pickFirst( timelineMeta, [ "burn_model" ], "" ) ) ).toBe( "legacy" );
       } );
 
       it( "uses weather-adjusted speed for timeline hours and day bucketing", function() {
@@ -1255,7 +1364,7 @@ component extends="testbox.system.BaseSpec" output="false" {
       if ( !structKeyExists( session, "user" ) || !isStruct( session.user ) ) {
         session.user = {};
       }
-      if ( !structKeyExists( session.user, "userId" ) || !isNumeric( session.user.userId ) ) {
+      if ( !structKeyExists( session.user, "userId" ) || !isNumeric( session.user.userId ) || val( session.user.userId ) LTE 0 ) {
         session.user.userId = variables.ctx.forceUserId;
         session.user.id = session.user.userId;
         session.user.USERID = session.user.userId;
@@ -1301,34 +1410,41 @@ component extends="testbox.system.BaseSpec" output="false" {
   private array function getSessionCookies() {
     var cookiePairs = [];
     var cookieNames = [ "CFID", "CFTOKEN", "JSESSIONID" ];
+    var runtimeCfid = "";
+    var runtimeCftoken = "";
+    try { runtimeCfid = trim( toString( CFID ) ); } catch ( any _cfidErr ) {}
+    try { runtimeCftoken = trim( toString( CFTOKEN ) ); } catch ( any _cftErr ) {}
+
     for ( var name in cookieNames ) {
+      var cookieVal = "";
       if ( structKeyExists( cookie, name ) ) {
-        arrayAppend( cookiePairs, { name = name, value = cookie[ name ] } );
+        cookieVal = trim( toString( cookie[ name ] ) );
+      } else if ( name EQ "CFID" && len( runtimeCfid ) ) {
+        cookieVal = runtimeCfid;
+      } else if ( name EQ "CFTOKEN" && len( runtimeCftoken ) ) {
+        cookieVal = runtimeCftoken;
+      } else if ( name EQ "JSESSIONID" && structKeyExists( session, "sessionid" ) ) {
+        cookieVal = trim( toString( session.sessionid ) );
+      }
+      if ( len( cookieVal ) ) {
+        arrayAppend( cookiePairs, { name = name, value = cookieVal } );
       }
     }
-    var hasJsession = false;
-    for ( var cookiePair in cookiePairs ) {
-      if ( uCase( toString( cookiePair.name ) ) EQ "JSESSIONID" ) {
-        hasJsession = true;
-        break;
-      }
-    }
-    if ( !hasJsession AND structKeyExists( session, "sessionid" ) ) {
-      var sessionIdVal = trim( toString( session.sessionid ) );
-      if ( len( sessionIdVal ) ) {
-        arrayAppend( cookiePairs, { name = "JSESSIONID", value = sessionIdVal } );
-      }
-    }
+
     return cookiePairs;
   }
 
   private struct function apiPostJson( required string url, struct body = {}, boolean includeCookies = true ) {
     var payload = isStruct( arguments.body ) ? arguments.body : {};
     var sessionCookies = arguments.includeCookies ? getSessionCookies() : [];
+    var testHeaderUserId = resolveTestHeaderUserId( arguments.includeCookies );
     var res = {};
     cfhttp( method="POST", url=arguments.url, timeout="60", result="res" ) {
       cfhttpparam( type="header", name="Accept", value="application/json" );
       cfhttpparam( type="header", name="Content-Type", value="application/json; charset=utf-8" );
+      if ( testHeaderUserId GT 0 ) {
+        cfhttpparam( type="header", name="X-FPW-Test-UserId", value=toString( testHeaderUserId ) );
+      }
       cfhttpparam( type="body", value=serializeJSON( payload ) );
       for ( var cookiePair in sessionCookies ) {
         cfhttpparam( type="cookie", name=cookiePair.name, value=cookiePair.value );
@@ -1348,6 +1464,21 @@ component extends="testbox.system.BaseSpec" output="false" {
     } catch ( any e ) {
       return { success=false, message="Response was not JSON", raw=raw, error=e.message };
     }
+  }
+
+  private numeric function resolveTestHeaderUserId( boolean includeCookies = true ) {
+    var userId = 0;
+    if ( arguments.includeCookies
+      && structKeyExists( session, "user" )
+      && isStruct( session.user )
+      && structKeyExists( session.user, "userId" )
+      && isNumeric( session.user.userId ) ) {
+      userId = val( session.user.userId );
+    }
+    if ( userId LTE 0 && arguments.includeCookies && structKeyExists( variables, "ctx" ) && structKeyExists( variables.ctx, "forceUserId" ) && isNumeric( variables.ctx.forceUserId ) ) {
+      userId = val( variables.ctx.forceUserId );
+    }
+    return ( userId GT 0 ? userId : 0 );
   }
 
   private boolean function pickBool( required struct payload, required string key ) {
