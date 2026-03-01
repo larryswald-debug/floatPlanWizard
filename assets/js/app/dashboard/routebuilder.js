@@ -42,6 +42,11 @@
     manualOverrides: {
       cruisingSpeed: false
     },
+    vesselDefaults: {
+      maxSpeedKn: 0,
+      mostEfficientSpeedKn: 0,
+      gphAtMostEfficientSpeed: 0
+    },
     freshStartSession: false,
     modalMode: "generator",
     pendingDraft: null,
@@ -1054,6 +1059,20 @@
     return 0;
   }
 
+  function toPositiveNumber(value, fallback) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n) || n <= 0) return (fallback !== undefined ? fallback : 0);
+    return Math.round(n * 100) / 100;
+  }
+
+  function getVesselDefaultCruisingSpeedKn() {
+    var mostEff = toPositiveNumber(state.vesselDefaults.mostEfficientSpeedKn, 0);
+    if (mostEff > 0) return mostEff;
+    var maxSpeed = toPositiveNumber(state.vesselDefaults.maxSpeedKn, 0);
+    if (maxSpeed > 0) return maxSpeed;
+    return DEFAULT_MAX_SPEED_KN;
+  }
+
   function updatePaceLabel() {
     if (!dom.paceLabelEl) return;
     var preset = getSelectedPacePreset();
@@ -1064,7 +1083,7 @@
   function getMaxSpeedKn() {
     var value = parseFloat(dom.cruisingSpeedEl ? dom.cruisingSpeedEl.value : "");
     if (!Number.isFinite(value) || value <= 0) {
-      value = DEFAULT_MAX_SPEED_KN;
+      value = getVesselDefaultCruisingSpeedKn();
     }
     return value;
   }
@@ -1079,7 +1098,7 @@
 
   function applyPaceDefaults(force) {
     if (dom.cruisingSpeedEl && (force || !String(dom.cruisingSpeedEl.value || "").trim().length)) {
-      dom.cruisingSpeedEl.value = String(DEFAULT_MAX_SPEED_KN);
+      dom.cruisingSpeedEl.value = String(getVesselDefaultCruisingSpeedKn());
     }
   }
 
@@ -2563,8 +2582,6 @@
     var i = 0;
     var selectedStartExists = false;
     var selectedEndExists = false;
-    var suppressAutoSelectOnce = !!state.suppressAutoSelectOnce;
-    var allowAutoSelect = !(state.modalMode === "generator" && state.freshStartSession) && !suppressAutoSelectOnce;
     var pendingStartLabel = "";
     var pendingEndLabel = "";
 
@@ -2594,9 +2611,7 @@
         break;
       }
     }
-    if (!selectedStartExists && allowAutoSelect && startDisplayOptions.length) {
-      selectedStart = optionSegmentId(startDisplayOptions[0]);
-    }
+    if (!selectedStartExists) selectedStart = "";
 
     var selectedStartMeta = getSelectedOptionMeta(state.options.startOptions, selectedStart);
     var endDisplayOptions = uniqueEndOptionsForDisplay(
@@ -2616,9 +2631,7 @@
         break;
       }
     }
-    if (!selectedEndExists && allowAutoSelect && endDisplayOptions.length) {
-      selectedEnd = optionSegmentId(endDisplayOptions[0]);
-    }
+    if (!selectedEndExists) selectedEnd = "";
 
     renderSelect(dom.startSelectEl, startDisplayOptions, "Select start location", selectedStart);
     renderSelect(dom.endSelectEl, endDisplayOptions, "Select end location", selectedEnd);
@@ -2746,6 +2759,25 @@
       state.selectedLegContext = "routegen";
     }
     if (!inputs || typeof inputs !== "object") return;
+
+    var inputVesselMaxSpeed = toPositiveNumber(
+      inputs.vessel_max_speed_kn !== undefined ? inputs.vessel_max_speed_kn :
+        (inputs.VESSEL_MAX_SPEED_KN !== undefined ? inputs.VESSEL_MAX_SPEED_KN : 0),
+      0
+    );
+    var inputVesselMostEffSpeed = toPositiveNumber(
+      inputs.vessel_most_efficient_speed_kn !== undefined ? inputs.vessel_most_efficient_speed_kn :
+        (inputs.VESSEL_MOST_EFFICIENT_SPEED_KN !== undefined ? inputs.VESSEL_MOST_EFFICIENT_SPEED_KN : 0),
+      0
+    );
+    var inputVesselMostEffGph = toPositiveNumber(
+      inputs.vessel_gph_at_most_efficient_speed !== undefined ? inputs.vessel_gph_at_most_efficient_speed :
+        (inputs.VESSEL_GPH_AT_MOST_EFFICIENT_SPEED !== undefined ? inputs.VESSEL_GPH_AT_MOST_EFFICIENT_SPEED : 0),
+      0
+    );
+    if (inputVesselMaxSpeed > 0) state.vesselDefaults.maxSpeedKn = inputVesselMaxSpeed;
+    if (inputVesselMostEffSpeed > 0) state.vesselDefaults.mostEfficientSpeedKn = inputVesselMostEffSpeed;
+    if (inputVesselMostEffGph > 0) state.vesselDefaults.gphAtMostEfficientSpeed = inputVesselMostEffGph;
 
     var templateCode = String(
       inputs.template_code !== undefined ? inputs.template_code :
@@ -2941,6 +2973,9 @@
 
     var selectedStartMeta = getSelectedOptionMeta(state.options.startOptions, dom.startSelectEl ? dom.startSelectEl.value : "");
     var selectedEndMeta = getSelectedOptionMeta(state.options.endOptions, dom.endSelectEl ? dom.endSelectEl.value : "");
+    var vesselMaxSpeedKn = toPositiveNumber(state.vesselDefaults.maxSpeedKn, 0);
+    var vesselMostEffSpeedKn = toPositiveNumber(state.vesselDefaults.mostEfficientSpeedKn, 0);
+    var vesselMostEffGph = toPositiveNumber(state.vesselDefaults.gphAtMostEfficientSpeed, 0);
 
     return {
       route_type: (isMyRoute ? "my_route" : "generated"),
@@ -2967,6 +3002,9 @@
       weather_factor_pct: dom.weatherFactorPctEl ? String(dom.weatherFactorPctEl.value || "") : String(DEFAULT_WEATHER_FACTOR_PCT),
       reserve_pct: dom.reservePctEl ? String(dom.reservePctEl.value || "") : String(DEFAULT_RESERVE_PCT),
       fuel_price_per_gal: dom.fuelPricePerGalEl ? String(dom.fuelPricePerGalEl.value || "") : "",
+      vessel_max_speed_kn: (vesselMaxSpeedKn > 0 ? String(vesselMaxSpeedKn) : ""),
+      vessel_most_efficient_speed_kn: (vesselMostEffSpeedKn > 0 ? String(vesselMostEffSpeedKn) : ""),
+      vessel_gph_at_most_efficient_speed: (vesselMostEffGph > 0 ? String(vesselMostEffGph) : ""),
       optional_stop_flags: selectedStops
     };
   }
@@ -2979,6 +3017,9 @@
       cruising_speed: String(payload.cruising_speed || ""),
       max_speed_kn: String(payload.cruising_speed || ""),
       fuel_burn_gph: String(payload.fuel_burn_gph || ""),
+      vessel_max_speed_kn: String(payload.vessel_max_speed_kn || ""),
+      vessel_most_efficient_speed_kn: String(payload.vessel_most_efficient_speed_kn || ""),
+      vessel_gph_at_most_efficient_speed: String(payload.vessel_gph_at_most_efficient_speed || ""),
       reserve_pct: String(payload.reserve_pct || DEFAULT_RESERVE_PCT),
       weather_factor_pct: String(payload.weather_factor_pct || DEFAULT_WEATHER_FACTOR_PCT)
     };
@@ -3101,9 +3142,24 @@
         }
 
         var data = payload.DATA || {};
+        var defaultsData = (data.defaults && typeof data.defaults === "object")
+          ? data.defaults
+          : ((data.DEFAULTS && typeof data.DEFAULTS === "object") ? data.DEFAULTS : {});
         state.options.startOptions = Array.isArray(data.startOptions) ? data.startOptions : (Array.isArray(data.START_OPTIONS) ? data.START_OPTIONS : []);
         state.options.endOptions = Array.isArray(data.endOptions) ? data.endOptions : (Array.isArray(data.END_OPTIONS) ? data.END_OPTIONS : []);
         state.options.optionalStops = Array.isArray(data.optionalStops) ? data.optionalStops : (Array.isArray(data.OPTIONAL_STOPS) ? data.OPTIONAL_STOPS : []);
+        state.vesselDefaults.maxSpeedKn = toPositiveNumber(
+          defaultsData.vessel_max_speed_kn !== undefined ? defaultsData.vessel_max_speed_kn : defaultsData.VESSEL_MAX_SPEED_KN,
+          0
+        );
+        state.vesselDefaults.mostEfficientSpeedKn = toPositiveNumber(
+          defaultsData.vessel_most_efficient_speed_kn !== undefined ? defaultsData.vessel_most_efficient_speed_kn : defaultsData.VESSEL_MOST_EFFICIENT_SPEED_KN,
+          0
+        );
+        state.vesselDefaults.gphAtMostEfficientSpeed = toPositiveNumber(
+          defaultsData.vessel_gph_at_most_efficient_speed !== undefined ? defaultsData.vessel_gph_at_most_efficient_speed : defaultsData.VESSEL_GPH_AT_MOST_EFFICIENT_SPEED,
+          0
+        );
         var templateMeta = (data.template && typeof data.template === "object") ? data.template : (data.TEMPLATE || {});
         var isLoopRaw = (
           templateMeta.is_loop !== undefined ? templateMeta.is_loop :
@@ -3113,6 +3169,9 @@
         state.activeTemplateIsLoop = coerceBool(isLoopRaw, true);
 
         renderOptions();
+        if (dom.cruisingSpeedEl && state.modalMode !== "editor" && !state.manualOverrides.cruisingSpeed) {
+          applyPaceDefaults(true);
+        }
         setStatus("Options loaded.");
       })
       .catch(function (err) {
