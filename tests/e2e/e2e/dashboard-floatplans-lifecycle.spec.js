@@ -21,9 +21,28 @@ async function loginToDashboard(page) {
   await expect(page).not.toHaveURL(/index\.cfm$/i);
   await page.goto("/fpw/app/dashboard.cfm", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#floatPlansPanel")).toBeVisible({ timeout: 30000 });
+  await waitForApiHelpers(page, [
+    "getFloatPlanBootstrap",
+    "saveFloatPlan",
+    "getFloatPlans",
+    "deleteFloatPlan"
+  ]);
+}
+
+async function waitForApiHelpers(page, methodNames) {
+  const required = Array.isArray(methodNames) ? methodNames.slice() : [];
+  if (!required.length) return;
+  await page.waitForFunction((methods) => {
+    if (!window.Api) return false;
+    for (var i = 0; i < methods.length; i += 1) {
+      if (typeof window.Api[methods[i]] !== "function") return false;
+    }
+    return true;
+  }, required, { timeout: 30000 });
 }
 
 async function createDraftPlanViaApi(page, name) {
+  await waitForApiHelpers(page, ["getFloatPlanBootstrap", "saveFloatPlan"]);
   return page.evaluate(async (planName) => {
     if (!window.Api || typeof window.Api.getFloatPlanBootstrap !== "function" || typeof window.Api.saveFloatPlan !== "function") {
       return { success: false, message: "Api helpers are unavailable." };
@@ -84,6 +103,14 @@ async function triggerFloatPlansRefresh(page) {
 }
 
 async function cleanupPlansByToken(page, token) {
+  if (page.isClosed()) {
+    return { deleted: 0, lookedAt: 0 };
+  }
+  try {
+    await waitForApiHelpers(page, ["getFloatPlans", "deleteFloatPlan"]);
+  } catch (e) {
+    return { deleted: 0, lookedAt: 0 };
+  }
   return page.evaluate(async (nameToken) => {
     if (!window.Api || typeof window.Api.getFloatPlans !== "function" || typeof window.Api.deleteFloatPlan !== "function") {
       return { deleted: 0, lookedAt: 0 };

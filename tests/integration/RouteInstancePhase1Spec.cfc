@@ -128,7 +128,7 @@ component extends="testbox.system.BaseSpec" output="false" {
       if ( !structKeyExists( session, "user" ) || !isStruct( session.user ) ) {
         session.user = {};
       }
-      if ( !structKeyExists( session.user, "userId" ) || !isNumeric( session.user.userId ) ) {
+      if ( !structKeyExists( session.user, "userId" ) || !isNumeric( session.user.userId ) || val( session.user.userId ) LTE 0 ) {
         var fallbackId = structKeyExists( variables, "ctx" ) && structKeyExists( variables.ctx, "forceUserId" )
           ? variables.ctx.forceUserId
           : 187;
@@ -144,24 +144,27 @@ component extends="testbox.system.BaseSpec" output="false" {
   private array function getSessionCookies() {
     var cookiePairs = [];
     var cookieNames = [ "CFID", "CFTOKEN", "JSESSIONID" ];
+    var runtimeCfid = "";
+    var runtimeCftoken = "";
+    try { runtimeCfid = trim( toString( CFID ) ); } catch ( any _cfidErr ) {}
+    try { runtimeCftoken = trim( toString( CFTOKEN ) ); } catch ( any _cftErr ) {}
+
     for ( var name in cookieNames ) {
+      var cookieVal = "";
       if ( structKeyExists( cookie, name ) ) {
-        arrayAppend( cookiePairs, { name = name, value = cookie[ name ] } );
+        cookieVal = trim( toString( cookie[ name ] ) );
+      } else if ( name EQ "CFID" && len( runtimeCfid ) ) {
+        cookieVal = runtimeCfid;
+      } else if ( name EQ "CFTOKEN" && len( runtimeCftoken ) ) {
+        cookieVal = runtimeCftoken;
+      } else if ( name EQ "JSESSIONID" && structKeyExists( session, "sessionid" ) ) {
+        cookieVal = trim( toString( session.sessionid ) );
+      }
+      if ( len( cookieVal ) ) {
+        arrayAppend( cookiePairs, { name = name, value = cookieVal } );
       }
     }
-    var hasJsession = false;
-    for ( var cookiePair in cookiePairs ) {
-      if ( uCase( toString( cookiePair.name ) ) EQ "JSESSIONID" ) {
-        hasJsession = true;
-        break;
-      }
-    }
-    if ( !hasJsession AND structKeyExists( session, "sessionid" ) ) {
-      var sessionIdVal = trim( toString( session.sessionid ) );
-      if ( len( sessionIdVal ) ) {
-        arrayAppend( cookiePairs, { name = "JSESSIONID", value = sessionIdVal } );
-      }
-    }
+
     return cookiePairs;
   }
 

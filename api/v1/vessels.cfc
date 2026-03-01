@@ -94,8 +94,11 @@
                     MODEL        = qVessels.model,
                     LENGTH       = qVessels.lengthOfVessel,
                     MAX_SPEED    = qVessels.max_speed,
+                    MAX_SPEED_KN = qVessels.max_speed,
                     MOST_EFFICIENT_SPEED = qVessels.most_efficient_speed,
+                    MOST_EFFICIENT_SPEED_KN = qVessels.most_efficient_speed,
                     GALLONS_PER_HOUR = qVessels.gallons_per_hour,
+                    GPH_AT_MOST_EFFICIENT_SPEED = qVessels.gallons_per_hour,
                     COLOR        = qVessels.hullColor,
                     HOMEPORT     = qVessels.hailingPort
                 }>

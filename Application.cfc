@@ -47,6 +47,30 @@
             </cflock>
         </cfif>
 
+        <!--- Dev/test hook: allow explicit user-id override via request header for integration harnesses. --->
+        <cfif structKeyExists( application, "env" ) AND lCase( toString( application.env ) ) EQ "dev">
+            <cfset var reqData = getHttpRequestData()>
+            <cfset var reqHeaders = ( structKeyExists( reqData, "headers" ) AND isStruct( reqData.headers ) ) ? reqData.headers : {} >
+            <cfset var headerUserIdRaw = "" >
+            <cfset var headerUserId = 0 >
+            <cfif structKeyExists( reqHeaders, "X-FPW-Test-UserId" )>
+                <cfset headerUserIdRaw = toString( reqHeaders[ "X-FPW-Test-UserId" ] )>
+            <cfelseif structKeyExists( reqHeaders, "x-fpw-test-userid" )>
+                <cfset headerUserIdRaw = toString( reqHeaders[ "x-fpw-test-userid" ] )>
+            </cfif>
+            <cfif isNumeric( headerUserIdRaw )>
+                <cfset headerUserId = val( headerUserIdRaw )>
+            </cfif>
+            <cfif headerUserId GT 0>
+                <cfif NOT structKeyExists( session, "user" ) OR NOT isStruct( session.user )>
+                    <cfset session.user = {} >
+                </cfif>
+                <cfset session.user.userId = headerUserId>
+                <cfset session.user.id = headerUserId>
+                <cfset session.user.USERID = headerUserId>
+            </cfif>
+        </cfif>
+
         <cfreturn true>
     </cffunction>
 

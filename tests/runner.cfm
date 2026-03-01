@@ -29,6 +29,28 @@ if ( !structKeyExists( application, "floatPlanService" ) ) {
   };
 }
 
+// Integration specs make HTTP calls back into API endpoints and rely on
+// request cookie/session scopes. Ensure this runner request has explicit
+// cookie values so those calls can consistently reattach to this session.
+if ( structKeyExists( session, "sessionid" ) ) {
+  cookie.JSESSIONID = trim( toString( session.sessionid ) );
+}
+if ( isDefined( "CFID" ) ) {
+  cookie.CFID = trim( toString( CFID ) );
+}
+if ( isDefined( "CFTOKEN" ) ) {
+  cookie.CFTOKEN = trim( toString( CFTOKEN ) );
+}
+if ( !structKeyExists( session, "user" ) || !isStruct( session.user ) ) {
+  session.user = {};
+}
+if ( !structKeyExists( session.user, "userId" ) || !isNumeric( session.user.userId ) || val( session.user.userId ) LTE 0 ) {
+  runnerUserId = structKeyExists( url, "testUserId" ) && isNumeric( url.testUserId ) ? val( url.testUserId ) : 187;
+  session.user.userId = runnerUserId;
+  session.user.id = runnerUserId;
+  session.user.USERID = runnerUserId;
+}
+
 // Optional: list spec files so we KNOW they’re visible
 specFiles = directoryList(specAbsPath, true, "path", "*Spec.cfc");
 writeOutput("Found *Spec.cfc files: " & arrayLen(specFiles) & chr(10));

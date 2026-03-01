@@ -2011,25 +2011,27 @@
             var routeRow = {};
             var routeLegs = [];
             var totalsLegs = [];
-            var paceVal = routegenNormalizePace(arguments.input.pace);
+            var normalizedInput = routegenMergeVesselDefaults(arguments.userId, arguments.input);
+            var paceVal = routegenNormalizePace(normalizedInput.pace);
             var paceDefaults = routegenPaceDefaults(paceVal);
-            var maxSpeedVal = routegenNormalizeCruisingSpeed(arguments.input.cruising_speed, paceDefaults.MAX_SPEED_KN);
+            var performanceMeta = routegenResolvePerformanceModel(normalizedInput, paceVal);
+            var maxSpeedVal = routegenNormalizeCruisingSpeed(performanceMeta.max_speed_kn, paceDefaults.MAX_SPEED_KN);
             var baseCruiseSpeedVal = routegenComputeEffectiveCruisingSpeed(maxSpeedVal, paceVal);
-            var underwayHoursVal = routegenNormalizeUnderwayHours(arguments.input.underway_hours_per_day);
-            var weatherFactorPctVal = routegenNormalizeWeatherFactorPct(arguments.input.weather_factor_pct);
+            var underwayHoursVal = routegenNormalizeUnderwayHours(normalizedInput.underway_hours_per_day);
+            var weatherFactorPctVal = routegenNormalizeWeatherFactorPct(normalizedInput.weather_factor_pct);
             var weatherFactorVal = weatherFactorPctVal / 100;
             var weatherAdjustedSpeedVal = roundTo2(baseCruiseSpeedVal * (1 - weatherFactorVal));
-            var fuelBurnGphVal = routegenNormalizeFuelBurnGph(arguments.input.fuel_burn_gph);
+            var fuelBurnGphVal = routegenNormalizeFuelBurnGph(performanceMeta.fuel_burn_gph);
             var fuelBurnInputGphVal = routegenNormalizeFuelBurnGph(
-                structKeyExists(arguments.input, "fuel_burn_gph_input") ? arguments.input.fuel_burn_gph_input : arguments.input.fuel_burn_gph
+                structKeyExists(normalizedInput, "fuel_burn_gph_input") ? normalizedInput.fuel_burn_gph_input : normalizedInput.fuel_burn_gph
             );
             var fuelBurnBasisVal = routegenNormalizeFuelBurnBasis(
-                structKeyExists(arguments.input, "fuel_burn_basis") ? arguments.input.fuel_burn_basis : "MAX_SPEED"
+                structKeyExists(normalizedInput, "fuel_burn_basis") ? normalizedInput.fuel_burn_basis : "MAX_SPEED"
             );
-            var idleBurnGphVal = routegenNormalizeFuelBurnGph(arguments.input.idle_burn_gph);
-            var idleHoursTotalVal = routegenNormalizeIdleHoursTotal(arguments.input.idle_hours_total);
-            var reservePctVal = routegenNormalizeReservePct(arguments.input.reserve_pct, 20);
-            var fuelPricePerGalVal = routegenNormalizeFuelPricePerGal(arguments.input.fuel_price_per_gal);
+            var idleBurnGphVal = routegenNormalizeFuelBurnGph(normalizedInput.idle_burn_gph);
+            var idleHoursTotalVal = routegenNormalizeIdleHoursTotal(normalizedInput.idle_hours_total);
+            var reservePctVal = routegenNormalizeReservePct(normalizedInput.reserve_pct, 20);
+            var fuelPricePerGalVal = routegenNormalizeFuelPricePerGal(normalizedInput.fuel_price_per_gal);
             var totals = {};
             var fuelEstimateOut = {};
             var i = 0;
@@ -2077,7 +2079,8 @@
                 fuelPricePerGal = fuelPricePerGalVal,
                 maxSpeedKnots = maxSpeedVal,
                 pace = paceVal,
-                weatherPct = weatherFactorPctVal
+                weatherPct = weatherFactorPctVal,
+                maxBurnForEstimate = performanceMeta.max_burn_for_estimate
             );
             fuelEstimateOut = (structKeyExists(totals, "FUEL_ESTIMATE") AND isStruct(totals.FUEL_ESTIMATE) ? totals.FUEL_ESTIMATE : {});
 
@@ -2099,8 +2102,9 @@
                 },
                 "inputs"={
                     "route_id"=routeIdVal,
-                    "start_date"=trim(toString(arguments.input.start_date)),
+                    "start_date"=trim(toString(normalizedInput.start_date)),
                     "pace"=paceVal,
+                    "speed_kn"=(structKeyExists(normalizedInput, "speed_kn") ? trim(toString(normalizedInput.speed_kn)) : ""),
                     "cruising_speed"=maxSpeedVal,
                     "effective_cruising_speed"=(structKeyExists(fuelEstimateOut, "effectiveSpeedKnots") ? fuelEstimateOut.effectiveSpeedKnots : baseCruiseSpeedVal),
                     "weather_adjusted_speed_kn"=totals.CRUISING_SPEED_USED,
@@ -2112,7 +2116,10 @@
                     "idle_hours_total"=(idleHoursTotalVal GT 0 ? idleHoursTotalVal : ""),
                     "weather_factor_pct"=weatherFactorPctVal,
                     "reserve_pct"=reservePctVal,
-                    "fuel_price_per_gal"=(fuelPricePerGalVal GT 0 ? fuelPricePerGalVal : "")
+                    "fuel_price_per_gal"=(fuelPricePerGalVal GT 0 ? fuelPricePerGalVal : ""),
+                    "vessel_max_speed_kn"=(val(normalizedInput.vessel_max_speed_kn) GT 0 ? roundTo2(normalizedInput.vessel_max_speed_kn) : ""),
+                    "vessel_most_efficient_speed_kn"=(val(performanceMeta.most_efficient_speed_kn) GT 0 ? roundTo2(performanceMeta.most_efficient_speed_kn) : ""),
+                    "vessel_gph_at_most_efficient_speed"=(val(performanceMeta.most_efficient_burn_gph) GT 0 ? roundTo2(performanceMeta.most_efficient_burn_gph) : "")
                 },
                 "totals"={
                     "total_nm"=totals.TOTAL_NM,
@@ -2137,6 +2144,15 @@
                     "fuel_cost_estimate"=totals.FUEL_COST_ESTIMATE,
                     "total_run_hours"=totals.TOTAL_RUN_HOURS,
                     "estimated_fuel_gallons"=totals.ESTIMATED_FUEL_GALLONS
+                },
+                "summary_meta"={
+                    "effective_speed_kn"=roundTo2(performanceMeta.effective_speed_kn),
+                    "speed_source"=toString(performanceMeta.speed_source),
+                    "most_efficient_speed_kn"=roundTo2(performanceMeta.most_efficient_speed_kn),
+                    "most_efficient_burn_gph"=roundTo2(performanceMeta.most_efficient_burn_gph),
+                    "fuel_source"=toString(performanceMeta.fuel_source),
+                    "pace_ratio"=roundTo2(performanceMeta.pace_ratio),
+                    "burn_model"=toString(performanceMeta.burn_model)
                 },
                 "legs"=routeLegs,
                 "optional_stops"=[]
@@ -3625,48 +3641,24 @@
         <cfreturn resp />
     </cffunction>
 
-    <cffunction name="resolveTimelineFuelBurnFromInputs" access="private" returntype="struct" output="false">
-        <cfargument name="routeInputs" type="struct" required="true">
+    <cffunction name="routegenResolvePositiveNumberByKeys" access="private" returntype="struct" output="false">
+        <cfargument name="routeInputs" type="any" required="true">
+        <cfargument name="keys" type="array" required="true">
         <cfscript>
             var out = {
-                "fuel_burn_gph"=0,
-                "fuel_source"="missing",
-                "fuel_key"=""
+                "value"=0,
+                "key"="",
+                "found"=false
             };
-            var primaryKey = "fuel_burn_gph";
-            var aliasKeys = [ "fuelBurnGph", "max_burn_gph", "maxBurnGph", "burn_gph", "burnGph" ];
+            var i = 0;
             var key = "";
             var rawValue = "";
-            var textValue = "";
             var numericVal = 0;
-            var i = 0;
-
-            if (!isStruct(arguments.routeInputs)) {
-                return out;
-            }
-
-            if (structKeyExists(arguments.routeInputs, primaryKey)) {
-                rawValue = arguments.routeInputs[primaryKey];
-                numericVal = 0;
-                if (isSimpleValue(rawValue)) {
-                    textValue = trim(toString(rawValue));
-                    if (len(textValue) AND isNumeric(textValue)) {
-                        numericVal = val(textValue);
-                    }
-                } else if (isNumeric(rawValue)) {
-                    numericVal = val(rawValue);
-                }
-                if (numericVal GT 0) {
-                    out.fuel_burn_gph = numericVal;
-                    out.fuel_source = "route_inputs";
-                    out.fuel_key = primaryKey;
-                    return out;
-                }
-            }
-
-            for (i = 1; i LTE arrayLen(aliasKeys); i++) {
-                key = aliasKeys[i];
-                if (!structKeyExists(arguments.routeInputs, key)) {
+            var textValue = "";
+            if (!isStruct(arguments.routeInputs)) return out;
+            for (i = 1; i LTE arrayLen(arguments.keys); i++) {
+                key = toString(arguments.keys[i]);
+                if (!len(key) OR !structKeyExists(arguments.routeInputs, key)) {
                     continue;
                 }
                 rawValue = arguments.routeInputs[key];
@@ -3680,14 +3672,228 @@
                     numericVal = val(rawValue);
                 }
                 if (numericVal GT 0) {
-                    out.fuel_burn_gph = numericVal;
-                    out.fuel_source = "route_inputs_alias";
-                    out.fuel_key = key;
+                    out.value = roundTo2(numericVal);
+                    out.key = key;
+                    out.found = true;
                     return out;
                 }
             }
-
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenResolveMostEfficientSpeedKn" access="private" returntype="numeric" output="false">
+        <cfargument name="routeInputs" type="struct" required="true">
+        <cfscript>
+            var meta = routegenResolvePositiveNumberByKeys(
+                arguments.routeInputs,
+                [
+                    "vessel_most_efficient_speed_kn",
+                    "vesselMostEfficientSpeedKn",
+                    "most_efficient_speed_kn",
+                    "mostEfficientSpeedKn",
+                    "MOST_EFFICIENT_SPEED_KN",
+                    "MOST_EFFICIENT_SPEED"
+                ]
+            );
+            return (meta.found ? meta.value : 0);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenResolveMostEfficientBurnGph" access="private" returntype="numeric" output="false">
+        <cfargument name="routeInputs" type="struct" required="true">
+        <cfscript>
+            var meta = routegenResolvePositiveNumberByKeys(
+                arguments.routeInputs,
+                [
+                    "vessel_gph_at_most_efficient_speed",
+                    "vesselGphAtMostEfficientSpeed",
+                    "gph_at_most_efficient_speed",
+                    "gphAtMostEfficientSpeed",
+                    "GPH_AT_MOST_EFFICIENT_SPEED",
+                    "GALLONS_PER_HOUR"
+                ]
+            );
+            return (meta.found ? meta.value : 0);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenResolveEffectiveSpeedMeta" access="private" returntype="struct" output="false">
+        <cfargument name="routeInputs" type="struct" required="true">
+        <cfscript>
+            var out = {
+                "speed_kn"=0,
+                "speed_source"="default",
+                "speed_key"=""
+            };
+            var userMeta = routegenResolvePositiveNumberByKeys(
+                arguments.routeInputs,
+                [
+                    "speed_kn",
+                    "speedKn",
+                    "cruising_speed",
+                    "cruisingSpeed",
+                    "max_speed_kn",
+                    "maxSpeedKn",
+                    "CRUISING_SPEED",
+                    "MAX_SPEED_KN"
+                ]
+            );
+            var vesselMostEffSpeedVal = routegenResolveMostEfficientSpeedKn(arguments.routeInputs);
+            var vesselMaxMeta = routegenResolvePositiveNumberByKeys(
+                arguments.routeInputs,
+                [
+                    "vessel_max_speed_kn",
+                    "vesselMaxSpeedKn",
+                    "vessel_max_speed",
+                    "vesselMaxSpeed",
+                    "VESSEL_MAX_SPEED_KN",
+                    "MAX_SPEED"
+                ]
+            );
+
+            if (userMeta.found) {
+                out.speed_kn = userMeta.value;
+                out.speed_source = "route_inputs";
+                out.speed_key = userMeta.key;
+                return out;
+            }
+            if (vesselMostEffSpeedVal GT 0) {
+                out.speed_kn = vesselMostEffSpeedVal;
+                out.speed_source = "vessel_most_efficient";
+                out.speed_key = "vessel_most_efficient_speed_kn";
+                return out;
+            }
+            if (vesselMaxMeta.found) {
+                out.speed_kn = vesselMaxMeta.value;
+                out.speed_source = "vessel_max";
+                out.speed_key = vesselMaxMeta.key;
+                return out;
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenResolveEffectiveSpeedKn" access="private" returntype="numeric" output="false">
+        <cfargument name="routeInputs" type="struct" required="true">
+        <cfscript>
+            var speedMeta = routegenResolveEffectiveSpeedMeta(arguments.routeInputs);
+            return (structKeyExists(speedMeta, "speed_kn") ? val(speedMeta.speed_kn) : 0);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenResolveFuelBurnGph" access="private" returntype="struct" output="false">
+        <cfargument name="routeInputs" type="struct" required="true">
+        <cfscript>
+            var out = {
+                "fuel_burn_gph"=0,
+                "fuel_source"="missing",
+                "fuel_key"=""
+            };
+            var primaryMeta = routegenResolvePositiveNumberByKeys(arguments.routeInputs, [ "fuel_burn_gph" ]);
+            var aliasMeta = routegenResolvePositiveNumberByKeys(
+                arguments.routeInputs,
+                [ "fuelBurnGph", "fuel_burn_gph_input", "fuelBurnGphInput", "max_burn_gph", "maxBurnGph", "burn_gph", "burnGph", "FUEL_BURN_GPH" ]
+            );
+            var vesselBurnVal = routegenResolveMostEfficientBurnGph(arguments.routeInputs);
+
+            if (primaryMeta.found) {
+                out.fuel_burn_gph = primaryMeta.value;
+                out.fuel_source = "route_inputs";
+                out.fuel_key = primaryMeta.key;
+                return out;
+            }
+            if (aliasMeta.found) {
+                out.fuel_burn_gph = aliasMeta.value;
+                out.fuel_source = "route_inputs_alias";
+                out.fuel_key = aliasMeta.key;
+                return out;
+            }
+            if (vesselBurnVal GT 0) {
+                out.fuel_burn_gph = vesselBurnVal;
+                out.fuel_source = "vessel_most_efficient";
+                out.fuel_key = "vessel_gph_at_most_efficient_speed";
+                return out;
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenResolvePerformanceModel" access="private" returntype="struct" output="false">
+        <cfargument name="routeInputs" type="struct" required="true">
+        <cfargument name="pace" type="any" required="false" default="RELAXED">
+        <cfscript>
+            var out = {
+                "max_speed_kn"=0,
+                "effective_speed_kn"=0,
+                "speed_source"="default",
+                "most_efficient_speed_kn"=0,
+                "most_efficient_burn_gph"=0,
+                "fuel_burn_gph"=0,
+                "fuel_source"="missing",
+                "fuel_key"="",
+                "pace_ratio"=0,
+                "burn_model"="legacy",
+                "max_burn_for_estimate"=0
+            };
+            var paceVal = routegenNormalizePace(arguments.pace);
+            var paceDefaults = routegenPaceDefaults(paceVal);
+            var paceFactor = val(paceDefaults.PACE_FACTOR);
+            var speedMeta = routegenResolveEffectiveSpeedMeta(arguments.routeInputs);
+            var fuelMeta = routegenResolveFuelBurnGph(arguments.routeInputs);
+            var mostEffSpeedVal = routegenResolveMostEfficientSpeedKn(arguments.routeInputs);
+            var mostEffBurnVal = routegenResolveMostEfficientBurnGph(arguments.routeInputs);
+            var resolvedMaxSpeedVal = 0;
+            var resolvedEffectiveSpeedVal = 0;
+            var effectiveRatioToMostEff = 0;
+            var effectiveBurnAtSpeed = 0;
+            var derivedMaxBurnVal = 0;
+            var usingUserFuel = false;
+
+            if (paceFactor LT 0.05) paceFactor = 0.05;
+            if (paceFactor GT 1) paceFactor = 1;
+
+            if (val(speedMeta.speed_kn) GT 0) {
+                resolvedMaxSpeedVal = routegenNormalizeCruisingSpeed(speedMeta.speed_kn, paceDefaults.MAX_SPEED_KN);
+                out.speed_source = trim(toString(speedMeta.speed_source));
+            } else {
+                resolvedMaxSpeedVal = routegenNormalizeCruisingSpeed("", paceDefaults.MAX_SPEED_KN);
+                out.speed_source = "default";
+            }
+            resolvedEffectiveSpeedVal = routegenComputeEffectiveCruisingSpeed(resolvedMaxSpeedVal, paceVal);
+            out.max_speed_kn = resolvedMaxSpeedVal;
+            out.effective_speed_kn = resolvedEffectiveSpeedVal;
+            out.most_efficient_speed_kn = roundTo2(mostEffSpeedVal);
+            out.most_efficient_burn_gph = roundTo2(mostEffBurnVal);
+            out.fuel_burn_gph = routegenNormalizeFuelBurnGph(fuelMeta.fuel_burn_gph);
+            out.fuel_source = trim(toString(fuelMeta.fuel_source));
+            out.fuel_key = trim(toString(fuelMeta.fuel_key));
+
+            usingUserFuel = (out.fuel_source EQ "route_inputs" OR out.fuel_source EQ "route_inputs_alias");
+            out.max_burn_for_estimate = out.fuel_burn_gph;
+
+            if (!usingUserFuel AND resolvedEffectiveSpeedVal GT 0 AND mostEffSpeedVal GT 0 AND mostEffBurnVal GT 0) {
+                effectiveRatioToMostEff = (resolvedEffectiveSpeedVal / mostEffSpeedVal);
+                out.pace_ratio = roundTo2(effectiveRatioToMostEff);
+                effectiveBurnAtSpeed = paceAdjustedBurnGph(mostEffBurnVal, effectiveRatioToMostEff, 3.0);
+                if (paceFactor GT 0 AND effectiveBurnAtSpeed GT 0) {
+                    derivedMaxBurnVal = roundTo2(effectiveBurnAtSpeed / (paceFactor ^ 3));
+                    if (derivedMaxBurnVal GT 0) {
+                        out.max_burn_for_estimate = derivedMaxBurnVal;
+                        out.burn_model = "pace_adjusted";
+                    }
+                }
+            }
+
+            if (out.max_burn_for_estimate LT 0) out.max_burn_for_estimate = 0;
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveTimelineFuelBurnFromInputs" access="private" returntype="struct" output="false">
+        <cfargument name="routeInputs" type="struct" required="true">
+        <cfscript>
+            return routegenResolveFuelBurnGph(arguments.routeInputs);
         </cfscript>
     </cffunction>
 
@@ -3741,6 +3947,39 @@
             }
             if (hasFuelOverride) {
                 out.fuel_burn_gph = routegenNormalizeFuelBurnGph(fuelRaw);
+            }
+
+            if (structKeyExists(src, "vessel_max_speed_kn")) {
+                out.vessel_max_speed_kn = roundTo2(val(src.vessel_max_speed_kn));
+            } else if (structKeyExists(src, "vesselMaxSpeedKn")) {
+                out.vessel_max_speed_kn = roundTo2(val(src.vesselMaxSpeedKn));
+            }
+            if (structKeyExists(out, "vessel_max_speed_kn") AND val(out.vessel_max_speed_kn) LT 1) {
+                structDelete(out, "vessel_max_speed_kn");
+            }
+            if (structKeyExists(out, "vessel_max_speed_kn") AND val(out.vessel_max_speed_kn) GT 60) {
+                out.vessel_max_speed_kn = 60;
+            }
+
+            if (structKeyExists(src, "vessel_most_efficient_speed_kn")) {
+                out.vessel_most_efficient_speed_kn = roundTo2(val(src.vessel_most_efficient_speed_kn));
+            } else if (structKeyExists(src, "vesselMostEfficientSpeedKn")) {
+                out.vessel_most_efficient_speed_kn = roundTo2(val(src.vesselMostEfficientSpeedKn));
+            }
+            if (structKeyExists(out, "vessel_most_efficient_speed_kn") AND val(out.vessel_most_efficient_speed_kn) LT 1) {
+                structDelete(out, "vessel_most_efficient_speed_kn");
+            }
+            if (structKeyExists(out, "vessel_most_efficient_speed_kn") AND val(out.vessel_most_efficient_speed_kn) GT 60) {
+                out.vessel_most_efficient_speed_kn = 60;
+            }
+
+            if (structKeyExists(src, "vessel_gph_at_most_efficient_speed")) {
+                out.vessel_gph_at_most_efficient_speed = routegenNormalizeFuelBurnGph(src.vessel_gph_at_most_efficient_speed);
+            } else if (structKeyExists(src, "vesselGphAtMostEfficientSpeed")) {
+                out.vessel_gph_at_most_efficient_speed = routegenNormalizeFuelBurnGph(src.vesselGphAtMostEfficientSpeed);
+            }
+            if (structKeyExists(out, "vessel_gph_at_most_efficient_speed") AND val(out.vessel_gph_at_most_efficient_speed) LTE 0) {
+                structDelete(out, "vessel_gph_at_most_efficient_speed");
             }
 
             if (structKeyExists(src, "reserve_pct")) {
@@ -3960,8 +4199,10 @@
                 "fuel_resolved"=false
             };
             var fuelBurnGphVal = 0;
+            var maxBurnForEstimateVal = 0;
             var weatherFactorPctVal = 0;
             var reservePctVal = 20;
+            var performanceMeta = {};
             var normalizedLegJoinSql = "";
             var normalizedSegJoinSql = "";
             var normalizedUsoJoinSql = "";
@@ -4138,17 +4379,28 @@
                 storedInputs = routegenParseStoredInputs(qInst.routegen_inputs_json[1]);
             }
             effectiveInputs = routegenBuildTimelineInputs(storedInputs, arguments.inputOverrides);
+            performanceMeta = routegenResolvePerformanceModel(
+                effectiveInputs,
+                (structKeyExists(effectiveInputs, "pace") ? effectiveInputs.pace : "RELAXED")
+            );
             fuelMeta = resolveTimelineFuelBurnFromInputs(effectiveInputs);
-            fuelBurnGphVal = routegenNormalizeFuelBurnGph(fuelMeta.fuel_burn_gph);
+            fuelBurnGphVal = routegenNormalizeFuelBurnGph(performanceMeta.fuel_burn_gph);
+            maxBurnForEstimateVal = routegenNormalizeFuelBurnGph(performanceMeta.max_burn_for_estimate);
             out.timeline_meta = {
                 "fuel_burn_gph"=roundTo2(fuelBurnGphVal),
-                "fuel_source"=trim(toString(fuelMeta.fuel_source)),
-                "fuel_key"=trim(toString(fuelMeta.fuel_key)),
+                "fuel_source"=trim(toString(performanceMeta.fuel_source)),
+                "fuel_key"=trim(toString(performanceMeta.fuel_key)),
                 "fuel_resolved"=(fuelBurnGphVal GT 0),
                 "route_type"=(isMyRouteType ? "my_route" : "generated"),
                 "distance_source"=segSource,
                 "preview_legs_ignored"=previewLegsIgnored,
                 "hours_source"="weather_adjusted_speed",
+                "effective_speed_kn"=roundTo2(performanceMeta.effective_speed_kn),
+                "speed_source"=trim(toString(performanceMeta.speed_source)),
+                "most_efficient_speed_kn"=roundTo2(performanceMeta.most_efficient_speed_kn),
+                "most_efficient_burn_gph"=roundTo2(performanceMeta.most_efficient_burn_gph),
+                "pace_ratio"=roundTo2(performanceMeta.pace_ratio),
+                "burn_model"=trim(toString(performanceMeta.burn_model)),
                 "exposure_enabled"=true,
                 "exposure_max_level"=0,
                 "exposure_sources"={
@@ -4164,12 +4416,7 @@
             paceRatioVal = val(paceDefaults.PACE_FACTOR);
             if (paceRatioVal LT 0.05) paceRatioVal = 0.05;
             if (paceRatioVal GT 1) paceRatioVal = 1;
-            maxSpeedVal = routegenNormalizeCruisingSpeed(
-                structKeyExists(effectiveInputs, "cruising_speed")
-                    ? effectiveInputs.cruising_speed
-                    : (structKeyExists(effectiveInputs, "max_speed_kn") ? effectiveInputs.max_speed_kn : ""),
-                paceDefaults.MAX_SPEED_KN
-            );
+            maxSpeedVal = routegenNormalizeCruisingSpeed(performanceMeta.max_speed_kn, paceDefaults.MAX_SPEED_KN);
             effectiveSpeedVal = routegenComputeEffectiveCruisingSpeed(maxSpeedVal, paceVal);
             if (effectiveSpeedVal LTE 0) effectiveSpeedVal = 1;
             weatherFactorPctVal = routegenNormalizeWeatherFactorPct(
@@ -4460,7 +4707,7 @@
                     fuelEstimate = calculateFuelEstimate({
                         "distanceNm"=currentDay.total_dist_nm,
                         "maxSpeedKnots"=maxSpeedVal,
-                        "maxBurnGph"=fuelBurnGphVal,
+                        "maxBurnGph"=(maxBurnForEstimateVal GT 0 ? maxBurnForEstimateVal : fuelBurnGphVal),
                         "pace"=paceVal,
                         "paceRatio"=paceRatioVal,
                         "weatherPct"=weatherFactorPctVal,
@@ -4544,7 +4791,7 @@
                 fuelEstimate = calculateFuelEstimate({
                     "distanceNm"=currentDay.total_dist_nm,
                     "maxSpeedKnots"=maxSpeedVal,
-                    "maxBurnGph"=fuelBurnGphVal,
+                    "maxBurnGph"=(maxBurnForEstimateVal GT 0 ? maxBurnForEstimateVal : fuelBurnGphVal),
                     "pace"=paceVal,
                     "paceRatio"=paceRatioVal,
                     "weatherPct"=weatherFactorPctVal,
@@ -4956,6 +5203,147 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="routegenGetVesselPerformanceColumnMap" access="private" returntype="struct" output="false">
+        <cfscript>
+            var out = {
+                "max_speed_col"="",
+                "most_efficient_speed_col"="",
+                "most_efficient_gph_col"=""
+            };
+            var qCols = queryNew("");
+            var hasCol = {};
+            if (structKeyExists(request, "routegenVesselPerformanceColumnMap") AND isStruct(request.routegenVesselPerformanceColumnMap)) {
+                return request.routegenVesselPerformanceColumnMap;
+            }
+            qCols = queryExecute(
+                "SELECT column_name
+                 FROM information_schema.columns
+                 WHERE table_schema = DATABASE()
+                   AND table_name = 'vessels'
+                   AND column_name IN (
+                     'max_speed_kn',
+                     'max_speed',
+                     'most_efficient_speed_kn',
+                     'most_efficient_speed',
+                     'gph_at_most_efficient_speed',
+                     'gallons_per_hour'
+                   )",
+                {},
+                { datasource = application.dsn }
+            );
+            hasCol = {};
+            for (var i = 1; i LTE qCols.recordCount; i++) {
+                hasCol[lCase(trim(toString(qCols.column_name[i])))] = true;
+            }
+            if (structKeyExists(hasCol, "max_speed_kn")) {
+                out.max_speed_col = "max_speed_kn";
+            } else if (structKeyExists(hasCol, "max_speed")) {
+                out.max_speed_col = "max_speed";
+            }
+            if (structKeyExists(hasCol, "most_efficient_speed_kn")) {
+                out.most_efficient_speed_col = "most_efficient_speed_kn";
+            } else if (structKeyExists(hasCol, "most_efficient_speed")) {
+                out.most_efficient_speed_col = "most_efficient_speed";
+            }
+            if (structKeyExists(hasCol, "gph_at_most_efficient_speed")) {
+                out.most_efficient_gph_col = "gph_at_most_efficient_speed";
+            } else if (structKeyExists(hasCol, "gallons_per_hour")) {
+                out.most_efficient_gph_col = "gallons_per_hour";
+            }
+            request.routegenVesselPerformanceColumnMap = out;
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenLoadPreferredVesselDefaults" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfscript>
+            var out = {
+                "vessel_max_speed_kn"=0,
+                "vessel_most_efficient_speed_kn"=0,
+                "vessel_gph_at_most_efficient_speed"=0
+            };
+            var userIdVal = val(arguments.userId);
+            var cacheKey = "";
+            var columnMap = {};
+            var maxExpr = "0";
+            var effExpr = "0";
+            var gphExpr = "0";
+            var qVessel = queryNew("");
+            if (userIdVal LTE 0) return out;
+
+            cacheKey = "routegenVesselDefaults_" & toString(userIdVal);
+            if (structKeyExists(request, cacheKey) AND isStruct(request[cacheKey])) {
+                return request[cacheKey];
+            }
+
+            columnMap = routegenGetVesselPerformanceColumnMap();
+            if (!len(columnMap.max_speed_col) AND !len(columnMap.most_efficient_speed_col) AND !len(columnMap.most_efficient_gph_col)) {
+                request[cacheKey] = out;
+                return out;
+            }
+            if (len(columnMap.max_speed_col)) {
+                maxExpr = "COALESCE(v." & columnMap.max_speed_col & ", 0)";
+            }
+            if (len(columnMap.most_efficient_speed_col)) {
+                effExpr = "COALESCE(v." & columnMap.most_efficient_speed_col & ", 0)";
+            }
+            if (len(columnMap.most_efficient_gph_col)) {
+                gphExpr = "COALESCE(v." & columnMap.most_efficient_gph_col & ", 0)";
+            }
+
+            qVessel = queryExecute(
+                "SELECT
+                    " & maxExpr & " AS vessel_max_speed_kn,
+                    " & effExpr & " AS vessel_most_efficient_speed_kn,
+                    " & gphExpr & " AS vessel_gph_at_most_efficient_speed
+                 FROM vessels v
+                 WHERE v.userId = :uid
+                 ORDER BY v.vesselID ASC
+                 LIMIT 1",
+                {
+                    uid = { value=userIdVal, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+            if (qVessel.recordCount GT 0) {
+                out.vessel_max_speed_kn = roundTo2(val(qVessel.vessel_max_speed_kn[1]));
+                if (out.vessel_max_speed_kn LT 1) out.vessel_max_speed_kn = 0;
+                if (out.vessel_max_speed_kn GT 60) out.vessel_max_speed_kn = 60;
+                out.vessel_most_efficient_speed_kn = roundTo2(val(qVessel.vessel_most_efficient_speed_kn[1]));
+                if (out.vessel_most_efficient_speed_kn LT 1) out.vessel_most_efficient_speed_kn = 0;
+                if (out.vessel_most_efficient_speed_kn GT 60) out.vessel_most_efficient_speed_kn = 60;
+                out.vessel_gph_at_most_efficient_speed = routegenNormalizeFuelBurnGph(qVessel.vessel_gph_at_most_efficient_speed[1]);
+            }
+            request[cacheKey] = out;
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenMergeVesselDefaults" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeInputs" type="any" required="false" default="#structNew()#">
+        <cfscript>
+            var merged = (isStruct(arguments.routeInputs) ? duplicate(arguments.routeInputs) : {});
+            var defaults = routegenLoadPreferredVesselDefaults(arguments.userId);
+            var maxVal = roundTo2(val(structKeyExists(merged, "vessel_max_speed_kn") ? merged.vessel_max_speed_kn : 0));
+            var effVal = roundTo2(val(structKeyExists(merged, "vessel_most_efficient_speed_kn") ? merged.vessel_most_efficient_speed_kn : 0));
+            var gphVal = routegenNormalizeFuelBurnGph(
+                structKeyExists(merged, "vessel_gph_at_most_efficient_speed") ? merged.vessel_gph_at_most_efficient_speed : ""
+            );
+            if (maxVal LT 1) maxVal = 0;
+            if (maxVal GT 60) maxVal = 60;
+            if (effVal LT 1) effVal = 0;
+            if (effVal GT 60) effVal = 60;
+            if (gphVal LT 0) gphVal = 0;
+
+            merged.vessel_max_speed_kn = (maxVal GT 0 ? maxVal : defaults.vessel_max_speed_kn);
+            merged.vessel_most_efficient_speed_kn = (effVal GT 0 ? effVal : defaults.vessel_most_efficient_speed_kn);
+            merged.vessel_gph_at_most_efficient_speed = (gphVal GT 0 ? gphVal : defaults.vessel_gph_at_most_efficient_speed);
+            return merged;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="routegenReadInput" access="private" returntype="struct" output="false">
         <cfargument name="body" type="struct" required="true">
         <cfscript>
@@ -4977,6 +5365,7 @@
             input.end_location_label = trim(toString(pickArg(arguments.body, "end_location_label", "endLocationLabel", "")));
             input.start_date = trim(toString(pickArg(arguments.body, "start_date", "startDate", "")));
             input.pace = routegenNormalizePace(pickArg(arguments.body, "pace", "pace", "RELAXED"));
+            input.speed_kn = trim(toString(pickArg(arguments.body, "speed_kn", "speedKn", "")));
             input.cruising_speed = trim(toString(pickArg(arguments.body, "cruising_speed", "cruisingSpeed", "")));
             input.effective_cruising_speed = trim(toString(pickArg(arguments.body, "effective_cruising_speed", "effectiveCruisingSpeed", "")));
             input.underway_hours_per_day = trim(toString(pickArg(arguments.body, "underway_hours_per_day", "underwayHoursPerDay", "")));
@@ -4992,6 +5381,36 @@
             input.weather_factor_pct = trim(toString(pickArg(arguments.body, "weather_factor_pct", "weatherFactorPct", pickArg(arguments.body, "weather_factor", "weatherFactor", ""))));
             input.reserve_pct = trim(toString(pickArg(arguments.body, "reserve_pct", "reservePct", "")));
             input.fuel_price_per_gal = trim(toString(pickArg(arguments.body, "fuel_price_per_gal", "fuelPricePerGal", "")));
+            input.vessel_max_speed_kn = trim(
+                toString(
+                    pickArg(
+                        arguments.body,
+                        "vessel_max_speed_kn",
+                        "vesselMaxSpeedKn",
+                        pickArg(arguments.body, "vessel_max_speed", "vesselMaxSpeed", "")
+                    )
+                )
+            );
+            input.vessel_most_efficient_speed_kn = trim(
+                toString(
+                    pickArg(
+                        arguments.body,
+                        "vessel_most_efficient_speed_kn",
+                        "vesselMostEfficientSpeedKn",
+                        pickArg(arguments.body, "most_efficient_speed_kn", "mostEfficientSpeedKn", "")
+                    )
+                )
+            );
+            input.vessel_gph_at_most_efficient_speed = trim(
+                toString(
+                    pickArg(
+                        arguments.body,
+                        "vessel_gph_at_most_efficient_speed",
+                        "vesselGphAtMostEfficientSpeed",
+                        pickArg(arguments.body, "gph_at_most_efficient_speed", "gphAtMostEfficientSpeed", "")
+                    )
+                )
+            );
             input.comfort_profile = trim(toString(pickArg(arguments.body, "comfort_profile", "comfortProfile", "PREFER_INSIDE")));
             input.overnight_bias = trim(toString(pickArg(arguments.body, "overnight_bias", "overnightBias", "MARINAS")));
             input.route_name = trim(toString(pickArg(arguments.body, "route_name", "routeName", "")));
@@ -5481,6 +5900,9 @@
             var weatherPctVal = 0;
             var reservePctVal = 20;
             var fuelPriceVal = 0;
+            var vesselMaxSpeedVal = 0;
+            var vesselMostEffSpeedVal = 0;
+            var vesselMostEffGphVal = 0;
             if (!isStruct(arguments.inputData)) return "";
             payload = duplicate(arguments.inputData);
             payload.pace = routegenNormalizePace(structKeyExists(payload, "pace") ? payload.pace : "RELAXED");
@@ -5514,6 +5936,12 @@
             fuelPriceVal = routegenNormalizeFuelPricePerGal(
                 structKeyExists(payload, "fuel_price_per_gal") ? payload.fuel_price_per_gal : ""
             );
+            vesselMaxSpeedVal = routegenResolvePositiveNumberByKeys(
+                payload,
+                [ "vessel_max_speed_kn", "vesselMaxSpeedKn", "vessel_max_speed", "vesselMaxSpeed" ]
+            ).value;
+            vesselMostEffSpeedVal = routegenResolveMostEfficientSpeedKn(payload);
+            vesselMostEffGphVal = routegenResolveMostEfficientBurnGph(payload);
             payload.fuel_burn_gph = (fuelBurnVal GT 0 ? fuelBurnVal : "");
             payload.fuel_burn_gph_input = (fuelBurnInputVal GT 0 ? fuelBurnInputVal : "");
             payload.fuel_burn_basis = fuelBurnBasisVal;
@@ -5522,6 +5950,9 @@
             payload.weather_factor_pct = weatherPctVal;
             payload.reserve_pct = reservePctVal;
             payload.fuel_price_per_gal = (fuelPriceVal GT 0 ? fuelPriceVal : "");
+            payload.vessel_max_speed_kn = (vesselMaxSpeedVal GT 0 ? roundTo2(vesselMaxSpeedVal) : "");
+            payload.vessel_most_efficient_speed_kn = (vesselMostEffSpeedVal GT 0 ? roundTo2(vesselMostEffSpeedVal) : "");
+            payload.vessel_gph_at_most_efficient_speed = (vesselMostEffGphVal GT 0 ? roundTo2(vesselMostEffGphVal) : "");
             payload.optional_stop_flags = routegenNormalizeStopFlags(
                 structKeyExists(payload, "optional_stop_flags") ? payload.optional_stop_flags : []
             );
@@ -5554,6 +5985,7 @@
                     normalized = duplicate(parsed);
                     aliasMap = {
                         "underway_hours_per_day" = [ "underwayHoursPerDay", "UNDERWAY_HOURS_PER_DAY" ],
+                        "speed_kn" = [ "speedKn", "SPEED_KN" ],
                         "cruising_speed" = [ "cruisingSpeed", "max_speed_kn", "maxSpeedKn", "CRUISING_SPEED", "MAX_SPEED_KN" ],
                         "fuel_burn_gph" = [ "fuelBurnGph", "max_burn_gph", "maxBurnGph", "burn_gph", "burnGph", "FUEL_BURN_GPH" ],
                         "fuel_burn_gph_input" = [ "fuelBurnGphInput", "fuel_burn_input_gph", "fuelBurnInputGph", "FUEL_BURN_GPH_INPUT" ],
@@ -5570,7 +6002,10 @@
                         "route_type" = [ "routeType", "ROUTE_TYPE" ],
                         "route_id" = [ "routeId", "ROUTE_ID" ],
                         "start_segment_id" = [ "startSegmentId", "START_SEGMENT_ID" ],
-                        "end_segment_id" = [ "endSegmentId", "END_SEGMENT_ID" ]
+                        "end_segment_id" = [ "endSegmentId", "END_SEGMENT_ID" ],
+                        "vessel_max_speed_kn" = [ "vesselMaxSpeedKn", "vessel_max_speed", "vesselMaxSpeed", "VESSEL_MAX_SPEED_KN", "MAX_SPEED" ],
+                        "vessel_most_efficient_speed_kn" = [ "vesselMostEfficientSpeedKn", "most_efficient_speed_kn", "mostEfficientSpeedKn", "MOST_EFFICIENT_SPEED_KN", "MOST_EFFICIENT_SPEED" ],
+                        "vessel_gph_at_most_efficient_speed" = [ "vesselGphAtMostEfficientSpeed", "gph_at_most_efficient_speed", "gphAtMostEfficientSpeed", "GPH_AT_MOST_EFFICIENT_SPEED", "GALLONS_PER_HOUR" ]
                     };
 
                     for (canonicalKey in aliasMap) {
@@ -6089,6 +6524,7 @@
         <cfargument name="cruisingSpeed" type="numeric" required="false" default="10">
         <cfargument name="underwayHoursPerDay" type="numeric" required="false" default="8">
         <cfargument name="fuelBurnGph" type="any" required="false" default="">
+        <cfargument name="maxBurnForEstimate" type="any" required="false" default="">
         <cfargument name="idleBurnGph" type="any" required="false" default="">
         <cfargument name="idleHoursTotal" type="any" required="false" default="">
         <cfargument name="reservePct" type="any" required="false" default="20">
@@ -6114,6 +6550,8 @@
             var underwayHoursVal = routegenNormalizeUnderwayHours(arguments.underwayHoursPerDay);
             var totalRunHours = 0.0;
             var fuelBurnVal = routegenNormalizeFuelBurnGph(arguments.fuelBurnGph);
+            var maxBurnForEstimateVal = routegenNormalizeFuelBurnGph(arguments.maxBurnForEstimate);
+            var maxBurnUsedVal = 0.0;
             var idleBurnVal = routegenNormalizeFuelBurnGph(arguments.idleBurnGph);
             var idleHoursVal = routegenNormalizeIdleHoursTotal(arguments.idleHoursTotal);
             var reservePctVal = routegenNormalizeReservePct(arguments.reservePct, 20);
@@ -6155,10 +6593,11 @@
             }
 
             idleFuelGallonsVal = (idleBurnVal GT 0 AND idleHoursVal GT 0 ? round((idleBurnVal * idleHoursVal) * 10) / 10 : 0);
+            maxBurnUsedVal = (maxBurnForEstimateVal GT 0 ? maxBurnForEstimateVal : fuelBurnVal);
             fuelEstimate = calculateFuelEstimate({
                 "distanceNm"=totalNm,
                 "maxSpeedKnots"=maxSpeedVal,
-                "maxBurnGph"=fuelBurnVal,
+                "maxBurnGph"=maxBurnUsedVal,
                 "pace"=paceVal,
                 "weatherPct"=weatherPctVal,
                 "idleFuelGallons"=idleFuelGallonsVal,
@@ -6192,6 +6631,7 @@
                 "FUEL_COST_ESTIMATE"=fuelCostEstimateVal,
                 "DAYS_BY_TIME"=daysByTime,
                 "ESTIMATED_FUEL_GALLONS"=requiredFuelGallonsVal,
+                "MAX_BURN_GPH_USED"=roundTo2(maxBurnUsedVal),
                 "FUEL_ESTIMATE"=fuelEstimate
             };
         </cfscript>
@@ -6207,33 +6647,35 @@
                 "MESSAGE"="Unable to build route preview",
                 "DATA"={}
             };
+            var normalizedInput = routegenMergeVesselDefaults(arguments.userId, arguments.input);
 
-            var templateInfo = routegenResolveTemplate(arguments.input.template_code);
+            var templateInfo = routegenResolveTemplate(normalizedInput.template_code);
             if (!structCount(templateInfo)) {
                 out.MESSAGE = "Template route not found";
                 out.ERROR = { "MESSAGE"="Select a valid template route." };
                 return out;
             }
 
-            var directionVal = normalizeDirection(arguments.input.direction);
-            var paceVal = routegenNormalizePace(arguments.input.pace);
+            var directionVal = normalizeDirection(normalizedInput.direction);
+            var paceVal = routegenNormalizePace(normalizedInput.pace);
             var paceDefaults = routegenPaceDefaults(paceVal);
-            var maxSpeedVal = routegenNormalizeCruisingSpeed(arguments.input.cruising_speed, paceDefaults.MAX_SPEED_KN);
+            var performanceMeta = routegenResolvePerformanceModel(normalizedInput, paceVal);
+            var maxSpeedVal = routegenNormalizeCruisingSpeed(performanceMeta.max_speed_kn, paceDefaults.MAX_SPEED_KN);
             var baseCruiseSpeedVal = routegenComputeEffectiveCruisingSpeed(maxSpeedVal, paceVal);
-            var underwayHoursVal = routegenNormalizeUnderwayHours(arguments.input.underway_hours_per_day);
-            var fuelBurnGphVal = routegenNormalizeFuelBurnGph(arguments.input.fuel_burn_gph);
+            var underwayHoursVal = routegenNormalizeUnderwayHours(normalizedInput.underway_hours_per_day);
+            var fuelBurnGphVal = routegenNormalizeFuelBurnGph(performanceMeta.fuel_burn_gph);
             var fuelBurnInputGphVal = routegenNormalizeFuelBurnGph(
-                structKeyExists(arguments.input, "fuel_burn_gph_input") ? arguments.input.fuel_burn_gph_input : arguments.input.fuel_burn_gph
+                structKeyExists(normalizedInput, "fuel_burn_gph_input") ? normalizedInput.fuel_burn_gph_input : normalizedInput.fuel_burn_gph
             );
             var fuelBurnBasisVal = routegenNormalizeFuelBurnBasis(
-                structKeyExists(arguments.input, "fuel_burn_basis") ? arguments.input.fuel_burn_basis : "MAX_SPEED"
+                structKeyExists(normalizedInput, "fuel_burn_basis") ? normalizedInput.fuel_burn_basis : "MAX_SPEED"
             );
-            var idleBurnGphVal = routegenNormalizeFuelBurnGph(arguments.input.idle_burn_gph);
-            var idleHoursTotalVal = routegenNormalizeIdleHoursTotal(arguments.input.idle_hours_total);
-            var weatherFactorPctVal = routegenNormalizeWeatherFactorPct(arguments.input.weather_factor_pct);
+            var idleBurnGphVal = routegenNormalizeFuelBurnGph(normalizedInput.idle_burn_gph);
+            var idleHoursTotalVal = routegenNormalizeIdleHoursTotal(normalizedInput.idle_hours_total);
+            var weatherFactorPctVal = routegenNormalizeWeatherFactorPct(normalizedInput.weather_factor_pct);
             var weatherFactorVal = weatherFactorPctVal / 100;
-            var reservePctVal = routegenNormalizeReservePct(arguments.input.reserve_pct, 20);
-            var fuelPricePerGalVal = routegenNormalizeFuelPricePerGal(arguments.input.fuel_price_per_gal);
+            var reservePctVal = routegenNormalizeReservePct(normalizedInput.reserve_pct, 20);
+            var fuelPricePerGalVal = routegenNormalizeFuelPricePerGal(normalizedInput.fuel_price_per_gal);
             var paceRatioVal = val(paceDefaults.PACE_FACTOR);
             var weatherAdjustedSpeedVal = roundTo2(baseCruiseSpeedVal * (1 - weatherFactorVal));
             var paceAdjustedBurnVal = paceAdjustedBurnGph(fuelBurnGphVal, paceRatioVal, 3.0);
@@ -6251,10 +6693,10 @@
 
             var selectedLegs = routegenBuildSelection(
                 legs = mainLegs,
-                startSegmentId = arguments.input.start_segment_id,
-                endSegmentId = arguments.input.end_segment_id,
-                startLabel = arguments.input.start_location_label,
-                endLabel = arguments.input.end_location_label,
+                startSegmentId = normalizedInput.start_segment_id,
+                endSegmentId = normalizedInput.end_segment_id,
+                startLabel = normalizedInput.start_location_label,
+                endLabel = normalizedInput.end_location_label,
                 allowWrap = templateIsLoop
             );
             if (!arrayLen(selectedLegs)) {
@@ -6264,7 +6706,7 @@
             }
 
             var detourData = routegenLoadDetours(templateInfo.ID, directionVal, weatherAdjustedSpeedVal, underwayHoursVal);
-            var selectedStopCodes = routegenNormalizeStopFlags(arguments.input.optional_stop_flags);
+            var selectedStopCodes = routegenNormalizeStopFlags(normalizedInput.optional_stop_flags);
             var finalLegs = routegenAppendDetours(
                 baseLegs = selectedLegs,
                 detourByCode = detourData.BY_CODE,
@@ -6277,8 +6719,8 @@
             var legOverrideKey = "";
             var legOverrideRow = {};
 
-            if (arguments.userId GT 0 AND len(trim(toString(arguments.input.route_code)))) {
-                routeInfo = routegenResolveUserRoute(arguments.userId, arguments.input.route_code);
+            if (arguments.userId GT 0 AND len(trim(toString(normalizedInput.route_code)))) {
+                routeInfo = routegenResolveUserRoute(arguments.userId, normalizedInput.route_code);
             }
             if (structCount(routeInfo)) {
                 routeLegMap = routegenLoadRouteLegMap(routeInfo.ROUTE_ID, arguments.userId);
@@ -6320,7 +6762,8 @@
                 fuelPricePerGal = fuelPricePerGalVal,
                 maxSpeedKnots = maxSpeedVal,
                 pace = paceVal,
-                weatherPct = weatherFactorPctVal
+                weatherPct = weatherFactorPctVal,
+                maxBurnForEstimate = performanceMeta.max_burn_for_estimate
             );
             fuelEstimateOut = (structKeyExists(totals, "FUEL_ESTIMATE") AND isStruct(totals.FUEL_ESTIMATE) ? totals.FUEL_ESTIMATE : {});
 
@@ -6329,7 +6772,7 @@
             out.DATA = {
                 "route"={
                     "route_id"=(structCount(routeInfo) ? routeInfo.ROUTE_ID : 0),
-                    "route_code"=(structCount(routeInfo) ? routeInfo.ROUTE_CODE : trim(toString(arguments.input.route_code)))
+                    "route_code"=(structCount(routeInfo) ? routeInfo.ROUTE_CODE : trim(toString(normalizedInput.route_code)))
                 },
                 "template"={
                     "id"=templateInfo.ID,
@@ -6340,11 +6783,12 @@
                 },
                 "inputs"={
                     "template_code"=(len(templateInfo.SHORT_CODE) ? templateInfo.SHORT_CODE : templateInfo.CODE),
-                    "route_code"=trim(toString(arguments.input.route_code)),
+                    "route_code"=trim(toString(normalizedInput.route_code)),
+                    "speed_kn"=(structKeyExists(normalizedInput, "speed_kn") ? trim(toString(normalizedInput.speed_kn)) : ""),
                     "direction"=directionVal,
-                    "start_segment_id"=arguments.input.start_segment_id,
-                    "end_segment_id"=arguments.input.end_segment_id,
-                    "start_date"=arguments.input.start_date,
+                    "start_segment_id"=normalizedInput.start_segment_id,
+                    "end_segment_id"=normalizedInput.end_segment_id,
+                    "start_date"=normalizedInput.start_date,
                     "pace"=paceVal,
                     "cruising_speed"=maxSpeedVal,
                     "effective_cruising_speed"=(structKeyExists(fuelEstimateOut, "effectiveSpeedKnots") AND val(fuelEstimateOut.effectiveSpeedKnots) GT 0 ? fuelEstimateOut.effectiveSpeedKnots : baseCruiseSpeedVal),
@@ -6359,8 +6803,11 @@
                     "weather_factor_pct"=weatherFactorPctVal,
                     "reserve_pct"=reservePctVal,
                     "fuel_price_per_gal"=(fuelPricePerGalVal GT 0 ? fuelPricePerGalVal : ""),
-                    "comfort_profile"=arguments.input.comfort_profile,
-                    "overnight_bias"=arguments.input.overnight_bias,
+                    "vessel_max_speed_kn"=(val(normalizedInput.vessel_max_speed_kn) GT 0 ? roundTo2(normalizedInput.vessel_max_speed_kn) : ""),
+                    "vessel_most_efficient_speed_kn"=(val(performanceMeta.most_efficient_speed_kn) GT 0 ? roundTo2(performanceMeta.most_efficient_speed_kn) : ""),
+                    "vessel_gph_at_most_efficient_speed"=(val(performanceMeta.most_efficient_burn_gph) GT 0 ? roundTo2(performanceMeta.most_efficient_burn_gph) : ""),
+                    "comfort_profile"=normalizedInput.comfort_profile,
+                    "overnight_bias"=normalizedInput.overnight_bias,
                     "optional_stop_flags"=selectedStopCodes
                 },
                 "totals"={
@@ -6386,6 +6833,15 @@
                     "fuel_cost_estimate"=totals.FUEL_COST_ESTIMATE,
                     "total_run_hours"=totals.TOTAL_RUN_HOURS,
                     "estimated_fuel_gallons"=totals.ESTIMATED_FUEL_GALLONS
+                },
+                "summary_meta"={
+                    "effective_speed_kn"=roundTo2(performanceMeta.effective_speed_kn),
+                    "speed_source"=toString(performanceMeta.speed_source),
+                    "most_efficient_speed_kn"=roundTo2(performanceMeta.most_efficient_speed_kn),
+                    "most_efficient_burn_gph"=roundTo2(performanceMeta.most_efficient_burn_gph),
+                    "fuel_source"=toString(performanceMeta.fuel_source),
+                    "pace_ratio"=roundTo2(performanceMeta.pace_ratio),
+                    "burn_model"=toString(performanceMeta.burn_model)
                 },
                 "fuelEstimate"={
                     "paceRatio"=(structKeyExists(fuelEstimateOut, "paceRatio") ? fuelEstimateOut.paceRatio : 0),
@@ -6493,6 +6949,7 @@
             }
 
             var optionalStops = [];
+            var vesselDefaults = routegenLoadPreferredVesselDefaults(arguments.userId);
             if (structKeyExists(detourData, "DETOURS") AND isArray(detourData.DETOURS)) {
                 for (i = 1; i LTE arrayLen(detourData.DETOURS); i++) {
                     stopRow = {
@@ -6525,7 +6982,10 @@
                 "defaults"={
                     "relaxed"=routegenPaceDefaults("RELAXED"),
                     "balanced"=routegenPaceDefaults("BALANCED"),
-                    "aggressive"=routegenPaceDefaults("AGGRESSIVE")
+                    "aggressive"=routegenPaceDefaults("AGGRESSIVE"),
+                    "vessel_max_speed_kn"=(structKeyExists(vesselDefaults, "vessel_max_speed_kn") ? roundTo2(vesselDefaults.vessel_max_speed_kn) : 0),
+                    "vessel_most_efficient_speed_kn"=(structKeyExists(vesselDefaults, "vessel_most_efficient_speed_kn") ? roundTo2(vesselDefaults.vessel_most_efficient_speed_kn) : 0),
+                    "vessel_gph_at_most_efficient_speed"=(structKeyExists(vesselDefaults, "vessel_gph_at_most_efficient_speed") ? roundTo2(vesselDefaults.vessel_gph_at_most_efficient_speed) : 0)
                 }
             };
             return out;
@@ -6643,6 +7103,9 @@
             var editWeatherFactorPctVal = routegenNormalizeWeatherFactorPct("");
             var editReservePctVal = routegenNormalizeReservePct("", 20);
             var editFuelPricePerGalVal = 0;
+            var editVesselMaxSpeedVal = 0;
+            var editVesselMostEffSpeedVal = 0;
+            var editVesselMostEffGphVal = 0;
             var editComfortProfileVal = "PREFER_INSIDE";
             var editOvernightBiasVal = "MARINAS";
             var editOptionalStopFlags = [];
@@ -6718,6 +7181,12 @@
             editFuelPricePerGalVal = routegenNormalizeFuelPricePerGal(
                 structKeyExists(editStoredInputs, "fuel_price_per_gal") ? editStoredInputs.fuel_price_per_gal : ""
             );
+            editVesselMaxSpeedVal = routegenResolvePositiveNumberByKeys(
+                editStoredInputs,
+                [ "vessel_max_speed_kn", "vesselMaxSpeedKn", "vessel_max_speed", "vesselMaxSpeed" ]
+            ).value;
+            editVesselMostEffSpeedVal = routegenResolveMostEfficientSpeedKn(editStoredInputs);
+            editVesselMostEffGphVal = routegenResolveMostEfficientBurnGph(editStoredInputs);
             editComfortProfileVal = uCase(
                 trim(toString(structKeyExists(editStoredInputs, "comfort_profile") ? editStoredInputs.comfort_profile : "PREFER_INSIDE"))
             );
@@ -6802,6 +7271,9 @@
                         "weather_factor_pct"=editWeatherFactorPctVal,
                         "reserve_pct"=editReservePctVal,
                         "fuel_price_per_gal"=(editFuelPricePerGalVal GT 0 ? editFuelPricePerGalVal : ""),
+                        "vessel_max_speed_kn"=(editVesselMaxSpeedVal GT 0 ? roundTo2(editVesselMaxSpeedVal) : ""),
+                        "vessel_most_efficient_speed_kn"=(editVesselMostEffSpeedVal GT 0 ? roundTo2(editVesselMostEffSpeedVal) : ""),
+                        "vessel_gph_at_most_efficient_speed"=(editVesselMostEffGphVal GT 0 ? roundTo2(editVesselMostEffGphVal) : ""),
                         "comfort_profile"=editComfortProfileVal,
                         "overnight_bias"=editOvernightBiasVal,
                         "optional_stop_flags"=editOptionalStopFlags
@@ -6905,6 +7377,12 @@
             var fuelPricePerGalVal = routegenNormalizeFuelPricePerGal(
                 structKeyExists(storedInputs, "fuel_price_per_gal") ? storedInputs.fuel_price_per_gal : ""
             );
+            var vesselMaxSpeedVal = routegenResolvePositiveNumberByKeys(
+                storedInputs,
+                [ "vessel_max_speed_kn", "vesselMaxSpeedKn", "vessel_max_speed", "vesselMaxSpeed" ]
+            ).value;
+            var vesselMostEffSpeedVal = routegenResolveMostEfficientSpeedKn(storedInputs);
+            var vesselMostEffGphVal = routegenResolveMostEfficientBurnGph(storedInputs);
             var comfortProfileVal = uCase(
                 trim(toString(structKeyExists(storedInputs, "comfort_profile") ? storedInputs.comfort_profile : "PREFER_INSIDE"))
             );
@@ -6971,6 +7449,9 @@
                     "weather_factor_pct"=weatherFactorPctVal,
                     "reserve_pct"=reservePctVal,
                     "fuel_price_per_gal"=(fuelPricePerGalVal GT 0 ? fuelPricePerGalVal : ""),
+                    "vessel_max_speed_kn"=(vesselMaxSpeedVal GT 0 ? roundTo2(vesselMaxSpeedVal) : ""),
+                    "vessel_most_efficient_speed_kn"=(vesselMostEffSpeedVal GT 0 ? roundTo2(vesselMostEffSpeedVal) : ""),
+                    "vessel_gph_at_most_efficient_speed"=(vesselMostEffGphVal GT 0 ? roundTo2(vesselMostEffGphVal) : ""),
                     "comfort_profile"=comfortProfileVal,
                     "overnight_bias"=overnightBiasVal,
                     "optional_stop_flags"=optionalStopFlags
