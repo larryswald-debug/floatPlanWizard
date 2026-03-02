@@ -76,7 +76,7 @@
                 SELECT wpId, name, latitude, longitude, notes
                 FROM waypoints
                 WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
-                ORDER BY name ASC
+                ORDER BY wpId DESC
                 LIMIT #waypointLimit#
             </cfquery>
 

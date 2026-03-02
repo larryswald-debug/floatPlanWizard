@@ -138,11 +138,9 @@
 
         var waypoints = data.WAYPOINTS || data.waypoints || [];
         waypoints = waypoints.slice().sort(function (a, b) {
-          var aName = utils.pick(a, ["WAYPOINTNAME", "NAME"], "").toLowerCase();
-          var bName = utils.pick(b, ["WAYPOINTNAME", "NAME"], "").toLowerCase();
-          if (aName < bName) return -1;
-          if (aName > bName) return 1;
-          return 0;
+          var aId = parseInt(utils.pick(a, ["WAYPOINTID", "ID"], 0), 10) || 0;
+          var bId = parseInt(utils.pick(b, ["WAYPOINTID", "ID"], 0), 10) || 0;
+          return bId - aId;
         });
         waypointState.all = waypoints;
         updateWaypointsSummary(waypoints);
