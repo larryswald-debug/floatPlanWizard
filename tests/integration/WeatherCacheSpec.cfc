@@ -129,6 +129,100 @@ component extends="testbox.system.BaseSpec" output="false" {
         }
       } );
 
+      it( "returns forecast cache hit on second request for same lat/lng", function() {
+        clearUnifiedWeatherCacheStore();
+        var weatherCache = newWeatherCacheService();
+        var fetchCalls = 0;
+        var fetcher = function( required numeric lat, required numeric lng ) {
+          fetchCalls = fetchCalls + 1;
+          return {
+            "success" = true,
+            "source" = "NWS",
+            "step" = "forecast",
+            "points_url" = "https://api.weather.gov/points/" & lat & "," & lng,
+            "forecast_url" = "https://example.test/forecast",
+            "grid_url" = "",
+            "points_status" = 200,
+            "forecast_status" = 200,
+            "grid_status" = 0,
+            "points_body" = "{}",
+            "forecast_body" = "{""properties"":{""periods"":[]}}",
+            "grid_body" = ""
+          };
+        };
+
+        var firstRes = weatherCache.getNwsForecastCached( 27.98144, -82.73144, 900, false, fetcher );
+        var secondRes = weatherCache.getNwsForecastCached( 27.98144, -82.73144, 900, false, fetcher );
+
+        expect( fetchCalls ).toBe( 1 );
+        expect( structKeyExists( firstRes, "cache_meta" ) ).toBeTrue( "First forecast result missing cache_meta: #serializeJSON(firstRes)#" );
+        expect( structKeyExists( secondRes, "cache_meta" ) ).toBeTrue( "Second forecast result missing cache_meta: #serializeJSON(secondRes)#" );
+        expect( !!secondRes.cache_meta.hit ).toBeTrue( "Second forecast call should be cache hit: #serializeJSON(secondRes)#" );
+      } );
+
+      it( "bypassCache skips forecast cache and marks bypass in metadata", function() {
+        clearUnifiedWeatherCacheStore();
+        var weatherCache = newWeatherCacheService();
+        var fetchCalls = 0;
+        var fetcher = function( required numeric lat, required numeric lng ) {
+          fetchCalls = fetchCalls + 1;
+          return {
+            "success" = true,
+            "source" = "NWS",
+            "step" = "forecast",
+            "points_url" = "https://api.weather.gov/points/" & lat & "," & lng,
+            "forecast_url" = "https://example.test/forecast",
+            "grid_url" = "",
+            "points_status" = 200,
+            "forecast_status" = 200,
+            "grid_status" = 0,
+            "points_body" = "{}",
+            "forecast_body" = "{""properties"":{""periods"":[]}}",
+            "grid_body" = ""
+          };
+        };
+
+        weatherCache.getNwsForecastCached( 27.98144, -82.73144, 900, false, fetcher );
+        var bypassRes = weatherCache.getNwsForecastCached( 27.98144, -82.73144, 900, true, fetcher );
+
+        expect( fetchCalls ).toBe( 2 );
+        expect( structKeyExists( bypassRes, "cache_meta" ) ).toBeTrue( "Bypass result missing cache_meta: #serializeJSON(bypassRes)#" );
+        expect( !!bypassRes.cache_meta.hit ).toBeFalse( "Bypass call should not be cache hit: #serializeJSON(bypassRes)#" );
+        expect( structKeyExists( bypassRes.cache_meta, "bypass" ) && !!bypassRes.cache_meta.bypass ).toBeTrue( "Bypass call should flag cache_meta.bypass=true: #serializeJSON(bypassRes)#" );
+      } );
+
+      it( "normalizes forecast cache key by rounding lat/lng to three decimals", function() {
+        clearUnifiedWeatherCacheStore();
+        var weatherCache = newWeatherCacheService();
+        var fetchCalls = 0;
+        var fetcher = function( required numeric lat, required numeric lng ) {
+          fetchCalls = fetchCalls + 1;
+          return {
+            "success" = true,
+            "source" = "NWS",
+            "step" = "forecast",
+            "points_url" = "https://api.weather.gov/points/" & lat & "," & lng,
+            "forecast_url" = "https://example.test/forecast",
+            "grid_url" = "",
+            "points_status" = 200,
+            "forecast_status" = 200,
+            "grid_status" = 0,
+            "points_body" = "{}",
+            "forecast_body" = "{""properties"":{""periods"":[]}}",
+            "grid_body" = ""
+          };
+        };
+
+        var firstRes = weatherCache.getNwsForecastCached( 27.98144, -82.73144, 900, false, fetcher );
+        var secondRes = weatherCache.getNwsForecastCached( 27.98149, -82.73149, 900, false, fetcher );
+
+        expect( fetchCalls ).toBe( 1 );
+        expect( structKeyExists( firstRes, "cache_meta" ) ).toBeTrue( "First normalization result missing cache_meta: #serializeJSON(firstRes)#" );
+        expect( structKeyExists( secondRes, "cache_meta" ) ).toBeTrue( "Second normalization result missing cache_meta: #serializeJSON(secondRes)#" );
+        expect( !!secondRes.cache_meta.hit ).toBeTrue( "Expected key normalization cache hit on second call: #serializeJSON(secondRes)#" );
+        expect( toString( firstRes.cache_meta.key ) ).toBe( toString( secondRes.cache_meta.key ) );
+      } );
+
     } );
   }
 
@@ -259,6 +353,25 @@ component extends="testbox.system.BaseSpec" output="false" {
       }
     }
     return out;
+  }
+
+  private any function newWeatherCacheService() {
+    var userAgent = "FPW Test WeatherCacheSpec";
+    try {
+      return createObject( "component", "fpw.api.services.weatherCache" ).init(
+        userAgent = userAgent,
+        httpTimeout = 2
+      );
+    } catch ( any ePrimaryPath ) {
+      return createObject( "component", "api.services.weatherCache" ).init(
+        userAgent = userAgent,
+        httpTimeout = 2
+      );
+    }
+  }
+
+  private void function clearUnifiedWeatherCacheStore() {
+    application.weatherCacheUnified = {};
   }
 
 }

@@ -235,12 +235,13 @@
         <cfset local.lat = local.anchor.LAT>
         <cfset local.lon = local.anchor.LON>
 
-        <cfset local.noCache = (isDefined("url.nocache") AND len(url.nocache) AND val(url.nocache) EQ 1)>
+        <cfset local.bypassCache = shouldBypassWeatherCache()>
+        <cfset local.noCache = ((isDefined("url.nocache") AND len(url.nocache) AND val(url.nocache) EQ 1) OR local.bypassCache)>
         <cfset local.f = {} >
         <cfset local.a = {} >
         <cfset local.s = {} >
         <cfset local.waveTest = resolveWaveTestOverride()>
-        <cfset local.m = getMarineData(local.lat, local.lon, local.noCache, arguments.marineMode, "")>
+        <cfset local.m = getMarineDataCached(local.lat, local.lon, local.noCache, arguments.marineMode, "", { "bypassCache"=local.bypassCache, "ttlSeconds"=900 })>
         <cfif local.waveTest.enabled>
             <cfif NOT isStruct(local.m)>
                 <cfset local.m = {} >
@@ -253,8 +254,8 @@
         </cfif>
 
         <cfif NOT arguments.marineOnly>
-            <cfset local.f = getNwsForecast(local.lat, local.lon)>
-            <cfset local.a = getNwsAlerts(local.lat, local.lon)>
+            <cfset local.f = getNwsForecast(local.lat, local.lon, { "bypassCache"=local.bypassCache, "ttlSeconds"=900 })>
+            <cfset local.a = getNwsAlerts(local.lat, local.lon, { "bypassCache"=local.bypassCache, "ttlSeconds"=300 })>
             <cfset local.s = getSurfaceObservations(local.lat, local.lon)>
             <cfif structKeyExists(local.f, "FORECAST") AND isArray(local.f.FORECAST)>
                 <cfset local.out.FORECAST = local.f.FORECAST>
@@ -327,12 +328,13 @@
         <cfset local.lat = local.geo.LAT>
         <cfset local.lon = local.geo.LON>
 
-        <cfset local.noCache = (isDefined("url.nocache") AND len(url.nocache) AND val(url.nocache) EQ 1)>
+        <cfset local.bypassCache = shouldBypassWeatherCache()>
+        <cfset local.noCache = ((isDefined("url.nocache") AND len(url.nocache) AND val(url.nocache) EQ 1) OR local.bypassCache)>
         <cfset local.f = {} >
         <cfset local.a = {} >
         <cfset local.s = {} >
         <cfset local.waveTest = resolveWaveTestOverride()>
-        <cfset local.m = getMarineData(local.lat, local.lon, local.noCache, arguments.marineMode, arguments.zip)>
+        <cfset local.m = getMarineDataCached(local.lat, local.lon, local.noCache, arguments.marineMode, arguments.zip, { "bypassCache"=local.bypassCache, "ttlSeconds"=900 })>
         <cfif local.waveTest.enabled>
             <cfif NOT isStruct(local.m)>
                 <cfset local.m = {} >
@@ -345,8 +347,8 @@
         </cfif>
 
         <cfif NOT arguments.marineOnly>
-            <cfset local.f = getNwsForecast(local.lat, local.lon)>
-            <cfset local.a = getNwsAlerts(local.lat, local.lon)>
+            <cfset local.f = getNwsForecast(local.lat, local.lon, { "bypassCache"=local.bypassCache, "ttlSeconds"=900 })>
+            <cfset local.a = getNwsAlerts(local.lat, local.lon, { "bypassCache"=local.bypassCache, "ttlSeconds"=300 })>
             <cfset local.s = getSurfaceObservations(local.lat, local.lon)>
             <cfif structKeyExists(local.f, "FORECAST") AND isArray(local.f.FORECAST)>
                 <cfset local.out.FORECAST = local.f.FORECAST>
@@ -586,16 +588,34 @@
     <cffunction name="getNwsForecast" access="private" returntype="struct" output="false">
         <cfargument name="lat" type="numeric" required="true">
         <cfargument name="lon" type="numeric" required="true">
+        <cfargument name="opts" type="struct" required="false" default="#structNew()#">
 
         <cfset local.out = { "FORECAST"=[], "META"={} }>
         <cfset local.pointsUrl = "https://api.weather.gov/points/" & arguments.lat & "," & arguments.lon>
         <cfset local.fetch = {} >
         <cfset local.gustGrid = { "SUCCESS"=false, "VALUES"=[], "UNIT"="", "META"={} }>
         <cfset local.meta = {} >
-        <cfset local.fetch = getWeatherCacheService().getForecast(arguments.lat, arguments.lon, now())>
+        <cfset local.ttlSeconds = 900>
+        <cfset local.bypassCache = shouldBypassWeatherCache()>
+
+        <cfif isStruct(arguments.opts) AND structKeyExists(arguments.opts, "ttlSeconds") AND isNumeric(arguments.opts.ttlSeconds)>
+            <cfset local.ttlSeconds = int(val(arguments.opts.ttlSeconds))>
+        </cfif>
+        <cfif isStruct(arguments.opts) AND structKeyExists(arguments.opts, "bypassCache")>
+            <cfset local.bypassCache = (isBoolean(arguments.opts.bypassCache) ? arguments.opts.bypassCache : (val(arguments.opts.bypassCache) EQ 1))>
+        </cfif>
+
+        <cfset local.fetch = getWeatherCacheService().getNwsForecastCached(arguments.lat, arguments.lon, local.ttlSeconds, local.bypassCache)>
+
+        <cfif isStruct(local.fetch) AND structKeyExists(local.fetch, "cache_meta") AND isStruct(local.fetch.cache_meta)>
+            <cfset local.out.cache_meta = local.fetch.cache_meta>
+        </cfif>
 
         <cfif NOT isStruct(local.fetch)>
             <cfset local.out.META = { "source"="NWS", "step"="points", "status"=0, "url"=local.pointsUrl }>
+            <cfif structKeyExists(local.out, "cache_meta")>
+                <cfset local.out.META.cache_meta = local.out.cache_meta>
+            </cfif>
             <cfreturn local.out>
         </cfif>
 
@@ -617,6 +637,9 @@
                 <cfif structKeyExists(local.fetch, "note") AND len(trim(toString(local.fetch.note)))>
                     <cfset local.out.META.note = trim(toString(local.fetch.note))>
                 </cfif>
+            </cfif>
+            <cfif structKeyExists(local.out, "cache_meta")>
+                <cfset local.out.META.cache_meta = local.out.cache_meta>
             </cfif>
             <cfreturn local.out>
         </cfif>
@@ -651,21 +674,46 @@
         <cfif isStruct(local.gustGrid) AND structKeyExists(local.gustGrid, "META")>
             <cfset local.meta.gust = local.gustGrid.META>
         </cfif>
+        <cfif structKeyExists(local.out, "cache_meta")>
+            <cfset local.meta.cache_meta = local.out.cache_meta>
+        </cfif>
 
-        <cfreturn normalizeNwsForecast(
+        <cfset local.out = normalizeNwsForecast(
             structKeyExists(local.fetch, "forecast_body") ? toString(local.fetch.forecast_body) : "",
             local.meta,
             local.gustGrid
         )>
+        <cfif structKeyExists(local.fetch, "cache_meta") AND isStruct(local.fetch.cache_meta)>
+            <cfset local.out.cache_meta = local.fetch.cache_meta>
+            <cfif structKeyExists(local.out, "META") AND isStruct(local.out.META)>
+                <cfset local.out.META.cache_meta = local.fetch.cache_meta>
+            </cfif>
+        </cfif>
+        <cfreturn local.out>
     </cffunction>
 
     <cffunction name="getNwsAlerts" access="private" returntype="struct" output="false">
         <cfargument name="lat" type="numeric" required="true">
         <cfargument name="lon" type="numeric" required="true">
+        <cfargument name="opts" type="struct" required="false" default="#structNew()#">
 
         <cfset local.out = { "ALERTS"=[], "META"={} }>
         <cfset local.url = "https://api.weather.gov/alerts/active?point=" & arguments.lat & "," & arguments.lon>
-        <cfset local.fetch = getWeatherCacheService().getAlerts(arguments.lat, arguments.lon)>
+        <cfset local.ttlSeconds = 300>
+        <cfset local.bypassCache = shouldBypassWeatherCache()>
+        <cfset local.fetch = {} >
+
+        <cfif isStruct(arguments.opts) AND structKeyExists(arguments.opts, "ttlSeconds") AND isNumeric(arguments.opts.ttlSeconds)>
+            <cfset local.ttlSeconds = int(val(arguments.opts.ttlSeconds))>
+        </cfif>
+        <cfif isStruct(arguments.opts) AND structKeyExists(arguments.opts, "bypassCache")>
+            <cfset local.bypassCache = (isBoolean(arguments.opts.bypassCache) ? arguments.opts.bypassCache : (val(arguments.opts.bypassCache) EQ 1))>
+        </cfif>
+
+        <cfset local.fetch = getWeatherCacheService().getNwsAlertsCached(arguments.lat, arguments.lon, local.ttlSeconds, local.bypassCache)>
+        <cfif isStruct(local.fetch) AND structKeyExists(local.fetch, "cache_meta") AND isStruct(local.fetch.cache_meta)>
+            <cfset local.out.cache_meta = local.fetch.cache_meta>
+        </cfif>
 
         <cfif NOT isStruct(local.fetch) OR NOT structKeyExists(local.fetch, "success") OR NOT local.fetch.success>
             <cfset local.out.META = {
@@ -673,10 +721,13 @@
                 "status"=(isStruct(local.fetch) AND structKeyExists(local.fetch, "status") ? val(local.fetch.status) : 0),
                 "url"=(isStruct(local.fetch) AND structKeyExists(local.fetch, "url") ? toString(local.fetch.url) : local.url)
             }>
+            <cfif structKeyExists(local.out, "cache_meta")>
+                <cfset local.out.META.cache_meta = local.out.cache_meta>
+            </cfif>
             <cfreturn local.out>
         </cfif>
 
-        <cfreturn normalizeNwsAlerts(
+        <cfset local.out = normalizeNwsAlerts(
             (structKeyExists(local.fetch, "body") ? toString(local.fetch.body) : ""),
             {
                 "source"="NWS",
@@ -684,6 +735,13 @@
                 "status"=(structKeyExists(local.fetch, "status") ? val(local.fetch.status) : 0)
             }
         )>
+        <cfif structKeyExists(local.fetch, "cache_meta") AND isStruct(local.fetch.cache_meta)>
+            <cfset local.out.cache_meta = local.fetch.cache_meta>
+            <cfif structKeyExists(local.out, "META") AND isStruct(local.out.META)>
+                <cfset local.out.META.cache_meta = local.fetch.cache_meta>
+            </cfif>
+        </cfif>
+        <cfreturn local.out>
     </cffunction>
 
     <!--- METAR surface observations normalized for dashboard pressure/visibility cards. --->
@@ -848,6 +906,66 @@
     <!--- =========================
           Marine data (tides + waves)
     ========================== --->
+    <cffunction name="getMarineDataCached" access="private" returntype="struct" output="false">
+        <cfargument name="lat" type="numeric" required="true">
+        <cfargument name="lon" type="numeric" required="true">
+        <cfargument name="noCache" type="boolean" required="false" default="false">
+        <cfargument name="marineMode" type="string" required="false" default="full">
+        <cfargument name="zipHint" type="string" required="false" default="">
+        <cfargument name="opts" type="struct" required="false" default="#structNew()#">
+
+        <cfset local.ttlSeconds = 900>
+        <cfset local.bypassCache = shouldBypassWeatherCache()>
+        <cfset local.cachedMarine = {} >
+
+        <cfif isStruct(arguments.opts) AND structKeyExists(arguments.opts, "ttlSeconds") AND isNumeric(arguments.opts.ttlSeconds)>
+            <cfset local.ttlSeconds = int(val(arguments.opts.ttlSeconds))>
+        </cfif>
+        <cfif isStruct(arguments.opts) AND structKeyExists(arguments.opts, "bypassCache")>
+            <cfset local.bypassCache = (isBoolean(arguments.opts.bypassCache) ? arguments.opts.bypassCache : (val(arguments.opts.bypassCache) EQ 1))>
+        </cfif>
+        <cfif arguments.noCache>
+            <cfset local.bypassCache = true>
+        </cfif>
+        <cfif len(trim(arguments.zipHint)) EQ 5>
+            <cfset local.bypassCache = true>
+        </cfif>
+
+        <cfset request._fpwMarineCacheFetchOpts = {
+            "noCache"=arguments.noCache,
+            "marineMode"=arguments.marineMode,
+            "zipHint"=arguments.zipHint
+        }>
+        <cfset local.cachedMarine = getWeatherCacheService().getMarineCached(
+            arguments.lat,
+            arguments.lon,
+            local.ttlSeconds,
+            local.bypassCache,
+            function(required numeric cacheLat, required numeric cacheLon) {
+                return getMarineData(
+                    arguments.cacheLat,
+                    arguments.cacheLon,
+                    request._fpwMarineCacheFetchOpts.noCache,
+                    request._fpwMarineCacheFetchOpts.marineMode,
+                    request._fpwMarineCacheFetchOpts.zipHint
+                );
+            }
+        )>
+        <cfset structDelete(request, "_fpwMarineCacheFetchOpts", false)>
+
+        <cfif isStruct(local.cachedMarine) AND structKeyExists(local.cachedMarine, "cache_meta") AND isStruct(local.cachedMarine.cache_meta)>
+            <cfif NOT structKeyExists(local.cachedMarine, "META") OR NOT isStruct(local.cachedMarine.META)>
+                <cfset local.cachedMarine.META = {} >
+            </cfif>
+            <cfset local.cachedMarine.META.cache_meta = local.cachedMarine.cache_meta>
+        </cfif>
+
+        <cfif isStruct(local.cachedMarine)>
+            <cfreturn local.cachedMarine>
+        </cfif>
+        <cfreturn { "wave_height_ft"=0 }>
+    </cffunction>
+
     <cffunction name="getMarineData" access="private" returntype="struct" output="false">
         <cfargument name="lat" type="numeric" required="true">
         <cfargument name="lon" type="numeric" required="true">
@@ -1929,30 +2047,13 @@
     <cffunction name="marineCacheGet" access="private" returntype="any" output="false">
         <cfargument name="key" type="string" required="true">
         <cfargument name="ttlSeconds" type="numeric" required="true">
-
-        <cfif NOT structKeyExists(application, "marineCache")>
-            <cfset application.marineCache = {} >
-        </cfif>
-
-        <cfif structKeyExists(application.marineCache, arguments.key)>
-            <cfset local.item = application.marineCache[arguments.key]>
-            <cfif structKeyExists(local.item, "ts") AND dateDiff("s", local.item.ts, now()) LT arguments.ttlSeconds>
-                <cfreturn (structKeyExists(local.item, "val") ? local.item.val : "")>
-            </cfif>
-        </cfif>
-
-        <cfreturn "">
+        <cfreturn getWeatherCacheService().getMarineCacheValue(arguments.key, arguments.ttlSeconds)>
     </cffunction>
 
     <cffunction name="marineCacheSet" access="private" returntype="void" output="false">
         <cfargument name="key" type="string" required="true">
         <cfargument name="val" type="any" required="true">
-
-        <cfif NOT structKeyExists(application, "marineCache")>
-            <cfset application.marineCache = {} >
-        </cfif>
-
-        <cfset application.marineCache[arguments.key] = { "ts"=now(), "val"=arguments.val }>
+        <cfset getWeatherCacheService().setMarineCacheValue(arguments.key, arguments.val)>
     </cffunction>
 
     <!--- =========================
@@ -2317,6 +2418,28 @@
     <!--- =========================
           Helpers
     ========================== --->
+    <cffunction name="shouldBypassWeatherCache" access="private" returntype="boolean" output="false">
+        <cfset local.bypass = false>
+        <cfset local.rawCache = "">
+        <cfset local.rawBypass = "">
+
+        <cfif isDefined("url.cache")>
+            <cfset local.rawCache = trim(toString(url.cache))>
+            <cfif len(local.rawCache) AND local.rawCache EQ "0">
+                <cfset local.bypass = true>
+            </cfif>
+        </cfif>
+
+        <cfif isDefined("url.bypassCache")>
+            <cfset local.rawBypass = trim(toString(url.bypassCache))>
+            <cfif (isNumeric(local.rawBypass) AND val(local.rawBypass) EQ 1) OR compareNoCase(local.rawBypass, "true") EQ 0>
+                <cfset local.bypass = true>
+            </cfif>
+        </cfif>
+
+        <cfreturn local.bypass>
+    </cffunction>
+
     <cffunction name="getWeatherCacheService" access="private" returntype="any" output="false">
         <cfif structKeyExists(request, "_fpwWeatherCacheService") AND isObject(request._fpwWeatherCacheService)>
             <cfreturn request._fpwWeatherCacheService>

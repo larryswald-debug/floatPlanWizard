@@ -8,36 +8,37 @@
             if (!len(variables.userAgent)) {
                 variables.userAgent = "FloatPlanWizard Weather (V1) (admin@floatplanwizard.com)";
             }
+
             variables.httpTimeout = val(arguments.httpTimeout);
             if (variables.httpTimeout LT 2) variables.httpTimeout = 2;
             if (variables.httpTimeout GT 30) variables.httpTimeout = 30;
+
+            variables.defaultTtl = {
+                "nwsForecast"=900,
+                "nwsAlerts"=300,
+                "marine"=900,
+                "metar"=900
+            };
+            variables.maxEntries = {
+                "nwsForecast"=500,
+                "nwsAlerts"=500,
+                "marine"=500,
+                "metar"=500,
+                "legacy"=500
+            };
             return this;
         </cfscript>
     </cffunction>
 
+    <!--- Legacy compatibility wrappers --->
     <cffunction name="getForecast" access="public" returntype="struct" output="false">
         <cfargument name="lat" type="numeric" required="true">
         <cfargument name="lng" type="numeric" required="true">
         <cfargument name="forecastHour" type="date" required="true">
         <cfscript>
-            var latVal = normalizeCoord(arguments.lat);
-            var lngVal = normalizeCoord(arguments.lng);
             var hourBucket = floorToHour(arguments.forecastHour);
-            var cacheKey = buildForecastKey(latVal, lngVal, hourBucket);
             var ttlSeconds = ttlSecondsForHour(hourBucket);
-            var cached = appCacheGet(cacheKey, ttlSeconds);
-            var out = {};
-            if (!isNull(cached) AND isStruct(cached)) {
-                out = duplicate(cached);
-                out.cache_hit = true;
-                out.cache_key = cacheKey;
-                return out;
-            }
-            out = fetchForecastPayload(latVal, lngVal);
-            out.cache_hit = false;
-            out.cache_key = cacheKey;
-            appCacheSet(cacheKey, out);
-            return out;
+            return getNwsForecastCached(arguments.lat, arguments.lng, ttlSeconds, false);
         </cfscript>
     </cffunction>
 
@@ -45,24 +46,9 @@
         <cfargument name="lat" type="numeric" required="true">
         <cfargument name="lng" type="numeric" required="true">
         <cfscript>
-            var latVal = normalizeCoord(arguments.lat);
-            var lngVal = normalizeCoord(arguments.lng);
             var hourBucket = floorToHour(now());
-            var cacheKey = buildAlertsKey(latVal, lngVal, hourBucket);
             var ttlSeconds = ttlSecondsForHour(hourBucket);
-            var cached = appCacheGet(cacheKey, ttlSeconds);
-            var out = {};
-            if (!isNull(cached) AND isStruct(cached)) {
-                out = duplicate(cached);
-                out.cache_hit = true;
-                out.cache_key = cacheKey;
-                return out;
-            }
-            out = fetchAlertsPayload(latVal, lngVal);
-            out.cache_hit = false;
-            out.cache_key = cacheKey;
-            appCacheSet(cacheKey, out);
-            return out;
+            return getNwsAlertsCached(arguments.lat, arguments.lng, ttlSeconds, false);
         </cfscript>
     </cffunction>
 
@@ -71,36 +57,40 @@
         <cfargument name="lng" type="numeric" required="true">
         <cfargument name="forecastHour" type="date" required="true">
         <cfscript>
-            var latVal = normalizeCoord(arguments.lat);
-            var lngVal = normalizeCoord(arguments.lng);
             var hourBucket = floorToHour(arguments.forecastHour);
-            var cacheKey = buildMarineKey(latVal, lngVal, hourBucket);
             var ttlSeconds = ttlSecondsForHour(hourBucket);
-            var cached = appCacheGet(cacheKey, ttlSeconds);
-            var out = {};
-            if (!isNull(cached) AND isStruct(cached)) {
-                out = duplicate(cached);
-                out.cache_hit = true;
-                out.cache_key = cacheKey;
-                return out;
-            }
-            out = fetchForecastPayload(latVal, lngVal);
-            out.cache_hit = false;
-            out.cache_key = cacheKey;
-            appCacheSet(cacheKey, out);
-            return out;
+            return getMarineCached(
+                arguments.lat,
+                arguments.lng,
+                ttlSeconds,
+                false,
+                function(required numeric fLat, required numeric fLng) {
+                    return fetchForecastPayload(arguments.fLat, arguments.fLng);
+                }
+            );
         </cfscript>
     </cffunction>
 
-    <!--- METAR surface-observation cache block (15 minute TTL, rounded lat/lng key). --->
+    <!--- METAR surface-observation cache block (default 15 minute TTL, rounded lat/lng key). --->
     <cffunction name="getMetar" access="public" returntype="struct" output="false">
         <cfargument name="lat" type="numeric" required="true">
         <cfargument name="lng" type="numeric" required="true">
         <cfscript>
+            return getMetarCached(arguments.lat, arguments.lng, variables.defaultTtl.metar);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getMetarCached" access="public" returntype="struct" output="false">
+        <cfargument name="lat" type="numeric" required="true">
+        <cfargument name="lng" type="numeric" required="true">
+        <cfargument name="ttlSeconds" type="numeric" required="false" default="900">
+        <cfscript>
             var latVal = normalizeCoord(arguments.lat);
             var lngVal = normalizeCoord(arguments.lng);
+            var ttl = normalizeTtl(arguments.ttlSeconds, variables.defaultTtl.metar);
             var cacheKey = buildMetarKey(latVal, lngVal);
-            var ttlSeconds = 900;
+            var cachedEnvelope = cacheGetEnvelope("metar", cacheKey);
+            var priorEnvelope = cachePeekEnvelope("metar", cacheKey);
             var cached = {};
             var priorCacheVal = {};
             var fetched = {};
@@ -108,19 +98,18 @@
             var previousRec = {};
             var cachePayload = {};
             var out = {};
+            var newEnvelope = {};
 
-            local.cachedRaw = appCacheGet(cacheKey, ttlSeconds);
-            if (structKeyExists(local, "cachedRaw") AND isStruct(local.cachedRaw)) {
-                cached = local.cachedRaw;
+            if (isStruct(cachedEnvelope) AND structKeyExists(cachedEnvelope, "data") AND isStruct(cachedEnvelope.data)) {
+                cached = cachedEnvelope.data;
             }
-            local.priorRaw = appCachePeek(cacheKey);
-            if (structKeyExists(local, "priorRaw") AND isStruct(local.priorRaw)) {
-                priorCacheVal = local.priorRaw;
+            if (isStruct(priorEnvelope) AND structKeyExists(priorEnvelope, "data") AND isStruct(priorEnvelope.data)) {
+                priorCacheVal = priorEnvelope.data;
             }
 
             if (structCount(cached) GT 0) {
                 out = composeMetarEnvelope(cached, true, cacheKey);
-                return out;
+                return mergePayloadWithCacheMeta(out, cachedEnvelope, cacheKey, ttl, true, false);
             }
 
             fetched = fetchMetarPayload(latVal, lngVal);
@@ -144,9 +133,16 @@
                     "current"=currentRec,
                     "previous"=previousRec
                 };
-                appCacheSet(cacheKey, cachePayload);
+                newEnvelope = buildEnvelope(
+                    cacheKey,
+                    "aviationweather.gov",
+                    cachePayload,
+                    ttl,
+                    { "status"=(structKeyExists(fetched, "status") ? val(fetched.status) : 0) }
+                );
+                cacheSetEnvelope("metar", cacheKey, newEnvelope, cacheTypeLimit("metar"));
                 out = composeMetarEnvelope(cachePayload, false, cacheKey);
-                return out;
+                return mergePayloadWithCacheMeta(out, newEnvelope, cacheKey, ttl, false, false);
             }
 
             if (structCount(priorCacheVal) GT 0) {
@@ -156,11 +152,168 @@
                     if (structKeyExists(fetched, "status")) out.status = val(fetched.status);
                     if (structKeyExists(fetched, "url")) out.url = toString(fetched.url);
                 }
-                return out;
+                return mergePayloadWithCacheMeta(out, priorEnvelope, cacheKey, ttl, true, false);
             }
 
             out = composeMetarEnvelope(fetched, false, cacheKey);
-            return out;
+            return mergePayloadWithCacheMeta(out, {}, cacheKey, ttl, false, false);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getNwsForecastCached" access="public" returntype="struct" output="false">
+        <cfargument name="lat" type="numeric" required="true">
+        <cfargument name="lng" type="numeric" required="true">
+        <cfargument name="ttlSeconds" type="numeric" required="false" default="900">
+        <cfargument name="bypassCache" type="boolean" required="false" default="false">
+        <cfargument name="fetcher" type="any" required="false" default="">
+        <cfscript>
+            var norm = normalizeLatLng(arguments.lat, arguments.lng, 3);
+            var ttl = normalizeTtl(arguments.ttlSeconds, variables.defaultTtl.nwsForecast);
+            var cacheKey = buildKey("nws:forecast", norm.lat, norm.lng, 3);
+            var cachedEnvelope = {};
+            var payload = {};
+            var envelope = {};
+            var httpMeta = {};
+
+            if (!arguments.bypassCache) {
+                cachedEnvelope = cacheGetEnvelope("nwsForecast", cacheKey);
+                if (isStruct(cachedEnvelope) AND structCount(cachedEnvelope) GT 0) {
+                    payload = (structKeyExists(cachedEnvelope, "data") AND isStruct(cachedEnvelope.data) ? cachedEnvelope.data : {});
+                    return mergePayloadWithCacheMeta(payload, cachedEnvelope, cacheKey, ttl, true, false);
+                }
+            }
+
+            if (isCustomFunction(arguments.fetcher)) {
+                payload = arguments.fetcher(norm.lat, norm.lng);
+            } else {
+                payload = fetchForecastPayload(norm.lat, norm.lng);
+            }
+            if (!isStruct(payload)) payload = {};
+
+            httpMeta = deriveForecastHttpMeta(payload);
+            envelope = buildEnvelope(cacheKey, "api.weather.gov", payload, ttl, httpMeta);
+            cacheSetEnvelope("nwsForecast", cacheKey, envelope, cacheTypeLimit("nwsForecast"));
+            return mergePayloadWithCacheMeta(payload, envelope, cacheKey, ttl, false, arguments.bypassCache);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getNwsAlertsCached" access="public" returntype="struct" output="false">
+        <cfargument name="lat" type="numeric" required="true">
+        <cfargument name="lng" type="numeric" required="true">
+        <cfargument name="ttlSeconds" type="numeric" required="false" default="300">
+        <cfargument name="bypassCache" type="boolean" required="false" default="false">
+        <cfargument name="fetcher" type="any" required="false" default="">
+        <cfscript>
+            var norm = normalizeLatLng(arguments.lat, arguments.lng, 3);
+            var ttl = normalizeTtl(arguments.ttlSeconds, variables.defaultTtl.nwsAlerts);
+            var cacheKey = buildKey("nws:alerts", norm.lat, norm.lng, 3);
+            var cachedEnvelope = {};
+            var payload = {};
+            var envelope = {};
+            var httpMeta = {};
+
+            if (!arguments.bypassCache) {
+                cachedEnvelope = cacheGetEnvelope("nwsAlerts", cacheKey);
+                if (isStruct(cachedEnvelope) AND structCount(cachedEnvelope) GT 0) {
+                    payload = (structKeyExists(cachedEnvelope, "data") AND isStruct(cachedEnvelope.data) ? cachedEnvelope.data : {});
+                    return mergePayloadWithCacheMeta(payload, cachedEnvelope, cacheKey, ttl, true, false);
+                }
+            }
+
+            if (isCustomFunction(arguments.fetcher)) {
+                payload = arguments.fetcher(norm.lat, norm.lng);
+            } else {
+                payload = fetchAlertsPayload(norm.lat, norm.lng);
+            }
+            if (!isStruct(payload)) payload = {};
+
+            httpMeta = deriveAlertsHttpMeta(payload);
+            envelope = buildEnvelope(cacheKey, "api.weather.gov", payload, ttl, httpMeta);
+            cacheSetEnvelope("nwsAlerts", cacheKey, envelope, cacheTypeLimit("nwsAlerts"));
+            return mergePayloadWithCacheMeta(payload, envelope, cacheKey, ttl, false, arguments.bypassCache);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getMarineCached" access="public" returntype="struct" output="false">
+        <cfargument name="lat" type="numeric" required="true">
+        <cfargument name="lng" type="numeric" required="true">
+        <cfargument name="ttlSeconds" type="numeric" required="false" default="900">
+        <cfargument name="bypassCache" type="boolean" required="false" default="false">
+        <cfargument name="fetcher" type="any" required="false" default="">
+        <cfscript>
+            var norm = normalizeLatLng(arguments.lat, arguments.lng, 3);
+            var ttl = normalizeTtl(arguments.ttlSeconds, variables.defaultTtl.marine);
+            var cacheKey = buildKey("marine", norm.lat, norm.lng, 3);
+            var cachedEnvelope = {};
+            var payload = {};
+            var envelope = {};
+            var httpMeta = {};
+
+            if (!arguments.bypassCache) {
+                cachedEnvelope = cacheGetEnvelope("marine", cacheKey);
+                if (isStruct(cachedEnvelope) AND structCount(cachedEnvelope) GT 0) {
+                    payload = (structKeyExists(cachedEnvelope, "data") AND isStruct(cachedEnvelope.data) ? cachedEnvelope.data : {});
+                    return mergePayloadWithCacheMeta(payload, cachedEnvelope, cacheKey, ttl, true, false);
+                }
+            }
+
+            if (isCustomFunction(arguments.fetcher)) {
+                payload = arguments.fetcher(norm.lat, norm.lng);
+            } else {
+                payload = {};
+            }
+            if (!isStruct(payload)) payload = {};
+
+            if (structKeyExists(payload, "http_meta") AND isStruct(payload.http_meta)) {
+                httpMeta = payload.http_meta;
+            } else {
+                httpMeta = { "status"=0 };
+            }
+            envelope = buildEnvelope(cacheKey, "marine", payload, ttl, httpMeta);
+            cacheSetEnvelope("marine", cacheKey, envelope, cacheTypeLimit("marine"));
+            return mergePayloadWithCacheMeta(payload, envelope, cacheKey, ttl, false, arguments.bypassCache);
+        </cfscript>
+    </cffunction>
+
+    <!--- Legacy marine cache wrappers retained for backwards compatibility with existing keys. --->
+    <cffunction name="getMarineCacheValue" access="public" returntype="any" output="false">
+        <cfargument name="key" type="string" required="true">
+        <cfargument name="ttlSeconds" type="numeric" required="true">
+        <cfscript>
+            var out = "";
+            var item = {};
+            var hasItem = false;
+            var ttl = normalizeTtl(arguments.ttlSeconds, variables.defaultTtl.marine);
+            lock name="fpw.weatherCache.marineLegacy" type="exclusive" timeout="5" {
+                ensureMarineLegacyStore();
+                if (structKeyExists(application.marineCache, arguments.key)) {
+                    item = application.marineCache[arguments.key];
+                    if (
+                        isStruct(item)
+                        AND structKeyExists(item, "ts")
+                        AND dateDiff("s", item.ts, now()) LT ttl
+                    ) {
+                        hasItem = true;
+                        out = (structKeyExists(item, "val") ? item.val : "");
+                    } else {
+                        structDelete(application.marineCache, arguments.key, false);
+                    }
+                }
+            }
+            if (hasItem) return out;
+            return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="setMarineCacheValue" access="public" returntype="void" output="false">
+        <cfargument name="key" type="string" required="true">
+        <cfargument name="val" type="any" required="true">
+        <cfscript>
+            lock name="fpw.weatherCache.marineLegacy" type="exclusive" timeout="5" {
+                ensureMarineLegacyStore();
+                application.marineCache[arguments.key] = { "ts"=now(), "val"=cloneAny(arguments.val) };
+                pruneMarineLegacyStore(500);
+            }
         </cfscript>
     </cffunction>
 
@@ -181,7 +334,8 @@
                 "grid_status"=0,
                 "points_body"="",
                 "forecast_body"="",
-                "grid_body"=""
+                "grid_body"="",
+                "http_meta"={ "status"=0 }
             };
             var pointsRes = {};
             var pointsObj = {};
@@ -192,6 +346,7 @@
             pointsRes = fetchHttp(out.points_url, "application/geo+json");
             out.points_status = val(pointsRes.status);
             out.points_body = toString(pointsRes.body);
+            out.http_meta.status = out.points_status;
             if (out.points_status LT 200 OR out.points_status GTE 300) {
                 return out;
             }
@@ -240,6 +395,9 @@
             forecastRes = fetchHttp(out.forecast_url, "application/geo+json");
             out.forecast_status = val(forecastRes.status);
             out.forecast_body = toString(forecastRes.body);
+            out.http_meta.status = out.forecast_status;
+            if (len(trim(toString(forecastRes.etag)))) out.http_meta.etag = trim(toString(forecastRes.etag));
+            if (len(trim(toString(forecastRes.last_modified)))) out.http_meta.last_modified = trim(toString(forecastRes.last_modified));
             if (out.forecast_status LT 200 OR out.forecast_status GTE 300) {
                 return out;
             }
@@ -270,13 +428,17 @@
                 "url"="",
                 "status"=0,
                 "body"="",
-                "note"=""
+                "note"="",
+                "http_meta"={ "status"=0 }
             };
             var res = {};
             out.url = "https://api.weather.gov/alerts/active?point=" & arguments.lat & "," & arguments.lng;
             res = fetchHttp(out.url, "application/geo+json");
             out.status = val(res.status);
             out.body = toString(res.body);
+            out.http_meta.status = out.status;
+            if (len(trim(toString(res.etag)))) out.http_meta.etag = trim(toString(res.etag));
+            if (len(trim(toString(res.last_modified)))) out.http_meta.last_modified = trim(toString(res.last_modified));
             if (out.status GTE 200 AND out.status LT 300) {
                 out.success = true;
             }
@@ -500,7 +662,7 @@
         <cfargument name="url" type="string" required="true">
         <cfargument name="accept" type="string" required="false" default="application/json">
         <cfscript>
-            var out = { "status"=0, "body"="" };
+            var out = { "status"=0, "body"="", "headers"={}, "etag"="", "last_modified"="" };
             var res = {};
             try {
                 cfhttp(url=arguments.url, method="get", result="res", timeout=variables.httpTimeout, throwOnError="false") {
@@ -509,9 +671,17 @@
                 }
                 out.status = parseHttpStatus(res);
                 out.body = (structKeyExists(res, "fileContent") ? toString(res.fileContent) : "");
+                if (structKeyExists(res, "responseHeader") AND isStruct(res.responseHeader)) {
+                    out.headers = duplicate(res.responseHeader);
+                    out.etag = extractHeaderValue(out.headers, "ETag");
+                    out.last_modified = extractHeaderValue(out.headers, "Last-Modified");
+                }
             } catch (any eHttp) {
                 out.status = 0;
                 out.body = "";
+                out.headers = {};
+                out.etag = "";
+                out.last_modified = "";
             }
             return out;
         </cfscript>
@@ -532,26 +702,53 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="extractHeaderValue" access="private" returntype="string" output="false">
+        <cfargument name="headers" type="struct" required="true">
+        <cfargument name="name" type="string" required="true">
+        <cfscript>
+            var key = "";
+            var keys = structKeyArray(arguments.headers);
+            var v = "";
+            for (key in keys) {
+                if (lcase(trim(key)) EQ lcase(trim(arguments.name))) {
+                    v = arguments.headers[key];
+                    if (isArray(v) AND arrayLen(v)) {
+                        return trim(toString(v[1]));
+                    }
+                    return trim(toString(v));
+                }
+            }
+            return "";
+        </cfscript>
+    </cffunction>
+
     <cffunction name="appCacheGet" access="private" returntype="any" output="false">
         <cfargument name="cacheKey" type="string" required="true">
         <cfargument name="ttlSeconds" type="numeric" required="true">
         <cfscript>
             var item = javacast("null", "");
-            if (NOT structKeyExists(application, "weatherCache")) {
-                application.weatherCache = {};
-            }
-            if (structKeyExists(application.weatherCache, arguments.cacheKey)) {
-                item = application.weatherCache[arguments.cacheKey];
-                if (
-                    isStruct(item)
-                    AND structKeyExists(item, "ts")
-                    AND structKeyExists(item, "val")
-                    AND dateDiff("s", item.ts, now()) LTE arguments.ttlSeconds
-                ) {
-                    return item.val;
+            var ttl = normalizeTtl(arguments.ttlSeconds, 60);
+            lock name="fpw.weatherCache.legacy" type="exclusive" timeout="5" {
+                if (NOT structKeyExists(application, "weatherCache")) {
+                    application.weatherCache = {};
                 }
+                if (structKeyExists(application.weatherCache, arguments.cacheKey)) {
+                    item = application.weatherCache[arguments.cacheKey];
+                    if (
+                        isStruct(item)
+                        AND structKeyExists(item, "ts")
+                        AND structKeyExists(item, "val")
+                        AND dateDiff("s", item.ts, now()) LTE ttl
+                    ) {
+                        item = cloneAny(item.val);
+                    } else {
+                        structDelete(application.weatherCache, arguments.cacheKey, false);
+                        item = javacast("null", "");
+                    }
+                }
+                pruneLegacyStore(variables.maxEntries.legacy);
             }
-            return javacast("null", "");
+            return item;
         </cfscript>
     </cffunction>
 
@@ -559,20 +756,24 @@
         <cfargument name="cacheKey" type="string" required="true">
         <cfscript>
             var item = javacast("null", "");
-            if (NOT structKeyExists(application, "weatherCache")) {
-                application.weatherCache = {};
-            }
-            if (structKeyExists(application.weatherCache, arguments.cacheKey)) {
-                item = application.weatherCache[arguments.cacheKey];
-                if (
-                    isStruct(item)
-                    AND structKeyExists(item, "val")
-                    AND isStruct(item.val)
-                ) {
-                    return item.val;
+            lock name="fpw.weatherCache.legacy" type="exclusive" timeout="5" {
+                if (NOT structKeyExists(application, "weatherCache")) {
+                    application.weatherCache = {};
+                }
+                if (structKeyExists(application.weatherCache, arguments.cacheKey)) {
+                    item = application.weatherCache[arguments.cacheKey];
+                    if (
+                        isStruct(item)
+                        AND structKeyExists(item, "val")
+                        AND isStruct(item.val)
+                    ) {
+                        item = cloneAny(item.val);
+                    } else {
+                        item = javacast("null", "");
+                    }
                 }
             }
-            return javacast("null", "");
+            return item;
         </cfscript>
     </cffunction>
 
@@ -580,13 +781,16 @@
         <cfargument name="cacheKey" type="string" required="true">
         <cfargument name="cacheVal" type="struct" required="true">
         <cfscript>
-            if (NOT structKeyExists(application, "weatherCache")) {
-                application.weatherCache = {};
+            lock name="fpw.weatherCache.legacy" type="exclusive" timeout="5" {
+                if (NOT structKeyExists(application, "weatherCache")) {
+                    application.weatherCache = {};
+                }
+                application.weatherCache[arguments.cacheKey] = {
+                    "ts"=now(),
+                    "val"=cloneAny(arguments.cacheVal)
+                };
+                pruneLegacyStore(variables.maxEntries.legacy);
             }
-            application.weatherCache[arguments.cacheKey] = {
-                "ts"=now(),
-                "val"=duplicate(arguments.cacheVal)
-            };
         </cfscript>
     </cffunction>
 
@@ -663,6 +867,397 @@
         <cfargument name="dt" type="date" required="true">
         <cfscript>
             return createDateTime(year(arguments.dt), month(arguments.dt), day(arguments.dt), hour(arguments.dt), 0, 0);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeLatLng" access="private" returntype="struct" output="false">
+        <cfargument name="lat" type="numeric" required="true">
+        <cfargument name="lng" type="numeric" required="true">
+        <cfargument name="decimals" type="numeric" required="false" default="3">
+        <cfscript>
+            var d = int(val(arguments.decimals));
+            if (d LT 0) d = 0;
+            if (d GT 7) d = 7;
+            return {
+                "lat"=roundToDecimals(arguments.lat, d),
+                "lng"=roundToDecimals(arguments.lng, d)
+            };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="roundToDecimals" access="private" returntype="numeric" output="false">
+        <cfargument name="n" type="numeric" required="true">
+        <cfargument name="decimals" type="numeric" required="true">
+        <cfscript>
+            var factor = 1;
+            var i = 0;
+            for (i = 1; i LTE int(val(arguments.decimals)); i = i + 1) {
+                factor = factor * 10;
+            }
+            return round(val(arguments.n) * factor) / factor;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildKey" access="private" returntype="string" output="false">
+        <cfargument name="prefix" type="string" required="true">
+        <cfargument name="lat" type="numeric" required="true">
+        <cfargument name="lng" type="numeric" required="true">
+        <cfargument name="decimals" type="numeric" required="false" default="3">
+        <cfscript>
+            return trim(arguments.prefix)
+                & ":lat="
+                & coordForKey(arguments.lat, arguments.decimals)
+                & ":lng="
+                & coordForKey(arguments.lng, arguments.decimals);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="coordForKey" access="private" returntype="string" output="false">
+        <cfargument name="coord" type="numeric" required="true">
+        <cfargument name="decimals" type="numeric" required="true">
+        <cfscript>
+            var d = int(val(arguments.decimals));
+            var i = 0;
+            var mask = "0";
+            if (d LT 0) d = 0;
+            if (d GT 7) d = 7;
+            if (d GT 0) {
+                mask = mask & ".";
+                for (i = 1; i LTE d; i = i + 1) {
+                    mask = mask & "0";
+                }
+            }
+            return numberFormat(roundToDecimals(arguments.coord, d), mask);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeTtl" access="private" returntype="numeric" output="false">
+        <cfargument name="ttlSeconds" type="numeric" required="true">
+        <cfargument name="defaultSeconds" type="numeric" required="true">
+        <cfscript>
+            var ttl = int(val(arguments.ttlSeconds));
+            if (ttl LTE 0) ttl = int(val(arguments.defaultSeconds));
+            if (ttl LTE 0) ttl = 60;
+            if (ttl GT 86400) ttl = 86400;
+            return ttl;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="cacheTypeLimit" access="private" returntype="numeric" output="false">
+        <cfargument name="cacheType" type="string" required="true">
+        <cfscript>
+            if (structKeyExists(variables.maxEntries, arguments.cacheType)) {
+                return int(val(variables.maxEntries[arguments.cacheType]));
+            }
+            return 500;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="lockNameForType" access="private" returntype="string" output="false">
+        <cfargument name="cacheType" type="string" required="true">
+        <cfscript>
+            return "fpw.weatherCache.unified." & rereplace(arguments.cacheType, "[^A-Za-z0-9_]", "_", "all");
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="ensureUnifiedCacheStore" access="private" returntype="void" output="false">
+        <cfargument name="cacheType" type="string" required="true">
+        <cfscript>
+            if (NOT structKeyExists(application, "weatherCacheUnified") OR NOT isStruct(application.weatherCacheUnified)) {
+                application.weatherCacheUnified = {};
+            }
+            if (NOT structKeyExists(application.weatherCacheUnified, arguments.cacheType) OR NOT isStruct(application.weatherCacheUnified[arguments.cacheType])) {
+                application.weatherCacheUnified[arguments.cacheType] = {};
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="cacheGetEnvelope" access="private" returntype="struct" output="false">
+        <cfargument name="cacheType" type="string" required="true">
+        <cfargument name="cacheKey" type="string" required="true">
+        <cfscript>
+            var out = {};
+            var item = {};
+            var nowEpoch = toEpochSeconds(now());
+            lock name=lockNameForType(arguments.cacheType) type="exclusive" timeout="5" {
+                ensureUnifiedCacheStore(arguments.cacheType);
+                if (structKeyExists(application.weatherCacheUnified[arguments.cacheType], arguments.cacheKey)) {
+                    item = application.weatherCacheUnified[arguments.cacheType][arguments.cacheKey];
+                    if (
+                        isStruct(item)
+                        AND structKeyExists(item, "expires_epoch")
+                        AND val(item.expires_epoch) GTE nowEpoch
+                    ) {
+                        out = cloneAny(item);
+                    } else {
+                        structDelete(application.weatherCacheUnified[arguments.cacheType], arguments.cacheKey, false);
+                    }
+                }
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="cachePeekEnvelope" access="private" returntype="struct" output="false">
+        <cfargument name="cacheType" type="string" required="true">
+        <cfargument name="cacheKey" type="string" required="true">
+        <cfscript>
+            var out = {};
+            lock name=lockNameForType(arguments.cacheType) type="exclusive" timeout="5" {
+                ensureUnifiedCacheStore(arguments.cacheType);
+                if (structKeyExists(application.weatherCacheUnified[arguments.cacheType], arguments.cacheKey)) {
+                    out = cloneAny(application.weatherCacheUnified[arguments.cacheType][arguments.cacheKey]);
+                }
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="cacheSetEnvelope" access="private" returntype="void" output="false">
+        <cfargument name="cacheType" type="string" required="true">
+        <cfargument name="cacheKey" type="string" required="true">
+        <cfargument name="envelope" type="struct" required="true">
+        <cfargument name="maxEntries" type="numeric" required="false" default="500">
+        <cfscript>
+            lock name=lockNameForType(arguments.cacheType) type="exclusive" timeout="5" {
+                ensureUnifiedCacheStore(arguments.cacheType);
+                application.weatherCacheUnified[arguments.cacheType][arguments.cacheKey] = cloneAny(arguments.envelope);
+                cachePrune(arguments.cacheType, int(val(arguments.maxEntries)));
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="cachePrune" access="private" returntype="void" output="false">
+        <cfargument name="cacheType" type="string" required="true">
+        <cfargument name="maxEntries" type="numeric" required="true">
+        <cfscript>
+            var nowEpoch = toEpochSeconds(now());
+            var keys = [];
+            var key = "";
+            var oldestKey = "";
+            var oldestEpoch = 9999999999;
+            var epochCandidate = 0;
+            var entry = {};
+
+            if (!structKeyExists(application, "weatherCacheUnified")
+                OR !isStruct(application.weatherCacheUnified)
+                OR !structKeyExists(application.weatherCacheUnified, arguments.cacheType)
+                OR !isStruct(application.weatherCacheUnified[arguments.cacheType])) {
+                return;
+            }
+
+            keys = structKeyArray(application.weatherCacheUnified[arguments.cacheType]);
+            for (key in keys) {
+                entry = application.weatherCacheUnified[arguments.cacheType][key];
+                if (!isStruct(entry)) {
+                    structDelete(application.weatherCacheUnified[arguments.cacheType], key, false);
+                    continue;
+                }
+                if (structKeyExists(entry, "expires_epoch") AND val(entry.expires_epoch) LT nowEpoch) {
+                    structDelete(application.weatherCacheUnified[arguments.cacheType], key, false);
+                }
+            }
+
+            keys = structKeyArray(application.weatherCacheUnified[arguments.cacheType]);
+            while (arrayLen(keys) GT arguments.maxEntries) {
+                oldestKey = "";
+                oldestEpoch = 9999999999;
+                for (key in keys) {
+                    entry = application.weatherCacheUnified[arguments.cacheType][key];
+                    epochCandidate = (
+                        isStruct(entry) AND structKeyExists(entry, "expires_epoch")
+                            ? val(entry.expires_epoch)
+                            : (isStruct(entry) AND structKeyExists(entry, "cached_epoch") ? val(entry.cached_epoch) : nowEpoch)
+                    );
+                    if (epochCandidate LT oldestEpoch) {
+                        oldestEpoch = epochCandidate;
+                        oldestKey = key;
+                    }
+                }
+                if (!len(oldestKey)) {
+                    break;
+                }
+                structDelete(application.weatherCacheUnified[arguments.cacheType], oldestKey, false);
+                keys = structKeyArray(application.weatherCacheUnified[arguments.cacheType]);
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildEnvelope" access="private" returntype="struct" output="false">
+        <cfargument name="cacheKey" type="string" required="true">
+        <cfargument name="source" type="string" required="true">
+        <cfargument name="data" type="any" required="true">
+        <cfargument name="ttlSeconds" type="numeric" required="true">
+        <cfargument name="httpMeta" type="struct" required="false" default="#structNew()#">
+        <cfscript>
+            var cachedAt = now();
+            var ttl = normalizeTtl(arguments.ttlSeconds, 60);
+            var expiresAt = dateAdd("s", ttl, cachedAt);
+            var out = {
+                "cached_at_utc"=dateToUtcIso(cachedAt),
+                "expires_at_utc"=dateToUtcIso(expiresAt),
+                "cache_key"=arguments.cacheKey,
+                "source"=arguments.source,
+                "data"=(isStruct(arguments.data) ? cloneAny(arguments.data) : {}),
+                "http_meta"=(isStruct(arguments.httpMeta) ? cloneAny(arguments.httpMeta) : {}),
+                "cached_epoch"=toEpochSeconds(cachedAt),
+                "expires_epoch"=toEpochSeconds(expiresAt),
+                "ttl_seconds"=ttl
+            };
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="deriveForecastHttpMeta" access="private" returntype="struct" output="false">
+        <cfargument name="payload" type="struct" required="true">
+        <cfscript>
+            var out = {};
+            if (structKeyExists(arguments.payload, "http_meta") AND isStruct(arguments.payload.http_meta)) {
+                out = cloneAny(arguments.payload.http_meta);
+            } else {
+                out.status = (
+                    structKeyExists(arguments.payload, "forecast_status")
+                        ? val(arguments.payload.forecast_status)
+                        : (structKeyExists(arguments.payload, "points_status") ? val(arguments.payload.points_status) : 0)
+                );
+            }
+            if (!structKeyExists(out, "status")) out.status = 0;
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="deriveAlertsHttpMeta" access="private" returntype="struct" output="false">
+        <cfargument name="payload" type="struct" required="true">
+        <cfscript>
+            var out = {};
+            if (structKeyExists(arguments.payload, "http_meta") AND isStruct(arguments.payload.http_meta)) {
+                out = cloneAny(arguments.payload.http_meta);
+            } else {
+                out.status = (structKeyExists(arguments.payload, "status") ? val(arguments.payload.status) : 0);
+            }
+            if (!structKeyExists(out, "status")) out.status = 0;
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="mergePayloadWithCacheMeta" access="private" returntype="struct" output="false">
+        <cfargument name="payload" type="any" required="true">
+        <cfargument name="envelope" type="struct" required="true">
+        <cfargument name="cacheKey" type="string" required="true">
+        <cfargument name="ttlSeconds" type="numeric" required="true">
+        <cfargument name="hit" type="boolean" required="true">
+        <cfargument name="bypass" type="boolean" required="false" default="false">
+        <cfscript>
+            var out = (isStruct(arguments.payload) ? cloneAny(arguments.payload) : {});
+            var cachedAtUtc = (isStruct(arguments.envelope) AND structKeyExists(arguments.envelope, "cached_at_utc") ? toString(arguments.envelope.cached_at_utc) : "");
+            var expiresAtUtc = (isStruct(arguments.envelope) AND structKeyExists(arguments.envelope, "expires_at_utc") ? toString(arguments.envelope.expires_at_utc) : "");
+            out.cache_meta = {
+                "hit"=arguments.hit,
+                "cached_at_utc"=cachedAtUtc,
+                "expires_at_utc"=expiresAtUtc,
+                "key"=arguments.cacheKey,
+                "ttl_seconds"=int(val(arguments.ttlSeconds))
+            };
+            if (arguments.bypass) {
+                out.cache_meta.bypass = true;
+            }
+            out.cache_hit = arguments.hit;
+            out.cache_key = arguments.cacheKey;
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="dateToUtcIso" access="private" returntype="string" output="false">
+        <cfargument name="dt" type="date" required="true">
+        <cfscript>
+            return dateTimeFormat(dateConvert("local2utc", arguments.dt), "yyyy-mm-dd'T'HH:nn:ss'Z'");
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="toEpochSeconds" access="private" returntype="numeric" output="false">
+        <cfargument name="dt" type="date" required="true">
+        <cfscript>
+            return dateDiff("s", createDateTime(1970, 1, 1, 0, 0, 0), dateConvert("local2utc", arguments.dt));
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="cloneAny" access="private" returntype="any" output="false">
+        <cfargument name="v" type="any" required="true">
+        <cfscript>
+            if (isStruct(arguments.v) OR isArray(arguments.v) OR isQuery(arguments.v)) {
+                return duplicate(arguments.v);
+            }
+            return arguments.v;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="ensureMarineLegacyStore" access="private" returntype="void" output="false">
+        <cfscript>
+            if (!structKeyExists(application, "marineCache") OR !isStruct(application.marineCache)) {
+                application.marineCache = {};
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="pruneMarineLegacyStore" access="private" returntype="void" output="false">
+        <cfargument name="maxEntries" type="numeric" required="true">
+        <cfscript>
+            var keys = structKeyArray(application.marineCache);
+            var oldestKey = "";
+            var oldestTs = now();
+            var k = "";
+            var item = {};
+            while (arrayLen(keys) GT arguments.maxEntries) {
+                oldestKey = "";
+                oldestTs = now();
+                for (k in keys) {
+                    item = application.marineCache[k];
+                    if (!isStruct(item) OR !structKeyExists(item, "ts") OR !isDate(item.ts)) {
+                        oldestKey = k;
+                        break;
+                    }
+                    if (!len(oldestKey) OR dateCompare(item.ts, oldestTs) LT 0) {
+                        oldestTs = item.ts;
+                        oldestKey = k;
+                    }
+                }
+                if (!len(oldestKey)) {
+                    break;
+                }
+                structDelete(application.marineCache, oldestKey, false);
+                keys = structKeyArray(application.marineCache);
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="pruneLegacyStore" access="private" returntype="void" output="false">
+        <cfargument name="maxEntries" type="numeric" required="true">
+        <cfscript>
+            var keys = structKeyArray(application.weatherCache);
+            var oldestKey = "";
+            var oldestTs = now();
+            var k = "";
+            var item = {};
+            while (arrayLen(keys) GT arguments.maxEntries) {
+                oldestKey = "";
+                oldestTs = now();
+                for (k in keys) {
+                    item = application.weatherCache[k];
+                    if (!isStruct(item) OR !structKeyExists(item, "ts") OR !isDate(item.ts)) {
+                        oldestKey = k;
+                        break;
+                    }
+                    if (!len(oldestKey) OR dateCompare(item.ts, oldestTs) LT 0) {
+                        oldestTs = item.ts;
+                        oldestKey = k;
+                    }
+                }
+                if (!len(oldestKey)) {
+                    break;
+                }
+                structDelete(application.weatherCache, oldestKey, false);
+                keys = structKeyArray(application.weatherCache);
+            }
         </cfscript>
     </cffunction>
 
