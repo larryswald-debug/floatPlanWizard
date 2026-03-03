@@ -1069,6 +1069,139 @@ main.dashboard-main{
             align-items: center;
         }
 
+        #floatPlanWizardModal .fpw-manifest {
+            display: grid;
+            grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.1fr);
+            gap: 0.9rem;
+            align-items: start;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__summary,
+        #floatPlanWizardModal .fpw-manifest__available {
+            border: 1px solid var(--panel-border);
+            border-radius: var(--radius-md);
+            background: rgba(255,255,255,0.04);
+            padding: 0.75rem;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__summaryhead {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__group + .fpw-manifest__group {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px dashed rgba(255,255,255,0.14);
+        }
+
+        #floatPlanWizardModal .fpw-manifest__grouphead {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        #floatPlanWizardModal .fpw-manifest__selectedlist {
+            list-style: none;
+            margin: 0.5rem 0 0;
+            padding: 0;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__selectedlist li {
+            padding: 0.2rem 0;
+            color: var(--text);
+            font-size: 0.92rem;
+            border-bottom: 1px dashed rgba(255,255,255,0.08);
+        }
+
+        #floatPlanWizardModal .fpw-manifest__selectedlist li:last-child {
+            border-bottom: none;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.6rem;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__tabbtn {
+            border: 1px solid var(--panel-border);
+            background: rgba(255,255,255,0.06);
+            color: var(--text);
+            border-radius: var(--radius-md);
+            padding: 0.35rem 0.7rem;
+            font-size: 0.85rem;
+            line-height: 1.2;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__tabbtn.is-active {
+            background: rgba(53, 208, 198, 0.18);
+            border-color: rgba(53, 208, 198, 0.45);
+        }
+
+        #floatPlanWizardModal .fpw-manifest__list {
+            max-height: 320px;
+            overflow-y: auto;
+            border: 1px solid var(--panel-border);
+            border-radius: var(--radius-md);
+            background: rgba(0,0,0,0.15);
+            padding: 0.25rem;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            padding: 0.55rem 0.65rem;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            color: var(--text);
+            cursor: pointer;
+            transition: background 0.15s ease, border-color 0.15s ease;
+            margin-bottom: 0.25rem;
+            outline: none;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__row:last-child {
+            margin-bottom: 0;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__row:hover,
+        #floatPlanWizardModal .fpw-manifest__row:focus {
+            background: rgba(78, 161, 255, 0.14);
+            border-color: rgba(78, 161, 255, 0.35);
+        }
+
+        #floatPlanWizardModal .fpw-manifest__row.is-selected {
+            background: rgba(40, 209, 124, 0.18);
+            border-color: rgba(40, 209, 124, 0.42);
+        }
+
+        #floatPlanWizardModal .fpw-manifest__label {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__check {
+            width: 1.25rem;
+            text-align: center;
+            color: var(--success);
+            font-weight: 700;
+            flex: 0 0 1.25rem;
+        }
+
         .wizard-nav {
             display: flex;
             justify-content: space-between;
@@ -1093,6 +1226,26 @@ main.dashboard-main{
             .wizard-container {
                 margin: 1rem;
                 padding: 1rem;
+            }
+
+            #floatPlanWizardModal .fpw-manifest {
+                grid-template-columns: 1fr;
+            }
+
+            #floatPlanWizardModal .fpw-manifest__summarybody.is-collapsed-mobile {
+                display: none;
+            }
+
+            #floatPlanWizardModal .fpw-manifest__summaryhead {
+                margin-bottom: 0;
+            }
+
+            #floatPlanWizardModal .fpw-manifest__summarybody {
+                margin-top: 0.5rem;
+            }
+
+            #floatPlanWizardModal .fpw-manifest__list {
+                max-height: 260px;
             }
         }
 

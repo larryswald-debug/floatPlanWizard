@@ -9,7 +9,7 @@
     <cfinclude template="../includes/header_styles.cfm">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260227e">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260302f">
 </head>
 <body class="dashboard-body">
 
@@ -724,37 +724,6 @@
                     <input type="hidden" id="waypointId" value="0">
                     <div id="waypointMap" class="waypoint-map-frame"></div>
                     <div class="small text-muted mt-1">Tip: drag the marker or click the map to reposition.</div>
-                    <div class="border rounded p-2 mt-2 marine-controls">
-                        <div class="d-flex align-items-center justify-content-between mb-1">
-                            <label class="form-label mb-0">Marine Layers</label>
-                            <small class="text-muted">Optional overlays</small>
-                        </div>
-                        <div class="row g-1 align-items-center">
-                            <div class="col-md-7">
-                                <div class="d-flex flex-wrap gap-2">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="marineTypeMarina" data-marine-type="marina">
-                                        <label class="form-check-label" for="marineTypeMarina">Marina</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="marineTypeFuel" data-marine-type="fuel">
-                                        <label class="form-check-label" for="marineTypeFuel">Fuel Dock</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="marineTypeRamp" data-marine-type="ramp">
-                                        <label class="form-check-label" for="marineTypeRamp">Boat Ramp</label>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-5">
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="marineTideToggle" disabled>
-                                    <label class="form-check-label" for="marineTideToggle">Tide/Current Stations</label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="mt-1 small text-muted" id="marineStatusLine" aria-live="polite">Ready</div>
-                    </div>
                     <div class="mb-3 mt-3">
                         <label class="form-label" for="waypointName">Name *</label>
                         <input type="text" class="form-control" id="waypointName" required>
@@ -834,24 +803,35 @@
                         <input type="text" class="form-control" id="vesselName" required>
                         <div class="invalid-feedback" id="vesselNameError"></div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="vesselRegistration">Registration</label>
-                        <input type="text" class="form-control" id="vesselRegistration">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label" for="vesselType">Type *</label>
+                            <input type="text" class="form-control" id="vesselType" required>
+                            <div class="invalid-feedback" id="vesselTypeError"></div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label" for="vesselLength">Length *</label>
+                            <input type="text" class="form-control" id="vesselLength" required>
+                            <div class="invalid-feedback" id="vesselLengthError"></div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label" for="vesselColor">Hull Color *</label>
+                            <input type="text" class="form-control" id="vesselColor" required>
+                            <div class="invalid-feedback" id="vesselColorError"></div>
+                        </div>
                     </div>
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="vesselIsDefault">
                         <label class="form-check-label" for="vesselIsDefault">Default Vessel - used for route calculations</label>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="vesselRegistration">Registration</label>
+                        <input type="text" class="form-control" id="vesselRegistration">
+                    </div>
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label" for="vesselType">Type *</label>
-                            <input type="text" class="form-control" id="vesselType" required>
-                            <div class="invalid-feedback" id="vesselTypeError"></div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label" for="vesselLength">Length *</label>
-                            <input type="text" class="form-control" id="vesselLength" required>
-                            <div class="invalid-feedback" id="vesselLengthError"></div>
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label" for="vesselHomePort">Hailing Port</label>
+                            <input type="text" class="form-control" id="vesselHomePort">
                         </div>
                     </div>
                     <div class="row">
@@ -869,6 +849,12 @@
                         </div>
                     </div>
                     <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label" for="vesselFuelCapacity">Fuel Capacity (gal)</label>
+                            <input type="number" class="form-control" id="vesselFuelCapacity" min="0" step="0.01" inputmode="decimal">
+                        </div>
+                    </div>
+                    <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label" for="vesselMake">Make</label>
                             <input type="text" class="form-control" id="vesselMake">
@@ -876,17 +862,6 @@
                         <div class="col-md-6 mb-3">
                             <label class="form-label" for="vesselModel">Model</label>
                             <input type="text" class="form-control" id="vesselModel">
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label" for="vesselColor">Hull Color *</label>
-                            <input type="text" class="form-control" id="vesselColor" required>
-                            <div class="invalid-feedback" id="vesselColorError"></div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label" for="vesselHomePort">Hailing Port</label>
-                            <input type="text" class="form-control" id="vesselHomePort">
                         </div>
                     </div>
                 </form>
@@ -1169,35 +1144,118 @@
                                     {{ nextButtonLabel }}
                                 </button>
                             </div>
-                            <p class="small text-muted">Tap to toggle each passenger.</p>
-                            <div class="list-group">
-                                <button
-                                    v-for="p in passengers"
-                                    :key="'p-'+p.PASSENGERID"
-                                    type="button"
-                                    class="list-group-item list-group-item-action list-group-button"
-                                    @click="togglePassenger(p)">
-                                    <span>{{ p.PASSENGERNAME }}</span>
-                                    <span class="badge" :class="isPassengerSelected(p.PASSENGERID) ? 'bg-success' : 'bg-secondary'">
-                                        {{ isPassengerSelected(p.PASSENGERID) ? 'Included' : 'Tap to add' }}
-                                    </span>
-                                </button>
-                            </div>
+                            <p class="small text-muted mb-3">Trip Manifest: choose who is aboard and who receives notifications.</p>
+                            <div class="fpw-manifest">
+                                <div class="fpw-manifest__summary">
+                                    <div class="fpw-manifest__summaryhead">
+                                        <h3 class="h6 mb-0">On This Trip</h3>
+                                        <button
+                                            type="button"
+                                            class="btn btn-outline-secondary btn-sm d-md-none"
+                                            @click="manifestSummaryOpen = !manifestSummaryOpen"
+                                            :aria-expanded="manifestSummaryOpen ? 'true' : 'false'">
+                                            {{ manifestSummaryOpen ? 'Hide' : 'Show' }}
+                                        </button>
+                                    </div>
+                                    <div class="fpw-manifest__summarybody" :class="{ 'is-collapsed-mobile': !manifestSummaryOpen }">
+                                        <div class="fpw-manifest__group">
+                                            <div class="fpw-manifest__grouphead">
+                                                <span>Selected Passengers</span>
+                                                <span class="badge bg-secondary">{{ fp.PASSENGERS.length }}</span>
+                                            </div>
+                                            <ul v-if="selectedPassengerDetails.length" class="fpw-manifest__selectedlist">
+                                                <li v-for="item in selectedPassengerDetails" :key="'sel-passenger-'+item.id">{{ item.label }}</li>
+                                            </ul>
+                                            <p v-else class="small text-muted mb-0 mt-2">No passengers selected.</p>
+                                        </div>
 
-                            <div class="mt-4">
-                                <p class="small text-muted">Tap to include for notifications.</p>
-                                <div class="list-group">
-                                    <button
-                                        v-for="c in contacts"
-                                        :key="'c-'+c.CONTACTID"
-                                        type="button"
-                                        class="list-group-item list-group-item-action list-group-button"
-                                        @click="toggleContact(c)">
-                                        <span>{{ c.CONTACTNAME }}</span>
-                                        <span class="badge" :class="isContactSelected(c.CONTACTID) ? 'bg-success' : 'bg-secondary'">
-                                            {{ isContactSelected(c.CONTACTID) ? 'Included' : 'Tap to add' }}
-                                        </span>
-                                    </button>
+                                        <div class="fpw-manifest__group">
+                                            <div class="fpw-manifest__grouphead">
+                                                <span>Selected Contacts</span>
+                                                <span class="badge bg-secondary">{{ fp.CONTACTS.length }}</span>
+                                            </div>
+                                            <ul v-if="selectedContactDetails.length" class="fpw-manifest__selectedlist">
+                                                <li v-for="item in selectedContactDetails" :key="'sel-contact-'+item.id">{{ item.label }}</li>
+                                            </ul>
+                                            <p v-else class="small text-muted mb-0 mt-2">No contacts selected.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="fpw-manifest__available">
+                                    <h3 class="h6 mb-2">Available Items</h3>
+                                    <div class="fpw-manifest__tabs" role="tablist" aria-label="Trip manifest tabs">
+                                        <button
+                                            type="button"
+                                            class="fpw-manifest__tabbtn"
+                                            :class="{ 'is-active': manifestActiveTab === 'passengers' }"
+                                            role="tab"
+                                            :aria-selected="manifestActiveTab === 'passengers' ? 'true' : 'false'"
+                                            @click="manifestActiveTab = 'passengers'">
+                                            Passengers
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="fpw-manifest__tabbtn"
+                                            :class="{ 'is-active': manifestActiveTab === 'contacts' }"
+                                            role="tab"
+                                            :aria-selected="manifestActiveTab === 'contacts' ? 'true' : 'false'"
+                                            @click="manifestActiveTab = 'contacts'">
+                                            Contacts
+                                        </button>
+                                    </div>
+
+                                    <div v-if="manifestActiveTab === 'passengers'" class="fpw-manifest__tabpane" role="tabpanel" aria-label="Passengers list">
+                                        <input
+                                            type="search"
+                                            class="form-control form-control-sm mb-2"
+                                            v-model.trim="passengerSearchQuery"
+                                            placeholder="Search passengers..."
+                                            aria-label="Search passengers">
+                                        <div class="fpw-manifest__list" role="listbox" aria-label="Available passengers">
+                                            <div
+                                                v-for="p in filteredPassengers"
+                                                :key="'p-'+p.PASSENGERID"
+                                                class="fpw-manifest__row"
+                                                :class="{ 'is-selected': isPassengerSelected(p.PASSENGERID) }"
+                                                role="button"
+                                                tabindex="0"
+                                                :aria-pressed="isPassengerSelected(p.PASSENGERID) ? 'true' : 'false'"
+                                                @click="togglePassenger(p)"
+                                                @keydown.enter.prevent="togglePassenger(p)"
+                                                @keydown.space.prevent="togglePassenger(p)">
+                                                <span class="fpw-manifest__label">{{ p.PASSENGERNAME || ('Passenger #' + p.PASSENGERID) }}</span>
+                                                <span class="fpw-manifest__check" aria-hidden="true">{{ isPassengerSelected(p.PASSENGERID) ? '✓' : '' }}</span>
+                                            </div>
+                                            <p v-if="!filteredPassengers.length" class="small text-muted mb-0 p-2">No passengers match your search.</p>
+                                        </div>
+                                    </div>
+
+                                    <div v-else class="fpw-manifest__tabpane" role="tabpanel" aria-label="Contacts list">
+                                        <input
+                                            type="search"
+                                            class="form-control form-control-sm mb-2"
+                                            v-model.trim="contactSearchQuery"
+                                            placeholder="Search contacts..."
+                                            aria-label="Search contacts">
+                                        <div class="fpw-manifest__list" role="listbox" aria-label="Available contacts">
+                                            <div
+                                                v-for="c in filteredContacts"
+                                                :key="'c-'+c.CONTACTID"
+                                                class="fpw-manifest__row"
+                                                :class="{ 'is-selected': isContactSelected(c.CONTACTID) }"
+                                                role="button"
+                                                tabindex="0"
+                                                :aria-pressed="isContactSelected(c.CONTACTID) ? 'true' : 'false'"
+                                                @click="toggleContact(c)"
+                                                @keydown.enter.prevent="toggleContact(c)"
+                                                @keydown.space.prevent="toggleContact(c)">
+                                                <span class="fpw-manifest__label">{{ c.CONTACTNAME || ('Contact #' + c.CONTACTID) }}</span>
+                                                <span class="fpw-manifest__check" aria-hidden="true">{{ isContactSelected(c.CONTACTID) ? '✓' : '' }}</span>
+                                            </div>
+                                            <p v-if="!filteredContacts.length" class="small text-muted mb-0 p-2">No contacts match your search.</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </section>
@@ -1211,20 +1269,64 @@
                                 </button>
                             </div>
 
-                            <h3 class="h6">Waypoints</h3>
-                            <p class="small text-muted">Tap to include; order is preserved.</p>
-                            <div class="list-group mb-3">
-                                <button
-                                    v-for="w in waypoints"
-                                    :key="'w-'+w.WAYPOINTID"
-                                    type="button"
-                                    class="list-group-item list-group-item-action list-group-button"
-                                    @click="toggleWaypoint(w)">
-                                    <span>{{ w.WAYPOINTNAME }}</span>
-                                    <span class="badge" :class="isWaypointSelected(w.WAYPOINTID) ? 'bg-success' : 'bg-secondary'">
-                                        {{ isWaypointSelected(w.WAYPOINTID) ? 'In Route' : 'Tap to add' }}
-                                    </span>
-                                </button>
+                            <p class="small text-muted mb-3">Tap to include; order is preserved.</p>
+                            <div class="fpw-manifest fpw-manifest--waypoints">
+                                <div class="fpw-manifest__summary">
+                                    <div class="fpw-manifest__summaryhead">
+                                        <h3 class="h6 mb-0">In Route ({{ fp.WAYPOINTS.length }})</h3>
+                                        <button
+                                            type="button"
+                                            class="btn btn-outline-secondary btn-sm d-md-none"
+                                            @click="mobileWaypointsSummaryOpen = !mobileWaypointsSummaryOpen"
+                                            :aria-expanded="mobileWaypointsSummaryOpen ? 'true' : 'false'">
+                                            {{ mobileWaypointsSummaryOpen ? 'Hide' : 'Show' }}
+                                        </button>
+                                    </div>
+                                    <div class="fpw-manifest__summarybody" :class="{ 'is-collapsed-mobile': !mobileWaypointsSummaryOpen }">
+                                        <ul v-if="selectedWaypointDetails.length" class="fpw-manifest__selectedlist">
+                                            <li v-for="item in selectedWaypointDetails" :key="'sel-waypoint-'+item.id">
+                                                <span class="badge bg-secondary me-2">{{ item.position }}</span>{{ item.label }}
+                                            </li>
+                                        </ul>
+                                        <p v-else class="small text-muted mb-0 mt-2">No waypoints selected.</p>
+                                    </div>
+                                </div>
+
+                                <div class="fpw-manifest__available">
+                                    <h3 class="h6 mb-2">Available Waypoints</h3>
+                                    <div class="fpw-manifest__tabs" role="tablist" aria-label="Waypoint tabs">
+                                        <button
+                                            type="button"
+                                            class="fpw-manifest__tabbtn is-active"
+                                            role="tab"
+                                            aria-selected="true">
+                                            Waypoints
+                                        </button>
+                                    </div>
+                                    <input
+                                        type="search"
+                                        class="form-control form-control-sm mb-2"
+                                        v-model.trim="waypointSearchQuery"
+                                        placeholder="Search waypoints..."
+                                        aria-label="Search waypoints">
+                                    <div class="fpw-manifest__list" role="listbox" aria-label="Available waypoints">
+                                        <div
+                                            v-for="w in filteredWaypoints"
+                                            :key="'w-'+w.WAYPOINTID"
+                                            class="fpw-manifest__row"
+                                            :class="{ 'is-selected': isWaypointSelected(w.WAYPOINTID) }"
+                                            role="button"
+                                            tabindex="0"
+                                            :aria-pressed="isWaypointSelected(w.WAYPOINTID) ? 'true' : 'false'"
+                                            @click="toggleWaypoint(w)"
+                                            @keydown.enter.prevent="toggleWaypoint(w)"
+                                            @keydown.space.prevent="toggleWaypoint(w)">
+                                            <span class="fpw-manifest__label">{{ w.WAYPOINTNAME || ('Waypoint #' + w.WAYPOINTID) }}</span>
+                                            <span class="fpw-manifest__check" aria-hidden="true">{{ isWaypointSelected(w.WAYPOINTID) ? '✓' : '' }}</span>
+                                        </div>
+                                        <p v-if="!filteredWaypoints.length" class="small text-muted mb-0 p-2">No waypoints match your search.</p>
+                                    </div>
+                                </div>
                             </div>
                         </section>
 
@@ -1315,12 +1417,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260227c"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js?v=20260227c"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260227c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260302g"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260227c"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js?v=20260227c"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js?v=20260227c"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20260227c"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/vessels.js?v=20260301b"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/vessels.js?v=20260302a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/contacts.js?v=20260301b"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20260301b"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260301b"></script>

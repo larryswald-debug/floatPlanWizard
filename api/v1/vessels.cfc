@@ -74,7 +74,7 @@
             <!-- Load vessels for this user -->
             <cfquery name="qVessels" datasource="fpw">
                 SELECT vesselId, userId, vesselName, registration, typeOfVessel, make, model,
-                       lengthOfVessel, max_speed, most_efficient_speed, gallons_per_hour, isDefaultVessel, hullColor, hailingPort
+                       lengthOfVessel, max_speed, most_efficient_speed, gallons_per_hour, fuel_capacity, isDefaultVessel, hullColor, hailingPort
                 FROM vessels
                 WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
                 ORDER BY vesselId DESC
@@ -98,6 +98,7 @@
                     MOST_EFFICIENT_SPEED = qVessels.most_efficient_speed,
                     MOST_EFFICIENT_SPEED_KN = qVessels.most_efficient_speed,
                     GALLONS_PER_HOUR = qVessels.gallons_per_hour,
+                    FUEL_CAPACITY = qVessels.fuel_capacity,
                     GPH_AT_MOST_EFFICIENT_SPEED = qVessels.gallons_per_hour,
                     ISDEFAULTVESSEL = qVessels.isDefaultVessel,
                     COLOR        = qVessels.hullColor,

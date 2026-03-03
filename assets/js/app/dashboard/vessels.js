@@ -20,6 +20,7 @@
   var vesselMaxSpeedInput = null;
   var vesselMostEfficientSpeedInput = null;
   var vesselGallonsPerHourInput = null;
+  var vesselFuelCapacityInput = null;
   var vesselIsDefaultInput = null;
   var vesselMakeInput = null;
   var vesselModelInput = null;
@@ -141,6 +142,13 @@
 
         var vessels = data.VESSELS || data.vessels || [];
         vessels = vessels.slice().sort(function (a, b) {
+          var aDefaultRaw = utils.pick(a, ["ISDEFAULTVESSEL", "isDefaultVessel"], 0);
+          var bDefaultRaw = utils.pick(b, ["ISDEFAULTVESSEL", "isDefaultVessel"], 0);
+          var aIsDefault = String(aDefaultRaw) === "1" || String(aDefaultRaw).toLowerCase() === "true";
+          var bIsDefault = String(bDefaultRaw) === "1" || String(bDefaultRaw).toLowerCase() === "true";
+          if (aIsDefault !== bIsDefault) {
+            return aIsDefault ? -1 : 1;
+          }
           var aId = parseInt(utils.pick(a, ["VESSELID", "ID"], 0), 10) || 0;
           var bId = parseInt(utils.pick(b, ["VESSELID", "ID"], 0), 10) || 0;
           return bId - aId;
@@ -171,6 +179,7 @@
         vesselMaxSpeedInput = vesselModalEl.querySelector("#vesselMaxSpeed");
         vesselMostEfficientSpeedInput = vesselModalEl.querySelector("#vesselMostEfficientSpeed");
         vesselGallonsPerHourInput = vesselModalEl.querySelector("#vesselGallonsPerHour");
+        vesselFuelCapacityInput = vesselModalEl.querySelector("#vesselFuelCapacity");
         vesselIsDefaultInput = vesselModalEl.querySelector("#vesselIsDefault");
         vesselMakeInput = vesselModalEl.querySelector("#vesselMake");
         vesselModelInput = vesselModalEl.querySelector("#vesselModel");
@@ -252,6 +261,7 @@
     if (vesselMaxSpeedInput) vesselMaxSpeedInput.value = utils.pick(vessel, ["MAX_SPEED"], "");
     if (vesselMostEfficientSpeedInput) vesselMostEfficientSpeedInput.value = utils.pick(vessel, ["MOST_EFFICIENT_SPEED"], "");
     if (vesselGallonsPerHourInput) vesselGallonsPerHourInput.value = utils.pick(vessel, ["GALLONS_PER_HOUR"], "");
+    if (vesselFuelCapacityInput) vesselFuelCapacityInput.value = utils.pick(vessel, ["FUEL_CAPACITY"], "");
     if (vesselIsDefaultInput) {
       var isDefaultRaw = utils.pick(vessel, ["ISDEFAULTVESSEL", "isDefaultVessel"], 1);
       vesselIsDefaultInput.checked = String(isDefaultRaw) === "1" || String(isDefaultRaw).toLowerCase() === "true";
@@ -286,6 +296,7 @@
       MAX_SPEED: vesselMaxSpeedInput ? vesselMaxSpeedInput.value.trim() : "",
       MOST_EFFICIENT_SPEED: vesselMostEfficientSpeedInput ? vesselMostEfficientSpeedInput.value.trim() : "",
       GALLONS_PER_HOUR: vesselGallonsPerHourInput ? vesselGallonsPerHourInput.value.trim() : "",
+      FUEL_CAPACITY: vesselFuelCapacityInput ? vesselFuelCapacityInput.value.trim() : "",
       ISDEFAULTVESSEL: vesselIsDefaultInput && vesselIsDefaultInput.checked ? 1 : 0,
       MAKE: vesselMakeInput ? vesselMakeInput.value.trim() : "",
       MODEL: vesselModelInput ? vesselModelInput.value.trim() : "",

@@ -1263,6 +1263,56 @@
 
           <div class="fpw-routegen__section">
             <div class="fpw-routegen__labelrow">
+              <span class="fpw-routegen__label">Trip basics</span>
+              <span class="fpw-routegen__help">Adjust any value and preview refreshes automatically.</span>
+            </div>
+
+            <div class="fpw-routegen__grid2">
+              <div class="fpw-routegen__field">
+                <label for="routeGenStartLocation">Start location</label>
+                <select id="routeGenStartLocation" class="form-select form-select-sm"></select>
+              </div>
+              <div class="fpw-routegen__field">
+                <label for="routeGenEndLocation">End location</label>
+                <select id="routeGenEndLocation" class="form-select form-select-sm"></select>
+              </div>
+            </div>
+
+            <div class="fpw-routegen__grid2 mt-2">
+              <div class="fpw-routegen__field">
+                <label for="routeGenStartDate">Start date</label>
+                <input id="routeGenStartDate" type="date" class="form-control form-control-sm">
+              </div>
+              <div class="fpw-routegen__field">
+                <label for="routeGenDirectionToggle">Direction</label>
+                <div class="fpw-routegen__switchrow">
+                  <div id="routeGenDirectionState" class="fpw-routegen__switchstate">Counterclockwise (CCW)</div>
+                  <div class="form-check form-switch fpw-routegen__switch">
+                    <input id="routeGenDirectionToggle" class="form-check-input" type="checkbox" role="switch" aria-label="Reverse direction">
+                    <label class="form-check-label" for="routeGenDirectionToggle">Reverse</label>
+                  </div>
+                </div>
+                <input id="routeGenDirection" type="hidden" value="CCW">
+              </div>
+            </div>
+
+            <div class="fpw-routegen__pace">
+              <div class="fpw-routegen__pacehead">
+                <div>
+                  <div class="fpw-routegen__pacetitle">Pace</div>
+                  <div class="fpw-routegen__pacedesc">Pace applies 25%, 50%, or 100% of your max speed.</div>
+                </div>
+                <div id="routeGenPaceLabel" class="fpw-routegen__pacechip">Relaxed</div>
+              </div>
+              <input id="routeGenPace" class="fpw-routegen__range" type="range" min="0" max="2" step="1" value="0" aria-label="Pace">
+              <div class="fpw-routegen__rangeticks"><span>Relaxed</span><span>Balanced</span><span>Aggressive</span></div>
+              <div id="routeGenPaceOverrideHint" class="fpw-routegen__pacehint d-none">Pace uses a percentage of max speed.</div>
+              <button type="button" id="routeGenResetPaceBtn" class="btn-secondary btn-sm fpw-routegen__pacebtn d-none">Reset Pace Defaults</button>
+            </div>
+          </div>
+
+          <div class="fpw-routegen__section">
+            <div class="fpw-routegen__labelrow">
               <span class="fpw-routegen__label">My Routes</span>
               <span class="fpw-routegen__help">Create waypoint-driven custom routes, then load and edit geometry.</span>
             </div>
@@ -1314,56 +1364,6 @@
             </div>
             <div id="routeGenMyRouteLegList" class="fpw-routegen__myroutelegs">
               <div class="fpw-routegen__empty">Create or select a My Route to manage legs.</div>
-            </div>
-          </div>
-
-          <div class="fpw-routegen__section">
-            <div class="fpw-routegen__labelrow">
-              <span class="fpw-routegen__label">Trip basics</span>
-              <span class="fpw-routegen__help">Adjust any value and preview refreshes automatically.</span>
-            </div>
-
-            <div class="fpw-routegen__grid2">
-              <div class="fpw-routegen__field">
-                <label for="routeGenStartLocation">Start location</label>
-                <select id="routeGenStartLocation" class="form-select form-select-sm"></select>
-              </div>
-              <div class="fpw-routegen__field">
-                <label for="routeGenEndLocation">End location</label>
-                <select id="routeGenEndLocation" class="form-select form-select-sm"></select>
-              </div>
-            </div>
-
-            <div class="fpw-routegen__grid2 mt-2">
-              <div class="fpw-routegen__field">
-                <label for="routeGenStartDate">Start date</label>
-                <input id="routeGenStartDate" type="date" class="form-control form-control-sm">
-              </div>
-              <div class="fpw-routegen__field">
-                <label for="routeGenDirectionToggle">Direction</label>
-                <div class="fpw-routegen__switchrow">
-                  <div id="routeGenDirectionState" class="fpw-routegen__switchstate">Counterclockwise (CCW)</div>
-                  <div class="form-check form-switch fpw-routegen__switch">
-                    <input id="routeGenDirectionToggle" class="form-check-input" type="checkbox" role="switch" aria-label="Reverse direction">
-                    <label class="form-check-label" for="routeGenDirectionToggle">Reverse</label>
-                  </div>
-                </div>
-                <input id="routeGenDirection" type="hidden" value="CCW">
-              </div>
-            </div>
-
-            <div class="fpw-routegen__pace">
-              <div class="fpw-routegen__pacehead">
-                <div>
-                  <div class="fpw-routegen__pacetitle">Pace</div>
-                  <div class="fpw-routegen__pacedesc">Pace applies 25%, 50%, or 100% of your max speed.</div>
-                </div>
-                <div id="routeGenPaceLabel" class="fpw-routegen__pacechip">Relaxed</div>
-              </div>
-              <input id="routeGenPace" class="fpw-routegen__range" type="range" min="0" max="2" step="1" value="0" aria-label="Pace">
-              <div class="fpw-routegen__rangeticks"><span>Relaxed</span><span>Balanced</span><span>Aggressive</span></div>
-              <div id="routeGenPaceOverrideHint" class="fpw-routegen__pacehint d-none">Pace uses a percentage of max speed.</div>
-              <button type="button" id="routeGenResetPaceBtn" class="btn-secondary btn-sm fpw-routegen__pacebtn d-none">Reset Pace Defaults</button>
             </div>
           </div>
 

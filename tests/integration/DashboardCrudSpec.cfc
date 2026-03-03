@@ -89,7 +89,8 @@ component extends="testbox.system.BaseSpec" output="false" {
             REGISTRATION = "REG-" & suffix,
             MAKE = "Test",
             MODEL = "Model",
-            HOMEPORT = "Boston"
+            HOMEPORT = "Boston",
+            FUEL_CAPACITY = "180.5"
           }
         };
 
@@ -100,12 +101,24 @@ component extends="testbox.system.BaseSpec" output="false" {
 
         payload.VESSEL.VESSELID = vesselId;
         payload.VESSEL.VESSELNAME = payload.VESSEL.VESSELNAME & " Updated";
+        payload.VESSEL.FUEL_CAPACITY = "200.75";
         var updateRes = apiPostJson( variables.ctx.urls.vesselSave, payload );
         expect( pickBool( updateRes, "SUCCESS" ) ).toBeTrue( "Update failed: #serializeJSON(updateRes)#" );
 
         var listRes = apiGetJson( variables.ctx.urls.vesselsList );
         expect( pickBool( listRes, "SUCCESS" ) ).toBeTrue( "List failed: #serializeJSON(listRes)#" );
         expect( findIdInList( listRes.VESSELS, "VESSELID", vesselId ) ).toBeTrue();
+        var foundVessel = false;
+        var foundFuelCapacity = 0;
+        for ( var vesselItem in ( isArray( listRes.VESSELS ) ? listRes.VESSELS : [] ) ) {
+          if ( isStruct( vesselItem ) && val( vesselItem.VESSELID ?: 0 ) == vesselId ) {
+            foundVessel = true;
+            foundFuelCapacity = val( vesselItem.FUEL_CAPACITY ?: 0 );
+            break;
+          }
+        }
+        expect( foundVessel ).toBeTrue( "Created vessel missing from list payload." );
+        expect( foundFuelCapacity ).toBe( val( payload.VESSEL.FUEL_CAPACITY ) );
 
         var canDelRes = apiPostJson( variables.ctx.urls.vesselCanDel, { action = "candelete", vesselId = vesselId } );
         expect( pickBool( canDelRes, "SUCCESS" ) ).toBeTrue();

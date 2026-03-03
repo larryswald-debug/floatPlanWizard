@@ -430,6 +430,21 @@
     return names.join(", ");
   }
 
+  function normalizeSearchQuery(value) {
+    return String(value || "").toLowerCase().trim();
+  }
+
+  function toSearchableText(entry, fields) {
+    var parts = [];
+    for (var i = 0; i < fields.length; i++) {
+      var key = fields[i];
+      if (entry && entry[key] !== undefined && entry[key] !== null) {
+        parts.push(String(entry[key]));
+      }
+    }
+    return parts.join(" ").toLowerCase();
+  }
+
   var RESCUE_AUTHORITY_SELECTION_FIELD = "RESCUE_AUTHORITY_SELECTION";
   var RESCUE_AUTHORITY_SELECTION_MESSAGE = "Select a rescue authority.";
 
@@ -694,7 +709,13 @@
         pdfPreviewLoading: false,
         pdfPreviewError: "",
         contactStep: contactStep,
-        initialPlanId: initialPlanId
+        initialPlanId: initialPlanId,
+        manifestActiveTab: "passengers",
+        passengerSearchQuery: "",
+        contactSearchQuery: "",
+        manifestSummaryOpen: true,
+        waypointSearchQuery: "",
+        mobileWaypointsSummaryOpen: true
       };
     },
 
@@ -713,6 +734,109 @@
 
       contactSummary: function () {
         return summarizeSelections(this.fp.CONTACTS, this.contacts, "CONTACTID", "CONTACTNAME");
+      },
+
+      selectedPassengerDetails: function () {
+        var details = [];
+        var selected = Array.isArray(this.fp.PASSENGERS) ? this.fp.PASSENGERS : [];
+        var source = Array.isArray(this.passengers) ? this.passengers : [];
+        for (var i = 0; i < selected.length; i++) {
+          var selectedId = numeric(selected[i].PASSENGERID);
+          if (!selectedId) continue;
+          var label = "";
+          for (var j = 0; j < source.length; j++) {
+            if (numeric(source[j].PASSENGERID) === selectedId) {
+              label = (source[j].PASSENGERNAME || "").toString().trim();
+              break;
+            }
+          }
+          details.push({
+            id: selectedId,
+            label: label || ("Passenger #" + selectedId)
+          });
+        }
+        return details;
+      },
+
+      selectedContactDetails: function () {
+        var details = [];
+        var selected = Array.isArray(this.fp.CONTACTS) ? this.fp.CONTACTS : [];
+        var source = Array.isArray(this.contacts) ? this.contacts : [];
+        for (var i = 0; i < selected.length; i++) {
+          var selectedId = numeric(selected[i].CONTACTID);
+          if (!selectedId) continue;
+          var label = "";
+          for (var j = 0; j < source.length; j++) {
+            if (numeric(source[j].CONTACTID) === selectedId) {
+              label = (source[j].CONTACTNAME || "").toString().trim();
+              break;
+            }
+          }
+          details.push({
+            id: selectedId,
+            label: label || ("Contact #" + selectedId)
+          });
+        }
+        return details;
+      },
+
+      filteredPassengers: function () {
+        var list = Array.isArray(this.passengers) ? this.passengers : [];
+        var query = normalizeSearchQuery(this.passengerSearchQuery);
+        if (!query) {
+          return list;
+        }
+        return list.filter(function (entry) {
+          var searchable = toSearchableText(entry, [ "PASSENGERNAME", "PHONE", "NOTES", "passengerName", "phone", "notes" ]);
+          return searchable.indexOf(query) !== -1;
+        });
+      },
+
+      filteredContacts: function () {
+        var list = Array.isArray(this.contacts) ? this.contacts : [];
+        var query = normalizeSearchQuery(this.contactSearchQuery);
+        if (!query) {
+          return list;
+        }
+        return list.filter(function (entry) {
+          var searchable = toSearchableText(entry, [ "CONTACTNAME", "PHONE", "EMAIL", "contactName", "phone", "email" ]);
+          return searchable.indexOf(query) !== -1;
+        });
+      },
+
+      selectedWaypointDetails: function () {
+        var details = [];
+        var selected = Array.isArray(this.fp.WAYPOINTS) ? this.fp.WAYPOINTS : [];
+        var source = Array.isArray(this.waypoints) ? this.waypoints : [];
+        for (var i = 0; i < selected.length; i++) {
+          var selectedId = numeric(selected[i].WAYPOINTID);
+          if (!selectedId) continue;
+          var label = "";
+          for (var j = 0; j < source.length; j++) {
+            if (numeric(source[j].WAYPOINTID) === selectedId) {
+              label = (source[j].WAYPOINTNAME || "").toString().trim();
+              break;
+            }
+          }
+          details.push({
+            id: selectedId,
+            label: label || ("Waypoint #" + selectedId),
+            position: details.length + 1
+          });
+        }
+        return details;
+      },
+
+      filteredWaypoints: function () {
+        var list = Array.isArray(this.waypoints) ? this.waypoints : [];
+        var query = normalizeSearchQuery(this.waypointSearchQuery);
+        if (!query) {
+          return list;
+        }
+        return list.filter(function (entry) {
+          var searchable = toSearchableText(entry, [ "WAYPOINTNAME", "NOTES", "CITY", "STATE", "waypointName", "notes", "city", "state" ]);
+          return searchable.indexOf(query) !== -1;
+        });
       },
 
       waypointSummary: function () {
