@@ -83,6 +83,7 @@
     legMapDraftPoints: [],
     legMapLoadSeq: 0,
     legEndpointCacheByKey: {},
+    closeGeneratorOnGenerate: false,
     cruiseTimeline: {
       requestSeq: 0,
       maxHoursPerDay: 6.5,
@@ -139,6 +140,186 @@
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     });
+  }
+
+  function safeVal(value) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n)) return null;
+    return n;
+  }
+
+  function formatNum(value, decimals) {
+    var n = safeVal(value);
+    var places = (typeof decimals === "number") ? decimals : 2;
+    if (n === null) return "n/a";
+    return n.toLocaleString(undefined, {
+      minimumFractionDigits: places,
+      maximumFractionDigits: places
+    });
+  }
+
+  function calcLineFromTimeline(timelinePayload, uiInputs) {
+    var payload = (timelinePayload && typeof timelinePayload === "object") ? timelinePayload : {};
+    var summary = (payload.summary && typeof payload.summary === "object") ? payload.summary : {};
+    var meta = (payload.meta && typeof payload.meta === "object") ? payload.meta : {};
+    var days = Array.isArray(payload.days) ? payload.days : [];
+    var ui = (uiInputs && typeof uiInputs === "object") ? uiInputs : {};
+    var totalNm = safeVal(summary.totalNm);
+    var totalDays = safeVal(summary.totalDays);
+    var totalRequiredFuel = safeVal(summary.totalRequiredFuel);
+    var totalHours = null;
+    var totalLocks = null;
+    var totalReserveFuel = null;
+    var confidenceMin = null;
+    var hasHours = false;
+    var hasLocks = false;
+    var hasReserve = false;
+    var hasConfidence = false;
+    var hoursAcc = 0;
+    var locksAcc = 0;
+    var reserveAcc = 0;
+    var hoursSource = String(meta.hoursSource || "").trim().toLowerCase();
+    var effectiveSpeedKn = safeVal(meta.effectiveSpeedKn);
+    var weatherPctUsed = safeVal(meta.effectiveWeatherPctMax);
+    var adjSpeedKn = null;
+    var maxHoursPerDay = safeVal(ui.maxHoursPerDay);
+    var reservePct = safeVal(ui.reservePct);
+    var fuelBurnGph = safeVal(meta.fuelBurnGph);
+    var fuelSource = String(meta.fuelSource || "").trim();
+    var hoursExpr = "";
+    var dayExpr = "";
+    var fuelExpr = "";
+    var locksExpr = "";
+    var baseFuelByRate = null;
+    var requiredFuelByRate = null;
+    var baseFuelFromTimeline = null;
+
+    if (effectiveSpeedKn === null) {
+      effectiveSpeedKn = safeVal(ui.effectiveSpeedKn);
+    }
+    if (weatherPctUsed === null) {
+      weatherPctUsed = safeVal(ui.weatherFactorPct);
+    }
+
+    days.forEach(function (day) {
+      var h = safeVal(day.estHours);
+      var l = safeVal(day.lockCount);
+      var r = safeVal(day.reserveGallons);
+      var c = safeVal(day.confidence);
+      if (h !== null) {
+        hoursAcc += h;
+        hasHours = true;
+      }
+      if (l !== null) {
+        locksAcc += l;
+        hasLocks = true;
+      }
+      if (r !== null) {
+        reserveAcc += r;
+        hasReserve = true;
+      }
+      if (c !== null) {
+        hasConfidence = true;
+        if (confidenceMin === null || c < confidenceMin) confidenceMin = c;
+      }
+    });
+
+    if (hasHours) totalHours = hoursAcc;
+    if (hasLocks) totalLocks = locksAcc;
+    if (hasReserve) totalReserveFuel = reserveAcc;
+
+    if (totalNm === null && days.length) {
+      var distAcc = 0;
+      var hasDist = false;
+      days.forEach(function (day) {
+        var d = safeVal(day.totalDistNm);
+        if (d !== null) {
+          distAcc += d;
+          hasDist = true;
+        }
+      });
+      if (hasDist) totalNm = distAcc;
+    }
+    if (totalDays === null && days.length) {
+      totalDays = days.length;
+    }
+    if (totalRequiredFuel === null && days.length) {
+      var reqAcc = 0;
+      var hasReq = false;
+      days.forEach(function (day) {
+        var req = safeVal(day.requiredFuelGallons);
+        if (req !== null) {
+          reqAcc += req;
+          hasReq = true;
+        }
+      });
+      if (hasReq) totalRequiredFuel = reqAcc;
+    }
+
+    if (hoursSource === "weather_adjusted_speed" && effectiveSpeedKn !== null && weatherPctUsed !== null) {
+      adjSpeedKn = effectiveSpeedKn * (1 - (weatherPctUsed / 100));
+      if (adjSpeedKn < 0.5) adjSpeedKn = 0.5;
+    } else if (totalNm !== null && totalHours !== null && totalHours > 0) {
+      adjSpeedKn = totalNm / totalHours;
+    }
+
+    hoursExpr = "Dist " + formatNum(totalNm, 1) + " nm ÷ AdjSpeed " + formatNum(adjSpeedKn, 2) + " kn";
+    if (hoursSource === "weather_adjusted_speed" && effectiveSpeedKn !== null && weatherPctUsed !== null) {
+      hoursExpr += " (= " + formatNum(effectiveSpeedKn, 2) + " kn × (1 - " + formatNum(weatherPctUsed, 2) + "%))";
+    } else if (effectiveSpeedKn !== null) {
+      hoursExpr += " (raw " + formatNum(effectiveSpeedKn, 2) + " kn)";
+    }
+    hoursExpr += " = " + formatNum(totalHours, 2) + " h";
+
+    if (totalHours !== null && maxHoursPerDay !== null && maxHoursPerDay > 0) {
+      var calculatedDays = Math.ceil(totalHours / maxHoursPerDay);
+      var displayedDays = (totalDays !== null ? totalDays : calculatedDays);
+      dayExpr = "Max/day " + formatNum(maxHoursPerDay, 1) + " h → " + formatNum(displayedDays, 0) + " days (ceil(" + formatNum(totalHours, 2) + "/" + formatNum(maxHoursPerDay, 1) + "))";
+    } else {
+      dayExpr = "Max/day " + formatNum(maxHoursPerDay, 1) + " h → " + (totalDays !== null ? (formatNum(totalDays, 0) + " days") : "n/a");
+    }
+
+    if (totalHours !== null && fuelBurnGph !== null) {
+      baseFuelByRate = totalHours * fuelBurnGph;
+      if (reservePct !== null) {
+        requiredFuelByRate = baseFuelByRate * (1 + (reservePct / 100));
+        fuelExpr = "Fuel " + formatNum(totalHours, 2) + " h × " + formatNum(fuelBurnGph, 2) + " gph = " + formatNum(baseFuelByRate, 1) + " gal + " + formatNum(reservePct, 1) + "% reserve = " + formatNum(requiredFuelByRate, 1) + " gal";
+      } else {
+        fuelExpr = "Fuel " + formatNum(totalHours, 2) + " h × " + formatNum(fuelBurnGph, 2) + " gph = " + formatNum(baseFuelByRate, 1) + " gal";
+      }
+      if (totalRequiredFuel !== null) {
+        fuelExpr += " (timeline " + formatNum(totalRequiredFuel, 1) + ")";
+      }
+    } else if (totalRequiredFuel !== null) {
+      if (totalReserveFuel !== null) {
+        baseFuelFromTimeline = totalRequiredFuel - totalReserveFuel;
+        if (baseFuelFromTimeline < 0) baseFuelFromTimeline = 0;
+        fuelExpr = "Fuel " + formatNum(baseFuelFromTimeline, 1) + " gal + reserve " + formatNum(totalReserveFuel, 1) + " gal";
+        if (reservePct !== null) {
+          fuelExpr += " (" + formatNum(reservePct, 1) + "%)";
+        }
+        fuelExpr += " = " + formatNum(totalRequiredFuel, 1) + " gal";
+      } else {
+        fuelExpr = "Fuel " + formatNum(totalRequiredFuel, 1) + " gal";
+      }
+      if (fuelBurnGph !== null) {
+        fuelExpr += " @ " + formatNum(fuelBurnGph, 2) + " gph";
+      }
+    } else {
+      fuelExpr = "Fuel n/a";
+    }
+    if (fuelSource) {
+      fuelExpr += " [src " + fuelSource.replace(/_/g, " ") + "]";
+    }
+
+    locksExpr = "Locks " + (totalLocks !== null ? formatNum(totalLocks, 0) : "n/a");
+
+    if (hasConfidence && confidenceMin !== null) {
+      if (confidenceMin > 1) confidenceMin = confidenceMin / 100;
+      locksExpr += " • Confidence " + formatNum(confidenceMin, 2);
+    }
+
+    return "Calc: " + hoursExpr + " • " + dayExpr + " • " + fuelExpr + " • " + locksExpr;
   }
 
   function clampCruiseTimelineHours(value) {
@@ -220,10 +401,15 @@
   function refreshExpandedLegPanel() {
     var expandedOrder = toInt(state.lockPanel.expandedOrder, 0);
     var selectedOrder = toInt(state.selectedLegOrder, 0);
-    if (expandedOrder <= 0) return;
     if (!Array.isArray(state.previewLegs) || !state.previewLegs.length) return;
     renderLegs(state.previewLegs);
-    selectLegRow(selectedOrder > 0 ? selectedOrder : expandedOrder);
+    if (selectedOrder > 0) {
+      selectLegRow(selectedOrder);
+      return;
+    }
+    if (expandedOrder > 0) {
+      selectLegRow(expandedOrder);
+    }
   }
 
   function normalizeCruiseTimelineSegmentIds(segmentIds) {
@@ -318,18 +504,22 @@
     };
   }
 
-  function renderCruiseTimelineInlineForLeg(leg, order) {
+  function renderCruiseTimelineInline() {
     var status = String(state.cruiseTimeline.status || "idle").trim().toLowerCase();
     var message = String(state.cruiseTimeline.message || "").trim();
     var payload = state.cruiseTimeline.payload && typeof state.cruiseTimeline.payload === "object"
       ? state.cruiseTimeline.payload
       : null;
     var summary = payload && payload.summary ? payload.summary : null;
-    var day = getCruiseTimelineDayForLeg(leg, order);
-    var selectedLegMetrics = getSelectedLegTimelineMetrics(leg);
     var routeIdVal = toInt(state.activeRouteId, 0);
     var startDateVal = dom.startDateEl ? String(dom.startDateEl.value || "").trim() : String(state.cruiseTimeline.lastStartDate || "").trim();
     var maxHours = clampCruiseTimelineHours(state.cruiseTimeline.maxHoursPerDay);
+    var calcLine = calcLineFromTimeline(payload, {
+      maxHoursPerDay: maxHours,
+      reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
+      weatherFactorPct: getWeatherFactorPct(),
+      effectiveSpeedKn: getEffectiveCruisingSpeed()
+    });
     var html = "";
 
     state.cruiseTimeline.maxHoursPerDay = maxHours;
@@ -339,6 +529,7 @@
     html += '    <div>';
     html += '      <div class="fpw-routegen__kicker">Timeline</div>';
     html += '      <div class="fpw-routegen__paneltitle">Cruise Timeline</div>';
+    html += '      <div class="rtb-timeline-calc-line small text-light opacity-75" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">' + escapeHtml(calcLine) + '</div>';
     html += "    </div>";
     html += '    <div class="d-flex align-items-center gap-2">';
     html += '      <label for="routeGenTimelineMaxHours" class="mb-0 small text-light opacity-75">Max hrs/day</label>';
@@ -380,12 +571,6 @@
       return html;
     }
 
-    if (!day) {
-      html += '<div class="alert alert-secondary py-2 mb-0">No cruise timeline day is mapped to this leg yet.</div>';
-      html += "</div>";
-      return html;
-    }
-
     if (summary && typeof summary === "object") {
       html += '<div class="small text-light opacity-75 mb-2">';
       html += 'Route total: '
@@ -393,6 +578,60 @@
         + " · " + formatNumber(toOneDecimal(summary.totalNm), 1) + " nm"
         + " · " + formatNumber(toOneDecimal(summary.totalRequiredFuel), 1) + " gal";
       html += "</div>";
+    }
+    html += "</div>";
+    return html;
+  }
+
+  function renderCruiseTimelineLegInlineForLeg(leg, order) {
+    var status = String(state.cruiseTimeline.status || "idle").trim().toLowerCase();
+    var message = String(state.cruiseTimeline.message || "").trim();
+    var payload = state.cruiseTimeline.payload && typeof state.cruiseTimeline.payload === "object"
+      ? state.cruiseTimeline.payload
+      : null;
+    var day = getCruiseTimelineDayForLeg(leg, order);
+    var selectedLegMetrics = getSelectedLegTimelineMetrics(leg);
+    var routeIdVal = toInt(state.activeRouteId, 0);
+    var startDateVal = dom.startDateEl ? String(dom.startDateEl.value || "").trim() : String(state.cruiseTimeline.lastStartDate || "").trim();
+    var html = "";
+
+    html += '<div class="fpw-routegen__legtimeline mt-3">';
+    html += '  <div class="small text-uppercase text-light opacity-75 mb-2">Cruise Timeline Day</div>';
+
+    if (!routeIdVal) {
+      html += '<div class="fpw-routegen__help mb-0">Generate or open a saved route to build a cruise timeline.</div>';
+      html += "</div>";
+      return html;
+    }
+    if (!isValidCruiseStartDate(startDateVal)) {
+      html += '<div class="alert alert-danger py-2 mb-0">Select a valid start date (yyyy-mm-dd) to build the cruise timeline.</div>';
+      html += "</div>";
+      return html;
+    }
+    if (status === "loading") {
+      html += '<div class="d-flex align-items-center gap-2 text-light opacity-75 small"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span><span>Building Cruise Timeline...</span></div>';
+      html += "</div>";
+      return html;
+    }
+    if (status === "error") {
+      html += '<div class="alert alert-danger py-2 mb-0">' + escapeHtml(message || "Unable to build cruise timeline.") + "</div>";
+      html += "</div>";
+      return html;
+    }
+    if (status === "note") {
+      html += '<div class="fpw-routegen__help mb-0">' + escapeHtml(message || "Generate or open a route to build a cruise timeline.") + "</div>";
+      html += "</div>";
+      return html;
+    }
+    if (!payload || !Array.isArray(payload.days) || !payload.days.length) {
+      html += '<div class="alert alert-secondary py-2 mb-0">No timeline days generated.</div>';
+      html += "</div>";
+      return html;
+    }
+    if (!day) {
+      html += '<div class="alert alert-secondary py-2 mb-0">No cruise timeline day is mapped to this leg yet.</div>';
+      html += "</div>";
+      return html;
     }
 
     html += '<div class="card bg-transparent border-secondary text-light mb-0">';
@@ -453,6 +692,9 @@
     var summary = (payload.route_summary && typeof payload.route_summary === "object")
       ? payload.route_summary
       : (payload.ROUTE_SUMMARY && typeof payload.ROUTE_SUMMARY === "object" ? payload.ROUTE_SUMMARY : {});
+    var meta = (payload.timeline_meta && typeof payload.timeline_meta === "object")
+      ? payload.timeline_meta
+      : (payload.TIMELINE_META && typeof payload.TIMELINE_META === "object" ? payload.TIMELINE_META : {});
     var days = Array.isArray(payload.days) ? payload.days : (Array.isArray(payload.DAYS) ? payload.DAYS : []);
 
     state.cruiseTimeline.status = "ready";
@@ -462,6 +704,17 @@
         totalDays: toInt(summary.total_days !== undefined ? summary.total_days : summary.TOTAL_DAYS, 0),
         totalNm: toOneDecimal(summary.total_nm !== undefined ? summary.total_nm : summary.TOTAL_NM),
         totalRequiredFuel: toOneDecimal(summary.total_required_fuel !== undefined ? summary.total_required_fuel : summary.TOTAL_REQUIRED_FUEL)
+      },
+      meta: {
+        hoursSource: String(meta.hours_source !== undefined ? meta.hours_source : (meta.HOURS_SOURCE || "")).trim().toLowerCase(),
+        effectiveSpeedKn: safeVal(meta.effective_speed_kn !== undefined ? meta.effective_speed_kn : meta.EFFECTIVE_SPEED_KN),
+        fuelBurnGph: safeVal(meta.fuel_burn_gph !== undefined ? meta.fuel_burn_gph : meta.FUEL_BURN_GPH),
+        fuelSource: String(meta.fuel_source !== undefined ? meta.fuel_source : (meta.FUEL_SOURCE || "")).trim(),
+        effectiveWeatherPctMax: safeVal(
+          meta.effective_weather_pct_max !== undefined
+            ? meta.effective_weather_pct_max
+            : (meta.EFFECTIVE_WEATHER_PCT_MAX !== undefined ? meta.EFFECTIVE_WEATHER_PCT_MAX : "")
+        )
       },
       days: days.map(function (day, idx) {
         return normalizeCruiseTimelineDay(day, idx);
@@ -1328,7 +1581,7 @@
 
     if (isLoading) {
       html += '<div class="fpw-routegen__lockstate">Loading lock details...</div>';
-      html += renderCruiseTimelineInlineForLeg(leg, order);
+      html += renderCruiseTimelineLegInlineForLeg(leg, order);
       return html;
     }
     if (errorText) {
@@ -1336,7 +1589,7 @@
       html += '<div class="fpw-routegen__leglockinlineactions">';
       html += '  <button type="button" class="btn-secondary btn-sm" data-leg-action="reload-locks">Retry</button>';
       html += "</div>";
-      html += renderCruiseTimelineInlineForLeg(leg, order);
+      html += renderCruiseTimelineLegInlineForLeg(leg, order);
       return html;
     }
 
@@ -1349,7 +1602,7 @@
 
     if (!locks.length) {
       html += '<div class="fpw-routegen__lockstate">' + escapeHtml(lockMessage || "No locks mapped for this leg.") + '</div>';
-      html += renderCruiseTimelineInlineForLeg(leg, order);
+      html += renderCruiseTimelineLegInlineForLeg(leg, order);
       return html;
     }
 
@@ -1394,7 +1647,7 @@
       html += "</div>";
     });
     html += "</div>";
-    html += renderCruiseTimelineInlineForLeg(leg, order);
+    html += renderCruiseTimelineLegInlineForLeg(leg, order);
     return html;
   }
 
@@ -3186,13 +3439,14 @@
   function renderLegs(legs) {
     if (!dom.legListEl) return;
     var list = normalizeLegList(legs);
+    var timelineHtml = renderCruiseTimelineInline();
     if (!list.length) {
-      dom.legListEl.innerHTML = '<div class="fpw-routegen__empty">No legs available for the current selection.</div>';
+      dom.legListEl.innerHTML = timelineHtml + '<div class="fpw-routegen__empty">No legs available for the current selection.</div>';
       closeLegMapPanel();
       return;
     }
 
-    dom.legListEl.innerHTML = list.map(function (leg, idx) {
+    dom.legListEl.innerHTML = timelineHtml + list.map(function (leg, idx) {
       var order = parseInt(
         leg.order_index !== undefined ? leg.order_index :
           (leg.ORDER_INDEX !== undefined ? leg.ORDER_INDEX : (idx + 1)),
@@ -4285,7 +4539,7 @@
           state.previewLegs
         );
 
-        if (modal) {
+        if (modal && state.closeGeneratorOnGenerate === true) {
           modal.hide();
         }
       })
@@ -5228,6 +5482,33 @@
     event.preventDefault();
   }
 
+  function keepAdvancedSettingsOpen() {
+    if (!dom.advancedDetailsEl) return;
+
+    dom.advancedDetailsEl.open = true;
+
+    if (!dom.advancedDetailsEl.dataset.routegenAlwaysOpenBound) {
+      dom.advancedDetailsEl.addEventListener("toggle", function () {
+        if (!dom.advancedDetailsEl.open) {
+          dom.advancedDetailsEl.open = true;
+        }
+      });
+      dom.advancedDetailsEl.dataset.routegenAlwaysOpenBound = "true";
+    }
+
+    if (dom.advancedSummaryEl && !dom.advancedSummaryEl.dataset.routegenAlwaysOpenBound) {
+      dom.advancedSummaryEl.addEventListener("click", function (event) {
+        event.preventDefault();
+      });
+      dom.advancedSummaryEl.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+        }
+      });
+      dom.advancedSummaryEl.dataset.routegenAlwaysOpenBound = "true";
+    }
+  }
+
   function bindEvents() {
     if (dom.openBtn) {
       dom.openBtn.addEventListener("click", function () {
@@ -5552,6 +5833,8 @@
     dom.fuelPricePerGalEl = document.getElementById("routeGenFuelPricePerGal");
     dom.optionalStopsEl = document.getElementById("routeGenOptionalStops");
     dom.setupPanelBodyEl = document.getElementById("routeGenSetupPanelBody");
+    dom.advancedDetailsEl = document.getElementById("routeGenAdvanced");
+    dom.advancedSummaryEl = document.getElementById("routeGenAdvancedSummary");
     dom.myRouteNameEl = document.getElementById("routeGenMyRouteName");
     dom.myRouteCreateBtn = document.getElementById("routeGenMyRouteCreateBtn");
     dom.myRouteSelectEl = document.getElementById("routeGenMyRouteSelect");
@@ -5676,6 +5959,7 @@
     }
 
     bindEvents();
+    keepAdvancedSettingsOpen();
     resetGeneratorState();
   }
 

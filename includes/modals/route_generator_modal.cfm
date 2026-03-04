@@ -466,6 +466,10 @@
       font-size: 13px;
     }
 
+    .fpw-routegen__drawer--alwaysopen > summary {
+      cursor: default;
+    }
+
     .fpw-routegen__drawer > summary::-webkit-details-marker {
       display: none;
     }
@@ -1367,8 +1371,8 @@
             </div>
           </div>
 
-          <details id="routeGenAdvanced" class="fpw-routegen__drawer">
-            <summary>
+          <details id="routeGenAdvanced" class="fpw-routegen__drawer fpw-routegen__drawer--alwaysopen" open>
+            <summary id="routeGenAdvancedSummary">
               <div>
                 <div>Advanced settings</div>
                 <div class="fpw-routegen__drawersub">Max speed, underway hours, comfort, overnight bias, optional stops</div>
