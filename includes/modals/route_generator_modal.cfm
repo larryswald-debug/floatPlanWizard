@@ -452,7 +452,8 @@
       overflow: hidden;
     }
 
-    .fpw-routegen__drawer > summary {
+    .fpw-routegen__drawer > summary,
+    .fpw-routegen__drawerhdr {
       cursor: pointer;
       list-style: none;
       padding: 10px;
@@ -466,7 +467,8 @@
       font-size: 13px;
     }
 
-    .fpw-routegen__drawer--alwaysopen > summary {
+    .fpw-routegen__drawer--alwaysopen > summary,
+    .fpw-routegen__drawer--alwaysopen > .fpw-routegen__drawerhdr {
       cursor: default;
     }
 
@@ -1371,14 +1373,14 @@
             </div>
           </div>
 
-          <details id="routeGenAdvanced" class="fpw-routegen__drawer fpw-routegen__drawer--alwaysopen" open>
-            <summary id="routeGenAdvancedSummary">
+          <div id="routeGenAdvanced" class="fpw-routegen__drawer fpw-routegen__drawer--alwaysopen">
+            <div id="routeGenAdvancedSummary" class="fpw-routegen__drawerhdr">
               <div>
                 <div>Advanced settings</div>
                 <div class="fpw-routegen__drawersub">Max speed, underway hours, comfort, overnight bias, optional stops</div>
               </div>
               <div class="fpw-routegen__pill">Optional</div>
-            </summary>
+            </div>
             <div class="fpw-routegen__drawerbody">
             <div class="fpw-routegen__grid2">
               <div class="fpw-routegen__field">
@@ -1443,7 +1445,7 @@
                 <div class="fpw-routegen__empty">No optional stops available for this template.</div>
               </div>
             </div>
-          </details>
+          </div>
         </div>
       </section>
 
