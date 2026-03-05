@@ -20,6 +20,7 @@
   var vesselMaxSpeedInput = null;
   var vesselMostEfficientSpeedInput = null;
   var vesselGallonsPerHourInput = null;
+  var vesselGphAtMaxSpeedInput = null;
   var vesselFuelCapacityInput = null;
   var vesselIsDefaultInput = null;
   var vesselMakeInput = null;
@@ -84,6 +85,7 @@
       var maxSpeed = utils.pick(vessel, ["MAX_SPEED"], "");
       var mostEfficientSpeed = utils.pick(vessel, ["MOST_EFFICIENT_SPEED"], "");
       var gallonsPerHour = utils.pick(vessel, ["GALLONS_PER_HOUR"], "");
+      var gphAtMaxSpeed = utils.pick(vessel, ["GPH_AT_MAX_SPEED"], "");
       var color = utils.pick(vessel, ["COLOR"], "");
       var nameText = name || "Unnamed vessel";
       var metaParts = [];
@@ -93,6 +95,7 @@
       if (maxSpeed) metaParts.push("Max: " + maxSpeed + " kph");
       if (mostEfficientSpeed) metaParts.push("Efficient: " + mostEfficientSpeed + " kph");
       if (gallonsPerHour) metaParts.push("Efficient burn: " + gallonsPerHour + " gph");
+      if (gphAtMaxSpeed) metaParts.push("Max burn: " + gphAtMaxSpeed + " gph");
       if (color) metaParts.push("Color: " + color);
       if (!metaParts.length) metaParts.push("Registration: N/A");
       var metaText = metaParts.join(" • ");
@@ -179,6 +182,7 @@
         vesselMaxSpeedInput = vesselModalEl.querySelector("#vesselMaxSpeed");
         vesselMostEfficientSpeedInput = vesselModalEl.querySelector("#vesselMostEfficientSpeed");
         vesselGallonsPerHourInput = vesselModalEl.querySelector("#vesselGallonsPerHour");
+        vesselGphAtMaxSpeedInput = vesselModalEl.querySelector("#vesselGphAtMaxSpeed");
         vesselFuelCapacityInput = vesselModalEl.querySelector("#vesselFuelCapacity");
         vesselIsDefaultInput = vesselModalEl.querySelector("#vesselIsDefault");
         vesselMakeInput = vesselModalEl.querySelector("#vesselMake");
@@ -261,6 +265,7 @@
     if (vesselMaxSpeedInput) vesselMaxSpeedInput.value = utils.pick(vessel, ["MAX_SPEED"], "");
     if (vesselMostEfficientSpeedInput) vesselMostEfficientSpeedInput.value = utils.pick(vessel, ["MOST_EFFICIENT_SPEED"], "");
     if (vesselGallonsPerHourInput) vesselGallonsPerHourInput.value = utils.pick(vessel, ["GALLONS_PER_HOUR"], "");
+    if (vesselGphAtMaxSpeedInput) vesselGphAtMaxSpeedInput.value = utils.pick(vessel, ["GPH_AT_MAX_SPEED"], "");
     if (vesselFuelCapacityInput) vesselFuelCapacityInput.value = utils.pick(vessel, ["FUEL_CAPACITY"], "");
     if (vesselIsDefaultInput) {
       var isDefaultRaw = utils.pick(vessel, ["ISDEFAULTVESSEL", "isDefaultVessel"], 1);
@@ -296,6 +301,7 @@
       MAX_SPEED: vesselMaxSpeedInput ? vesselMaxSpeedInput.value.trim() : "",
       MOST_EFFICIENT_SPEED: vesselMostEfficientSpeedInput ? vesselMostEfficientSpeedInput.value.trim() : "",
       GALLONS_PER_HOUR: vesselGallonsPerHourInput ? vesselGallonsPerHourInput.value.trim() : "",
+      GPH_AT_MAX_SPEED: vesselGphAtMaxSpeedInput ? vesselGphAtMaxSpeedInput.value.trim() : "",
       FUEL_CAPACITY: vesselFuelCapacityInput ? vesselFuelCapacityInput.value.trim() : "",
       ISDEFAULTVESSEL: vesselIsDefaultInput && vesselIsDefaultInput.checked ? 1 : 0,
       MAKE: vesselMakeInput ? vesselMakeInput.value.trim() : "",

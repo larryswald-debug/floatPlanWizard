@@ -93,6 +93,7 @@
                 <cfset maxSpeedRaw = structKeyExists(vessel, "MAX_SPEED") ? trim(vessel.MAX_SPEED) : (structKeyExists(vessel, "max_speed") ? trim(vessel.max_speed) : (structKeyExists(vessel, "maxSpeed") ? trim(vessel.maxSpeed) : ""))>
                 <cfset mostEfficientSpeedRaw = structKeyExists(vessel, "MOST_EFFICIENT_SPEED") ? trim(vessel.MOST_EFFICIENT_SPEED) : (structKeyExists(vessel, "most_efficient_speed") ? trim(vessel.most_efficient_speed) : (structKeyExists(vessel, "mostEfficientSpeed") ? trim(vessel.mostEfficientSpeed) : ""))>
                 <cfset gallonsPerHourRaw = structKeyExists(vessel, "GALLONS_PER_HOUR") ? trim(vessel.GALLONS_PER_HOUR) : (structKeyExists(vessel, "gallons_per_hour") ? trim(vessel.gallons_per_hour) : (structKeyExists(vessel, "gallonsPerHour") ? trim(vessel.gallonsPerHour) : ""))>
+                <cfset gphAtMaxSpeedRaw = structKeyExists(vessel, "GPH_AT_MAX_SPEED") ? trim(vessel.GPH_AT_MAX_SPEED) : (structKeyExists(vessel, "gph_at_max_speed") ? trim(vessel.gph_at_max_speed) : (structKeyExists(vessel, "gphAtMaxSpeed") ? trim(vessel.gphAtMaxSpeed) : ""))>
                 <cfset fuelCapacityRaw = structKeyExists(vessel, "FUEL_CAPACITY") ? trim(vessel.FUEL_CAPACITY) : (structKeyExists(vessel, "fuel_capacity") ? trim(vessel.fuel_capacity) : (structKeyExists(vessel, "fuelCapacity") ? trim(vessel.fuelCapacity) : ""))>
                 <cfset isDefaultRaw = "1">
                 <cfif structKeyExists(vessel, "ISDEFAULTVESSEL")>
@@ -113,6 +114,7 @@
                 <cfset hasMaxSpeed = len(maxSpeedRaw)>
                 <cfset hasMostEfficientSpeed = len(mostEfficientSpeedRaw)>
                 <cfset hasGallonsPerHour = len(gallonsPerHourRaw)>
+                <cfset hasGphAtMaxSpeed = len(gphAtMaxSpeedRaw)>
                 <cfset hasFuelCapacity = len(fuelCapacityRaw)>
                 <cfif NOT len(vesselType)>
                     <cfthrow message="Vessel type is required.">
@@ -131,6 +133,9 @@
                 </cfif>
                 <cfif hasGallonsPerHour AND NOT isNumeric(gallonsPerHourRaw)>
                     <cfthrow message="Gallons per hour must be numeric.">
+                </cfif>
+                <cfif hasGphAtMaxSpeed AND NOT isNumeric(gphAtMaxSpeedRaw)>
+                    <cfthrow message="GPH at max speed must be numeric.">
                 </cfif>
                 <cfif hasFuelCapacity AND NOT isNumeric(fuelCapacityRaw)>
                     <cfthrow message="Fuel capacity must be numeric.">
@@ -156,6 +161,7 @@
                             max_speed = <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasMaxSpeed ? val(maxSpeedRaw) : 0#" null="#NOT hasMaxSpeed#" scale="2" maxlength="6">,
                             most_efficient_speed = <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasMostEfficientSpeed ? val(mostEfficientSpeedRaw) : 0#" null="#NOT hasMostEfficientSpeed#" scale="2" maxlength="6">,
                             gallons_per_hour = <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasGallonsPerHour ? val(gallonsPerHourRaw) : 0#" null="#NOT hasGallonsPerHour#" scale="2" maxlength="8">,
+                            gph_at_max_speed = <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasGphAtMaxSpeed ? val(gphAtMaxSpeedRaw) : 0#" null="#NOT hasGphAtMaxSpeed#" scale="2" maxlength="8">,
                             fuel_capacity = <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasFuelCapacity ? val(fuelCapacityRaw) : 0#" null="#NOT hasFuelCapacity#" scale="2" maxlength="10">,
                             isDefaultVessel = <cfqueryparam cfsqltype="cf_sql_tinyint" value="#isDefaultVessel#">,
                             hullColor = <cfqueryparam cfsqltype="cf_sql_varchar" value="#color#">,
@@ -173,7 +179,7 @@
                         </cfquery>
                     </cfif>
                     <cfquery datasource="fpw" result="insertResult">
-                        INSERT INTO vessels (userId, vesselName, registration, typeOfVessel, make, model, lengthOfVessel, max_speed, most_efficient_speed, gallons_per_hour, fuel_capacity, isDefaultVessel, hullColor, hailingPort)
+                        INSERT INTO vessels (userId, vesselName, registration, typeOfVessel, make, model, lengthOfVessel, max_speed, most_efficient_speed, gallons_per_hour, gph_at_max_speed, fuel_capacity, isDefaultVessel, hullColor, hailingPort)
                         VALUES (
                             <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">,
                             <cfqueryparam cfsqltype="cf_sql_varchar" value="#vesselName#">,
@@ -185,6 +191,7 @@
                             <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasMaxSpeed ? val(maxSpeedRaw) : 0#" null="#NOT hasMaxSpeed#" scale="2" maxlength="6">,
                             <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasMostEfficientSpeed ? val(mostEfficientSpeedRaw) : 0#" null="#NOT hasMostEfficientSpeed#" scale="2" maxlength="6">,
                             <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasGallonsPerHour ? val(gallonsPerHourRaw) : 0#" null="#NOT hasGallonsPerHour#" scale="2" maxlength="8">,
+                            <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasGphAtMaxSpeed ? val(gphAtMaxSpeedRaw) : 0#" null="#NOT hasGphAtMaxSpeed#" scale="2" maxlength="8">,
                             <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasFuelCapacity ? val(fuelCapacityRaw) : 0#" null="#NOT hasFuelCapacity#" scale="2" maxlength="10">,
                             <cfqueryparam cfsqltype="cf_sql_tinyint" value="#isDefaultVessel#">,
                             <cfqueryparam cfsqltype="cf_sql_varchar" value="#color#">,

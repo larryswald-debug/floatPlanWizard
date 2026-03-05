@@ -273,11 +273,21 @@
       gap: 10px;
     }
 
+    .fpw-routegen__grid5 {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+
     .fpw-routegen__field {
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 12px;
       background: rgba(255, 255, 255, 0.04);
       padding: 8px;
+    }
+
+    .fpw-routegen__field--hidden {
+      display: none !important;
     }
 
     .fpw-routegen__field label {
@@ -389,6 +399,11 @@
       margin-top: 10px;
     }
 
+    .fpw-routegen__pace--inline {
+      margin-top: 0;
+      grid-column: span 2;
+    }
+
     .fpw-routegen__pacehead {
       display: flex;
       justify-content: space-between;
@@ -450,6 +465,12 @@
       border-radius: 14px;
       background: rgba(0, 0, 0, 0.15);
       overflow: hidden;
+    }
+
+    /* Keep advanced controls fully visible in both generator and editor modes.
+       The right pane should scroll instead of shrinking this block. */
+    #routeGenAdvanced {
+      flex: 0 0 auto;
     }
 
     .fpw-routegen__drawer > summary,
@@ -669,6 +690,41 @@
       align-items: center;
       justify-content: space-between;
       gap: 10px;
+    }
+
+    .fpw-routegen__listhdrtext {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .fpw-routegen__listhdrcalc {
+      font-size: 12px;
+      color: var(--rg-muted);
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-word;
+    }
+
+    .fpw-routegen__listhdrcontrols {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .fpw-routegen__listhdrcontrols label {
+      margin: 0;
+      font-size: 12px;
+      color: var(--rg-muted);
+      white-space: nowrap;
+    }
+
+    .fpw-routegen__listhdrcontrols .form-control {
+      width: 88px;
     }
 
     .fpw-routegen__tiny {
@@ -1148,6 +1204,29 @@
       .fpw-routegen__grid2 {
         grid-template-columns: 1fr;
       }
+
+      .fpw-routegen__grid5 {
+        grid-template-columns: 1fr;
+      }
+
+      .fpw-routegen__pace--inline {
+        grid-column: 1 / -1;
+      }
+
+      /* Keep leg rows visible on stacked/mobile layout. */
+      .fpw-routegen__listlayout {
+        flex: 0 0 auto;
+        min-height: 260px;
+      }
+
+      .fpw-routegen__listbox {
+        height: auto;
+        min-height: 260px;
+      }
+
+      .fpw-routegen__leglist {
+        max-height: 40vh;
+      }
     }
 
     @media (max-width: 680px) {
@@ -1181,6 +1260,16 @@
       .fpw-routegen__legpanelactions .btn-primary,
       .fpw-routegen__legpanelactions .btn-secondary {
         flex: 1 1 auto;
+      }
+
+      .fpw-routegen__listhdr {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .fpw-routegen__listhdrcontrols {
+        width: 100%;
+        justify-content: flex-start;
       }
 
       .fpw-routegen__legcols,
@@ -1302,19 +1391,14 @@
               </div>
             </div>
 
-            <div class="fpw-routegen__pace">
-              <div class="fpw-routegen__pacehead">
-                <div>
-                  <div class="fpw-routegen__pacetitle">Pace</div>
-                  <div class="fpw-routegen__pacedesc">Pace applies 25%, 50%, or 100% of your max speed.</div>
-                </div>
-                <div id="routeGenPaceLabel" class="fpw-routegen__pacechip">Relaxed</div>
-              </div>
-              <input id="routeGenPace" class="fpw-routegen__range" type="range" min="0" max="2" step="1" value="0" aria-label="Pace">
-              <div class="fpw-routegen__rangeticks"><span>Relaxed</span><span>Balanced</span><span>Aggressive</span></div>
-              <div id="routeGenPaceOverrideHint" class="fpw-routegen__pacehint d-none">Pace uses a percentage of max speed.</div>
-              <button type="button" id="routeGenResetPaceBtn" class="btn-secondary btn-sm fpw-routegen__pacebtn d-none">Reset Pace Defaults</button>
+            <div class="fpw-routegen__labelrow mt-2">
+              <span class="fpw-routegen__label">Optional stops</span>
+              <span class="fpw-routegen__help">Toggle detours to include them in preview/generate.</span>
             </div>
+            <div id="routeGenOptionalStops" class="fpw-routegen__stops">
+              <div class="fpw-routegen__empty">No optional stops available for this template.</div>
+            </div>
+
           </div>
 
           <div class="fpw-routegen__section">
@@ -1373,79 +1457,6 @@
             </div>
           </div>
 
-          <div id="routeGenAdvanced" class="fpw-routegen__drawer fpw-routegen__drawer--alwaysopen">
-            <div id="routeGenAdvancedSummary" class="fpw-routegen__drawerhdr">
-              <div>
-                <div>Advanced settings</div>
-                <div class="fpw-routegen__drawersub">Max speed, underway hours, comfort, overnight bias, optional stops</div>
-              </div>
-              <div class="fpw-routegen__pill">Optional</div>
-            </div>
-            <div class="fpw-routegen__drawerbody">
-            <div class="fpw-routegen__grid2">
-              <div class="fpw-routegen__field">
-                <label for="routeGenCruisingSpeed">Max speed (kn)</label>
-                <input id="routeGenCruisingSpeed" type="number" step="0.1" min="1" max="60" class="form-control form-control-sm" value="20">
-              </div>
-                <div class="fpw-routegen__field">
-                  <label for="routeGenUnderwayHoursPerDay">Underway hours / day</label>
-                  <input id="routeGenUnderwayHoursPerDay" type="number" step="0.5" min="1" max="24" class="form-control form-control-sm" value="8">
-                </div>
-                <div class="fpw-routegen__field">
-                  <label for="routeGenComfortProfile">Comfort profile</label>
-                  <select id="routeGenComfortProfile" class="form-select form-select-sm">
-                    <option value="PREFER_INSIDE">Prefer Inside</option>
-                    <option value="BALANCED">Balanced</option>
-                    <option value="OFFSHORE_OK">Offshore OK</option>
-                  </select>
-                </div>
-                <div class="fpw-routegen__field">
-                  <label for="routeGenOvernightBias">Overnight bias</label>
-                  <select id="routeGenOvernightBias" class="form-select form-select-sm">
-                    <option value="MARINAS">Marinas</option>
-                    <option value="ANCHORAGES">Anchorages</option>
-                    <option value="MIXED">Mixed</option>
-                  </select>
-                </div>
-                <div class="fpw-routegen__field">
-                  <label id="routeGenFuelBurnLabel" for="routeGenFuelBurnGph">Fuel burn at max speed (GPH)</label>
-                  <input id="routeGenFuelBurnGph" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
-                  <div class="fpw-routegen__fuelmeta">
-                    <div id="routeGenFuelBurnHint" class="fpw-routegen__help mt-1">FPW derives pace and weather adjusted burn from max speed burn.</div>
-                    <div id="routeGenFuelBurnDerived" class="fpw-routegen__fuelderived">Derived burn at current pace + weather: -- GPH</div>
-                  </div>
-                </div>
-                <div class="fpw-routegen__field">
-                  <label for="routeGenIdleBurnGph">Idle burn (GPH)</label>
-                  <input id="routeGenIdleBurnGph" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
-                </div>
-                <div class="fpw-routegen__field">
-                  <label for="routeGenIdleHoursTotal">Idle hours (total)</label>
-                  <input id="routeGenIdleHoursTotal" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
-                </div>
-                <div class="fpw-routegen__field">
-                  <label for="routeGenWeatherFactorPct">Weather factor (%)</label>
-                  <input id="routeGenWeatherFactorPct" type="number" step="1" min="0" max="60" class="form-control form-control-sm" value="0">
-                </div>
-                <div class="fpw-routegen__field">
-                  <label for="routeGenReservePct">Reserve (%)</label>
-                  <input id="routeGenReservePct" type="number" step="1" min="0" max="100" class="form-control form-control-sm" value="20">
-                </div>
-                <div class="fpw-routegen__field">
-                  <label for="routeGenFuelPricePerGal">Fuel price ($/gal)</label>
-                  <input id="routeGenFuelPricePerGal" type="number" step="0.01" min="0" class="form-control form-control-sm" value="">
-                </div>
-              </div>
-
-              <div class="fpw-routegen__labelrow mt-2">
-                <span class="fpw-routegen__label">Optional stops</span>
-                <span class="fpw-routegen__help">Toggle detours to include them in preview/generate.</span>
-              </div>
-              <div id="routeGenOptionalStops" class="fpw-routegen__stops">
-                <div class="fpw-routegen__empty">No optional stops available for this template.</div>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -1491,11 +1502,90 @@
             </div>
           </div>
 
+          <div id="routeGenAdvanced" class="fpw-routegen__drawer fpw-routegen__drawer--alwaysopen mt-2">
+            <div class="fpw-routegen__drawerbody">
+            <div class="fpw-routegen__grid5">
+              <div class="fpw-routegen__field">
+                <label for="routeGenCruisingSpeed">Max speed (kn)</label>
+                <input id="routeGenCruisingSpeed" type="number" step="0.1" min="1" max="60" class="form-control form-control-sm" value="20">
+              </div>
+              <div class="fpw-routegen__field">
+                <label id="routeGenFuelBurnLabel" for="routeGenFuelBurnGph">Fuel burn at max speed (GPH)</label>
+                <input id="routeGenFuelBurnGph" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
+              </div>
+              <div class="fpw-routegen__field">
+                <label for="routeGenIdleBurnGph">Idle burn (GPH)</label>
+                <input id="routeGenIdleBurnGph" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
+              </div>
+              <div class="fpw-routegen__field">
+                <label for="routeGenIdleHoursTotal">Idle hours (total)</label>
+                <input id="routeGenIdleHoursTotal" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
+              </div>
+              <div class="fpw-routegen__field">
+                <label for="routeGenWeatherFactorPct">Weather factor (%)</label>
+                <input id="routeGenWeatherFactorPct" type="number" step="1" min="0" max="60" class="form-control form-control-sm" value="0">
+              </div>
+            </div>
+
+            <div class="fpw-routegen__grid5 mt-2">
+              <div class="fpw-routegen__field fpw-routegen__field--hidden">
+                <label for="routeGenComfortProfile">Comfort profile</label>
+                <select id="routeGenComfortProfile" class="form-select form-select-sm">
+                  <option value="PREFER_INSIDE">Prefer Inside</option>
+                  <option value="BALANCED">Balanced</option>
+                  <option value="OFFSHORE_OK">Offshore OK</option>
+                </select>
+              </div>
+              <div class="fpw-routegen__field fpw-routegen__field--hidden">
+                <label for="routeGenOvernightBias">Overnight bias</label>
+                <select id="routeGenOvernightBias" class="form-select form-select-sm">
+                  <option value="MARINAS">Marinas</option>
+                  <option value="ANCHORAGES">Anchorages</option>
+                  <option value="MIXED">Mixed</option>
+                </select>
+              </div>
+              <div class="fpw-routegen__field">
+                <label for="routeGenReservePct">Reserve (%)</label>
+                <input id="routeGenReservePct" type="number" step="1" min="0" max="100" class="form-control form-control-sm" value="20">
+              </div>
+              <div class="fpw-routegen__field">
+                <label for="routeGenUnderwayHoursPerDay">Underway hours / day</label>
+                <input id="routeGenUnderwayHoursPerDay" type="number" step="0.5" min="1" max="24" class="form-control form-control-sm" value="8">
+              </div>
+              <div class="fpw-routegen__field">
+                <label for="routeGenFuelPricePerGal">Fuel price ($/gal)</label>
+                <input id="routeGenFuelPricePerGal" type="number" step="0.01" min="0" class="form-control form-control-sm" value="">
+              </div>
+              <div class="fpw-routegen__pace fpw-routegen__pace--inline">
+                <div class="fpw-routegen__pacehead">
+                  <div>
+                    <div class="fpw-routegen__pacetitle">Pace</div>
+                    <div class="fpw-routegen__pacedesc">Pace applies 25%, 50%, or 100% of your max speed.</div>
+                  </div>
+                  <div id="routeGenPaceLabel" class="fpw-routegen__pacechip">Relaxed</div>
+                </div>
+                <input id="routeGenPace" class="fpw-routegen__range" type="range" min="0" max="2" step="1" value="0" aria-label="Pace">
+                <div class="fpw-routegen__rangeticks"><span>Relaxed</span><span>Balanced</span><span>Aggressive</span></div>
+                <div id="routeGenPaceOverrideHint" class="fpw-routegen__pacehint d-none">Pace uses a percentage of max speed.</div>
+                <button type="button" id="routeGenResetPaceBtn" class="btn-secondary btn-sm fpw-routegen__pacebtn d-none">Reset Pace Defaults</button>
+              </div>
+            </div>
+
+            </div>
+          </div>
+
           <div id="routeGenLegLayout" class="fpw-routegen__listlayout">
             <div class="fpw-routegen__listbox">
               <div class="fpw-routegen__listhdr">
-                <div class="fpw-routegen__kicker">Route path preview</div>
-                <div id="routeGenLegCount" class="fpw-routegen__tiny">0 legs</div>
+                <div class="fpw-routegen__listhdrtext">
+                  <div id="routeGenLegHeaderTitle" class="fpw-routegen__kicker">Cruise Timeline</div>
+                  <div id="routeGenLegHeaderCalc" class="fpw-routegen__listhdrcalc">Calc: n/a</div>
+                </div>
+                <div class="fpw-routegen__listhdrcontrols">
+                  <label for="routeGenTimelineMaxHours">Max hrs/day</label>
+                  <input id="routeGenTimelineMaxHours" type="number" min="4" max="12" step="0.5" class="form-control form-control-sm" value="6.5">
+                  <button type="button" id="routeGenTimelineRebuildBtn" class="btn-secondary btn-sm">Rebuild Timeline</button>
+                </div>
               </div>
               <div class="fpw-routegen__legcols" aria-hidden="true">
                 <span>#</span>

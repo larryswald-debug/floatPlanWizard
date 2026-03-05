@@ -504,6 +504,45 @@
     };
   }
 
+  function updateLegListHeaderTimeline() {
+    if (!dom.legHeaderTitleEl && !dom.legHeaderCalcEl) return;
+
+    var status = String(state.cruiseTimeline.status || "idle").trim().toLowerCase();
+    var payload = state.cruiseTimeline.payload && typeof state.cruiseTimeline.payload === "object"
+      ? state.cruiseTimeline.payload
+      : null;
+    var maxHours = clampCruiseTimelineHours(state.cruiseTimeline.maxHoursPerDay);
+    var calcLine = calcLineFromTimeline(payload, {
+      maxHoursPerDay: maxHours,
+      reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
+      weatherFactorPct: getWeatherFactorPct(),
+      effectiveSpeedKn: getEffectiveCruisingSpeed()
+    });
+    var maxHoursInputEl = dom.cruiseTimelineMaxHoursEl || document.getElementById("routeGenTimelineMaxHours");
+    var rebuildBtnEl = dom.cruiseTimelineRebuildBtn || document.getElementById("routeGenTimelineRebuildBtn");
+
+    if (status === "loading") {
+      calcLine = "Building Cruise Timeline...";
+    } else if (status === "error") {
+      calcLine = String(state.cruiseTimeline.message || "Unable to build cruise timeline.");
+    }
+
+    if (dom.legHeaderTitleEl) {
+      dom.legHeaderTitleEl.textContent = "Cruise Timeline";
+    }
+    if (dom.legHeaderCalcEl) {
+      dom.legHeaderCalcEl.textContent = calcLine;
+      dom.legHeaderCalcEl.title = calcLine;
+    }
+    if (maxHoursInputEl) {
+      dom.cruiseTimelineMaxHoursEl = maxHoursInputEl;
+      maxHoursInputEl.value = formatCruiseTimelineHoursInput(maxHours);
+    }
+    if (rebuildBtnEl) {
+      dom.cruiseTimelineRebuildBtn = rebuildBtnEl;
+    }
+  }
+
   function renderCruiseTimelineInline() {
     var status = String(state.cruiseTimeline.status || "idle").trim().toLowerCase();
     var message = String(state.cruiseTimeline.message || "").trim();
@@ -514,29 +553,11 @@
     var routeIdVal = toInt(state.activeRouteId, 0);
     var startDateVal = dom.startDateEl ? String(dom.startDateEl.value || "").trim() : String(state.cruiseTimeline.lastStartDate || "").trim();
     var maxHours = clampCruiseTimelineHours(state.cruiseTimeline.maxHoursPerDay);
-    var calcLine = calcLineFromTimeline(payload, {
-      maxHoursPerDay: maxHours,
-      reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
-      weatherFactorPct: getWeatherFactorPct(),
-      effectiveSpeedKn: getEffectiveCruisingSpeed()
-    });
     var html = "";
 
     state.cruiseTimeline.maxHoursPerDay = maxHours;
 
     html += '<div class="fpw-routegen__legtimeline mt-3">';
-    html += '  <div class="fpw-routegen__legtimelinehead d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">';
-    html += '    <div>';
-    html += '      <div class="fpw-routegen__kicker">Timeline</div>';
-    html += '      <div class="fpw-routegen__paneltitle">Cruise Timeline</div>';
-    html += '      <div class="rtb-timeline-calc-line small text-light opacity-75" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">' + escapeHtml(calcLine) + '</div>';
-    html += "    </div>";
-    html += '    <div class="d-flex align-items-center gap-2">';
-    html += '      <label for="routeGenTimelineMaxHours" class="mb-0 small text-light opacity-75">Max hrs/day</label>';
-    html += '      <input id="routeGenTimelineMaxHours" type="number" min="4" max="12" step="0.5" class="form-control form-control-sm" style="width:88px;" value="' + escapeHtml(formatCruiseTimelineHoursInput(maxHours)) + '">';
-    html += '      <button type="button" id="routeGenTimelineRebuildBtn" class="btn-secondary btn-sm">Rebuild Timeline</button>';
-    html += "    </div>";
-    html += "  </div>";
 
     if (!routeIdVal) {
       html += '<div class="fpw-routegen__help mb-0">Generate or open a saved route to build a cruise timeline.</div>';
@@ -3438,6 +3459,7 @@
 
   function renderLegs(legs) {
     if (!dom.legListEl) return;
+    updateLegListHeaderTimeline();
     var list = normalizeLegList(legs);
     var timelineHtml = renderCruiseTimelineInline();
     if (!list.length) {
@@ -5858,11 +5880,13 @@
     dom.fuelCostEl = document.getElementById("routeGenFuelCost");
     dom.fuelCostSubEl = document.getElementById("routeGenFuelCostSub");
     dom.legCountEl = document.getElementById("routeGenLegCount");
+    dom.legHeaderTitleEl = document.getElementById("routeGenLegHeaderTitle");
+    dom.legHeaderCalcEl = document.getElementById("routeGenLegHeaderCalc");
     dom.legLayoutEl = document.getElementById("routeGenLegLayout");
     dom.legListEl = document.getElementById("routeGenLegList");
     dom.cruiseTimelineEl = document.getElementById("fpwCruiseTimeline");
-    dom.cruiseTimelineMaxHoursEl = null;
-    dom.cruiseTimelineRebuildBtn = null;
+    dom.cruiseTimelineMaxHoursEl = document.getElementById("routeGenTimelineMaxHours");
+    dom.cruiseTimelineRebuildBtn = document.getElementById("routeGenTimelineRebuildBtn");
     dom.legMapDockEl = document.getElementById("routeGenLegMapDock");
     dom.legOverlayEl = document.getElementById("routeGenLegOverlay");
     dom.legOverlayDockEl = document.getElementById("routeGenLegOverlayDock");

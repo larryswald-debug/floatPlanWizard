@@ -277,7 +277,8 @@
                 FLOATPLAN       = getDefaultFloatPlan(arguments.userId),
                 PLAN_PASSENGERS = [],
                 PLAN_CONTACTS   = [],
-                PLAN_WAYPOINTS  = []
+                PLAN_WAYPOINTS  = [],
+                ROUTE_DEFAULTS  = {}
             };
 
             if (arguments.floatPlanId GT 0) {
@@ -299,7 +300,520 @@
             response.RESCUE_CENTERS = loadRescueCenters();
             response.HOME_PORT      = loadHomePort(arguments.userId);
 
+            var routeDefaults = buildRouteDefaults(
+                userId = arguments.userId,
+                floatPlan = response.FLOATPLAN,
+                operators = response.OPERATORS,
+                waypoints = response.WAYPOINTS
+            );
+            response.ROUTE_DEFAULTS = routeDefaults;
+
+            if (routeDefaults.IS_FROM_ROUTE) {
+                if (!arrayLen(response.PLAN_WAYPOINTS) AND arrayLen(routeDefaults.WAYPOINT_SELECTIONS)) {
+                    response.PLAN_WAYPOINTS = routeDefaults.WAYPOINT_SELECTIONS;
+                }
+                if (arrayLen(routeDefaults.WAYPOINT_OPTIONS)) {
+                    response.WAYPOINTS = mergeWaypointOptions(response.WAYPOINTS, routeDefaults.WAYPOINT_OPTIONS);
+                }
+
+                if (val(response.FLOATPLAN.OPERATORID) LTE 0 AND val(routeDefaults.OPERATOR_ID) GT 0) {
+                    response.FLOATPLAN.OPERATORID = val(routeDefaults.OPERATOR_ID);
+                }
+                if (!len(trim(toString(response.FLOATPLAN.DEPARTURE_TIME))) AND len(trim(toString(routeDefaults.DEPARTURE_TIME_DEFAULT)))) {
+                    response.FLOATPLAN.DEPARTURE_TIME = routeDefaults.DEPARTURE_TIME_DEFAULT;
+                }
+                if (!len(trim(toString(response.FLOATPLAN.RETURN_TIME))) AND len(trim(toString(routeDefaults.RETURN_TIME_DEFAULT)))) {
+                    response.FLOATPLAN.RETURN_TIME = routeDefaults.RETURN_TIME_DEFAULT;
+                }
+                if (!len(trim(toString(response.FLOATPLAN.DEPARTING_FROM))) AND len(trim(toString(routeDefaults.DEPARTING_FROM_DEFAULT)))) {
+                    response.FLOATPLAN.DEPARTING_FROM = routeDefaults.DEPARTING_FROM_DEFAULT;
+                }
+                if (!len(trim(toString(response.FLOATPLAN.RETURNING_TO))) AND len(trim(toString(routeDefaults.RETURNING_TO_DEFAULT)))) {
+                    response.FLOATPLAN.RETURNING_TO = routeDefaults.RETURNING_TO_DEFAULT;
+                }
+
+                if (!len(trim(toString(response.FLOATPLAN.RESCUE_AUTHORITY)))) {
+                    response.FLOATPLAN.RESCUE_AUTHORITY = "__USER_TO_SET__";
+                }
+                if (!len(trim(toString(response.FLOATPLAN.RESCUE_AUTHORITY_PHONE)))) {
+                    response.FLOATPLAN.RESCUE_AUTHORITY_PHONE = "__USER_TO_SET__";
+                }
+                if (val(response.FLOATPLAN.RESCUE_CENTERID) EQ 0) {
+                    response.FLOATPLAN.RESCUE_CENTERID = -1;
+                }
+                if (!arrayLen(response.PLAN_CONTACTS)) {
+                    response.PLAN_CONTACTS = [{
+                        CONTACTID = -1,
+                        SORT_ORDER = 1
+                    }];
+                }
+
+                response.CONTACTS = prependUserToSetContact(response.CONTACTS);
+                response.RESCUE_CENTERS = prependUserToSetRescueCenter(response.RESCUE_CENTERS);
+            }
+
             return response;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="prependUserToSetContact" access="private" returntype="array" output="false">
+        <cfargument name="contacts" type="array" required="true">
+        <cfscript>
+            var out = [];
+            var i = 0;
+            var found = false;
+            for (i = 1; i LTE arrayLen(arguments.contacts); i++) {
+                if (val(arguments.contacts[i].CONTACTID) EQ -1) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                arrayAppend(out, {
+                    CONTACTID = -1,
+                    CONTACTNAME = "User to Set",
+                    PHONE = "",
+                    EMAIL = ""
+                });
+            }
+            for (i = 1; i LTE arrayLen(arguments.contacts); i++) {
+                arrayAppend(out, arguments.contacts[i]);
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="prependUserToSetRescueCenter" access="private" returntype="array" output="false">
+        <cfargument name="centers" type="array" required="true">
+        <cfscript>
+            var out = [];
+            var i = 0;
+            var found = false;
+            for (i = 1; i LTE arrayLen(arguments.centers); i++) {
+                if (val(arguments.centers[i].recId) EQ -1) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                arrayAppend(out, {
+                    recId = -1,
+                    rcName = "__USER_TO_SET__",
+                    rcPhone = "__USER_TO_SET__",
+                    rcDistrict = "",
+                    rcArea = "",
+                    rcLocation = ""
+                });
+            }
+            for (i = 1; i LTE arrayLen(arguments.centers); i++) {
+                arrayAppend(out, arguments.centers[i]);
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="mergeWaypointOptions" access="private" returntype="array" output="false">
+        <cfargument name="baseWaypoints" type="array" required="true">
+        <cfargument name="routeOptions" type="array" required="true">
+        <cfscript>
+            var out = [];
+            var seen = {};
+            var i = 0;
+            var idVal = 0;
+            var key = "";
+
+            for (i = 1; i LTE arrayLen(arguments.baseWaypoints); i++) {
+                idVal = val(arguments.baseWaypoints[i].WAYPOINTID);
+                key = toString(idVal);
+                if (structKeyExists(seen, key)) {
+                    continue;
+                }
+                seen[key] = true;
+                arrayAppend(out, arguments.baseWaypoints[i]);
+            }
+
+            for (i = 1; i LTE arrayLen(arguments.routeOptions); i++) {
+                idVal = val(arguments.routeOptions[i].WAYPOINTID);
+                key = toString(idVal);
+                if (structKeyExists(seen, key)) {
+                    continue;
+                }
+                seen[key] = true;
+                arrayAppend(out, arguments.routeOptions[i]);
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildRouteDefaults" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlan" type="struct" required="true">
+        <cfargument name="operators" type="array" required="true">
+        <cfargument name="waypoints" type="array" required="true">
+        <cfscript>
+            var defaults = {
+                IS_FROM_ROUTE = false,
+                ROUTE_INSTANCE_ID = 0,
+                ROUTE_DAY_NUMBER = 0,
+                ROUTE_TYPE = "",
+                ROUTE_CODE = "",
+                ROUTE_START_DATE = "",
+                LEG_COUNT = 0,
+                OPERATOR_ID = 0,
+                OPERATOR_SOURCE = "",
+                DATES_SOURCE = "",
+                DEPARTING_FROM_DEFAULT = "",
+                RETURNING_TO_DEFAULT = "",
+                DEPARTURE_TIME_DEFAULT = "",
+                RETURN_TIME_DEFAULT = "",
+                WAYPOINT_SOURCE = "",
+                WAYPOINT_OPTIONS = [],
+                WAYPOINT_SELECTIONS = []
+            };
+            var routeInstanceId = val(pickValue(arguments.floatPlan, ["ROUTE_INSTANCE_ID", "route_instance_id"], 0));
+            var routeDayNumber = val(pickValue(arguments.floatPlan, ["ROUTE_DAY_NUMBER", "route_day_number"], 0));
+            var qInst = queryNew("");
+            var qLegs = queryNew("");
+            var routeInputs = {};
+            var routeTypeRaw = "";
+            var routeStartDate = "";
+            var startDateSource = "";
+            var legCount = 0;
+            var i = 0;
+            var routeType = "";
+            var routeIdFromInput = 0;
+            var waypointById = {};
+            var waypointByName = {};
+            var waypointNameKey = "";
+            var wp = {};
+            var routeOptions = [];
+            var routeSelections = [];
+            var uniqueIds = {};
+            var routeWaypointIds = [];
+            var qCustomLegs = queryNew("");
+            var candidateNames = [];
+            var legStartName = "";
+            var legEndName = "";
+            var candidateName = "";
+            var seenNameKeys = {};
+            var selectedId = 0;
+            var optionEntry = {};
+            var selectionEntry = {};
+            var nextVirtualId = -900000;
+            var arrTime = "";
+            var depTime = "";
+
+            if (routeInstanceId LTE 0) {
+                return defaults;
+            }
+
+            defaults.IS_FROM_ROUTE = true;
+            defaults.ROUTE_INSTANCE_ID = routeInstanceId;
+            defaults.ROUTE_DAY_NUMBER = routeDayNumber;
+
+            qInst = queryExecute(
+                "SELECT id, generated_route_code, routegen_inputs_json
+                 FROM route_instances
+                 WHERE id = :routeInstanceId
+                   AND user_id = :userId
+                 LIMIT 1",
+                {
+                    routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                },
+                { datasource = "fpw" }
+            );
+            if (qInst.recordCount EQ 0) {
+                return defaults;
+            }
+
+            defaults.ROUTE_CODE = (isNull(qInst.generated_route_code[1]) ? "" : trim(toString(qInst.generated_route_code[1])));
+            routeInputs = parseRouteInputs(isNull(qInst.routegen_inputs_json[1]) ? "" : qInst.routegen_inputs_json[1]);
+
+            routeTypeRaw = lCase(trim(toString(structKeyExists(routeInputs, "route_type") ? routeInputs.route_type : "")));
+            if (routeTypeRaw EQ "my_route" OR routeTypeRaw EQ "my_routes" OR routeTypeRaw EQ "custom") {
+                routeType = "custom";
+            } else {
+                routeType = "template";
+            }
+            defaults.ROUTE_TYPE = routeType;
+
+            routeStartDate = normalizeIsoDate(toString(structKeyExists(routeInputs, "start_date") ? routeInputs.start_date : ""));
+            if (len(routeStartDate)) {
+                startDateSource = "route_start_date";
+            } else {
+                routeStartDate = dateFormat(now(), "yyyy-mm-dd");
+                startDateSource = "fallback_today_noon";
+            }
+            defaults.ROUTE_START_DATE = routeStartDate;
+            defaults.DATES_SOURCE = startDateSource;
+
+            qLegs = queryExecute(
+                "SELECT leg_order, start_name, end_name
+                 FROM route_instance_legs
+                 WHERE route_instance_id = :routeInstanceId
+                 ORDER BY leg_order ASC, id ASC",
+                {
+                    routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+            legCount = qLegs.recordCount;
+            defaults.LEG_COUNT = legCount;
+            if (legCount GT 0) {
+                defaults.DEPARTING_FROM_DEFAULT = (isNull(qLegs.start_name[1]) ? "" : trim(toString(qLegs.start_name[1])));
+                defaults.RETURNING_TO_DEFAULT = (isNull(qLegs.end_name[legCount]) ? "" : trim(toString(qLegs.end_name[legCount])));
+            }
+
+            defaults.DEPARTURE_TIME_DEFAULT = buildNoonTimestampFromIsoDate(routeStartDate, 0);
+            defaults.RETURN_TIME_DEFAULT = buildNoonTimestampFromIsoDate(routeStartDate, legCount);
+
+            if (val(arguments.floatPlan.OPERATORID) GT 0) {
+                defaults.OPERATOR_ID = val(arguments.floatPlan.OPERATORID);
+                defaults.OPERATOR_SOURCE = "existing_plan";
+            } else if (arrayLen(arguments.operators) GT 0 AND val(arguments.operators[1].OPERATORID) GT 0) {
+                defaults.OPERATOR_ID = val(arguments.operators[1].OPERATORID);
+                defaults.OPERATOR_SOURCE = "first_available";
+            } else {
+                defaults.OPERATOR_ID = 0;
+                defaults.OPERATOR_SOURCE = "none_available";
+            }
+
+            for (i = 1; i LTE arrayLen(arguments.waypoints); i++) {
+                wp = arguments.waypoints[i];
+                selectedId = val(wp.WAYPOINTID);
+                if (selectedId GT 0) {
+                    waypointById[toString(selectedId)] = wp;
+                }
+                waypointNameKey = lCase(trim(toString(wp.WAYPOINTNAME)));
+                if (len(waypointNameKey) AND !structKeyExists(waypointByName, waypointNameKey)) {
+                    waypointByName[waypointNameKey] = wp;
+                }
+            }
+
+            if (routeType EQ "custom") {
+                routeIdFromInput = val(structKeyExists(routeInputs, "route_id") ? routeInputs.route_id : 0);
+                if (routeIdFromInput GT 0 AND hasUserRouteWaypointColumns()) {
+                    qCustomLegs = queryExecute(
+                        "SELECT start_waypoint_id, end_waypoint_id
+                         FROM user_route_legs
+                         WHERE user_route_id = :routeId
+                         ORDER BY order_index ASC, id ASC",
+                        {
+                            routeId = { value = routeIdFromInput, cfsqltype = "cf_sql_integer" }
+                        },
+                        { datasource = "fpw" }
+                    );
+                    if (qCustomLegs.recordCount GT 0) {
+                        selectedId = (isNull(qCustomLegs.start_waypoint_id[1]) ? 0 : val(qCustomLegs.start_waypoint_id[1]));
+                        if (selectedId GT 0) {
+                            arrayAppend(routeWaypointIds, selectedId);
+                        }
+                        for (i = 1; i LTE qCustomLegs.recordCount; i++) {
+                            selectedId = (isNull(qCustomLegs.end_waypoint_id[i]) ? 0 : val(qCustomLegs.end_waypoint_id[i]));
+                            if (selectedId GT 0) {
+                                arrayAppend(routeWaypointIds, selectedId);
+                            }
+                        }
+                    }
+                }
+
+                for (i = 1; i LTE arrayLen(routeWaypointIds); i++) {
+                    selectedId = val(routeWaypointIds[i]);
+                    if (selectedId LTE 0) {
+                        continue;
+                    }
+                    if (structKeyExists(uniqueIds, toString(selectedId))) {
+                        continue;
+                    }
+                    uniqueIds[toString(selectedId)] = true;
+                    if (structKeyExists(waypointById, toString(selectedId))) {
+                        optionEntry = duplicate(waypointById[toString(selectedId)]);
+                        optionEntry.IS_ROUTE_DEFAULT = true;
+                        arrayAppend(routeOptions, optionEntry);
+                        arrayAppend(routeSelections, {
+                            WAYPOINTID = selectedId,
+                            SORT_ORDER = arrayLen(routeSelections) + 1,
+                            REASON_FOR_STOP = "",
+                            DEPART_MODE = "",
+                            ARRIVAL_TIME = "",
+                            DEPARTURE_TIME = ""
+                        });
+                    }
+                }
+
+                if (!arrayLen(routeOptions) AND legCount GT 0) {
+                    arrayAppend(candidateNames, (isNull(qLegs.start_name[1]) ? "" : trim(toString(qLegs.start_name[1]))));
+                    for (i = 1; i LTE legCount; i++) {
+                        arrayAppend(candidateNames, (isNull(qLegs.end_name[i]) ? "" : trim(toString(qLegs.end_name[i]))));
+                    }
+                    for (i = 1; i LTE arrayLen(candidateNames); i++) {
+                        candidateName = trim(toString(candidateNames[i]));
+                        if (!len(candidateName)) {
+                            continue;
+                        }
+                        waypointNameKey = lCase(candidateName);
+                        if (structKeyExists(seenNameKeys, waypointNameKey)) {
+                            continue;
+                        }
+                        seenNameKeys[waypointNameKey] = true;
+                        if (structKeyExists(waypointByName, waypointNameKey)) {
+                            selectedId = val(waypointByName[waypointNameKey].WAYPOINTID);
+                            if (structKeyExists(uniqueIds, toString(selectedId))) {
+                                continue;
+                            }
+                            uniqueIds[toString(selectedId)] = true;
+                            optionEntry = duplicate(waypointByName[waypointNameKey]);
+                            optionEntry.IS_ROUTE_DEFAULT = true;
+                            arrayAppend(routeOptions, optionEntry);
+                            arrayAppend(routeSelections, {
+                                WAYPOINTID = selectedId,
+                                SORT_ORDER = arrayLen(routeSelections) + 1,
+                                REASON_FOR_STOP = "",
+                                DEPART_MODE = "",
+                                ARRIVAL_TIME = "",
+                                DEPARTURE_TIME = ""
+                            });
+                        } else {
+                            optionEntry = {
+                                WAYPOINTID = nextVirtualId,
+                                WAYPOINTNAME = candidateName,
+                                LATITUDE = "",
+                                LONGITUDE = "",
+                                NOTES = "",
+                                IS_ROUTE_DEFAULT = true,
+                                IS_ROUTE_VIRTUAL = true
+                            };
+                            arrayAppend(routeOptions, optionEntry);
+                            arrayAppend(routeSelections, {
+                                WAYPOINTID = nextVirtualId,
+                                SORT_ORDER = arrayLen(routeSelections) + 1,
+                                REASON_FOR_STOP = "",
+                                DEPART_MODE = "",
+                                ARRIVAL_TIME = "",
+                                DEPARTURE_TIME = ""
+                            });
+                            nextVirtualId = nextVirtualId - 1;
+                        }
+                    }
+                }
+
+                defaults.WAYPOINT_SOURCE = (arrayLen(routeOptions) ? "custom_route_ordered" : "none");
+            } else {
+                for (i = 1; i LTE legCount; i++) {
+                    legStartName = (isNull(qLegs.start_name[i]) ? "" : trim(toString(qLegs.start_name[i])));
+                    legEndName = (isNull(qLegs.end_name[i]) ? "" : trim(toString(qLegs.end_name[i])));
+                    optionEntry = {
+                        WAYPOINTID = nextVirtualId,
+                        WAYPOINTNAME = "Leg " & i & ": " & (len(legStartName) ? legStartName : "Start") & " -> " & (len(legEndName) ? legEndName : "End"),
+                        LATITUDE = "",
+                        LONGITUDE = "",
+                        NOTES = "",
+                        IS_ROUTE_DEFAULT = true,
+                        IS_ROUTE_TEMPLATE_LEG = true
+                    };
+                    arrayAppend(routeOptions, optionEntry);
+                    arrTime = buildNoonTimestampFromIsoDate(routeStartDate, i);
+                    depTime = arrTime;
+                    selectionEntry = {
+                        WAYPOINTID = nextVirtualId,
+                        SORT_ORDER = i,
+                        REASON_FOR_STOP = "",
+                        DEPART_MODE = "",
+                        ARRIVAL_TIME = arrTime,
+                        DEPARTURE_TIME = depTime
+                    };
+                    arrayAppend(routeSelections, selectionEntry);
+                    nextVirtualId = nextVirtualId - 1;
+                }
+                defaults.WAYPOINT_SOURCE = (arrayLen(routeOptions) ? "template_leg_entries" : "none");
+            }
+
+            defaults.WAYPOINT_OPTIONS = routeOptions;
+            defaults.WAYPOINT_SELECTIONS = routeSelections;
+            return defaults;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="hasUserRouteWaypointColumns" access="private" returntype="boolean" output="false">
+        <cfscript>
+            var qCol = queryNew("");
+            if (structKeyExists(request, "hasUserRouteWaypointColumns")) {
+                return request.hasUserRouteWaypointColumns;
+            }
+            qCol = queryExecute(
+                "SELECT COUNT(*) AS cnt
+                 FROM information_schema.columns
+                 WHERE table_schema = DATABASE()
+                   AND table_name = 'user_route_legs'
+                   AND column_name IN ('start_waypoint_id', 'end_waypoint_id')",
+                {},
+                { datasource = "fpw" }
+            );
+            request.hasUserRouteWaypointColumns = (qCol.recordCount GT 0 AND val(qCol.cnt[1]) GTE 2);
+            return request.hasUserRouteWaypointColumns;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="parseRouteInputs" access="private" returntype="struct" output="false">
+        <cfargument name="rawJson" required="false" default="">
+        <cfscript>
+            var parsed = {};
+            var raw = trim(toString(arguments.rawJson));
+            if (!len(raw)) {
+                return {};
+            }
+            try {
+                parsed = deserializeJSON(raw, false);
+                if (isStruct(parsed)) {
+                    return parsed;
+                }
+            } catch (any ignored) {}
+            return {};
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeIsoDate" access="private" returntype="string" output="false">
+        <cfargument name="value" required="true">
+        <cfscript>
+            var raw = trim(toString(arguments.value));
+            if (!len(raw)) {
+                return "";
+            }
+            if (reFind("^\d{4}-\d{2}-\d{2}$", raw)) {
+                return raw;
+            }
+            if (reFind("^\d{4}-\d{2}-\d{2}T", raw)) {
+                return left(raw, 10);
+            }
+            if (isDate(raw)) {
+                return dateFormat(parseDateTime(raw), "yyyy-mm-dd");
+            }
+            return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildNoonTimestampFromIsoDate" access="private" returntype="string" output="false">
+        <cfargument name="isoDate" type="string" required="true">
+        <cfargument name="dayOffset" type="numeric" required="false" default="0">
+        <cfscript>
+            var d = trim(arguments.isoDate);
+            var y = 0;
+            var m = 0;
+            var dayNum = 0;
+            var dt = "";
+            if (!reFind("^\d{4}-\d{2}-\d{2}$", d)) {
+                return "";
+            }
+            y = val(left(d, 4));
+            m = val(mid(d, 6, 2));
+            dayNum = val(right(d, 2));
+            if (y LTE 0 OR m LTE 0 OR dayNum LTE 0) {
+                return "";
+            }
+            dt = createDateTime(y, m, dayNum, 12, 0, 0);
+            dt = dateAdd("d", val(arguments.dayOffset), dt);
+            return dateFormat(dt, "yyyy-mm-dd") & " " & timeFormat(dt, "HH:mm:ss");
         </cfscript>
     </cffunction>
 

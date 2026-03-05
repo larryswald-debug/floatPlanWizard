@@ -1780,6 +1780,18 @@
       return BASE_PATH + "/api/v1/routeBuilder.cfc?" + query;
     }
 
+    function voyageUrl(action, params) {
+      var query = "method=handle&action=" + encodeURIComponent(action) + "&returnformat=json";
+      var k;
+      params = params || {};
+      for (k in params) {
+        if (!Object.prototype.hasOwnProperty.call(params, k)) continue;
+        if (params[k] === undefined || params[k] === null || params[k] === "") continue;
+        query += "&" + encodeURIComponent(k) + "=" + encodeURIComponent(params[k]);
+      }
+      return BASE_PATH + "/api/v1/voyage.cfc?" + query;
+    }
+
     function setState(stateName, message) {
       toggleHidden(loadingEl, stateName !== "loading");
       toggleHidden(unauthorizedEl, stateName !== "unauthorized");
@@ -1839,17 +1851,26 @@
       routeListEl.innerHTML = list.map(function (route) {
         var totals = route && route.TOTALS ? route.TOTALS : {};
         var isActive = route && route.SHORT_CODE && activeCode && route.SHORT_CODE === activeCode;
+        var routeInstanceId = route && route.ROUTE_INSTANCE_ID !== undefined && route.ROUTE_INSTANCE_ID !== null
+          ? parseInt(route.ROUTE_INSTANCE_ID, 10)
+          : (route && route.route_instance_id !== undefined && route.route_instance_id !== null
+            ? parseInt(route.route_instance_id, 10)
+            : 0);
         var pct = Number.isFinite(parseFloat(totals.PCT_COMPLETE)) ? Math.round(parseFloat(totals.PCT_COMPLETE)) : 0;
         var nm = Number.isFinite(parseFloat(totals.TOTAL_NM)) ? parseFloat(totals.TOTAL_NM) : 0;
         var locks = Number.isFinite(parseFloat(totals.TOTAL_LOCKS)) ? parseFloat(totals.TOTAL_LOCKS) : 0;
+        var routeInstanceAttr = Number.isFinite(routeInstanceId) && routeInstanceId > 0
+          ? ' data-route-instance-id="' + routeInstanceId + '"'
+          : "";
         return ''
-          + '<div class="expedition-route-card ' + (isActive ? 'is-active' : '') + '" data-route-code="' + escapeHtml(route.SHORT_CODE || "") + '">'
+          + '<div class="expedition-route-card ' + (isActive ? 'is-active' : '') + '" data-route-code="' + escapeHtml(route.SHORT_CODE || "") + '"' + routeInstanceAttr + '>'
           + '  <div>'
           + '    <div class="expedition-route-name">' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</div>'
           + '    <div class="expedition-route-meta">' + pct + '% complete • ' + formatNumber(nm, 1) + ' NM • ' + formatNumber(locks, 0) + ' locks</div>'
           + '  </div>'
           + '  <div class="expedition-route-actions">'
           + '    <button type="button" class="btn-secondary js-expedition-build-floatplans">Build Float Plans</button>'
+          + '    <button type="button" class="btn-secondary js-expedition-follower-page">Follower Page</button>'
           + '    <button type="button" class="btn-secondary js-expedition-view-edit">View / Edit</button>'
           + '    <button type="button" class="btn-secondary js-expedition-delete">Delete</button>'
           + '  </div>'
@@ -1906,6 +1927,159 @@
           rebuild: rebuild ? 1 : 0
         })
       });
+    }
+
+    function requestEnsureFollowerPage(routeCode, routeInstanceId) {
+      var body = { routeCode: routeCode };
+      var rid = parseInt(routeInstanceId, 10);
+      if (Number.isFinite(rid) && rid > 0) {
+        body.routeInstanceId = rid;
+      }
+      return fetchJson(voyageUrl("ownerEnsureStream"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json; charset=utf-8"
+        },
+        body: JSON.stringify(body)
+      });
+    }
+
+    function payloadSuccess(payload) {
+      if (!payload) return false;
+      if (payload.ok === true || payload.success === true || payload.SUCCESS === true) return true;
+      return false;
+    }
+
+    function payloadCode(payload) {
+      if (!payload) return "";
+      if (payload.code !== undefined && payload.code !== null && payload.code !== "") return String(payload.code).toUpperCase();
+      if (payload.CODE !== undefined && payload.CODE !== null && payload.CODE !== "") return String(payload.CODE).toUpperCase();
+      if (payload.ERROR && payload.ERROR.CODE) return String(payload.ERROR.CODE).toUpperCase();
+      return "";
+    }
+
+    function payloadMessage(payload, fallbackText) {
+      if (payload && payload.message !== undefined && payload.message !== null && payload.message !== "") {
+        return String(payload.message);
+      }
+      if (payload && payload.MESSAGE !== undefined && payload.MESSAGE !== null && payload.MESSAGE !== "") {
+        return String(payload.MESSAGE);
+      }
+      if (payload && payload.ERROR && payload.ERROR.MESSAGE) {
+        return String(payload.ERROR.MESSAGE);
+      }
+      return fallbackText || "Request failed.";
+    }
+
+    function payloadData(payload) {
+      if (!payload || typeof payload !== "object") return {};
+      if (payload.data && typeof payload.data === "object") return payload.data;
+      if (payload.DATA && typeof payload.DATA === "object") return payload.DATA;
+      return payload;
+    }
+
+    function showActionError(actionName, routeCode, payloadOrError, fallbackText) {
+      var routeLabel = routeCode || "unknown route";
+      var message = fallbackText || "Request failed.";
+      if (payloadOrError) {
+        if (payloadOrError.message) {
+          message = String(payloadOrError.message);
+        } else if (typeof payloadOrError === "object") {
+          message = payloadMessage(payloadOrError, fallbackText || message);
+        }
+      }
+      var fullMessage = actionName + " failed for route " + routeLabel + ": " + message;
+      if (utils && typeof utils.showDashboardAlert === "function") {
+        utils.showDashboardAlert(fullMessage, "danger");
+        return;
+      }
+      if (utils && typeof utils.showAlertModal === "function") {
+        utils.showAlertModal(fullMessage);
+        return;
+      }
+      setState("error", fullMessage);
+    }
+
+    function copyFollowerUrl(followUrl) {
+      if (!followUrl) return Promise.resolve(false);
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        return navigator.clipboard.writeText(followUrl)
+          .then(function () { return true; })
+          .catch(function () { return false; });
+      }
+      return Promise.resolve(false);
+    }
+
+    function openFollowerUrlWithCopy(followUrl) {
+      if (!followUrl) return Promise.resolve(false);
+      window.open(followUrl, "_blank", "noopener");
+      return copyFollowerUrl(followUrl)
+        .then(function (copied) {
+          if (copied) return true;
+          window.prompt("Copy follower page link:", followUrl);
+          return false;
+        });
+    }
+
+    function ensureFollowerPage(routeCode, routeInstanceId, triggerButton) {
+      var originalText = "";
+      if (!routeCode) return Promise.resolve();
+      if (triggerButton) {
+        originalText = triggerButton.textContent;
+        triggerButton.disabled = true;
+        triggerButton.textContent = "Creating...";
+      }
+
+      return requestEnsureFollowerPage(routeCode, routeInstanceId)
+        .then(function (ensurePayload) {
+          if (payloadSuccess(ensurePayload)) {
+            return ensurePayload;
+          }
+
+          var code = payloadCode(ensurePayload);
+          if (code.indexOf("NO_FLOATPLAN") === -1) {
+            throw ensurePayload || new Error("Unable to prepare follower page.");
+          }
+
+          return requestBuildFloatPlans(routeCode, false)
+            .then(function (buildPayload) {
+              if (!buildPayload || buildPayload.SUCCESS === false) {
+                throw buildPayload || new Error("Unable to build float plans from route.");
+              }
+              return requestEnsureFollowerPage(routeCode, routeInstanceId);
+            });
+        })
+        .then(function (ensurePayload) {
+          if (!payloadSuccess(ensurePayload)) {
+            throw ensurePayload || new Error("Unable to prepare follower page.");
+          }
+          var data = payloadData(ensurePayload);
+          var followUrl = data && data.follow && data.follow.url ? data.follow.url : "";
+          if (!followUrl && data && data.follow && data.follow.path) {
+            followUrl = window.location.origin + data.follow.path;
+          }
+          if (!followUrl) {
+            throw new Error("Follower page URL is missing from ownerEnsureStream response.");
+          }
+          return openFollowerUrlWithCopy(followUrl)
+            .then(function (copied) {
+              if (utils && typeof utils.showDashboardAlert === "function") {
+                utils.showDashboardAlert(
+                  copied ? "Follower page ready. Link copied to clipboard." : "Follower page ready. Copy link dialog shown.",
+                  "success"
+                );
+              }
+            });
+        })
+        .catch(function (errOrPayload) {
+          showActionError("Follower Page", routeCode, errOrPayload, "Unable to create follower page.");
+        })
+        .finally(function () {
+          if (triggerButton) {
+            triggerButton.disabled = false;
+            triggerButton.textContent = originalText || "Follower Page";
+          }
+        });
     }
 
     function buildFloatPlans(routeCode, triggerButton) {
@@ -2081,6 +2255,12 @@
           }
           if (target.classList.contains("js-expedition-build-floatplans")) {
             buildFloatPlans(routeCode, target);
+            return;
+          }
+          if (target.classList.contains("js-expedition-follower-page")) {
+            var routeInstanceId = parseInt(card.getAttribute("data-route-instance-id") || "0", 10);
+            if (!Number.isFinite(routeInstanceId)) routeInstanceId = 0;
+            ensureFollowerPage(routeCode, routeInstanceId, target);
             return;
           }
           if (target.classList.contains("js-expedition-delete")) {

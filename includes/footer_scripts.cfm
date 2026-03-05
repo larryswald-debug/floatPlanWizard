@@ -4,5 +4,5 @@
   integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
   crossorigin="anonymous"></script>
 
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/api.js?v=20260227c"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth.js?v=20260227c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/api.js?v=20260305a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth.js?v=20260305a"></script>

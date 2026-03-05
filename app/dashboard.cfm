@@ -835,17 +835,21 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label class="form-label" for="vesselMaxSpeed">Max Speed (KPH)</label>
                             <input type="number" class="form-control" id="vesselMaxSpeed" min="0" step="0.01" inputmode="decimal">
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label class="form-label" for="vesselMostEfficientSpeed">Most Efficient Speed (KPH)</label>
                             <input type="number" class="form-control" id="vesselMostEfficientSpeed" min="0" step="0.01" inputmode="decimal">
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label" for="vesselGallonsPerHour">GPH@efficeint</label>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label" for="vesselGallonsPerHour">GPH@efficient</label>
                             <input type="number" class="form-control" id="vesselGallonsPerHour" min="0" step="0.01" inputmode="decimal">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label" for="vesselGphAtMaxSpeed">GPH@max</label>
+                            <input type="number" class="form-control" id="vesselGphAtMaxSpeed" min="0" step="0.01" inputmode="decimal">
                         </div>
                     </div>
                     <div class="row">
@@ -1417,7 +1421,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260227c"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js?v=20260227c"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260302g"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260304a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260227c"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js?v=20260227c"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js?v=20260227c"></script>
@@ -1427,7 +1431,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20260301b"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260301b"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260301a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260304a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260304c"></script>
 
 <!-- Dashboard-specific JS -->
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260303b"></script>
