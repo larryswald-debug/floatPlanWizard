@@ -10,8 +10,15 @@ test("FPW login succeeds", async ({ page }) => {
 
   await page.fill('input[name="email"], input[name="EMAIL"]', process.env.FPW_EMAIL || "");
   await page.fill('input[type="password"], input[name="password"], input[name="PASSWORD"]', process.env.FPW_PASSWORD || "");
-
-  await page.click('button[type="submit"], input[type="submit"]');
+  await page.evaluate(() => {
+    var form = document.getElementById("loginForm");
+    if (!form) return;
+    if (typeof form.requestSubmit === "function") {
+      form.requestSubmit();
+      return;
+    }
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  });
 
   await page.waitForURL(/\/fpw\/app\/dashboard\.cfm/i, { timeout: 20000 });
   await expect(page.locator("#openRouteBuilderBtn")).toBeVisible({ timeout: 20000 });

@@ -179,7 +179,9 @@
                 cachedEnvelope = cacheGetEnvelope("nwsForecast", cacheKey);
                 if (isStruct(cachedEnvelope) AND structCount(cachedEnvelope) GT 0) {
                     payload = (structKeyExists(cachedEnvelope, "data") AND isStruct(cachedEnvelope.data) ? cachedEnvelope.data : {});
-                    return mergePayloadWithCacheMeta(payload, cachedEnvelope, cacheKey, ttl, true, false);
+                    if (isUsableForecastPayload(payload)) {
+                        return mergePayloadWithCacheMeta(payload, cachedEnvelope, cacheKey, ttl, true, false);
+                    }
                 }
             }
 
@@ -189,6 +191,10 @@
                 payload = fetchForecastPayload(norm.lat, norm.lng);
             }
             if (!isStruct(payload)) payload = {};
+
+            if (!isUsableForecastPayload(payload)) {
+                return mergePayloadWithCacheMeta(payload, {}, cacheKey, ttl, false, arguments.bypassCache);
+            }
 
             httpMeta = deriveForecastHttpMeta(payload);
             envelope = buildEnvelope(cacheKey, "api.weather.gov", payload, ttl, httpMeta);
@@ -216,7 +222,9 @@
                 cachedEnvelope = cacheGetEnvelope("nwsAlerts", cacheKey);
                 if (isStruct(cachedEnvelope) AND structCount(cachedEnvelope) GT 0) {
                     payload = (structKeyExists(cachedEnvelope, "data") AND isStruct(cachedEnvelope.data) ? cachedEnvelope.data : {});
-                    return mergePayloadWithCacheMeta(payload, cachedEnvelope, cacheKey, ttl, true, false);
+                    if (isUsableAlertsPayload(payload)) {
+                        return mergePayloadWithCacheMeta(payload, cachedEnvelope, cacheKey, ttl, true, false);
+                    }
                 }
             }
 
@@ -226,6 +234,10 @@
                 payload = fetchAlertsPayload(norm.lat, norm.lng);
             }
             if (!isStruct(payload)) payload = {};
+
+            if (!isUsableAlertsPayload(payload)) {
+                return mergePayloadWithCacheMeta(payload, {}, cacheKey, ttl, false, arguments.bypassCache);
+            }
 
             httpMeta = deriveAlertsHttpMeta(payload);
             envelope = buildEnvelope(cacheKey, "api.weather.gov", payload, ttl, httpMeta);
@@ -1137,6 +1149,56 @@
             }
             if (!structKeyExists(out, "status")) out.status = 0;
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="isUsableForecastPayload" access="private" returntype="boolean" output="false">
+        <cfargument name="payload" type="any" required="true">
+        <cfscript>
+            var status = 0;
+            if (!isStruct(arguments.payload)) return false;
+
+            if (structKeyExists(arguments.payload, "success")) {
+                if (isBoolean(arguments.payload.success)) return arguments.payload.success;
+                if (isNumeric(arguments.payload.success)) return (val(arguments.payload.success) EQ 1);
+                if (isSimpleValue(arguments.payload.success)) {
+                    return (compareNoCase(trim(toString(arguments.payload.success)), "true") EQ 0);
+                }
+                return false;
+            }
+
+            status = (structKeyExists(arguments.payload, "forecast_status") ? val(arguments.payload.forecast_status) : 0);
+            if (status GTE 200 AND status LT 300) {
+                if (structKeyExists(arguments.payload, "forecast_body") AND len(trim(toString(arguments.payload.forecast_body)))) {
+                    return true;
+                }
+            }
+            return false;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="isUsableAlertsPayload" access="private" returntype="boolean" output="false">
+        <cfargument name="payload" type="any" required="true">
+        <cfscript>
+            var status = 0;
+            if (!isStruct(arguments.payload)) return false;
+
+            if (structKeyExists(arguments.payload, "success")) {
+                if (isBoolean(arguments.payload.success)) return arguments.payload.success;
+                if (isNumeric(arguments.payload.success)) return (val(arguments.payload.success) EQ 1);
+                if (isSimpleValue(arguments.payload.success)) {
+                    return (compareNoCase(trim(toString(arguments.payload.success)), "true") EQ 0);
+                }
+                return false;
+            }
+
+            status = (structKeyExists(arguments.payload, "status") ? val(arguments.payload.status) : 0);
+            if (status GTE 200 AND status LT 300) {
+                if (structKeyExists(arguments.payload, "body") AND len(trim(toString(arguments.payload.body)))) {
+                    return true;
+                }
+            }
+            return false;
         </cfscript>
     </cffunction>
 

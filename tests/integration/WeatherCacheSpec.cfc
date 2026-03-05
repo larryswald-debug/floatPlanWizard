@@ -223,6 +223,61 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( toString( firstRes.cache_meta.key ) ).toBe( toString( secondRes.cache_meta.key ) );
       } );
 
+      it( "does not cache failed forecast payloads", function() {
+        clearUnifiedWeatherCacheStore();
+        var weatherCache = newWeatherCacheService();
+        var fetchCalls = 0;
+        var fetcher = function( required numeric lat, required numeric lng ) {
+          fetchCalls = fetchCalls + 1;
+          return {
+            "success" = false,
+            "source" = "NWS",
+            "step" = "forecast",
+            "points_url" = "https://api.weather.gov/points/" & lat & "," & lng,
+            "forecast_url" = "https://example.test/forecast",
+            "points_status" = 200,
+            "forecast_status" = 0,
+            "forecast_body" = "",
+            "note" = "timeout"
+          };
+        };
+
+        var firstRes = weatherCache.getNwsForecastCached( 27.98144, -82.73144, 900, false, fetcher );
+        var secondRes = weatherCache.getNwsForecastCached( 27.98144, -82.73144, 900, false, fetcher );
+
+        expect( fetchCalls ).toBe( 2 );
+        expect( structKeyExists( firstRes, "cache_meta" ) ).toBeTrue( "First failed forecast result missing cache_meta: #serializeJSON(firstRes)#" );
+        expect( structKeyExists( secondRes, "cache_meta" ) ).toBeTrue( "Second failed forecast result missing cache_meta: #serializeJSON(secondRes)#" );
+        expect( !!firstRes.cache_meta.hit ).toBeFalse( "Failed forecast should not be cached on first call: #serializeJSON(firstRes)#" );
+        expect( !!secondRes.cache_meta.hit ).toBeFalse( "Failed forecast should not be served from cache on second call: #serializeJSON(secondRes)#" );
+      } );
+
+      it( "does not cache failed alerts payloads", function() {
+        clearUnifiedWeatherCacheStore();
+        var weatherCache = newWeatherCacheService();
+        var fetchCalls = 0;
+        var fetcher = function( required numeric lat, required numeric lng ) {
+          fetchCalls = fetchCalls + 1;
+          return {
+            "success" = false,
+            "source" = "NWS",
+            "url" = "https://api.weather.gov/alerts/active?point=" & lat & "," & lng,
+            "status" = 0,
+            "body" = "",
+            "note" = "timeout"
+          };
+        };
+
+        var firstRes = weatherCache.getNwsAlertsCached( 27.98144, -82.73144, 300, false, fetcher );
+        var secondRes = weatherCache.getNwsAlertsCached( 27.98144, -82.73144, 300, false, fetcher );
+
+        expect( fetchCalls ).toBe( 2 );
+        expect( structKeyExists( firstRes, "cache_meta" ) ).toBeTrue( "First failed alerts result missing cache_meta: #serializeJSON(firstRes)#" );
+        expect( structKeyExists( secondRes, "cache_meta" ) ).toBeTrue( "Second failed alerts result missing cache_meta: #serializeJSON(secondRes)#" );
+        expect( !!firstRes.cache_meta.hit ).toBeFalse( "Failed alerts should not be cached on first call: #serializeJSON(firstRes)#" );
+        expect( !!secondRes.cache_meta.hit ).toBeFalse( "Failed alerts should not be served from cache on second call: #serializeJSON(secondRes)#" );
+      } );
+
     } );
   }
 
