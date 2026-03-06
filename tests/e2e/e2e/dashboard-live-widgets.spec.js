@@ -1,8 +1,5 @@
-require("./test-hooks");
-
-if (!process.env.FPW_EMAIL || !process.env.FPW_PASSWORD) {
-  throw new Error("Missing FPW_EMAIL / FPW_PASSWORD env vars");
-}
+const { loginAsTestUser, requireCredentials } = require("./test-hooks");
+requireCredentials();
 
 const { test, expect } = require("@playwright/test");
 
@@ -77,18 +74,7 @@ function successPayload(zip) {
 }
 
 async function loginToDashboard(page) {
-  await page.goto("/fpw/index.cfm", { waitUntil: "domcontentloaded" });
-  await page.fill('input[name="email"], input[name="EMAIL"]', process.env.FPW_EMAIL || "");
-  await page.fill('input[type="password"], input[name="password"], input[name="PASSWORD"]', process.env.FPW_PASSWORD || "");
-  await page.evaluate(() => {
-    var form = document.getElementById("loginForm");
-    if (!form) return;
-    if (typeof form.requestSubmit === "function") {
-      form.requestSubmit();
-      return;
-    }
-    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-  });
+  await loginAsTestUser(page);
   await page.waitForLoadState("networkidle");
   await expect(page).not.toHaveURL(/index\.cfm$/i);
   await page.goto("/fpw/app/dashboard.cfm", { waitUntil: "domcontentloaded" });

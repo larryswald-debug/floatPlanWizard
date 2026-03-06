@@ -168,7 +168,7 @@
       }
       if (contactPhoneInput) {
         contactPhoneInput.addEventListener("input", function () {
-          contactPhoneInput.value = formatUsPhoneInput(contactPhoneInput.value);
+          contactPhoneInput.value = utils.formatUsPhoneInput(contactPhoneInput.value);
           utils.clearFieldError(contactPhoneInput, contactPhoneError);
         });
       }
@@ -244,31 +244,6 @@
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   }
 
-  function isValidPhone(value) {
-    if (!value) return false;
-    var digits = String(value).replace(/\D/g, "");
-    if (digits.length === 11 && digits.charAt(0) === "1") {
-      digits = digits.slice(1);
-    }
-    return digits.length === 10;
-  }
-
-  function formatUsPhoneInput(value) {
-    var digits = String(value || "").replace(/\D/g, "");
-    if (digits.charAt(0) === "1" && digits.length > 10) {
-      digits = digits.slice(1);
-    }
-    digits = digits.slice(0, 10);
-
-    if (digits.length <= 3) {
-      return digits.length ? "(" + digits : "";
-    }
-    if (digits.length <= 6) {
-      return "(" + digits.slice(0, 3) + ") " + digits.slice(3);
-    }
-    return "(" + digits.slice(0, 3) + ") " + digits.slice(3, 6) + "-" + digits.slice(6);
-  }
-
   function saveContact() {
     if (!window.Api || typeof window.Api.saveContact !== "function") {
       utils.showAlertModal("Contacts API is unavailable.");
@@ -285,7 +260,7 @@
     if (!payload.PHONE) {
       utils.setFieldError(contactPhoneInput, contactPhoneError, "Phone is required.");
       hasError = true;
-    } else if (!isValidPhone(payload.PHONE)) {
+    } else if (!utils.isValidPhone(payload.PHONE)) {
       utils.setFieldError(contactPhoneInput, contactPhoneError, "Enter a valid US phone number.");
       hasError = true;
     }

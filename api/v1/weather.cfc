@@ -235,60 +235,12 @@
         <cfset local.lat = local.anchor.LAT>
         <cfset local.lon = local.anchor.LON>
 
-        <cfset local.bypassCache = shouldBypassWeatherCache()>
-        <cfset local.noCache = ((isDefined("url.nocache") AND len(url.nocache) AND val(url.nocache) EQ 1) OR local.bypassCache)>
-        <cfset local.f = {} >
-        <cfset local.a = {} >
-        <cfset local.s = {} >
-        <cfset local.waveTest = resolveWaveTestOverride()>
-        <cfset local.m = getMarineDataCached(local.lat, local.lon, local.noCache, arguments.marineMode, "", { "bypassCache"=local.bypassCache, "ttlSeconds"=900 })>
-        <cfif local.waveTest.enabled>
-            <cfif NOT isStruct(local.m)>
-                <cfset local.m = {} >
-            </cfif>
-            <cfset local.m.wave_height_ft = local.waveTest.value>
-            <cfif NOT structKeyExists(local.m, "META") OR NOT isStruct(local.m.META)>
-                <cfset local.m.META = {} >
-            </cfif>
-            <cfset local.m.META.waveTestOverride = { "enabled"=true, "value"=local.waveTest.value }>
-        </cfif>
-
-        <cfif NOT arguments.marineOnly>
-            <cfset local.f = getNwsForecast(local.lat, local.lon, { "bypassCache"=local.bypassCache, "ttlSeconds"=900 })>
-            <cfset local.a = getNwsAlerts(local.lat, local.lon, { "bypassCache"=local.bypassCache, "ttlSeconds"=300 })>
-            <cfset local.s = getSurfaceObservations(local.lat, local.lon)>
-            <cfif structKeyExists(local.f, "FORECAST") AND isArray(local.f.FORECAST)>
-                <cfset local.out.FORECAST = local.f.FORECAST>
-            </cfif>
-            <cfif structKeyExists(local.a, "ALERTS") AND isArray(local.a.ALERTS)>
-                <cfset local.out.ALERTS = local.a.ALERTS>
-            </cfif>
-            <cfif isStruct(local.s)>
-                <cfset local.out.surface = local.s>
-            </cfif>
-            <cfset local.out.MAP_LAYERS = getNowCoastBaseLayers()>
-            <cfset local.out.SUMMARY = buildBoaterSummary(local.out.FORECAST, local.out.ALERTS)>
-        </cfif>
-
-        <cfif isStruct(local.m) AND structCount(local.m) GT 0>
-            <cfset local.out.MARINE = local.m>
-        </cfif>
-
-        <cfset local.out.META.anchor = { "lat"=local.lat, "lon"=local.lon }>
-        <cfset local.out.META.sources = {} >
-        <cfset local.out.META.sources.forecast = (NOT arguments.marineOnly AND structKeyExists(local.f,"META") ? local.f.META : {})>
-        <cfset local.out.META.sources.alerts   = (NOT arguments.marineOnly AND structKeyExists(local.a,"META") ? local.a.META : {})>
-        <cfset local.out.META.sources.surface  = (NOT arguments.marineOnly AND isStruct(local.s) ? { "source"="METAR" } : {})>
-        <cfset local.out.META.sources.marine   = (structKeyExists(local.m,"META") ? local.m.META : {})>
-        <cfif local.waveTest.enabled>
-            <cfif NOT isStruct(local.out.META.sources.marine)>
-                <cfset local.out.META.sources.marine = {} >
-            </cfif>
-            <cfset local.out.META.sources.marine.waveTestOverride = local.waveTest.value>
-        </cfif>
-
-        <cfset local.out.SUCCESS = true>
-        <cfset local.out.MESSAGE = "OK">
+        <cfset local.out = assembleWeatherResponse(
+            lat = local.lat,
+            lon = local.lon,
+            marineMode = arguments.marineMode,
+            marineOnly = arguments.marineOnly
+        )>
         <cfreturn local.out>
     </cffunction>
 
@@ -328,13 +280,53 @@
         <cfset local.lat = local.geo.LAT>
         <cfset local.lon = local.geo.LON>
 
+        <cfset local.out = assembleWeatherResponse(
+            lat = local.lat,
+            lon = local.lon,
+            marineMode = arguments.marineMode,
+            marineOnly = arguments.marineOnly,
+            marineZip = arguments.zip,
+            requestZip = arguments.zip,
+            includeGeocodeSource = true,
+            geocodeSourceMeta = (structKeyExists(local.geo, "META") ? local.geo.META : {})
+        )>
+        <cfreturn local.out>
+    </cffunction>
+
+    <cffunction name="assembleWeatherResponse" access="private" returntype="struct" output="false">
+        <cfargument name="lat" type="numeric" required="true">
+        <cfargument name="lon" type="numeric" required="true">
+        <cfargument name="marineMode" type="string" required="true">
+        <cfargument name="marineOnly" type="boolean" required="true">
+        <cfargument name="marineZip" type="string" required="false" default="">
+        <cfargument name="requestZip" type="string" required="false" default="">
+        <cfargument name="includeGeocodeSource" type="boolean" required="false" default="false">
+        <cfargument name="geocodeSourceMeta" type="struct" required="false" default="#{}#">
+
+        <cfset local.out = {
+            "SUCCESS"=false,
+            "MESSAGE"="",
+            "SUMMARY"="",
+            "FORECAST"=[],
+            "ALERTS"=[],
+            "MARINE"={},
+            "surface"={
+                "pressure_inhg"="",
+                "visibility_mi"="",
+                "station_id"="",
+                "observation_time"=""
+            },
+            "MAP_LAYERS"=[],
+            "META"={}
+        }>
         <cfset local.bypassCache = shouldBypassWeatherCache()>
         <cfset local.noCache = ((isDefined("url.nocache") AND len(url.nocache) AND val(url.nocache) EQ 1) OR local.bypassCache)>
         <cfset local.f = {} >
         <cfset local.a = {} >
         <cfset local.s = {} >
         <cfset local.waveTest = resolveWaveTestOverride()>
-        <cfset local.m = getMarineDataCached(local.lat, local.lon, local.noCache, arguments.marineMode, arguments.zip, { "bypassCache"=local.bypassCache, "ttlSeconds"=900 })>
+        <cfset local.m = getMarineDataCached(arguments.lat, arguments.lon, local.noCache, arguments.marineMode, arguments.marineZip, { "bypassCache"=local.bypassCache, "ttlSeconds"=900 })>
+
         <cfif local.waveTest.enabled>
             <cfif NOT isStruct(local.m)>
                 <cfset local.m = {} >
@@ -347,9 +339,9 @@
         </cfif>
 
         <cfif NOT arguments.marineOnly>
-            <cfset local.f = getNwsForecast(local.lat, local.lon, { "bypassCache"=local.bypassCache, "ttlSeconds"=900 })>
-            <cfset local.a = getNwsAlerts(local.lat, local.lon, { "bypassCache"=local.bypassCache, "ttlSeconds"=300 })>
-            <cfset local.s = getSurfaceObservations(local.lat, local.lon)>
+            <cfset local.f = getNwsForecast(arguments.lat, arguments.lon, { "bypassCache"=local.bypassCache, "ttlSeconds"=900 })>
+            <cfset local.a = getNwsAlerts(arguments.lat, arguments.lon, { "bypassCache"=local.bypassCache, "ttlSeconds"=300 })>
+            <cfset local.s = getSurfaceObservations(arguments.lat, arguments.lon)>
             <cfif structKeyExists(local.f, "FORECAST") AND isArray(local.f.FORECAST)>
                 <cfset local.out.FORECAST = local.f.FORECAST>
             </cfif>
@@ -367,14 +359,18 @@
             <cfset local.out.MARINE = local.m>
         </cfif>
 
-        <cfset local.out.META.anchor = { "lat"=local.lat, "lon"=local.lon }>
-        <cfset local.out.META.request = { "zip"=arguments.zip }>
+        <cfset local.out.META.anchor = { "lat"=arguments.lat, "lon"=arguments.lon }>
+        <cfif len(arguments.requestZip)>
+            <cfset local.out.META.request = { "zip"=arguments.requestZip }>
+        </cfif>
         <cfset local.out.META.sources = {} >
-        <cfset local.out.META.sources.geocode  = (structKeyExists(local.geo,"META") ? local.geo.META : {})>
-        <cfset local.out.META.sources.forecast = (NOT arguments.marineOnly AND structKeyExists(local.f,"META") ? local.f.META : {})>
-        <cfset local.out.META.sources.alerts   = (NOT arguments.marineOnly AND structKeyExists(local.a,"META") ? local.a.META : {})>
+        <cfif arguments.includeGeocodeSource>
+            <cfset local.out.META.sources.geocode = arguments.geocodeSourceMeta>
+        </cfif>
+        <cfset local.out.META.sources.forecast = (NOT arguments.marineOnly AND structKeyExists(local.f, "META") ? local.f.META : {})>
+        <cfset local.out.META.sources.alerts   = (NOT arguments.marineOnly AND structKeyExists(local.a, "META") ? local.a.META : {})>
         <cfset local.out.META.sources.surface  = (NOT arguments.marineOnly AND isStruct(local.s) ? { "source"="METAR" } : {})>
-        <cfset local.out.META.sources.marine   = (structKeyExists(local.m,"META") ? local.m.META : {})>
+        <cfset local.out.META.sources.marine   = (structKeyExists(local.m, "META") ? local.m.META : {})>
         <cfif local.waveTest.enabled>
             <cfif NOT isStruct(local.out.META.sources.marine)>
                 <cfset local.out.META.sources.marine = {} >
@@ -446,6 +442,21 @@
             <cfreturn local.r>
 
             <cfcatch>
+                <cflog
+                    file="fpw-weather"
+                    type="error"
+                    text="[FPW][WEATHER] resolveFloatPlanAnchor :: #cgi.script_name# :: #cfcatch.message# :: #left(toString(cfcatch.detail), 400)#">
+                <cfif NOT structKeyExists(local.r, "META") OR NOT isStruct(local.r.META)>
+                    <cfset local.r.META = {} >
+                </cfif>
+                <cfif NOT structKeyExists(local.r.META, "warnings") OR NOT isArray(local.r.META.warnings)>
+                    <cfset local.r.META.warnings = []>
+                </cfif>
+                <cfset arrayAppend(local.r.META.warnings, {
+                    "code"="WEATHER_EXCEPTION",
+                    "where"="resolveFloatPlanAnchor",
+                    "message"=cfcatch.message
+                })>
                 <cfset local.r.MESSAGE = "Anchor lookup failed: " & cfcatch.message>
                 <cfreturn local.r>
             </cfcatch>
@@ -530,6 +541,21 @@
                         </cfif>
                     </cfif>
                     <cfcatch>
+                        <cflog
+                            file="fpw-weather"
+                            type="error"
+                            text="[FPW][WEATHER] geocodeZip:census_deserialize :: #cgi.script_name# :: #cfcatch.message# :: #left(toString(cfcatch.detail), 400)#">
+                        <cfif NOT structKeyExists(local.r, "META") OR NOT isStruct(local.r.META)>
+                            <cfset local.r.META = {} >
+                        </cfif>
+                        <cfif NOT structKeyExists(local.r.META, "warnings") OR NOT isArray(local.r.META.warnings)>
+                            <cfset local.r.META.warnings = []>
+                        </cfif>
+                        <cfset arrayAppend(local.r.META.warnings, {
+                            "code"="WEATHER_EXCEPTION",
+                            "where"="geocodeZip:census_deserialize",
+                            "message"=cfcatch.message
+                        })>
                     </cfcatch>
                 </cftry>
             </cfif>
@@ -567,6 +593,21 @@
                         </cfif>
                     </cfif>
                     <cfcatch>
+                        <cflog
+                            file="fpw-weather"
+                            type="error"
+                            text="[FPW][WEATHER] geocodeZip:zippopotam_deserialize :: #cgi.script_name# :: #cfcatch.message# :: #left(toString(cfcatch.detail), 400)#">
+                        <cfif NOT structKeyExists(local.r, "META") OR NOT isStruct(local.r.META)>
+                            <cfset local.r.META = {} >
+                        </cfif>
+                        <cfif NOT structKeyExists(local.r.META, "warnings") OR NOT isArray(local.r.META.warnings)>
+                            <cfset local.r.META.warnings = []>
+                        </cfif>
+                        <cfset arrayAppend(local.r.META.warnings, {
+                            "code"="WEATHER_EXCEPTION",
+                            "where"="geocodeZip:zippopotam_deserialize",
+                            "message"=cfcatch.message
+                        })>
                     </cfcatch>
                 </cftry>
             </cfif>
@@ -867,6 +908,10 @@
         <cftry>
             <cfreturn parseDateTime(local.txt)>
             <cfcatch>
+                <cflog
+                    file="fpw-weather"
+                    type="error"
+                    text="[FPW][WEATHER] parseSurfaceObservationTime :: #cgi.script_name# :: #cfcatch.message# :: #left(toString(cfcatch.detail), 400)#">
                 <cfreturn "">
             </cfcatch>
         </cftry>
@@ -1297,6 +1342,10 @@
                         <cfset local.list = local.obj.stationList>
                     </cfif>
                     <cfcatch>
+                        <cflog
+                            file="fpw-weather"
+                            type="error"
+                            text="[FPW][WEATHER] getCoopsWaterLevelStations:deserialize :: #cgi.script_name# :: #cfcatch.message# :: #left(toString(cfcatch.detail), 400)#">
                     </cfcatch>
                 </cftry>
             </cfif>
@@ -1395,6 +1444,18 @@
                                 </cfif>
                             </cfif>
                             <cfcatch>
+                                <cflog
+                                    file="fpw-weather"
+                                    type="error"
+                                    text="[FPW][WEATHER] getCoopsWaterLevelData:predictions_deserialize :: #cgi.script_name# :: #cfcatch.message# :: #left(toString(cfcatch.detail), 400)#">
+                                <cfif NOT structKeyExists(local.meta, "warnings") OR NOT isArray(local.meta.warnings)>
+                                    <cfset local.meta.warnings = []>
+                                </cfif>
+                                <cfset arrayAppend(local.meta.warnings, {
+                                    "code"="WEATHER_EXCEPTION",
+                                    "where"="getCoopsWaterLevelData:predictions_deserialize",
+                                    "message"=cfcatch.message
+                                })>
                                 <cfset local.meta.lastError = "JSON parse error">
                             </cfcatch>
                         </cftry>
@@ -1452,6 +1513,18 @@
                             </cfif>
                         </cfif>
                         <cfcatch>
+                            <cflog
+                                file="fpw-weather"
+                                type="error"
+                                text="[FPW][WEATHER] getCoopsWaterLevelData:latest_deserialize :: #cgi.script_name# :: #cfcatch.message# :: #left(toString(cfcatch.detail), 400)#">
+                            <cfif NOT structKeyExists(local.meta, "warnings") OR NOT isArray(local.meta.warnings)>
+                                <cfset local.meta.warnings = []>
+                            </cfif>
+                            <cfset arrayAppend(local.meta.warnings, {
+                                "code"="WEATHER_EXCEPTION",
+                                "where"="getCoopsWaterLevelData:latest_deserialize",
+                                "message"=cfcatch.message
+                            })>
                             <cfset local.meta.lastError = "JSON parse error">
                         </cfcatch>
                     </cftry>
@@ -1584,6 +1657,10 @@
                     <cfset local.list = local.obj.stationList>
                 </cfif>
                 <cfcatch>
+                    <cflog
+                        file="fpw-weather"
+                        type="error"
+                        text="[FPW][WEATHER] getCoopsTideStations:deserialize :: #cgi.script_name# :: #cfcatch.message# :: #left(toString(cfcatch.detail), 400)#">
                 </cfcatch>
             </cftry>
         </cfif>
@@ -1655,6 +1732,18 @@
                         </cfif>
                     </cfif>
                     <cfcatch>
+                        <cflog
+                            file="fpw-weather"
+                            type="error"
+                            text="[FPW][WEATHER] getCoopsTideData:deserialize :: #cgi.script_name# :: #cfcatch.message# :: #left(toString(cfcatch.detail), 400)#">
+                        <cfif NOT structKeyExists(local.meta, "warnings") OR NOT isArray(local.meta.warnings)>
+                            <cfset local.meta.warnings = []>
+                        </cfif>
+                        <cfset arrayAppend(local.meta.warnings, {
+                            "code"="WEATHER_EXCEPTION",
+                            "where"="getCoopsTideData:deserialize",
+                            "message"=cfcatch.message
+                        })>
                     </cfcatch>
                 </cftry>
             </cfif>
@@ -1724,6 +1813,21 @@
                         <cftry>
                             <cfset local.pt = parseDateTime(local.p.t)>
                             <cfcatch>
+                                <cflog
+                                    file="fpw-weather"
+                                    type="error"
+                                    text="[FPW][WEATHER] getCoopsNextHighLow:parseDateTime :: #cgi.script_name# :: #cfcatch.message# :: #left(toString(cfcatch.detail), 400)#">
+                                <cfif NOT structKeyExists(local.out, "META") OR NOT isStruct(local.out.META)>
+                                    <cfset local.out.META = {} >
+                                </cfif>
+                                <cfif NOT structKeyExists(local.out.META, "warnings") OR NOT isArray(local.out.META.warnings)>
+                                    <cfset local.out.META.warnings = []>
+                                </cfif>
+                                <cfset arrayAppend(local.out.META.warnings, {
+                                    "code"="WEATHER_EXCEPTION",
+                                    "where"="getCoopsNextHighLow:parseDateTime",
+                                    "message"=cfcatch.message
+                                })>
                                 <cfset local.pt = "">
                             </cfcatch>
                         </cftry>
@@ -1737,6 +1841,21 @@
                     </cfloop>
                 </cfif>
                 <cfcatch>
+                    <cflog
+                        file="fpw-weather"
+                        type="error"
+                        text="[FPW][WEATHER] getCoopsNextHighLow:deserialize :: #cgi.script_name# :: #cfcatch.message# :: #left(toString(cfcatch.detail), 400)#">
+                    <cfif NOT structKeyExists(local.out, "META") OR NOT isStruct(local.out.META)>
+                        <cfset local.out.META = {} >
+                    </cfif>
+                    <cfif NOT structKeyExists(local.out.META, "warnings") OR NOT isArray(local.out.META.warnings)>
+                        <cfset local.out.META.warnings = []>
+                    </cfif>
+                    <cfset arrayAppend(local.out.META.warnings, {
+                        "code"="WEATHER_EXCEPTION",
+                        "where"="getCoopsNextHighLow:deserialize",
+                        "message"=cfcatch.message
+                    })>
                 </cfcatch>
             </cftry>
         </cfif>
@@ -1771,6 +1890,10 @@
                     </cfloop>
                 </cfif>
                 <cfcatch>
+                    <cflog
+                        file="fpw-weather"
+                        type="error"
+                        text="[FPW][WEATHER] getCoopsHiloSeries:deserialize :: #cgi.script_name# :: #cfcatch.message# :: #left(toString(cfcatch.detail), 400)#">
                 </cfcatch>
             </cftry>
         </cfif>
@@ -1893,6 +2016,10 @@
                     </cfif>
                 </cfif>
                 <cfcatch>
+                    <cflog
+                        file="fpw-weather"
+                        type="error"
+                        text="[FPW][WEATHER] getNdbcStations:xmlparse :: #cgi.script_name# :: #cfcatch.message# :: #left(toString(cfcatch.detail), 400)#">
                 </cfcatch>
             </cftry>
         </cfif>
@@ -2116,6 +2243,21 @@
             </cfif>
 
             <cfcatch>
+                <cflog
+                    file="fpw-weather"
+                    type="error"
+                    text="[FPW][WEATHER] normalizeNwsForecast:deserialize :: #cgi.script_name# :: #cfcatch.message# :: #left(toString(cfcatch.detail), 400)#">
+                <cfif NOT structKeyExists(local.out, "META") OR NOT isStruct(local.out.META)>
+                    <cfset local.out.META = {} >
+                </cfif>
+                <cfif NOT structKeyExists(local.out.META, "warnings") OR NOT isArray(local.out.META.warnings)>
+                    <cfset local.out.META.warnings = []>
+                </cfif>
+                <cfset arrayAppend(local.out.META.warnings, {
+                    "code"="WEATHER_EXCEPTION",
+                    "where"="normalizeNwsForecast:deserialize",
+                    "message"=cfcatch.message
+                })>
             </cfcatch>
         </cftry>
 
@@ -2145,6 +2287,21 @@
                 </cfif>
             </cfif>
             <cfcatch>
+                <cflog
+                    file="fpw-weather"
+                    type="error"
+                    text="[FPW][WEATHER] normalizeNwsGustGrid:deserialize :: #cgi.script_name# :: #cfcatch.message# :: #left(toString(cfcatch.detail), 400)#">
+                <cfif NOT structKeyExists(local.out, "META") OR NOT isStruct(local.out.META)>
+                    <cfset local.out.META = {} >
+                </cfif>
+                <cfif NOT structKeyExists(local.out.META, "warnings") OR NOT isArray(local.out.META.warnings)>
+                    <cfset local.out.META.warnings = []>
+                </cfif>
+                <cfset arrayAppend(local.out.META.warnings, {
+                    "code"="WEATHER_EXCEPTION",
+                    "where"="normalizeNwsGustGrid:deserialize",
+                    "message"=cfcatch.message
+                })>
                 <cfset local.out.SUCCESS = false>
                 <cfset local.out.META.note = "Invalid gust grid JSON">
             </cfcatch>
@@ -2259,6 +2416,10 @@
         <cftry>
             <cfset local.d = parseDateTime(arguments.iso)>
             <cfcatch>
+                <cflog
+                    file="fpw-weather"
+                    type="error"
+                    text="[FPW][WEATHER] parseNwsIsoDate :: #cgi.script_name# :: #cfcatch.message# :: #left(toString(cfcatch.detail), 400)#">
                 <cfset local.d = "">
             </cfcatch>
         </cftry>
@@ -2373,6 +2534,21 @@
             </cfif>
 
             <cfcatch>
+                <cflog
+                    file="fpw-weather"
+                    type="error"
+                    text="[FPW][WEATHER] normalizeNwsAlerts:deserialize :: #cgi.script_name# :: #cfcatch.message# :: #left(toString(cfcatch.detail), 400)#">
+                <cfif NOT structKeyExists(local.out, "META") OR NOT isStruct(local.out.META)>
+                    <cfset local.out.META = {} >
+                </cfif>
+                <cfif NOT structKeyExists(local.out.META, "warnings") OR NOT isArray(local.out.META.warnings)>
+                    <cfset local.out.META.warnings = []>
+                </cfif>
+                <cfset arrayAppend(local.out.META.warnings, {
+                    "code"="WEATHER_EXCEPTION",
+                    "where"="normalizeNwsAlerts:deserialize",
+                    "message"=cfcatch.message
+                })>
             </cfcatch>
         </cftry>
 

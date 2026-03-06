@@ -56,6 +56,40 @@
       });
   }
 
+  function listGet(resourceName, options) {
+    options = options || {};
+    var params = [];
+
+    if (options.limit) {
+      params.push("limit=" + encodeURIComponent(options.limit));
+    }
+
+    var path = "/" + resourceName + ".cfc?method=handle";
+    if (params.length) {
+      path += (path.indexOf("?") === -1 ? "?" : "&") + params.join("&");
+    }
+
+    return request(path, { method: "GET" });
+  }
+
+  function postWithPayloadAction(path, payload, action) {
+    payload = payload || {};
+    payload.action = action;
+    return request(path, {
+      method: "POST",
+      body: payload
+    });
+  }
+
+  function postWithIdAction(path, action, idKey, idValue) {
+    var body = { action: action };
+    body[idKey] = idValue;
+    return request(path, {
+      method: "POST",
+      body: body
+    });
+  }
+
   window.Api = {
     login: function (email, password) {
       return request("/auth.cfc?method=handle", {
@@ -76,19 +110,7 @@
     },
 
     getFloatPlans: function (options) {
-      options = options || {};
-      var params = [];
-
-      if (options.limit) {
-        params.push("limit=" + encodeURIComponent(options.limit));
-      }
-
-      var path = "/floatplans.cfc?method=handle";
-      if (params.length) {
-        path += (path.indexOf("?") === -1 ? "?" : "&") + params.join("&");
-      }
-
-      return request(path, { method: "GET" });
+      return listGet("floatplans", options);
     },
 
     getFloatPlanBootstrap: function (floatPlanId) {
@@ -100,83 +122,23 @@
     },
 
     getVessels: function (options) {
-      options = options || {};
-      var params = [];
-
-      if (options.limit) {
-        params.push("limit=" + encodeURIComponent(options.limit));
-      }
-
-      var path = "/vessels.cfc?method=handle";
-      if (params.length) {
-        path += (path.indexOf("?") === -1 ? "?" : "&") + params.join("&");
-      }
-
-      return request(path, { method: "GET" });
+      return listGet("vessels", options);
     },
 
     getContacts: function (options) {
-      options = options || {};
-      var params = [];
-
-      if (options.limit) {
-        params.push("limit=" + encodeURIComponent(options.limit));
-      }
-
-      var path = "/contacts.cfc?method=handle";
-      if (params.length) {
-        path += (path.indexOf("?") === -1 ? "?" : "&") + params.join("&");
-      }
-
-      return request(path, { method: "GET" });
+      return listGet("contacts", options);
     },
 
     getPassengers: function (options) {
-      options = options || {};
-      var params = [];
-
-      if (options.limit) {
-        params.push("limit=" + encodeURIComponent(options.limit));
-      }
-
-      var path = "/passengers.cfc?method=handle";
-      if (params.length) {
-        path += (path.indexOf("?") === -1 ? "?" : "&") + params.join("&");
-      }
-
-      return request(path, { method: "GET" });
+      return listGet("passengers", options);
     },
 
     getOperators: function (options) {
-      options = options || {};
-      var params = [];
-
-      if (options.limit) {
-        params.push("limit=" + encodeURIComponent(options.limit));
-      }
-
-      var path = "/operators.cfc?method=handle";
-      if (params.length) {
-        path += (path.indexOf("?") === -1 ? "?" : "&") + params.join("&");
-      }
-
-      return request(path, { method: "GET" });
+      return listGet("operators", options);
     },
 
     getWaypoints: function (options) {
-      options = options || {};
-      var params = [];
-
-      if (options.limit) {
-        params.push("limit=" + encodeURIComponent(options.limit));
-      }
-
-      var path = "/waypoints.cfc?method=handle";
-      if (params.length) {
-        path += (path.indexOf("?") === -1 ? "?" : "&") + params.join("&");
-      }
-
-      return request(path, { method: "GET" });
+      return listGet("waypoints", options);
     },
 
     getMarinePlaces: function (payload) {
@@ -201,148 +163,63 @@
     },
 
     savePassenger: function (payload) {
-      payload = payload || {};
-      payload.action = "save";
-      return request("/passenger.cfc?method=handle", {
-        method: "POST",
-        body: payload
-      });
+      return postWithPayloadAction("/passenger.cfc?method=handle", payload, "save");
     },
 
     deletePassenger: function (passengerId) {
-      return request("/passenger.cfc?method=handle", {
-        method: "POST",
-        body: {
-          action: "delete",
-          passengerId: passengerId
-        }
-      });
+      return postWithIdAction("/passenger.cfc?method=handle", "delete", "passengerId", passengerId);
     },
 
     canDeletePassenger: function (passengerId) {
-      return request("/passenger.cfc?method=handle", {
-        method: "POST",
-        body: {
-          action: "candelete",
-          passengerId: passengerId
-        }
-      });
+      return postWithIdAction("/passenger.cfc?method=handle", "candelete", "passengerId", passengerId);
     },
 
     saveOperator: function (payload) {
-      payload = payload || {};
-      payload.action = "save";
-      return request("/operator.cfc?method=handle", {
-        method: "POST",
-        body: payload
-      });
+      return postWithPayloadAction("/operator.cfc?method=handle", payload, "save");
     },
 
     deleteOperator: function (operatorId) {
-      return request("/operator.cfc?method=handle", {
-        method: "POST",
-        body: {
-          action: "delete",
-          operatorId: operatorId
-        }
-      });
+      return postWithIdAction("/operator.cfc?method=handle", "delete", "operatorId", operatorId);
     },
 
     canDeleteOperator: function (operatorId) {
-      return request("/operator.cfc?method=handle", {
-        method: "POST",
-        body: {
-          action: "candelete",
-          operatorId: operatorId
-        }
-      });
+      return postWithIdAction("/operator.cfc?method=handle", "candelete", "operatorId", operatorId);
     },
 
     saveWaypoint: function (payload) {
-      payload = payload || {};
-      payload.action = "save";
-      return request("/waypoint.cfc?method=handle", {
-        method: "POST",
-        body: payload
-      });
+      return postWithPayloadAction("/waypoint.cfc?method=handle", payload, "save");
     },
 
     deleteWaypoint: function (waypointId) {
-      return request("/waypoint.cfc?method=handle", {
-        method: "POST",
-        body: {
-          action: "delete",
-          waypointId: waypointId
-        }
-      });
+      return postWithIdAction("/waypoint.cfc?method=handle", "delete", "waypointId", waypointId);
     },
 
     canDeleteWaypoint: function (waypointId) {
-      return request("/waypoint.cfc?method=handle", {
-        method: "POST",
-        body: {
-          action: "candelete",
-          waypointId: waypointId
-        }
-      });
+      return postWithIdAction("/waypoint.cfc?method=handle", "candelete", "waypointId", waypointId);
     },
 
     saveVessel: function (payload) {
-      payload = payload || {};
-      payload.action = "save";
-      return request("/vessel.cfc?method=handle", {
-        method: "POST",
-        body: payload
-      });
+      return postWithPayloadAction("/vessel.cfc?method=handle", payload, "save");
     },
 
     deleteVessel: function (vesselId) {
-      return request("/vessel.cfc?method=handle", {
-        method: "POST",
-        body: {
-          action: "delete",
-          vesselId: vesselId
-        }
-      });
+      return postWithIdAction("/vessel.cfc?method=handle", "delete", "vesselId", vesselId);
     },
 
     canDeleteVessel: function (vesselId) {
-      return request("/vessel.cfc?method=handle", {
-        method: "POST",
-        body: {
-          action: "candelete",
-          vesselId: vesselId
-        }
-      });
+      return postWithIdAction("/vessel.cfc?method=handle", "candelete", "vesselId", vesselId);
     },
 
     saveContact: function (payload) {
-      payload = payload || {};
-      payload.action = "save";
-      return request("/contact.cfc?method=handle", {
-        method: "POST",
-        body: payload
-      });
+      return postWithPayloadAction("/contact.cfc?method=handle", payload, "save");
     },
 
     deleteContact: function (contactId) {
-      return request("/contact.cfc?method=handle", {
-        method: "POST",
-        body: {
-          action: "delete",
-          contactId: contactId
-        }
-      });
+      return postWithIdAction("/contact.cfc?method=handle", "delete", "contactId", contactId);
     },
 
     canDeleteContact: function (contactId) {
-      return request("/contact.cfc?method=handle", {
-        method: "POST",
-        body: {
-          action: "candelete",
-          contactId: contactId
-        }
-      });
+      return postWithIdAction("/contact.cfc?method=handle", "candelete", "contactId", contactId);
     },
 
     saveFloatPlan: function (payload) {

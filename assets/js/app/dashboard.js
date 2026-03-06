@@ -10,7 +10,22 @@
 
   var BASE_PATH = window.FPW_BASE || "";
   var FALLBACK_LOGIN_URL = BASE_PATH + "/index.cfm";
-  var WEATHER_BASE_URL = "http://localhost:8500///fpw/api/v1/weather.cfc?method=handle&action=zip&zip=";
+  var WEATHER_BASE_URL = (function () {
+    var base = (BASE_PATH || "").toString();
+    var pathname = "";
+    var appIdx = -1;
+    if (!base && window.location && window.location.pathname) {
+      pathname = String(window.location.pathname || "");
+      appIdx = pathname.toLowerCase().indexOf("/app/");
+      if (appIdx > 0) {
+        base = pathname.slice(0, appIdx);
+      } else if (appIdx === 0) {
+        base = "";
+      }
+    }
+    base = base.replace(/\/+$/, "");
+    return base + "/api/v1/weather.cfc?method=handle&action=zip&zip=";
+  })();
   var tideResizeObserver = null;
   var tideLastMarine = null;
   var tideLastWrapWidth = 0;

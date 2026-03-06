@@ -169,14 +169,14 @@
       }
       if (operatorPhoneInput) {
         operatorPhoneInput.addEventListener("input", function () {
-          operatorPhoneInput.value = formatUsPhoneInput(operatorPhoneInput.value);
+          operatorPhoneInput.value = utils.formatUsPhoneInput(operatorPhoneInput.value);
           utils.clearFieldError(operatorPhoneInput, operatorPhoneError);
         });
         operatorPhoneInput.addEventListener("blur", function () {
-          operatorPhoneInput.value = formatUsPhoneInput(operatorPhoneInput.value);
+          operatorPhoneInput.value = utils.formatUsPhoneInput(operatorPhoneInput.value);
         });
         operatorPhoneInput.addEventListener("keyup", function () {
-          operatorPhoneInput.value = formatUsPhoneInput(operatorPhoneInput.value);
+          operatorPhoneInput.value = utils.formatUsPhoneInput(operatorPhoneInput.value);
         });
       }
       if (operatorSaveBtn) {
@@ -209,7 +209,7 @@
     if (operatorIdInput) operatorIdInput.value = utils.pick(operator, ["OPERATORID", "ID"], 0);
     if (operatorNameInput) operatorNameInput.value = utils.pick(operator, ["OPERATORNAME", "NAME"], "");
     if (operatorPhoneInput) {
-      operatorPhoneInput.value = formatUsPhoneInput(utils.pick(operator, ["PHONE"], ""));
+      operatorPhoneInput.value = utils.formatUsPhoneInput(utils.pick(operator, ["PHONE"], ""));
     }
     if (operatorNotesInput) operatorNotesInput.value = utils.pick(operator, ["NOTES"], "");
     clearOperatorValidation();
@@ -237,31 +237,6 @@
     };
   }
 
-  function isValidPhone(value) {
-    if (!value) return false;
-    var digits = String(value).replace(/\D/g, "");
-    if (digits.length === 11 && digits.charAt(0) === "1") {
-      digits = digits.slice(1);
-    }
-    return digits.length === 10;
-  }
-
-  function formatUsPhoneInput(value) {
-    var digits = String(value || "").replace(/\D/g, "");
-    if (digits.charAt(0) === "1" && digits.length > 10) {
-      digits = digits.slice(1);
-    }
-    digits = digits.slice(0, 10);
-
-    if (digits.length <= 3) {
-      return digits.length ? "(" + digits : "";
-    }
-    if (digits.length <= 6) {
-      return "(" + digits.slice(0, 3) + ") " + digits.slice(3);
-    }
-    return "(" + digits.slice(0, 3) + ") " + digits.slice(3, 6) + "-" + digits.slice(6);
-  }
-
   function saveOperator() {
     if (!window.Api || typeof window.Api.saveOperator !== "function") {
       utils.showAlertModal("Operators API is unavailable.");
@@ -275,7 +250,7 @@
       utils.setFieldError(operatorNameInput, operatorNameError, "Name is required.");
       hasError = true;
     }
-    if (payload.PHONE && !isValidPhone(payload.PHONE)) {
+    if (payload.PHONE && !utils.isValidPhone(payload.PHONE)) {
       utils.setFieldError(operatorPhoneInput, operatorPhoneError, "Enter a valid US phone number.");
       hasError = true;
     }

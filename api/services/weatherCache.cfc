@@ -265,7 +265,9 @@
                 cachedEnvelope = cacheGetEnvelope("marine", cacheKey);
                 if (isStruct(cachedEnvelope) AND structCount(cachedEnvelope) GT 0) {
                     payload = (structKeyExists(cachedEnvelope, "data") AND isStruct(cachedEnvelope.data) ? cachedEnvelope.data : {});
-                    return mergePayloadWithCacheMeta(payload, cachedEnvelope, cacheKey, ttl, true, false);
+                    if (isUsableMarinePayload(payload)) {
+                        return mergePayloadWithCacheMeta(payload, cachedEnvelope, cacheKey, ttl, true, false);
+                    }
                 }
             }
 
@@ -275,6 +277,17 @@
                 payload = {};
             }
             if (!isStruct(payload)) payload = {};
+
+            if (!isUsableMarinePayload(payload)) {
+                if (structKeyExists(payload, "META") AND isStruct(payload.META)) {
+                    if (!structKeyExists(payload.META, "cache") OR !isStruct(payload.META.cache)) {
+                        payload.META.cache = {};
+                    }
+                    payload.META.cache.marine_cached = false;
+                    payload.META.cache.marine_cache_reason = "not_usable";
+                }
+                return mergePayloadWithCacheMeta(payload, {}, cacheKey, ttl, false, arguments.bypassCache);
+            }
 
             if (structKeyExists(payload, "http_meta") AND isStruct(payload.http_meta)) {
                 httpMeta = payload.http_meta;
@@ -1198,6 +1211,89 @@
                     return true;
                 }
             }
+            return false;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="isUsableMarinePayload" access="private" returntype="boolean" output="false">
+        <cfargument name="payload" type="any" required="true">
+        <cfscript>
+            var tideRef = {};
+            if (!isStruct(arguments.payload) OR structCount(arguments.payload) EQ 0) return false;
+
+            if (structKeyExists(arguments.payload, "success")) {
+                if (isBoolean(arguments.payload.success) AND NOT arguments.payload.success) return false;
+                if (isNumeric(arguments.payload.success) AND val(arguments.payload.success) NEQ 1) return false;
+                if (isSimpleValue(arguments.payload.success) AND compareNoCase(trim(toString(arguments.payload.success)), "true") NEQ 0) return false;
+            }
+            if (structKeyExists(arguments.payload, "SUCCESS")) {
+                if (isBoolean(arguments.payload.SUCCESS) AND NOT arguments.payload.SUCCESS) return false;
+                if (isNumeric(arguments.payload.SUCCESS) AND val(arguments.payload.SUCCESS) NEQ 1) return false;
+                if (isSimpleValue(arguments.payload.SUCCESS) AND compareNoCase(trim(toString(arguments.payload.SUCCESS)), "true") NEQ 0) return false;
+            }
+
+            if (
+                structCount(arguments.payload) EQ 1
+                AND (
+                    (structKeyExists(arguments.payload, "META") AND isStruct(arguments.payload.META))
+                    OR (structKeyExists(arguments.payload, "meta") AND isStruct(arguments.payload.meta))
+                )
+            ) {
+                return false;
+            }
+
+            if (structKeyExists(arguments.payload, "wave_height_ft") AND isNumeric(arguments.payload.wave_height_ft)) return true;
+            if (structKeyExists(arguments.payload, "waveHeightFt") AND isNumeric(arguments.payload.waveHeightFt)) return true;
+
+            if (structKeyExists(arguments.payload, "summary") AND len(trim(toString(arguments.payload.summary)))) return true;
+            if (structKeyExists(arguments.payload, "conditions") AND len(trim(toString(arguments.payload.conditions)))) return true;
+
+            if (structKeyExists(arguments.payload, "waves")) {
+                if (isArray(arguments.payload.waves) AND arrayLen(arguments.payload.waves) GT 0) return true;
+                if (isStruct(arguments.payload.waves) AND structCount(arguments.payload.waves) GT 0) return true;
+            }
+            if (structKeyExists(arguments.payload, "WAVES")) {
+                if (isArray(arguments.payload.WAVES) AND arrayLen(arguments.payload.WAVES) GT 0) return true;
+                if (isStruct(arguments.payload.WAVES) AND structCount(arguments.payload.WAVES) GT 0) return true;
+            }
+            if (structKeyExists(arguments.payload, "series") AND isArray(arguments.payload.series) AND arrayLen(arguments.payload.series) GT 0) return true;
+
+            if (structKeyExists(arguments.payload, "tide") AND isStruct(arguments.payload.tide)) {
+                tideRef = arguments.payload.tide;
+                if (structKeyExists(tideRef, "series") AND isArray(tideRef.series) AND arrayLen(tideRef.series) GT 0) return true;
+                if (structKeyExists(tideRef, "nextHigh") AND isStruct(tideRef.nextHigh) AND structCount(tideRef.nextHigh) GT 0) return true;
+                if (structKeyExists(tideRef, "nextLow") AND isStruct(tideRef.nextLow) AND structCount(tideRef.nextLow) GT 0) return true;
+            }
+            if (structKeyExists(arguments.payload, "TIDE") AND isStruct(arguments.payload.TIDE)) {
+                tideRef = arguments.payload.TIDE;
+                if (structKeyExists(tideRef, "series") AND isArray(tideRef.series) AND arrayLen(tideRef.series) GT 0) return true;
+                if (structKeyExists(tideRef, "NEXTHIGH") AND isStruct(tideRef.NEXTHIGH) AND structCount(tideRef.NEXTHIGH) GT 0) return true;
+                if (structKeyExists(tideRef, "NEXTLOW") AND isStruct(tideRef.NEXTLOW) AND structCount(tideRef.NEXTLOW) GT 0) return true;
+            }
+
+            if (structKeyExists(arguments.payload, "waterLevel") AND isStruct(arguments.payload.waterLevel) AND structCount(arguments.payload.waterLevel) GT 0) return true;
+            if (structKeyExists(arguments.payload, "waterLevelCurrent") AND isStruct(arguments.payload.waterLevelCurrent) AND structCount(arguments.payload.waterLevelCurrent) GT 0) return true;
+
+            if (
+                (
+                    structKeyExists(arguments.payload, "message")
+                    OR structKeyExists(arguments.payload, "MESSAGE")
+                    OR structKeyExists(arguments.payload, "error")
+                    OR structKeyExists(arguments.payload, "errors")
+                )
+                AND NOT structKeyExists(arguments.payload, "wave_height_ft")
+                AND NOT structKeyExists(arguments.payload, "waveHeightFt")
+                AND NOT structKeyExists(arguments.payload, "waves")
+                AND NOT structKeyExists(arguments.payload, "WAVES")
+                AND NOT structKeyExists(arguments.payload, "tide")
+                AND NOT structKeyExists(arguments.payload, "TIDE")
+                AND NOT structKeyExists(arguments.payload, "waterLevel")
+                AND NOT structKeyExists(arguments.payload, "waterLevelCurrent")
+                AND NOT structKeyExists(arguments.payload, "series")
+            ) {
+                return false;
+            }
+
             return false;
         </cfscript>
     </cffunction>
