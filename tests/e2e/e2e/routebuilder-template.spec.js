@@ -1,4 +1,4 @@
-require("./test-hooks");
+const { submitLoginForm } = require("./test-hooks");
 
 if (!process.env.FPW_EMAIL || !process.env.FPW_PASSWORD) {
   throw new Error("Missing FPW_EMAIL / FPW_PASSWORD env vars");
@@ -53,16 +53,15 @@ async function clickPreviewWhenReady(page) {
   await previewBtn.click({ timeout: 60000 });
 }
 
-test("Route Builder generates route from template and opens timeline editor", async ({ page }) => {
-  await gotoWithRetry(page, "/fpw/index.cfm");
-
-  await page.fill('input[name="email"], input[name="EMAIL"]', process.env.FPW_EMAIL || "");
-  await page.fill('input[type="password"], input[name="password"], input[name="PASSWORD"]', process.env.FPW_PASSWORD || "");
-  await page.click('button[type="submit"], input[type="submit"]');
+async function loginToDashboard(page) {
+  await submitLoginForm(page, { loginUrl: "/fpw/index.cfm", waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
   await expect(page).not.toHaveURL(/index\.cfm$/i);
-
   await gotoWithRetry(page, "/fpw/app/dashboard.cfm");
+}
+
+test("Route Builder generates route from template and opens timeline editor", async ({ page }) => {
+  await loginToDashboard(page);
   await expect(page.locator("#openRouteBuilderBtn")).toBeVisible({ timeout: 15000 });
 
   await page.click("#openRouteBuilderBtn");
@@ -122,15 +121,7 @@ test("Route Builder generates route from template and opens timeline editor", as
 });
 
 test("Route Builder leg row opens lock panel, then map editor from button", async ({ page }) => {
-  await gotoWithRetry(page, "/fpw/index.cfm");
-
-  await page.fill('input[name="email"], input[name="EMAIL"]', process.env.FPW_EMAIL || "");
-  await page.fill('input[type="password"], input[name="password"], input[name="PASSWORD"]', process.env.FPW_PASSWORD || "");
-  await page.click('button[type="submit"], input[type="submit"]');
-  await page.waitForLoadState("networkidle");
-  await expect(page).not.toHaveURL(/index\.cfm$/i);
-
-  await gotoWithRetry(page, "/fpw/app/dashboard.cfm");
+  await loginToDashboard(page);
   await expect(page.locator("#openRouteBuilderBtn")).toBeVisible({ timeout: 15000 });
 
   await page.click("#openRouteBuilderBtn");
@@ -232,15 +223,7 @@ test("Route Builder saves and clears leg override via deterministic geometry hoo
     window.__FPW_ENABLE_TEST_HOOKS = true;
   });
 
-  await page.goto("/fpw/index.cfm", { waitUntil: "domcontentloaded" });
-
-  await page.fill('input[name="email"], input[name="EMAIL"]', process.env.FPW_EMAIL || "");
-  await page.fill('input[type="password"], input[name="password"], input[name="PASSWORD"]', process.env.FPW_PASSWORD || "");
-  await page.click('button[type="submit"], input[type="submit"]');
-  await page.waitForLoadState("networkidle");
-  await expect(page).not.toHaveURL(/index\.cfm$/i);
-
-  await page.goto("/fpw/app/dashboard.cfm", { waitUntil: "domcontentloaded" });
+  await loginToDashboard(page);
   await expect(page.locator("#openRouteBuilderBtn")).toBeVisible({ timeout: 15000 });
 
   await page.click("#openRouteBuilderBtn");
@@ -323,6 +306,126 @@ test("Route Builder saves and clears leg override via deterministic geometry hoo
 
   await page.click("#routeGenLegOverlayCloseBtn");
   await expect(page.locator("#routeGenLegOverlay")).not.toHaveClass(/is-open/, { timeout: 10000 });
+  await page.click("#routeGenCancelBtn");
+  await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 15000 });
+});
+
+test("Route Builder weather suggestion assist applies manually and preview keeps manual weather factor payload", async ({ page }) => {
+  const weatherZipPayload = {
+    SUCCESS: true,
+    DATA: {
+      FORECAST: [
+        { windSpeed: "18 to 26 mph", gustMph: 31 }
+      ],
+      ALERTS: [
+        { severity: "Moderate" },
+        { severity: "Severe" }
+      ],
+      MARINE: {
+        wave_height_ft: 3.6
+      },
+      SURFACE: {
+        visibility_mi: 4.5,
+        pressure_trend: "falling"
+      }
+    }
+  };
+  let lastPreviewWeatherFactor = "";
+
+  await page.route("**/api/v1/weather.cfc?*", async (route) => {
+    const url = route.request().url();
+    if (/action=zip/i.test(url)) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(weatherZipPayload)
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.route("**/api/v1/routeBuilder.cfc?*", async (route) => {
+    const request = route.request();
+    if (/action=routegen_preview/i.test(request.url()) && request.method() === "POST") {
+      try {
+        const raw = request.postData() || "{}";
+        const parsed = JSON.parse(raw);
+        lastPreviewWeatherFactor = String(
+          parsed.weather_factor_pct !== undefined && parsed.weather_factor_pct !== null
+            ? parsed.weather_factor_pct
+            : ""
+        ).trim();
+      } catch (err) {
+        lastPreviewWeatherFactor = "";
+      }
+    }
+    await route.continue();
+  });
+
+  await loginToDashboard(page);
+  await expect(page.locator("#openRouteBuilderBtn")).toBeVisible({ timeout: 15000 });
+
+  await page.evaluate(() => {
+    var weatherZipInput = document.getElementById("weatherZip");
+    if (!weatherZipInput) return;
+    weatherZipInput.value = "33708";
+    weatherZipInput.dispatchEvent(new Event("input", { bubbles: true }));
+    weatherZipInput.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
+  await page.click("#openRouteBuilderBtn");
+  await expect(page.locator("#routeBuilderModal")).toBeVisible({ timeout: 15000 });
+  await expect(page.locator("#fpwRouteGen")).toBeVisible({ timeout: 15000 });
+
+  const today = new Date().toISOString().slice(0, 10);
+  await page.waitForFunction(() => {
+    const sel = document.getElementById("routeGenTemplateSelect");
+    return !!sel && !sel.disabled && sel.options.length > 1;
+  }, { timeout: 20000 });
+  await page.selectOption("#routeGenTemplateSelect", { index: 1 });
+  await page.fill("#routeGenStartDate", today);
+
+  await page.waitForFunction(() => {
+    const sel = document.getElementById("routeGenStartLocation");
+    return !!sel && sel.options.length > 1;
+  }, { timeout: 20000 });
+  await page.selectOption("#routeGenStartLocation", { index: 1 });
+
+  await page.waitForFunction(() => {
+    const sel = document.getElementById("routeGenEndLocation");
+    return !!sel && sel.options.length > 1;
+  }, { timeout: 20000 });
+  await page.selectOption("#routeGenEndLocation", { index: 1 });
+
+  await expect(page.locator("#routeGenWeatherSuggestRefreshBtn")).toBeVisible({ timeout: 10000 });
+  await page.click("#routeGenWeatherSuggestRefreshBtn");
+  await expect(page.locator("#routeGenWeatherSuggestValue")).toHaveText(/^\d+%$/, { timeout: 15000 });
+  await expect(page.locator("#routeGenWeatherSuggestApplyBtn")).toBeEnabled({ timeout: 10000 });
+
+  const suggestedPct = await page.evaluate(() => {
+    var text = String((document.getElementById("routeGenWeatherSuggestValue") || {}).textContent || "");
+    var n = parseInt(text.replace(/[^0-9]/g, ""), 10);
+    return Number.isFinite(n) ? n : -1;
+  });
+  expect(suggestedPct).toBeGreaterThanOrEqual(0);
+  expect(suggestedPct).toBeLessThanOrEqual(60);
+
+  await page.click("#routeGenWeatherSuggestApplyBtn");
+  await expect(page.locator("#routeGenWeatherFactorPct")).toHaveValue(String(suggestedPct));
+
+  await page.fill("#routeGenWeatherFactorPct", "13");
+  await page.dispatchEvent("#routeGenWeatherFactorPct", "input");
+  await page.dispatchEvent("#routeGenWeatherFactorPct", "change");
+  await expect(page.locator("#routeGenWeatherFactorPct")).toHaveValue("13");
+
+  await clickPreviewWhenReady(page);
+  await page.waitForFunction(() => {
+    const rows = document.querySelectorAll("#routeGenLegList .fpw-routegen__leg");
+    return rows.length > 0;
+  }, { timeout: 30000 });
+  expect(lastPreviewWeatherFactor).toBe("13");
+
   await page.click("#routeGenCancelBtn");
   await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 15000 });
 });

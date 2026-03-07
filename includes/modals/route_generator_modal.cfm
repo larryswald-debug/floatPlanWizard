@@ -36,8 +36,11 @@
 
     #fpwRouteGen .rg-modal {
       width: 100%;
+      max-width: 1742px;
       height: 100%;
-      margin: 0;
+      max-height: 100%;
+      margin: 0 auto;
+      padding: 9px 0;
       background: linear-gradient(180deg, rgba(11, 24, 37, 0.96), rgba(8, 20, 33, 0.98));
       border: 1px solid rgba(91, 199, 255, 0.14);
       border-radius: var(--rg-r-xl);
@@ -183,6 +186,16 @@
       margin: 0;
     }
 
+    #fpwRouteGen #routeGenPreviewHeading {
+      font-size: 24px;
+      font-weight: 850;
+    }
+
+    #fpwRouteGen #routeGenSetupHeading {
+      font-size: 24px;
+      font-weight: 850;
+    }
+
     #fpwRouteGen .rg-panel-sub {
       color: var(--rg-muted);
       font-size: 12px;
@@ -199,9 +212,14 @@
     }
 
     #fpwRouteGen .rg-right-scroll {
-      display: grid;
-      grid-template-rows: auto auto auto 1fr;
+      display: flex;
+      flex-direction: column;
       gap: 8px;
+      height: 100%;
+    }
+
+    #fpwRouteGen .rg-right-scroll > * {
+      flex: 0 0 auto;
     }
 
     #fpwRouteGen .rg-stack {
@@ -613,13 +631,15 @@
 
     #fpwRouteGen .rg-timeline-wrap {
       min-height: 0;
-      display: grid;
-      grid-template-rows: 1fr;
+      display: flex;
+      flex: 1 1 420px;
+      min-height: 420px;
       gap: 8px;
     }
 
     #fpwRouteGen .rg-timeline-shell {
       min-height: 0;
+      flex: 1 1 auto;
       padding: 0;
       display: grid;
       grid-template-rows: auto auto 1fr;
@@ -1225,7 +1245,7 @@
     <div class="rg-topbar">
       <div>
         <h1 class="rg-title">FPW Route Generator</h1>
-        <div class="rg-subtitle">Tightened layout concept: compact controls up top, large timeline/work area below.</div>
+
       </div>
       <div class="rg-topbar-right">
         <span id="routeGenRouteCode" class="rg-pill">Draft</span>
@@ -1235,7 +1255,7 @@
 
     <div id="routeGenError" class="rg-error d-none" role="alert"></div>
 
-    <div class="rg-statusbar">
+    <div class="rg-hidden" aria-hidden="true">
       <span id="routeGenStatus">Waiting for required fields.</span>
       <span id="routeGenStatusContext">Template: - · Local live-weather assist enabled</span>
     </div>
@@ -1247,7 +1267,7 @@
             <div class="rg-eyebrow">Setup</div>
             <h2 id="routeGenSetupHeading" class="rg-panel-title">Start -&gt; End -&gt; Pace</h2>
           </div>
-          <div class="rg-panel-sub">Tighter section spacing, fewer nested boxes, same workflow.</div>
+
         </div>
 
         <div id="routeGenSetupPanelBody" class="rg-left-scroll">
@@ -1377,7 +1397,7 @@
             <div class="rg-eyebrow">Preview</div>
             <h2 id="routeGenPreviewHeading" class="rg-panel-title">Route Summary and Legs</h2>
           </div>
-          <div class="rg-panel-sub"><span id="routeGenPreviewTemplate">Template: -</span><br>Compact stats and controls above. Timeline gets the bulk of the height.</div>
+          <div class="rg-panel-sub"><span id="routeGenPreviewTemplate">Template: -</span></div>
         </div>
 
         <div class="rg-right-scroll">
@@ -1425,8 +1445,8 @@
               <div class="rg-field">
                 <label id="routeGenFuelBurnLabel" for="routeGenFuelBurnGph">Fuel Burn @ Max (GPH)</label>
                 <input id="routeGenFuelBurnGph" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
-                <div id="routeGenFuelBurnHint" class="rg-field-note">FPW derives pace and weather adjusted burn from max speed burn.</div>
-                <div id="routeGenFuelBurnDerived" class="rg-field-note">Derived burn at current pace + weather: -- GPH</div>
+                <div id="routeGenFuelBurnHint" class="rg-field-note rg-hidden">FPW derives pace and weather adjusted burn from max speed burn.</div>
+                <div id="routeGenFuelBurnDerived" class="rg-field-note rg-hidden">Derived burn at current pace + weather: -- GPH</div>
               </div>
               <div class="rg-field">
                 <label for="routeGenIdleBurnGph">Idle Burn (GPH)</label>
@@ -1514,7 +1534,7 @@
                   <div id="routeGenLegHeaderTitle" class="rg-section-title">Cruise Timeline</div>
                   <div class="rg-section-note"><span id="routeGenLegHeaderCalc">Calc: n/a</span> · <span id="routeGenLegCount">0 legs</span></div>
                 </div>
-                <div class="rg-timeline-actions">
+                <div class="rg-timeline-actions rg-hidden" aria-hidden="true">
                   <label for="routeGenTimelineMaxHours">Max hrs/day</label>
                   <input id="routeGenTimelineMaxHours" type="number" min="4" max="12" step="0.5" class="form-control form-control-sm" value="6.5">
                   <button type="button" id="routeGenTimelineRebuildBtn" class="btn-secondary btn-sm">Rebuild Timeline</button>

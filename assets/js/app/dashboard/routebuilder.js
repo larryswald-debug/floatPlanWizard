@@ -36,6 +36,7 @@
     selectedStopCodes: {},
     userId: "",
     userIdPromise: null,
+    homePortZip: "",
     optionReqSeq: 0,
     previewReqSeq: 0,
     previewTimer: 0,
@@ -83,7 +84,18 @@
     legMapDraftPoints: [],
     legMapLoadSeq: 0,
     legEndpointCacheByKey: {},
-    closeGeneratorOnGenerate: false,
+    closeGeneratorOnGenerate: true,
+    weatherAssist: {
+      requestSeq: 0,
+      loading: false,
+      suggestedPct: null,
+      confidence: "",
+      metaText: "",
+      factorsText: "",
+      unavailableReason: "",
+      envelope: null,
+      zip: ""
+    },
     cruiseTimeline: {
       requestSeq: 0,
       maxHoursPerDay: 6.5,
@@ -396,6 +408,23 @@
     }
     dom.cruiseTimelineMaxHoursEl = null;
     dom.cruiseTimelineRebuildBtn = null;
+  }
+
+  function scrollPreviewTimelineIntoView() {
+    var scrollEl = dom.rightScrollEl || (dom.root ? dom.root.querySelector(".rg-right-scroll") : null);
+    var targetEl = dom.legLayoutEl || document.getElementById("routeGenLegLayout");
+    var scrollToTimeline = function () {
+      if (!scrollEl || !targetEl) return;
+      scrollEl.scrollTop = Math.max(0, targetEl.offsetTop - 8);
+    };
+
+    if (!scrollEl || !targetEl) return;
+
+    scrollToTimeline();
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(scrollToTimeline);
+    }
+    window.setTimeout(scrollToTimeline, 120);
   }
 
   function refreshExpandedLegPanel() {
@@ -807,6 +836,7 @@
           throw new Error(extractApiMessage(payload, "Unable to build cruise timeline."));
         }
         renderCruiseTimeline(payload);
+        scrollPreviewTimelineIntoView();
         return payload;
       })
       .catch(function (err) {
@@ -913,6 +943,410 @@
         }
         return payload;
       });
+  }
+
+  function normalizeZipCode(value) {
+    return String(value === undefined || value === null ? "" : value)
+      .replace(/\D/g, "")
+      .slice(0, 5);
+  }
+
+  function buildWeatherZipUrl(zip) {
+    return BASE_PATH + "/api/v1/weather.cfc?method=handle&action=zip&zip=" + encodeURIComponent(zip) + "&returnFormat=json&marineMode=quick";
+  }
+
+  function resolveHomePortZipFromUser(userObj) {
+    if (utils.resolveHomePortZip && userObj && typeof userObj === "object") {
+      return normalizeZipCode(utils.resolveHomePortZip(userObj));
+    }
+    return "";
+  }
+
+  function readDashboardWeatherZip() {
+    var weatherZipInput = document.getElementById("weatherZip");
+    var zip = normalizeZipCode(weatherZipInput ? weatherZipInput.value : "");
+    if (zip.length === 5) return zip;
+    return "";
+  }
+
+  function resolveWeatherSuggestionZip() {
+    var dashboardZip = readDashboardWeatherZip();
+    if (dashboardZip.length === 5) return dashboardZip;
+    if (state.homePortZip && state.homePortZip.length === 5) return state.homePortZip;
+    return "";
+  }
+
+  function clampNumber(value, minValue, maxValue) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n)) return minValue;
+    if (n < minValue) return minValue;
+    if (n > maxValue) return maxValue;
+    return n;
+  }
+
+  function parseWindRangeMph(rawValue) {
+    var txt = String(rawValue === undefined || rawValue === null ? "" : rawValue).trim().toLowerCase();
+    var nums = txt.match(/(\d+(\.\d+)?)/g) || [];
+    var first = nums.length ? parseFloat(nums[0]) : 0;
+    var second = nums.length >= 2 ? parseFloat(nums[1]) : first;
+    var hasValue = !!txt.length;
+    if (!Number.isFinite(first)) first = 0;
+    if (!Number.isFinite(second)) second = first;
+    return {
+      hasValue: hasValue,
+      speedMph: Math.max(0, first),
+      gustMph: Math.max(0, Math.max(first, second))
+    };
+  }
+
+  function parseNullableNumber(value) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n)) return null;
+    return n;
+  }
+
+  function parseAlertSeverityLevel(alertRow) {
+    var row = alertRow && typeof alertRow === "object" ? alertRow : {};
+    var severityText = String(
+      row.severity !== undefined ? row.severity :
+        (row.SEVERITY !== undefined ? row.SEVERITY : "")
+    ).trim().toLowerCase();
+    if (!severityText) return 0;
+    if (severityText.indexOf("extreme") >= 0) return 3;
+    if (severityText.indexOf("severe") >= 0) return 2;
+    if (severityText.indexOf("moderate") >= 0) return 1;
+    return 1;
+  }
+
+  function buildRouteWeatherContext() {
+    var legs = Array.isArray(state.previewLegs) ? state.previewLegs : [];
+    var offshoreCount = 0;
+    var idx = 0;
+    if (!legs.length) {
+      return { offshoreShare: null, legCount: 0, offshoreCount: 0 };
+    }
+    for (idx = 0; idx < legs.length; idx += 1) {
+      if (toInt(getLegField(legs[idx], "is_offshore"), 0) > 0) offshoreCount += 1;
+    }
+    return {
+      offshoreShare: offshoreCount / legs.length,
+      legCount: legs.length,
+      offshoreCount: offshoreCount
+    };
+  }
+
+  function normalizeWeatherEnvelope(payload, zip) {
+    var root = payload && typeof payload === "object" ? payload : {};
+    var data = (root.DATA && typeof root.DATA === "object") ? root.DATA : root;
+    var forecast = Array.isArray(data.FORECAST) ? data.FORECAST : (Array.isArray(data.forecast) ? data.forecast : []);
+    var alerts = Array.isArray(data.ALERTS) ? data.ALERTS : (Array.isArray(data.alerts) ? data.alerts : []);
+    var marine = (data.MARINE && typeof data.MARINE === "object") ? data.MARINE : ((data.marine && typeof data.marine === "object") ? data.marine : {});
+    var surface = (data.surface && typeof data.surface === "object") ? data.surface : ((data.SURFACE && typeof data.SURFACE === "object") ? data.SURFACE : {});
+    var summary = String(
+      data.SUMMARY !== undefined ? data.SUMMARY :
+        (data.summary !== undefined ? data.summary : "")
+    ).trim();
+    return {
+      zip: zip,
+      fetchedAt: new Date(),
+      forecast: forecast,
+      alerts: alerts,
+      marine: marine,
+      surface: surface,
+      summary: summary
+    };
+  }
+
+  function computeLiveWeatherFactorPct(weatherEnvelope, routeContext) {
+    var wx = weatherEnvelope && typeof weatherEnvelope === "object" ? weatherEnvelope : {};
+    var context = routeContext && typeof routeContext === "object" ? routeContext : {};
+    var forecast = Array.isArray(wx.forecast) ? wx.forecast : [];
+    var alerts = Array.isArray(wx.alerts) ? wx.alerts : [];
+    var marine = wx.marine && typeof wx.marine === "object" ? wx.marine : {};
+    var surface = wx.surface && typeof wx.surface === "object" ? wx.surface : {};
+    var nowForecast = forecast.length ? forecast[0] : {};
+    var wind = parseWindRangeMph(
+      nowForecast.windSpeed !== undefined ? nowForecast.windSpeed :
+        (nowForecast.WINDSPEED !== undefined ? nowForecast.WINDSPEED : "")
+    );
+    var apiGust = parseNullableNumber(
+      nowForecast.gustMph !== undefined ? nowForecast.gustMph :
+        (nowForecast.GUSTMPH !== undefined ? nowForecast.GUSTMPH : "")
+    );
+    var maxWindMph = Math.max(
+      wind.speedMph,
+      wind.gustMph,
+      (apiGust !== null && apiGust > 0 ? apiGust : 0)
+    );
+    var waves = (marine.waves && typeof marine.waves === "object")
+      ? marine.waves
+      : ((marine.WAVES && typeof marine.WAVES === "object") ? marine.WAVES : {});
+    var waveFt = parseNullableNumber(
+      marine.wave_height_ft !== undefined ? marine.wave_height_ft :
+        (marine.WAVE_HEIGHT_FT !== undefined ? marine.WAVE_HEIGHT_FT :
+          (waves.height !== undefined ? waves.height : waves.HEIGHT))
+    );
+    var visibilityMi = parseNullableNumber(
+      surface.visibility_mi !== undefined ? surface.visibility_mi : surface.VISIBILITY_MI
+    );
+    var pressureTrend = String(
+      surface.pressure_trend !== undefined ? surface.pressure_trend :
+        (surface.PRESSURE_TREND !== undefined ? surface.PRESSURE_TREND : "")
+    ).trim().toLowerCase();
+    var severeAlertCount = 0;
+    var score = 0;
+    var availableSignals = 0;
+    var windContribution = 0;
+    var waveContribution = 0;
+    var alertContribution = 0;
+    var visibilityContribution = 0;
+    var pressureContribution = 0;
+    var multiplier = 1;
+    var explanationParts = [];
+    var offshoreShare = parseNullableNumber(context.offshoreShare);
+    var confidence = "low";
+    var finalPct = 0;
+    var idx = 0;
+
+    for (idx = 0; idx < alerts.length; idx += 1) {
+      if (parseAlertSeverityLevel(alerts[idx]) >= 2) severeAlertCount += 1;
+    }
+
+    if (wind.hasValue || maxWindMph > 0) {
+      availableSignals += 1;
+      if (maxWindMph >= 30) windContribution = 24;
+      else if (maxWindMph >= 25) windContribution = 22;
+      else if (maxWindMph >= 20) windContribution = 18;
+      else if (maxWindMph >= 15) windContribution = 12;
+      else if (maxWindMph >= 10) windContribution = 6;
+      score += windContribution;
+      explanationParts.push("Wind " + Math.round(maxWindMph) + " mph");
+    }
+
+    if (waveFt !== null && waveFt >= 0) {
+      availableSignals += 1;
+      if (waveFt >= 7) waveContribution = 18;
+      else if (waveFt >= 5) waveContribution = 16;
+      else if (waveFt >= 3) waveContribution = 12;
+      else if (waveFt >= 2) waveContribution = 8;
+      else if (waveFt >= 1) waveContribution = 4;
+      score += waveContribution;
+      explanationParts.push("Waves " + roundTo2(waveFt) + " ft");
+    }
+
+    if (alerts.length > 0) {
+      availableSignals += 1;
+      if (severeAlertCount > 0) alertContribution = 12;
+      else if (alerts.length >= 3) alertContribution = 10;
+      else if (alerts.length === 2) alertContribution = 8;
+      else alertContribution = 4;
+      score += alertContribution;
+      explanationParts.push("Alerts " + alerts.length);
+    }
+
+    if (visibilityMi !== null && visibilityMi >= 0) {
+      availableSignals += 1;
+      if (visibilityMi < 1) visibilityContribution = 4;
+      else if (visibilityMi < 3) visibilityContribution = 3;
+      else if (visibilityMi < 5) visibilityContribution = 2;
+      else if (visibilityMi < 8) visibilityContribution = 1;
+      score += visibilityContribution;
+      explanationParts.push("Visibility " + roundTo2(visibilityMi) + " mi");
+    }
+
+    if (pressureTrend) {
+      availableSignals += 1;
+      if (pressureTrend === "rapid_fall") pressureContribution = 2;
+      else if (pressureTrend === "falling") pressureContribution = 1;
+      score += pressureContribution;
+      explanationParts.push("Pressure " + pressureTrend.replace(/_/g, " "));
+    }
+
+    if (offshoreShare !== null && Number.isFinite(offshoreShare)) {
+      offshoreShare = clampNumber(offshoreShare, 0, 1);
+      if (offshoreShare >= 0.6) {
+        multiplier = 1.1;
+      } else if (offshoreShare <= 0.15) {
+        multiplier = 0.95;
+      }
+      explanationParts.push("Offshore " + Math.round(offshoreShare * 100) + "%");
+    }
+
+    if (availableSignals <= 0) {
+      return {
+        available: false,
+        suggestedPct: null,
+        confidence: "low",
+        metaText: "Suggestion unavailable",
+        factorsText: "No usable live weather signals were available.",
+        sourceLabel: ""
+      };
+    }
+
+    if (availableSignals >= 4) confidence = "high";
+    else if (availableSignals >= 2) confidence = "medium";
+    else confidence = "low";
+
+    finalPct = clampNumber(score * multiplier, 0, 60);
+    finalPct = Math.round(finalPct);
+
+    return {
+      available: true,
+      suggestedPct: finalPct,
+      confidence: confidence,
+      metaText: "Anchor ZIP " + (wx.zip || "unknown") + " using current dashboard marine weather.",
+      factorsText: explanationParts.join(" · "),
+      sourceLabel: "weather.cfc zip quick mode"
+    };
+  }
+
+  function renderWeatherSuggestionState() {
+    var suggested = state.weatherAssist;
+    var hasSuggestion = Number.isFinite(suggested.suggestedPct);
+    var confidenceText = String(suggested.confidence || "").trim().toLowerCase();
+    if (dom.weatherSuggestValueEl) {
+      if (suggested.loading) {
+        dom.weatherSuggestValueEl.textContent = "Calculating suggestion...";
+      } else if (hasSuggestion) {
+        dom.weatherSuggestValueEl.textContent = String(Math.round(suggested.suggestedPct)) + "%";
+      } else {
+        dom.weatherSuggestValueEl.textContent = "Suggestion unavailable";
+      }
+    }
+    if (dom.weatherSuggestMetaEl) {
+      if (suggested.loading) {
+        dom.weatherSuggestMetaEl.textContent = "Fetching current weather signals...";
+      } else {
+        dom.weatherSuggestMetaEl.textContent = String(suggested.metaText || suggested.unavailableReason || "Suggestion unavailable");
+      }
+    }
+    if (dom.weatherSuggestFactorsEl) {
+      dom.weatherSuggestFactorsEl.textContent = String(suggested.factorsText || "No live weather data loaded.");
+    }
+    if (dom.weatherSuggestConfidenceEl) {
+      dom.weatherSuggestConfidenceEl.classList.remove(
+        "fpw-routegen__weatherassistpill--high",
+        "fpw-routegen__weatherassistpill--medium",
+        "fpw-routegen__weatherassistpill--low"
+      );
+      if (suggested.loading) {
+        dom.weatherSuggestConfidenceEl.textContent = "loading";
+      } else if (confidenceText === "high" || confidenceText === "medium" || confidenceText === "low") {
+        dom.weatherSuggestConfidenceEl.textContent = confidenceText;
+        dom.weatherSuggestConfidenceEl.classList.add("fpw-routegen__weatherassistpill--" + confidenceText);
+      } else {
+        dom.weatherSuggestConfidenceEl.textContent = "--";
+      }
+    }
+    if (dom.weatherSuggestApplyBtn) {
+      dom.weatherSuggestApplyBtn.disabled = !hasSuggestion || suggested.loading;
+    }
+    if (dom.weatherSuggestRefreshBtn) {
+      dom.weatherSuggestRefreshBtn.disabled = !!suggested.loading;
+      dom.weatherSuggestRefreshBtn.textContent = suggested.loading ? "Refreshing..." : "Refresh Suggestion";
+    }
+  }
+
+  function setWeatherSuggestionUnavailable(reasonText) {
+    state.weatherAssist.loading = false;
+    state.weatherAssist.suggestedPct = null;
+    state.weatherAssist.confidence = "low";
+    state.weatherAssist.metaText = String(reasonText || "Suggestion unavailable").trim();
+    state.weatherAssist.factorsText = "No live weather data loaded.";
+    state.weatherAssist.unavailableReason = state.weatherAssist.metaText;
+    renderWeatherSuggestionState();
+  }
+
+  function applyWeatherSuggestionFromEnvelope() {
+    var envelope = state.weatherAssist.envelope;
+    var model = {};
+    if (!envelope || typeof envelope !== "object") {
+      setWeatherSuggestionUnavailable("Suggestion unavailable.");
+      return;
+    }
+    model = computeLiveWeatherFactorPct(envelope, buildRouteWeatherContext());
+    state.weatherAssist.loading = false;
+    state.weatherAssist.confidence = model.confidence || "low";
+    state.weatherAssist.metaText = model.metaText || "";
+    state.weatherAssist.factorsText = model.factorsText || "";
+    state.weatherAssist.unavailableReason = "";
+    state.weatherAssist.sourceLabel = model.sourceLabel || "";
+    state.weatherAssist.suggestedPct = model.available ? Math.round(clampNumber(model.suggestedPct, 0, 60)) : null;
+    if (!model.available) {
+      state.weatherAssist.unavailableReason = model.metaText || "Suggestion unavailable.";
+      if (!state.weatherAssist.metaText) state.weatherAssist.metaText = state.weatherAssist.unavailableReason;
+    }
+    renderWeatherSuggestionState();
+  }
+
+  function refreshWeatherSuggestion(options) {
+    var opts = options || {};
+    var forceFetch = !!opts.forceFetch;
+    var zip = resolveWeatherSuggestionZip();
+    var seq = 0;
+    var url = "";
+
+    if (!zip || zip.length !== 5) {
+      setWeatherSuggestionUnavailable("Suggestion unavailable: dashboard weather ZIP is missing.");
+      return Promise.resolve(null);
+    }
+
+    if (!forceFetch && state.weatherAssist.envelope && state.weatherAssist.zip === zip) {
+      applyWeatherSuggestionFromEnvelope();
+      return Promise.resolve(state.weatherAssist.suggestedPct);
+    }
+
+    state.weatherAssist.requestSeq += 1;
+    seq = state.weatherAssist.requestSeq;
+    state.weatherAssist.loading = true;
+    state.weatherAssist.metaText = "Fetching current weather signals...";
+    state.weatherAssist.factorsText = "Using existing FPW weather endpoint data.";
+    state.weatherAssist.zip = zip;
+    renderWeatherSuggestionState();
+
+    url = buildWeatherZipUrl(zip);
+    return fetchJson(url, { credentials: "same-origin" })
+      .then(function (payload) {
+        if (seq !== state.weatherAssist.requestSeq) return null;
+        if (!payload || payload.SUCCESS === false) {
+          throw new Error(extractApiMessage(payload, "Weather suggestion unavailable."));
+        }
+        state.weatherAssist.envelope = normalizeWeatherEnvelope(payload, zip);
+        applyWeatherSuggestionFromEnvelope();
+        return state.weatherAssist.suggestedPct;
+      })
+      .catch(function (err) {
+        if (seq !== state.weatherAssist.requestSeq) return null;
+        if (err && err.code === "UNAUTHORIZED") {
+          redirectToLogin();
+          return null;
+        }
+        setWeatherSuggestionUnavailable((err && err.message) ? err.message : "Weather suggestion unavailable.");
+        return null;
+      });
+  }
+
+  function applySuggestedWeatherFactorToInput() {
+    var suggestedPct = state.weatherAssist && Number.isFinite(state.weatherAssist.suggestedPct)
+      ? Math.round(clampNumber(state.weatherAssist.suggestedPct, 0, 60))
+      : null;
+    if (suggestedPct === null || !dom.weatherFactorPctEl) return;
+    dom.weatherFactorPctEl.value = String(suggestedPct);
+    onFormChange();
+  }
+
+  function resetWeatherSuggestionState(reasonText) {
+    state.weatherAssist.loading = false;
+    state.weatherAssist.suggestedPct = null;
+    state.weatherAssist.confidence = "";
+    state.weatherAssist.metaText = String(
+      reasonText || "Set a valid dashboard weather ZIP to refresh this suggestion."
+    ).trim();
+    state.weatherAssist.factorsText = "No live weather data loaded.";
+    state.weatherAssist.unavailableReason = state.weatherAssist.metaText;
+    state.weatherAssist.envelope = null;
+    state.weatherAssist.zip = "";
+    renderWeatherSuggestionState();
   }
 
   function normalizeMyRouteLegs(legsRaw) {
@@ -2312,7 +2746,7 @@
     var model = getFuelBurnModelValues();
 
     if (dom.fuelBurnLabelEl) {
-      dom.fuelBurnLabelEl.textContent = "Fuel burn at max speed (GPH)";
+      dom.fuelBurnLabelEl.textContent = "GPH @ max speed";
     }
     if (dom.fuelBurnHintEl) {
       dom.fuelBurnHintEl.textContent = "FPW derives pace and weather adjusted burn from max speed burn.";
@@ -2933,12 +3367,14 @@
       credentials: "same-origin"
     })
       .then(function (payload) {
+        var user = payload && payload.USER ? payload.USER : {};
         if (!payload || payload.SUCCESS === false) {
           if (payload && payload.AUTH === false) {
             throw authError("Unauthorized");
           }
           return "";
         }
+        state.homePortZip = resolveHomePortZipFromUser(user);
         state.userId = extractUserId(payload);
         return state.userId;
       })
@@ -4292,6 +4728,9 @@
     }
 
     state.previewLegs = normalizeLegList(legs);
+    if (state.weatherAssist && state.weatherAssist.envelope) {
+      applyWeatherSuggestionFromEnvelope();
+    }
     lockPanelRestore = preserveLockPanelAcrossPreview(previousLegs, state.previewLegs, previousLockPanelState);
     state.lockPanel.expandedOrder = toInt(lockPanelRestore.expandedOrder, 0);
     state.lockPanel.loadingOrder = toInt(lockPanelRestore.loadingOrder, 0);
@@ -4393,6 +4832,7 @@
           dom.previewTemplateEl.textContent = "Template: " + (myRoutePreviewName || "My Route");
         }
         renderPreviewPayload(resPayload, false);
+        scrollPreviewTimelineIntoView();
         setStatus(forceRefresh ? "My Route preview updated." : "My Route preview ready.");
         if (state.modalMode !== "editor") {
           saveDraft();
@@ -4466,6 +4906,7 @@
         state.selectedLegContext = "routegen";
         previewLegsForTimeline = extractPreviewLegsFromPayload(resPayload);
         renderPreviewPayload(resPayload, false);
+        scrollPreviewTimelineIntoView();
         setStatus(forceRefresh ? "Preview updated." : "Preview ready.");
         if (state.modalMode !== "editor") {
           saveDraft();
@@ -4801,6 +5242,7 @@
     if (dom.idleBurnGphEl) dom.idleBurnGphEl.value = "";
     if (dom.idleHoursTotalEl) dom.idleHoursTotalEl.value = "";
     if (dom.weatherFactorPctEl) dom.weatherFactorPctEl.value = String(DEFAULT_WEATHER_FACTOR_PCT);
+    resetWeatherSuggestionState("Set a valid dashboard weather ZIP to refresh this suggestion.");
     if (dom.reservePctEl) dom.reservePctEl.value = String(DEFAULT_RESERVE_PCT);
     if (dom.fuelPricePerGalEl) dom.fuelPricePerGalEl.value = "";
     if (dom.setupPanelBodyEl) dom.setupPanelBodyEl.scrollTop = 0;
@@ -4835,6 +5277,7 @@
     ensureUserId()
       .then(function () {
         if (!isActiveModalInit(initSeq)) return null;
+        refreshWeatherSuggestion({ forceFetch: false });
         return loadTemplates();
       })
       .then(function () {
@@ -4988,6 +5431,7 @@
     if (dom.idleBurnGphEl) dom.idleBurnGphEl.value = "";
     if (dom.idleHoursTotalEl) dom.idleHoursTotalEl.value = "";
     if (dom.weatherFactorPctEl) dom.weatherFactorPctEl.value = String(DEFAULT_WEATHER_FACTOR_PCT);
+    resetWeatherSuggestionState("Set a valid dashboard weather ZIP to refresh this suggestion.");
     if (dom.reservePctEl) dom.reservePctEl.value = String(DEFAULT_RESERVE_PCT);
     if (dom.fuelPricePerGalEl) dom.fuelPricePerGalEl.value = "";
 
@@ -5756,6 +6200,16 @@
       dom.weatherFactorPctEl.addEventListener("input", onFormChange);
       dom.weatherFactorPctEl.addEventListener("change", onFormChange);
     }
+    if (dom.weatherSuggestRefreshBtn) {
+      dom.weatherSuggestRefreshBtn.addEventListener("click", function () {
+        refreshWeatherSuggestion({ forceFetch: true });
+      });
+    }
+    if (dom.weatherSuggestApplyBtn) {
+      dom.weatherSuggestApplyBtn.addEventListener("click", function () {
+        applySuggestedWeatherFactorToInput();
+      });
+    }
     if (dom.reservePctEl) {
       dom.reservePctEl.addEventListener("input", onFormChange);
       dom.reservePctEl.addEventListener("change", onFormChange);
@@ -5809,12 +6263,143 @@
     }
   }
 
+  function normalizeText(value) {
+    return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+  }
+
+  function ensureId(el, id) {
+    if (!el || !id) return null;
+    if (!el.id) el.id = id;
+    return el;
+  }
+
+  function findButtonByText(root, phrases) {
+    if (!root) return null;
+    var targets = Array.isArray(phrases) ? phrases : [phrases];
+    var normalizedTargets = targets.map(function (item) { return normalizeText(item); });
+    var buttons = root.querySelectorAll("button");
+    var i = 0;
+    for (i = 0; i < buttons.length; i += 1) {
+      var text = normalizeText(buttons[i].textContent || "");
+      var j = 0;
+      for (j = 0; j < normalizedTargets.length; j += 1) {
+        if (normalizedTargets[j] && text.indexOf(normalizedTargets[j]) !== -1) return buttons[i];
+      }
+    }
+    return null;
+  }
+
+  function applyMockupAliases(modalEl, rootEl) {
+    if (!rootEl) return;
+    ensureId(rootEl, "fpwRouteGen");
+
+    if (!document.getElementById("routeGenRouteCode")) {
+      ensureId(
+        rootEl.querySelector(".fpw-routegen__topactions .fpw-routegen__pill, .topbar-right .pill"),
+        "routeGenRouteCode"
+      );
+    }
+    if (!document.getElementById("routeGenStatus")) {
+      ensureId(
+        rootEl.querySelector(".fpw-routegen__statusbar > *:first-child, .statusbar > *:first-child"),
+        "routeGenStatus"
+      );
+    }
+    if (!document.getElementById("routeGenStatusContext")) {
+      ensureId(
+        rootEl.querySelector(".fpw-routegen__statusbar > *:last-child, .statusbar > *:last-child"),
+        "routeGenStatusContext"
+      );
+    }
+    if (!document.getElementById("routeGenCloseBtn")) {
+      ensureId(
+        rootEl.querySelector(".fpw-routegen__iconbtn, .topbar-right .close"),
+        "routeGenCloseBtn"
+      );
+    }
+    if (!document.getElementById("routeGenPreviewBtn")) {
+      ensureId(findButtonByText(rootEl, ["preview"]), "routeGenPreviewBtn");
+    }
+    if (!document.getElementById("routeGenResetBtn")) {
+      ensureId(findButtonByText(rootEl, ["reset"]), "routeGenResetBtn");
+    }
+    if (!document.getElementById("routeGenCancelBtn")) {
+      ensureId(findButtonByText(rootEl, ["close", "cancel"]), "routeGenCancelBtn");
+    }
+    if (!document.getElementById("routeGenGenerateBtn")) {
+      ensureId(findButtonByText(rootEl, ["generate route", "generate"]), "routeGenGenerateBtn");
+    }
+    if (!document.getElementById("routeGenWeatherSuggestRefreshBtn")) {
+      ensureId(findButtonByText(rootEl, ["refresh suggestion", "refresh"]), "routeGenWeatherSuggestRefreshBtn");
+    }
+    if (!document.getElementById("routeGenWeatherSuggestApplyBtn")) {
+      ensureId(findButtonByText(rootEl, ["apply suggested", "apply"]), "routeGenWeatherSuggestApplyBtn");
+    }
+    if (!document.getElementById("routeGenWeatherSuggestValue")) {
+      ensureId(rootEl.querySelector(".fpw-routegen__weatherassistvalue, .assist-value"), "routeGenWeatherSuggestValue");
+    }
+    if (!document.getElementById("routeGenWeatherSuggestMeta")) {
+      ensureId(
+        rootEl.querySelector(".fpw-routegen__weatherassistmeta, .assist-row .assist-copy"),
+        "routeGenWeatherSuggestMeta"
+      );
+    }
+    if (!document.getElementById("routeGenWeatherSuggestFactors")) {
+      var factorsNode = rootEl.querySelector(".fpw-routegen__weatherassistfactors");
+      if (!factorsNode) {
+        var copies = rootEl.querySelectorAll(".weather-assist .assist-copy");
+        if (copies.length > 1) factorsNode = copies[1];
+      }
+      ensureId(factorsNode, "routeGenWeatherSuggestFactors");
+    }
+    if (!document.getElementById("routeGenWeatherSuggestConfidence")) {
+      ensureId(
+        rootEl.querySelector(".fpw-routegen__weatherassistpill, .weather-top .badge"),
+        "routeGenWeatherSuggestConfidence"
+      );
+    }
+
+    if (!document.getElementById("routeGenTemplateSelect")) {
+      ensureId(rootEl.querySelector("select[name='route_template'], .section .field select"), "routeGenTemplateSelect");
+    }
+    if (!document.getElementById("routeGenStartLocation")) {
+      ensureId(rootEl.querySelector("select[name='start_location']"), "routeGenStartLocation");
+    }
+    if (!document.getElementById("routeGenEndLocation")) {
+      ensureId(rootEl.querySelector("select[name='end_location']"), "routeGenEndLocation");
+    }
+    if (!document.getElementById("routeGenStartDate")) {
+      ensureId(rootEl.querySelector("input[type='date']"), "routeGenStartDate");
+    }
+
+    if (!document.getElementById("routeGenLegList")) {
+      ensureId(rootEl.querySelector(".fpw-routegen__leglist, .timeline-table tbody"), "routeGenLegList");
+    }
+    if (!document.getElementById("routeGenTimelineRebuildBtn")) {
+      ensureId(findButtonByText(rootEl, ["rebuild timeline"]), "routeGenTimelineRebuildBtn");
+    }
+    if (!document.getElementById("routeGenTimelineMaxHours")) {
+      ensureId(rootEl.querySelector("#fpwCruiseTimelineMaxHours, .timeline-actions input[type='number']"), "routeGenTimelineMaxHours");
+    }
+    if (!document.getElementById("routeGenPaceLabel")) {
+      ensureId(rootEl.querySelector(".fpw-routegen__pacechip, .pace .badge"), "routeGenPaceLabel");
+    }
+  }
+
   function cacheDom() {
     dom.modalEl = document.getElementById("routeBuilderModal");
-    dom.openBtn = document.getElementById("openRouteBuilderBtn");
+    dom.openBtn = document.getElementById("openRouteBuilderBtn")
+      || document.getElementById("routeStatusOpenRouteBuilderBtn")
+      || document.querySelector("[data-quick-action='generate-route']");
     dom.root = document.getElementById("fpwRouteGen");
 
-    if (!dom.modalEl || !dom.openBtn || !dom.root) return false;
+    if (!dom.root && dom.modalEl) {
+      dom.root = dom.modalEl.querySelector("#fpwRouteGen, .fpw-routegen, .modal-content .modal, .modal-content > div");
+    }
+    applyMockupAliases(dom.modalEl, dom.root);
+    dom.root = document.getElementById("fpwRouteGen") || dom.root;
+
+    if (!dom.modalEl || !dom.root) return false;
 
     dom.closeBtn = document.getElementById("routeGenCloseBtn");
     dom.cancelBtn = document.getElementById("routeGenCancelBtn");
@@ -5851,6 +6436,12 @@
     dom.idleBurnGphEl = document.getElementById("routeGenIdleBurnGph");
     dom.idleHoursTotalEl = document.getElementById("routeGenIdleHoursTotal");
     dom.weatherFactorPctEl = document.getElementById("routeGenWeatherFactorPct");
+    dom.weatherSuggestValueEl = document.getElementById("routeGenWeatherSuggestValue");
+    dom.weatherSuggestMetaEl = document.getElementById("routeGenWeatherSuggestMeta");
+    dom.weatherSuggestFactorsEl = document.getElementById("routeGenWeatherSuggestFactors");
+    dom.weatherSuggestConfidenceEl = document.getElementById("routeGenWeatherSuggestConfidence");
+    dom.weatherSuggestRefreshBtn = document.getElementById("routeGenWeatherSuggestRefreshBtn");
+    dom.weatherSuggestApplyBtn = document.getElementById("routeGenWeatherSuggestApplyBtn");
     dom.reservePctEl = document.getElementById("routeGenReservePct");
     dom.fuelPricePerGalEl = document.getElementById("routeGenFuelPricePerGal");
     dom.optionalStopsEl = document.getElementById("routeGenOptionalStops");
@@ -5883,6 +6474,7 @@
     dom.legHeaderTitleEl = document.getElementById("routeGenLegHeaderTitle");
     dom.legHeaderCalcEl = document.getElementById("routeGenLegHeaderCalc");
     dom.legLayoutEl = document.getElementById("routeGenLegLayout");
+    dom.rightScrollEl = dom.root ? dom.root.querySelector(".rg-right-scroll") : null;
     dom.legListEl = document.getElementById("routeGenLegList");
     dom.cruiseTimelineEl = document.getElementById("fpwCruiseTimeline");
     dom.cruiseTimelineMaxHoursEl = document.getElementById("routeGenTimelineMaxHours");

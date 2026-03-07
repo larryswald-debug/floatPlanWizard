@@ -1,4 +1,4 @@
-const { test } = require("@playwright/test");
+const { test, expect } = require("@playwright/test");
 
 function requireCredentials() {
   if (!process.env.FPW_EMAIL || !process.env.FPW_PASSWORD) {
@@ -19,6 +19,15 @@ async function submitLoginForm(page, options) {
   const waitUntil = typeof opts.waitUntil === "string" ? opts.waitUntil : "domcontentloaded";
 
   await page.goto(loginUrl, { waitUntil: waitUntil });
+  const publicLoginToggle = page.locator("#publicLoginToggle");
+  const loginStrip = page.locator("#login");
+  if (await publicLoginToggle.isVisible().catch(() => false)) {
+    const stripOpen = await loginStrip.evaluate((el) => el.classList.contains("is-open")).catch(() => false);
+    if (!stripOpen) {
+      await publicLoginToggle.click();
+      await expect(loginStrip).toHaveClass(/is-open/, { timeout: 10000 });
+    }
+  }
   await page.fill('input[name="email"], input[name="EMAIL"]', email);
   await page.fill('input[type="password"], input[name="password"], input[name="PASSWORD"]', password);
   await page.evaluate(() => {
