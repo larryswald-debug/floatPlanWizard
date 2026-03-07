@@ -31,6 +31,672 @@
   var tideLastWrapWidth = 0;
   var weatherRequestSeq = 0;
   var seaStateLastWaveHeight = null;
+  var monitoringPollTimer = 0;
+  var derivedSignalsPollTimer = 0;
+  var dashboardSignals = {
+    routeName: "No routes yet",
+    routeSummary: "Create your first route.",
+    routeProgressPct: 0,
+    floatPlans: {
+      active: 0,
+      total: 0
+    },
+    monitoring: {
+      active: 0,
+      overdue: 0,
+      escalated: 0,
+      loaded: false,
+      message: "Waiting for monitored plans."
+    },
+    weather: {
+      risk: "—",
+      alertCount: 0,
+      alertLabel: "None",
+      summary: "Forecast unavailable."
+    },
+    setup: {
+      vessels: 0,
+      contacts: 0,
+      passengers: 0,
+      operators: 0,
+      waypoints: 0
+    }
+  };
+  var missionSummaryState = {
+    lastRecomputedAt: null
+  };
+  var MISSION_SUMMARY_TILE_LABELS = {
+    activeRoute: "Active Route",
+    routeProgress: "Route Progress",
+    floatPlans: "Float Plans",
+    monitoring: "Monitoring",
+    weatherRisk: "Weather Risk",
+    setup: "Boat & Trip Setup"
+  };
+
+  function setText(id, value) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = value;
+  }
+
+  function formatDashboardTime(dateObj) {
+    if (!dateObj || isNaN(dateObj.getTime())) return "";
+    try {
+      return dateObj.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function parseRouteProgressPct(value) {
+    var pct = parseFloat(value);
+    if (!Number.isFinite(pct)) return 0;
+    return clamp(pct, 0, 100);
+  }
+
+  function formatMissionSummaryUpdatedAt(dateObj) {
+    var timeLabel = formatDashboardTime(dateObj);
+    return timeLabel ? ("Updated " + timeLabel) : "Updated just now";
+  }
+
+  function normalizeMissionText(value, fallback, maxLength) {
+    var text = "";
+    var limit = Number.isFinite(maxLength) ? Math.max(0, parseInt(maxLength, 10)) : 0;
+    if (value !== null && value !== undefined) {
+      text = String(value).replace(/\s+/g, " ").trim();
+    }
+    if (text === "—" || text === "--") {
+      text = "";
+    }
+    if (!text) {
+      text = fallback || "";
+    }
+    if (limit > 0 && text.length > limit) {
+      text = text.slice(0, Math.max(0, limit - 1)).replace(/\s+$/, "") + "…";
+    }
+    return text;
+  }
+
+  function normalizeMissionCount(value) {
+    var parsed = parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return 0;
+    }
+    return parsed;
+  }
+
+  function isMissionRouteUnavailable(value) {
+    var normalized = normalizeMissionText(value, "", 120).toLowerCase();
+    if (!normalized) return true;
+    return normalized === "no routes yet"
+      || normalized === "no active route"
+      || normalized === "route"
+      || normalized === "not available";
+  }
+
+  function isMissionSummaryPlaceholder(text) {
+    var normalized = normalizeMissionText(text, "", 140).toLowerCase();
+    if (!normalized) return true;
+    return normalized === "create your first route."
+      || normalized === "create your first route"
+      || normalized === "waiting for route data"
+      || normalized === "no active route"
+      || normalized === "no routes yet"
+      || normalized === "no data";
+  }
+
+  function collectMissionSummaryData() {
+    return {
+      route: {
+        name: dashboardSignals.routeName,
+        summary: dashboardSignals.routeSummary,
+        progressPct: dashboardSignals.routeProgressPct
+      },
+      floatPlans: {
+        active: dashboardSignals.floatPlans ? dashboardSignals.floatPlans.active : 0,
+        total: dashboardSignals.floatPlans ? dashboardSignals.floatPlans.total : 0
+      },
+      monitoring: {
+        active: dashboardSignals.monitoring ? dashboardSignals.monitoring.active : 0,
+        overdue: dashboardSignals.monitoring ? dashboardSignals.monitoring.overdue : 0,
+        escalated: dashboardSignals.monitoring ? dashboardSignals.monitoring.escalated : 0,
+        loaded: dashboardSignals.monitoring ? dashboardSignals.monitoring.loaded : false,
+        message: dashboardSignals.monitoring ? dashboardSignals.monitoring.message : ""
+      },
+      weather: {
+        risk: dashboardSignals.weather ? dashboardSignals.weather.risk : "",
+        alertLabel: dashboardSignals.weather ? dashboardSignals.weather.alertLabel : ""
+      },
+      setup: {
+        vessels: dashboardSignals.setup ? dashboardSignals.setup.vessels : 0,
+        contacts: dashboardSignals.setup ? dashboardSignals.setup.contacts : 0,
+        waypoints: dashboardSignals.setup ? dashboardSignals.setup.waypoints : 0,
+        passengers: dashboardSignals.setup ? dashboardSignals.setup.passengers : 0,
+        operators: dashboardSignals.setup ? dashboardSignals.setup.operators : 0
+      }
+    };
+  }
+
+  function buildMissionSummaryModel(source, recomputedAt) {
+    var payload = source || {};
+    var route = payload.route || {};
+    var floatPlans = payload.floatPlans || {};
+    var monitoring = payload.monitoring || {};
+    var weather = payload.weather || {};
+    var setup = payload.setup || {};
+    var routeName = normalizeMissionText(route.name, "", 56);
+    var routeSummary = normalizeMissionText(route.summary, "", 84);
+    var hasActiveRoute = !isMissionRouteUnavailable(routeName);
+    var routeProgress = parseFloat(route.progressPct);
+    var routePctLabel = Number.isFinite(routeProgress) ? (Math.round(clamp(routeProgress, 0, 100)) + "% complete") : "No data";
+    var floatActive = normalizeMissionCount(floatPlans.active);
+    var floatTotal = normalizeMissionCount(floatPlans.total);
+    var monitoringActive = normalizeMissionCount(monitoring.active);
+    var monitoringOverdue = normalizeMissionCount(monitoring.overdue);
+    var monitoringEscalated = normalizeMissionCount(monitoring.escalated);
+    var monitoringLoaded = monitoring.loaded === true;
+    var monitoringMessage = normalizeMissionText(monitoring.message, "No data", 84);
+    var weatherRisk = normalizeMissionText(weather.risk, "", 30);
+    var weatherAlerts = normalizeMissionText(weather.alertLabel, "None", 34);
+    var vessels = normalizeMissionCount(setup.vessels);
+    var contacts = normalizeMissionCount(setup.contacts);
+    var waypoints = normalizeMissionCount(setup.waypoints);
+    var crew = normalizeMissionCount(setup.passengers) + normalizeMissionCount(setup.operators);
+    var summaryDate = (recomputedAt && !Number.isNaN(recomputedAt.getTime()))
+      ? recomputedAt
+      : (missionSummaryState.lastRecomputedAt || new Date());
+    var routeMeta = "No data";
+    var progressMeta = "No data";
+
+    if (hasActiveRoute && !isMissionSummaryPlaceholder(routeSummary)) {
+      routeMeta = routeSummary;
+      progressMeta = routeSummary;
+    } else if (hasActiveRoute) {
+      progressMeta = Number.isFinite(routeProgress) ? "No data" : "No progress data";
+    } else {
+      progressMeta = "No active route";
+    }
+
+    if (!weatherRisk || weatherRisk.toLowerCase() === "forecast unavailable.") {
+      weatherRisk = "Not available";
+    }
+
+    if (!weatherAlerts || weatherAlerts.toLowerCase() === "not available") {
+      weatherAlerts = "None";
+    }
+
+    return {
+      updatedAtLabel: formatMissionSummaryUpdatedAt(summaryDate),
+      tiles: {
+        activeRoute: {
+          label: MISSION_SUMMARY_TILE_LABELS.activeRoute,
+          value: hasActiveRoute ? routeName : "No active route",
+          meta: routeMeta
+        },
+        routeProgress: {
+          label: MISSION_SUMMARY_TILE_LABELS.routeProgress,
+          value: hasActiveRoute ? routePctLabel : "No data",
+          meta: progressMeta
+        },
+        floatPlans: {
+          label: MISSION_SUMMARY_TILE_LABELS.floatPlans,
+          value: floatTotal > 0 ? (floatActive + " active") : "No plans",
+          meta: floatTotal + " total"
+        },
+        monitoring: {
+          label: MISSION_SUMMARY_TILE_LABELS.monitoring,
+          value: monitoringLoaded ? (monitoringActive + " active / " + monitoringOverdue + " overdue") : "No data",
+          meta: monitoringLoaded ? ("Escalated: " + monitoringEscalated) : monitoringMessage
+        },
+        weatherRisk: {
+          label: MISSION_SUMMARY_TILE_LABELS.weatherRisk,
+          value: weatherRisk,
+          meta: "Alerts: " + weatherAlerts
+        },
+        setup: {
+          label: MISSION_SUMMARY_TILE_LABELS.setup,
+          value: vessels + " vessels • " + contacts + " contacts",
+          meta: waypoints + " waypoints • " + crew + " crew"
+        }
+      }
+    };
+  }
+
+  function updateSetupIntroMetrics() {
+    setText("setupMetricVessels", "Vessels: " + dashboardSignals.setup.vessels);
+    setText("setupMetricContacts", "Contacts: " + dashboardSignals.setup.contacts);
+    setText("setupMetricPassengers", "Crew: " + dashboardSignals.setup.passengers);
+    setText("setupMetricOperators", "Operators: " + dashboardSignals.setup.operators);
+    setText("setupMetricWaypoints", "Waypoints: " + dashboardSignals.setup.waypoints);
+  }
+
+  function renderRouteStatusPanel() {
+    var pct = parseRouteProgressPct(dashboardSignals.routeProgressPct);
+    var progressBar = document.getElementById("routeStatusProgressBar");
+    setText("routeStatusName", dashboardSignals.routeName || "No routes yet");
+    setText("routeStatusMeta", dashboardSignals.routeSummary || "Create your first route.");
+    setText("routeStatusProgressLabel", Math.round(pct) + "% complete");
+    if (progressBar) {
+      progressBar.style.width = pct + "%";
+    }
+  }
+
+  function renderMissionSummary(model) {
+    var summaryModel = model && model.tiles ? model : buildMissionSummaryModel(collectMissionSummaryData(), missionSummaryState.lastRecomputedAt || new Date());
+    var tiles = summaryModel.tiles || {};
+    var mapping = [
+      { key: "activeRoute", valueId: "missionRouteValue", metaId: "missionRouteMeta" },
+      { key: "routeProgress", valueId: "missionProgressValue", metaId: "missionProgressMeta" },
+      { key: "floatPlans", valueId: "missionFloatPlansValue", metaId: "missionFloatPlansMeta" },
+      { key: "monitoring", valueId: "missionMonitoringValue", metaId: "missionMonitoringMeta" },
+      { key: "weatherRisk", valueId: "missionWeatherValue", metaId: "missionWeatherMeta" },
+      { key: "setup", valueId: "missionSetupValue", metaId: "missionSetupMeta" }
+    ];
+    var i = 0;
+    var mapItem = null;
+    var tile = null;
+
+    for (i = 0; i < mapping.length; i += 1) {
+      mapItem = mapping[i];
+      tile = tiles[mapItem.key] || {};
+      setText(mapItem.valueId, normalizeMissionText(tile.value, "No data", 64));
+      setText(mapItem.metaId, normalizeMissionText(tile.meta, "No data", 96));
+    }
+
+    setText("missionSummaryUpdatedAt", normalizeMissionText(summaryModel.updatedAtLabel, "Updated just now", 42));
+  }
+
+  function refreshMissionSummary() {
+    var recomputedAt = new Date();
+    var model = buildMissionSummaryModel(collectMissionSummaryData(), recomputedAt);
+    missionSummaryState.lastRecomputedAt = recomputedAt;
+    renderMissionSummary(model);
+    return model;
+  }
+
+  function renderWeatherPreview() {
+    var windValueEl = document.getElementById("weatherWindSpeed");
+    var windCondEl = document.getElementById("weatherWindCond");
+    var waveValueEl = document.getElementById("wxWaveHeight");
+    var waveTrendEl = document.getElementById("seaWaveTrendValue");
+    var windValue = windValueEl ? (windValueEl.textContent || "").trim() : "";
+    var windMeta = windCondEl ? (windCondEl.textContent || "").trim() : "";
+    var waveValue = waveValueEl ? (waveValueEl.textContent || "").trim() : "";
+    var waveMeta = waveTrendEl ? (waveTrendEl.textContent || "").trim() : "";
+    var summaryText = dashboardSignals.weather.summary || "Forecast unavailable.";
+    var updatedAt = formatDashboardTime(new Date());
+
+    if (!windValue || windValue === "--") {
+      windValue = "—";
+    }
+    if (!windMeta || windMeta === "--") {
+      windMeta = "Current wind";
+    }
+    if (!waveValue || waveValue === "--" || waveValue === "—") {
+      waveValue = "—";
+    } else {
+      waveValue = waveValue + " ft";
+    }
+    if (!waveMeta || waveMeta === "--") {
+      waveMeta = "Current seas";
+    }
+
+    setText("weatherPreviewRiskValue", dashboardSignals.weather.risk || "—");
+    setText("weatherPreviewAlertsValue", dashboardSignals.weather.alertLabel || "None");
+    setText("weatherPreviewWindValue", windValue);
+    setText("weatherPreviewWindMeta", windMeta);
+    setText("weatherPreviewWavesValue", waveValue);
+    setText("weatherPreviewWavesMeta", waveMeta);
+    setText("weatherPreviewSummary", summaryText);
+    setText("weatherPreviewUpdatedAt", updatedAt ? ("Updated " + updatedAt) : "Updated just now");
+  }
+
+  function renderMonitoringSummary() {
+    var block = document.getElementById("monitoringSummaryBlock");
+    var messageEl = document.getElementById("monitoringSummaryMessage");
+    var metaEl = document.getElementById("monitoringSummaryMeta");
+    var mon = dashboardSignals.monitoring || {};
+    if (!block || !messageEl) return;
+
+    if (!mon.loaded) {
+      toggleHidden(block, true);
+      messageEl.textContent = mon.message || "Loading monitoring summary…";
+      toggleHidden(messageEl, false);
+      return;
+    }
+
+    setText("monitoringActiveCount", mon.active);
+    setText("monitoringOverdueCount", mon.overdue);
+    setText("monitoringEscalatedCount", mon.escalated);
+
+    if (metaEl) {
+      var nowLabel = formatDashboardTime(new Date());
+      metaEl.textContent = nowLabel ? ("Monitoring summary updated " + nowLabel + ".") : "Monitoring summary updated.";
+    }
+
+    toggleHidden(messageEl, true);
+    toggleHidden(block, false);
+  }
+
+  function openWeatherPanelFromDashboard() {
+    var weatherCard = document.querySelector(".fpw-card.fpw-alerts");
+    var weatherCollapse = document.getElementById("alertsCollapse");
+    var appTopbar = document.querySelector(".topbar.nav--app");
+    var navHeight = appTopbar ? Math.round(appTopbar.getBoundingClientRect().height) : 0;
+    var topGap = 22;
+
+    if (weatherCollapse) {
+      if (window.bootstrap && window.bootstrap.Collapse) {
+        window.bootstrap.Collapse.getOrCreateInstance(weatherCollapse, { toggle: false }).show();
+      } else {
+        weatherCollapse.classList.add("show");
+      }
+    }
+
+    if (weatherCard && typeof weatherCard.getBoundingClientRect === "function") {
+      window.requestAnimationFrame(function () {
+        var top = weatherCard.getBoundingClientRect().top + window.pageYOffset - navHeight - topGap;
+        window.scrollTo({
+          top: Math.max(0, Math.round(top)),
+          behavior: "smooth"
+        });
+      });
+    }
+  }
+
+  function scrollToPanel(selector) {
+    var panel = document.querySelector(selector);
+    var appTopbar = document.querySelector(".topbar.nav--app");
+    var navHeight = appTopbar ? Math.round(appTopbar.getBoundingClientRect().height) : 0;
+    if (!panel || typeof panel.getBoundingClientRect !== "function") return;
+    window.requestAnimationFrame(function () {
+      var top = panel.getBoundingClientRect().top + window.pageYOffset - navHeight - 22;
+      window.scrollTo({
+        top: Math.max(0, Math.round(top)),
+        behavior: "smooth"
+      });
+    });
+  }
+
+  function triggerExistingButton(buttonId) {
+    var btn = document.getElementById(buttonId);
+    if (!btn || typeof btn.click !== "function") return false;
+    btn.click();
+    return true;
+  }
+
+  function onQuickAction(action) {
+    if (action === "generate-route") {
+      if (!triggerExistingButton("openRouteBuilderBtn")) {
+        scrollToPanel("#expeditionTimelinePanel");
+      }
+      return;
+    }
+    if (action === "new-float-plan") {
+      if (!triggerExistingButton("addFloatPlanBtn")) {
+        scrollToPanel("#floatPlansPanel");
+      }
+      return;
+    }
+    if (action === "add-vessel") {
+      if (!triggerExistingButton("addVesselBtn")) {
+        scrollToPanel("#vesselsPanel");
+      }
+      return;
+    }
+    if (action === "add-contact") {
+      if (!triggerExistingButton("addContactBtn")) {
+        scrollToPanel("#contactsPanel");
+      }
+      return;
+    }
+    if (action === "add-waypoint") {
+      if (!triggerExistingButton("addWaypointBtn")) {
+        scrollToPanel("#waypointsPanel");
+      }
+      return;
+    }
+    if (action === "open-weather") {
+      openWeatherPanelFromDashboard();
+      return;
+    }
+    if (action === "open-float-plans") {
+      scrollToPanel("#floatPlansPanel");
+      return;
+    }
+    if (action === "open-expedition") {
+      scrollToPanel("#expeditionTimelinePanel");
+    }
+  }
+
+  function bindPanelQuickActions(panelId) {
+    var panel = document.getElementById(panelId);
+    if (!panel || panel.dataset.bound === "true") return;
+    panel.addEventListener("click", function (event) {
+      var btn = event.target && event.target.closest ? event.target.closest("[data-quick-action]") : null;
+      if (!btn) return;
+      if (event && typeof event.preventDefault === "function") {
+        event.preventDefault();
+      }
+      onQuickAction(btn.getAttribute("data-quick-action") || "");
+    });
+    panel.dataset.bound = "true";
+  }
+
+  function bindQuickActions() {
+    bindPanelQuickActions("quickActionsPanel");
+  }
+
+  function bindNextStepsActions() {
+    bindPanelQuickActions("recommendedNextStepsPanel");
+  }
+
+  function bindWeatherPreviewActions() {
+    bindPanelQuickActions("weatherPreviewPanel");
+  }
+
+  function bindRouteStatusActions() {
+    var openBtn = document.getElementById("routeStatusOpenRouteBuilderBtn");
+    var timelineBtn = document.getElementById("routeStatusTimelineBtn");
+    var refreshBtn = document.getElementById("routeStatusRefreshBtn");
+    if (openBtn && openBtn.dataset.bound !== "true") {
+      openBtn.addEventListener("click", function () {
+        triggerExistingButton("openRouteBuilderBtn");
+      });
+      openBtn.dataset.bound = "true";
+    }
+    if (timelineBtn && timelineBtn.dataset.bound !== "true") {
+      timelineBtn.addEventListener("click", function () {
+        scrollToPanel("#expeditionTimelinePanel");
+      });
+      timelineBtn.dataset.bound = "true";
+    }
+    if (refreshBtn && refreshBtn.dataset.bound !== "true") {
+      refreshBtn.addEventListener("click", function () {
+        if (modules.expeditionTimeline && typeof modules.expeditionTimeline.load === "function") {
+          modules.expeditionTimeline.load();
+        }
+        loadMonitoringSummary();
+      });
+      refreshBtn.dataset.bound = "true";
+    }
+  }
+
+  function normalizeStatusUpper(value) {
+    return (value || "").toString().trim().toUpperCase();
+  }
+
+  function refreshDerivedSignalsFromState() {
+    var plans = (state.floatPlanState && Array.isArray(state.floatPlanState.all)) ? state.floatPlanState.all : [];
+    var activePlans = 0;
+    var i = 0;
+    var status = "";
+
+    for (i = 0; i < plans.length; i += 1) {
+      status = normalizeStatusUpper(plans[i] && (plans[i].STATUS || plans[i].status));
+      if (status === "ACTIVE" || status === "OPEN") {
+        activePlans += 1;
+      }
+    }
+    dashboardSignals.floatPlans.active = activePlans;
+    dashboardSignals.floatPlans.total = plans.length;
+
+    dashboardSignals.setup.vessels = (state.vesselState && Array.isArray(state.vesselState.all)) ? state.vesselState.all.length : 0;
+    dashboardSignals.setup.contacts = (state.contactState && Array.isArray(state.contactState.all)) ? state.contactState.all.length : 0;
+    dashboardSignals.setup.passengers = (state.passengerState && Array.isArray(state.passengerState.all)) ? state.passengerState.all.length : 0;
+    dashboardSignals.setup.operators = (state.operatorState && Array.isArray(state.operatorState.all)) ? state.operatorState.all.length : 0;
+    dashboardSignals.setup.waypoints = (state.waypointState && Array.isArray(state.waypointState.all)) ? state.waypointState.all.length : 0;
+
+    updateSetupIntroMetrics();
+    refreshMissionSummary();
+    renderRecommendedNextSteps();
+  }
+
+  function loadMonitoringSummary() {
+    var url = BASE_PATH + "/api/v1/floatplans.cfc?method=getMonitoredPlans&returnformat=json";
+    dashboardSignals.monitoring.message = "Loading monitoring summary…";
+    renderMonitoringSummary();
+
+    return fetch(url, { credentials: "same-origin" })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("Monitoring request failed with status " + response.status);
+        }
+        return response.json();
+      })
+      .then(function (payload) {
+        if (utils.ensureAuthResponse && !utils.ensureAuthResponse(payload)) {
+          return;
+        }
+        if (!payload || payload.SUCCESS !== true) {
+          throw new Error(payload && payload.MESSAGE ? payload.MESSAGE : "Monitoring summary unavailable.");
+        }
+
+        var data = payload.DATA || {};
+        var counts = data.counts || {};
+        dashboardSignals.monitoring.active = Number.isFinite(parseInt(counts.active, 10)) ? parseInt(counts.active, 10) : 0;
+        dashboardSignals.monitoring.overdue = Number.isFinite(parseInt(counts.overdue, 10)) ? parseInt(counts.overdue, 10) : 0;
+        dashboardSignals.monitoring.escalated = Number.isFinite(parseInt(counts.escalated, 10)) ? parseInt(counts.escalated, 10) : 0;
+        dashboardSignals.monitoring.loaded = true;
+        dashboardSignals.monitoring.message = "Monitoring summary updated.";
+
+        renderMonitoringSummary();
+        refreshMissionSummary();
+        renderRecommendedNextSteps();
+      })
+      .catch(function (err) {
+        dashboardSignals.monitoring.loaded = false;
+        dashboardSignals.monitoring.message = (err && err.message) ? err.message : "Monitoring summary unavailable.";
+        renderMonitoringSummary();
+        refreshMissionSummary();
+        renderRecommendedNextSteps();
+      });
+  }
+
+  function startMonitoringPolling() {
+    loadMonitoringSummary();
+    if (monitoringPollTimer) {
+      window.clearInterval(monitoringPollTimer);
+    }
+    monitoringPollTimer = window.setInterval(function () {
+      loadMonitoringSummary();
+    }, 60000);
+  }
+
+  function startDerivedSignalsPolling() {
+    refreshDerivedSignalsFromState();
+    if (derivedSignalsPollTimer) {
+      window.clearInterval(derivedSignalsPollTimer);
+    }
+    derivedSignalsPollTimer = window.setInterval(function () {
+      refreshDerivedSignalsFromState();
+    }, 5000);
+  }
+
+  function setRouteSignals(routeName, summaryText, progressPct) {
+    dashboardSignals.routeName = routeName || "No routes yet";
+    dashboardSignals.routeSummary = summaryText || "Create your first route.";
+    dashboardSignals.routeProgressPct = parseRouteProgressPct(progressPct);
+    renderRouteStatusPanel();
+    refreshMissionSummary();
+    renderRecommendedNextSteps();
+  }
+
+  function renderRecommendedNextSteps() {
+    var listEl = document.getElementById("nextStepsList");
+    var emptyEl = document.getElementById("nextStepsEmpty");
+    var steps = [];
+    var markup = "";
+
+    if (!listEl || !emptyEl) return;
+
+    if ((dashboardSignals.floatPlans.total || 0) === 0) {
+      steps.push({
+        title: "Create your first float plan",
+        meta: "No float plans are available for this account.",
+        action: "new-float-plan",
+        actionLabel: "Open Float Plan"
+      });
+    }
+
+    if (dashboardSignals.monitoring.loaded && (dashboardSignals.monitoring.overdue || 0) > 0) {
+      steps.push({
+        title: "Review overdue monitoring plans",
+        meta: dashboardSignals.monitoring.overdue + " monitored plan(s) are currently overdue.",
+        action: "open-float-plans",
+        actionLabel: "Review Plans"
+      });
+    }
+
+    if ((dashboardSignals.setup.contacts || 0) === 0) {
+      steps.push({
+        title: "Add emergency contacts",
+        meta: "Contacts are required for notification workflows in float plans.",
+        action: "add-contact",
+        actionLabel: "Add Contact"
+      });
+    }
+
+    if ((dashboardSignals.setup.vessels || 0) === 0) {
+      steps.push({
+        title: "Add a vessel profile",
+        meta: "Route and float-plan workflows rely on a vessel profile.",
+        action: "add-vessel",
+        actionLabel: "Add Vessel"
+      });
+    }
+
+    if ((dashboardSignals.weather.alertCount || 0) > 0) {
+      steps.push({
+        title: "Review current marine alerts",
+        meta: dashboardSignals.weather.alertCount + " active weather alert(s) are posted.",
+        action: "open-weather",
+        actionLabel: "Open Weather"
+      });
+    }
+
+    if (!steps.length) {
+      listEl.innerHTML = "";
+      toggleHidden(emptyEl, false);
+      return;
+    }
+
+    toggleHidden(emptyEl, true);
+    markup = steps.slice(0, 5).map(function (step) {
+      return ''
+        + '<article class="next-step-item">'
+        + '  <div class="next-step-main">'
+        + '    <p class="next-step-title">' + escapeHtml(step.title) + '</p>'
+        + '    <p class="next-step-meta">' + escapeHtml(step.meta) + '</p>'
+        + '  </div>'
+        + '  <button type="button" class="btn-secondary" data-quick-action="' + escapeHtml(step.action) + '">'
+        + escapeHtml(step.actionLabel)
+        + '</button>'
+        + '</article>';
+    }).join("");
+    listEl.innerHTML = markup;
+  }
 
   function getLoginUrl() {
     if (window.AppAuth && window.AppAuth.loginUrl) {
@@ -305,6 +971,8 @@
     if (alertLabelEl) {
       alertLabelEl.textContent = items.length ? (items.length + " active") : "None";
     }
+    dashboardSignals.weather.alertCount = items.length;
+    dashboardSignals.weather.alertLabel = items.length ? (items.length + " active") : "None";
 
     // Determine highest severity for status dot
     var worst = "ok";
@@ -326,6 +994,8 @@
 
     if (!topItems.length) {
       toggleHidden(emptyEl, false);
+      refreshMissionSummary();
+      renderRecommendedNextSteps();
       return;
     }
     toggleHidden(emptyEl, true);
@@ -365,6 +1035,8 @@
 
       listEl.appendChild(li);
     });
+    refreshMissionSummary();
+    renderRecommendedNextSteps();
   }
 
   
@@ -535,12 +1207,15 @@
       if (windGustEl) windGustEl.textContent = "Gust —";
       if (windCondEl) windCondEl.textContent = "—";
       if (riskLabelEl) riskLabelEl.textContent = "—";
+      dashboardSignals.weather.risk = "—";
       if (gustValueEl) gustValueEl.textContent = "—";
     if (windNeedleEl) windNeedleEl.style.setProperty("--dir", "0deg");
     if (gustHaloEl) gustHaloEl.style.boxShadow = "inset 0 0 0 2px rgba(255,255,255,.10)";
     var tempWrap = document.querySelector(".fpw-wx__temp");
     if (tempWrap) tempWrap.style.setProperty("--pct", "50");
     renderTideGraph(null);
+    refreshMissionSummary();
+    renderRecommendedNextSteps();
     return;
   }
 
@@ -568,6 +1243,7 @@
     // Risk label + halo intensity
     var risk = classifyWindRisk(gust || speed || 0);
     if (riskLabelEl) riskLabelEl.textContent = risk.label;
+    dashboardSignals.weather.risk = risk.label;
 
     if (gustHaloEl) {
       gustHaloEl.style.opacity = risk.haloOpacity;
@@ -722,6 +1398,9 @@
         });
       }
     }
+
+    refreshMissionSummary();
+    renderRecommendedNextSteps();
 
     if (gustValueEl) {
       gustValueEl.textContent = (gust || speed) ? (Math.round(gust || speed) + " mph") : "—";
@@ -1062,7 +1741,9 @@
     if (!summaryEl) return;
     var text = summary || message || "Forecast unavailable.";
     summaryEl.dataset.baseSummary = text;
+    dashboardSignals.weather.summary = text;
     applySummaryDecoration(summaryEl);
+    refreshMissionSummary();
   }
 
   function renderWeatherHiLow(forecast, hiLoEl, summaryEl) {
@@ -1548,6 +2229,7 @@
       trendEl.classList.add(trendClass);
       trendEl.textContent = trendLabel;
     }
+    renderWeatherPreview();
   }
 
   function formatForecastWhen(startTime) {
@@ -1833,6 +2515,7 @@
         accordionEl.innerHTML = "";
         toggleHidden(accordionEl, true);
       }
+      setRouteSignals("No routes yet", "Create your first route", 0);
       setState("ready");
     }
 
@@ -1846,12 +2529,15 @@
       var pct = Number.isFinite(parseFloat(totals.PCT_COMPLETE)) ? parseFloat(totals.PCT_COMPLETE) : 0;
       var totalNm = Number.isFinite(parseFloat(totals.TOTAL_NM)) ? parseFloat(totals.TOTAL_NM) : 0;
       var totalLocks = Number.isFinite(parseFloat(totals.TOTAL_LOCKS)) ? parseFloat(totals.TOTAL_LOCKS) : 0;
+      var summaryText = Math.round(pct) + "% complete • " + formatNumber(totalNm, 1) + " NM • " + formatNumber(totalLocks, 0) + " locks";
+      var routeName = (data && data.ROUTE && data.ROUTE.NAME) ? data.ROUTE.NAME : "Route";
       if (summaryEl) {
-        summaryEl.textContent = Math.round(pct) + "% complete • " + formatNumber(totalNm, 1) + " NM • " + formatNumber(totalLocks, 0) + " locks";
+        summaryEl.textContent = summaryText;
       }
-      if (subtitleEl && data && data.ROUTE && data.ROUTE.NAME) {
-        subtitleEl.textContent = data.ROUTE.NAME;
+      if (subtitleEl && routeName) {
+        subtitleEl.textContent = routeName;
       }
+      setRouteSignals(routeName, summaryText, pct);
     }
 
     function renderRouteList(routes, activeCode) {
@@ -2321,6 +3007,15 @@
     if (utils.ensureAlertModal) {
       utils.ensureAlertModal();
     }
+    bindQuickActions();
+    bindWeatherPreviewActions();
+    bindNextStepsActions();
+    bindRouteStatusActions();
+    renderRouteStatusPanel();
+    refreshMissionSummary();
+    renderMonitoringSummary();
+    renderRecommendedNextSteps();
+    updateSetupIntroMetrics();
 
     if (modules.floatplans && modules.floatplans.init) {
       modules.floatplans.init();
@@ -2349,7 +3044,10 @@
     if (modules.routeBuilder && modules.routeBuilder.init) {
       modules.routeBuilder.init();
     }
-    // TODO: call /api/v1/floatplans.cfc?method=getMonitoredPlans every 60s and render counts/list.
+
+    document.addEventListener("fpw:floatplans-updated", function () {
+      refreshDerivedSignalsFromState();
+    });
 
     Api.getCurrentUser()
       .then(function (data) {
@@ -2381,6 +3079,11 @@
           readyEvent.initEvent("fpw:dashboard:user-ready", true, true);
         }
         document.dispatchEvent(readyEvent);
+        startDerivedSignalsPolling();
+        startMonitoringPolling();
+        window.setTimeout(function () {
+          refreshDerivedSignalsFromState();
+        }, 1200);
       })
       .catch(function (err) {
         console.error("Failed to load current user:", err);

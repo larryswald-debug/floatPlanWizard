@@ -164,6 +164,320 @@ main.dashboard-main{
   min-width: 0;
 }
 
+/* ---------- Approved dashboard hierarchy (Phase 2A/2B) ---------- */
+.dashboard-grid--reflow > #missionSummaryPanel{
+  order: 5;
+  grid-column: 1 / -1;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+
+.dashboard-grid--reflow > #routeStatusPanel{
+  order: 10;
+  min-height: 340px;
+  max-height: 340px;
+  height: 340px;
+}
+
+.dashboard-grid--reflow > #floatPlansPanel.hero-panel{
+  order: 11;
+  grid-column: auto;
+  min-height: 340px;
+  max-height: 500px;
+  height: auto;
+}
+
+.dashboard-grid--reflow > #weatherPreviewPanel{
+  order: 20;
+}
+
+.dashboard-grid--reflow > .fpw-alerts{
+  order: 25;
+  grid-column: 1 / -1;
+}
+
+.dashboard-grid--reflow > #quickActionsPanel{
+  order: 21;
+}
+
+.dashboard-grid--reflow > #expeditionTimelinePanel{
+  order: 30;
+  grid-column: 1 / -1;
+}
+
+.dashboard-grid--reflow > #boatTripSetupPanel{
+  order: 40;
+  grid-column: 1 / -1;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+
+.dashboard-grid--reflow > #vesselsPanel{ order: 41; }
+.dashboard-grid--reflow > #contactsPanel{ order: 42; }
+.dashboard-grid--reflow > #passengersPanel{ order: 43; }
+.dashboard-grid--reflow > #operatorsPanel{ order: 44; }
+.dashboard-grid--reflow > #waypointsPanel{ order: 45; }
+
+.dashboard-grid--reflow > #recommendedNextStepsPanel{
+  order: 50;
+  grid-column: 1 / -1;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+
+.mission-summary-grid{
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.mission-summary-tile{
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  padding: 0.75rem 0.8rem;
+  min-height: 108px;
+}
+
+.mission-summary-label{
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 0.55rem;
+}
+
+.mission-summary-value{
+  font-size: 1rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.95);
+  margin-bottom: 0.4rem;
+  line-height: 1.25;
+}
+
+.mission-summary-meta{
+  font-size: 0.76rem;
+  color: rgba(255,255,255,0.72);
+  line-height: 1.35;
+}
+
+.route-status-name{
+  margin: 0 0 0.55rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.96);
+}
+
+.route-status-meta{
+  margin: 0;
+  color: rgba(255,255,255,0.78);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.route-status-progress{
+  margin-top: 0.95rem;
+}
+
+.route-status-progress-top{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255,255,255,0.78);
+  font-size: 0.8rem;
+  margin-bottom: 0.45rem;
+}
+
+.route-status-progress-track{
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  height: 10px;
+  overflow: hidden;
+}
+
+.route-status-progress-bar{
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, rgba(53,208,198,0.86), rgba(92,161,255,0.9));
+  transition: width 0.22s ease;
+}
+
+.route-status-actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.monitoring-summary-block{
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+  padding: 0.7rem;
+  margin-bottom: 0.75rem;
+}
+
+.monitoring-summary-grid{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.monitoring-summary-tile{
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.02);
+  padding: 0.5rem 0.55rem;
+}
+
+.monitoring-summary-label{
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 0.66rem;
+  color: var(--muted);
+  margin-bottom: 0.28rem;
+}
+
+.monitoring-summary-value{
+  font-size: 1rem;
+  font-family: var(--mono);
+  color: rgba(255,255,255,0.95);
+}
+
+#monitoringSummaryMeta{
+  display: inline-block;
+  margin-top: 0.55rem;
+}
+
+.quick-actions-list{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.quick-action-btn{
+  width: 100%;
+  text-align: left;
+}
+
+.weather-preview-panel .card-body{
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.weather-preview-grid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.weather-preview-tile{
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  padding: 0.6rem 0.65rem;
+}
+
+.weather-preview-label{
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 0.66rem;
+  color: var(--muted);
+  margin-bottom: 0.3rem;
+}
+
+.weather-preview-value{
+  font-size: 1rem;
+  font-family: var(--mono);
+  color: rgba(255,255,255,0.95);
+  margin-bottom: 0.25rem;
+}
+
+.weather-preview-meta{
+  font-size: 0.76rem;
+  color: rgba(255,255,255,0.72);
+  line-height: 1.35;
+}
+
+.weather-preview-summary{
+  margin: 0;
+  color: rgba(255,255,255,0.78);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.weather-preview-open-btn{
+  white-space: nowrap;
+}
+
+.setup-intro-copy{
+  margin: 0 0 0.7rem;
+  color: rgba(255,255,255,0.78);
+  font-size: 0.86rem;
+}
+
+.setup-intro-stats{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.setup-intro-stats span{
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  background: rgba(255,255,255,0.04);
+  font-size: 0.76rem;
+  color: rgba(255,255,255,0.86);
+}
+
+.next-steps-list{
+  display: grid;
+  gap: 0.6rem;
+}
+
+.next-step-item{
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  padding: 0.7rem 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.next-step-main{
+  min-width: 0;
+}
+
+.next-step-title{
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.95);
+}
+
+.next-step-meta{
+  margin: 0.25rem 0 0;
+  color: rgba(255,255,255,0.72);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 1280px){
+  .mission-summary-grid{
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 900px){
   .dashboard-header .header-grid{
     grid-template-columns: 1fr;
@@ -179,6 +493,18 @@ main.dashboard-main{
 
   .header-actions{
     flex-wrap: wrap;
+  }
+
+  .mission-summary-grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .quick-actions-list{
+    grid-template-columns: 1fr;
+  }
+
+  .weather-preview-grid{
+    grid-template-columns: 1fr;
   }
 }
 
@@ -202,6 +528,32 @@ main.dashboard-main{
 
   .dashboard-card .card-body{
     overflow-y: visible;
+  }
+
+  .dashboard-grid--reflow > #routeStatusPanel,
+  .dashboard-grid--reflow > #floatPlansPanel.hero-panel{
+    height: auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .mission-summary-grid{
+    grid-template-columns: 1fr;
+  }
+
+  .monitoring-summary-grid{
+    grid-template-columns: 1fr;
+  }
+
+  .next-step-item{
+    display: block;
+  }
+
+  .next-step-item .btn-secondary,
+  .next-step-item .btn-primary{
+    margin-top: 0.55rem;
+    width: 100%;
+    text-align: center;
   }
 
   .dashboard-body button,
@@ -683,6 +1035,10 @@ main.dashboard-main{
    ========================================================= */
 
 .dashboard-grid > .fpw-alerts{
+  grid-column: 1 / -1;
+}
+
+.dashboard-grid.dashboard-grid--reflow > .fpw-alerts{
   grid-column: 1 / -1;
 }
 

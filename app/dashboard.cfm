@@ -9,7 +9,7 @@
     <cfinclude template="../includes/header_styles.cfm">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260305a">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260306f">
 </head>
 <body class="dashboard-body">
 
@@ -19,10 +19,122 @@
 <main class="dashboard-main">
     <div id="dashboardAlert" class="alert d-none" role="alert"></div>
 
-    <div class="dashboard-grid">
+    <div class="dashboard-grid dashboard-grid--reflow">
 
-        
-        <section class="fpw-card fpw-alerts" aria-label="System Alerts">
+        <section class="dashboard-card panel-floatlike full-width mission-summary-panel" id="missionSummaryPanel" aria-labelledby="missionSummaryTitle">
+            <div class="card-header">
+                <div class="card-title">
+                    <h2 id="missionSummaryTitle"><span class="status-dot status-ok"></span>Mission Summary</h2>
+                    <small class="card-subtitle">Single-glance status for route, float plan, monitoring, conditions, and setup.</small>
+                </div>
+                <div class="card-actions">
+                    <small id="missionSummaryUpdatedAt" class="card-subtitle">Updated just now</small>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mission-summary-grid">
+                    <article class="mission-summary-tile">
+                        <div class="mission-summary-label">Active Route</div>
+                        <div class="mission-summary-value" id="missionRouteValue">No routes yet</div>
+                        <div class="mission-summary-meta" id="missionRouteMeta">Create your first route</div>
+                    </article>
+                    <article class="mission-summary-tile">
+                        <div class="mission-summary-label">Route Progress</div>
+                        <div class="mission-summary-value" id="missionProgressValue">0% complete</div>
+                        <div class="mission-summary-meta" id="missionProgressMeta">Waiting for route data</div>
+                    </article>
+                    <article class="mission-summary-tile">
+                        <div class="mission-summary-label">Float Plans</div>
+                        <div class="mission-summary-value" id="missionFloatPlansValue">No plans</div>
+                        <div class="mission-summary-meta" id="missionFloatPlansMeta">0 total</div>
+                    </article>
+                    <article class="mission-summary-tile">
+                        <div class="mission-summary-label">Monitoring</div>
+                        <div class="mission-summary-value" id="missionMonitoringValue">Loading…</div>
+                        <div class="mission-summary-meta" id="missionMonitoringMeta">Waiting for monitored plans</div>
+                    </article>
+                    <article class="mission-summary-tile">
+                        <div class="mission-summary-label">Weather Risk</div>
+                        <div class="mission-summary-value" id="missionWeatherValue">—</div>
+                        <div class="mission-summary-meta" id="missionWeatherMeta">Alerts: None</div>
+                    </article>
+                    <article class="mission-summary-tile">
+                        <div class="mission-summary-label">Boat &amp; Trip Setup</div>
+                        <div class="mission-summary-value" id="missionSetupValue">0 vessels • 0 contacts</div>
+                        <div class="mission-summary-meta" id="missionSetupMeta">0 waypoints • 0 crew</div>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="dashboard-card panel-floatlike route-status-panel" id="routeStatusPanel" aria-labelledby="routeStatusTitle">
+            <div class="card-header">
+                <div class="card-title">
+                    <h2 id="routeStatusTitle"><span class="status-dot status-ok"></span>Expedition / Route Status</h2>
+                    <small class="card-subtitle" id="routeStatusSubtitle">Lead with the active trip context</small>
+                </div>
+                <div class="card-actions">
+                    <button type="button" class="btn-secondary" id="routeStatusOpenRouteBuilderBtn">Generate My Route</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <h3 class="route-status-name" id="routeStatusName">No active route</h3>
+                <p class="route-status-meta" id="routeStatusMeta">Create or load a route to begin.</p>
+                <div class="route-status-progress">
+                    <div class="route-status-progress-top">
+                        <span>Route Progress</span>
+                        <span id="routeStatusProgressLabel">0% complete</span>
+                    </div>
+                    <div class="route-status-progress-track">
+                        <div class="route-status-progress-bar" id="routeStatusProgressBar"></div>
+                    </div>
+                </div>
+                <div class="route-status-actions">
+                    <button type="button" class="btn-secondary" id="routeStatusTimelineBtn">Open Expedition Timeline</button>
+                    <button type="button" class="btn-secondary" id="routeStatusRefreshBtn">Refresh Route Data</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="dashboard-card panel-floatlike weather-preview-panel" id="weatherPreviewPanel" aria-labelledby="weatherPreviewTitle">
+            <div class="card-header">
+                <div class="card-title">
+                    <h2 id="weatherPreviewTitle"><span class="status-dot status-ok"></span>Weather / Marine Conditions</h2>
+                    <small class="card-subtitle">Compact dashboard preview. Open the full marine panel for detailed weather tools.</small>
+                </div>
+                <div class="card-actions">
+                    <button type="button" class="btn-secondary weather-preview-open-btn" data-quick-action="open-weather">View Full Marine Panel</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="weather-preview-grid">
+                    <article class="weather-preview-tile">
+                        <div class="weather-preview-label">Risk</div>
+                        <div class="weather-preview-value" id="weatherPreviewRiskValue">—</div>
+                        <div class="weather-preview-meta" id="weatherPreviewRiskMeta">Current risk</div>
+                    </article>
+                    <article class="weather-preview-tile">
+                        <div class="weather-preview-label">Alerts</div>
+                        <div class="weather-preview-value" id="weatherPreviewAlertsValue">None</div>
+                        <div class="weather-preview-meta" id="weatherPreviewAlertsMeta">Active marine alerts</div>
+                    </article>
+                    <article class="weather-preview-tile">
+                        <div class="weather-preview-label">Wind</div>
+                        <div class="weather-preview-value" id="weatherPreviewWindValue">—</div>
+                        <div class="weather-preview-meta" id="weatherPreviewWindMeta">Current wind</div>
+                    </article>
+                    <article class="weather-preview-tile">
+                        <div class="weather-preview-label">Waves</div>
+                        <div class="weather-preview-value" id="weatherPreviewWavesValue">—</div>
+                        <div class="weather-preview-meta" id="weatherPreviewWavesMeta">Current seas</div>
+                    </article>
+                </div>
+                <p class="weather-preview-summary" id="weatherPreviewSummary">Forecast unavailable.</p>
+                <small class="card-subtitle" id="weatherPreviewUpdatedAt">Updated just now</small>
+            </div>
+        </section>
+
+        <section class="fpw-card fpw-alerts weather-full-panel" id="weather" aria-label="System Alerts">
             <div class="fpw-card__header">
                 <div class="fpw-card__title">
                     <span class="fpw-alerts__icon" aria-hidden="true">!</span>
@@ -491,7 +603,7 @@
         <section class="dashboard-card hero-panel active" id="floatPlansPanel">
             <div class="card-header">
                 <div class="card-title">
-                    <h2><span class="status-dot status-ok"></span>Float Plans</h2>
+                    <h2><span class="status-dot status-ok"></span>Float Plan &amp; Monitoring</h2>
                     <small class="card-subtitle" id="floatPlansSummary">Loading…</small>
                 </div>
                 <div class="card-actions">
@@ -499,6 +611,24 @@
                 </div>
             </div>
             <div class="card-body" id="floatPlansBody">
+                <div id="monitoringSummaryBlock" class="monitoring-summary-block d-none" aria-live="polite">
+                    <div class="monitoring-summary-grid">
+                        <article class="monitoring-summary-tile">
+                            <div class="monitoring-summary-label">Active</div>
+                            <div class="monitoring-summary-value" id="monitoringActiveCount">0</div>
+                        </article>
+                        <article class="monitoring-summary-tile">
+                            <div class="monitoring-summary-label">Overdue</div>
+                            <div class="monitoring-summary-value" id="monitoringOverdueCount">0</div>
+                        </article>
+                        <article class="monitoring-summary-tile">
+                            <div class="monitoring-summary-label">Escalated</div>
+                            <div class="monitoring-summary-value" id="monitoringEscalatedCount">0</div>
+                        </article>
+                    </div>
+                    <small class="card-subtitle" id="monitoringSummaryMeta">Monitoring summary updated just now.</small>
+                </div>
+                <p id="monitoringSummaryMessage" class="empty d-none">Loading monitoring summary…</p>
                 <div class="d-flex flex-wrap align-items-center gap-2 mb-3" id="floatPlansFilterBar">
                     <div class="flex-grow-1" id="floatPlansFilterInputWrap">
                         <input type="text" id="floatPlansFilterInput" class="form-control" placeholder="Filter float plans…" autocomplete="off">
@@ -508,6 +638,44 @@
                 </div>
                 <p id="floatPlansMessage" class="empty">Loading float plans…</p>
                 <div id="floatPlansList"></div>
+            </div>
+        </section>
+
+        <section class="dashboard-card panel-floatlike quick-actions-panel" id="quickActionsPanel" aria-labelledby="quickActionsTitle">
+            <div class="card-header">
+                <div class="card-title">
+                    <h2 id="quickActionsTitle"><span class="status-dot status-ok"></span>Quick Actions</h2>
+                    <small class="card-subtitle">Use existing dashboard actions without hunting across panels.</small>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="quick-actions-list">
+                    <button type="button" class="btn-secondary quick-action-btn" data-quick-action="generate-route">Generate Route</button>
+                    <button type="button" class="btn-secondary quick-action-btn" data-quick-action="new-float-plan">New Float Plan</button>
+                    <button type="button" class="btn-secondary quick-action-btn" data-quick-action="add-vessel">Add Vessel</button>
+                    <button type="button" class="btn-secondary quick-action-btn" data-quick-action="add-contact">Add Contact</button>
+                    <button type="button" class="btn-secondary quick-action-btn" data-quick-action="add-waypoint">Add Waypoint</button>
+                    <button type="button" class="btn-secondary quick-action-btn" data-quick-action="open-weather">Open Marine Weather</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="dashboard-card panel-floatlike full-width setup-intro-panel" id="boatTripSetupPanel" aria-labelledby="boatTripSetupTitle">
+            <div class="card-header">
+                <div class="card-title">
+                    <h2 id="boatTripSetupTitle"><span class="status-dot status-ok"></span>Boat &amp; Trip Setup</h2>
+                    <small class="card-subtitle">Support tools remain fully available, now grouped lower on the page.</small>
+                </div>
+            </div>
+            <div class="card-body">
+                <p class="setup-intro-copy" id="setupIntroCopy">Current setup totals reflect your existing vessels, contacts, crew, operators, and waypoints.</p>
+                <div class="setup-intro-stats">
+                    <span id="setupMetricVessels">Vessels: 0</span>
+                    <span id="setupMetricContacts">Contacts: 0</span>
+                    <span id="setupMetricPassengers">Crew: 0</span>
+                    <span id="setupMetricOperators">Operators: 0</span>
+                    <span id="setupMetricWaypoints">Waypoints: 0</span>
+                </div>
             </div>
         </section>
 
@@ -593,8 +761,18 @@
             </div>
         </section>
 
-        
-
+        <section class="dashboard-card panel-floatlike full-width next-steps-panel" id="recommendedNextStepsPanel" aria-labelledby="recommendedNextStepsTitle">
+            <div class="card-header">
+                <div class="card-title">
+                    <h2 id="recommendedNextStepsTitle"><span class="status-dot status-ok"></span>Recommended Next Steps</h2>
+                    <small class="card-subtitle">Suggestions are generated from current route, float plan, monitoring, weather, and setup data only.</small>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="nextStepsList" class="next-steps-list"></div>
+                <p id="nextStepsEmpty" class="empty d-none">No immediate action items. Your core dashboard setup is in place.</p>
+            </div>
+        </section>
 
     </div>
 </main>
@@ -1431,10 +1609,10 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20260301b"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260301b"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260301a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260304c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260306h"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260303b"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260306f"></script>
 
 
 
