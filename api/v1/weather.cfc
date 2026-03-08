@@ -18,6 +18,11 @@
         <cfargument name="id" type="any" required="false">
         <cfargument name="floatPlanId" type="any" required="false">
         <cfargument name="zip" type="any" required="false">
+        <cfargument name="lat" type="any" required="false">
+        <cfargument name="latitude" type="any" required="false">
+        <cfargument name="lon" type="any" required="false">
+        <cfargument name="lng" type="any" required="false">
+        <cfargument name="longitude" type="any" required="false">
         <cfargument name="marineMode" type="any" required="false">
         <cfargument name="marineOnly" type="any" required="false">
         <cfargument name="waveTestFt" type="any" required="false">
@@ -182,6 +187,183 @@
                 <cfreturn>
             </cfif>
 
+            <cfif local.act EQ "search">
+                <cfset local.searchLatRaw = readRequestParamValue(arguments, ["lat", "latitude"])>
+                <cfset local.searchLonRaw = readRequestParamValue(arguments, ["lon", "lng", "longitude"])>
+                <cfset local.searchZipRaw = readRequestParamValue(arguments, ["zip"])>
+                <cfset local.searchFloatPlanRaw = readRequestParamValue(arguments, ["floatPlanId", "id"])>
+                <cfset local.searchHasLat = len(local.searchLatRaw)>
+                <cfset local.searchHasLon = len(local.searchLonRaw)>
+                <cfset local.searchRequestEcho = {
+                    "marineMode"=local.marineMode,
+                    "marineOnly"=(local.marineOnly ? 1 : 0)
+                }>
+
+                <cfif local.searchHasLat XOR local.searchHasLon>
+                    <cfset local.resp.SUCCESS = false>
+                    <cfset local.resp.MESSAGE = "Latitude and longitude must both be provided.">
+                    <cfset local.resp.ERROR = {
+                        "CODE"="PARTIAL_COORDINATES",
+                        "DETAIL"="Provide both latitude and longitude."
+                    }>
+                    <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                    <cfreturn>
+                </cfif>
+
+                <cfif local.searchHasLat AND local.searchHasLon>
+                    <cfset local.latParsed = parseSearchCoordinate(local.searchLatRaw, -90, 90, "INVALID_LATITUDE", "Latitude")>
+                    <cfif NOT local.latParsed.SUCCESS>
+                        <cfset local.resp.SUCCESS = false>
+                        <cfset local.resp.MESSAGE = local.latParsed.MESSAGE>
+                        <cfset local.resp.ERROR = local.latParsed.ERROR>
+                        <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                        <cfreturn>
+                    </cfif>
+
+                    <cfset local.lonParsed = parseSearchCoordinate(local.searchLonRaw, -180, 180, "INVALID_LONGITUDE", "Longitude")>
+                    <cfif NOT local.lonParsed.SUCCESS>
+                        <cfset local.resp.SUCCESS = false>
+                        <cfset local.resp.MESSAGE = local.lonParsed.MESSAGE>
+                        <cfset local.resp.ERROR = local.lonParsed.ERROR>
+                        <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                        <cfreturn>
+                    </cfif>
+
+                    <cfset local.searchRequestEcho.lat = local.searchLatRaw>
+                    <cfset local.searchRequestEcho.lon = local.searchLonRaw>
+                    <cfset local.searchRequestEcho.latitude = local.latParsed.VALUE>
+                    <cfset local.searchRequestEcho.longitude = local.lonParsed.VALUE>
+
+                    <cfset local.data = getWeatherForCoordinates(local.latParsed.VALUE, local.lonParsed.VALUE, local.marineMode, local.marineOnly)>
+                    <cfset local.data = appendSearchResolutionMeta(
+                        local.data,
+                        "coords",
+                        local.latParsed.VALUE,
+                        local.lonParsed.VALUE,
+                        local.searchRequestEcho
+                    )>
+
+                    <cfset local.resp.SUCCESS = local.data.SUCCESS>
+                    <cfset local.resp.MESSAGE = local.data.MESSAGE>
+                    <cfif structKeyExists(local.data, "ERROR")>
+                        <cfset local.resp.ERROR = local.data.ERROR>
+                    </cfif>
+                    <cfset structDelete(local.data, "SUCCESS", false)>
+                    <cfset structDelete(local.data, "MESSAGE", false)>
+                    <cfset structDelete(local.data, "ERROR", false)>
+                    <cfset local.resp.DATA = local.data>
+                    <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                    <cfreturn>
+                </cfif>
+
+                <cfif len(local.searchZipRaw)>
+                    <cfset local.zip = rereplace(local.searchZipRaw, "[^0-9]", "", "all")>
+                    <cfif NOT reFind("^[0-9]{5}$", local.zip)>
+                        <cfset local.resp.SUCCESS = false>
+                        <cfset local.resp.MESSAGE = "Invalid ZIP">
+                        <cfset local.resp.ERROR = { "CODE"="INVALID_ZIP", "DETAIL"="ZIP must be 5 digits." }>
+                        <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                        <cfreturn>
+                    </cfif>
+
+                    <cfset local.searchRequestEcho.zip = local.zip>
+                    <cfset local.data = getWeatherForZip(local.zip, local.marineMode, local.marineOnly)>
+                    <cfset local.searchResolvedLat = "">
+                    <cfset local.searchResolvedLon = "">
+                    <cfif structKeyExists(local.data, "META")
+                        AND isStruct(local.data.META)
+                        AND structKeyExists(local.data.META, "anchor")
+                        AND isStruct(local.data.META.anchor)
+                        AND structKeyExists(local.data.META.anchor, "lat")
+                        AND structKeyExists(local.data.META.anchor, "lon")>
+                        <cfset local.searchResolvedLat = val(local.data.META.anchor.lat)>
+                        <cfset local.searchResolvedLon = val(local.data.META.anchor.lon)>
+                    </cfif>
+                    <cfset local.data = appendSearchResolutionMeta(
+                        local.data,
+                        "zip",
+                        local.searchResolvedLat,
+                        local.searchResolvedLon,
+                        local.searchRequestEcho
+                    )>
+
+                    <cfset local.resp.SUCCESS = local.data.SUCCESS>
+                    <cfset local.resp.MESSAGE = local.data.MESSAGE>
+                    <cfif structKeyExists(local.data, "ERROR")>
+                        <cfset local.resp.ERROR = local.data.ERROR>
+                    </cfif>
+                    <cfset structDelete(local.data, "SUCCESS", false)>
+                    <cfset structDelete(local.data, "MESSAGE", false)>
+                    <cfset structDelete(local.data, "ERROR", false)>
+                    <cfset local.resp.DATA = local.data>
+                    <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                    <cfreturn>
+                </cfif>
+
+                <cfif len(local.searchFloatPlanRaw)>
+                    <cfif NOT structKeyExists(application, "dsn") OR NOT len(trim(application.dsn))>
+                        <cfset local.resp.SUCCESS = false>
+                        <cfset local.resp.MESSAGE = "Application error: application.dsn is not set.">
+                        <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                        <cfreturn>
+                    </cfif>
+
+                    <cfset local.fpId = int(val(local.searchFloatPlanRaw))>
+                    <cfif local.fpId LTE 0>
+                        <cfset local.resp.SUCCESS = false>
+                        <cfset local.resp.MESSAGE = "Missing floatPlanId">
+                        <cfset local.resp.ERROR = {
+                            "CODE"="MISSING_FLOATPLAN_ID",
+                            "DETAIL"="floatPlanId or id must be a positive integer."
+                        }>
+                        <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                        <cfreturn>
+                    </cfif>
+
+                    <cfset local.searchRequestEcho.floatPlanId = local.fpId>
+                    <cfset local.data = getWeatherForFloatPlan(local.userId, local.fpId, local.marineMode, local.marineOnly)>
+                    <cfset local.searchResolvedLat = "">
+                    <cfset local.searchResolvedLon = "">
+                    <cfif structKeyExists(local.data, "META")
+                        AND isStruct(local.data.META)
+                        AND structKeyExists(local.data.META, "anchor")
+                        AND isStruct(local.data.META.anchor)
+                        AND structKeyExists(local.data.META.anchor, "lat")
+                        AND structKeyExists(local.data.META.anchor, "lon")>
+                        <cfset local.searchResolvedLat = val(local.data.META.anchor.lat)>
+                        <cfset local.searchResolvedLon = val(local.data.META.anchor.lon)>
+                    </cfif>
+                    <cfset local.data = appendSearchResolutionMeta(
+                        local.data,
+                        "floatplan",
+                        local.searchResolvedLat,
+                        local.searchResolvedLon,
+                        local.searchRequestEcho
+                    )>
+
+                    <cfset local.resp.SUCCESS = local.data.SUCCESS>
+                    <cfset local.resp.MESSAGE = local.data.MESSAGE>
+                    <cfif structKeyExists(local.data, "ERROR")>
+                        <cfset local.resp.ERROR = local.data.ERROR>
+                    </cfif>
+                    <cfset structDelete(local.data, "SUCCESS", false)>
+                    <cfset structDelete(local.data, "MESSAGE", false)>
+                    <cfset structDelete(local.data, "ERROR", false)>
+                    <cfset local.resp.DATA = local.data>
+                    <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                    <cfreturn>
+                </cfif>
+
+                <cfset local.resp.SUCCESS = false>
+                <cfset local.resp.MESSAGE = "Missing location input">
+                <cfset local.resp.ERROR = {
+                    "CODE"="MISSING_LOCATION_INPUT",
+                    "DETAIL"="Provide lat/lon, zip, or floatPlanId."
+                }>
+                <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                <cfreturn>
+            </cfif>
+
             <cfset local.resp.SUCCESS = false>
             <cfset local.resp.MESSAGE = "Unknown action">
             <cfoutput>#serializeJSON(local.resp)#</cfoutput>
@@ -238,6 +420,21 @@
         <cfset local.out = assembleWeatherResponse(
             lat = local.lat,
             lon = local.lon,
+            marineMode = arguments.marineMode,
+            marineOnly = arguments.marineOnly
+        )>
+        <cfreturn local.out>
+    </cffunction>
+
+    <cffunction name="getWeatherForCoordinates" access="private" returntype="struct" output="false">
+        <cfargument name="lat" type="numeric" required="true">
+        <cfargument name="lon" type="numeric" required="true">
+        <cfargument name="marineMode" type="string" required="false" default="full">
+        <cfargument name="marineOnly" type="boolean" required="false" default="false">
+
+        <cfset local.out = assembleWeatherResponse(
+            lat = arguments.lat,
+            lon = arguments.lon,
             marineMode = arguments.marineMode,
             marineOnly = arguments.marineOnly
         )>
@@ -394,6 +591,110 @@
         <cfif len(local.raw) AND isNumeric(local.raw) AND val(local.raw) GTE 0>
             <cfset local.out.enabled = true>
             <cfset local.out.value = round(val(local.raw) * 10) / 10>
+        </cfif>
+
+        <cfreturn local.out>
+    </cffunction>
+
+    <cffunction name="readRequestParamValue" access="private" returntype="string" output="false">
+        <cfargument name="argStruct" type="struct" required="true">
+        <cfargument name="keys" type="array" required="true">
+
+        <cfset local.out = "">
+        <cfset local.k = "">
+
+        <cfloop from="1" to="#arrayLen(arguments.keys)#" index="local.i">
+            <cfset local.k = toString(arguments.keys[local.i])>
+            <cfif structKeyExists(arguments.argStruct, local.k) AND len(trim(toString(arguments.argStruct[local.k])))>
+                <cfset local.out = trim(toString(arguments.argStruct[local.k]))>
+                <cfreturn local.out>
+            </cfif>
+            <cfif structKeyExists(url, local.k) AND len(trim(toString(url[local.k])))>
+                <cfset local.out = trim(toString(url[local.k]))>
+                <cfreturn local.out>
+            </cfif>
+        </cfloop>
+
+        <cfreturn local.out>
+    </cffunction>
+
+    <cffunction name="parseSearchCoordinate" access="private" returntype="struct" output="false">
+        <cfargument name="rawVal" type="any" required="true">
+        <cfargument name="minVal" type="numeric" required="true">
+        <cfargument name="maxVal" type="numeric" required="true">
+        <cfargument name="errorCode" type="string" required="true">
+        <cfargument name="fieldLabel" type="string" required="true">
+
+        <cfset local.raw = trim(toString(arguments.rawVal))>
+        <cfset local.value = 0>
+        <cfset local.out = {
+            "SUCCESS"=false,
+            "MESSAGE"=arguments.fieldLabel & " is invalid.",
+            "VALUE"=0,
+            "ERROR"={
+                "CODE"=arguments.errorCode,
+                "DETAIL"=arguments.fieldLabel & " must be a number between " & arguments.minVal & " and " & arguments.maxVal & "."
+            }
+        }>
+
+        <cfif NOT len(local.raw)>
+            <cfset local.out.ERROR.DETAIL = arguments.fieldLabel & " is required.">
+            <cfreturn local.out>
+        </cfif>
+
+        <cfif NOT isNumeric(local.raw)>
+            <cfset local.out.ERROR.DETAIL = arguments.fieldLabel & " must be numeric.">
+            <cfreturn local.out>
+        </cfif>
+
+        <cfset local.value = val(local.raw)>
+        <cfif local.value LT arguments.minVal OR local.value GT arguments.maxVal>
+            <cfset local.out.ERROR.DETAIL = arguments.fieldLabel & " must be between " & arguments.minVal & " and " & arguments.maxVal & ".">
+            <cfreturn local.out>
+        </cfif>
+
+        <cfset local.out.SUCCESS = true>
+        <cfset local.out.MESSAGE = "OK">
+        <cfset local.out.VALUE = local.value>
+        <cfset structDelete(local.out, "ERROR", false)>
+        <cfreturn local.out>
+    </cffunction>
+
+    <cffunction name="appendSearchResolutionMeta" access="private" returntype="struct" output="false">
+        <cfargument name="payload" type="struct" required="true">
+        <cfargument name="locationType" type="string" required="true">
+        <cfargument name="resolvedLat" type="any" required="false" default="">
+        <cfargument name="resolvedLon" type="any" required="false" default="">
+        <cfargument name="requestEcho" type="struct" required="false" default="#{}#">
+
+        <cfset local.out = arguments.payload>
+        <cfset local.rLat = 0>
+        <cfset local.rLon = 0>
+        <cfset local.reqKeys = []>
+
+        <cfif NOT structKeyExists(local.out, "META") OR NOT isStruct(local.out.META)>
+            <cfset local.out.META = {} >
+        </cfif>
+
+        <cfset local.out.META.resolved_location_type = trim(arguments.locationType)>
+        <cfif isNumeric(arguments.resolvedLat)>
+            <cfset local.rLat = round(val(arguments.resolvedLat) * 1000000) / 1000000>
+            <cfset local.out.META.resolved_lat = local.rLat>
+        </cfif>
+        <cfif isNumeric(arguments.resolvedLon)>
+            <cfset local.rLon = round(val(arguments.resolvedLon) * 1000000) / 1000000>
+            <cfset local.out.META.resolved_lon = local.rLon>
+        </cfif>
+
+        <cfif isStruct(arguments.requestEcho) AND structCount(arguments.requestEcho) GT 0>
+            <cfif NOT structKeyExists(local.out.META, "request") OR NOT isStruct(local.out.META.request)>
+                <cfset local.out.META.request = {} >
+            </cfif>
+            <cfset local.reqKeys = structKeyArray(arguments.requestEcho)>
+            <cfloop from="1" to="#arrayLen(local.reqKeys)#" index="local.i">
+                <cfset local.reqKey = local.reqKeys[local.i]>
+                <cfset local.out.META.request[local.reqKey] = arguments.requestEcho[local.reqKey]>
+            </cfloop>
         </cfif>
 
         <cfreturn local.out>

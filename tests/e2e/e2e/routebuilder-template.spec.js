@@ -324,17 +324,20 @@ test("Route Builder weather suggestion assist applies manually and preview keeps
       MARINE: {
         wave_height_ft: 3.6
       },
-      SURFACE: {
-        visibility_mi: 4.5,
-        pressure_trend: "falling"
+      surface: {
+        visibility_mi: "10+",
+        pressure_inhg: "30.22",
+        pressure_trend: null
       }
     }
   };
   let lastPreviewWeatherFactor = "";
+  let weatherZipRequestCount = 0;
 
   await page.route("**/api/v1/weather.cfc?*", async (route) => {
     const url = route.request().url();
     if (/action=zip/i.test(url)) {
+      weatherZipRequestCount += 1;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -402,6 +405,8 @@ test("Route Builder weather suggestion assist applies manually and preview keeps
   await page.click("#routeGenWeatherSuggestRefreshBtn");
   await expect(page.locator("#routeGenWeatherSuggestValue")).toHaveText(/^\d+%$/, { timeout: 15000 });
   await expect(page.locator("#routeGenWeatherSuggestApplyBtn")).toBeEnabled({ timeout: 10000 });
+  await expect(page.locator("#routeGenWeatherSuggestFactors")).toContainText("Pressure 30.22 inHg", { timeout: 10000 });
+  await expect(page.locator("#routeGenWeatherSuggestFactors")).not.toContainText(/null/i, { timeout: 10000 });
 
   const suggestedPct = await page.evaluate(() => {
     var text = String((document.getElementById("routeGenWeatherSuggestValue") || {}).textContent || "");
@@ -412,7 +417,21 @@ test("Route Builder weather suggestion assist applies manually and preview keeps
   expect(suggestedPct).toBeLessThanOrEqual(60);
 
   await page.click("#routeGenWeatherSuggestApplyBtn");
-  await expect(page.locator("#routeGenWeatherFactorPct")).toHaveValue(String(suggestedPct));
+  await expect(page.locator("#routeGenWeatherFactorPct")).toHaveValue(/^\d+$/, { timeout: 10000 });
+  const appliedPct = await page.evaluate(() => {
+    var input = document.getElementById("routeGenWeatherFactorPct");
+    var txt = input ? String(input.value || "") : "";
+    var n = parseInt(txt.replace(/[^0-9]/g, ""), 10);
+    return Number.isFinite(n) ? n : -1;
+  });
+  const suggestedPctAfterApply = await page.evaluate(() => {
+    var text = String((document.getElementById("routeGenWeatherSuggestValue") || {}).textContent || "");
+    var n = parseInt(text.replace(/[^0-9]/g, ""), 10);
+    return Number.isFinite(n) ? n : -1;
+  });
+  expect(appliedPct).toBeGreaterThanOrEqual(0);
+  expect(appliedPct).toBeLessThanOrEqual(60);
+  expect(appliedPct).toBe(suggestedPctAfterApply);
 
   await page.fill("#routeGenWeatherFactorPct", "13");
   await page.dispatchEvent("#routeGenWeatherFactorPct", "input");
@@ -425,6 +444,7 @@ test("Route Builder weather suggestion assist applies manually and preview keeps
     return rows.length > 0;
   }, { timeout: 30000 });
   expect(lastPreviewWeatherFactor).toBe("13");
+  expect(weatherZipRequestCount).toBeGreaterThan(0);
 
   await page.click("#routeGenCancelBtn");
   await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 15000 });

@@ -9,7 +9,7 @@
     <cfinclude template="../includes/header_styles.cfm">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260306f">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260307h">
 </head>
 <body class="dashboard-body">
 
@@ -137,14 +137,12 @@
         <section class="fpw-card fpw-alerts weather-full-panel" id="weather" aria-label="System Alerts">
             <div class="fpw-card__header">
                 <div class="fpw-card__title">
-                    <span class="fpw-alerts__icon" aria-hidden="true">!</span>
-                    <h2>Weather</h2>
+                    <span id="weatherProviderBadge" class="fpw-wx__badge">NOAA/NWS</span>
                     <button class="fpw-caret collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#alertsCollapse" aria-expanded="false" aria-controls="alertsCollapse">
                         <span class="fpw-caret__icon" aria-hidden="true">></span>
                     </button>
                     <div class="fpw-wx__titleRow fpw-wx__titleRow--header">
-                      <span id="weatherProviderBadge" class="fpw-wx__badge">NOAA/NWS</span>
-                      <h3 id="weatherPanelTitle" class="fpw-wx__title">—</h3>
+                      <h3 id="weatherPanelTitle" class="fpw-wx__title d-none">—</h3>
                       <span id="weatherUpdatedAt" class="fpw-wx__pill d-none">Updated: —</span>
                       <div id="weatherSummary" class="fpw-wx__summary fpw-wx__summary--header">
                         Enter a ZIP code to load your local forecast.
@@ -153,7 +151,20 @@
                 </div>
                 <div class="fpw-card__actions fpw-card__actions--weather">
                     <div class="fpw-wx__topRight fpw-wx__topRight--header">
-                        <div class="fpw-wx__zipBlock">
+                        <div id="weatherLocationModeBlock" class="fpw-wx__zipBlock">
+                          <label for="weatherLocationMode" class="fpw-wx__zipLabel">Location</label>
+                          <select
+                            id="weatherLocationMode"
+                            class="form-select form-select-sm fpw-wx__zipInput"
+                            aria-describedby="weatherLocationModeHelp"
+                          >
+                            <option value="zip" selected>ZIP</option>
+                            <option value="coords">Coordinates</option>
+                          </select>
+                          <div id="weatherLocationModeHelp" class="form-text small">Temp (not saved)</div>
+                        </div>
+
+                        <div id="weatherZipBlock" class="fpw-wx__zipBlock">
                           <label for="weatherZip" class="fpw-wx__zipLabel">ZIP</label>
                           <input
                             id="weatherZip"
@@ -165,6 +176,31 @@
                             aria-describedby="weatherZipHelp"
                           />
                           <div id="weatherZipHelp" class="form-text small">Temp (not saved)</div>
+                        </div>
+
+                        <div id="weatherCoordsBlock" class="fpw-wx__zipBlock d-none">
+                          <label for="weatherLat" class="fpw-wx__zipLabel">Lat</label>
+                          <input
+                            id="weatherLat"
+                            type="text"
+                            inputmode="decimal"
+                            class="form-control form-control-sm fpw-wx__zipInput"
+                            placeholder="27.9506"
+                            aria-describedby="weatherCoordsHelp"
+                          />
+                        </div>
+
+                        <div id="weatherCoordsLonBlock" class="fpw-wx__zipBlock d-none">
+                          <label for="weatherLon" class="fpw-wx__zipLabel">Lon</label>
+                          <input
+                            id="weatherLon"
+                            type="text"
+                            inputmode="decimal"
+                            class="form-control form-control-sm fpw-wx__zipInput"
+                            placeholder="-82.4572"
+                            aria-describedby="weatherCoordsHelp"
+                          />
+                          <div id="weatherCoordsHelp" class="form-text small">Temp (not saved)</div>
                         </div>
 
                         <button id="weatherRefreshBtn" class="btn btn-sm btn-primary fpw-wx__updateBtn" type="button">
@@ -1609,10 +1645,10 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20260301b"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260301b"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260301a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260306h"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260307a"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260306f"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260307i"></script>
 
 
 

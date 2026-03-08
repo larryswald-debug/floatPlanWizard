@@ -24,7 +24,7 @@
       }
     }
     base = base.replace(/\/+$/, "");
-    return base + "/api/v1/weather.cfc?method=handle&action=zip&zip=";
+    return base + "/api/v1/weather.cfc";
   })();
   var tideResizeObserver = null;
   var tideLastMarine = null;
@@ -2254,7 +2254,6 @@
   function applySummaryDecoration(summaryEl) {
     if (!summaryEl) return;
     var base = summaryEl.dataset.baseSummary || summaryEl.textContent || "";
-    var dateStr = formatSummaryDate(new Date());
     var hi = summaryEl.dataset.hi;
     var lo = summaryEl.dataset.lo;
     var parts = [];
@@ -2263,9 +2262,6 @@
     }
     if (hi && lo) {
       parts.push( hi + "°/" + lo + "°");
-    }
-    if (dateStr) {
-      parts.push(dateStr);
     }
     summaryEl.textContent = parts.join(" • ");
   }
@@ -2286,8 +2282,7 @@
   function updateWeatherTitleDate() {
     var titleEl = document.getElementById("weatherPanelTitle");
     if (!titleEl) return;
-    var dateStr = formatSummaryDate(new Date());
-    titleEl.textContent = dateStr || "—";
+    titleEl.textContent = "";
   }
 
 
@@ -2298,12 +2293,39 @@
       .slice(0, 5);
   }
 
+  function normalizeCoordinateInput(value) {
+    return (value || "").toString().trim();
+  }
+
   function isValidZip(zip) {
     return zip && zip.length === 5;
   }
 
-  function weatherUrl(zip, extras) {
-    var url = WEATHER_BASE_URL + encodeURIComponent(zip) + "&returnformat=json";
+  function parseCoordinateValue(value, minVal, maxVal) {
+    var txt = normalizeCoordinateInput(value);
+    var parsed = 0;
+    if (!txt.length) return { valid: false, empty: true, value: null };
+    if (!/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(txt)) {
+      return { valid: false, empty: false, value: null };
+    }
+    parsed = parseFloat(txt);
+    if (!Number.isFinite(parsed) || parsed < minVal || parsed > maxVal) {
+      return { valid: false, empty: false, value: null };
+    }
+    return { valid: true, empty: false, value: parsed };
+  }
+
+  function weatherUrl(location, extras) {
+    var loc = location || {};
+    var mode = String(loc.mode || "zip").toLowerCase();
+    var query = "method=handle&action=search&returnformat=json";
+    if (mode === "coords") {
+      query += "&lat=" + encodeURIComponent(loc.lat);
+      query += "&lon=" + encodeURIComponent(loc.lon);
+    } else {
+      query += "&zip=" + encodeURIComponent(loc.zip || "");
+    }
+    var url = WEATHER_BASE_URL + "?" + query;
     if (extras) {
       url += extras;
     }
@@ -2320,8 +2342,8 @@
       });
   }
 
-  function hydrateMarineTrend(zip, requestSeq) {
-    return fetchWeatherJson(weatherUrl(zip, "&marineOnly=1&marineMode=full"))
+  function hydrateMarineTrend(location, requestSeq) {
+    return fetchWeatherJson(weatherUrl(location, "&marineOnly=1&marineMode=full"))
       .then(function (payload) {
         if (requestSeq !== weatherRequestSeq) return;
         if (!payload || payload.SUCCESS === false) return;
@@ -2336,7 +2358,7 @@
       });
   }
 
-  function loadWeather(zip) {
+  function loadWeather(location) {
     var loadingEl = document.getElementById("weatherLoading");
     if (!loadingEl) {
       return;
@@ -2347,7 +2369,7 @@
     toggleHidden(loadingEl, false);
     clearWeatherError();
 
-    return fetchWeatherJson(weatherUrl(zip, "&marineMode=quick"))
+    return fetchWeatherJson(weatherUrl(location, "&marineMode=quick"))
       .then(function (payload) {
         if (requestSeq !== weatherRequestSeq) return;
         if (!payload || payload.SUCCESS === false) {
@@ -2363,7 +2385,7 @@
         renderWeatherSurface(data.surface || data.SURFACE || null);
         renderTideGraph(data.MARINE);
         renderWaveHeight(data.MARINE);
-        hydrateMarineTrend(zip, requestSeq);
+        hydrateMarineTrend(location, requestSeq);
       })
       .catch(function (err) {
         if (requestSeq !== weatherRequestSeq) return;
@@ -2381,9 +2403,18 @@
       });
   }
 
-  function initWeatherPanel(initialZip) {
+  function initWeatherPanel(initialZip, initialLatLng) {
     var refreshBtn = document.getElementById("weatherRefreshBtn");
     var zipInput = document.getElementById("weatherZip");
+    var locationModeEl = document.getElementById("weatherLocationMode");
+    var zipBlockEl = document.getElementById("weatherZipBlock");
+    if (!zipBlockEl && zipInput && typeof zipInput.closest === "function") {
+      zipBlockEl = zipInput.closest(".fpw-wx__zipBlock");
+    }
+    var coordsLatBlockEl = document.getElementById("weatherCoordsBlock");
+    var coordsLonBlockEl = document.getElementById("weatherCoordsLonBlock");
+    var latInput = document.getElementById("weatherLat");
+    var lonInput = document.getElementById("weatherLon");
     if (!refreshBtn) {
       return;
     }
@@ -2394,35 +2425,111 @@
       zipInput.value = normalizeZip(initialZip);
     }
 
+    if (latInput && initialLatLng && Number.isFinite(initialLatLng.lat)) {
+      latInput.value = String(initialLatLng.lat);
+    }
+    if (lonInput && initialLatLng && Number.isFinite(initialLatLng.lng)) {
+      lonInput.value = String(initialLatLng.lng);
+    }
+
+    function clearWeatherPanelsForError() {
+      renderWeatherSummary("", "");
+      renderWeatherAnchor(null);
+      renderWeatherAlerts([]);
+      renderWeatherForecast([]);
+      renderWeatherSurface(null);
+      renderTideGraph(null);
+      renderWaveHeight(null);
+    }
+
+    function activeLocationMode() {
+      var mode = locationModeEl ? String(locationModeEl.value || "zip").toLowerCase() : "zip";
+      return mode === "coords" ? "coords" : "zip";
+    }
+
+    function syncLocationModeUI() {
+      var mode = activeLocationMode();
+      if (zipBlockEl) zipBlockEl.classList.toggle("d-none", mode !== "zip");
+      if (coordsLatBlockEl) coordsLatBlockEl.classList.toggle("d-none", mode !== "coords");
+      if (coordsLonBlockEl) coordsLonBlockEl.classList.toggle("d-none", mode !== "coords");
+    }
+
     function requestWeatherFromInput(invalidZipMessage) {
-      var zip = normalizeZip(zipInput ? zipInput.value : "");
-      if (zipInput) {
-        zipInput.value = zip;
-      }
+      var mode = activeLocationMode();
+      var zip = "";
+      var latRaw = "";
+      var lonRaw = "";
+      var latParsed = {};
+      var lonParsed = {};
+      var location = {};
 
-      if (!isValidZip(zip)) {
-        var msg = invalidZipMessage;
-        if (!msg) {
-          msg = zip ? "Enter a valid 5-digit ZIP code." : "Home port ZIP is required. Update it in Account settings.";
+      if (mode === "coords") {
+        latRaw = normalizeCoordinateInput(latInput ? latInput.value : "");
+        lonRaw = normalizeCoordinateInput(lonInput ? lonInput.value : "");
+        if (latInput) latInput.value = latRaw;
+        if (lonInput) lonInput.value = lonRaw;
+
+        if ((latRaw && !lonRaw) || (!latRaw && lonRaw)) {
+          clearWeatherPanelsForError();
+          setWeatherError("Enter both latitude and longitude.");
+          return;
         }
-        renderWeatherSummary("", "");
-        renderWeatherAnchor(null);
-        renderWeatherAlerts([]);
-        renderWeatherForecast([]);
-        renderWeatherSurface(null);
-        renderTideGraph(null);
-        renderWaveHeight(null);
-        setWeatherError(msg);
-        return;
+
+        latParsed = parseCoordinateValue(latRaw, -90, 90);
+        if (!latParsed.valid) {
+          clearWeatherPanelsForError();
+          setWeatherError("Enter a valid latitude between -90 and 90.");
+          return;
+        }
+
+        lonParsed = parseCoordinateValue(lonRaw, -180, 180);
+        if (!lonParsed.valid) {
+          clearWeatherPanelsForError();
+          setWeatherError("Enter a valid longitude between -180 and 180.");
+          return;
+        }
+
+        location = {
+          mode: "coords",
+          lat: latParsed.value,
+          lon: lonParsed.value
+        };
+      } else {
+        zip = normalizeZip(zipInput ? zipInput.value : "");
+        if (zipInput) {
+          zipInput.value = zip;
+        }
+
+        if (!isValidZip(zip)) {
+          var msg = invalidZipMessage;
+          if (!msg) {
+            msg = zip ? "Enter a valid 5-digit ZIP code." : "Home port ZIP is required. Update it in Account settings.";
+          }
+          clearWeatherPanelsForError();
+          setWeatherError(msg);
+          return;
+        }
+
+        location = {
+          mode: "zip",
+          zip: zip
+        };
       }
 
-      loadWeather(zip);
+      loadWeather(location);
     }
 
     refreshBtn.addEventListener("click", function () {
       requestWeatherFromInput();
     });
 
+    if (locationModeEl) {
+      locationModeEl.addEventListener("change", function () {
+        syncLocationModeUI();
+      });
+    }
+
+    syncLocationModeUI();
     requestWeatherFromInput("Home port ZIP is required. Update it in Account settings.");
   }
 
@@ -3069,7 +3176,7 @@
         if (utils.resolveHomePortZip) {
           homePortZip = utils.resolveHomePortZip(data.USER);
         }
-        initWeatherPanel(homePortZip);
+        initWeatherPanel(homePortZip, state.homePortLatLng || null);
 
         var readyEvent = null;
         if (typeof Event === "function") {

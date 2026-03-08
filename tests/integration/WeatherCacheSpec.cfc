@@ -19,6 +19,10 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.ctx.baseUrl = scheme & "://" & host & portPart;
     variables.ctx.weatherZipUrl = variables.ctx.baseUrl
       & "/fpw/api/v1/weather.cfc?method=handle&action=zip&zip=02110&returnformat=json&marineMode=quick&marineOnly=1";
+    variables.ctx.weatherSearchBaseUrl = variables.ctx.baseUrl
+      & "/fpw/api/v1/weather.cfc?method=handle&action=search&returnformat=json&marineMode=quick&marineOnly=1";
+    variables.ctx.weatherGetBaseUrl = variables.ctx.baseUrl
+      & "/fpw/api/v1/weather.cfc?method=handle&action=get&returnformat=json";
     variables.ctx.forceUserId = structKeyExists( url, "testUserId" ) && isNumeric( url.testUserId )
       ? val( url.testUserId )
       : 187;
@@ -29,6 +33,93 @@ component extends="testbox.system.BaseSpec" output="false" {
 
   function run() {
     describe( "Weather cache behavior", function() {
+
+      it( "supports action=search with valid ZIP input", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var res = weatherSearchGet( "zip=02110" );
+        var code = extractErrorCode( res );
+
+        expect( isStruct( res ) ).toBeTrue( "Weather search ZIP response was not struct: #serializeJSON(res)#" );
+        expect( structKeyExists( res, "SUCCESS" ) ).toBeTrue( "Weather search ZIP response missing SUCCESS: #serializeJSON(res)#" );
+        expect( code ).notToBe( "INVALID_ZIP" );
+      } );
+
+      it( "returns INVALID_ZIP for action=search invalid ZIP", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var res = weatherSearchGet( "zip=12" );
+        var code = extractErrorCode( res );
+        expect( !!res.SUCCESS ).toBeFalse( "Expected invalid ZIP request to fail: #serializeJSON(res)#" );
+        expect( code ).toBe( "INVALID_ZIP" );
+      } );
+
+      it( "accepts valid coordinates in action=search without coordinate validation errors", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var res = weatherSearchGet( "lat=42.3601&lon=-71.0589" );
+        var code = extractErrorCode( res );
+        expect( isStruct( res ) ).toBeTrue( "Weather search coordinates response was not struct: #serializeJSON(res)#" );
+        expect( code ).notToBe( "INVALID_LATITUDE" );
+        expect( code ).notToBe( "INVALID_LONGITUDE" );
+        expect( code ).notToBe( "PARTIAL_COORDINATES" );
+      } );
+
+      it( "returns INVALID_LATITUDE for out-of-range latitude", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var res = weatherSearchGet( "lat=91&lon=-71.0589" );
+        expect( !!res.SUCCESS ).toBeFalse( "Expected invalid latitude request to fail: #serializeJSON(res)#" );
+        expect( extractErrorCode( res ) ).toBe( "INVALID_LATITUDE" );
+      } );
+
+      it( "returns INVALID_LONGITUDE for out-of-range longitude", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var res = weatherSearchGet( "lat=42.3601&lon=-181" );
+        expect( !!res.SUCCESS ).toBeFalse( "Expected invalid longitude request to fail: #serializeJSON(res)#" );
+        expect( extractErrorCode( res ) ).toBe( "INVALID_LONGITUDE" );
+      } );
+
+      it( "returns PARTIAL_COORDINATES when only one coordinate is provided", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var res = weatherSearchGet( "lat=42.3601" );
+        expect( !!res.SUCCESS ).toBeFalse( "Expected partial coordinate request to fail: #serializeJSON(res)#" );
+        expect( extractErrorCode( res ) ).toBe( "PARTIAL_COORDINATES" );
+      } );
+
+      it( "prioritizes lat/lon validation over ZIP when both are provided", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var res = weatherSearchGet( "lat=999&lon=-71.0589&zip=02110" );
+        expect( !!res.SUCCESS ).toBeFalse( "Expected invalid latitude precedence request to fail: #serializeJSON(res)#" );
+        expect( extractErrorCode( res ) ).toBe( "INVALID_LATITUDE" );
+      } );
+
+      it( "keeps legacy action=get missing floatPlanId behavior unchanged", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var res = apiGetJson( variables.ctx.weatherGetBaseUrl );
+        expect( !!res.SUCCESS ).toBeFalse( "Expected action=get without floatPlanId to fail: #serializeJSON(res)#" );
+        expect( toString( structKeyExists( res, "MESSAGE" ) ? res.MESSAGE : "" ) ).toBe( "Missing floatPlanId" );
+      } );
 
       it( "caches geocode zip key and preserves it on second request", function() {
         if ( !variables.ctx.sessionReady ) {
@@ -298,6 +389,28 @@ component extends="testbox.system.BaseSpec" output="false" {
 
   private struct function weatherZipGet() {
     return apiGetJson( variables.ctx.weatherZipUrl );
+  }
+
+  private struct function weatherSearchGet( string queryString="" ) {
+    var suffix = trim( arguments.queryString );
+    if ( len( suffix ) ) {
+      if ( left( suffix, 1 ) EQ "&" ) {
+        suffix = right( suffix, len( suffix ) - 1 );
+      }
+      return apiGetJson( variables.ctx.weatherSearchBaseUrl & "&" & suffix );
+    }
+    return apiGetJson( variables.ctx.weatherSearchBaseUrl );
+  }
+
+  private string function extractErrorCode( required struct payload ) {
+    if (
+      structKeyExists( arguments.payload, "ERROR" )
+      AND isStruct( arguments.payload.ERROR )
+      AND structKeyExists( arguments.payload.ERROR, "CODE" )
+    ) {
+      return toString( arguments.payload.ERROR.CODE );
+    }
+    return "";
   }
 
   private array function getSessionCookies() {

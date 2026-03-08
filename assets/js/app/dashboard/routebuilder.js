@@ -60,6 +60,11 @@
     editorBaseline: null,
     suppressAutoSelectOnce: false,
     previewLegs: [],
+    previewSummary: {
+      totalNm: 0,
+      estimatedDays: 0,
+      estimatedFuelGallons: NaN
+    },
     myRoutes: {
       available: false,
       routes: [],
@@ -513,8 +518,7 @@
     var legObj = (leg && typeof leg === "object") ? leg : {};
     var distNm = roundTo2(parseFloat(getLegField(legObj, "dist_nm")));
     var lockCount = toInt(getLegField(legObj, "lock_count"), 0);
-    var weatherPct = getWeatherFactorPct();
-    var weatherAdjustedSpeed = roundTo2(getEffectiveCruisingSpeed() * (1 - (weatherPct / 100)));
+    var weatherAdjustedSpeed = getAdjustedCruisingSpeedKn();
     var estHours = 0;
 
     if (!Number.isFinite(distNm) || distNm < 0) distNm = 0;
@@ -578,7 +582,7 @@
     var payload = state.cruiseTimeline.payload && typeof state.cruiseTimeline.payload === "object"
       ? state.cruiseTimeline.payload
       : null;
-    var summary = payload && payload.summary ? payload.summary : null;
+    var summaryTotals = state.previewSummary && typeof state.previewSummary === "object" ? state.previewSummary : {};
     var routeIdVal = toInt(state.activeRouteId, 0);
     var startDateVal = dom.startDateEl ? String(dom.startDateEl.value || "").trim() : String(state.cruiseTimeline.lastStartDate || "").trim();
     var maxHours = clampCruiseTimelineHours(state.cruiseTimeline.maxHoursPerDay);
@@ -621,16 +625,27 @@
       return html;
     }
 
-    if (summary && typeof summary === "object") {
-      html += '<div class="small text-light opacity-75 mb-2">';
-      html += 'Route total: '
-        + formatNumber(toInt(summary.totalDays, 0), 0) + " days"
-        + " · " + formatNumber(toOneDecimal(summary.totalNm), 1) + " nm"
-        + " · " + formatNumber(toOneDecimal(summary.totalRequiredFuel), 1) + " gal";
-      html += "</div>";
-    }
+    html += '<div id="routeGenTimelineRouteTotal" class="small text-light opacity-75 mb-2">'
+      + escapeHtml(buildTimelineRouteTotalText(summaryTotals))
+      + "</div>";
     html += "</div>";
     return html;
+  }
+
+  function buildTimelineRouteTotalText(summaryTotals) {
+    var summary = summaryTotals && typeof summaryTotals === "object" ? summaryTotals : {};
+    return "Route total: "
+      + formatNumber(toInt(summary.estimatedDays, 0), 0) + " days"
+      + " · " + formatNumber(toOneDecimal(summary.totalNm), 1) + " nm"
+      + " · " + (Number.isFinite(summary.estimatedFuelGallons) && summary.estimatedFuelGallons >= 0
+        ? formatNumber(summary.estimatedFuelGallons, 1)
+        : "--") + " gal";
+  }
+
+  function syncTimelineRouteTotalLine() {
+    var routeTotalEl = document.getElementById("routeGenTimelineRouteTotal");
+    if (!routeTotalEl) return;
+    routeTotalEl.textContent = buildTimelineRouteTotalText(state.previewSummary);
   }
 
   function renderCruiseTimelineLegInlineForLeg(leg, order) {
@@ -644,7 +659,6 @@
     var routeIdVal = toInt(state.activeRouteId, 0);
     var startDateVal = dom.startDateEl ? String(dom.startDateEl.value || "").trim() : String(state.cruiseTimeline.lastStartDate || "").trim();
     var html = "";
-
     html += '<div class="fpw-routegen__legtimeline mt-3">';
     html += '  <div class="small text-uppercase text-light opacity-75 mb-2">Cruise Timeline Day</div>';
 
@@ -1005,6 +1019,23 @@
     return n;
   }
 
+  function readWeatherField(source, keys) {
+    var obj = source && typeof source === "object" ? source : {};
+    var keyList = Array.isArray(keys) ? keys : [keys];
+    var idx = 0;
+    var key = "";
+    var value = null;
+    for (idx = 0; idx < keyList.length; idx += 1) {
+      key = String(keyList[idx] || "");
+      if (!key || !Object.prototype.hasOwnProperty.call(obj, key)) continue;
+      value = obj[key];
+      if (value === undefined || value === null) continue;
+      if (typeof value === "string" && !value.trim()) continue;
+      return value;
+    }
+    return null;
+  }
+
   function parseAlertSeverityLevel(alertRow) {
     var row = alertRow && typeof alertRow === "object" ? alertRow : {};
     var severityText = String(
@@ -1086,13 +1117,9 @@
         (marine.WAVE_HEIGHT_FT !== undefined ? marine.WAVE_HEIGHT_FT :
           (waves.height !== undefined ? waves.height : waves.HEIGHT))
     );
-    var visibilityMi = parseNullableNumber(
-      surface.visibility_mi !== undefined ? surface.visibility_mi : surface.VISIBILITY_MI
-    );
-    var pressureTrend = String(
-      surface.pressure_trend !== undefined ? surface.pressure_trend :
-        (surface.PRESSURE_TREND !== undefined ? surface.PRESSURE_TREND : "")
-    ).trim().toLowerCase();
+    var visibilityMi = parseNullableNumber(readWeatherField(surface, ["visibility_mi", "VISIBILITY_MI"]));
+    var pressureInhg = parseNullableNumber(readWeatherField(surface, ["pressure_inhg", "PRESSURE_INHG"]));
+    var pressureTrend = String(readWeatherField(surface, ["pressure_trend", "PRESSURE_TREND"]) || "").trim().toLowerCase();
     var severeAlertCount = 0;
     var score = 0;
     var availableSignals = 0;
@@ -1154,12 +1181,16 @@
       explanationParts.push("Visibility " + roundTo2(visibilityMi) + " mi");
     }
 
+    if (pressureInhg !== null && pressureInhg > 0) {
+      explanationParts.push("Pressure " + pressureInhg.toFixed(2) + " inHg");
+    }
+
     if (pressureTrend) {
       availableSignals += 1;
       if (pressureTrend === "rapid_fall") pressureContribution = 2;
       else if (pressureTrend === "falling") pressureContribution = 1;
       score += pressureContribution;
-      explanationParts.push("Pressure " + pressureTrend.replace(/_/g, " "));
+      explanationParts.push("Trend " + pressureTrend.replace(/_/g, " "));
     }
 
     if (offshoreShare !== null && Number.isFinite(offshoreShare)) {
@@ -1784,8 +1815,8 @@
   function updatePaceLabel() {
     if (!dom.paceLabelEl) return;
     var preset = getSelectedPacePreset();
-    var percent = Math.round((Number.isFinite(preset.factor) ? preset.factor : 1) * 100);
-    dom.paceLabelEl.textContent = preset.label + " (" + percent + "%)";
+    var adjustedSpeedKn = getAdjustedCruisingSpeedKn();
+    dom.paceLabelEl.textContent = preset.label + " (" + formatNumber(adjustedSpeedKn, 2) + " kn)";
   }
 
   function getMaxSpeedKn() {
@@ -1802,6 +1833,13 @@
     var speed = getMaxSpeedKn() * factor;
     if (!Number.isFinite(speed) || speed <= 0) speed = DEFAULT_MAX_SPEED_KN;
     return Math.round(speed * 10) / 10;
+  }
+
+  function getAdjustedCruisingSpeedKn() {
+    var weatherPct = getWeatherFactorPct();
+    var adjusted = roundTo2(getEffectiveCruisingSpeed() * (1 - (weatherPct / 100)));
+    if (!Number.isFinite(adjusted) || adjusted < 0.5) adjusted = 0.5;
+    return adjusted;
   }
 
   function applyPaceDefaults(force) {
@@ -2910,6 +2948,11 @@
 
   function clearPreview() {
     state.previewLegs = [];
+    state.previewSummary = {
+      totalNm: 0,
+      estimatedDays: 0,
+      estimatedFuelGallons: NaN
+    };
     state.cruiseTimeline.requestSeq += 1;
     state.cruiseTimeline.lastRouteId = 0;
     state.cruiseTimeline.lastStartDate = "";
@@ -3963,9 +4006,13 @@
       totalLocks += toInt(getLegField(leg, "lock_count"), 0);
       if (getLegField(leg, "is_offshore")) offshoreCount += 1;
     });
+    if (state.previewSummary && typeof state.previewSummary === "object") {
+      state.previewSummary.totalNm = roundTo2(totalNm);
+    }
     if (dom.totalNmEl) dom.totalNmEl.innerHTML = formatNumber(roundTo2(totalNm), 1) + " <small>NM</small>";
     if (dom.lockCountEl) dom.lockCountEl.textContent = String(totalLocks);
     if (dom.offshoreCountEl) dom.offshoreCountEl.textContent = String(offshoreCount);
+    syncTimelineRouteTotalLine();
   }
 
   function buildLegGeometryPayload(leg) {
@@ -4675,14 +4722,23 @@
       totals.fuel_price_per_gal !== undefined ? totals.fuel_price_per_gal :
         (totals.FUEL_PRICE_PER_GAL !== undefined ? totals.FUEL_PRICE_PER_GAL : NaN)
     );
+    var summaryTotalNm = Number.isFinite(totalNm) ? totalNm : 0;
+    var summaryEstimatedDays = Number.isFinite(estimatedDays) ? Math.max(0, Math.round(estimatedDays)) : 0;
+    var summaryEstimatedFuelGallons = (Number.isFinite(estimatedFuelGallons) && estimatedFuelGallons >= 0) ? estimatedFuelGallons : NaN;
 
-    if (dom.totalNmEl) dom.totalNmEl.innerHTML = formatNumber(Number.isFinite(totalNm) ? totalNm : 0, 1) + ' <small>NM</small>';
-    if (dom.estimatedDaysEl) dom.estimatedDaysEl.textContent = String(Number.isFinite(estimatedDays) ? Math.max(0, Math.round(estimatedDays)) : 0);
+    state.previewSummary = {
+      totalNm: summaryTotalNm,
+      estimatedDays: summaryEstimatedDays,
+      estimatedFuelGallons: summaryEstimatedFuelGallons
+    };
+
+    if (dom.totalNmEl) dom.totalNmEl.innerHTML = formatNumber(summaryTotalNm, 1) + ' <small>NM</small>';
+    if (dom.estimatedDaysEl) dom.estimatedDaysEl.textContent = String(summaryEstimatedDays);
     if (dom.lockCountEl) dom.lockCountEl.textContent = String(Number.isFinite(lockCount) ? Math.max(0, lockCount) : 0);
     if (dom.offshoreCountEl) dom.offshoreCountEl.textContent = String(Number.isFinite(offshoreLegCount) ? Math.max(0, offshoreLegCount) : 0);
     if (dom.estimatedFuelEl) {
-      if (Number.isFinite(estimatedFuelGallons) && estimatedFuelGallons >= 0) {
-        dom.estimatedFuelEl.innerHTML = formatNumber(estimatedFuelGallons, 1) + ' <small>gal</small>';
+      if (Number.isFinite(summaryEstimatedFuelGallons) && summaryEstimatedFuelGallons >= 0) {
+        dom.estimatedFuelEl.innerHTML = formatNumber(summaryEstimatedFuelGallons, 1) + ' <small>gal</small>';
       } else {
         dom.estimatedFuelEl.innerHTML = "-- <small>gal</small>";
       }
@@ -5361,6 +5417,7 @@
 
   function onFormChange() {
     clearError();
+    updatePaceLabel();
     updateFuelBurnBasisUI();
     updateDirectionControlAvailability();
     if (state.modalMode !== "editor") {

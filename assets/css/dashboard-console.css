@@ -1769,7 +1769,7 @@ main.dashboard-main{
             display:flex;
             gap:10px;
             align-items:center;
-            flex-wrap:nowrap;
+            flex-wrap:wrap;
             justify-content:flex-end;
             flex:0 0 auto;
         }
@@ -1777,6 +1777,7 @@ main.dashboard-main{
             display:flex;
             align-items:center;
             gap:8px;
+            flex: 0 0 auto;
         }
         .fpw-wx__zipInput{
             width:110px;
@@ -1787,7 +1788,11 @@ main.dashboard-main{
         .fpw-wx__zipInput::placeholder{ color: rgba(255,255,255,.55); }
         .fpw-wx__zipLabel{ font-size:.75rem; color: rgba(255,255,255,.70); margin:0; display:inline-block; }
         .fpw-wx__zipBlock .form-text{ display:none; }
-        .fpw-wx__updateBtn{ box-shadow: 0 10px 18px rgba(0,0,0,.22); }
+        .fpw-wx__updateBtn{
+            box-shadow: 0 10px 18px rgba(0,0,0,.22);
+            flex: 0 0 auto;
+            white-space: nowrap;
+        }
         .fpw-wx__detailsBtn{ opacity:.9; }
         @media (max-width: 992px){
             .fpw-card__title .fpw-wx__titleRow--header{

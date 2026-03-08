@@ -448,7 +448,7 @@
 
     #fpwRouteGen .rg-mini-value {
       font-size: 28px;
-      font-weight: 900;
+      font-weight: 850;
       line-height: 1;
       font-family: var(--rg-mono);
     }
@@ -469,15 +469,50 @@
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 8px;
+      align-items: start;
       margin-bottom: 8px;
     }
 
     #fpwRouteGen .rg-config-grid-bottom {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr)) 1.45fr;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 8px;
-      align-items: stretch;
+      align-items: start;
       margin-bottom: 8px;
+    }
+
+    #fpwRouteGen .rg-config-grid-bottom .rg-field--compact {
+      height: 83px;
+      max-height: 83px;
+      padding: 9px 10px 10px;
+      display: grid;
+      grid-template-rows: auto 40px;
+      align-content: start;
+      gap: 7px;
+      overflow: hidden;
+    }
+
+    #fpwRouteGen .rg-config-grid-bottom .rg-field--compact label {
+      margin-bottom: 0;
+    }
+
+    #fpwRouteGen .rg-config-grid-bottom .rg-field--compact .form-control {
+      min-height: 40px;
+      height: 40px;
+      max-height: 40px;
+    }
+
+    #fpwRouteGen #routeGenWeatherAssist {
+      grid-column: 4 / 6;
+      grid-row: 1 / span 2;
+      min-width: 0;
+      align-self: stretch;
+    }
+
+    #fpwRouteGen .rg-config-grid-bottom .rg-pace--inset {
+      grid-column: 1 / 4;
+      grid-row: 2;
+      margin-bottom: 0;
     }
 
     #fpwRouteGen .rg-weather-assist {
@@ -651,9 +686,32 @@
       align-items: center;
       justify-content: space-between;
       gap: 10px;
+      min-width: 0;
       padding: 12px 12px 10px;
       border-bottom: 1px solid rgba(114, 159, 214, 0.14);
       background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+    }
+
+    #fpwRouteGen .rg-timeline-headline {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      flex: 1 1 auto;
+      white-space: nowrap;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    #fpwRouteGen .rg-timeline-headline .rg-section-title {
+      flex: 0 0 auto;
+    }
+
+    #fpwRouteGen .rg-timeline-headline .rg-section-note {
+      flex: 1 1 auto;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     #fpwRouteGen .rg-timeline-actions {
@@ -1199,7 +1257,15 @@
       #fpwRouteGen .rg-body { grid-template-columns: 470px 1fr; }
       #fpwRouteGen .rg-mini-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       #fpwRouteGen .rg-config-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      #fpwRouteGen .rg-config-grid-bottom { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #fpwRouteGen .rg-config-grid-bottom { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      #fpwRouteGen #routeGenWeatherAssist {
+        grid-column: 1 / -1;
+        grid-row: auto;
+      }
+      #fpwRouteGen .rg-config-grid-bottom .rg-pace--inset {
+        grid-column: 1 / -1;
+        grid-row: auto;
+      }
     }
 
     @media (max-width: 1120px) {
@@ -1264,8 +1330,7 @@
       <section class="rg-panel" aria-labelledby="routeGenSetupHeading">
         <div class="rg-panel-head">
           <div>
-            <div class="rg-eyebrow">Setup</div>
-            <h2 id="routeGenSetupHeading" class="rg-panel-title">Start -&gt; End -&gt; Pace</h2>
+            <h2 id="routeGenSetupHeading" class="rg-panel-title">Route -&gt; Start -&gt; End</h2>
           </div>
 
         </div>
@@ -1394,7 +1459,6 @@
       <section class="rg-panel" aria-labelledby="routeGenPreviewHeading">
         <div class="rg-panel-head">
           <div>
-            <div class="rg-eyebrow">Preview</div>
             <h2 id="routeGenPreviewHeading" class="rg-panel-title">Route Summary and Legs</h2>
           </div>
           <div class="rg-panel-sub"><span id="routeGenPreviewTemplate">Template: -</span></div>
@@ -1463,15 +1527,15 @@
             </div>
 
             <div class="rg-config-grid-bottom">
-              <div class="rg-field">
+              <div class="rg-field rg-field--compact">
                 <label for="routeGenReservePct">Reserve (%)</label>
                 <input id="routeGenReservePct" type="number" step="1" min="0" max="100" class="form-control form-control-sm" value="20">
               </div>
-              <div class="rg-field">
+              <div class="rg-field rg-field--compact">
                 <label for="routeGenUnderwayHoursPerDay">Underway Hrs / Day</label>
                 <input id="routeGenUnderwayHoursPerDay" type="number" step="0.5" min="1" max="24" class="form-control form-control-sm" value="8">
               </div>
-              <div class="rg-field">
+              <div class="rg-field rg-field--compact">
                 <label for="routeGenFuelPricePerGal">Fuel Price ($/gal)</label>
                 <input id="routeGenFuelPricePerGal" type="number" step="0.01" min="0" class="form-control form-control-sm" value="" placeholder="Enter price">
               </div>
@@ -1490,6 +1554,20 @@
                   <button type="button" id="routeGenWeatherSuggestRefreshBtn" class="btn-secondary btn-sm">Refresh Suggestion</button>
                   <button type="button" id="routeGenWeatherSuggestApplyBtn" class="btn-primary btn-sm" disabled>Apply Suggested</button>
                 </div>
+              </div>
+
+              <div class="rg-pace rg-pace--inset">
+                <div class="rg-pace-top">
+                  <div>
+                    <div class="rg-pace-title">Pace</div>
+                    <div class="rg-pace-desc">Pace applies 25%, 50%, or 100% of your adjusted max speed.</div>
+                  </div>
+                  <div id="routeGenPaceLabel" class="rg-pace-chip">Relaxed</div>
+                </div>
+                <input id="routeGenPace" type="range" min="0" max="2" step="1" value="0" aria-label="Pace">
+                <div class="rg-slider-labels"><span>Relaxed</span><span>Balanced</span><span>Aggressive</span></div>
+                <div id="routeGenPaceOverrideHint" class="rg-field-note d-none">Pace uses a percentage of max speed.</div>
+                <button type="button" id="routeGenResetPaceBtn" class="btn-secondary btn-sm d-none">Reset Pace Defaults</button>
               </div>
             </div>
 
@@ -1513,26 +1591,12 @@
             </div>
           </details>
 
-          <div class="rg-pace">
-            <div class="rg-pace-top">
-              <div>
-                <div class="rg-pace-title">Pace</div>
-                <div class="rg-pace-desc">Pace applies 25%, 50%, or 100% of your max speed.</div>
-              </div>
-              <div id="routeGenPaceLabel" class="rg-pace-chip">Relaxed</div>
-            </div>
-            <input id="routeGenPace" type="range" min="0" max="2" step="1" value="0" aria-label="Pace">
-            <div class="rg-slider-labels"><span>Relaxed</span><span>Balanced</span><span>Aggressive</span></div>
-            <div id="routeGenPaceOverrideHint" class="rg-field-note d-none">Pace uses a percentage of max speed.</div>
-            <button type="button" id="routeGenResetPaceBtn" class="btn-secondary btn-sm d-none">Reset Pace Defaults</button>
-          </div>
-
           <div id="routeGenLegLayout" class="rg-timeline-wrap">
             <div class="rg-timeline-shell">
               <div class="rg-timeline-head">
-                <div>
-                  <div id="routeGenLegHeaderTitle" class="rg-section-title">Cruise Timeline</div>
-                  <div class="rg-section-note"><span id="routeGenLegHeaderCalc">Calc: n/a</span> · <span id="routeGenLegCount">0 legs</span></div>
+                <div class="rg-timeline-headline">
+                  <span id="routeGenLegHeaderTitle" class="rg-section-title">Cruise Timeline</span>
+                  <span class="rg-section-note">: <span id="routeGenLegHeaderCalc">Calc: n/a</span> · <span id="routeGenLegCount">0 legs</span></span>
                 </div>
                 <div class="rg-timeline-actions rg-hidden" aria-hidden="true">
                   <label for="routeGenTimelineMaxHours">Max hrs/day</label>

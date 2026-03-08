@@ -89,10 +89,22 @@ async function loginToDashboard(page) {
   await expect(page.locator("#weatherRefreshBtn")).toBeVisible({ timeout: 30000 });
 }
 
+async function clickWeatherRefresh(page) {
+  await page.evaluate(() => {
+    const btn = document.getElementById("weatherRefreshBtn");
+    if (btn) btn.click();
+  });
+}
+
 test("Dashboard weather/tide/alerts widgets render success and error states", async ({ page }) => {
+  let searchZipRequests = 0;
   await page.route("**/api/v1/weather.cfc?*", async (route) => {
     const reqUrl = new URL(route.request().url());
+    const action = (reqUrl.searchParams.get("action") || "").trim().toLowerCase();
     const zip = (reqUrl.searchParams.get("zip") || "").trim();
+    if (action === "search" && zip) {
+      searchZipRequests += 1;
+    }
     if (zip === "99999") {
       await route.fulfill({
         status: 500,
@@ -109,9 +121,10 @@ test("Dashboard weather/tide/alerts widgets render success and error states", as
   });
 
   await loginToDashboard(page);
+  await page.selectOption("#weatherLocationMode", "zip");
 
   await page.fill("#weatherZip", "60601");
-  await page.click("#weatherRefreshBtn");
+  await clickWeatherRefresh(page);
 
   await expect(page.locator("#weatherSummary")).toContainText("Fresh advisory winds", { timeout: 20000 });
   await expect(page.locator("#weatherAlertLabel")).toContainText("3 active", { timeout: 10000 });
@@ -122,13 +135,65 @@ test("Dashboard weather/tide/alerts widgets render success and error states", as
   await expect(page.locator("#weatherError")).toHaveClass(/d-none/, { timeout: 10000 });
 
   await page.fill("#weatherZip", "11111");
-  await page.click("#weatherRefreshBtn");
+  await clickWeatherRefresh(page);
   await expect(page.locator("#weatherAlertsEmpty")).not.toHaveClass(/d-none/, { timeout: 10000 });
   await expect(page.locator("#weatherAlertsList .fpw-wx__alertItem")).toHaveCount(0, { timeout: 10000 });
   await expect(page.locator("#tideGraphEmpty")).not.toHaveClass(/d-none/, { timeout: 10000 });
 
   await page.fill("#weatherZip", "99999");
-  await page.click("#weatherRefreshBtn");
+  await clickWeatherRefresh(page);
   await expect(page.locator("#weatherError")).not.toHaveClass(/d-none/, { timeout: 10000 });
   await expect(page.locator("#weatherError")).toContainText("Request failed with status 500", { timeout: 10000 });
+  expect(searchZipRequests).toBeGreaterThan(0);
+});
+
+test("Dashboard weather supports coordinates mode and client-side coordinate validation", async ({ page }) => {
+  const coordRequests = [];
+  await page.route("**/api/v1/weather.cfc?*", async (route) => {
+    const reqUrl = new URL(route.request().url());
+    const action = (reqUrl.searchParams.get("action") || "").trim().toLowerCase();
+    const lat = (reqUrl.searchParams.get("lat") || reqUrl.searchParams.get("latitude") || "").trim();
+    const lon = (reqUrl.searchParams.get("lon") || reqUrl.searchParams.get("lng") || reqUrl.searchParams.get("longitude") || "").trim();
+    if (action === "search" && lat && lon) {
+      coordRequests.push({ lat, lon });
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(successPayload("coords"))
+    });
+  });
+
+  await loginToDashboard(page);
+
+  await page.selectOption("#weatherLocationMode", "coords");
+  await expect(page.locator("#weatherLocationMode")).toBeVisible();
+  await expect(page.locator("#weatherZip")).toBeHidden();
+  await expect(page.locator("#weatherLat")).toBeVisible();
+  await expect(page.locator("#weatherLon")).toBeVisible();
+  await page.fill("#weatherLat", "27.9506");
+  await page.fill("#weatherLon", "-82.4572");
+  await clickWeatherRefresh(page);
+
+  await expect(page.locator("#weatherSummary")).toContainText("Fresh advisory winds", { timeout: 20000 });
+  await expect(page.locator("#weatherLocationMode")).toBeVisible();
+  await expect(page.locator("#weatherZip")).toBeHidden();
+  await expect(page.locator("#weatherLat")).toBeVisible();
+  await expect(page.locator("#weatherLon")).toBeVisible();
+  expect(coordRequests.length).toBeGreaterThan(0);
+  expect(coordRequests[coordRequests.length - 1].lat).toBe("27.9506");
+  expect(coordRequests[coordRequests.length - 1].lon).toBe("-82.4572");
+
+  await page.fill("#weatherLon", "");
+  await clickWeatherRefresh(page);
+  await expect(page.locator("#weatherError")).toContainText("Enter both latitude and longitude.", { timeout: 10000 });
+
+  await page.fill("#weatherLon", "-190");
+  await clickWeatherRefresh(page);
+  await expect(page.locator("#weatherError")).toContainText("Enter a valid longitude between -180 and 180.", { timeout: 10000 });
+
+  await page.fill("#weatherLon", "-82.4572");
+  await page.fill("#weatherLat", "95");
+  await clickWeatherRefresh(page);
+  await expect(page.locator("#weatherError")).toContainText("Enter a valid latitude between -90 and 90.", { timeout: 10000 });
 });
