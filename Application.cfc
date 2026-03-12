@@ -29,6 +29,8 @@
         <!--- Optional: environment flag --->
         <cfset application.env = "dev">
         <cfset application.DSN = "fpw">
+        <!--- Set to false after startup/request tracing is no longer needed. --->
+        <cfset application.debugRequestTrace = true>
 
         <!--- Optional: app-level settings struct --->
         <cfset application.settings = {
@@ -45,6 +47,32 @@
             <cflock scope="application" type="exclusive" timeout="10">
                 <cfset onApplicationStart()>
             </cflock>
+        </cfif>
+
+        <!--- Temporary, low-noise startup diagnostics for inbound FPW app/API traffic. --->
+        <cfif structKeyExists(application, "debugRequestTrace")
+            AND isBoolean(application.debugRequestTrace)
+            AND application.debugRequestTrace>
+            <cfset var traceScriptName = structKeyExists(cgi, "script_name") ? toString(cgi.script_name) : "">
+            <cfset var tracePathInfo = structKeyExists(cgi, "path_info") ? toString(cgi.path_info) : "">
+            <cfset var tracePath = lCase(len(trim(tracePathInfo)) ? tracePathInfo : traceScriptName)>
+            <cfset var traceShouldLog = (find("/app/", tracePath) GT 0)
+                OR (find("/api/", tracePath) GT 0)
+                OR (right(tracePath, 10) EQ "/index.cfm")
+                OR (tracePath EQ "/")>
+
+            <cfif traceShouldLog>
+                <cfset var traceQueryStringRaw = structKeyExists(cgi, "query_string") ? toString(cgi.query_string) : "">
+                <cfset var traceQueryString = rereplace(traceQueryStringRaw, "(?i)(token|auth|password|passwd|sessionid)=([^&]*)", "\1=[redacted]", "all")>
+                <cfset var traceMethod = structKeyExists(cgi, "request_method") ? toString(cgi.request_method) : "">
+                <cfset var traceRemoteAddr = structKeyExists(cgi, "remote_addr") ? toString(cgi.remote_addr) : "">
+                <cfset var traceUserAgent = structKeyExists(cgi, "http_user_agent") ? toString(cgi.http_user_agent) : "">
+                <cfset var traceReferer = structKeyExists(cgi, "http_referer") ? toString(cgi.http_referer) : "">
+                <cflog
+                    file="fpw-request-trace"
+                    type="information"
+                    text="FPW_REQUEST_TRACE ts=#dateTimeFormat(now(), 'yyyy-mm-dd HH:nn:ss')# script=#traceScriptName# pathInfo=#tracePathInfo# query=#traceQueryString# method=#traceMethod# remote=#traceRemoteAddr# ua=#traceUserAgent# referer=#traceReferer#">
+            </cfif>
         </cfif>
 
         <!--- Dev/test hook: allow explicit user-id override via request header for integration harnesses. --->

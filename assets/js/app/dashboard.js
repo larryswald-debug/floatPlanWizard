@@ -30,6 +30,7 @@
   var tideLastMarine = null;
   var tideLastWrapWidth = 0;
   var weatherRequestSeq = 0;
+  var AUTO_LOAD_HOME_PORT_WEATHER = true;
   var seaStateLastWaveHeight = null;
   var monitoringPollTimer = 0;
   var derivedSignalsPollTimer = 0;
@@ -448,6 +449,12 @@
     if (action === "add-contact") {
       if (!triggerExistingButton("addContactBtn")) {
         scrollToPanel("#contactsPanel");
+      }
+      return;
+    }
+    if (action === "add-operator") {
+      if (!triggerExistingButton("addOperatorBtn")) {
+        scrollToPanel("#operatorsPanel");
       }
       return;
     }
@@ -2530,7 +2537,12 @@
     }
 
     syncLocationModeUI();
-    requestWeatherFromInput("Home port ZIP is required. Update it in Account settings.");
+    if (AUTO_LOAD_HOME_PORT_WEATHER) {
+      requestWeatherFromInput("Home port ZIP is required. Update it in Account settings.");
+    } else {
+      clearWeatherError();
+      renderWeatherSummary("Weather ready - press Refresh to load.", "");
+    }
   }
 
   function formatNumber(value, decimals) {

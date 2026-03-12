@@ -6,56 +6,110 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Admin Fuel Calculator</title>
+  <title>Fuel Calculator</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 24px; background: #f7f7f7; color: #111; }
-    .wrap { max-width: 1120px; margin: 0 auto; background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px; }
-    .admin-nav { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
-    .admin-nav a { text-decoration: none; border: 1px solid #bbb; background: #f5f5f5; color: #222; padding: 6px 10px; border-radius: 4px; font-size: 14px; }
-    .admin-nav a.active { background: #111; border-color: #111; color: #fff; }
-    h1 { margin-top: 0; font-size: 24px; }
-    .hint { color: #444; margin-bottom: 16px; }
-    .msg { margin-top: 12px; padding: 10px; border-radius: 4px; }
-    .msg.info { background: #edf2ff; border: 1px solid #b6c6ff; }
-    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-    .field { display: flex; flex-direction: column; gap: 6px; }
-    .field label { font-size: 13px; font-weight: 700; color: #222; }
-    .field input, .field select {
-      border: 1px solid #bbb;
+    .fuelcalc-page {
+      margin: 0;
+      background:
+        radial-gradient(1200px 520px at 10% -20%, rgba(53, 208, 200, 0.14), transparent 60%),
+        radial-gradient(900px 480px at 95% 0%, rgba(74, 163, 255, 0.16), transparent 64%),
+        linear-gradient(180deg, #041025 0%, #031020 100%);
+      color: rgba(235, 244, 255, 0.94);
+    }
+    .fuelcalc-main { padding: 20px 16px 36px; }
+    .fuelcalc-main .wrap {
+      max-width: 1240px;
+      margin: 0 auto;
+      background: linear-gradient(180deg, rgba(9, 24, 42, 0.96), rgba(5, 17, 32, 0.96));
+      border: 1px solid rgba(82, 132, 204, 0.45);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 22px 56px rgba(0, 0, 0, 0.42);
+    }
+    .fuelcalc-main h1 {
+      margin-top: 0;
+      font-size: 34px;
+      letter-spacing: 0.02em;
+      color: #e8f2ff;
+    }
+    .fuelcalc-main .hint {
+      color: rgba(206, 223, 244, 0.9);
+      margin-bottom: 16px;
+      font-size: 19px;
+    }
+    .fuelcalc-main .msg { margin-top: 12px; padding: 10px; border-radius: 8px; }
+    .fuelcalc-main .msg.info {
+      background: rgba(42, 66, 110, 0.48);
+      border: 1px solid rgba(131, 166, 224, 0.55);
+      color: rgba(230, 241, 255, 0.96);
+    }
+    .fuelcalc-main .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .fuelcalc-main .field { display: flex; flex-direction: column; gap: 6px; }
+    .fuelcalc-main .field label {
+      display: block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(178, 216, 255, 0.96);
+    }
+    .fuelcalc-main .field input, .fuelcalc-main .field select {
+      border: 1px solid rgba(117, 150, 205, 0.45);
       border-radius: 4px;
       font-size: 14px;
       padding: 8px;
-      background: #fff;
-      color: #111;
+      background: rgba(7, 20, 38, 0.88);
+      color: rgba(233, 243, 255, 0.98);
     }
-    .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
-    button {
+    .fuelcalc-main .field input::placeholder { color: rgba(175, 197, 230, 0.75); }
+    .fuelcalc-main .calc-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    .fuelcalc-main .calc-actions button {
       padding: 8px 12px;
       border-radius: 4px;
-      border: 1px solid #666;
-      background: #efefef;
+      border: 1px solid rgba(121, 151, 206, 0.55);
+      background: rgba(7, 20, 38, 0.92);
+      color: rgba(235, 244, 255, 0.95);
       cursor: pointer;
       font-size: 14px;
     }
-    button.primary { background: #111; border-color: #111; color: #fff; }
-    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
-    .card {
-      background: #fafafa;
-      border: 1px solid #ddd;
+    .fuelcalc-main .calc-actions button.primary {
+      border-color: rgba(83, 174, 239, 0.9);
+      background: linear-gradient(135deg, rgba(43, 129, 214, 0.95), rgba(57, 196, 232, 0.94));
+      color: #041221;
+    }
+    .fuelcalc-main .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+    .fuelcalc-main .card {
+      background: linear-gradient(180deg, rgba(8, 25, 45, 0.92), rgba(5, 15, 30, 0.88));
+      border: 1px solid rgba(88, 128, 189, 0.45);
       border-radius: 6px;
       padding: 12px;
     }
-    .card .label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: #666; margin-bottom: 6px; }
-    .card .value { font-size: 28px; font-weight: 800; line-height: 1.1; }
-    .card .sub { margin-top: 4px; font-size: 12px; color: #666; }
-    table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 14px; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
-    th { background: #f0f0f0; }
-    td.num { text-align: right; font-family: Consolas, Menlo, Monaco, monospace; }
-    pre {
+    .fuelcalc-main .card .label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: rgba(184, 204, 236, 0.82);
+      margin-bottom: 6px;
+    }
+    .fuelcalc-main .card .value { font-size: 42px; font-weight: 800; line-height: 1.1; color: #f5fbff; }
+    .fuelcalc-main .card .sub { margin-top: 4px; font-size: 12px; color: rgba(182, 204, 237, 0.86); }
+    .fuelcalc-main table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 14px; }
+    .fuelcalc-main th, .fuelcalc-main td {
+      border: 1px solid rgba(85, 122, 180, 0.5);
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+      color: rgba(226, 238, 255, 0.95);
+    }
+    .fuelcalc-main th { background: rgba(18, 40, 69, 0.88); }
+    .fuelcalc-main td.num { text-align: right; font-family: Consolas, Menlo, Monaco, monospace; }
+    .fuelcalc-main pre {
       margin-top: 16px;
-      background: #111;
-      color: #f4f4f4;
+      background: rgba(3, 11, 22, 0.95);
+      border: 1px solid rgba(73, 115, 175, 0.45);
+      color: #eef6ff;
       padding: 12px;
       border-radius: 6px;
       overflow: auto;
@@ -63,20 +117,17 @@
       line-height: 1.45;
     }
     @media (max-width: 900px) {
-      .grid, .cards { grid-template-columns: 1fr; }
+      .fuelcalc-main .grid, .fuelcalc-main .cards { grid-template-columns: 1fr; }
+      .fuelcalc-main h1 { font-size: 30px; }
+      .fuelcalc-main .card .value { font-size: 36px; }
     }
   </style>
 </head>
-<body>
-  <div class="wrap">
-    <nav class="admin-nav" aria-label="Admin Tools">
-      <a href="/fpw/admin/floatplan-cleanup.cfm">FloatPlan Cleanup</a>
-      <a href="/fpw/admin/route-cleanup.cfm">Route Cleanup</a>
-      <a href="/fpw/admin/fuel-calculator.cfm" class="active">Fuel Calculator</a>
-      <a href="/fpw/admin/waypoint-manager.cfm">Waypoint Manager</a>
-    </nav>
-
-    <h1>Admin QA Fuel Calculator</h1>
+<body class="fuelcalc-page">
+  <cfinclude template="../includes/top_nav.cfm">
+  <main class="fuelcalc-main">
+    <div class="wrap">
+    <h1>Fuel Calculator</h1>
     <p class="hint">Dev-only manual-input calculator that mirrors the Route Generator Cruise Timeline summary math.</p>
 
     <div class="msg info">
@@ -137,7 +188,7 @@
         </div>
       </div>
 
-      <div class="actions">
+      <div class="calc-actions">
         <button type="button" class="primary" id="calcBtn">Calculate</button>
         <button type="button" id="resetBtn">Reset</button>
         <button type="button" id="copyJsonBtn">Copy Result JSON</button>
@@ -174,7 +225,8 @@
     </table>
 
     <pre id="calcJsonOut">{}</pre>
-  </div>
+    </div>
+  </main>
 
   <script src="../assets/js/app/shared/fuel-math.js?v=20260308a"></script>
   <script>

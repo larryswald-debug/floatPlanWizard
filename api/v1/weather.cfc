@@ -2050,8 +2050,11 @@
             </cfif>
         </cfloop>
 
+        <!--- Fetch HI/LO payload once and reuse for both fallback series + next high/low extraction. --->
+        <cfset local.hiloPayload = fetchCoopsHiloPayload(arguments.stationId, local.beginUtc)>
+
         <cfif NOT structKeyExists(local.out, "tide") OR NOT arrayLen(local.out.tide.series)>
-            <cfset local.hilo = getCoopsHiloSeries(arguments.stationId, local.beginUtc, local.endUtc)>
+            <cfset local.hilo = getCoopsHiloSeries(arguments.stationId, local.beginUtc, local.endUtc, local.hiloPayload)>
             <!---
                 Fallback to HI/LO points directly when hourly series is unavailable.
                 This guarantees the tide graph can render instead of showing empty.
@@ -2067,7 +2070,7 @@
             </cfif>
         </cfif>
 
-        <cfset local.hl = getCoopsNextHighLow(arguments.stationId)>
+        <cfset local.hl = getCoopsNextHighLow(arguments.stationId, local.hiloPayload)>
         <cfif isStruct(local.hl) AND structCount(local.hl)>
             <cfif NOT structKeyExists(local.out, "tide")>
                 <cfset local.out.tide = { "stationId"=arguments.stationId, "stationName"=arguments.stationName, "tz"="gmt", "units"="ft", "series"=[] }>
@@ -2088,24 +2091,94 @@
         <cfreturn local.out>
     </cffunction>
 
-    <cffunction name="getCoopsNextHighLow" access="private" returntype="struct" output="false">
+    <cffunction name="fetchCoopsHiloPayload" access="private" returntype="struct" output="false">
         <cfargument name="stationId" type="string" required="true">
+        <cfargument name="beginUtc" type="date" required="true">
+        <cfargument name="datum" type="string" required="false" default="MLLW">
+        <cfargument name="units" type="string" required="false" default="english">
+        <cfargument name="timeZone" type="string" required="false" default="gmt">
+        <cfargument name="rangeHours" type="numeric" required="false" default="48">
 
-        <cfset local.out = {} >
         <cfset local.ua = getNwsUserAgent()>
-        <cfset local.begin = dateFormat(dateConvert("local2utc", now()), "yyyymmdd")>
-        <cfset local.url = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&application=FPW&datum=MLLW&interval=hilo&units=english&time_zone=gmt&format=json&begin_date=" & urlEncodedFormat(local.begin) & "&range=48&station=" & urlEncodedFormat(arguments.stationId)>
-        <cfset local.httpStatus = 0>
+        <cfset local.begin = dateFormat(arguments.beginUtc, "yyyymmdd")>
+        <cfset local.rangeInt = int(arguments.rangeHours)>
+        <cfif local.rangeInt LTE 0>
+            <cfset local.rangeInt = 48>
+        </cfif>
+        <cfset local.cacheKey = "coops_hilo_payload:"
+            & trim(arguments.stationId)
+            & ":"
+            & local.begin
+            & ":"
+            & lCase(trim(arguments.datum))
+            & ":"
+            & lCase(trim(arguments.units))
+            & ":"
+            & lCase(trim(arguments.timeZone))
+            & ":"
+            & local.rangeInt>
+
+        <cfif NOT structKeyExists(request, "_fpwCoopsHiloPayloadCache") OR NOT isStruct(request._fpwCoopsHiloPayloadCache)>
+            <cfset request._fpwCoopsHiloPayloadCache = {} >
+        </cfif>
+        <cfif structKeyExists(request._fpwCoopsHiloPayloadCache, local.cacheKey)
+            AND isStruct(request._fpwCoopsHiloPayloadCache[local.cacheKey])>
+            <cfreturn request._fpwCoopsHiloPayloadCache[local.cacheKey]>
+        </cfif>
+
+        <cfset local.url = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&application=FPW&datum="
+            & urlEncodedFormat(arguments.datum)
+            & "&interval=hilo&units="
+            & urlEncodedFormat(arguments.units)
+            & "&time_zone="
+            & urlEncodedFormat(arguments.timeZone)
+            & "&format=json&begin_date="
+            & urlEncodedFormat(local.begin)
+            & "&range="
+            & local.rangeInt
+            & "&station="
+            & urlEncodedFormat(arguments.stationId)>
+        <cfset local.payload = {
+            "statusCode"=0,
+            "fileContent"="",
+            "url"=local.url
+        }>
 
         <cfhttp url="#local.url#" method="get" result="hRes" timeout="20">
             <cfhttpparam type="header" name="User-Agent" value="#local.ua#">
             <cfhttpparam type="header" name="Accept" value="application/json">
         </cfhttp>
 
-        <cfset local.httpStatus = val(hRes.statusCode)>
+        <cfif structKeyExists(hRes, "statusCode")>
+            <cfset local.payload.statusCode = val(hRes.statusCode)>
+        </cfif>
+        <cfif structKeyExists(hRes, "fileContent")>
+            <cfset local.payload.fileContent = hRes.fileContent>
+        </cfif>
+
+        <cfset request._fpwCoopsHiloPayloadCache[local.cacheKey] = local.payload>
+        <cfreturn local.payload>
+    </cffunction>
+
+    <cffunction name="getCoopsNextHighLow" access="private" returntype="struct" output="false">
+        <cfargument name="stationId" type="string" required="true">
+        <cfargument name="hiloPayload" type="any" required="false" default="">
+
+        <cfset local.out = {} >
+        <cfset local.beginUtc = dateConvert("local2utc", now())>
+        <cfset local.payload = {} >
+        <cfif isStruct(arguments.hiloPayload) AND structKeyExists(arguments.hiloPayload, "fileContent")>
+            <cfset local.payload = arguments.hiloPayload>
+        <cfelse>
+            <cfset local.payload = fetchCoopsHiloPayload(arguments.stationId, local.beginUtc)>
+        </cfif>
+        <cfset local.httpStatus = 0>
+        <cfif structKeyExists(local.payload, "statusCode")>
+            <cfset local.httpStatus = val(local.payload.statusCode)>
+        </cfif>
         <cfif local.httpStatus GTE 200 AND local.httpStatus LT 300>
             <cftry>
-                <cfset local.obj = deserializeJSON(hRes.fileContent)>
+                <cfset local.obj = deserializeJSON(structKeyExists(local.payload, "fileContent") ? local.payload.fileContent : "")>
                 <cfif structKeyExists(local.obj, "predictions") AND isArray(local.obj.predictions)>
                     <cfset local.nowTs = now()>
                     <cfloop from="1" to="#arrayLen(local.obj.predictions)#" index="local.i">
@@ -2168,20 +2241,23 @@
         <cfargument name="stationId" type="string" required="true">
         <cfargument name="beginUtc" type="date" required="true">
         <cfargument name="endUtc" type="date" required="true">
+        <cfargument name="hiloPayload" type="any" required="false" default="">
 
-        <cfset local.ua = getNwsUserAgent()>
-        <cfset local.begin = dateFormat(arguments.beginUtc, "yyyymmdd")>
-        <cfset local.url = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&application=FPW&datum=MLLW&interval=hilo&units=english&time_zone=gmt&format=json&begin_date=" & urlEncodedFormat(local.begin) & "&range=48&station=" & urlEncodedFormat(arguments.stationId)>
         <cfset local.out = []>
+        <cfset local.payload = {} >
+        <cfset local.httpStatus = 0>
+        <cfif isStruct(arguments.hiloPayload) AND structKeyExists(arguments.hiloPayload, "fileContent")>
+            <cfset local.payload = arguments.hiloPayload>
+        <cfelse>
+            <cfset local.payload = fetchCoopsHiloPayload(arguments.stationId, arguments.beginUtc)>
+        </cfif>
+        <cfif structKeyExists(local.payload, "statusCode")>
+            <cfset local.httpStatus = val(local.payload.statusCode)>
+        </cfif>
 
-        <cfhttp url="#local.url#" method="get" result="hRes" timeout="20">
-            <cfhttpparam type="header" name="User-Agent" value="#local.ua#">
-            <cfhttpparam type="header" name="Accept" value="application/json">
-        </cfhttp>
-
-        <cfif val(hRes.statusCode) GTE 200 AND val(hRes.statusCode) LT 300>
+        <cfif local.httpStatus GTE 200 AND local.httpStatus LT 300>
             <cftry>
-                <cfset local.obj = deserializeJSON(hRes.fileContent)>
+                <cfset local.obj = deserializeJSON(structKeyExists(local.payload, "fileContent") ? local.payload.fileContent : "")>
                 <cfif structKeyExists(local.obj, "predictions") AND isArray(local.obj.predictions)>
                     <cfloop from="1" to="#arrayLen(local.obj.predictions)#" index="local.i">
                         <cfset local.p = local.obj.predictions[local.i]>

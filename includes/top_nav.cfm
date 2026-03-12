@@ -38,6 +38,13 @@ basePath = "";
 if (structKeyExists(request, "fpwBase")) {
   basePath = request.fpwBase;
 }
+if (!len(trim(basePath)) && structKeyExists(cgi, "script_name")) {
+  scriptName = toString(cgi.script_name);
+  appPathPos = findNoCase("/app/", scriptName);
+  if (appPathPos > 1) {
+    basePath = left(scriptName, appPathPos - 1);
+  }
+}
 </cfscript>
 
 <style>
@@ -522,6 +529,7 @@ if (structKeyExists(request, "fpwBase")) {
         <a class="tab active" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm">Dashboard</a>
         <a class="tab" href="#monitoring">Monitoring</a>
         <a class="tab" id="fpwNavWeatherLink" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm#weather">Weather</a>
+        <a class="tab" href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm">Fuel Calculator</a>
       </nav>
 
       <div class="actions">
@@ -531,16 +539,6 @@ if (structKeyExists(request, "fpwBase")) {
         </button>
 
         <span class="divider" aria-hidden="true"></span>
-
-        <details class="dd">
-          <summary class="btn btnPrimary">+ New</summary>
-          <div class="menu" role="menu" aria-label="New menu">
-            <a id="fpwNavNewRouteLink" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm">🗺️ New Route</a>
-            <a id="fpwNavNewFloatPlanLink" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm">📄 New Float Plan</a>
-            <hr />
-            <a href="#invite">👥 Invite Follower</a>
-          </div>
-        </details>
 
         <details class="dd">
           <summary class="btn"><cfoutput>#encodeForHTML(userDisplayName)#</cfoutput></summary>
@@ -565,11 +563,7 @@ if (structKeyExists(request, "fpwBase")) {
     <a href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm">Dashboard</a>
     <a href="#monitoring">Monitoring</a>
     <a id="fpwMobileWeatherLink" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm#weather">Weather</a>
-    <hr />
-    <div class="fpwMobileSection">+ New</div>
-    <button type="button" id="fpwMobileNewRouteBtn">🗺️ New Route</button>
-    <button type="button" id="fpwMobileNewFloatPlanBtn">📄 New Float Plan</button>
-    <a href="#invite">👥 Invite Follower</a>
+    <a href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm">Fuel Calculator</a>
     <hr />
     <div class="fpwMobileSection">Account</div>
     <a href="<cfoutput>#basePath#</cfoutput>/app/account.cfm">👤 Account</a>
@@ -697,37 +691,37 @@ if (structKeyExists(request, "fpwBase")) {
           }
         } catch (e3) {}
 
-        if (!newRouteLink) return;
+        if (newRouteLink) {
+          newRouteLink.addEventListener("click", function (event) {
+            var routeBuilderOpener = document.getElementById("openRouteBuilderBtn");
+            if (!routeBuilderOpener || typeof routeBuilderOpener.click !== "function") return;
 
-        newRouteLink.addEventListener("click", function (event) {
-          var routeBuilderOpener = document.getElementById("openRouteBuilderBtn");
-          if (!routeBuilderOpener || typeof routeBuilderOpener.click !== "function") return;
+            event.preventDefault();
+            setAppMobileOpen(false);
+            routeBuilderOpener.click();
 
-          event.preventDefault();
-          setAppMobileOpen(false);
-          routeBuilderOpener.click();
+            var newMenu = newRouteLink.closest("details.dd");
+            if (newMenu && newMenu.hasAttribute("open")) {
+              newMenu.removeAttribute("open");
+            }
+          });
+        }
 
-          var newMenu = newRouteLink.closest("details.dd");
-          if (newMenu && newMenu.hasAttribute("open")) {
-            newMenu.removeAttribute("open");
-          }
-        });
+        if (newFloatPlanLink) {
+          newFloatPlanLink.addEventListener("click", function (event) {
+            var floatPlanOpener = document.getElementById("addFloatPlanBtn");
+            if (!floatPlanOpener || typeof floatPlanOpener.click !== "function") return;
 
-        if (!newFloatPlanLink) return;
+            event.preventDefault();
+            setAppMobileOpen(false);
+            floatPlanOpener.click();
 
-        newFloatPlanLink.addEventListener("click", function (event) {
-          var floatPlanOpener = document.getElementById("addFloatPlanBtn");
-          if (!floatPlanOpener || typeof floatPlanOpener.click !== "function") return;
-
-          event.preventDefault();
-          setAppMobileOpen(false);
-          floatPlanOpener.click();
-
-          var newMenu = newFloatPlanLink.closest("details.dd");
-          if (newMenu && newMenu.hasAttribute("open")) {
-            newMenu.removeAttribute("open");
-          }
-        });
+            var newMenu = newFloatPlanLink.closest("details.dd");
+            if (newMenu && newMenu.hasAttribute("open")) {
+              newMenu.removeAttribute("open");
+            }
+          });
+        }
 
         if (mobileNewRouteBtn) {
           mobileNewRouteBtn.addEventListener("click", function (event) {
@@ -783,6 +777,7 @@ if (structKeyExists(request, "fpwBase")) {
         <a href="#monitoring">Monitoring</a>
         <a href="#pricing">Pricing</a>
         <a href="#faq">FAQ</a>
+        <a href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm">Fuel Calculator</a>
       </nav>
 
       <div class="actions">
@@ -803,6 +798,7 @@ if (structKeyExists(request, "fpwBase")) {
     <a href="#monitoring">Monitoring</a>
     <a href="#pricing">Pricing</a>
     <a href="#faq">FAQ</a>
+    <a href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm">Fuel Calculator</a>
     <hr />
     <a href="#login" id="fpwMobilePublicLoginLink">Log in</a>
     <a href="<cfoutput>#basePath#</cfoutput>/app/join.cfm">Start free</a>

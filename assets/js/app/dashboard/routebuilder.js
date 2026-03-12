@@ -5,6 +5,7 @@
   window.FPW.DashboardModules = window.FPW.DashboardModules || {};
 
   var utils = window.FPW.DashboardUtils || {};
+  var sharedFuelMath = window.FPW.SharedFuelMath || {};
   var BASE_PATH = window.FPW_BASE || "";
 
   var PACE_PRESETS = [
@@ -165,178 +166,99 @@
     return n;
   }
 
-  function formatNum(value, decimals) {
-    var n = safeVal(value);
-    var places = (typeof decimals === "number") ? decimals : 2;
-    if (n === null) return "n/a";
-    return n.toLocaleString(undefined, {
-      minimumFractionDigits: places,
-      maximumFractionDigits: places
-    });
+  function buildCruiseTimelineSummaryModel(timelinePayload, uiInputs) {
+    if (sharedFuelMath && typeof sharedFuelMath.buildCruiseTimelineSummaryModel === "function") {
+      return sharedFuelMath.buildCruiseTimelineSummaryModel(timelinePayload, uiInputs);
+    }
+    return {
+      calcLine: "Calc: n/a",
+      totalNm: null,
+      totalHours: null,
+      maxHoursPerDay: null,
+      displayedDays: null,
+      totalLocks: null,
+      reservePct: null,
+      baseFuelForSummary: null,
+      reserveFuelForSummary: null,
+      requiredFuelForSummary: null,
+      fuelPricePerGal: null,
+      fuelCostEstimate: null,
+      estimatedDaysSubText: "Cruise Timeline estimate",
+      estimatedFuelSubText: "Required fuel unavailable",
+      fuelCostSubText: "Enter fuel price to estimate"
+    };
   }
 
   function calcLineFromTimeline(timelinePayload, uiInputs) {
-    var payload = (timelinePayload && typeof timelinePayload === "object") ? timelinePayload : {};
-    var summary = (payload.summary && typeof payload.summary === "object") ? payload.summary : {};
-    var meta = (payload.meta && typeof payload.meta === "object") ? payload.meta : {};
-    var days = Array.isArray(payload.days) ? payload.days : [];
+    return buildCruiseTimelineSummaryModel(timelinePayload, uiInputs).calcLine;
+  }
+
+  function applyCruiseTimelineSummaryToCards(summaryModel, uiInputs) {
+    var model = (summaryModel && typeof summaryModel === "object") ? summaryModel : {};
     var ui = (uiInputs && typeof uiInputs === "object") ? uiInputs : {};
-    var totalNm = safeVal(summary.totalNm);
-    var totalDays = safeVal(summary.totalDays);
-    var totalRequiredFuel = safeVal(summary.totalRequiredFuel);
-    var totalHours = null;
-    var totalLocks = null;
-    var totalReserveFuel = null;
-    var confidenceMin = null;
-    var hasHours = false;
-    var hasLocks = false;
-    var hasReserve = false;
-    var hasConfidence = false;
-    var hoursAcc = 0;
-    var locksAcc = 0;
-    var reserveAcc = 0;
-    var hoursSource = String(meta.hoursSource || "").trim().toLowerCase();
-    var effectiveSpeedKn = safeVal(meta.effectiveSpeedKn);
-    var weatherPctUsed = safeVal(meta.effectiveWeatherPctMax);
-    var adjSpeedKn = null;
-    var maxHoursPerDay = safeVal(ui.maxHoursPerDay);
-    var reservePct = safeVal(ui.reservePct);
-    var fuelBurnGph = safeVal(meta.fuelBurnGph);
-    var fuelSource = String(meta.fuelSource || "").trim();
-    var hoursExpr = "";
-    var dayExpr = "";
-    var fuelExpr = "";
-    var locksExpr = "";
-    var baseFuelByRate = null;
-    var requiredFuelByRate = null;
-    var baseFuelFromTimeline = null;
+    var totalNm = safeVal(model.totalNm);
+    var displayedDays = safeVal(model.displayedDays);
+    var totalLocks = safeVal(model.totalLocks);
+    var requiredFuel = safeVal(model.requiredFuelForSummary);
+    var fuelPricePerGal = safeVal(model.fuelPricePerGal);
+    var estimatedDaysSubText = String(model.estimatedDaysSubText || "Cruise Timeline estimate");
+    var estimatedFuelSubText = String(model.estimatedFuelSubText || "Required fuel unavailable");
+    var fuelCostSubText = String(model.fuelCostSubText || "Enter fuel price to estimate");
+    var estimatedDays = Number.isFinite(displayedDays) ? Math.max(0, Math.round(displayedDays)) : null;
+    var fuelCostEstimate = safeVal(model.fuelCostEstimate);
 
-    if (effectiveSpeedKn === null) {
-      effectiveSpeedKn = safeVal(ui.effectiveSpeedKn);
-    }
-    if (weatherPctUsed === null) {
-      weatherPctUsed = safeVal(ui.weatherFactorPct);
+    if (fuelPricePerGal === null) {
+      fuelPricePerGal = safeVal(ui.fuelPricePerGal);
     }
 
-    days.forEach(function (day) {
-      var h = safeVal(day.estHours);
-      var l = safeVal(day.lockCount);
-      var r = safeVal(day.reserveGallons);
-      var c = safeVal(day.confidence);
-      if (h !== null) {
-        hoursAcc += h;
-        hasHours = true;
-      }
-      if (l !== null) {
-        locksAcc += l;
-        hasLocks = true;
-      }
-      if (r !== null) {
-        reserveAcc += r;
-        hasReserve = true;
-      }
-      if (c !== null) {
-        hasConfidence = true;
-        if (confidenceMin === null || c < confidenceMin) confidenceMin = c;
-      }
-    });
-
-    if (hasHours) totalHours = hoursAcc;
-    if (hasLocks) totalLocks = locksAcc;
-    if (hasReserve) totalReserveFuel = reserveAcc;
-
-    if (totalNm === null && days.length) {
-      var distAcc = 0;
-      var hasDist = false;
-      days.forEach(function (day) {
-        var d = safeVal(day.totalDistNm);
-        if (d !== null) {
-          distAcc += d;
-          hasDist = true;
-        }
-      });
-      if (hasDist) totalNm = distAcc;
-    }
-    if (totalDays === null && days.length) {
-      totalDays = days.length;
-    }
-    if (totalRequiredFuel === null && days.length) {
-      var reqAcc = 0;
-      var hasReq = false;
-      days.forEach(function (day) {
-        var req = safeVal(day.requiredFuelGallons);
-        if (req !== null) {
-          reqAcc += req;
-          hasReq = true;
-        }
-      });
-      if (hasReq) totalRequiredFuel = reqAcc;
+    if (fuelCostEstimate === null && requiredFuel !== null && fuelPricePerGal !== null && fuelPricePerGal > 0) {
+      fuelCostEstimate = roundTo2(requiredFuel * fuelPricePerGal);
     }
 
-    if (hoursSource === "weather_adjusted_speed" && effectiveSpeedKn !== null && weatherPctUsed !== null) {
-      adjSpeedKn = effectiveSpeedKn * (1 - (weatherPctUsed / 100));
-      if (adjSpeedKn < 0.5) adjSpeedKn = 0.5;
-    } else if (totalNm !== null && totalHours !== null && totalHours > 0) {
-      adjSpeedKn = totalNm / totalHours;
+    if (!state.previewSummary || typeof state.previewSummary !== "object") {
+      state.previewSummary = {};
     }
-
-    hoursExpr = "Dist " + formatNum(totalNm, 1) + " nm ÷ AdjSpeed " + formatNum(adjSpeedKn, 2) + " kn";
-    if (hoursSource === "weather_adjusted_speed" && effectiveSpeedKn !== null && weatherPctUsed !== null) {
-      hoursExpr += " (= " + formatNum(effectiveSpeedKn, 2) + " kn × (1 - " + formatNum(weatherPctUsed, 2) + "%))";
-    } else if (effectiveSpeedKn !== null) {
-      hoursExpr += " (raw " + formatNum(effectiveSpeedKn, 2) + " kn)";
+    if (totalNm !== null) {
+      state.previewSummary.totalNm = roundTo2(totalNm);
     }
-    hoursExpr += " = " + formatNum(totalHours, 2) + " h";
-
-    if (totalHours !== null && maxHoursPerDay !== null && maxHoursPerDay > 0) {
-      var calculatedDays = Math.ceil(totalHours / maxHoursPerDay);
-      var displayedDays = (totalDays !== null ? totalDays : calculatedDays);
-      dayExpr = "Max/day " + formatNum(maxHoursPerDay, 1) + " h → " + formatNum(displayedDays, 0) + " days (ceil(" + formatNum(totalHours, 2) + "/" + formatNum(maxHoursPerDay, 1) + "))";
-    } else {
-      dayExpr = "Max/day " + formatNum(maxHoursPerDay, 1) + " h → " + (totalDays !== null ? (formatNum(totalDays, 0) + " days") : "n/a");
+    if (estimatedDays !== null) {
+      state.previewSummary.estimatedDays = estimatedDays;
     }
+    state.previewSummary.estimatedFuelGallons = (
+      requiredFuel !== null && requiredFuel >= 0
+        ? roundTo2(requiredFuel)
+        : NaN
+    );
 
-    if (totalHours !== null && fuelBurnGph !== null) {
-      baseFuelByRate = totalHours * fuelBurnGph;
-      if (reservePct !== null) {
-        requiredFuelByRate = baseFuelByRate * (1 + (reservePct / 100));
-        fuelExpr = "Fuel " + formatNum(totalHours, 2) + " h × " + formatNum(fuelBurnGph, 2) + " gph = " + formatNum(baseFuelByRate, 1) + " gal + " + formatNum(reservePct, 1) + "% reserve = " + formatNum(requiredFuelByRate, 1) + " gal";
+    if (dom.totalNmEl && totalNm !== null) {
+      dom.totalNmEl.innerHTML = formatNumber(totalNm, 1) + " <small>NM</small>";
+    }
+    if (dom.estimatedDaysEl && estimatedDays !== null) {
+      dom.estimatedDaysEl.textContent = String(estimatedDays);
+    }
+    if (dom.lockCountEl && totalLocks !== null) {
+      dom.lockCountEl.textContent = String(Math.max(0, Math.round(totalLocks)));
+    }
+    if (dom.estimatedFuelEl) {
+      if (requiredFuel !== null && requiredFuel >= 0) {
+        dom.estimatedFuelEl.innerHTML = formatNumber(requiredFuel, 1) + " <small>gal</small>";
       } else {
-        fuelExpr = "Fuel " + formatNum(totalHours, 2) + " h × " + formatNum(fuelBurnGph, 2) + " gph = " + formatNum(baseFuelByRate, 1) + " gal";
+        dom.estimatedFuelEl.innerHTML = "-- <small>gal</small>";
       }
-      if (totalRequiredFuel !== null) {
-        fuelExpr += " (timeline " + formatNum(totalRequiredFuel, 1) + ")";
-      }
-    } else if (totalRequiredFuel !== null) {
-      if (totalReserveFuel !== null) {
-        baseFuelFromTimeline = totalRequiredFuel - totalReserveFuel;
-        if (baseFuelFromTimeline < 0) baseFuelFromTimeline = 0;
-        fuelExpr = "Fuel " + formatNum(baseFuelFromTimeline, 1) + " gal + reserve " + formatNum(totalReserveFuel, 1) + " gal";
-        if (reservePct !== null) {
-          fuelExpr += " (" + formatNum(reservePct, 1) + "%)";
-        }
-        fuelExpr += " = " + formatNum(totalRequiredFuel, 1) + " gal";
+    }
+    if (dom.fuelCostEl) {
+      if (fuelCostEstimate !== null && fuelCostEstimate >= 0 && fuelPricePerGal !== null && fuelPricePerGal > 0) {
+        dom.fuelCostEl.innerHTML = formatCurrency(fuelCostEstimate) + " <small>USD</small>";
       } else {
-        fuelExpr = "Fuel " + formatNum(totalRequiredFuel, 1) + " gal";
+        dom.fuelCostEl.innerHTML = "-- <small>USD</small>";
       }
-      if (fuelBurnGph !== null) {
-        fuelExpr += " @ " + formatNum(fuelBurnGph, 2) + " gph";
-      }
-    } else {
-      fuelExpr = "Fuel n/a";
-    }
-    if (fuelSource) {
-      fuelExpr += " [src " + fuelSource.replace(/_/g, " ") + "]";
     }
 
-    locksExpr = "Locks " + (totalLocks !== null ? formatNum(totalLocks, 0) : "n/a");
+    if (dom.estimatedDaysSubEl) dom.estimatedDaysSubEl.textContent = estimatedDaysSubText;
+    if (dom.estimatedFuelSubEl) dom.estimatedFuelSubEl.textContent = estimatedFuelSubText;
+    if (dom.fuelCostSubEl) dom.fuelCostSubEl.textContent = fuelCostSubText;
 
-    if (hasConfidence && confidenceMin !== null) {
-      if (confidenceMin > 1) confidenceMin = confidenceMin / 100;
-      locksExpr += " • Confidence " + formatNum(confidenceMin, 2);
-    }
-
-    return "Calc: " + hoursExpr + " • " + dayExpr + " • " + fuelExpr + " • " + locksExpr;
+    syncTimelineRouteTotalLine();
   }
 
   function clampCruiseTimelineHours(value) {
@@ -545,12 +467,14 @@
       ? state.cruiseTimeline.payload
       : null;
     var maxHours = clampCruiseTimelineHours(state.cruiseTimeline.maxHoursPerDay);
-    var calcLine = calcLineFromTimeline(payload, {
+    var summaryModel = buildCruiseTimelineSummaryModel(payload, {
       maxHoursPerDay: maxHours,
       reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
       weatherFactorPct: getWeatherFactorPct(),
-      effectiveSpeedKn: getEffectiveCruisingSpeed()
+      effectiveSpeedKn: getEffectiveCruisingSpeed(),
+      fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
     });
+    var calcLine = summaryModel.calcLine;
     var maxHoursInputEl = dom.cruiseTimelineMaxHoursEl || document.getElementById("routeGenTimelineMaxHours");
     var rebuildBtnEl = dom.cruiseTimelineRebuildBtn || document.getElementById("routeGenTimelineRebuildBtn");
 
@@ -558,6 +482,11 @@
       calcLine = "Building Cruise Timeline...";
     } else if (status === "error") {
       calcLine = String(state.cruiseTimeline.message || "Unable to build cruise timeline.");
+    }
+    if (payload) {
+      applyCruiseTimelineSummaryToCards(summaryModel, {
+        fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
+      });
     }
 
     if (dom.legHeaderTitleEl) {
@@ -784,6 +713,18 @@
         return normalizeCruiseTimelineDay(day, idx);
       })
     };
+    applyCruiseTimelineSummaryToCards(
+      buildCruiseTimelineSummaryModel(state.cruiseTimeline.payload, {
+        maxHoursPerDay: clampCruiseTimelineHours(state.cruiseTimeline.maxHoursPerDay),
+        reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
+        weatherFactorPct: getWeatherFactorPct(),
+        effectiveSpeedKn: getEffectiveCruisingSpeed(),
+        fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
+      }),
+      {
+        fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
+      }
+    );
     refreshExpandedLegPanel();
   }
 
@@ -1545,7 +1486,7 @@
         + (hasCoordError && coordErrorText ? '<div class="fpw-routegen__help mt-1">' + escapeHtml(coordErrorText) + "</div>" : "")
         + "  </div>"
         + '  <div class="fpw-routegen__myroutelegactions">'
-        + '    <button type="button" class="btn-secondary btn-sm" data-my-route-action="edit-geometry">Edit Geometry</button>'
+        + '    <button type="button" class="btn-secondary btn-sm" data-my-route-action="edit-geometry">Edit Route</button>'
         + '    <button type="button" class="btn-secondary btn-sm" data-my-route-action="remove-leg">Remove</button>'
         + "  </div>"
         + "</div>";
@@ -3986,7 +3927,7 @@
         + '    </div>'
         + '    <div class="fpw-routegen__leglocks">' + formatNumber(lockCount, 0) + '</div>'
         + '    <div class="fpw-routegen__legnm">' + formatNumber(Number.isFinite(nm) ? nm : 0, 1) + ' NM</div>'
-        + '    <div class="fpw-routegen__legmapaction"><button type="button" class="btn-secondary btn-sm fpw-routegen__legmapbtn" data-leg-action="open-map">Edit Geometry</button></div>'
+        + '    <div class="fpw-routegen__legmapaction"><button type="button" class="btn-secondary btn-sm fpw-routegen__legmapbtn" data-leg-action="open-map">Edit Route</button></div>'
         + '  </div>'
         + renderLegLockPanel(leg, order)
         + '</div>';
@@ -4722,65 +4663,84 @@
       totals.fuel_price_per_gal !== undefined ? totals.fuel_price_per_gal :
         (totals.FUEL_PRICE_PER_GAL !== undefined ? totals.FUEL_PRICE_PER_GAL : NaN)
     );
+    var timelinePayload = state.cruiseTimeline.payload && typeof state.cruiseTimeline.payload === "object"
+      ? state.cruiseTimeline.payload
+      : null;
+    var hasTimelineSummary = !!timelinePayload;
     var summaryTotalNm = Number.isFinite(totalNm) ? totalNm : 0;
     var summaryEstimatedDays = Number.isFinite(estimatedDays) ? Math.max(0, Math.round(estimatedDays)) : 0;
     var summaryEstimatedFuelGallons = (Number.isFinite(estimatedFuelGallons) && estimatedFuelGallons >= 0) ? estimatedFuelGallons : NaN;
-
-    state.previewSummary = {
-      totalNm: summaryTotalNm,
-      estimatedDays: summaryEstimatedDays,
-      estimatedFuelGallons: summaryEstimatedFuelGallons
-    };
-
-    if (dom.totalNmEl) dom.totalNmEl.innerHTML = formatNumber(summaryTotalNm, 1) + ' <small>NM</small>';
-    if (dom.estimatedDaysEl) dom.estimatedDaysEl.textContent = String(summaryEstimatedDays);
     if (dom.lockCountEl) dom.lockCountEl.textContent = String(Number.isFinite(lockCount) ? Math.max(0, lockCount) : 0);
     if (dom.offshoreCountEl) dom.offshoreCountEl.textContent = String(Number.isFinite(offshoreLegCount) ? Math.max(0, offshoreLegCount) : 0);
-    if (dom.estimatedFuelEl) {
-      if (Number.isFinite(summaryEstimatedFuelGallons) && summaryEstimatedFuelGallons >= 0) {
-        dom.estimatedFuelEl.innerHTML = formatNumber(summaryEstimatedFuelGallons, 1) + ' <small>gal</small>';
-      } else {
-        dom.estimatedFuelEl.innerHTML = "-- <small>gal</small>";
+
+    if (hasTimelineSummary) {
+      applyCruiseTimelineSummaryToCards(
+        buildCruiseTimelineSummaryModel(timelinePayload, {
+          maxHoursPerDay: clampCruiseTimelineHours(state.cruiseTimeline.maxHoursPerDay),
+          reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
+          weatherFactorPct: getWeatherFactorPct(),
+          effectiveSpeedKn: getEffectiveCruisingSpeed(),
+          fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
+        }),
+        {
+          fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
+        }
+      );
+    } else {
+      state.previewSummary = {
+        totalNm: summaryTotalNm,
+        estimatedDays: summaryEstimatedDays,
+        estimatedFuelGallons: summaryEstimatedFuelGallons
+      };
+
+      if (dom.totalNmEl) dom.totalNmEl.innerHTML = formatNumber(summaryTotalNm, 1) + ' <small>NM</small>';
+      if (dom.estimatedDaysEl) dom.estimatedDaysEl.textContent = String(summaryEstimatedDays);
+      if (dom.estimatedFuelEl) {
+        if (Number.isFinite(summaryEstimatedFuelGallons) && summaryEstimatedFuelGallons >= 0) {
+          dom.estimatedFuelEl.innerHTML = formatNumber(summaryEstimatedFuelGallons, 1) + ' <small>gal</small>';
+        } else {
+          dom.estimatedFuelEl.innerHTML = "-- <small>gal</small>";
+        }
       }
-    }
-    if (dom.fuelCostEl) {
-      if (Number.isFinite(fuelCostEstimate) && fuelCostEstimate >= 0 && Number.isFinite(fuelPricePerGal) && fuelPricePerGal > 0) {
-        dom.fuelCostEl.innerHTML = formatCurrency(fuelCostEstimate) + ' <small>USD</small>';
-      } else {
-        dom.fuelCostEl.innerHTML = "-- <small>USD</small>";
+      if (dom.fuelCostEl) {
+        if (Number.isFinite(fuelCostEstimate) && fuelCostEstimate >= 0 && Number.isFinite(fuelPricePerGal) && fuelPricePerGal > 0) {
+          dom.fuelCostEl.innerHTML = formatCurrency(fuelCostEstimate) + ' <small>USD</small>';
+        } else {
+          dom.fuelCostEl.innerHTML = "-- <small>USD</small>";
+        }
       }
+      if (dom.estimatedDaysSubEl) {
+        if (fromTimeline) {
+          dom.estimatedDaysSubEl.textContent = "Generated route timeline";
+        } else if (Number.isFinite(runHours) && Number.isFinite(idleHours) && Number.isFinite(totalHours)) {
+          dom.estimatedDaysSubEl.textContent = "Run " + formatNumber(runHours, 1) + "h + Idle " + formatNumber(idleHours, 1) + "h = " + formatNumber(totalHours, 1) + "h";
+        } else {
+          dom.estimatedDaysSubEl.textContent = "Pace: " + paceLabel;
+        }
+      }
+      if (dom.estimatedFuelSubEl) {
+        if (fromTimeline) {
+          dom.estimatedFuelSubEl.textContent = "Fuel estimate unavailable from timeline";
+        } else if (Number.isFinite(baseFuelGallons) && Number.isFinite(reserveFuelGallons) && Number.isFinite(reservePct)) {
+          dom.estimatedFuelSubEl.textContent = "Base " + formatNumber(baseFuelGallons, 1) + " + Reserve (" + formatNumber(reservePct, 0) + "%) " + formatNumber(reserveFuelGallons, 1);
+        } else {
+          dom.estimatedFuelSubEl.textContent = "Required = base + reserve";
+        }
+      }
+      if (dom.fuelCostSubEl) {
+        if (fromTimeline) {
+          dom.fuelCostSubEl.textContent = "Cost estimate unavailable from timeline";
+        } else if (Number.isFinite(fuelPricePerGal) && fuelPricePerGal > 0) {
+          dom.fuelCostSubEl.textContent = "Required fuel x $" + formatNumber(fuelPricePerGal, 2) + "/gal";
+        } else {
+          dom.fuelCostSubEl.textContent = "Enter fuel price to estimate";
+        }
+      }
+      syncTimelineRouteTotalLine();
     }
 
     if (dom.legCountEl) {
       dom.legCountEl.textContent = String(Array.isArray(legs) ? legs.length : 0) + " legs";
-    }
-
-    if (dom.estimatedDaysSubEl) {
-      if (fromTimeline) {
-        dom.estimatedDaysSubEl.textContent = "Generated route timeline";
-      } else if (Number.isFinite(runHours) && Number.isFinite(idleHours) && Number.isFinite(totalHours)) {
-        dom.estimatedDaysSubEl.textContent = "Run " + formatNumber(runHours, 1) + "h + Idle " + formatNumber(idleHours, 1) + "h = " + formatNumber(totalHours, 1) + "h";
-      } else {
-        dom.estimatedDaysSubEl.textContent = "Pace: " + paceLabel;
-      }
-    }
-    if (dom.estimatedFuelSubEl) {
-      if (fromTimeline) {
-        dom.estimatedFuelSubEl.textContent = "Fuel estimate unavailable from timeline";
-      } else if (Number.isFinite(baseFuelGallons) && Number.isFinite(reserveFuelGallons) && Number.isFinite(reservePct)) {
-        dom.estimatedFuelSubEl.textContent = "Base " + formatNumber(baseFuelGallons, 1) + " + Reserve (" + formatNumber(reservePct, 0) + "%) " + formatNumber(reserveFuelGallons, 1);
-      } else {
-        dom.estimatedFuelSubEl.textContent = "Required = base + reserve";
-      }
-    }
-    if (dom.fuelCostSubEl) {
-      if (fromTimeline) {
-        dom.fuelCostSubEl.textContent = "Cost estimate unavailable from timeline";
-      } else if (Number.isFinite(fuelPricePerGal) && fuelPricePerGal > 0) {
-        dom.fuelCostSubEl.textContent = "Required fuel x $" + formatNumber(fuelPricePerGal, 2) + "/gal";
-      } else {
-        dom.fuelCostSubEl.textContent = "Enter fuel price to estimate";
-      }
     }
 
     state.previewLegs = normalizeLegList(legs);

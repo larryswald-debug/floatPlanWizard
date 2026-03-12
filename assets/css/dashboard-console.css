@@ -174,31 +174,36 @@ main.dashboard-main{
 }
 
 .dashboard-grid--reflow > #routeStatusPanel{
-  order: 10;
-  min-height: 340px;
-  max-height: 340px;
-  height: 340px;
+  order: 11;
+  grid-column: 1 / -1;
+  min-height: 0;
+  max-height: none;
+  height: auto;
 }
 
 .dashboard-grid--reflow > #floatPlansPanel.hero-panel{
-  order: 11;
-  grid-column: auto;
+  order: 10;
+  grid-column: 1 / -1;
   min-height: 340px;
-  max-height: 500px;
+  max-height: 450px;
   height: auto;
 }
 
 .dashboard-grid--reflow > #weatherPreviewPanel{
-  order: 20;
+  order: 9;
 }
 
 .dashboard-grid--reflow > .fpw-alerts{
-  order: 25;
+  order: 4;
   grid-column: 1 / -1;
 }
 
 .dashboard-grid--reflow > #quickActionsPanel{
-  order: 21;
+  order: 4;
+  grid-column: 1 / -1;
+  height: auto;
+  min-height: 0;
+  max-height: none;
 }
 
 .dashboard-grid--reflow > #expeditionTimelinePanel{
@@ -356,13 +361,15 @@ main.dashboard-main{
 
 .quick-actions-list{
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 0.55rem;
 }
 
 .quick-action-btn{
   width: 100%;
-  text-align: left;
+  text-align: center;
+  justify-content: center;
 }
 
 .weather-preview-panel .card-body{
@@ -500,6 +507,8 @@ main.dashboard-main{
   }
 
   .quick-actions-list{
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
     grid-template-columns: 1fr;
   }
 
@@ -599,10 +608,9 @@ main.dashboard-main{
 
 /* “Active system” panel highlight (toggle by adding .active) */
 .dashboard-card.active{
-  border-color: rgba(53, 208, 198, 0.55);
+  border-color: var(--panel-border-strong);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.06),
-    0 0 0 1px rgba(53,208,198,0.25),
     0 26px 52px rgba(0,0,0,0.70);
 }
 
@@ -984,15 +992,14 @@ main.dashboard-main{
 .hero-panel{
   grid-column: 1 / -1; /* full width by default for strongest “console” impact */
   min-height: 340px;
-  border-color: rgba(53, 208, 198, 0.55);
+  border-color: var(--panel-border);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.06),
-    0 0 0 1px rgba(53,208,198,0.25),
     0 28px 56px rgba(0,0,0,0.75);
 }
 
 .hero-panel .card-header{
-  background: linear-gradient(to bottom, rgba(53,208,198,0.20), rgba(0,0,0,0));
+  background: linear-gradient(180deg, rgba(11, 24, 37, 0.96), rgba(8, 20, 33, 0.98));
 }
 
 .hero-panel h2{
@@ -1004,15 +1011,14 @@ main.dashboard-main{
 
 /* Panel styling aligned with Float Plans (without full-width layout) */
 .panel-floatlike{
-  border-color: rgba(53, 208, 198, 0.55);
+  border-color: var(--panel-border);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.06),
-    0 0 0 1px rgba(53,208,198,0.25),
     0 26px 52px rgba(0,0,0,0.70);
 }
 
 .panel-floatlike .card-header{
-  background: linear-gradient(to bottom, rgba(53,208,198,0.20), rgba(0,0,0,0));
+  background: linear-gradient(180deg, rgba(11, 24, 37, 0.96), rgba(8, 20, 33, 0.98));
 }
 
 .panel-floatlike h2{
@@ -1784,6 +1790,28 @@ main.dashboard-main{
             background: rgba(255,255,255,.08);
             border:1px solid rgba(255,255,255,.12);
             color: rgba(255,255,255,.92);
+        }
+        #weatherLocationMode.fpw-wx__zipInput{
+            cursor: pointer;
+            font-weight: 600;
+            padding-right: 2rem;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image:
+              linear-gradient(45deg, transparent 50%, rgba(255,255,255,.78) 50%),
+              linear-gradient(135deg, rgba(255,255,255,.78) 50%, transparent 50%),
+              linear-gradient(to right, rgba(255,255,255,.16), rgba(255,255,255,.16));
+            background-position:
+              calc(100% - 14px) calc(50% - 3px),
+              calc(100% - 9px) calc(50% - 3px),
+              calc(100% - 2.1rem) 50%;
+            background-size: 5px 5px, 5px 5px, 1px 60%;
+            background-repeat: no-repeat;
+        }
+        #weatherLocationMode.fpw-wx__zipInput:focus{
+            border-color: rgba(78,161,255,.55);
+            box-shadow: 0 0 0 .2rem rgba(78,161,255,.18);
         }
         .fpw-wx__zipInput::placeholder{ color: rgba(255,255,255,.55); }
         .fpw-wx__zipLabel{ font-size:.75rem; color: rgba(255,255,255,.70); margin:0; display:inline-block; }
@@ -3758,7 +3786,7 @@ main.dashboard-main{
 }
 
 #expeditionTimelinePanel .card-header {
-  background: linear-gradient(to bottom, rgba(53,208,198,0.20), rgba(0,0,0,0));
+  background: linear-gradient(180deg, rgba(11, 24, 37, 0.96), rgba(8, 20, 33, 0.98));
 }
 
 #expeditionTimelinePanel .card-actions {
@@ -3796,8 +3824,8 @@ main.dashboard-main{
 }
 
 .expedition-route-card.is-active {
-  border-color: rgba(53,208,198,0.5);
-  box-shadow: inset 0 0 0 1px rgba(53,208,198,0.28);
+  border-color: var(--panel-border);
+  box-shadow: none;
 }
 
 .expedition-route-name {
@@ -4146,4 +4174,36 @@ main.dashboard-main{
 
 .fpw-pdf-preview-frame {
   border: 0;
+}
+
+/* Route Generator card palette alignment (dashboard inner cards, color-only). */
+.mission-summary-tile,
+.monitoring-summary-block,
+.next-step-item,
+.expedition-state,
+.expedition-route-card,
+.expedition-accordion .accordion-item,
+.list-item {
+  border-color: rgba(114, 159, 214, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0.012)),
+    linear-gradient(180deg, rgba(20, 34, 50, 0.9), rgba(12, 22, 34, 0.96));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.monitoring-summary-tile {
+  border-color: rgba(114, 159, 214, 0.14);
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.expedition-accordion .accordion-button,
+.expedition-accordion .accordion-button:not(.collapsed) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0.012)),
+    linear-gradient(180deg, rgba(20, 34, 50, 0.9), rgba(12, 22, 34, 0.96));
+  box-shadow: none;
+}
+
+.expedition-accordion .accordion-button:focus {
+  box-shadow: 0 0 0 1px rgba(91, 199, 255, 0.34);
 }

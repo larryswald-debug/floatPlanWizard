@@ -9,7 +9,7 @@
     <cfinclude template="../includes/header_styles.cfm">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260307h">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260310f">
 </head>
 <body class="dashboard-body">
 
@@ -24,8 +24,8 @@
         <section class="dashboard-card panel-floatlike full-width mission-summary-panel" id="missionSummaryPanel" aria-labelledby="missionSummaryTitle">
             <div class="card-header">
                 <div class="card-title">
-                    <h2 id="missionSummaryTitle"><span class="status-dot status-ok"></span>Mission Summary</h2>
-                    <small class="card-subtitle">Single-glance status for route, float plan, monitoring, conditions, and setup.</small>
+                    <h2 id="missionSummaryTitle">Mission Summary</h2>
+                    
                 </div>
                 <div class="card-actions">
                     <small id="missionSummaryUpdatedAt" class="card-subtitle">Updated just now</small>
@@ -64,73 +64,6 @@
                         <div class="mission-summary-meta" id="missionSetupMeta">0 waypoints • 0 crew</div>
                     </article>
                 </div>
-            </div>
-        </section>
-
-        <section class="dashboard-card panel-floatlike route-status-panel" id="routeStatusPanel" aria-labelledby="routeStatusTitle">
-            <div class="card-header">
-                <div class="card-title">
-                    <h2 id="routeStatusTitle"><span class="status-dot status-ok"></span>Expedition / Route Status</h2>
-                    <small class="card-subtitle" id="routeStatusSubtitle">Lead with the active trip context</small>
-                </div>
-                <div class="card-actions">
-                    <button type="button" class="btn-secondary" id="routeStatusOpenRouteBuilderBtn">Generate My Route</button>
-                </div>
-            </div>
-            <div class="card-body">
-                <h3 class="route-status-name" id="routeStatusName">No active route</h3>
-                <p class="route-status-meta" id="routeStatusMeta">Create or load a route to begin.</p>
-                <div class="route-status-progress">
-                    <div class="route-status-progress-top">
-                        <span>Route Progress</span>
-                        <span id="routeStatusProgressLabel">0% complete</span>
-                    </div>
-                    <div class="route-status-progress-track">
-                        <div class="route-status-progress-bar" id="routeStatusProgressBar"></div>
-                    </div>
-                </div>
-                <div class="route-status-actions">
-                    <button type="button" class="btn-secondary" id="routeStatusTimelineBtn">Open Expedition Timeline</button>
-                    <button type="button" class="btn-secondary" id="routeStatusRefreshBtn">Refresh Route Data</button>
-                </div>
-            </div>
-        </section>
-
-        <section class="dashboard-card panel-floatlike weather-preview-panel" id="weatherPreviewPanel" aria-labelledby="weatherPreviewTitle">
-            <div class="card-header">
-                <div class="card-title">
-                    <h2 id="weatherPreviewTitle"><span class="status-dot status-ok"></span>Weather / Marine Conditions</h2>
-                    <small class="card-subtitle">Compact dashboard preview. Open the full marine panel for detailed weather tools.</small>
-                </div>
-                <div class="card-actions">
-                    <button type="button" class="btn-secondary weather-preview-open-btn" data-quick-action="open-weather">View Full Marine Panel</button>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="weather-preview-grid">
-                    <article class="weather-preview-tile">
-                        <div class="weather-preview-label">Risk</div>
-                        <div class="weather-preview-value" id="weatherPreviewRiskValue">—</div>
-                        <div class="weather-preview-meta" id="weatherPreviewRiskMeta">Current risk</div>
-                    </article>
-                    <article class="weather-preview-tile">
-                        <div class="weather-preview-label">Alerts</div>
-                        <div class="weather-preview-value" id="weatherPreviewAlertsValue">None</div>
-                        <div class="weather-preview-meta" id="weatherPreviewAlertsMeta">Active marine alerts</div>
-                    </article>
-                    <article class="weather-preview-tile">
-                        <div class="weather-preview-label">Wind</div>
-                        <div class="weather-preview-value" id="weatherPreviewWindValue">—</div>
-                        <div class="weather-preview-meta" id="weatherPreviewWindMeta">Current wind</div>
-                    </article>
-                    <article class="weather-preview-tile">
-                        <div class="weather-preview-label">Waves</div>
-                        <div class="weather-preview-value" id="weatherPreviewWavesValue">—</div>
-                        <div class="weather-preview-meta" id="weatherPreviewWavesMeta">Current seas</div>
-                    </article>
-                </div>
-                <p class="weather-preview-summary" id="weatherPreviewSummary">Forecast unavailable.</p>
-                <small class="card-subtitle" id="weatherPreviewUpdatedAt">Updated just now</small>
             </div>
         </section>
 
@@ -608,12 +541,11 @@
         <section class="dashboard-card panel-floatlike full-width expedition-panel" id="expeditionTimelinePanel" aria-labelledby="expeditionTimelineTitle">
             <div class="card-header">
                 <div class="card-title">
-                    <h2 id="expeditionTimelineTitle"><span class="status-dot status-ok"></span>Expedition Timeline</h2>
+                    <h2 id="expeditionTimelineTitle">Expedition Timeline</h2>
                     <small id="expeditionTimelineSubtitle" class="card-subtitle">Great Loop (Counter-Clockwise)</small>
                 </div>
                 <div class="card-actions">
-                    <button type="button" class="btn-secondary" id="openRouteBuilderBtn">Generate My Route</button>
-                    <span id="expeditionTimelineSummary" class="card-subtitle numeric">Loading expedition timeline...</span>
+                    <button type="button" class="btn-primary" id="openRouteBuilderBtn">+ Add</button>
                 </div>
             </div>
             <div class="card-body">
@@ -630,7 +562,7 @@
 
                 <div id="expeditionTimelineBody" class="d-none">
                     <div id="expeditionRouteList" class="expedition-route-list mb-3"></div>
-                    <div id="expeditionRouteEmpty" class="expedition-state d-none mb-3">No routes yet. Click <strong>Generate My Route</strong> to create your first expedition route.</div>
+                    <div id="expeditionRouteEmpty" class="expedition-state d-none mb-3">Click <strong>+ Add</strong> to create your first expedition route.</div>
                     <div id="expeditionTimelineAccordion" class="expedition-route-overview"></div>
                 </div>
             </div>
@@ -639,7 +571,7 @@
         <section class="dashboard-card hero-panel active" id="floatPlansPanel">
             <div class="card-header">
                 <div class="card-title">
-                    <h2><span class="status-dot status-ok"></span>Float Plan &amp; Monitoring</h2>
+                    <h2>Float Plan &amp; Monitoring</h2>
                     <small class="card-subtitle" id="floatPlansSummary">Loading…</small>
                 </div>
                 <div class="card-actions">
@@ -680,8 +612,8 @@
         <section class="dashboard-card panel-floatlike quick-actions-panel" id="quickActionsPanel" aria-labelledby="quickActionsTitle">
             <div class="card-header">
                 <div class="card-title">
-                    <h2 id="quickActionsTitle"><span class="status-dot status-ok"></span>Quick Actions</h2>
-                    <small class="card-subtitle">Use existing dashboard actions without hunting across panels.</small>
+                    <h2 id="quickActionsTitle">Quick Actions</h2>
+                    
                 </div>
             </div>
             <div class="card-body">
@@ -690,8 +622,8 @@
                     <button type="button" class="btn-secondary quick-action-btn" data-quick-action="new-float-plan">New Float Plan</button>
                     <button type="button" class="btn-secondary quick-action-btn" data-quick-action="add-vessel">Add Vessel</button>
                     <button type="button" class="btn-secondary quick-action-btn" data-quick-action="add-contact">Add Contact</button>
+                    <button type="button" class="btn-secondary quick-action-btn" data-quick-action="add-operator">Add Operator</button>
                     <button type="button" class="btn-secondary quick-action-btn" data-quick-action="add-waypoint">Add Waypoint</button>
-                    <button type="button" class="btn-secondary quick-action-btn" data-quick-action="open-weather">Open Marine Weather</button>
                 </div>
             </div>
         </section>
@@ -699,7 +631,7 @@
         <section class="dashboard-card panel-floatlike full-width setup-intro-panel" id="boatTripSetupPanel" aria-labelledby="boatTripSetupTitle">
             <div class="card-header">
                 <div class="card-title">
-                    <h2 id="boatTripSetupTitle"><span class="status-dot status-ok"></span>Boat &amp; Trip Setup</h2>
+                    <h2 id="boatTripSetupTitle">Boat &amp; Trip Setup</h2>
                     <small class="card-subtitle">Support tools remain fully available, now grouped lower on the page.</small>
                 </div>
             </div>
@@ -720,7 +652,7 @@
         <section class="dashboard-card panel-floatlike" id="vesselsPanel">
             <div class="card-header">
                 <div class="card-title">
-                    <h2><span class="status-dot status-ok"></span>Vessels</h2>
+                    <h2>Vessels</h2>
                     <small class="card-subtitle" id="vesselsSummary">Loading…</small>
                 </div>
                 <div class="card-actions">
@@ -736,7 +668,7 @@
         <section class="dashboard-card panel-floatlike" id="contactsPanel">
             <div class="card-header">
                 <div class="card-title">
-                    <h2><span class="status-dot status-ok"></span>Contacts</h2>
+                    <h2>Contacts</h2>
                     <small class="card-subtitle" id="contactsSummary">Loading…</small>
                 </div>
                 <div class="card-actions">
@@ -752,7 +684,7 @@
         <section class="dashboard-card panel-floatlike" id="passengersPanel">
             <div class="card-header">
                 <div class="card-title">
-                    <h2><span class="status-dot status-ok"></span>Passengers &amp; Crew</h2>
+                    <h2>Passengers &amp; Crew</h2>
                     <small class="card-subtitle" id="passengersSummary">Loading…</small>
                 </div>
                 <div class="card-actions">
@@ -768,7 +700,7 @@
         <section class="dashboard-card panel-floatlike" id="operatorsPanel">
             <div class="card-header">
                 <div class="card-title">
-                    <h2><span class="status-dot status-ok"></span>Operators</h2>
+                    <h2>Operators</h2>
                     <small class="card-subtitle" id="operatorsSummary">Loading…</small>
                 </div>
                 <div class="card-actions">
@@ -784,7 +716,7 @@
         <section class="dashboard-card panel-floatlike full-width" id="waypointsPanel">
             <div class="card-header">
                 <div class="card-title">
-                    <h2><span class="status-dot status-ok"></span>Waypoints</h2>
+                    <h2>Waypoints</h2>
                     <small class="card-subtitle" id="waypointsSummary">Loading…</small>
                 </div>
                 <div class="card-actions">
@@ -800,7 +732,7 @@
         <section class="dashboard-card panel-floatlike full-width next-steps-panel" id="recommendedNextStepsPanel" aria-labelledby="recommendedNextStepsTitle">
             <div class="card-header">
                 <div class="card-title">
-                    <h2 id="recommendedNextStepsTitle"><span class="status-dot status-ok"></span>Recommended Next Steps</h2>
+                    <h2 id="recommendedNextStepsTitle">Recommended Next Steps</h2>
                     <small class="card-subtitle">Suggestions are generated from current route, float plan, monitoring, weather, and setup data only.</small>
                 </div>
             </div>
@@ -1645,10 +1577,11 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20260301b"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260301b"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260301a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260307a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=20260308a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260308c"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260307i"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260310b"></script>
 
 
 
