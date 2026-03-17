@@ -541,8 +541,7 @@
         <section class="dashboard-card panel-floatlike full-width expedition-panel" id="expeditionTimelinePanel" aria-labelledby="expeditionTimelineTitle">
             <div class="card-header">
                 <div class="card-title">
-                    <h2 id="expeditionTimelineTitle">Expedition Timeline</h2>
-                    <small id="expeditionTimelineSubtitle" class="card-subtitle">Great Loop (Counter-Clockwise)</small>
+                    <h2 id="expeditionTimelineTitle">Routes</h2>
                 </div>
                 <div class="card-actions">
                     <button type="button" class="btn-primary" id="openRouteBuilderBtn">+ Add</button>
@@ -571,32 +570,13 @@
         <section class="dashboard-card hero-panel active" id="floatPlansPanel">
             <div class="card-header">
                 <div class="card-title">
-                    <h2>Float Plan &amp; Monitoring</h2>
-                    <small class="card-subtitle" id="floatPlansSummary">Loading…</small>
+                    <h2>Float Plans</h2>
                 </div>
                 <div class="card-actions">
                     <button class="btn-primary" type="button" id="addFloatPlanBtn">+ Add</button>
                 </div>
             </div>
             <div class="card-body" id="floatPlansBody">
-                <div id="monitoringSummaryBlock" class="monitoring-summary-block d-none" aria-live="polite">
-                    <div class="monitoring-summary-grid">
-                        <article class="monitoring-summary-tile">
-                            <div class="monitoring-summary-label">Active</div>
-                            <div class="monitoring-summary-value" id="monitoringActiveCount">0</div>
-                        </article>
-                        <article class="monitoring-summary-tile">
-                            <div class="monitoring-summary-label">Overdue</div>
-                            <div class="monitoring-summary-value" id="monitoringOverdueCount">0</div>
-                        </article>
-                        <article class="monitoring-summary-tile">
-                            <div class="monitoring-summary-label">Escalated</div>
-                            <div class="monitoring-summary-value" id="monitoringEscalatedCount">0</div>
-                        </article>
-                    </div>
-                    <small class="card-subtitle" id="monitoringSummaryMeta">Monitoring summary updated just now.</small>
-                </div>
-                <p id="monitoringSummaryMessage" class="empty d-none">Loading monitoring summary…</p>
                 <div class="d-flex flex-wrap align-items-center gap-2 mb-3" id="floatPlansFilterBar">
                     <div class="flex-grow-1" id="floatPlansFilterInputWrap">
                         <input type="text" id="floatPlansFilterInput" class="form-control" placeholder="Filter float plans…" autocomplete="off">
@@ -916,7 +896,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="contactPhone">Phone *</label>
-                        <input type="text" class="form-control" id="contactPhone" required pattern="^\+?1?\s*(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}$" title="Use a valid US phone number">
+                        <input type="text" class="form-control" id="contactPhone" required pattern="^\+?1?\s*(?:\(\d{3}\)|\d{3})[\s.\-]?\d{3}[\s.\-]?\d{4}$" title="Use a valid US phone number">
                         <div class="invalid-feedback" id="contactPhoneError"></div>
                     </div>
                     <div class="mb-3">
@@ -1578,10 +1558,10 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260301b"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260301a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=20260308a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260308c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260316a"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260310b"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260316c"></script>
 
 
 

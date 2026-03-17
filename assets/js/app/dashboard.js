@@ -353,33 +353,6 @@
     setText("weatherPreviewUpdatedAt", updatedAt ? ("Updated " + updatedAt) : "Updated just now");
   }
 
-  function renderMonitoringSummary() {
-    var block = document.getElementById("monitoringSummaryBlock");
-    var messageEl = document.getElementById("monitoringSummaryMessage");
-    var metaEl = document.getElementById("monitoringSummaryMeta");
-    var mon = dashboardSignals.monitoring || {};
-    if (!block || !messageEl) return;
-
-    if (!mon.loaded) {
-      toggleHidden(block, true);
-      messageEl.textContent = mon.message || "Loading monitoring summary…";
-      toggleHidden(messageEl, false);
-      return;
-    }
-
-    setText("monitoringActiveCount", mon.active);
-    setText("monitoringOverdueCount", mon.overdue);
-    setText("monitoringEscalatedCount", mon.escalated);
-
-    if (metaEl) {
-      var nowLabel = formatDashboardTime(new Date());
-      metaEl.textContent = nowLabel ? ("Monitoring summary updated " + nowLabel + ".") : "Monitoring summary updated.";
-    }
-
-    toggleHidden(messageEl, true);
-    toggleHidden(block, false);
-  }
-
   function openWeatherPanelFromDashboard() {
     var weatherCard = document.querySelector(".fpw-card.fpw-alerts");
     var weatherCollapse = document.getElementById("alertsCollapse");
@@ -563,7 +536,6 @@
   function loadMonitoringSummary() {
     var url = BASE_PATH + "/api/v1/floatplans.cfc?method=getMonitoredPlans&returnformat=json";
     dashboardSignals.monitoring.message = "Loading monitoring summary…";
-    renderMonitoringSummary();
 
     return fetch(url, { credentials: "same-origin" })
       .then(function (response) {
@@ -588,14 +560,12 @@
         dashboardSignals.monitoring.loaded = true;
         dashboardSignals.monitoring.message = "Monitoring summary updated.";
 
-        renderMonitoringSummary();
         refreshMissionSummary();
         renderRecommendedNextSteps();
       })
       .catch(function (err) {
         dashboardSignals.monitoring.loaded = false;
         dashboardSignals.monitoring.message = (err && err.message) ? err.message : "Monitoring summary unavailable.";
-        renderMonitoringSummary();
         refreshMissionSummary();
         renderRecommendedNextSteps();
       });
@@ -2568,7 +2538,6 @@
     var currentRouteCode = "";
     var panel = null;
     var summaryEl = null;
-    var subtitleEl = null;
     var loadingEl = null;
     var unauthorizedEl = null;
     var errorEl = null;
@@ -2627,7 +2596,6 @@
 
     function renderEmptyRoutes() {
       if (summaryEl) summaryEl.textContent = "No routes yet";
-      if (subtitleEl) subtitleEl.textContent = "Create your first route";
       if (routeListEl) routeListEl.innerHTML = "";
       if (routeEmptyEl) toggleHidden(routeEmptyEl, false);
       if (accordionEl) {
@@ -2652,9 +2620,6 @@
       var routeName = (data && data.ROUTE && data.ROUTE.NAME) ? data.ROUTE.NAME : "Route";
       if (summaryEl) {
         summaryEl.textContent = summaryText;
-      }
-      if (subtitleEl && routeName) {
-        subtitleEl.textContent = routeName;
       }
       setRouteSignals(routeName, summaryText, pct);
     }
@@ -2689,8 +2654,8 @@
           + '    <div class="expedition-route-meta">' + pct + '% complete • ' + formatNumber(nm, 1) + ' NM • ' + formatNumber(locks, 0) + ' locks</div>'
           + '  </div>'
           + '  <div class="expedition-route-actions">'
-          + '    <button type="button" class="btn-secondary js-expedition-build-floatplans">Build Float Plans</button>'
-          + '    <button type="button" class="btn-secondary js-expedition-follower-page">Follower Page</button>'
+          + '    <button type="button" class="btn-secondary js-expedition-build-floatplans">Add Float Plan</button>'
+          + '    <button type="button" class="btn-secondary js-expedition-follower-page">Trip Page</button>'
           + '    <button type="button" class="btn-secondary js-expedition-view-edit">View / Edit</button>'
           + '    <button type="button" class="btn-secondary js-expedition-delete">Delete</button>'
           + '  </div>'
@@ -2897,7 +2862,7 @@
         .finally(function () {
           if (triggerButton) {
             triggerButton.disabled = false;
-            triggerButton.textContent = originalText || "Follower Page";
+            triggerButton.textContent = originalText || "Trip Page";
           }
         });
     }
@@ -2967,7 +2932,7 @@
         .finally(function () {
           if (triggerButton) {
             triggerButton.disabled = false;
-            triggerButton.textContent = originalText || "Build Float Plans";
+            triggerButton.textContent = originalText || "Add Float Plan";
           }
         });
     }
@@ -3044,7 +3009,6 @@
       panel = document.getElementById("expeditionTimelinePanel");
       if (!panel) return;
       summaryEl = document.getElementById("expeditionTimelineSummary");
-      subtitleEl = document.getElementById("expeditionTimelineSubtitle");
       loadingEl = document.getElementById("expeditionTimelineLoading");
       unauthorizedEl = document.getElementById("expeditionTimelineUnauthorized");
       errorEl = document.getElementById("expeditionTimelineError");
@@ -3132,7 +3096,6 @@
     bindRouteStatusActions();
     renderRouteStatusPanel();
     refreshMissionSummary();
-    renderMonitoringSummary();
     renderRecommendedNextSteps();
     updateSetupIntroMetrics();
 

@@ -287,6 +287,11 @@
                 <cfset var routegenLegGeometryLegId = val(pickArg(body, "route_leg_id", "routeLegId", 0)) />
                 <cfset var routegenLegGeometrySegmentId = val(pickArg(body, "segment_id", "segmentId", 0)) />
                 <cfset var routegenLegGeometryOrder = val(pickArg(body, "leg_order", "legOrder", 0)) />
+                <cfset var routegenLegGeometryDirection = trim(toString(pickArg(body, "direction", "previewDirection", ""))) />
+                <cfset var routegenLegGeometryStartLat = pickArg(body, "start_lat", "startLat", "") />
+                <cfset var routegenLegGeometryStartLng = pickArg(body, "start_lng", "startLng", "") />
+                <cfset var routegenLegGeometryEndLat = pickArg(body, "end_lat", "endLat", "") />
+                <cfset var routegenLegGeometryEndLng = pickArg(body, "end_lng", "endLng", "") />
                 <cfset var routegenLegGeometryIgnoreSegmentOverride = toBoolean(
                     pickArg(body, "ignore_segment_override", "ignoreSegmentOverride", false),
                     false
@@ -297,6 +302,11 @@
                     routeLegId = routegenLegGeometryLegId,
                     segmentId = routegenLegGeometrySegmentId,
                     legOrder = routegenLegGeometryOrder,
+                    direction = routegenLegGeometryDirection,
+                    startLat = routegenLegGeometryStartLat,
+                    startLng = routegenLegGeometryStartLng,
+                    endLat = routegenLegGeometryEndLat,
+                    endLng = routegenLegGeometryEndLng,
                     ignoreSegmentOverride = routegenLegGeometryIgnoreSegmentOverride
                 ) />
                 <cfoutput>#serializeJSON(routegenLegGeometryRes)#</cfoutput>
@@ -8590,6 +8600,11 @@
         <cfargument name="routeLegId" type="numeric" required="false" default="0">
         <cfargument name="segmentId" type="numeric" required="false" default="0">
         <cfargument name="legOrder" type="numeric" required="false" default="0">
+        <cfargument name="direction" type="string" required="false" default="">
+        <cfargument name="startLat" type="any" required="false" default="">
+        <cfargument name="startLng" type="any" required="false" default="">
+        <cfargument name="endLat" type="any" required="false" default="">
+        <cfargument name="endLng" type="any" required="false" default="">
         <cfargument name="ignoreSegmentOverride" type="boolean" required="false" default="false">
         <cfscript>
             var out = {
@@ -8625,6 +8640,27 @@
             var hasExactOverride = false;
             var hasSegmentOverride = false;
             var sourceVal = "default";
+            var previewDirectionVal = "";
+            var previewStartPoint = {};
+            var previewEndPoint = {};
+            var legStartPoint = {};
+            var legEndPoint = {};
+
+            if (len(trim(arguments.direction))) {
+                previewDirectionVal = normalizeDirection(arguments.direction);
+            }
+            if (isNumeric(arguments.startLat) AND isNumeric(arguments.startLng)) {
+                previewStartPoint = {
+                    "lat"=val(arguments.startLat),
+                    "lon"=val(arguments.startLng)
+                };
+            }
+            if (isNumeric(arguments.endLat) AND isNumeric(arguments.endLng)) {
+                previewEndPoint = {
+                    "lat"=val(arguments.endLat),
+                    "lon"=val(arguments.endLng)
+                };
+            }
 
             if (len(routeCodeVal)) {
                 routeInfo = routegenResolveUserRoute(arguments.userId, routeCodeVal);
@@ -8790,11 +8826,35 @@
                 }
             }
 
+            if (
+                structCount(legRow)
+                AND structKeyExists(legRow, "START_POINT")
+                AND isStruct(legRow.START_POINT)
+                AND structCount(legRow.START_POINT)
+            ) {
+                legStartPoint = legRow.START_POINT;
+            }
+            if (
+                structCount(legRow)
+                AND structKeyExists(legRow, "END_POINT")
+                AND isStruct(legRow.END_POINT)
+                AND structCount(legRow.END_POINT)
+            ) {
+                legEndPoint = legRow.END_POINT;
+            }
+            if (structCount(previewStartPoint)) {
+                legStartPoint = previewStartPoint;
+            }
+            if (structCount(previewEndPoint)) {
+                legEndPoint = previewEndPoint;
+            }
+
             out.SUCCESS = true;
             out.MESSAGE = "OK";
             out.DATA = {
                 "route_id"=(structCount(routeInfo) ? routeInfo.ROUTE_ID : 0),
                 "route_code"=(structCount(routeInfo) ? routeInfo.ROUTE_CODE : ""),
+                "direction"=previewDirectionVal,
                 "route_leg_id"=routeLegIdVal,
                 "leg_order"=legOrderVal,
                 "segment_id"=segmentIdVal,
@@ -8803,16 +8863,8 @@
                 "source"=sourceVal,
                 "computed_nm"=roundTo2(effectiveNm),
                 "default_nm"=roundTo2(defaultNm),
-                "leg_start_point"=(
-                    structCount(legRow) AND structKeyExists(legRow, "START_POINT") AND isStruct(legRow.START_POINT)
-                        ? legRow.START_POINT
-                        : {}
-                ),
-                "leg_end_point"=(
-                    structCount(legRow) AND structKeyExists(legRow, "END_POINT") AND isStruct(legRow.END_POINT)
-                        ? legRow.END_POINT
-                        : {}
-                ),
+                "leg_start_point"=legStartPoint,
+                "leg_end_point"=legEndPoint,
                 "default_start_name"=(structKeyExists(defaultGeom, "START_NAME") ? defaultGeom.START_NAME : ""),
                 "default_end_name"=(structKeyExists(defaultGeom, "END_NAME") ? defaultGeom.END_NAME : ""),
                 "default_start_point"=(
@@ -9852,14 +9904,11 @@
             }
 
             var templateCodeVal = trim(toString(data.template.code));
-            var templateNameVal = trim(toString(data.template.name));
             var routeNameVal = trim(toString(arguments.input.route_name));
             if (!len(routeNameVal)) {
-                if (isMyRouteGenerate AND len(templateNameVal)) {
-                    routeNameVal = templateNameVal;
-                } else {
-                    routeNameVal = (len(templateNameVal) ? templateNameVal & " Route" : "My Route");
-                }
+                out.MESSAGE = "Route name required";
+                out.ERROR = { "MESSAGE"="route_name is required." };
+                return out;
             }
             var directionVal = normalizeDirection(arguments.input.direction);
             var startLocationVal = trim(toString(legs[1].start_name));
@@ -10046,17 +10095,11 @@
             var routeId = val(routeInfo.ROUTE_ID);
             var routeCodeVal = trim(routeInfo.ROUTE_CODE);
             var templateCodeVal = trim(toString(data.template.code));
-            var templateNameVal = trim(toString(data.template.name));
             var routeNameVal = trim(toString(arguments.input.route_name));
             if (!len(routeNameVal)) {
-                routeNameVal = trim(routeInfo.ROUTE_NAME);
-            }
-            if (!len(routeNameVal)) {
-                if (isMyRouteUpdate AND len(templateNameVal)) {
-                    routeNameVal = templateNameVal;
-                } else {
-                    routeNameVal = (len(templateNameVal) ? templateNameVal & " Route" : "My Route");
-                }
+                out.MESSAGE = "Route name required";
+                out.ERROR = { "MESSAGE"="route_name is required." };
+                return out;
             }
 
             var directionVal = normalizeDirection(arguments.input.direction);

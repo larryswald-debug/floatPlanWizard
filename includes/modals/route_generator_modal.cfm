@@ -140,11 +140,30 @@
 
     #fpwRouteGen .rg-body {
       min-height: 0;
-      display: grid;
-      grid-template-columns: 560px 1fr;
-      gap: 12px;
+      height: 100%;
       padding: 12px;
       overflow: hidden;
+    }
+
+    #fpwRouteGen .rg-layout-row {
+      height: 100%;
+      min-height: 100%;
+      --bs-gutter-x: 12px;
+      --bs-gutter-y: 12px;
+    }
+
+    #fpwRouteGen .rg-layout-col {
+      height: 100%;
+      min-height: 0;
+      display: flex;
+      overflow: hidden;
+    }
+
+    #fpwRouteGen .rg-layout-col > .rg-panel {
+      flex: 1 1 auto;
+      height: 100%;
+      max-height: 100%;
+      min-width: 0;
     }
 
     #fpwRouteGen .rg-panel {
@@ -158,6 +177,10 @@
       overflow: hidden;
       display: grid;
       grid-template-rows: auto 1fr;
+    }
+
+    #fpwRouteGen .rg-panel--bodyonly {
+      grid-template-rows: 1fr;
     }
 
     #fpwRouteGen .rg-panel-head {
@@ -206,6 +229,7 @@
 
     #fpwRouteGen .rg-left-scroll,
     #fpwRouteGen .rg-right-scroll {
+      height: 100%;
       min-height: 0;
       overflow: auto;
       padding: 12px;
@@ -367,15 +391,8 @@
     #fpwRouteGen .rg-switch-row {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-start;
       gap: 10px;
-    }
-
-    #fpwRouteGen .rg-switch-state {
-      font-size: 12px;
-      color: var(--rg-muted);
-      line-height: 1.3;
-      font-weight: 700;
     }
 
     #fpwRouteGen .form-check.form-switch.rg-switch {
@@ -463,6 +480,34 @@
       color: var(--rg-soft);
       font-size: 12px;
       line-height: 1.35;
+    }
+
+    #fpwRouteGen .rg-summary-column .rg-mini-label {
+      font-size: 10px;
+    }
+
+    #fpwRouteGen .rg-summary-column .rg-mini-value {
+      font-size: calc(28px * 2 / 3);
+    }
+
+    #fpwRouteGen .rg-summary-column .rg-mini-value small {
+      font-size: calc(13px * 2 / 3);
+    }
+
+    #fpwRouteGen .rg-summary-column .rg-mini-meta {
+      font-size: calc(12px * 2 / 3);
+    }
+
+    #fpwRouteGen .rg-right-mini-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    #fpwRouteGen .rg-right-input-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      align-items: start;
+      margin-bottom: 8px;
     }
 
     #fpwRouteGen .rg-config-grid {
@@ -1254,7 +1299,6 @@
     }
 
     @media (max-width: 1500px) {
-      #fpwRouteGen .rg-body { grid-template-columns: 470px 1fr; }
       #fpwRouteGen .rg-mini-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       #fpwRouteGen .rg-config-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       #fpwRouteGen .rg-config-grid-bottom { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -1269,7 +1313,6 @@
     }
 
     @media (max-width: 1120px) {
-      #fpwRouteGen .rg-body { grid-template-columns: 1fr; }
       #fpwRouteGen .rg-mini-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       #fpwRouteGen .rg-grid-5,
       #fpwRouteGen .rg-grid-6,
@@ -1327,350 +1370,367 @@
     </div>
 
     <div class="rg-body">
-      <section class="rg-panel" aria-labelledby="routeGenSetupHeading">
-        <div class="rg-panel-head">
-          <div>
-            <h2 id="routeGenSetupHeading" class="rg-panel-title">Route -&gt; Start -&gt; End</h2>
-          </div>
+      <div class="row rg-layout-row">
+        <div class="col-lg-3 rg-layout-col">
+          <section class="rg-panel" aria-labelledby="routeGenSetupHeading">
+            <div class="rg-panel-head">
+              <div>
+                <h2 id="routeGenSetupHeading" class="rg-panel-title">Route -&gt; Start -&gt; End</h2>
+              </div>
 
+            </div>
+
+            <div id="routeGenSetupPanelBody" class="rg-left-scroll">
+              <div class="rg-stack">
+                <section class="rg-section">
+                  <div class="rg-section-head">
+                    <div class="rg-section-title">Route Name</div>
+                  </div>
+                  <div class="rg-field">
+                    <label for="routeGenRouteName">Route Name</label>
+                    <input id="routeGenRouteName" type="text" class="form-control form-control-sm" required aria-required="true">
+                  </div>
+                </section>
+
+                <section class="rg-section">
+                  <div class="rg-section-head">
+                    <div class="rg-section-title">Template</div>
+                    <div class="rg-section-note">Loaded from your FPW route library</div>
+                  </div>
+                  <div class="rg-field">
+                    <label for="routeGenTemplateSelect">Route Template</label>
+                    <select id="routeGenTemplateSelect" class="form-select form-select-sm" aria-label="Template selection"></select>
+                    <div id="routeGenTemplateMeta" class="rg-section-note mt-2"></div>
+                  </div>
+                </section>
+
+                <section class="rg-section">
+                  <div class="rg-section-head">
+                    <div class="rg-section-title">Trip Basics</div>
+                    <div class="rg-section-note">Core route settings</div>
+                  </div>
+                  <div class="rg-grid-2">
+                    <div class="rg-field">
+                      <label for="routeGenStartLocation">Start Location</label>
+                      <select id="routeGenStartLocation" class="form-select form-select-sm"></select>
+                    </div>
+                    <div class="rg-field">
+                      <label for="routeGenEndLocation">End Location</label>
+                      <select id="routeGenEndLocation" class="form-select form-select-sm"></select>
+                    </div>
+                    <div class="rg-field">
+                      <label for="routeGenStartDate">Start Date</label>
+                      <input id="routeGenStartDate" type="date" class="form-control form-control-sm">
+                    </div>
+                    <div class="rg-field">
+                      <label for="routeGenDirectionToggle">Direction</label>
+                      <div class="rg-switch-row">
+                        <div class="form-check form-switch rg-switch">
+                          <input id="routeGenDirectionToggle" class="form-check-input" type="checkbox" role="switch" aria-label="Reverse direction">
+                          <label class="form-check-label" for="routeGenDirectionToggle">Reverse</label>
+                        </div>
+                      </div>
+                      <input id="routeGenDirection" type="hidden" value="CCW">
+                    </div>
+                  </div>
+                </section>
+
+                <section class="rg-section">
+                  <div class="rg-section-head">
+                    <div class="rg-section-title">Optional Stops</div>
+                    <div class="rg-section-note">Include detours in preview/generate</div>
+                  </div>
+                  <div id="routeGenOptionalStops" class="fpw-routegen__stops">
+                    <div class="fpw-routegen__empty">No optional stops available for this template.</div>
+                  </div>
+                </section>
+
+                <section class="rg-section">
+                  <div class="rg-section-head">
+                    <div class="rg-section-title">My Routes &amp; Waypoint Builder</div>
+                    <div class="rg-section-note">Compact custom-route tools</div>
+                  </div>
+
+                  <div class="rg-myroutes-grid">
+                    <div class="rg-stack">
+                      <div class="rg-field">
+                        <label for="routeGenMyRouteName">Create Route</label>
+                        <div class="rg-inline-actions">
+                          <input id="routeGenMyRouteName" type="text" class="form-control form-control-sm" placeholder="Route name">
+                          <button type="button" id="routeGenMyRouteCreateBtn" class="btn-secondary btn-sm">Create</button>
+                        </div>
+                      </div>
+
+                      <div class="rg-field">
+                        <label for="routeGenMyRouteStartWaypointSelect">Route Start Waypoint</label>
+                        <div class="rg-inline-actions">
+                          <select id="routeGenMyRouteStartWaypointSelect" class="form-select form-select-sm">
+                            <option value="">Select start waypoint</option>
+                          </select>
+                          <button type="button" id="routeGenMyRouteSetStartBtn" class="btn-secondary btn-sm">Set Start</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="rg-stack">
+                      <div class="rg-field">
+                        <label for="routeGenMyRouteSelect">My Routes</label>
+                        <div class="rg-inline-actions">
+                          <select id="routeGenMyRouteSelect" class="form-select form-select-sm">
+                            <option value="">Select route</option>
+                          </select>
+                          <button type="button" id="routeGenMyRouteLoadBtn" class="btn-secondary btn-sm">Load</button>
+                          <button type="button" id="routeGenMyRouteDeleteBtn" class="btn-secondary btn-sm">Delete</button>
+                        </div>
+                      </div>
+
+                      <div class="rg-field">
+                        <label for="routeGenMyRouteEndWaypointSelect">Add Leg by Waypoint</label>
+                        <div class="rg-inline-actions">
+                          <select id="routeGenMyRouteEndWaypointSelect" class="form-select form-select-sm">
+                            <option value="">Select end waypoint</option>
+                          </select>
+                          <button type="button" id="routeGenMyRouteAddWaypointLegBtn" class="btn-secondary btn-sm">Add Leg</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div id="routeGenMyRouteStartMeta" class="rg-hint mt-2">Set a route start waypoint, then add legs by choosing each next waypoint.</div>
+
+                  <div class="rg-field mt-2">
+                    <label for="routeGenMyRouteLegList">Leg Sequence</label>
+                    <div class="rg-hint">Create or select a My Route to manage legs.</div>
+                  </div>
+                  <div id="routeGenMyRouteLegList" class="fpw-routegen__myroutelegs">
+                    <div class="fpw-routegen__empty">Create or select a My Route to manage legs.</div>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </section>
         </div>
 
-        <div id="routeGenSetupPanelBody" class="rg-left-scroll">
-          <div class="rg-stack">
-            <section class="rg-section">
-              <div class="rg-section-head">
-                <div class="rg-section-title">Template</div>
-                <div class="rg-section-note">Loaded from your FPW route library</div>
+        <div class="col-lg-6 rg-layout-col">
+          <section class="rg-panel" aria-labelledby="routeGenPreviewHeading">
+            <div class="rg-panel-head">
+              <div>
+                <h2 id="routeGenPreviewHeading" class="rg-panel-title">Route Summary and Legs</h2>
               </div>
-              <div class="rg-field">
-                <label for="routeGenTemplateSelect">Route Template</label>
-                <select id="routeGenTemplateSelect" class="form-select form-select-sm" aria-label="Template selection"></select>
-                <div id="routeGenTemplateMeta" class="rg-section-note mt-2"></div>
-              </div>
-            </section>
+              <div class="rg-panel-sub"><span id="routeGenPreviewTemplate">Template: -</span></div>
+            </div>
 
-            <section class="rg-section">
-              <div class="rg-section-head">
-                <div class="rg-section-title">Trip Basics</div>
-                <div class="rg-section-note">Core route settings</div>
-              </div>
-              <div class="rg-grid-2">
-                <div class="rg-field">
-                  <label for="routeGenStartLocation">Start Location</label>
-                  <select id="routeGenStartLocation" class="form-select form-select-sm"></select>
-                </div>
-                <div class="rg-field">
-                  <label for="routeGenEndLocation">End Location</label>
-                  <select id="routeGenEndLocation" class="form-select form-select-sm"></select>
-                </div>
-                <div class="rg-field">
-                  <label for="routeGenStartDate">Start Date</label>
-                  <input id="routeGenStartDate" type="date" class="form-control form-control-sm">
-                </div>
-                <div class="rg-field">
-                  <label for="routeGenDirectionToggle">Direction</label>
-                  <div class="rg-switch-row">
-                    <div id="routeGenDirectionState" class="rg-switch-state">Counterclockwise (CCW)</div>
-                    <div class="form-check form-switch rg-switch">
-                      <input id="routeGenDirectionToggle" class="form-check-input" type="checkbox" role="switch" aria-label="Reverse direction">
-                      <label class="form-check-label" for="routeGenDirectionToggle">Reverse</label>
+            <div class="rg-right-scroll">
+              <div id="routeGenLegLayout" class="rg-timeline-wrap">
+                <div class="rg-timeline-shell">
+                  <div class="rg-timeline-head">
+                    <div class="rg-timeline-headline">
+                      <span id="routeGenLegHeaderTitle" class="rg-section-title">Cruise Timeline</span>
+                      <span class="rg-section-note">: <span id="routeGenLegHeaderCalc">Calc: n/a</span> · <span id="routeGenLegCount">0 legs</span></span>
                     </div>
-                  </div>
-                  <input id="routeGenDirection" type="hidden" value="CCW">
-                </div>
-              </div>
-            </section>
-
-            <section class="rg-section">
-              <div class="rg-section-head">
-                <div class="rg-section-title">Optional Stops</div>
-                <div class="rg-section-note">Include detours in preview/generate</div>
-              </div>
-              <div id="routeGenOptionalStops" class="fpw-routegen__stops">
-                <div class="fpw-routegen__empty">No optional stops available for this template.</div>
-              </div>
-            </section>
-
-            <section class="rg-section">
-              <div class="rg-section-head">
-                <div class="rg-section-title">My Routes &amp; Waypoint Builder</div>
-                <div class="rg-section-note">Compact custom-route tools</div>
-              </div>
-
-              <div class="rg-myroutes-grid">
-                <div class="rg-stack">
-                  <div class="rg-field">
-                    <label for="routeGenMyRouteName">Create Route</label>
-                    <div class="rg-inline-actions">
-                      <input id="routeGenMyRouteName" type="text" class="form-control form-control-sm" placeholder="Route name">
-                      <button type="button" id="routeGenMyRouteCreateBtn" class="btn-secondary btn-sm">Create</button>
+                    <div class="rg-timeline-actions rg-hidden" aria-hidden="true">
+                      <label for="routeGenTimelineMaxHours">Max hrs/day</label>
+                      <input id="routeGenTimelineMaxHours" type="number" min="4" max="12" step="0.5" class="form-control form-control-sm" value="6.5">
+                      <button type="button" id="routeGenTimelineRebuildBtn" class="btn-secondary btn-sm">Rebuild Timeline</button>
                     </div>
                   </div>
 
-                  <div class="rg-field">
-                    <label for="routeGenMyRouteStartWaypointSelect">Route Start Waypoint</label>
-                    <div class="rg-inline-actions">
-                      <select id="routeGenMyRouteStartWaypointSelect" class="form-select form-select-sm">
-                        <option value="">Select start waypoint</option>
-                      </select>
-                      <button type="button" id="routeGenMyRouteSetStartBtn" class="btn-secondary btn-sm">Set Start</button>
-                    </div>
+                  <div class="rg-leg-columns" aria-hidden="true">
+                    <span>#</span>
+                    <span>Leg</span>
+                    <span>Locks</span>
+                    <span>NM</span>
+                    <span>Geometry</span>
+                  </div>
+
+                  <div id="routeGenLegList" class="rg-leg-list">
+                    <div class="fpw-routegen__empty">Pick template/start/end to see a live preview.</div>
                   </div>
                 </div>
 
-                <div class="rg-stack">
-                  <div class="rg-field">
-                    <label for="routeGenMyRouteSelect">My Routes</label>
-                    <div class="rg-inline-actions">
-                      <select id="routeGenMyRouteSelect" class="form-select form-select-sm">
-                        <option value="">Select route</option>
-                      </select>
-                      <button type="button" id="routeGenMyRouteLoadBtn" class="btn-secondary btn-sm">Load</button>
-                      <button type="button" id="routeGenMyRouteDeleteBtn" class="btn-secondary btn-sm">Delete</button>
+                <div id="routeGenLegMapDock" class="fpw-routegen__legmapdock">
+                  <div id="routeGenLegMapPanel" class="fpw-routegen__legpanel" aria-live="polite">
+                    <div class="fpw-routegen__legpanelhead">
+                      <div>
+                        <div class="rg-eyebrow">Leg Geometry</div>
+                        <div id="routeGenLegMapTitle" class="rg-section-title">Select a leg to edit geometry</div>
+                      </div>
+                      <div class="d-flex align-items-start gap-2">
+                        <div id="routeGenLegMapSource" class="rg-section-note">Source: default</div>
+                        <button type="button" id="routeGenLegOverlayCloseBtn" class="fpw-routegen__legclose" aria-label="Close map panel">&times;</button>
+                      </div>
                     </div>
-                  </div>
-
-                  <div class="rg-field">
-                    <label for="routeGenMyRouteEndWaypointSelect">Add Leg by Waypoint</label>
-                    <div class="rg-inline-actions">
-                      <select id="routeGenMyRouteEndWaypointSelect" class="form-select form-select-sm">
-                        <option value="">Select end waypoint</option>
-                      </select>
-                      <button type="button" id="routeGenMyRouteAddWaypointLegBtn" class="btn-secondary btn-sm">Add Leg</button>
+                    <div class="fpw-routegen__legpanelmeta">
+                      <span>Computed NM:</span>
+                      <strong id="routeGenLegMapNm">0.00</strong>
+                      <span id="routeGenLegMapHint" class="rg-section-note">Draw or edit polyline, then save override.</span>
+                    </div>
+                    <div class="fpw-routegen__legsearch">
+                      <input
+                        id="routeGenLegMapSearchInput"
+                        type="text"
+                        class="form-control form-control-sm"
+                        placeholder="Search place, marina, city..."
+                        autocomplete="off">
+                      <button type="button" id="routeGenLegMapSearchBtn" class="btn-secondary">Search</button>
+                      <button type="button" id="routeGenLegMapSearchClearBtn" class="btn-secondary">Clear Pin</button>
+                    </div>
+                    <div id="routeGenLegMapStatus" class="fpw-routegen__legmapstatus">Open lock details on a leg, then click Edit Geometry.</div>
+                    <div id="routeGenLegMap" class="fpw-routegen__legmap"></div>
+                    <div class="fpw-routegen__legpanelactions">
+                      <button type="button" id="routeGenLegClearBtn" class="btn-secondary">Clear Draw</button>
+                      <button type="button" id="routeGenLegRevertBtn" class="btn-secondary">Revert to Default</button>
+                      <button type="button" id="routeGenLegSaveBtn" class="btn-primary">Save Overrides</button>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div id="routeGenMyRouteStartMeta" class="rg-hint mt-2">Set a route start waypoint, then add legs by choosing each next waypoint.</div>
-
-              <div class="rg-field mt-2">
-                <label for="routeGenMyRouteLegList">Leg Sequence</label>
-                <div class="rg-hint">Create or select a My Route to manage legs.</div>
+              <div id="routeGenLegOverlay" class="fpw-routegen__legoverlay" aria-hidden="true">
+                <div id="routeGenLegOverlayDock" class="fpw-routegen__legoverlaydock"></div>
               </div>
-              <div id="routeGenMyRouteLegList" class="fpw-routegen__myroutelegs">
-                <div class="fpw-routegen__empty">Create or select a My Route to manage legs.</div>
-              </div>
-            </section>
-          </div>
-        </div>
-      </section>
-
-      <section class="rg-panel" aria-labelledby="routeGenPreviewHeading">
-        <div class="rg-panel-head">
-          <div>
-            <h2 id="routeGenPreviewHeading" class="rg-panel-title">Route Summary and Legs</h2>
-          </div>
-          <div class="rg-panel-sub"><span id="routeGenPreviewTemplate">Template: -</span></div>
+            </div>
+          </section>
         </div>
 
-        <div class="rg-right-scroll">
-          <div class="rg-mini-grid">
-            <article class="rg-mini-card">
-              <div class="rg-mini-label">Total Distance</div>
-              <div id="routeGenTotalNm" class="rg-mini-value">0 <small>NM</small></div>
-              <div class="rg-mini-meta">Based on selected legs</div>
-            </article>
-            <article class="rg-mini-card">
-              <div class="rg-mini-label">Estimated Days</div>
-              <div id="routeGenEstimatedDays" class="rg-mini-value">0</div>
-              <div id="routeGenEstimatedDaysSub" class="rg-mini-meta">Pace-driven estimate</div>
-            </article>
-            <article class="rg-mini-card">
-              <div class="rg-mini-label">Estimated Fuel</div>
-              <div id="routeGenEstimatedFuel" class="rg-mini-value">-- <small>gal</small></div>
-              <div id="routeGenEstimatedFuelSub" class="rg-mini-meta">Required + reserve</div>
-            </article>
-            <article class="rg-mini-card">
-              <div class="rg-mini-label">Fuel Cost</div>
-              <div id="routeGenFuelCost" class="rg-mini-value">-- <small>USD</small></div>
-              <div id="routeGenFuelCostSub" class="rg-mini-meta">Fuel x price</div>
-            </article>
-            <article class="rg-mini-card">
-              <div class="rg-mini-label">Locks</div>
-              <div id="routeGenLockCount" class="rg-mini-value">0</div>
-              <div class="rg-mini-meta">Total lock count</div>
-            </article>
-            <article class="rg-mini-card">
-              <div class="rg-mini-label">Offshore Legs</div>
-              <div id="routeGenOffshoreCount" class="rg-mini-value">0</div>
-              <div class="rg-mini-meta">Optional/open-water count</div>
-            </article>
-          </div>
-
-          <details id="routeGenAdvanced" class="mt-0" open>
-            <summary id="routeGenAdvancedSummary" class="visually-hidden">Advanced controls</summary>
-
-            <div class="rg-config-grid">
-              <div class="rg-field">
-                <label for="routeGenCruisingSpeed">Max Speed (kn)</label>
-                <input id="routeGenCruisingSpeed" type="number" step="0.1" min="1" max="60" class="form-control form-control-sm" value="20">
-              </div>
-              <div class="rg-field">
-                <label id="routeGenFuelBurnLabel" for="routeGenFuelBurnGph">Fuel Burn @ Max (GPH)</label>
-                <input id="routeGenFuelBurnGph" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
-                <div id="routeGenFuelBurnHint" class="rg-field-note rg-hidden">FPW derives pace and weather adjusted burn from max speed burn.</div>
-                <div id="routeGenFuelBurnDerived" class="rg-field-note rg-hidden">Derived burn at current pace + weather: -- GPH</div>
-              </div>
-              <div class="rg-field">
-                <label for="routeGenIdleBurnGph">Idle Burn (GPH)</label>
-                <input id="routeGenIdleBurnGph" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
-              </div>
-              <div class="rg-field">
-                <label for="routeGenIdleHoursTotal">Idle Hours (total)</label>
-                <input id="routeGenIdleHoursTotal" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
-              </div>
-              <div class="rg-field">
-                <label for="routeGenWeatherFactorPct">Weather Factor (%)</label>
-                <input id="routeGenWeatherFactorPct" type="number" step="1" min="0" max="60" class="form-control form-control-sm" value="0">
-              </div>
-            </div>
-
-            <div class="rg-config-grid-bottom">
-              <div class="rg-field rg-field--compact">
-                <label for="routeGenReservePct">Reserve (%)</label>
-                <input id="routeGenReservePct" type="number" step="1" min="0" max="100" class="form-control form-control-sm" value="20">
-              </div>
-              <div class="rg-field rg-field--compact">
-                <label for="routeGenUnderwayHoursPerDay">Underway Hrs / Day</label>
-                <input id="routeGenUnderwayHoursPerDay" type="number" step="0.5" min="1" max="24" class="form-control form-control-sm" value="8">
-              </div>
-              <div class="rg-field rg-field--compact">
-                <label for="routeGenFuelPricePerGal">Fuel Price ($/gal)</label>
-                <input id="routeGenFuelPricePerGal" type="number" step="0.01" min="0" class="form-control form-control-sm" value="" placeholder="Enter price">
+        <div class="col-lg-3 rg-layout-col rg-summary-column">
+          <section class="rg-panel rg-panel--bodyonly">
+            <div class="rg-right-scroll">
+              <div class="rg-mini-grid rg-right-mini-grid">
+                <article class="rg-mini-card">
+                  <div class="rg-mini-label">Total Distance</div>
+                  <div id="routeGenTotalNm" class="rg-mini-value">0 <small>NM</small></div>
+                  <div class="rg-mini-meta">Based on selected legs</div>
+                </article>
+                <article class="rg-mini-card">
+                  <div class="rg-mini-label">Estimated Days</div>
+                  <div id="routeGenEstimatedDays" class="rg-mini-value">0</div>
+                  <div id="routeGenEstimatedDaysSub" class="rg-mini-meta">Pace-driven estimate</div>
+                </article>
+                <article class="rg-mini-card">
+                  <div class="rg-mini-label">Estimated Fuel</div>
+                  <div id="routeGenEstimatedFuel" class="rg-mini-value">-- <small>gal</small></div>
+                  <div id="routeGenEstimatedFuelSub" class="rg-mini-meta">Required + reserve</div>
+                </article>
+                <article class="rg-mini-card">
+                  <div class="rg-mini-label">Fuel Cost</div>
+                  <div id="routeGenFuelCost" class="rg-mini-value">-- <small>USD</small></div>
+                  <div id="routeGenFuelCostSub" class="rg-mini-meta">Fuel x price</div>
+                </article>
+                <article class="rg-mini-card">
+                  <div class="rg-mini-label">Locks</div>
+                  <div id="routeGenLockCount" class="rg-mini-value">0</div>
+                  <div class="rg-mini-meta">Total lock count</div>
+                </article>
+                <article class="rg-mini-card">
+                  <div class="rg-mini-label">Offshore Legs</div>
+                  <div id="routeGenOffshoreCount" class="rg-mini-value">0</div>
+                  <div class="rg-mini-meta">Optional/open-water count</div>
+                </article>
               </div>
 
-              <div id="routeGenWeatherAssist" class="rg-weather-assist" aria-live="polite">
-                <div class="rg-weather-top">
-                  <div class="rg-assist-title">Live Weather Assist (Local)</div>
-                  <span id="routeGenWeatherSuggestConfidence" class="fpw-routegen__weatherassistpill">--</span>
-                </div>
-                <div class="rg-assist-row">
-                  <p id="routeGenWeatherSuggestValue" class="rg-assist-value">Suggestion unavailable</p>
-                  <p id="routeGenWeatherSuggestMeta" class="rg-assist-copy">Set a valid dashboard weather ZIP to refresh this suggestion.</p>
-                </div>
-                <p id="routeGenWeatherSuggestFactors" class="rg-assist-copy">No live weather data loaded.</p>
-                <div class="rg-assist-actions">
-                  <button type="button" id="routeGenWeatherSuggestRefreshBtn" class="btn-secondary btn-sm">Refresh Suggestion</button>
-                  <button type="button" id="routeGenWeatherSuggestApplyBtn" class="btn-primary btn-sm" disabled>Apply Suggested</button>
-                </div>
-              </div>
+              <details id="routeGenAdvanced" class="mt-0" open>
+                <summary id="routeGenAdvancedSummary" class="visually-hidden">Advanced controls</summary>
 
-              <div class="rg-pace rg-pace--inset">
-                <div class="rg-pace-top">
-                  <div>
-                    <div class="rg-pace-title">Pace</div>
-                    <div class="rg-pace-desc">Pace applies 25%, 50%, or 100% of your adjusted max speed.</div>
+                <div class="rg-right-input-grid">
+                  <div class="rg-field">
+                    <label for="routeGenCruisingSpeed">Max Speed (kn)</label>
+                    <input id="routeGenCruisingSpeed" type="number" step="0.1" min="1" max="60" class="form-control form-control-sm" value="20">
                   </div>
-                  <div id="routeGenPaceLabel" class="rg-pace-chip">Relaxed</div>
-                </div>
-                <input id="routeGenPace" type="range" min="0" max="2" step="1" value="0" aria-label="Pace">
-                <div class="rg-slider-labels"><span>Relaxed</span><span>Balanced</span><span>Aggressive</span></div>
-                <div id="routeGenPaceOverrideHint" class="rg-field-note d-none">Pace uses a percentage of max speed.</div>
-                <button type="button" id="routeGenResetPaceBtn" class="btn-secondary btn-sm d-none">Reset Pace Defaults</button>
-              </div>
-            </div>
-
-            <div class="rg-grid-2 rg-hidden">
-              <div class="rg-field">
-                <label for="routeGenComfortProfile">Comfort Profile</label>
-                <select id="routeGenComfortProfile" class="form-select form-select-sm">
-                  <option value="PREFER_INSIDE">Prefer Inside</option>
-                  <option value="BALANCED">Balanced</option>
-                  <option value="OFFSHORE_OK">Offshore OK</option>
-                </select>
-              </div>
-              <div class="rg-field">
-                <label for="routeGenOvernightBias">Overnight Bias</label>
-                <select id="routeGenOvernightBias" class="form-select form-select-sm">
-                  <option value="MARINAS">Marinas</option>
-                  <option value="ANCHORAGES">Anchorages</option>
-                  <option value="MIXED">Mixed</option>
-                </select>
-              </div>
-            </div>
-          </details>
-
-          <div id="routeGenLegLayout" class="rg-timeline-wrap">
-            <div class="rg-timeline-shell">
-              <div class="rg-timeline-head">
-                <div class="rg-timeline-headline">
-                  <span id="routeGenLegHeaderTitle" class="rg-section-title">Cruise Timeline</span>
-                  <span class="rg-section-note">: <span id="routeGenLegHeaderCalc">Calc: n/a</span> · <span id="routeGenLegCount">0 legs</span></span>
-                </div>
-                <div class="rg-timeline-actions rg-hidden" aria-hidden="true">
-                  <label for="routeGenTimelineMaxHours">Max hrs/day</label>
-                  <input id="routeGenTimelineMaxHours" type="number" min="4" max="12" step="0.5" class="form-control form-control-sm" value="6.5">
-                  <button type="button" id="routeGenTimelineRebuildBtn" class="btn-secondary btn-sm">Rebuild Timeline</button>
-                </div>
-              </div>
-
-              <div class="rg-leg-columns" aria-hidden="true">
-                <span>#</span>
-                <span>Leg</span>
-                <span>Locks</span>
-                <span>NM</span>
-                <span>Geometry</span>
-              </div>
-
-              <div id="routeGenLegList" class="rg-leg-list">
-                <div class="fpw-routegen__empty">Pick template/start/end to see a live preview.</div>
-              </div>
-            </div>
-
-            <div id="routeGenLegMapDock" class="fpw-routegen__legmapdock">
-              <div id="routeGenLegMapPanel" class="fpw-routegen__legpanel" aria-live="polite">
-                <div class="fpw-routegen__legpanelhead">
-                  <div>
-                    <div class="rg-eyebrow">Leg Geometry</div>
-                    <div id="routeGenLegMapTitle" class="rg-section-title">Select a leg to edit geometry</div>
+                  <div class="rg-field">
+                    <label id="routeGenFuelBurnLabel" for="routeGenFuelBurnGph">Fuel Burn @ Max (GPH)</label>
+                    <input id="routeGenFuelBurnGph" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
+                    <div id="routeGenFuelBurnHint" class="rg-field-note rg-hidden">FPW derives pace and weather adjusted burn from max speed burn.</div>
+                    <div id="routeGenFuelBurnDerived" class="rg-field-note rg-hidden">Derived burn at current pace + weather: -- GPH</div>
                   </div>
-                  <div class="d-flex align-items-start gap-2">
-                    <div id="routeGenLegMapSource" class="rg-section-note">Source: default</div>
-                    <button type="button" id="routeGenLegOverlayCloseBtn" class="fpw-routegen__legclose" aria-label="Close map panel">&times;</button>
+                  <div class="rg-field">
+                    <label for="routeGenIdleBurnGph">Idle Burn (GPH)</label>
+                    <input id="routeGenIdleBurnGph" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
+                  </div>
+                  <div class="rg-field">
+                    <label for="routeGenIdleHoursTotal">Idle Hours (total)</label>
+                    <input id="routeGenIdleHoursTotal" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
+                  </div>
+                  <div class="rg-field">
+                    <label for="routeGenWeatherFactorPct">Weather Factor (%)</label>
+                    <input id="routeGenWeatherFactorPct" type="number" step="1" min="0" max="60" class="form-control form-control-sm" value="0">
+                  </div>
+                  <div class="rg-field rg-field--compact">
+                    <label for="routeGenReservePct">Reserve (%)</label>
+                    <input id="routeGenReservePct" type="number" step="1" min="0" max="100" class="form-control form-control-sm" value="20">
+                  </div>
+                  <div class="rg-field rg-field--compact">
+                    <label for="routeGenUnderwayHoursPerDay">Underway Hrs / Day</label>
+                    <input id="routeGenUnderwayHoursPerDay" type="number" step="0.5" min="1" max="24" class="form-control form-control-sm" value="8">
+                  </div>
+                  <div class="rg-field rg-field--compact">
+                    <label for="routeGenFuelPricePerGal">Fuel Price ($/gal)</label>
+                    <input id="routeGenFuelPricePerGal" type="number" step="0.01" min="0" class="form-control form-control-sm" value="" placeholder="Enter price">
                   </div>
                 </div>
-                <div class="fpw-routegen__legpanelmeta">
-                  <span>Computed NM:</span>
-                  <strong id="routeGenLegMapNm">0.00</strong>
-                  <span id="routeGenLegMapHint" class="rg-section-note">Draw or edit polyline, then save override.</span>
-                </div>
-                <div class="fpw-routegen__legsearch">
-                  <input
-                    id="routeGenLegMapSearchInput"
-                    type="text"
-                    class="form-control form-control-sm"
-                    placeholder="Search place, marina, city..."
-                    autocomplete="off">
-                  <button type="button" id="routeGenLegMapSearchBtn" class="btn-secondary">Search</button>
-                  <button type="button" id="routeGenLegMapSearchClearBtn" class="btn-secondary">Clear Pin</button>
-                </div>
-                <div id="routeGenLegMapStatus" class="fpw-routegen__legmapstatus">Open lock details on a leg, then click Edit Geometry.</div>
-                <div id="routeGenLegMap" class="fpw-routegen__legmap"></div>
-                <div class="fpw-routegen__legpanelactions">
-                  <button type="button" id="routeGenLegClearBtn" class="btn-secondary">Clear Draw</button>
-                  <button type="button" id="routeGenLegRevertBtn" class="btn-secondary">Revert to Default</button>
-                  <button type="button" id="routeGenLegSaveBtn" class="btn-primary">Save Overrides</button>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <div id="routeGenLegOverlay" class="fpw-routegen__legoverlay" aria-hidden="true">
-            <div id="routeGenLegOverlayDock" class="fpw-routegen__legoverlaydock"></div>
-          </div>
+                <div class="rg-pace rg-pace--inset">
+                  <div class="rg-pace-top">
+                    <div>
+                      <div class="rg-pace-title">Pace</div>
+                      <div class="rg-pace-desc">Pace applies 25%, 50%, or 100% of your adjusted max speed.</div>
+                    </div>
+                    <div id="routeGenPaceLabel" class="rg-pace-chip">Relaxed</div>
+                  </div>
+                  <input id="routeGenPace" type="range" min="0" max="2" step="1" value="0" aria-label="Pace">
+                  <div class="rg-slider-labels"><span>Relaxed</span><span>Balanced</span><span>Aggressive</span></div>
+                  <div id="routeGenPaceOverrideHint" class="rg-field-note d-none">Pace uses a percentage of max speed.</div>
+                  <button type="button" id="routeGenResetPaceBtn" class="btn-secondary btn-sm d-none">Reset Pace Defaults</button>
+                </div>
+
+                <div id="routeGenWeatherAssist" class="rg-weather-assist" aria-live="polite">
+                  <div class="rg-weather-top">
+                    <div class="rg-assist-title">Live Weather Assist (Local)</div>
+                    <span id="routeGenWeatherSuggestConfidence" class="fpw-routegen__weatherassistpill">--</span>
+                  </div>
+                  <div class="rg-assist-row">
+                    <p id="routeGenWeatherSuggestValue" class="rg-assist-value">Suggestion unavailable</p>
+                    <p id="routeGenWeatherSuggestMeta" class="rg-assist-copy">Set a valid dashboard weather ZIP to refresh this suggestion.</p>
+                  </div>
+                  <p id="routeGenWeatherSuggestFactors" class="rg-assist-copy">No live weather data loaded.</p>
+                  <div class="rg-assist-actions">
+                    <button type="button" id="routeGenWeatherSuggestRefreshBtn" class="btn-secondary btn-sm">Refresh Suggestion</button>
+                    <button type="button" id="routeGenWeatherSuggestApplyBtn" class="btn-primary btn-sm" disabled>Apply Suggested</button>
+                  </div>
+                </div>
+
+                <div class="rg-grid-2 rg-hidden">
+                  <div class="rg-field">
+                    <label for="routeGenComfortProfile">Comfort Profile</label>
+                    <select id="routeGenComfortProfile" class="form-select form-select-sm">
+                      <option value="PREFER_INSIDE">Prefer Inside</option>
+                      <option value="BALANCED">Balanced</option>
+                      <option value="OFFSHORE_OK">Offshore OK</option>
+                    </select>
+                  </div>
+                  <div class="rg-field">
+                    <label for="routeGenOvernightBias">Overnight Bias</label>
+                    <select id="routeGenOvernightBias" class="form-select form-select-sm">
+                      <option value="MARINAS">Marinas</option>
+                      <option value="ANCHORAGES">Anchorages</option>
+                      <option value="MIXED">Mixed</option>
+                    </select>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
     </div>
 
     <div class="rg-bottom-bar">
       <div id="routeGenHintLine" class="rg-hintline">Recommended flow: Preview -&gt; Generate Route -&gt; Build Float Plans from dashboard.</div>
       <div class="rg-actions">
-        <button type="button" id="routeGenPreviewBtn" class="btn-secondary">Preview</button>
         <button type="button" id="routeGenResetBtn" class="btn-secondary">Reset</button>
         <button type="button" id="routeGenCancelBtn" class="btn-secondary">Close</button>
         <button type="button" id="routeGenSaveBtn" class="btn-primary d-none">Save Route</button>
-        <button type="button" id="routeGenGenerateBtn" class="btn-primary">Generate Route</button>
+        <button type="button" id="routeGenGenerateBtn" class="btn-primary">Save Route</button>
       </div>
     </div>
   </div>

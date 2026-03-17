@@ -68,6 +68,7 @@
     },
     myRoutes: {
       available: false,
+      pendingCount: 0,
       routes: [],
       activeRouteId: 0,
       activeRouteName: "",
@@ -1381,6 +1382,39 @@
     }
   }
 
+  function isMyRoutePending() {
+    return toInt(state.myRoutes.pendingCount, 0) > 0;
+  }
+
+  function renderMyRouteControlAvailability() {
+    var hasActiveRoute = toInt(state.myRoutes.activeRouteId, 0) > 0;
+    var hasPersistedStart = toInt(state.myRoutes.startWaypointId, 0) > 0;
+    var isPending = isMyRoutePending();
+
+    if (dom.myRouteStartWaypointSelectEl) {
+      dom.myRouteStartWaypointSelectEl.disabled = isPending || !hasActiveRoute;
+    }
+    if (dom.myRouteSetStartBtn) {
+      dom.myRouteSetStartBtn.disabled = isPending || !hasActiveRoute;
+    }
+    if (dom.myRouteEndWaypointSelectEl) {
+      dom.myRouteEndWaypointSelectEl.disabled = isPending || !hasActiveRoute || !hasPersistedStart;
+    }
+    if (dom.myRouteAddWaypointLegBtn) {
+      dom.myRouteAddWaypointLegBtn.disabled = isPending || !hasActiveRoute || !hasPersistedStart;
+    }
+  }
+
+  function beginMyRoutePending() {
+    state.myRoutes.pendingCount = toInt(state.myRoutes.pendingCount, 0) + 1;
+    renderMyRouteControlAvailability();
+  }
+
+  function endMyRoutePending() {
+    state.myRoutes.pendingCount = Math.max(0, toInt(state.myRoutes.pendingCount, 0) - 1);
+    renderMyRouteControlAvailability();
+  }
+
   function getMyRouteWaypointById(waypointId) {
     var id = toInt(waypointId, 0);
     if (id <= 0) return null;
@@ -1453,6 +1487,7 @@
       }
     }
     renderMyRouteStartMeta();
+    renderMyRouteControlAvailability();
   }
 
   function renderMyRouteLegList() {
@@ -1516,8 +1551,10 @@
       state.myRoutes.activeRouteName = "";
       setMyRouteLegs([]);
       renderMyRouteOptions();
+      renderMyRouteControlAvailability();
       return Promise.resolve(null);
     }
+    beginMyRoutePending();
     return fetchJson(apiUrl("getUserRoute"), {
       method: "POST",
       credentials: "same-origin",
@@ -1547,6 +1584,8 @@
         showError((err && err.message) ? err.message : "Unable to load My Route.");
       }
       return null;
+    }).finally(function () {
+      endMyRoutePending();
     });
   }
 
@@ -1577,6 +1616,7 @@
 
   function loadMyRoutes(options) {
     var opts = options || {};
+    beginMyRoutePending();
     return fetchJson(apiUrl("listUserRoutes"), {
       method: "POST",
       credentials: "same-origin",
@@ -1633,6 +1673,8 @@
         showError((err && err.message) ? err.message : "Unable to load My Routes.");
       }
       return null;
+    }).finally(function () {
+      endMyRoutePending();
     });
   }
 
@@ -1653,9 +1695,39 @@
     dom.errorEl.classList.add("d-none");
   }
 
+  function getRouteNameValue(trimValue) {
+    var routeName = dom.routeNameEl ? String(dom.routeNameEl.value || "") : "";
+    return trimValue ? routeName.trim() : routeName;
+  }
+
+  function clearRouteNameValidation() {
+    if (!dom.routeNameEl || typeof dom.routeNameEl.setCustomValidity !== "function") return;
+    dom.routeNameEl.setCustomValidity("");
+  }
+
+  function validateRequiredRouteName(actionLabel) {
+    var routeName = getRouteNameValue(true);
+    clearRouteNameValidation();
+    if (dom.routeNameEl) {
+      dom.routeNameEl.value = routeName;
+    }
+    if (routeName) {
+      return true;
+    }
+    if (dom.routeNameEl) {
+      if (typeof dom.routeNameEl.setCustomValidity === "function") {
+        dom.routeNameEl.setCustomValidity("Route Name is required.");
+      }
+      dom.routeNameEl.focus();
+    }
+    showError("Enter a route name before " + actionLabel + ".");
+    return false;
+  }
+
   function setRouteCodeBadge(routeCode) {
     if (!dom.routeCodeEl) return;
-    dom.routeCodeEl.textContent = routeCode ? routeCode : "Draft";
+    var routeName = getRouteNameValue(true);
+    dom.routeCodeEl.textContent = routeName || routeCode || "Draft";
   }
 
   function setModalModeUI() {
@@ -1698,11 +1770,6 @@
     }
     if (dom.directionToggleEl) {
       dom.directionToggleEl.checked = (normalized === "CW");
-    }
-    if (dom.directionStateEl) {
-      dom.directionStateEl.textContent = (normalized === "CW")
-        ? "Clockwise (CW)"
-        : "Counterclockwise (CCW)";
     }
   }
 
@@ -2784,6 +2851,7 @@
   function saveDraft() {
     if (!state.activeTemplateCode) return;
     var payload = {
+      route_name: getRouteNameValue(true),
       template_code: state.activeTemplateCode,
       direction: getDirectionValue(),
       start_segment_id: dom.startSelectEl ? String(dom.startSelectEl.value || "") : "",
@@ -2820,6 +2888,12 @@
 
   function applyDraftToForm(draft) {
     if (!draft) return;
+
+    if (dom.routeNameEl && draft.route_name !== undefined && draft.route_name !== null) {
+      dom.routeNameEl.value = String(draft.route_name || "");
+    }
+    setRouteCodeBadge(state.activeRouteCode);
+    clearRouteNameValidation();
 
     if (dom.startDateEl && draft.start_date) {
       dom.startDateEl.value = String(draft.start_date);
@@ -3452,6 +3526,14 @@
       state.activeRouteType = "generated";
       state.selectedLegContext = "routegen";
     }
+    if (dom.routeNameEl) {
+      dom.routeNameEl.value = String(
+        routeMeta.route_name !== undefined ? routeMeta.route_name :
+          (routeMeta.ROUTE_NAME !== undefined ? routeMeta.ROUTE_NAME : "")
+      ).trim();
+    }
+    setRouteCodeBadge(state.activeRouteCode);
+    clearRouteNameValidation();
     if (!inputs || typeof inputs !== "object") return;
 
     var inputVesselMaxSpeed = toPositiveNumber(
@@ -3576,6 +3658,7 @@
     state.editorBaseline = {
       route_type: (isMyRouteContext ? "my_route" : "generated"),
       route_id: (isMyRouteContext ? ctxMyRouteId : 0),
+      route_name: getRouteNameValue(true),
       template_code: (isMyRouteContext ? "" : (templateCode || state.activeTemplateCode)),
       direction: getDirectionValue(),
       start_date: dom.startDateEl ? String(dom.startDateEl.value || "") : "",
@@ -3674,6 +3757,7 @@
     return {
       route_type: (isMyRoute ? "my_route" : "generated"),
       route_id: activeMyRouteId,
+      route_name: getRouteNameValue(true),
       template_code: state.activeTemplateCode,
       route_code: (state.modalMode === "editor" ? String(state.activeRouteCode || "").trim() : ""),
       direction: getDirectionValue(),
@@ -3965,12 +4049,31 @@
         leg_order: toInt(getLegField(leg, "order_index"), 0)
       };
     }
-    return {
+    var payload = {
       route_code: (state.modalMode === "editor" ? String(state.activeRouteCode || "").trim() : ""),
       route_leg_id: toInt(getLegField(leg, "route_leg_id"), 0),
       segment_id: toInt(getLegField(leg, "segment_id"), 0),
-      leg_order: toInt(getLegField(leg, "order_index"), 0)
+      leg_order: toInt(getLegField(leg, "order_index"), 0),
+      direction: getDirectionValue()
     };
+    var startLat = getLegField(leg, "start_lat");
+    var startLng = getLegField(leg, "start_lng");
+    var endLat = getLegField(leg, "end_lat");
+    var endLng = getLegField(leg, "end_lng");
+
+    if (startLat !== undefined && startLat !== null && String(startLat).trim().length) {
+      payload.start_lat = startLat;
+    }
+    if (startLng !== undefined && startLng !== null && String(startLng).trim().length) {
+      payload.start_lng = startLng;
+    }
+    if (endLat !== undefined && endLat !== null && String(endLat).trim().length) {
+      payload.end_lat = endLat;
+    }
+    if (endLng !== undefined && endLng !== null && String(endLng).trim().length) {
+      payload.end_lng = endLng;
+    }
+    return payload;
   }
 
   function applyLegUpdate(order, patch) {
@@ -4044,12 +4147,18 @@
     var routeCode = String(
       (geometryData && geometryData.route_code !== undefined ? geometryData.route_code : state.activeRouteCode) || ""
     ).trim();
+    var direction = "";
     var order = toInt(getLegField(leg, "order_index"), toInt(geometryData && geometryData.leg_order, 0));
     var segmentId = toInt(
       getLegField(leg, "segment_id"),
       toInt(geometryData && geometryData.segment_id, 0)
     );
-    return [routeCode || "preview", String(order), String(segmentId)].join("|");
+    if (state.selectedLegContext !== "my_route") {
+      direction = normalizeDirection(
+        (geometryData && geometryData.direction !== undefined ? geometryData.direction : getDirectionValue())
+      );
+    }
+    return [routeCode || "preview", direction || "-", String(order), String(segmentId)].join("|");
   }
 
   function cacheLegEndpointPoints(leg, geometryData, startPoint, endPoint) {
@@ -4964,6 +5073,9 @@
       }
       return;
     }
+    if (!validateRequiredRouteName("generating")) {
+      return;
+    }
 
     clearError();
     setStatus("Generating route...");
@@ -5047,6 +5159,9 @@
 
     if (!canPreview(payload)) {
       showError("Select a template, start location, end location, and start date before saving.");
+      return;
+    }
+    if (!validateRequiredRouteName("saving")) {
       return;
     }
 
@@ -5182,7 +5297,6 @@
   function resetGeneratorState() {
     clearError();
     clearPreview();
-    setRouteCodeBadge("Draft");
     setStatus("Ready");
 
     state.options = {
@@ -5202,6 +5316,7 @@
     state.previewLegs = [];
     state.myRoutes = {
       available: false,
+      pendingCount: 0,
       routes: [],
       activeRouteId: 0,
       activeRouteName: "",
@@ -5218,6 +5333,9 @@
       dom.templateSelectEl.value = "";
       dom.templateSelectEl.disabled = false;
     }
+    if (dom.routeNameEl) dom.routeNameEl.value = "";
+    setRouteCodeBadge("Draft");
+    clearRouteNameValidation();
     if (dom.myRouteNameEl) dom.myRouteNameEl.value = "";
     if (dom.myRouteSelectEl) {
       dom.myRouteSelectEl.innerHTML = '<option value="">Select route</option>';
@@ -5231,6 +5349,7 @@
       dom.myRouteEndWaypointSelectEl.innerHTML = '<option value="">Select end waypoint</option>';
       dom.myRouteEndWaypointSelectEl.value = "";
     }
+    renderMyRouteControlAvailability();
     if (dom.myRouteLegListEl) {
       dom.myRouteLegListEl.innerHTML = '<div class="fpw-routegen__empty">Create or select a My Route to manage legs.</div>';
     }
@@ -5354,6 +5473,12 @@
       })
       .then(function () {
         if (!isActiveModalInit(initSeq)) return null;
+        if (editorMode) {
+          if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") {
+            return null;
+          }
+          return loadMyRoutes({ silentError: true, noAutoLoad: true });
+        }
         return loadMyRoutes({ silentError: true, noAutoLoad: freshStart });
       })
       .catch(function (err) {
@@ -5433,11 +5558,13 @@
     };
     state.activeRouteId = 0;
     state.activeRouteCode = "";
-    setRouteCodeBadge("Draft");
     state.activeRouteType = "generated";
     state.selectedLegContext = "routegen";
     state.manualOverrides.cruisingSpeed = false;
     state.suppressAutoSelectOnce = true;
+    if (dom.routeNameEl) dom.routeNameEl.value = "";
+    setRouteCodeBadge("Draft");
+    clearRouteNameValidation();
 
     if (dom.paceEl) dom.paceEl.value = "0";
     if (dom.underwayHoursEl) dom.underwayHoursEl.value = "8";
@@ -5487,6 +5614,11 @@
     setStatus("Resetting to saved route...");
 
     state.manualOverrides.cruisingSpeed = false;
+    if (dom.routeNameEl) {
+      dom.routeNameEl.value = String(baseline.route_name || "");
+    }
+    setRouteCodeBadge(state.activeRouteCode);
+    clearRouteNameValidation();
 
     if (!isMyRouteBaseline && baseline.template_code) {
       setActiveTemplate(String(baseline.template_code), { restoreDraft: false, rememberSelection: false });
@@ -5672,7 +5804,8 @@
       showError("Enter a route name for My Routes.");
       return;
     }
-    fetchJson(apiUrl("createUserRoute"), {
+    beginMyRoutePending();
+    return fetchJson(apiUrl("createUserRoute"), {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json; charset=utf-8" },
@@ -5692,6 +5825,8 @@
       return loadMyRoutes({ routeId: createdRouteId > 0 ? createdRouteId : 0 });
     }).catch(function (err) {
       showError((err && err.message) ? err.message : "Unable to create My Route.");
+    }).finally(function () {
+      endMyRoutePending();
     });
   }
 
@@ -5730,7 +5865,8 @@
       showError("Select a My Route first.");
       return;
     }
-    fetchJson(apiUrl("setUserRouteStartWaypoint"), {
+    beginMyRoutePending();
+    return fetchJson(apiUrl("setUserRouteStartWaypoint"), {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json; charset=utf-8" },
@@ -5752,9 +5888,11 @@
       setMyRouteLegs(Array.isArray(data.legs) ? data.legs : []);
       renderMyRouteWaypointOptions();
       setStatus(state.myRoutes.startWaypointId > 0 ? "My Route start waypoint set." : "My Route start waypoint cleared.");
-      loadMyRoutes({ reloadActive: true, silentError: true });
+      return loadMyRoutes({ reloadActive: true, silentError: true });
     }).catch(function (err) {
       showError((err && err.message) ? err.message : "Unable to set route start waypoint.");
+    }).finally(function () {
+      endMyRoutePending();
     });
   }
 
@@ -5769,7 +5907,8 @@
       showError("Select an end waypoint to add a leg.");
       return;
     }
-    fetchJson(apiUrl("addWaypointLegToUserRoute"), {
+    beginMyRoutePending();
+    return fetchJson(apiUrl("addWaypointLegToUserRoute"), {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json; charset=utf-8" },
@@ -5791,9 +5930,11 @@
       );
       setMyRouteLegs(Array.isArray(data.legs) ? data.legs : []);
       renderMyRouteWaypointOptions();
-      loadMyRoutes({ reloadActive: true });
+      return loadMyRoutes({ reloadActive: true });
     }).catch(function (err) {
       showError((err && err.message) ? err.message : "Unable to add waypoint leg.");
+    }).finally(function () {
+      endMyRoutePending();
     });
   }
 
@@ -6007,12 +6148,6 @@
       dom.cancelBtn.addEventListener("click", closeModal);
     }
 
-    if (dom.previewBtn) {
-      dom.previewBtn.addEventListener("click", function () {
-        previewRoute(true);
-      });
-    }
-
     if (dom.resetBtn) {
       dom.resetBtn.addEventListener("click", onResetClick);
     }
@@ -6027,6 +6162,24 @@
 
     if (dom.templateSelectEl) {
       dom.templateSelectEl.addEventListener("change", onTemplateSelectChange);
+    }
+
+    if (dom.routeNameEl) {
+      dom.routeNameEl.addEventListener("input", function () {
+        clearRouteNameValidation();
+        clearError();
+        setRouteCodeBadge(state.activeRouteCode);
+        if (state.modalMode !== "editor") {
+          saveDraft();
+        }
+      });
+      dom.routeNameEl.addEventListener("change", function () {
+        clearRouteNameValidation();
+        setRouteCodeBadge(state.activeRouteCode);
+        if (state.modalMode !== "editor") {
+          saveDraft();
+        }
+      });
     }
 
     if (dom.optionalStopsEl) {
@@ -6429,6 +6582,7 @@
     dom.statusEl = document.getElementById("routeGenStatus");
     dom.routeCodeEl = document.getElementById("routeGenRouteCode");
 
+    dom.routeNameEl = document.getElementById("routeGenRouteName");
     dom.templateSelectEl = document.getElementById("routeGenTemplateSelect");
     dom.templateMetaEl = document.getElementById("routeGenTemplateMeta");
     dom.startSelectEl = document.getElementById("routeGenStartLocation");
@@ -6436,7 +6590,6 @@
     dom.startDateEl = document.getElementById("routeGenStartDate");
     dom.directionEl = document.getElementById("routeGenDirection");
     dom.directionToggleEl = document.getElementById("routeGenDirectionToggle");
-    dom.directionStateEl = document.getElementById("routeGenDirectionState");
     dom.paceEl = document.getElementById("routeGenPace");
     dom.paceLabelEl = document.getElementById("routeGenPaceLabel");
     dom.paceOverrideHintEl = document.getElementById("routeGenPaceOverrideHint");
@@ -6476,6 +6629,7 @@
     dom.myRouteAddWaypointLegBtn = document.getElementById("routeGenMyRouteAddWaypointLegBtn");
     dom.myRouteStartMetaEl = document.getElementById("routeGenMyRouteStartMeta");
     dom.myRouteLegListEl = document.getElementById("routeGenMyRouteLegList");
+    renderMyRouteControlAvailability();
 
     dom.previewTemplateEl = document.getElementById("routeGenPreviewTemplate");
     dom.totalNmEl = document.getElementById("routeGenTotalNm");
