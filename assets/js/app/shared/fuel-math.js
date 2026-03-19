@@ -101,6 +101,7 @@
     var maxHoursPerDay = safeVal(ui.maxHoursPerDay);
     var reservePct = safeVal(ui.reservePct);
     var fuelBurnGph = safeVal(meta.fuelBurnGph);
+    var weatherAdjustedBurnGph = safeVal(meta.weatherAdjustedBurnGph);
     var fuelSource = String(meta.fuelSource || "").trim();
     var fuelPricePerGal = safeVal(ui.fuelPricePerGal);
     var hoursExpr = "";
@@ -191,7 +192,7 @@
 
     hoursExpr = "Dist " + formatNum(totalNm, 1) + " nm ÷ AdjSpeed " + formatNum(adjSpeedKn, 2) + " kn";
     if (hoursSource === "weather_adjusted_speed" && effectiveSpeedKn !== null && weatherPctUsed !== null) {
-      hoursExpr += " (= " + formatNum(effectiveSpeedKn, 2) + " kn × (1 - " + formatNum(weatherPctUsed, 2) + "%))";
+      hoursExpr += " (= " + formatNum(effectiveSpeedKn, 2) + " kn × (1 - effective weather " + formatNum(weatherPctUsed, 2) + "%))";
     } else if (effectiveSpeedKn !== null) {
       hoursExpr += " (raw " + formatNum(effectiveSpeedKn, 2) + " kn)";
     }
@@ -294,8 +295,10 @@
       displayedDays: displayedDays,
       maxHoursPerDay: maxHoursPerDay,
       totalLocks: totalLocks,
+      adjSpeedKn: adjSpeedKn,
       reservePct: reservePct,
       fuelBurnGph: fuelBurnGph,
+      weatherAdjustedBurnGph: weatherAdjustedBurnGph,
       fuelSource: fuelSource,
       totalRequiredFuel: totalRequiredFuel,
       totalReserveFuel: totalReserveFuel,

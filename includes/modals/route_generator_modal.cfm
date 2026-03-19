@@ -280,6 +280,7 @@
       line-height: 1.35;
     }
 
+    #fpwRouteGen .rg-grid-1,
     #fpwRouteGen .rg-grid-2,
     #fpwRouteGen .rg-grid-3,
     #fpwRouteGen .rg-grid-4,
@@ -290,6 +291,7 @@
       align-items: start;
     }
 
+    #fpwRouteGen .rg-grid-1 { grid-template-columns: minmax(0, 1fr); }
     #fpwRouteGen .rg-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     #fpwRouteGen .rg-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     #fpwRouteGen .rg-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -349,6 +351,10 @@
 
     #fpwRouteGen .form-select option { color: #0b1220; }
 
+    #fpwRouteGen #routeGenStartDate {
+      line-height: 40px;
+    }
+
     #fpwRouteGen .btn-secondary,
     #fpwRouteGen .btn-primary {
       border-radius: 11px;
@@ -393,6 +399,10 @@
       align-items: center;
       justify-content: flex-start;
       gap: 10px;
+    }
+
+    #fpwRouteGen label[for="routeGenDirectionToggle"] + .rg-switch-row {
+      min-height: 40px;
     }
 
     #fpwRouteGen .form-check.form-switch.rg-switch {
@@ -499,7 +509,7 @@
     }
 
     #fpwRouteGen .rg-right-mini-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 
     #fpwRouteGen .rg-right-input-grid {
@@ -508,6 +518,10 @@
       gap: 8px;
       align-items: start;
       margin-bottom: 8px;
+    }
+
+    #fpwRouteGen .rg-right-input-grid .rg-field--full {
+      grid-column: 1 / -1;
     }
 
     #fpwRouteGen .rg-config-grid {
@@ -1300,6 +1314,7 @@
 
     @media (max-width: 1500px) {
       #fpwRouteGen .rg-mini-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      #fpwRouteGen .rg-right-mini-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
       #fpwRouteGen .rg-config-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       #fpwRouteGen .rg-config-grid-bottom { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       #fpwRouteGen #routeGenWeatherAssist {
@@ -1328,6 +1343,18 @@
       #fpwRouteGen .rg-timeline-actions { justify-content: flex-start; }
       #fpwRouteGen .fpw-routegen__leglockpanel { margin-left: 0; }
       #fpwRouteGen .fpw-routegen__legsearch { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 991.98px) {
+      #fpwRouteGen .rg-body { overflow: auto; }
+      #fpwRouteGen .rg-layout-row { height: auto; min-height: 0; }
+      #fpwRouteGen .rg-layout-col { height: auto; overflow: visible; }
+      #fpwRouteGen .rg-layout-col > .rg-panel { height: auto; max-height: none; }
+      #fpwRouteGen .rg-left-scroll,
+      #fpwRouteGen .rg-right-scroll {
+        height: auto;
+        overflow: visible;
+      }
     }
 
     @media (max-width: 760px) {
@@ -1409,7 +1436,7 @@
                     <div class="rg-section-title">Trip Basics</div>
                     <div class="rg-section-note">Core route settings</div>
                   </div>
-                  <div class="rg-grid-2">
+                  <div class="rg-grid-1">
                     <div class="rg-field">
                       <label for="routeGenStartLocation">Start Location</label>
                       <select id="routeGenStartLocation" class="form-select form-select-sm"></select>
@@ -1418,19 +1445,21 @@
                       <label for="routeGenEndLocation">End Location</label>
                       <select id="routeGenEndLocation" class="form-select form-select-sm"></select>
                     </div>
-                    <div class="rg-field">
-                      <label for="routeGenStartDate">Start Date</label>
-                      <input id="routeGenStartDate" type="date" class="form-control form-control-sm">
-                    </div>
-                    <div class="rg-field">
-                      <label for="routeGenDirectionToggle">Direction</label>
-                      <div class="rg-switch-row">
-                        <div class="form-check form-switch rg-switch">
-                          <input id="routeGenDirectionToggle" class="form-check-input" type="checkbox" role="switch" aria-label="Reverse direction">
-                          <label class="form-check-label" for="routeGenDirectionToggle">Reverse</label>
-                        </div>
+                    <div class="rg-grid-2">
+                      <div class="rg-field">
+                        <label for="routeGenStartDate">Start Date</label>
+                        <input id="routeGenStartDate" type="date" class="form-control form-control-sm">
                       </div>
-                      <input id="routeGenDirection" type="hidden" value="CCW">
+                      <div class="rg-field">
+                        <label for="routeGenDirectionToggle">Direction</label>
+                        <div class="rg-switch-row">
+                          <div class="form-check form-switch rg-switch">
+                            <input id="routeGenDirectionToggle" class="form-check-input" type="checkbox" role="switch" aria-label="Reverse direction">
+                            <label class="form-check-label" for="routeGenDirectionToggle">Reverse</label>
+                          </div>
+                        </div>
+                        <input id="routeGenDirection" type="hidden" value="CCW">
+                      </div>
                     </div>
                   </div>
                 </section>
@@ -1521,6 +1550,51 @@
             </div>
 
             <div class="rg-right-scroll">
+              <section class="rg-section rg-summary-column">
+                <div class="rg-mini-grid rg-right-mini-grid">
+                  <article class="rg-mini-card">
+                    <div class="rg-mini-label">Total Distance</div>
+                    <div id="routeGenTotalNm" class="rg-mini-value">0 <small>NM</small></div>
+                    <div class="rg-mini-meta">Based on selected legs</div>
+                  </article>
+                  <article class="rg-mini-card">
+                    <div class="rg-mini-label">Estimated Days</div>
+                    <div id="routeGenEstimatedDays" class="rg-mini-value">0</div>
+                    <div id="routeGenEstimatedDaysSub" class="rg-mini-meta">Pace-driven estimate</div>
+                  </article>
+                  <article class="rg-mini-card">
+                    <div class="rg-mini-label">Estimated Fuel</div>
+                    <div id="routeGenEstimatedFuel" class="rg-mini-value">-- <small>gal</small></div>
+                    <div id="routeGenEstimatedFuelSub" class="rg-mini-meta">Required + reserve</div>
+                  </article>
+                  <article class="rg-mini-card">
+                    <div class="rg-mini-label">Adjusted Speed</div>
+                    <div id="routeGenAdjustedSpeed" class="rg-mini-value">-- <small>kn</small></div>
+                    <div id="routeGenAdjustedSpeedSub" class="rg-mini-meta">Pace + weather adjusted</div>
+                  </article>
+                  <article class="rg-mini-card">
+                    <div class="rg-mini-label">Fuel Cost</div>
+                    <div id="routeGenFuelCost" class="rg-mini-value">-- <small>USD</small></div>
+                    <div id="routeGenFuelCostSub" class="rg-mini-meta">Fuel x price</div>
+                  </article>
+                  <article class="rg-mini-card">
+                    <div class="rg-mini-label">Locks</div>
+                    <div id="routeGenLockCount" class="rg-mini-value">0</div>
+                    <div class="rg-mini-meta">Total lock count</div>
+                  </article>
+                  <article class="rg-mini-card">
+                    <div class="rg-mini-label">Offshore Legs</div>
+                    <div id="routeGenOffshoreCount" class="rg-mini-value">0</div>
+                    <div class="rg-mini-meta">Optional/open-water count</div>
+                  </article>
+                  <article class="rg-mini-card">
+                    <div class="rg-mini-label">Expected Avg GPH</div>
+                    <div id="routeGenExpectedAvgGph" class="rg-mini-value">-- <small>GPH</small></div>
+                    <div id="routeGenExpectedAvgGphSub" class="rg-mini-meta">Current pace + weather burn</div>
+                  </article>
+                </div>
+              </section>
+
               <div id="routeGenLegLayout" class="rg-timeline-wrap">
                 <div class="rg-timeline-shell">
                   <div class="rg-timeline-head">
@@ -1530,7 +1604,7 @@
                     </div>
                     <div class="rg-timeline-actions rg-hidden" aria-hidden="true">
                       <label for="routeGenTimelineMaxHours">Max hrs/day</label>
-                      <input id="routeGenTimelineMaxHours" type="number" min="4" max="12" step="0.5" class="form-control form-control-sm" value="6.5">
+                      <input id="routeGenTimelineMaxHours" type="number" min="1" max="24" step="0.5" class="form-control form-control-sm" value="">
                       <button type="button" id="routeGenTimelineRebuildBtn" class="btn-secondary btn-sm">Rebuild Timeline</button>
                     </div>
                   </div>
@@ -1596,43 +1670,24 @@
         <div class="col-lg-3 rg-layout-col rg-summary-column">
           <section class="rg-panel rg-panel--bodyonly">
             <div class="rg-right-scroll">
-              <div class="rg-mini-grid rg-right-mini-grid">
-                <article class="rg-mini-card">
-                  <div class="rg-mini-label">Total Distance</div>
-                  <div id="routeGenTotalNm" class="rg-mini-value">0 <small>NM</small></div>
-                  <div class="rg-mini-meta">Based on selected legs</div>
-                </article>
-                <article class="rg-mini-card">
-                  <div class="rg-mini-label">Estimated Days</div>
-                  <div id="routeGenEstimatedDays" class="rg-mini-value">0</div>
-                  <div id="routeGenEstimatedDaysSub" class="rg-mini-meta">Pace-driven estimate</div>
-                </article>
-                <article class="rg-mini-card">
-                  <div class="rg-mini-label">Estimated Fuel</div>
-                  <div id="routeGenEstimatedFuel" class="rg-mini-value">-- <small>gal</small></div>
-                  <div id="routeGenEstimatedFuelSub" class="rg-mini-meta">Required + reserve</div>
-                </article>
-                <article class="rg-mini-card">
-                  <div class="rg-mini-label">Fuel Cost</div>
-                  <div id="routeGenFuelCost" class="rg-mini-value">-- <small>USD</small></div>
-                  <div id="routeGenFuelCostSub" class="rg-mini-meta">Fuel x price</div>
-                </article>
-                <article class="rg-mini-card">
-                  <div class="rg-mini-label">Locks</div>
-                  <div id="routeGenLockCount" class="rg-mini-value">0</div>
-                  <div class="rg-mini-meta">Total lock count</div>
-                </article>
-                <article class="rg-mini-card">
-                  <div class="rg-mini-label">Offshore Legs</div>
-                  <div id="routeGenOffshoreCount" class="rg-mini-value">0</div>
-                  <div class="rg-mini-meta">Optional/open-water count</div>
-                </article>
-              </div>
-
               <details id="routeGenAdvanced" class="mt-0" open>
                 <summary id="routeGenAdvancedSummary" class="visually-hidden">Advanced controls</summary>
 
                 <div class="rg-right-input-grid">
+                  <div class="rg-field rg-field--full">
+                    <label for="routeGenVesselSelect">Vessel</label>
+                    <select id="routeGenVesselSelect" class="form-select form-select-sm" disabled>
+                      <option value="">Loading vessels...</option>
+                    </select>
+                  </div>
+                  <div class="rg-field">
+                    <label for="routeGenMostEfficientSpeed">Most Efficient Speed (kn)</label>
+                    <input id="routeGenMostEfficientSpeed" type="number" step="0.1" min="1" max="60" class="form-control form-control-sm" value="">
+                  </div>
+                  <div class="rg-field">
+                    <label for="routeGenFuelBurnEfficientGph">GPH @ Efficient</label>
+                    <input id="routeGenFuelBurnEfficientGph" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
+                  </div>
                   <div class="rg-field">
                     <label for="routeGenCruisingSpeed">Max Speed (kn)</label>
                     <input id="routeGenCruisingSpeed" type="number" step="0.1" min="1" max="60" class="form-control form-control-sm" value="20">
@@ -1661,7 +1716,7 @@
                   </div>
                   <div class="rg-field rg-field--compact">
                     <label for="routeGenUnderwayHoursPerDay">Underway Hrs / Day</label>
-                    <input id="routeGenUnderwayHoursPerDay" type="number" step="0.5" min="1" max="24" class="form-control form-control-sm" value="8">
+                    <input id="routeGenUnderwayHoursPerDay" type="number" step="0.5" min="1" max="24" class="form-control form-control-sm" value="">
                   </div>
                   <div class="rg-field rg-field--compact">
                     <label for="routeGenFuelPricePerGal">Fuel Price ($/gal)</label>
@@ -1673,13 +1728,13 @@
                   <div class="rg-pace-top">
                     <div>
                       <div class="rg-pace-title">Pace</div>
-                      <div class="rg-pace-desc">Pace applies 25%, 50%, or 100% of your adjusted max speed.</div>
+                      <div class="rg-pace-desc">Pace applies Relaxed, Efficient Speed, or Max Speed before weather adjustment.</div>
                     </div>
                     <div id="routeGenPaceLabel" class="rg-pace-chip">Relaxed</div>
                   </div>
                   <input id="routeGenPace" type="range" min="0" max="2" step="1" value="0" aria-label="Pace">
-                  <div class="rg-slider-labels"><span>Relaxed</span><span>Balanced</span><span>Aggressive</span></div>
-                  <div id="routeGenPaceOverrideHint" class="rg-field-note d-none">Pace uses a percentage of max speed.</div>
+                  <div class="rg-slider-labels"><span>Relaxed</span><span>Efficient Speed</span><span>Max Speed</span></div>
+                  <div id="routeGenPaceOverrideHint" class="rg-field-note d-none">Pace uses the selected relaxed, efficient, or max speed setting.</div>
                   <button type="button" id="routeGenResetPaceBtn" class="btn-secondary btn-sm d-none">Reset Pace Defaults</button>
                 </div>
 

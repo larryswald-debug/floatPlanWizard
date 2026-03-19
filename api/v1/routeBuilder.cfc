@@ -2026,7 +2026,11 @@
             var paceDefaults = routegenPaceDefaults(paceVal);
             var performanceMeta = routegenResolvePerformanceModel(normalizedInput, paceVal);
             var maxSpeedVal = routegenNormalizeCruisingSpeed(performanceMeta.max_speed_kn, paceDefaults.MAX_SPEED_KN);
-            var baseCruiseSpeedVal = routegenComputeEffectiveCruisingSpeed(maxSpeedVal, paceVal);
+            var baseCruiseSpeedVal = routegenComputeEffectiveCruisingSpeed(
+                maxSpeedVal,
+                paceVal,
+                performanceMeta.most_efficient_speed_kn
+            );
             var underwayHoursVal = routegenNormalizeUnderwayHours(normalizedInput.underway_hours_per_day);
             var weatherFactorPctVal = routegenNormalizeWeatherFactorPct(normalizedInput.weather_factor_pct);
             var weatherFactorVal = weatherFactorPctVal / 100;
@@ -2088,6 +2092,8 @@
                 reservePct = reservePctVal,
                 fuelPricePerGal = fuelPricePerGalVal,
                 maxSpeedKnots = maxSpeedVal,
+                mostEfficientSpeedKn = performanceMeta.most_efficient_speed_kn,
+                mostEfficientBurnGph = performanceMeta.most_efficient_burn_gph,
                 pace = paceVal,
                 weatherPct = weatherFactorPctVal,
                 maxBurnForEstimate = performanceMeta.max_burn_for_estimate
@@ -2113,6 +2119,7 @@
                 "inputs"={
                     "route_id"=routeIdVal,
                     "start_date"=trim(toString(normalizedInput.start_date)),
+                    "selected_vessel_id"=(val(structKeyExists(normalizedInput, "selected_vessel_id") ? normalizedInput.selected_vessel_id : 0) GT 0 ? val(normalizedInput.selected_vessel_id) : ""),
                     "pace"=paceVal,
                     "speed_kn"=(structKeyExists(normalizedInput, "speed_kn") ? trim(toString(normalizedInput.speed_kn)) : ""),
                     "cruising_speed"=maxSpeedVal,
@@ -3870,7 +3877,11 @@
                 resolvedMaxSpeedVal = routegenNormalizeCruisingSpeed("", paceDefaults.MAX_SPEED_KN);
                 out.speed_source = "default";
             }
-            resolvedEffectiveSpeedVal = routegenComputeEffectiveCruisingSpeed(resolvedMaxSpeedVal, paceVal);
+            resolvedEffectiveSpeedVal = routegenComputeEffectiveCruisingSpeed(
+                resolvedMaxSpeedVal,
+                paceVal,
+                mostEffSpeedVal
+            );
             out.max_speed_kn = resolvedMaxSpeedVal;
             out.effective_speed_kn = resolvedEffectiveSpeedVal;
             out.most_efficient_speed_kn = roundTo2(mostEffSpeedVal);
@@ -3878,6 +3889,22 @@
             out.fuel_burn_gph = routegenNormalizeFuelBurnGph(fuelMeta.fuel_burn_gph);
             out.fuel_source = trim(toString(fuelMeta.fuel_source));
             out.fuel_key = trim(toString(fuelMeta.fuel_key));
+
+            if (paceVal EQ "BALANCED") {
+                if (resolvedMaxSpeedVal GT 0 AND resolvedEffectiveSpeedVal GT 0) {
+                    out.pace_ratio = roundTo2(resolvedEffectiveSpeedVal / resolvedMaxSpeedVal);
+                }
+                if (resolvedEffectiveSpeedVal GT 0 AND mostEffSpeedVal GT 0) {
+                    out.speed_source = "vessel_most_efficient";
+                }
+                out.fuel_burn_gph = (mostEffBurnVal GT 0 ? roundTo2(mostEffBurnVal) : 0);
+                out.fuel_source = (mostEffBurnVal GT 0 ? "vessel_most_efficient" : "missing");
+                out.fuel_key = "vessel_gph_at_most_efficient_speed";
+                out.max_burn_for_estimate = out.fuel_burn_gph;
+                out.burn_model = "most_efficient";
+                if (out.max_burn_for_estimate LT 0) out.max_burn_for_estimate = 0;
+                return out;
+            }
 
             usingUserFuel = (out.fuel_source EQ "route_inputs" OR out.fuel_source EQ "route_inputs_alias");
             out.max_burn_for_estimate = out.fuel_burn_gph;
@@ -3934,6 +3961,12 @@
                 out.cruising_speed = routegenNormalizeCruisingSpeed(src.max_speed_kn, 20);
             } else if (structKeyExists(src, "maxSpeedKn")) {
                 out.cruising_speed = routegenNormalizeCruisingSpeed(src.maxSpeedKn, 20);
+            }
+
+            if (structKeyExists(src, "underway_hours_per_day")) {
+                out.underway_hours_per_day = routegenNormalizeUnderwayHours(src.underway_hours_per_day);
+            } else if (structKeyExists(src, "underwayHoursPerDay")) {
+                out.underway_hours_per_day = routegenNormalizeUnderwayHours(src.underwayHoursPerDay);
             }
 
             if (structKeyExists(src, "fuel_burn_gph")) {
@@ -4147,6 +4180,133 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="routegenBuildCruiseTimelineDay" access="private" returntype="struct" output="false">
+        <cfargument name="dateValue" type="any" required="true">
+        <cfargument name="legIndex" type="numeric" required="true">
+        <cfscript>
+            return {
+                "date"=dateFormat(arguments.dateValue, "yyyy-mm-dd"),
+                "leg_index"=int(val(arguments.legIndex)),
+                "start_name"="",
+                "end_name"="",
+                "total_dist_nm"=0,
+                "est_hours"=0,
+                "cruise_fuel_gallons"=0,
+                "reserve_gallons"=0,
+                "required_fuel_gallons"=0,
+                "fuel_confidence_score"=0,
+                "risk_color"="GREEN",
+                "lock_count"=0,
+                "segment_ids"=[],
+                "segment_slices"=[],
+                "exposure_max_level"=0,
+                "effective_weather_pct_max"=0,
+                "exposure_override_count"=0,
+                "offshore_segment_count"=0
+            };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenTimelineDayHasContent" access="private" returntype="boolean" output="false">
+        <cfargument name="day" type="any" required="true">
+        <cfscript>
+            var src = (isStruct(arguments.day) ? arguments.day : {});
+            return (
+                val(structKeyExists(src, "total_dist_nm") ? src.total_dist_nm : 0) GT 0
+                OR val(structKeyExists(src, "est_hours") ? src.est_hours : 0) GT 0
+                OR val(structKeyExists(src, "lock_count") ? src.lock_count : 0) GT 0
+                OR (structKeyExists(src, "segment_ids") AND isArray(src.segment_ids) AND arrayLen(src.segment_ids) GT 0)
+                OR (structKeyExists(src, "segment_slices") AND isArray(src.segment_slices) AND arrayLen(src.segment_slices) GT 0)
+            );
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenFinalizeCruiseTimelineDay" access="private" returntype="struct" output="false">
+        <cfargument name="day" type="any" required="true">
+        <cfargument name="maxSpeedVal" type="numeric" required="true">
+        <cfargument name="maxBurnForEstimateVal" type="numeric" required="true">
+        <cfargument name="fuelBurnGphVal" type="numeric" required="true">
+        <cfargument name="mostEfficientSpeedVal" type="numeric" required="false" default="0">
+        <cfargument name="mostEfficientBurnGphVal" type="numeric" required="false" default="0">
+        <cfargument name="paceVal" type="string" required="true">
+        <cfargument name="paceRatioVal" type="numeric" required="true">
+        <cfargument name="weatherFactorPctVal" type="numeric" required="true">
+        <cfargument name="reservePctVal" type="numeric" required="true">
+        <cfscript>
+            var outDay = (isStruct(arguments.day) ? duplicate(arguments.day) : {});
+            var fuelEstimate = {};
+            var requiredFuelGallonsVal = 0;
+            var reserveGallonsVal = 0;
+            var reserveRatio = 0;
+            var fuelConfidenceScore = 100;
+            var i = 0;
+            var slice = {};
+
+            if (!routegenTimelineDayHasContent(outDay)) {
+                return outDay;
+            }
+
+            fuelEstimate = calculateFuelEstimate({
+                "distanceNm"=val(structKeyExists(outDay, "total_dist_nm") ? outDay.total_dist_nm : 0),
+                "maxSpeedKnots"=arguments.maxSpeedVal,
+                "maxBurnGph"=(arguments.maxBurnForEstimateVal GT 0 ? arguments.maxBurnForEstimateVal : arguments.fuelBurnGphVal),
+                "efficientSpeedKnots"=arguments.mostEfficientSpeedVal,
+                "efficientBurnGph"=arguments.mostEfficientBurnGphVal,
+                "pace"=arguments.paceVal,
+                "paceRatio"=arguments.paceRatioVal,
+                "weatherPct"=arguments.weatherFactorPctVal,
+                "idleFuelGallons"=0,
+                "reservePct"=arguments.reservePctVal
+            });
+            outDay.cruise_fuel_gallons = roundTo2(val(fuelEstimate.cruiseFuelGallons));
+            outDay.reserve_gallons = roundTo2(val(fuelEstimate.reserveGallons));
+            outDay.required_fuel_gallons = roundTo2(val(fuelEstimate.requiredFuelGallons));
+            requiredFuelGallonsVal = val(outDay.required_fuel_gallons);
+            reserveGallonsVal = val(outDay.reserve_gallons);
+            reserveRatio = (requiredFuelGallonsVal GT 0 ? (reserveGallonsVal / requiredFuelGallonsVal) : 0);
+
+            fuelConfidenceScore = 100;
+            if (requiredFuelGallonsVal GT 0 AND reserveRatio LT 0.20) fuelConfidenceScore -= 25;
+            if (requiredFuelGallonsVal GT 0 AND reserveRatio LT 0.15) fuelConfidenceScore -= 40;
+            if (val(structKeyExists(outDay, "est_hours") ? outDay.est_hours : 0) GT 8) fuelConfidenceScore -= 10;
+            if (fuelConfidenceScore LT 0) fuelConfidenceScore = 0;
+            if (fuelConfidenceScore GT 100) fuelConfidenceScore = 100;
+            outDay.fuel_confidence_score = fuelConfidenceScore;
+            if (fuelConfidenceScore GTE 80) {
+                outDay.risk_color = "GREEN";
+            } else if (fuelConfidenceScore GTE 60) {
+                outDay.risk_color = "YELLOW";
+            } else {
+                outDay.risk_color = "RED";
+            }
+
+            outDay.total_dist_nm = roundTo2(val(structKeyExists(outDay, "total_dist_nm") ? outDay.total_dist_nm : 0));
+            outDay.est_hours = roundTo2(val(structKeyExists(outDay, "est_hours") ? outDay.est_hours : 0));
+            outDay.effective_weather_pct_max = roundTo2(val(structKeyExists(outDay, "effective_weather_pct_max") ? outDay.effective_weather_pct_max : 0));
+            outDay.lock_count = int(val(structKeyExists(outDay, "lock_count") ? outDay.lock_count : 0));
+
+            if (structKeyExists(outDay, "segment_slices") AND isArray(outDay.segment_slices)) {
+                for (i = 1; i LTE arrayLen(outDay.segment_slices); i++) {
+                    if (!isStruct(outDay.segment_slices[i])) continue;
+                    slice = duplicate(outDay.segment_slices[i]);
+                    slice.slice_dist_nm = roundTo2(val(structKeyExists(slice, "slice_dist_nm") ? slice.slice_dist_nm : 0));
+                    slice.slice_hours = roundTo2(val(structKeyExists(slice, "slice_hours") ? slice.slice_hours : 0));
+                    slice.segment_dist_nm = roundTo2(val(structKeyExists(slice, "segment_dist_nm") ? slice.segment_dist_nm : 0));
+                    slice.segment_hours = roundTo2(val(structKeyExists(slice, "segment_hours") ? slice.segment_hours : 0));
+                    slice.lock_count = int(val(structKeyExists(slice, "lock_count") ? slice.lock_count : 0));
+                    slice.order_index = int(val(structKeyExists(slice, "order_index") ? slice.order_index : 0));
+                    slice.route_leg_id = int(val(structKeyExists(slice, "route_leg_id") ? slice.route_leg_id : 0));
+                    slice.segment_id = int(val(structKeyExists(slice, "segment_id") ? slice.segment_id : 0));
+                    slice.source_id = int(val(structKeyExists(slice, "source_id") ? slice.source_id : 0));
+                    slice.is_split = !!(structKeyExists(slice, "is_split") AND slice.is_split);
+                    outDay.segment_slices[i] = slice;
+                }
+            }
+
+            return outDay;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="generateCruiseTimeline" access="private" returntype="struct" output="false">
         <cfargument name="routeId" type="numeric" required="true">
         <cfargument name="startDate" type="string" required="true">
@@ -4212,6 +4372,7 @@
             var maxBurnForEstimateVal = 0;
             var weatherFactorPctVal = 0;
             var reservePctVal = 20;
+            var timelineFuelEstimateMeta = {};
             var performanceMeta = {};
             var normalizedLegJoinSql = "";
             var normalizedSegJoinSql = "";
@@ -4239,6 +4400,9 @@
             var segSource = "route_instance_legs";
             var i = 0;
             var segIdVal = 0;
+            var segRouteLegIdVal = 0;
+            var segSegmentIdVal = 0;
+            var segOrderIndexVal = 0;
             var segStartName = "";
             var segEndName = "";
             var segDistNm = 0;
@@ -4269,30 +4433,17 @@
             var days = [];
             var totalCruiseNm = 0;
             var totalRequiredFuel = 0;
-            var currentDay = {
-                "date"="",
-                "leg_index"=1,
-                "start_name"="",
-                "end_name"="",
-                "total_dist_nm"=0,
-                "est_hours"=0,
-                "cruise_fuel_gallons"=0,
-                "reserve_gallons"=0,
-                "required_fuel_gallons"=0,
-                "fuel_confidence_score"=0,
-                "risk_color"="GREEN",
-                "lock_count"=0,
-                "segment_ids"=[],
-                "exposure_max_level"=0,
-                "effective_weather_pct_max"=0,
-                "exposure_override_count"=0,
-                "offshore_segment_count"=0
-            };
-            var fuelEstimate = {};
-            var requiredFuelGallonsVal = 0;
-            var reserveGallonsVal = 0;
-            var reserveRatio = 0;
-            var fuelConfidenceScore = 100;
+            var currentDay = {};
+            var finalizedDay = {};
+            var remainingSegHours = 0;
+            var remainingSegDistNm = 0;
+            var remainingDayCapacity = 0;
+            var sliceHoursVal = 0;
+            var sliceDistNm = 0;
+            var sliceLockCount = 0;
+            var segmentLockAssigned = false;
+            var sliceMeta = {};
+            var sliceEpsilon = 0.0001;
 
             if (structKeyExists(session, "user") AND isStruct(session.user)) {
                 userStruct = session.user;
@@ -4325,11 +4476,6 @@
                 out.error = { "message"="Unable to parse startDate." };
                 return out;
             }
-            if (maxHoursVal LTE 0) maxHoursVal = 6.5;
-            if (maxHoursVal LT 4) maxHoursVal = 4;
-            if (maxHoursVal GT 12) maxHoursVal = 12;
-            maxHoursVal = roundTo2(maxHoursVal);
-
             hasInputsJsonCol = routegenHasInputsJsonColumn();
             if (isMyRouteType) {
                 if (!routegenHasUserRouteTables()) {
@@ -4389,6 +4535,11 @@
                 storedInputs = routegenParseStoredInputs(qInst.routegen_inputs_json[1]);
             }
             effectiveInputs = routegenBuildTimelineInputs(storedInputs, arguments.inputOverrides);
+            if (structKeyExists(effectiveInputs, "underway_hours_per_day")) {
+                maxHoursVal = routegenNormalizeUnderwayHours(effectiveInputs.underway_hours_per_day);
+            } else {
+                maxHoursVal = routegenNormalizeUnderwayHours(arguments.maxHoursPerDay);
+            }
             performanceMeta = routegenResolvePerformanceModel(
                 effectiveInputs,
                 (structKeyExists(effectiveInputs, "pace") ? effectiveInputs.pace : "RELAXED")
@@ -4398,6 +4549,7 @@
             maxBurnForEstimateVal = routegenNormalizeFuelBurnGph(performanceMeta.max_burn_for_estimate);
             out.timeline_meta = {
                 "fuel_burn_gph"=roundTo2(fuelBurnGphVal),
+                "weather_adjusted_fuel_burn_gph"=0,
                 "fuel_source"=trim(toString(performanceMeta.fuel_source)),
                 "fuel_key"=trim(toString(performanceMeta.fuel_key)),
                 "fuel_resolved"=(fuelBurnGphVal GT 0),
@@ -4423,11 +4575,20 @@
             };
             paceVal = routegenNormalizePace(structKeyExists(effectiveInputs, "pace") ? effectiveInputs.pace : "RELAXED");
             paceDefaults = routegenPaceDefaults(paceVal);
-            paceRatioVal = val(paceDefaults.PACE_FACTOR);
-            if (paceRatioVal LT 0.05) paceRatioVal = 0.05;
-            if (paceRatioVal GT 1) paceRatioVal = 1;
+            paceRatioVal = val(performanceMeta.pace_ratio);
+            if (paceRatioVal LTE 0) {
+                paceRatioVal = val(paceDefaults.PACE_FACTOR);
+            }
+            if (paceVal NEQ "BALANCED") {
+                if (paceRatioVal LT 0.05) paceRatioVal = 0.05;
+                if (paceRatioVal GT 1) paceRatioVal = 1;
+            }
             maxSpeedVal = routegenNormalizeCruisingSpeed(performanceMeta.max_speed_kn, paceDefaults.MAX_SPEED_KN);
-            effectiveSpeedVal = routegenComputeEffectiveCruisingSpeed(maxSpeedVal, paceVal);
+            effectiveSpeedVal = routegenComputeEffectiveCruisingSpeed(
+                maxSpeedVal,
+                paceVal,
+                performanceMeta.most_efficient_speed_kn
+            );
             if (effectiveSpeedVal LTE 0) effectiveSpeedVal = 1;
             weatherFactorPctVal = routegenNormalizeWeatherFactorPct(
                 structKeyExists(effectiveInputs, "weather_factor_pct")
@@ -4438,13 +4599,32 @@
                 structKeyExists(effectiveInputs, "reserve_pct") ? effectiveInputs.reserve_pct : "",
                 20
             );
+            timelineFuelEstimateMeta = calculateFuelEstimate({
+                "distanceNm"=1,
+                "maxSpeedKnots"=maxSpeedVal,
+                "maxBurnGph"=(maxBurnForEstimateVal GT 0 ? maxBurnForEstimateVal : fuelBurnGphVal),
+                "efficientSpeedKnots"=performanceMeta.most_efficient_speed_kn,
+                "efficientBurnGph"=performanceMeta.most_efficient_burn_gph,
+                "pace"=paceVal,
+                "paceRatio"=paceRatioVal,
+                "weatherPct"=weatherFactorPctVal,
+                "idleFuelGallons"=0,
+                "reservePct"=reservePctVal
+            });
+            out.timeline_meta.weather_adjusted_fuel_burn_gph = roundTo2(
+                structKeyExists(timelineFuelEstimateMeta, "weatherAdjustedBurnGph")
+                    ? timelineFuelEstimateMeta.weatherAdjustedBurnGph
+                    : 0
+            );
 
             if (usePreviewLegs) {
-                qSegments = queryNew("id,start_name,end_name,dist_nm,lock_count,is_offshore,is_icw,exposure_level,segment_id,segment_dist_nm,start_lat,start_lng,end_lat,end_lng");
+                qSegments = queryNew("id,route_leg_id,order_index,start_name,end_name,dist_nm,lock_count,is_offshore,is_icw,exposure_level,segment_id,segment_dist_nm,start_lat,start_lng,end_lat,end_lng");
                 for (i = 1; i LTE arrayLen(normalizedPreviewLegs); i++) {
                     previewLeg = normalizedPreviewLegs[i];
                     queryAddRow(qSegments, 1);
                     querySetCell(qSegments, "id", val(previewLeg.id));
+                    querySetCell(qSegments, "route_leg_id", val(previewLeg.route_leg_id));
+                    querySetCell(qSegments, "order_index", val(previewLeg.order_index));
                     querySetCell(qSegments, "start_name", trim(toString(previewLeg.start_name)));
                     querySetCell(qSegments, "end_name", trim(toString(previewLeg.end_name)));
                     querySetCell(qSegments, "dist_nm", val(previewLeg.dist_nm));
@@ -4497,6 +4677,8 @@
                 qSegmentsSql =
                     "SELECT
                         url.id AS id,
+                        url.id AS route_leg_id,
+                        url.order_index AS order_index,
                         " & myRouteStartNameExpr & " AS start_name,
                         " & myRouteEndNameExpr & " AS end_name,
                         " & normalizedDistExpr & " AS dist_nm,
@@ -4574,6 +4756,8 @@
                 qSegmentsSql =
                     "SELECT
                         COALESCE(ril.source_loop_segment_id, ril.id) AS id,
+                        COALESCE(ril.source_loop_segment_id, ril.id) AS route_leg_id,
+                        ril.leg_order AS order_index,
                         ril.start_name,
                         ril.end_name,
                         " & normalizedDistExpr & " AS dist_nm,
@@ -4608,28 +4792,25 @@
                 return out;
             }
 
-            currentDay = {
-                "date"=dateFormat(currentDate, "yyyy-mm-dd"),
-                "leg_index"=legIndex,
-                "start_name"="",
-                "end_name"="",
-                "total_dist_nm"=0,
-                "est_hours"=0,
-                "cruise_fuel_gallons"=0,
-                "reserve_gallons"=0,
-                "required_fuel_gallons"=0,
-                "fuel_confidence_score"=0,
-                "risk_color"="GREEN",
-                "lock_count"=0,
-                "segment_ids"=[],
-                "exposure_max_level"=0,
-                "effective_weather_pct_max"=0,
-                "exposure_override_count"=0,
-                "offshore_segment_count"=0
-            };
+            currentDay = routegenBuildCruiseTimelineDay(currentDate, legIndex);
 
             for (i = 1; i LTE qSegments.recordCount; i++) {
                 segIdVal = (isNull(qSegments.id[i]) ? 0 : val(qSegments.id[i]));
+                segRouteLegIdVal = (
+                    structKeyExists(qSegments, "route_leg_id") AND !isNull(qSegments.route_leg_id[i])
+                        ? val(qSegments.route_leg_id[i])
+                        : segIdVal
+                );
+                segSegmentIdVal = (
+                    structKeyExists(qSegments, "segment_id") AND !isNull(qSegments.segment_id[i])
+                        ? val(qSegments.segment_id[i])
+                        : 0
+                );
+                segOrderIndexVal = (
+                    structKeyExists(qSegments, "order_index") AND !isNull(qSegments.order_index[i])
+                        ? int(val(qSegments.order_index[i]))
+                        : i
+                );
                 segStartName = (isNull(qSegments.start_name[i]) ? "" : trim(toString(qSegments.start_name[i])));
                 segEndName = (isNull(qSegments.end_name[i]) ? "" : trim(toString(qSegments.end_name[i])));
                 segDistNm = (isNull(qSegments.dist_nm[i]) ? 0 : val(qSegments.dist_nm[i]));
@@ -4713,78 +4894,15 @@
                 }
                 exposureSourceCounts[exposureSourceVal] = val(exposureSourceCounts[exposureSourceVal]) + 1;
 
-                if ((currentDay.est_hours + segHours) GT maxHoursVal AND currentDay.total_dist_nm GT 0) {
-                    fuelEstimate = calculateFuelEstimate({
-                        "distanceNm"=currentDay.total_dist_nm,
-                        "maxSpeedKnots"=maxSpeedVal,
-                        "maxBurnGph"=(maxBurnForEstimateVal GT 0 ? maxBurnForEstimateVal : fuelBurnGphVal),
-                        "pace"=paceVal,
-                        "paceRatio"=paceRatioVal,
-                        "weatherPct"=weatherFactorPctVal,
-                        "idleFuelGallons"=0,
-                        "reservePct"=reservePctVal
-                    });
-                    currentDay.cruise_fuel_gallons = roundTo2(val(fuelEstimate.cruiseFuelGallons));
-                    currentDay.reserve_gallons = roundTo2(val(fuelEstimate.reserveGallons));
-                    currentDay.required_fuel_gallons = roundTo2(val(fuelEstimate.requiredFuelGallons));
-                    requiredFuelGallonsVal = val(currentDay.required_fuel_gallons);
-                    reserveGallonsVal = val(currentDay.reserve_gallons);
-                    reserveRatio = (requiredFuelGallonsVal GT 0 ? (reserveGallonsVal / requiredFuelGallonsVal) : 0);
-
-                    fuelConfidenceScore = 100;
-                    if (requiredFuelGallonsVal GT 0 AND reserveRatio LT 0.20) fuelConfidenceScore -= 25;
-                    if (requiredFuelGallonsVal GT 0 AND reserveRatio LT 0.15) fuelConfidenceScore -= 40;
-                    if (val(currentDay.est_hours) GT 8) fuelConfidenceScore -= 10;
-                    if (fuelConfidenceScore LT 0) fuelConfidenceScore = 0;
-                    if (fuelConfidenceScore GT 100) fuelConfidenceScore = 100;
-                    currentDay.fuel_confidence_score = fuelConfidenceScore;
-                    if (fuelConfidenceScore GTE 80) {
-                        currentDay.risk_color = "GREEN";
-                    } else if (fuelConfidenceScore GTE 60) {
-                        currentDay.risk_color = "YELLOW";
-                    } else {
-                        currentDay.risk_color = "RED";
-                    }
-
-                    currentDay.total_dist_nm = roundTo2(currentDay.total_dist_nm);
-                    currentDay.est_hours = roundTo2(currentDay.est_hours);
-
-                    totalCruiseNm += val(currentDay.total_dist_nm);
-                    totalRequiredFuel += requiredFuelGallonsVal;
-                    arrayAppend(days, duplicate(currentDay));
-
-                    currentDate = dateAdd("d", 1, currentDate);
-                    legIndex += 1;
-                    currentDay = {
-                        "date"=dateFormat(currentDate, "yyyy-mm-dd"),
-                        "leg_index"=legIndex,
-                        "start_name"=segStartName,
-                        "end_name"=segEndName,
-                        "total_dist_nm"=segDistNm,
-                        "est_hours"=segHours,
-                        "cruise_fuel_gallons"=0,
-                        "reserve_gallons"=0,
-                        "required_fuel_gallons"=0,
-                        "fuel_confidence_score"=0,
-                        "risk_color"="GREEN",
-                        "lock_count"=segLockCount,
-                        "segment_ids"=[],
-                        "exposure_max_level"=(structKeyExists(exposureInfo, "level_used") ? val(exposureInfo.level_used) : 0),
-                        "effective_weather_pct_max"=roundTo2(effectiveWeatherPctSegVal),
-                        "exposure_override_count"=(exposureSourceVal EQ "override" ? 1 : 0),
-                        "offshore_segment_count"=(segIsOffshoreVal EQ 1 ? 1 : 0)
-                    };
-                    arrayAppend(currentDay.segment_ids, segIdVal);
-                } else {
+                if (segHours LTE sliceEpsilon) {
                     if (!len(currentDay.start_name)) currentDay.start_name = segStartName;
-                    currentDay.total_dist_nm += segDistNm;
-                    currentDay.est_hours += segHours;
+                    currentDay.end_name = segEndName;
                     currentDay.lock_count += segLockCount;
                     if (structKeyExists(exposureInfo, "level_used") AND val(exposureInfo.level_used) GT val(currentDay.exposure_max_level)) {
                         currentDay.exposure_max_level = val(exposureInfo.level_used);
                     }
                     if (effectiveWeatherPctSegVal GT val(currentDay.effective_weather_pct_max)) {
-                        currentDay.effective_weather_pct_max = roundTo2(effectiveWeatherPctSegVal);
+                        currentDay.effective_weather_pct_max = effectiveWeatherPctSegVal;
                     }
                     if (exposureSourceVal EQ "override") {
                         currentDay.exposure_override_count += 1;
@@ -4793,49 +4911,137 @@
                         currentDay.offshore_segment_count += 1;
                     }
                     arrayAppend(currentDay.segment_ids, segIdVal);
+                    arrayAppend(currentDay.segment_slices, {
+                        "source_id"=segIdVal,
+                        "route_leg_id"=segRouteLegIdVal,
+                        "segment_id"=segSegmentIdVal,
+                        "order_index"=segOrderIndexVal,
+                        "start_name"=segStartName,
+                        "end_name"=segEndName,
+                        "slice_dist_nm"=0,
+                        "slice_hours"=0,
+                        "segment_dist_nm"=segDistNm,
+                        "segment_hours"=segHours,
+                        "lock_count"=segLockCount,
+                        "is_split"=false
+                    });
+                    continue;
+                }
+
+                remainingSegHours = segHours;
+                remainingSegDistNm = segDistNm;
+                segmentLockAssigned = false;
+
+                while (remainingSegHours GT sliceEpsilon) {
+                    if ((maxHoursVal - val(currentDay.est_hours)) LTE sliceEpsilon AND routegenTimelineDayHasContent(currentDay)) {
+                        finalizedDay = routegenFinalizeCruiseTimelineDay(
+                            day = currentDay,
+                            maxSpeedVal = maxSpeedVal,
+                            maxBurnForEstimateVal = maxBurnForEstimateVal,
+                            fuelBurnGphVal = fuelBurnGphVal,
+                            mostEfficientSpeedVal = performanceMeta.most_efficient_speed_kn,
+                            mostEfficientBurnGphVal = performanceMeta.most_efficient_burn_gph,
+                            paceVal = paceVal,
+                            paceRatioVal = paceRatioVal,
+                            weatherFactorPctVal = weatherFactorPctVal,
+                            reservePctVal = reservePctVal
+                        );
+                        totalCruiseNm += val(finalizedDay.total_dist_nm);
+                        totalRequiredFuel += val(finalizedDay.required_fuel_gallons);
+                        arrayAppend(days, finalizedDay);
+
+                        currentDate = dateAdd("d", 1, currentDate);
+                        legIndex += 1;
+                        currentDay = routegenBuildCruiseTimelineDay(currentDate, legIndex);
+                    }
+
+                    remainingDayCapacity = maxHoursVal - val(currentDay.est_hours);
+                    if (remainingDayCapacity LT sliceEpsilon) {
+                        remainingDayCapacity = maxHoursVal;
+                    }
+
+                    sliceHoursVal = min(remainingSegHours, remainingDayCapacity);
+                    if (sliceHoursVal LT sliceEpsilon) {
+                        sliceHoursVal = remainingSegHours;
+                    }
+
+                    if ((remainingSegHours - sliceHoursVal) LTE sliceEpsilon) {
+                        sliceDistNm = remainingSegDistNm;
+                    } else {
+                        sliceDistNm = (sliceHoursVal * weatherAdjustedSpeedThisSegVal);
+                        if (sliceDistNm GT remainingSegDistNm) {
+                            sliceDistNm = remainingSegDistNm;
+                        }
+                    }
+                    if (sliceDistNm LT 0) {
+                        sliceDistNm = 0;
+                    }
+
+                    if (!len(currentDay.start_name)) currentDay.start_name = segStartName;
                     currentDay.end_name = segEndName;
+                    currentDay.total_dist_nm += sliceDistNm;
+                    currentDay.est_hours += sliceHoursVal;
+                    sliceLockCount = (segmentLockAssigned ? 0 : segLockCount);
+                    segmentLockAssigned = true;
+                    currentDay.lock_count += sliceLockCount;
+
+                    if (structKeyExists(exposureInfo, "level_used") AND val(exposureInfo.level_used) GT val(currentDay.exposure_max_level)) {
+                        currentDay.exposure_max_level = val(exposureInfo.level_used);
+                    }
+                    if (effectiveWeatherPctSegVal GT val(currentDay.effective_weather_pct_max)) {
+                        currentDay.effective_weather_pct_max = effectiveWeatherPctSegVal;
+                    }
+                    if (exposureSourceVal EQ "override") {
+                        currentDay.exposure_override_count += 1;
+                    }
+                    if (segIsOffshoreVal EQ 1) {
+                        currentDay.offshore_segment_count += 1;
+                    }
+
+                    arrayAppend(currentDay.segment_ids, segIdVal);
+                    sliceMeta = {
+                        "source_id"=segIdVal,
+                        "route_leg_id"=segRouteLegIdVal,
+                        "segment_id"=segSegmentIdVal,
+                        "order_index"=segOrderIndexVal,
+                        "start_name"=segStartName,
+                        "end_name"=segEndName,
+                        "slice_dist_nm"=sliceDistNm,
+                        "slice_hours"=sliceHoursVal,
+                        "segment_dist_nm"=segDistNm,
+                        "segment_hours"=segHours,
+                        "lock_count"=sliceLockCount,
+                        "is_split"=((segHours - sliceHoursVal) GT sliceEpsilon OR (segDistNm - sliceDistNm) GT sliceEpsilon)
+                    };
+                    arrayAppend(currentDay.segment_slices, sliceMeta);
+
+                    remainingSegHours -= sliceHoursVal;
+                    remainingSegDistNm -= sliceDistNm;
+                    if (remainingSegHours LT sliceEpsilon) {
+                        remainingSegHours = 0;
+                    }
+                    if (remainingSegDistNm LT sliceEpsilon) {
+                        remainingSegDistNm = 0;
+                    }
                 }
             }
 
-            if (currentDay.total_dist_nm GT 0 OR arrayLen(currentDay.segment_ids) GT 0) {
-                fuelEstimate = calculateFuelEstimate({
-                    "distanceNm"=currentDay.total_dist_nm,
-                    "maxSpeedKnots"=maxSpeedVal,
-                    "maxBurnGph"=(maxBurnForEstimateVal GT 0 ? maxBurnForEstimateVal : fuelBurnGphVal),
-                    "pace"=paceVal,
-                    "paceRatio"=paceRatioVal,
-                    "weatherPct"=weatherFactorPctVal,
-                    "idleFuelGallons"=0,
-                    "reservePct"=reservePctVal
-                });
-                currentDay.cruise_fuel_gallons = roundTo2(val(fuelEstimate.cruiseFuelGallons));
-                currentDay.reserve_gallons = roundTo2(val(fuelEstimate.reserveGallons));
-                currentDay.required_fuel_gallons = roundTo2(val(fuelEstimate.requiredFuelGallons));
-                requiredFuelGallonsVal = val(currentDay.required_fuel_gallons);
-                reserveGallonsVal = val(currentDay.reserve_gallons);
-                reserveRatio = (requiredFuelGallonsVal GT 0 ? (reserveGallonsVal / requiredFuelGallonsVal) : 0);
-
-                fuelConfidenceScore = 100;
-                if (requiredFuelGallonsVal GT 0 AND reserveRatio LT 0.20) fuelConfidenceScore -= 25;
-                if (requiredFuelGallonsVal GT 0 AND reserveRatio LT 0.15) fuelConfidenceScore -= 40;
-                if (val(currentDay.est_hours) GT 8) fuelConfidenceScore -= 10;
-                if (fuelConfidenceScore LT 0) fuelConfidenceScore = 0;
-                if (fuelConfidenceScore GT 100) fuelConfidenceScore = 100;
-                currentDay.fuel_confidence_score = fuelConfidenceScore;
-                if (fuelConfidenceScore GTE 80) {
-                    currentDay.risk_color = "GREEN";
-                } else if (fuelConfidenceScore GTE 60) {
-                    currentDay.risk_color = "YELLOW";
-                } else {
-                    currentDay.risk_color = "RED";
-                }
-
-                currentDay.total_dist_nm = roundTo2(currentDay.total_dist_nm);
-                currentDay.est_hours = roundTo2(currentDay.est_hours);
-
-                totalCruiseNm += val(currentDay.total_dist_nm);
-                totalRequiredFuel += requiredFuelGallonsVal;
-                arrayAppend(days, duplicate(currentDay));
+            if (routegenTimelineDayHasContent(currentDay)) {
+                finalizedDay = routegenFinalizeCruiseTimelineDay(
+                    day = currentDay,
+                    maxSpeedVal = maxSpeedVal,
+                    maxBurnForEstimateVal = maxBurnForEstimateVal,
+                    fuelBurnGphVal = fuelBurnGphVal,
+                    mostEfficientSpeedVal = performanceMeta.most_efficient_speed_kn,
+                    mostEfficientBurnGphVal = performanceMeta.most_efficient_burn_gph,
+                    paceVal = paceVal,
+                    paceRatioVal = paceRatioVal,
+                    weatherFactorPctVal = weatherFactorPctVal,
+                    reservePctVal = reservePctVal
+                );
+                totalCruiseNm += val(finalizedDay.total_dist_nm);
+                totalRequiredFuel += val(finalizedDay.required_fuel_gallons);
+                arrayAppend(days, finalizedDay);
             }
 
             out.timeline_meta.exposure_enabled = true;
@@ -5218,7 +5424,9 @@
             var out = {
                 "max_speed_col"="",
                 "most_efficient_speed_col"="",
-                "most_efficient_gph_col"=""
+                "most_efficient_gph_col"="",
+                "max_speed_gph_col"="",
+                "is_default_col"=""
             };
             var qCols = queryNew("");
             var hasCol = {};
@@ -5235,8 +5443,11 @@
                      'max_speed',
                      'most_efficient_speed_kn',
                      'most_efficient_speed',
+                     'gph_at_max_speed',
                      'gph_at_most_efficient_speed',
-                     'gallons_per_hour'
+                     'gallons_per_hour',
+                     'isDefaultVessel',
+                     'isdefaultvessel'
                    )",
                 {},
                 { datasource = application.dsn }
@@ -5260,7 +5471,91 @@
             } else if (structKeyExists(hasCol, "gallons_per_hour")) {
                 out.most_efficient_gph_col = "gallons_per_hour";
             }
+            if (structKeyExists(hasCol, "gph_at_max_speed")) {
+                out.max_speed_gph_col = "gph_at_max_speed";
+            }
+            if (structKeyExists(hasCol, "isdefaultvessel")) {
+                out.is_default_col = "isDefaultVessel";
+            }
             request.routegenVesselPerformanceColumnMap = out;
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenLoadAvailableVessels" access="private" returntype="array" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfscript>
+            var out = [];
+            var userIdVal = val(arguments.userId);
+            var cacheKey = "";
+            var columnMap = {};
+            var maxExpr = "0";
+            var effExpr = "0";
+            var gphExpr = "0";
+            var maxSpeedGphExpr = "0";
+            var defaultExpr = "0";
+            var qVessels = queryNew("");
+            var vesselRow = {};
+            if (userIdVal LTE 0) return out;
+
+            cacheKey = "routegenAvailableVessels_" & toString(userIdVal);
+            if (structKeyExists(request, cacheKey) AND isArray(request[cacheKey])) {
+                return request[cacheKey];
+            }
+
+            columnMap = routegenGetVesselPerformanceColumnMap();
+            if (len(columnMap.max_speed_col)) {
+                maxExpr = "COALESCE(v." & columnMap.max_speed_col & ", 0)";
+            }
+            if (len(columnMap.most_efficient_speed_col)) {
+                effExpr = "COALESCE(v." & columnMap.most_efficient_speed_col & ", 0)";
+            }
+            if (len(columnMap.most_efficient_gph_col)) {
+                gphExpr = "COALESCE(v." & columnMap.most_efficient_gph_col & ", 0)";
+            }
+            if (len(columnMap.max_speed_gph_col)) {
+                maxSpeedGphExpr = "COALESCE(v." & columnMap.max_speed_gph_col & ", 0)";
+            }
+            if (len(columnMap.is_default_col)) {
+                defaultExpr = "COALESCE(v." & columnMap.is_default_col & ", 0)";
+            }
+
+            qVessels = queryExecute(
+                "SELECT
+                    v.vesselID AS vessel_id,
+                    COALESCE(v.vesselName, '') AS vessel_name,
+                    " & defaultExpr & " AS is_default,
+                    " & maxExpr & " AS max_speed_kn,
+                    " & effExpr & " AS most_efficient_speed_kn,
+                    " & maxSpeedGphExpr & " AS gph_at_max_speed,
+                    " & gphExpr & " AS gph_at_most_efficient_speed
+                 FROM vessels v
+                 WHERE v.userId = :uid
+                 ORDER BY v.vesselID ASC",
+                {
+                    uid = { value=userIdVal, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+
+            for (var i = 1; i LTE qVessels.recordCount; i++) {
+                vesselRow = {
+                    "vessel_id" = val(qVessels.vessel_id[i]),
+                    "vessel_name" = trim(toString(qVessels.vessel_name[i])),
+                    "is_default" = (val(qVessels.is_default[i]) GT 0 ? 1 : 0),
+                    "max_speed_kn" = roundTo2(val(qVessels.max_speed_kn[i])),
+                    "most_efficient_speed_kn" = roundTo2(val(qVessels.most_efficient_speed_kn[i])),
+                    "gph_at_max_speed" = routegenNormalizeFuelBurnGph(qVessels.gph_at_max_speed[i]),
+                    "gph_at_most_efficient_speed" = routegenNormalizeFuelBurnGph(qVessels.gph_at_most_efficient_speed[i])
+                };
+                if (vesselRow.max_speed_kn LT 1) vesselRow.max_speed_kn = 0;
+                if (vesselRow.max_speed_kn GT 60) vesselRow.max_speed_kn = 60;
+                if (vesselRow.most_efficient_speed_kn LT 1) vesselRow.most_efficient_speed_kn = 0;
+                if (vesselRow.most_efficient_speed_kn GT 60) vesselRow.most_efficient_speed_kn = 60;
+                arrayAppend(out, vesselRow);
+            }
+
+            request[cacheKey] = out;
             return out;
         </cfscript>
     </cffunction>
@@ -5271,7 +5566,8 @@
             var out = {
                 "vessel_max_speed_kn"=0,
                 "vessel_most_efficient_speed_kn"=0,
-                "vessel_gph_at_most_efficient_speed"=0
+                "vessel_gph_at_most_efficient_speed"=0,
+                "vessel_gph_at_max_speed"=0
             };
             var userIdVal = val(arguments.userId);
             var cacheKey = "";
@@ -5279,7 +5575,14 @@
             var maxExpr = "0";
             var effExpr = "0";
             var gphExpr = "0";
-            var qVessel = queryNew("");
+            var maxSpeedGphExpr = "0";
+            var defaultExpr = "0";
+            var qDefaultVessel = queryNew("");
+            var qFallbackVessel = queryNew("");
+            var hasDefaultVessel = false;
+            var fallbackMaxSpeedVal = 0;
+            var fallbackMostEffSpeedVal = 0;
+            var fallbackMostEffGphVal = 0;
             if (userIdVal LTE 0) return out;
 
             cacheKey = "routegenVesselDefaults_" & toString(userIdVal);
@@ -5288,7 +5591,12 @@
             }
 
             columnMap = routegenGetVesselPerformanceColumnMap();
-            if (!len(columnMap.max_speed_col) AND !len(columnMap.most_efficient_speed_col) AND !len(columnMap.most_efficient_gph_col)) {
+            if (
+                !len(columnMap.max_speed_col)
+                AND !len(columnMap.most_efficient_speed_col)
+                AND !len(columnMap.most_efficient_gph_col)
+                AND !len(columnMap.max_speed_gph_col)
+            ) {
                 request[cacheKey] = out;
                 return out;
             }
@@ -5301,12 +5609,36 @@
             if (len(columnMap.most_efficient_gph_col)) {
                 gphExpr = "COALESCE(v." & columnMap.most_efficient_gph_col & ", 0)";
             }
+            if (len(columnMap.max_speed_gph_col)) {
+                maxSpeedGphExpr = "COALESCE(v." & columnMap.max_speed_gph_col & ", 0)";
+            }
+            if (len(columnMap.is_default_col)) {
+                defaultExpr = "COALESCE(v." & columnMap.is_default_col & ", 0)";
+                qDefaultVessel = queryExecute(
+                    "SELECT
+                        " & maxExpr & " AS vessel_max_speed_kn,
+                        " & effExpr & " AS vessel_most_efficient_speed_kn,
+                        " & gphExpr & " AS vessel_gph_at_most_efficient_speed,
+                        " & maxSpeedGphExpr & " AS vessel_gph_at_max_speed
+                     FROM vessels v
+                     WHERE v.userId = :uid
+                       AND " & defaultExpr & " > 0
+                     ORDER BY v.vesselID ASC
+                     LIMIT 1",
+                    {
+                        uid = { value=userIdVal, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource = application.dsn }
+                );
+                hasDefaultVessel = (qDefaultVessel.recordCount GT 0);
+            }
 
-            qVessel = queryExecute(
+            qFallbackVessel = queryExecute(
                 "SELECT
                     " & maxExpr & " AS vessel_max_speed_kn,
                     " & effExpr & " AS vessel_most_efficient_speed_kn,
-                    " & gphExpr & " AS vessel_gph_at_most_efficient_speed
+                    " & gphExpr & " AS vessel_gph_at_most_efficient_speed,
+                    " & maxSpeedGphExpr & " AS vessel_gph_at_max_speed
                  FROM vessels v
                  WHERE v.userId = :uid
                  ORDER BY v.vesselID ASC
@@ -5316,14 +5648,33 @@
                 },
                 { datasource = application.dsn }
             );
-            if (qVessel.recordCount GT 0) {
-                out.vessel_max_speed_kn = roundTo2(val(qVessel.vessel_max_speed_kn[1]));
+            if (hasDefaultVessel) {
+                out.vessel_max_speed_kn = roundTo2(val(qDefaultVessel.vessel_max_speed_kn[1]));
                 if (out.vessel_max_speed_kn LT 1) out.vessel_max_speed_kn = 0;
                 if (out.vessel_max_speed_kn GT 60) out.vessel_max_speed_kn = 60;
-                out.vessel_most_efficient_speed_kn = roundTo2(val(qVessel.vessel_most_efficient_speed_kn[1]));
+                out.vessel_most_efficient_speed_kn = roundTo2(val(qDefaultVessel.vessel_most_efficient_speed_kn[1]));
                 if (out.vessel_most_efficient_speed_kn LT 1) out.vessel_most_efficient_speed_kn = 0;
                 if (out.vessel_most_efficient_speed_kn GT 60) out.vessel_most_efficient_speed_kn = 60;
-                out.vessel_gph_at_most_efficient_speed = routegenNormalizeFuelBurnGph(qVessel.vessel_gph_at_most_efficient_speed[1]);
+                out.vessel_gph_at_most_efficient_speed = routegenNormalizeFuelBurnGph(qDefaultVessel.vessel_gph_at_most_efficient_speed[1]);
+                out.vessel_gph_at_max_speed = routegenNormalizeFuelBurnGph(qDefaultVessel.vessel_gph_at_max_speed[1]);
+            }
+            if (qFallbackVessel.recordCount GT 0) {
+                fallbackMaxSpeedVal = roundTo2(val(qFallbackVessel.vessel_max_speed_kn[1]));
+                if (fallbackMaxSpeedVal LT 1) fallbackMaxSpeedVal = 0;
+                if (fallbackMaxSpeedVal GT 60) fallbackMaxSpeedVal = 60;
+                fallbackMostEffSpeedVal = roundTo2(val(qFallbackVessel.vessel_most_efficient_speed_kn[1]));
+                if (fallbackMostEffSpeedVal LT 1) fallbackMostEffSpeedVal = 0;
+                if (fallbackMostEffSpeedVal GT 60) fallbackMostEffSpeedVal = 60;
+                fallbackMostEffGphVal = routegenNormalizeFuelBurnGph(qFallbackVessel.vessel_gph_at_most_efficient_speed[1]);
+            }
+            if (out.vessel_max_speed_kn LTE 0) {
+                out.vessel_max_speed_kn = fallbackMaxSpeedVal;
+            }
+            if (out.vessel_most_efficient_speed_kn LTE 0) {
+                out.vessel_most_efficient_speed_kn = fallbackMostEffSpeedVal;
+            }
+            if (out.vessel_gph_at_most_efficient_speed LTE 0) {
+                out.vessel_gph_at_most_efficient_speed = fallbackMostEffGphVal;
             }
             request[cacheKey] = out;
             return out;
@@ -5362,6 +5713,7 @@
             input.template_code = trim(toString(pickArg(arguments.body, "template_code", "templateCode", "")));
             input.route_code = trim(toString(pickArg(arguments.body, "route_code", "routeCode", "")));
             input.route_id = val(pickArg(arguments.body, "route_id", "routeId", 0));
+            input.selected_vessel_id = trim(toString(pickArg(arguments.body, "selected_vessel_id", "selectedVesselId", "")));
             routeTypeRaw = lCase(trim(toString(pickArg(arguments.body, "route_type", "routeType", "generated"))));
             if (routeTypeRaw EQ "my_route" OR routeTypeRaw EQ "my_routes" OR routeTypeRaw EQ "custom") {
                 input.route_type = "my_route";
@@ -5472,11 +5824,20 @@
     <cffunction name="routegenComputeEffectiveCruisingSpeed" access="private" returntype="numeric" output="false">
         <cfargument name="maxSpeedKn" type="any" required="false" default="">
         <cfargument name="pace" type="any" required="false" default="RELAXED">
+        <cfargument name="mostEfficientSpeedKn" type="any" required="false">
         <cfscript>
+            var paceVal = routegenNormalizePace(arguments.pace);
             var paceDefaults = routegenPaceDefaults(arguments.pace);
             var maxSpeedVal = routegenNormalizeCruisingSpeed(arguments.maxSpeedKn, paceDefaults.MAX_SPEED_KN);
             var factorVal = val(paceDefaults.PACE_FACTOR);
             var effectiveSpeed = 0;
+            var mostEffVal = 0;
+            if (paceVal EQ "BALANCED" AND structKeyExists(arguments, "mostEfficientSpeedKn")) {
+                mostEffVal = val(arguments.mostEfficientSpeedKn);
+                if (mostEffVal GT 60) mostEffVal = 60;
+                if (mostEffVal LT 1) return 0;
+                return roundTo2(mostEffVal);
+            }
             if (factorVal LTE 0) factorVal = 0.25;
             effectiveSpeed = maxSpeedVal * factorVal;
             if (effectiveSpeed LT 1) effectiveSpeed = 1;
@@ -5559,7 +5920,7 @@
     <cffunction name="routegenEstimateDaysBySpeed" access="private" returntype="numeric" output="false">
         <cfargument name="distanceNm" type="any" required="false" default="0">
         <cfargument name="effectiveCruisingSpeed" type="any" required="false" default="10">
-        <cfargument name="underwayHoursPerDay" type="any" required="false" default="8">
+        <cfargument name="underwayHoursPerDay" type="any" required="false" default="6.5">
         <cfscript>
             var distanceVal = val(arguments.distanceNm);
             var speedVal = routegenNormalizeCruisingSpeed(arguments.effectiveCruisingSpeed, 10);
@@ -5574,10 +5935,10 @@
     </cffunction>
 
     <cffunction name="routegenNormalizeUnderwayHours" access="private" returntype="numeric" output="false">
-        <cfargument name="hours" type="any" required="false" default="8">
+        <cfargument name="hours" type="any" required="false" default="6.5">
         <cfscript>
             var v = val(arguments.hours);
-            if (v LTE 0) v = 8;
+            if (v LTE 0) v = 6.5;
             if (v LT 1) v = 1;
             if (v GT 24) v = 24;
             return v;
@@ -5699,6 +6060,8 @@
             var distanceVal = val(structKeyExists(src, "distanceNm") ? src.distanceNm : 0);
             var maxSpeedVal = val(structKeyExists(src, "maxSpeedKnots") ? src.maxSpeedKnots : 0);
             var maxBurnVal = routegenNormalizeFuelBurnGph(structKeyExists(src, "maxBurnGph") ? src.maxBurnGph : 0);
+            var efficientSpeedVal = val(structKeyExists(src, "efficientSpeedKnots") ? src.efficientSpeedKnots : 0);
+            var efficientBurnVal = routegenNormalizeFuelBurnGph(structKeyExists(src, "efficientBurnGph") ? src.efficientBurnGph : 0);
             var paceRatioVal = 0;
             var pacePctVal = val(structKeyExists(src, "pacePct") ? src.pacePct : 0);
             var paceEnumVal = routegenNormalizePace(structKeyExists(src, "pace") ? src.pace : "");
@@ -5708,22 +6071,31 @@
             var reserveGallonsVal = val(structKeyExists(src, "reserveGallons") ? src.reserveGallons : 0);
             var idleFuelGallonsVal = val(structKeyExists(src, "idleFuelGallons") ? src.idleFuelGallons : 0);
             var fuelPriceVal = val(structKeyExists(src, "fuelPricePerGallon") ? src.fuelPricePerGallon : 0);
+            var useMostEfficientValues = (paceEnumVal EQ "BALANCED");
 
-            if (distanceVal LTE 0 OR maxSpeedVal LTE 0 OR maxBurnVal LTE 0) {
+            if (efficientSpeedVal LT 1) efficientSpeedVal = 0;
+            if (efficientSpeedVal GT 60) efficientSpeedVal = 60;
+
+            if (distanceVal LTE 0 OR maxSpeedVal LTE 0) {
+                return out;
+            }
+            if (useMostEfficientValues) {
+                if (efficientSpeedVal LTE 0 OR efficientBurnVal LTE 0) {
+                    return out;
+                }
+            } else if (maxBurnVal LTE 0) {
                 return out;
             }
 
             // Pace enum is primary source (RELAXED/BALANCED/AGGRESSIVE => 25/50/100).
             if (paceEnumVal EQ "RELAXED") {
                 paceRatioVal = 0.25;
-            } else if (paceEnumVal EQ "BALANCED") {
-                paceRatioVal = 0.50;
             } else if (paceEnumVal EQ "AGGRESSIVE") {
                 paceRatioVal = 1.00;
             }
 
             // Fallback to pacePct or explicit paceRatio if enum was not provided.
-            if (paceRatioVal LTE 0) {
+            if (!useMostEfficientValues AND paceRatioVal LTE 0) {
                 if (pacePctVal GT 1) {
                     paceRatioVal = pacePctVal / 100;
                 } else if (pacePctVal GT 0) {
@@ -5735,16 +6107,22 @@
                 }
             }
 
-            if (paceRatioVal LT 0.05) paceRatioVal = 0.05;
-            if (paceRatioVal GT 1) paceRatioVal = 1;
             if (weatherPctVal LT 0) weatherPctVal = 0;
             if (weatherPctVal GT 60) weatherPctVal = 60;
             if (idleFuelGallonsVal LT 0) idleFuelGallonsVal = 0;
             weatherAdj = weatherPctVal / 100;
 
-            out.paceRatio = roundTo2(paceRatioVal);
-            out.effectiveSpeedKnots = roundTo2(maxSpeedVal * paceRatioVal);
-            out.paceAdjustedBurnGph = paceAdjustedBurnGph(maxBurnVal, paceRatioVal, 3.0);
+            if (useMostEfficientValues) {
+                out.effectiveSpeedKnots = roundTo2(efficientSpeedVal);
+                out.paceAdjustedBurnGph = roundTo2(efficientBurnVal);
+                out.paceRatio = roundTo2(out.effectiveSpeedKnots / maxSpeedVal);
+            } else {
+                if (paceRatioVal LT 0.05) paceRatioVal = 0.05;
+                if (paceRatioVal GT 1) paceRatioVal = 1;
+                out.paceRatio = roundTo2(paceRatioVal);
+                out.effectiveSpeedKnots = roundTo2(maxSpeedVal * paceRatioVal);
+                out.paceAdjustedBurnGph = paceAdjustedBurnGph(maxBurnVal, paceRatioVal, 3.0);
+            }
             out.weatherAdjustedSpeedKnots = roundTo2(out.effectiveSpeedKnots * (1 - weatherAdj));
             if (out.weatherAdjustedSpeedKnots LT 0.5) out.weatherAdjustedSpeedKnots = 0.5;
             out.weatherAdjustedBurnGph = roundTo2(out.paceAdjustedBurnGph * (1 + weatherAdj));
@@ -5913,11 +6291,12 @@
             var vesselMaxSpeedVal = 0;
             var vesselMostEffSpeedVal = 0;
             var vesselMostEffGphVal = 0;
+            var selectedVesselIdVal = 0;
             if (!isStruct(arguments.inputData)) return "";
             payload = duplicate(arguments.inputData);
             payload.pace = routegenNormalizePace(structKeyExists(payload, "pace") ? payload.pace : "RELAXED");
             payload.underway_hours_per_day = routegenNormalizeUnderwayHours(
-                structKeyExists(payload, "underway_hours_per_day") ? payload.underway_hours_per_day : 8
+                structKeyExists(payload, "underway_hours_per_day") ? payload.underway_hours_per_day : 6.5
             );
             fuelBurnVal = routegenNormalizeFuelBurnGph(
                 structKeyExists(payload, "fuel_burn_gph") ? payload.fuel_burn_gph : ""
@@ -5952,6 +6331,11 @@
             ).value;
             vesselMostEffSpeedVal = routegenResolveMostEfficientSpeedKn(payload);
             vesselMostEffGphVal = routegenResolveMostEfficientBurnGph(payload);
+            selectedVesselIdVal = val(
+                structKeyExists(payload, "selected_vessel_id")
+                    ? payload.selected_vessel_id
+                    : (structKeyExists(payload, "selectedVesselId") ? payload.selectedVesselId : 0)
+            );
             payload.fuel_burn_gph = (fuelBurnVal GT 0 ? fuelBurnVal : "");
             payload.fuel_burn_gph_input = (fuelBurnInputVal GT 0 ? fuelBurnInputVal : "");
             payload.fuel_burn_basis = fuelBurnBasisVal;
@@ -5963,6 +6347,7 @@
             payload.vessel_max_speed_kn = (vesselMaxSpeedVal GT 0 ? roundTo2(vesselMaxSpeedVal) : "");
             payload.vessel_most_efficient_speed_kn = (vesselMostEffSpeedVal GT 0 ? roundTo2(vesselMostEffSpeedVal) : "");
             payload.vessel_gph_at_most_efficient_speed = (vesselMostEffGphVal GT 0 ? roundTo2(vesselMostEffGphVal) : "");
+            payload.selected_vessel_id = (selectedVesselIdVal GT 0 ? selectedVesselIdVal : "");
             payload.optional_stop_flags = routegenNormalizeStopFlags(
                 structKeyExists(payload, "optional_stop_flags") ? payload.optional_stop_flags : []
             );
@@ -6011,6 +6396,7 @@
                         "start_date" = [ "startDate", "START_DATE" ],
                         "route_type" = [ "routeType", "ROUTE_TYPE" ],
                         "route_id" = [ "routeId", "ROUTE_ID" ],
+                        "selected_vessel_id" = [ "selectedVesselId", "SELECTED_VESSEL_ID" ],
                         "start_segment_id" = [ "startSegmentId", "START_SEGMENT_ID" ],
                         "end_segment_id" = [ "endSegmentId", "END_SEGMENT_ID" ],
                         "vessel_max_speed_kn" = [ "vesselMaxSpeedKn", "vessel_max_speed", "vesselMaxSpeed", "VESSEL_MAX_SPEED_KN", "MAX_SPEED" ],
@@ -6205,7 +6591,7 @@
         <cfargument name="templateRouteId" type="numeric" required="true">
         <cfargument name="direction" type="string" required="false" default="CCW">
         <cfargument name="effectiveCruisingSpeed" type="numeric" required="false" default="10">
-        <cfargument name="underwayHoursPerDay" type="numeric" required="false" default="8">
+        <cfargument name="underwayHoursPerDay" type="numeric" required="false" default="6.5">
         <cfscript>
             var out = { "DETOURS"=[], "BY_CODE"={} };
             var qDetours = queryExecute(
@@ -6532,7 +6918,7 @@
     <cffunction name="routegenComputeTotals" access="private" returntype="struct" output="false">
         <cfargument name="legs" type="array" required="true">
         <cfargument name="cruisingSpeed" type="numeric" required="false" default="10">
-        <cfargument name="underwayHoursPerDay" type="numeric" required="false" default="8">
+        <cfargument name="underwayHoursPerDay" type="numeric" required="false" default="6.5">
         <cfargument name="fuelBurnGph" type="any" required="false" default="">
         <cfargument name="maxBurnForEstimate" type="any" required="false" default="">
         <cfargument name="idleBurnGph" type="any" required="false" default="">
@@ -6540,6 +6926,8 @@
         <cfargument name="reservePct" type="any" required="false" default="20">
         <cfargument name="fuelPricePerGal" type="any" required="false" default="">
         <cfargument name="maxSpeedKnots" type="any" required="false" default="">
+        <cfargument name="mostEfficientSpeedKn" type="any" required="false" default="">
+        <cfargument name="mostEfficientBurnGph" type="any" required="false" default="">
         <cfargument name="pace" type="any" required="false" default="RELAXED">
         <cfargument name="weatherPct" type="any" required="false" default="">
         <cfscript>
@@ -6553,6 +6941,8 @@
             var paceDefaults = routegenPaceDefaults(paceVal);
             var paceRatioVal = val(paceDefaults.PACE_FACTOR);
             var maxSpeedVal = routegenNormalizeCruisingSpeed(arguments.maxSpeedKnots, paceDefaults.MAX_SPEED_KN);
+            var mostEfficientSpeedVal = val(arguments.mostEfficientSpeedKn);
+            var mostEfficientBurnVal = routegenNormalizeFuelBurnGph(arguments.mostEfficientBurnGph);
             var effectiveSpeedVal = 0.0;
             var weatherPctVal = routegenNormalizeWeatherFactorPct(arguments.weatherPct);
             var weatherAdj = weatherPctVal / 100;
@@ -6576,9 +6966,16 @@
             var fuelCostEstimateVal = 0.0;
             var fuelEstimate = {};
 
-            if (paceRatioVal LT 0.05) paceRatioVal = 0.05;
-            if (paceRatioVal GT 1) paceRatioVal = 1;
-            effectiveSpeedVal = roundTo2(maxSpeedVal * paceRatioVal);
+            if (mostEfficientSpeedVal LT 1) mostEfficientSpeedVal = 0;
+            if (mostEfficientSpeedVal GT 60) mostEfficientSpeedVal = 60;
+            if (paceVal EQ "BALANCED" AND mostEfficientSpeedVal GT 0) {
+                effectiveSpeedVal = roundTo2(mostEfficientSpeedVal);
+                paceRatioVal = roundTo2(effectiveSpeedVal / maxSpeedVal);
+            } else {
+                if (paceRatioVal LT 0.05) paceRatioVal = 0.05;
+                if (paceRatioVal GT 1) paceRatioVal = 1;
+                effectiveSpeedVal = roundTo2(maxSpeedVal * paceRatioVal);
+            }
             cruisingSpeedVal = roundTo2(effectiveSpeedVal * (1 - weatherAdj));
             if (cruisingSpeedVal LT 0.5) cruisingSpeedVal = 0.5;
 
@@ -6608,6 +7005,8 @@
                 "distanceNm"=totalNm,
                 "maxSpeedKnots"=maxSpeedVal,
                 "maxBurnGph"=maxBurnUsedVal,
+                "efficientSpeedKnots"=mostEfficientSpeedVal,
+                "efficientBurnGph"=mostEfficientBurnVal,
                 "pace"=paceVal,
                 "weatherPct"=weatherPctVal,
                 "idleFuelGallons"=idleFuelGallonsVal,
@@ -6671,7 +7070,11 @@
             var paceDefaults = routegenPaceDefaults(paceVal);
             var performanceMeta = routegenResolvePerformanceModel(normalizedInput, paceVal);
             var maxSpeedVal = routegenNormalizeCruisingSpeed(performanceMeta.max_speed_kn, paceDefaults.MAX_SPEED_KN);
-            var baseCruiseSpeedVal = routegenComputeEffectiveCruisingSpeed(maxSpeedVal, paceVal);
+            var baseCruiseSpeedVal = routegenComputeEffectiveCruisingSpeed(
+                maxSpeedVal,
+                paceVal,
+                performanceMeta.most_efficient_speed_kn
+            );
             var underwayHoursVal = routegenNormalizeUnderwayHours(normalizedInput.underway_hours_per_day);
             var fuelBurnGphVal = routegenNormalizeFuelBurnGph(performanceMeta.fuel_burn_gph);
             var fuelBurnInputGphVal = routegenNormalizeFuelBurnGph(
@@ -6688,7 +7091,11 @@
             var fuelPricePerGalVal = routegenNormalizeFuelPricePerGal(normalizedInput.fuel_price_per_gal);
             var paceRatioVal = val(paceDefaults.PACE_FACTOR);
             var weatherAdjustedSpeedVal = roundTo2(baseCruiseSpeedVal * (1 - weatherFactorVal));
-            var paceAdjustedBurnVal = paceAdjustedBurnGph(fuelBurnGphVal, paceRatioVal, 3.0);
+            var paceAdjustedBurnVal = (
+                paceVal EQ "BALANCED"
+                    ? roundTo2(performanceMeta.most_efficient_burn_gph)
+                    : paceAdjustedBurnGph(fuelBurnGphVal, paceRatioVal, 3.0)
+            );
             var weatherAdjustedBurnVal = roundTo2(paceAdjustedBurnVal * (1 + weatherFactorVal));
             var fuelEstimateOut = {};
             if (weatherAdjustedSpeedVal LT 0.5) weatherAdjustedSpeedVal = 0.5;
@@ -6771,6 +7178,8 @@
                 reservePct = reservePctVal,
                 fuelPricePerGal = fuelPricePerGalVal,
                 maxSpeedKnots = maxSpeedVal,
+                mostEfficientSpeedKn = performanceMeta.most_efficient_speed_kn,
+                mostEfficientBurnGph = performanceMeta.most_efficient_burn_gph,
                 pace = paceVal,
                 weatherPct = weatherFactorPctVal,
                 maxBurnForEstimate = performanceMeta.max_burn_for_estimate
@@ -6794,6 +7203,7 @@
                 "inputs"={
                     "template_code"=(len(templateInfo.SHORT_CODE) ? templateInfo.SHORT_CODE : templateInfo.CODE),
                     "route_code"=trim(toString(normalizedInput.route_code)),
+                    "selected_vessel_id"=(val(structKeyExists(normalizedInput, "selected_vessel_id") ? normalizedInput.selected_vessel_id : 0) GT 0 ? val(normalizedInput.selected_vessel_id) : ""),
                     "speed_kn"=(structKeyExists(normalizedInput, "speed_kn") ? trim(toString(normalizedInput.speed_kn)) : ""),
                     "direction"=directionVal,
                     "start_segment_id"=normalizedInput.start_segment_id,
@@ -6960,6 +7370,7 @@
 
             var optionalStops = [];
             var vesselDefaults = routegenLoadPreferredVesselDefaults(arguments.userId);
+            var availableVessels = routegenLoadAvailableVessels(arguments.userId);
             if (structKeyExists(detourData, "DETOURS") AND isArray(detourData.DETOURS)) {
                 for (i = 1; i LTE arrayLen(detourData.DETOURS); i++) {
                     stopRow = {
@@ -6989,13 +7400,15 @@
                 "startOptions"=startOptions,
                 "endOptions"=endOptions,
                 "optionalStops"=optionalStops,
+                "vessels"=availableVessels,
                 "defaults"={
                     "relaxed"=routegenPaceDefaults("RELAXED"),
                     "balanced"=routegenPaceDefaults("BALANCED"),
                     "aggressive"=routegenPaceDefaults("AGGRESSIVE"),
                     "vessel_max_speed_kn"=(structKeyExists(vesselDefaults, "vessel_max_speed_kn") ? roundTo2(vesselDefaults.vessel_max_speed_kn) : 0),
                     "vessel_most_efficient_speed_kn"=(structKeyExists(vesselDefaults, "vessel_most_efficient_speed_kn") ? roundTo2(vesselDefaults.vessel_most_efficient_speed_kn) : 0),
-                    "vessel_gph_at_most_efficient_speed"=(structKeyExists(vesselDefaults, "vessel_gph_at_most_efficient_speed") ? roundTo2(vesselDefaults.vessel_gph_at_most_efficient_speed) : 0)
+                    "vessel_gph_at_most_efficient_speed"=(structKeyExists(vesselDefaults, "vessel_gph_at_most_efficient_speed") ? roundTo2(vesselDefaults.vessel_gph_at_most_efficient_speed) : 0),
+                    "vessel_gph_at_max_speed"=(structKeyExists(vesselDefaults, "vessel_gph_at_max_speed") ? roundTo2(vesselDefaults.vessel_gph_at_max_speed) : 0)
                 }
             };
             return out;
@@ -7103,7 +7516,7 @@
             var editPaceVal = "RELAXED";
             var editPaceDefaults = {};
             var editMaxSpeedVal = 20;
-            var editUnderwayHoursVal = 8;
+            var editUnderwayHoursVal = 6.5;
             var editEffectiveSpeedVal = 5;
             var editFuelBurnGphVal = 0;
             var editFuelBurnInputGphVal = 0;
@@ -7116,6 +7529,7 @@
             var editVesselMaxSpeedVal = 0;
             var editVesselMostEffSpeedVal = 0;
             var editVesselMostEffGphVal = 0;
+            var editSelectedVesselIdVal = 0;
             var editComfortProfileVal = "PREFER_INSIDE";
             var editOvernightBiasVal = "MARINAS";
             var editOptionalStopFlags = [];
@@ -7161,9 +7575,13 @@
                 editPaceDefaults.MAX_SPEED_KN
             );
             editUnderwayHoursVal = routegenNormalizeUnderwayHours(
-                structKeyExists(editStoredInputs, "underway_hours_per_day") ? editStoredInputs.underway_hours_per_day : 8
+                structKeyExists(editStoredInputs, "underway_hours_per_day") ? editStoredInputs.underway_hours_per_day : 6.5
             );
-            editEffectiveSpeedVal = routegenComputeEffectiveCruisingSpeed(editMaxSpeedVal, editPaceVal);
+            editEffectiveSpeedVal = routegenComputeEffectiveCruisingSpeed(
+                editMaxSpeedVal,
+                editPaceVal,
+                routegenResolveMostEfficientSpeedKn(editStoredInputs)
+            );
             editFuelBurnGphVal = routegenNormalizeFuelBurnGph(
                 structKeyExists(editStoredInputs, "fuel_burn_gph") ? editStoredInputs.fuel_burn_gph : ""
             );
@@ -7197,6 +7615,11 @@
             ).value;
             editVesselMostEffSpeedVal = routegenResolveMostEfficientSpeedKn(editStoredInputs);
             editVesselMostEffGphVal = routegenResolveMostEfficientBurnGph(editStoredInputs);
+            editSelectedVesselIdVal = val(
+                structKeyExists(editStoredInputs, "selected_vessel_id")
+                    ? editStoredInputs.selected_vessel_id
+                    : 0
+            );
             editComfortProfileVal = uCase(
                 trim(toString(structKeyExists(editStoredInputs, "comfort_profile") ? editStoredInputs.comfort_profile : "PREFER_INSIDE"))
             );
@@ -7263,6 +7686,7 @@
                         "route_id"=editSourceMyRouteIdVal,
                         "template_code"="",
                         "route_code"=routeInfo.ROUTE_CODE,
+                        "selected_vessel_id"=(editSelectedVesselIdVal GT 0 ? editSelectedVesselIdVal : ""),
                         "direction"=editDirectionVal,
                         "start_segment_id"="",
                         "end_segment_id"="",
@@ -7357,9 +7781,13 @@
                 paceDefaults.MAX_SPEED_KN
             );
             var underwayHoursVal = routegenNormalizeUnderwayHours(
-                structKeyExists(storedInputs, "underway_hours_per_day") ? storedInputs.underway_hours_per_day : 8
+                structKeyExists(storedInputs, "underway_hours_per_day") ? storedInputs.underway_hours_per_day : 6.5
             );
-            var effectiveSpeedVal = routegenComputeEffectiveCruisingSpeed(maxSpeedVal, paceVal);
+            var effectiveSpeedVal = routegenComputeEffectiveCruisingSpeed(
+                maxSpeedVal,
+                paceVal,
+                routegenResolveMostEfficientSpeedKn(storedInputs)
+            );
             var fuelBurnGphVal = routegenNormalizeFuelBurnGph(
                 structKeyExists(storedInputs, "fuel_burn_gph") ? storedInputs.fuel_burn_gph : ""
             );
@@ -7393,6 +7821,11 @@
             ).value;
             var vesselMostEffSpeedVal = routegenResolveMostEfficientSpeedKn(storedInputs);
             var vesselMostEffGphVal = routegenResolveMostEfficientBurnGph(storedInputs);
+            var selectedVesselIdVal = val(
+                structKeyExists(storedInputs, "selected_vessel_id")
+                    ? storedInputs.selected_vessel_id
+                    : 0
+            );
             var comfortProfileVal = uCase(
                 trim(toString(structKeyExists(storedInputs, "comfort_profile") ? storedInputs.comfort_profile : "PREFER_INSIDE"))
             );
@@ -7441,6 +7874,7 @@
                     "route_id"=0,
                     "template_code"=(len(templateInfo.SHORT_CODE) ? templateInfo.SHORT_CODE : templateInfo.CODE),
                     "route_code"=routeInfo.ROUTE_CODE,
+                    "selected_vessel_id"=(selectedVesselIdVal GT 0 ? selectedVesselIdVal : ""),
                     "direction"=directionVal,
                     "start_segment_id"=val(mainLegs[startIdx].SEGMENT_ID),
                     "end_segment_id"=val(mainLegs[endIdx].SEGMENT_ID),

@@ -10,12 +10,13 @@
 
   var PACE_PRESETS = [
     { key: "RELAXED", label: "Relaxed", factor: 0.25 },
-    { key: "BALANCED", label: "Balanced", factor: 0.50 },
-    { key: "AGGRESSIVE", label: "Aggressive", factor: 1.00 }
+    { key: "BALANCED", label: "Efficient Speed", factor: 0.50 },
+    { key: "AGGRESSIVE", label: "Max Speed", factor: 1.00 }
   ];
   var DEFAULT_MAX_SPEED_KN = 20;
   var DEFAULT_WEATHER_FACTOR_PCT = 0;
   var DEFAULT_RESERVE_PCT = 20;
+  var DEFAULT_UNDERWAY_HOURS_PER_DAY = 6.5;
   var FUEL_BURN_BASIS_MAX = "MAX_SPEED";
   var MAX_ENDPOINT_FIT_NM = 1200;
   var LEG_MAP_FIT_MAX_ZOOM = 12;
@@ -29,6 +30,8 @@
     templates: [],
     activeTemplateCode: "",
     activeTemplateIsLoop: true,
+    availableVessels: [],
+    selectedVesselId: 0,
     options: {
       startOptions: [],
       endOptions: [],
@@ -47,7 +50,8 @@
     vesselDefaults: {
       maxSpeedKn: 0,
       mostEfficientSpeedKn: 0,
-      gphAtMostEfficientSpeed: 0
+      gphAtMostEfficientSpeed: 0,
+      gphAtMaxSpeed: 0
     },
     freshStartSession: false,
     modalMode: "generator",
@@ -105,7 +109,7 @@
     },
     cruiseTimeline: {
       requestSeq: 0,
-      maxHoursPerDay: 6.5,
+      maxHoursPerDay: DEFAULT_UNDERWAY_HOURS_PER_DAY,
       lastRouteId: 0,
       lastStartDate: "",
       status: "idle",
@@ -167,6 +171,44 @@
     return n;
   }
 
+  function updateDerivedSummaryCards() {
+    var timelinePayload = state.cruiseTimeline && state.cruiseTimeline.payload && typeof state.cruiseTimeline.payload === "object"
+      ? state.cruiseTimeline.payload
+      : null;
+    if (timelinePayload) return;
+
+    var adjustedSpeedKn = safeVal(getAdjustedCruisingSpeedKn());
+    var fuelBurnModel = getFuelBurnModelValues();
+    var expectedAvgGph = (
+      fuelBurnModel
+      && Number.isFinite(fuelBurnModel.resolvedBurnInput)
+      && fuelBurnModel.resolvedBurnInput > 0
+    )
+      ? safeVal(fuelBurnModel.weatherAdjustedBurn)
+      : null;
+
+    if (dom.adjustedSpeedEl) {
+      if (adjustedSpeedKn !== null && adjustedSpeedKn > 0) {
+        dom.adjustedSpeedEl.innerHTML = formatNumber(adjustedSpeedKn, 2) + " <small>kn</small>";
+      } else {
+        dom.adjustedSpeedEl.innerHTML = "-- <small>kn</small>";
+      }
+    }
+    if (dom.adjustedSpeedSubEl) {
+      dom.adjustedSpeedSubEl.textContent = "Pace + weather adjusted";
+    }
+    if (dom.expectedAvgGphEl) {
+      if (expectedAvgGph !== null && expectedAvgGph >= 0) {
+        dom.expectedAvgGphEl.innerHTML = formatNumber(expectedAvgGph, 2) + " <small>GPH</small>";
+      } else {
+        dom.expectedAvgGphEl.innerHTML = "-- <small>GPH</small>";
+      }
+    }
+    if (dom.expectedAvgGphSubEl) {
+      dom.expectedAvgGphSubEl.textContent = "Current pace + weather burn";
+    }
+  }
+
   function buildCruiseTimelineSummaryModel(timelinePayload, uiInputs) {
     if (sharedFuelMath && typeof sharedFuelMath.buildCruiseTimelineSummaryModel === "function") {
       return sharedFuelMath.buildCruiseTimelineSummaryModel(timelinePayload, uiInputs);
@@ -178,6 +220,8 @@
       maxHoursPerDay: null,
       displayedDays: null,
       totalLocks: null,
+      adjSpeedKn: null,
+      fuelBurnGph: null,
       reservePct: null,
       baseFuelForSummary: null,
       reserveFuelForSummary: null,
@@ -200,6 +244,8 @@
     var totalNm = safeVal(model.totalNm);
     var displayedDays = safeVal(model.displayedDays);
     var totalLocks = safeVal(model.totalLocks);
+    var adjustedSpeedKn = safeVal(model.adjSpeedKn);
+    var expectedAvgGph = safeVal(model.weatherAdjustedBurnGph);
     var requiredFuel = safeVal(model.requiredFuelForSummary);
     var fuelPricePerGal = safeVal(model.fuelPricePerGal);
     var estimatedDaysSubText = String(model.estimatedDaysSubText || "Cruise Timeline estimate");
@@ -254,19 +300,40 @@
         dom.fuelCostEl.innerHTML = "-- <small>USD</small>";
       }
     }
+    if (dom.adjustedSpeedEl) {
+      if (adjustedSpeedKn !== null && adjustedSpeedKn > 0) {
+        dom.adjustedSpeedEl.innerHTML = formatNumber(adjustedSpeedKn, 2) + " <small>kn</small>";
+      } else {
+        dom.adjustedSpeedEl.innerHTML = "-- <small>kn</small>";
+      }
+    }
+    if (dom.adjustedSpeedSubEl) {
+      dom.adjustedSpeedSubEl.textContent = "Pace + weather adjusted";
+    }
+    if (dom.expectedAvgGphEl) {
+      if (expectedAvgGph !== null && expectedAvgGph >= 0) {
+        dom.expectedAvgGphEl.innerHTML = formatNumber(expectedAvgGph, 2) + " <small>GPH</small>";
+      } else {
+        dom.expectedAvgGphEl.innerHTML = "-- <small>GPH</small>";
+      }
+    }
+    if (dom.expectedAvgGphSubEl) {
+      dom.expectedAvgGphSubEl.textContent = "Current pace + weather burn";
+    }
 
     if (dom.estimatedDaysSubEl) dom.estimatedDaysSubEl.textContent = estimatedDaysSubText;
     if (dom.estimatedFuelSubEl) dom.estimatedFuelSubEl.textContent = estimatedFuelSubText;
     if (dom.fuelCostSubEl) dom.fuelCostSubEl.textContent = fuelCostSubText;
 
+    updatePaceLabel();
     syncTimelineRouteTotalLine();
   }
 
   function clampCruiseTimelineHours(value) {
     var n = parseFloat(value);
-    if (!Number.isFinite(n) || n <= 0) n = 6.5;
-    if (n < 4) n = 4;
-    if (n > 12) n = 12;
+    if (!Number.isFinite(n) || n <= 0) n = DEFAULT_UNDERWAY_HOURS_PER_DAY;
+    if (n < 1) n = 1;
+    if (n > 24) n = 24;
     return Math.round(n * 2) / 2;
   }
 
@@ -274,6 +341,35 @@
     var n = clampCruiseTimelineHours(value);
     if (Math.abs(n - Math.round(n)) < 0.001) return String(Math.round(n));
     return n.toFixed(1);
+  }
+
+  function getUnderwayHoursFieldRawValue() {
+    var inputEl = dom.underwayHoursEl || document.getElementById("routeGenUnderwayHoursPerDay");
+    if (inputEl) {
+      dom.underwayHoursEl = inputEl;
+      return String(inputEl.value || "").trim();
+    }
+    return "";
+  }
+
+  function syncCruiseTimelineMaxHoursField(value) {
+    var inputEl = dom.cruiseTimelineMaxHoursEl || document.getElementById("routeGenTimelineMaxHours");
+    if (!inputEl) return;
+    dom.cruiseTimelineMaxHoursEl = inputEl;
+    inputEl.value = formatCruiseTimelineHoursInput(value);
+  }
+
+  function getCanonicalUnderwayHoursPerDay() {
+    var rawValue = getUnderwayHoursFieldRawValue();
+    var normalized = clampCruiseTimelineHours(rawValue);
+    var formatted = formatCruiseTimelineHoursInput(normalized);
+
+    state.cruiseTimeline.maxHoursPerDay = normalized;
+    if (dom.underwayHoursEl && rawValue) {
+      dom.underwayHoursEl.value = formatted;
+    }
+    syncCruiseTimelineMaxHoursField(normalized);
+    return normalized;
   }
 
   function isValidCruiseStartDate(value) {
@@ -303,15 +399,7 @@
   }
 
   function getCruiseTimelineMaxHoursFromUi() {
-    var inputEl = document.getElementById("routeGenTimelineMaxHours");
-    var value = inputEl ? inputEl.value : state.cruiseTimeline.maxHoursPerDay;
-    var clamped = clampCruiseTimelineHours(value);
-    dom.cruiseTimelineMaxHoursEl = inputEl || null;
-    state.cruiseTimeline.maxHoursPerDay = clamped;
-    if (inputEl) {
-      inputEl.value = formatCruiseTimelineHoursInput(clamped);
-    }
-    return clamped;
+    return getCanonicalUnderwayHoursPerDay();
   }
 
   function extractApiMessage(payload, fallback) {
@@ -378,6 +466,29 @@
     });
   }
 
+  function normalizeCruiseTimelineSegmentSlices(segmentSlices) {
+    if (!Array.isArray(segmentSlices)) return [];
+    return segmentSlices.map(function (row) {
+      var item = (row && typeof row === "object") ? row : {};
+      return {
+        sourceId: toInt(item.source_id !== undefined ? item.source_id : item.SOURCE_ID, 0),
+        routeLegId: toInt(item.route_leg_id !== undefined ? item.route_leg_id : item.ROUTE_LEG_ID, 0),
+        segmentId: toInt(item.segment_id !== undefined ? item.segment_id : item.SEGMENT_ID, 0),
+        orderIndex: toInt(item.order_index !== undefined ? item.order_index : item.ORDER_INDEX, 0),
+        startName: String(item.start_name !== undefined ? item.start_name : (item.START_NAME || "Start")).trim() || "Start",
+        endName: String(item.end_name !== undefined ? item.end_name : (item.END_NAME || "End")).trim() || "End",
+        sliceDistNm: toOneDecimal(item.slice_dist_nm !== undefined ? item.slice_dist_nm : item.SLICE_DIST_NM),
+        sliceHours: toOneDecimal(item.slice_hours !== undefined ? item.slice_hours : item.SLICE_HOURS),
+        segmentDistNm: toOneDecimal(item.segment_dist_nm !== undefined ? item.segment_dist_nm : item.SEGMENT_DIST_NM),
+        segmentHours: toOneDecimal(item.segment_hours !== undefined ? item.segment_hours : item.SEGMENT_HOURS),
+        lockCount: toInt(item.lock_count !== undefined ? item.lock_count : item.LOCK_COUNT, 0),
+        isSplit: coerceBool(item.is_split !== undefined ? item.is_split : item.IS_SPLIT, false)
+      };
+    }).filter(function (slice) {
+      return slice.sourceId > 0 || slice.routeLegId > 0 || slice.segmentId > 0 || slice.orderIndex > 0;
+    });
+  }
+
   function normalizeCruiseTimelineDay(row, idx) {
     var item = (row && typeof row === "object") ? row : {};
     var riskColor = String(item.risk_color !== undefined ? item.risk_color : item.RISK_COLOR || "GREEN").trim().toUpperCase();
@@ -395,46 +506,63 @@
       confidence: toConfidenceInt(item.fuel_confidence_score !== undefined ? item.fuel_confidence_score : item.FUEL_CONFIDENCE_SCORE),
       riskColor: riskColor,
       badgeClass: timelineRiskBadgeClass(riskColor),
-      segmentIds: normalizeCruiseTimelineSegmentIds(item.segment_ids !== undefined ? item.segment_ids : item.SEGMENT_IDS)
+      segmentIds: normalizeCruiseTimelineSegmentIds(item.segment_ids !== undefined ? item.segment_ids : item.SEGMENT_IDS),
+      segmentSlices: normalizeCruiseTimelineSegmentSlices(item.segment_slices !== undefined ? item.segment_slices : item.SEGMENT_SLICES)
     };
   }
 
-  function getCruiseTimelineDayForLeg(leg, order) {
+  function getCruiseTimelineEntriesForLeg(leg, order) {
     var payload = state.cruiseTimeline.payload;
     var days = payload && Array.isArray(payload.days) ? payload.days : [];
     var orderNum = toInt(order, 0);
     var routeLegId = toInt(getLegField(leg, "route_leg_id"), 0);
     var segmentId = toInt(getLegField(leg, "segment_id"), 0);
-    var match = null;
+    var entries = [];
+    var fallbackDay = null;
 
-    if (!days.length) return null;
+    if (!days.length) return [];
 
-    if (routeLegId > 0 || segmentId > 0) {
-      days.some(function (day) {
-        if (!day || typeof day !== "object") return false;
-        var ids = Array.isArray(day.segmentIds) ? day.segmentIds : [];
-        if (routeLegId > 0 && ids.indexOf(routeLegId) >= 0) {
-          match = day;
-          return true;
+    if (routeLegId > 0 || segmentId > 0 || orderNum > 0) {
+      days.forEach(function (day) {
+        var matchedSlice = null;
+        var ids = [];
+        if (!day || typeof day !== "object") return;
+        if (Array.isArray(day.segmentSlices) && day.segmentSlices.length) {
+          matchedSlice = day.segmentSlices.find(function (slice) {
+            if (!slice || typeof slice !== "object") return false;
+            if (routeLegId > 0 && toInt(slice.routeLegId, 0) === routeLegId) return true;
+            if (segmentId > 0 && toInt(slice.segmentId, 0) === segmentId) return true;
+            if (orderNum > 0 && toInt(slice.orderIndex, 0) === orderNum) return true;
+            return false;
+          }) || null;
         }
-        if (segmentId > 0 && ids.indexOf(segmentId) >= 0) {
-          match = day;
-          return true;
+        if (matchedSlice) {
+          entries.push({ day: day, slice: matchedSlice });
+          return;
         }
-        return false;
+        ids = Array.isArray(day.segmentIds) ? day.segmentIds : [];
+        if ((routeLegId > 0 && ids.indexOf(routeLegId) >= 0) || (segmentId > 0 && ids.indexOf(segmentId) >= 0)) {
+          fallbackDay = fallbackDay || day;
+        }
       });
-      if (match) return match;
+      if (entries.length) return entries;
+      if (fallbackDay) return [{ day: fallbackDay, slice: null }];
     }
 
     if (orderNum > 0) {
-      match = days.find(function (day) {
+      fallbackDay = days.find(function (day) {
         return toInt(day.legIndex, 0) === orderNum;
       }) || null;
-      if (match) return match;
-      if (days[orderNum - 1]) return days[orderNum - 1];
+      if (fallbackDay) return [{ day: fallbackDay, slice: null }];
+      if (days[orderNum - 1]) return [{ day: days[orderNum - 1], slice: null }];
     }
 
-    return null;
+    return [];
+  }
+
+  function getCruiseTimelineDayForLeg(leg, order) {
+    var entries = getCruiseTimelineEntriesForLeg(leg, order);
+    return entries.length ? entries[0].day : null;
   }
 
   function getSelectedLegTimelineMetrics(leg) {
@@ -467,7 +595,7 @@
     var payload = state.cruiseTimeline.payload && typeof state.cruiseTimeline.payload === "object"
       ? state.cruiseTimeline.payload
       : null;
-    var maxHours = clampCruiseTimelineHours(state.cruiseTimeline.maxHoursPerDay);
+    var maxHours = getCruiseTimelineMaxHoursFromUi();
     var summaryModel = buildCruiseTimelineSummaryModel(payload, {
       maxHoursPerDay: maxHours,
       reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
@@ -515,7 +643,7 @@
     var summaryTotals = state.previewSummary && typeof state.previewSummary === "object" ? state.previewSummary : {};
     var routeIdVal = toInt(state.activeRouteId, 0);
     var startDateVal = dom.startDateEl ? String(dom.startDateEl.value || "").trim() : String(state.cruiseTimeline.lastStartDate || "").trim();
-    var maxHours = clampCruiseTimelineHours(state.cruiseTimeline.maxHoursPerDay);
+    var maxHours = getCruiseTimelineMaxHoursFromUi();
     var html = "";
 
     state.cruiseTimeline.maxHoursPerDay = maxHours;
@@ -584,13 +712,13 @@
     var payload = state.cruiseTimeline.payload && typeof state.cruiseTimeline.payload === "object"
       ? state.cruiseTimeline.payload
       : null;
-    var day = getCruiseTimelineDayForLeg(leg, order);
+    var dayEntries = getCruiseTimelineEntriesForLeg(leg, order);
     var selectedLegMetrics = getSelectedLegTimelineMetrics(leg);
     var routeIdVal = toInt(state.activeRouteId, 0);
     var startDateVal = dom.startDateEl ? String(dom.startDateEl.value || "").trim() : String(state.cruiseTimeline.lastStartDate || "").trim();
     var html = "";
     html += '<div class="fpw-routegen__legtimeline mt-3">';
-    html += '  <div class="small text-uppercase text-light opacity-75 mb-2">Cruise Timeline Day</div>';
+    html += '  <div class="small text-uppercase text-light opacity-75 mb-2">Cruise Timeline ' + (dayEntries.length > 1 ? "Days" : "Day") + "</div>";
 
     if (!routeIdVal) {
       html += '<div class="fpw-routegen__help mb-0">Generate or open a saved route to build a cruise timeline.</div>';
@@ -622,40 +750,59 @@
       html += "</div>";
       return html;
     }
-    if (!day) {
+    if (!dayEntries.length) {
       html += '<div class="alert alert-secondary py-2 mb-0">No cruise timeline day is mapped to this leg yet.</div>';
       html += "</div>";
       return html;
     }
 
-    html += '<div class="card bg-transparent border-secondary text-light mb-0">';
-    html += '  <div class="card-body py-2 px-3">';
-    html += '    <div class="d-flex justify-content-between align-items-center gap-2">';
-    html += '      <div class="fw-semibold">Day ' + formatNumber(day.legIndex, 0) + " - " + escapeHtml(day.dateText || "--") + "</div>";
-    html += '      <span class="badge ' + day.badgeClass + '">' + escapeHtml(day.riskColor || "GREEN") + "</span>";
-    html += "    </div>";
-    html += '    <div class="small text-light opacity-75 mb-2">Selected leg: ' + escapeHtml(selectedLegMetrics.startName + " -> " + selectedLegMetrics.endName) + "</div>";
-    html += '    <div class="row g-2 small mb-1">';
-    html += '      <div class="col-sm-4">Leg distance: <strong>' + formatNumber(selectedLegMetrics.distNm, 1) + " nm</strong></div>";
-    html += '      <div class="col-sm-4">Leg hours: <strong>' + formatNumber(selectedLegMetrics.estHours, 1) + " hrs</strong></div>";
-    html += '      <div class="col-sm-4">Leg locks: <strong>' + formatNumber(selectedLegMetrics.lockCount, 0) + "</strong></div>";
-    html += "    </div>";
-    html += '    <div class="small text-uppercase text-light opacity-75 mt-2 mb-1">Day Rollup</div>';
-    html += '    <div class="small text-light opacity-75 mb-1">Grouped legs: <strong>' + formatNumber((Array.isArray(day.segmentIds) ? day.segmentIds.length : 0), 0) + "</strong></div>";
-    html += '    <div class="small text-light opacity-75 mb-2">' + escapeHtml(day.startName + " -> " + day.endName) + "</div>";
-    html += '    <div class="row g-2 small mb-1">';
-    html += '      <div class="col-sm-4">Day distance: <strong>' + formatNumber(day.totalDistNm, 1) + " nm</strong></div>";
-    html += '      <div class="col-sm-4">Grouped day hours: <strong>' + formatNumber(day.estHours, 1) + " hrs</strong></div>";
-    html += '      <div class="col-sm-4">Day locks: <strong>' + formatNumber(day.lockCount, 0) + "</strong></div>";
-    html += "    </div>";
-    html += '    <div class="small text-light opacity-75 mb-2">Day rollup may include multiple legs based on Max hrs/day.</div>';
-    html += '    <div class="row g-2 small">';
-    html += '      <div class="col-sm-4">Required: <strong data-testid="required-fuel">' + formatNumber(day.requiredFuelGallons, 1) + " gal</strong></div>";
-    html += '      <div class="col-sm-4">Reserve: <strong>' + formatNumber(day.reserveGallons, 1) + " gal</strong></div>";
-    html += '      <div class="col-sm-4">Confidence: <strong>' + formatNumber(day.confidence, 0) + "%</strong></div>";
-    html += "    </div>";
+    html += '  <div class="small text-light opacity-75 mb-2">Selected leg: ' + escapeHtml(selectedLegMetrics.startName + " -> " + selectedLegMetrics.endName) + "</div>";
+    html += '  <div class="row g-2 small mb-2">';
+    html += '    <div class="col-sm-4">Leg distance: <strong>' + formatNumber(selectedLegMetrics.distNm, 1) + " nm</strong></div>";
+    html += '    <div class="col-sm-4">Leg hours: <strong>' + formatNumber(selectedLegMetrics.estHours, 1) + " hrs</strong></div>";
+    html += '    <div class="col-sm-4">Leg locks: <strong>' + formatNumber(selectedLegMetrics.lockCount, 0) + "</strong></div>";
     html += "  </div>";
-    html += "</div>";
+    if (dayEntries.length > 1) {
+      html += '  <div class="small text-light opacity-75 mb-2">This leg spans <strong>' + formatNumber(dayEntries.length, 0) + "</strong> cruise timeline days at the current Max hrs/day setting.</div>";
+    }
+
+    dayEntries.forEach(function (entry, idx) {
+      var day = entry && entry.day ? entry.day : {};
+      var slice = entry && entry.slice ? entry.slice : null;
+      var sliceDistNm = slice && Number.isFinite(slice.sliceDistNm) ? slice.sliceDistNm : selectedLegMetrics.distNm;
+      var sliceHours = slice && Number.isFinite(slice.sliceHours) ? slice.sliceHours : selectedLegMetrics.estHours;
+      var sliceLocks = slice ? toInt(slice.lockCount, 0) : selectedLegMetrics.lockCount;
+      var sliceLabel = (slice && slice.isSplit) ? "Leg slice this day" : "Leg on this day";
+
+      html += '<div class="card bg-transparent border-secondary text-light ' + (idx < dayEntries.length - 1 ? "mb-2" : "mb-0") + '">';
+      html += '  <div class="card-body py-2 px-3">';
+      html += '    <div class="d-flex justify-content-between align-items-center gap-2">';
+      html += '      <div class="fw-semibold">Day ' + formatNumber(day.legIndex, 0) + " - " + escapeHtml(day.dateText || "--") + "</div>";
+      html += '      <span class="badge ' + day.badgeClass + '">' + escapeHtml(day.riskColor || "GREEN") + "</span>";
+      html += "    </div>";
+      html += '    <div class="small text-light opacity-75 mb-2">' + escapeHtml(sliceLabel + ": " + selectedLegMetrics.startName + " -> " + selectedLegMetrics.endName) + "</div>";
+      html += '    <div class="row g-2 small mb-1">';
+      html += '      <div class="col-sm-4">Slice distance: <strong>' + formatNumber(sliceDistNm, 1) + " nm</strong></div>";
+      html += '      <div class="col-sm-4">Slice hours: <strong>' + formatNumber(sliceHours, 1) + " hrs</strong></div>";
+      html += '      <div class="col-sm-4">Slice locks: <strong>' + formatNumber(sliceLocks, 0) + "</strong></div>";
+      html += "    </div>";
+      html += '    <div class="small text-uppercase text-light opacity-75 mt-2 mb-1">Day Rollup</div>';
+      html += '    <div class="small text-light opacity-75 mb-1">Grouped legs: <strong>' + formatNumber((Array.isArray(day.segmentIds) ? day.segmentIds.length : 0), 0) + "</strong></div>";
+      html += '    <div class="small text-light opacity-75 mb-2">' + escapeHtml(day.startName + " -> " + day.endName) + "</div>";
+      html += '    <div class="row g-2 small mb-1">';
+      html += '      <div class="col-sm-4">Day distance: <strong>' + formatNumber(day.totalDistNm, 1) + " nm</strong></div>";
+      html += '      <div class="col-sm-4">Grouped day hours: <strong>' + formatNumber(day.estHours, 1) + " hrs</strong></div>";
+      html += '      <div class="col-sm-4">Day locks: <strong>' + formatNumber(day.lockCount, 0) + "</strong></div>";
+      html += "    </div>";
+      html += '    <div class="small text-light opacity-75 mb-2">Day rollup may include multiple legs based on Max hrs/day.</div>';
+      html += '    <div class="row g-2 small">';
+      html += '      <div class="col-sm-4">Required: <strong data-testid="required-fuel">' + formatNumber(day.requiredFuelGallons, 1) + " gal</strong></div>";
+      html += '      <div class="col-sm-4">Reserve: <strong>' + formatNumber(day.reserveGallons, 1) + " gal</strong></div>";
+      html += '      <div class="col-sm-4">Confidence: <strong>' + formatNumber(day.confidence, 0) + "%</strong></div>";
+      html += "    </div>";
+      html += "  </div>";
+      html += "</div>";
+    });
     html += "</div>";
     return html;
   }
@@ -703,6 +850,11 @@
         hoursSource: String(meta.hours_source !== undefined ? meta.hours_source : (meta.HOURS_SOURCE || "")).trim().toLowerCase(),
         effectiveSpeedKn: safeVal(meta.effective_speed_kn !== undefined ? meta.effective_speed_kn : meta.EFFECTIVE_SPEED_KN),
         fuelBurnGph: safeVal(meta.fuel_burn_gph !== undefined ? meta.fuel_burn_gph : meta.FUEL_BURN_GPH),
+        weatherAdjustedBurnGph: safeVal(
+          meta.weather_adjusted_fuel_burn_gph !== undefined
+            ? meta.weather_adjusted_fuel_burn_gph
+            : (meta.WEATHER_ADJUSTED_FUEL_BURN_GPH !== undefined ? meta.WEATHER_ADJUSTED_FUEL_BURN_GPH : "")
+        ),
         fuelSource: String(meta.fuel_source !== undefined ? meta.fuel_source : (meta.FUEL_SOURCE || "")).trim(),
         effectiveWeatherPctMax: safeVal(
           meta.effective_weather_pct_max !== undefined
@@ -716,7 +868,7 @@
     };
     applyCruiseTimelineSummaryToCards(
       buildCruiseTimelineSummaryModel(state.cruiseTimeline.payload, {
-        maxHoursPerDay: clampCruiseTimelineHours(state.cruiseTimeline.maxHoursPerDay),
+        maxHoursPerDay: getCruiseTimelineMaxHoursFromUi(),
         reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
         weatherFactorPct: getWeatherFactorPct(),
         effectiveSpeedKn: getEffectiveCruisingSpeed(),
@@ -741,7 +893,9 @@
   function buildCruiseTimeline(routeId, startDate, maxHoursPerDay, previewLegsRaw) {
     var routeIdVal = toInt(routeId, 0);
     var startDateVal = String(startDate || "").trim();
-    var maxHoursVal = clampCruiseTimelineHours(maxHoursPerDay);
+    var maxHoursVal = clampCruiseTimelineHours(
+      dom.underwayHoursEl ? dom.underwayHoursEl.value : maxHoursPerDay
+    );
     var routeTypeVal = (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") ? "my_route" : "generated";
     var inputOverrides = collectTimelineInputOverrides();
     var previewLegs = collectTimelinePreviewLegs(
@@ -824,7 +978,7 @@
     if (state.cruiseTimeline.status === "loading" && hasMatchingRoute && hasMatchingDate) {
       return Promise.resolve(null);
     }
-    return buildCruiseTimeline(routeIdVal, startDateVal, state.cruiseTimeline.maxHoursPerDay);
+    return buildCruiseTimeline(routeIdVal, startDateVal, getCruiseTimelineMaxHoursFromUi());
   }
 
   function rebuildCruiseTimelineFromCurrentState() {
@@ -1389,6 +1543,10 @@
   function renderMyRouteControlAvailability() {
     var hasActiveRoute = toInt(state.myRoutes.activeRouteId, 0) > 0;
     var hasPersistedStart = toInt(state.myRoutes.startWaypointId, 0) > 0;
+    var hasExistingLegs = Array.isArray(state.myRoutes.legs) && state.myRoutes.legs.length > 0;
+    var selectedStartWaypointId = toInt(dom.myRouteStartWaypointSelectEl ? dom.myRouteStartWaypointSelectEl.value : 0, 0);
+    var hasSelectedStartForFirstLeg = !hasPersistedStart && !hasExistingLegs && selectedStartWaypointId > 0;
+    var canAddWaypointLeg = hasPersistedStart || hasSelectedStartForFirstLeg;
     var isPending = isMyRoutePending();
 
     if (dom.myRouteStartWaypointSelectEl) {
@@ -1398,10 +1556,10 @@
       dom.myRouteSetStartBtn.disabled = isPending || !hasActiveRoute;
     }
     if (dom.myRouteEndWaypointSelectEl) {
-      dom.myRouteEndWaypointSelectEl.disabled = isPending || !hasActiveRoute || !hasPersistedStart;
+      dom.myRouteEndWaypointSelectEl.disabled = isPending || !hasActiveRoute || !canAddWaypointLeg;
     }
     if (dom.myRouteAddWaypointLegBtn) {
-      dom.myRouteAddWaypointLegBtn.disabled = isPending || !hasActiveRoute || !hasPersistedStart;
+      dom.myRouteAddWaypointLegBtn.disabled = isPending || !hasActiveRoute || !canAddWaypointLeg;
     }
   }
 
@@ -1812,6 +1970,14 @@
     return Math.round(n * 100) / 100;
   }
 
+  function pendingDraftHasField(fieldName) {
+    return !!(
+      state.pendingDraft
+      && typeof state.pendingDraft === "object"
+      && Object.prototype.hasOwnProperty.call(state.pendingDraft, fieldName)
+    );
+  }
+
   function getVesselDefaultCruisingSpeedKn() {
     var mostEff = toPositiveNumber(state.vesselDefaults.mostEfficientSpeedKn, 0);
     if (mostEff > 0) return mostEff;
@@ -1820,11 +1986,229 @@
     return DEFAULT_MAX_SPEED_KN;
   }
 
+  function getFieldDefaultCruisingSpeedKn() {
+    var maxSpeed = toPositiveNumber(state.vesselDefaults.maxSpeedKn, 0);
+    if (maxSpeed > 0) return maxSpeed;
+    return DEFAULT_MAX_SPEED_KN;
+  }
+
+  function getVesselDefaultFuelBurnAtMaxSpeedGph() {
+    return toPositiveNumber(state.vesselDefaults.gphAtMaxSpeed, 0);
+  }
+
+  function getVesselDefaultMostEfficientSpeedKn() {
+    return toPositiveNumber(state.vesselDefaults.mostEfficientSpeedKn, 0);
+  }
+
+  function getVesselDefaultFuelBurnAtEfficientSpeedGph() {
+    return toPositiveNumber(state.vesselDefaults.gphAtMostEfficientSpeed, 0);
+  }
+
+  function applyVesselDefaultsFromPayload(defaultsData) {
+    var src = (defaultsData && typeof defaultsData === "object") ? defaultsData : {};
+    state.vesselDefaults.maxSpeedKn = toPositiveNumber(
+      src.vessel_max_speed_kn !== undefined ? src.vessel_max_speed_kn : src.VESSEL_MAX_SPEED_KN,
+      0
+    );
+    state.vesselDefaults.mostEfficientSpeedKn = toPositiveNumber(
+      src.vessel_most_efficient_speed_kn !== undefined ? src.vessel_most_efficient_speed_kn : src.VESSEL_MOST_EFFICIENT_SPEED_KN,
+      0
+    );
+    state.vesselDefaults.gphAtMostEfficientSpeed = toPositiveNumber(
+      src.vessel_gph_at_most_efficient_speed !== undefined ? src.vessel_gph_at_most_efficient_speed : src.VESSEL_GPH_AT_MOST_EFFICIENT_SPEED,
+      0
+    );
+    state.vesselDefaults.gphAtMaxSpeed = toPositiveNumber(
+      src.vessel_gph_at_max_speed !== undefined ? src.vessel_gph_at_max_speed : src.VESSEL_GPH_AT_MAX_SPEED,
+      0
+    );
+  }
+
+  function normalizeAvailableVesselRow(vesselData) {
+    var src = (vesselData && typeof vesselData === "object") ? vesselData : {};
+    return {
+      vessel_id: toInt(
+        src.vessel_id !== undefined ? src.vessel_id :
+          (src.VESSEL_ID !== undefined ? src.VESSEL_ID : (src.vesselId !== undefined ? src.vesselId : 0)),
+        0
+      ),
+      vessel_name: String(
+        src.vessel_name !== undefined ? src.vessel_name :
+          (src.VESSEL_NAME !== undefined ? src.VESSEL_NAME : (src.vesselName !== undefined ? src.vesselName : ""))
+      ).trim(),
+      is_default: coerceBool(
+        src.is_default !== undefined ? src.is_default :
+          (src.IS_DEFAULT !== undefined ? src.IS_DEFAULT : (src.isDefaultVessel !== undefined ? src.isDefaultVessel : 0)),
+        false
+      ),
+      max_speed_kn: toPositiveNumber(
+        src.max_speed_kn !== undefined ? src.max_speed_kn :
+          (src.MAX_SPEED_KN !== undefined ? src.MAX_SPEED_KN : 0),
+        0
+      ),
+      most_efficient_speed_kn: toPositiveNumber(
+        src.most_efficient_speed_kn !== undefined ? src.most_efficient_speed_kn :
+          (src.MOST_EFFICIENT_SPEED_KN !== undefined ? src.MOST_EFFICIENT_SPEED_KN : 0),
+        0
+      ),
+      gph_at_max_speed: toPositiveNumber(
+        src.gph_at_max_speed !== undefined ? src.gph_at_max_speed :
+          (src.GPH_AT_MAX_SPEED !== undefined ? src.GPH_AT_MAX_SPEED : 0),
+        0
+      ),
+      gph_at_most_efficient_speed: toPositiveNumber(
+        src.gph_at_most_efficient_speed !== undefined ? src.gph_at_most_efficient_speed :
+          (src.GPH_AT_MOST_EFFICIENT_SPEED !== undefined ? src.GPH_AT_MOST_EFFICIENT_SPEED : 0),
+        0
+      )
+    };
+  }
+
+  function applyAvailableVesselsFromPayload(vesselsData) {
+    var src = Array.isArray(vesselsData) ? vesselsData : [];
+    state.availableVessels = src
+      .map(normalizeAvailableVesselRow)
+      .filter(function (row) {
+        return toInt(row.vessel_id, 0) > 0;
+      });
+  }
+
+  function getAvailableVesselById(vesselId) {
+    var targetId = toInt(vesselId, 0);
+    var i = 0;
+    if (targetId <= 0 || !Array.isArray(state.availableVessels)) return null;
+    for (i = 0; i < state.availableVessels.length; i += 1) {
+      if (toInt(state.availableVessels[i].vessel_id, 0) === targetId) {
+        return state.availableVessels[i];
+      }
+    }
+    return null;
+  }
+
+  function getDefaultAvailableVesselId() {
+    var i = 0;
+    if (!Array.isArray(state.availableVessels)) return 0;
+    for (i = 0; i < state.availableVessels.length; i += 1) {
+      if (state.availableVessels[i].is_default) {
+        return toInt(state.availableVessels[i].vessel_id, 0);
+      }
+    }
+    if (state.availableVessels.length) {
+      return toInt(state.availableVessels[0].vessel_id, 0);
+    }
+    return 0;
+  }
+
+  function applySelectedVesselToDefaultsState(vesselData) {
+    var vessel = vesselData && typeof vesselData === "object" ? vesselData : null;
+    if (!vessel) return;
+    state.vesselDefaults.maxSpeedKn = toPositiveNumber(vessel.max_speed_kn, 0);
+    state.vesselDefaults.mostEfficientSpeedKn = toPositiveNumber(vessel.most_efficient_speed_kn, 0);
+    state.vesselDefaults.gphAtMaxSpeed = toPositiveNumber(vessel.gph_at_max_speed, 0);
+    state.vesselDefaults.gphAtMostEfficientSpeed = toPositiveNumber(vessel.gph_at_most_efficient_speed, 0);
+  }
+
+  function renderVesselSelectOptions() {
+    var selectEl = dom.vesselSelectEl;
+    var optionEl = null;
+    var i = 0;
+    if (!selectEl) return;
+    selectEl.innerHTML = "";
+    if (!state.availableVessels.length) {
+      optionEl = document.createElement("option");
+      optionEl.value = "";
+      optionEl.textContent = "No vessels available";
+      selectEl.appendChild(optionEl);
+      selectEl.value = "";
+      selectEl.disabled = true;
+      return;
+    }
+    if (state.modalMode === "editor") {
+      optionEl = document.createElement("option");
+      optionEl.value = "";
+      optionEl.textContent = "Select vessel";
+      selectEl.appendChild(optionEl);
+    }
+    for (i = 0; i < state.availableVessels.length; i += 1) {
+      optionEl = document.createElement("option");
+      optionEl.value = String(state.availableVessels[i].vessel_id);
+      optionEl.textContent = state.availableVessels[i].vessel_name || ("Vessel " + String(state.availableVessels[i].vessel_id));
+      selectEl.appendChild(optionEl);
+    }
+    selectEl.disabled = false;
+  }
+
+  function syncSelectedVesselFromAvailableList() {
+    var selectedId = 0;
+    var selectedVessel = null;
+    renderVesselSelectOptions();
+    if (!state.availableVessels.length) {
+      state.selectedVesselId = 0;
+      return null;
+    }
+
+    selectedVessel = getAvailableVesselById(state.selectedVesselId);
+    if (state.modalMode !== "editor" && !selectedVessel) {
+      selectedId = getDefaultAvailableVesselId();
+      state.selectedVesselId = selectedId;
+      selectedVessel = getAvailableVesselById(selectedId);
+    } else if (selectedVessel) {
+      selectedId = toInt(selectedVessel.vessel_id, 0);
+    }
+
+    if (dom.vesselSelectEl) {
+      dom.vesselSelectEl.value = (selectedVessel ? String(selectedVessel.vessel_id) : "");
+    }
+    if (selectedVessel) {
+      applySelectedVesselToDefaultsState(selectedVessel);
+      return selectedVessel;
+    }
+    state.selectedVesselId = 0;
+    return null;
+  }
+
+  function setFieldValueFromVesselNumber(fieldEl, value) {
+    var numberVal = toPositiveNumber(value, 0);
+    if (!fieldEl) return;
+    fieldEl.value = (numberVal > 0 ? String(numberVal) : "");
+  }
+
+  function applyGeneratorVesselFieldDefaults() {
+    if (state.modalMode === "editor") return;
+    if (!pendingDraftHasField("vessel_most_efficient_speed_kn")) {
+      applyMostEfficientSpeedDefaultFromVessel();
+    }
+    if (!pendingDraftHasField("vessel_gph_at_most_efficient_speed")) {
+      applyEfficientFuelBurnDefaultFromVessel();
+    }
+    if (!state.manualOverrides.cruisingSpeed && !pendingDraftHasField("cruising_speed")) {
+      applyPaceDefaults(false);
+    }
+    if (!pendingDraftHasField("fuel_burn_gph")) {
+      applyFuelBurnDefaultFromVessel();
+    }
+    updatePaceLabel();
+    updateFuelBurnBasisUI();
+  }
+
   function updatePaceLabel() {
     if (!dom.paceLabelEl) return;
-    var preset = getSelectedPacePreset();
+    var timelinePayload = state.cruiseTimeline && state.cruiseTimeline.payload && typeof state.cruiseTimeline.payload === "object"
+      ? state.cruiseTimeline.payload
+      : null;
     var adjustedSpeedKn = getAdjustedCruisingSpeedKn();
-    dom.paceLabelEl.textContent = preset.label + " (" + formatNumber(adjustedSpeedKn, 2) + " kn)";
+
+    if (timelinePayload) {
+      adjustedSpeedKn = safeVal(buildCruiseTimelineSummaryModel(timelinePayload, {
+        maxHoursPerDay: getCruiseTimelineMaxHoursFromUi(),
+        reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
+        weatherFactorPct: getWeatherFactorPct(),
+        effectiveSpeedKn: getEffectiveCruisingSpeed(),
+        fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
+      }).adjSpeedKn);
+    }
+
+    dom.paceLabelEl.textContent = formatNumber(adjustedSpeedKn, 2) + " kn";
   }
 
   function getMaxSpeedKn() {
@@ -1835,10 +2219,35 @@
     return value;
   }
 
+  function getMostEfficientSpeedKn() {
+    var value = parseFloat(dom.mostEfficientSpeedEl ? dom.mostEfficientSpeedEl.value : "");
+    if (!Number.isFinite(value) || value <= 0) {
+      value = getVesselDefaultMostEfficientSpeedKn();
+    }
+    return value;
+  }
+
+  function getFuelBurnAtMostEfficientSpeedGph() {
+    var value = parseFloat(dom.fuelBurnEfficientGphEl ? dom.fuelBurnEfficientGphEl.value : "");
+    if (!Number.isFinite(value) || value <= 0) {
+      value = getVesselDefaultFuelBurnAtEfficientSpeedGph();
+    }
+    return roundTo2(value);
+  }
+
   function getEffectiveCruisingSpeed() {
     var preset = getSelectedPacePreset();
-    var factor = Number.isFinite(preset.factor) ? preset.factor : 1;
-    var speed = getMaxSpeedKn() * factor;
+    var speed = 0;
+    var factor = 0;
+
+    if (preset.key === "BALANCED") {
+      speed = getMostEfficientSpeedKn();
+      if (!Number.isFinite(speed) || speed <= 0) return 0;
+      return Math.round(speed * 10) / 10;
+    }
+
+    factor = Number.isFinite(preset.factor) ? preset.factor : 1;
+    speed = getMaxSpeedKn() * factor;
     if (!Number.isFinite(speed) || speed <= 0) speed = DEFAULT_MAX_SPEED_KN;
     return Math.round(speed * 10) / 10;
   }
@@ -1851,9 +2260,62 @@
   }
 
   function applyPaceDefaults(force) {
+    var defaultSpeedKn = (state.modalMode === "editor")
+      ? getVesselDefaultCruisingSpeedKn()
+      : getFieldDefaultCruisingSpeedKn();
     if (dom.cruisingSpeedEl && (force || !String(dom.cruisingSpeedEl.value || "").trim().length)) {
-      dom.cruisingSpeedEl.value = String(getVesselDefaultCruisingSpeedKn());
+      dom.cruisingSpeedEl.value = String(defaultSpeedKn);
     }
+  }
+
+  function applyFuelBurnDefaultFromVessel() {
+    var defaultBurnGph = 0;
+    if (!dom.fuelBurnGphEl || String(dom.fuelBurnGphEl.value || "").trim().length) return;
+    defaultBurnGph = getVesselDefaultFuelBurnAtMaxSpeedGph();
+    if (defaultBurnGph > 0) {
+      dom.fuelBurnGphEl.value = String(defaultBurnGph);
+    }
+  }
+
+  function applyMostEfficientSpeedDefaultFromVessel() {
+    var defaultSpeedKn = 0;
+    if (!dom.mostEfficientSpeedEl || String(dom.mostEfficientSpeedEl.value || "").trim().length) return;
+    defaultSpeedKn = getVesselDefaultMostEfficientSpeedKn();
+    if (defaultSpeedKn > 0) {
+      dom.mostEfficientSpeedEl.value = String(defaultSpeedKn);
+    }
+  }
+
+  function applyEfficientFuelBurnDefaultFromVessel() {
+    var defaultBurnGph = 0;
+    if (!dom.fuelBurnEfficientGphEl || String(dom.fuelBurnEfficientGphEl.value || "").trim().length) return;
+    defaultBurnGph = getVesselDefaultFuelBurnAtEfficientSpeedGph();
+    if (defaultBurnGph > 0) {
+      dom.fuelBurnEfficientGphEl.value = String(defaultBurnGph);
+    }
+  }
+
+  function applySelectedVesselValuesToFields(vesselData) {
+    var vessel = vesselData && typeof vesselData === "object" ? vesselData : null;
+    if (!vessel) return;
+    applySelectedVesselToDefaultsState(vessel);
+    setFieldValueFromVesselNumber(dom.mostEfficientSpeedEl, vessel.most_efficient_speed_kn);
+    setFieldValueFromVesselNumber(dom.fuelBurnEfficientGphEl, vessel.gph_at_most_efficient_speed);
+    setFieldValueFromVesselNumber(dom.cruisingSpeedEl, vessel.max_speed_kn);
+    setFieldValueFromVesselNumber(dom.fuelBurnGphEl, vessel.gph_at_max_speed);
+  }
+
+  function onVesselSelectChange() {
+    var vesselId = toInt(dom.vesselSelectEl ? dom.vesselSelectEl.value : 0, 0);
+    var selectedVessel = getAvailableVesselById(vesselId);
+    state.selectedVesselId = (selectedVessel ? vesselId : 0);
+    if (!selectedVessel) {
+      return;
+    }
+    applySelectedVesselValuesToFields(selectedVessel);
+    state.manualOverrides.cruisingSpeed = true;
+    updatePaceOverrideUI();
+    onFormChange();
   }
 
   function updatePaceOverrideUI() {
@@ -2765,16 +3227,27 @@
     var pacePow = Math.pow(paceRatio, 3);
     var weatherPct = getWeatherFactorPct();
     var weatherAdj = weatherPct / 100;
+    var efficientBurn = getFuelBurnAtMostEfficientSpeedGph();
     var maxSpeedBurn = 0;
     var paceAdjustedBurn = 0;
     var weatherAdjustedBurn = 0;
+    var resolvedBurnInput = 0;
 
     if (inputBurn > 0) {
       maxSpeedBurn = inputBurn;
       if (!Number.isFinite(maxSpeedBurn) || maxSpeedBurn < 0) maxSpeedBurn = 0;
       if (maxSpeedBurn > 1000) maxSpeedBurn = 1000;
       maxSpeedBurn = roundTo2(maxSpeedBurn);
+    }
 
+    if (pace.key === "BALANCED") {
+      resolvedBurnInput = efficientBurn;
+      if (resolvedBurnInput > 0) {
+        paceAdjustedBurn = roundTo2(resolvedBurnInput);
+        weatherAdjustedBurn = roundTo2(paceAdjustedBurn * (1 + weatherAdj));
+      }
+    } else if (maxSpeedBurn > 0) {
+      resolvedBurnInput = maxSpeedBurn;
       paceAdjustedBurn = roundTo2(maxSpeedBurn * pacePow);
       weatherAdjustedBurn = roundTo2(paceAdjustedBurn * (1 + weatherAdj));
     }
@@ -2782,6 +3255,7 @@
     return {
       basis: FUEL_BURN_BASIS_MAX,
       inputBurn: roundTo2(inputBurn),
+      resolvedBurnInput: roundTo2(resolvedBurnInput),
       maxSpeedBurn: maxSpeedBurn,
       paceAdjustedBurn: roundTo2(paceAdjustedBurn),
       weatherAdjustedBurn: roundTo2(weatherAdjustedBurn)
@@ -2798,7 +3272,7 @@
       dom.fuelBurnHintEl.textContent = "FPW derives pace and weather adjusted burn from max speed burn.";
     }
     if (dom.fuelBurnDerivedEl) {
-      if (model.inputBurn <= 0) {
+      if (model.resolvedBurnInput <= 0) {
         dom.fuelBurnDerivedEl.textContent = "Derived burn at current pace + weather: -- GPH";
       } else {
         dom.fuelBurnDerivedEl.textContent =
@@ -2853,15 +3327,18 @@
     var payload = {
       route_name: getRouteNameValue(true),
       template_code: state.activeTemplateCode,
+      selected_vessel_id: String(toInt(dom.vesselSelectEl ? dom.vesselSelectEl.value : state.selectedVesselId, 0) || ""),
       direction: getDirectionValue(),
       start_segment_id: dom.startSelectEl ? String(dom.startSelectEl.value || "") : "",
       end_segment_id: dom.endSelectEl ? String(dom.endSelectEl.value || "") : "",
       start_date: dom.startDateEl ? String(dom.startDateEl.value || "") : "",
       pace: getSelectedPacePreset().key,
       pace_index: getSelectedPaceIndex(),
+      vessel_most_efficient_speed_kn: dom.mostEfficientSpeedEl ? String(dom.mostEfficientSpeedEl.value || "") : "",
+      vessel_gph_at_most_efficient_speed: dom.fuelBurnEfficientGphEl ? String(dom.fuelBurnEfficientGphEl.value || "") : "",
       cruising_speed: String(getMaxSpeedKn()),
       effective_cruising_speed: String(getEffectiveCruisingSpeed()),
-      underway_hours_per_day: dom.underwayHoursEl ? String(dom.underwayHoursEl.value || "") : "8",
+      underway_hours_per_day: getUnderwayHoursFieldRawValue(),
       comfort_profile: dom.comfortProfileEl ? String(dom.comfortProfileEl.value || "") : "",
       overnight_bias: dom.overnightBiasEl ? String(dom.overnightBiasEl.value || "") : "",
       fuel_burn_gph: dom.fuelBurnGphEl ? String(dom.fuelBurnGphEl.value || "") : "",
@@ -2892,6 +3369,14 @@
     if (dom.routeNameEl && draft.route_name !== undefined && draft.route_name !== null) {
       dom.routeNameEl.value = String(draft.route_name || "");
     }
+    state.selectedVesselId = toInt(
+      draft.selected_vessel_id !== undefined ? draft.selected_vessel_id :
+        (draft.selectedVesselId !== undefined ? draft.selectedVesselId : 0),
+      0
+    );
+    if (dom.vesselSelectEl) {
+      dom.vesselSelectEl.value = (state.selectedVesselId > 0 ? String(state.selectedVesselId) : "");
+    }
     setRouteCodeBadge(state.activeRouteCode);
     clearRouteNameValidation();
 
@@ -2912,9 +3397,17 @@
     state.manualOverrides.cruisingSpeed = !!(draft.overrides && draft.overrides.cruisingSpeed);
 
     applyPaceDefaults(false);
+    applyMostEfficientSpeedDefaultFromVessel();
+    applyEfficientFuelBurnDefaultFromVessel();
 
     if (dom.cruisingSpeedEl && draft.cruising_speed !== undefined && draft.cruising_speed !== null && draft.cruising_speed !== "") {
       dom.cruisingSpeedEl.value = String(draft.cruising_speed);
+    }
+    if (
+      dom.mostEfficientSpeedEl &&
+      (draft.vessel_most_efficient_speed_kn !== undefined && draft.vessel_most_efficient_speed_kn !== null)
+    ) {
+      dom.mostEfficientSpeedEl.value = String(draft.vessel_most_efficient_speed_kn || "");
     }
     if (dom.underwayHoursEl && draft.underway_hours_per_day !== undefined && draft.underway_hours_per_day !== null && draft.underway_hours_per_day !== "") {
       dom.underwayHoursEl.value = String(draft.underway_hours_per_day);
@@ -2931,6 +3424,12 @@
       (draft.fuel_burn_gph !== undefined && draft.fuel_burn_gph !== null)
     ) {
       dom.fuelBurnGphEl.value = String(draft.fuel_burn_gph);
+    }
+    if (
+      dom.fuelBurnEfficientGphEl &&
+      (draft.vessel_gph_at_most_efficient_speed !== undefined && draft.vessel_gph_at_most_efficient_speed !== null)
+    ) {
+      dom.fuelBurnEfficientGphEl.value = String(draft.vessel_gph_at_most_efficient_speed || "");
     }
     if (dom.idleBurnGphEl && draft.idle_burn_gph !== undefined && draft.idle_burn_gph !== null) {
       dom.idleBurnGphEl.value = String(draft.idle_burn_gph || "");
@@ -2985,6 +3484,10 @@
     if (dom.estimatedFuelSubEl) dom.estimatedFuelSubEl.textContent = "Required = base + reserve";
     if (dom.fuelCostEl) dom.fuelCostEl.innerHTML = "-- <small>USD</small>";
     if (dom.fuelCostSubEl) dom.fuelCostSubEl.textContent = "Required fuel x price";
+    if (dom.adjustedSpeedEl) dom.adjustedSpeedEl.innerHTML = "-- <small>kn</small>";
+    if (dom.adjustedSpeedSubEl) dom.adjustedSpeedSubEl.textContent = "Pace + weather adjusted";
+    if (dom.expectedAvgGphEl) dom.expectedAvgGphEl.innerHTML = "-- <small>GPH</small>";
+    if (dom.expectedAvgGphSubEl) dom.expectedAvgGphSubEl.textContent = "Current pace + weather burn";
     if (dom.legCountEl) dom.legCountEl.textContent = "0 legs";
     if (dom.legListEl) dom.legListEl.innerHTML = '<div class="fpw-routegen__empty">Pick template/start/end to see a live preview.</div>';
     resetLegMapSelection();
@@ -3532,9 +4035,22 @@
           (routeMeta.ROUTE_NAME !== undefined ? routeMeta.ROUTE_NAME : "")
       ).trim();
     }
+    state.selectedVesselId = 0;
+    if (dom.vesselSelectEl) {
+      dom.vesselSelectEl.value = "";
+    }
     setRouteCodeBadge(state.activeRouteCode);
     clearRouteNameValidation();
     if (!inputs || typeof inputs !== "object") return;
+    state.selectedVesselId = toInt(
+      inputs.selected_vessel_id !== undefined ? inputs.selected_vessel_id :
+        (inputs.selectedVesselId !== undefined ? inputs.selectedVesselId :
+          (inputs.SELECTED_VESSEL_ID !== undefined ? inputs.SELECTED_VESSEL_ID : 0)),
+      0
+    );
+    if (dom.vesselSelectEl) {
+      dom.vesselSelectEl.value = (state.selectedVesselId > 0 ? String(state.selectedVesselId) : "");
+    }
 
     var inputVesselMaxSpeed = toPositiveNumber(
       inputs.vessel_max_speed_kn !== undefined ? inputs.vessel_max_speed_kn :
@@ -3576,10 +4092,18 @@
     updatePaceLabel();
     state.manualOverrides.cruisingSpeed = false;
     applyPaceDefaults(true);
+    applyMostEfficientSpeedDefaultFromVessel();
+    applyEfficientFuelBurnDefaultFromVessel();
     updatePaceOverrideUI();
 
     if (dom.cruisingSpeedEl && (inputs.cruising_speed !== undefined || inputs.CRUISING_SPEED !== undefined)) {
       dom.cruisingSpeedEl.value = String(inputs.cruising_speed !== undefined ? inputs.cruising_speed : inputs.CRUISING_SPEED);
+    }
+    if (dom.mostEfficientSpeedEl) {
+      dom.mostEfficientSpeedEl.value = String(
+        inputs.vessel_most_efficient_speed_kn !== undefined ? inputs.vessel_most_efficient_speed_kn :
+          (inputs.VESSEL_MOST_EFFICIENT_SPEED_KN !== undefined ? inputs.VESSEL_MOST_EFFICIENT_SPEED_KN : (inputVesselMostEffSpeed || ""))
+      );
     }
     if (dom.underwayHoursEl && (inputs.underway_hours_per_day !== undefined || inputs.UNDERWAY_HOURS_PER_DAY !== undefined)) {
       dom.underwayHoursEl.value = String(
@@ -3602,6 +4126,12 @@
     ) {
       dom.fuelBurnGphEl.value = String(
         inputs.fuel_burn_gph !== undefined ? inputs.fuel_burn_gph : inputs.FUEL_BURN_GPH
+      );
+    }
+    if (dom.fuelBurnEfficientGphEl) {
+      dom.fuelBurnEfficientGphEl.value = String(
+        inputs.vessel_gph_at_most_efficient_speed !== undefined ? inputs.vessel_gph_at_most_efficient_speed :
+          (inputs.VESSEL_GPH_AT_MOST_EFFICIENT_SPEED !== undefined ? inputs.VESSEL_GPH_AT_MOST_EFFICIENT_SPEED : (inputVesselMostEffGph || ""))
       );
     }
     if (dom.idleBurnGphEl && (inputs.idle_burn_gph !== undefined || inputs.IDLE_BURN_GPH !== undefined)) {
@@ -3659,12 +4189,15 @@
       route_type: (isMyRouteContext ? "my_route" : "generated"),
       route_id: (isMyRouteContext ? ctxMyRouteId : 0),
       route_name: getRouteNameValue(true),
+      selected_vessel_id: (state.selectedVesselId > 0 ? String(state.selectedVesselId) : ""),
       template_code: (isMyRouteContext ? "" : (templateCode || state.activeTemplateCode)),
       direction: getDirectionValue(),
       start_date: dom.startDateEl ? String(dom.startDateEl.value || "") : "",
       pace_index: getSelectedPaceIndex(),
+      vessel_most_efficient_speed_kn: dom.mostEfficientSpeedEl ? String(dom.mostEfficientSpeedEl.value || "") : "",
+      vessel_gph_at_most_efficient_speed: dom.fuelBurnEfficientGphEl ? String(dom.fuelBurnEfficientGphEl.value || "") : "",
       cruising_speed: dom.cruisingSpeedEl ? String(dom.cruisingSpeedEl.value || "") : "",
-      underway_hours_per_day: dom.underwayHoursEl ? String(dom.underwayHoursEl.value || "") : "8",
+      underway_hours_per_day: getUnderwayHoursFieldRawValue(),
       comfort_profile: dom.comfortProfileEl ? String(dom.comfortProfileEl.value || "") : "PREFER_INSIDE",
       overnight_bias: dom.overnightBiasEl ? String(dom.overnightBiasEl.value || "") : "MARINAS",
       fuel_burn_gph: dom.fuelBurnGphEl ? String(dom.fuelBurnGphEl.value || "") : "",
@@ -3751,8 +4284,8 @@
     var selectedStartMeta = getSelectedOptionMeta(state.options.startOptions, dom.startSelectEl ? dom.startSelectEl.value : "");
     var selectedEndMeta = getSelectedOptionMeta(state.options.endOptions, dom.endSelectEl ? dom.endSelectEl.value : "");
     var vesselMaxSpeedKn = toPositiveNumber(state.vesselDefaults.maxSpeedKn, 0);
-    var vesselMostEffSpeedKn = toPositiveNumber(state.vesselDefaults.mostEfficientSpeedKn, 0);
-    var vesselMostEffGph = toPositiveNumber(state.vesselDefaults.gphAtMostEfficientSpeed, 0);
+    var vesselMostEffSpeedKn = getMostEfficientSpeedKn();
+    var vesselMostEffGph = getFuelBurnAtMostEfficientSpeedGph();
 
     return {
       route_type: (isMyRoute ? "my_route" : "generated"),
@@ -3760,6 +4293,7 @@
       route_name: getRouteNameValue(true),
       template_code: state.activeTemplateCode,
       route_code: (state.modalMode === "editor" ? String(state.activeRouteCode || "").trim() : ""),
+      selected_vessel_id: String(toInt(dom.vesselSelectEl ? dom.vesselSelectEl.value : state.selectedVesselId, 0) || ""),
       direction: getDirectionValue(),
       start_segment_id: dom.startSelectEl ? String(dom.startSelectEl.value || "") : "",
       end_segment_id: dom.endSelectEl ? String(dom.endSelectEl.value || "") : "",
@@ -3769,7 +4303,7 @@
       pace: getSelectedPacePreset().key,
       cruising_speed: String(getMaxSpeedKn()),
       effective_cruising_speed: String(getEffectiveCruisingSpeed()),
-      underway_hours_per_day: dom.underwayHoursEl ? String(dom.underwayHoursEl.value || "") : "8",
+      underway_hours_per_day: getUnderwayHoursFieldRawValue(),
       comfort_profile: dom.comfortProfileEl ? String(dom.comfortProfileEl.value || "") : "PREFER_INSIDE",
       overnight_bias: dom.overnightBiasEl ? String(dom.overnightBiasEl.value || "") : "MARINAS",
       fuel_burn_gph: (fuelModel.maxSpeedBurn > 0 ? String(fuelModel.maxSpeedBurn) : ""),
@@ -3787,6 +4321,39 @@
     };
   }
 
+  function buildEditorBaselineFromPayload(payload) {
+    var src = payload || {};
+    return {
+      route_type: "generated",
+      route_id: 0,
+      route_name: String(src.route_name || ""),
+      selected_vessel_id: String(src.selected_vessel_id || ""),
+      template_code: String(src.template_code || ""),
+      direction: String(src.direction || ""),
+      start_date: String(src.start_date || ""),
+      pace_index: getSelectedPaceIndex(),
+      vessel_most_efficient_speed_kn: String(src.vessel_most_efficient_speed_kn || ""),
+      vessel_gph_at_most_efficient_speed: String(src.vessel_gph_at_most_efficient_speed || ""),
+      cruising_speed: String(src.cruising_speed || ""),
+      underway_hours_per_day: String(src.underway_hours_per_day || ""),
+      comfort_profile: String(src.comfort_profile || "PREFER_INSIDE"),
+      overnight_bias: String(src.overnight_bias || "MARINAS"),
+      fuel_burn_gph: String(src.fuel_burn_gph || ""),
+      fuel_burn_gph_input: String(src.fuel_burn_gph_input || ""),
+      fuel_burn_basis: String(src.fuel_burn_basis || FUEL_BURN_BASIS_MAX),
+      idle_burn_gph: String(src.idle_burn_gph || ""),
+      idle_hours_total: String(src.idle_hours_total || ""),
+      weather_factor_pct: String(src.weather_factor_pct || DEFAULT_WEATHER_FACTOR_PCT),
+      reserve_pct: String(src.reserve_pct || DEFAULT_RESERVE_PCT),
+      fuel_price_per_gal: String(src.fuel_price_per_gal || ""),
+      optional_stop_flags: Array.isArray(src.optional_stop_flags) ? src.optional_stop_flags.slice() : [],
+      start_segment_id: String(src.start_segment_id || ""),
+      end_segment_id: String(src.end_segment_id || ""),
+      start_label: String(src.start_location_label || ""),
+      end_label: String(src.end_location_label || "")
+    };
+  }
+
   function collectTimelineInputOverrides() {
     var payload = collectFormPayload();
     return {
@@ -3794,6 +4361,7 @@
       pace_index: getSelectedPaceIndex(),
       cruising_speed: String(payload.cruising_speed || ""),
       max_speed_kn: String(payload.cruising_speed || ""),
+      underway_hours_per_day: String(payload.underway_hours_per_day || ""),
       fuel_burn_gph: String(payload.fuel_burn_gph || ""),
       vessel_max_speed_kn: String(payload.vessel_max_speed_kn || ""),
       vessel_most_efficient_speed_kn: String(payload.vessel_most_efficient_speed_kn || ""),
@@ -3923,21 +4491,12 @@
         var defaultsData = (data.defaults && typeof data.defaults === "object")
           ? data.defaults
           : ((data.DEFAULTS && typeof data.DEFAULTS === "object") ? data.DEFAULTS : {});
+        var vesselsData = Array.isArray(data.vessels) ? data.vessels : (Array.isArray(data.VESSELS) ? data.VESSELS : []);
         state.options.startOptions = Array.isArray(data.startOptions) ? data.startOptions : (Array.isArray(data.START_OPTIONS) ? data.START_OPTIONS : []);
         state.options.endOptions = Array.isArray(data.endOptions) ? data.endOptions : (Array.isArray(data.END_OPTIONS) ? data.END_OPTIONS : []);
         state.options.optionalStops = Array.isArray(data.optionalStops) ? data.optionalStops : (Array.isArray(data.OPTIONAL_STOPS) ? data.OPTIONAL_STOPS : []);
-        state.vesselDefaults.maxSpeedKn = toPositiveNumber(
-          defaultsData.vessel_max_speed_kn !== undefined ? defaultsData.vessel_max_speed_kn : defaultsData.VESSEL_MAX_SPEED_KN,
-          0
-        );
-        state.vesselDefaults.mostEfficientSpeedKn = toPositiveNumber(
-          defaultsData.vessel_most_efficient_speed_kn !== undefined ? defaultsData.vessel_most_efficient_speed_kn : defaultsData.VESSEL_MOST_EFFICIENT_SPEED_KN,
-          0
-        );
-        state.vesselDefaults.gphAtMostEfficientSpeed = toPositiveNumber(
-          defaultsData.vessel_gph_at_most_efficient_speed !== undefined ? defaultsData.vessel_gph_at_most_efficient_speed : defaultsData.VESSEL_GPH_AT_MOST_EFFICIENT_SPEED,
-          0
-        );
+        applyVesselDefaultsFromPayload(defaultsData);
+        applyAvailableVesselsFromPayload(vesselsData);
         var templateMeta = (data.template && typeof data.template === "object") ? data.template : (data.TEMPLATE || {});
         var isLoopRaw = (
           templateMeta.is_loop !== undefined ? templateMeta.is_loop :
@@ -3947,9 +4506,8 @@
         state.activeTemplateIsLoop = coerceBool(isLoopRaw, true);
 
         renderOptions();
-        if (dom.cruisingSpeedEl && state.modalMode !== "editor" && !state.manualOverrides.cruisingSpeed) {
-          applyPaceDefaults(true);
-        }
+        syncSelectedVesselFromAvailableList();
+        applyGeneratorVesselFieldDefaults();
         setStatus("Options loaded.");
       })
       .catch(function (err) {
@@ -3958,6 +4516,50 @@
           return;
         }
         showError((err && err.message) ? err.message : "Unable to load route options.");
+      });
+  }
+
+  function fetchGeneratorVesselDefaults() {
+    var fallbackTemplateCode = "";
+    if (state.activeTemplateCode) {
+      return fetchOptions();
+    }
+    if (state.templates.length) {
+      fallbackTemplateCode = String(state.templates[0].SHORT_CODE || state.templates[0].CODE || "").trim();
+    }
+    if (!fallbackTemplateCode) return Promise.resolve();
+
+    setStatus("Loading route defaults...");
+    return fetchJson(apiUrl("routegen_getOptions"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        template_code: fallbackTemplateCode,
+        direction: getDirectionValue()
+      })
+    })
+      .then(function (payload) {
+        if (!payload || payload.SUCCESS === false) {
+          throw new Error((payload && payload.MESSAGE) ? payload.MESSAGE : "Unable to load route defaults.");
+        }
+        var data = payload.DATA || {};
+        var defaultsData = (data.defaults && typeof data.defaults === "object")
+          ? data.defaults
+          : ((data.DEFAULTS && typeof data.DEFAULTS === "object") ? data.DEFAULTS : {});
+        var vesselsData = Array.isArray(data.vessels) ? data.vessels : (Array.isArray(data.VESSELS) ? data.VESSELS : []);
+        applyVesselDefaultsFromPayload(defaultsData);
+        applyAvailableVesselsFromPayload(vesselsData);
+        syncSelectedVesselFromAvailableList();
+        applyGeneratorVesselFieldDefaults();
+        setStatus("Route defaults loaded.");
+      })
+      .catch(function (err) {
+        if (err && err.code === "UNAUTHORIZED") {
+          redirectToLogin();
+          return;
+        }
+        showError((err && err.message) ? err.message : "Unable to load route defaults.");
       });
   }
 
@@ -4037,6 +4639,7 @@
     if (dom.totalNmEl) dom.totalNmEl.innerHTML = formatNumber(roundTo2(totalNm), 1) + " <small>NM</small>";
     if (dom.lockCountEl) dom.lockCountEl.textContent = String(totalLocks);
     if (dom.offshoreCountEl) dom.offshoreCountEl.textContent = String(offshoreCount);
+    updateDerivedSummaryCards();
     syncTimelineRouteTotalLine();
   }
 
@@ -4785,7 +5388,7 @@
     if (hasTimelineSummary) {
       applyCruiseTimelineSummaryToCards(
         buildCruiseTimelineSummaryModel(timelinePayload, {
-          maxHoursPerDay: clampCruiseTimelineHours(state.cruiseTimeline.maxHoursPerDay),
+          maxHoursPerDay: getCruiseTimelineMaxHoursFromUi(),
           reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
           weatherFactorPct: getWeatherFactorPct(),
           effectiveSpeedKn: getEffectiveCruisingSpeed(),
@@ -4845,6 +5448,7 @@
           dom.fuelCostSubEl.textContent = "Enter fuel price to estimate";
         }
       }
+      updateDerivedSummaryCards();
       syncTimelineRouteTotalLine();
     }
 
@@ -4965,7 +5569,7 @@
         return buildCruiseTimeline(
           routeId,
           dom.startDateEl ? String(dom.startDateEl.value || "").trim() : "",
-          state.cruiseTimeline.maxHoursPerDay,
+          getCruiseTimelineMaxHoursFromUi(),
           (previewLegsForTimeline.length ? previewLegsForTimeline : state.previewLegs)
         ).then(function () {
           return resPayload;
@@ -5040,7 +5644,7 @@
           return buildCruiseTimeline(
             activeRouteId,
             dom.startDateEl ? String(dom.startDateEl.value || "").trim() : "",
-            state.cruiseTimeline.maxHoursPerDay,
+            getCruiseTimelineMaxHoursFromUi(),
             (previewLegsForTimeline.length ? previewLegsForTimeline : state.previewLegs)
           ).then(function () {
             return resPayload;
@@ -5115,7 +5719,10 @@
         state.activeRouteId = routeId;
         state.activeRouteType = "generated";
         state.selectedLegContext = "routegen";
+        state.modalMode = "editor";
+        state.editorBaseline = buildEditorBaselineFromPayload(payload);
         setRouteCodeBadge(routeCode || "Generated");
+        setModalModeUI();
         setStatus("Route generated.");
 
         if (utils && typeof utils.showDashboardAlert === "function") {
@@ -5126,13 +5733,10 @@
         buildCruiseTimeline(
           state.activeRouteId,
           dom.startDateEl ? String(dom.startDateEl.value || "").trim() : "",
-          state.cruiseTimeline.maxHoursPerDay,
+          getCruiseTimelineMaxHoursFromUi(),
           state.previewLegs
         );
 
-        if (modal && state.closeGeneratorOnGenerate === true) {
-          modal.hide();
-        }
       })
       .catch(function (err) {
         if (err && err.code === "UNAUTHORIZED") {
@@ -5304,9 +5908,17 @@
       endOptions: [],
       optionalStops: []
     };
+    state.availableVessels = [];
+    state.selectedVesselId = 0;
     state.selectedStopCodes = {};
     state.pendingDraft = null;
     state.manualOverrides.cruisingSpeed = false;
+    state.vesselDefaults = {
+      maxSpeedKn: 0,
+      mostEfficientSpeedKn: 0,
+      gphAtMostEfficientSpeed: 0,
+      gphAtMaxSpeed: 0
+    };
     state.editorBaseline = null;
     state.suppressAutoSelectOnce = false;
     state.activeTemplateCode = "";
@@ -5336,6 +5948,11 @@
     if (dom.routeNameEl) dom.routeNameEl.value = "";
     setRouteCodeBadge("Draft");
     clearRouteNameValidation();
+    if (dom.vesselSelectEl) {
+      dom.vesselSelectEl.innerHTML = '<option value="">Loading vessels...</option>';
+      dom.vesselSelectEl.value = "";
+      dom.vesselSelectEl.disabled = true;
+    }
     if (dom.myRouteNameEl) dom.myRouteNameEl.value = "";
     if (dom.myRouteSelectEl) {
       dom.myRouteSelectEl.innerHTML = '<option value="">Select route</option>';
@@ -5369,10 +5986,13 @@
       dom.endSelectEl.value = "";
     }
     if (dom.paceEl) dom.paceEl.value = "0";
-    if (dom.underwayHoursEl) dom.underwayHoursEl.value = "8";
+    if (dom.mostEfficientSpeedEl) dom.mostEfficientSpeedEl.value = "";
+    if (dom.cruisingSpeedEl) dom.cruisingSpeedEl.value = "";
+    if (dom.underwayHoursEl) dom.underwayHoursEl.value = "";
     if (dom.comfortProfileEl) dom.comfortProfileEl.value = "PREFER_INSIDE";
     if (dom.overnightBiasEl) dom.overnightBiasEl.value = "MARINAS";
     setFuelBurnBasis(FUEL_BURN_BASIS_MAX);
+    if (dom.fuelBurnEfficientGphEl) dom.fuelBurnEfficientGphEl.value = "";
     if (dom.fuelBurnGphEl) dom.fuelBurnGphEl.value = "";
     if (dom.idleBurnGphEl) dom.idleBurnGphEl.value = "";
     if (dom.idleHoursTotalEl) dom.idleHoursTotalEl.value = "";
@@ -5383,7 +6003,6 @@
     if (dom.setupPanelBodyEl) dom.setupPanelBodyEl.scrollTop = 0;
     setTodayIfMissing();
     updatePaceLabel();
-    applyPaceDefaults(true);
     updatePaceOverrideUI();
     updateFuelBurnBasisUI();
     updateDirectionControlAvailability();
@@ -5462,6 +6081,9 @@
           rememberSelection: !freshStart,
           allowEmpty: freshStart
         });
+        if (freshStart && !preferred) {
+          return fetchGeneratorVesselDefaults();
+        }
         return fetchOptions();
       })
       .then(function () {
@@ -5562,15 +6184,19 @@
     state.selectedLegContext = "routegen";
     state.manualOverrides.cruisingSpeed = false;
     state.suppressAutoSelectOnce = true;
+    state.selectedVesselId = 0;
     if (dom.routeNameEl) dom.routeNameEl.value = "";
     setRouteCodeBadge("Draft");
     clearRouteNameValidation();
 
     if (dom.paceEl) dom.paceEl.value = "0";
-    if (dom.underwayHoursEl) dom.underwayHoursEl.value = "8";
+    if (dom.mostEfficientSpeedEl) dom.mostEfficientSpeedEl.value = "";
+    if (dom.cruisingSpeedEl) dom.cruisingSpeedEl.value = "";
+    if (dom.underwayHoursEl) dom.underwayHoursEl.value = "";
     if (dom.comfortProfileEl) dom.comfortProfileEl.value = "PREFER_INSIDE";
     if (dom.overnightBiasEl) dom.overnightBiasEl.value = "MARINAS";
     setFuelBurnBasis(FUEL_BURN_BASIS_MAX);
+    if (dom.fuelBurnEfficientGphEl) dom.fuelBurnEfficientGphEl.value = "";
     if (dom.fuelBurnGphEl) dom.fuelBurnGphEl.value = "";
     if (dom.idleBurnGphEl) dom.idleBurnGphEl.value = "";
     if (dom.idleHoursTotalEl) dom.idleHoursTotalEl.value = "";
@@ -5579,7 +6205,11 @@
     if (dom.reservePctEl) dom.reservePctEl.value = String(DEFAULT_RESERVE_PCT);
     if (dom.fuelPricePerGalEl) dom.fuelPricePerGalEl.value = "";
 
+    syncSelectedVesselFromAvailableList();
     applyPaceDefaults(true);
+    applyMostEfficientSpeedDefaultFromVessel();
+    applyEfficientFuelBurnDefaultFromVessel();
+    applyFuelBurnDefaultFromVessel();
     updatePaceLabel();
     updatePaceOverrideUI();
     updateFuelBurnBasisUI();
@@ -5617,6 +6247,14 @@
     if (dom.routeNameEl) {
       dom.routeNameEl.value = String(baseline.route_name || "");
     }
+    state.selectedVesselId = toInt(
+      baseline.selected_vessel_id !== undefined ? baseline.selected_vessel_id :
+        (baseline.selectedVesselId !== undefined ? baseline.selectedVesselId : 0),
+      0
+    );
+    if (dom.vesselSelectEl) {
+      dom.vesselSelectEl.value = (state.selectedVesselId > 0 ? String(state.selectedVesselId) : "");
+    }
     setRouteCodeBadge(state.activeRouteCode);
     clearRouteNameValidation();
 
@@ -5635,11 +6273,15 @@
     applyPaceDefaults(true);
     updatePaceLabel();
 
+    if (dom.mostEfficientSpeedEl) dom.mostEfficientSpeedEl.value = String(baseline.vessel_most_efficient_speed_kn || "");
     if (dom.cruisingSpeedEl) dom.cruisingSpeedEl.value = String(baseline.cruising_speed || "");
-    if (dom.underwayHoursEl) dom.underwayHoursEl.value = String(baseline.underway_hours_per_day || "8");
+    if (dom.underwayHoursEl) dom.underwayHoursEl.value = String(baseline.underway_hours_per_day || "");
     if (dom.comfortProfileEl) dom.comfortProfileEl.value = String(baseline.comfort_profile || "PREFER_INSIDE");
     if (dom.overnightBiasEl) dom.overnightBiasEl.value = String(baseline.overnight_bias || "MARINAS");
     setFuelBurnBasis(FUEL_BURN_BASIS_MAX);
+    if (dom.fuelBurnEfficientGphEl) {
+      dom.fuelBurnEfficientGphEl.value = String(baseline.vessel_gph_at_most_efficient_speed || "");
+    }
     if (dom.fuelBurnGphEl) {
       dom.fuelBurnGphEl.value = String(baseline.fuel_burn_gph || "");
     }
@@ -5794,8 +6436,11 @@
     if (!target || target.id !== "routeGenTimelineMaxHours") return;
     dom.cruiseTimelineMaxHoursEl = target;
     clamped = clampCruiseTimelineHours(target.value);
+    if (dom.underwayHoursEl) {
+      dom.underwayHoursEl.value = formatCruiseTimelineHoursInput(clamped);
+    }
     state.cruiseTimeline.maxHoursPerDay = clamped;
-    target.value = formatCruiseTimelineHoursInput(clamped);
+    syncCruiseTimelineMaxHoursField(clamped);
   }
 
   function createMyRoute() {
@@ -5858,7 +6503,8 @@
     });
   }
 
-  function setMyRouteStartWaypoint() {
+  function setMyRouteStartWaypoint(options) {
+    var opts = options || {};
     var routeId = toInt(state.myRoutes.activeRouteId, 0);
     var startWaypointId = toInt(dom.myRouteStartWaypointSelectEl ? dom.myRouteStartWaypointSelectEl.value : 0, 0);
     if (routeId <= 0) {
@@ -5887,10 +6533,19 @@
       );
       setMyRouteLegs(Array.isArray(data.legs) ? data.legs : []);
       renderMyRouteWaypointOptions();
-      setStatus(state.myRoutes.startWaypointId > 0 ? "My Route start waypoint set." : "My Route start waypoint cleared.");
+      if (!opts.suppressStatus) {
+        setStatus(state.myRoutes.startWaypointId > 0 ? "My Route start waypoint set." : "My Route start waypoint cleared.");
+      }
       return loadMyRoutes({ reloadActive: true, silentError: true });
     }).catch(function (err) {
-      showError((err && err.message) ? err.message : "Unable to set route start waypoint.");
+      var message = (err && err.message) ? err.message : "Unable to set route start waypoint.";
+      if (!opts.suppressError) {
+        showError(message);
+      }
+      if (opts.rejectOnError) {
+        throw (err instanceof Error ? err : new Error(message));
+      }
+      return null;
     }).finally(function () {
       endMyRoutePending();
     });
@@ -5898,7 +6553,12 @@
 
   function addWaypointLegToMyRoute() {
     var routeId = toInt(state.myRoutes.activeRouteId, 0);
+    var persistedStartWaypointId = toInt(state.myRoutes.startWaypointId, 0);
+    var selectedStartWaypointId = toInt(dom.myRouteStartWaypointSelectEl ? dom.myRouteStartWaypointSelectEl.value : 0, 0);
     var endWaypointId = toInt(dom.myRouteEndWaypointSelectEl ? dom.myRouteEndWaypointSelectEl.value : 0, 0);
+    var hasExistingLegs = Array.isArray(state.myRoutes.legs) && state.myRoutes.legs.length > 0;
+    var needsStartPersist = !hasExistingLegs && persistedStartWaypointId <= 0 && selectedStartWaypointId > 0;
+    var addLegPromise = Promise.resolve(null);
     if (routeId <= 0) {
       showError("Select a My Route first.");
       return;
@@ -5907,15 +6567,24 @@
       showError("Select an end waypoint to add a leg.");
       return;
     }
+    if (needsStartPersist) {
+      addLegPromise = setMyRouteStartWaypoint({
+        suppressStatus: true,
+        suppressError: true,
+        rejectOnError: true
+      });
+    }
     beginMyRoutePending();
-    return fetchJson(apiUrl("addWaypointLegToUserRoute"), {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-      body: JSON.stringify({
-        route_id: routeId,
-        end_waypoint_id: endWaypointId
-      })
+    return addLegPromise.then(function () {
+      return fetchJson(apiUrl("addWaypointLegToUserRoute"), {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({
+          route_id: routeId,
+          end_waypoint_id: endWaypointId
+        })
+      });
     }).then(function (payload) {
       if (!payload || payload.SUCCESS === false) {
         throw new Error(extractApiMessage(payload, "Unable to add waypoint leg."));
@@ -6198,6 +6867,12 @@
       dom.myRouteSetStartBtn.addEventListener("click", setMyRouteStartWaypoint);
     }
 
+    if (dom.myRouteStartWaypointSelectEl) {
+      dom.myRouteStartWaypointSelectEl.addEventListener("change", function () {
+        renderMyRouteControlAvailability();
+      });
+    }
+
     if (dom.myRouteAddWaypointLegBtn) {
       dom.myRouteAddWaypointLegBtn.addEventListener("click", addWaypointLegToMyRoute);
     }
@@ -6342,6 +7017,10 @@
       });
     }
 
+    if (dom.vesselSelectEl) {
+      dom.vesselSelectEl.addEventListener("change", onVesselSelectChange);
+    }
+
     if (dom.cruisingSpeedEl) {
       dom.cruisingSpeedEl.addEventListener("input", function () {
         state.manualOverrides.cruisingSpeed = true;
@@ -6357,6 +7036,14 @@
     if (dom.fuelBurnGphEl) {
       dom.fuelBurnGphEl.addEventListener("input", onFormChange);
       dom.fuelBurnGphEl.addEventListener("change", onFormChange);
+    }
+    if (dom.mostEfficientSpeedEl) {
+      dom.mostEfficientSpeedEl.addEventListener("input", onFormChange);
+      dom.mostEfficientSpeedEl.addEventListener("change", onFormChange);
+    }
+    if (dom.fuelBurnEfficientGphEl) {
+      dom.fuelBurnEfficientGphEl.addEventListener("input", onFormChange);
+      dom.fuelBurnEfficientGphEl.addEventListener("change", onFormChange);
     }
     if (dom.idleBurnGphEl) {
       dom.idleBurnGphEl.addEventListener("input", onFormChange);
@@ -6595,11 +7282,14 @@
     dom.paceOverrideHintEl = document.getElementById("routeGenPaceOverrideHint");
     dom.resetPaceBtn = document.getElementById("routeGenResetPaceBtn");
 
+    dom.vesselSelectEl = document.getElementById("routeGenVesselSelect");
+    dom.mostEfficientSpeedEl = document.getElementById("routeGenMostEfficientSpeed");
     dom.cruisingSpeedEl = document.getElementById("routeGenCruisingSpeed");
     dom.underwayHoursEl = document.getElementById("routeGenUnderwayHoursPerDay");
     dom.comfortProfileEl = document.getElementById("routeGenComfortProfile");
     dom.overnightBiasEl = document.getElementById("routeGenOvernightBias");
     dom.fuelBurnLabelEl = document.getElementById("routeGenFuelBurnLabel");
+    dom.fuelBurnEfficientGphEl = document.getElementById("routeGenFuelBurnEfficientGph");
     dom.fuelBurnGphEl = document.getElementById("routeGenFuelBurnGph");
     dom.fuelBurnHintEl = document.getElementById("routeGenFuelBurnHint");
     dom.fuelBurnDerivedEl = document.getElementById("routeGenFuelBurnDerived");
@@ -6641,6 +7331,10 @@
     dom.estimatedFuelSubEl = document.getElementById("routeGenEstimatedFuelSub");
     dom.fuelCostEl = document.getElementById("routeGenFuelCost");
     dom.fuelCostSubEl = document.getElementById("routeGenFuelCostSub");
+    dom.adjustedSpeedEl = document.getElementById("routeGenAdjustedSpeed");
+    dom.adjustedSpeedSubEl = document.getElementById("routeGenAdjustedSpeedSub");
+    dom.expectedAvgGphEl = document.getElementById("routeGenExpectedAvgGph");
+    dom.expectedAvgGphSubEl = document.getElementById("routeGenExpectedAvgGphSub");
     dom.legCountEl = document.getElementById("routeGenLegCount");
     dom.legHeaderTitleEl = document.getElementById("routeGenLegHeaderTitle");
     dom.legHeaderCalcEl = document.getElementById("routeGenLegHeaderCalc");
