@@ -1,4 +1,4 @@
-require("./test-hooks");
+const { submitLoginForm } = require("./test-hooks");
 
 if (!process.env.FPW_EMAIL || !process.env.FPW_PASSWORD) {
   throw new Error("Missing FPW_EMAIL / FPW_PASSWORD env vars");
@@ -26,10 +26,7 @@ async function gotoWithRetry(page, url, retries = 1) {
 }
 
 async function loginToDashboard(page) {
-  await gotoWithRetry(page, "/fpw/index.cfm");
-  await page.fill('input[name="email"], input[name="EMAIL"]', process.env.FPW_EMAIL || "");
-  await page.fill('input[type="password"], input[name="password"], input[name="PASSWORD"]', process.env.FPW_PASSWORD || "");
-  await page.click('button[type="submit"], input[type="submit"]');
+  await submitLoginForm(page, { loginUrl: "/fpw/index.cfm", waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
   await expect(page).not.toHaveURL(/index\.cfm$/i);
 
@@ -66,11 +63,6 @@ async function openRoutePreview(page) {
     return !!sel && sel.options.length > 1;
   }, { timeout: 20000 });
   await page.selectOption("#routeGenEndLocation", { index: 1 });
-
-  const previewBtn = page.locator("#routeGenPreviewBtn");
-  await expect(previewBtn).toBeVisible({ timeout: 30000 });
-  await expect(previewBtn).toBeEnabled({ timeout: 60000 });
-  await previewBtn.click({ timeout: 60000 });
 
   await page.waitForFunction(() => {
     return document.querySelectorAll("#routeGenLegList .fpw-routegen__leg").length > 0;

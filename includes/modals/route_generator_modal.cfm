@@ -439,7 +439,7 @@
 
     #fpwRouteGen .rg-myroutes-grid {
       display: grid;
-      grid-template-columns: 1fr 1.15fr;
+      grid-template-columns: 1fr;
       gap: 8px;
     }
 
@@ -1481,46 +1481,42 @@
                   </div>
 
                   <div class="rg-myroutes-grid">
-                    <div class="rg-stack">
-                      <div class="rg-field">
-                        <label for="routeGenMyRouteName">Create Route</label>
-                        <div class="rg-inline-actions">
-                          <input id="routeGenMyRouteName" type="text" class="form-control form-control-sm" placeholder="Route name">
-                          <button type="button" id="routeGenMyRouteCreateBtn" class="btn-secondary btn-sm">Create</button>
-                        </div>
-                      </div>
-
-                      <div class="rg-field">
-                        <label for="routeGenMyRouteStartWaypointSelect">Route Start Waypoint</label>
-                        <div class="rg-inline-actions">
-                          <select id="routeGenMyRouteStartWaypointSelect" class="form-select form-select-sm">
-                            <option value="">Select start waypoint</option>
-                          </select>
-                          <button type="button" id="routeGenMyRouteSetStartBtn" class="btn-secondary btn-sm">Set Start</button>
-                        </div>
+                    <div class="rg-field">
+                      <label for="routeGenMyRouteSelect">My Routes</label>
+                      <div class="rg-inline-actions">
+                        <select id="routeGenMyRouteSelect" class="form-select form-select-sm">
+                          <option value="">Select route</option>
+                        </select>
+                        <button type="button" id="routeGenMyRouteLoadBtn" class="btn-secondary btn-sm">Load</button>
+                        <button type="button" id="routeGenMyRouteDeleteBtn" class="btn-secondary btn-sm">Delete</button>
                       </div>
                     </div>
 
-                    <div class="rg-stack">
-                      <div class="rg-field">
-                        <label for="routeGenMyRouteSelect">My Routes</label>
-                        <div class="rg-inline-actions">
-                          <select id="routeGenMyRouteSelect" class="form-select form-select-sm">
-                            <option value="">Select route</option>
-                          </select>
-                          <button type="button" id="routeGenMyRouteLoadBtn" class="btn-secondary btn-sm">Load</button>
-                          <button type="button" id="routeGenMyRouteDeleteBtn" class="btn-secondary btn-sm">Delete</button>
-                        </div>
+                    <div class="rg-field">
+                      <label for="routeGenMyRouteName">Create Route</label>
+                      <div class="rg-inline-actions">
+                        <input id="routeGenMyRouteName" type="text" class="form-control form-control-sm" placeholder="Route name">
+                        <button type="button" id="routeGenMyRouteCreateBtn" class="btn-secondary btn-sm">Create</button>
                       </div>
+                    </div>
 
-                      <div class="rg-field">
-                        <label for="routeGenMyRouteEndWaypointSelect">Add Leg by Waypoint</label>
-                        <div class="rg-inline-actions">
-                          <select id="routeGenMyRouteEndWaypointSelect" class="form-select form-select-sm">
-                            <option value="">Select end waypoint</option>
-                          </select>
-                          <button type="button" id="routeGenMyRouteAddWaypointLegBtn" class="btn-secondary btn-sm">Add Leg</button>
-                        </div>
+                    <div class="rg-field">
+                      <label for="routeGenMyRouteStartWaypointSelect">Route Start Waypoint</label>
+                      <div class="rg-inline-actions">
+                        <select id="routeGenMyRouteStartWaypointSelect" class="form-select form-select-sm">
+                          <option value="">Select start waypoint</option>
+                        </select>
+                        <button type="button" id="routeGenMyRouteSetStartBtn" class="btn-secondary btn-sm">Set Start</button>
+                      </div>
+                    </div>
+
+                    <div class="rg-field">
+                      <label for="routeGenMyRouteEndWaypointSelect">Add Leg by Waypoint</label>
+                      <div class="rg-inline-actions">
+                        <select id="routeGenMyRouteEndWaypointSelect" class="form-select form-select-sm">
+                          <option value="">Select end waypoint</option>
+                        </select>
+                        <button type="button" id="routeGenMyRouteAddWaypointLegBtn" class="btn-secondary btn-sm">Add Leg</button>
                       </div>
                     </div>
                   </div>
@@ -1712,7 +1708,11 @@
                   </div>
                   <div class="rg-field rg-field--compact">
                     <label for="routeGenReservePct">Reserve (%)</label>
-                    <input id="routeGenReservePct" type="number" step="1" min="0" max="100" class="form-control form-control-sm" value="20">
+                    <select id="routeGenReservePct" class="form-select form-select-sm">
+                      <option value="33" selected>Rule of Thirds - 33%</option>
+                      <option value="20">Standard Reserve - 20%</option>
+                      <option value="15">Minimum Reserve - 15%</option>
+                    </select>
                   </div>
                   <div class="rg-field rg-field--compact">
                     <label for="routeGenUnderwayHoursPerDay">Underway Hrs / Day</label>

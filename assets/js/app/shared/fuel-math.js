@@ -86,11 +86,9 @@
     var totalHours = null;
     var totalLocks = null;
     var totalReserveFuel = null;
-    var confidenceMin = null;
     var hasHours = false;
     var hasLocks = false;
     var hasReserve = false;
-    var hasConfidence = false;
     var hoursAcc = 0;
     var locksAcc = 0;
     var reserveAcc = 0;
@@ -102,6 +100,7 @@
     var reservePct = safeVal(ui.reservePct);
     var fuelBurnGph = safeVal(meta.fuelBurnGph);
     var weatherAdjustedBurnGph = safeVal(meta.weatherAdjustedBurnGph);
+    var summaryFuelBurnGph = fuelBurnGph;
     var fuelSource = String(meta.fuelSource || "").trim();
     var fuelPricePerGal = safeVal(ui.fuelPricePerGal);
     var hoursExpr = "";
@@ -112,7 +111,6 @@
     var displayedDays = null;
     var baseFuelByRate = null;
     var requiredFuelByRate = null;
-    var baseFuelFromTimeline = null;
     var baseFuelForSummary = null;
     var reserveFuelForSummary = null;
     var requiredFuelForSummary = null;
@@ -120,6 +118,9 @@
     var estimatedDaysSubText = "";
     var estimatedFuelSubText = "";
     var fuelCostSubText = "";
+    var rateEstimateText = "";
+    var rateEstimateAbsDiff = null;
+    var rateEstimatePctDiff = null;
 
     if (effectiveSpeedKn === null) {
       effectiveSpeedKn = safeVal(ui.effectiveSpeedKn);
@@ -127,12 +128,14 @@
     if (weatherPctUsed === null) {
       weatherPctUsed = safeVal(ui.weatherFactorPct);
     }
+    if (weatherAdjustedBurnGph !== null && (summaryFuelBurnGph === null || weatherAdjustedBurnGph < summaryFuelBurnGph)) {
+      summaryFuelBurnGph = weatherAdjustedBurnGph;
+    }
 
     days.forEach(function (day) {
       var h = safeVal(day.estHours);
       var l = safeVal(day.lockCount);
       var r = safeVal(day.reserveGallons);
-      var c = safeVal(day.confidence);
       if (h !== null) {
         hoursAcc += h;
         hasHours = true;
@@ -144,10 +147,6 @@
       if (r !== null) {
         reserveAcc += r;
         hasReserve = true;
-      }
-      if (c !== null) {
-        hasConfidence = true;
-        if (confidenceMin === null || c < confidenceMin) confidenceMin = c;
       }
     });
 
@@ -207,32 +206,27 @@
       dayExpr = "Max/day " + formatNum(maxHoursPerDay, 1) + " h → " + (totalDays !== null ? (formatNum(totalDays, 0) + " days") : "n/a");
     }
 
-    if (totalHours !== null && fuelBurnGph !== null) {
-      baseFuelByRate = totalHours * fuelBurnGph;
+    if (totalHours !== null && summaryFuelBurnGph !== null) {
+      baseFuelByRate = totalHours * summaryFuelBurnGph;
       if (reservePct !== null) {
         requiredFuelByRate = baseFuelByRate * (1 + (reservePct / 100));
-        fuelExpr = "Fuel " + formatNum(totalHours, 2) + " h × " + formatNum(fuelBurnGph, 2) + " gph = " + formatNum(baseFuelByRate, 1) + " gal + " + formatNum(reservePct, 1) + "% reserve = " + formatNum(requiredFuelByRate, 1) + " gal";
+        rateEstimateText = formatNum(totalHours, 2) + " h × " + formatNum(summaryFuelBurnGph, 2) + " gph = " + formatNum(baseFuelByRate, 1) + " gal + " + formatNum(reservePct, 1) + "% reserve = " + formatNum(requiredFuelByRate, 1) + " gal";
       } else {
-        fuelExpr = "Fuel " + formatNum(totalHours, 2) + " h × " + formatNum(fuelBurnGph, 2) + " gph = " + formatNum(baseFuelByRate, 1) + " gal";
+        rateEstimateText = formatNum(totalHours, 2) + " h × " + formatNum(summaryFuelBurnGph, 2) + " gph = " + formatNum(baseFuelByRate, 1) + " gal";
       }
-      if (totalRequiredFuel !== null) {
-        fuelExpr += " (timeline " + formatNum(totalRequiredFuel, 1) + ")";
-      }
-    } else if (totalRequiredFuel !== null) {
-      if (totalReserveFuel !== null) {
-        baseFuelFromTimeline = totalRequiredFuel - totalReserveFuel;
-        if (baseFuelFromTimeline < 0) baseFuelFromTimeline = 0;
-        fuelExpr = "Fuel " + formatNum(baseFuelFromTimeline, 1) + " gal + reserve " + formatNum(totalReserveFuel, 1) + " gal";
-        if (reservePct !== null) {
-          fuelExpr += " (" + formatNum(reservePct, 1) + "%)";
+    }
+
+    if (totalRequiredFuel !== null) {
+      fuelExpr = "Fuel total " + formatNum(totalRequiredFuel, 1) + " gal from Cruise Timeline";
+      if (requiredFuelByRate !== null) {
+        rateEstimateAbsDiff = Math.abs(totalRequiredFuel - requiredFuelByRate);
+        rateEstimatePctDiff = totalRequiredFuel > 0 ? (rateEstimateAbsDiff / totalRequiredFuel) : (rateEstimateAbsDiff > 0 ? Infinity : 0);
+        if (rateEstimateAbsDiff <= 10 && rateEstimatePctDiff <= 0.05) {
+          fuelExpr += " (rate estimate: " + rateEstimateText + ")";
         }
-        fuelExpr += " = " + formatNum(totalRequiredFuel, 1) + " gal";
-      } else {
-        fuelExpr = "Fuel " + formatNum(totalRequiredFuel, 1) + " gal";
       }
-      if (fuelBurnGph !== null) {
-        fuelExpr += " @ " + formatNum(fuelBurnGph, 2) + " gph";
-      }
+    } else if (requiredFuelByRate !== null) {
+      fuelExpr = "Fuel " + rateEstimateText;
     } else {
       fuelExpr = "Fuel n/a";
     }
@@ -240,26 +234,21 @@
       fuelExpr += " [src " + fuelSource.replace(/_/g, " ") + "]";
     }
 
-    if (requiredFuelByRate !== null) {
-      requiredFuelForSummary = requiredFuelByRate;
-      baseFuelForSummary = baseFuelByRate;
-      reserveFuelForSummary = requiredFuelByRate - baseFuelByRate;
-      if (!Number.isFinite(reserveFuelForSummary) || reserveFuelForSummary < 0) reserveFuelForSummary = 0;
-    } else if (totalRequiredFuel !== null) {
+    if (totalRequiredFuel !== null) {
       requiredFuelForSummary = totalRequiredFuel;
       if (totalReserveFuel !== null) {
         reserveFuelForSummary = totalReserveFuel;
         baseFuelForSummary = totalRequiredFuel - totalReserveFuel;
         if (!Number.isFinite(baseFuelForSummary) || baseFuelForSummary < 0) baseFuelForSummary = 0;
       }
+    } else if (requiredFuelByRate !== null) {
+      requiredFuelForSummary = requiredFuelByRate;
+      baseFuelForSummary = baseFuelByRate;
+      reserveFuelForSummary = requiredFuelByRate - baseFuelByRate;
+      if (!Number.isFinite(reserveFuelForSummary) || reserveFuelForSummary < 0) reserveFuelForSummary = 0;
     }
 
     locksExpr = "Locks " + (totalLocks !== null ? formatNum(totalLocks, 0) : "n/a");
-
-    if (hasConfidence && confidenceMin !== null) {
-      if (confidenceMin > 1) confidenceMin = confidenceMin / 100;
-      locksExpr += " • Confidence " + formatNum(confidenceMin, 2);
-    }
 
     if (requiredFuelForSummary !== null && fuelPricePerGal !== null && fuelPricePerGal > 0) {
       fuelCostEstimate = roundTo2(requiredFuelForSummary * fuelPricePerGal);
@@ -297,7 +286,7 @@
       totalLocks: totalLocks,
       adjSpeedKn: adjSpeedKn,
       reservePct: reservePct,
-      fuelBurnGph: fuelBurnGph,
+      fuelBurnGph: summaryFuelBurnGph,
       weatherAdjustedBurnGph: weatherAdjustedBurnGph,
       fuelSource: fuelSource,
       totalRequiredFuel: totalRequiredFuel,

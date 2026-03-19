@@ -2044,7 +2044,7 @@
             );
             var idleBurnGphVal = routegenNormalizeFuelBurnGph(normalizedInput.idle_burn_gph);
             var idleHoursTotalVal = routegenNormalizeIdleHoursTotal(normalizedInput.idle_hours_total);
-            var reservePctVal = routegenNormalizeReservePct(normalizedInput.reserve_pct, 20);
+            var reservePctVal = routegenNormalizeReservePct(normalizedInput.reserve_pct, 33);
             var fuelPricePerGalVal = routegenNormalizeFuelPricePerGal(normalizedInput.fuel_price_per_gal);
             var totals = {};
             var fuelEstimateOut = {};
@@ -4026,9 +4026,9 @@
             }
 
             if (structKeyExists(src, "reserve_pct")) {
-                out.reserve_pct = routegenNormalizeReservePct(src.reserve_pct, 20);
+                out.reserve_pct = routegenNormalizeReservePct(src.reserve_pct, 33);
             } else if (structKeyExists(src, "reservePct")) {
-                out.reserve_pct = routegenNormalizeReservePct(src.reservePct, 20);
+                out.reserve_pct = routegenNormalizeReservePct(src.reservePct, 33);
             }
 
             if (structKeyExists(src, "weather_factor_pct")) {
@@ -4232,12 +4232,14 @@
         <cfargument name="paceRatioVal" type="numeric" required="true">
         <cfargument name="weatherFactorPctVal" type="numeric" required="true">
         <cfargument name="reservePctVal" type="numeric" required="true">
+        <cfargument name="allowAnchoredBurnVal" type="any" required="false" default="false">
         <cfscript>
             var outDay = (isStruct(arguments.day) ? duplicate(arguments.day) : {});
             var fuelEstimate = {};
             var requiredFuelGallonsVal = 0;
             var reserveGallonsVal = 0;
             var reserveRatio = 0;
+            var reserveMarginPct = 0;
             var fuelConfidenceScore = 100;
             var i = 0;
             var slice = {};
@@ -4256,7 +4258,8 @@
                 "paceRatio"=arguments.paceRatioVal,
                 "weatherPct"=arguments.weatherFactorPctVal,
                 "idleFuelGallons"=0,
-                "reservePct"=arguments.reservePctVal
+                "reservePct"=arguments.reservePctVal,
+                "allowAnchoredBurn"=arguments.allowAnchoredBurnVal
             });
             outDay.cruise_fuel_gallons = roundTo2(val(fuelEstimate.cruiseFuelGallons));
             outDay.reserve_gallons = roundTo2(val(fuelEstimate.reserveGallons));
@@ -4264,6 +4267,11 @@
             requiredFuelGallonsVal = val(outDay.required_fuel_gallons);
             reserveGallonsVal = val(outDay.reserve_gallons);
             reserveRatio = (requiredFuelGallonsVal GT 0 ? (reserveGallonsVal / requiredFuelGallonsVal) : 0);
+            reserveMarginPct = (
+                val(fuelEstimate.baseFuelGallons) GT 0
+                    ? ((reserveGallonsVal / val(fuelEstimate.baseFuelGallons)) * 100)
+                    : val(arguments.reservePctVal)
+            );
 
             fuelConfidenceScore = 100;
             if (requiredFuelGallonsVal GT 0 AND reserveRatio LT 0.20) fuelConfidenceScore -= 25;
@@ -4272,12 +4280,19 @@
             if (fuelConfidenceScore LT 0) fuelConfidenceScore = 0;
             if (fuelConfidenceScore GT 100) fuelConfidenceScore = 100;
             outDay.fuel_confidence_score = fuelConfidenceScore;
-            if (fuelConfidenceScore GTE 80) {
+            if (reserveMarginPct GTE 33) {
                 outDay.risk_color = "GREEN";
-            } else if (fuelConfidenceScore GTE 60) {
+            } else if (reserveMarginPct GTE 20) {
                 outDay.risk_color = "YELLOW";
             } else {
                 outDay.risk_color = "RED";
+            }
+            if (val(structKeyExists(outDay, "est_hours") ? outDay.est_hours : 0) GT 8) {
+                if (outDay.risk_color EQ "GREEN") {
+                    outDay.risk_color = "YELLOW";
+                } else if (outDay.risk_color EQ "YELLOW") {
+                    outDay.risk_color = "RED";
+                }
             }
 
             outDay.total_dist_nm = roundTo2(val(structKeyExists(outDay, "total_dist_nm") ? outDay.total_dist_nm : 0));
@@ -4371,9 +4386,10 @@
             var fuelBurnGphVal = 0;
             var maxBurnForEstimateVal = 0;
             var weatherFactorPctVal = 0;
-            var reservePctVal = 20;
+            var reservePctVal = 33;
             var timelineFuelEstimateMeta = {};
             var performanceMeta = {};
+            var allowAnchoredBurnVal = false;
             var normalizedLegJoinSql = "";
             var normalizedSegJoinSql = "";
             var normalizedUsoJoinSql = "";
@@ -4544,6 +4560,7 @@
                 effectiveInputs,
                 (structKeyExists(effectiveInputs, "pace") ? effectiveInputs.pace : "RELAXED")
             );
+            allowAnchoredBurnVal = routegenCanUseAnchoredBurn(performanceMeta);
             fuelMeta = resolveTimelineFuelBurnFromInputs(effectiveInputs);
             fuelBurnGphVal = routegenNormalizeFuelBurnGph(performanceMeta.fuel_burn_gph);
             maxBurnForEstimateVal = routegenNormalizeFuelBurnGph(performanceMeta.max_burn_for_estimate);
@@ -4597,7 +4614,7 @@
             );
             reservePctVal = routegenNormalizeReservePct(
                 structKeyExists(effectiveInputs, "reserve_pct") ? effectiveInputs.reserve_pct : "",
-                20
+                33
             );
             timelineFuelEstimateMeta = calculateFuelEstimate({
                 "distanceNm"=1,
@@ -4609,7 +4626,8 @@
                 "paceRatio"=paceRatioVal,
                 "weatherPct"=weatherFactorPctVal,
                 "idleFuelGallons"=0,
-                "reservePct"=reservePctVal
+                "reservePct"=reservePctVal,
+                "allowAnchoredBurn"=allowAnchoredBurnVal
             });
             out.timeline_meta.weather_adjusted_fuel_burn_gph = roundTo2(
                 structKeyExists(timelineFuelEstimateMeta, "weatherAdjustedBurnGph")
@@ -4944,7 +4962,8 @@
                             paceVal = paceVal,
                             paceRatioVal = paceRatioVal,
                             weatherFactorPctVal = weatherFactorPctVal,
-                            reservePctVal = reservePctVal
+                            reservePctVal = reservePctVal,
+                            allowAnchoredBurnVal = allowAnchoredBurnVal
                         );
                         totalCruiseNm += val(finalizedDay.total_dist_nm);
                         totalRequiredFuel += val(finalizedDay.required_fuel_gallons);
@@ -5037,7 +5056,8 @@
                     paceVal = paceVal,
                     paceRatioVal = paceRatioVal,
                     weatherFactorPctVal = weatherFactorPctVal,
-                    reservePctVal = reservePctVal
+                    reservePctVal = reservePctVal,
+                    allowAnchoredBurnVal = allowAnchoredBurnVal
                 );
                 totalCruiseNm += val(finalizedDay.total_dist_nm);
                 totalRequiredFuel += val(finalizedDay.required_fuel_gallons);
@@ -5992,7 +6012,7 @@
 
     <cffunction name="routegenNormalizeReservePct" access="private" returntype="numeric" output="false">
         <cfargument name="reservePct" type="any" required="false" default="">
-        <cfargument name="defaultPct" type="numeric" required="false" default="20">
+        <cfargument name="defaultPct" type="numeric" required="false" default="33">
         <cfscript>
             var rawVal = trim(toString(arguments.reservePct));
             var pctVal = 0;
@@ -6039,6 +6059,87 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="routegenAnchoredBurnInputsValid" access="private" returntype="boolean" output="false">
+        <cfargument name="maxSpeedKn" type="any" required="false" default="0">
+        <cfargument name="maxBurnGph" type="any" required="false" default="0">
+        <cfargument name="efficientSpeedKn" type="any" required="false" default="0">
+        <cfargument name="efficientBurnGph" type="any" required="false" default="0">
+        <cfscript>
+            var lowSpeedAnchorKn = 3.5;
+            var maxSpeedVal = val(arguments.maxSpeedKn);
+            var maxBurnVal = routegenNormalizeFuelBurnGph(arguments.maxBurnGph);
+            var efficientSpeedVal = val(arguments.efficientSpeedKn);
+            var efficientBurnVal = routegenNormalizeFuelBurnGph(arguments.efficientBurnGph);
+            if (maxSpeedVal LTE 0) return false;
+            if (maxBurnVal LTE 0) return false;
+            if (efficientSpeedVal LTE lowSpeedAnchorKn) return false;
+            if (efficientBurnVal LTE 0) return false;
+            if (maxSpeedVal LT efficientSpeedVal) return false;
+            return true;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenAnchoredBurnGph" access="private" returntype="numeric" output="false">
+        <cfargument name="effectiveSpeedKn" type="any" required="false" default="0">
+        <cfargument name="maxSpeedKn" type="any" required="false" default="0">
+        <cfargument name="maxBurnGph" type="any" required="false" default="0">
+        <cfargument name="efficientSpeedKn" type="any" required="false" default="0">
+        <cfargument name="efficientBurnGph" type="any" required="false" default="0">
+        <cfscript>
+            var lowSpeedAnchorKn = 3.5;
+            var speedVal = val(arguments.effectiveSpeedKn);
+            var maxSpeedVal = val(arguments.maxSpeedKn);
+            var maxBurnVal = routegenNormalizeFuelBurnGph(arguments.maxBurnGph);
+            var efficientSpeedVal = val(arguments.efficientSpeedKn);
+            var efficientBurnVal = routegenNormalizeFuelBurnGph(arguments.efficientBurnGph);
+            var lowBurnVal = efficientBurnVal * 0.25;
+            var factorVal = 0;
+
+            if (
+                !routegenAnchoredBurnInputsValid(
+                    maxSpeedVal,
+                    maxBurnVal,
+                    efficientSpeedVal,
+                    efficientBurnVal
+                )
+            ) {
+                return 0;
+            }
+
+            if (speedVal LTE lowSpeedAnchorKn) {
+                return roundTo2(lowBurnVal);
+            }
+            if (speedVal LT efficientSpeedVal) {
+                factorVal = (speedVal - lowSpeedAnchorKn) / (efficientSpeedVal - lowSpeedAnchorKn);
+                return roundTo2(lowBurnVal + ((efficientBurnVal - lowBurnVal) * factorVal));
+            }
+            if (speedVal LTE efficientSpeedVal) {
+                return roundTo2(efficientBurnVal);
+            }
+            if (speedVal LT maxSpeedVal) {
+                factorVal = (speedVal - efficientSpeedVal) / (maxSpeedVal - efficientSpeedVal);
+                return roundTo2(efficientBurnVal + ((maxBurnVal - efficientBurnVal) * factorVal));
+            }
+            return roundTo2(maxBurnVal);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenCanUseAnchoredBurn" access="private" returntype="boolean" output="false">
+        <cfargument name="performanceMeta" type="struct" required="true">
+        <cfscript>
+            var fuelSourceVal = trim(toString(structKeyExists(arguments.performanceMeta, "fuel_source") ? arguments.performanceMeta.fuel_source : ""));
+            var speedSourceVal = trim(toString(structKeyExists(arguments.performanceMeta, "speed_source") ? arguments.performanceMeta.speed_source : ""));
+            if (fuelSourceVal NEQ "route_inputs" AND fuelSourceVal NEQ "route_inputs_alias") return false;
+            if (speedSourceVal NEQ "route_inputs" AND speedSourceVal NEQ "vessel_max") return false;
+            return routegenAnchoredBurnInputsValid(
+                structKeyExists(arguments.performanceMeta, "max_speed_kn") ? arguments.performanceMeta.max_speed_kn : 0,
+                structKeyExists(arguments.performanceMeta, "fuel_burn_gph") ? arguments.performanceMeta.fuel_burn_gph : 0,
+                structKeyExists(arguments.performanceMeta, "most_efficient_speed_kn") ? arguments.performanceMeta.most_efficient_speed_kn : 0,
+                structKeyExists(arguments.performanceMeta, "most_efficient_burn_gph") ? arguments.performanceMeta.most_efficient_burn_gph : 0
+            );
+        </cfscript>
+    </cffunction>
+
     <cffunction name="calculateFuelEstimate" access="private" returntype="struct" output="false">
         <cfargument name="args" type="struct" required="false" default="#structNew()#">
         <cfscript>
@@ -6072,9 +6173,17 @@
             var idleFuelGallonsVal = val(structKeyExists(src, "idleFuelGallons") ? src.idleFuelGallons : 0);
             var fuelPriceVal = val(structKeyExists(src, "fuelPricePerGallon") ? src.fuelPricePerGallon : 0);
             var useMostEfficientValues = (paceEnumVal EQ "BALANCED");
+            var allowAnchoredBurn = false;
 
             if (efficientSpeedVal LT 1) efficientSpeedVal = 0;
             if (efficientSpeedVal GT 60) efficientSpeedVal = 60;
+            if (structKeyExists(src, "allowAnchoredBurn")) {
+                allowAnchoredBurn = (
+                    isBoolean(src.allowAnchoredBurn)
+                        ? src.allowAnchoredBurn
+                        : (val(src.allowAnchoredBurn) EQ 1)
+                );
+            }
 
             if (distanceVal LTE 0 OR maxSpeedVal LTE 0) {
                 return out;
@@ -6121,7 +6230,25 @@
                 if (paceRatioVal GT 1) paceRatioVal = 1;
                 out.paceRatio = roundTo2(paceRatioVal);
                 out.effectiveSpeedKnots = roundTo2(maxSpeedVal * paceRatioVal);
-                out.paceAdjustedBurnGph = paceAdjustedBurnGph(maxBurnVal, paceRatioVal, 3.0);
+                if (
+                    allowAnchoredBurn
+                    AND routegenAnchoredBurnInputsValid(
+                        maxSpeedVal,
+                        maxBurnVal,
+                        efficientSpeedVal,
+                        efficientBurnVal
+                    )
+                ) {
+                    out.paceAdjustedBurnGph = routegenAnchoredBurnGph(
+                        out.effectiveSpeedKnots,
+                        maxSpeedVal,
+                        maxBurnVal,
+                        efficientSpeedVal,
+                        efficientBurnVal
+                    );
+                } else {
+                    out.paceAdjustedBurnGph = paceAdjustedBurnGph(maxBurnVal, paceRatioVal, 3.0);
+                }
             }
             out.weatherAdjustedSpeedKnots = roundTo2(out.effectiveSpeedKnots * (1 - weatherAdj));
             if (out.weatherAdjustedSpeedKnots LT 0.5) out.weatherAdjustedSpeedKnots = 0.5;
@@ -6134,7 +6261,7 @@
             if (reserveGallonsVal GT 0) {
                 out.reserveGallons = roundTo2(reserveGallonsVal);
             } else {
-                if (reservePctVal LTE 0) reservePctVal = 20;
+                if (reservePctVal LTE 0) reservePctVal = 33;
                 out.reserveGallons = roundTo2(out.baseFuelGallons * (reservePctVal / 100));
             }
 
@@ -6286,7 +6413,7 @@
             var idleBurnVal = 0;
             var idleHoursVal = 0;
             var weatherPctVal = 0;
-            var reservePctVal = 20;
+            var reservePctVal = 33;
             var fuelPriceVal = 0;
             var vesselMaxSpeedVal = 0;
             var vesselMostEffSpeedVal = 0;
@@ -6320,7 +6447,7 @@
             );
             reservePctVal = routegenNormalizeReservePct(
                 structKeyExists(payload, "reserve_pct") ? payload.reserve_pct : "",
-                20
+                33
             );
             fuelPriceVal = routegenNormalizeFuelPricePerGal(
                 structKeyExists(payload, "fuel_price_per_gal") ? payload.fuel_price_per_gal : ""
@@ -6921,9 +7048,10 @@
         <cfargument name="underwayHoursPerDay" type="numeric" required="false" default="6.5">
         <cfargument name="fuelBurnGph" type="any" required="false" default="">
         <cfargument name="maxBurnForEstimate" type="any" required="false" default="">
+        <cfargument name="allowAnchoredBurn" type="any" required="false" default="false">
         <cfargument name="idleBurnGph" type="any" required="false" default="">
         <cfargument name="idleHoursTotal" type="any" required="false" default="">
-        <cfargument name="reservePct" type="any" required="false" default="20">
+        <cfargument name="reservePct" type="any" required="false" default="33">
         <cfargument name="fuelPricePerGal" type="any" required="false" default="">
         <cfargument name="maxSpeedKnots" type="any" required="false" default="">
         <cfargument name="mostEfficientSpeedKn" type="any" required="false" default="">
@@ -6954,7 +7082,7 @@
             var maxBurnUsedVal = 0.0;
             var idleBurnVal = routegenNormalizeFuelBurnGph(arguments.idleBurnGph);
             var idleHoursVal = routegenNormalizeIdleHoursTotal(arguments.idleHoursTotal);
-            var reservePctVal = routegenNormalizeReservePct(arguments.reservePct, 20);
+            var reservePctVal = routegenNormalizeReservePct(arguments.reservePct, 33);
             var fuelPriceVal = routegenNormalizeFuelPricePerGal(arguments.fuelPricePerGal);
             var totalHours = 0.0;
             var daysByTime = 0;
@@ -7011,7 +7139,8 @@
                 "weatherPct"=weatherPctVal,
                 "idleFuelGallons"=idleFuelGallonsVal,
                 "reservePct"=reservePctVal,
-                "fuelPricePerGallon"=fuelPriceVal
+                "fuelPricePerGallon"=fuelPriceVal,
+                "allowAnchoredBurn"=arguments.allowAnchoredBurn
             });
 
             cruiseFuelGallonsVal = roundTo2(val(fuelEstimate.cruiseFuelGallons));
@@ -7087,14 +7216,25 @@
             var idleHoursTotalVal = routegenNormalizeIdleHoursTotal(normalizedInput.idle_hours_total);
             var weatherFactorPctVal = routegenNormalizeWeatherFactorPct(normalizedInput.weather_factor_pct);
             var weatherFactorVal = weatherFactorPctVal / 100;
-            var reservePctVal = routegenNormalizeReservePct(normalizedInput.reserve_pct, 20);
+            var reservePctVal = routegenNormalizeReservePct(normalizedInput.reserve_pct, 33);
             var fuelPricePerGalVal = routegenNormalizeFuelPricePerGal(normalizedInput.fuel_price_per_gal);
             var paceRatioVal = val(paceDefaults.PACE_FACTOR);
+            var allowAnchoredBurnVal = routegenCanUseAnchoredBurn(performanceMeta);
             var weatherAdjustedSpeedVal = roundTo2(baseCruiseSpeedVal * (1 - weatherFactorVal));
             var paceAdjustedBurnVal = (
                 paceVal EQ "BALANCED"
                     ? roundTo2(performanceMeta.most_efficient_burn_gph)
-                    : paceAdjustedBurnGph(fuelBurnGphVal, paceRatioVal, 3.0)
+                    : (
+                        allowAnchoredBurnVal
+                            ? routegenAnchoredBurnGph(
+                                baseCruiseSpeedVal,
+                                maxSpeedVal,
+                                fuelBurnGphVal,
+                                performanceMeta.most_efficient_speed_kn,
+                                performanceMeta.most_efficient_burn_gph
+                            )
+                            : paceAdjustedBurnGph(fuelBurnGphVal, paceRatioVal, 3.0)
+                    )
             );
             var weatherAdjustedBurnVal = roundTo2(paceAdjustedBurnVal * (1 + weatherFactorVal));
             var fuelEstimateOut = {};
@@ -7182,7 +7322,8 @@
                 mostEfficientBurnGph = performanceMeta.most_efficient_burn_gph,
                 pace = paceVal,
                 weatherPct = weatherFactorPctVal,
-                maxBurnForEstimate = performanceMeta.max_burn_for_estimate
+                maxBurnForEstimate = performanceMeta.max_burn_for_estimate,
+                allowAnchoredBurn = allowAnchoredBurnVal
             );
             fuelEstimateOut = (structKeyExists(totals, "FUEL_ESTIMATE") AND isStruct(totals.FUEL_ESTIMATE) ? totals.FUEL_ESTIMATE : {});
 
@@ -7524,7 +7665,7 @@
             var editIdleBurnGphVal = 0;
             var editIdleHoursTotalVal = 0;
             var editWeatherFactorPctVal = routegenNormalizeWeatherFactorPct("");
-            var editReservePctVal = routegenNormalizeReservePct("", 20);
+            var editReservePctVal = routegenNormalizeReservePct("", 33);
             var editFuelPricePerGalVal = 0;
             var editVesselMaxSpeedVal = 0;
             var editVesselMostEffSpeedVal = 0;
@@ -7604,7 +7745,7 @@
             );
             editReservePctVal = routegenNormalizeReservePct(
                 structKeyExists(editStoredInputs, "reserve_pct") ? editStoredInputs.reserve_pct : "",
-                20
+                33
             );
             editFuelPricePerGalVal = routegenNormalizeFuelPricePerGal(
                 structKeyExists(editStoredInputs, "fuel_price_per_gal") ? editStoredInputs.fuel_price_per_gal : ""
@@ -7810,7 +7951,7 @@
             );
             var reservePctVal = routegenNormalizeReservePct(
                 structKeyExists(storedInputs, "reserve_pct") ? storedInputs.reserve_pct : "",
-                20
+                33
             );
             var fuelPricePerGalVal = routegenNormalizeFuelPricePerGal(
                 structKeyExists(storedInputs, "fuel_price_per_gal") ? storedInputs.fuel_price_per_gal : ""

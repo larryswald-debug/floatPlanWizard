@@ -15,7 +15,7 @@
   ];
   var DEFAULT_MAX_SPEED_KN = 20;
   var DEFAULT_WEATHER_FACTOR_PCT = 0;
-  var DEFAULT_RESERVE_PCT = 20;
+  var DEFAULT_RESERVE_PCT = 33;
   var DEFAULT_UNDERWAY_HOURS_PER_DAY = 6.5;
   var FUEL_BURN_BASIS_MAX = "MAX_SPEED";
   var MAX_ENDPOINT_FIT_NM = 1200;
@@ -796,9 +796,8 @@
       html += "    </div>";
       html += '    <div class="small text-light opacity-75 mb-2">Day rollup may include multiple legs based on Max hrs/day.</div>';
       html += '    <div class="row g-2 small">';
-      html += '      <div class="col-sm-4">Required: <strong data-testid="required-fuel">' + formatNumber(day.requiredFuelGallons, 1) + " gal</strong></div>";
-      html += '      <div class="col-sm-4">Reserve: <strong>' + formatNumber(day.reserveGallons, 1) + " gal</strong></div>";
-      html += '      <div class="col-sm-4">Confidence: <strong>' + formatNumber(day.confidence, 0) + "%</strong></div>";
+      html += '      <div class="col-sm-6">Required: <strong data-testid="required-fuel">' + formatNumber(day.requiredFuelGallons, 1) + " gal</strong></div>";
+      html += '      <div class="col-sm-6">Reserve: <strong>' + formatNumber(day.reserveGallons, 1) + " gal</strong></div>";
       html += "    </div>";
       html += "  </div>";
       html += "</div>";
@@ -1884,8 +1883,7 @@
 
   function setRouteCodeBadge(routeCode) {
     if (!dom.routeCodeEl) return;
-    var routeName = getRouteNameValue(true);
-    dom.routeCodeEl.textContent = routeName || routeCode || "Draft";
+    dom.routeCodeEl.textContent = String(routeCode || "").trim() || "Draft";
   }
 
   function setModalModeUI() {
@@ -3218,6 +3216,43 @@
     return roundTo2(pct);
   }
 
+  function hasValidAnchoredBurnInputs(maxSpeedKn, maxBurnGph, efficientSpeedKn, efficientBurnGph) {
+    var lowSpeedAnchorKn = 3.5;
+    return (
+      Number.isFinite(maxSpeedKn)
+      && maxSpeedKn > 0
+      && Number.isFinite(maxBurnGph)
+      && maxBurnGph > 0
+      && Number.isFinite(efficientSpeedKn)
+      && efficientSpeedKn > lowSpeedAnchorKn
+      && Number.isFinite(efficientBurnGph)
+      && efficientBurnGph > 0
+      && maxSpeedKn >= efficientSpeedKn
+    );
+  }
+
+  function anchoredBurnAtSpeedGph(effectiveSpeedKn, maxSpeedKn, maxBurnGph, efficientSpeedKn, efficientBurnGph) {
+    var lowSpeedAnchorKn = 3.5;
+    var lowBurnGph = efficientBurnGph * 0.25;
+    var interpolation = 0;
+
+    if (effectiveSpeedKn <= lowSpeedAnchorKn) {
+      return roundTo2(lowBurnGph);
+    }
+    if (effectiveSpeedKn < efficientSpeedKn) {
+      interpolation = (effectiveSpeedKn - lowSpeedAnchorKn) / (efficientSpeedKn - lowSpeedAnchorKn);
+      return roundTo2(lowBurnGph + ((efficientBurnGph - lowBurnGph) * interpolation));
+    }
+    if (effectiveSpeedKn <= efficientSpeedKn) {
+      return roundTo2(efficientBurnGph);
+    }
+    if (effectiveSpeedKn < maxSpeedKn) {
+      interpolation = (effectiveSpeedKn - efficientSpeedKn) / (maxSpeedKn - efficientSpeedKn);
+      return roundTo2(efficientBurnGph + ((maxBurnGph - efficientBurnGph) * interpolation));
+    }
+    return roundTo2(maxBurnGph);
+  }
+
   function getFuelBurnModelValues() {
     var inputBurn = getFuelBurnInputGph();
     var pace = getSelectedPacePreset();
@@ -3228,10 +3263,14 @@
     var weatherPct = getWeatherFactorPct();
     var weatherAdj = weatherPct / 100;
     var efficientBurn = getFuelBurnAtMostEfficientSpeedGph();
+    var efficientSpeedKn = getMostEfficientSpeedKn();
+    var maxSpeedKn = getMaxSpeedKn();
+    var effectiveSpeedKn = getEffectiveCruisingSpeed();
     var maxSpeedBurn = 0;
     var paceAdjustedBurn = 0;
     var weatherAdjustedBurn = 0;
     var resolvedBurnInput = 0;
+    var anchoredModelActive = false;
 
     if (inputBurn > 0) {
       maxSpeedBurn = inputBurn;
@@ -3248,7 +3287,18 @@
       }
     } else if (maxSpeedBurn > 0) {
       resolvedBurnInput = maxSpeedBurn;
-      paceAdjustedBurn = roundTo2(maxSpeedBurn * pacePow);
+      if (hasValidAnchoredBurnInputs(maxSpeedKn, maxSpeedBurn, efficientSpeedKn, efficientBurn)) {
+        anchoredModelActive = true;
+        paceAdjustedBurn = anchoredBurnAtSpeedGph(
+          effectiveSpeedKn,
+          maxSpeedKn,
+          maxSpeedBurn,
+          efficientSpeedKn,
+          efficientBurn
+        );
+      } else {
+        paceAdjustedBurn = roundTo2(maxSpeedBurn * pacePow);
+      }
       weatherAdjustedBurn = roundTo2(paceAdjustedBurn * (1 + weatherAdj));
     }
 
@@ -3257,6 +3307,7 @@
       inputBurn: roundTo2(inputBurn),
       resolvedBurnInput: roundTo2(resolvedBurnInput),
       maxSpeedBurn: maxSpeedBurn,
+      anchoredModelActive: anchoredModelActive,
       paceAdjustedBurn: roundTo2(paceAdjustedBurn),
       weatherAdjustedBurn: roundTo2(weatherAdjustedBurn)
     };
@@ -3269,7 +3320,9 @@
       dom.fuelBurnLabelEl.textContent = "GPH @ max speed";
     }
     if (dom.fuelBurnHintEl) {
-      dom.fuelBurnHintEl.textContent = "FPW derives pace and weather adjusted burn from max speed burn.";
+      dom.fuelBurnHintEl.textContent = model.anchoredModelActive
+        ? "FPW derives pace and weather adjusted burn from low-speed, efficient, and max-speed anchors."
+        : "FPW derives pace and weather adjusted burn from max speed burn.";
     }
     if (dom.fuelBurnDerivedEl) {
       if (model.resolvedBurnInput <= 0) {
@@ -6811,6 +6864,7 @@
 
     if (dom.closeBtn) {
       dom.closeBtn.addEventListener("click", closeModal);
+      bindKeyboardActivation(dom.closeBtn, closeModal);
     }
 
     if (dom.cancelBtn) {
@@ -6954,6 +7008,9 @@
 
     if (dom.legOverlayCloseBtn) {
       dom.legOverlayCloseBtn.addEventListener("click", function () {
+        closeLegMapAndRefreshPane();
+      });
+      bindKeyboardActivation(dom.legOverlayCloseBtn, function () {
         closeLegMapAndRefreshPane();
       });
     }
@@ -7122,6 +7179,17 @@
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+  }
+
+  function bindKeyboardActivation(el, handler) {
+    if (!el || typeof handler !== "function" || el.dataset.routegenKeyboardActivationBound) return;
+    el.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        handler();
+      }
+    });
+    el.dataset.routegenKeyboardActivationBound = "true";
   }
 
   function ensureId(el, id) {
