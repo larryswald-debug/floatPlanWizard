@@ -111,10 +111,6 @@
                             </div>
                         </div>
 
-                        <div class="mt-3 small text-muted">
-                            Default password for new users: <code>changeIt</code>
-                        </div>
-
                         <button type="submit" class="btn btn-primary w-100 mt-3" id="joinButton">
                             Create User
                         </button>

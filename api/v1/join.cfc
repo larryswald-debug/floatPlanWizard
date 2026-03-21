@@ -162,9 +162,6 @@
                 USERID  = newUserId,
                 EMAIL   = email
             }>
-            <cfif usingDefaultPassword>
-                <cfset response.TEMP_PASSWORD = "changeIt">
-            </cfif>
 
             <cfoutput>#serializeJSON(response)#</cfoutput>
 
