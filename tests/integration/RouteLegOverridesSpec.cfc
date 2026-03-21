@@ -66,6 +66,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( endSegmentId ).toBeGT( 0, "Invalid end segment from routegen_getoptions: #serializeJSON(optionsRes)#" );
 
         var generateRes = routeBuilderPost( "routegen_generate", {
+          route_name = "Route Leg Override " & replace( createUUID(), "-", "", "all" ),
           template_code = templateCode,
           start_segment_id = startSegmentId,
           end_segment_id = endSegmentId,
@@ -274,6 +275,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     }
 
     var generateRes = routeBuilderPost( "routegen_generate", {
+      route_name = "Route Leg Override " & replace( createUUID(), "-", "", "all" ),
       template_code = templateCode,
       start_segment_id = startSegmentId,
       end_segment_id = endSegmentId,

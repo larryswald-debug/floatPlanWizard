@@ -69,7 +69,7 @@
                 <cfset postIdVal = val(pickArg(body, "post_id", "postId", 0))>
                 <cfset emojiVal = lCase(trim(toString(pickArg(body, "emoji", "reaction", ""))))>
                 <cfset followerTokenVal = trim(toString(pickArg(body, "follower_token", "followerToken", "")))>
-                <cfset payload = toggleReaction(postIdVal, emojiVal, followerTokenVal)>
+                <cfset payload = toggleReaction(postIdVal, emojiVal, followerTokenVal, currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
@@ -77,7 +77,7 @@
                 <cfset postIdVal = val(pickArg(body, "post_id", "postId", 0))>
                 <cfset bodyTextVal = trim(toString(pickArg(body, "body", "comment", "")))>
                 <cfset followerTokenVal = trim(toString(pickArg(body, "follower_token", "followerToken", "")))>
-                <cfset payload = addComment(postIdVal, bodyTextVal, followerTokenVal)>
+                <cfset payload = addComment(postIdVal, bodyTextVal, followerTokenVal, currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
@@ -149,14 +149,17 @@
                 "topCards"={},
                 "map"={"routeGeo"={}, "pins"=[], "current"={}},
                 "pinned"={},
-                "timeline"={"summary"={}, "legs"=[], "meta"={}}
+                "timeline"={"summary"={}, "legs"=[], "meta"={}},
+                "body"={}
             };
             var streamRow = readStream(arguments.slug, arguments.streamId);
             var canRead = {};
             var ds = resolveDatasource();
             var qPlan = queryNew("");
+            var qPlanSql = "";
             var qLastPost = queryNew("");
             var qWildlife = queryNew("");
+            var qViewerCount = queryNew("");
             var routeMap = {};
             var topCards = {};
             var pinned = {};
@@ -170,6 +173,15 @@
             var routeTotalLocks = 0;
             var wildlifeCount = 0;
             var streamTitle = "Voyage";
+            var viewerCountVal = 0;
+            var vesselNameVal = "";
+            var privacyLabel = "";
+            var body = {};
+            var actualCheckInLabel = "";
+            var checkedInAtVal = "";
+            var checkInContextVal = "";
+            var isOvernightCheckIn = false;
+            var elapsedCheckInLabel = "-- since last check-in";
 
             if (!structCount(streamRow)) {
                 out.MESSAGE = "Stream not found";
@@ -186,21 +198,30 @@
                 return out;
             }
 
-            qPlan = queryExecute(
+            qPlanSql =
                 "SELECT
-                    floatplanId,
-                    userId,
-                    floatPlanName,
-                    status,
-                    departing,
-                    returning,
-                    returnTime,
-                    route_instance_id,
-                    route_day_number,
-                    lastUpdate
-                 FROM floatplans
-                 WHERE floatplanId = :planId
-                 LIMIT 1",
+                    fp.floatplanId,
+                    fp.userId,
+                    fp.floatPlanName,
+                    fp.status,
+                    fp.departing,
+                    fp.returning,
+                    fp.returnTime,
+                    fp.route_instance_id,
+                    fp.route_day_number,
+                    fp.lastUpdate,
+                    fp.checkedInAt,"
+                    & "
+                    fp.checkin_context,
+                    fp.vesselId,
+                    v.vesselName
+                 FROM floatplans fp
+                 LEFT JOIN vessels v ON v.vesselId = fp.vesselId
+                 WHERE fp.floatplanId = :planId
+                 LIMIT 1";
+
+            qPlan = queryExecute(
+                qPlanSql,
                 {
                     planId = { value=streamRow.floatplan_id, cfsqltype="cf_sql_integer" }
                 },
@@ -210,6 +231,13 @@
             if (qPlan.recordCount GT 0) {
                 streamTitle = trim(toString(isNull(qPlan.floatPlanName[1]) ? "" : qPlan.floatPlanName[1]));
                 statusLabel = friendlyStatusLabel(isNull(qPlan.status[1]) ? "" : qPlan.status[1]);
+                checkInContextVal = normalizeCheckInContext(isNull(qPlan.checkin_context[1]) ? "" : qPlan.checkin_context[1]);
+                isOvernightCheckIn = (checkInContextVal EQ "overnight");
+                if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
+                    checkedInAtVal = qPlan.checkedInAt[1];
+                    actualCheckInLabel = dateTimeFormat(checkedInAtVal, "mmm d, yyyy h:nn tt");
+                    elapsedCheckInLabel = formatElapsedCheckIn(checkedInAtVal);
+                }
             }
             if (!len(streamTitle)) {
                 streamTitle = "Voyage " & streamRow.slug;
@@ -258,6 +286,26 @@
             );
             wildlifeCount = (qWildlife.recordCount GT 0 AND !isNull(qWildlife.cnt[1]) ? val(qWildlife.cnt[1]) : 0);
 
+            qViewerCount = queryExecute(
+                "SELECT COUNT(*) AS cnt
+                 FROM voyage_followers
+                 WHERE stream_id = :streamId",
+                {
+                    streamId = { value=streamRow.id, cfsqltype="cf_sql_integer" }
+                },
+                { datasource=ds }
+            );
+            viewerCountVal = (qViewerCount.recordCount GT 0 AND !isNull(qViewerCount.cnt[1]) ? val(qViewerCount.cnt[1]) : 0);
+            vesselNameVal = (qPlan.recordCount GT 0 AND !isNull(qPlan.vesselName[1]) ? trim(toString(qPlan.vesselName[1])) : "");
+
+            if (streamRow.privacy_mode EQ "public") {
+                privacyLabel = "Public share page";
+            } else if (streamRow.privacy_mode EQ "password") {
+                privacyLabel = "Password protected share page";
+            } else if (streamRow.privacy_mode EQ "invite") {
+                privacyLabel = "Invite-only share page";
+            }
+
             if (routeMap.remaining_nm GT 0) {
                 etaLabel = "~" & int(ceiling(routeMap.remaining_nm / 45)) & " days";
             }
@@ -279,6 +327,25 @@
                 "updated_label"=lastCheckinLabel
             };
 
+            body = {
+                "page_subtitle"="Follow along in real time: location, progress, updates, comments, and trip confidence.",
+                "journey_subtitle"="Current leg is active.",
+                "journey_departed_value"="",
+                "journey_departed_meta"="Departed today",
+                "journey_checkin_value"=(len(actualCheckInLabel) ? "Checked in at " & actualCheckInLabel : "Checked in at --"),
+                "journey_checkin_meta"=(isOvernightCheckIn ? "Arrived and secure for the night. Next update expected tomorrow morning." : elapsedCheckInLabel),
+                "card_status_copy"="Monitoring is active and the trip is reporting normally.",
+                "card_location_copy"="Heading toward the current active route target.",
+                "card_destination_copy"="Next major stop and expected overnight destination.",
+                "card_arrival_copy"="Approximate based on current pace, route progress, and last update.",
+                "card_conditions_copy"="Current trip conditions and caution state.",
+                "trip_summary_confidence"="Tracking confidence: High",
+                "trip_summary_mode"="Trip mode: Route-based monitoring",
+                "trip_summary_safety"="Safety state: Normal",
+                "family_confidence_subtitle"="Built to reassure viewers with plain-language trip and safety status.",
+                "timeline_next_update"="Within 1 hr"
+            };
+
             out.SUCCESS = true;
             out.MESSAGE = "OK";
             out.stream = {
@@ -292,6 +359,15 @@
                 "is_owner"=isOwner,
                 "owner_user_id"=streamRow.owner_user_id
             };
+            out["sidebar"] = {
+                "viewer_count"=viewerCountVal,
+                "vessel_name"=vesselNameVal,
+                "last_checkin"=(len(actualCheckInLabel) ? actualCheckInLabel : ""),
+                "privacy_label"=privacyLabel,
+                "monitoring_summary"="Active with missed check-in rules enabled",
+                "monitor_state_text_html"="<strong>Monitoring active</strong><br />No missed check-ins on this voyage",
+                "monitor_state_label"="Healthy"
+            };
             out.topCards = topCards;
             out.map = {
                 "routeGeo"=routeMap.route_geo,
@@ -300,6 +376,7 @@
             };
             out.pinned = pinned;
             out.timeline = followTimeline;
+            out.body = body;
             return out;
         </cfscript>
     </cffunction>
@@ -366,9 +443,13 @@
                 return out;
             }
 
-            followerRow = resolveFollowerByToken(arguments.followerToken);
-            if (structCount(followerRow) AND followerRow.stream_id NEQ streamIdVal) {
-                followerRow = {};
+            if (isOwner) {
+                followerRow = findOwnerInteractionFollower(streamIdVal, arguments.currentUserId);
+            } else {
+                followerRow = resolveFollowerByToken(arguments.followerToken);
+                if (structCount(followerRow) AND followerRow.stream_id NEQ streamIdVal) {
+                    followerRow = {};
+                }
             }
 
             sql =
@@ -630,7 +711,7 @@
                     {
                         streamId = { value=streamIdVal, cfsqltype="cf_sql_integer" },
                         displayName = { value=displayNameVal, cfsqltype="cf_sql_varchar" },
-                        email = { value=emailVal, cfsqltype="cf_sql_varchar" },
+                        email = { value=(len(emailVal) ? emailVal : ""), cfsqltype="cf_sql_varchar", null=!len(emailVal) },
                         accessToken = { value=followerToken, cfsqltype="cf_sql_varchar" }
                     },
                     { datasource=ds }
@@ -665,7 +746,8 @@
     <cffunction name="toggleReaction" access="private" returntype="struct" output="false">
         <cfargument name="postId" type="numeric" required="true">
         <cfargument name="emoji" type="string" required="true">
-        <cfargument name="followerToken" type="string" required="true">
+        <cfargument name="followerToken" type="string" required="false" default="">
+        <cfargument name="currentUserId" type="numeric" required="false" default="0">
         <cfscript>
             var out = {
                 "SUCCESS"=false,
@@ -694,7 +776,7 @@
                 return out;
             }
 
-            ctx = resolveInteractionContext(postIdVal, arguments.followerToken);
+            ctx = resolveInteractionContext(postIdVal, arguments.followerToken, arguments.currentUserId);
             if (!ctx.SUCCESS) {
                 return ctx;
             }
@@ -774,7 +856,8 @@
     <cffunction name="addComment" access="private" returntype="struct" output="false">
         <cfargument name="postId" type="numeric" required="true">
         <cfargument name="body" type="string" required="true">
-        <cfargument name="followerToken" type="string" required="true">
+        <cfargument name="followerToken" type="string" required="false" default="">
+        <cfargument name="currentUserId" type="numeric" required="false" default="0">
         <cfscript>
             var out = {
                 "SUCCESS"=false,
@@ -806,7 +889,7 @@
                 return out;
             }
 
-            ctx = resolveInteractionContext(postIdVal, arguments.followerToken);
+            ctx = resolveInteractionContext(postIdVal, arguments.followerToken, arguments.currentUserId);
             if (!ctx.SUCCESS) {
                 return ctx;
             }
@@ -3311,7 +3394,8 @@
 
     <cffunction name="resolveInteractionContext" access="private" returntype="struct" output="false">
         <cfargument name="postId" type="numeric" required="true">
-        <cfargument name="followerToken" type="string" required="true">
+        <cfargument name="followerToken" type="string" required="false" default="">
+        <cfargument name="currentUserId" type="numeric" required="false" default="0">
         <cfscript>
             var out = {
                 "SUCCESS"=false,
@@ -3322,77 +3406,238 @@
             var tokenVal = trim(arguments.followerToken);
             var ds = resolveDatasource();
             var q = queryNew("");
+            var ownerFollower = {};
 
             if (postIdVal LTE 0) {
                 out.MESSAGE = "post_id required";
                 out.ERROR = { "MESSAGE"="post_id is required." };
                 return out;
             }
-            if (!len(tokenVal)) {
-                out.MESSAGE = "follower_token required";
-                out.STATUS_CODE = 403;
-                out.ERROR = { "CODE"="FOLLOWER_TOKEN_REQUIRED", "MESSAGE"="follower_token is required." };
+            if (len(tokenVal)) {
+                q = queryExecute(
+                    "SELECT
+                        vp.id AS post_id,
+                        vp.stream_id,
+                        vs.allow_interactions,
+                        vf.id AS follower_id,
+                        vf.display_name,
+                        vf.is_blocked
+                     FROM voyage_posts vp
+                     INNER JOIN voyage_streams vs ON vs.id = vp.stream_id
+                     INNER JOIN voyage_followers vf ON vf.stream_id = vs.id
+                     WHERE vp.id = :postId
+                       AND vf.access_token = :token
+                     LIMIT 1",
+                    {
+                        postId = { value=postIdVal, cfsqltype="cf_sql_integer" },
+                        token = { value=tokenVal, cfsqltype="cf_sql_varchar" }
+                    },
+                    { datasource=ds }
+                );
+
+                if (q.recordCount EQ 0) {
+                    out.MESSAGE = "Follower not found";
+                    out.STATUS_CODE = 403;
+                    out.ERROR = { "CODE"="FOLLOWER_NOT_FOUND", "MESSAGE"="Follower token is invalid for this stream." };
+                    return out;
+                }
+                if (val(q.is_blocked[1]) GT 0) {
+                    out.MESSAGE = "Follower blocked";
+                    out.STATUS_CODE = 403;
+                    out.ERROR = { "CODE"="FOLLOWER_BLOCKED", "MESSAGE"="This follower has been blocked." };
+                    return out;
+                }
+                if (val(q.allow_interactions[1]) LTE 0) {
+                    out.MESSAGE = "Interactions disabled";
+                    out.STATUS_CODE = 403;
+                    out.ERROR = { "CODE"="INTERACTIONS_DISABLED", "MESSAGE"="Interactions are disabled for this stream." };
+                    return out;
+                }
+
+                queryExecute(
+                    "UPDATE voyage_followers
+                     SET last_seen_utc = UTC_TIMESTAMP()
+                     WHERE id = :id",
+                    {
+                        id = { value=val(q.follower_id[1]), cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource=ds }
+                );
+
+                out.SUCCESS = true;
+                out.MESSAGE = "OK";
+                out.stream_id = val(q.stream_id[1]);
+                out.post_id = val(q.post_id[1]);
+                out.follower = {
+                    "id"=val(q.follower_id[1]),
+                    "display_name"=(isNull(q.display_name[1]) ? "Viewer" : toString(q.display_name[1]))
+                };
+                return out;
+            }
+
+            if (arguments.currentUserId GT 0) {
+                q = queryExecute(
+                    "SELECT
+                        vp.id AS post_id,
+                        vp.stream_id,
+                        vs.owner_user_id
+                     FROM voyage_posts vp
+                     INNER JOIN voyage_streams vs ON vs.id = vp.stream_id
+                     WHERE vp.id = :postId
+                     LIMIT 1",
+                    {
+                        postId = { value=postIdVal, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource=ds }
+                );
+
+                if (q.recordCount GT 0 AND val(q.owner_user_id[1]) EQ arguments.currentUserId) {
+                    ownerFollower = ensureOwnerInteractionFollower(val(q.stream_id[1]), arguments.currentUserId);
+                    if (!structCount(ownerFollower)) {
+                        out.MESSAGE = "Owner interaction unavailable";
+                        out.STATUS_CODE = 500;
+                        out.ERROR = { "CODE"="OWNER_ACTOR_UNAVAILABLE", "MESSAGE"="Unable to resolve the owner interaction identity." };
+                        return out;
+                    }
+
+                    out.SUCCESS = true;
+                    out.MESSAGE = "OK";
+                    out.stream_id = val(q.stream_id[1]);
+                    out.post_id = val(q.post_id[1]);
+                    out.follower = {
+                        "id"=ownerFollower.id,
+                        "display_name"=ownerFollower.display_name
+                    };
+                    return out;
+                }
+            }
+
+            out.MESSAGE = "follower_token required";
+            out.STATUS_CODE = 403;
+            out.ERROR = { "CODE"="FOLLOWER_TOKEN_REQUIRED", "MESSAGE"="follower_token is required." };
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="findOwnerInteractionFollower" access="private" returntype="struct" output="false">
+        <cfargument name="streamId" type="numeric" required="true">
+        <cfargument name="currentUserId" type="numeric" required="true">
+        <cfscript>
+            var out = {};
+            var streamIdVal = val(arguments.streamId);
+            var currentUserIdVal = val(arguments.currentUserId);
+            var profile = {};
+            var ds = resolveDatasource();
+            var q = queryNew("");
+
+            if (streamIdVal LTE 0 OR currentUserIdVal LTE 0) {
+                return out;
+            }
+
+            profile = resolveOwnerInteractionProfile(currentUserIdVal);
+            if (!len(profile.internal_email)) {
                 return out;
             }
 
             q = queryExecute(
-                "SELECT
-                    vp.id AS post_id,
-                    vp.stream_id,
-                    vs.allow_interactions,
-                    vf.id AS follower_id,
-                    vf.display_name,
-                    vf.is_blocked
-                 FROM voyage_posts vp
-                 INNER JOIN voyage_streams vs ON vs.id = vp.stream_id
-                 INNER JOIN voyage_followers vf ON vf.stream_id = vs.id
-                 WHERE vp.id = :postId
-                   AND vf.access_token = :token
+                "SELECT id, stream_id, display_name, is_blocked, access_token
+                 FROM voyage_followers
+                 WHERE stream_id = :streamId
+                   AND email = :email
                  LIMIT 1",
                 {
-                    postId = { value=postIdVal, cfsqltype="cf_sql_integer" },
-                    token = { value=tokenVal, cfsqltype="cf_sql_varchar" }
+                    streamId = { value=streamIdVal, cfsqltype="cf_sql_integer" },
+                    email = { value=profile.internal_email, cfsqltype="cf_sql_varchar" }
                 },
                 { datasource=ds }
             );
-
             if (q.recordCount EQ 0) {
-                out.MESSAGE = "Follower not found";
-                out.STATUS_CODE = 403;
-                out.ERROR = { "CODE"="FOLLOWER_NOT_FOUND", "MESSAGE"="Follower token is invalid for this stream." };
-                return out;
-            }
-            if (val(q.is_blocked[1]) GT 0) {
-                out.MESSAGE = "Follower blocked";
-                out.STATUS_CODE = 403;
-                out.ERROR = { "CODE"="FOLLOWER_BLOCKED", "MESSAGE"="This follower has been blocked." };
-                return out;
-            }
-            if (val(q.allow_interactions[1]) LTE 0) {
-                out.MESSAGE = "Interactions disabled";
-                out.STATUS_CODE = 403;
-                out.ERROR = { "CODE"="INTERACTIONS_DISABLED", "MESSAGE"="Interactions are disabled for this stream." };
                 return out;
             }
 
-            queryExecute(
-                "UPDATE voyage_followers
-                 SET last_seen_utc = UTC_TIMESTAMP()
-                 WHERE id = :id",
-                {
-                    id = { value=val(q.follower_id[1]), cfsqltype="cf_sql_integer" }
-                },
-                { datasource=ds }
-            );
-
-            out.SUCCESS = true;
-            out.MESSAGE = "OK";
-            out.stream_id = val(q.stream_id[1]);
-            out.post_id = val(q.post_id[1]);
-            out.follower = {
-                "id"=val(q.follower_id[1]),
-                "display_name"=(isNull(q.display_name[1]) ? "Viewer" : toString(q.display_name[1]))
+            out = {
+                "id"=val(q.id[1]),
+                "stream_id"=val(q.stream_id[1]),
+                "display_name"=(isNull(q.display_name[1]) ? profile.display_name : toString(q.display_name[1])),
+                "is_blocked"=(isNull(q.is_blocked[1]) ? 0 : val(q.is_blocked[1])),
+                "access_token"=(isNull(q.access_token[1]) ? "" : toString(q.access_token[1]))
             };
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="ensureOwnerInteractionFollower" access="private" returntype="struct" output="false">
+        <cfargument name="streamId" type="numeric" required="true">
+        <cfargument name="currentUserId" type="numeric" required="true">
+        <cfscript>
+            var out = {};
+            var streamIdVal = val(arguments.streamId);
+            var currentUserIdVal = val(arguments.currentUserId);
+            var profile = {};
+            var ds = resolveDatasource();
+            var accessToken = "";
+
+            if (streamIdVal LTE 0 OR currentUserIdVal LTE 0) {
+                return out;
+            }
+
+            profile = resolveOwnerInteractionProfile(currentUserIdVal);
+            if (!len(profile.internal_email)) {
+                return out;
+            }
+
+            lock name=("voyage_owner_actor_" & streamIdVal & "_" & currentUserIdVal) type="exclusive" timeout="5" {
+                out = findOwnerInteractionFollower(streamIdVal, currentUserIdVal);
+                if (structCount(out)) {
+                    queryExecute(
+                        "UPDATE voyage_followers
+                         SET display_name = :displayName,
+                             is_blocked = 0,
+                             last_seen_utc = UTC_TIMESTAMP()
+                         WHERE id = :id",
+                        {
+                            displayName = { value=left(profile.display_name, 120), cfsqltype="cf_sql_varchar" },
+                            id = { value=out.id, cfsqltype="cf_sql_integer" }
+                        },
+                        { datasource=ds }
+                    );
+                } else {
+                    accessToken = randomToken(40);
+                    queryExecute(
+                        "INSERT INTO voyage_followers (
+                            stream_id,
+                            display_name,
+                            email,
+                            access_token,
+                            is_blocked,
+                            created_utc,
+                            last_seen_utc
+                         ) VALUES (
+                            :streamId,
+                            :displayName,
+                            :email,
+                            :accessToken,
+                            0,
+                            UTC_TIMESTAMP(),
+                            UTC_TIMESTAMP()
+                         )",
+                        {
+                            streamId = { value=streamIdVal, cfsqltype="cf_sql_integer" },
+                            displayName = { value=left(profile.display_name, 120), cfsqltype="cf_sql_varchar" },
+                            email = { value=profile.internal_email, cfsqltype="cf_sql_varchar" },
+                            accessToken = { value=accessToken, cfsqltype="cf_sql_varchar" }
+                        },
+                        { datasource=ds }
+                    );
+                }
+
+                out = findOwnerInteractionFollower(streamIdVal, currentUserIdVal);
+                if (structCount(out)) {
+                    out.display_name = left(profile.display_name, 120);
+                    out.is_blocked = 0;
+                }
+            }
+
             return out;
         </cfscript>
     </cffunction>
@@ -3727,6 +3972,45 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="normalizeCheckInContext" access="private" returntype="string" output="false">
+        <cfargument name="rawValue" type="any" required="false">
+        <cfscript>
+            var contextVal = lCase(trim(toString(arguments.rawValue)));
+            if (contextVal EQ "overnight") {
+                return "overnight";
+            }
+            return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="formatElapsedCheckIn" access="private" returntype="string" output="false">
+        <cfargument name="value" type="any" required="false">
+        <cfscript>
+            var elapsedMinutes = 0;
+            var hours = 0;
+            var minutes = 0;
+
+            if (!isDate(arguments.value)) {
+                return "-- since last check-in";
+            }
+
+            elapsedMinutes = dateDiff("n", arguments.value, now());
+            if (elapsedMinutes LT 0) {
+                elapsedMinutes = 0;
+            }
+            if (elapsedMinutes LT 60) {
+                return elapsedMinutes & " min since last check-in";
+            }
+
+            hours = int(elapsedMinutes / 60);
+            minutes = elapsedMinutes MOD 60;
+            if (minutes LTE 0) {
+                return hours & "h since last check-in";
+            }
+            return hours & "h " & minutes & "m since last check-in";
+        </cfscript>
+    </cffunction>
+
     <cffunction name="formatUtcDate" access="private" returntype="string" output="false">
         <cfargument name="value" type="any" required="false">
         <cfscript>
@@ -3814,6 +4098,64 @@
                 }
             }
             return uid;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveSessionUserValue" access="private" returntype="string" output="false">
+        <cfargument name="keys" type="array" required="true">
+        <cfargument name="defaultValue" type="string" required="false" default="">
+        <cfscript>
+            var userData = {};
+            var i = 0;
+            var keyName = "";
+            var textVal = "";
+
+            if (!structKeyExists(session, "user") OR !isStruct(session.user)) {
+                return arguments.defaultValue;
+            }
+
+            userData = session.user;
+            for (i = 1; i LTE arrayLen(arguments.keys); i++) {
+                keyName = toString(arguments.keys[i]);
+                if (!len(keyName) OR !structKeyExists(userData, keyName) OR isNull(userData[keyName])) {
+                    continue;
+                }
+                textVal = trim(toString(userData[keyName]));
+                if (len(textVal)) {
+                    return textVal;
+                }
+            }
+
+            return arguments.defaultValue;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveOwnerInteractionProfile" access="private" returntype="struct" output="false">
+        <cfargument name="currentUserId" type="numeric" required="false" default="0">
+        <cfscript>
+            var out = {
+                "display_name"="Captain",
+                "email"="",
+                "internal_email"=""
+            };
+            var firstName = resolveSessionUserValue(["firstName", "firstname", "FIRSTNAME", "first_name"], "");
+            var lastName = resolveSessionUserValue(["lastName", "lastname", "LASTNAME", "last_name"], "");
+            var fullName = resolveSessionUserValue(["name", "fullName", "displayName", "NAME"], "");
+            var emailVal = lCase(trim(resolveSessionUserValue(["email", "EMAIL"], "")));
+
+            if (len(fullName)) {
+                out.display_name = fullName;
+            } else if (len(firstName) OR len(lastName)) {
+                out.display_name = trim(firstName & " " & lastName);
+            } else if (len(emailVal)) {
+                out.display_name = emailVal;
+            }
+
+            out.email = emailVal;
+            if (arguments.currentUserId GT 0) {
+                out.internal_email = "owner+" & int(arguments.currentUserId) & "@fpw-owner.local";
+            }
+            return out;
         </cfscript>
     </cffunction>
 

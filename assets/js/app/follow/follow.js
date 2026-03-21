@@ -12,6 +12,7 @@
     followerStorageKey: "",
     mapPayload: null,
     isOwner: false,
+    pageContext: {},
     timeline: {
       payload: null,
       legs: [],
@@ -41,8 +42,41 @@
       .replace(/'/g, "&#39;");
   }
 
+  function readPageContext() {
+    var el = document.getElementById("followPageContext");
+    var parsed;
+    if (!el) return {};
+    try {
+      parsed = JSON.parse(el.textContent || "{}");
+    } catch (err) {
+      return {};
+    }
+    return parsed && typeof parsed === "object" ? parsed : {};
+  }
+
+  function collectHookMap() {
+    dom.regions = {};
+    dom.fields = {};
+
+    document.querySelectorAll("[data-fpw-region]").forEach(function (el) {
+      var key = String(el.getAttribute("data-fpw-region") || "").trim();
+      if (!key || dom.regions[key]) return;
+      dom.regions[key] = el;
+    });
+
+    document.querySelectorAll("[data-fpw-field]").forEach(function (el) {
+      var key = String(el.getAttribute("data-fpw-field") || "").trim();
+      if (!key || dom.fields[key]) return;
+      dom.fields[key] = el;
+    });
+  }
+
+  function getBasePath() {
+    return window.FPW_BASE || state.pageContext.fpwBase || "";
+  }
+
   function apiUrl(action) {
-    var base = window.FPW_BASE || "";
+    var base = getBasePath();
     return base + "/api/v1/voyage.cfc?method=handle&action=" + encodeURIComponent(action) + "&returnFormat=json";
   }
 
@@ -116,9 +150,11 @@
 
   function formatTimeLabel(input) {
     if (!input) return "n/a";
-    var date = new Date(input);
+    var raw = String(input).trim();
+    var date = new Date(raw);
+
     if (Number.isNaN(date.getTime())) {
-      return String(input);
+      return raw;
     }
     return date.toLocaleString([], {
       month: "short",
@@ -128,6 +164,66 @@
     });
   }
 
+  function formatSidebarLastCheckinLabel(input) {
+    var raw = String(input || "").trim();
+    var normalizedRaw = raw;
+    var date = null;
+    var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    var hours;
+    var displayHour;
+    var minutes;
+    var suffix;
+
+    if (/^[A-Z][a-z]{2} \d{1,2}, \d{4} \d{1,2}:\d{2} [AP]M$/i.test(raw)) {
+      normalizedRaw = raw + " UTC";
+    }
+
+    date = normalizedRaw ? new Date(normalizedRaw) : null;
+
+    if (!date || Number.isNaN(date.getTime())) {
+      return "";
+    }
+
+    hours = date.getHours();
+    displayHour = hours % 12;
+    if (displayHour === 0) displayHour = 12;
+    minutes = String(date.getMinutes());
+    if (minutes.length < 2) minutes = "0" + minutes;
+    suffix = hours >= 12 ? "PM" : "AM";
+
+    return monthNames[date.getMonth()] + " " + date.getDate() + ", " + date.getFullYear() + " " + displayHour + ":" + minutes + " " + suffix;
+  }
+
+  function formatJourneyCheckinValue(input) {
+    var raw = String(input || "").trim();
+    var prefix = "Checked in at ";
+    var converted = "";
+
+    if (raw.indexOf(prefix) !== 0) {
+      return raw;
+    }
+
+    converted = formatSidebarLastCheckinLabel(raw.slice(prefix.length));
+    return converted ? (prefix + converted) : raw;
+  }
+
+  function updateSidebarLastCheckinFromPosts(posts) {
+    var sidebar = state.bootstrap && state.bootstrap.sidebar ? state.bootstrap.sidebar : {};
+    var list = Array.isArray(posts) ? posts : [];
+    var latestPost = list.length ? list[0] : null;
+    var label = formatSidebarLastCheckinLabel(sidebar.last_checkin || "");
+
+    if (label) {
+      setHookText("trip-card-last-checkin", label);
+      return;
+    }
+
+    label = formatSidebarLastCheckinLabel(latestPost && latestPost.created_utc ? latestPost.created_utc : "");
+
+    if (!label) return;
+    setHookText("trip-card-last-checkin", label);
+  }
+
   function findFirstPhotoCount(posts) {
     var list = Array.isArray(posts) ? posts : [];
     var count = 0;
@@ -135,6 +231,233 @@
       if (post && post.media_url) count += 1;
     });
     return count;
+  }
+
+  function getHookField(name) {
+    if (!dom.fields) return null;
+    return dom.fields[name] || null;
+  }
+
+  function setHookText(name, value) {
+    var el = getHookField(name);
+    if (!el) return;
+    if (value === undefined || value === null || value === "") return;
+    el.textContent = String(value);
+  }
+
+  function setHookHTML(name, html) {
+    var el = getHookField(name);
+    if (!el) return;
+    if (html === undefined || html === null || html === "") return;
+    el.innerHTML = String(html);
+  }
+
+  function setHookWidth(name, percent) {
+    var el = getHookField(name);
+    var value = safeNum(percent);
+    if (!el || value === null) return;
+    el.style.width = Math.max(0, Math.min(100, value)) + "%";
+  }
+
+  function renderPhase5StreamShell(payload) {
+    var pinned = payload.pinned || {};
+    var topCards = payload.topCards || {};
+    var map = payload.map || {};
+    var updatedLabel = String(pinned.updated_label || "").trim();
+    var nextStop = String(topCards.next_stop || map.next_stop_label || "").trim();
+
+    setHookText("stream-glance-updated", updatedLabel);
+    setHookText("stream-glance-next-stop", nextStop);
+  }
+
+  function formatDayCountLabel(days) {
+    var dayCount = toInt(days, 0);
+    return String(dayCount) + " " + (dayCount === 1 ? "day" : "days");
+  }
+
+  function findRecentMediaPosts(posts) {
+    return (Array.isArray(posts) ? posts : []).filter(function (post) {
+      return !!String((post && (post.media_thumb_url || post.media_url)) || "").trim();
+    }).slice(0, 3);
+  }
+
+  function renderLatestPhotoRow(posts) {
+    var rowEl = getHookField("latest-photos-row");
+    var mediaPosts = findRecentMediaPosts(posts);
+
+    if (!rowEl) return;
+
+    rowEl.innerHTML = "";
+    mediaPosts.forEach(function (post) {
+      var src = String((post.media_thumb_url || post.media_url) || "").trim();
+      var photoEl;
+      if (!src) return;
+      photoEl = document.createElement("div");
+      photoEl.className = "photo";
+      photoEl.setAttribute("aria-label", "Shared voyage photo");
+      photoEl.style.backgroundImage = 'url("' + src.replace(/"/g, '\\"') + '")';
+      photoEl.style.backgroundSize = "cover";
+      photoEl.style.backgroundPosition = "center";
+      photoEl.style.backgroundRepeat = "no-repeat";
+      rowEl.appendChild(photoEl);
+    });
+  }
+
+  function renderPhase6LowerCards(payload, posts) {
+    var body = payload.body || {};
+    var topCards = payload.topCards || {};
+    var pinned = payload.pinned || {};
+    var miles = safeNum(pinned.miles);
+    var photoCount = findRecentMediaPosts(posts).length;
+
+    setHookText("today-progress-metric", miles === null ? "0" : miles.toFixed(1) + " mi");
+    setHookText("today-progress-location", "Current location: " + String(topCards.location_label || "").trim());
+    setHookText("today-progress-eta", "Estimated arrival: " + String(topCards.eta || "").trim());
+    setHookText("latest-photos-count", String(photoCount) + " recent " + (photoCount === 1 ? "moment" : "moments") + " shared");
+    setHookText("trip-summary-metric", formatDayCountLabel(pinned.days));
+    setHookText("trip-summary-distance", miles === null ? "0" : miles.toFixed(1) + " mi");
+    setHookText("trip-summary-confidence", body.trip_summary_confidence);
+    setHookText("trip-summary-mode", body.trip_summary_mode);
+    setHookText("trip-summary-safety", body.trip_summary_safety);
+    renderLatestPhotoRow(posts);
+  }
+
+  function setHookCardBody(name, strongText, smallText) {
+    var card = getHookField(name);
+    var strongEl;
+    var smallEl;
+    if (!card) return;
+    strongEl = card.querySelector("strong");
+    smallEl = card.querySelector("small");
+    if (strongEl && strongText !== undefined && strongText !== null && strongText !== "") {
+      strongEl.textContent = String(strongText);
+    }
+    if (smallEl && smallText !== undefined && smallText !== null && smallText !== "") {
+      smallEl.textContent = String(smallText);
+    }
+  }
+
+  function renderPhase7TimelineSummary(payload) {
+    var body = payload.body || {};
+    var timeline = payload.timeline || {};
+    var summary = timeline.summary || {};
+    var totalDays = toInt(summary.total_days, 0);
+    var totalNm = formatTimelineNumber(summary.total_nm, 1);
+    var speedKn = formatTimelineNumber(summary.effective_speed_kn, 1);
+    var fuelEst = formatTimelineNumber(summary.fuel_est, 1);
+    var reserveEst = formatTimelineNumber(summary.reserve_est, 1);
+
+    setHookCardBody(
+      "timeline-route-total",
+      String(totalDays) + " " + (totalDays === 1 ? "day" : "days") + " planned",
+      totalNm + " nm on route"
+    );
+    setHookCardBody("timeline-eff-speed", speedKn + " kn");
+    setHookCardBody("timeline-fuel-reserve", fuelEst + " + " + reserveEst + " gal");
+    setHookText("timeline-next-update", body.timeline_next_update);
+  }
+
+  function findActiveTimelineLeg(legs) {
+    var list = Array.isArray(legs) ? legs : [];
+    var i;
+    var progressPct = 0;
+
+    if (!list.length) return null;
+
+    for (i = 0; i < list.length; i += 1) {
+      progressPct = safeNum(list[i] && list[i].progress ? list[i].progress.percent_complete : 0);
+      if (progressPct === null || progressPct < 100) {
+        return list[i];
+      }
+    }
+
+    return list[0];
+  }
+
+  function computeJourneyProgressPct(summary, legs) {
+    var list = Array.isArray(legs) ? legs : [];
+    var totalLegs = list.length;
+    var completedLegs = toInt(summary && summary.completed_legs, 0);
+    var activeLeg = findActiveTimelineLeg(list);
+    var activeProgress = safeNum(activeLeg && activeLeg.progress ? activeLeg.progress.percent_complete : 0);
+
+    if (!totalLegs) return null;
+    if (activeProgress === null) activeProgress = 0;
+
+    return ((completedLegs + (activeProgress / 100)) / totalLegs) * 100;
+  }
+
+  function renderPhase3Shell(payload) {
+    var body = payload.body || {};
+    var stream = payload.stream || {};
+    var sidebar = payload.sidebar || {};
+    var topCards = payload.topCards || {};
+    var map = payload.map || {};
+    var timeline = payload.timeline || {};
+    var summary = timeline.summary || {};
+    var legs = Array.isArray(timeline.legs) ? timeline.legs : [];
+    var title = String(stream.title || "").trim();
+    var status = String(topCards.status || stream.status || "").trim();
+    var lastCheckin = String(topCards.last_checkin || "").trim();
+    var sidebarLastCheckin = formatSidebarLastCheckinLabel(sidebar.last_checkin || "") || String(lastCheckin).trim();
+    var shareSlug = String(stream.slug || state.slug || "").trim();
+    var nextStop = String(topCards.next_stop || map.next_stop_label || "").trim();
+    var eta = String(topCards.eta || "").trim();
+    var conditions = String(topCards.conditions || "").trim();
+    var activeLeg = findActiveTimelineLeg(legs);
+    var activeLegLabel = String(activeLeg && activeLeg.label ? activeLeg.label : "").trim();
+    var effectiveSpeedKn = safeNum(summary.effective_speed_kn);
+    var progressPct = computeJourneyProgressPct(summary, legs);
+
+    setHookText("trip-card-title", title);
+    setHookText("trip-card-status-pill", status);
+    if (shareSlug) {
+      setHookText("trip-card-share-link", "/follow/" + shareSlug);
+    }
+    setHookText("trip-card-last-checkin", sidebarLastCheckin);
+    setHookText("trip-card-viewer-count", sidebar.viewer_count);
+    setHookText("trip-card-vessel", sidebar.vessel_name);
+    setHookText("trip-card-privacy", sidebar.privacy_label);
+    setHookText("trip-card-monitoring", sidebar.monitoring_summary);
+    setHookHTML("trip-card-monitor-state-text", sidebar.monitor_state_text_html);
+    setHookText("trip-card-monitor-state-pill", sidebar.monitor_state_label);
+
+    setHookText("page-title", title);
+    setHookText("page-subtitle", body.page_subtitle);
+    if (lastCheckin) {
+      setHookText("live-chip", "Live now · Updated " + lastCheckin);
+    }
+
+    setHookText("journey-subtitle", body.journey_subtitle);
+    setHookText("journey-status-pill", status);
+    setHookWidth("journey-progress-fill", progressPct);
+    setHookText("journey-departed-value", body.journey_departed_value);
+    setHookText("journey-departed-meta", body.journey_departed_meta);
+    setHookText("journey-current-leg-value", activeLegLabel);
+    if (effectiveSpeedKn !== null && effectiveSpeedKn > 0) {
+      setHookText("journey-current-leg-meta", "Making way at " + String(effectiveSpeedKn) + " kn");
+    }
+    setHookText("journey-next-stop-value", nextStop);
+    setHookText("journey-next-stop-meta", eta);
+    setHookText("journey-checkin-value", formatJourneyCheckinValue(body.journey_checkin_value));
+    setHookText("journey-checkin-meta", body.journey_checkin_meta);
+
+    setHookText("card-status-title", status);
+    setHookText("card-status-value", formatSidebarLastCheckinLabel(lastCheckin) || lastCheckin);
+    setHookText("card-status-copy", body.card_status_copy);
+    setHookText("card-location-title", String(topCards.location_label || "").trim());
+    setHookText("card-location-value", nextStop);
+    setHookText("card-location-copy", body.card_location_copy);
+    setHookText("card-destination-title", nextStop);
+    setHookText("card-destination-value", topCards.next_stop);
+    setHookText("card-destination-copy", body.card_destination_copy);
+    setHookText("card-arrival-title", eta);
+    setHookText("card-arrival-value", nextStop);
+    setHookText("card-arrival-copy", body.card_arrival_copy);
+    setHookText("card-conditions-title", conditions);
+    setHookText("card-conditions-value", topCards.conditions);
+    setHookText("card-conditions-copy", body.card_conditions_copy);
+    setHookText("family-confidence-subtitle", body.family_confidence_subtitle);
   }
 
   function renderHeaderAndCards(payload) {
@@ -153,6 +476,11 @@
     var locks = toInt(pinned.locks, 0);
     var wildlife = toInt(pinned.wildlife, 0);
     var progressPct = 0;
+
+    renderPhase3Shell(payload);
+    renderPhase5StreamShell(payload);
+    renderPhase6LowerCards(payload, state.posts);
+    renderPhase7TimelineSummary(payload);
 
     if (dom.shareTitle) dom.shareTitle.textContent = title;
     if (dom.tripTitle) dom.tripTitle.textContent = title;
@@ -289,52 +617,7 @@
 
   function renderCruiseTimelineInline(timeline) {
     var payload = (timeline && typeof timeline === "object") ? timeline : {};
-    var summary = (payload.summary && typeof payload.summary === "object") ? payload.summary : null;
-    var meta = (payload.meta && typeof payload.meta === "object") ? payload.meta : {};
-    var missing = Array.isArray(meta.missing_inputs) ? meta.missing_inputs : [];
-    var totalNm;
-    var totalHours;
-    var totalDays;
-    var totalLocks;
-    var fuelEst;
-    var reserveEst;
-    var inputsSource;
-    var maxHours;
-    var speedKn;
-    var summaryHtml;
-
-    if (!dom.followTimelineSummary) return;
     state.timeline.payload = payload;
-
-    if (!summary) {
-      dom.followTimelineSummary.innerHTML = '<div class="follow-timeline-empty">Timeline not available yet.</div>';
-      return;
-    }
-
-    totalNm = formatTimelineNumber(summary.total_nm, 1);
-    totalHours = formatTimelineNumber(summary.total_hours, 2);
-    totalDays = formatTimelineNumber(summary.total_days, 0);
-    totalLocks = formatTimelineNumber(summary.total_locks, 0);
-    fuelEst = formatTimelineNumber(summary.fuel_est, 1);
-    reserveEst = formatTimelineNumber(summary.reserve_est, 1);
-    inputsSource = String(meta.inputs_source || "default").trim() || "default";
-    maxHours = formatTimelineNumber(summary.max_hours_per_day, 1);
-    speedKn = formatTimelineNumber(summary.effective_speed_kn, 2);
-
-    summaryHtml = ''
-      + '<div class="follow-timeline-route-total">Route total: ' + totalDays + ' days | ' + totalNm + ' nm | ' + totalHours + ' hrs</div>'
-      + '<div class="follow-timeline-chiprow">'
-      + '  <div class="follow-timeline-chip"><span>Locks</span><strong>' + totalLocks + '</strong></div>'
-      + '  <div class="follow-timeline-chip"><span>Max hrs/day</span><strong>' + maxHours + '</strong></div>'
-      + '  <div class="follow-timeline-chip"><span>Eff speed</span><strong>' + speedKn + ' kn</strong></div>'
-      + '  <div class="follow-timeline-chip"><span>Fuel + Reserve</span><strong>' + fuelEst + ' + ' + reserveEst + ' gal</strong></div>'
-      + '</div>'
-      + '<div class="follow-timeline-meta">Inputs: ' + escapeHtml(inputsSource)
-      + (missing.length ? (' | Missing: ' + escapeHtml(missing.join(", "))) : '')
-      + (meta.zero_speed_guard ? ' | zero_speed_guard=true' : '')
-      + '</div>';
-
-    dom.followTimelineSummary.innerHTML = summaryHtml;
   }
 
   function renderCruiseTimelineLegPane(row, timelinePayload) {
@@ -540,62 +823,112 @@
     return '<span class="tag">Follower</span>';
   }
 
+  function streamAuthorLabel(post) {
+    var authorType = String(post && post.author_type ? post.author_type : "").toLowerCase();
+    if (authorType === "system") return "FPW";
+    if (authorType === "owner") return "Captain";
+    return "Follower";
+  }
+
+  function streamAvatarLabel(post) {
+    var authorType = String(post && post.author_type ? post.author_type : "").toLowerCase();
+    if (authorType === "system") return "FP";
+    if (authorType === "owner") return "OW";
+    return "VW";
+  }
+
+  function renderStreamFeedMeta(post) {
+    var created = formatTimeLabel(post && post.created_utc);
+    var locationLabel = String(post && post.location_label ? post.location_label : "").trim();
+    if (locationLabel) {
+      return created + " · " + locationLabel;
+    }
+    return created;
+  }
+
+  function renderStreamComments(comments) {
+    var list = Array.isArray(comments) ? comments : [];
+
+    return list.map(function (comment) {
+      var displayName = String(comment && comment.display_name ? comment.display_name : "Viewer").trim() || "Viewer";
+      var created = formatTimeLabel(comment && comment.created_utc);
+      var body = String(comment && comment.body ? comment.body : "").trim();
+      var meta = displayName + (created && created !== "n/a" ? (" · " + created) : "");
+
+      return ''
+        + '<div class="feed-comment">'
+        + '  <div class="feed-meta">' + escapeHtml(meta) + '</div>'
+        + '  <p>' + escapeHtml(body).replace(/\n/g, "<br />") + '</p>'
+        + '</div>';
+    }).join("");
+  }
+
+  function renderStreamMedia(post) {
+    var mediaSrc = String((post && (post.media_thumb_url || post.media_url)) || "").trim();
+    var mediaLink = String((post && post.media_url) || mediaSrc).trim();
+
+    if (!mediaSrc) return "";
+
+    return ''
+      + '<div class="feed-media">'
+      + '  <a href="' + escapeHtml(mediaLink) + '" target="_blank" rel="noopener noreferrer">'
+      + '    <img src="' + escapeHtml(mediaSrc) + '" alt="Voyage photo" loading="lazy" />'
+      + '  </a>'
+      + '</div>';
+  }
+
+  function renderStreamReactions(postId, reactions, viewerReactions) {
+    var counts = reactions || {};
+    var active = viewerReactions || {};
+    var reactionNames = ["like", "love", "boat", "wave"];
+
+    return reactionNames.map(function (name) {
+      return ''
+        + '<button type="button" class="reaction reactBtn ' + (active[name] ? "active" : "") + '" data-react="' + name + '" data-post-id="' + String(postId) + '">'
+        + escapeHtml(reactionLabel(name))
+        + ' <span class="count">' + String(toInt(counts[name], 0)) + '</span>'
+        + '</button>';
+    }).join("");
+  }
+
   function renderPost(post) {
     var id = toInt(post.id, 0);
     var title = String(post.title || "").trim();
     var body = String(post.body || "").trim();
-    var created = formatTimeLabel(post.created_utc);
     var reactions = post.reaction_counts || {};
     var viewerReactions = post.viewer_reactions || {};
     var comments = Array.isArray(post.comments) ? post.comments : [];
-    var mediaHtml = "";
-    var titleHtml = "";
+    var authorLabel = streamAuthorLabel(post);
+    var avatarLabel = streamAvatarLabel(post);
+    var metaText = renderStreamFeedMeta(post);
+    var mediaHtml = renderStreamMedia(post);
     var commentsHtml;
 
     if (!title) {
       title = body ? body.slice(0, 90) : "Update";
     }
 
-    if (post.media_url) {
-      mediaHtml = '<img class="postMedia" src="' + escapeHtml(post.media_url) + '" alt="Voyage photo" loading="lazy" />';
-    }
-
-    commentsHtml = comments.map(function (comment) {
-      return ''
-        + '<div class="comment">'
-        + '  <div class="who">' + escapeHtml(comment.display_name || "Viewer") + '</div>'
-        + '  <div class="txt">' + escapeHtml(comment.body || "") + '</div>'
-        + '</div>';
-    }).join("");
-
-    titleHtml = ''
-      + '<div class="postTitle">'
-      + postTag(post)
-      + '<b>' + escapeHtml(title) + '</b>'
-      + '</div>';
+    commentsHtml = renderStreamComments(comments);
 
     return ''
-      + '<article class="post" data-post-id="' + String(id) + '">'
-      + '  <div class="postHead">'
-      + titleHtml
-      + '    <div class="postTime">' + escapeHtml(created) + '</div>'
+      + '<article class="feed-card" data-post-id="' + String(id) + '">'
+      + '  <div class="feed-head">'
+      + '    <div class="feed-left">'
+      + '      <div class="avatar">' + escapeHtml(avatarLabel) + '</div>'
+      + '      <div>'
+      + '        <div class="feed-title">' + escapeHtml(title) + '</div>'
+      + '        <div class="feed-meta">' + escapeHtml(metaText) + '</div>'
+      + '      </div>'
+      + '    </div>'
+      + '    <div class="feed-flag">' + escapeHtml(authorLabel) + '</div>'
       + '  </div>'
       + mediaHtml
-      + '  <div class="postBody">' + escapeHtml(body).replace(/\n/g, "<br />") + '</div>'
-      + '  <div class="postActions">'
-      + '    <div class="reactions">'
-      + '      <button class="reactBtn ' + (viewerReactions.like ? "active" : "") + '" data-react="like" data-post-id="' + String(id) + '">Like <span class="count">' + String(toInt(reactions.like, 0)) + '</span></button>'
-      + '      <button class="reactBtn ' + (viewerReactions.love ? "active" : "") + '" data-react="love" data-post-id="' + String(id) + '">Love <span class="count">' + String(toInt(reactions.love, 0)) + '</span></button>'
-      + '      <button class="reactBtn ' + (viewerReactions.boat ? "active" : "") + '" data-react="boat" data-post-id="' + String(id) + '">Boat <span class="count">' + String(toInt(reactions.boat, 0)) + '</span></button>'
-      + '      <button class="reactBtn ' + (viewerReactions.wave ? "active" : "") + '" data-react="wave" data-post-id="' + String(id) + '">Wave <span class="count">' + String(toInt(reactions.wave, 0)) + '</span></button>'
-      + '    </div>'
-      + '    <div class="commentBox">'
-      + '      <input class="commentInput" data-comment-input="' + String(id) + '" maxlength="500" placeholder="Add a comment..." />'
-      + '      <button class="btn tiny" data-comment-submit="' + String(id) + '">Comment</button>'
-      + '    </div>'
-      + '    <div class="comments" id="comments-' + String(id) + '">'
-      + (commentsHtml || "")
-      + '    </div>'
+      + '  <p>' + escapeHtml(body).replace(/\n/g, "<br />") + '</p>'
+      + '  <div class="reactions">' + renderStreamReactions(id, reactions, viewerReactions) + '</div>'
+      + '  <div id="comments-' + String(id) + '">' + (commentsHtml || "") + '</div>'
+      + '  <div class="commentBox">'
+      + '    <input class="commentInput" type="text" data-comment-input="' + String(id) + '" maxlength="500" placeholder="Add a comment..." />'
+      + '    <button type="button" class="reaction" data-comment-submit="' + String(id) + '">Comment</button>'
       + '  </div>'
       + '</article>';
   }
@@ -605,10 +938,12 @@
     var html = "";
 
     state.posts = list;
+    updateSidebarLastCheckinFromPosts(list);
+    renderPhase6LowerCards(state.bootstrap || {}, list);
     if (!dom.postsContainer) return;
 
     if (!list.length) {
-      dom.postsContainer.innerHTML = '<div class="emptyState">No posts yet. Add the first voyage update.</div>';
+      dom.postsContainer.innerHTML = '<div class="feed-card"><p>No posts yet. Add the first voyage update.</p></div>';
       if (dom.photoCount) dom.photoCount.textContent = "0 new";
       return;
     }
@@ -642,13 +977,14 @@
   function appendCommentToUi(postId, displayName, text, pending) {
     var container = document.getElementById("comments-" + String(postId));
     var div;
+    var metaText = String(displayName || "You").trim() || "You";
     if (!container) return null;
 
     div = document.createElement("div");
-    div.className = "comment" + (pending ? " pending" : "");
+    div.className = "feed-comment" + (pending ? " pending" : "");
     div.innerHTML = ''
-      + '<div class="who">' + escapeHtml(displayName || "You") + '</div>'
-      + '<div class="txt">' + escapeHtml(text || "") + '</div>';
+      + '<div class="feed-meta">' + escapeHtml(metaText) + '</div>'
+      + '<p>' + escapeHtml(text || "") + '</p>';
     container.appendChild(div);
     return div;
   }
@@ -701,17 +1037,26 @@
     button.classList.toggle("active", !wasActive);
     if (countEl) countEl.textContent = String(nextCount);
 
-    ensureFollowerToken(false)
+    (state.isOwner ? Promise.resolve("") : ensureFollowerToken(false))
       .then(function (token) {
-        return fetchJson("toggleReaction", {
+        var payload = {
           post_id: postId,
-          emoji: emoji,
-          follower_token: token
+          emoji: emoji
+        };
+        if (!state.isOwner) {
+          payload.follower_token = token;
+        }
+        return fetchJson("toggleReaction", {
+          post_id: payload.post_id,
+          emoji: payload.emoji,
+          follower_token: payload.follower_token
         });
       })
       .then(function (res) {
-        applyReactionCounts(postId, res.reaction_counts || {}, res.active ? emoji : "");
-        if (!res.active) {
+        var reactionCounts = res.reaction_counts || res.REACTION_COUNTS || {};
+        var isActive = !!(res.active || res.ACTIVE);
+        applyReactionCounts(postId, reactionCounts, isActive ? emoji : "");
+        if (!isActive) {
           var btn = dom.postsContainer.querySelector('[data-post-id="' + String(postId) + '"] [data-react="' + emoji + '"]');
           if (btn) btn.classList.remove("active");
         }
@@ -737,16 +1082,23 @@
     input.value = "";
     pendingNode = appendCommentToUi(postId, "You", text, true);
 
-    ensureFollowerToken(false)
+    (state.isOwner ? Promise.resolve("") : ensureFollowerToken(false))
       .then(function (token) {
-        return fetchJson("addComment", {
+        var payload = {
           post_id: postId,
-          body: text,
-          follower_token: token
+          body: text
+        };
+        if (!state.isOwner) {
+          payload.follower_token = token;
+        }
+        return fetchJson("addComment", {
+          post_id: payload.post_id,
+          body: payload.body,
+          follower_token: payload.follower_token
         });
       })
       .then(function (res) {
-        var comment = (res && res.comment) ? res.comment : null;
+        var comment = (res && (res.comment || res.COMMENT)) ? (res.comment || res.COMMENT) : null;
         if (!comment) return;
         if (pendingNode && pendingNode.parentNode) {
           pendingNode.parentNode.removeChild(pendingNode);
@@ -804,21 +1156,21 @@
   function setComposerMode() {
     var enabled = !!state.isOwner;
 
-    if (!dom.composerText || !dom.composerPhotoUrl || !dom.composerPostBtn || !dom.composerHelp) return;
+    if (!dom.composerText || !dom.composerPhotoUrl || !dom.composerPostBtn) return;
 
     dom.composerText.disabled = !enabled;
     dom.composerPhotoUrl.disabled = !enabled;
     dom.composerPostBtn.disabled = !enabled;
 
     if (enabled) {
-      dom.composerHelp.textContent = "Owner posting enabled.";
-      dom.composerAvatar.textContent = "OW";
+      if (dom.composerHelp) dom.composerHelp.textContent = "Owner posting enabled.";
+      if (dom.composerAvatar) dom.composerAvatar.textContent = "OW";
       if (dom.followActionBtn) dom.followActionBtn.textContent = "Owner";
       return;
     }
 
-    dom.composerHelp.textContent = "Viewer mode: use Follow to react and comment.";
-    dom.composerAvatar.textContent = "VW";
+    if (dom.composerHelp) dom.composerHelp.textContent = "Viewer mode: use Follow to react and comment.";
+    if (dom.composerAvatar) dom.composerAvatar.textContent = "VW";
   }
 
   function postAsOwner() {
@@ -841,8 +1193,18 @@
     });
   }
 
+  function applyComposerTemplate(text) {
+    var value = String(text || "").trim();
+    if (!value) return;
+    if (!dom.composerText || dom.composerText.disabled) return;
+    dom.composerText.value = dom.composerText.value
+      ? (dom.composerText.value + "\n" + value)
+      : value;
+    dom.composerText.focus();
+  }
+
   function copyShareLink() {
-    var url = window.location.origin + (window.FPW_BASE || "") + "/app/follow.cfm?slug=" + encodeURIComponent(state.slug || "") + "&t=" + encodeURIComponent(state.token || "");
+    var url = window.location.origin + getBasePath() + "/app/follow.cfm?slug=" + encodeURIComponent(state.slug || "") + "&t=" + encodeURIComponent(state.token || "");
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(function () {
         if (dom.copyLinkBtn) dom.copyLinkBtn.textContent = "Copied";
@@ -881,6 +1243,8 @@
   }
 
   function bindUi() {
+    collectHookMap();
+
     dom.shareTitle = document.getElementById("shareTitle");
     dom.shareStatusPill = document.getElementById("shareStatusPill");
     dom.sharePath = document.getElementById("sharePath");
@@ -913,8 +1277,8 @@
     dom.summarySub = document.getElementById("summarySub");
     dom.summaryMeta = document.getElementById("summaryMeta");
     dom.followTimelineSection = document.getElementById("followTimelineSection");
-    dom.followTimelineSummary = document.getElementById("followTimelineSummary");
-    dom.followTimelineLegList = document.getElementById("followTimelineLegList");
+    dom.followTimelineSummary = getHookField("timeline-route-total");
+    dom.followTimelineLegList = getHookField("timeline-events");
 
     dom.pinnedUpdated = document.getElementById("pinnedUpdated");
     dom.pinnedMiles = document.getElementById("pinnedMiles");
@@ -924,12 +1288,11 @@
 
     dom.followActionBtn = document.getElementById("followActionBtn");
     dom.composerAvatar = document.getElementById("composerAvatar");
-    dom.composerText = document.getElementById("composerText");
-    dom.composerPhotoUrl = document.getElementById("composerPhotoUrl");
-    dom.composerPostBtn = document.getElementById("composerPostBtn");
+    dom.composerText = document.getElementById("composerText") || getHookField("stream-composer-text");
+    dom.composerPhotoUrl = document.getElementById("composerPhotoUrl") || getHookField("stream-composer-photo-url");
+    dom.composerPostBtn = document.getElementById("composerPostBtn") || getHookField("stream-composer-post");
     dom.composerHelp = document.getElementById("composerHelp");
-
-    dom.postsContainer = document.getElementById("postsContainer");
+    dom.postsContainer = document.getElementById("postsContainer") || getHookField("stream-feed");
 
     if (dom.copyLinkBtn) {
       dom.copyLinkBtn.addEventListener("click", copyShareLink);
@@ -956,12 +1319,17 @@
 
     document.querySelectorAll("[data-template]").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        if (!dom.composerText || dom.composerText.disabled) return;
-        var text = String(btn.getAttribute("data-template") || "");
-        dom.composerText.value = dom.composerText.value ? (dom.composerText.value + "\n" + text) : text;
-        dom.composerText.focus();
+        applyComposerTemplate(String(btn.getAttribute("data-template") || ""));
       });
     });
+
+    if (dom.regions && dom.regions["voyage-stream"]) {
+      dom.regions["voyage-stream"].querySelectorAll(".quick-tag").forEach(function (tagEl) {
+        tagEl.addEventListener("click", function () {
+          applyComposerTemplate(tagEl.textContent || "");
+        });
+      });
+    }
 
     wirePostInteractions();
     wireCruiseTimelineInteractions();
@@ -969,6 +1337,7 @@
 
   function init() {
     var route = readSlugTokenFromUrl();
+    state.pageContext = readPageContext();
     state.slug = route.slug;
     state.token = route.token;
     state.streamId = route.streamId;

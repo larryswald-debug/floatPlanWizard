@@ -251,6 +251,13 @@
       });
     },
 
+    submitFloatPlanCheckIn: function (payload) {
+      return request("/floatplan.cfc?method=handle&action=checkin", {
+        method: "POST",
+        body: payload || {}
+      });
+    },
+
     deleteFloatPlan: function (floatPlanId) {
       return request("/floatplan.cfc?method=handle", {
         method: "POST",

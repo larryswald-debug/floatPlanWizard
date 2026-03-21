@@ -1,40 +1,12 @@
 require("./test-hooks");
 
-if (!process.env.FPW_EMAIL || !process.env.FPW_PASSWORD) {
-  throw new Error("Missing FPW_EMAIL / FPW_PASSWORD env vars");
-}
-
 const { test, expect } = require("@playwright/test");
+const { loginApprovedUser } = require("../support/fpwSession");
 
 test.describe.configure({ timeout: 120000 });
 
-async function gotoWithRetry(page, url, retries = 1) {
-  let lastError;
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
-    try {
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-      return;
-    } catch (error) {
-      lastError = error;
-      if (attempt >= retries) {
-        throw error;
-      }
-      await page.waitForTimeout(750);
-    }
-  }
-  throw lastError;
-}
-
 async function loginToDashboard(page) {
-  await gotoWithRetry(page, "/fpw/index.cfm");
-  await page.fill('input[name="email"], input[name="EMAIL"]', process.env.FPW_EMAIL || "");
-  await page.fill('input[type="password"], input[name="password"], input[name="PASSWORD"]', process.env.FPW_PASSWORD || "");
-  await page.click('button[type="submit"], input[type="submit"]');
-  await page.waitForLoadState("networkidle");
-  await expect(page).not.toHaveURL(/index\.cfm$/i);
-  if (!/\/fpw\/app\/dashboard\.cfm/i.test(page.url())) {
-    await gotoWithRetry(page, "/fpw/app/dashboard.cfm");
-  }
+  await loginApprovedUser(page);
   await expect(page.locator("#openRouteBuilderBtn")).toBeVisible({ timeout: 30000 });
 }
 
@@ -88,12 +60,27 @@ async function openPreview(page) {
     return !!sel && sel.options.length > 1;
   }, { timeout: 20000 });
   await page.selectOption("#routeGenEndLocation", { index: 1 });
-
-  await expect(page.locator("#routeGenPreviewBtn")).toBeEnabled({ timeout: 30000 });
-  await page.click("#routeGenPreviewBtn");
   await page.waitForFunction(() => {
     return document.querySelectorAll("#routeGenLegList .fpw-routegen__leg").length > 0;
   }, { timeout: 30000 });
+}
+
+async function closeRouteBuilderModal(page) {
+  const modal = page.locator("#routeBuilderModal");
+  if (await modal.isVisible().catch(() => false)) {
+    const closeBtn = page.locator("#routeGenCancelBtn").first();
+    await expect(closeBtn).toBeVisible({ timeout: 15000 });
+    await closeBtn.click();
+  }
+  await expect(modal).toBeHidden({ timeout: 30000 });
+}
+
+async function ensureRouteName(page, value) {
+  const input = page.locator("#routeGenRouteName");
+  await expect(input).toBeVisible({ timeout: 15000 });
+  if (!String(await input.inputValue()).trim()) {
+    await input.fill(value);
+  }
 }
 
 test("Route Builder lock panel handles retry and keeps map action available", async ({ page }) => {
@@ -177,9 +164,7 @@ test("Route Builder keeps lock panel open when advanced settings change", async 
     if (advanced) advanced.open = true;
   });
 
-  await page.fill("#routeGenReservePct", "25");
-  await page.dispatchEvent("#routeGenReservePct", "input");
-  await page.dispatchEvent("#routeGenReservePct", "change");
+  await page.selectOption("#routeGenReservePct", "20");
 
   await expect.poll(async () => {
     const panel = await page.locator(openPanelSelector).first();
@@ -214,7 +199,7 @@ test("Route Builder keeps lock panel open when advanced settings change", async 
   await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 15000 });
 });
 
-test("Route Builder timeline fuel updates after advanced input changes", async ({ page }) => {
+test("Route Builder timeline fuel refresh follows the authoritative burn input for the active pace", async ({ page }) => {
   await loginToDashboard(page);
   await openPreview(page);
 
@@ -223,14 +208,21 @@ test("Route Builder timeline fuel updates after advanced input changes", async (
       && response.url().includes("action=routegen_generate");
   }, { timeout: 30000 });
 
+  await ensureRouteName(page, "PW Lock Timeline " + Date.now());
   await expect(page.locator("#routeGenGenerateBtn")).toBeEnabled({ timeout: 30000 });
   await page.click("#routeGenGenerateBtn");
   const generateResponse = await generateResponsePromise;
   const generatePayload = await generateResponse.json();
   expect(!!(generatePayload && generatePayload.SUCCESS)).toBeTruthy();
-  await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 30000 });
+  const generatedRouteCode = String(
+    (generatePayload && generatePayload.ROUTE_CODE !== undefined ? generatePayload.ROUTE_CODE : "")
+      || (generatePayload && generatePayload.DATA && generatePayload.DATA.route_code !== undefined ? generatePayload.DATA.route_code : "")
+      || ""
+  ).trim();
+  expect(generatedRouteCode).not.toBe("");
+  await closeRouteBuilderModal(page);
 
-  const editBtn = page.locator(".expedition-route-card .js-expedition-view-edit").first();
+  const editBtn = page.locator(`[data-route-code="${generatedRouteCode}"] .js-expedition-view-edit`);
   await expect(editBtn).toBeVisible({ timeout: 30000 });
   await editBtn.click();
 
@@ -254,32 +246,46 @@ test("Route Builder timeline fuel updates after advanced input changes", async (
     if (advanced) advanced.open = true;
   });
 
-  const currentFuelInput = Number(await page.inputValue("#routeGenFuelBurnGph"));
-  const nextFuelValue = currentFuelInput === 32 ? "28" : "32";
-  const previewReqP = page.waitForRequest((req) => {
-    return req.method() === "POST"
-      && req.url().includes("action=routegen_preview");
-  }, { timeout: 30000 });
-  const timelineReqP = page.waitForRequest((req) => {
-    return req.method() === "POST"
-      && req.url().includes("action=generateCruiseTimeline");
-  }, { timeout: 30000 });
+  expect(await page.inputValue("#routeGenPace")).toBe("0");
 
-  await page.fill("#routeGenFuelBurnGph", nextFuelValue);
-  await page.dispatchEvent("#routeGenFuelBurnGph", "input");
-  await page.dispatchEvent("#routeGenFuelBurnGph", "change");
+  async function changeAdvancedFuelField(selector, value) {
+    const previewReqP = page.waitForRequest((req) => {
+      return req.method() === "POST"
+        && req.url().includes("action=routegen_preview");
+    }, { timeout: 30000 });
+    const timelineReqP = page.waitForRequest((req) => {
+      return req.method() === "POST"
+        && req.url().includes("action=generateCruiseTimeline");
+    }, { timeout: 30000 });
 
-  const previewReq = await previewReqP;
-  const previewResponse = await previewReq.response();
-  expect(previewResponse).toBeTruthy();
-  const previewPayload = await previewResponse.json();
-  expect(!!previewPayload.SUCCESS).toBeTruthy();
+    await page.fill(selector, value);
+    await page.dispatchEvent(selector, "input");
+    await page.dispatchEvent(selector, "change");
 
-  const timelineReq = await timelineReqP;
-  const timelineResponse = await timelineReq.response();
-  expect(timelineResponse).toBeTruthy();
-  const timelinePayload = await timelineResponse.json();
-  expect(!!(timelinePayload.success || timelinePayload.SUCCESS)).toBeTruthy();
+    const previewReq = await previewReqP;
+    const previewResponse = await previewReq.response();
+    expect(previewResponse).toBeTruthy();
+    const previewPayload = await previewResponse.json();
+    expect(!!previewPayload.SUCCESS).toBeTruthy();
+
+    const timelineReq = await timelineReqP;
+    const timelineResponse = await timelineReq.response();
+    expect(timelineResponse).toBeTruthy();
+    const timelinePayload = await timelineResponse.json();
+    expect(!!(timelinePayload.success || timelinePayload.SUCCESS)).toBeTruthy();
+  }
+
+  const currentMaxBurnInput = Number(await page.inputValue("#routeGenFuelBurnGph"));
+  const nextMaxBurnValue = currentMaxBurnInput === 32 ? "28" : "32";
+  await changeAdvancedFuelField("#routeGenFuelBurnGph", nextMaxBurnValue);
+
+  await expect.poll(async () => {
+    return (await page.locator(timelineFuelSelector).first().innerText()).trim();
+  }, { timeout: 20000 }).toBe(beforeFuelText.trim());
+
+  const currentEfficientBurnInput = Number(await page.inputValue("#routeGenFuelBurnEfficientGph"));
+  const nextEfficientBurnValue = currentEfficientBurnInput === 5 ? "4" : "5";
+  await changeAdvancedFuelField("#routeGenFuelBurnEfficientGph", nextEfficientBurnValue);
 
   await expect.poll(async () => {
     return (await page.locator(timelineFuelSelector).first().innerText()).trim();

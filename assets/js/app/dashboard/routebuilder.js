@@ -2097,6 +2097,34 @@
     return 0;
   }
 
+  function findAvailableVesselByEditorFields() {
+    var matchKeys = [];
+    var target = {
+      max_speed_kn: toPositiveNumber(dom.cruisingSpeedEl ? dom.cruisingSpeedEl.value : state.vesselDefaults.maxSpeedKn, 0),
+      most_efficient_speed_kn: toPositiveNumber(dom.mostEfficientSpeedEl ? dom.mostEfficientSpeedEl.value : state.vesselDefaults.mostEfficientSpeedKn, 0),
+      gph_at_max_speed: toPositiveNumber(dom.fuelBurnGphEl ? dom.fuelBurnGphEl.value : state.vesselDefaults.gphAtMaxSpeed, 0),
+      gph_at_most_efficient_speed: toPositiveNumber(dom.fuelBurnEfficientGphEl ? dom.fuelBurnEfficientGphEl.value : state.vesselDefaults.gphAtMostEfficientSpeed, 0)
+    };
+    var matches = [];
+
+    if (!Array.isArray(state.availableVessels) || !state.availableVessels.length) return null;
+
+    Object.keys(target).forEach(function (key) {
+      if (target[key] > 0) {
+        matchKeys.push(key);
+      }
+    });
+    if (!matchKeys.length) return null;
+
+    matches = state.availableVessels.filter(function (vessel) {
+      return matchKeys.every(function (key) {
+        return toPositiveNumber(vessel[key], 0) === target[key];
+      });
+    });
+
+    return (matches.length === 1 ? matches[0] : null);
+  }
+
   function applySelectedVesselToDefaultsState(vesselData) {
     var vessel = vesselData && typeof vesselData === "object" ? vesselData : null;
     if (!vessel) return;
@@ -2146,6 +2174,15 @@
     }
 
     selectedVessel = getAvailableVesselById(state.selectedVesselId);
+    if (state.modalMode === "editor" && !selectedVessel) {
+      selectedVessel = findAvailableVesselByEditorFields();
+      if (selectedVessel) {
+        state.selectedVesselId = toInt(selectedVessel.vessel_id, 0);
+        if (state.editorBaseline && !String(state.editorBaseline.selected_vessel_id || "").trim()) {
+          state.editorBaseline.selected_vessel_id = String(state.selectedVesselId);
+        }
+      }
+    }
     if (state.modalMode !== "editor" && !selectedVessel) {
       selectedId = getDefaultAvailableVesselId();
       state.selectedVesselId = selectedId;
@@ -6099,6 +6136,9 @@
                   routeId: toInt(state.myRoutes.activeRouteId, 0),
                   reloadActive: true,
                   silentError: true
+                }).then(function () {
+                  if (!isActiveModalInit(initSeq)) return null;
+                  return fetchGeneratorVesselDefaults();
                 });
               }
               if (!state.activeTemplateCode && state.templates.length) {

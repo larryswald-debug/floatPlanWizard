@@ -137,6 +137,13 @@
 
                 <cfcase value="checkin">
                     <cfset var checkinId = 0>
+                    <cfset var checkinStatus = trim(structKeyExists(body, "status") ? toString(body.status) : "")>
+                    <cfset var checkinNote = (structKeyExists(body, "note") ? toString(body.note) : "")>
+                    <cfset var checkinContext = trim(
+                        structKeyExists(body, "checkinContext")
+                            ? toString(body.checkinContext)
+                            : (structKeyExists(body, "checkin_context") ? toString(body.checkin_context) : "")
+                    )>
                     <cfif structKeyExists(body, "floatPlanId")>
                         <cfset checkinId = val(body.floatPlanId)>
                     <cfelseif structKeyExists(url, "floatPlanId")>
@@ -144,10 +151,14 @@
                     <cfelseif structKeyExists(url, "id")>
                         <cfset checkinId = val(url.id)>
                     </cfif>
-
-                    <cfset var checkinResult = checkInFloatPlan(userId, checkinId)>
-                    <cfset checkinResult.AUTH = true>
-                    <cfoutput>#serializeJSON(checkinResult)#</cfoutput>
+                    <cfif len(checkinStatus) OR structKeyExists(body, "note")>
+                        <cfset var cruiseCheckinResult = submitActiveCruiseCheckIn(userId, checkinId, checkinStatus, checkinNote, checkinContext)>
+                        <cfoutput>#serializeJSON(cruiseCheckinResult)#</cfoutput>
+                    <cfelse>
+                        <cfset var checkinResult = checkInFloatPlan(userId, checkinId)>
+                        <cfset checkinResult.AUTH = true>
+                        <cfoutput>#serializeJSON(checkinResult)#</cfoutput>
+                    </cfif>
                 </cfcase>
 
                 <cfdefaultcase>
@@ -1575,23 +1586,27 @@
         <cfscript>
             var result = { SUCCESS = false };
             var allowedStatuses = "ACTIVE,OVERDUE,DUE_NOW,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H";
+            var updateSql = "";
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
                 result.MESSAGE = "Float plan id is required.";
                 return result;
             }
 
-            queryExecute("
-                UPDATE floatplans
-                SET
+            updateSql =
+                "UPDATE floatplans
+                 SET
                     `status` = 'CLOSED',
-                    checkedInAt = UTC_TIMESTAMP(),
+                    checkedInAt = UTC_TIMESTAMP(),"
+                    & "
+                    checkin_context = NULL,
                     closedAt = UTC_TIMESTAMP(),
                     lastUpdateStatus = UTC_TIMESTAMP()
-                WHERE floatplanId = :planId
-                  AND userId = :userId
-                  AND UPPER(TRIM(`status`)) IN (#listQualify(allowedStatuses, "'")#)
-            ", {
+                 WHERE floatplanId = :planId
+                   AND userId = :userId
+                   AND UPPER(TRIM(`status`)) IN (#listQualify(allowedStatuses, "'")#)";
+
+            queryExecute(updateSql, {
                 planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                 userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
             }, { datasource = "fpw" });
@@ -1622,6 +1637,212 @@
             result.FLOATPLANID = arguments.floatPlanId;
             result.STATUS = "CLOSED";
             return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="submitActiveCruiseCheckIn" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="status" type="string" required="true">
+        <cfargument name="note" type="string" required="false" default="">
+        <cfargument name="checkinContext" type="string" required="false" default="">
+        <cfscript>
+            var result = { "success" = false };
+            var allowedStatuses = "On Track,Delayed,Changed Plan,Need Attention";
+            var statusVal = trim(arguments.status);
+            var noteVal = toString(arguments.note);
+            var contextVal = lCase(trim(arguments.checkinContext));
+            var streamCtx = {};
+            var titleVal = "";
+            var ds = "fpw";
+            var qPlan = queryNew("");
+            var updateSql = "";
+            var updateParams = {};
+
+            if (arguments.floatPlanId LTE 0) {
+                result.SUCCESS = false;
+                result.ERROR = "INVALID_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            if (!listFindNoCase(allowedStatuses, statusVal)) {
+                result.SUCCESS = false;
+                result.ERROR = "INVALID_STATUS";
+                result.MESSAGE = "Status must be one of On Track, Delayed, Changed Plan, or Need Attention.";
+                return result;
+            }
+            if (len(contextVal) AND contextVal NEQ "overnight") {
+                result.SUCCESS = false;
+                result.ERROR = "INVALID_CHECKIN_CONTEXT";
+                result.MESSAGE = "checkinContext must be blank or overnight.";
+                return result;
+            }
+
+            qPlan = queryExecute(
+                "SELECT floatplanId
+                 FROM floatplans
+                 WHERE floatplanId = :planId
+                   AND userId = :userId
+                 LIMIT 1",
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = ds }
+            );
+
+            if (qPlan.recordCount EQ 0) {
+                result.SUCCESS = false;
+                result.ERROR = "NOT_FOUND";
+                result.MESSAGE = "Float plan not found.";
+                return result;
+            }
+
+            titleVal = "Check-in: " & statusVal;
+            updateSql =
+                "UPDATE floatplans
+                 SET checkedInAt = UTC_TIMESTAMP(),
+                     checkin_context = :checkinContext,
+                     lastUpdateStatus = UTC_TIMESTAMP()
+                 WHERE floatplanId = :planId
+                   AND userId = :userId";
+            updateParams = {
+                checkinContext = { value = contextVal, cfsqltype = "cf_sql_varchar", null = NOT len(contextVal) },
+                planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+            };
+
+            transaction {
+                queryExecute(
+                    updateSql,
+                    updateParams,
+                    { datasource = ds }
+                );
+
+                streamCtx = ensureVoyageStreamForFloatPlan(arguments.userId, arguments.floatPlanId, ds);
+
+                queryExecute(
+                    "INSERT INTO voyage_posts (
+                        stream_id,
+                        author_type,
+                        author_user_id,
+                        title,
+                        body,
+                        post_type,
+                        event_type,
+                        created_utc
+                     ) VALUES (
+                        :streamId,
+                        'system',
+                        :userId,
+                        :title,
+                        :body,
+                        'system_event',
+                        'checkin',
+                        UTC_TIMESTAMP()
+                     )",
+                    {
+                        streamId = { value = streamCtx.streamId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                        title = { value = titleVal, cfsqltype = "cf_sql_varchar" },
+                        body = { value = noteVal, cfsqltype = "cf_sql_longvarchar" }
+                    },
+                    { datasource = ds }
+                );
+
+                queryExecute(
+                    "UPDATE voyage_streams
+                     SET updated_utc = UTC_TIMESTAMP()
+                     WHERE id = :streamId",
+                    {
+                        streamId = { value = streamCtx.streamId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = ds }
+                );
+            }
+
+            result = { "success" = true };
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="ensureVoyageStreamForFloatPlan" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var out = { "streamId" = 0 };
+            var ds = trim(arguments.datasource);
+            var qStream = queryNew("");
+            var slugVal = "floatplan-" & arguments.floatPlanId;
+            var shareTokenVal = replace(createUUID(), "-", "", "all") & replace(createUUID(), "-", "", "all");
+
+            qStream = queryExecute(
+                "SELECT id
+                 FROM voyage_streams
+                 WHERE floatplan_id = :planId
+                   AND owner_user_id = :userId
+                 ORDER BY id DESC
+                 LIMIT 1",
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = ds }
+            );
+
+            if (qStream.recordCount EQ 0) {
+                queryExecute(
+                    "INSERT INTO voyage_streams (
+                        floatplan_id,
+                        owner_user_id,
+                        slug,
+                        share_token,
+                        privacy_mode,
+                        allow_interactions,
+                        created_utc,
+                        updated_utc
+                     ) VALUES (
+                        :floatPlanId,
+                        :ownerUserId,
+                        :slug,
+                        :shareToken,
+                        'public',
+                        1,
+                        UTC_TIMESTAMP(),
+                        UTC_TIMESTAMP()
+                     )",
+                    {
+                        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                        ownerUserId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                        slug = { value = slugVal, cfsqltype = "cf_sql_varchar" },
+                        shareToken = { value = left(shareTokenVal, 64), cfsqltype = "cf_sql_varchar" }
+                    },
+                    { datasource = ds }
+                );
+
+                qStream = queryExecute(
+                    "SELECT id
+                     FROM voyage_streams
+                     WHERE floatplan_id = :planId
+                       AND owner_user_id = :userId
+                     ORDER BY id DESC
+                     LIMIT 1",
+                    {
+                        planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = ds }
+                );
+            }
+
+            if (qStream.recordCount EQ 0) {
+                throw(message = "Unable to create or load voyage stream for this float plan.");
+            }
+
+            out.streamId = val(qStream.id[1]);
+            return out;
         </cfscript>
     </cffunction>
 

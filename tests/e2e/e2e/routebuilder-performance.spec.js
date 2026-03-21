@@ -1,4 +1,4 @@
-require("./test-hooks");
+const { submitLoginForm } = require("./test-hooks");
 
 if (!process.env.FPW_EMAIL || !process.env.FPW_PASSWORD) {
   throw new Error("Missing FPW_EMAIL / FPW_PASSWORD env vars");
@@ -9,10 +9,7 @@ const { test, expect } = require("@playwright/test");
 test.describe.configure({ timeout: 180000 });
 
 async function loginToDashboard(page) {
-  await page.goto("/fpw/index.cfm", { waitUntil: "domcontentloaded" });
-  await page.fill('input[name="email"], input[name="EMAIL"]', process.env.FPW_EMAIL || "");
-  await page.fill('input[type="password"], input[name="password"], input[name="PASSWORD"]', process.env.FPW_PASSWORD || "");
-  await page.click('button[type="submit"], input[type="submit"]');
+  await submitLoginForm(page, { loginUrl: "/fpw/index.cfm", waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
   await expect(page).not.toHaveURL(/index\.cfm$/i);
   if (!/\/fpw\/app\/dashboard\.cfm/i.test(page.url())) {
@@ -84,17 +81,16 @@ async function waitForTestHook(page) {
 }
 
 async function runPreviewCycle(page) {
-  const previewBtn = page.locator("#routeGenPreviewBtn");
-  await expect(previewBtn).toBeVisible({ timeout: 30000 });
-  await expect(previewBtn).toBeEnabled({ timeout: 60000 });
+  const reserveInput = page.locator("#routeGenReservePct");
+  const currentValue = String(await reserveInput.inputValue()).trim();
+  const nextValue = currentValue === "33" ? "20" : "33";
   const startedAt = Date.now();
-  await page.evaluate(() => {
-    const button = document.getElementById("routeGenPreviewBtn");
-    if (!button) {
-      throw new Error("Preview button not found.");
-    }
-    button.click();
-  });
+  const previewResponsePromise = page.waitForResponse((response) => {
+    return response.request().method() === "POST"
+      && response.url().includes("action=routegen_preview");
+  }, { timeout: 30000 });
+  await reserveInput.selectOption(nextValue);
+  await previewResponsePromise;
   await page.waitForFunction(() => {
     return document.querySelectorAll("#routeGenLegList .fpw-routegen__leg").length > 0;
   }, { timeout: 30000 });

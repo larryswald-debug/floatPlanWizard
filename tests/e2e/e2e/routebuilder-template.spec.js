@@ -25,32 +25,30 @@ async function gotoWithRetry(page, url, retries = 1) {
   throw lastError;
 }
 
-async function waitForRouteBuilderModalToClose(page, timeoutMs) {
+async function closeRouteBuilderModal(page, timeoutMs) {
   const modal = page.locator("#routeBuilderModal");
-  const closedByApp = await page.waitForFunction(() => {
-    const el = document.getElementById("routeBuilderModal");
-    if (!el) return true;
-    if (!el.classList.contains("show")) return true;
-    const style = window.getComputedStyle(el);
-    return style.display === "none" || el.getAttribute("aria-hidden") === "true";
-  }, { timeout: timeoutMs }).then(() => true).catch(() => false);
-
-  if (!closedByApp) {
+  if (await modal.isVisible().catch(() => false)) {
     const closeBtn = page.locator("#routeGenCloseBtn, #routeGenCancelBtn").first();
-    if (await closeBtn.isVisible().catch(() => false)) {
-      await closeBtn.click({ timeout: 1500 }).catch(() => {});
-    }
+    await expect(closeBtn).toBeVisible({ timeout: timeoutMs });
+    await closeBtn.click({ timeout: Math.min(timeoutMs, 5000) });
   }
 
   await expect(modal).toBeHidden({ timeout: timeoutMs });
   await expect(page.locator(".modal-backdrop.show")).toHaveCount(0, { timeout: timeoutMs });
 }
 
-async function clickPreviewWhenReady(page) {
-  const previewBtn = page.locator("#routeGenPreviewBtn");
-  await expect(previewBtn).toBeVisible({ timeout: 30000 });
-  await expect(previewBtn).toBeEnabled({ timeout: 60000 });
-  await previewBtn.click({ timeout: 60000 });
+async function waitForPreviewWhenReady(page) {
+  await page.waitForFunction(() => {
+    return document.querySelectorAll("#routeGenLegList .fpw-routegen__leg").length > 0;
+  }, { timeout: 30000 });
+}
+
+async function ensureRouteName(page, value) {
+  const input = page.locator("#routeGenRouteName");
+  await expect(input).toBeVisible({ timeout: 15000 });
+  if (!String(await input.inputValue()).trim()) {
+    await input.fill(value);
+  }
 }
 
 async function loginToDashboard(page) {
@@ -89,7 +87,7 @@ test("Route Builder generates route from template and opens timeline editor", as
   }, { timeout: 20000 });
   await page.selectOption("#routeGenEndLocation", { index: 1 });
 
-  await clickPreviewWhenReady(page);
+  await waitForPreviewWhenReady(page);
   await page.waitForFunction(() => {
     const txt = document.getElementById("routeGenLegCount");
     if (!txt) return false;
@@ -97,21 +95,23 @@ test("Route Builder generates route from template and opens timeline editor", as
     return Number.isFinite(n) && n > 0;
   }, { timeout: 30000 });
   await expect(page.locator("#routeGenLegList .fpw-routegen__leglocks").first()).toHaveText(/[0-9]+/, { timeout: 10000 });
+  await ensureRouteName(page, "PW Route Template " + Date.now());
 
+  const generateResponsePromise = page.waitForResponse((response) => {
+    return response.request().method() === "POST"
+      && response.url().includes("action=routegen_generate");
+  }, { timeout: 30000 });
   await page.click("#routeGenGenerateBtn");
-  const generatedViaAlert = await page.waitForFunction(() => {
+  const generateResponse = await generateResponsePromise;
+  const generatePayload = await generateResponse.json();
+  expect(!!(generatePayload && generatePayload.SUCCESS)).toBeTruthy();
+  await page.waitForFunction(() => {
     const alertEl = document.getElementById("dashboardAlert");
     if (!alertEl) return false;
     const text = String(alertEl.textContent || "");
     return /route generated successfully/i.test(text);
-  }, { timeout: 12000 }).then(() => true).catch(() => false);
-  if (!generatedViaAlert) {
-    await page.waitForFunction(() => {
-      const modal = document.getElementById("routeBuilderModal");
-      return !modal || !modal.classList.contains("show");
-    }, { timeout: 30000 });
-  }
-  await waitForRouteBuilderModalToClose(page, 30000);
+  }, { timeout: 12000 });
+  await closeRouteBuilderModal(page, 30000);
 
   await page.click("#openRouteBuilderBtn");
   await expect(page.locator("#routeBuilderModal")).toBeVisible({ timeout: 15000 });
@@ -149,7 +149,7 @@ test("Route Builder leg row opens lock panel, then map editor from button", asyn
   }, { timeout: 20000 });
   await page.selectOption("#routeGenEndLocation", { index: 1 });
 
-  await clickPreviewWhenReady(page);
+  await waitForPreviewWhenReady(page);
   await page.waitForFunction(() => {
     const rows = document.querySelectorAll("#routeGenLegList .fpw-routegen__leg");
     return rows.length > 0;
@@ -201,7 +201,7 @@ test("Route Builder leg row opens lock panel, then map editor from button", asyn
     return !!sel && sel.options.length > 1;
   }, { timeout: 20000 });
   await page.selectOption("#routeGenEndLocation", { index: 1 });
-  await clickPreviewWhenReady(page);
+  await waitForPreviewWhenReady(page);
   await page.waitForFunction(() => {
     return document.querySelectorAll("#routeGenLegList .fpw-routegen__leg").length > 0;
   }, { timeout: 30000 });
@@ -251,7 +251,7 @@ test("Route Builder saves and clears leg override via deterministic geometry hoo
   }, { timeout: 20000 });
   await page.selectOption("#routeGenEndLocation", { index: 1 });
 
-  await clickPreviewWhenReady(page);
+  await waitForPreviewWhenReady(page);
   await page.waitForFunction(() => {
     return document.querySelectorAll("#routeGenLegList .fpw-routegen__leg").length > 0;
   }, { timeout: 30000 });
@@ -438,7 +438,7 @@ test("Route Builder weather suggestion assist applies manually and preview keeps
   await page.dispatchEvent("#routeGenWeatherFactorPct", "change");
   await expect(page.locator("#routeGenWeatherFactorPct")).toHaveValue("13");
 
-  await clickPreviewWhenReady(page);
+  await waitForPreviewWhenReady(page);
   await page.waitForFunction(() => {
     const rows = document.querySelectorAll("#routeGenLegList .fpw-routegen__leg");
     return rows.length > 0;

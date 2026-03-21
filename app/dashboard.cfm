@@ -1021,15 +1021,6 @@
 
                     <template v-else>
                         <form id="floatplanWizardForm" novalidate @submit.prevent>
-                            <div class="wizard-steps mb-3">
-                            <span v-for="n in Math.min(totalSteps, 6)"
-                                  :key="'step-badge-' + n"
-                                  class="badge wizard-step-badge"
-                                  :class="n === step ? 'wizard-step-badge--active' : 'wizard-step-badge--inactive'">
-                                Step {{ n }}
-                            </span>
-                        </div>
-
                         <div v-if="statusMessage" class="alert wizard-alert" :class="statusMessage.ok ? 'alert-success' : 'alert-danger'">
                             {{ statusMessage.message }}
                         </div>
@@ -1291,7 +1282,7 @@
                                         <div class="fpw-manifest__group">
                                             <div class="fpw-manifest__grouphead">
                                                 <span>Selected Passengers</span>
-                                                <span class="badge bg-secondary">{{ fp.PASSENGERS.length }}</span>
+                                                <span>{{ fp.PASSENGERS.length }}</span>
                                             </div>
                                             <ul v-if="selectedPassengerDetails.length" class="fpw-manifest__selectedlist">
                                                 <li v-for="item in selectedPassengerDetails" :key="'sel-passenger-'+item.id">{{ item.label }}</li>
@@ -1302,7 +1293,7 @@
                                         <div class="fpw-manifest__group">
                                             <div class="fpw-manifest__grouphead">
                                                 <span>Selected Contacts</span>
-                                                <span class="badge bg-secondary">{{ fp.CONTACTS.length }}</span>
+                                                <span>{{ fp.CONTACTS.length }}</span>
                                             </div>
                                             <ul v-if="selectedContactDetails.length" class="fpw-manifest__selectedlist">
                                                 <li v-for="item in selectedContactDetails" :key="'sel-contact-'+item.id">{{ item.label }}</li>
@@ -1415,7 +1406,7 @@
                                     <div class="fpw-manifest__summarybody" :class="{ 'is-collapsed-mobile': !mobileWaypointsSummaryOpen }">
                                         <ul v-if="selectedWaypointDetails.length" class="fpw-manifest__selectedlist">
                                             <li v-for="item in selectedWaypointDetails" :key="'sel-waypoint-'+item.id">
-                                                <span class="badge bg-secondary me-2">{{ item.position }}</span>{{ item.label }}
+                                                <span class="me-2">{{ item.position }}</span>{{ item.label }}
                                             </li>
                                         </ul>
                                         <p v-else class="small text-muted mb-0 mt-2">No waypoints selected.</p>
@@ -1558,7 +1549,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260301b"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260301a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=202603191500a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=202603191500a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=202603201700a"></script>
 
 <!-- Dashboard-specific JS -->
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260317b"></script>

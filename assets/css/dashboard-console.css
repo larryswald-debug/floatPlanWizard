@@ -775,20 +775,6 @@ main.dashboard-main{
   color: var(--text);
 }
 
-#floatPlanWizardModal .wizard-step-badge{
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.4rem 0.75rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--panel-border);
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text);
-  background: rgba(255,255,255,0.05);
-  letter-spacing: 0.02em;
-}
-
 /* ---------- Vessel modal sizing ---------- */
 #vesselModal .modal-dialog{
   max-width: 780px;
@@ -798,16 +784,6 @@ main.dashboard-main{
   height: auto;
   min-height: 0;
   max-height: none;
-}
-
-#floatPlanWizardModal .wizard-step-badge--active{
-  background: rgba(53, 208, 198, 0.18);
-  border-color: rgba(53, 208, 198, 0.35);
-}
-
-#floatPlanWizardModal .wizard-step-badge--inactive{
-  background: rgba(255,255,255,0.06);
-  border-color: var(--panel-border);
 }
 
 #floatPlanWizardModal .btn-close{

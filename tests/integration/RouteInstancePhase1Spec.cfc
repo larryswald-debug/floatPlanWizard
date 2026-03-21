@@ -79,6 +79,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( endSegmentId ).toBeGT( 0, "Invalid end segment from routegen_getoptions: #serializeJSON(optionsRes)#" );
 
         var genRes = apiPostJson( variables.ctx.routeBuilderActionBase & "routegen_generate", {
+          route_name = "Route Instance Spec " & uniqueSuffix(),
           template_code = templateCode,
           start_segment_id = startSegmentId,
           end_segment_id = endSegmentId,

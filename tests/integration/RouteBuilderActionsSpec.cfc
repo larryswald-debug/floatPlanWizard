@@ -170,6 +170,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( arrayLen( days ) ).toBeGT( 0, "days should be populated: #serializeJSON(timelineRes)#" );
         expect( structKeyExists( days[ 1 ], "date" ) ).toBeTrue();
         expect( structKeyExists( days[ 1 ], "segment_ids" ) ).toBeTrue();
+        expect( structKeyExists( days[ 1 ], "segment_slices" ) ).toBeTrue();
         expect( structKeyExists( days[ 1 ], "risk_color" ) ).toBeTrue();
         expect( structKeyExists( days[ 1 ], "fuel_confidence_score" ) ).toBeTrue();
 
@@ -235,6 +236,123 @@ component extends="testbox.system.BaseSpec" output="false" {
           startDate = dateFormat( now(), "yyyy-mm-dd" )
         } );
         expect( !!pickFirst( badRouteRes, [ "success", "SUCCESS" ], true ) ).toBeFalse( "routeId=0 should fail: #serializeJSON(badRouteRes)#" );
+      } );
+
+      it( "defaults missing reserve_pct to 33 for preview and timeline flows", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+        if ( !routeInstancesHasInputsJsonColumn() ) {
+          skip( "route_instances.routegen_inputs_json not present in this environment." );
+        }
+
+        var legCtx = buildRouteLegContext();
+        var previewInput = duplicate( legCtx.inputs );
+        structDelete( previewInput, "reserve_pct" );
+        structDelete( previewInput, "RESERVE_PCT" );
+        previewInput.start_date = dateFormat( now(), "yyyy-mm-dd" );
+
+        var previewRes = routeBuilderPost( "routegen_preview", previewInput );
+        expect( pickBool( previewRes, "SUCCESS" ) ).toBeTrue( "routegen_preview default reserve failed: #serializeJSON(previewRes)#" );
+        var previewData = ( structKeyExists( previewRes, "DATA" ) && isStruct( previewRes.DATA ) )
+          ? previewRes.DATA
+          : {};
+        var previewTotals = ( structKeyExists( previewData, "totals" ) && isStruct( previewData.totals ) )
+          ? previewData.totals
+          : {};
+        expect( val( pickFirst( previewTotals, [ "reserve_pct", "RESERVE_PCT" ], 0 ) ) ).toBe( 33 );
+
+        setRouteInstanceInputsJson( legCtx.routeId, {
+          pace = "RELAXED",
+          cruising_speed = 20,
+          fuel_burn_gph = 8
+        } );
+
+        var timelineRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = dateFormat( now(), "yyyy-mm-dd" ),
+          maxHoursPerDay = 6.5
+        } );
+        expect( !!pickFirst( timelineRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "generateCruiseTimeline default reserve failed: #serializeJSON(timelineRes)#" );
+
+        setRouteInstanceInputsJson( legCtx.routeId, {
+          pace = "RELAXED",
+          cruising_speed = 20,
+          fuel_burn_gph = 8,
+          reserve_pct = 33
+        } );
+
+        var explicitTimelineRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = dateFormat( now(), "yyyy-mm-dd" ),
+          maxHoursPerDay = 6.5
+        } );
+        expect( !!pickFirst( explicitTimelineRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "generateCruiseTimeline explicit 33 reserve failed: #serializeJSON(explicitTimelineRes)#" );
+
+        var timelineSummary = ( structKeyExists( timelineRes, "route_summary" ) && isStruct( timelineRes.route_summary ) )
+          ? timelineRes.route_summary
+          : {};
+        var explicitTimelineSummary = ( structKeyExists( explicitTimelineRes, "route_summary" ) && isStruct( explicitTimelineRes.route_summary ) )
+          ? explicitTimelineRes.route_summary
+          : {};
+        expect(
+          abs(
+            val( pickFirst( timelineSummary, [ "total_required_fuel", "TOTAL_REQUIRED_FUEL" ], 0 ) )
+            - val( pickFirst( explicitTimelineSummary, [ "total_required_fuel", "TOTAL_REQUIRED_FUEL" ], 0 ) )
+          ) LTE 0.01
+        ).toBeTrue();
+      } );
+
+      it( "applies reserve-threshold badge colors with one-level long-day downgrade", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var legCtx = buildRouteLegContext();
+        var startDate = dateFormat( now(), "yyyy-mm-dd" );
+        var scenarios = [
+          { routeLegId = 9401, segmentId = 8401, reservePct = 33, distNm = 80, expectedColor = "GREEN", expectedHours = 8 },
+          { routeLegId = 9402, segmentId = 8402, reservePct = 33, distNm = 90, expectedColor = "YELLOW", expectedHours = 9 },
+          { routeLegId = 9403, segmentId = 8403, reservePct = 20, distNm = 80, expectedColor = "YELLOW", expectedHours = 8 },
+          { routeLegId = 9404, segmentId = 8404, reservePct = 20, distNm = 90, expectedColor = "RED", expectedHours = 9 },
+          { routeLegId = 9405, segmentId = 8405, reservePct = 15, distNm = 80, expectedColor = "RED", expectedHours = 8 },
+          { routeLegId = 9406, segmentId = 8406, reservePct = 15, distNm = 90, expectedColor = "RED", expectedHours = 9 }
+        ];
+
+        for ( var scenario in scenarios ) {
+          var timelineRes = routeBuilderPost( "generateCruiseTimeline", {
+            routeId = legCtx.routeId,
+            startDate = startDate,
+            maxHoursPerDay = 12,
+            inputOverrides = {
+              pace = "AGGRESSIVE",
+              cruising_speed = 10,
+              underway_hours_per_day = 12,
+              weather_factor_pct = 0,
+              fuel_burn_gph = 8,
+              reserve_pct = scenario.reservePct
+            },
+            previewLegs = [
+              buildTimelinePreviewLeg(
+                1,
+                scenario.routeLegId,
+                scenario.segmentId,
+                "Alpha",
+                "Bravo",
+                scenario.distNm,
+                0
+              )
+            ]
+          } );
+
+          expect( !!pickFirst( timelineRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "reserve threshold timeline failed: #serializeJSON(timelineRes)#" );
+          var days = ( structKeyExists( timelineRes, "days" ) && isArray( timelineRes.days ) )
+            ? timelineRes.days
+            : [];
+          expect( arrayLen( days ) ).toBe( 1 );
+          expect( abs( val( pickFirst( days[ 1 ], [ "est_hours", "EST_HOURS" ], 0 ) ) - scenario.expectedHours ) LTE 0.05 ).toBeTrue();
+          expect( toString( pickFirst( days[ 1 ], [ "risk_color", "RISK_COLOR" ], "" ) ) ).toBe( scenario.expectedColor );
+        }
       } );
 
       it( "resolves timeline fuel from route input keys and returns timeline_meta", function() {
@@ -714,8 +832,12 @@ component extends="testbox.system.BaseSpec" output="false" {
         var previewSummary = ( structKeyExists( previewTimelineRes, "route_summary" ) && isStruct( previewTimelineRes.route_summary ) )
           ? previewTimelineRes.route_summary
           : {};
+        var previewDays = ( structKeyExists( previewTimelineRes, "days" ) && isArray( previewTimelineRes.days ) )
+          ? previewTimelineRes.days
+          : [];
         var previewNm = val( pickFirst( previewSummary, [ "total_nm", "TOTAL_NM" ], 0 ) );
-        expect( previewNm ).toBe( expectedNm );
+        expect( abs( previewNm - expectedNm ) LTE 0.1 ).toBeTrue( "previewLegs total_nm should stay within rounding tolerance of expected distance: #serializeJSON(previewTimelineRes)#" );
+        expect( abs( previewNm - sumTimelineMetric( previewDays, "total_dist_nm" ) ) LTE 0.1 ).toBeTrue( "previewLegs summary total_nm should stay aligned with day totals: #serializeJSON(previewTimelineRes)#" );
         expect( previewNm ).toBeGT( baselineNm );
 
         var previewMeta = ( structKeyExists( previewTimelineRes, "timeline_meta" ) && isStruct( previewTimelineRes.timeline_meta ) )
@@ -735,6 +857,139 @@ component extends="testbox.system.BaseSpec" output="false" {
           : {};
         expect( toString( pickFirst( ignoredMeta, [ "distance_source", "DISTANCE_SOURCE" ], "" ) ) ).toBe( "route_instance_legs" );
         expect( !!pickFirst( ignoredMeta, [ "preview_legs_ignored", "PREVIEW_LEGS_IGNORED" ], false ) ).toBeTrue();
+      } );
+
+      it( "splits an oversized first preview leg across multiple timeline days", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var legCtx = buildRouteLegContext();
+        var startDate = dateFormat( now(), "yyyy-mm-dd" );
+        var maxHoursPerDay = 8;
+        var timelineRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = startDate,
+          maxHoursPerDay = maxHoursPerDay,
+          inputOverrides = buildDeterministicTimelineOverrides(),
+          previewLegs = [
+            buildTimelinePreviewLeg( 1, 9101, 8101, "Alpha", "Bravo", 120, 3 )
+          ]
+        } );
+
+        expect( !!pickFirst( timelineRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "oversized first-segment timeline failed: #serializeJSON(timelineRes)#" );
+
+        var routeSummary = ( structKeyExists( timelineRes, "route_summary" ) && isStruct( timelineRes.route_summary ) )
+          ? timelineRes.route_summary
+          : {};
+        var days = ( structKeyExists( timelineRes, "days" ) && isArray( timelineRes.days ) )
+          ? timelineRes.days
+          : [];
+        expect( val( pickFirst( routeSummary, [ "total_days", "TOTAL_DAYS" ], 0 ) ) ).toBe( 2 );
+        expect( arrayLen( days ) ).toBe( 2 );
+        expect( val( pickFirst( routeSummary, [ "total_days", "TOTAL_DAYS" ], 0 ) ) ).toBe( arrayLen( days ) );
+        expect( maxTimelineEstHours( days ) LTE ( maxHoursPerDay + 0.01 ) ).toBeTrue( "A split day exceeded maxHoursPerDay: #serializeJSON(days)#" );
+        expect( abs( sumTimelineEstHours( days ) - 12 ) LTE 0.05 ).toBeTrue( "Split day hours should sum to 12: #serializeJSON(days)#" );
+        expect( abs( sumTimelineMetric( days, "total_dist_nm" ) - 120 ) LTE 0.05 ).toBeTrue( "Split day distance should sum to 120nm: #serializeJSON(days)#" );
+        expect( abs( sumTimelineMetric( days, "required_fuel_gallons" ) - val( pickFirst( routeSummary, [ "total_required_fuel", "TOTAL_REQUIRED_FUEL" ], 0 ) ) ) LTE 0.05 ).toBeTrue( "Split day fuel should align with summary: #serializeJSON(timelineRes)#" );
+        expect( countTimelineDaysForRouteLeg( days, 9101 ) ).toBe( 2 );
+
+        var firstDaySlices = timelineDaySlices( days[ 1 ] );
+        var secondDaySlices = timelineDaySlices( days[ 2 ] );
+        expect( arrayLen( firstDaySlices ) ).toBeGT( 0 );
+        expect( arrayLen( secondDaySlices ) ).toBeGT( 0 );
+        expect( !!pickFirst( firstDaySlices[ 1 ], [ "is_split", "IS_SPLIT" ], false ) ).toBeTrue();
+        expect( !!pickFirst( secondDaySlices[ 1 ], [ "is_split", "IS_SPLIT" ], false ) ).toBeTrue();
+        expect( abs( val( pickFirst( firstDaySlices[ 1 ], [ "slice_hours", "SLICE_HOURS" ], 0 ) ) - 8 ) LTE 0.05 ).toBeTrue();
+        expect( abs( val( pickFirst( secondDaySlices[ 1 ], [ "slice_hours", "SLICE_HOURS" ], 0 ) ) - 4 ) LTE 0.05 ).toBeTrue();
+        expect( val( pickFirst( days[ 1 ], [ "lock_count", "LOCK_COUNT" ], 0 ) ) ).toBe( 3 );
+        expect( val( pickFirst( days[ 2 ], [ "lock_count", "LOCK_COUNT" ], 0 ) ) ).toBe( 0 );
+      } );
+
+      it( "splits an oversized later preview leg while preserving earlier same-day legs", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var legCtx = buildRouteLegContext();
+        var startDate = dateFormat( now(), "yyyy-mm-dd" );
+        var maxHoursPerDay = 8;
+        var timelineRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = startDate,
+          maxHoursPerDay = maxHoursPerDay,
+          inputOverrides = buildDeterministicTimelineOverrides(),
+          previewLegs = [
+            buildTimelinePreviewLeg( 1, 9201, 8201, "Alpha", "Bravo", 20, 1 ),
+            buildTimelinePreviewLeg( 2, 9202, 8202, "Bravo", "Charlie", 120, 4 )
+          ]
+        } );
+
+        expect( !!pickFirst( timelineRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "oversized later-segment timeline failed: #serializeJSON(timelineRes)#" );
+
+        var routeSummary = ( structKeyExists( timelineRes, "route_summary" ) && isStruct( timelineRes.route_summary ) )
+          ? timelineRes.route_summary
+          : {};
+        var days = ( structKeyExists( timelineRes, "days" ) && isArray( timelineRes.days ) )
+          ? timelineRes.days
+          : [];
+        expect( val( pickFirst( routeSummary, [ "total_days", "TOTAL_DAYS" ], 0 ) ) ).toBe( 2 );
+        expect( arrayLen( days ) ).toBe( 2 );
+        expect( val( pickFirst( routeSummary, [ "total_days", "TOTAL_DAYS" ], 0 ) ) ).toBe( arrayLen( days ) );
+        expect( maxTimelineEstHours( days ) LTE ( maxHoursPerDay + 0.01 ) ).toBeTrue( "A later split day exceeded maxHoursPerDay: #serializeJSON(days)#" );
+        expect( abs( sumTimelineEstHours( days ) - 14 ) LTE 0.05 ).toBeTrue( "Later split hours should sum to 14: #serializeJSON(days)#" );
+        expect( abs( sumTimelineMetric( days, "total_dist_nm" ) - 140 ) LTE 0.05 ).toBeTrue( "Later split distance should sum to 140nm: #serializeJSON(days)#" );
+        expect( abs( sumTimelineMetric( days, "required_fuel_gallons" ) - val( pickFirst( routeSummary, [ "total_required_fuel", "TOTAL_REQUIRED_FUEL" ], 0 ) ) ) LTE 0.05 ).toBeTrue( "Later split fuel should align with summary: #serializeJSON(timelineRes)#" );
+        expect( countTimelineDaysForRouteLeg( days, 9202 ) ).toBe( 2 );
+
+        var dayOneSlices = timelineDaySlices( days[ 1 ] );
+        var dayTwoSlices = timelineDaySlices( days[ 2 ] );
+        expect( arrayLen( dayOneSlices ) ).toBe( 2 );
+        expect( arrayLen( dayTwoSlices ) ).toBe( 1 );
+        expect( val( pickFirst( days[ 1 ], [ "lock_count", "LOCK_COUNT" ], 0 ) ) ).toBe( 5 );
+        expect( val( pickFirst( days[ 2 ], [ "lock_count", "LOCK_COUNT" ], 0 ) ) ).toBe( 0 );
+        expect( abs( val( pickFirst( dayOneSlices[ 2 ], [ "slice_hours", "SLICE_HOURS" ], 0 ) ) - 6 ) LTE 0.05 ).toBeTrue();
+        expect( abs( val( pickFirst( dayTwoSlices[ 1 ], [ "slice_hours", "SLICE_HOURS" ], 0 ) ) - 6 ) LTE 0.05 ).toBeTrue();
+      } );
+
+      it( "keeps an exact-boundary preview leg in a single timeline day", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var legCtx = buildRouteLegContext();
+        var startDate = dateFormat( now(), "yyyy-mm-dd" );
+        var maxHoursPerDay = 8;
+        var timelineRes = routeBuilderPost( "generateCruiseTimeline", {
+          routeId = legCtx.routeId,
+          startDate = startDate,
+          maxHoursPerDay = maxHoursPerDay,
+          inputOverrides = buildDeterministicTimelineOverrides(),
+          previewLegs = [
+            buildTimelinePreviewLeg( 1, 9301, 8301, "Alpha", "Bravo", 80, 2 )
+          ]
+        } );
+
+        expect( !!pickFirst( timelineRes, [ "success", "SUCCESS" ], false ) ).toBeTrue( "exact-boundary timeline failed: #serializeJSON(timelineRes)#" );
+
+        var routeSummary = ( structKeyExists( timelineRes, "route_summary" ) && isStruct( timelineRes.route_summary ) )
+          ? timelineRes.route_summary
+          : {};
+        var days = ( structKeyExists( timelineRes, "days" ) && isArray( timelineRes.days ) )
+          ? timelineRes.days
+          : [];
+        expect( val( pickFirst( routeSummary, [ "total_days", "TOTAL_DAYS" ], 0 ) ) ).toBe( 1 );
+        expect( arrayLen( days ) ).toBe( 1 );
+        expect( maxTimelineEstHours( days ) LTE ( maxHoursPerDay + 0.01 ) ).toBeTrue( "Exact-boundary day exceeded maxHoursPerDay: #serializeJSON(days)#" );
+        expect( abs( sumTimelineEstHours( days ) - 8 ) LTE 0.05 ).toBeTrue();
+        expect( abs( sumTimelineMetric( days, "total_dist_nm" ) - 80 ) LTE 0.05 ).toBeTrue();
+        expect( abs( sumTimelineMetric( days, "required_fuel_gallons" ) - val( pickFirst( routeSummary, [ "total_required_fuel", "TOTAL_REQUIRED_FUEL" ], 0 ) ) ) LTE 0.05 ).toBeTrue();
+
+        var daySlices = timelineDaySlices( days[ 1 ] );
+        expect( arrayLen( daySlices ) ).toBe( 1 );
+        expect( !!pickFirst( daySlices[ 1 ], [ "is_split", "IS_SPLIT" ], true ) ).toBeFalse();
+        expect( abs( val( pickFirst( daySlices[ 1 ], [ "slice_hours", "SLICE_HOURS" ], 0 ) ) - 8 ) LTE 0.05 ).toBeTrue();
+        expect( val( pickFirst( days[ 1 ], [ "lock_count", "LOCK_COUNT" ], 0 ) ) ).toBe( 2 );
       } );
 
       it( "supports My Routes leg geometry overrides and enforces per-user ownership", function() {
@@ -906,6 +1161,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     }
 
     var generateRes = routeBuilderPost( "routegen_generate", {
+      route_name = "Route Builder Action Spec " & uniqueSuffix(),
       template_code = templateCode,
       start_segment_id = startSegmentId,
       end_segment_id = endSegmentId,
@@ -1099,6 +1355,83 @@ component extends="testbox.system.BaseSpec" output="false" {
       total += val( pickFirst( row, [ "est_hours", "EST_HOURS" ], 0 ) );
     }
     return round( total * 100 ) / 100;
+  }
+
+  private numeric function sumTimelineMetric( required array days, required string key ) {
+    var total = 0;
+    var upperKey = uCase( arguments.key );
+    if ( !isArray( arguments.days ) ) return 0;
+    for ( var row in arguments.days ) {
+      if ( !isStruct( row ) ) continue;
+      total += val( pickFirst( row, [ arguments.key, upperKey ], 0 ) );
+    }
+    return round( total * 100 ) / 100;
+  }
+
+  private numeric function maxTimelineEstHours( required array days ) {
+    var maxVal = 0;
+    if ( !isArray( arguments.days ) ) return 0;
+    for ( var row in arguments.days ) {
+      if ( !isStruct( row ) ) continue;
+      var estHoursVal = val( pickFirst( row, [ "est_hours", "EST_HOURS" ], 0 ) );
+      if ( estHoursVal GT maxVal ) {
+        maxVal = estHoursVal;
+      }
+    }
+    return round( maxVal * 100 ) / 100;
+  }
+
+  private array function timelineDaySlices( required struct day ) {
+    var slices = pickFirst( arguments.day, [ "segment_slices", "SEGMENT_SLICES" ], [] );
+    return isArray( slices ) ? slices : [];
+  }
+
+  private numeric function countTimelineDaysForRouteLeg( required array days, required numeric routeLegId ) {
+    var matches = 0;
+    if ( !isArray( arguments.days ) || val( arguments.routeLegId ) LTE 0 ) return 0;
+    for ( var day in arguments.days ) {
+      if ( !isStruct( day ) ) continue;
+      var slices = timelineDaySlices( day );
+      for ( var slice in slices ) {
+        if ( !isStruct( slice ) ) continue;
+        if ( val( pickFirst( slice, [ "route_leg_id", "ROUTE_LEG_ID" ], 0 ) ) EQ val( arguments.routeLegId ) ) {
+          matches += 1;
+          break;
+        }
+      }
+    }
+    return matches;
+  }
+
+  private struct function buildDeterministicTimelineOverrides() {
+    return {
+      pace = "AGGRESSIVE",
+      cruising_speed = 10,
+      underway_hours_per_day = 8,
+      weather_factor_pct = 0,
+      fuel_burn_gph = 8,
+      reserve_pct = 20
+    };
+  }
+
+  private struct function buildTimelinePreviewLeg(
+    required numeric orderIndex,
+    required numeric routeLegId,
+    required numeric segmentId,
+    required string startName,
+    required string endName,
+    required numeric distNm,
+    numeric lockCount = 0
+  ) {
+    return {
+      order_index = int( val( arguments.orderIndex ) ),
+      route_leg_id = int( val( arguments.routeLegId ) ),
+      segment_id = int( val( arguments.segmentId ) ),
+      start_name = arguments.startName,
+      end_name = arguments.endName,
+      dist_nm = round( val( arguments.distNm ) * 100 ) / 100,
+      lock_count = int( val( arguments.lockCount ) )
+    };
   }
 
   private boolean function routeInstancesHasInputsJsonColumn() {

@@ -118,6 +118,39 @@
     return arguments.fallback;
   }
 
+  function fpwNormalizeCheckInContext(any rawValue) {
+    var contextVal = lCase(trim(toString(arguments.rawValue)));
+    if (contextVal EQ "overnight") {
+      return "overnight";
+    }
+    return "";
+  }
+
+  function fpwFormatElapsedCheckIn(any dtValue, string fallback="-- since last check-in") {
+    var elapsedMinutes = 0;
+    var hours = 0;
+    var minutes = 0;
+
+    if (!isDate(arguments.dtValue)) {
+      return arguments.fallback;
+    }
+
+    elapsedMinutes = dateDiff("n", arguments.dtValue, now());
+    if (elapsedMinutes LT 0) {
+      elapsedMinutes = 0;
+    }
+    if (elapsedMinutes LT 60) {
+      return elapsedMinutes & " min since last check-in";
+    }
+
+    hours = int(elapsedMinutes / 60);
+    minutes = elapsedMinutes MOD 60;
+    if (minutes LTE 0) {
+      return hours & "h since last check-in";
+    }
+    return hours & "h " & minutes & "m since last check-in";
+  }
+
   function fpwRoundTo2(any numericValue) {
     if (NOT isNumeric(arguments.numericValue)) {
       return 0;
@@ -234,8 +267,8 @@
     heroNextStopMeta = "Next planned stop",
     heroEta = "4:40 PM",
     heroEtaMeta = "Weather-adjusted arrival estimate",
-    heroLastCheckIn = "1:12 PM",
-    heroNextExpectedCheckIn = "Next expected by 5:00 PM",
+    heroLastCheckIn = "--",
+    heroNextExpectedCheckIn = "-- since last check-in",
     legRemainingDistance = "41 nm remaining",
     legPercentComplete = "56% complete",
     legPace = "Pace: 7.4 kt",
@@ -252,8 +285,8 @@
     legArrival = "4:40 PM",
     floatPlanStatus = "Active",
     floatPlanIdLabel = "FP-240318",
-    floatPlanLastCheckIn = "1:12 PM",
-    floatPlanNextExpected = "5:00 PM",
+    floatPlanLastCheckIn = "--",
+    floatPlanNextExpected = "-- since last check-in",
     captainContact = "Larry Wald • Captain",
     crewContact = "Callie • Onboard Companion",
     emergencyContact = "Abbe • Emergency Contact",
@@ -271,6 +304,29 @@
     routeStop4Detail = "Planned end of the active route.",
     routeStop4Stamp = "ETA"
   };
+
+  activeCruiseTimelineItems = [
+    {
+      time = "7:15 AM",
+      title = "Departed current route origin",
+      detail = "Trip started on schedule based on the active route instance."
+    },
+    {
+      time = "10:50 AM",
+      title = "Fuel / systems check logged",
+      detail = "Burn rate aligned with route estimate. No issues noted."
+    },
+    {
+      time = "1:12 PM",
+      title = "Captain check-in submitted",
+      detail = "Float plan monitoring updated. Follower page remains active."
+    },
+    {
+      time = "2:05 PM",
+      title = "Weather note added",
+      detail = "Wind forecast suggests tighter docking conditions later in the day."
+    }
+  ];
 
   activeCruiseUserId = fpwResolveSessionUserId();
   activeCruiseDatasource = fpwResolveDatasource();
@@ -301,7 +357,9 @@
       emergencyName = "";
       crewName = "";
       lastCheckInDt = "";
-      nextExpectedDt = "";
+      checkInContextVal = "";
+      elapsedCheckInLabel = "-- since last check-in";
+      isOvernightCheckIn = false;
       etaLabel = "";
       etaMeta = "Weather-adjusted arrival estimate";
       routeCodeDisplay = activeCruiseContext.routeCode;
@@ -317,9 +375,11 @@
       qEmergency = queryNew("");
       qStream = queryNew("");
       qLastPost = queryNew("");
+      qTimelinePosts = queryNew("");
       qVoyageTables = queryNew("");
       qInputsColumn = queryNew("");
       qInstInputs = queryNew("");
+      qPlanSql = "";
       hasVoyageTables = false;
       hasRoutegenInputsCol = false;
       routeInputJsonRaw = "";
@@ -340,14 +400,16 @@
       isCompletedLeg = false;
 
       if (activeCruiseContext.floatPlanId GT 0) {
-        qPlan = queryExecute(
+        qPlanSql =
           "SELECT
              floatplanId,
              floatPlanName,
              status,
              route_instance_id,
              route_day_number,
-             checkedInAt,
+             checkedInAt,"
+             & "
+             checkin_context,
              returnTime,
              returnTimezone,
              departureTime,
@@ -357,7 +419,9 @@
            FROM floatplans
            WHERE floatplanId = :planId
              AND userId = :userId
-           LIMIT 1",
+           LIMIT 1";
+        qPlan = queryExecute(
+          qPlanSql,
           {
             planId = { value = activeCruiseContext.floatPlanId, cfsqltype = "cf_sql_integer" },
             userId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" }
@@ -502,14 +566,16 @@
       }
 
       if (qPlan.recordCount EQ 0 AND activeCruiseContext.routeInstanceId GT 0) {
-        qPlan = queryExecute(
+        qPlanSql =
           "SELECT
              floatplanId,
              floatPlanName,
              status,
              route_instance_id,
              route_day_number,
-             checkedInAt,
+             checkedInAt,"
+             & "
+             checkin_context,
              returnTime,
              returnTimezone,
              departureTime,
@@ -520,7 +586,9 @@
            WHERE userId = :userId
              AND route_instance_id = :routeInstanceId
            ORDER BY floatplanId DESC
-           LIMIT 1",
+           LIMIT 1";
+        qPlan = queryExecute(
+          qPlanSql,
           {
             userId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" },
             routeInstanceId = { value = activeCruiseContext.routeInstanceId, cfsqltype = "cf_sql_integer" }
@@ -540,6 +608,8 @@
         if (NOT len(monitorStatus)) {
           monitorStatus = "Unknown";
         }
+        checkInContextVal = fpwNormalizeCheckInContext(fpwQueryCell(qPlan, "checkin_context", 1, ""));
+        isOvernightCheckIn = (checkInContextVal EQ "overnight");
         if (isDate(fpwQueryCell(qPlan, "checkedInAt", 1, ""))) {
           lastCheckInDt = fpwQueryCell(qPlan, "checkedInAt", 1, "");
         }
@@ -737,20 +807,34 @@
           );
           streamLive = (qStream.recordCount EQ 1);
 
-          if (streamLive AND NOT isDate(lastCheckInDt)) {
-            qLastPost = queryExecute(
-              "SELECT vp.created_utc
-               FROM voyage_posts vp
-               WHERE vp.stream_id = :streamId
-               ORDER BY vp.created_utc DESC, vp.id DESC
-               LIMIT 1",
+          if (streamLive) {
+            qTimelinePosts = queryExecute(
+              "SELECT recent.title, recent.body, recent.created_utc
+               FROM (
+                 SELECT id, title, body, created_utc
+                 FROM voyage_posts
+                 WHERE stream_id = :streamId
+                 ORDER BY created_utc DESC, id DESC
+                 LIMIT 4
+               ) recent
+               ORDER BY recent.created_utc ASC, recent.id ASC",
               {
                 streamId = { value = val(fpwQueryCell(qStream, "id", 1, 0)), cfsqltype = "cf_sql_integer" }
               },
               { datasource = activeCruiseDatasource }
             );
-            if (qLastPost.recordCount EQ 1 AND isDate(fpwQueryCell(qLastPost, "created_utc", 1, ""))) {
-              lastCheckInDt = fpwQueryCell(qLastPost, "created_utc", 1, "");
+
+	            if (qTimelinePosts.recordCount GT 0) {
+	              activeCruiseTimelineItems = [];
+	              for (i = 1; i LTE qTimelinePosts.recordCount; i++) {
+	                timelinePostDt = fpwQueryCell(qTimelinePosts, "created_utc", i, "");
+	                arrayAppend(activeCruiseTimelineItems, {
+	                  time = fpwFormatClock(timelinePostDt, "--"),
+	                  timeUtc = (isDate(timelinePostDt) ? dateTimeFormat(timelinePostDt, "yyyy-mm-dd'T'HH:nn:ss'Z'") : ""),
+	                  title = trim(toString(fpwQueryCell(qTimelinePosts, "title", i, "Update"))),
+	                  detail = trim(toString(fpwQueryCell(qTimelinePosts, "body", i, "")))
+	                });
+	              }
             }
           }
         }
@@ -760,7 +844,10 @@
         lastCheckInDt = fpwQueryCell(qPlan, "checkedInAt", 1, "");
       }
       if (isDate(lastCheckInDt)) {
-        nextExpectedDt = dateAdd("n", 60, lastCheckInDt);
+        elapsedCheckInLabel = fpwFormatElapsedCheckIn(lastCheckInDt);
+      }
+      if (isOvernightCheckIn) {
+        elapsedCheckInLabel = "Arrived and secure for the night. Next update expected tomorrow morning.";
       }
 
       if (NOT len(routeName)) {
@@ -813,10 +900,8 @@
         activeCruiseView.heroLastCheckIn = fpwFormatClock(lastCheckInDt, "--");
         activeCruiseView.floatPlanLastCheckIn = fpwFormatClock(lastCheckInDt, "--");
       }
-      if (isDate(nextExpectedDt)) {
-        activeCruiseView.heroNextExpectedCheckIn = "Next expected by " & fpwFormatClock(nextExpectedDt, "--");
-        activeCruiseView.floatPlanNextExpected = fpwFormatClock(nextExpectedDt, "--");
-      }
+      activeCruiseView.heroNextExpectedCheckIn = elapsedCheckInLabel;
+      activeCruiseView.floatPlanNextExpected = elapsedCheckInLabel;
 
       activeCruiseView.legRemainingDistance = fpwFormatNm(remainingNm) & " remaining";
       activeCruiseView.legPercentComplete = fpwFormatPct(percentComplete) & " complete";
@@ -1184,6 +1269,157 @@
       color: var(--text);
       background: rgba(126,184,226,0.08);
       border: 1px solid rgba(126,184,226,0.18);
+    }
+
+    .checkin-modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(3, 10, 16, 0.78);
+      z-index: 120;
+    }
+
+    .checkin-modal.is-open {
+      display: flex;
+    }
+
+    .checkin-modal__dialog {
+      width: min(100%, 560px);
+      background: var(--panel-2);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+
+    .checkin-modal__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .checkin-modal__title {
+      margin: 0;
+      font-size: 1.2rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+
+    .checkin-modal__close {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1.5rem;
+      line-height: 1;
+      padding: 0;
+    }
+
+    .checkin-modal__section {
+      display: grid;
+      gap: 12px;
+    }
+
+    .checkin-modal__label {
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .checkin-modal__status-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .checkin-modal__status {
+      appearance: none;
+      border: 1px solid rgba(126,184,226,0.18);
+      background: rgba(126,184,226,0.07);
+      color: var(--text);
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 0.92rem;
+      font-weight: 700;
+      padding: 11px 16px;
+      transition: 0.18s ease;
+    }
+
+    .checkin-modal__status.is-selected {
+      color: #041019;
+      background: linear-gradient(135deg, var(--accent-2), var(--accent));
+      border-color: transparent;
+      box-shadow: 0 16px 32px rgba(67,199,255,0.18);
+    }
+
+    .checkin-modal__note-toggle {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--accent-2);
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 700;
+      padding: 0;
+      text-align: left;
+    }
+
+    .checkin-modal__option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 18px;
+      color: var(--text);
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    .checkin-modal__option input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent-2);
+      margin: 0;
+    }
+
+    .checkin-modal__note {
+      display: none;
+      margin-top: 18px;
+    }
+
+    .checkin-modal__note.is-open {
+      display: grid;
+      gap: 10px;
+    }
+
+    .checkin-modal__textarea {
+      width: 100%;
+      min-height: 116px;
+      resize: vertical;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(126,184,226,0.18);
+      background: rgba(126,184,226,0.06);
+      color: var(--text);
+      font: inherit;
+      line-height: 1.5;
+      padding: 14px 16px;
+    }
+
+    .checkin-modal__textarea::placeholder {
+      color: var(--soft);
+    }
+
+    .checkin-modal__actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 22px;
     }
 
     .main {
@@ -1711,7 +1947,7 @@
         <div class="chip" data-fpw-field="top.routeName"><cfoutput>#encodeForHtml(activeCruiseView.topRouteChip)#</cfoutput></div>
         <div class="chip" data-fpw-field="top.floatPlanState"><cfoutput>#encodeForHtml(activeCruiseView.topFloatPlanState)#</cfoutput></div>
         <button class="btn btn-secondary">View Follower Page</button>
-        <button class="btn btn-primary">Check In Now</button>
+        <button class="btn btn-primary" id="fpwCheckInBtn">Check In Now</button>
       </div>
     </div>
   </header>
@@ -1911,38 +2147,20 @@
                   <span>Chronological</span>
                 </div>
                 <div class="timeline">
-                  <div class="timeline-row">
-                    <div class="timeline-time">7:15 AM</div>
-                    <div class="timeline-node"></div>
-                    <div class="timeline-copy">
-                      <b>Departed current route origin</b>
-                      <span>Trip started on schedule based on the active route instance.</span>
-                    </div>
-                  </div>
-                  <div class="timeline-row">
-                    <div class="timeline-time">10:50 AM</div>
-                    <div class="timeline-node"></div>
-                    <div class="timeline-copy">
-                      <b>Fuel / systems check logged</b>
-                      <span>Burn rate aligned with route estimate. No issues noted.</span>
-                    </div>
-                  </div>
-                  <div class="timeline-row">
-                    <div class="timeline-time">1:12 PM</div>
-                    <div class="timeline-node"></div>
-                    <div class="timeline-copy">
-                      <b>Captain check-in submitted</b>
-                      <span>Float plan monitoring updated. Follower page remains active.</span>
-                    </div>
-                  </div>
-                  <div class="timeline-row">
-                    <div class="timeline-time">2:05 PM</div>
-                    <div class="timeline-node"></div>
-                    <div class="timeline-copy">
-                      <b>Weather note added</b>
-                      <span>Wind forecast suggests tighter docking conditions later in the day.</span>
-                    </div>
-                  </div>
+	                  <cfoutput>
+	                    <cfloop array="#activeCruiseTimelineItems#" index="timelineItem">
+	                      <div class="timeline-row">
+	                        <div class="timeline-time"<cfif structKeyExists(timelineItem, "timeUtc") AND len(trim(toString(timelineItem.timeUtc)))> data-time-utc="#encodeForHtmlAttribute(toString(timelineItem.timeUtc))#"</cfif>>#encodeForHtml(toString(timelineItem.time))#</div>
+	                        <div class="timeline-node"></div>
+	                        <div class="timeline-copy">
+	                          <b>#encodeForHtml(toString(timelineItem.title))#</b>
+	                          <cfif len(trim(toString(timelineItem.detail)))>
+	                            <span>#encodeForHtml(toString(timelineItem.detail))#</span>
+                          </cfif>
+                        </div>
+                      </div>
+                    </cfloop>
+                  </cfoutput>
                 </div>
               </div>
 
@@ -2006,9 +2224,9 @@
                   <small>Captain confirmed status</small>
                 </div>
                 <div class="data-item">
-                  <span>Next Expected</span>
+                  <span>Since Check-In</span>
                   <strong data-fpw-field="floatPlan.nextExpected"><cfoutput>#encodeForHtml(activeCruiseView.floatPlanNextExpected)#</cfoutput></strong>
-                  <small>Monitoring schedule</small>
+                  <small>Current check-in state</small>
                 </div>
               </div>
             </div>
@@ -2116,6 +2334,203 @@
       </section>
     </div>
   </main>
+  <div class="checkin-modal" id="fpwCheckInModal" aria-hidden="true">
+    <div class="checkin-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="fpwCheckInModalTitle">
+      <div class="checkin-modal__head">
+        <h2 class="checkin-modal__title" id="fpwCheckInModalTitle">Check In</h2>
+        <button class="checkin-modal__close" type="button" id="fpwCheckInCloseBtn" aria-label="Close">&times;</button>
+      </div>
+
+      <div class="checkin-modal__section">
+        <div class="checkin-modal__label">Status</div>
+        <div class="checkin-modal__status-grid" id="fpwCheckInStatusGroup">
+          <button class="checkin-modal__status is-selected" type="button" data-status="On Track" aria-pressed="true">On Track</button>
+          <button class="checkin-modal__status" type="button" data-status="Delayed" aria-pressed="false">Delayed</button>
+          <button class="checkin-modal__status" type="button" data-status="Changed Plan" aria-pressed="false">Changed Plan</button>
+          <button class="checkin-modal__status" type="button" data-status="Need Attention" aria-pressed="false">Need Attention</button>
+        </div>
+      </div>
+
+      <div class="checkin-modal__note-toggle-wrap" style="margin-top:18px;">
+        <button class="checkin-modal__note-toggle" type="button" id="fpwCheckInNoteToggle">Add Note</button>
+      </div>
+
+      <div class="checkin-modal__note" id="fpwCheckInNoteWrap">
+        <label class="checkin-modal__label" for="fpwCheckInNote">Add Note (optional)</label>
+        <textarea class="checkin-modal__textarea" id="fpwCheckInNote" placeholder=""></textarea>
+      </div>
+
+      <div class="checkin-modal__option">
+        <input type="checkbox" id="fpwCheckInOvernight" />
+        <label for="fpwCheckInOvernight">Secure for the night</label>
+      </div>
+
+      <div class="checkin-modal__actions">
+        <button class="btn btn-primary" type="button" id="fpwCheckInSubmitBtn">Check In</button>
+      </div>
+    </div>
+  </div>
+  <script src="../assets/js/app/api.js?v=20260320a"></script>
   <script id="fpw-active-cruise-hooks" type="application/json"><cfoutput>#activeCruiseHooksJson#</cfoutput></script>
+  <script>
+    (function (window, document) {
+      "use strict";
+
+      var hooksEl = document.getElementById("fpw-active-cruise-hooks");
+      var checkInButton = document.getElementById("fpwCheckInBtn");
+      var modalEl = document.getElementById("fpwCheckInModal");
+      var closeBtn = document.getElementById("fpwCheckInCloseBtn");
+      var statusGroupEl = document.getElementById("fpwCheckInStatusGroup");
+      var noteToggleBtn = document.getElementById("fpwCheckInNoteToggle");
+      var noteWrapEl = document.getElementById("fpwCheckInNoteWrap");
+      var noteInput = document.getElementById("fpwCheckInNote");
+      var overnightCheckboxEl = document.getElementById("fpwCheckInOvernight");
+      var submitBtn = document.getElementById("fpwCheckInSubmitBtn");
+      var selectedStatus = "On Track";
+      var pageHooks = {};
+      var pageContext = {};
+      var floatPlanId = 0;
+
+      if (!checkInButton || !modalEl || !closeBtn || !statusGroupEl || !noteToggleBtn || !noteWrapEl || !noteInput || !overnightCheckboxEl || !submitBtn) {
+        return;
+      }
+
+      if (hooksEl) {
+        try {
+          pageHooks = JSON.parse(hooksEl.textContent || "{}");
+        } catch (err) {
+          pageHooks = {};
+        }
+      }
+      pageContext = (pageHooks && (pageHooks.context || pageHooks.CONTEXT)) || {};
+      if (pageContext) {
+        floatPlanId = parseInt(pageContext.floatPlanId || pageContext.FLOATPLANID, 10);
+      }
+	      if (!Number.isFinite(floatPlanId)) {
+	        floatPlanId = 0;
+	      }
+
+	      function formatTimelineLocalTime(input) {
+	        var raw = String(input || "").trim();
+	        var date = raw ? new Date(raw) : null;
+	        if (!date || Number.isNaN(date.getTime())) {
+	          return "";
+	        }
+	        return date.toLocaleTimeString([], {
+	          hour: "numeric",
+	          minute: "2-digit"
+	        });
+	      }
+
+	      function hydrateTimelineTimes() {
+	        document.querySelectorAll(".timeline-time[data-time-utc]").forEach(function (el) {
+	          var label = formatTimelineLocalTime(el.getAttribute("data-time-utc"));
+	          if (label) {
+	            el.textContent = label;
+	          }
+	        });
+	      }
+
+	      hydrateTimelineTimes();
+
+	      function applySelectedStatus(nextStatus) {
+	        var buttons = statusGroupEl.querySelectorAll("[data-status]");
+        selectedStatus = nextStatus;
+        buttons.forEach(function (button) {
+          var isSelected = String(button.getAttribute("data-status") || "") === selectedStatus;
+          button.classList.toggle("is-selected", isSelected);
+          button.setAttribute("aria-pressed", isSelected ? "true" : "false");
+        });
+      }
+
+      function resetCheckInForm() {
+        applySelectedStatus("On Track");
+        noteWrapEl.classList.remove("is-open");
+        noteInput.value = "";
+        overnightCheckboxEl.checked = false;
+        noteToggleBtn.hidden = false;
+      }
+
+      function openModal() {
+        resetCheckInForm();
+        modalEl.classList.add("is-open");
+        modalEl.setAttribute("aria-hidden", "false");
+      }
+
+      function closeModal() {
+        modalEl.classList.remove("is-open");
+        modalEl.setAttribute("aria-hidden", "true");
+      }
+
+      checkInButton.addEventListener("click", function () {
+        openModal();
+      });
+
+      closeBtn.addEventListener("click", function () {
+        closeModal();
+      });
+
+      modalEl.addEventListener("click", function (event) {
+        if (event.target === modalEl) {
+          closeModal();
+        }
+      });
+
+      statusGroupEl.addEventListener("click", function (event) {
+        var button = event.target.closest("[data-status]");
+        var nextStatus = "";
+        if (!button) {
+          return;
+        }
+        nextStatus = String(button.getAttribute("data-status") || "");
+        if (!nextStatus) {
+          return;
+        }
+        applySelectedStatus(nextStatus);
+      });
+
+      noteToggleBtn.addEventListener("click", function () {
+        noteWrapEl.classList.add("is-open");
+        noteToggleBtn.hidden = true;
+        noteInput.focus();
+      });
+
+      submitBtn.addEventListener("click", function () {
+        var payload = {
+          status: selectedStatus,
+          note: String(noteInput.value || ""),
+          checkinContext: overnightCheckboxEl.checked ? "overnight" : ""
+        };
+        var apiPayload = {
+          floatPlanId: floatPlanId,
+          status: payload.status,
+          note: payload.note,
+          checkinContext: payload.checkinContext
+        };
+
+        if (!floatPlanId) {
+          window.alert("Unable to find the active float plan for this trip.");
+          return;
+        }
+        if (!window.Api || typeof window.Api.submitFloatPlanCheckIn !== "function") {
+          window.alert("Check-in service is unavailable.");
+          return;
+        }
+
+        window.Api.submitFloatPlanCheckIn(apiPayload)
+          .then(function (resp) {
+            if (!resp || resp.success !== true) {
+              throw resp || new Error("Check-in failed.");
+            }
+            closeModal();
+            window.location.reload();
+          })
+          .catch(function (err) {
+            var message = (err && err.MESSAGE) || (err && err.message) || "Check-in failed.";
+            window.alert(message);
+          });
+      });
+    })(window, document);
+  </script>
 </body>
 </html>
