@@ -32,3 +32,15 @@ node_modules/
 # ===== Temp =====
 tmp/
 temp/
+
+
+*.pdf
+*.rollback-*
+*.bak*
+*.snapshot*
+
+tests/*
+test_results/*
+
+test-results/e2e-e2e-*
+*codex-snapshots*

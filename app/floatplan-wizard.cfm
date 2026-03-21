@@ -6,74 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <cfinclude template="../includes/header_styles.cfm">
-
-    <style>
-        body.wizard-body {
-            background: #f4f6f8;
-            min-height: 100vh;
-            color: #212529;
-        }
-
-        .wizard-header {
-            background: linear-gradient(135deg, #0d6efd, #0b5ed7);
-            color: #fff;
-            padding: 1rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        }
-
-        .wizard-header .title {
-            font-size: 1.35rem;
-            margin: 0;
-        }
-
-        .wizard-container {
-            max-width: 820px;
-            margin: 1.5rem auto;
-            background: #fff;
-            border-radius: 16px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
-            padding: 1.5rem;
-        }
-
-        .wizard-steps .badge {
-            font-size: 0.85rem;
-            padding: 0.35rem 0.6rem;
-            margin-right: 0.35rem;
-        }
-
-        .list-group-button {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .wizard-nav {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 1.25rem;
-        }
-
-        .wizard-alert {
-            margin-bottom: 1rem;
-        }
-
-        .wizard-alert.alert-success {
-            padding-top: 0.375rem;
-            padding-bottom: 0.375rem;
-        }
-
-        .wizard-alert.alert-danger {
-            padding-top: 0.375rem;
-            padding-bottom: 0.375rem;
-        }
-
-        @media (max-width: 768px) {
-            .wizard-container {
-                margin: 1rem;
-                padding: 1rem;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/floatplan-wizard.css?v=1">
 </head>
 <body class="wizard-body">
 
@@ -431,12 +364,11 @@
                         <div class="spinner-border text-primary" role="status"></div>
                         <p class="mt-2 mb-0 small">Generating PDF preview…</p>
                     </div>
-                    <div v-else-if="pdfPreviewUrl" class="border rounded" style="height: 60vh;">
+                    <div v-else-if="pdfPreviewUrl" class="border rounded fpw-pdf-preview">
                         <iframe
                             :src="pdfPreviewUrl"
                             title="Float plan PDF preview"
-                            class="w-100 h-100"
-                            style="border: 0;"
+                            class="w-100 h-100 fpw-pdf-preview-frame"
                             loading="lazy"></iframe>
                     </div>
                     <div v-else class="alert alert-secondary small mb-0">

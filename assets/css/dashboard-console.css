@@ -164,6 +164,327 @@ main.dashboard-main{
   min-width: 0;
 }
 
+/* ---------- Approved dashboard hierarchy (Phase 2A/2B) ---------- */
+.dashboard-grid--reflow > #missionSummaryPanel{
+  order: 5;
+  grid-column: 1 / -1;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+
+.dashboard-grid--reflow > #routeStatusPanel{
+  order: 11;
+  grid-column: 1 / -1;
+  min-height: 0;
+  max-height: none;
+  height: auto;
+}
+
+.dashboard-grid--reflow > #floatPlansPanel.hero-panel{
+  order: 10;
+  grid-column: 1 / -1;
+  min-height: 340px;
+  max-height: 450px;
+  height: auto;
+}
+
+.dashboard-grid--reflow > #weatherPreviewPanel{
+  order: 9;
+}
+
+.dashboard-grid--reflow > .fpw-alerts{
+  order: 4;
+  grid-column: 1 / -1;
+}
+
+.dashboard-grid--reflow > #quickActionsPanel{
+  order: 4;
+  grid-column: 1 / -1;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+
+.dashboard-grid--reflow > #expeditionTimelinePanel{
+  order: 30;
+  grid-column: 1 / -1;
+}
+
+.dashboard-grid--reflow > #boatTripSetupPanel{
+  order: 40;
+  grid-column: 1 / -1;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+
+.dashboard-grid--reflow > #vesselsPanel{ order: 41; }
+.dashboard-grid--reflow > #contactsPanel{ order: 42; }
+.dashboard-grid--reflow > #passengersPanel{ order: 43; }
+.dashboard-grid--reflow > #operatorsPanel{ order: 44; }
+.dashboard-grid--reflow > #waypointsPanel{ order: 45; }
+
+.dashboard-grid--reflow > #recommendedNextStepsPanel{
+  order: 50;
+  grid-column: 1 / -1;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+
+.mission-summary-grid{
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.mission-summary-tile{
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  padding: 0.75rem 0.8rem;
+  min-height: 108px;
+}
+
+.mission-summary-label{
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 0.55rem;
+}
+
+.mission-summary-value{
+  font-size: 1rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.95);
+  margin-bottom: 0.4rem;
+  line-height: 1.25;
+}
+
+.mission-summary-meta{
+  font-size: 0.76rem;
+  color: rgba(255,255,255,0.72);
+  line-height: 1.35;
+}
+
+.route-status-name{
+  margin: 0 0 0.55rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.96);
+}
+
+.route-status-meta{
+  margin: 0;
+  color: rgba(255,255,255,0.78);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.route-status-progress{
+  margin-top: 0.95rem;
+}
+
+.route-status-progress-top{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255,255,255,0.78);
+  font-size: 0.8rem;
+  margin-bottom: 0.45rem;
+}
+
+.route-status-progress-track{
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  height: 10px;
+  overflow: hidden;
+}
+
+.route-status-progress-bar{
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, rgba(53,208,198,0.86), rgba(92,161,255,0.9));
+  transition: width 0.22s ease;
+}
+
+.route-status-actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.monitoring-summary-block{
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+  padding: 0.7rem;
+  margin-bottom: 0.75rem;
+}
+
+.monitoring-summary-grid{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.monitoring-summary-tile{
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.02);
+  padding: 0.5rem 0.55rem;
+}
+
+.monitoring-summary-label{
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 0.66rem;
+  color: var(--muted);
+  margin-bottom: 0.28rem;
+}
+
+.monitoring-summary-value{
+  font-size: 1rem;
+  font-family: var(--mono);
+  color: rgba(255,255,255,0.95);
+}
+
+#monitoringSummaryMeta{
+  display: inline-block;
+  margin-top: 0.55rem;
+}
+
+.quick-actions-list{
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 0.55rem;
+}
+
+.quick-action-btn{
+  width: 100%;
+  text-align: center;
+  justify-content: center;
+}
+
+.weather-preview-panel .card-body{
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.weather-preview-grid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.weather-preview-tile{
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  padding: 0.6rem 0.65rem;
+}
+
+.weather-preview-label{
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 0.66rem;
+  color: var(--muted);
+  margin-bottom: 0.3rem;
+}
+
+.weather-preview-value{
+  font-size: 1rem;
+  font-family: var(--mono);
+  color: rgba(255,255,255,0.95);
+  margin-bottom: 0.25rem;
+}
+
+.weather-preview-meta{
+  font-size: 0.76rem;
+  color: rgba(255,255,255,0.72);
+  line-height: 1.35;
+}
+
+.weather-preview-summary{
+  margin: 0;
+  color: rgba(255,255,255,0.78);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.weather-preview-open-btn{
+  white-space: nowrap;
+}
+
+.setup-intro-copy{
+  margin: 0 0 0.7rem;
+  color: rgba(255,255,255,0.78);
+  font-size: 0.86rem;
+}
+
+.setup-intro-stats{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.setup-intro-stats span{
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  background: rgba(255,255,255,0.04);
+  font-size: 0.76rem;
+  color: rgba(255,255,255,0.86);
+}
+
+.next-steps-list{
+  display: grid;
+  gap: 0.6rem;
+}
+
+.next-step-item{
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  padding: 0.7rem 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.next-step-main{
+  min-width: 0;
+}
+
+.next-step-title{
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.95);
+}
+
+.next-step-meta{
+  margin: 0.25rem 0 0;
+  color: rgba(255,255,255,0.72);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 1280px){
+  .mission-summary-grid{
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 900px){
   .dashboard-header .header-grid{
     grid-template-columns: 1fr;
@@ -179,6 +500,20 @@ main.dashboard-main{
 
   .header-actions{
     flex-wrap: wrap;
+  }
+
+  .mission-summary-grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .quick-actions-list{
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .weather-preview-grid{
+    grid-template-columns: 1fr;
   }
 }
 
@@ -202,6 +537,32 @@ main.dashboard-main{
 
   .dashboard-card .card-body{
     overflow-y: visible;
+  }
+
+  .dashboard-grid--reflow > #routeStatusPanel,
+  .dashboard-grid--reflow > #floatPlansPanel.hero-panel{
+    height: auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .mission-summary-grid{
+    grid-template-columns: 1fr;
+  }
+
+  .monitoring-summary-grid{
+    grid-template-columns: 1fr;
+  }
+
+  .next-step-item{
+    display: block;
+  }
+
+  .next-step-item .btn-secondary,
+  .next-step-item .btn-primary{
+    margin-top: 0.55rem;
+    width: 100%;
+    text-align: center;
   }
 
   .dashboard-body button,
@@ -247,10 +608,9 @@ main.dashboard-main{
 
 /* “Active system” panel highlight (toggle by adding .active) */
 .dashboard-card.active{
-  border-color: rgba(53, 208, 198, 0.55);
+  border-color: var(--panel-border-strong);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.06),
-    0 0 0 1px rgba(53,208,198,0.25),
     0 26px 52px rgba(0,0,0,0.70);
 }
 
@@ -415,20 +775,6 @@ main.dashboard-main{
   color: var(--text);
 }
 
-#floatPlanWizardModal .wizard-step-badge{
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.4rem 0.75rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--panel-border);
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text);
-  background: rgba(255,255,255,0.05);
-  letter-spacing: 0.02em;
-}
-
 /* ---------- Vessel modal sizing ---------- */
 #vesselModal .modal-dialog{
   max-width: 780px;
@@ -438,16 +784,6 @@ main.dashboard-main{
   height: auto;
   min-height: 0;
   max-height: none;
-}
-
-#floatPlanWizardModal .wizard-step-badge--active{
-  background: rgba(53, 208, 198, 0.18);
-  border-color: rgba(53, 208, 198, 0.35);
-}
-
-#floatPlanWizardModal .wizard-step-badge--inactive{
-  background: rgba(255,255,255,0.06);
-  border-color: var(--panel-border);
 }
 
 #floatPlanWizardModal .btn-close{
@@ -632,15 +968,14 @@ main.dashboard-main{
 .hero-panel{
   grid-column: 1 / -1; /* full width by default for strongest “console” impact */
   min-height: 340px;
-  border-color: rgba(53, 208, 198, 0.55);
+  border-color: var(--panel-border);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.06),
-    0 0 0 1px rgba(53,208,198,0.25),
     0 28px 56px rgba(0,0,0,0.75);
 }
 
 .hero-panel .card-header{
-  background: linear-gradient(to bottom, rgba(53,208,198,0.20), rgba(0,0,0,0));
+  background: linear-gradient(180deg, rgba(11, 24, 37, 0.96), rgba(8, 20, 33, 0.98));
 }
 
 .hero-panel h2{
@@ -652,15 +987,14 @@ main.dashboard-main{
 
 /* Panel styling aligned with Float Plans (without full-width layout) */
 .panel-floatlike{
-  border-color: rgba(53, 208, 198, 0.55);
+  border-color: var(--panel-border);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.06),
-    0 0 0 1px rgba(53,208,198,0.25),
     0 26px 52px rgba(0,0,0,0.70);
 }
 
 .panel-floatlike .card-header{
-  background: linear-gradient(to bottom, rgba(53,208,198,0.20), rgba(0,0,0,0));
+  background: linear-gradient(180deg, rgba(11, 24, 37, 0.96), rgba(8, 20, 33, 0.98));
 }
 
 .panel-floatlike h2{
@@ -683,6 +1017,10 @@ main.dashboard-main{
    ========================================================= */
 
 .dashboard-grid > .fpw-alerts{
+  grid-column: 1 / -1;
+}
+
+.dashboard-grid.dashboard-grid--reflow > .fpw-alerts{
   grid-column: 1 / -1;
 }
 
@@ -737,6 +1075,51 @@ main.dashboard-main{
   font-size: 0.92rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.fpw-card__title .fpw-wx__dot{
+  flex: 0 0 auto;
+  margin-left: 0.15rem;
+}
+
+.fpw-card__title .fpw-wx__titleRow--header{
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 0.2rem;
+  min-width: 0;
+  flex: 1 1 auto;
+  max-width: 100%;
+}
+
+.fpw-card__title .fpw-wx__titleRow--header .fpw-wx__title{
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.fpw-card__title .fpw-wx__summary--header{
+  margin: 0;
+  color: rgba(255,255,255,.78);
+  font-size: 0.84rem;
+  line-height: 1.2;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  min-width: 12rem;
+  max-width: 100%;
+  flex: 1 1 20rem;
+}
+
+.fpw-card__actions--weather{
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.fpw-card__actions--weather .fpw-wx__topRight{
+  justify-content: flex-end;
 }
 
 .fpw-alerts__icon{
@@ -993,4 +1376,2810 @@ main.dashboard-main{
     grid-row: 2;
     justify-self: end;
   }
+}
+
+/* Migrated from app/dashboard.cfm inline styles */
+
+        .wizard-body {
+            background: #f4f6f8;
+            min-height: 100%;
+            color: #212529;
+        }
+
+        .wizard-container {
+            max-width: 820px;
+            margin: 1.5rem auto;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+            padding: 1.5rem;
+        }
+
+        .wizard-steps .badge {
+            font-size: 0.85rem;
+            padding: 0.35rem 0.6rem;
+            margin-right: 0.35rem;
+        }
+
+        .list-group-button {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #floatPlanWizardModal .fpw-manifest {
+            display: grid;
+            grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.1fr);
+            gap: 0.9rem;
+            align-items: start;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__summary,
+        #floatPlanWizardModal .fpw-manifest__available {
+            border: 1px solid var(--panel-border);
+            border-radius: var(--radius-md);
+            background: rgba(255,255,255,0.04);
+            padding: 0.75rem;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__summaryhead {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__group + .fpw-manifest__group {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px dashed rgba(255,255,255,0.14);
+        }
+
+        #floatPlanWizardModal .fpw-manifest__grouphead {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        #floatPlanWizardModal .fpw-manifest__selectedlist {
+            list-style: none;
+            margin: 0.5rem 0 0;
+            padding: 0;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__selectedlist li {
+            padding: 0.2rem 0;
+            color: var(--text);
+            font-size: 0.92rem;
+            border-bottom: 1px dashed rgba(255,255,255,0.08);
+        }
+
+        #floatPlanWizardModal .fpw-manifest__selectedlist li:last-child {
+            border-bottom: none;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.6rem;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__tabbtn {
+            border: 1px solid var(--panel-border);
+            background: rgba(255,255,255,0.06);
+            color: var(--text);
+            border-radius: var(--radius-md);
+            padding: 0.35rem 0.7rem;
+            font-size: 0.85rem;
+            line-height: 1.2;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__tabbtn.is-active {
+            background: rgba(53, 208, 198, 0.18);
+            border-color: rgba(53, 208, 198, 0.45);
+        }
+
+        #floatPlanWizardModal .fpw-manifest__list {
+            max-height: 320px;
+            overflow-y: auto;
+            border: 1px solid var(--panel-border);
+            border-radius: var(--radius-md);
+            background: rgba(0,0,0,0.15);
+            padding: 0.25rem;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            padding: 0.55rem 0.65rem;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            color: var(--text);
+            cursor: pointer;
+            transition: background 0.15s ease, border-color 0.15s ease;
+            margin-bottom: 0.25rem;
+            outline: none;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__row:last-child {
+            margin-bottom: 0;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__row:hover,
+        #floatPlanWizardModal .fpw-manifest__row:focus {
+            background: rgba(78, 161, 255, 0.14);
+            border-color: rgba(78, 161, 255, 0.35);
+        }
+
+        #floatPlanWizardModal .fpw-manifest__row.is-selected {
+            background: rgba(40, 209, 124, 0.18);
+            border-color: rgba(40, 209, 124, 0.42);
+        }
+
+        #floatPlanWizardModal .fpw-manifest__label {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #floatPlanWizardModal .fpw-manifest__check {
+            width: 1.25rem;
+            text-align: center;
+            color: var(--success);
+            font-weight: 700;
+            flex: 0 0 1.25rem;
+        }
+
+        .wizard-nav {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 1.25rem;
+        }
+
+        .wizard-alert {
+            margin-bottom: 1rem;
+        }
+
+        .wizard-alert.alert-success {
+            padding-top: 0.375rem;
+            padding-bottom: 0.375rem;
+        }
+
+        .wizard-alert.alert-danger {
+            padding-top: 0.375rem;
+            padding-bottom: 0.375rem;
+        }
+
+        @media (max-width: 768px) {
+            .wizard-container {
+                margin: 1rem;
+                padding: 1rem;
+            }
+
+            #floatPlanWizardModal .fpw-manifest {
+                grid-template-columns: 1fr;
+            }
+
+            #floatPlanWizardModal .fpw-manifest__summarybody.is-collapsed-mobile {
+                display: none;
+            }
+
+            #floatPlanWizardModal .fpw-manifest__summaryhead {
+                margin-bottom: 0;
+            }
+
+            #floatPlanWizardModal .fpw-manifest__summarybody {
+                margin-top: 0.5rem;
+            }
+
+            #floatPlanWizardModal .fpw-manifest__list {
+                max-height: 260px;
+            }
+        }
+
+        #waypointMap {
+            position: relative;
+            z-index: 1;
+        }
+
+        #waypointMap .radar-opacity-control {
+            background: rgba(255, 255, 255, 0.92);
+            padding: 0.35rem 0.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-size: 0.7rem;
+            min-width: 140px;
+        }
+
+        #waypointMap .radar-opacity-control label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            color: #1b1b1b;
+        }
+
+        #waypointMap .radar-opacity-control input[type="range"] {
+            width: 100%;
+        }
+
+        #waypointMap .radar-opacity-control.is-disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        #waypointMap .marine-poi-icon span {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 600;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+        }
+
+        .marine-controls {
+            position: relative;
+            z-index: 2;
+            pointer-events: auto;
+        }
+
+        .dashboard-body .btn-close {
+            background-color: transparent;
+            filter: none;
+            opacity: 1;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M1.5 1.5l13 13m0-13l-13 13' stroke='white' stroke-width='2'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 14px 14px;
+        }
+
+        .dashboard-body .btn-close:hover {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' viewBox='0 0 16 16'%3E%3Cpath d='M1.5 1.5l13 13m0-13l-13 13' stroke='%2335d0c6' stroke-width='2'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 14px 14px;
+        }
+
+        main.dashboard-main {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0.5rem 20px 1.5rem;
+        }
+
+        .dashboard-header {
+            padding: 0;
+            border: 0;
+            box-shadow: none;
+            background: transparent;
+        }
+
+        .dashboard-header .header-grid {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0;
+        }
+    
+        /* ================================
+           Weather Cockpit (WOW Panel)
+           ================================ */
+        .fpw-weather-cockpit{
+            background: radial-gradient(1200px 600px at 20% 0%, rgba(45,212,191,.18), transparent 55%),
+                        radial-gradient(900px 500px at 85% 15%, rgba(59,130,246,.14), transparent 60%),
+                        linear-gradient(180deg, #0b1220, #070d18);
+            border: 1px solid rgba(255,255,255,.08);
+            border-radius: 16px;
+            padding: 16px 16px 14px;
+        }
+
+        .fpw-wx__top{
+            display:flex;
+            gap:14px;
+            justify-content:flex-end;
+            align-items:center;
+            margin-bottom:14px;
+        }
+        .fpw-wx__topLeft{
+            display:flex;
+            align-items:center;
+            gap:12px;
+            flex:1 1 auto;
+            min-width:0;
+        }
+        .fpw-wx__titleRow{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            flex-wrap:nowrap;
+            flex:0 0 auto;
+        }
+        .fpw-wx__dot{
+            width:12px;height:12px;border-radius:50%;
+            box-shadow: 0 0 0 3px rgba(255,255,255,.06);
+        }
+        .fpw-wx__dot.ok{ background:#2dd4bf; }
+        .fpw-wx__dot.warn{ background:#facc15; }
+        .fpw-wx__dot.danger{ background:#ef4444; }
+        .fpw-wx__title{
+            font-size: 1rem;
+            margin:0;
+            font-weight:700;
+            letter-spacing:.2px;
+            color: rgba(255,255,255,.92);
+        }
+        .fpw-wx__badge{
+            font-size:.75rem;
+            font-weight:700;
+            padding:.22rem .55rem;
+            border-radius:999px;
+            background: rgba(59,130,246,.18);
+            border:1px solid rgba(59,130,246,.25);
+            color: rgba(255,255,255,.9);
+        }
+        .fpw-wx__pill{
+            font-size:.75rem;
+            padding:.18rem .5rem;
+            border-radius:999px;
+            background: rgba(255,255,255,.08);
+            border:1px solid rgba(255,255,255,.10);
+            color: rgba(255,255,255,.78);
+        }
+        .fpw-wx__summary{
+            margin-top:0;
+            color: rgba(255,255,255,.75);
+            font-size:.9rem;
+            line-height:1.1rem;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+        }
+        .fpw-wx__muted{ color: rgba(255,255,255,.65); }
+        .fpw-wx__topRight{
+            display:flex;
+            gap:10px;
+            align-items:center;
+            flex-wrap:wrap;
+            justify-content:flex-end;
+            flex:0 0 auto;
+        }
+        .fpw-wx__zipBlock{
+            display:flex;
+            align-items:center;
+            gap:8px;
+            flex: 0 0 auto;
+        }
+        .fpw-wx__zipInput{
+            width:110px;
+            background: rgba(255,255,255,.08);
+            border:1px solid rgba(255,255,255,.12);
+            color: rgba(255,255,255,.92);
+        }
+        #weatherLocationMode.fpw-wx__zipInput{
+            cursor: pointer;
+            font-weight: 600;
+            padding-right: 2rem;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image:
+              linear-gradient(45deg, transparent 50%, rgba(255,255,255,.78) 50%),
+              linear-gradient(135deg, rgba(255,255,255,.78) 50%, transparent 50%),
+              linear-gradient(to right, rgba(255,255,255,.16), rgba(255,255,255,.16));
+            background-position:
+              calc(100% - 14px) calc(50% - 3px),
+              calc(100% - 9px) calc(50% - 3px),
+              calc(100% - 2.1rem) 50%;
+            background-size: 5px 5px, 5px 5px, 1px 60%;
+            background-repeat: no-repeat;
+        }
+        #weatherLocationMode.fpw-wx__zipInput:focus{
+            border-color: rgba(78,161,255,.55);
+            box-shadow: 0 0 0 .2rem rgba(78,161,255,.18);
+        }
+        .fpw-wx__zipInput::placeholder{ color: rgba(255,255,255,.55); }
+        .fpw-wx__zipLabel{ font-size:.75rem; color: rgba(255,255,255,.70); margin:0; display:inline-block; }
+        .fpw-wx__zipBlock .form-text{ display:none; }
+        .fpw-wx__updateBtn{
+            box-shadow: 0 10px 18px rgba(0,0,0,.22);
+            flex: 0 0 auto;
+            white-space: nowrap;
+        }
+        .fpw-wx__detailsBtn{ opacity:.9; }
+        @media (max-width: 992px){
+            .fpw-card__title .fpw-wx__titleRow--header{
+                flex-wrap: wrap;
+            }
+            .fpw-card__title .fpw-wx__summary--header{
+                white-space: normal;
+                overflow: visible;
+                text-overflow: clip;
+            }
+            .fpw-wx__top{
+                align-items:flex-start;
+                flex-direction:column;
+            }
+            .fpw-wx__topLeft{
+                width:100%;
+                flex-direction:column;
+                align-items:flex-start;
+                gap:8px;
+            }
+            .fpw-wx__titleRow{
+                flex-wrap:wrap;
+            }
+            .fpw-wx__summary{
+                white-space:normal;
+                overflow:visible;
+                text-overflow:clip;
+                line-height:1.25rem;
+            }
+            .fpw-wx__topRight{
+                width:100%;
+                justify-content:flex-end;
+            }
+        }
+        @media (max-width: 980px){
+            .fpw-alerts .fpw-card__header{
+                flex-wrap: wrap;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            .fpw-alerts .fpw-card__title{
+                flex: 1 1 100%;
+                min-width: 0;
+            }
+            .fpw-alerts .fpw-card__actions--weather{
+                margin-left: 0;
+                width: 100%;
+                justify-content: flex-end;
+            }
+            .fpw-alerts .fpw-card__actions--weather .fpw-wx__topRight{
+                width: 100%;
+                justify-content: flex-end;
+                gap: 8px;
+            }
+            .fpw-alerts .fpw-wx__zipInput{
+                width: 96px;
+            }
+            .fpw-alerts .fpw-wx__updateBtn{
+                white-space: nowrap;
+                flex: 0 0 auto;
+            }
+        }
+
+        .fpw-wx__main{
+            display:grid;
+            grid-template-columns: 300px 1fr;
+            gap: 14px;
+        }
+        @media (max-width: 992px){
+            .fpw-wx__main{ grid-template-columns: 1fr; }
+        }
+
+        .fpw-wx__panel{
+            background: rgba(255,255,255,.05);
+            border:1px solid rgba(255,255,255,.08);
+            border-radius: 14px;
+            padding: 12px;
+            box-shadow: 0 10px 20px rgba(0,0,0,.18);
+        }
+        .fpw-wx__panelHeader{
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            margin-bottom:10px;
+        }
+        .fpw-wx__panelTitle{
+            font-weight:800;
+            font-size:.9rem;
+            letter-spacing:.25px;
+            color: rgba(255,255,255,.88);
+        }
+        .fpw-wx__panelMeta{
+            font-size:.78rem;
+            color: rgba(255,255,255,.65);
+        }
+
+        /* Wind dial */
+        .fpw-wx__dial{ display:flex; justify-content:center; padding: 2px 0 8px; }
+        .fpw-wx__compass{
+            width: 248px;
+            height: 248px;
+            border-radius: 50%;
+            position: relative;
+            background:
+                radial-gradient(circle at 50% 50%, rgba(255,255,255,.08), rgba(255,255,255,.02) 55%, rgba(0,0,0,.25) 100%),
+                conic-gradient(from 180deg, rgba(45,212,191,.22), rgba(59,130,246,.12), rgba(239,68,68,.12), rgba(45,212,191,.22));
+            border: 1px solid rgba(255,255,255,.10);
+            box-shadow: inset 0 0 0 10px rgba(0,0,0,.16), 0 18px 30px rgba(0,0,0,.28);
+            overflow:hidden;
+        }
+        .fpw-wx__compassTicks{
+            position:absolute; inset:0;
+            background:
+                repeating-conic-gradient(
+                  from 0deg,
+                  rgba(255,255,255,.18) 0deg,
+                  rgba(255,255,255,.18) 1deg,
+                  transparent 1deg,
+                  transparent 10deg
+                );
+            opacity:.25;
+            mask: radial-gradient(circle at 50% 50%, transparent 0 64%, #000 66% 100%);
+        }
+        .fpw-wx__needle{
+            position:absolute;
+            left:50%;
+            top: 22px;
+            width: 2px;
+            height: 96px;
+            transform-origin: bottom center;
+            transform: translateX(-50%) rotate(var(--dir));
+            transition: transform 380ms cubic-bezier(.2,.9,.2,1);
+            background: linear-gradient(#2dd4bf, rgba(45,212,191,.15));
+            filter: drop-shadow(0 0 10px rgba(45,212,191,.35));
+        }
+        .fpw-wx__needle::after{
+            content:"";
+            position:absolute;
+            bottom:-7px;
+            left:50%;
+            width: 10px;
+            height: 10px;
+            transform: translateX(-50%);
+            border-radius: 50%;
+            background: rgba(255,255,255,.85);
+            box-shadow: 0 0 0 3px rgba(255,255,255,.10), 0 0 18px rgba(45,212,191,.25);
+        }
+        .fpw-wx__gustHalo{
+            position:absolute; inset: 26px;
+            border-radius:50%;
+            box-shadow: inset 0 0 0 2px rgba(255,255,255,.10);
+            opacity:.55;
+            transition: box-shadow 240ms ease, opacity 240ms ease;
+        }
+        .fpw-wx__dialCenter{
+            position:absolute;
+            inset: 64px;
+            border-radius: 50%;
+            background: rgba(0,0,0,.35);
+            border: 1px solid rgba(255,255,255,.10);
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            padding: 10px;
+            text-align:center;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
+        }
+        .fpw-wx__dialSpeed{
+            font-size: 2rem;
+            font-weight: 900;
+            letter-spacing:.4px;
+            line-height: 1;
+            color: rgba(255,255,255,.95);
+        }
+        .fpw-wx__dialSub{
+            margin-top: 6px;
+            font-size:.82rem;
+            color: rgba(255,255,255,.75);
+            display:flex;
+            gap:6px;
+            align-items:center;
+            flex-wrap:wrap;
+            justify-content:center;
+        }
+        .fpw-wx__dialCond{
+            margin-top: 6px;
+            font-size:.78rem;
+            color: rgba(255,255,255,.62);
+            max-width: 190px;
+            line-height: 1.1rem;
+        }
+        .fpw-wx__cardinals span{
+            position:absolute;
+            font-size:.78rem;
+            font-weight:800;
+            color: rgba(255,255,255,.72);
+            text-shadow: 0 2px 8px rgba(0,0,0,.35);
+        }
+        .fpw-wx__cardinals .n{ top: 10px; left: 50%; transform: translateX(-50%); }
+        .fpw-wx__cardinals .s{ bottom: 10px; left: 50%; transform: translateX(-50%); }
+        .fpw-wx__cardinals .e{ right: 12px; top: 50%; transform: translateY(-50%); }
+        .fpw-wx__cardinals .w{ left: 12px; top: 50%; transform: translateY(-50%); }
+
+        .fpw-wx__miniRow{
+            display:grid;
+            grid-template-columns: 1fr 1fr;
+            gap:10px;
+            margin-top:10px;
+        }
+        .fpw-wx__miniStat{
+            background: rgba(0,0,0,.20);
+            border:1px solid rgba(255,255,255,.08);
+            border-radius: 12px;
+            padding: 10px;
+        }
+        .fpw-wx__miniLabel{
+            font-size:.7rem;
+            color: rgba(255,255,255,.62);
+            text-transform: uppercase;
+            letter-spacing: .6px;
+        }
+        .fpw-wx__miniValue{
+            font-size: .95rem;
+            font-weight: 800;
+            color: rgba(255,255,255,.90);
+            margin-top: 2px;
+        }
+
+        /* Timeline */
+        .fpw-wx__timelineGrid{ display:grid; grid-template-columns: 140px 1fr; gap: 12px; align-items:start; }
+        @media (max-width: 576px){ .fpw-wx__timelineGrid{ grid-template-columns: 1fr; } }
+        .fpw-wx__timelineLegend{
+            display:flex;
+            flex-direction:column;
+            gap:8px;
+            font-size:.78rem;
+            color: rgba(255,255,255,.72);
+            padding-top: 2px;
+        }
+        .fpw-wx__timelineLegend .swatch{
+            display:inline-block;
+            width:10px;height:10px;border-radius:3px;
+            margin-right:8px;
+            border:1px solid rgba(255,255,255,.15);
+        }
+        .swatch.wind{ background: rgba(59,130,246,.45); }
+        .swatch.gust{ background: rgba(250,204,21,.48); }
+        .swatch.rain{ background: rgba(45,212,191,.38); }
+        .swatch.alert{ background: rgba(239,68,68,.55); }
+
+        /* Make the 12-period cards larger + horizontally scrollable */
+        .fpw-wx__timelineBars{
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding-bottom: 10px;
+            scroll-snap-type: x proximity;
+        }
+        .fpw-wx__timelineBars::-webkit-scrollbar{ height: 10px; }
+        .fpw-wx__timelineBars::-webkit-scrollbar-track{ background: rgba(255,255,255,.05); border-radius: 999px; }
+        .fpw-wx__timelineBars::-webkit-scrollbar-thumb{ background: rgba(255,255,255,.14); border-radius: 999px; }
+        .fpw-wx__timelineBars::-webkit-scrollbar-thumb:hover{ background: rgba(255,255,255,.22); }
+
+        .fpw-wx__timelineStage{ position:relative; min-width: max-content; }
+
+        .fpw-wx__bars{
+            display:flex;
+            gap:10px;
+            padding-right: 6px;
+        }
+        .fpw-wx__bar{
+            width: 112px;
+            border-radius: 14px;
+            padding: 10px 10px 9px;
+            border:1px solid rgba(255,255,255,.08);
+            background: rgba(0,0,0,.22);
+            position:relative;
+            overflow:hidden;
+            min-height: 118px;
+            scroll-snap-align: start;
+        }
+        @media (max-width: 576px){
+            .fpw-wx__bar{ width: 100px; min-height: 112px; }
+        }
+
+        .fpw-wx__barTop{
+            display:flex;
+            justify-content:space-between;
+            align-items:baseline;
+            gap:8px;
+        }
+        .fpw-wx__barWhen{
+            font-size:.74rem;
+            color: rgba(255,255,255,.72);
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+            max-width: 92px;
+        }
+        .fpw-wx__barTemp{
+            font-weight:900;
+            font-size:1.05rem;
+            color: rgba(255,255,255,.92);
+            white-space:nowrap;
+        }
+        .fpw-wx__barMeters{
+            margin-top: 8px;
+            display:flex;
+            flex-direction:column;
+            gap:7px;
+        }
+        .fpw-wx__meterRow{
+            height: 7px;
+            border-radius:999px;
+            background: rgba(255,255,255,.06);
+            border:1px solid rgba(255,255,255,.06);
+            overflow:hidden;
+        }
+        .fpw-wx__meterFill{
+            height:100%;
+            border-radius:999px;
+            width: 20%;
+        }
+        .fpw-wx__meterFill.wind{ background: rgba(59,130,246,.72); }
+        .fpw-wx__meterFill.gust{ background: rgba(250,204,21,.78); }
+        .fpw-wx__meterFill.rain{ background: rgba(45,212,191,.60); }
+
+        .fpw-wx__barFlag{
+            position:absolute;
+            right:8px; top:8px;
+            width:10px;height:10px;border-radius:50%;
+            background: rgba(239,68,68,.85);
+            box-shadow: 0 0 0 3px rgba(239,68,68,.15);
+        }
+        .fpw-wx__alertsEmpty{
+            margin-top: 10px;
+            color: rgba(255,255,255,.72);
+            font-size:.85rem;
+        }
+        .fpw-wx__alertsList{
+            list-style:none;
+            padding:0;
+            margin: 10px 0 0;
+            display:flex;
+            gap:10px;
+            flex-wrap:wrap;
+        }
+        .fpw-wx__alertItem{
+            flex: 1 1 340px;
+            background: rgba(0,0,0,.18);
+            border:1px solid rgba(255,255,255,.08);
+            border-radius: 12px;
+            padding: 10px;
+        }
+        .fpw-wx__alertHead{
+            display:flex;
+            gap:8px;
+            align-items:center;
+            margin-bottom: 4px;
+        }
+        .fpw-wx__alertBadge{
+            font-size:.72rem;
+            font-weight:900;
+            letter-spacing:.6px;
+            padding:.16rem .5rem;
+            border-radius:999px;
+            border:1px solid rgba(255,255,255,.12);
+        }
+        .fpw-wx__alertBadge.info{ background: rgba(59,130,246,.18); }
+        .fpw-wx__alertBadge.warning{ background: rgba(250,204,21,.16); }
+        .fpw-wx__alertBadge.critical{ background: rgba(239,68,68,.16); }
+        .fpw-wx__alertTitle{
+            font-weight: 800;
+            color: rgba(255,255,255,.90);
+            font-size: .88rem;
+        }
+        .fpw-wx__alertMsg{
+            color: rgba(255,255,255,.70);
+            font-size: .82rem;
+            line-height: 1.15rem;
+        }
+
+        /* Instruments */
+        .fpw-wx__instruments{
+            margin-top: 14px;
+            display:grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+        @media (max-width: 992px){ .fpw-wx__instruments{ grid-template-columns: repeat(2, 1fr);} }
+        @media (max-width: 576px){ .fpw-wx__instruments{ grid-template-columns: 1fr;} }
+
+        .fpw-wx__gauge{
+            background: rgba(255,255,255,.05);
+            border:1px solid rgba(255,255,255,.08);
+            border-radius: 14px;
+            padding: 12px;
+            box-shadow: 0 10px 20px rgba(0,0,0,.18);
+        }
+        .fpw-wx__gaugeTop{
+            display:flex;
+            justify-content:space-between;
+            align-items:baseline;
+            gap:10px;
+        }
+        .fpw-wx__gaugeLabel{
+            font-size:.75rem;
+            color: rgba(255,255,255,.68);
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing:.6px;
+        }
+        .fpw-wx__gaugeValue{
+            font-size: 1.1rem;
+            font-weight: 900;
+            color: rgba(255,255,255,.92);
+        }
+        .fpw-wx__gaugeFoot{
+            margin-top: 10px;
+            font-size:.75rem;
+            color: rgba(255,255,255,.62);
+        }
+
+        /* Scoped weather card spacing system */
+        .wx-panel--cockpit{
+            --card-pad-x: 18px;
+            --card-pad-y: 16px;
+            --card-gap: 16px;
+            --wx-card-height: 199px;
+            --hdr-gap: 10px;
+            --val-gap: 10px;
+            --viz-gap: 10px;
+            --title-size: .95rem;
+            --value-size: 2.6rem;
+            --sub-size: .95rem;
+        }
+
+        .wx-panel--cockpit .fpw-wx__instruments{
+            gap: var(--card-gap);
+            align-items: start;
+        }
+
+        .wx-panel--cockpit .wx-row{
+            align-items: flex-start;
+        }
+
+        .wx-panel--cockpit .wx-row .wx-card{
+            padding: var(--card-pad-y) var(--card-pad-x);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            height: var(--wx-card-height);
+            min-height: var(--wx-card-height);
+            max-height: var(--wx-card-height);
+            overflow: hidden;
+        }
+
+        .wx-panel--cockpit .wx-row .wx-card .card-title{
+            margin-bottom: 10px;
+        }
+
+        .wx-panel--cockpit .wx-card__head{
+            margin-bottom: var(--hdr-gap);
+        }
+
+        .wx-panel--cockpit .wx-card__value{
+            margin-bottom: var(--val-gap);
+        }
+
+        .wx-panel--cockpit .wx-card__viz{
+            margin-bottom: var(--viz-gap);
+        }
+
+        .wx-panel--cockpit .wx-card__foot{
+            margin-top: 0;
+        }
+
+        /* Card-specific tightening to match gust density */
+        .wx-panel--cockpit .fpw-wx__gusts .fpw-wx__spikes{
+            margin-top: 4px;
+        }
+
+        .wx-panel--cockpit .fpw-wx__gusts .fpw-wx__spikeBars{
+            height: 66px;
+        }
+
+        .wx-panel--cockpit .fpw-wx__gusts .fpw-wx__gaugeFoot{
+            margin-top: 6px;
+        }
+
+        .wx-panel--cockpit .fpw-wx__gusts{
+            background:
+              radial-gradient(120% 140% at 50% -10%, rgba(39,188,255,.22), rgba(0,0,0,0) 55%),
+              radial-gradient(100% 100% at 8% 12%, rgba(22,163,255,.14), rgba(0,0,0,0) 45%),
+              radial-gradient(120% 120% at 92% 10%, rgba(68,95,255,.16), rgba(0,0,0,0) 55%),
+              linear-gradient(180deg, rgba(8,18,38,.97), rgba(5,11,24,.99));
+        }
+
+        .wx-panel--cockpit .sea-radar-head{
+            margin-bottom: 0;
+        }
+
+        .wx-panel--cockpit .sea-radar-card .card-label{
+            transform: translateY(13px);
+            color: rgba(95,180,255);
+        }
+
+        .wx-panel--cockpit .wave-card.sea-radar-card.no-wave-data .card-label{
+            color: rgba(90,165,255,.75);
+        }
+
+        .wx-panel--cockpit .sea-radar-shell{
+            margin-top: 6px !important;
+            margin-bottom: 2px;
+            width: min(100%, 272px);
+            height: 140px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .wx-panel--cockpit .sea-radar-svg{
+            transform: translateY(3px);
+        }
+
+        .wx-panel--cockpit .sea-radar-readout{
+            top: 58%;
+            color: rgba(95,180,255,.95);
+        }
+
+        .wx-panel--cockpit .sea-radar-readout .unit{
+            color: rgba(95,180,255,.70);
+        }
+
+        .wx-panel--cockpit .wave-card.sea-radar-card::after{
+            display: none;
+        }
+
+        .wx-panel--cockpit .pressure-card{
+            padding: var(--card-pad-y) var(--card-pad-x);
+        }
+
+        .wx-panel--cockpit .pressure-value{
+            font-size: 24px;
+        }
+
+        .wx-panel--cockpit .pressure-card .pressure-head{
+            margin-bottom: 6px;
+        }
+
+        .wx-panel--cockpit .pressure-sub{
+            margin-top: 0;
+            min-height: 22px;
+            height: 22px;
+            padding: 0;
+            align-items: center;
+        }
+
+        .wx-panel--cockpit .pressure-card .pressure-sub.pressure-sub--hidden{
+            visibility: hidden;
+        }
+
+        .wx-panel--cockpit .pressure-card .pressure-trend{
+            font-size: 12px;
+            line-height: 1;
+            gap: 4px;
+        }
+
+        .wx-panel--cockpit .pressure-card .trend-text{
+            font-size: 11px;
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        .wx-panel--cockpit .pressure-card .pressure-rate{
+            font-size: 10px;
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        .wx-panel--cockpit .pressure-card .pressure-dial-slot{
+            width: 213.812px;
+            height: 138.203px;
+            margin: 6px auto 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform: translateY(-43.6px);
+        }
+
+        .wx-panel--cockpit .pressure-card .pressure-gauge-wrap{
+            width: 100%;
+            height: 100%;
+        }
+
+        .wx-panel--cockpit .pressure-card .pressure-gauge-wrap .barometer{
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background: none;
+            display: block;
+        }
+
+        .wx-panel--cockpit .pressure-card .pressure-gauge-wrap .baro-svg{
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            display: block;
+        }
+
+        .wx-panel--cockpit .pressure-card .baro-scale{
+            margin-top: -6px;
+            font-size: 7px;
+        }
+
+        .wx-panel--cockpit .pressure-spark{
+            margin-top: 6px;
+            padding: 0;
+            display: none;
+        }
+
+        .wx-panel--cockpit #visHorizon{
+            gap: 6px;
+            min-height: 100%;
+        }
+
+        .wx-panel--cockpit .vis-status{
+            margin-top: 3px;
+        }
+
+        .wx-panel--cockpit .vis-value{
+            font-size: 30px;
+        }
+
+        .wx-panel--cockpit .vis-scene{
+            height: 56px;
+        }
+
+        .wx-panel--cockpit .vis-horizonLine{
+            top: 36px;
+        }
+
+        .wx-panel--cockpit .vis-gridLine{
+            top: 44px;
+        }
+
+        .wx-panel--cockpit .vis-foot{
+            margin-top: 0;
+            font-size: 11px;
+        }
+
+        @media (max-width: 992px){
+            .wx-panel--cockpit{
+                --card-pad-x: 14px;
+                --card-pad-y: 13px;
+                --card-gap: 12px;
+            }
+        }
+
+        .fpw-wx__arcWrap{
+            margin-top: 10px;
+            position: relative;
+        }
+        .fpw-wx__arc{
+            margin-top: 0;
+            height: 136px;
+            border-radius: 12px;
+            background:
+              conic-gradient(from 180deg,
+                var(--temp-cold, rgba(59,130,246,.65)) 0deg,
+                var(--temp-mid, rgba(45,212,191,.65)) 90deg,
+                var(--temp-hot, rgba(239,68,68,.70)) 210deg,
+                rgba(255,255,255,.06) 360deg);
+            -webkit-mask: radial-gradient(circle at 50% 100%, transparent 0 52%, #000 54% 100%);
+            mask: radial-gradient(circle at 50% 100%, transparent 0 52%, #000 54% 100%);
+            opacity:.9;
+            position: relative;
+            overflow:hidden;
+        }
+        .fpw-wx__arcCenterText{
+            position:absolute;
+            left:0;
+            right:0;
+            top:calc(60% + 10px);
+            transform: translateY(-50%);
+            display:flex;
+            justify-content:center;
+            pointer-events:none;
+        }
+        .fpw-wx__temp #weatherTempHiLo{
+            font-size: 1rem;
+            font-weight: 600;
+            color: rgba(255,255,255,.90);
+            text-shadow: 0 2px 14px rgba(0,0,0,.45);
+        }
+        .fpw-wx__temp{
+            position:relative;
+            --temp-cold: rgba(59,130,246,.65);
+            --temp-mid: rgba(45,212,191,.65);
+            --temp-hot: rgba(239,68,68,.70);
+            --temp-marker: rgba(255,255,255,.92);
+            --temp-marker-glow: rgba(45,212,191,.22);
+        }
+        .fpw-wx__temp .fpw-wx__arc::after{
+            content:"";
+            position:absolute;
+            left: calc((var(--pct) * 1%) - 6px);
+            bottom: 6px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--temp-marker, rgba(255,255,255,.92));
+            box-shadow: 0 0 0 4px rgba(255,255,255,.12), 0 0 20px var(--temp-marker-glow, rgba(45,212,191,.22));
+            z-index: 2;
+        }
+
+        .fpw-wx__spikes{ margin-top: 10px; }
+        .fpw-wx__spikeBars{
+            display:flex;
+            align-items:flex-end;
+            gap: 4px;
+            height: 124px;
+        }
+        .fpw-wx__spike{
+            flex: 1 1 0;
+            border-radius: 6px 6px 10px 10px;
+            background: rgba(250,204,21,.25);
+            border:1px solid rgba(255,255,255,.10);
+            min-width: 6px;
+            position: relative;
+            overflow:hidden;
+        }
+        .fpw-wx__spike.hot{ background: rgba(239,68,68,.22); }
+        .fpw-wx__spike.ok{ background: rgba(59,130,246,.22); }
+        .fpw-wx__spike > i{
+            display:block;
+            width:100%;
+            height: 50%;
+            background: linear-gradient(180deg, rgba(255,255,255,.25), rgba(255,255,255,0));
+            opacity:.35;
+        }
+
+        .fpw-wx__trend{ margin-top: 12px; display:flex; justify-content:center; }
+        .fpw-wx__trendPill{
+            font-size:.8rem;
+            padding:.25rem .65rem;
+            border-radius:999px;
+            border:1px solid rgba(255,255,255,.10);
+            background: rgba(0,0,0,.18);
+            color: rgba(255,255,255,.82);
+        }
+        .fpw-wx__trendPill.up{ border-color: rgba(34,197,94,.25); background: rgba(34,197,94,.10); }
+        .fpw-wx__trendPill.down{ border-color: rgba(239,68,68,.25); background: rgba(239,68,68,.10); }
+        .fpw-wx__trendPill.neutral{ border-color: rgba(59,130,246,.22); background: rgba(59,130,246,.10); }
+
+        .pressure-card{
+          background: radial-gradient(120% 120% at 20% 10%, rgba(70,120,255,.10), rgba(0,0,0,0) 45%),
+                      radial-gradient(100% 140% at 80% 10%, rgba(0,220,255,.10), rgba(0,0,0,0) 55%),
+                      linear-gradient(180deg, rgba(15,25,45,.92), rgba(8,14,26,.92));
+          border-radius: 11px;
+          padding: 11px 11px 9px;
+          border: 1px solid rgba(255,255,255,.06);
+          box-shadow:
+            inset 0 0 0 1px rgba(255,255,255,.03),
+            0 18px 40px rgba(0,0,0,.45);
+          color: rgba(255,255,255,.92);
+        }
+
+        .pressure-head{
+          display:flex;
+          align-items:baseline;
+          justify-content:space-between;
+          gap:8px;
+        }
+
+        .pressure-label{
+          letter-spacing:2px;
+          font-size:8px;
+          color: rgba(90,165,255,.75);
+        }
+
+        .pressure-readout{
+          display:flex;
+          align-items:baseline;
+          gap:5px;
+        }
+
+        .pressure-value{
+          font-size:28px;
+          font-weight:700;
+          line-height:1;
+          color: rgba(95,180,255,.95);
+          text-shadow: 0 0 16px rgba(80,170,255,.28);
+        }
+
+        .pressure-unit{
+          font-size:11px;
+          color: rgba(95,180,255,.70);
+        }
+
+        .pressure-sub{
+          margin-top:4px;
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          color: rgba(95,180,255,.85);
+        }
+
+        .pressure-trend{
+          display:flex;
+          gap:5px;
+          align-items:center;
+          font-size:13px;
+          margin-top: 0;
+        }
+
+        .trend-text{
+          font-size:12px;
+          opacity:.9;
+        }
+
+        .pressure-rate{
+          font-size:11px;
+          opacity:.55;
+        }
+
+        .barometer{
+          margin-top:7px;
+          position:relative;
+          padding:5px 4px 0;
+          border-radius:9px;
+          background: radial-gradient(120% 120% at 50% 25%, rgba(120,190,255,.10), rgba(0,0,0,0) 55%);
+          --angle: calc(
+            (-120deg) + ( (var(--p) - var(--pMin)) / (var(--pMax) - var(--pMin)) ) * 240deg
+          );
+        }
+
+        .baro-svg{
+          width:150%;
+          height:114px;
+          display:block;
+          margin-left:-25%;
+          filter: drop-shadow(0 10px 22px rgba(0,0,0,.45));
+        }
+
+        .baro-arc{
+          fill:none;
+          stroke-linecap:round;
+          stroke-width:10;
+        }
+
+        .baro-arc.base{
+          stroke: rgba(95,180,255,.22);
+        }
+
+        .baro-arc.glow{
+          stroke: rgba(95,180,255,.55);
+          stroke-width:12;
+          opacity:.35;
+          filter: blur(1.2px);
+        }
+
+        .wx-panel--cockpit .pressure-card .baro-radar-track{
+          stroke-width: 23;
+        }
+
+        .wx-panel--cockpit .pressure-card .baro-radar-zone{
+          stroke-width: 19;
+        }
+
+        .wx-panel--cockpit .pressure-card .baro-dial{
+          transform: none;
+          transform-origin: 120px 140px;
+        }
+
+        .baro-ticks .major line{
+          stroke: rgba(180,220,255,.22);
+          stroke-width:3;
+          stroke-linecap:round;
+        }
+
+        .baro-needle{
+          transform-origin: 120px 140px;
+          transform: rotate(var(--angle));
+          transition: transform 420ms cubic-bezier(.2,.9,.2,1);
+        }
+
+        .needle{
+          stroke: rgba(95,180,255,.95);
+          stroke-width:4.2;
+          stroke-linecap:round;
+          filter: drop-shadow(0 0 10px rgba(95,180,255,.35));
+        }
+
+        .hub{
+          fill: rgba(10,16,28,.95);
+          stroke: rgba(95,180,255,.65);
+          stroke-width:2;
+          filter: drop-shadow(0 0 14px rgba(95,180,255,.25));
+        }
+
+        .hub-inner{
+          fill: rgba(95,180,255,.85);
+          opacity:.85;
+        }
+
+        .lens{
+          fill: rgba(255,255,255,.03);
+          stroke: rgba(255,255,255,.05);
+          stroke-width:1;
+        }
+
+        .baro-scale{
+          margin-top:-3px;
+          display:flex;
+          justify-content:space-between;
+          padding:0 4px 2px;
+          color: rgba(180,220,255,.40);
+          font-size:8px;
+          letter-spacing:.5px;
+        }
+
+        .pressure-spark{
+          margin-top:7px;
+          padding:5px 4px 2px;
+        }
+
+        .spark-line{
+          height:2px;
+          width:70%;
+          margin:0 auto;
+          border-radius:999px;
+          background: rgba(95,180,255,.85);
+          box-shadow: 0 0 14px rgba(95,180,255,.25);
+          transition: width .3s ease, opacity .3s ease;
+        }
+
+        .pressure-card[data-trend="rapid_fall"]{
+          color:#ff4d4f;
+          box-shadow:
+            inset 0 0 0 1px rgba(255,77,79,.4),
+            0 0 18px rgba(255,77,79,.4);
+        }
+
+        .pressure-card[data-trend="falling"]{
+          color:#f5c542;
+        }
+
+        .pressure-card[data-trend="steady"]{
+          color:#4da6ff;
+        }
+
+        .pressure-card[data-trend="rising"]{
+          color:#2bd1a3;
+        }
+
+        .pressure-card[data-trend="rapid_rise"]{
+          color:#19ff88;
+          box-shadow:
+            inset 0 0 0 1px rgba(25,255,136,.4),
+            0 0 18px rgba(25,255,136,.35);
+        }
+
+        /* ===== Visibility: Forward Horizon + Depth Fade ===== */
+        .vis-horizon{
+          display:flex;
+          flex-direction:column;
+          gap:10px;
+        }
+
+        .vis-hdr{
+          display:flex;
+          align-items:flex-start;
+          justify-content:space-between;
+          gap:12px;
+        }
+
+        .vis-title{
+          font-size:12px;
+          letter-spacing:1.2px;
+          opacity:.65;
+        }
+
+        .vis-readout{
+          text-align:right;
+        }
+
+        .vis-value{
+          font-size:34px;
+          font-weight:600;
+          line-height:1.0;
+        }
+
+        .vis-unit{
+          font-size:14px;
+          opacity:.65;
+          font-weight:500;
+        }
+
+        .vis-status{
+          margin-top:6px;
+          font-size:12px;
+          letter-spacing:1.2px;
+          opacity:.75;
+        }
+
+        .vis-scene{
+          position:relative;
+          border-radius:14px;
+          height:88px;
+          overflow:hidden;
+          background:
+            radial-gradient(120% 90% at 50% 110%, rgba(43,209,163,.10), rgba(0,0,0,0) 55%),
+            linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0));
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
+        }
+
+        .vis-fog{
+          position:absolute;
+          inset:0;
+          background: radial-gradient(120% 120% at 50% 65%, rgba(255,255,255,.22), rgba(255,255,255,0) 60%),
+                      linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,0));
+          opacity:0;
+          transition: opacity .35s ease;
+          pointer-events:none;
+        }
+
+        .vis-horizonLine{
+          position:absolute;
+          left:10px;
+          right:10px;
+          top:54px;
+          height:2px;
+          background: rgba(255,255,255,.14);
+          box-shadow: 0 0 10px rgba(255,255,255,.10);
+          opacity:.9;
+          transition: opacity .35s ease, box-shadow .35s ease;
+        }
+
+        .vis-grid{
+          position:absolute;
+          inset:0;
+          transform: perspective(500px) rotateX(55deg);
+          transform-origin: 50% 70%;
+          opacity:.55;
+          transition: opacity .35s ease;
+        }
+
+        .vis-gridLine{
+          position:absolute;
+          left:50%;
+          width:1px;
+          top:62px;
+          bottom:-40px;
+          background: rgba(255,255,255,.10);
+          filter: blur(.2px);
+          transform-origin: top;
+        }
+
+        .vis-gridLine:nth-child(1){ transform: translateX(-80px) skewX(-8deg); opacity:.20; }
+        .vis-gridLine:nth-child(2){ transform: translateX(-55px) skewX(-6deg); opacity:.28; }
+        .vis-gridLine:nth-child(3){ transform: translateX(-32px) skewX(-4deg); opacity:.36; }
+        .vis-gridLine:nth-child(4){ transform: translateX(-12px) skewX(-2deg); opacity:.44; }
+        .vis-gridLine:nth-child(5){ transform: translateX(12px) skewX(2deg); opacity:.44; }
+        .vis-gridLine:nth-child(6){ transform: translateX(32px) skewX(4deg); opacity:.36; }
+        .vis-gridLine:nth-child(7){ transform: translateX(55px) skewX(6deg); opacity:.28; }
+        .vis-gridLine:nth-child(8){ transform: translateX(80px) skewX(8deg); opacity:.20; }
+
+        .vis-rangeText{
+          position:absolute;
+          left:12px;
+          bottom:10px;
+          font-size:12px;
+          opacity:.65;
+          letter-spacing:.6px;
+        }
+
+        .vis-foot{
+          font-size:12px;
+          opacity:.55;
+        }
+
+        #visHorizon[data-vis-state="fog"]{ color: rgba(255,80,80,.95); }
+        #visHorizon[data-vis-state="restricted"]{ color: rgba(245,197,66,.95); }
+        #visHorizon[data-vis-state="haze"]{ color: rgba(245,197,66,.85); }
+        #visHorizon[data-vis-state="good"]{ color: rgba(77,166,255,.95); }
+        #visHorizon[data-vis-state="clear"]{ color: rgba(43,209,163,.95); }
+        #visHorizon[data-vis-state="unknown"]{ color: rgba(255,255,255,.82); }
+
+        /* Wave Height cockpit card */
+        .wave-card{
+          display:flex;
+          flex-direction:column;
+          justify-content:space-between;
+          gap:10px;
+          transition: box-shadow .25s ease;
+        }
+
+        .wave-card .card-label{
+          font-size:12px;
+          letter-spacing:1.2px;
+          opacity:.65;
+        }
+
+        .wave-card .card-value{
+          display:flex;
+          align-items:flex-end;
+          gap:8px;
+          line-height:1;
+        }
+
+        .wave-card .card-value #wxWaveHeight{
+          font-size:34px;
+          font-weight:600;
+        }
+
+        .wave-card .card-value .unit{
+          font-size:14px;
+          opacity:.65;
+          font-weight:500;
+          margin-bottom:4px;
+        }
+
+        .wave-card .card-subtext{
+          font-size:12px;
+          opacity:.6;
+          letter-spacing:.6px;
+        }
+
+        .wave-card.calm { box-shadow: 0 0 8px rgba(0, 200, 120, 0.4); }
+        .wave-card.moderate { box-shadow: 0 0 8px rgba(255, 180, 0, 0.4); }
+        .wave-card.rough { box-shadow: 0 0 8px rgba(255, 60, 60, 0.5); }
+
+        /* Wave Height mini swell gauge (additive) */
+        .wave-gauge {
+            position: relative;
+            height: 90px;
+            margin-top: 8px;
+            background: radial-gradient(circle at center, #0f1b2a 0%, #081018 70%);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .wave-surface {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .wave {
+            position: absolute;
+            bottom: 0;
+            width: 200%;
+            height: 60%;
+            background: rgba(0, 180, 255, 0.35);
+            border-radius: 40%;
+        }
+
+        .wave-front {
+            animation: swellMove 6s linear infinite;
+            background: rgba(0, 200, 255, 0.45);
+        }
+
+        .wave-back {
+            animation: swellMove 10s linear infinite reverse;
+            opacity: 0.6;
+        }
+
+        @keyframes swellMove {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        .wave-card.wave-calm .wave { height: 25%; }
+        .wave-card.wave-moderate .wave { height: 45%; }
+        .wave-card.wave-rough .wave { height: 65%; }
+        .wave-card.wave-severe .wave { height: 85%; }
+
+        .wave-readout {
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            font-size: 1.6rem;
+            font-weight: 600;
+            color: #e6f6ff;
+            text-shadow: 0 0 6px rgba(0,200,255,0.6);
+            line-height: 1;
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+
+        .wave-readout .unit {
+            font-size: 14px;
+            opacity: 0.75;
+            font-weight: 500;
+        }
+
+        .wave-card.wave-calm { box-shadow: 0 0 8px rgba(0, 200, 120, 0.4); }
+        .wave-card.wave-moderate { box-shadow: 0 0 8px rgba(255, 180, 0, 0.4); }
+        .wave-card.wave-rough { box-shadow: 0 0 8px rgba(255, 60, 60, 0.5); }
+        .wave-card.wave-severe { box-shadow: 0 0 10px rgba(255, 40, 40, 0.65); }
+
+        /* Circular radar sea-state gauge (additive) */
+        .sea-gauge {
+            position: relative;
+            width: 180px;
+            height: 120px;
+            margin: 0 auto;
+        }
+
+        .sea-arc {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .arc {
+            fill: none;
+            stroke-width: 8;
+            opacity: 0.6;
+        }
+
+        .arc-calm { stroke: #00d084; }
+        .arc-moderate { stroke: #f0c000; }
+        .arc-rough { stroke: #ff7a00; }
+        .arc-severe { stroke: #ff3b3b; }
+
+        .sea-needle {
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            width: 4px;
+            height: 85px;
+            background: linear-gradient(to top, #fff, #00d4ff);
+            transform-origin: bottom center;
+            transform: translateX(-50%) rotate(-90deg);
+            transition: transform 0.6s ease-out;
+            box-shadow: 0 0 8px rgba(0,200,255,0.8);
+            border-radius: 8px;
+            z-index: 3;
+        }
+
+        .sea-swell-overlay {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 60%;
+            overflow: hidden;
+            border-radius: 0 0 100px 100px;
+            z-index: 1;
+        }
+
+        .sea-wave {
+            position: absolute;
+            bottom: 0;
+            width: 200%;
+            height: 40%;
+            background: rgba(0, 180, 255, 0.35);
+            border-radius: 40%;
+            animation: seaSwell 6s linear infinite;
+        }
+
+        @keyframes seaSwell {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        .sea-readout {
+            position: absolute;
+            bottom: -10px;
+            width: 100%;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #e6f6ff;
+            text-shadow: 0 0 6px rgba(0,200,255,0.6);
+            z-index: 4;
+            line-height: 1;
+        }
+
+        .sea-readout .unit {
+            font-size: 0.85rem;
+            opacity: 0.8;
+            margin-left: 4px;
+            font-weight: 500;
+        }
+
+        /* Sea state radar panel (full-width instrument) */
+        .fpw-wx__instruments .wave-card.sea-radar-card{
+            grid-column: auto;
+            position: relative;
+            padding: 12px;
+            border-radius: 14px;
+            overflow: hidden;
+            background:
+              radial-gradient(120% 140% at 50% -10%, rgba(39,188,255,.22), rgba(0,0,0,0) 55%),
+              radial-gradient(100% 100% at 8% 12%, rgba(22,163,255,.14), rgba(0,0,0,0) 45%),
+              radial-gradient(120% 120% at 92% 10%, rgba(68,95,255,.16), rgba(0,0,0,0) 55%),
+              linear-gradient(180deg, rgba(8,18,38,.97), rgba(5,11,24,.99));
+            border: 1px solid rgba(135,168,215,.24);
+            box-shadow:
+              inset 0 0 0 1px rgba(255,255,255,.04),
+              0 10px 22px rgba(0,0,0,.30),
+              0 0 14px rgba(22,163,255,.14);
+            min-height: 0;
+        }
+
+        .wave-card.sea-radar-card::after{
+            content:"";
+            position:absolute;
+            left:14%;
+            right:14%;
+            bottom: 8px;
+            height: 1px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(255,197,58,0), rgba(255,197,58,.90), rgba(255,197,58,0));
+            filter: drop-shadow(0 0 8px rgba(255,180,40,.55));
+            pointer-events:none;
+        }
+
+        .sea-radar-head{
+            position: relative;
+            z-index: 3;
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            gap: 2px;
+            margin-bottom: 2px;
+        }
+
+        .sea-radar-card .card-label{
+            font-size: clamp(.90rem, 1.2vw, 1.05rem);
+            line-height: 1;
+            letter-spacing: .18em;
+            font-weight: 600;
+            color: rgba(95,180,255);
+            text-shadow: 0 0 20px rgba(84,170,255,.22);
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .wave-card.sea-radar-card.no-wave-data .card-label{
+            font-size: clamp(.68rem, .98vw, .80rem);
+            letter-spacing: .08em;
+            color: rgba(255,214,170,.90);
+        }
+
+        .sea-radar-shell{
+            position: relative;
+            margin: -9px auto 0;
+            width: min(100%, 270px);
+            padding-top: 0;
+        }
+
+        .sea-radar-svg{
+            width: 100%;
+            height: auto;
+            display:block;
+            shape-rendering: geometricPrecision;
+            text-rendering: geometricPrecision;
+            filter: drop-shadow(0 18px 28px rgba(0,0,0,.42));
+        }
+
+        .sea-radar-outer-frame{
+            fill:none;
+            stroke: rgba(148,182,235,.46);
+            stroke-width: 3;
+            stroke-linecap: round;
+        }
+
+        .sea-radar-outer-glow{
+            fill:none;
+            stroke: rgba(86,170,255,.34);
+            stroke-width: 6;
+            stroke-linecap: round;
+            filter: blur(1.2px);
+        }
+
+        .sea-radar-track{
+            fill:none;
+            stroke: rgba(255,255,255,.08);
+            stroke-width: 23;
+            stroke-linecap: round;
+        }
+
+        .sea-radar-zone{
+            fill:none;
+            stroke-width: 19;
+            stroke-linecap: round;
+            filter: drop-shadow(0 0 8px rgba(0,0,0,.42));
+        }
+        .sea-radar-zone.zone-calm{ stroke: rgba(170,225,255,.95); }
+        .sea-radar-zone.zone-moderate{ stroke: rgba(140,210,255,.90); }
+        .sea-radar-zone.zone-rough{ stroke: rgba(110,195,255,.80); }
+        .sea-radar-zone.zone-severe{ stroke: rgba(95,180,255,.65); }
+
+        .tick{
+            stroke-linecap: round;
+            opacity:.92;
+        }
+        .tick.major{
+            stroke: rgba(255,243,215,.88);
+            stroke-width: 4;
+        }
+        .tick.minor{
+            stroke: rgba(255,214,136,.58);
+            stroke-width: 2.5;
+        }
+
+        .grid-ring,
+        .grid-ray{
+            fill:none;
+            stroke: rgba(30,179,255,.33);
+            stroke-width: 1.2;
+        }
+
+        .sea-radar-num{
+            fill: rgba(255,244,225,.95);
+            font-size: 40px;
+            font-weight: 400;
+            letter-spacing: .02em;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+
+        .sea-radar-zone-label{
+            font-size: 56px;
+            font-weight: 800;
+            letter-spacing: .14em;
+            text-anchor: middle;
+            filter: drop-shadow(0 0 7px rgba(0,0,0,.35));
+        }
+        .sea-radar-zone-label.zone-label-calm{
+            fill: rgba(67,232,168,.95);
+            transform: rotate(-58deg);
+            transform-origin: 150px 196px;
+        }
+        .sea-radar-zone-label.zone-label-moderate{
+            fill: rgba(255,196,65,.96);
+        }
+        .sea-radar-zone-label.zone-label-rough{
+            fill: rgba(255,170,62,.96);
+            transform: rotate(34deg);
+            transform-origin: 560px 168px;
+        }
+        .sea-radar-zone-label.zone-label-severe{
+            fill: rgba(255,86,78,.98);
+            transform: rotate(89deg);
+            transform-origin: 637px 250px;
+        }
+
+        #seaWaveAmp{
+            transform-origin: 380px 346px;
+            transition: transform .45s ease;
+        }
+        .sea-wave-track{
+            animation: seaRadarWaveShift 6s linear infinite;
+            will-change: transform;
+        }
+        .sea-wave-back-track{
+            animation-duration: 9s;
+            animation-direction: reverse;
+            opacity: .72;
+        }
+        .sea-wave-front-track{
+            animation-duration: 6s;
+            opacity: .95;
+        }
+        .sea-wave-front{
+            fill: url(#seaWaveFrontGrad);
+        }
+        .sea-wave-back{
+            fill: url(#seaWaveBackGrad);
+        }
+        @keyframes seaRadarWaveShift{
+            from { transform: translateX(0); }
+            to { transform: translateX(-280px); }
+        }
+
+        .sea-radar-bowl{
+            fill: rgba(7,15,33,.88);
+            stroke: rgba(74,198,255,.44);
+            stroke-width: 2;
+            filter: drop-shadow(0 -4px 10px rgba(68,177,255,.26));
+        }
+
+        .sea-radar-needle{
+            transform-origin: 380px 304px;
+            transform: rotate(-90deg);
+            transition: transform .62s cubic-bezier(.22,.92,.2,1);
+        }
+        .sea-radar-needle-line{
+            stroke: rgba(77,223,255,.86);
+            stroke-width: 4;
+            stroke-linecap: round;
+            filter: drop-shadow(0 0 8px rgba(66,207,255,.45));
+            opacity: .96;
+        }
+        .sea-radar-needle-tip-glow{
+            fill: rgba(90,220,255,.20);
+            filter: drop-shadow(0 0 8px rgba(74,210,255,.52));
+        }
+        .sea-radar-needle-tip{
+            fill: rgba(214,249,255,.98);
+            stroke: rgba(86,215,255,.84);
+            stroke-width: 2;
+        }
+        .sea-radar-hub{
+            fill: rgba(10,18,40,.95);
+            stroke: rgba(162,206,255,.65);
+            stroke-width: 2.3;
+        }
+        .sea-radar-hub-core{
+            fill: rgba(202,240,255,.92);
+        }
+
+        .sea-radar-readout{
+            position:absolute;
+            left:50%;
+            top: 58%;
+            transform: translate(calc(-50% + 6px), calc(-50% - 9px));
+            display:flex;
+            align-items:flex-end;
+            gap: 2px;
+            font-size: 25px;
+            line-height: 1;
+            font-weight: 600;
+            color: rgba(241,250,255,.98);
+            text-shadow: 0 0 18px rgba(60,190,255,.28);
+            white-space: nowrap;
+            z-index: 3;
+            pointer-events: none;
+        }
+
+        .sea-radar-readout .unit{
+            font-size: calc(.46em - 2px);
+            margin-bottom: 0;
+            display: inline-block;
+            transform: translateY(-24px);
+            color: rgba(225,240,252,.9);
+            font-weight: 800;
+        }
+
+        .sea-radar-current{
+            display: none;
+        }
+
+        .sea-radar-metrics{
+            display: none;
+        }
+
+        .sea-metric{
+            padding: 16px 16px 12px;
+            min-height: 106px;
+            display:flex;
+            flex-direction:column;
+            justify-content:center;
+            gap: 10px;
+        }
+        .sea-metric + .sea-metric{
+            border-left: 1px solid rgba(122,163,220,.20);
+        }
+
+        .sea-metric .m-label{
+            font-size: clamp(.68rem, 1.2vw, 1.65rem);
+            letter-spacing: .11em;
+            color: rgba(231,240,251,.9);
+            font-weight: 800;
+        }
+
+        .sea-metric .m-value{
+            font-size: clamp(1.28rem, 2.8vw, 4.1rem);
+            line-height: 1;
+            font-weight: 900;
+            color: rgba(243,248,255,.98);
+            text-shadow: 0 0 12px rgba(80,190,255,.18);
+            white-space: nowrap;
+        }
+
+        #seaBeaufortLevel{
+            color: #4cff86;
+        }
+        #seaWaveTrendValue.rising{
+            color: #ffb635;
+        }
+        #seaWaveTrendValue.falling{
+            color: #ff7a7a;
+        }
+        #seaWaveTrendValue.steady{
+            color: rgba(223,236,252,.95);
+        }
+
+        .wave-card.sea-radar-card[data-severity="calm"]{
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,.04), 0 24px 48px rgba(0,0,0,.48), 0 0 26px rgba(34,211,146,.20);
+        }
+        .wave-card.sea-radar-card[data-severity="moderate"]{
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,.04), 0 24px 48px rgba(0,0,0,.48), 0 0 26px rgba(242,194,10,.24);
+        }
+        .wave-card.sea-radar-card[data-severity="rough"]{
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,.04), 0 24px 48px rgba(0,0,0,.48), 0 0 26px rgba(255,143,31,.24);
+        }
+        .wave-card.sea-radar-card[data-severity="severe"]{
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,.04), 0 24px 48px rgba(0,0,0,.48), 0 0 30px rgba(255,61,57,.28);
+        }
+
+        @media (max-width: 992px){
+            .sea-radar-zone-label{
+                font-size: 46px;
+            }
+        }
+
+        @media (max-width: 576px){
+            .sea-radar-zone-label{
+                font-size: 40px;
+            }
+        }
+
+        .fpw-wx__meter{ margin-top: 12px; height: 10px; border-radius:999px; background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.06); overflow:hidden;}
+        .fpw-wx__meterFill{ height:100%; border-radius:999px; background: rgba(45,212,191,.45); }
+
+        /* Confidence */
+        .fpw-wx__confidence{
+            margin-top: 12px;
+            display:flex;
+            align-items:center;
+            gap:10px;
+            padding: 10px 12px;
+            border-radius: 14px;
+            background: rgba(255,255,255,.04);
+            border: 1px solid rgba(255,255,255,.08);
+        }
+        .fpw-wx__confidenceLabel{
+            font-size:.78rem;
+            color: rgba(255,255,255,.70);
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing:.6px;
+            min-width: 150px;
+        }
+        .fpw-wx__confidenceBarWrap{
+            flex: 1 1 auto;
+            height: 10px;
+            border-radius:999px;
+            background: rgba(255,255,255,.06);
+            border:1px solid rgba(255,255,255,.06);
+            overflow:hidden;
+        }
+        .fpw-wx__confidenceBar{
+            height:100%;
+            border-radius:999px;
+            background: linear-gradient(90deg, rgba(34,197,94,.70), rgba(45,212,191,.70));
+            transition: width 320ms ease;
+        }
+        .fpw-wx__confidenceBar.med{
+            background: linear-gradient(90deg, rgba(250,204,21,.75), rgba(59,130,246,.55));
+        }
+        .fpw-wx__confidenceBar.low{
+            background: linear-gradient(90deg, rgba(239,68,68,.75), rgba(250,204,21,.55));
+            background-size: 22px 22px;
+            animation: fpwWxStripe 1.1s linear infinite;
+        }
+        @keyframes fpwWxStripe{
+            from{ filter: hue-rotate(0deg); }
+            to{ filter: hue-rotate(10deg); }
+        }
+        .fpw-wx__confidenceText{
+            min-width: 80px;
+            text-align:right;
+            font-weight: 900;
+            color: rgba(255,255,255,.90);
+        }
+        /* Enhanced labels + float plan overlay */
+        .fpw-wx__timelineStage{ position:relative; }
+        .fpw-wx__planOverlay{ position:absolute; inset:0; pointer-events:none; }
+        .fpw-wx__planBand{
+            position:absolute;
+            top:6px; bottom:6px;
+            border-radius:12px;
+            background: linear-gradient(90deg, rgba(45,212,191,.12), rgba(45,212,191,.06));
+            border:1px solid rgba(45,212,191,.24);
+            box-shadow: 0 0 0 1px rgba(0,0,0,.25) inset;
+        }
+        .fpw-wx__planBand:before{
+            content:"";
+            position:absolute; inset:0;
+            border-radius:12px;
+            background: linear-gradient(180deg, rgba(255,255,255,.14), transparent 40%);
+            opacity:.55;
+        }
+        .fpw-wx__planLabel{
+            position:absolute;
+            top:-10px; left:10px;
+            padding:4px 8px;
+            border-radius:999px;
+            font-size:.72rem;
+            background: rgba(2,6,23,.78);
+            border:1px solid rgba(45,212,191,.28);
+            color: rgba(229,231,235,.94);
+            letter-spacing:.2px;
+            white-space:nowrap;
+        }
+
+        .fpw-wx__barMeta{
+            display:flex;
+            flex-direction:column;
+            align-items:flex-start;
+            gap:4px;
+            margin-top:6px;
+            font-size:.70rem;
+            color: rgba(255,255,255,.70);
+        }
+        .fpw-wx__barMeta .chip{
+            display:block;
+            width:100%;
+            max-width:100%;
+            padding:2px 8px;
+            border-radius:10px;
+            border:1px solid rgba(255,255,255,.10);
+            background: rgba(255,255,255,.04);
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+            line-height:1.2;
+            font-size:.78rem;
+        }
+        .fpw-wx__barMeta .chip b{
+            color: rgba(255,255,255,.90);
+            font-weight:600;
+        }
+
+        .fpw-wx__tideGraph{
+            --tide-graph-max: 775px;
+            margin: 10px auto 6px;
+            width: 100%;
+            max-width: var(--tide-graph-max);
+            padding: 10px 0;
+            border-radius: 12px;
+            background: rgba(0,0,0,.20);
+            border:1px solid rgba(255,255,255,.08);
+            display:flex;
+            flex-direction:column;
+            align-items:stretch;
+        }
+        .fpw-wx__tideTitle{
+            display:grid;
+            grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);
+            align-items:baseline;
+            column-gap:8px;
+            font-size:.78rem;
+            color: rgba(255,255,255,.80);
+            margin-bottom:6px;
+            width:100%;
+            max-width: var(--tide-graph-max);
+            margin-left:auto;
+            margin-right:auto;
+        }
+        .fpw-wx__tideTitle > :first-child{
+            justify-self:start;
+            text-align:left;
+        }
+        .fpw-wx__tideTitle > :nth-child(2){
+            justify-self:center;
+            text-align:center;
+            white-space:nowrap;
+        }
+        .fpw-wx__tideTitle > :last-child{
+            justify-self:end;
+            text-align:right;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+            max-width:100%;
+        }
+        .fpw-wx__tideNow{
+            color: rgba(165,243,252,.95);
+            font-weight: 700;
+        }
+        .fpw-wx__tideSvg{
+            width:100%;
+            max-width: var(--tide-graph-max);
+            height:135px;
+            display:block;
+            margin: 0 auto;
+        }
+        .fpw-wx__tideAxisLine{
+            stroke: rgba(148,163,184,.55);
+            stroke-width: 1;
+        }
+        .fpw-wx__tideAxisTick{
+            stroke: rgba(148,163,184,.62);
+            stroke-width: 1;
+        }
+        .fpw-wx__tideAxisLabel{
+            fill: rgba(203,213,225,.9);
+            font-size: 9px;
+            font-weight: 600;
+            font-family: Arial, sans-serif;
+        }
+        .fpw-wx__tideAxisLabel.y{
+            text-anchor: end;
+        }
+        .fpw-wx__tideAxisLabel.x{
+            text-anchor: middle;
+        }
+        .fpw-wx__tideGuide{
+            stroke: rgba(56,189,248,.40);
+            stroke-width: 1.35;
+            stroke-dasharray: 2 2;
+        }
+        .fpw-wx__tideTick{
+            stroke: rgba(125,211,252,.82);
+            stroke-width: 1.2;
+        }
+        .fpw-wx__tideTickLabel{
+            fill: rgba(224,242,254,.9);
+            font-size: 8px;
+            font-weight: 800;
+            letter-spacing: .2px;
+        }
+        .fpw-wx__tideNowHalo{
+            fill: rgba(56,189,248,.22);
+        }
+        .fpw-wx__tideNowDot{
+            fill: rgba(186,230,253,.98);
+            stroke: rgba(14,116,144,.9);
+            stroke-width: 1;
+        }
+        .fpw-wx__tideExtDot{
+            stroke-width: 1;
+        }
+        .fpw-wx__tideExtDot.high{
+            fill: rgba(253,224,71,.95);
+            stroke: rgba(180,83,9,.9);
+        }
+        .fpw-wx__tideExtDot.low{
+            fill: rgba(147,197,253,.95);
+            stroke: rgba(30,64,175,.9);
+        }
+        .fpw-wx__tideExtLabel{
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0;
+            font-family: Arial, sans-serif;
+            paint-order: normal;
+            stroke: none;
+        }
+        .fpw-wx__tideExtLabel.high{
+            fill: rgba(253,246,178,.98);
+        }
+        .fpw-wx__tideExtLabel.low{
+            fill: rgba(191,219,254,.98);
+        }
+        .fpw-wx__tideAxis{
+            display:grid;
+            grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);
+            align-items:center;
+            font-size:.7rem;
+            color: rgba(255,255,255,.60);
+            margin-top:6px;
+            width:100%;
+            max-width: var(--tide-graph-max);
+            margin-left:auto;
+            margin-right:auto;
+        }
+        .fpw-wx__tideAxis > :first-child{
+            justify-self:start;
+            text-align:left;
+        }
+        .fpw-wx__tideAxis > :nth-child(2){
+            justify-self:center;
+            text-align:center;
+            min-width:1px;
+        }
+        .fpw-wx__tideAxis > :last-child{
+            justify-self:end;
+            text-align:right;
+        }
+        .fpw-wx__tideEmpty{
+            font-size:.78rem;
+            color: rgba(255,255,255,.60);
+            margin-top:6px;
+            width:100%;
+            max-width: var(--tide-graph-max);
+            margin-left:auto;
+            margin-right:auto;
+        }
+
+        .fpw-wx__meterRow{
+            position:relative;
+            height:8px;
+            border-radius:999px;
+            background: rgba(255,255,255,.06);
+            overflow:hidden;
+        }
+        .fpw-wx__meterRow .val{
+            position:absolute;
+            top:-18px; right:0;
+            font-size:.68rem;
+            color: rgba(255,255,255,.65);
+        }
+
+        .fpw-wx__spikeLabels{
+            display:grid;
+            margin-top:8px;
+            font-size:.7rem;
+            color: rgba(255,255,255,.60);
+            align-items:center;
+        }
+        .fpw-wx__spikeLabelTick{
+            display:block;
+            text-align:center;
+            white-space:nowrap;
+        }
+        .fpw-wx__gusts .fpw-wx__gaugeFoot{
+            margin-top: 12px;
+        }
+        .fpw-wx__arcLabels{
+            display:flex;
+            justify-content:space-between;
+            margin-top:8px;
+            font-size:.72rem;
+            color: rgba(255,255,255,.65);
+        }
+
+
+
+/* Migrated inline style attributes */
+.fpw-wx__needleDefault {
+  --dir: 0deg;
+}
+
+.fpw-wx__gaugePctDefault {
+  --pct: 50;
+}
+
+.fpw-wx__meterFillDefault60 {
+  width: 60%;
+}
+
+.fpw-wx__confidenceBarDefault82 {
+  width: 82%;
+}
+
+#expeditionTimelinePanel.expedition-panel {
+  min-height: 340px;
+  --bs-accordion-bg: transparent;
+  --bs-accordion-color: rgba(255,255,255,0.9);
+  --bs-accordion-border-color: var(--panel-border);
+  --bs-accordion-btn-color: rgba(255,255,255,0.94);
+  --bs-accordion-btn-bg: rgba(255,255,255,0.04);
+  --bs-accordion-active-bg: rgba(53,208,198,0.10);
+  --bs-accordion-active-color: rgba(255,255,255,0.98);
+  --bs-list-group-bg: transparent;
+  --bs-list-group-color: rgba(255,255,255,0.88);
+  --bs-list-group-border-color: rgba(255,255,255,0.08);
+}
+
+#expeditionTimelinePanel .card-header {
+  background: linear-gradient(180deg, rgba(11, 24, 37, 0.96), rgba(8, 20, 33, 0.98));
+}
+
+#expeditionTimelinePanel .card-actions {
+  justify-content: flex-end;
+  min-width: 260px;
+}
+
+.expedition-state {
+  border: 1px solid var(--panel-border);
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  color: rgba(255,255,255,0.82);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+}
+
+.expedition-state a {
+  color: rgba(130, 214, 255, 0.95);
+}
+
+.expedition-route-list {
+  display: grid;
+  gap: 10px;
+}
+
+.expedition-route-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+}
+
+.expedition-route-card.is-active {
+  border-color: var(--panel-border);
+  box-shadow: none;
+}
+
+.expedition-route-name {
+  font-weight: 700;
+  color: rgba(255,255,255,0.96);
+}
+
+.expedition-route-meta {
+  color: rgba(255,255,255,0.78);
+  font-size: 0.84rem;
+}
+
+.expedition-route-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.expedition-accordion .accordion-item {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.expedition-accordion .accordion-collapse,
+.expedition-accordion .accordion-collapse.collapse,
+.expedition-accordion .accordion-collapse.collapsing,
+.expedition-accordion .accordion-collapse.show {
+  background: transparent;
+}
+
+.expedition-accordion .accordion-item + .accordion-item {
+  margin-top: 10px;
+}
+
+.expedition-accordion .accordion-header {
+  margin: 0;
+}
+
+.expedition-accordion .accordion-button {
+  background: linear-gradient(to bottom, rgba(255,255,255,0.06), rgba(255,255,255,0.01));
+  color: rgba(255,255,255,0.95);
+  box-shadow: none;
+  padding: 0.75rem 1rem;
+}
+
+.expedition-accordion .accordion-button:not(.collapsed) {
+  background: linear-gradient(to bottom, rgba(53,208,198,0.16), rgba(53,208,198,0.05));
+  color: rgba(255,255,255,0.98);
+  box-shadow: inset 0 -1px 0 rgba(53,208,198,0.14);
+}
+
+.expedition-accordion .accordion-button:focus {
+  box-shadow: 0 0 0 1px rgba(53,208,198,0.35);
+}
+
+.expedition-accordion .accordion-button::after {
+  filter: invert(1) brightness(0.85);
+  opacity: 0.9;
+}
+
+.expedition-accordion .accordion-body {
+  padding: 0.65rem 0.75rem 0.75rem;
+  background: rgba(0,0,0,0.18);
+}
+
+#expeditionTimelinePanel .expedition-accordion .accordion-item,
+#expeditionTimelinePanel .expedition-accordion .accordion-collapse,
+#expeditionTimelinePanel .expedition-accordion .accordion-body {
+  background: rgba(9, 21, 48, 0.88) !important;
+}
+
+#expeditionTimelinePanel .expedition-accordion .accordion-button {
+  background: linear-gradient(to bottom, rgba(255,255,255,0.06), rgba(255,255,255,0.01)) !important;
+  color: rgba(255,255,255,0.95) !important;
+}
+
+#expeditionTimelinePanel .expedition-accordion .accordion-button:not(.collapsed) {
+  background: linear-gradient(to bottom, rgba(53,208,198,0.16), rgba(53,208,198,0.05)) !important;
+}
+
+#expeditionTimelinePanel .list-group,
+#expeditionTimelinePanel .list-group-item {
+  background: transparent !important;
+  color: rgba(255,255,255,0.88) !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+#expeditionTimelinePanel .accordion,
+#expeditionTimelinePanel .accordion-item,
+#expeditionTimelinePanel .accordion-header,
+#expeditionTimelinePanel .accordion-button,
+#expeditionTimelinePanel .accordion-collapse,
+#expeditionTimelinePanel .accordion-collapse.collapse,
+#expeditionTimelinePanel .accordion-collapse.show,
+#expeditionTimelinePanel .accordion-body {
+  background-color: transparent !important;
+  color: rgba(255,255,255,0.92) !important;
+}
+
+#expeditionTimelinePanel .accordion-button:not(.collapsed) {
+  background: linear-gradient(to bottom, rgba(53,208,198,0.16), rgba(53,208,198,0.05)) !important;
+  color: rgba(255,255,255,0.98) !important;
+}
+
+#expeditionTimelinePanel .accordion-button::after {
+  filter: invert(1) brightness(0.85) !important;
+  opacity: 0.9 !important;
+}
+
+.expedition-section-head {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.expedition-section-name {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.expedition-section-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.expedition-segment {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  padding: 9px 10px;
+  color: rgba(255,255,255,0.88);
+}
+
+.expedition-segment + .expedition-segment {
+  margin-top: 8px;
+}
+
+.expedition-segment-title {
+  font-weight: 650;
+}
+
+.expedition-segment-meta {
+  margin-top: 4px;
+  font-size: 0.76rem;
+  color: rgba(255,255,255,0.62);
+}
+
+.expedition-segment-empty {
+  border: 1px dashed var(--panel-border);
+  border-radius: 10px;
+  padding: 9px 10px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.expedition-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.12rem 0.46rem;
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(255,255,255,0.16);
+  color: rgba(255,255,255,0.9);
+  background: rgba(255,255,255,0.06);
+}
+
+.expedition-badge + .expedition-badge {
+  margin-left: 0.35rem;
+}
+
+.expedition-badge.complete {
+  border-color: rgba(34,197,94,0.45);
+  background: rgba(34,197,94,0.18);
+  color: #bbf7d0;
+}
+
+.expedition-badge.pending {
+  border-color: rgba(148,163,184,0.35);
+  background: rgba(100,116,139,0.2);
+  color: #cbd5e1;
+}
+
+.expedition-badge.signature {
+  border-color: rgba(250,204,21,0.45);
+  background: rgba(250,204,21,0.2);
+  color: #fef08a;
+}
+
+.expedition-badge.milestone {
+  border-color: rgba(56,189,248,0.45);
+  background: rgba(56,189,248,0.18);
+  color: #bae6fd;
+}
+
+.expedition-badge.pct {
+  border-color: rgba(53,208,198,0.55);
+  background: rgba(53,208,198,0.2);
+  color: #ccfbf1;
+  margin-left: 0.45rem;
+}
+
+#routeBuilderModal .modal-dialog.routebuilder-modal-fullwidth {
+  width: 100vw;
+  max-width: 100vw;
+  margin: 0;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  display: flex;
+}
+
+#routeBuilderModal .modal-content.dashboard-card {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#routeBuilderModal .routebuilder-modal-body {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 auto;
+  display: flex;
+  overflow: hidden;
+}
+
+#routeBuilderModal #fpwRouteGen {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.routebuilder-statusbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.routebuilder-save-indicator {
+  color: rgba(53, 208, 198, 0.95);
+}
+
+.routebuilder-editor-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.routebuilder-summary {
+  font-family: var(--mono);
+  font-size: 0.92rem;
+  color: rgba(255,255,255,0.86);
+}
+
+.routebuilder-accordion .accordion-body {
+  display: grid;
+  gap: 8px;
+}
+
+.routebuilder-segment {
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  padding: 10px;
+}
+
+.routebuilder-segment-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.routebuilder-segment-row:last-child {
+  margin-bottom: 0;
+}
+
+.routebuilder-field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.routebuilder-field label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.72);
+}
+
+.routebuilder-field .form-control,
+#routeBuilderStep1 .form-control {
+  background: rgba(11, 25, 58, 0.78);
+  border-color: rgba(120, 170, 230, 0.35);
+  color: rgba(238, 248, 255, 0.95);
+}
+
+.routebuilder-field .form-control:focus,
+#routeBuilderStep1 .form-control:focus {
+  background: rgba(11, 25, 58, 0.88);
+  border-color: rgba(53, 208, 198, 0.6);
+  box-shadow: 0 0 0 0.15rem rgba(53, 208, 198, 0.2);
+  color: rgba(238, 248, 255, 0.98);
+}
+
+.routebuilder-field-sm {
+  flex: 0 0 90px;
+}
+
+.routebuilder-field-notes {
+  flex: 2 1 0;
+}
+
+.routebuilder-empty {
+  border: 1px dashed var(--panel-border);
+  border-radius: 10px;
+  padding: 10px;
+  color: rgba(255,255,255,0.72);
+  font-style: italic;
+}
+
+.waypoint-map-frame {
+  height: 360px;
+  width: 100%;
+  border-radius: 8px;
+}
+
+.fpw-pdf-preview {
+  height: 60vh;
+}
+
+.fpw-pdf-preview-frame {
+  border: 0;
+}
+
+/* Route Generator card palette alignment (dashboard inner cards, color-only). */
+.mission-summary-tile,
+.monitoring-summary-block,
+.next-step-item,
+.expedition-state,
+.expedition-route-card,
+.expedition-accordion .accordion-item,
+.list-item {
+  border-color: rgba(114, 159, 214, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0.012)),
+    linear-gradient(180deg, rgba(20, 34, 50, 0.9), rgba(12, 22, 34, 0.96));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.monitoring-summary-tile {
+  border-color: rgba(114, 159, 214, 0.14);
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.expedition-accordion .accordion-button,
+.expedition-accordion .accordion-button:not(.collapsed) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0.012)),
+    linear-gradient(180deg, rgba(20, 34, 50, 0.9), rgba(12, 22, 34, 0.96));
+  box-shadow: none;
+}
+
+.expedition-accordion .accordion-button:focus {
+  box-shadow: 0 0 0 1px rgba(91, 199, 255, 0.34);
 }

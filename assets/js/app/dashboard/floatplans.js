@@ -18,30 +18,6 @@
   var cloneMessageEl = null;
   var cloneOkButton = null;
 
-  function setFloatPlansSummary(text) {
-    var el = document.getElementById("floatPlansSummary");
-    if (!el) return;
-    el.textContent = text;
-  }
-
-  function updateFloatPlansSummary(plans) {
-    if (!plans || !plans.length) {
-      setFloatPlansSummary("No plans yet");
-      return;
-    }
-
-    var activeCount = 0;
-    for (var i = 0; i < plans.length; i++) {
-      var status = utils.pick(plans[i], ["STATUS", "status"], "");
-      if (status && ["ACTIVE", "OPEN"].indexOf(String(status).toUpperCase()) !== -1) {
-        activeCount++;
-      }
-    }
-
-    var summaryText = activeCount + " active • " + plans.length + " total";
-    setFloatPlansSummary(summaryText);
-  }
-
   function setFloatPlansFilterCount(filteredCount, totalCount) {
     var countEl = document.getElementById("floatPlansFilterCount");
     if (!countEl) return;
@@ -259,7 +235,6 @@
 
   function loadFloatPlans(limit) {
     limit = limit || FLOAT_PLAN_LIMIT;
-    setFloatPlansSummary("Loading…");
     setFloatPlansMessage("Loading float plans…", false);
 
     var listEl = document.getElementById("floatPlansList");
@@ -269,7 +244,6 @@
 
     if (!window.Api || typeof window.Api.getFloatPlans !== "function") {
       setFloatPlansMessage("Float plan API is unavailable.", true);
-      setFloatPlansSummary("Unavailable");
       return;
     }
 
@@ -297,14 +271,12 @@
           return bId - aId;
         });
         floatPlanState.all = plans;
-        updateFloatPlansSummary(plans);
         var inputEl = document.getElementById("floatPlansFilterInput");
         applyFloatPlanFilter(inputEl ? inputEl.value : "");
       })
       .catch(function (err) {
         console.error("Failed to load float plans:", err);
         setFloatPlansMessage("Unable to load float plans right now.", true);
-        setFloatPlansSummary("Error");
         utils.showDashboardAlert("Unable to load float plans. Please try again later.", "danger");
       });
   }
@@ -508,6 +480,14 @@
           throw data;
         }
         loadFloatPlans(FLOAT_PLAN_LIMIT);
+        if (
+          window.FPW
+          && window.FPW.DashboardModules
+          && window.FPW.DashboardModules.expeditionTimeline
+          && typeof window.FPW.DashboardModules.expeditionTimeline.load === "function"
+        ) {
+          window.FPW.DashboardModules.expeditionTimeline.load();
+        }
       })
       .catch(function (err) {
         console.error("Failed to check in float plan:", err);
@@ -572,6 +552,9 @@
     }
 
     document.addEventListener("fpw:dashboard:user-ready", function () {
+      loadFloatPlans(FLOAT_PLAN_LIMIT);
+    });
+    document.addEventListener("fpw:floatplans-updated", function () {
       loadFloatPlans(FLOAT_PLAN_LIMIT);
     });
   }

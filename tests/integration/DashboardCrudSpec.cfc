@@ -17,6 +17,9 @@ component extends="testbox.system.BaseSpec" output="false" {
     }
 
     variables.ctx.baseUrl = scheme & "://" & host & portPart;
+    variables.ctx.forceUserId = structKeyExists( url, "testUserId" ) && isNumeric( url.testUserId )
+      ? val( url.testUserId )
+      : 187;
 
     variables.ctx.urls = {
       vesselSave    = variables.ctx.baseUrl & "/fpw/api/v1/vessel.cfc?method=handle",
@@ -45,7 +48,10 @@ component extends="testbox.system.BaseSpec" output="false" {
       operatorsList  = variables.ctx.baseUrl & "/fpw/api/v1/operators.cfc?method=handle&limit=250",
 
       homeportGet  = variables.ctx.baseUrl & "/fpw/api/v1/homeport.cfc?method=handle",
-      homeportSave = variables.ctx.baseUrl & "/fpw/api/v1/homeport.cfc?method=handle"
+      homeportSave = variables.ctx.baseUrl & "/fpw/api/v1/homeport.cfc?method=handle",
+
+      floatplanSave = variables.ctx.baseUrl & "/fpw/api/v1/floatplan.cfc?method=handle",
+      floatplanDelete = variables.ctx.baseUrl & "/fpw/api/v1/floatplan.cfc?method=handle"
     };
 
     ensureSessionUser();
@@ -83,7 +89,8 @@ component extends="testbox.system.BaseSpec" output="false" {
             REGISTRATION = "REG-" & suffix,
             MAKE = "Test",
             MODEL = "Model",
-            HOMEPORT = "Boston"
+            HOMEPORT = "Boston",
+            FUEL_CAPACITY = "180.5"
           }
         };
 
@@ -94,12 +101,24 @@ component extends="testbox.system.BaseSpec" output="false" {
 
         payload.VESSEL.VESSELID = vesselId;
         payload.VESSEL.VESSELNAME = payload.VESSEL.VESSELNAME & " Updated";
+        payload.VESSEL.FUEL_CAPACITY = "200.75";
         var updateRes = apiPostJson( variables.ctx.urls.vesselSave, payload );
         expect( pickBool( updateRes, "SUCCESS" ) ).toBeTrue( "Update failed: #serializeJSON(updateRes)#" );
 
         var listRes = apiGetJson( variables.ctx.urls.vesselsList );
         expect( pickBool( listRes, "SUCCESS" ) ).toBeTrue( "List failed: #serializeJSON(listRes)#" );
         expect( findIdInList( listRes.VESSELS, "VESSELID", vesselId ) ).toBeTrue();
+        var foundVessel = false;
+        var foundFuelCapacity = 0;
+        for ( var vesselItem in ( isArray( listRes.VESSELS ) ? listRes.VESSELS : [] ) ) {
+          if ( isStruct( vesselItem ) && val( vesselItem.VESSELID ?: 0 ) == vesselId ) {
+            foundVessel = true;
+            foundFuelCapacity = val( vesselItem.FUEL_CAPACITY ?: 0 );
+            break;
+          }
+        }
+        expect( foundVessel ).toBeTrue( "Created vessel missing from list payload." );
+        expect( foundFuelCapacity ).toBe( val( payload.VESSEL.FUEL_CAPACITY ) );
 
         var canDelRes = apiPostJson( variables.ctx.urls.vesselCanDel, { action = "candelete", vesselId = vesselId } );
         expect( pickBool( canDelRes, "SUCCESS" ) ).toBeTrue();
@@ -107,6 +126,52 @@ component extends="testbox.system.BaseSpec" output="false" {
 
         var deleteRes = apiPostJson( variables.ctx.urls.vesselDelete, { action = "delete", vesselId = vesselId } );
         expect( pickBool( deleteRes, "SUCCESS" ) ).toBeTrue( "Delete failed: #serializeJSON(deleteRes)#" );
+      } );
+
+      it( "blocks vessel deletion when linked to a float plan", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var suffix = uniqueSuffix();
+        var vesselId = 0;
+        var operatorId = 0;
+        var floatPlanId = 0;
+
+        try {
+          vesselId = createTestVessel( suffix );
+          operatorId = createTestOperator( suffix );
+          floatPlanId = createTestDraftFloatPlan( vesselId, operatorId, suffix );
+
+          var canDelRes = apiPostJson( variables.ctx.urls.vesselCanDel, { action = "candelete", vesselId = vesselId } );
+          expect( pickBool( canDelRes, "SUCCESS" ) ).toBeTrue( "Vessel candelete failed: #serializeJSON(canDelRes)#" );
+          expect( pickBool( canDelRes, "CANDELETE" ) ).toBeFalse( "Expected CANDELETE=false for in-use vessel: #serializeJSON(canDelRes)#" );
+          expect( findNoCase( "used in", toString( canDelRes.MESSAGE ?: "" ) ) ).toBeGT( 0 );
+
+          var deleteRes = apiPostJson( variables.ctx.urls.vesselDelete, { action = "delete", vesselId = vesselId } );
+          expect( pickBool( deleteRes, "SUCCESS" ) ).toBeFalse( "Delete should fail while in use: #serializeJSON(deleteRes)#" );
+          expect( toString( deleteRes.ERROR ?: "" ) ).toBe( "IN_USE" );
+        } finally {
+          if ( floatPlanId GT 0 ) {
+            safeDeleteFloatPlan( floatPlanId );
+          }
+          if ( vesselId GT 0 ) {
+            safeDeleteVessel( vesselId );
+          }
+          if ( operatorId GT 0 ) {
+            safeDeleteOperator( operatorId );
+          }
+        }
+      } );
+
+      it( "returns invalid action for vessel API", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var res = apiPostJson( variables.ctx.urls.vesselSave, { action = "bogus_action" } );
+        expect( pickBool( res, "SUCCESS" ) ).toBeFalse();
+        expect( toString( res.ERROR ?: "" ) ).toBe( "INVALID_ACTION" );
       } );
 
     } );
@@ -320,6 +385,91 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( pickBool( deleteRes, "SUCCESS" ) ).toBeTrue( "Delete failed: #serializeJSON(deleteRes)#" );
       } );
 
+      it( "blocks operator deletion when linked to a float plan", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var suffix = uniqueSuffix();
+        var vesselId = 0;
+        var operatorId = 0;
+        var floatPlanId = 0;
+
+        try {
+          vesselId = createTestVessel( suffix );
+          operatorId = createTestOperator( suffix );
+          floatPlanId = createTestDraftFloatPlan( vesselId, operatorId, suffix );
+
+          var canDelRes = apiPostJson( variables.ctx.urls.operatorCanDel, { action = "candelete", operatorId = operatorId } );
+          expect( pickBool( canDelRes, "SUCCESS" ) ).toBeTrue( "Operator candelete failed: #serializeJSON(canDelRes)#" );
+          expect( pickBool( canDelRes, "CANDELETE" ) ).toBeFalse( "Expected CANDELETE=false for in-use operator: #serializeJSON(canDelRes)#" );
+          expect( findNoCase( "used in", toString( canDelRes.MESSAGE ?: "" ) ) ).toBeGT( 0 );
+
+          var deleteRes = apiPostJson( variables.ctx.urls.operatorDelete, { action = "delete", operatorId = operatorId } );
+          expect( pickBool( deleteRes, "SUCCESS" ) ).toBeFalse( "Delete should fail while in use: #serializeJSON(deleteRes)#" );
+          expect( toString( deleteRes.ERROR ?: "" ) ).toBe( "IN_USE" );
+        } finally {
+          if ( floatPlanId GT 0 ) {
+            safeDeleteFloatPlan( floatPlanId );
+          }
+          if ( operatorId GT 0 ) {
+            safeDeleteOperator( operatorId );
+          }
+          if ( vesselId GT 0 ) {
+            safeDeleteVessel( vesselId );
+          }
+        }
+      } );
+
+      it( "returns invalid action for operator API", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var res = apiPostJson( variables.ctx.urls.operatorSave, { action = "bogus_action" } );
+        expect( pickBool( res, "SUCCESS" ) ).toBeFalse();
+        expect( toString( res.ERROR ?: "" ) ).toBe( "INVALID_ACTION" );
+      } );
+
+    } );
+
+    describe( "Dashboard CRUD - Auth for Vessels and Operators", function() {
+
+      it( "rejects anonymous vessel/operator list and save calls", function() {
+        var vesselListRes = apiGetJsonAnonymous( variables.ctx.urls.vesselsList );
+        expect( pickBool( vesselListRes, "SUCCESS" ) ).toBeFalse( "Anonymous vessels list should fail: #serializeJSON(vesselListRes)#" );
+        expect( pickBool( vesselListRes, "AUTH" ) ).toBeFalse();
+        expect( findNoCase( "Not logged in", toString( vesselListRes.MESSAGE ?: "" ) ) ).toBeGT( 0 );
+
+        var vesselSaveRes = apiPostJsonAnonymous( variables.ctx.urls.vesselSave, {
+          action = "save",
+          vessel = {
+            VESSELNAME = "Anon Vessel",
+            TYPE = "Test",
+            LENGTH = "1",
+            COLOR = "White"
+          }
+        } );
+        expect( pickBool( vesselSaveRes, "SUCCESS" ) ).toBeFalse( "Anonymous vessel save should fail: #serializeJSON(vesselSaveRes)#" );
+        expect( pickBool( vesselSaveRes, "AUTH" ) ).toBeFalse();
+        expect( findNoCase( "Not logged in", toString( vesselSaveRes.MESSAGE ?: "" ) ) ).toBeGT( 0 );
+
+        var operatorListRes = apiGetJsonAnonymous( variables.ctx.urls.operatorsList );
+        expect( pickBool( operatorListRes, "SUCCESS" ) ).toBeFalse( "Anonymous operators list should fail: #serializeJSON(operatorListRes)#" );
+        expect( pickBool( operatorListRes, "AUTH" ) ).toBeFalse();
+        expect( findNoCase( "Not logged in", toString( operatorListRes.MESSAGE ?: "" ) ) ).toBeGT( 0 );
+
+        var operatorSaveRes = apiPostJsonAnonymous( variables.ctx.urls.operatorSave, {
+          action = "save",
+          operator = {
+            OPERATORNAME = "Anon Operator"
+          }
+        } );
+        expect( pickBool( operatorSaveRes, "SUCCESS" ) ).toBeFalse( "Anonymous operator save should fail: #serializeJSON(operatorSaveRes)#" );
+        expect( pickBool( operatorSaveRes, "AUTH" ) ).toBeFalse();
+        expect( findNoCase( "Not logged in", toString( operatorSaveRes.MESSAGE ?: "" ) ) ).toBeGT( 0 );
+      } );
+
     } );
 
     describe( "Dashboard CRUD - Home Port", function() {
@@ -407,7 +557,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           variables.ctx.testUserError = e.message;
         }
       }
-      if ( !structKeyExists( session.user, "userId" ) || !isNumeric( session.user.userId ) ) {
+      if ( !structKeyExists( session.user, "userId" ) || !isNumeric( session.user.userId ) || val( session.user.userId ) LTE 0 ) {
         var fallbackId = structKeyExists( url, "testUserId" ) ? url.testUserId : 1;
         session.user.userId = val( fallbackId );
         session.user.id = session.user.userId;
@@ -550,23 +700,129 @@ component extends="testbox.system.BaseSpec" output="false" {
     return false;
   }
 
+  private numeric function createTestVessel( required string suffix ) {
+    var payload = {
+      action = "save",
+      VESSEL = {
+        VESSELNAME = "InUse Vessel " & arguments.suffix,
+        TYPE = "Trawler",
+        LENGTH = "35",
+        COLOR = "Blue",
+        REGISTRATION = "REG-" & arguments.suffix,
+        MAKE = "FPW",
+        MODEL = "Helper",
+        HOMEPORT = "Chicago"
+      }
+    };
+    var res = apiPostJson( variables.ctx.urls.vesselSave, payload );
+    if ( !pickBool( res, "SUCCESS" ) ) {
+      throw( type = "DashboardCrudSpec.Helper", message = "Unable to create vessel", detail = serializeJSON( res ) );
+    }
+    return val( res.VESSELID ?: 0 );
+  }
+
+  private numeric function createTestOperator( required string suffix ) {
+    var payload = {
+      action = "save",
+      OPERATOR = {
+        OPERATORNAME = "InUse Operator " & arguments.suffix,
+        PHONE = "555-555-1414",
+        NOTES = "Helper operator"
+      }
+    };
+    var res = apiPostJson( variables.ctx.urls.operatorSave, payload );
+    if ( !pickBool( res, "SUCCESS" ) ) {
+      throw( type = "DashboardCrudSpec.Helper", message = "Unable to create operator", detail = serializeJSON( res ) );
+    }
+    return val( res.OPERATORID ?: 0 );
+  }
+
+  private numeric function createTestDraftFloatPlan( required numeric vesselId, required numeric operatorId, required string suffix ) {
+    var payload = {
+      action = "save",
+      FLOATPLAN = {
+        floatPlanName = "Dashboard CRUD InUse " & arguments.suffix,
+        vesselId = arguments.vesselId,
+        operatorId = arguments.operatorId
+      }
+    };
+    var res = apiPostJson( variables.ctx.urls.floatplanSave, payload );
+    if ( !pickBool( res, "SUCCESS" ) ) {
+      throw( type = "DashboardCrudSpec.Helper", message = "Unable to create float plan", detail = serializeJSON( res ) );
+    }
+    if ( structKeyExists( res, "FLOATPLANID" ) && isNumeric( res.FLOATPLANID ) ) {
+      return val( res.FLOATPLANID );
+    }
+    if ( structKeyExists( res, "floatPlanId" ) && isNumeric( res.floatPlanId ) ) {
+      return val( res.floatPlanId );
+    }
+    if ( structKeyExists( res, "id" ) && isNumeric( res.id ) ) {
+      return val( res.id );
+    }
+    throw( type = "DashboardCrudSpec.Helper", message = "Float plan id missing from save response", detail = serializeJSON( res ) );
+  }
+
+  private void function safeDeleteFloatPlan( required numeric floatPlanId ) {
+    if ( arguments.floatPlanId LTE 0 ) return;
+    apiPostJson( variables.ctx.urls.floatplanDelete, {
+      action = "delete",
+      floatPlanId = arguments.floatPlanId
+    } );
+  }
+
+  private void function safeDeleteVessel( required numeric vesselId ) {
+    if ( arguments.vesselId LTE 0 ) return;
+    apiPostJson( variables.ctx.urls.vesselDelete, {
+      action = "delete",
+      vesselId = arguments.vesselId
+    } );
+  }
+
+  private void function safeDeleteOperator( required numeric operatorId ) {
+    if ( arguments.operatorId LTE 0 ) return;
+    apiPostJson( variables.ctx.urls.operatorDelete, {
+      action = "delete",
+      operatorId = arguments.operatorId
+    } );
+  }
+
   private array function getSessionCookies() {
     var cookiePairs = [];
     var cookieNames = [ "CFID", "CFTOKEN", "JSESSIONID" ];
+    var runtimeCfid = "";
+    var runtimeCftoken = "";
+    try { runtimeCfid = trim( toString( CFID ) ); } catch ( any _cfidErr ) {}
+    try { runtimeCftoken = trim( toString( CFTOKEN ) ); } catch ( any _cftErr ) {}
+
     for ( var name in cookieNames ) {
+      var cookieVal = "";
       if ( structKeyExists( cookie, name ) ) {
-        arrayAppend( cookiePairs, { name = name, value = cookie[ name ] } );
+        cookieVal = trim( toString( cookie[ name ] ) );
+      } else if ( name EQ "CFID" && len( runtimeCfid ) ) {
+        cookieVal = runtimeCfid;
+      } else if ( name EQ "CFTOKEN" && len( runtimeCftoken ) ) {
+        cookieVal = runtimeCftoken;
+      } else if ( name EQ "JSESSIONID" && structKeyExists( session, "sessionid" ) ) {
+        cookieVal = trim( toString( session.sessionid ) );
+      }
+      if ( len( cookieVal ) ) {
+        arrayAppend( cookiePairs, { name = name, value = cookieVal } );
       }
     }
+
     return cookiePairs;
   }
 
   private struct function apiPostJson( required string url, required struct body ) {
     var sessionCookies = getSessionCookies();
+    var testHeaderUserId = resolveTestHeaderUserId();
     var res = {};
     cfhttp( method="POST", url=arguments.url, timeout="60", result="res" ) {
       cfhttpparam( type="header", name="Accept", value="application/json" );
       cfhttpparam( type="header", name="Content-Type", value="application/json; charset=utf-8" );
+      if ( testHeaderUserId GT 0 ) {
+        cfhttpparam( type="header", name="X-FPW-Test-UserId", value=toString( testHeaderUserId ) );
+      }
       cfhttpparam( type="body", value=serializeJSON( arguments.body ) );
       for ( var cookiePair in sessionCookies ) {
         cfhttpparam( type="cookie", name=cookiePair.name, value=cookiePair.value );
@@ -577,12 +833,34 @@ component extends="testbox.system.BaseSpec" output="false" {
 
   private struct function apiGetJson( required string url ) {
     var sessionCookies = getSessionCookies();
+    var testHeaderUserId = resolveTestHeaderUserId();
     var res = {};
     cfhttp( method="GET", url=arguments.url, timeout="60", result="res" ) {
       cfhttpparam( type="header", name="Accept", value="application/json" );
+      if ( testHeaderUserId GT 0 ) {
+        cfhttpparam( type="header", name="X-FPW-Test-UserId", value=toString( testHeaderUserId ) );
+      }
       for ( var cookiePair in sessionCookies ) {
         cfhttpparam( type="cookie", name=cookiePair.name, value=cookiePair.value );
       }
+    }
+    return decodeJsonResponse( res );
+  }
+
+  private struct function apiPostJsonAnonymous( required string url, required struct body ) {
+    var res = {};
+    cfhttp( method="POST", url=arguments.url, timeout="60", result="res" ) {
+      cfhttpparam( type="header", name="Accept", value="application/json" );
+      cfhttpparam( type="header", name="Content-Type", value="application/json; charset=utf-8" );
+      cfhttpparam( type="body", value=serializeJSON( arguments.body ) );
+    }
+    return decodeJsonResponse( res );
+  }
+
+  private struct function apiGetJsonAnonymous( required string url ) {
+    var res = {};
+    cfhttp( method="GET", url=arguments.url, timeout="60", result="res" ) {
+      cfhttpparam( type="header", name="Accept", value="application/json" );
     }
     return decodeJsonResponse( res );
   }
@@ -598,6 +876,17 @@ component extends="testbox.system.BaseSpec" output="false" {
     } catch ( any e ) {
       return { success=false, message="Response was not JSON", raw=raw, error=e.message };
     }
+  }
+
+  private numeric function resolveTestHeaderUserId() {
+    var userId = 0;
+    if ( structKeyExists( session, "user" ) && isStruct( session.user ) && structKeyExists( session.user, "userId" ) && isNumeric( session.user.userId ) ) {
+      userId = val( session.user.userId );
+    }
+    if ( userId LTE 0 && structKeyExists( variables, "ctx" ) && structKeyExists( variables.ctx, "forceUserId" ) && isNumeric( variables.ctx.forceUserId ) ) {
+      userId = val( variables.ctx.forceUserId );
+    }
+    return ( userId GT 0 ? userId : 0 );
   }
 
   private boolean function pickBool( required struct payload, required string key ) {

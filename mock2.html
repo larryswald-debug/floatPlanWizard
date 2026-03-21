@@ -1,0 +1,481 @@
+<!-- VERSION B: Full-width Mission Control overlay (telemetry + map panel behind waypoint list) -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FPW Mission Control (Mockup B)</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:rgba(255,255,255,.06);
+      --panel2:rgba(255,255,255,.08);
+      --line:rgba(255,255,255,.10);
+      --text:rgba(255,255,255,.92);
+      --muted:rgba(255,255,255,.70);
+      --subtle:rgba(255,255,255,.55);
+      --brand:#2dd4bf;
+      --shadow: 0 18px 60px rgba(0,0,0,.55);
+      --radius:18px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      color:var(--text);
+      background:
+        radial-gradient(1000px 600px at 70% 0%, rgba(45,212,191,.10), transparent 55%),
+        radial-gradient(900px 500px at 10% 10%, rgba(56,189,248,.10), transparent 60%),
+        linear-gradient(180deg, #08101d, #070b13 60%, #060a12);
+    }
+    .overlay{
+      position:fixed; inset:0;
+      display:flex;
+      flex-direction:column;
+      background: rgba(2,6,12,.78);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .frame{
+      margin:18px;
+      border:1px solid var(--line);
+      border-radius:22px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03)),
+        radial-gradient(900px 500px at 20% 0%, rgba(45,212,191,.08), transparent 60%);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+    .topbar{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:16px 18px;
+      border-bottom:1px solid var(--line);
+      background: rgba(0,0,0,.20);
+    }
+    .topbar h1{
+      margin:0;
+      font-size:18px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-weight:900;
+    }
+    .btn{
+      appearance:none; border:1px solid var(--line);
+      background:rgba(255,255,255,.06);
+      color:var(--text);
+      border-radius:12px;
+      padding:10px 12px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btn--primary{
+      border-color: rgba(45,212,191,.45);
+      background: rgba(45,212,191,.12);
+      box-shadow: 0 0 0 4px rgba(45,212,191,.12) inset;
+    }
+    .btn--icon{
+      width:40px; height:40px;
+      display:grid; place-items:center;
+      border-radius:12px;
+      font-size:18px;
+      line-height:1;
+    }
+    .content{
+      display:grid;
+      grid-template-columns: 420px 1fr;
+      gap:14px;
+      padding:14px;
+      min-height:0;
+      flex:1;
+    }
+    .panel{
+      border:1px solid var(--line);
+      border-radius:18px;
+      background: var(--panel);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+    .hdr{
+      padding:14px 14px 12px;
+      border-bottom:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+    }
+    .kicker{
+      font-size:11px;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      color:var(--muted);
+      font-weight:900;
+    }
+    .title{
+      margin-top:4px;
+      font-size:14px;
+      font-weight:900;
+    }
+    .body{
+      padding:14px;
+      overflow:auto;
+      min-height:0;
+    }
+
+    /* Left panel simple placeholders */
+    .label{
+      font-size:11px;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      color:var(--subtle);
+      font-weight:900;
+      margin:12px 0 8px;
+    }
+    .segmented{display:flex; gap:8px; flex-wrap:wrap;}
+    .segmented button{
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      color:var(--muted);
+      padding:10px 12px;
+      border-radius:12px;
+      font-weight:900;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      cursor:pointer;
+    }
+    .segmented button.active{
+      color:var(--text);
+      border-color: rgba(45,212,191,.45);
+      background: rgba(45,212,191,.10);
+      box-shadow: 0 0 0 4px rgba(45,212,191,.10) inset;
+    }
+    .field{
+      border:1px solid var(--line);
+      border-radius:14px;
+      background: rgba(0,0,0,.16);
+      padding:10px 12px;
+      margin-bottom:10px;
+    }
+    .field .fLabel{
+      font-size:11px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:var(--subtle);
+      font-weight:900;
+      margin-bottom:6px;
+    }
+    .field .fValue{
+      font-family:var(--mono);
+      font-size:14px;
+      font-weight:800;
+    }
+
+    /* Right panel - telemetry */
+    .metrics{
+      display:grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap:10px;
+      margin-bottom:12px;
+    }
+    .metric{
+      border:1px solid var(--line);
+      border-radius:16px;
+      background: rgba(0,0,0,.16);
+      padding:12px;
+      min-height:88px;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+    }
+    .metric .mLabel{
+      font-size:11px;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      color:var(--subtle);
+      font-weight:900;
+    }
+    .metric .mValue{
+      font-family:var(--mono);
+      font-size:22px;
+      font-weight:900;
+    }
+
+    /* Map-backed list */
+    .mapList{
+      position:relative;
+      border:1px solid var(--line);
+      border-radius:18px;
+      background: rgba(0,0,0,.16);
+      overflow:hidden;
+      min-height: 420px;
+      display:flex;
+      flex-direction:column;
+    }
+    .mapLayer{
+      position:absolute; inset:0;
+      /* Fake “chart” look */
+      background:
+        radial-gradient(900px 450px at 20% 40%, rgba(56,189,248,.14), transparent 55%),
+        radial-gradient(800px 400px at 70% 20%, rgba(45,212,191,.10), transparent 60%),
+        repeating-linear-gradient(
+          0deg,
+          rgba(255,255,255,.05) 0px,
+          rgba(255,255,255,.05) 1px,
+          transparent 1px,
+          transparent 18px
+        ),
+        repeating-linear-gradient(
+          90deg,
+          rgba(255,255,255,.04) 0px,
+          rgba(255,255,255,.04) 1px,
+          transparent 1px,
+          transparent 18px
+        ),
+        linear-gradient(180deg, rgba(4,12,24,.85), rgba(4,10,18,.85));
+      opacity:.85;
+    }
+    .routeOverlay{
+      position:absolute; inset:0;
+      pointer-events:none;
+      opacity:.85;
+    }
+    .routeOverlay svg{
+      width:100%; height:100%;
+      display:block;
+    }
+    .mapList__hdr{
+      position:relative;
+      z-index:2;
+      padding:12px 12px 10px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      background: rgba(0,0,0,.30);
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .mapList__hdr .k{
+      font-size:11px;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      color:var(--muted);
+      font-weight:900;
+    }
+    .mapList__hdr .tiny{
+      font-family:var(--mono);
+      font-size:12px;
+      color:var(--muted);
+    }
+    .waypoints{
+      position:relative;
+      z-index:2;
+      overflow:auto;
+      padding:6px;
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+      flex:1;
+    }
+    .wp{
+      display:flex; gap:10px; align-items:center;
+      padding:10px 10px;
+      border-radius:14px;
+      border:1px solid transparent;
+      cursor:default;
+      background: rgba(0,0,0,.22);
+      margin-bottom:8px;
+    }
+    .wp:hover{
+      border-color: rgba(45,212,191,.22);
+      background: rgba(0,0,0,.30);
+    }
+    .wp .idx{
+      width:34px;
+      text-align:center;
+      font-family:var(--mono);
+      color:var(--muted);
+      font-weight:900;
+      flex:0 0 auto;
+    }
+    .wp .route{
+      flex:1;
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:baseline;
+    }
+    .wp .route .names{font-weight:900;}
+    .wp .route .nm{
+      font-family:var(--mono);
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+    }
+
+    .bottombar{
+      padding:12px 14px;
+      border-top:1px solid var(--line);
+      background: rgba(0,0,0,.28);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .pill{
+      font-family:var(--mono);
+      font-size:12px;
+      padding:8px 10px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:rgba(0,0,0,.22);
+      color:var(--muted);
+    }
+
+    @media (max-width: 980px){
+      .content{grid-template-columns: 1fr;}
+      .metrics{grid-template-columns: repeat(2, 1fr);}
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay">
+    <div class="frame">
+      <div class="topbar">
+        <div>
+          <h1>FPW — Mission Control</h1>
+          <div style="margin-top:4px;color:rgba(255,255,255,.70);font-size:12px;">
+            Map-backed route preview (instrumentation overlay).
+          </div>
+        </div>
+        <button class="btn btn--icon" aria-label="Close">✕</button>
+      </div>
+
+      <div class="content">
+        <!-- Left -->
+        <section class="panel">
+          <div class="hdr">
+            <div class="kicker">Mission Config</div>
+            <div class="title">Route Source & Parameters</div>
+          </div>
+          <div class="body">
+            <div class="label">Route Source</div>
+            <div class="segmented">
+              <button class="active">Gulf Coast</button>
+              <button>Great Loop</button>
+              <button>Florida East</button>
+              <button>Custom</button>
+            </div>
+
+            <div class="label">Direction</div>
+            <div class="field">
+              <div class="fLabel">Selected</div>
+              <div class="fValue">CCW</div>
+            </div>
+
+            <div class="label">Start Parameters</div>
+            <div class="field">
+              <div class="fLabel">Start Date</div>
+              <div class="fValue">02/13/2026</div>
+            </div>
+            <div class="field">
+              <div class="fLabel">Cruising Speed</div>
+              <div class="fValue">10.0 kn</div>
+            </div>
+            <div class="field">
+              <div class="fLabel">Max NM / Day</div>
+              <div class="fValue">75</div>
+            </div>
+
+            <div class="label">Optional Add-ons</div>
+            <div class="field">
+              <div class="fLabel">Grand Isle</div>
+              <div class="fValue">Enabled</div>
+              <div style="margin-top:6px;color:rgba(255,255,255,.70);font-size:12px;">
+                Adds ~140 NM • Offshore possible
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right -->
+        <section class="panel">
+          <div class="hdr">
+            <div class="kicker">Route Instrumentation</div>
+            <div class="title">Telemetry & Map Preview</div>
+          </div>
+          <div class="body">
+            <div class="metrics">
+              <div class="metric"><div class="mLabel">Total Distance</div><div class="mValue">1,395 NM</div></div>
+              <div class="metric"><div class="mLabel">Estimated Days</div><div class="mValue">21</div></div>
+              <div class="metric"><div class="mLabel">Locks</div><div class="mValue">0</div></div>
+              <div class="metric"><div class="mLabel">Offshore Legs</div><div class="mValue">3</div></div>
+            </div>
+
+            <div class="mapList">
+              <div class="mapLayer"></div>
+
+              <!-- Fake route line overlay -->
+              <div class="routeOverlay">
+                <svg viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0" stop-color="rgba(45,212,191,.95)"/>
+                      <stop offset="1" stop-color="rgba(56,189,248,.85)"/>
+                    </linearGradient>
+                    <filter id="glow">
+                      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+                      <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                      </feMerge>
+                    </filter>
+                  </defs>
+                  <!-- Glow -->
+                  <path d="M120,520 C210,460 240,410 310,380 C420,330 460,260 560,240 C680,220 720,170 820,130"
+                        fill="none" stroke="rgba(45,212,191,.35)" stroke-width="10" filter="url(#glow)"/>
+                  <!-- Main line -->
+                  <path d="M120,520 C210,460 240,410 310,380 C420,330 460,260 560,240 C680,220 720,170 820,130"
+                        fill="none" stroke="url(#g)" stroke-width="3"/>
+                  <!-- Waypoint dots -->
+                  <g fill="rgba(255,255,255,.80)">
+                    <circle cx="120" cy="520" r="5"/>
+                    <circle cx="310" cy="380" r="5"/>
+                    <circle cx="560" cy="240" r="5"/>
+                    <circle cx="820" cy="130" r="5"/>
+                  </g>
+                </svg>
+              </div>
+
+              <div class="mapList__hdr">
+                <div class="k">Route Path Preview</div>
+                <div class="tiny">19 legs • chart overlay</div>
+              </div>
+
+              <div class="waypoints">
+                <div class="wp"><div class="idx">01</div><div class="route"><div class="names">Tarpon Springs → Cedar Key</div><div class="nm">85.0 NM</div></div></div>
+                <div class="wp"><div class="idx">02</div><div class="route"><div class="names">Cedar Key → Apalachicola</div><div class="nm">170.0 NM</div></div></div>
+                <div class="wp"><div class="idx">03</div><div class="route"><div class="names">Apalachicola → Panama City</div><div class="nm">75.0 NM</div></div></div>
+                <div class="wp"><div class="idx">04</div><div class="route"><div class="names">Panama City → Destin</div><div class="nm">45.0 NM</div></div></div>
+                <div class="wp"><div class="idx">05</div><div class="route"><div class="names">Destin → Pensacola</div><div class="nm">45.0 NM</div></div></div>
+                <div class="wp"><div class="idx">06</div><div class="route"><div class="names">Pensacola → Gulf Shores / Orange Beach</div><div class="nm">35.0 NM</div></div></div>
+                <div class="wp"><div class="idx">07</div><div class="route"><div class="names">Gulf Shores / Orange Beach → Dauphin Island</div><div class="nm">25.0 NM</div></div></div>
+                <div class="wp"><div class="idx">08</div><div class="route"><div class="names">Dauphin Island → Mobile</div><div class="nm">15.0 NM</div></div></div>
+                <div class="wp"><div class="idx">09</div><div class="route"><div class="names">Mobile → Biloxi / Gulfport</div><div class="nm">75.0 NM</div></div></div>
+                <div class="wp"><div class="idx">10</div><div class="route"><div class="names">Biloxi / Gulfport → New Orleans</div><div class="nm">85.0 NM</div></div></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="bottombar">
+        <div class="pill">route: USER_ROUTE_187_20260213_1615</div>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button class="btn">Cancel</button>
+          <button class="btn btn--primary">🚀 Generate Route</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

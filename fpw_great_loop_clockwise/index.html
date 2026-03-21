@@ -1,0 +1,916 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FPW • Great Loop (Clockwise Legs)</title>
+  <link rel="stylesheet" href="assets/css/fpw_great_loop.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <div class="brand">
+        <div class="badge">
+          <img src="assets/img/icon_compass.svg" alt="" />
+        </div>
+        <div>
+          <h1>THE GREAT LOOP – CLOCKWISE LEG LIST</h1>
+          <span class="sub">Drop‑in, FPW‑styled legs grouped by major waterway sections</span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="input" title="Filter legs by place name, state, or number">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="search" type="text" placeholder="Search (e.g., ‘Tarpon’, ‘Erie’, ‘36’)…" autocomplete="off" />
+          <button class="btn" id="clearSearch" type="button" title="Clear search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg> Clear
+          </button>
+        </div>
+
+        <button class="btn" id="expandAll" type="button" title="Expand all visible sections">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Expand
+        </button>
+        <button class="btn" id="collapseAll" type="button" title="Collapse all sections">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/><path d="M9 9h6v6H9z"/></svg> Collapse
+        </button>
+      </div>
+    </div>
+
+    <div class="meta">
+      <span class="pill">Total legs: <strong id="totalCount">0</strong></span>
+      <span class="pill">Visible legs: <strong id="visibleCount">0</strong></span>
+      <span class="pill">Direction: <strong>Clockwise</strong></span>
+      <span class="pill">Format: <strong>Sections → Legs</strong></span>
+    </div>
+
+    <div class="sections">
+
+    <section class="section" data-open="false">
+      <div class="sectionHeader" role="button" aria-label="Toggle section">
+        <div class="sectionHeaderLeft">
+          <div class="iconTile"><img src="assets/img/icon_lock.svg" alt="" /></div>
+          <div class="sectionTitle">
+            <h2>1. Great Lakes → Illinois Waterway Entry</h2>
+            <div class="mini">
+              <span>Clockwise</span>
+              <span>•</span>
+              <span>4 legs</span>
+            </div>
+          </div>
+        </div>
+        <div class="sectionHeaderRight">
+          <div class="count">4 legs</div>
+          <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <div class="sectionBody">
+        <div class="legsGrid">
+
+        <div class="legCard" data-search="great lakes → illinois waterway entry chicago, il → joliet, il 1">
+          <div class="legNum">1</div>
+          <div class="legMain">
+            <p class="legTitle">Chicago, IL → Joliet, IL</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span><span class="badgeTag good">LOCKS/WATERWAY</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="great lakes → illinois waterway entry joliet → ottawa 2">
+          <div class="legNum">2</div>
+          <div class="legMain">
+            <p class="legTitle">Joliet → Ottawa</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span><span class="badgeTag good">LOCKS/WATERWAY</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="great lakes → illinois waterway entry ottawa → peoria 3">
+          <div class="legNum">3</div>
+          <div class="legMain">
+            <p class="legTitle">Ottawa → Peoria</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span><span class="badgeTag good">LOCKS/WATERWAY</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="great lakes → illinois waterway entry peoria → grafton, il (mississippi river confluence) 4">
+          <div class="legNum">4</div>
+          <div class="legMain">
+            <p class="legTitle">Peoria → Grafton, IL (Mississippi River confluence)</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span><span class="badgeTag good">LOCKS/WATERWAY</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-open="false">
+      <div class="sectionHeader" role="button" aria-label="Toggle section">
+        <div class="sectionHeaderLeft">
+          <div class="iconTile"><img src="assets/img/icon_river.svg" alt="" /></div>
+          <div class="sectionTitle">
+            <h2>2. Mississippi River (Upper)</h2>
+            <div class="mini">
+              <span>Clockwise</span>
+              <span>•</span>
+              <span>3 legs</span>
+            </div>
+          </div>
+        </div>
+        <div class="sectionHeaderRight">
+          <div class="count">3 legs</div>
+          <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <div class="sectionBody">
+        <div class="legsGrid">
+
+        <div class="legCard" data-search="mississippi river (upper) grafton → alton / st. louis 5">
+          <div class="legNum">5</div>
+          <div class="legMain">
+            <p class="legTitle">Grafton → Alton / St. Louis</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="mississippi river (upper) st. louis → hoppies / kimmswick 6">
+          <div class="legNum">6</div>
+          <div class="legMain">
+            <p class="legTitle">St. Louis → Hoppies / Kimmswick</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="mississippi river (upper) hoppies → cairo, il (ohio river junction) 7">
+          <div class="legNum">7</div>
+          <div class="legMain">
+            <p class="legTitle">Hoppies → Cairo, IL (Ohio River junction)</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-open="false">
+      <div class="sectionHeader" role="button" aria-label="Toggle section">
+        <div class="sectionHeaderLeft">
+          <div class="iconTile"><img src="assets/img/icon_river.svg" alt="" /></div>
+          <div class="sectionTitle">
+            <h2>3. Ohio River</h2>
+            <div class="mini">
+              <span>Clockwise</span>
+              <span>•</span>
+              <span>3 legs</span>
+            </div>
+          </div>
+        </div>
+        <div class="sectionHeaderRight">
+          <div class="count">3 legs</div>
+          <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <div class="sectionBody">
+        <div class="legsGrid">
+
+        <div class="legCard" data-search="ohio river cairo → paducah, ky 8">
+          <div class="legNum">8</div>
+          <div class="legMain">
+            <p class="legTitle">Cairo → Paducah, KY</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="ohio river paducah → kentucky lake 9">
+          <div class="legNum">9</div>
+          <div class="legMain">
+            <p class="legTitle">Paducah → Kentucky Lake</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="ohio river kentucky lake → pickwick lake 10">
+          <div class="legNum">10</div>
+          <div class="legMain">
+            <p class="legTitle">Kentucky Lake → Pickwick Lake</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-open="false">
+      <div class="sectionHeader" role="button" aria-label="Toggle section">
+        <div class="sectionHeaderLeft">
+          <div class="iconTile"><img src="assets/img/icon_lock.svg" alt="" /></div>
+          <div class="sectionTitle">
+            <h2>4. Tennessee–Tombigbee Waterway</h2>
+            <div class="mini">
+              <span>Clockwise</span>
+              <span>•</span>
+              <span>3 legs</span>
+            </div>
+          </div>
+        </div>
+        <div class="sectionHeaderRight">
+          <div class="count">3 legs</div>
+          <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <div class="sectionBody">
+        <div class="legsGrid">
+
+        <div class="legCard" data-search="tennessee–tombigbee waterway pickwick → columbus, ms 11">
+          <div class="legNum">11</div>
+          <div class="legMain">
+            <p class="legTitle">Pickwick → Columbus, MS</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span><span class="badgeTag good">LOCKS/WATERWAY</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="tennessee–tombigbee waterway columbus → demopolis, al 12">
+          <div class="legNum">12</div>
+          <div class="legMain">
+            <p class="legTitle">Columbus → Demopolis, AL</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span><span class="badgeTag good">LOCKS/WATERWAY</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="tennessee–tombigbee waterway demopolis → mobile, al 13">
+          <div class="legNum">13</div>
+          <div class="legMain">
+            <p class="legTitle">Demopolis → Mobile, AL</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span><span class="badgeTag good">LOCKS/WATERWAY</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-open="false">
+      <div class="sectionHeader" role="button" aria-label="Toggle section">
+        <div class="sectionHeaderLeft">
+          <div class="iconTile"><img src="assets/img/icon_waves.svg" alt="" /></div>
+          <div class="sectionTitle">
+            <h2>5. Gulf of Mexico</h2>
+            <div class="mini">
+              <span>Clockwise</span>
+              <span>•</span>
+              <span>3 legs</span>
+            </div>
+          </div>
+        </div>
+        <div class="sectionHeaderRight">
+          <div class="count">3 legs</div>
+          <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <div class="sectionBody">
+        <div class="legsGrid">
+
+        <div class="legCard" data-search="gulf of mexico mobile → orange beach / pensacola 14">
+          <div class="legNum">14</div>
+          <div class="legMain">
+            <p class="legTitle">Mobile → Orange Beach / Pensacola</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="gulf of mexico pensacola → panama city 15">
+          <div class="legNum">15</div>
+          <div class="legMain">
+            <p class="legTitle">Pensacola → Panama City</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="gulf of mexico panama city → apalachicola / carrabelle (crossing staging) 16">
+          <div class="legNum">16</div>
+          <div class="legMain">
+            <p class="legTitle">Panama City → Apalachicola / Carrabelle (crossing staging)</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span><span class="badgeTag warn">OPEN WATER</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-open="false">
+      <div class="sectionHeader" role="button" aria-label="Toggle section">
+        <div class="sectionHeaderLeft">
+          <div class="iconTile"><img src="assets/img/icon_compass.svg" alt="" /></div>
+          <div class="sectionTitle">
+            <h2>6. Florida Big Bend Crossing</h2>
+            <div class="mini">
+              <span>Clockwise</span>
+              <span>•</span>
+              <span>2 legs</span>
+            </div>
+          </div>
+        </div>
+        <div class="sectionHeaderRight">
+          <div class="count">2 legs</div>
+          <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <div class="sectionBody">
+        <div class="legsGrid">
+
+        <div class="legCard" data-search="florida big bend crossing carrabelle → tarpon springs (open gulf crossing) 17">
+          <div class="legNum">17</div>
+          <div class="legMain">
+            <p class="legTitle">Carrabelle → Tarpon Springs (open Gulf crossing)</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span><span class="badgeTag warn">OPEN WATER</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="florida big bend crossing tarpon springs → clearwater / tampa bay 18">
+          <div class="legNum">18</div>
+          <div class="legMain">
+            <p class="legTitle">Tarpon Springs → Clearwater / Tampa Bay</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-open="false">
+      <div class="sectionHeader" role="button" aria-label="Toggle section">
+        <div class="sectionHeaderLeft">
+          <div class="iconTile"><img src="assets/img/icon_sun.svg" alt="" /></div>
+          <div class="sectionTitle">
+            <h2>7. Florida West Coast</h2>
+            <div class="mini">
+              <span>Clockwise</span>
+              <span>•</span>
+              <span>3 legs</span>
+            </div>
+          </div>
+        </div>
+        <div class="sectionHeaderRight">
+          <div class="count">3 legs</div>
+          <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <div class="sectionBody">
+        <div class="legsGrid">
+
+        <div class="legCard" data-search="florida west coast clearwater → sarasota 19">
+          <div class="legNum">19</div>
+          <div class="legMain">
+            <p class="legTitle">Clearwater → Sarasota</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="florida west coast sarasota → fort myers 20">
+          <div class="legNum">20</div>
+          <div class="legMain">
+            <p class="legTitle">Sarasota → Fort Myers</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="florida west coast fort myers → naples / marco island 21">
+          <div class="legNum">21</div>
+          <div class="legMain">
+            <p class="legTitle">Fort Myers → Naples / Marco Island</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-open="false">
+      <div class="sectionHeader" role="button" aria-label="Toggle section">
+        <div class="sectionHeaderLeft">
+          <div class="iconTile"><img src="assets/img/icon_lock.svg" alt="" /></div>
+          <div class="sectionTitle">
+            <h2>8. Okeechobee Waterway</h2>
+            <div class="mini">
+              <span>Clockwise</span>
+              <span>•</span>
+              <span>2 legs</span>
+            </div>
+          </div>
+        </div>
+        <div class="sectionHeaderRight">
+          <div class="count">2 legs</div>
+          <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <div class="sectionBody">
+        <div class="legsGrid">
+
+        <div class="legCard" data-search="okeechobee waterway fort myers → lake okeechobee 22">
+          <div class="legNum">22</div>
+          <div class="legMain">
+            <p class="legTitle">Fort Myers → Lake Okeechobee</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span><span class="badgeTag good">LOCKS/WATERWAY</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="okeechobee waterway lake okeechobee → stuart, fl 23">
+          <div class="legNum">23</div>
+          <div class="legMain">
+            <p class="legTitle">Lake Okeechobee → Stuart, FL</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span><span class="badgeTag good">LOCKS/WATERWAY</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-open="false">
+      <div class="sectionHeader" role="button" aria-label="Toggle section">
+        <div class="sectionHeaderLeft">
+          <div class="iconTile"><img src="assets/img/icon_anchor.svg" alt="" /></div>
+          <div class="sectionTitle">
+            <h2>9. Florida East Coast (Atlantic ICW)</h2>
+            <div class="mini">
+              <span>Clockwise</span>
+              <span>•</span>
+              <span>4 legs</span>
+            </div>
+          </div>
+        </div>
+        <div class="sectionHeaderRight">
+          <div class="count">4 legs</div>
+          <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <div class="sectionBody">
+        <div class="legsGrid">
+
+        <div class="legCard" data-search="florida east coast (atlantic icw) stuart → fort lauderdale 24">
+          <div class="legNum">24</div>
+          <div class="legMain">
+            <p class="legTitle">Stuart → Fort Lauderdale</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="florida east coast (atlantic icw) fort lauderdale → palm beach 25">
+          <div class="legNum">25</div>
+          <div class="legMain">
+            <p class="legTitle">Fort Lauderdale → Palm Beach</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="florida east coast (atlantic icw) palm beach → st. augustine 26">
+          <div class="legNum">26</div>
+          <div class="legMain">
+            <p class="legTitle">Palm Beach → St. Augustine</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="florida east coast (atlantic icw) st. augustine → jacksonville 27">
+          <div class="legNum">27</div>
+          <div class="legMain">
+            <p class="legTitle">St. Augustine → Jacksonville</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-open="false">
+      <div class="sectionHeader" role="button" aria-label="Toggle section">
+        <div class="sectionHeaderLeft">
+          <div class="iconTile"><img src="assets/img/icon_marsh.svg" alt="" /></div>
+          <div class="sectionTitle">
+            <h2>10. Georgia & South Carolina ICW</h2>
+            <div class="mini">
+              <span>Clockwise</span>
+              <span>•</span>
+              <span>4 legs</span>
+            </div>
+          </div>
+        </div>
+        <div class="sectionHeaderRight">
+          <div class="count">4 legs</div>
+          <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <div class="sectionBody">
+        <div class="legsGrid">
+
+        <div class="legCard" data-search="georgia & south carolina icw jacksonville → savannah 28">
+          <div class="legNum">28</div>
+          <div class="legMain">
+            <p class="legTitle">Jacksonville → Savannah</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="georgia & south carolina icw savannah → beaufort, sc 29">
+          <div class="legNum">29</div>
+          <div class="legMain">
+            <p class="legTitle">Savannah → Beaufort, SC</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="georgia & south carolina icw beaufort → charleston, sc 30">
+          <div class="legNum">30</div>
+          <div class="legMain">
+            <p class="legTitle">Beaufort → Charleston, SC</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="georgia & south carolina icw charleston → myrtle beach, sc 31">
+          <div class="legNum">31</div>
+          <div class="legMain">
+            <p class="legTitle">Charleston → Myrtle Beach, SC</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-open="false">
+      <div class="sectionHeader" role="button" aria-label="Toggle section">
+        <div class="sectionHeaderLeft">
+          <div class="iconTile"><img src="assets/img/icon_marsh.svg" alt="" /></div>
+          <div class="sectionTitle">
+            <h2>11. North Carolina ICW & Sounds</h2>
+            <div class="mini">
+              <span>Clockwise</span>
+              <span>•</span>
+              <span>4 legs</span>
+            </div>
+          </div>
+        </div>
+        <div class="sectionHeaderRight">
+          <div class="count">4 legs</div>
+          <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <div class="sectionBody">
+        <div class="legsGrid">
+
+        <div class="legCard" data-search="north carolina icw & sounds myrtle beach → wrightsville beach 32">
+          <div class="legNum">32</div>
+          <div class="legMain">
+            <p class="legTitle">Myrtle Beach → Wrightsville Beach</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="north carolina icw & sounds wrightsville → morehead city 33">
+          <div class="legNum">33</div>
+          <div class="legMain">
+            <p class="legTitle">Wrightsville → Morehead City</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="north carolina icw & sounds morehead city → oriental / new bern 34">
+          <div class="legNum">34</div>
+          <div class="legMain">
+            <p class="legTitle">Morehead City → Oriental / New Bern</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="north carolina icw & sounds new bern → albemarle sound 35">
+          <div class="legNum">35</div>
+          <div class="legMain">
+            <p class="legTitle">New Bern → Albemarle Sound</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-open="false">
+      <div class="sectionHeader" role="button" aria-label="Toggle section">
+        <div class="sectionHeaderLeft">
+          <div class="iconTile"><img src="assets/img/icon_anchor.svg" alt="" /></div>
+          <div class="sectionTitle">
+            <h2>12. Virginia & Chesapeake Bay</h2>
+            <div class="mini">
+              <span>Clockwise</span>
+              <span>•</span>
+              <span>4 legs</span>
+            </div>
+          </div>
+        </div>
+        <div class="sectionHeaderRight">
+          <div class="count">4 legs</div>
+          <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <div class="sectionBody">
+        <div class="legsGrid">
+
+        <div class="legCard" data-search="virginia & chesapeake bay albemarle → norfolk 36">
+          <div class="legNum">36</div>
+          <div class="legMain">
+            <p class="legTitle">Albemarle → Norfolk</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="virginia & chesapeake bay norfolk → solomons island 37">
+          <div class="legNum">37</div>
+          <div class="legMain">
+            <p class="legTitle">Norfolk → Solomons Island</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="virginia & chesapeake bay solomons → annapolis 38">
+          <div class="legNum">38</div>
+          <div class="legMain">
+            <p class="legTitle">Solomons → Annapolis</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="virginia & chesapeake bay annapolis → chesapeake city 39">
+          <div class="legNum">39</div>
+          <div class="legMain">
+            <p class="legTitle">Annapolis → Chesapeake City</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-open="false">
+      <div class="sectionHeader" role="button" aria-label="Toggle section">
+        <div class="sectionHeaderLeft">
+          <div class="iconTile"><img src="assets/img/icon_waves.svg" alt="" /></div>
+          <div class="sectionTitle">
+            <h2>13. Delaware River & New Jersey Coast</h2>
+            <div class="mini">
+              <span>Clockwise</span>
+              <span>•</span>
+              <span>3 legs</span>
+            </div>
+          </div>
+        </div>
+        <div class="sectionHeaderRight">
+          <div class="count">3 legs</div>
+          <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <div class="sectionBody">
+        <div class="legsGrid">
+
+        <div class="legCard" data-search="delaware river & new jersey coast chesapeake city → cape may 40">
+          <div class="legNum">40</div>
+          <div class="legMain">
+            <p class="legTitle">Chesapeake City → Cape May</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="delaware river & new jersey coast cape may → atlantic city 41">
+          <div class="legNum">41</div>
+          <div class="legMain">
+            <p class="legTitle">Cape May → Atlantic City</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="delaware river & new jersey coast atlantic city → sandy hook 42">
+          <div class="legNum">42</div>
+          <div class="legMain">
+            <p class="legTitle">Atlantic City → Sandy Hook</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-open="false">
+      <div class="sectionHeader" role="button" aria-label="Toggle section">
+        <div class="sectionHeaderLeft">
+          <div class="iconTile"><img src="assets/img/icon_river.svg" alt="" /></div>
+          <div class="sectionTitle">
+            <h2>14. Hudson River</h2>
+            <div class="mini">
+              <span>Clockwise</span>
+              <span>•</span>
+              <span>3 legs</span>
+            </div>
+          </div>
+        </div>
+        <div class="sectionHeaderRight">
+          <div class="count">3 legs</div>
+          <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <div class="sectionBody">
+        <div class="legsGrid">
+
+        <div class="legCard" data-search="hudson river sandy hook → nyc harbor 43">
+          <div class="legNum">43</div>
+          <div class="legMain">
+            <p class="legTitle">Sandy Hook → NYC Harbor</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="hudson river nyc → kingston 44">
+          <div class="legNum">44</div>
+          <div class="legMain">
+            <p class="legTitle">NYC → Kingston</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="hudson river kingston → albany 45">
+          <div class="legNum">45</div>
+          <div class="legMain">
+            <p class="legTitle">Kingston → Albany</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-open="false">
+      <div class="sectionHeader" role="button" aria-label="Toggle section">
+        <div class="sectionHeaderLeft">
+          <div class="iconTile"><img src="assets/img/icon_lock.svg" alt="" /></div>
+          <div class="sectionTitle">
+            <h2>15. Erie Canal</h2>
+            <div class="mini">
+              <span>Clockwise</span>
+              <span>•</span>
+              <span>3 legs</span>
+            </div>
+          </div>
+        </div>
+        <div class="sectionHeaderRight">
+          <div class="count">3 legs</div>
+          <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <div class="sectionBody">
+        <div class="legsGrid">
+
+        <div class="legCard" data-search="erie canal albany → waterford 46">
+          <div class="legNum">46</div>
+          <div class="legMain">
+            <p class="legTitle">Albany → Waterford</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span><span class="badgeTag good">LOCKS/WATERWAY</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="erie canal waterford → syracuse 47">
+          <div class="legNum">47</div>
+          <div class="legMain">
+            <p class="legTitle">Waterford → Syracuse</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span><span class="badgeTag good">LOCKS/WATERWAY</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="erie canal syracuse → buffalo 48">
+          <div class="legNum">48</div>
+          <div class="legMain">
+            <p class="legTitle">Syracuse → Buffalo</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span><span class="badgeTag good">LOCKS/WATERWAY</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-open="false">
+      <div class="sectionHeader" role="button" aria-label="Toggle section">
+        <div class="sectionHeaderLeft">
+          <div class="iconTile"><img src="assets/img/icon_waves.svg" alt="" /></div>
+          <div class="sectionTitle">
+            <h2>16. Lake Erie & Lake Huron</h2>
+            <div class="mini">
+              <span>Clockwise</span>
+              <span>•</span>
+              <span>4 legs</span>
+            </div>
+          </div>
+        </div>
+        <div class="sectionHeaderRight">
+          <div class="count">4 legs</div>
+          <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <div class="sectionBody">
+        <div class="legsGrid">
+
+        <div class="legCard" data-search="lake erie & lake huron buffalo → erie, pa 49">
+          <div class="legNum">49</div>
+          <div class="legMain">
+            <p class="legTitle">Buffalo → Erie, PA</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="lake erie & lake huron erie → cleveland 50">
+          <div class="legNum">50</div>
+          <div class="legMain">
+            <p class="legTitle">Erie → Cleveland</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="lake erie & lake huron cleveland → detroit river 51">
+          <div class="legNum">51</div>
+          <div class="legMain">
+            <p class="legTitle">Cleveland → Detroit River</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="lake erie & lake huron detroit → mackinac island 52">
+          <div class="legNum">52</div>
+          <div class="legMain">
+            <p class="legTitle">Detroit → Mackinac Island</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-open="false">
+      <div class="sectionHeader" role="button" aria-label="Toggle section">
+        <div class="sectionHeaderLeft">
+          <div class="iconTile"><img src="assets/img/icon_compass.svg" alt="" /></div>
+          <div class="sectionTitle">
+            <h2>17. Lake Michigan Return</h2>
+            <div class="mini">
+              <span>Clockwise</span>
+              <span>•</span>
+              <span>4 legs</span>
+            </div>
+          </div>
+        </div>
+        <div class="sectionHeaderRight">
+          <div class="count">4 legs</div>
+          <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <div class="sectionBody">
+        <div class="legsGrid">
+
+        <div class="legCard" data-search="lake michigan return mackinac → charlevoix 53">
+          <div class="legNum">53</div>
+          <div class="legMain">
+            <p class="legTitle">Mackinac → Charlevoix</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="lake michigan return charlevoix → sturgeon bay 54">
+          <div class="legNum">54</div>
+          <div class="legMain">
+            <p class="legTitle">Charlevoix → Sturgeon Bay</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="lake michigan return sturgeon bay → milwaukee 55">
+          <div class="legNum">55</div>
+          <div class="legMain">
+            <p class="legTitle">Sturgeon Bay → Milwaukee</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+
+        <div class="legCard" data-search="lake michigan return milwaukee → chicago (loop complete) 56">
+          <div class="legNum">56</div>
+          <div class="legMain">
+            <p class="legTitle">Milwaukee → Chicago (Loop Complete)</p>
+            <div class="legBadges"><span class="badgeTag accent">LEG</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+    </div>
+
+    <div class="footerNote">
+      Tip: This is intentionally “FPW‑friendly” markup (no build tools). You can drop this into
+      <code>/fpw/app/</code> or serve it as a modal/embedded view. Next step could be wiring the leg list to your
+      canonical route template tables (<code>loop_routes</code>, <code>loop_sections</code>, <code>loop_segments</code>) and adding per‑leg
+      NM + lat/long.
+    </div>
+  </div>
+
+  <script src="assets/js/fpw_great_loop.js"></script>
+</body>
+</html>

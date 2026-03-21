@@ -430,8 +430,54 @@
     return names.join(", ");
   }
 
+  function normalizeSearchQuery(value) {
+    return String(value || "").toLowerCase().trim();
+  }
+
+  function toSearchableText(entry, fields) {
+    var parts = [];
+    for (var i = 0; i < fields.length; i++) {
+      var key = fields[i];
+      if (entry && entry[key] !== undefined && entry[key] !== null) {
+        parts.push(String(entry[key]));
+      }
+    }
+    return parts.join(" ").toLowerCase();
+  }
+
+  var USER_TO_SET_SENTINEL_VALUE = "__USER_TO_SET__";
+  var USER_TO_SET_SENTINEL_ID = -1;
   var RESCUE_AUTHORITY_SELECTION_FIELD = "RESCUE_AUTHORITY_SELECTION";
   var RESCUE_AUTHORITY_SELECTION_MESSAGE = "Select a rescue authority.";
+
+  function normalizeRouteDefaults(source) {
+    var defaults = {
+      IS_FROM_ROUTE: false,
+      OPERATOR_ID: 0,
+      OPERATOR_SOURCE: "",
+      DATES_SOURCE: "",
+      DEPARTING_FROM_DEFAULT: "",
+      RETURNING_TO_DEFAULT: "",
+      DEPARTURE_TIME_DEFAULT: "",
+      RETURN_TIME_DEFAULT: "",
+      LEG_COUNT: 0,
+      WAYPOINT_SELECTIONS: []
+    };
+    if (source && typeof source === "object") {
+      Object.keys(source).forEach(function (key) {
+        defaults[key] = source[key];
+      });
+    }
+    defaults.IS_FROM_ROUTE = !!defaults.IS_FROM_ROUTE;
+    defaults.OPERATOR_ID = numeric(defaults.OPERATOR_ID);
+    defaults.LEG_COUNT = numeric(defaults.LEG_COUNT);
+    defaults.WAYPOINT_SELECTIONS = toArray(defaults.WAYPOINT_SELECTIONS);
+    return defaults;
+  }
+
+  function isUserToSetSentinel(value) {
+    return String(value == null ? "" : value).trim().toUpperCase() === USER_TO_SET_SENTINEL_VALUE;
+  }
 
   var FLOATPLAN_VALIDATION_RULES = {
     NAME: {
@@ -694,7 +740,14 @@
         pdfPreviewLoading: false,
         pdfPreviewError: "",
         contactStep: contactStep,
-        initialPlanId: initialPlanId
+        initialPlanId: initialPlanId,
+        manifestActiveTab: "passengers",
+        passengerSearchQuery: "",
+        contactSearchQuery: "",
+        manifestSummaryOpen: true,
+        waypointSearchQuery: "",
+        mobileWaypointsSummaryOpen: true,
+        routeDefaults: normalizeRouteDefaults({})
       };
     },
 
@@ -713,6 +766,109 @@
 
       contactSummary: function () {
         return summarizeSelections(this.fp.CONTACTS, this.contacts, "CONTACTID", "CONTACTNAME");
+      },
+
+      selectedPassengerDetails: function () {
+        var details = [];
+        var selected = Array.isArray(this.fp.PASSENGERS) ? this.fp.PASSENGERS : [];
+        var source = Array.isArray(this.passengers) ? this.passengers : [];
+        for (var i = 0; i < selected.length; i++) {
+          var selectedId = numeric(selected[i].PASSENGERID);
+          if (!selectedId) continue;
+          var label = "";
+          for (var j = 0; j < source.length; j++) {
+            if (numeric(source[j].PASSENGERID) === selectedId) {
+              label = (source[j].PASSENGERNAME || "").toString().trim();
+              break;
+            }
+          }
+          details.push({
+            id: selectedId,
+            label: label || ("Passenger #" + selectedId)
+          });
+        }
+        return details;
+      },
+
+      selectedContactDetails: function () {
+        var details = [];
+        var selected = Array.isArray(this.fp.CONTACTS) ? this.fp.CONTACTS : [];
+        var source = Array.isArray(this.contacts) ? this.contacts : [];
+        for (var i = 0; i < selected.length; i++) {
+          var selectedId = numeric(selected[i].CONTACTID);
+          if (!selectedId) continue;
+          var label = "";
+          for (var j = 0; j < source.length; j++) {
+            if (numeric(source[j].CONTACTID) === selectedId) {
+              label = (source[j].CONTACTNAME || "").toString().trim();
+              break;
+            }
+          }
+          details.push({
+            id: selectedId,
+            label: label || ("Contact #" + selectedId)
+          });
+        }
+        return details;
+      },
+
+      filteredPassengers: function () {
+        var list = Array.isArray(this.passengers) ? this.passengers : [];
+        var query = normalizeSearchQuery(this.passengerSearchQuery);
+        if (!query) {
+          return list;
+        }
+        return list.filter(function (entry) {
+          var searchable = toSearchableText(entry, [ "PASSENGERNAME", "PHONE", "NOTES", "passengerName", "phone", "notes" ]);
+          return searchable.indexOf(query) !== -1;
+        });
+      },
+
+      filteredContacts: function () {
+        var list = Array.isArray(this.contacts) ? this.contacts : [];
+        var query = normalizeSearchQuery(this.contactSearchQuery);
+        if (!query) {
+          return list;
+        }
+        return list.filter(function (entry) {
+          var searchable = toSearchableText(entry, [ "CONTACTNAME", "PHONE", "EMAIL", "contactName", "phone", "email" ]);
+          return searchable.indexOf(query) !== -1;
+        });
+      },
+
+      selectedWaypointDetails: function () {
+        var details = [];
+        var selected = Array.isArray(this.fp.WAYPOINTS) ? this.fp.WAYPOINTS : [];
+        var source = Array.isArray(this.waypoints) ? this.waypoints : [];
+        for (var i = 0; i < selected.length; i++) {
+          var selectedId = numeric(selected[i].WAYPOINTID);
+          if (!selectedId) continue;
+          var label = "";
+          for (var j = 0; j < source.length; j++) {
+            if (numeric(source[j].WAYPOINTID) === selectedId) {
+              label = (source[j].WAYPOINTNAME || "").toString().trim();
+              break;
+            }
+          }
+          details.push({
+            id: selectedId,
+            label: label || ("Waypoint #" + selectedId),
+            position: details.length + 1
+          });
+        }
+        return details;
+      },
+
+      filteredWaypoints: function () {
+        var list = Array.isArray(this.waypoints) ? this.waypoints : [];
+        var query = normalizeSearchQuery(this.waypointSearchQuery);
+        if (!query) {
+          return list;
+        }
+        return list.filter(function (entry) {
+          var searchable = toSearchableText(entry, [ "WAYPOINTNAME", "NOTES", "CITY", "STATE", "waypointName", "notes", "city", "state" ]);
+          return searchable.indexOf(query) !== -1;
+        });
       },
 
       waypointSummary: function () {
@@ -783,9 +939,13 @@
           }
         }
 
-        if ((stepNumber === 3 || stepNumber === 6) && numeric(this.selectedRescueCenterId) <= 0) {
-          if (!errors) errors = {};
-          errors[RESCUE_AUTHORITY_SELECTION_FIELD] = [RESCUE_AUTHORITY_SELECTION_MESSAGE];
+        if (stepNumber === 3 || stepNumber === 6) {
+          var rescueSelectedId = numeric(this.selectedRescueCenterId);
+          var rescueIsValid = rescueSelectedId > 0 || this.isUserToSetRescueSelection();
+          if (!rescueIsValid) {
+            if (!errors) errors = {};
+            errors[RESCUE_AUTHORITY_SELECTION_FIELD] = [RESCUE_AUTHORITY_SELECTION_MESSAGE];
+          }
         }
 
         if (needsContactValidation) {
@@ -838,6 +998,95 @@
         }
         if (timezone && isEmptyValue(plan.RETURN_TIMEZONE)) {
           plan.RETURN_TIMEZONE = timezone;
+        }
+      },
+
+      isFromRoutePlan: function () {
+        if (this.routeDefaults && this.routeDefaults.IS_FROM_ROUTE) {
+          return true;
+        }
+        return numeric(this.fp && this.fp.FLOATPLAN ? this.fp.FLOATPLAN.ROUTE_INSTANCE_ID : 0) > 0;
+      },
+
+      isUserToSetRescueSelection: function () {
+        var plan = this.fp && this.fp.FLOATPLAN ? this.fp.FLOATPLAN : {};
+        if (numeric(this.selectedRescueCenterId) === USER_TO_SET_SENTINEL_ID) {
+          return true;
+        }
+        if (isUserToSetSentinel(this.selectedRescueCenterId)) {
+          return true;
+        }
+        if (numeric(plan.RESCUE_CENTERID) === USER_TO_SET_SENTINEL_ID) {
+          return true;
+        }
+        if (isUserToSetSentinel(plan.RESCUE_CENTERID)) {
+          return true;
+        }
+        return isUserToSetSentinel(plan.RESCUE_AUTHORITY);
+      },
+
+      applyRouteDefaults: function () {
+        if (!this.isFromRoutePlan()) {
+          return;
+        }
+        var plan = this.fp && this.fp.FLOATPLAN ? this.fp.FLOATPLAN : {};
+        var defaults = this.routeDefaults || {};
+        var chosenOperatorId = numeric(defaults.OPERATOR_ID);
+        if (numeric(plan.OPERATORID) <= 0) {
+          if (chosenOperatorId <= 0 && Array.isArray(this.operators) && this.operators.length) {
+            chosenOperatorId = numeric(this.operators[0].OPERATORID);
+            if (chosenOperatorId > 0) {
+              defaults.OPERATOR_SOURCE = "first_available";
+            }
+          }
+          if (chosenOperatorId > 0) {
+            plan.OPERATORID = chosenOperatorId;
+          }
+        }
+
+        if (isEmptyValue(plan.DEPARTURE_TIME) && defaults.DEPARTURE_TIME_DEFAULT) {
+          plan.DEPARTURE_TIME = toDateTimeLocal(defaults.DEPARTURE_TIME_DEFAULT);
+        }
+        if (isEmptyValue(plan.RETURN_TIME) && defaults.RETURN_TIME_DEFAULT) {
+          plan.RETURN_TIME = toDateTimeLocal(defaults.RETURN_TIME_DEFAULT);
+        }
+        if (isEmptyValue(plan.DEPARTING_FROM) && defaults.DEPARTING_FROM_DEFAULT) {
+          plan.DEPARTING_FROM = defaults.DEPARTING_FROM_DEFAULT;
+        }
+        if (isEmptyValue(plan.RETURNING_TO) && defaults.RETURNING_TO_DEFAULT) {
+          plan.RETURNING_TO = defaults.RETURNING_TO_DEFAULT;
+        }
+        if (isEmptyValue(plan.DEPARTURE_TIMEZONE)) {
+          plan.DEPARTURE_TIMEZONE = this.homePortTimezone || "UTC";
+        }
+        if (isEmptyValue(plan.RETURN_TIMEZONE)) {
+          plan.RETURN_TIMEZONE = this.homePortTimezone || "UTC";
+        }
+
+        if (numeric(plan.RESCUE_CENTERID) === 0) {
+          plan.RESCUE_CENTERID = USER_TO_SET_SENTINEL_ID;
+        }
+        if (isEmptyValue(plan.RESCUE_AUTHORITY) || String(plan.RESCUE_AUTHORITY).trim() === "User to Set") {
+          plan.RESCUE_AUTHORITY = USER_TO_SET_SENTINEL_VALUE;
+        }
+        if (isEmptyValue(plan.RESCUE_AUTHORITY_PHONE)) {
+          plan.RESCUE_AUTHORITY_PHONE = USER_TO_SET_SENTINEL_VALUE;
+        }
+
+        if (!Array.isArray(this.fp.CONTACTS) || !this.fp.CONTACTS.length) {
+          this.fp.CONTACTS = [{
+            CONTACTID: USER_TO_SET_SENTINEL_ID,
+            SORT_ORDER: 1
+          }];
+        }
+
+        if ((!Array.isArray(this.fp.WAYPOINTS) || !this.fp.WAYPOINTS.length) && Array.isArray(defaults.WAYPOINT_SELECTIONS) && defaults.WAYPOINT_SELECTIONS.length) {
+          this.fp.WAYPOINTS = sortByOrder(
+            defaults.WAYPOINT_SELECTIONS
+              .map(normalizeWaypointSelection)
+              .filter(function (item) { return !!item; }),
+            "SORT_ORDER"
+          );
         }
       },
 
@@ -894,11 +1143,17 @@
           return;
         }
         this.rescueCenterSyncing = true;
-        var selectedId = numeric(
+        var selectedRaw = (
           event && event.target && event.target.value !== undefined
             ? event.target.value
             : this.selectedRescueCenterId
         );
+        var selectedId = numeric(
+          selectedRaw
+        );
+        if (selectedId === 0 && isUserToSetSentinel(selectedRaw)) {
+          selectedId = USER_TO_SET_SENTINEL_ID;
+        }
         this.selectedRescueCenterId = selectedId;
         this.fp.FLOATPLAN.RESCUE_CENTERID = selectedId;
         var match = null;
@@ -909,7 +1164,10 @@
           }
         }
 
-        if (match) {
+        if (selectedId === USER_TO_SET_SENTINEL_ID) {
+          this.fp.FLOATPLAN.RESCUE_AUTHORITY = USER_TO_SET_SENTINEL_VALUE;
+          this.fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE = USER_TO_SET_SENTINEL_VALUE;
+        } else if (match) {
           this.fp.FLOATPLAN.RESCUE_AUTHORITY = match.rcName || "";
           this.fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE = match.rcPhone || "";
         } else {
@@ -925,6 +1183,13 @@
       formatRescueCenterLabel: function (center) {
         if (!center) {
           return "";
+        }
+        if (
+          numeric(center.recId) === USER_TO_SET_SENTINEL_ID ||
+          isUserToSetSentinel(center.recId) ||
+          isUserToSetSentinel(center.rcName)
+        ) {
+          return "User to Set";
         }
         var name = (center.rcName || "").trim();
         if (!name) {
@@ -947,7 +1212,7 @@
         var storedCenterId = numeric(this.fp.FLOATPLAN.RESCUE_CENTERID);
         var matchId = 0;
 
-        if (storedCenterId > 0) {
+        if (storedCenterId !== 0) {
           for (var j = 0; j < this.rescueCenters.length; j++) {
             if (numeric(this.rescueCenters[j].recId) === storedCenterId) {
               matchId = storedCenterId;
@@ -976,7 +1241,7 @@
 
         this.selectedRescueCenterId = matchId;
         this.fp.FLOATPLAN.RESCUE_CENTERID = matchId;
-        if (matchId > 0) {
+        if (matchId > 0 || this.isUserToSetRescueSelection()) {
           this.clearFieldError(RESCUE_AUTHORITY_SELECTION_FIELD);
         }
         this.rescueCenterSyncing = false;
@@ -1107,16 +1372,13 @@
             self.operators = toArray(data.OPERATORS);
             self.passengers = toArray(data.PASSENGERS);
             self.contacts = toArray(data.CONTACTS);
-          self.waypoints = toArray(data.WAYPOINTS);
+            self.waypoints = toArray(data.WAYPOINTS);
             self.rescueCenters = toArray(data.RESCUE_CENTERS).map(function (center) {
               return normalizeRescueCenter(center);
             });
+            self.routeDefaults = normalizeRouteDefaults(data.ROUTE_DEFAULTS || {});
 
             self.fp.FLOATPLAN = normalizeFloatPlan(data.FLOATPLAN);
-            self.homePort = normalizeHomePort(data.HOME_PORT || data.HOMEPORT || data.homePort || {});
-            self.homePortTimezone = getTimezoneForState(self.homePort ? self.homePort.state : "");
-            self.applyHomePortDefaults();
-
             self.fp.PASSENGERS = sortByOrder(
               toArray(data.PLAN_PASSENGERS)
                 .map(normalizePassengerSelection)
@@ -1138,6 +1400,10 @@
               "SORT_ORDER"
             );
 
+            self.homePort = normalizeHomePort(data.HOME_PORT || data.HOMEPORT || data.homePort || {});
+            self.homePortTimezone = getTimezoneForState(self.homePort ? self.homePort.state : "");
+            self.applyHomePortDefaults();
+            self.applyRouteDefaults();
             self.syncRescueCenterSelection();
 
             self.initialPlanId = numeric(self.fp.FLOATPLAN.FLOATPLANID) || self.initialPlanId;

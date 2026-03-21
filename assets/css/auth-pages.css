@@ -1,0 +1,10 @@
+/* /fpw/assets/css/auth-pages.css */
+
+.auth-page-body {
+  min-height: 100vh;
+}
+
+.login-wrapper,
+.join-wrapper {
+  min-height: 100vh;
+}

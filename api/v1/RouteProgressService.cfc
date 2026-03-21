@@ -1,0 +1,186 @@
+<cfcomponent output="false">
+
+    <cffunction name="init" access="public" returntype="any" output="false">
+        <cfreturn this>
+    </cffunction>
+
+    <cffunction name="markCompletionFromFloatPlanCheckin" access="public" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="routeCode" type="string" required="false" default="GREAT_LOOP_CCW">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var out = {
+                SUCCESS = true,
+                MATCHED = false,
+                SEGMENT_ID = 0,
+                SCORE = 0,
+                MESSAGE = "No segment match found."
+            };
+
+            if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
+                out.SUCCESS = false;
+                out.MESSAGE = "Invalid userId or floatPlanId.";
+                return out;
+            }
+
+            var qPlan = queryExecute("
+                SELECT departing, returning
+                FROM floatplans
+                WHERE floatplanId = :planId
+                  AND userId = :userId
+                LIMIT 1
+            ", {
+                planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+            }, { datasource = arguments.datasource });
+
+            if (qPlan.recordCount EQ 0) {
+                out.SUCCESS = false;
+                out.MESSAGE = "Float plan not found for user.";
+                return out;
+            }
+
+            var departNorm = normalizeNodeName(qPlan.departing[1]);
+            var returnNorm = normalizeNodeName(qPlan.returning[1]);
+            if (!len(departNorm) OR !len(returnNorm)) {
+                out.MESSAGE = "Float plan departure/return names are incomplete.";
+                return out;
+            }
+
+            var qRoute = queryExecute("
+                SELECT id
+                FROM loop_routes
+                WHERE short_code = :code
+                LIMIT 1
+            ", {
+                code = { value = arguments.routeCode, cfsqltype = "cf_sql_varchar" }
+            }, { datasource = arguments.datasource });
+
+            if (qRoute.recordCount EQ 0) {
+                out.SUCCESS = false;
+                out.MESSAGE = "Route not found: " & arguments.routeCode;
+                return out;
+            }
+
+            var routeId = qRoute.id[1];
+            var qInst = queryExecute("
+                SELECT id
+                FROM route_instances
+                WHERE generated_route_id = :routeId
+                  AND user_id = :userIdText
+                ORDER BY id DESC
+                LIMIT 1
+            ", {
+                routeId = { value = routeId, cfsqltype = "cf_sql_integer" },
+                userIdText = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+            }, { datasource = arguments.datasource });
+            if (qInst.recordCount EQ 0) {
+                out.MESSAGE = "No normalized route instance found for this user/route.";
+                return out;
+            }
+
+            var routeInstanceId = val(qInst.id[1]);
+            var qSeg = queryExecute("
+                SELECT
+                    leg_order,
+                    COALESCE(source_loop_segment_id, segment_id, id) AS segment_id,
+                    start_name,
+                    end_name
+                FROM route_instance_legs
+                WHERE route_instance_id = :routeInstanceId
+                ORDER BY leg_order ASC, id ASC
+            ", {
+                routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" }
+            }, { datasource = arguments.datasource });
+
+            var bestId = 0;
+            var bestLegOrder = 0;
+            var bestScore = 0;
+            var i = 0;
+            var segStart = "";
+            var segEnd = "";
+            var score = 0;
+
+            for (i = 1; i LTE qSeg.recordCount; i++) {
+                segStart = normalizeNodeName(qSeg.start_name[i]);
+                segEnd = normalizeNodeName(qSeg.end_name[i]);
+                score = matchScore(departNorm, returnNorm, segStart, segEnd);
+                if (score GT bestScore) {
+                    bestScore = score;
+                    bestId = val(qSeg.segment_id[i]);
+                    bestLegOrder = val(qSeg.leg_order[i]);
+                }
+            }
+
+            if (bestScore LT 85 OR bestId LTE 0 OR bestLegOrder LTE 0) {
+                out.MESSAGE = "No confident segment match for this check-in.";
+                out.SCORE = bestScore;
+                return out;
+            }
+
+            queryExecute("
+                INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, status, completed_at)
+                VALUES (:userId, :routeInstanceId, :legOrder, 'COMPLETED', NOW())
+                ON DUPLICATE KEY UPDATE
+                    status = 'COMPLETED',
+                    completed_at = NOW()
+            ", {
+                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" },
+                legOrder = { value = bestLegOrder, cfsqltype = "cf_sql_integer" }
+            }, { datasource = arguments.datasource });
+
+            out.MATCHED = true;
+            out.SEGMENT_ID = bestId;
+            out.SCORE = bestScore;
+            out.MESSAGE = "Segment marked complete from float plan check-in.";
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="matchScore" access="private" returntype="numeric" output="false">
+        <cfargument name="dep" type="string" required="true">
+        <cfargument name="ret" type="string" required="true">
+        <cfargument name="segStart" type="string" required="true">
+        <cfargument name="segEnd" type="string" required="true">
+        <cfscript>
+            if (!len(arguments.dep) OR !len(arguments.ret) OR !len(arguments.segStart) OR !len(arguments.segEnd)) {
+                return 0;
+            }
+            if (arguments.dep EQ arguments.segStart AND arguments.ret EQ arguments.segEnd) {
+                return 100;
+            }
+            if (
+                (
+                    findNoCase(arguments.dep, arguments.segStart) GT 0
+                    OR findNoCase(arguments.segStart, arguments.dep) GT 0
+                )
+                AND
+                (
+                    findNoCase(arguments.ret, arguments.segEnd) GT 0
+                    OR findNoCase(arguments.segEnd, arguments.ret) GT 0
+                )
+            ) {
+                return 85;
+            }
+            return 0;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeNodeName" access="private" returntype="string" output="false">
+        <cfargument name="value" type="any" required="true">
+        <cfscript>
+            var s = lCase(trim(toString(arguments.value)));
+            if (!len(s)) {
+                return "";
+            }
+            s = reReplace(s, "\bst[.]?\b", "saint", "all");
+            s = reReplace(s, "\bmt[.]?\b", "mount", "all");
+            s = reReplace(s, "[^a-z0-9]+", " ", "all");
+            s = reReplace(s, "\s+", " ", "all");
+            return trim(s);
+        </cfscript>
+    </cffunction>
+
+</cfcomponent>
