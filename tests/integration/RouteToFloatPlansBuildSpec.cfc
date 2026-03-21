@@ -19,7 +19,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     }
 
     variables.ctx.baseUrl = scheme & "://" & host & portPart;
-    variables.ctx.generateRouteUrl = variables.ctx.baseUrl & "/fpw/api/v1/routeBuilder.cfc?method=handle&action=generateRoute";
+    variables.ctx.routeBuilderActionBase = variables.ctx.baseUrl & "/fpw/api/v1/routeBuilder.cfc?method=handle&action=";
     variables.ctx.buildFloatPlansUrl = variables.ctx.baseUrl & "/fpw/api/v1/routeBuilder.cfc?method=handle&action=buildFloatPlansFromRoute";
     variables.ctx.floatPlanBootstrapUrl = variables.ctx.baseUrl & "/fpw/api/v1/floatplan.cfc?method=handle&action=bootstrap";
     variables.ctx.floatPlanDeleteUrl = variables.ctx.baseUrl & "/fpw/api/v1/floatplan.cfc?method=handle&action=delete";
@@ -59,19 +59,52 @@ component extends="testbox.system.BaseSpec" output="false" {
           skip( "No vessel available for test user. Provide testVesselId." );
         }
 
-        var genRes = apiPostJson( variables.ctx.generateRouteUrl, {
-          startDate = dateFormat( now(), "yyyy-mm-dd" ),
-          startLocation = "Chicago",
-          endLocation = "Ludington",
-          direction = "CCW",
-          tripType = "POINT_TO_POINT"
+        var optionsRes = apiPostJson( variables.ctx.routeBuilderActionBase & "routegen_getoptions", {
+          direction = "CCW"
         } );
-        expect( pickBool( genRes, "SUCCESS" ) ).toBeTrue( "generateRoute failed: #serializeJSON(genRes)#" );
+        expect( pickBool( optionsRes, "SUCCESS" ) ).toBeTrue( "routegen_getoptions failed: #serializeJSON(optionsRes)#" );
+
+        var optionsData = ( structKeyExists( optionsRes, "DATA" ) && isStruct( optionsRes.DATA ) )
+          ? optionsRes.DATA
+          : {};
+        var templateRow = ( structKeyExists( optionsData, "template" ) && isStruct( optionsData.template ) )
+          ? optionsData.template
+          : {};
+        var templateCode = trim( toString( pickFirst( templateRow, [ "code", "CODE", "short_code", "SHORT_CODE" ], "" ) ) );
+        var startOptions = ( structKeyExists( optionsData, "startOptions" ) && isArray( optionsData.startOptions ) )
+          ? optionsData.startOptions
+          : [];
+        var endOptions = ( structKeyExists( optionsData, "endOptions" ) && isArray( optionsData.endOptions ) )
+          ? optionsData.endOptions
+          : [];
+        expect( len( templateCode ) ).toBeGT( 0, "routegen_getoptions returned no template code: #serializeJSON(optionsRes)#" );
+        expect( arrayLen( startOptions ) ).toBeGT( 0, "routegen_getoptions returned no start options: #serializeJSON(optionsRes)#" );
+        expect( arrayLen( endOptions ) ).toBeGT( 0, "routegen_getoptions returned no end options: #serializeJSON(optionsRes)#" );
+
+        var startSegmentId = val( pickFirst( startOptions[ 1 ], [ "segment_id", "SEGMENT_ID" ], 0 ) );
+        var endChoiceIndex = ( arrayLen( endOptions ) GTE 5 ? 5 : arrayLen( endOptions ) );
+        var endSegmentId = val( pickFirst( endOptions[ endChoiceIndex ], [ "segment_id", "SEGMENT_ID" ], 0 ) );
+        if ( endSegmentId LTE 0 ) endSegmentId = startSegmentId;
+        if ( endSegmentId EQ startSegmentId AND arrayLen( endOptions ) GTE 2 ) {
+          endSegmentId = val( pickFirst( endOptions[ 2 ], [ "segment_id", "SEGMENT_ID" ], endSegmentId ) );
+        }
+        expect( startSegmentId ).toBeGT( 0, "Invalid start segment from routegen_getoptions: #serializeJSON(optionsRes)#" );
+        expect( endSegmentId ).toBeGT( 0, "Invalid end segment from routegen_getoptions: #serializeJSON(optionsRes)#" );
+
+        var genRes = apiPostJson( variables.ctx.routeBuilderActionBase & "routegen_generate", {
+          route_name = "Route To Float Plans Spec " & createUUID(),
+          template_code = templateCode,
+          start_segment_id = startSegmentId,
+          end_segment_id = endSegmentId,
+          start_date = dateFormat( now(), "yyyy-mm-dd" ),
+          direction = "CCW"
+        } );
+        expect( pickBool( genRes, "SUCCESS" ) ).toBeTrue( "routegen_generate failed: #serializeJSON(genRes)#" );
 
         var routeInstanceId = val( pickFirst( genRes, [ "ROUTE_INSTANCE_ID", "route_instance_id", "routeInstanceId" ], 0 ) );
-        expect( routeInstanceId ).toBeGT( 0, "Expected ROUTE_INSTANCE_ID in generateRoute response: #serializeJSON(genRes)#" );
+        expect( routeInstanceId ).toBeGT( 0, "Expected ROUTE_INSTANCE_ID in routegen_generate response: #serializeJSON(genRes)#" );
         var routeCode = trim( toString( pickFirst( genRes, [ "ROUTE_CODE", "route_code", "routeCode" ], "" ) ) );
-        expect( len( routeCode ) ).toBeGT( 0, "Expected ROUTE_CODE in generateRoute response: #serializeJSON(genRes)#" );
+        expect( len( routeCode ) ).toBeGT( 0, "Expected ROUTE_CODE in routegen_generate response: #serializeJSON(genRes)#" );
 
         var buildRes = apiPostJson( variables.ctx.buildFloatPlansUrl, {
           routeCode = routeCode,
@@ -119,7 +152,7 @@ component extends="testbox.system.BaseSpec" output="false" {
       if ( !structKeyExists( session, "user" ) || !isStruct( session.user ) ) {
         session.user = {};
       }
-      if ( !structKeyExists( session.user, "userId" ) || !isNumeric( session.user.userId ) ) {
+      if ( !structKeyExists( session.user, "userId" ) || !isNumeric( session.user.userId ) || val( session.user.userId ) LTE 0 ) {
         var fallbackId = structKeyExists( variables, "ctx" ) && structKeyExists( variables.ctx, "forceUserId" )
           ? variables.ctx.forceUserId
           : 187;
@@ -147,11 +180,27 @@ component extends="testbox.system.BaseSpec" output="false" {
   private array function getSessionCookies() {
     var cookiePairs = [];
     var cookieNames = [ "CFID", "CFTOKEN", "JSESSIONID" ];
+    var runtimeCfid = "";
+    var runtimeCftoken = "";
+    try { runtimeCfid = trim( toString( CFID ) ); } catch ( any _cfidErr ) {}
+    try { runtimeCftoken = trim( toString( CFTOKEN ) ); } catch ( any _cftErr ) {}
+
     for ( var name in cookieNames ) {
+      var cookieVal = "";
       if ( structKeyExists( cookie, name ) ) {
-        arrayAppend( cookiePairs, { name = name, value = cookie[ name ] } );
+        cookieVal = trim( toString( cookie[ name ] ) );
+      } else if ( name EQ "CFID" && len( runtimeCfid ) ) {
+        cookieVal = runtimeCfid;
+      } else if ( name EQ "CFTOKEN" && len( runtimeCftoken ) ) {
+        cookieVal = runtimeCftoken;
+      } else if ( name EQ "JSESSIONID" && structKeyExists( session, "sessionid" ) ) {
+        cookieVal = trim( toString( session.sessionid ) );
+      }
+      if ( len( cookieVal ) ) {
+        arrayAppend( cookiePairs, { name = name, value = cookieVal } );
       }
     }
+
     return cookiePairs;
   }
 

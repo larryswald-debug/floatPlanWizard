@@ -73,18 +73,19 @@
       <a href="/fpw/admin/floatplan-cleanup.cfm">FloatPlan Cleanup</a>
       <a href="/fpw/admin/route-cleanup.cfm">Route Cleanup</a>
       <a href="/fpw/admin/fuel-calculator.cfm" class="active">Fuel Calculator</a>
+      <a href="/fpw/admin/waypoint-manager.cfm">Waypoint Manager</a>
     </nav>
 
     <h1>Admin QA Fuel Calculator</h1>
-    <p class="hint">Dev-only calculator that mirrors FPW route preview formulas for Estimated Days, Estimated Fuel, and Fuel Cost.</p>
+    <p class="hint">Dev-only manual-input calculator that mirrors the Route Generator Cruise Timeline summary math.</p>
 
     <div class="msg info">
       <strong>Notes</strong>
       <ul>
         <li>Fuel burn input is treated as <strong>burn at max speed</strong>.</li>
         <li>Pace ratios: RELAXED=0.25, BALANCED=0.50, AGGRESSIVE=1.00.</li>
-        <li>Reserve fallback: if reserve % is 0/blank, model applies 20%.</li>
-        <li>Rounding behavior follows API model in <code>/api/v1/routeBuilder.cfc</code>.</li>
+        <li>Inputs are manual only; no route/template prefill is applied.</li>
+        <li>Rounding and display behavior follows the Route Generator Cruise Timeline + top-card model.</li>
       </ul>
     </div>
 
@@ -92,7 +93,7 @@
       <div class="grid">
         <div class="field">
           <label for="totalNm">Total distance (NM)</label>
-          <input id="totalNm" name="totalNm" type="number" step="0.1" min="0" value="555">
+          <input id="totalNm" name="totalNm" type="number" step="0.1" min="0" value="" placeholder="Enter NM">
         </div>
         <div class="field">
           <label for="pace">Pace</label>
@@ -104,27 +105,27 @@
         </div>
         <div class="field">
           <label for="maxSpeedKn">Max speed (kn)</label>
-          <input id="maxSpeedKn" name="maxSpeedKn" type="number" step="0.1" min="1" max="60" value="20">
+          <input id="maxSpeedKn" name="maxSpeedKn" type="number" step="0.1" min="1" max="60" value="" placeholder="Enter kn">
         </div>
         <div class="field">
-          <label for="underwayHoursPerDay">Underway hours / day</label>
-          <input id="underwayHoursPerDay" name="underwayHoursPerDay" type="number" step="0.1" min="1" max="24" value="8">
+          <label for="underwayHoursPerDay">Underway hours / day (max)</label>
+          <input id="underwayHoursPerDay" name="underwayHoursPerDay" type="number" step="0.5" min="4" max="12" value="6.5">
         </div>
         <div class="field">
           <label for="fuelBurnGph">Fuel burn at max speed (GPH)</label>
-          <input id="fuelBurnGph" name="fuelBurnGph" type="number" step="0.1" min="0" value="3">
+          <input id="fuelBurnGph" name="fuelBurnGph" type="number" step="0.1" min="0" value="" placeholder="Enter GPH">
         </div>
         <div class="field">
           <label for="idleBurnGph">Idle burn (GPH)</label>
-          <input id="idleBurnGph" name="idleBurnGph" type="number" step="0.1" min="0" value="1">
+          <input id="idleBurnGph" name="idleBurnGph" type="number" step="0.1" min="0" value="" placeholder="Optional">
         </div>
         <div class="field">
           <label for="idleHoursTotal">Idle hours (total)</label>
-          <input id="idleHoursTotal" name="idleHoursTotal" type="number" step="0.1" min="0" value="0">
+          <input id="idleHoursTotal" name="idleHoursTotal" type="number" step="0.1" min="0" value="" placeholder="Optional">
         </div>
         <div class="field">
           <label for="weatherPct">Weather factor (%)</label>
-          <input id="weatherPct" name="weatherPct" type="number" step="1" min="0" max="60" value="5">
+          <input id="weatherPct" name="weatherPct" type="number" step="1" min="0" max="60" value="0">
         </div>
         <div class="field">
           <label for="reservePct">Reserve (%)</label>
@@ -132,14 +133,12 @@
         </div>
         <div class="field">
           <label for="fuelPricePerGal">Fuel price ($/gal)</label>
-          <input id="fuelPricePerGal" name="fuelPricePerGal" type="number" step="0.01" min="0" value="4.99">
+          <input id="fuelPricePerGal" name="fuelPricePerGal" type="number" step="0.01" min="0" value="" placeholder="Optional">
         </div>
       </div>
 
       <div class="actions">
         <button type="button" class="primary" id="calcBtn">Calculate</button>
-        <button type="button" id="exampleCaseBtn">Load Chicago QA Case</button>
-        <button type="button" id="exampleAggressiveBtn">Load Aggressive Example</button>
         <button type="button" id="resetBtn">Reset</button>
         <button type="button" id="copyJsonBtn">Copy Result JSON</button>
       </div>
@@ -149,12 +148,12 @@
       <div class="card">
         <div class="label">Estimated days</div>
         <div class="value" id="cardEstimatedDays">0</div>
-        <div class="sub" id="cardEstimatedDaysSub">Run 0.0h + Idle 0.0h = 0.0h</div>
+        <div class="sub" id="cardEstimatedDaysSub">Enter inputs and press Calculate.</div>
       </div>
       <div class="card">
         <div class="label">Estimated fuel</div>
-        <div class="value" id="cardEstimatedFuel">0.0 gal</div>
-        <div class="sub" id="cardEstimatedFuelSub">Base 0.0 + Reserve (20%) 0.0</div>
+        <div class="value" id="cardEstimatedFuel">-- gal</div>
+        <div class="sub" id="cardEstimatedFuelSub">Required fuel unavailable</div>
       </div>
       <div class="card">
         <div class="label">Fuel cost</div>
@@ -177,198 +176,103 @@
     <pre id="calcJsonOut">{}</pre>
   </div>
 
+  <script src="../assets/js/app/shared/fuel-math.js?v=20260308a"></script>
   <script>
     (function () {
       function q(id) {
         return document.getElementById(id);
       }
 
-      var paceMap = {
-        RELAXED: 0.25,
-        BALANCED: 0.50,
-        AGGRESSIVE: 1.00
-      };
+      var sharedFuelMath = window.FPW && window.FPW.SharedFuelMath ? window.FPW.SharedFuelMath : null;
 
-      function toNum(value) {
+      function safeNum(value) {
         var n = parseFloat(value);
-        return Number.isFinite(n) ? n : 0;
+        return Number.isFinite(n) ? n : null;
       }
 
-      function round2(n) {
-        return Math.round((toNum(n) * 100)) / 100;
+      function formatNumber(value, decimals, fallback) {
+        if (!sharedFuelMath || typeof sharedFuelMath.formatNum !== "function") {
+          var n = safeNum(value);
+          if (!Number.isFinite(n)) return (fallback !== undefined ? String(fallback) : "--");
+          return n.toFixed(typeof decimals === "number" ? decimals : 2);
+        }
+        return sharedFuelMath.formatNum(value, decimals, fallback);
       }
 
-      function round1(n) {
-        return Math.round((toNum(n) * 10)) / 10;
+      function formatCurrency(value, fallback) {
+        if (!sharedFuelMath || typeof sharedFuelMath.formatCurrency !== "function") {
+          var n = safeNum(value);
+          if (!Number.isFinite(n)) return (fallback !== undefined ? String(fallback) : "--");
+          return "$" + n.toFixed(2);
+        }
+        return sharedFuelMath.formatCurrency(value, fallback);
       }
 
-      function clamp(n, minVal, maxVal) {
-        return Math.min(maxVal, Math.max(minVal, n));
-      }
-
-      function formatNumber(value, decimals) {
-        var n = parseFloat(value);
-        if (!Number.isFinite(n)) return "0";
-        var places = (typeof decimals === "number") ? decimals : 0;
-        return n.toLocaleString(undefined, {
-          minimumFractionDigits: places,
-          maximumFractionDigits: places
-        });
-      }
-
-      function formatCurrency(value) {
-        var n = parseFloat(value);
-        if (!Number.isFinite(n)) return "--";
-        return "$" + n.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        });
+      function readInputNumber(id) {
+        var el = q(id);
+        if (!el) return null;
+        var raw = String(el.value || "").trim();
+        if (!raw.length) return null;
+        return safeNum(raw);
       }
 
       function getInputs() {
-        var paceVal = String((q("pace").value || "RELAXED")).toUpperCase();
-        if (!paceMap[paceVal]) paceVal = "RELAXED";
-
-        var maxSpeedRaw = toNum(q("maxSpeedKn").value);
-        if (maxSpeedRaw <= 0) maxSpeedRaw = 20;
-        var maxSpeedKn = round2(clamp(maxSpeedRaw, 1, 60));
-
-        var underwayRaw = toNum(q("underwayHoursPerDay").value);
-        if (underwayRaw <= 0) underwayRaw = 8;
-        var underwayHoursPerDay = clamp(underwayRaw, 1, 24);
-
-        var fuelBurnGph = round2(clamp(toNum(q("fuelBurnGph").value), 0, 1000));
-        var idleBurnGph = round2(clamp(toNum(q("idleBurnGph").value), 0, 1000));
-        var idleHoursTotal = round2(clamp(toNum(q("idleHoursTotal").value), 0, 10000));
-        var weatherPct = round2(clamp(toNum(q("weatherPct").value), 0, 60));
-        var reservePct = round2(clamp(toNum(q("reservePct").value), 0, 100));
-        var fuelPricePerGal = round2(clamp(toNum(q("fuelPricePerGal").value), 0, 1000));
-        var totalNm = Math.max(0, toNum(q("totalNm").value));
+        var paceRaw = String((q("pace").value || "RELAXED")).trim().toUpperCase();
+        var pace = (sharedFuelMath && typeof sharedFuelMath.normalizePaceKey === "function")
+          ? sharedFuelMath.normalizePaceKey(paceRaw)
+          : paceRaw;
 
         return {
-          totalNm: totalNm,
-          pace: paceVal,
-          maxSpeedKn: maxSpeedKn,
-          underwayHoursPerDay: underwayHoursPerDay,
-          fuelBurnGph: fuelBurnGph,
-          idleBurnGph: idleBurnGph,
-          idleHoursTotal: idleHoursTotal,
-          weatherPct: weatherPct,
-          reservePct: reservePct,
-          fuelPricePerGal: fuelPricePerGal
+          pace: pace,
+          distanceNm: readInputNumber("totalNm"),
+          maxSpeedKn: readInputNumber("maxSpeedKn"),
+          maxHoursPerDay: readInputNumber("underwayHoursPerDay"),
+          fuelBurnGph: readInputNumber("fuelBurnGph"),
+          idleBurnGph: readInputNumber("idleBurnGph"),
+          idleHoursTotal: readInputNumber("idleHoursTotal"),
+          weatherFactorPct: readInputNumber("weatherPct"),
+          reservePct: readInputNumber("reservePct"),
+          fuelPricePerGal: readInputNumber("fuelPricePerGal")
         };
       }
 
-      function calculateModel(input) {
-        var paceFactor = paceMap[input.pace] || 0.25;
-        var weatherAdj = input.weatherPct / 100;
-        var reservePctApplied = input.reservePct > 0 ? input.reservePct : 20;
+      function renderCards(model) {
+        var estimatedDays = safeNum(model.displayedDays);
+        var requiredFuel = safeNum(model.requiredFuelForSummary);
+        var fuelCost = safeNum(model.fuelCostEstimate);
+        var fuelPricePerGal = safeNum(model.fuelPricePerGal);
 
-        var effectiveSpeedKn = round2(input.maxSpeedKn * paceFactor);
-        var weatherAdjustedSpeedKn = round2(effectiveSpeedKn * (1 - weatherAdj));
-        if (weatherAdjustedSpeedKn < 0.5) weatherAdjustedSpeedKn = 0.5;
+        q("cardEstimatedDays").textContent = (estimatedDays !== null ? String(Math.max(0, Math.round(estimatedDays))) : "0");
+        q("cardEstimatedDaysSub").textContent = String(model.estimatedDaysSubText || "Cruise Timeline estimate");
 
-        var runHoursRaw = (input.totalNm > 0 && weatherAdjustedSpeedKn > 0)
-          ? (input.totalNm / weatherAdjustedSpeedKn)
-          : 0;
-        var runHours = round2(runHoursRaw);
-        var totalHoursRaw = runHoursRaw + input.idleHoursTotal;
-        var totalHours = round2(totalHoursRaw);
-        var estimatedDays = 0;
-        if (totalHoursRaw > 0) {
-          estimatedDays = Math.ceil(totalHoursRaw / input.underwayHoursPerDay);
-          if (estimatedDays < 1) estimatedDays = 1;
+        if (requiredFuel !== null && requiredFuel >= 0) {
+          q("cardEstimatedFuel").textContent = formatNumber(requiredFuel, 1, "--") + " gal";
+        } else {
+          q("cardEstimatedFuel").textContent = "-- gal";
         }
+        q("cardEstimatedFuelSub").textContent = String(model.estimatedFuelSubText || "Required fuel unavailable");
 
-        // Matches routegenComputeTotals (1 decimal at this stage) before calculateFuelEstimate().
-        var idleFuelGallonsPre = 0;
-        if (input.idleBurnGph > 0 && input.idleHoursTotal > 0) {
-          idleFuelGallonsPre = Math.round((input.idleBurnGph * input.idleHoursTotal) * 10) / 10;
-        }
-
-        var paceAdjustedBurnGph = 0;
-        var weatherAdjustedBurnGph = 0;
-        var cruiseHours = 0;
-        var cruiseFuelGallons = 0;
-        var idleFuelGallons = 0;
-        var baseFuelGallons = 0;
-        var reserveFuelGallons = 0;
-        var requiredFuelGallons = 0;
-        var fuelCostUsd = 0;
-
-        // Mirrors calculateFuelEstimate() guard: returns zeros when distance/maxSpeed/maxBurn is not valid.
-        if (input.totalNm > 0 && input.maxSpeedKn > 0 && input.fuelBurnGph > 0) {
-          paceAdjustedBurnGph = round2(input.fuelBurnGph * Math.pow(paceFactor, 3));
-          weatherAdjustedBurnGph = round2(paceAdjustedBurnGph * (1 + weatherAdj));
-          cruiseHours = round2(input.totalNm / weatherAdjustedSpeedKn);
-          cruiseFuelGallons = round2(cruiseHours * weatherAdjustedBurnGph);
-          idleFuelGallons = round2(idleFuelGallonsPre);
-          baseFuelGallons = round2(cruiseFuelGallons + idleFuelGallons);
-          reserveFuelGallons = round2(baseFuelGallons * (reservePctApplied / 100));
-          requiredFuelGallons = round2(baseFuelGallons + reserveFuelGallons);
-          fuelCostUsd = input.fuelPricePerGal > 0
-            ? (Math.round((requiredFuelGallons * input.fuelPricePerGal) * 100) / 100)
-            : 0;
-        }
-
-        return {
-          input: input,
-          paceFactor: paceFactor,
-          reservePctApplied: reservePctApplied,
-          effectiveSpeedKn: effectiveSpeedKn,
-          weatherAdjustedSpeedKn: weatherAdjustedSpeedKn,
-          runHours: runHours,
-          totalHours: totalHours,
-          estimatedDays: estimatedDays,
-          paceAdjustedBurnGph: paceAdjustedBurnGph,
-          weatherAdjustedBurnGph: weatherAdjustedBurnGph,
-          cruiseHours: cruiseHours,
-          cruiseFuelGallons: cruiseFuelGallons,
-          idleFuelGallons: idleFuelGallons,
-          baseFuelGallons: baseFuelGallons,
-          reserveFuelGallons: reserveFuelGallons,
-          requiredFuelGallons: requiredFuelGallons,
-          fuelCostUsd: fuelCostUsd
-        };
-      }
-
-      function renderCards(result) {
-        q("cardEstimatedDays").textContent = String(result.estimatedDays);
-        q("cardEstimatedDaysSub").textContent =
-          "Run " + formatNumber(result.runHours, 1)
-          + "h + Idle " + formatNumber(result.input.idleHoursTotal, 1)
-          + "h = " + formatNumber(result.totalHours, 1) + "h";
-
-        q("cardEstimatedFuel").textContent = formatNumber(result.requiredFuelGallons, 1) + " gal";
-        q("cardEstimatedFuelSub").textContent =
-          "Base " + formatNumber(result.baseFuelGallons, 1)
-          + " + Reserve (" + formatNumber(result.reservePctApplied, 0) + "%) "
-          + formatNumber(result.reserveFuelGallons, 1);
-
-        if (result.input.fuelPricePerGal > 0) {
-          q("cardFuelCost").textContent = formatCurrency(result.fuelCostUsd);
-          q("cardFuelCostSub").textContent = "Required fuel x $" + formatNumber(result.input.fuelPricePerGal, 2) + "/gal";
+        if (fuelCost !== null && fuelCost >= 0 && fuelPricePerGal !== null && fuelPricePerGal > 0) {
+          q("cardFuelCost").textContent = formatCurrency(fuelCost, "--");
         } else {
           q("cardFuelCost").textContent = "--";
-          q("cardFuelCostSub").textContent = "Enter fuel price to estimate";
         }
+        q("cardFuelCostSub").textContent = String(model.fuelCostSubText || "Enter fuel price to estimate");
       }
 
-      function renderBreakdown(result) {
+      function renderBreakdown(model) {
+        var manual = (model.manual && typeof model.manual === "object") ? model.manual : {};
         var rows = [
-          ["Pace factor", formatNumber(result.paceFactor, 2), "RELAXED=0.25, BALANCED=0.50, AGGRESSIVE=1.00"],
-          ["Effective speed (kn)", formatNumber(result.effectiveSpeedKn, 2), "round2(maxSpeed * paceFactor)"],
-          ["Weather-adjusted speed (kn)", formatNumber(result.weatherAdjustedSpeedKn, 2), "round2(effectiveSpeed * (1 - weatherPct/100)), min 0.5"],
-          ["Run hours", formatNumber(result.runHours, 2), "totalNm / weatherAdjustedSpeed"],
-          ["Estimated days", formatNumber(result.estimatedDays, 0), "ceil((runHours + idleHoursTotal) / underwayHoursPerDay), min 1 when > 0"],
-          ["Pace-adjusted burn (GPH)", formatNumber(result.paceAdjustedBurnGph, 2), "round2(maxBurn * paceFactor^3)"],
-          ["Weather-adjusted burn (GPH)", formatNumber(result.weatherAdjustedBurnGph, 2), "round2(paceAdjustedBurn * (1 + weatherPct/100))"],
-          ["Cruise fuel (gal)", formatNumber(result.cruiseFuelGallons, 2), "round2(cruiseHours * weatherAdjustedBurn)"],
-          ["Idle fuel (gal)", formatNumber(result.idleFuelGallons, 2), "round1(idleBurn * idleHours) then round2"],
-          ["Base fuel (gal)", formatNumber(result.baseFuelGallons, 2), "round2(cruiseFuel + idleFuel)"],
-          ["Reserve fuel (gal)", formatNumber(result.reserveFuelGallons, 2), "round2(baseFuel * reservePctApplied/100)"],
-          ["Required fuel (gal)", formatNumber(result.requiredFuelGallons, 2), "round2(baseFuel + reserveFuel)"],
-          ["Fuel cost (USD)", formatNumber(result.fuelCostUsd, 2), "round2(requiredFuel * fuelPricePerGal) if price > 0"]
+          ["Cruise Timeline calc line", String(model.calcLine || "Calc: n/a"), "Canonical Route Generator header model"],
+          ["Pace factor", formatNumber(manual.paceFactor, 2, "n/a"), "RELAXED=0.25, BALANCED=0.50, AGGRESSIVE=1.00"],
+          ["Effective speed (kn)", formatNumber(manual.effectiveSpeedKn, 2, "n/a"), "max speed x pace factor"],
+          ["Weather-adjusted speed (kn)", formatNumber(manual.adjustedSpeedKn, 2, "n/a"), "effective speed x (1 - weather factor)"],
+          ["Cruise hours", formatNumber(model.totalHours, 2, "n/a"), "distance / weather-adjusted speed"],
+          ["Estimated days", formatNumber(model.displayedDays, 0, "0"), "ceil(cruise hours / max underway hours/day)"],
+          ["Base fuel (gal)", formatNumber(model.baseFuelForSummary, 2, "n/a"), "cruise hours x burn at max speed"],
+          ["Reserve fuel (gal)", formatNumber(model.reserveFuelForSummary, 2, "n/a"), "base fuel x reserve percent"],
+          ["Required fuel (gal)", formatNumber(model.requiredFuelForSummary, 2, "n/a"), "base fuel + reserve"],
+          ["Fuel cost (USD)", formatNumber(model.fuelCostEstimate, 2, "--"), "required fuel x price/gal"]
         ];
 
         q("calcBreakdownBody").innerHTML = rows.map(function (row) {
@@ -380,92 +284,73 @@
         }).join("");
       }
 
-      function renderJson(result) {
+      function renderJson(model, inputs) {
+        var manual = (model.manual && typeof model.manual === "object") ? model.manual : {};
         q("calcJsonOut").textContent = JSON.stringify({
           cards: {
-            estimated_days: result.estimatedDays,
-            estimated_fuel_gallons: round1(result.requiredFuelGallons),
-            fuel_cost_usd: result.fuelCostUsd
+            estimated_days: (safeNum(model.displayedDays) !== null ? Math.max(0, Math.round(model.displayedDays)) : 0),
+            estimated_fuel_gallons: safeNum(model.requiredFuelForSummary),
+            fuel_cost_usd: safeNum(model.fuelCostEstimate)
           },
-          totals: {
-            total_nm: result.input.totalNm,
-            run_hours: result.runHours,
-            idle_hours: result.input.idleHoursTotal,
-            total_hours: result.totalHours,
-            base_fuel_gallons: result.baseFuelGallons,
-            reserve_fuel_gallons: result.reserveFuelGallons,
-            required_fuel_gallons: result.requiredFuelGallons
+          canonical_summary: {
+            calc_line: String(model.calcLine || "Calc: n/a"),
+            total_nm: safeNum(model.totalNm),
+            total_hours: safeNum(model.totalHours),
+            base_fuel_gallons: safeNum(model.baseFuelForSummary),
+            reserve_fuel_gallons: safeNum(model.reserveFuelForSummary),
+            required_fuel_gallons: safeNum(model.requiredFuelForSummary)
           },
-          model: {
-            pace: result.input.pace,
-            pace_factor: result.paceFactor,
-            max_speed_kn: result.input.maxSpeedKn,
-            effective_speed_kn: result.effectiveSpeedKn,
-            weather_adjusted_speed_kn: result.weatherAdjustedSpeedKn,
-            fuel_burn_gph: result.input.fuelBurnGph,
-            pace_adjusted_burn_gph: result.paceAdjustedBurnGph,
-            weather_adjusted_burn_gph: result.weatherAdjustedBurnGph,
-            weather_pct: result.input.weatherPct,
-            reserve_pct_applied: result.reservePctApplied,
-            fuel_price_per_gal: result.input.fuelPricePerGal
-          }
+          inputs: inputs,
+          derived: manual
         }, null, 2);
       }
 
+      function renderError(message) {
+        q("cardEstimatedDays").textContent = "0";
+        q("cardEstimatedFuel").textContent = "-- gal";
+        q("cardFuelCost").textContent = "--";
+        q("cardEstimatedDaysSub").textContent = String(message || "Calculation unavailable.");
+        q("cardEstimatedFuelSub").textContent = "Required fuel unavailable";
+        q("cardFuelCostSub").textContent = "Enter fuel price to estimate";
+        q("calcBreakdownBody").innerHTML = "<tr><td>Calculator</td><td class=\"num\">Unavailable</td><td>" + String(message || "Shared fuel math helper is missing.") + "</td></tr>";
+        q("calcJsonOut").textContent = JSON.stringify({ error: String(message || "Shared fuel math helper is missing.") }, null, 2);
+      }
+
       function run() {
+        if (!sharedFuelMath || typeof sharedFuelMath.buildManualSummaryModel !== "function") {
+          renderError("Shared helper missing: /assets/js/app/shared/fuel-math.js");
+          return;
+        }
         var inputs = getInputs();
-        var result = calculateModel(inputs);
-        renderCards(result);
-        renderBreakdown(result);
-        renderJson(result);
+        var model = sharedFuelMath.buildManualSummaryModel(inputs);
+        renderCards(model);
+        renderBreakdown(model);
+        renderJson(model, inputs);
       }
 
-      function setExampleQaCase() {
-        q("totalNm").value = "555";
+      function resetInputs() {
+        q("totalNm").value = "";
         q("pace").value = "RELAXED";
-        q("maxSpeedKn").value = "20";
-        q("underwayHoursPerDay").value = "8";
-        q("fuelBurnGph").value = "3";
-        q("idleBurnGph").value = "1";
-        q("idleHoursTotal").value = "0";
-        q("weatherPct").value = "5";
-        q("reservePct").value = "20";
-        q("fuelPricePerGal").value = "4.99";
-        run();
-      }
-
-      function setExampleAggressive() {
-        q("totalNm").value = "555";
-        q("pace").value = "AGGRESSIVE";
-        q("maxSpeedKn").value = "20";
-        q("underwayHoursPerDay").value = "8";
-        q("fuelBurnGph").value = "3";
-        q("idleBurnGph").value = "1";
-        q("idleHoursTotal").value = "10";
-        q("weatherPct").value = "5";
-        q("reservePct").value = "20";
-        q("fuelPricePerGal").value = "4.99";
-        run();
-      }
-
-      function resetDefaults() {
-        q("totalNm").value = "0";
-        q("pace").value = "BALANCED";
-        q("maxSpeedKn").value = "20";
-        q("underwayHoursPerDay").value = "8";
-        q("fuelBurnGph").value = "0";
-        q("idleBurnGph").value = "0";
-        q("idleHoursTotal").value = "0";
+        q("maxSpeedKn").value = "";
+        q("underwayHoursPerDay").value = "6.5";
+        q("fuelBurnGph").value = "";
+        q("idleBurnGph").value = "";
+        q("idleHoursTotal").value = "";
         q("weatherPct").value = "0";
         q("reservePct").value = "20";
-        q("fuelPricePerGal").value = "0";
-        run();
+        q("fuelPricePerGal").value = "";
+        q("calcBreakdownBody").innerHTML = "";
+        q("calcJsonOut").textContent = "{}";
+        q("cardEstimatedDays").textContent = "0";
+        q("cardEstimatedDaysSub").textContent = "Enter inputs and press Calculate.";
+        q("cardEstimatedFuel").textContent = "-- gal";
+        q("cardEstimatedFuelSub").textContent = "Required fuel unavailable";
+        q("cardFuelCost").textContent = "--";
+        q("cardFuelCostSub").textContent = "Enter fuel price to estimate";
       }
 
       q("calcBtn").addEventListener("click", run);
-      q("exampleCaseBtn").addEventListener("click", setExampleQaCase);
-      q("exampleAggressiveBtn").addEventListener("click", setExampleAggressive);
-      q("resetBtn").addEventListener("click", resetDefaults);
+      q("resetBtn").addEventListener("click", resetInputs);
       q("copyJsonBtn").addEventListener("click", function () {
         var text = q("calcJsonOut").textContent || "";
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -484,7 +369,7 @@
         el.addEventListener("change", run);
       });
 
-      setExampleQaCase();
+      resetInputs();
     })();
   </script>
 </body>

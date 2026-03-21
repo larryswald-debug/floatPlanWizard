@@ -5,17 +5,23 @@
   window.FPW.DashboardModules = window.FPW.DashboardModules || {};
 
   var utils = window.FPW.DashboardUtils || {};
+  var sharedFuelMath = window.FPW.SharedFuelMath || {};
   var BASE_PATH = window.FPW_BASE || "";
 
   var PACE_PRESETS = [
     { key: "RELAXED", label: "Relaxed", factor: 0.25 },
-    { key: "BALANCED", label: "Balanced", factor: 0.50 },
-    { key: "AGGRESSIVE", label: "Aggressive", factor: 1.00 }
+    { key: "BALANCED", label: "Efficient Speed", factor: 0.50 },
+    { key: "AGGRESSIVE", label: "Max Speed", factor: 1.00 }
   ];
   var DEFAULT_MAX_SPEED_KN = 20;
   var DEFAULT_WEATHER_FACTOR_PCT = 0;
-  var DEFAULT_RESERVE_PCT = 20;
+  var DEFAULT_RESERVE_PCT = 33;
+  var DEFAULT_UNDERWAY_HOURS_PER_DAY = 6.5;
   var FUEL_BURN_BASIS_MAX = "MAX_SPEED";
+  var MAX_ENDPOINT_FIT_NM = 1200;
+  var LEG_MAP_FIT_MAX_ZOOM = 12;
+  var LEG_MAP_POST_OPEN_FIT_DELAY_MS = 300;
+  var LEG_MAP_POST_OPEN_REFIT_SECOND_DELAY_MS = 650;
 
   var dom = {};
   var modal = null;
@@ -24,6 +30,8 @@
     templates: [],
     activeTemplateCode: "",
     activeTemplateIsLoop: true,
+    availableVessels: [],
+    selectedVesselId: 0,
     options: {
       startOptions: [],
       endOptions: [],
@@ -32,20 +40,91 @@
     selectedStopCodes: {},
     userId: "",
     userIdPromise: null,
+    homePortZip: "",
     optionReqSeq: 0,
     previewReqSeq: 0,
     previewTimer: 0,
     manualOverrides: {
       cruisingSpeed: false
     },
+    vesselDefaults: {
+      maxSpeedKn: 0,
+      mostEfficientSpeedKn: 0,
+      gphAtMostEfficientSpeed: 0,
+      gphAtMaxSpeed: 0
+    },
     freshStartSession: false,
     modalMode: "generator",
     pendingDraft: null,
     lastGeneratedRouteCode: "",
     activeRouteCode: "",
+    activeRouteId: 0,
+    activeRouteType: "generated",
+    selectedLegContext: "routegen",
     modalInitSeq: 0,
     editorBaseline: null,
-    suppressAutoSelectOnce: false
+    suppressAutoSelectOnce: false,
+    previewLegs: [],
+    previewSummary: {
+      totalNm: 0,
+      estimatedDays: 0,
+      estimatedFuelGallons: NaN
+    },
+    myRoutes: {
+      available: false,
+      pendingCount: 0,
+      routes: [],
+      activeRouteId: 0,
+      activeRouteName: "",
+      legs: [],
+      waypoints: [],
+      startWaypointId: 0
+    },
+    selectedLegOrder: 0,
+    selectedLegData: null,
+    selectedLegHasOverride: false,
+    selectedLegSource: "default",
+    lockPanel: {
+      expandedOrder: 0,
+      loadingOrder: 0,
+      requestSeq: 0,
+      detailByOrder: {},
+      errorByOrder: {}
+    },
+    legMapClearIntent: false,
+    legMapDraftPoints: [],
+    legMapLoadSeq: 0,
+    legEndpointCacheByKey: {},
+    closeGeneratorOnGenerate: true,
+    weatherAssist: {
+      requestSeq: 0,
+      loading: false,
+      suggestedPct: null,
+      confidence: "",
+      metaText: "",
+      factorsText: "",
+      unavailableReason: "",
+      envelope: null,
+      zip: ""
+    },
+    cruiseTimeline: {
+      requestSeq: 0,
+      maxHoursPerDay: DEFAULT_UNDERWAY_HOURS_PER_DAY,
+      lastRouteId: 0,
+      lastStartDate: "",
+      status: "idle",
+      message: "",
+      payload: null
+    },
+    legMap: {
+      map: null,
+      drawnItems: null,
+      activeLayer: null,
+      searchMarker: null,
+      startMarker: null,
+      endMarker: null,
+      initialized: false
+    }
   };
 
   function isActiveModalInit(seq) {
@@ -84,6 +163,829 @@
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     });
+  }
+
+  function safeVal(value) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n)) return null;
+    return n;
+  }
+
+  function updateDerivedSummaryCards() {
+    var timelinePayload = state.cruiseTimeline && state.cruiseTimeline.payload && typeof state.cruiseTimeline.payload === "object"
+      ? state.cruiseTimeline.payload
+      : null;
+    if (timelinePayload) return;
+
+    var adjustedSpeedKn = safeVal(getAdjustedCruisingSpeedKn());
+    var fuelBurnModel = getFuelBurnModelValues();
+    var expectedAvgGph = (
+      fuelBurnModel
+      && Number.isFinite(fuelBurnModel.resolvedBurnInput)
+      && fuelBurnModel.resolvedBurnInput > 0
+    )
+      ? safeVal(fuelBurnModel.weatherAdjustedBurn)
+      : null;
+
+    if (dom.adjustedSpeedEl) {
+      if (adjustedSpeedKn !== null && adjustedSpeedKn > 0) {
+        dom.adjustedSpeedEl.innerHTML = formatNumber(adjustedSpeedKn, 2) + " <small>kn</small>";
+      } else {
+        dom.adjustedSpeedEl.innerHTML = "-- <small>kn</small>";
+      }
+    }
+    if (dom.adjustedSpeedSubEl) {
+      dom.adjustedSpeedSubEl.textContent = "Pace + weather adjusted";
+    }
+    if (dom.expectedAvgGphEl) {
+      if (expectedAvgGph !== null && expectedAvgGph >= 0) {
+        dom.expectedAvgGphEl.innerHTML = formatNumber(expectedAvgGph, 2) + " <small>GPH</small>";
+      } else {
+        dom.expectedAvgGphEl.innerHTML = "-- <small>GPH</small>";
+      }
+    }
+    if (dom.expectedAvgGphSubEl) {
+      dom.expectedAvgGphSubEl.textContent = "Current pace + weather burn";
+    }
+  }
+
+  function buildCruiseTimelineSummaryModel(timelinePayload, uiInputs) {
+    if (sharedFuelMath && typeof sharedFuelMath.buildCruiseTimelineSummaryModel === "function") {
+      return sharedFuelMath.buildCruiseTimelineSummaryModel(timelinePayload, uiInputs);
+    }
+    return {
+      calcLine: "Calc: n/a",
+      totalNm: null,
+      totalHours: null,
+      maxHoursPerDay: null,
+      displayedDays: null,
+      totalLocks: null,
+      adjSpeedKn: null,
+      fuelBurnGph: null,
+      reservePct: null,
+      baseFuelForSummary: null,
+      reserveFuelForSummary: null,
+      requiredFuelForSummary: null,
+      fuelPricePerGal: null,
+      fuelCostEstimate: null,
+      estimatedDaysSubText: "Cruise Timeline estimate",
+      estimatedFuelSubText: "Required fuel unavailable",
+      fuelCostSubText: "Enter fuel price to estimate"
+    };
+  }
+
+  function calcLineFromTimeline(timelinePayload, uiInputs) {
+    return buildCruiseTimelineSummaryModel(timelinePayload, uiInputs).calcLine;
+  }
+
+  function applyCruiseTimelineSummaryToCards(summaryModel, uiInputs) {
+    var model = (summaryModel && typeof summaryModel === "object") ? summaryModel : {};
+    var ui = (uiInputs && typeof uiInputs === "object") ? uiInputs : {};
+    var totalNm = safeVal(model.totalNm);
+    var displayedDays = safeVal(model.displayedDays);
+    var totalLocks = safeVal(model.totalLocks);
+    var adjustedSpeedKn = safeVal(model.adjSpeedKn);
+    var expectedAvgGph = safeVal(model.weatherAdjustedBurnGph);
+    var requiredFuel = safeVal(model.requiredFuelForSummary);
+    var fuelPricePerGal = safeVal(model.fuelPricePerGal);
+    var estimatedDaysSubText = String(model.estimatedDaysSubText || "Cruise Timeline estimate");
+    var estimatedFuelSubText = String(model.estimatedFuelSubText || "Required fuel unavailable");
+    var fuelCostSubText = String(model.fuelCostSubText || "Enter fuel price to estimate");
+    var estimatedDays = Number.isFinite(displayedDays) ? Math.max(0, Math.round(displayedDays)) : null;
+    var fuelCostEstimate = safeVal(model.fuelCostEstimate);
+
+    if (fuelPricePerGal === null) {
+      fuelPricePerGal = safeVal(ui.fuelPricePerGal);
+    }
+
+    if (fuelCostEstimate === null && requiredFuel !== null && fuelPricePerGal !== null && fuelPricePerGal > 0) {
+      fuelCostEstimate = roundTo2(requiredFuel * fuelPricePerGal);
+    }
+
+    if (!state.previewSummary || typeof state.previewSummary !== "object") {
+      state.previewSummary = {};
+    }
+    if (totalNm !== null) {
+      state.previewSummary.totalNm = roundTo2(totalNm);
+    }
+    if (estimatedDays !== null) {
+      state.previewSummary.estimatedDays = estimatedDays;
+    }
+    state.previewSummary.estimatedFuelGallons = (
+      requiredFuel !== null && requiredFuel >= 0
+        ? roundTo2(requiredFuel)
+        : NaN
+    );
+
+    if (dom.totalNmEl && totalNm !== null) {
+      dom.totalNmEl.innerHTML = formatNumber(totalNm, 1) + " <small>NM</small>";
+    }
+    if (dom.estimatedDaysEl && estimatedDays !== null) {
+      dom.estimatedDaysEl.textContent = String(estimatedDays);
+    }
+    if (dom.lockCountEl && totalLocks !== null) {
+      dom.lockCountEl.textContent = String(Math.max(0, Math.round(totalLocks)));
+    }
+    if (dom.estimatedFuelEl) {
+      if (requiredFuel !== null && requiredFuel >= 0) {
+        dom.estimatedFuelEl.innerHTML = formatNumber(requiredFuel, 1) + " <small>gal</small>";
+      } else {
+        dom.estimatedFuelEl.innerHTML = "-- <small>gal</small>";
+      }
+    }
+    if (dom.fuelCostEl) {
+      if (fuelCostEstimate !== null && fuelCostEstimate >= 0 && fuelPricePerGal !== null && fuelPricePerGal > 0) {
+        dom.fuelCostEl.innerHTML = formatCurrency(fuelCostEstimate) + " <small>USD</small>";
+      } else {
+        dom.fuelCostEl.innerHTML = "-- <small>USD</small>";
+      }
+    }
+    if (dom.adjustedSpeedEl) {
+      if (adjustedSpeedKn !== null && adjustedSpeedKn > 0) {
+        dom.adjustedSpeedEl.innerHTML = formatNumber(adjustedSpeedKn, 2) + " <small>kn</small>";
+      } else {
+        dom.adjustedSpeedEl.innerHTML = "-- <small>kn</small>";
+      }
+    }
+    if (dom.adjustedSpeedSubEl) {
+      dom.adjustedSpeedSubEl.textContent = "Pace + weather adjusted";
+    }
+    if (dom.expectedAvgGphEl) {
+      if (expectedAvgGph !== null && expectedAvgGph >= 0) {
+        dom.expectedAvgGphEl.innerHTML = formatNumber(expectedAvgGph, 2) + " <small>GPH</small>";
+      } else {
+        dom.expectedAvgGphEl.innerHTML = "-- <small>GPH</small>";
+      }
+    }
+    if (dom.expectedAvgGphSubEl) {
+      dom.expectedAvgGphSubEl.textContent = "Current pace + weather burn";
+    }
+
+    if (dom.estimatedDaysSubEl) dom.estimatedDaysSubEl.textContent = estimatedDaysSubText;
+    if (dom.estimatedFuelSubEl) dom.estimatedFuelSubEl.textContent = estimatedFuelSubText;
+    if (dom.fuelCostSubEl) dom.fuelCostSubEl.textContent = fuelCostSubText;
+
+    updatePaceLabel();
+    syncTimelineRouteTotalLine();
+  }
+
+  function clampCruiseTimelineHours(value) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n) || n <= 0) n = DEFAULT_UNDERWAY_HOURS_PER_DAY;
+    if (n < 1) n = 1;
+    if (n > 24) n = 24;
+    return Math.round(n * 2) / 2;
+  }
+
+  function formatCruiseTimelineHoursInput(value) {
+    var n = clampCruiseTimelineHours(value);
+    if (Math.abs(n - Math.round(n)) < 0.001) return String(Math.round(n));
+    return n.toFixed(1);
+  }
+
+  function getUnderwayHoursFieldRawValue() {
+    var inputEl = dom.underwayHoursEl || document.getElementById("routeGenUnderwayHoursPerDay");
+    if (inputEl) {
+      dom.underwayHoursEl = inputEl;
+      return String(inputEl.value || "").trim();
+    }
+    return "";
+  }
+
+  function syncCruiseTimelineMaxHoursField(value) {
+    var inputEl = dom.cruiseTimelineMaxHoursEl || document.getElementById("routeGenTimelineMaxHours");
+    if (!inputEl) return;
+    dom.cruiseTimelineMaxHoursEl = inputEl;
+    inputEl.value = formatCruiseTimelineHoursInput(value);
+  }
+
+  function getCanonicalUnderwayHoursPerDay() {
+    var rawValue = getUnderwayHoursFieldRawValue();
+    var normalized = clampCruiseTimelineHours(rawValue);
+    var formatted = formatCruiseTimelineHoursInput(normalized);
+
+    state.cruiseTimeline.maxHoursPerDay = normalized;
+    if (dom.underwayHoursEl && rawValue) {
+      dom.underwayHoursEl.value = formatted;
+    }
+    syncCruiseTimelineMaxHoursField(normalized);
+    return normalized;
+  }
+
+  function isValidCruiseStartDate(value) {
+    return /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(String(value || "").trim());
+  }
+
+  function toOneDecimal(value) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n)) return 0;
+    return Math.round(n * 10) / 10;
+  }
+
+  function toConfidenceInt(value) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n)) n = 0;
+    n = Math.round(n);
+    if (n < 0) n = 0;
+    if (n > 100) n = 100;
+    return n;
+  }
+
+  function timelineRiskBadgeClass(riskColor) {
+    var risk = String(riskColor || "").trim().toUpperCase();
+    if (risk === "RED") return "bg-danger";
+    if (risk === "YELLOW") return "bg-warning text-dark";
+    return "bg-success";
+  }
+
+  function getCruiseTimelineMaxHoursFromUi() {
+    return getCanonicalUnderwayHoursPerDay();
+  }
+
+  function extractApiMessage(payload, fallback) {
+    var message = "";
+    if (payload && typeof payload === "object") {
+      if (payload.message !== undefined && payload.message !== null) message = String(payload.message);
+      else if (payload.MESSAGE !== undefined && payload.MESSAGE !== null) message = String(payload.MESSAGE);
+      else if (payload.error && typeof payload.error === "object" && payload.error.message !== undefined && payload.error.message !== null) message = String(payload.error.message);
+      else if (payload.ERROR && typeof payload.ERROR === "object" && payload.ERROR.MESSAGE !== undefined && payload.ERROR.MESSAGE !== null) message = String(payload.ERROR.MESSAGE);
+    }
+    message = message.trim();
+    return message || fallback || "Request failed.";
+  }
+
+  function removeLegacyCruiseTimelineContainer() {
+    var legacyEl = document.getElementById("fpwCruiseTimeline");
+    if (legacyEl && legacyEl.parentNode) {
+      legacyEl.parentNode.removeChild(legacyEl);
+    }
+    if (dom.cruiseTimelineEl === legacyEl) {
+      dom.cruiseTimelineEl = null;
+    }
+    dom.cruiseTimelineMaxHoursEl = null;
+    dom.cruiseTimelineRebuildBtn = null;
+  }
+
+  function scrollPreviewTimelineIntoView() {
+    var scrollEl = dom.rightScrollEl || (dom.root ? dom.root.querySelector(".rg-right-scroll") : null);
+    var targetEl = dom.legLayoutEl || document.getElementById("routeGenLegLayout");
+    var scrollToTimeline = function () {
+      if (!scrollEl || !targetEl) return;
+      scrollEl.scrollTop = Math.max(0, targetEl.offsetTop - 8);
+    };
+
+    if (!scrollEl || !targetEl) return;
+
+    scrollToTimeline();
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(scrollToTimeline);
+    }
+    window.setTimeout(scrollToTimeline, 120);
+  }
+
+  function refreshExpandedLegPanel() {
+    var expandedOrder = toInt(state.lockPanel.expandedOrder, 0);
+    var selectedOrder = toInt(state.selectedLegOrder, 0);
+    if (!Array.isArray(state.previewLegs) || !state.previewLegs.length) return;
+    renderLegs(state.previewLegs);
+    if (selectedOrder > 0) {
+      selectLegRow(selectedOrder);
+      return;
+    }
+    if (expandedOrder > 0) {
+      selectLegRow(expandedOrder);
+    }
+  }
+
+  function normalizeCruiseTimelineSegmentIds(segmentIds) {
+    if (!Array.isArray(segmentIds)) return [];
+    return segmentIds.map(function (id) {
+      return toInt(id, 0);
+    }).filter(function (id) {
+      return id > 0;
+    });
+  }
+
+  function normalizeCruiseTimelineSegmentSlices(segmentSlices) {
+    if (!Array.isArray(segmentSlices)) return [];
+    return segmentSlices.map(function (row) {
+      var item = (row && typeof row === "object") ? row : {};
+      return {
+        sourceId: toInt(item.source_id !== undefined ? item.source_id : item.SOURCE_ID, 0),
+        routeLegId: toInt(item.route_leg_id !== undefined ? item.route_leg_id : item.ROUTE_LEG_ID, 0),
+        segmentId: toInt(item.segment_id !== undefined ? item.segment_id : item.SEGMENT_ID, 0),
+        orderIndex: toInt(item.order_index !== undefined ? item.order_index : item.ORDER_INDEX, 0),
+        startName: String(item.start_name !== undefined ? item.start_name : (item.START_NAME || "Start")).trim() || "Start",
+        endName: String(item.end_name !== undefined ? item.end_name : (item.END_NAME || "End")).trim() || "End",
+        sliceDistNm: toOneDecimal(item.slice_dist_nm !== undefined ? item.slice_dist_nm : item.SLICE_DIST_NM),
+        sliceHours: toOneDecimal(item.slice_hours !== undefined ? item.slice_hours : item.SLICE_HOURS),
+        segmentDistNm: toOneDecimal(item.segment_dist_nm !== undefined ? item.segment_dist_nm : item.SEGMENT_DIST_NM),
+        segmentHours: toOneDecimal(item.segment_hours !== undefined ? item.segment_hours : item.SEGMENT_HOURS),
+        lockCount: toInt(item.lock_count !== undefined ? item.lock_count : item.LOCK_COUNT, 0),
+        isSplit: coerceBool(item.is_split !== undefined ? item.is_split : item.IS_SPLIT, false)
+      };
+    }).filter(function (slice) {
+      return slice.sourceId > 0 || slice.routeLegId > 0 || slice.segmentId > 0 || slice.orderIndex > 0;
+    });
+  }
+
+  function normalizeCruiseTimelineDay(row, idx) {
+    var item = (row && typeof row === "object") ? row : {};
+    var riskColor = String(item.risk_color !== undefined ? item.risk_color : item.RISK_COLOR || "GREEN").trim().toUpperCase();
+    if (!riskColor) riskColor = "GREEN";
+    return {
+      legIndex: toInt(item.leg_index !== undefined ? item.leg_index : item.LEG_INDEX, idx + 1),
+      dateText: String(item.date !== undefined ? item.date : (item.DATE || "")).trim(),
+      startName: String(item.start_name !== undefined ? item.start_name : (item.START_NAME || "Start")).trim() || "Start",
+      endName: String(item.end_name !== undefined ? item.end_name : (item.END_NAME || "End")).trim() || "End",
+      totalDistNm: toOneDecimal(item.total_dist_nm !== undefined ? item.total_dist_nm : item.TOTAL_DIST_NM),
+      estHours: toOneDecimal(item.est_hours !== undefined ? item.est_hours : item.EST_HOURS),
+      lockCount: toInt(item.lock_count !== undefined ? item.lock_count : item.LOCK_COUNT, 0),
+      requiredFuelGallons: toOneDecimal(item.required_fuel_gallons !== undefined ? item.required_fuel_gallons : item.REQUIRED_FUEL_GALLONS),
+      reserveGallons: toOneDecimal(item.reserve_gallons !== undefined ? item.reserve_gallons : item.RESERVE_GALLONS),
+      confidence: toConfidenceInt(item.fuel_confidence_score !== undefined ? item.fuel_confidence_score : item.FUEL_CONFIDENCE_SCORE),
+      riskColor: riskColor,
+      badgeClass: timelineRiskBadgeClass(riskColor),
+      segmentIds: normalizeCruiseTimelineSegmentIds(item.segment_ids !== undefined ? item.segment_ids : item.SEGMENT_IDS),
+      segmentSlices: normalizeCruiseTimelineSegmentSlices(item.segment_slices !== undefined ? item.segment_slices : item.SEGMENT_SLICES)
+    };
+  }
+
+  function getCruiseTimelineEntriesForLeg(leg, order) {
+    var payload = state.cruiseTimeline.payload;
+    var days = payload && Array.isArray(payload.days) ? payload.days : [];
+    var orderNum = toInt(order, 0);
+    var routeLegId = toInt(getLegField(leg, "route_leg_id"), 0);
+    var segmentId = toInt(getLegField(leg, "segment_id"), 0);
+    var entries = [];
+    var fallbackDay = null;
+
+    if (!days.length) return [];
+
+    if (routeLegId > 0 || segmentId > 0 || orderNum > 0) {
+      days.forEach(function (day) {
+        var matchedSlice = null;
+        var ids = [];
+        if (!day || typeof day !== "object") return;
+        if (Array.isArray(day.segmentSlices) && day.segmentSlices.length) {
+          matchedSlice = day.segmentSlices.find(function (slice) {
+            if (!slice || typeof slice !== "object") return false;
+            if (routeLegId > 0 && toInt(slice.routeLegId, 0) === routeLegId) return true;
+            if (segmentId > 0 && toInt(slice.segmentId, 0) === segmentId) return true;
+            if (orderNum > 0 && toInt(slice.orderIndex, 0) === orderNum) return true;
+            return false;
+          }) || null;
+        }
+        if (matchedSlice) {
+          entries.push({ day: day, slice: matchedSlice });
+          return;
+        }
+        ids = Array.isArray(day.segmentIds) ? day.segmentIds : [];
+        if ((routeLegId > 0 && ids.indexOf(routeLegId) >= 0) || (segmentId > 0 && ids.indexOf(segmentId) >= 0)) {
+          fallbackDay = fallbackDay || day;
+        }
+      });
+      if (entries.length) return entries;
+      if (fallbackDay) return [{ day: fallbackDay, slice: null }];
+    }
+
+    if (orderNum > 0) {
+      fallbackDay = days.find(function (day) {
+        return toInt(day.legIndex, 0) === orderNum;
+      }) || null;
+      if (fallbackDay) return [{ day: fallbackDay, slice: null }];
+      if (days[orderNum - 1]) return [{ day: days[orderNum - 1], slice: null }];
+    }
+
+    return [];
+  }
+
+  function getCruiseTimelineDayForLeg(leg, order) {
+    var entries = getCruiseTimelineEntriesForLeg(leg, order);
+    return entries.length ? entries[0].day : null;
+  }
+
+  function getSelectedLegTimelineMetrics(leg) {
+    var legObj = (leg && typeof leg === "object") ? leg : {};
+    var distNm = roundTo2(parseFloat(getLegField(legObj, "dist_nm")));
+    var lockCount = toInt(getLegField(legObj, "lock_count"), 0);
+    var weatherAdjustedSpeed = getAdjustedCruisingSpeedKn();
+    var estHours = 0;
+
+    if (!Number.isFinite(distNm) || distNm < 0) distNm = 0;
+    if (!Number.isFinite(lockCount) || lockCount < 0) lockCount = 0;
+    if (!Number.isFinite(weatherAdjustedSpeed) || weatherAdjustedSpeed < 0.5) weatherAdjustedSpeed = 0.5;
+    if (distNm > 0 && weatherAdjustedSpeed > 0) {
+      estHours = roundTo2(distNm / weatherAdjustedSpeed);
+    }
+
+    return {
+      startName: String(getLegField(legObj, "start_name") || "Start").trim() || "Start",
+      endName: String(getLegField(legObj, "end_name") || "End").trim() || "End",
+      distNm: distNm,
+      estHours: estHours,
+      lockCount: lockCount
+    };
+  }
+
+  function updateLegListHeaderTimeline() {
+    if (!dom.legHeaderTitleEl && !dom.legHeaderCalcEl) return;
+
+    var status = String(state.cruiseTimeline.status || "idle").trim().toLowerCase();
+    var payload = state.cruiseTimeline.payload && typeof state.cruiseTimeline.payload === "object"
+      ? state.cruiseTimeline.payload
+      : null;
+    var maxHours = getCruiseTimelineMaxHoursFromUi();
+    var summaryModel = buildCruiseTimelineSummaryModel(payload, {
+      maxHoursPerDay: maxHours,
+      reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
+      weatherFactorPct: getWeatherFactorPct(),
+      effectiveSpeedKn: getEffectiveCruisingSpeed(),
+      fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
+    });
+    var calcLine = summaryModel.calcLine;
+    var maxHoursInputEl = dom.cruiseTimelineMaxHoursEl || document.getElementById("routeGenTimelineMaxHours");
+    var rebuildBtnEl = dom.cruiseTimelineRebuildBtn || document.getElementById("routeGenTimelineRebuildBtn");
+
+    if (status === "loading") {
+      calcLine = "Building Cruise Timeline...";
+    } else if (status === "error") {
+      calcLine = String(state.cruiseTimeline.message || "Unable to build cruise timeline.");
+    }
+    if (payload) {
+      applyCruiseTimelineSummaryToCards(summaryModel, {
+        fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
+      });
+    }
+
+    if (dom.legHeaderTitleEl) {
+      dom.legHeaderTitleEl.textContent = "Cruise Timeline";
+    }
+    if (dom.legHeaderCalcEl) {
+      dom.legHeaderCalcEl.textContent = calcLine;
+      dom.legHeaderCalcEl.title = calcLine;
+    }
+    if (maxHoursInputEl) {
+      dom.cruiseTimelineMaxHoursEl = maxHoursInputEl;
+      maxHoursInputEl.value = formatCruiseTimelineHoursInput(maxHours);
+    }
+    if (rebuildBtnEl) {
+      dom.cruiseTimelineRebuildBtn = rebuildBtnEl;
+    }
+  }
+
+  function renderCruiseTimelineInline() {
+    var status = String(state.cruiseTimeline.status || "idle").trim().toLowerCase();
+    var message = String(state.cruiseTimeline.message || "").trim();
+    var payload = state.cruiseTimeline.payload && typeof state.cruiseTimeline.payload === "object"
+      ? state.cruiseTimeline.payload
+      : null;
+    var summaryTotals = state.previewSummary && typeof state.previewSummary === "object" ? state.previewSummary : {};
+    var routeIdVal = toInt(state.activeRouteId, 0);
+    var startDateVal = dom.startDateEl ? String(dom.startDateEl.value || "").trim() : String(state.cruiseTimeline.lastStartDate || "").trim();
+    var maxHours = getCruiseTimelineMaxHoursFromUi();
+    var html = "";
+
+    state.cruiseTimeline.maxHoursPerDay = maxHours;
+
+    html += '<div class="fpw-routegen__legtimeline mt-3">';
+
+    if (!routeIdVal) {
+      html += '<div class="fpw-routegen__help mb-0">Generate or open a saved route to build a cruise timeline.</div>';
+      html += "</div>";
+      return html;
+    }
+    if (!isValidCruiseStartDate(startDateVal)) {
+      html += '<div class="alert alert-danger py-2 mb-0">Select a valid start date (yyyy-mm-dd) to build the cruise timeline.</div>';
+      html += "</div>";
+      return html;
+    }
+
+    if (status === "loading") {
+      html += '<div class="d-flex align-items-center gap-2 text-light opacity-75 small"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span><span>Building Cruise Timeline...</span></div>';
+      html += "</div>";
+      return html;
+    }
+    if (status === "error") {
+      html += '<div class="alert alert-danger py-2 mb-0">' + escapeHtml(message || "Unable to build cruise timeline.") + "</div>";
+      html += "</div>";
+      return html;
+    }
+    if (status === "note") {
+      html += '<div class="fpw-routegen__help mb-0">' + escapeHtml(message || "Generate or open a route to build a cruise timeline.") + "</div>";
+      html += "</div>";
+      return html;
+    }
+
+    if (!payload || !Array.isArray(payload.days) || !payload.days.length) {
+      html += '<div class="alert alert-secondary py-2 mb-0">No timeline days generated.</div>';
+      html += "</div>";
+      return html;
+    }
+
+    html += '<div id="routeGenTimelineRouteTotal" class="small text-light opacity-75 mb-2">'
+      + escapeHtml(buildTimelineRouteTotalText(summaryTotals))
+      + "</div>";
+    html += "</div>";
+    return html;
+  }
+
+  function buildTimelineRouteTotalText(summaryTotals) {
+    var summary = summaryTotals && typeof summaryTotals === "object" ? summaryTotals : {};
+    return "Route total: "
+      + formatNumber(toInt(summary.estimatedDays, 0), 0) + " days"
+      + " · " + formatNumber(toOneDecimal(summary.totalNm), 1) + " nm"
+      + " · " + (Number.isFinite(summary.estimatedFuelGallons) && summary.estimatedFuelGallons >= 0
+        ? formatNumber(summary.estimatedFuelGallons, 1)
+        : "--") + " gal";
+  }
+
+  function syncTimelineRouteTotalLine() {
+    var routeTotalEl = document.getElementById("routeGenTimelineRouteTotal");
+    if (!routeTotalEl) return;
+    routeTotalEl.textContent = buildTimelineRouteTotalText(state.previewSummary);
+  }
+
+  function renderCruiseTimelineLegInlineForLeg(leg, order) {
+    var status = String(state.cruiseTimeline.status || "idle").trim().toLowerCase();
+    var message = String(state.cruiseTimeline.message || "").trim();
+    var payload = state.cruiseTimeline.payload && typeof state.cruiseTimeline.payload === "object"
+      ? state.cruiseTimeline.payload
+      : null;
+    var dayEntries = getCruiseTimelineEntriesForLeg(leg, order);
+    var selectedLegMetrics = getSelectedLegTimelineMetrics(leg);
+    var routeIdVal = toInt(state.activeRouteId, 0);
+    var startDateVal = dom.startDateEl ? String(dom.startDateEl.value || "").trim() : String(state.cruiseTimeline.lastStartDate || "").trim();
+    var html = "";
+    html += '<div class="fpw-routegen__legtimeline mt-3">';
+    html += '  <div class="small text-uppercase text-light opacity-75 mb-2">Cruise Timeline ' + (dayEntries.length > 1 ? "Days" : "Day") + "</div>";
+
+    if (!routeIdVal) {
+      html += '<div class="fpw-routegen__help mb-0">Generate or open a saved route to build a cruise timeline.</div>';
+      html += "</div>";
+      return html;
+    }
+    if (!isValidCruiseStartDate(startDateVal)) {
+      html += '<div class="alert alert-danger py-2 mb-0">Select a valid start date (yyyy-mm-dd) to build the cruise timeline.</div>';
+      html += "</div>";
+      return html;
+    }
+    if (status === "loading") {
+      html += '<div class="d-flex align-items-center gap-2 text-light opacity-75 small"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span><span>Building Cruise Timeline...</span></div>';
+      html += "</div>";
+      return html;
+    }
+    if (status === "error") {
+      html += '<div class="alert alert-danger py-2 mb-0">' + escapeHtml(message || "Unable to build cruise timeline.") + "</div>";
+      html += "</div>";
+      return html;
+    }
+    if (status === "note") {
+      html += '<div class="fpw-routegen__help mb-0">' + escapeHtml(message || "Generate or open a route to build a cruise timeline.") + "</div>";
+      html += "</div>";
+      return html;
+    }
+    if (!payload || !Array.isArray(payload.days) || !payload.days.length) {
+      html += '<div class="alert alert-secondary py-2 mb-0">No timeline days generated.</div>';
+      html += "</div>";
+      return html;
+    }
+    if (!dayEntries.length) {
+      html += '<div class="alert alert-secondary py-2 mb-0">No cruise timeline day is mapped to this leg yet.</div>';
+      html += "</div>";
+      return html;
+    }
+
+    html += '  <div class="small text-light opacity-75 mb-2">Selected leg: ' + escapeHtml(selectedLegMetrics.startName + " -> " + selectedLegMetrics.endName) + "</div>";
+    html += '  <div class="row g-2 small mb-2">';
+    html += '    <div class="col-sm-4">Leg distance: <strong>' + formatNumber(selectedLegMetrics.distNm, 1) + " nm</strong></div>";
+    html += '    <div class="col-sm-4">Leg hours: <strong>' + formatNumber(selectedLegMetrics.estHours, 1) + " hrs</strong></div>";
+    html += '    <div class="col-sm-4">Leg locks: <strong>' + formatNumber(selectedLegMetrics.lockCount, 0) + "</strong></div>";
+    html += "  </div>";
+    if (dayEntries.length > 1) {
+      html += '  <div class="small text-light opacity-75 mb-2">This leg spans <strong>' + formatNumber(dayEntries.length, 0) + "</strong> cruise timeline days at the current Max hrs/day setting.</div>";
+    }
+
+    dayEntries.forEach(function (entry, idx) {
+      var day = entry && entry.day ? entry.day : {};
+      var slice = entry && entry.slice ? entry.slice : null;
+      var sliceDistNm = slice && Number.isFinite(slice.sliceDistNm) ? slice.sliceDistNm : selectedLegMetrics.distNm;
+      var sliceHours = slice && Number.isFinite(slice.sliceHours) ? slice.sliceHours : selectedLegMetrics.estHours;
+      var sliceLocks = slice ? toInt(slice.lockCount, 0) : selectedLegMetrics.lockCount;
+      var sliceLabel = (slice && slice.isSplit) ? "Leg slice this day" : "Leg on this day";
+
+      html += '<div class="card bg-transparent border-secondary text-light ' + (idx < dayEntries.length - 1 ? "mb-2" : "mb-0") + '">';
+      html += '  <div class="card-body py-2 px-3">';
+      html += '    <div class="d-flex justify-content-between align-items-center gap-2">';
+      html += '      <div class="fw-semibold">Day ' + formatNumber(day.legIndex, 0) + " - " + escapeHtml(day.dateText || "--") + "</div>";
+      html += '      <span class="badge ' + day.badgeClass + '">' + escapeHtml(day.riskColor || "GREEN") + "</span>";
+      html += "    </div>";
+      html += '    <div class="small text-light opacity-75 mb-2">' + escapeHtml(sliceLabel + ": " + selectedLegMetrics.startName + " -> " + selectedLegMetrics.endName) + "</div>";
+      html += '    <div class="row g-2 small mb-1">';
+      html += '      <div class="col-sm-4">Slice distance: <strong>' + formatNumber(sliceDistNm, 1) + " nm</strong></div>";
+      html += '      <div class="col-sm-4">Slice hours: <strong>' + formatNumber(sliceHours, 1) + " hrs</strong></div>";
+      html += '      <div class="col-sm-4">Slice locks: <strong>' + formatNumber(sliceLocks, 0) + "</strong></div>";
+      html += "    </div>";
+      html += '    <div class="small text-uppercase text-light opacity-75 mt-2 mb-1">Day Rollup</div>';
+      html += '    <div class="small text-light opacity-75 mb-1">Grouped legs: <strong>' + formatNumber((Array.isArray(day.segmentIds) ? day.segmentIds.length : 0), 0) + "</strong></div>";
+      html += '    <div class="small text-light opacity-75 mb-2">' + escapeHtml(day.startName + " -> " + day.endName) + "</div>";
+      html += '    <div class="row g-2 small mb-1">';
+      html += '      <div class="col-sm-4">Day distance: <strong>' + formatNumber(day.totalDistNm, 1) + " nm</strong></div>";
+      html += '      <div class="col-sm-4">Grouped day hours: <strong>' + formatNumber(day.estHours, 1) + " hrs</strong></div>";
+      html += '      <div class="col-sm-4">Day locks: <strong>' + formatNumber(day.lockCount, 0) + "</strong></div>";
+      html += "    </div>";
+      html += '    <div class="small text-light opacity-75 mb-2">Day rollup may include multiple legs based on Max hrs/day.</div>';
+      html += '    <div class="row g-2 small">';
+      html += '      <div class="col-sm-6">Required: <strong data-testid="required-fuel">' + formatNumber(day.requiredFuelGallons, 1) + " gal</strong></div>";
+      html += '      <div class="col-sm-6">Reserve: <strong>' + formatNumber(day.reserveGallons, 1) + " gal</strong></div>";
+      html += "    </div>";
+      html += "  </div>";
+      html += "</div>";
+    });
+    html += "</div>";
+    return html;
+  }
+
+  function renderCruiseTimelineNote(message) {
+    state.cruiseTimeline.status = "note";
+    state.cruiseTimeline.message = String(message || "").trim();
+    state.cruiseTimeline.payload = null;
+    refreshExpandedLegPanel();
+  }
+
+  function renderCruiseTimelineLoading() {
+    state.cruiseTimeline.status = "loading";
+    state.cruiseTimeline.message = "";
+    state.cruiseTimeline.payload = null;
+    refreshExpandedLegPanel();
+  }
+
+  function renderCruiseTimelineError(message) {
+    state.cruiseTimeline.status = "error";
+    state.cruiseTimeline.message = String(message || "Unable to build cruise timeline.").trim();
+    state.cruiseTimeline.payload = null;
+    refreshExpandedLegPanel();
+  }
+
+  function renderCruiseTimeline(data) {
+    var payload = (data && typeof data === "object") ? data : {};
+    var summary = (payload.route_summary && typeof payload.route_summary === "object")
+      ? payload.route_summary
+      : (payload.ROUTE_SUMMARY && typeof payload.ROUTE_SUMMARY === "object" ? payload.ROUTE_SUMMARY : {});
+    var meta = (payload.timeline_meta && typeof payload.timeline_meta === "object")
+      ? payload.timeline_meta
+      : (payload.TIMELINE_META && typeof payload.TIMELINE_META === "object" ? payload.TIMELINE_META : {});
+    var days = Array.isArray(payload.days) ? payload.days : (Array.isArray(payload.DAYS) ? payload.DAYS : []);
+
+    state.cruiseTimeline.status = "ready";
+    state.cruiseTimeline.message = "";
+    state.cruiseTimeline.payload = {
+      summary: {
+        totalDays: toInt(summary.total_days !== undefined ? summary.total_days : summary.TOTAL_DAYS, 0),
+        totalNm: toOneDecimal(summary.total_nm !== undefined ? summary.total_nm : summary.TOTAL_NM),
+        totalRequiredFuel: toOneDecimal(summary.total_required_fuel !== undefined ? summary.total_required_fuel : summary.TOTAL_REQUIRED_FUEL)
+      },
+      meta: {
+        hoursSource: String(meta.hours_source !== undefined ? meta.hours_source : (meta.HOURS_SOURCE || "")).trim().toLowerCase(),
+        effectiveSpeedKn: safeVal(meta.effective_speed_kn !== undefined ? meta.effective_speed_kn : meta.EFFECTIVE_SPEED_KN),
+        fuelBurnGph: safeVal(meta.fuel_burn_gph !== undefined ? meta.fuel_burn_gph : meta.FUEL_BURN_GPH),
+        weatherAdjustedBurnGph: safeVal(
+          meta.weather_adjusted_fuel_burn_gph !== undefined
+            ? meta.weather_adjusted_fuel_burn_gph
+            : (meta.WEATHER_ADJUSTED_FUEL_BURN_GPH !== undefined ? meta.WEATHER_ADJUSTED_FUEL_BURN_GPH : "")
+        ),
+        fuelSource: String(meta.fuel_source !== undefined ? meta.fuel_source : (meta.FUEL_SOURCE || "")).trim(),
+        effectiveWeatherPctMax: safeVal(
+          meta.effective_weather_pct_max !== undefined
+            ? meta.effective_weather_pct_max
+            : (meta.EFFECTIVE_WEATHER_PCT_MAX !== undefined ? meta.EFFECTIVE_WEATHER_PCT_MAX : "")
+        )
+      },
+      days: days.map(function (day, idx) {
+        return normalizeCruiseTimelineDay(day, idx);
+      })
+    };
+    applyCruiseTimelineSummaryToCards(
+      buildCruiseTimelineSummaryModel(state.cruiseTimeline.payload, {
+        maxHoursPerDay: getCruiseTimelineMaxHoursFromUi(),
+        reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
+        weatherFactorPct: getWeatherFactorPct(),
+        effectiveSpeedKn: getEffectiveCruisingSpeed(),
+        fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
+      }),
+      {
+        fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
+      }
+    );
+    refreshExpandedLegPanel();
+  }
+
+  function extractPreviewLegsFromPayload(payload) {
+    var source = (payload && typeof payload === "object") ? payload : {};
+    var data = (source.DATA && typeof source.DATA === "object")
+      ? source.DATA
+      : ((source.data && typeof source.data === "object") ? source.data : source);
+    var legs = Array.isArray(data.legs) ? data.legs : (Array.isArray(data.LEGS) ? data.LEGS : []);
+    return Array.isArray(legs) ? legs : [];
+  }
+
+  function buildCruiseTimeline(routeId, startDate, maxHoursPerDay, previewLegsRaw) {
+    var routeIdVal = toInt(routeId, 0);
+    var startDateVal = String(startDate || "").trim();
+    var maxHoursVal = clampCruiseTimelineHours(
+      dom.underwayHoursEl ? dom.underwayHoursEl.value : maxHoursPerDay
+    );
+    var routeTypeVal = (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") ? "my_route" : "generated";
+    var inputOverrides = collectTimelineInputOverrides();
+    var previewLegs = collectTimelinePreviewLegs(
+      Array.isArray(previewLegsRaw) ? previewLegsRaw : state.previewLegs
+    );
+    var requestBody = {};
+    var reqSeq = 0;
+
+    state.cruiseTimeline.maxHoursPerDay = maxHoursVal;
+
+    if (!routeIdVal) {
+      renderCruiseTimelineNote("Generate or open a saved route to build a cruise timeline.");
+      return Promise.resolve(null);
+    }
+    if (!isValidCruiseStartDate(startDateVal)) {
+      renderCruiseTimelineError("Select a valid start date (yyyy-mm-dd) to build the cruise timeline.");
+      return Promise.resolve(null);
+    }
+
+    state.cruiseTimeline.lastRouteId = routeIdVal;
+    state.cruiseTimeline.lastStartDate = startDateVal;
+    // Request-id guard: only the latest in-flight timeline response may render.
+    state.cruiseTimeline.requestSeq += 1;
+    reqSeq = state.cruiseTimeline.requestSeq;
+
+    renderCruiseTimelineLoading();
+
+    requestBody = {
+      routeId: routeIdVal,
+      startDate: startDateVal,
+      maxHoursPerDay: maxHoursVal,
+      routeType: routeTypeVal,
+      inputOverrides: inputOverrides
+    };
+    if (previewLegs.length) {
+      requestBody.previewLegs = previewLegs;
+    }
+
+    return fetchJson(apiUrl("generateCruiseTimeline"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify(requestBody)
+    })
+      .then(function (payload) {
+        if (reqSeq !== state.cruiseTimeline.requestSeq) return null;
+        if (!payload || payload.success === false || payload.SUCCESS === false) {
+          throw new Error(extractApiMessage(payload, "Unable to build cruise timeline."));
+        }
+        renderCruiseTimeline(payload);
+        scrollPreviewTimelineIntoView();
+        return payload;
+      })
+      .catch(function (err) {
+        if (reqSeq !== state.cruiseTimeline.requestSeq) return null;
+        if (err && err.code === "UNAUTHORIZED") {
+          redirectToLogin();
+          return null;
+        }
+        renderCruiseTimelineError((err && err.message) ? err.message : "Unable to build cruise timeline.");
+        return null;
+      });
+  }
+
+  function ensureCruiseTimelineForCurrentRoute() {
+    var routeIdVal = toInt(state.activeRouteId, 0);
+    var startDateVal = dom.startDateEl ? String(dom.startDateEl.value || "").trim() : "";
+    var hasMatchingRoute = routeIdVal > 0 && routeIdVal === toInt(state.cruiseTimeline.lastRouteId, 0);
+    var hasMatchingDate = startDateVal && startDateVal === String(state.cruiseTimeline.lastStartDate || "").trim();
+    if (!routeIdVal) return Promise.resolve(null);
+    if (!isValidCruiseStartDate(startDateVal)) return Promise.resolve(null);
+    if (
+      state.cruiseTimeline.status === "ready"
+      && state.cruiseTimeline.payload
+      && hasMatchingRoute
+      && hasMatchingDate
+    ) {
+      return Promise.resolve(state.cruiseTimeline.payload);
+    }
+    if (state.cruiseTimeline.status === "loading" && hasMatchingRoute && hasMatchingDate) {
+      return Promise.resolve(null);
+    }
+    return buildCruiseTimeline(routeIdVal, startDateVal, getCruiseTimelineMaxHoursFromUi());
+  }
+
+  function rebuildCruiseTimelineFromCurrentState() {
+    return buildCruiseTimeline(
+      state.activeRouteId,
+      dom.startDateEl ? String(dom.startDateEl.value || "").trim() : "",
+      getCruiseTimelineMaxHoursFromUi()
+    );
   }
 
   function coerceBool(value, fallback) {
@@ -152,6 +1054,787 @@
       });
   }
 
+  function normalizeZipCode(value) {
+    return String(value === undefined || value === null ? "" : value)
+      .replace(/\D/g, "")
+      .slice(0, 5);
+  }
+
+  function buildWeatherZipUrl(zip) {
+    return BASE_PATH + "/api/v1/weather.cfc?method=handle&action=zip&zip=" + encodeURIComponent(zip) + "&returnFormat=json&marineMode=quick";
+  }
+
+  function resolveHomePortZipFromUser(userObj) {
+    if (utils.resolveHomePortZip && userObj && typeof userObj === "object") {
+      return normalizeZipCode(utils.resolveHomePortZip(userObj));
+    }
+    return "";
+  }
+
+  function readDashboardWeatherZip() {
+    var weatherZipInput = document.getElementById("weatherZip");
+    var zip = normalizeZipCode(weatherZipInput ? weatherZipInput.value : "");
+    if (zip.length === 5) return zip;
+    return "";
+  }
+
+  function resolveWeatherSuggestionZip() {
+    var dashboardZip = readDashboardWeatherZip();
+    if (dashboardZip.length === 5) return dashboardZip;
+    if (state.homePortZip && state.homePortZip.length === 5) return state.homePortZip;
+    return "";
+  }
+
+  function clampNumber(value, minValue, maxValue) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n)) return minValue;
+    if (n < minValue) return minValue;
+    if (n > maxValue) return maxValue;
+    return n;
+  }
+
+  function parseWindRangeMph(rawValue) {
+    var txt = String(rawValue === undefined || rawValue === null ? "" : rawValue).trim().toLowerCase();
+    var nums = txt.match(/(\d+(\.\d+)?)/g) || [];
+    var first = nums.length ? parseFloat(nums[0]) : 0;
+    var second = nums.length >= 2 ? parseFloat(nums[1]) : first;
+    var hasValue = !!txt.length;
+    if (!Number.isFinite(first)) first = 0;
+    if (!Number.isFinite(second)) second = first;
+    return {
+      hasValue: hasValue,
+      speedMph: Math.max(0, first),
+      gustMph: Math.max(0, Math.max(first, second))
+    };
+  }
+
+  function parseNullableNumber(value) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n)) return null;
+    return n;
+  }
+
+  function readWeatherField(source, keys) {
+    var obj = source && typeof source === "object" ? source : {};
+    var keyList = Array.isArray(keys) ? keys : [keys];
+    var idx = 0;
+    var key = "";
+    var value = null;
+    for (idx = 0; idx < keyList.length; idx += 1) {
+      key = String(keyList[idx] || "");
+      if (!key || !Object.prototype.hasOwnProperty.call(obj, key)) continue;
+      value = obj[key];
+      if (value === undefined || value === null) continue;
+      if (typeof value === "string" && !value.trim()) continue;
+      return value;
+    }
+    return null;
+  }
+
+  function parseAlertSeverityLevel(alertRow) {
+    var row = alertRow && typeof alertRow === "object" ? alertRow : {};
+    var severityText = String(
+      row.severity !== undefined ? row.severity :
+        (row.SEVERITY !== undefined ? row.SEVERITY : "")
+    ).trim().toLowerCase();
+    if (!severityText) return 0;
+    if (severityText.indexOf("extreme") >= 0) return 3;
+    if (severityText.indexOf("severe") >= 0) return 2;
+    if (severityText.indexOf("moderate") >= 0) return 1;
+    return 1;
+  }
+
+  function buildRouteWeatherContext() {
+    var legs = Array.isArray(state.previewLegs) ? state.previewLegs : [];
+    var offshoreCount = 0;
+    var idx = 0;
+    if (!legs.length) {
+      return { offshoreShare: null, legCount: 0, offshoreCount: 0 };
+    }
+    for (idx = 0; idx < legs.length; idx += 1) {
+      if (toInt(getLegField(legs[idx], "is_offshore"), 0) > 0) offshoreCount += 1;
+    }
+    return {
+      offshoreShare: offshoreCount / legs.length,
+      legCount: legs.length,
+      offshoreCount: offshoreCount
+    };
+  }
+
+  function normalizeWeatherEnvelope(payload, zip) {
+    var root = payload && typeof payload === "object" ? payload : {};
+    var data = (root.DATA && typeof root.DATA === "object") ? root.DATA : root;
+    var forecast = Array.isArray(data.FORECAST) ? data.FORECAST : (Array.isArray(data.forecast) ? data.forecast : []);
+    var alerts = Array.isArray(data.ALERTS) ? data.ALERTS : (Array.isArray(data.alerts) ? data.alerts : []);
+    var marine = (data.MARINE && typeof data.MARINE === "object") ? data.MARINE : ((data.marine && typeof data.marine === "object") ? data.marine : {});
+    var surface = (data.surface && typeof data.surface === "object") ? data.surface : ((data.SURFACE && typeof data.SURFACE === "object") ? data.SURFACE : {});
+    var summary = String(
+      data.SUMMARY !== undefined ? data.SUMMARY :
+        (data.summary !== undefined ? data.summary : "")
+    ).trim();
+    return {
+      zip: zip,
+      fetchedAt: new Date(),
+      forecast: forecast,
+      alerts: alerts,
+      marine: marine,
+      surface: surface,
+      summary: summary
+    };
+  }
+
+  function computeLiveWeatherFactorPct(weatherEnvelope, routeContext) {
+    var wx = weatherEnvelope && typeof weatherEnvelope === "object" ? weatherEnvelope : {};
+    var context = routeContext && typeof routeContext === "object" ? routeContext : {};
+    var forecast = Array.isArray(wx.forecast) ? wx.forecast : [];
+    var alerts = Array.isArray(wx.alerts) ? wx.alerts : [];
+    var marine = wx.marine && typeof wx.marine === "object" ? wx.marine : {};
+    var surface = wx.surface && typeof wx.surface === "object" ? wx.surface : {};
+    var nowForecast = forecast.length ? forecast[0] : {};
+    var wind = parseWindRangeMph(
+      nowForecast.windSpeed !== undefined ? nowForecast.windSpeed :
+        (nowForecast.WINDSPEED !== undefined ? nowForecast.WINDSPEED : "")
+    );
+    var apiGust = parseNullableNumber(
+      nowForecast.gustMph !== undefined ? nowForecast.gustMph :
+        (nowForecast.GUSTMPH !== undefined ? nowForecast.GUSTMPH : "")
+    );
+    var maxWindMph = Math.max(
+      wind.speedMph,
+      wind.gustMph,
+      (apiGust !== null && apiGust > 0 ? apiGust : 0)
+    );
+    var waves = (marine.waves && typeof marine.waves === "object")
+      ? marine.waves
+      : ((marine.WAVES && typeof marine.WAVES === "object") ? marine.WAVES : {});
+    var waveFt = parseNullableNumber(
+      marine.wave_height_ft !== undefined ? marine.wave_height_ft :
+        (marine.WAVE_HEIGHT_FT !== undefined ? marine.WAVE_HEIGHT_FT :
+          (waves.height !== undefined ? waves.height : waves.HEIGHT))
+    );
+    var visibilityMi = parseNullableNumber(readWeatherField(surface, ["visibility_mi", "VISIBILITY_MI"]));
+    var pressureInhg = parseNullableNumber(readWeatherField(surface, ["pressure_inhg", "PRESSURE_INHG"]));
+    var pressureTrend = String(readWeatherField(surface, ["pressure_trend", "PRESSURE_TREND"]) || "").trim().toLowerCase();
+    var severeAlertCount = 0;
+    var score = 0;
+    var availableSignals = 0;
+    var windContribution = 0;
+    var waveContribution = 0;
+    var alertContribution = 0;
+    var visibilityContribution = 0;
+    var pressureContribution = 0;
+    var multiplier = 1;
+    var explanationParts = [];
+    var offshoreShare = parseNullableNumber(context.offshoreShare);
+    var confidence = "low";
+    var finalPct = 0;
+    var idx = 0;
+
+    for (idx = 0; idx < alerts.length; idx += 1) {
+      if (parseAlertSeverityLevel(alerts[idx]) >= 2) severeAlertCount += 1;
+    }
+
+    if (wind.hasValue || maxWindMph > 0) {
+      availableSignals += 1;
+      if (maxWindMph >= 30) windContribution = 24;
+      else if (maxWindMph >= 25) windContribution = 22;
+      else if (maxWindMph >= 20) windContribution = 18;
+      else if (maxWindMph >= 15) windContribution = 12;
+      else if (maxWindMph >= 10) windContribution = 6;
+      score += windContribution;
+      explanationParts.push("Wind " + Math.round(maxWindMph) + " mph");
+    }
+
+    if (waveFt !== null && waveFt >= 0) {
+      availableSignals += 1;
+      if (waveFt >= 7) waveContribution = 18;
+      else if (waveFt >= 5) waveContribution = 16;
+      else if (waveFt >= 3) waveContribution = 12;
+      else if (waveFt >= 2) waveContribution = 8;
+      else if (waveFt >= 1) waveContribution = 4;
+      score += waveContribution;
+      explanationParts.push("Waves " + roundTo2(waveFt) + " ft");
+    }
+
+    if (alerts.length > 0) {
+      availableSignals += 1;
+      if (severeAlertCount > 0) alertContribution = 12;
+      else if (alerts.length >= 3) alertContribution = 10;
+      else if (alerts.length === 2) alertContribution = 8;
+      else alertContribution = 4;
+      score += alertContribution;
+      explanationParts.push("Alerts " + alerts.length);
+    }
+
+    if (visibilityMi !== null && visibilityMi >= 0) {
+      availableSignals += 1;
+      if (visibilityMi < 1) visibilityContribution = 4;
+      else if (visibilityMi < 3) visibilityContribution = 3;
+      else if (visibilityMi < 5) visibilityContribution = 2;
+      else if (visibilityMi < 8) visibilityContribution = 1;
+      score += visibilityContribution;
+      explanationParts.push("Visibility " + roundTo2(visibilityMi) + " mi");
+    }
+
+    if (pressureInhg !== null && pressureInhg > 0) {
+      explanationParts.push("Pressure " + pressureInhg.toFixed(2) + " inHg");
+    }
+
+    if (pressureTrend) {
+      availableSignals += 1;
+      if (pressureTrend === "rapid_fall") pressureContribution = 2;
+      else if (pressureTrend === "falling") pressureContribution = 1;
+      score += pressureContribution;
+      explanationParts.push("Trend " + pressureTrend.replace(/_/g, " "));
+    }
+
+    if (offshoreShare !== null && Number.isFinite(offshoreShare)) {
+      offshoreShare = clampNumber(offshoreShare, 0, 1);
+      if (offshoreShare >= 0.6) {
+        multiplier = 1.1;
+      } else if (offshoreShare <= 0.15) {
+        multiplier = 0.95;
+      }
+      explanationParts.push("Offshore " + Math.round(offshoreShare * 100) + "%");
+    }
+
+    if (availableSignals <= 0) {
+      return {
+        available: false,
+        suggestedPct: null,
+        confidence: "low",
+        metaText: "Suggestion unavailable",
+        factorsText: "No usable live weather signals were available.",
+        sourceLabel: ""
+      };
+    }
+
+    if (availableSignals >= 4) confidence = "high";
+    else if (availableSignals >= 2) confidence = "medium";
+    else confidence = "low";
+
+    finalPct = clampNumber(score * multiplier, 0, 60);
+    finalPct = Math.round(finalPct);
+
+    return {
+      available: true,
+      suggestedPct: finalPct,
+      confidence: confidence,
+      metaText: "Anchor ZIP " + (wx.zip || "unknown") + " using current dashboard marine weather.",
+      factorsText: explanationParts.join(" · "),
+      sourceLabel: "weather.cfc zip quick mode"
+    };
+  }
+
+  function renderWeatherSuggestionState() {
+    var suggested = state.weatherAssist;
+    var hasSuggestion = Number.isFinite(suggested.suggestedPct);
+    var confidenceText = String(suggested.confidence || "").trim().toLowerCase();
+    if (dom.weatherSuggestValueEl) {
+      if (suggested.loading) {
+        dom.weatherSuggestValueEl.textContent = "Calculating suggestion...";
+      } else if (hasSuggestion) {
+        dom.weatherSuggestValueEl.textContent = String(Math.round(suggested.suggestedPct)) + "%";
+      } else {
+        dom.weatherSuggestValueEl.textContent = "Suggestion unavailable";
+      }
+    }
+    if (dom.weatherSuggestMetaEl) {
+      if (suggested.loading) {
+        dom.weatherSuggestMetaEl.textContent = "Fetching current weather signals...";
+      } else {
+        dom.weatherSuggestMetaEl.textContent = String(suggested.metaText || suggested.unavailableReason || "Suggestion unavailable");
+      }
+    }
+    if (dom.weatherSuggestFactorsEl) {
+      dom.weatherSuggestFactorsEl.textContent = String(suggested.factorsText || "No live weather data loaded.");
+    }
+    if (dom.weatherSuggestConfidenceEl) {
+      dom.weatherSuggestConfidenceEl.classList.remove(
+        "fpw-routegen__weatherassistpill--high",
+        "fpw-routegen__weatherassistpill--medium",
+        "fpw-routegen__weatherassistpill--low"
+      );
+      if (suggested.loading) {
+        dom.weatherSuggestConfidenceEl.textContent = "loading";
+      } else if (confidenceText === "high" || confidenceText === "medium" || confidenceText === "low") {
+        dom.weatherSuggestConfidenceEl.textContent = confidenceText;
+        dom.weatherSuggestConfidenceEl.classList.add("fpw-routegen__weatherassistpill--" + confidenceText);
+      } else {
+        dom.weatherSuggestConfidenceEl.textContent = "--";
+      }
+    }
+    if (dom.weatherSuggestApplyBtn) {
+      dom.weatherSuggestApplyBtn.disabled = !hasSuggestion || suggested.loading;
+    }
+    if (dom.weatherSuggestRefreshBtn) {
+      dom.weatherSuggestRefreshBtn.disabled = !!suggested.loading;
+      dom.weatherSuggestRefreshBtn.textContent = suggested.loading ? "Refreshing..." : "Refresh Suggestion";
+    }
+  }
+
+  function setWeatherSuggestionUnavailable(reasonText) {
+    state.weatherAssist.loading = false;
+    state.weatherAssist.suggestedPct = null;
+    state.weatherAssist.confidence = "low";
+    state.weatherAssist.metaText = String(reasonText || "Suggestion unavailable").trim();
+    state.weatherAssist.factorsText = "No live weather data loaded.";
+    state.weatherAssist.unavailableReason = state.weatherAssist.metaText;
+    renderWeatherSuggestionState();
+  }
+
+  function applyWeatherSuggestionFromEnvelope() {
+    var envelope = state.weatherAssist.envelope;
+    var model = {};
+    if (!envelope || typeof envelope !== "object") {
+      setWeatherSuggestionUnavailable("Suggestion unavailable.");
+      return;
+    }
+    model = computeLiveWeatherFactorPct(envelope, buildRouteWeatherContext());
+    state.weatherAssist.loading = false;
+    state.weatherAssist.confidence = model.confidence || "low";
+    state.weatherAssist.metaText = model.metaText || "";
+    state.weatherAssist.factorsText = model.factorsText || "";
+    state.weatherAssist.unavailableReason = "";
+    state.weatherAssist.sourceLabel = model.sourceLabel || "";
+    state.weatherAssist.suggestedPct = model.available ? Math.round(clampNumber(model.suggestedPct, 0, 60)) : null;
+    if (!model.available) {
+      state.weatherAssist.unavailableReason = model.metaText || "Suggestion unavailable.";
+      if (!state.weatherAssist.metaText) state.weatherAssist.metaText = state.weatherAssist.unavailableReason;
+    }
+    renderWeatherSuggestionState();
+  }
+
+  function refreshWeatherSuggestion(options) {
+    var opts = options || {};
+    var forceFetch = !!opts.forceFetch;
+    var zip = resolveWeatherSuggestionZip();
+    var seq = 0;
+    var url = "";
+
+    if (!zip || zip.length !== 5) {
+      setWeatherSuggestionUnavailable("Suggestion unavailable: dashboard weather ZIP is missing.");
+      return Promise.resolve(null);
+    }
+
+    if (!forceFetch && state.weatherAssist.envelope && state.weatherAssist.zip === zip) {
+      applyWeatherSuggestionFromEnvelope();
+      return Promise.resolve(state.weatherAssist.suggestedPct);
+    }
+
+    state.weatherAssist.requestSeq += 1;
+    seq = state.weatherAssist.requestSeq;
+    state.weatherAssist.loading = true;
+    state.weatherAssist.metaText = "Fetching current weather signals...";
+    state.weatherAssist.factorsText = "Using existing FPW weather endpoint data.";
+    state.weatherAssist.zip = zip;
+    renderWeatherSuggestionState();
+
+    url = buildWeatherZipUrl(zip);
+    return fetchJson(url, { credentials: "same-origin" })
+      .then(function (payload) {
+        if (seq !== state.weatherAssist.requestSeq) return null;
+        if (!payload || payload.SUCCESS === false) {
+          throw new Error(extractApiMessage(payload, "Weather suggestion unavailable."));
+        }
+        state.weatherAssist.envelope = normalizeWeatherEnvelope(payload, zip);
+        applyWeatherSuggestionFromEnvelope();
+        return state.weatherAssist.suggestedPct;
+      })
+      .catch(function (err) {
+        if (seq !== state.weatherAssist.requestSeq) return null;
+        if (err && err.code === "UNAUTHORIZED") {
+          redirectToLogin();
+          return null;
+        }
+        setWeatherSuggestionUnavailable((err && err.message) ? err.message : "Weather suggestion unavailable.");
+        return null;
+      });
+  }
+
+  function applySuggestedWeatherFactorToInput() {
+    var suggestedPct = state.weatherAssist && Number.isFinite(state.weatherAssist.suggestedPct)
+      ? Math.round(clampNumber(state.weatherAssist.suggestedPct, 0, 60))
+      : null;
+    if (suggestedPct === null || !dom.weatherFactorPctEl) return;
+    dom.weatherFactorPctEl.value = String(suggestedPct);
+    onFormChange();
+  }
+
+  function resetWeatherSuggestionState(reasonText) {
+    state.weatherAssist.loading = false;
+    state.weatherAssist.suggestedPct = null;
+    state.weatherAssist.confidence = "";
+    state.weatherAssist.metaText = String(
+      reasonText || "Set a valid dashboard weather ZIP to refresh this suggestion."
+    ).trim();
+    state.weatherAssist.factorsText = "No live weather data loaded.";
+    state.weatherAssist.unavailableReason = state.weatherAssist.metaText;
+    state.weatherAssist.envelope = null;
+    state.weatherAssist.zip = "";
+    renderWeatherSuggestionState();
+  }
+
+  function normalizeMyRouteLegs(legsRaw) {
+    var list = Array.isArray(legsRaw) ? legsRaw : [];
+    return list.map(function (row, idx) {
+      var leg = (row && typeof row === "object") ? Object.assign({}, row) : {};
+      leg.route_id = toInt(getLegField(leg, "route_id"), 0);
+      leg.route_leg_id = toInt(getLegField(leg, "route_leg_id"), 0);
+      leg.order_index = toInt(getLegField(leg, "order_index"), idx + 1);
+      leg.segment_id = toInt(getLegField(leg, "segment_id"), 0);
+      leg.start_waypoint_id = toInt(getLegField(leg, "start_waypoint_id"), 0);
+      leg.end_waypoint_id = toInt(getLegField(leg, "end_waypoint_id"), 0);
+      leg.start_name = String(getLegField(leg, "start_name") || "Start").trim() || "Start";
+      leg.end_name = String(getLegField(leg, "end_name") || "End").trim() || "End";
+      leg.lock_count = toInt(getLegField(leg, "lock_count"), 0);
+      leg.is_offshore = toInt(getLegField(leg, "is_offshore"), 0);
+      leg.is_icw = toInt(getLegField(leg, "is_icw"), 0);
+      leg.has_user_override = !!getLegField(leg, "has_user_override");
+      leg.has_coordinate_error = !!getLegField(leg, "has_coordinate_error");
+      leg.coordinate_error = String(getLegField(leg, "coordinate_error") || "").trim();
+      leg.dist_nm_default = roundTo2(parseFloat(getLegField(leg, "dist_nm_default")));
+      leg.dist_nm = roundTo2(parseFloat(getLegField(leg, "dist_nm")));
+      leg.start_lat = getLegField(leg, "start_lat");
+      leg.start_lng = getLegField(leg, "start_lng");
+      leg.end_lat = getLegField(leg, "end_lat");
+      leg.end_lng = getLegField(leg, "end_lng");
+      if (!Number.isFinite(leg.dist_nm_default) || leg.dist_nm_default < 0) leg.dist_nm_default = 0;
+      if (!Number.isFinite(leg.dist_nm) || leg.dist_nm < 0) leg.dist_nm = leg.dist_nm_default;
+      return leg;
+    }).sort(function (a, b) {
+      return toInt(a.order_index, 0) - toInt(b.order_index, 0);
+    });
+  }
+
+  function getMyRouteLegById(routeLegId) {
+    var legId = toInt(routeLegId, 0);
+    if (legId <= 0) return null;
+    return (state.myRoutes.legs || []).find(function (leg) {
+      return toInt(getLegField(leg, "route_leg_id"), 0) === legId;
+    }) || null;
+  }
+
+  function renderMyRouteOptions() {
+    var selectEl = dom.myRouteSelectEl;
+    var routes = Array.isArray(state.myRoutes.routes) ? state.myRoutes.routes : [];
+    var activeId = toInt(state.myRoutes.activeRouteId, 0);
+    if (!selectEl) return;
+
+    selectEl.innerHTML = '<option value="">Select route</option>' + routes.map(function (route) {
+      var routeId = toInt(route.route_id !== undefined ? route.route_id : route.ROUTE_ID, 0);
+      var name = String(route.route_name !== undefined ? route.route_name : (route.ROUTE_NAME || "Route")).trim() || "Route";
+      var legCount = toInt(route.leg_count !== undefined ? route.leg_count : route.LEG_COUNT, 0);
+      return '<option value="' + String(routeId) + '">' + escapeHtml(name + " (" + legCount + " legs)") + "</option>";
+    }).join("");
+    if (activeId > 0) {
+      selectEl.value = String(activeId);
+    }
+    if (!selectEl.value && routes.length) {
+      selectEl.value = String(toInt(routes[0].route_id || routes[0].ROUTE_ID, 0));
+    }
+  }
+
+  function isMyRoutePending() {
+    return toInt(state.myRoutes.pendingCount, 0) > 0;
+  }
+
+  function renderMyRouteControlAvailability() {
+    var hasActiveRoute = toInt(state.myRoutes.activeRouteId, 0) > 0;
+    var hasPersistedStart = toInt(state.myRoutes.startWaypointId, 0) > 0;
+    var hasExistingLegs = Array.isArray(state.myRoutes.legs) && state.myRoutes.legs.length > 0;
+    var selectedStartWaypointId = toInt(dom.myRouteStartWaypointSelectEl ? dom.myRouteStartWaypointSelectEl.value : 0, 0);
+    var hasSelectedStartForFirstLeg = !hasPersistedStart && !hasExistingLegs && selectedStartWaypointId > 0;
+    var canAddWaypointLeg = hasPersistedStart || hasSelectedStartForFirstLeg;
+    var isPending = isMyRoutePending();
+
+    if (dom.myRouteStartWaypointSelectEl) {
+      dom.myRouteStartWaypointSelectEl.disabled = isPending || !hasActiveRoute;
+    }
+    if (dom.myRouteSetStartBtn) {
+      dom.myRouteSetStartBtn.disabled = isPending || !hasActiveRoute;
+    }
+    if (dom.myRouteEndWaypointSelectEl) {
+      dom.myRouteEndWaypointSelectEl.disabled = isPending || !hasActiveRoute || !canAddWaypointLeg;
+    }
+    if (dom.myRouteAddWaypointLegBtn) {
+      dom.myRouteAddWaypointLegBtn.disabled = isPending || !hasActiveRoute || !canAddWaypointLeg;
+    }
+  }
+
+  function beginMyRoutePending() {
+    state.myRoutes.pendingCount = toInt(state.myRoutes.pendingCount, 0) + 1;
+    renderMyRouteControlAvailability();
+  }
+
+  function endMyRoutePending() {
+    state.myRoutes.pendingCount = Math.max(0, toInt(state.myRoutes.pendingCount, 0) - 1);
+    renderMyRouteControlAvailability();
+  }
+
+  function getMyRouteWaypointById(waypointId) {
+    var id = toInt(waypointId, 0);
+    if (id <= 0) return null;
+    return (state.myRoutes.waypoints || []).find(function (wp) {
+      var wpId = toInt(wp.waypoint_id !== undefined ? wp.waypoint_id : wp.WAYPOINT_ID, 0);
+      return wpId === id;
+    }) || null;
+  }
+
+  function waypointHasCoords(waypoint) {
+    var wp = waypoint || {};
+    var lat = parseFloat(wp.latitude !== undefined ? wp.latitude : wp.LATITUDE);
+    var lng = parseFloat(wp.longitude !== undefined ? wp.longitude : wp.LONGITUDE);
+    return Number.isFinite(lat) && Number.isFinite(lng);
+  }
+
+  function formatWaypointOptionLabel(waypoint) {
+    var wp = waypoint || {};
+    var name = String(wp.name !== undefined ? wp.name : (wp.NAME || "Waypoint")).trim() || "Waypoint";
+    var stateCode = String(wp.state !== undefined ? wp.state : (wp.STATE || "")).trim();
+    var suffix = waypointHasCoords(wp) ? "" : " [no coords]";
+    return stateCode ? (name + ", " + stateCode + suffix) : (name + suffix);
+  }
+
+  function renderMyRouteStartMeta() {
+    if (!dom.myRouteStartMetaEl) return;
+    var routeId = toInt(state.myRoutes.activeRouteId, 0);
+    var startWaypointId = toInt(state.myRoutes.startWaypointId, 0);
+    var startWp = getMyRouteWaypointById(startWaypointId);
+    if (routeId <= 0) {
+      dom.myRouteStartMetaEl.textContent = "Set a route start waypoint, then add legs by choosing each next waypoint.";
+      return;
+    }
+    if (!startWp) {
+      dom.myRouteStartMetaEl.textContent = "This route has no start waypoint. Set one before adding legs.";
+      return;
+    }
+    dom.myRouteStartMetaEl.textContent = "Start: " + formatWaypointOptionLabel(startWp) + (waypointHasCoords(startWp) ? "" : " (add coordinates to compute distance)");
+  }
+
+  function renderMyRouteWaypointOptions() {
+    var startSelectEl = dom.myRouteStartWaypointSelectEl;
+    var endSelectEl = dom.myRouteEndWaypointSelectEl;
+    var waypoints = Array.isArray(state.myRoutes.waypoints) ? state.myRoutes.waypoints : [];
+    var startWaypointId = toInt(state.myRoutes.startWaypointId, 0);
+    var currentEndSelection = toInt(endSelectEl ? endSelectEl.value : 0, 0);
+    var endWaypointDefault = 0;
+    if (Array.isArray(state.myRoutes.legs) && state.myRoutes.legs.length) {
+      var lastLeg = state.myRoutes.legs[state.myRoutes.legs.length - 1];
+      endWaypointDefault = toInt(getLegField(lastLeg, "end_waypoint_id"), 0);
+    }
+    if (startSelectEl) {
+      startSelectEl.innerHTML = '<option value="">Select start waypoint</option>' + waypoints.map(function (wp) {
+        var wpId = toInt(wp.waypoint_id !== undefined ? wp.waypoint_id : wp.WAYPOINT_ID, 0);
+        return '<option value="' + String(wpId) + '">' + escapeHtml(formatWaypointOptionLabel(wp)) + "</option>";
+      }).join("");
+      startSelectEl.value = startWaypointId > 0 ? String(startWaypointId) : "";
+    }
+    if (endSelectEl) {
+      endSelectEl.innerHTML = '<option value="">Select end waypoint</option>' + waypoints.map(function (wp) {
+        var wpId = toInt(wp.waypoint_id !== undefined ? wp.waypoint_id : wp.WAYPOINT_ID, 0);
+        return '<option value="' + String(wpId) + '">' + escapeHtml(formatWaypointOptionLabel(wp)) + "</option>";
+      }).join("");
+      if (currentEndSelection > 0 && getMyRouteWaypointById(currentEndSelection)) {
+        endSelectEl.value = String(currentEndSelection);
+      } else if (endWaypointDefault > 0) {
+        endSelectEl.value = String(endWaypointDefault);
+      } else {
+        endSelectEl.value = "";
+      }
+    }
+    renderMyRouteStartMeta();
+    renderMyRouteControlAvailability();
+  }
+
+  function renderMyRouteLegList() {
+    var listEl = dom.myRouteLegListEl;
+    var routeId = toInt(state.myRoutes.activeRouteId, 0);
+    var legs = Array.isArray(state.myRoutes.legs) ? state.myRoutes.legs : [];
+    if (!listEl) return;
+    if (!routeId) {
+      listEl.innerHTML = '<div class="fpw-routegen__empty">Create or select a My Route to manage legs.</div>';
+      return;
+    }
+    if (!legs.length) {
+      listEl.innerHTML = '<div class="fpw-routegen__empty">No legs yet. Set a start waypoint and add the first leg endpoint.</div>';
+      return;
+    }
+    listEl.innerHTML = legs.map(function (leg, idx) {
+      var order = toInt(getLegField(leg, "order_index"), idx + 1);
+      var routeLegId = toInt(getLegField(leg, "route_leg_id"), 0);
+      var startName = String(getLegField(leg, "start_name") || "Start");
+      var endName = String(getLegField(leg, "end_name") || "End");
+      var distNm = roundTo2(parseFloat(getLegField(leg, "dist_nm")));
+      var lockCount = toInt(getLegField(leg, "lock_count"), 0);
+      var hasOverride = !!getLegField(leg, "has_user_override");
+      var hasCoordError = !!getLegField(leg, "has_coordinate_error");
+      var coordErrorText = String(getLegField(leg, "coordinate_error") || "").trim();
+      return ''
+        + '<div class="fpw-routegen__myrouteleg" data-route-leg-id="' + String(routeLegId) + '" data-order="' + String(order) + '">'
+        + '  <div>'
+        + '    <div class="fpw-routegen__myroutelegname">' + escapeHtml(String(order).padStart(2, "0") + "  " + startName + " -> " + endName) + (hasOverride ? ' <span class="fpw-routegen__flag fpw-routegen__flag--override">Override</span>' : "") + "</div>"
+        + '    <div class="fpw-routegen__myroutelegmeta">' + formatNumber(distNm, 1) + " nm · " + formatNumber(lockCount, 0) + " locks" + (hasCoordError ? " · coords missing" : "") + "</div>"
+        + (hasCoordError && coordErrorText ? '<div class="fpw-routegen__help mt-1">' + escapeHtml(coordErrorText) + "</div>" : "")
+        + "  </div>"
+        + '  <div class="fpw-routegen__myroutelegactions">'
+        + '    <button type="button" class="btn-secondary btn-sm" data-my-route-action="edit-geometry">Edit Route</button>'
+        + '    <button type="button" class="btn-secondary btn-sm" data-my-route-action="remove-leg">Remove</button>'
+        + "  </div>"
+        + "</div>";
+    }).join("");
+  }
+
+  function setMyRouteLegs(legs) {
+    state.myRoutes.legs = normalizeMyRouteLegs(legs);
+    renderMyRouteLegList();
+  }
+
+  function applyMyRouteLegPatch(routeLegId, patch) {
+    var legId = toInt(routeLegId, 0);
+    if (legId <= 0) return;
+    state.myRoutes.legs = (state.myRoutes.legs || []).map(function (leg) {
+      if (toInt(getLegField(leg, "route_leg_id"), 0) !== legId) return leg;
+      return Object.assign({}, leg, patch || {});
+    });
+    renderMyRouteLegList();
+  }
+
+  function loadMyRoute(routeId, options) {
+    var opts = options || {};
+    var routeIdVal = toInt(routeId, 0);
+    if (routeIdVal <= 0) {
+      state.myRoutes.activeRouteId = 0;
+      state.myRoutes.activeRouteName = "";
+      setMyRouteLegs([]);
+      renderMyRouteOptions();
+      renderMyRouteControlAvailability();
+      return Promise.resolve(null);
+    }
+    beginMyRoutePending();
+    return fetchJson(apiUrl("getUserRoute"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ route_id: routeIdVal })
+    }).then(function (payload) {
+      if (!payload || payload.SUCCESS === false) {
+        throw new Error(extractApiMessage(payload, "Unable to load My Route."));
+      }
+      var data = (payload.DATA && typeof payload.DATA === "object") ? payload.DATA : {};
+      var route = (data.route && typeof data.route === "object") ? data.route : {};
+      state.myRoutes.activeRouteId = toInt(route.route_id !== undefined ? route.route_id : route.ROUTE_ID, routeIdVal);
+      state.myRoutes.activeRouteName = String(route.route_name !== undefined ? route.route_name : route.ROUTE_NAME || "").trim();
+      state.myRoutes.startWaypointId = toInt(
+        route.start_waypoint_id !== undefined ? route.start_waypoint_id : route.START_WAYPOINT_ID,
+        0
+      );
+      setMyRouteLegs(Array.isArray(data.legs) ? data.legs : []);
+      renderMyRouteWaypointOptions();
+      renderMyRouteOptions();
+      if (dom.myRouteSelectEl) {
+        dom.myRouteSelectEl.value = String(state.myRoutes.activeRouteId || "");
+      }
+      return payload;
+    }).catch(function (err) {
+      if (!opts.silentError) {
+        showError((err && err.message) ? err.message : "Unable to load My Route.");
+      }
+      return null;
+    }).finally(function () {
+      endMyRoutePending();
+    });
+  }
+
+  function loadMyRouteWaypoints(options) {
+    var opts = options || {};
+    return fetchJson(apiUrl("listUserWaypoints"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({})
+    }).then(function (payload) {
+      if (!payload || payload.SUCCESS === false) {
+        throw new Error(extractApiMessage(payload, "Unable to load waypoints."));
+      }
+      var data = (payload.DATA && typeof payload.DATA === "object") ? payload.DATA : {};
+      state.myRoutes.waypoints = Array.isArray(data.waypoints) ? data.waypoints : [];
+      renderMyRouteWaypointOptions();
+      return payload;
+    }).catch(function (err) {
+      state.myRoutes.waypoints = [];
+      renderMyRouteWaypointOptions();
+      if (!opts.silentError) {
+        showError((err && err.message) ? err.message : "Unable to load waypoints.");
+      }
+      return null;
+    });
+  }
+
+  function loadMyRoutes(options) {
+    var opts = options || {};
+    beginMyRoutePending();
+    return fetchJson(apiUrl("listUserRoutes"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ scope: "my_routes" })
+    }).then(function (payload) {
+      if (!payload || payload.SUCCESS === false) {
+        throw new Error(extractApiMessage(payload, "Unable to load My Routes."));
+      }
+      var data = (payload.DATA && typeof payload.DATA === "object") ? payload.DATA : {};
+      var routes = Array.isArray(data.routes) ? data.routes : [];
+      state.myRoutes.available = true;
+      state.myRoutes.routes = routes;
+      renderMyRouteOptions();
+      return loadMyRouteWaypoints({ silentError: true }).then(function () {
+        if (opts.noAutoLoad) {
+          state.myRoutes.activeRouteId = 0;
+          state.myRoutes.activeRouteName = "";
+          state.myRoutes.startWaypointId = 0;
+          if (dom.myRouteSelectEl) {
+            dom.myRouteSelectEl.value = "";
+          }
+          setMyRouteLegs([]);
+          renderMyRouteWaypointOptions();
+          return payload;
+        }
+        if (opts.reloadActive && state.myRoutes.activeRouteId > 0) {
+          return loadMyRoute(state.myRoutes.activeRouteId, { silentError: true });
+        }
+        var targetRouteId = toInt(
+          opts.routeId !== undefined ? opts.routeId :
+            (state.myRoutes.activeRouteId > 0 ? state.myRoutes.activeRouteId : data.active_route_id),
+          0
+        );
+        if (targetRouteId > 0) {
+          return loadMyRoute(targetRouteId, { silentError: true });
+        }
+        setMyRouteLegs([]);
+        state.myRoutes.startWaypointId = 0;
+        renderMyRouteWaypointOptions();
+        return payload;
+      });
+    }).catch(function (err) {
+      state.myRoutes.available = false;
+      state.myRoutes.routes = [];
+      state.myRoutes.waypoints = [];
+      state.myRoutes.startWaypointId = 0;
+      state.myRoutes.activeRouteId = 0;
+      state.myRoutes.activeRouteName = "";
+      setMyRouteLegs([]);
+      renderMyRouteOptions();
+      renderMyRouteWaypointOptions();
+      if (!opts.silentError) {
+        showError((err && err.message) ? err.message : "Unable to load My Routes.");
+      }
+      return null;
+    }).finally(function () {
+      endMyRoutePending();
+    });
+  }
+
   function setStatus(message) {
     if (!dom.statusEl) return;
     dom.statusEl.textContent = message || "";
@@ -169,9 +1852,38 @@
     dom.errorEl.classList.add("d-none");
   }
 
+  function getRouteNameValue(trimValue) {
+    var routeName = dom.routeNameEl ? String(dom.routeNameEl.value || "") : "";
+    return trimValue ? routeName.trim() : routeName;
+  }
+
+  function clearRouteNameValidation() {
+    if (!dom.routeNameEl || typeof dom.routeNameEl.setCustomValidity !== "function") return;
+    dom.routeNameEl.setCustomValidity("");
+  }
+
+  function validateRequiredRouteName(actionLabel) {
+    var routeName = getRouteNameValue(true);
+    clearRouteNameValidation();
+    if (dom.routeNameEl) {
+      dom.routeNameEl.value = routeName;
+    }
+    if (routeName) {
+      return true;
+    }
+    if (dom.routeNameEl) {
+      if (typeof dom.routeNameEl.setCustomValidity === "function") {
+        dom.routeNameEl.setCustomValidity("Route Name is required.");
+      }
+      dom.routeNameEl.focus();
+    }
+    showError("Enter a route name before " + actionLabel + ".");
+    return false;
+  }
+
   function setRouteCodeBadge(routeCode) {
     if (!dom.routeCodeEl) return;
-    dom.routeCodeEl.textContent = routeCode ? routeCode : "Draft";
+    dom.routeCodeEl.textContent = String(routeCode || "").trim() || "Draft";
   }
 
   function setModalModeUI() {
@@ -215,11 +1927,6 @@
     if (dom.directionToggleEl) {
       dom.directionToggleEl.checked = (normalized === "CW");
     }
-    if (dom.directionStateEl) {
-      dom.directionStateEl.textContent = (normalized === "CW")
-        ? "Clockwise (CW)"
-        : "Counterclockwise (CCW)";
-    }
   }
 
   function hasLocationSelections() {
@@ -255,33 +1962,395 @@
     return 0;
   }
 
+  function toPositiveNumber(value, fallback) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n) || n <= 0) return (fallback !== undefined ? fallback : 0);
+    return Math.round(n * 100) / 100;
+  }
+
+  function pendingDraftHasField(fieldName) {
+    return !!(
+      state.pendingDraft
+      && typeof state.pendingDraft === "object"
+      && Object.prototype.hasOwnProperty.call(state.pendingDraft, fieldName)
+    );
+  }
+
+  function getVesselDefaultCruisingSpeedKn() {
+    var mostEff = toPositiveNumber(state.vesselDefaults.mostEfficientSpeedKn, 0);
+    if (mostEff > 0) return mostEff;
+    var maxSpeed = toPositiveNumber(state.vesselDefaults.maxSpeedKn, 0);
+    if (maxSpeed > 0) return maxSpeed;
+    return DEFAULT_MAX_SPEED_KN;
+  }
+
+  function getFieldDefaultCruisingSpeedKn() {
+    var maxSpeed = toPositiveNumber(state.vesselDefaults.maxSpeedKn, 0);
+    if (maxSpeed > 0) return maxSpeed;
+    return DEFAULT_MAX_SPEED_KN;
+  }
+
+  function getVesselDefaultFuelBurnAtMaxSpeedGph() {
+    return toPositiveNumber(state.vesselDefaults.gphAtMaxSpeed, 0);
+  }
+
+  function getVesselDefaultMostEfficientSpeedKn() {
+    return toPositiveNumber(state.vesselDefaults.mostEfficientSpeedKn, 0);
+  }
+
+  function getVesselDefaultFuelBurnAtEfficientSpeedGph() {
+    return toPositiveNumber(state.vesselDefaults.gphAtMostEfficientSpeed, 0);
+  }
+
+  function applyVesselDefaultsFromPayload(defaultsData) {
+    var src = (defaultsData && typeof defaultsData === "object") ? defaultsData : {};
+    state.vesselDefaults.maxSpeedKn = toPositiveNumber(
+      src.vessel_max_speed_kn !== undefined ? src.vessel_max_speed_kn : src.VESSEL_MAX_SPEED_KN,
+      0
+    );
+    state.vesselDefaults.mostEfficientSpeedKn = toPositiveNumber(
+      src.vessel_most_efficient_speed_kn !== undefined ? src.vessel_most_efficient_speed_kn : src.VESSEL_MOST_EFFICIENT_SPEED_KN,
+      0
+    );
+    state.vesselDefaults.gphAtMostEfficientSpeed = toPositiveNumber(
+      src.vessel_gph_at_most_efficient_speed !== undefined ? src.vessel_gph_at_most_efficient_speed : src.VESSEL_GPH_AT_MOST_EFFICIENT_SPEED,
+      0
+    );
+    state.vesselDefaults.gphAtMaxSpeed = toPositiveNumber(
+      src.vessel_gph_at_max_speed !== undefined ? src.vessel_gph_at_max_speed : src.VESSEL_GPH_AT_MAX_SPEED,
+      0
+    );
+  }
+
+  function normalizeAvailableVesselRow(vesselData) {
+    var src = (vesselData && typeof vesselData === "object") ? vesselData : {};
+    return {
+      vessel_id: toInt(
+        src.vessel_id !== undefined ? src.vessel_id :
+          (src.VESSEL_ID !== undefined ? src.VESSEL_ID : (src.vesselId !== undefined ? src.vesselId : 0)),
+        0
+      ),
+      vessel_name: String(
+        src.vessel_name !== undefined ? src.vessel_name :
+          (src.VESSEL_NAME !== undefined ? src.VESSEL_NAME : (src.vesselName !== undefined ? src.vesselName : ""))
+      ).trim(),
+      is_default: coerceBool(
+        src.is_default !== undefined ? src.is_default :
+          (src.IS_DEFAULT !== undefined ? src.IS_DEFAULT : (src.isDefaultVessel !== undefined ? src.isDefaultVessel : 0)),
+        false
+      ),
+      max_speed_kn: toPositiveNumber(
+        src.max_speed_kn !== undefined ? src.max_speed_kn :
+          (src.MAX_SPEED_KN !== undefined ? src.MAX_SPEED_KN : 0),
+        0
+      ),
+      most_efficient_speed_kn: toPositiveNumber(
+        src.most_efficient_speed_kn !== undefined ? src.most_efficient_speed_kn :
+          (src.MOST_EFFICIENT_SPEED_KN !== undefined ? src.MOST_EFFICIENT_SPEED_KN : 0),
+        0
+      ),
+      gph_at_max_speed: toPositiveNumber(
+        src.gph_at_max_speed !== undefined ? src.gph_at_max_speed :
+          (src.GPH_AT_MAX_SPEED !== undefined ? src.GPH_AT_MAX_SPEED : 0),
+        0
+      ),
+      gph_at_most_efficient_speed: toPositiveNumber(
+        src.gph_at_most_efficient_speed !== undefined ? src.gph_at_most_efficient_speed :
+          (src.GPH_AT_MOST_EFFICIENT_SPEED !== undefined ? src.GPH_AT_MOST_EFFICIENT_SPEED : 0),
+        0
+      )
+    };
+  }
+
+  function applyAvailableVesselsFromPayload(vesselsData) {
+    var src = Array.isArray(vesselsData) ? vesselsData : [];
+    state.availableVessels = src
+      .map(normalizeAvailableVesselRow)
+      .filter(function (row) {
+        return toInt(row.vessel_id, 0) > 0;
+      });
+  }
+
+  function getAvailableVesselById(vesselId) {
+    var targetId = toInt(vesselId, 0);
+    var i = 0;
+    if (targetId <= 0 || !Array.isArray(state.availableVessels)) return null;
+    for (i = 0; i < state.availableVessels.length; i += 1) {
+      if (toInt(state.availableVessels[i].vessel_id, 0) === targetId) {
+        return state.availableVessels[i];
+      }
+    }
+    return null;
+  }
+
+  function getDefaultAvailableVesselId() {
+    var i = 0;
+    if (!Array.isArray(state.availableVessels)) return 0;
+    for (i = 0; i < state.availableVessels.length; i += 1) {
+      if (state.availableVessels[i].is_default) {
+        return toInt(state.availableVessels[i].vessel_id, 0);
+      }
+    }
+    if (state.availableVessels.length) {
+      return toInt(state.availableVessels[0].vessel_id, 0);
+    }
+    return 0;
+  }
+
+  function findAvailableVesselByEditorFields() {
+    var matchKeys = [];
+    var target = {
+      max_speed_kn: toPositiveNumber(dom.cruisingSpeedEl ? dom.cruisingSpeedEl.value : state.vesselDefaults.maxSpeedKn, 0),
+      most_efficient_speed_kn: toPositiveNumber(dom.mostEfficientSpeedEl ? dom.mostEfficientSpeedEl.value : state.vesselDefaults.mostEfficientSpeedKn, 0),
+      gph_at_max_speed: toPositiveNumber(dom.fuelBurnGphEl ? dom.fuelBurnGphEl.value : state.vesselDefaults.gphAtMaxSpeed, 0),
+      gph_at_most_efficient_speed: toPositiveNumber(dom.fuelBurnEfficientGphEl ? dom.fuelBurnEfficientGphEl.value : state.vesselDefaults.gphAtMostEfficientSpeed, 0)
+    };
+    var matches = [];
+
+    if (!Array.isArray(state.availableVessels) || !state.availableVessels.length) return null;
+
+    Object.keys(target).forEach(function (key) {
+      if (target[key] > 0) {
+        matchKeys.push(key);
+      }
+    });
+    if (!matchKeys.length) return null;
+
+    matches = state.availableVessels.filter(function (vessel) {
+      return matchKeys.every(function (key) {
+        return toPositiveNumber(vessel[key], 0) === target[key];
+      });
+    });
+
+    return (matches.length === 1 ? matches[0] : null);
+  }
+
+  function applySelectedVesselToDefaultsState(vesselData) {
+    var vessel = vesselData && typeof vesselData === "object" ? vesselData : null;
+    if (!vessel) return;
+    state.vesselDefaults.maxSpeedKn = toPositiveNumber(vessel.max_speed_kn, 0);
+    state.vesselDefaults.mostEfficientSpeedKn = toPositiveNumber(vessel.most_efficient_speed_kn, 0);
+    state.vesselDefaults.gphAtMaxSpeed = toPositiveNumber(vessel.gph_at_max_speed, 0);
+    state.vesselDefaults.gphAtMostEfficientSpeed = toPositiveNumber(vessel.gph_at_most_efficient_speed, 0);
+  }
+
+  function renderVesselSelectOptions() {
+    var selectEl = dom.vesselSelectEl;
+    var optionEl = null;
+    var i = 0;
+    if (!selectEl) return;
+    selectEl.innerHTML = "";
+    if (!state.availableVessels.length) {
+      optionEl = document.createElement("option");
+      optionEl.value = "";
+      optionEl.textContent = "No vessels available";
+      selectEl.appendChild(optionEl);
+      selectEl.value = "";
+      selectEl.disabled = true;
+      return;
+    }
+    if (state.modalMode === "editor") {
+      optionEl = document.createElement("option");
+      optionEl.value = "";
+      optionEl.textContent = "Select vessel";
+      selectEl.appendChild(optionEl);
+    }
+    for (i = 0; i < state.availableVessels.length; i += 1) {
+      optionEl = document.createElement("option");
+      optionEl.value = String(state.availableVessels[i].vessel_id);
+      optionEl.textContent = state.availableVessels[i].vessel_name || ("Vessel " + String(state.availableVessels[i].vessel_id));
+      selectEl.appendChild(optionEl);
+    }
+    selectEl.disabled = false;
+  }
+
+  function syncSelectedVesselFromAvailableList() {
+    var selectedId = 0;
+    var selectedVessel = null;
+    renderVesselSelectOptions();
+    if (!state.availableVessels.length) {
+      state.selectedVesselId = 0;
+      return null;
+    }
+
+    selectedVessel = getAvailableVesselById(state.selectedVesselId);
+    if (state.modalMode === "editor" && !selectedVessel) {
+      selectedVessel = findAvailableVesselByEditorFields();
+      if (selectedVessel) {
+        state.selectedVesselId = toInt(selectedVessel.vessel_id, 0);
+        if (state.editorBaseline && !String(state.editorBaseline.selected_vessel_id || "").trim()) {
+          state.editorBaseline.selected_vessel_id = String(state.selectedVesselId);
+        }
+      }
+    }
+    if (state.modalMode !== "editor" && !selectedVessel) {
+      selectedId = getDefaultAvailableVesselId();
+      state.selectedVesselId = selectedId;
+      selectedVessel = getAvailableVesselById(selectedId);
+    } else if (selectedVessel) {
+      selectedId = toInt(selectedVessel.vessel_id, 0);
+    }
+
+    if (dom.vesselSelectEl) {
+      dom.vesselSelectEl.value = (selectedVessel ? String(selectedVessel.vessel_id) : "");
+    }
+    if (selectedVessel) {
+      applySelectedVesselToDefaultsState(selectedVessel);
+      return selectedVessel;
+    }
+    state.selectedVesselId = 0;
+    return null;
+  }
+
+  function setFieldValueFromVesselNumber(fieldEl, value) {
+    var numberVal = toPositiveNumber(value, 0);
+    if (!fieldEl) return;
+    fieldEl.value = (numberVal > 0 ? String(numberVal) : "");
+  }
+
+  function applyGeneratorVesselFieldDefaults() {
+    if (state.modalMode === "editor") return;
+    if (!pendingDraftHasField("vessel_most_efficient_speed_kn")) {
+      applyMostEfficientSpeedDefaultFromVessel();
+    }
+    if (!pendingDraftHasField("vessel_gph_at_most_efficient_speed")) {
+      applyEfficientFuelBurnDefaultFromVessel();
+    }
+    if (!state.manualOverrides.cruisingSpeed && !pendingDraftHasField("cruising_speed")) {
+      applyPaceDefaults(false);
+    }
+    if (!pendingDraftHasField("fuel_burn_gph")) {
+      applyFuelBurnDefaultFromVessel();
+    }
+    updatePaceLabel();
+    updateFuelBurnBasisUI();
+  }
+
   function updatePaceLabel() {
     if (!dom.paceLabelEl) return;
-    var preset = getSelectedPacePreset();
-    var percent = Math.round((Number.isFinite(preset.factor) ? preset.factor : 1) * 100);
-    dom.paceLabelEl.textContent = preset.label + " (" + percent + "%)";
+    var timelinePayload = state.cruiseTimeline && state.cruiseTimeline.payload && typeof state.cruiseTimeline.payload === "object"
+      ? state.cruiseTimeline.payload
+      : null;
+    var adjustedSpeedKn = getAdjustedCruisingSpeedKn();
+
+    if (timelinePayload) {
+      adjustedSpeedKn = safeVal(buildCruiseTimelineSummaryModel(timelinePayload, {
+        maxHoursPerDay: getCruiseTimelineMaxHoursFromUi(),
+        reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
+        weatherFactorPct: getWeatherFactorPct(),
+        effectiveSpeedKn: getEffectiveCruisingSpeed(),
+        fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
+      }).adjSpeedKn);
+    }
+
+    dom.paceLabelEl.textContent = formatNumber(adjustedSpeedKn, 2) + " kn";
   }
 
   function getMaxSpeedKn() {
     var value = parseFloat(dom.cruisingSpeedEl ? dom.cruisingSpeedEl.value : "");
     if (!Number.isFinite(value) || value <= 0) {
-      value = DEFAULT_MAX_SPEED_KN;
+      value = getVesselDefaultCruisingSpeedKn();
     }
     return value;
   }
 
+  function getMostEfficientSpeedKn() {
+    var value = parseFloat(dom.mostEfficientSpeedEl ? dom.mostEfficientSpeedEl.value : "");
+    if (!Number.isFinite(value) || value <= 0) {
+      value = getVesselDefaultMostEfficientSpeedKn();
+    }
+    return value;
+  }
+
+  function getFuelBurnAtMostEfficientSpeedGph() {
+    var value = parseFloat(dom.fuelBurnEfficientGphEl ? dom.fuelBurnEfficientGphEl.value : "");
+    if (!Number.isFinite(value) || value <= 0) {
+      value = getVesselDefaultFuelBurnAtEfficientSpeedGph();
+    }
+    return roundTo2(value);
+  }
+
   function getEffectiveCruisingSpeed() {
     var preset = getSelectedPacePreset();
-    var factor = Number.isFinite(preset.factor) ? preset.factor : 1;
-    var speed = getMaxSpeedKn() * factor;
+    var speed = 0;
+    var factor = 0;
+
+    if (preset.key === "BALANCED") {
+      speed = getMostEfficientSpeedKn();
+      if (!Number.isFinite(speed) || speed <= 0) return 0;
+      return Math.round(speed * 10) / 10;
+    }
+
+    factor = Number.isFinite(preset.factor) ? preset.factor : 1;
+    speed = getMaxSpeedKn() * factor;
     if (!Number.isFinite(speed) || speed <= 0) speed = DEFAULT_MAX_SPEED_KN;
     return Math.round(speed * 10) / 10;
   }
 
+  function getAdjustedCruisingSpeedKn() {
+    var weatherPct = getWeatherFactorPct();
+    var adjusted = roundTo2(getEffectiveCruisingSpeed() * (1 - (weatherPct / 100)));
+    if (!Number.isFinite(adjusted) || adjusted < 0.5) adjusted = 0.5;
+    return adjusted;
+  }
+
   function applyPaceDefaults(force) {
+    var defaultSpeedKn = (state.modalMode === "editor")
+      ? getVesselDefaultCruisingSpeedKn()
+      : getFieldDefaultCruisingSpeedKn();
     if (dom.cruisingSpeedEl && (force || !String(dom.cruisingSpeedEl.value || "").trim().length)) {
-      dom.cruisingSpeedEl.value = String(DEFAULT_MAX_SPEED_KN);
+      dom.cruisingSpeedEl.value = String(defaultSpeedKn);
     }
+  }
+
+  function applyFuelBurnDefaultFromVessel() {
+    var defaultBurnGph = 0;
+    if (!dom.fuelBurnGphEl || String(dom.fuelBurnGphEl.value || "").trim().length) return;
+    defaultBurnGph = getVesselDefaultFuelBurnAtMaxSpeedGph();
+    if (defaultBurnGph > 0) {
+      dom.fuelBurnGphEl.value = String(defaultBurnGph);
+    }
+  }
+
+  function applyMostEfficientSpeedDefaultFromVessel() {
+    var defaultSpeedKn = 0;
+    if (!dom.mostEfficientSpeedEl || String(dom.mostEfficientSpeedEl.value || "").trim().length) return;
+    defaultSpeedKn = getVesselDefaultMostEfficientSpeedKn();
+    if (defaultSpeedKn > 0) {
+      dom.mostEfficientSpeedEl.value = String(defaultSpeedKn);
+    }
+  }
+
+  function applyEfficientFuelBurnDefaultFromVessel() {
+    var defaultBurnGph = 0;
+    if (!dom.fuelBurnEfficientGphEl || String(dom.fuelBurnEfficientGphEl.value || "").trim().length) return;
+    defaultBurnGph = getVesselDefaultFuelBurnAtEfficientSpeedGph();
+    if (defaultBurnGph > 0) {
+      dom.fuelBurnEfficientGphEl.value = String(defaultBurnGph);
+    }
+  }
+
+  function applySelectedVesselValuesToFields(vesselData) {
+    var vessel = vesselData && typeof vesselData === "object" ? vesselData : null;
+    if (!vessel) return;
+    applySelectedVesselToDefaultsState(vessel);
+    setFieldValueFromVesselNumber(dom.mostEfficientSpeedEl, vessel.most_efficient_speed_kn);
+    setFieldValueFromVesselNumber(dom.fuelBurnEfficientGphEl, vessel.gph_at_most_efficient_speed);
+    setFieldValueFromVesselNumber(dom.cruisingSpeedEl, vessel.max_speed_kn);
+    setFieldValueFromVesselNumber(dom.fuelBurnGphEl, vessel.gph_at_max_speed);
+  }
+
+  function onVesselSelectChange() {
+    var vesselId = toInt(dom.vesselSelectEl ? dom.vesselSelectEl.value : 0, 0);
+    var selectedVessel = getAvailableVesselById(vesselId);
+    state.selectedVesselId = (selectedVessel ? vesselId : 0);
+    if (!selectedVessel) {
+      return;
+    }
+    applySelectedVesselValuesToFields(selectedVessel);
+    state.manualOverrides.cruisingSpeed = true;
+    updatePaceOverrideUI();
+    onFormChange();
   }
 
   function updatePaceOverrideUI() {
@@ -293,6 +2362,864 @@
     var n = parseFloat(value);
     if (!Number.isFinite(n)) return 0;
     return Math.round(n * 100) / 100;
+  }
+
+  function toInt(value, fallback) {
+    var n = parseInt(value, 10);
+    if (!Number.isFinite(n)) return (fallback !== undefined ? fallback : 0);
+    return n;
+  }
+
+  function getLegField(leg, key) {
+    if (!leg || typeof leg !== "object") return undefined;
+    if (Object.prototype.hasOwnProperty.call(leg, key)) return leg[key];
+    var upper = String(key || "").toUpperCase();
+    if (Object.prototype.hasOwnProperty.call(leg, upper)) return leg[upper];
+    return undefined;
+  }
+
+  function normalizeLegList(legs) {
+    var list = Array.isArray(legs) ? legs : [];
+    return list.map(function (leg, idx) {
+      var row = (leg && typeof leg === "object") ? Object.assign({}, leg) : {};
+      var order = toInt(getLegField(row, "order_index"), idx + 1);
+      if (!Number.isFinite(order) || order <= 0) order = idx + 1;
+      row.order_index = order;
+      row.route_id = toInt(getLegField(row, "route_id"), 0);
+      row.route_leg_id = toInt(getLegField(row, "route_leg_id"), 0);
+      row.segment_id = toInt(getLegField(row, "segment_id"), 0);
+      row.has_user_override = !!(getLegField(row, "has_user_override"));
+      row.dist_nm = roundTo2(parseFloat(getLegField(row, "dist_nm")));
+      row.dist_nm_default = roundTo2(parseFloat(getLegField(row, "dist_nm_default")));
+      if (!Number.isFinite(row.dist_nm_default) || row.dist_nm_default <= 0) {
+        row.dist_nm_default = row.dist_nm;
+      }
+      return row;
+    });
+  }
+
+  function getLegByOrder(order) {
+    var wanted = toInt(order, 0);
+    if (wanted <= 0) return null;
+    var i;
+    for (i = 0; i < state.previewLegs.length; i += 1) {
+      if (toInt(state.previewLegs[i].order_index, 0) === wanted) return state.previewLegs[i];
+    }
+    return null;
+  }
+
+  function clearSelectedLegRows() {
+    if (!dom.legListEl) return;
+    dom.legListEl.querySelectorAll(".fpw-routegen__leg.is-selected").forEach(function (el) {
+      el.classList.remove("is-selected");
+    });
+  }
+
+  function selectLegRow(order) {
+    clearSelectedLegRows();
+    if (!dom.legListEl) return;
+    var wanted = String(toInt(order, 0));
+    if (!wanted || wanted === "0") return;
+    var row = dom.legListEl.querySelector('.fpw-routegen__leg[data-leg-order="' + wanted + '"]');
+    if (row) row.classList.add("is-selected");
+  }
+
+  function resetLegLockPanelState() {
+    state.lockPanel.expandedOrder = 0;
+    state.lockPanel.loadingOrder = 0;
+    state.lockPanel.requestSeq = 0;
+    state.lockPanel.detailByOrder = {};
+    state.lockPanel.errorByOrder = {};
+  }
+
+  function legNameSignature(leg, key) {
+    return String(getLegField(leg, key) || "").trim().toLowerCase();
+  }
+
+  function findMatchingLegByIdentity(targetLeg, candidateLegs) {
+    var list = Array.isArray(candidateLegs) ? candidateLegs : [];
+    var routeLegId = toInt(getLegField(targetLeg, "route_leg_id"), 0);
+    var segmentId = toInt(getLegField(targetLeg, "segment_id"), 0);
+    var orderIndex = toInt(getLegField(targetLeg, "order_index"), 0);
+    var startKey = legNameSignature(targetLeg, "start_name");
+    var endKey = legNameSignature(targetLeg, "end_name");
+    var match = null;
+    if (!targetLeg || !list.length) return null;
+
+    if (routeLegId > 0) {
+      match = list.find(function (leg) {
+        return toInt(getLegField(leg, "route_leg_id"), 0) === routeLegId;
+      }) || null;
+      if (match) return match;
+    }
+
+    if (segmentId > 0 && startKey && endKey) {
+      match = list.find(function (leg) {
+        return toInt(getLegField(leg, "segment_id"), 0) === segmentId
+          && legNameSignature(leg, "start_name") === startKey
+          && legNameSignature(leg, "end_name") === endKey;
+      }) || null;
+      if (match) return match;
+    }
+
+    if (segmentId > 0) {
+      match = list.find(function (leg) {
+        return toInt(getLegField(leg, "segment_id"), 0) === segmentId;
+      }) || null;
+      if (match) return match;
+    }
+
+    if (orderIndex > 0) {
+      return list.find(function (leg) {
+        return toInt(getLegField(leg, "order_index"), 0) === orderIndex;
+      }) || null;
+    }
+    return null;
+  }
+
+  function preserveLockPanelAcrossPreview(previousLegs, nextLegs, previousLockPanelState) {
+    var priorLegs = Array.isArray(previousLegs) ? previousLegs : [];
+    var upcomingLegs = Array.isArray(nextLegs) ? nextLegs : [];
+    var previousState = (previousLockPanelState && typeof previousLockPanelState === "object") ? previousLockPanelState : {};
+    var previousExpandedOrder = toInt(previousState.expandedOrder, 0);
+    var previousRequestSeq = toInt(previousState.requestSeq, 0);
+    var previousDetails = (previousState.detailByOrder && typeof previousState.detailByOrder === "object") ? previousState.detailByOrder : {};
+    var previousErrors = (previousState.errorByOrder && typeof previousState.errorByOrder === "object") ? previousState.errorByOrder : {};
+    var remappedDetails = {};
+    var remappedErrors = {};
+    var restoredExpandedOrder = 0;
+    var previousExpandedLeg = null;
+    var restoredExpandedLeg = null;
+
+    priorLegs.forEach(function (leg) {
+      var previousOrder = toInt(getLegField(leg, "order_index"), 0);
+      var previousKey = String(previousOrder);
+      var matchedLeg = null;
+      var nextOrder = 0;
+      var nextKey = "";
+      if (previousOrder <= 0) return;
+      matchedLeg = findMatchingLegByIdentity(leg, upcomingLegs);
+      if (!matchedLeg) return;
+      nextOrder = toInt(getLegField(matchedLeg, "order_index"), 0);
+      if (nextOrder <= 0) return;
+      nextKey = String(nextOrder);
+      if (Object.prototype.hasOwnProperty.call(previousDetails, previousKey)) {
+        remappedDetails[nextKey] = previousDetails[previousKey];
+      }
+      if (Object.prototype.hasOwnProperty.call(previousErrors, previousKey)) {
+        remappedErrors[nextKey] = previousErrors[previousKey];
+      }
+    });
+
+    if (previousExpandedOrder > 0) {
+      previousExpandedLeg = priorLegs.find(function (leg) {
+        return toInt(getLegField(leg, "order_index"), 0) === previousExpandedOrder;
+      }) || null;
+      if (previousExpandedLeg) {
+        restoredExpandedLeg = findMatchingLegByIdentity(previousExpandedLeg, upcomingLegs);
+        if (restoredExpandedLeg) {
+          restoredExpandedOrder = toInt(getLegField(restoredExpandedLeg, "order_index"), 0);
+        }
+      }
+    }
+
+    return {
+      expandedOrder: restoredExpandedOrder,
+      loadingOrder: 0,
+      requestSeq: previousRequestSeq + 1,
+      detailByOrder: remappedDetails,
+      errorByOrder: remappedErrors,
+      restoredLeg: restoredExpandedLeg
+    };
+  }
+
+  function getLegLockPayload(leg) {
+    return {
+      route_code: (state.modalMode === "editor" ? String(state.activeRouteCode || "").trim() : ""),
+      template_code: String(state.activeTemplateCode || "").trim(),
+      route_leg_id: toInt(getLegField(leg, "route_leg_id"), 0),
+      segment_id: toInt(getLegField(leg, "segment_id"), 0),
+      leg_order: toInt(getLegField(leg, "order_index"), 0)
+    };
+  }
+
+  function formatCoord(value) {
+    var n = parseFloat(value);
+    if (!Number.isFinite(n)) return "--";
+    return formatNumber(n, 5);
+  }
+
+  function renderLegLockPanelBody(leg, order) {
+    var orderKey = String(toInt(order, 0));
+    var isLoading = (toInt(state.lockPanel.loadingOrder, 0) === toInt(order, 0));
+    var errorText = String(state.lockPanel.errorByOrder[orderKey] || "").trim();
+    var details = state.lockPanel.detailByOrder[orderKey];
+    var html = "";
+    var totals = details && typeof details === "object" ? (details.totals || details.TOTALS || {}) : {};
+    var lockMessage = details && typeof details === "object"
+      ? String(details.lock_message !== undefined ? details.lock_message : (details.LOCK_MESSAGE || "")).trim()
+      : "";
+    var locks = details && typeof details === "object"
+      ? (Array.isArray(details.locks) ? details.locks : (Array.isArray(details.LOCKS) ? details.LOCKS : []))
+      : [];
+    var lockCount = parseInt(
+      details && details.lock_count !== undefined
+        ? details.lock_count
+        : (details && details.LOCK_COUNT !== undefined ? details.LOCK_COUNT : locks.length),
+      10
+    );
+    if (!Number.isFinite(lockCount) || lockCount < 0) lockCount = 0;
+
+    html += '<div class="fpw-routegen__leglockhead">';
+    html += '  <div class="fpw-routegen__kicker">Lock Navigation Details</div>';
+    html += '  <div class="fpw-routegen__leglockheadactions">';
+    html += '    <button type="button" class="btn-secondary btn-sm" data-leg-action="collapse-locks">Hide</button>';
+    html += "  </div>";
+    html += "</div>";
+
+    if (isLoading) {
+      html += '<div class="fpw-routegen__lockstate">Loading lock details...</div>';
+      html += renderCruiseTimelineLegInlineForLeg(leg, order);
+      return html;
+    }
+    if (errorText) {
+      html += '<div class="fpw-routegen__lockstate fpw-routegen__lockstate--error">' + escapeHtml(errorText) + "</div>";
+      html += '<div class="fpw-routegen__leglockinlineactions">';
+      html += '  <button type="button" class="btn-secondary btn-sm" data-leg-action="reload-locks">Retry</button>';
+      html += "</div>";
+      html += renderCruiseTimelineLegInlineForLeg(leg, order);
+      return html;
+    }
+
+    html += '<div class="fpw-routegen__locksummary">';
+    html += '  <div class="fpw-routegen__lockchip"><span>Locks</span><strong>' + formatNumber(lockCount, 0) + "</strong></div>";
+    html += '  <div class="fpw-routegen__lockchip"><span>Best</span><strong>' + formatNumber(parseFloat(totals.best_wait_min), 0) + " min</strong></div>";
+    html += '  <div class="fpw-routegen__lockchip"><span>Typical</span><strong>' + formatNumber(parseFloat(totals.typical_wait_min), 0) + " min</strong></div>";
+    html += '  <div class="fpw-routegen__lockchip"><span>Worst</span><strong>' + formatNumber(parseFloat(totals.worst_wait_min), 0) + " min</strong></div>";
+    html += "</div>";
+
+    if (!locks.length) {
+      html += '<div class="fpw-routegen__lockstate">' + escapeHtml(lockMessage || "No locks mapped for this leg.") + '</div>';
+      html += renderCruiseTimelineLegInlineForLeg(leg, order);
+      return html;
+    }
+
+    html += '<div class="fpw-routegen__locklist">';
+    locks.forEach(function (lock) {
+      var seq = toInt(lock.seq !== undefined ? lock.seq : lock.SEQ, 0);
+      var code = String(lock.lock_code !== undefined ? lock.lock_code : (lock.LOCK_CODE || "")).trim();
+      var name = String(lock.name !== undefined ? lock.name : (lock.NAME || code || "Lock")).trim();
+      var waterway = String(lock.waterway !== undefined ? lock.waterway : (lock.WATERWAY || "")).trim();
+      var stateCode = String(lock.state_code !== undefined ? lock.state_code : (lock.STATE_CODE || "")).trim();
+      var countryCode = String(lock.country_code !== undefined ? lock.country_code : (lock.COUNTRY_CODE || "")).trim();
+      var lockType = String(lock.lock_type !== undefined ? lock.lock_type : (lock.LOCK_TYPE || "")).trim();
+      var agency = String(lock.agency !== undefined ? lock.agency : (lock.AGENCY || "")).trim();
+      var sourceUrl = String(lock.source_url !== undefined ? lock.source_url : (lock.SOURCE_URL || "")).trim();
+      var lockNotes = String(lock.lock_notes !== undefined ? lock.lock_notes : (lock.LOCK_NOTES || "")).trim();
+      var delayNotes = String(lock.delay_notes !== undefined ? lock.delay_notes : (lock.DELAY_NOTES || "")).trim();
+      var bestWait = parseFloat(lock.best_wait_min !== undefined ? lock.best_wait_min : lock.BEST_WAIT_MIN);
+      var typicalWait = parseFloat(lock.typical_wait_min !== undefined ? lock.typical_wait_min : lock.TYPICAL_WAIT_MIN);
+      var worstWait = parseFloat(lock.worst_wait_min !== undefined ? lock.worst_wait_min : lock.WORST_WAIT_MIN);
+      var chamberLen = parseInt(lock.chamber_length_ft !== undefined ? lock.chamber_length_ft : lock.CHAMBER_LENGTH_FT, 10);
+      var chamberWid = parseInt(lock.chamber_width_ft !== undefined ? lock.chamber_width_ft : lock.CHAMBER_WIDTH_FT, 10);
+      var latText = formatCoord(lock.lat !== undefined ? lock.lat : lock.LAT);
+      var lngText = formatCoord(lock.lng !== undefined ? lock.lng : lock.LNG);
+
+      html += '<div class="fpw-routegen__lockitem">';
+      html += '  <div class="fpw-routegen__lockitemhead">';
+      html += '    <div class="fpw-routegen__lockitemtitle">' + escapeHtml((seq > 0 ? ("#" + seq + " ") : "") + name) + "</div>";
+      html += '    <div class="fpw-routegen__lockitemcode">' + escapeHtml(code || "--") + "</div>";
+      html += "  </div>";
+      html += '  <div class="fpw-routegen__lockitemmeta">';
+      html += "    <span>" + escapeHtml(waterway || "Waterway not set") + "</span>";
+      html += "    <span>" + escapeHtml((stateCode || "--") + (countryCode ? (", " + countryCode) : "")) + "</span>";
+      html += "    <span>" + escapeHtml(lockType || "--") + "</span>";
+      html += "    <span>Chamber " + (Number.isFinite(chamberLen) && chamberLen > 0 ? chamberLen : "--") + " x " + (Number.isFinite(chamberWid) && chamberWid > 0 ? chamberWid : "--") + " ft</span>";
+      html += "    <span>Best/Typical/Worst: " + formatNumber(bestWait, 0) + "/" + formatNumber(typicalWait, 0) + "/" + formatNumber(worstWait, 0) + " min</span>";
+      html += "    <span>Lat/Lng: " + latText + ", " + lngText + "</span>";
+      html += "    <span>Agency: " + escapeHtml(agency || "--") + "</span>";
+      if (lockNotes) html += "    <span>Notes: " + escapeHtml(lockNotes) + "</span>";
+      if (delayNotes) html += "    <span>Delay notes: " + escapeHtml(delayNotes) + "</span>";
+      if (sourceUrl) html += "    <span>Source: " + escapeHtml(sourceUrl) + "</span>";
+      html += "  </div>";
+      html += "</div>";
+    });
+    html += "</div>";
+    html += renderCruiseTimelineLegInlineForLeg(leg, order);
+    return html;
+  }
+
+  function renderLegLockPanel(leg, order) {
+    if (toInt(state.lockPanel.expandedOrder, 0) !== toInt(order, 0)) return "";
+    return ''
+      + '<div class="fpw-routegen__leglockpanel is-open" data-leg-order="' + String(order) + '">'
+      + renderLegLockPanelBody(leg, order)
+      + "</div>";
+  }
+
+  function fetchLegLockDetails(leg, options) {
+    var opts = options || {};
+    if (!leg) return Promise.resolve(null);
+    var order = toInt(getLegField(leg, "order_index"), 0);
+    if (order <= 0) return Promise.resolve(null);
+    var orderKey = String(order);
+    var segmentId = toInt(getLegField(leg, "segment_id"), 0);
+    if (!opts.force && state.lockPanel.detailByOrder[orderKey]) {
+      return Promise.resolve(state.lockPanel.detailByOrder[orderKey]);
+    }
+    if (segmentId <= 0) {
+      state.lockPanel.detailByOrder[orderKey] = {
+        lock_count: 0,
+        lock_message: "No canonical lock mapping for waypoint leg.",
+        totals: {
+          base_cycle_min: 0,
+          best_wait_min: 0,
+          typical_wait_min: 0,
+          worst_wait_min: 0
+        },
+        locks: []
+      };
+      delete state.lockPanel.errorByOrder[orderKey];
+      state.lockPanel.loadingOrder = 0;
+      renderLegs(state.previewLegs);
+      selectLegRow(order);
+      return Promise.resolve(state.lockPanel.detailByOrder[orderKey]);
+    }
+
+    state.lockPanel.requestSeq += 1;
+    var requestSeq = state.lockPanel.requestSeq;
+    state.lockPanel.loadingOrder = order;
+    delete state.lockPanel.errorByOrder[orderKey];
+    renderLegs(state.previewLegs);
+    selectLegRow(order);
+
+    return fetchJson(apiUrl("routegen_getleglocks"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify(getLegLockPayload(leg))
+    })
+      .then(function (res) {
+        if (requestSeq !== state.lockPanel.requestSeq) return null;
+        if (!res || res.SUCCESS === false) {
+          throw new Error((res && res.MESSAGE) ? res.MESSAGE : "Unable to load lock details.");
+        }
+        state.lockPanel.detailByOrder[orderKey] = res.DATA || {};
+        delete state.lockPanel.errorByOrder[orderKey];
+        state.lockPanel.loadingOrder = 0;
+        renderLegs(state.previewLegs);
+        selectLegRow(order);
+        return state.lockPanel.detailByOrder[orderKey];
+      })
+      .catch(function (err) {
+        if (requestSeq !== state.lockPanel.requestSeq) return null;
+        if (err && err.code === "UNAUTHORIZED") {
+          redirectToLogin();
+          return null;
+        }
+        state.lockPanel.loadingOrder = 0;
+        state.lockPanel.errorByOrder[orderKey] = (err && err.message) ? err.message : "Unable to load lock details.";
+        renderLegs(state.previewLegs);
+        selectLegRow(order);
+        return null;
+      });
+  }
+
+  function toggleLegLockPanel(leg) {
+    if (!leg) return;
+    var order = toInt(getLegField(leg, "order_index"), 0);
+    if (order <= 0) return;
+    if (toInt(state.lockPanel.expandedOrder, 0) === order) {
+      state.lockPanel.expandedOrder = 0;
+      state.lockPanel.loadingOrder = 0;
+      renderLegs(state.previewLegs);
+      selectLegRow(order);
+      return;
+    }
+    state.lockPanel.expandedOrder = order;
+    state.selectedLegOrder = order;
+    state.selectedLegData = leg;
+    renderLegs(state.previewLegs);
+    selectLegRow(order);
+    fetchLegLockDetails(leg);
+    ensureCruiseTimelineForCurrentRoute();
+  }
+
+  function setLegMapStatus(message) {
+    if (!dom.legMapStatusEl) return;
+    dom.legMapStatusEl.textContent = message || "";
+  }
+
+  function setLegMapNm(value) {
+    if (!dom.legMapNmEl) return;
+    var nm = parseFloat(value);
+    dom.legMapNmEl.textContent = Number.isFinite(nm) ? formatNumber(nm, 2) : "0.00";
+  }
+
+  function canPersistLegOverride(leg) {
+    return getLegOverrideSaveMode(leg) !== "";
+  }
+
+  function getLegOverrideSaveMode(leg) {
+    var routeCode = String(state.activeRouteCode || "").trim();
+    var myRouteId = toInt(state.myRoutes.activeRouteId, 0);
+    var routeLegId = toInt(getLegField(leg, "route_leg_id"), 0);
+    var segmentId = toInt(getLegField(leg, "segment_id"), 0);
+    if (!leg) return "";
+    if (state.selectedLegContext === "my_route" && myRouteId > 0 && routeLegId > 0) {
+      return "my_route_leg";
+    }
+    if (state.modalMode === "editor" && routeCode && routeLegId > 0) {
+      return "route_leg";
+    }
+    if (segmentId > 0) {
+      return "segment";
+    }
+    return "";
+  }
+
+  function sourceLabelFromCode(source) {
+    if (source === "user_override") return "user override";
+    if (source === "user_segment") return "your saved segment";
+    if (source === "default_line") return "default straight line";
+    if (source === "default_segment") return "default segment";
+    return "default";
+  }
+
+  function updateLegMapButtons(leg, hasOverride) {
+    var allowSave = canPersistLegOverride(leg);
+    if (dom.legSaveBtn) dom.legSaveBtn.disabled = !allowSave;
+    if (dom.legClearBtn) dom.legClearBtn.disabled = !leg;
+    if (dom.legRevertBtn) dom.legRevertBtn.disabled = !(allowSave && !!hasOverride);
+  }
+
+  function moveLegMapPanelToDock() {
+    if (!dom.legMapPanelEl || !dom.legMapDockEl) return;
+    if (dom.legMapPanelEl.parentNode !== dom.legMapDockEl) {
+      dom.legMapDockEl.appendChild(dom.legMapPanelEl);
+    }
+  }
+
+  function moveLegMapPanelToOverlayDock() {
+    if (!dom.legMapPanelEl || !dom.legOverlayDockEl) return;
+    if (dom.legMapPanelEl.parentNode !== dom.legOverlayDockEl) {
+      dom.legOverlayDockEl.appendChild(dom.legMapPanelEl);
+    }
+  }
+
+  function isLegMapOverlayOpen() {
+    return !!(dom.legOverlayEl && dom.legOverlayEl.classList.contains("is-open"));
+  }
+
+  function closeLegMapPanel() {
+    if (dom.legMapPanelEl) dom.legMapPanelEl.classList.remove("is-open");
+    if (dom.legOverlayEl) {
+      dom.legOverlayEl.classList.remove("is-open");
+      dom.legOverlayEl.setAttribute("aria-hidden", "true");
+    }
+    document.body.classList.remove("fpw-routegen--overlay-open");
+    moveLegMapPanelToDock();
+  }
+
+  function closeLegMapAndRefreshPane() {
+    var wasMyRoute = (state.selectedLegContext === "my_route");
+    resetLegMapSelection();
+    if (wasMyRoute) {
+      renderMyRouteLegList();
+    }
+    if (Array.isArray(state.previewLegs) && state.previewLegs.length) {
+      renderLegs(state.previewLegs);
+      refreshTotalsFromLegs();
+    }
+  }
+
+  function openLegMapPanel() {
+    if (!dom.legMapPanelEl) return;
+    moveLegMapPanelToOverlayDock();
+    if (dom.legOverlayEl) {
+      dom.legOverlayEl.classList.add("is-open");
+      dom.legOverlayEl.setAttribute("aria-hidden", "false");
+    }
+    document.body.classList.add("fpw-routegen--overlay-open");
+    dom.legMapPanelEl.classList.remove("is-open");
+    void dom.legMapPanelEl.offsetWidth;
+    dom.legMapPanelEl.classList.add("is-open");
+    if (state.legMap && state.legMap.map) {
+      window.setTimeout(function () {
+        if (state.legMap && state.legMap.map) {
+          state.legMap.map.invalidateSize();
+        }
+      }, 240);
+    }
+  }
+
+  function resetLegMapSelection() {
+    state.legMapLoadSeq += 1;
+    state.legMapClearIntent = false;
+    state.legMapDraftPoints = [];
+    closeLegMapPanel();
+    state.selectedLegOrder = 0;
+    state.selectedLegData = null;
+    state.selectedLegContext = "routegen";
+    state.selectedLegHasOverride = false;
+    state.selectedLegSource = "default";
+    clearSelectedLegRows();
+    if (dom.legMapTitleEl) dom.legMapTitleEl.textContent = "Select a leg to edit geometry";
+    if (dom.legMapSourceEl) dom.legMapSourceEl.textContent = "Source: default";
+    if (dom.legMapHintEl) dom.legMapHintEl.textContent = "Draw or edit polyline, then save override.";
+    setLegMapStatus("Open lock details on a leg, then click Edit Geometry.");
+    setLegMapNm(0);
+    updateLegMapButtons(null, false);
+    if (state.legMap && state.legMap.activeLayer && state.legMap.drawnItems) {
+      state.legMap.drawnItems.removeLayer(state.legMap.activeLayer);
+      state.legMap.activeLayer = null;
+    }
+    clearLegMapSearchMarker();
+    clearLegMapEndpointMarkers();
+    if (dom.legSearchInputEl) dom.legSearchInputEl.value = "";
+  }
+
+  function toRadians(value) {
+    return value * (Math.PI / 180);
+  }
+
+  function haversineMeters(lat1, lon1, lat2, lon2) {
+    var earthRadius = 6371008.8;
+    var dLat = toRadians(lat2 - lat1);
+    var dLon = toRadians(lon2 - lon1);
+    var phi1 = toRadians(lat1);
+    var phi2 = toRadians(lat2);
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+      + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    if (a < 0) a = 0;
+    if (a > 1) a = 1;
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  function calculatePolylineNm(points) {
+    var list = Array.isArray(points) ? points : [];
+    if (list.length < 2) return 0;
+    var i;
+    var totalMeters = 0;
+    for (i = 1; i < list.length; i += 1) {
+      totalMeters += haversineMeters(
+        parseFloat(list[i - 1].lat),
+        parseFloat(list[i - 1].lon),
+        parseFloat(list[i].lat),
+        parseFloat(list[i].lon)
+      );
+    }
+    return roundTo2(totalMeters / 1852);
+  }
+
+  function extractMapPoints(layer) {
+    if (!layer || typeof layer.getLatLngs !== "function") return [];
+    var latlngs = layer.getLatLngs();
+    if (!Array.isArray(latlngs)) return [];
+    if (latlngs.length && Array.isArray(latlngs[0])) {
+      latlngs = latlngs[0];
+    }
+    return latlngs
+      .filter(function (pt) {
+        return pt && Number.isFinite(pt.lat) && Number.isFinite(pt.lng);
+      })
+      .map(function (pt) {
+        return {
+          lat: Math.round(pt.lat * 1000000) / 1000000,
+          lon: Math.round(pt.lng * 1000000) / 1000000
+        };
+      });
+  }
+
+  function extractInProgressDrawPoints() {
+    if (!state.legMap || !state.legMap.map) return [];
+    var map = state.legMap.map;
+    var toolbars = map._toolbars;
+    if (!toolbars || !toolbars.draw || !toolbars.draw._modes) return [];
+    var polyMode = toolbars.draw._modes.polyline;
+    if (!polyMode || !polyMode.handler) return [];
+    var handler = polyMode.handler;
+    if (typeof handler.enabled === "function" && !handler.enabled()) return [];
+    if (handler._poly) {
+      return extractMapPoints(handler._poly);
+    }
+    if (!Array.isArray(handler._markers)) return [];
+    return handler._markers
+      .map(function (marker) {
+        return (marker && typeof marker.getLatLng === "function") ? marker.getLatLng() : null;
+      })
+      .filter(function (pt) {
+        return pt && Number.isFinite(pt.lat) && Number.isFinite(pt.lng);
+      })
+      .map(function (pt) {
+        return {
+          lat: Math.round(pt.lat * 1000000) / 1000000,
+          lon: Math.round(pt.lng * 1000000) / 1000000
+        };
+      });
+  }
+
+  function extractDrawVertexPoints(evt) {
+    var out = [];
+    if (!evt || !evt.layers || typeof evt.layers.eachLayer !== "function") return out;
+    evt.layers.eachLayer(function (layer) {
+      var point = (layer && typeof layer.getLatLng === "function") ? layer.getLatLng() : null;
+      if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return;
+      out.push({
+        lat: Math.round(point.lat * 1000000) / 1000000,
+        lon: Math.round(point.lng * 1000000) / 1000000
+      });
+    });
+    return out;
+  }
+
+  function disableActiveLegMapToolHandlers() {
+    if (!state.legMap || !state.legMap.map) return;
+    var map = state.legMap.map;
+    var toolbars = map._toolbars;
+    var toolbarKeys = ["draw", "edit"];
+    var i;
+    var key;
+    var toolbar;
+    var modes;
+    var modeName;
+    var mode;
+    var handler;
+
+    if (!toolbars) return;
+    for (i = 0; i < toolbarKeys.length; i += 1) {
+      key = toolbarKeys[i];
+      toolbar = toolbars[key];
+      if (!toolbar || !toolbar._modes) continue;
+      modes = toolbar._modes;
+      for (modeName in modes) {
+        if (!Object.prototype.hasOwnProperty.call(modes, modeName)) continue;
+        mode = modes[modeName];
+        handler = mode && mode.handler ? mode.handler : null;
+        if (!handler || typeof handler.disable !== "function") continue;
+        if (typeof handler.enabled === "function" && !handler.enabled()) continue;
+        handler.disable();
+      }
+    }
+  }
+
+  function clearLegMapGeometryLayers() {
+    if (!state.legMap || !state.legMap.map) return;
+    if (state.legMap.drawnItems && typeof state.legMap.drawnItems.clearLayers === "function") {
+      state.legMap.drawnItems.clearLayers();
+    } else if (state.legMap.activeLayer && state.legMap.drawnItems) {
+      state.legMap.drawnItems.removeLayer(state.legMap.activeLayer);
+    }
+    state.legMap.activeLayer = null;
+  }
+
+  function completeInProgressPolylineDraw() {
+    if (!state.legMap || !state.legMap.map) return false;
+    var toolbars = state.legMap.map._toolbars;
+    if (!toolbars || !toolbars.draw || !toolbars.draw._modes) return false;
+    var polyMode = toolbars.draw._modes.polyline;
+    if (!polyMode || !polyMode.handler) return false;
+    var handler = polyMode.handler;
+    if (typeof handler.enabled !== "function" || !handler.enabled()) return false;
+    if (!Array.isArray(handler._markers) || handler._markers.length < 2) return false;
+    if (typeof handler.completeShape !== "function") return false;
+    handler.completeShape();
+    return true;
+  }
+
+  function setLegMapLayer(points) {
+    if (!state.legMap.drawnItems) return null;
+    if (state.legMap.activeLayer) {
+      state.legMap.drawnItems.removeLayer(state.legMap.activeLayer);
+      state.legMap.activeLayer = null;
+    }
+    if (!Array.isArray(points) || points.length < 2) return null;
+    var latlngs = points.map(function (p) {
+      return [parseFloat(p.lat), parseFloat(p.lon)];
+    });
+    var layer = window.L.polyline(latlngs, {
+      color: "#5ab3ff",
+      weight: 4,
+      opacity: 0.95
+    });
+    state.legMap.activeLayer = layer;
+    state.legMap.drawnItems.addLayer(layer);
+    return layer;
+  }
+
+  function updateLegMapNmFromLayer() {
+    var points = extractMapPoints(state.legMap.activeLayer);
+    var nm = calculatePolylineNm(points);
+    setLegMapNm(nm);
+    return {
+      points: points,
+      nm: nm
+    };
+  }
+
+  function ensureLegMap() {
+    if (state.legMap.initialized) return true;
+    if (!dom.legMapEl || !window.L || !window.L.Control || !window.L.Control.Draw) {
+      return false;
+    }
+
+    state.legMap.map = window.L.map(dom.legMapEl, {
+      center: [39.5, -95.5],
+      zoom: 4,
+      zoomControl: true
+    });
+    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors",
+      maxZoom: 19
+    }).addTo(state.legMap.map);
+
+    state.legMap.drawnItems = new window.L.FeatureGroup();
+    state.legMap.map.addLayer(state.legMap.drawnItems);
+
+    var drawControl = new window.L.Control.Draw({
+      draw: {
+        polyline: {
+          shapeOptions: {
+            color: "#5ab3ff",
+            weight: 4,
+            opacity: 0.95
+          }
+        },
+        polygon: false,
+        rectangle: false,
+        circle: false,
+        marker: false,
+        circlemarker: false
+      },
+      edit: {
+        featureGroup: state.legMap.drawnItems,
+        edit: true,
+        remove: true
+      }
+    });
+    state.legMap.map.addControl(drawControl);
+
+    state.legMap.map.on(window.L.Draw.Event.CREATED, function (evt) {
+      if (state.legMap.activeLayer) {
+        state.legMap.drawnItems.removeLayer(state.legMap.activeLayer);
+      }
+      state.legMap.activeLayer = evt.layer;
+      state.legMap.drawnItems.addLayer(evt.layer);
+      state.legMapClearIntent = false;
+      state.legMapDraftPoints = extractMapPoints(evt.layer);
+      updateLegMapNmFromLayer();
+      setLegMapStatus("Draft geometry updated. Save to persist your override.");
+    });
+    state.legMap.map.on(window.L.Draw.Event.DRAWSTART, function () {
+      state.legMapClearIntent = false;
+      state.legMapDraftPoints = [];
+      setLegMapStatus("Click to trace points, then double-click the last point to finish.");
+    });
+    state.legMap.map.on(window.L.Draw.Event.DRAWVERTEX, function (evt) {
+      state.legMapDraftPoints = extractDrawVertexPoints(evt);
+    });
+    state.legMap.map.on(window.L.Draw.Event.EDITED, function () {
+      state.legMapClearIntent = false;
+      state.legMapDraftPoints = extractMapPoints(state.legMap.activeLayer);
+      updateLegMapNmFromLayer();
+      setLegMapStatus("Draft geometry updated. Save to persist your override.");
+    });
+    state.legMap.map.on(window.L.Draw.Event.DELETED, function () {
+      state.legMap.activeLayer = null;
+      state.legMapClearIntent = true;
+      state.legMapDraftPoints = [];
+      setLegMapNm(0);
+      setLegMapStatus("Geometry cleared. Draw a new line to save override.");
+    });
+
+    state.legMap.initialized = true;
+    return true;
+  }
+
+  function clearLegMapSearchMarker() {
+    if (state.legMap && state.legMap.searchMarker && state.legMap.map) {
+      state.legMap.map.removeLayer(state.legMap.searchMarker);
+      state.legMap.searchMarker = null;
+    }
+  }
+
+  function clearLegMapEndpointMarkers() {
+    if (!state.legMap || !state.legMap.map) return;
+    if (state.legMap.startMarker) {
+      state.legMap.map.removeLayer(state.legMap.startMarker);
+      state.legMap.startMarker = null;
+    }
+    if (state.legMap.endMarker) {
+      state.legMap.map.removeLayer(state.legMap.endMarker);
+      state.legMap.endMarker = null;
+    }
+  }
+
+  function setLegMapEndpointMarkers(startPoint, endPoint) {
+    if (!state.legMap.map || !window.L) return;
+    clearLegMapEndpointMarkers();
+    if (startPoint) {
+      state.legMap.startMarker = window.L.marker([startPoint.lat, startPoint.lon], { title: "Start" });
+      state.legMap.startMarker.addTo(state.legMap.map);
+      state.legMap.startMarker.bindTooltip("Start", { permanent: true, direction: "top", offset: [0, -12] });
+    }
+    if (endPoint) {
+      state.legMap.endMarker = window.L.marker([endPoint.lat, endPoint.lon], { title: "End" });
+      state.legMap.endMarker.addTo(state.legMap.map);
+      state.legMap.endMarker.bindTooltip("End", { permanent: true, direction: "top", offset: [0, -12] });
+    }
+  }
+
+  function setLegMapSearchMarker(lat, lon, label) {
+    if (!state.legMap.map || !window.L) return;
+    clearLegMapSearchMarker();
+    state.legMap.searchMarker = window.L.marker([lat, lon]);
+    if (label) {
+      state.legMap.searchMarker.bindPopup(escapeHtml(label));
+    }
+    state.legMap.searchMarker.addTo(state.legMap.map);
+    if (label) state.legMap.searchMarker.openPopup();
+  }
+
+  function runLegMapSearch() {
+    var query = String(dom.legSearchInputEl ? dom.legSearchInputEl.value : "").trim();
+    if (!query) {
+      setLegMapStatus("Enter a location to search.");
+      return;
+    }
+    if (!ensureLegMap()) {
+      setLegMapStatus("Map unavailable.");
+      return;
+    }
+
+    setLegMapStatus("Searching map...");
+    var geocodeUrl = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=" + encodeURIComponent(query);
+    fetch(geocodeUrl, {
+      method: "GET",
+      credentials: "omit",
+      headers: { "Accept": "application/json" }
+    })
+      .then(function (response) {
+        if (!response.ok) throw new Error("Lookup failed.");
+        return response.json();
+      })
+      .then(function (rows) {
+        var first = (Array.isArray(rows) && rows.length) ? rows[0] : null;
+        var lat = first ? parseFloat(first.lat) : NaN;
+        var lon = first ? parseFloat(first.lon) : NaN;
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+          setLegMapStatus("No results found.");
+          return;
+        }
+        var label = String(first.display_name || query);
+        setLegMapSearchMarker(lat, lon, label);
+        state.legMap.map.setView([lat, lon], 11);
+        setLegMapStatus("Search result loaded.");
+      })
+      .catch(function () {
+        setLegMapStatus("Search failed. Try another place.");
+      });
   }
 
   function normalizeFuelBurnBasis(value) {
@@ -326,6 +3253,43 @@
     return roundTo2(pct);
   }
 
+  function hasValidAnchoredBurnInputs(maxSpeedKn, maxBurnGph, efficientSpeedKn, efficientBurnGph) {
+    var lowSpeedAnchorKn = 3.5;
+    return (
+      Number.isFinite(maxSpeedKn)
+      && maxSpeedKn > 0
+      && Number.isFinite(maxBurnGph)
+      && maxBurnGph > 0
+      && Number.isFinite(efficientSpeedKn)
+      && efficientSpeedKn > lowSpeedAnchorKn
+      && Number.isFinite(efficientBurnGph)
+      && efficientBurnGph > 0
+      && maxSpeedKn >= efficientSpeedKn
+    );
+  }
+
+  function anchoredBurnAtSpeedGph(effectiveSpeedKn, maxSpeedKn, maxBurnGph, efficientSpeedKn, efficientBurnGph) {
+    var lowSpeedAnchorKn = 3.5;
+    var lowBurnGph = efficientBurnGph * 0.25;
+    var interpolation = 0;
+
+    if (effectiveSpeedKn <= lowSpeedAnchorKn) {
+      return roundTo2(lowBurnGph);
+    }
+    if (effectiveSpeedKn < efficientSpeedKn) {
+      interpolation = (effectiveSpeedKn - lowSpeedAnchorKn) / (efficientSpeedKn - lowSpeedAnchorKn);
+      return roundTo2(lowBurnGph + ((efficientBurnGph - lowBurnGph) * interpolation));
+    }
+    if (effectiveSpeedKn <= efficientSpeedKn) {
+      return roundTo2(efficientBurnGph);
+    }
+    if (effectiveSpeedKn < maxSpeedKn) {
+      interpolation = (effectiveSpeedKn - efficientSpeedKn) / (maxSpeedKn - efficientSpeedKn);
+      return roundTo2(efficientBurnGph + ((maxBurnGph - efficientBurnGph) * interpolation));
+    }
+    return roundTo2(maxBurnGph);
+  }
+
   function getFuelBurnModelValues() {
     var inputBurn = getFuelBurnInputGph();
     var pace = getSelectedPacePreset();
@@ -335,24 +3299,52 @@
     var pacePow = Math.pow(paceRatio, 3);
     var weatherPct = getWeatherFactorPct();
     var weatherAdj = weatherPct / 100;
+    var efficientBurn = getFuelBurnAtMostEfficientSpeedGph();
+    var efficientSpeedKn = getMostEfficientSpeedKn();
+    var maxSpeedKn = getMaxSpeedKn();
+    var effectiveSpeedKn = getEffectiveCruisingSpeed();
     var maxSpeedBurn = 0;
     var paceAdjustedBurn = 0;
     var weatherAdjustedBurn = 0;
+    var resolvedBurnInput = 0;
+    var anchoredModelActive = false;
 
     if (inputBurn > 0) {
       maxSpeedBurn = inputBurn;
       if (!Number.isFinite(maxSpeedBurn) || maxSpeedBurn < 0) maxSpeedBurn = 0;
       if (maxSpeedBurn > 1000) maxSpeedBurn = 1000;
       maxSpeedBurn = roundTo2(maxSpeedBurn);
+    }
 
-      paceAdjustedBurn = roundTo2(maxSpeedBurn * pacePow);
+    if (pace.key === "BALANCED") {
+      resolvedBurnInput = efficientBurn;
+      if (resolvedBurnInput > 0) {
+        paceAdjustedBurn = roundTo2(resolvedBurnInput);
+        weatherAdjustedBurn = roundTo2(paceAdjustedBurn * (1 + weatherAdj));
+      }
+    } else if (maxSpeedBurn > 0) {
+      resolvedBurnInput = maxSpeedBurn;
+      if (hasValidAnchoredBurnInputs(maxSpeedKn, maxSpeedBurn, efficientSpeedKn, efficientBurn)) {
+        anchoredModelActive = true;
+        paceAdjustedBurn = anchoredBurnAtSpeedGph(
+          effectiveSpeedKn,
+          maxSpeedKn,
+          maxSpeedBurn,
+          efficientSpeedKn,
+          efficientBurn
+        );
+      } else {
+        paceAdjustedBurn = roundTo2(maxSpeedBurn * pacePow);
+      }
       weatherAdjustedBurn = roundTo2(paceAdjustedBurn * (1 + weatherAdj));
     }
 
     return {
       basis: FUEL_BURN_BASIS_MAX,
       inputBurn: roundTo2(inputBurn),
+      resolvedBurnInput: roundTo2(resolvedBurnInput),
       maxSpeedBurn: maxSpeedBurn,
+      anchoredModelActive: anchoredModelActive,
       paceAdjustedBurn: roundTo2(paceAdjustedBurn),
       weatherAdjustedBurn: roundTo2(weatherAdjustedBurn)
     };
@@ -362,13 +3354,15 @@
     var model = getFuelBurnModelValues();
 
     if (dom.fuelBurnLabelEl) {
-      dom.fuelBurnLabelEl.textContent = "Fuel burn at max speed (GPH)";
+      dom.fuelBurnLabelEl.textContent = "GPH @ max speed";
     }
     if (dom.fuelBurnHintEl) {
-      dom.fuelBurnHintEl.textContent = "FPW derives pace and weather adjusted burn from max speed burn.";
+      dom.fuelBurnHintEl.textContent = model.anchoredModelActive
+        ? "FPW derives pace and weather adjusted burn from low-speed, efficient, and max-speed anchors."
+        : "FPW derives pace and weather adjusted burn from max speed burn.";
     }
     if (dom.fuelBurnDerivedEl) {
-      if (model.inputBurn <= 0) {
+      if (model.resolvedBurnInput <= 0) {
         dom.fuelBurnDerivedEl.textContent = "Derived burn at current pace + weather: -- GPH";
       } else {
         dom.fuelBurnDerivedEl.textContent =
@@ -421,16 +3415,20 @@
   function saveDraft() {
     if (!state.activeTemplateCode) return;
     var payload = {
+      route_name: getRouteNameValue(true),
       template_code: state.activeTemplateCode,
+      selected_vessel_id: String(toInt(dom.vesselSelectEl ? dom.vesselSelectEl.value : state.selectedVesselId, 0) || ""),
       direction: getDirectionValue(),
       start_segment_id: dom.startSelectEl ? String(dom.startSelectEl.value || "") : "",
       end_segment_id: dom.endSelectEl ? String(dom.endSelectEl.value || "") : "",
       start_date: dom.startDateEl ? String(dom.startDateEl.value || "") : "",
       pace: getSelectedPacePreset().key,
       pace_index: getSelectedPaceIndex(),
+      vessel_most_efficient_speed_kn: dom.mostEfficientSpeedEl ? String(dom.mostEfficientSpeedEl.value || "") : "",
+      vessel_gph_at_most_efficient_speed: dom.fuelBurnEfficientGphEl ? String(dom.fuelBurnEfficientGphEl.value || "") : "",
       cruising_speed: String(getMaxSpeedKn()),
       effective_cruising_speed: String(getEffectiveCruisingSpeed()),
-      underway_hours_per_day: dom.underwayHoursEl ? String(dom.underwayHoursEl.value || "") : "8",
+      underway_hours_per_day: getUnderwayHoursFieldRawValue(),
       comfort_profile: dom.comfortProfileEl ? String(dom.comfortProfileEl.value || "") : "",
       overnight_bias: dom.overnightBiasEl ? String(dom.overnightBiasEl.value || "") : "",
       fuel_burn_gph: dom.fuelBurnGphEl ? String(dom.fuelBurnGphEl.value || "") : "",
@@ -458,6 +3456,20 @@
   function applyDraftToForm(draft) {
     if (!draft) return;
 
+    if (dom.routeNameEl && draft.route_name !== undefined && draft.route_name !== null) {
+      dom.routeNameEl.value = String(draft.route_name || "");
+    }
+    state.selectedVesselId = toInt(
+      draft.selected_vessel_id !== undefined ? draft.selected_vessel_id :
+        (draft.selectedVesselId !== undefined ? draft.selectedVesselId : 0),
+      0
+    );
+    if (dom.vesselSelectEl) {
+      dom.vesselSelectEl.value = (state.selectedVesselId > 0 ? String(state.selectedVesselId) : "");
+    }
+    setRouteCodeBadge(state.activeRouteCode);
+    clearRouteNameValidation();
+
     if (dom.startDateEl && draft.start_date) {
       dom.startDateEl.value = String(draft.start_date);
     }
@@ -475,9 +3487,17 @@
     state.manualOverrides.cruisingSpeed = !!(draft.overrides && draft.overrides.cruisingSpeed);
 
     applyPaceDefaults(false);
+    applyMostEfficientSpeedDefaultFromVessel();
+    applyEfficientFuelBurnDefaultFromVessel();
 
     if (dom.cruisingSpeedEl && draft.cruising_speed !== undefined && draft.cruising_speed !== null && draft.cruising_speed !== "") {
       dom.cruisingSpeedEl.value = String(draft.cruising_speed);
+    }
+    if (
+      dom.mostEfficientSpeedEl &&
+      (draft.vessel_most_efficient_speed_kn !== undefined && draft.vessel_most_efficient_speed_kn !== null)
+    ) {
+      dom.mostEfficientSpeedEl.value = String(draft.vessel_most_efficient_speed_kn || "");
     }
     if (dom.underwayHoursEl && draft.underway_hours_per_day !== undefined && draft.underway_hours_per_day !== null && draft.underway_hours_per_day !== "") {
       dom.underwayHoursEl.value = String(draft.underway_hours_per_day);
@@ -494,6 +3514,12 @@
       (draft.fuel_burn_gph !== undefined && draft.fuel_burn_gph !== null)
     ) {
       dom.fuelBurnGphEl.value = String(draft.fuel_burn_gph);
+    }
+    if (
+      dom.fuelBurnEfficientGphEl &&
+      (draft.vessel_gph_at_most_efficient_speed !== undefined && draft.vessel_gph_at_most_efficient_speed !== null)
+    ) {
+      dom.fuelBurnEfficientGphEl.value = String(draft.vessel_gph_at_most_efficient_speed || "");
     }
     if (dom.idleBurnGphEl && draft.idle_burn_gph !== undefined && draft.idle_burn_gph !== null) {
       dom.idleBurnGphEl.value = String(draft.idle_burn_gph || "");
@@ -525,6 +3551,20 @@
   }
 
   function clearPreview() {
+    state.previewLegs = [];
+    state.previewSummary = {
+      totalNm: 0,
+      estimatedDays: 0,
+      estimatedFuelGallons: NaN
+    };
+    state.cruiseTimeline.requestSeq += 1;
+    state.cruiseTimeline.lastRouteId = 0;
+    state.cruiseTimeline.lastStartDate = "";
+    state.cruiseTimeline.status = "idle";
+    state.cruiseTimeline.message = "";
+    state.cruiseTimeline.payload = null;
+    removeLegacyCruiseTimelineContainer();
+    resetLegLockPanelState();
     if (dom.totalNmEl) dom.totalNmEl.innerHTML = "0 <small>NM</small>";
     if (dom.estimatedDaysEl) dom.estimatedDaysEl.textContent = "0";
     if (dom.estimatedDaysSubEl) dom.estimatedDaysSubEl.textContent = "Pace-driven estimate";
@@ -534,8 +3574,13 @@
     if (dom.estimatedFuelSubEl) dom.estimatedFuelSubEl.textContent = "Required = base + reserve";
     if (dom.fuelCostEl) dom.fuelCostEl.innerHTML = "-- <small>USD</small>";
     if (dom.fuelCostSubEl) dom.fuelCostSubEl.textContent = "Required fuel x price";
+    if (dom.adjustedSpeedEl) dom.adjustedSpeedEl.innerHTML = "-- <small>kn</small>";
+    if (dom.adjustedSpeedSubEl) dom.adjustedSpeedSubEl.textContent = "Pace + weather adjusted";
+    if (dom.expectedAvgGphEl) dom.expectedAvgGphEl.innerHTML = "-- <small>GPH</small>";
+    if (dom.expectedAvgGphSubEl) dom.expectedAvgGphSubEl.textContent = "Current pace + weather burn";
     if (dom.legCountEl) dom.legCountEl.textContent = "0 legs";
     if (dom.legListEl) dom.legListEl.innerHTML = '<div class="fpw-routegen__empty">Pick template/start/end to see a live preview.</div>';
+    resetLegMapSelection();
   }
 
   function getTemplateByCode(code) {
@@ -896,8 +3941,6 @@
     var i = 0;
     var selectedStartExists = false;
     var selectedEndExists = false;
-    var suppressAutoSelectOnce = !!state.suppressAutoSelectOnce;
-    var allowAutoSelect = !(state.modalMode === "generator" && state.freshStartSession) && !suppressAutoSelectOnce;
     var pendingStartLabel = "";
     var pendingEndLabel = "";
 
@@ -927,9 +3970,7 @@
         break;
       }
     }
-    if (!selectedStartExists && allowAutoSelect && startDisplayOptions.length) {
-      selectedStart = optionSegmentId(startDisplayOptions[0]);
-    }
+    if (!selectedStartExists) selectedStart = "";
 
     var selectedStartMeta = getSelectedOptionMeta(state.options.startOptions, selectedStart);
     var endDisplayOptions = uniqueEndOptionsForDisplay(
@@ -949,9 +3990,7 @@
         break;
       }
     }
-    if (!selectedEndExists && allowAutoSelect && endDisplayOptions.length) {
-      selectedEnd = optionSegmentId(endDisplayOptions[0]);
-    }
+    if (!selectedEndExists) selectedEnd = "";
 
     renderSelect(dom.startSelectEl, startDisplayOptions, "Select start location", selectedStart);
     renderSelect(dom.endSelectEl, endDisplayOptions, "Select end location", selectedEnd);
@@ -979,12 +4018,14 @@
       credentials: "same-origin"
     })
       .then(function (payload) {
+        var user = payload && payload.USER ? payload.USER : {};
         if (!payload || payload.SUCCESS === false) {
           if (payload && payload.AUTH === false) {
             throw authError("Unauthorized");
           }
           return "";
         }
+        state.homePortZip = resolveHomePortZipFromUser(user);
         state.userId = extractUserId(payload);
         return state.userId;
       })
@@ -1036,13 +4077,95 @@
   function applyEditContext(editData) {
     var data = editData || {};
     var inputs = data && data.inputs ? data.inputs : data;
+    var routeMeta = data && data.route ? data.route : {};
+    var templateMeta = (data && data.template && typeof data.template === "object") ? data.template : {};
+    var ctxRouteType = "";
+    var isMyRouteContext = false;
+    var ctxMyRouteId = 0;
+    var ctxRouteCode = String(
+      routeMeta.route_code !== undefined ? routeMeta.route_code :
+        (routeMeta.ROUTE_CODE !== undefined ? routeMeta.ROUTE_CODE : "")
+    ).trim();
+    var ctxRouteId = toInt(
+      routeMeta.route_id !== undefined ? routeMeta.route_id :
+        (routeMeta.ROUTE_ID !== undefined ? routeMeta.ROUTE_ID : 0),
+      0
+    );
+    ctxRouteType = String(
+      inputs && inputs.route_type !== undefined ? inputs.route_type :
+        (inputs && inputs.ROUTE_TYPE !== undefined ? inputs.ROUTE_TYPE : "")
+    ).trim().toLowerCase();
+    isMyRouteContext = (ctxRouteType === "my_route" || ctxRouteType === "my_routes" || ctxRouteType === "custom");
+    ctxMyRouteId = toInt(
+      inputs && inputs.route_id !== undefined ? inputs.route_id :
+        (inputs && inputs.ROUTE_ID !== undefined ? inputs.ROUTE_ID : 0),
+      0
+    );
+    if (ctxRouteCode) state.activeRouteCode = ctxRouteCode;
+    if (isMyRouteContext && ctxMyRouteId > 0) {
+      state.activeRouteType = "my_route";
+      state.selectedLegContext = "my_route";
+      state.myRoutes.activeRouteId = ctxMyRouteId;
+      state.activeRouteId = ctxMyRouteId;
+      state.myRoutes.activeRouteName = String(
+        templateMeta.name !== undefined ? templateMeta.name :
+          (templateMeta.NAME !== undefined ? templateMeta.NAME : state.myRoutes.activeRouteName || "")
+      ).trim();
+      if (dom.previewTemplateEl) {
+        dom.previewTemplateEl.textContent = "Template: " + (state.myRoutes.activeRouteName || "My Route");
+      }
+    } else {
+      state.activeRouteId = ctxRouteId;
+      state.activeRouteType = "generated";
+      state.selectedLegContext = "routegen";
+    }
+    if (dom.routeNameEl) {
+      dom.routeNameEl.value = String(
+        routeMeta.route_name !== undefined ? routeMeta.route_name :
+          (routeMeta.ROUTE_NAME !== undefined ? routeMeta.ROUTE_NAME : "")
+      ).trim();
+    }
+    state.selectedVesselId = 0;
+    if (dom.vesselSelectEl) {
+      dom.vesselSelectEl.value = "";
+    }
+    setRouteCodeBadge(state.activeRouteCode);
+    clearRouteNameValidation();
     if (!inputs || typeof inputs !== "object") return;
+    state.selectedVesselId = toInt(
+      inputs.selected_vessel_id !== undefined ? inputs.selected_vessel_id :
+        (inputs.selectedVesselId !== undefined ? inputs.selectedVesselId :
+          (inputs.SELECTED_VESSEL_ID !== undefined ? inputs.SELECTED_VESSEL_ID : 0)),
+      0
+    );
+    if (dom.vesselSelectEl) {
+      dom.vesselSelectEl.value = (state.selectedVesselId > 0 ? String(state.selectedVesselId) : "");
+    }
+
+    var inputVesselMaxSpeed = toPositiveNumber(
+      inputs.vessel_max_speed_kn !== undefined ? inputs.vessel_max_speed_kn :
+        (inputs.VESSEL_MAX_SPEED_KN !== undefined ? inputs.VESSEL_MAX_SPEED_KN : 0),
+      0
+    );
+    var inputVesselMostEffSpeed = toPositiveNumber(
+      inputs.vessel_most_efficient_speed_kn !== undefined ? inputs.vessel_most_efficient_speed_kn :
+        (inputs.VESSEL_MOST_EFFICIENT_SPEED_KN !== undefined ? inputs.VESSEL_MOST_EFFICIENT_SPEED_KN : 0),
+      0
+    );
+    var inputVesselMostEffGph = toPositiveNumber(
+      inputs.vessel_gph_at_most_efficient_speed !== undefined ? inputs.vessel_gph_at_most_efficient_speed :
+        (inputs.VESSEL_GPH_AT_MOST_EFFICIENT_SPEED !== undefined ? inputs.VESSEL_GPH_AT_MOST_EFFICIENT_SPEED : 0),
+      0
+    );
+    if (inputVesselMaxSpeed > 0) state.vesselDefaults.maxSpeedKn = inputVesselMaxSpeed;
+    if (inputVesselMostEffSpeed > 0) state.vesselDefaults.mostEfficientSpeedKn = inputVesselMostEffSpeed;
+    if (inputVesselMostEffGph > 0) state.vesselDefaults.gphAtMostEfficientSpeed = inputVesselMostEffGph;
 
     var templateCode = String(
       inputs.template_code !== undefined ? inputs.template_code :
         (inputs.TEMPLATE_CODE !== undefined ? inputs.TEMPLATE_CODE : "")
     ).trim();
-    if (templateCode) {
+    if (!isMyRouteContext && templateCode) {
       setActiveTemplate(templateCode, { restoreDraft: false, rememberSelection: false });
     }
 
@@ -1059,10 +4182,18 @@
     updatePaceLabel();
     state.manualOverrides.cruisingSpeed = false;
     applyPaceDefaults(true);
+    applyMostEfficientSpeedDefaultFromVessel();
+    applyEfficientFuelBurnDefaultFromVessel();
     updatePaceOverrideUI();
 
     if (dom.cruisingSpeedEl && (inputs.cruising_speed !== undefined || inputs.CRUISING_SPEED !== undefined)) {
       dom.cruisingSpeedEl.value = String(inputs.cruising_speed !== undefined ? inputs.cruising_speed : inputs.CRUISING_SPEED);
+    }
+    if (dom.mostEfficientSpeedEl) {
+      dom.mostEfficientSpeedEl.value = String(
+        inputs.vessel_most_efficient_speed_kn !== undefined ? inputs.vessel_most_efficient_speed_kn :
+          (inputs.VESSEL_MOST_EFFICIENT_SPEED_KN !== undefined ? inputs.VESSEL_MOST_EFFICIENT_SPEED_KN : (inputVesselMostEffSpeed || ""))
+      );
     }
     if (dom.underwayHoursEl && (inputs.underway_hours_per_day !== undefined || inputs.UNDERWAY_HOURS_PER_DAY !== undefined)) {
       dom.underwayHoursEl.value = String(
@@ -1085,6 +4216,12 @@
     ) {
       dom.fuelBurnGphEl.value = String(
         inputs.fuel_burn_gph !== undefined ? inputs.fuel_burn_gph : inputs.FUEL_BURN_GPH
+      );
+    }
+    if (dom.fuelBurnEfficientGphEl) {
+      dom.fuelBurnEfficientGphEl.value = String(
+        inputs.vessel_gph_at_most_efficient_speed !== undefined ? inputs.vessel_gph_at_most_efficient_speed :
+          (inputs.VESSEL_GPH_AT_MOST_EFFICIENT_SPEED !== undefined ? inputs.VESSEL_GPH_AT_MOST_EFFICIENT_SPEED : (inputVesselMostEffGph || ""))
       );
     }
     if (dom.idleBurnGphEl && (inputs.idle_burn_gph !== undefined || inputs.IDLE_BURN_GPH !== undefined)) {
@@ -1119,24 +4256,38 @@
       });
     }
 
-    state.pendingDraft = {
-      start_segment_id: String(
+    var pendingStartSegmentId = "";
+    var pendingEndSegmentId = "";
+    if (!isMyRouteContext) {
+      pendingStartSegmentId = String(
         inputs.start_segment_id !== undefined ? inputs.start_segment_id :
           (inputs.START_SEGMENT_ID !== undefined ? inputs.START_SEGMENT_ID : "")
-      ).trim(),
-      end_segment_id: String(
+      ).trim();
+      pendingEndSegmentId = String(
         inputs.end_segment_id !== undefined ? inputs.end_segment_id :
           (inputs.END_SEGMENT_ID !== undefined ? inputs.END_SEGMENT_ID : "")
-      ).trim()
-    };
+      ).trim();
+      state.pendingDraft = {
+        start_segment_id: pendingStartSegmentId,
+        end_segment_id: pendingEndSegmentId
+      };
+    } else {
+      state.pendingDraft = null;
+    }
 
     state.editorBaseline = {
-      template_code: templateCode || state.activeTemplateCode,
+      route_type: (isMyRouteContext ? "my_route" : "generated"),
+      route_id: (isMyRouteContext ? ctxMyRouteId : 0),
+      route_name: getRouteNameValue(true),
+      selected_vessel_id: (state.selectedVesselId > 0 ? String(state.selectedVesselId) : ""),
+      template_code: (isMyRouteContext ? "" : (templateCode || state.activeTemplateCode)),
       direction: getDirectionValue(),
       start_date: dom.startDateEl ? String(dom.startDateEl.value || "") : "",
       pace_index: getSelectedPaceIndex(),
+      vessel_most_efficient_speed_kn: dom.mostEfficientSpeedEl ? String(dom.mostEfficientSpeedEl.value || "") : "",
+      vessel_gph_at_most_efficient_speed: dom.fuelBurnEfficientGphEl ? String(dom.fuelBurnEfficientGphEl.value || "") : "",
       cruising_speed: dom.cruisingSpeedEl ? String(dom.cruisingSpeedEl.value || "") : "",
-      underway_hours_per_day: dom.underwayHoursEl ? String(dom.underwayHoursEl.value || "") : "8",
+      underway_hours_per_day: getUnderwayHoursFieldRawValue(),
       comfort_profile: dom.comfortProfileEl ? String(dom.comfortProfileEl.value || "") : "PREFER_INSIDE",
       overnight_bias: dom.overnightBiasEl ? String(dom.overnightBiasEl.value || "") : "MARINAS",
       fuel_burn_gph: dom.fuelBurnGphEl ? String(dom.fuelBurnGphEl.value || "") : "",
@@ -1150,8 +4301,8 @@
       optional_stop_flags: Object.keys(state.selectedStopCodes).filter(function (code) {
         return !!state.selectedStopCodes[code];
       }),
-      start_segment_id: state.pendingDraft.start_segment_id,
-      end_segment_id: state.pendingDraft.end_segment_id,
+      start_segment_id: pendingStartSegmentId,
+      end_segment_id: pendingEndSegmentId,
       start_label: String(
         inputs.start_location_label !== undefined ? inputs.start_location_label :
           (inputs.START_LOCATION_LABEL !== undefined ? inputs.START_LOCATION_LABEL : "")
@@ -1217,12 +4368,22 @@
       return !!state.selectedStopCodes[code];
     });
     var fuelModel = getFuelBurnModelValues();
+    var isMyRoute = (String(state.activeRouteType || "").trim().toLowerCase() === "my_route");
+    var activeMyRouteId = toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0);
 
     var selectedStartMeta = getSelectedOptionMeta(state.options.startOptions, dom.startSelectEl ? dom.startSelectEl.value : "");
     var selectedEndMeta = getSelectedOptionMeta(state.options.endOptions, dom.endSelectEl ? dom.endSelectEl.value : "");
+    var vesselMaxSpeedKn = toPositiveNumber(state.vesselDefaults.maxSpeedKn, 0);
+    var vesselMostEffSpeedKn = getMostEfficientSpeedKn();
+    var vesselMostEffGph = getFuelBurnAtMostEfficientSpeedGph();
 
     return {
+      route_type: (isMyRoute ? "my_route" : "generated"),
+      route_id: activeMyRouteId,
+      route_name: getRouteNameValue(true),
       template_code: state.activeTemplateCode,
+      route_code: (state.modalMode === "editor" ? String(state.activeRouteCode || "").trim() : ""),
+      selected_vessel_id: String(toInt(dom.vesselSelectEl ? dom.vesselSelectEl.value : state.selectedVesselId, 0) || ""),
       direction: getDirectionValue(),
       start_segment_id: dom.startSelectEl ? String(dom.startSelectEl.value || "") : "",
       end_segment_id: dom.endSelectEl ? String(dom.endSelectEl.value || "") : "",
@@ -1232,7 +4393,7 @@
       pace: getSelectedPacePreset().key,
       cruising_speed: String(getMaxSpeedKn()),
       effective_cruising_speed: String(getEffectiveCruisingSpeed()),
-      underway_hours_per_day: dom.underwayHoursEl ? String(dom.underwayHoursEl.value || "") : "8",
+      underway_hours_per_day: getUnderwayHoursFieldRawValue(),
       comfort_profile: dom.comfortProfileEl ? String(dom.comfortProfileEl.value || "") : "PREFER_INSIDE",
       overnight_bias: dom.overnightBiasEl ? String(dom.overnightBiasEl.value || "") : "MARINAS",
       fuel_burn_gph: (fuelModel.maxSpeedBurn > 0 ? String(fuelModel.maxSpeedBurn) : ""),
@@ -1243,12 +4404,151 @@
       weather_factor_pct: dom.weatherFactorPctEl ? String(dom.weatherFactorPctEl.value || "") : String(DEFAULT_WEATHER_FACTOR_PCT),
       reserve_pct: dom.reservePctEl ? String(dom.reservePctEl.value || "") : String(DEFAULT_RESERVE_PCT),
       fuel_price_per_gal: dom.fuelPricePerGalEl ? String(dom.fuelPricePerGalEl.value || "") : "",
+      vessel_max_speed_kn: (vesselMaxSpeedKn > 0 ? String(vesselMaxSpeedKn) : ""),
+      vessel_most_efficient_speed_kn: (vesselMostEffSpeedKn > 0 ? String(vesselMostEffSpeedKn) : ""),
+      vessel_gph_at_most_efficient_speed: (vesselMostEffGph > 0 ? String(vesselMostEffGph) : ""),
       optional_stop_flags: selectedStops
     };
   }
 
+  function buildEditorBaselineFromPayload(payload) {
+    var src = payload || {};
+    return {
+      route_type: "generated",
+      route_id: 0,
+      route_name: String(src.route_name || ""),
+      selected_vessel_id: String(src.selected_vessel_id || ""),
+      template_code: String(src.template_code || ""),
+      direction: String(src.direction || ""),
+      start_date: String(src.start_date || ""),
+      pace_index: getSelectedPaceIndex(),
+      vessel_most_efficient_speed_kn: String(src.vessel_most_efficient_speed_kn || ""),
+      vessel_gph_at_most_efficient_speed: String(src.vessel_gph_at_most_efficient_speed || ""),
+      cruising_speed: String(src.cruising_speed || ""),
+      underway_hours_per_day: String(src.underway_hours_per_day || ""),
+      comfort_profile: String(src.comfort_profile || "PREFER_INSIDE"),
+      overnight_bias: String(src.overnight_bias || "MARINAS"),
+      fuel_burn_gph: String(src.fuel_burn_gph || ""),
+      fuel_burn_gph_input: String(src.fuel_burn_gph_input || ""),
+      fuel_burn_basis: String(src.fuel_burn_basis || FUEL_BURN_BASIS_MAX),
+      idle_burn_gph: String(src.idle_burn_gph || ""),
+      idle_hours_total: String(src.idle_hours_total || ""),
+      weather_factor_pct: String(src.weather_factor_pct || DEFAULT_WEATHER_FACTOR_PCT),
+      reserve_pct: String(src.reserve_pct || DEFAULT_RESERVE_PCT),
+      fuel_price_per_gal: String(src.fuel_price_per_gal || ""),
+      optional_stop_flags: Array.isArray(src.optional_stop_flags) ? src.optional_stop_flags.slice() : [],
+      start_segment_id: String(src.start_segment_id || ""),
+      end_segment_id: String(src.end_segment_id || ""),
+      start_label: String(src.start_location_label || ""),
+      end_label: String(src.end_location_label || "")
+    };
+  }
+
+  function collectTimelineInputOverrides() {
+    var payload = collectFormPayload();
+    return {
+      pace: String(payload.pace || ""),
+      pace_index: getSelectedPaceIndex(),
+      cruising_speed: String(payload.cruising_speed || ""),
+      max_speed_kn: String(payload.cruising_speed || ""),
+      underway_hours_per_day: String(payload.underway_hours_per_day || ""),
+      fuel_burn_gph: String(payload.fuel_burn_gph || ""),
+      vessel_max_speed_kn: String(payload.vessel_max_speed_kn || ""),
+      vessel_most_efficient_speed_kn: String(payload.vessel_most_efficient_speed_kn || ""),
+      vessel_gph_at_most_efficient_speed: String(payload.vessel_gph_at_most_efficient_speed || ""),
+      reserve_pct: String(payload.reserve_pct || DEFAULT_RESERVE_PCT),
+      weather_factor_pct: String(payload.weather_factor_pct || DEFAULT_WEATHER_FACTOR_PCT)
+    };
+  }
+
+  function collectTimelinePreviewLegs(legsRaw) {
+    var src = Array.isArray(legsRaw) ? legsRaw : [];
+    return src
+      .map(function (row, idx) {
+        var leg = row && typeof row === "object" ? row : {};
+        var order = toInt(
+          leg.order_index !== undefined ? leg.order_index :
+            (leg.ORDER_INDEX !== undefined ? leg.ORDER_INDEX :
+              (leg.leg_order !== undefined ? leg.leg_order : leg.LEG_ORDER)),
+          idx + 1
+        );
+        var routeLegId = toInt(leg.route_leg_id !== undefined ? leg.route_leg_id : leg.ROUTE_LEG_ID, 0);
+        var segmentId = toInt(leg.segment_id !== undefined ? leg.segment_id : leg.SEGMENT_ID, 0);
+        var id = toInt(leg.id !== undefined ? leg.id : leg.ID, 0);
+        var distNm = parseFloat(
+          leg.dist_nm !== undefined ? leg.dist_nm :
+            (leg.DIST_NM !== undefined ? leg.DIST_NM :
+              (leg.distance_nm !== undefined ? leg.distance_nm : leg.DISTANCE_NM))
+        );
+        var lockCount = toInt(
+          leg.lock_count !== undefined ? leg.lock_count :
+            (leg.LOCK_COUNT !== undefined ? leg.LOCK_COUNT :
+              (leg.locks !== undefined ? leg.locks : leg.LOCKS)),
+          0
+        );
+        var startName = String(
+          leg.start_name !== undefined ? leg.start_name : (leg.START_NAME || "")
+        ).trim();
+        var endName = String(
+          leg.end_name !== undefined ? leg.end_name : (leg.END_NAME || "")
+        ).trim();
+        var isOffshore = toInt(
+          leg.is_offshore !== undefined ? leg.is_offshore :
+            (leg.IS_OFFSHORE !== undefined ? leg.IS_OFFSHORE : 0),
+          0
+        );
+        var isIcw = toInt(
+          leg.is_icw !== undefined ? leg.is_icw :
+            (leg.IS_ICW !== undefined ? leg.IS_ICW : 0),
+          0
+        );
+        var exposureLevel = toInt(
+          leg.exposure_level !== undefined ? leg.exposure_level :
+            (leg.EXPOSURE_LEVEL !== undefined ? leg.EXPOSURE_LEVEL : -1),
+          -1
+        );
+        if (!Number.isFinite(distNm)) distNm = NaN;
+        if (distNm < 0) distNm = 0;
+        if (lockCount < 0) lockCount = 0;
+        return {
+          order_index: order,
+          route_leg_id: routeLegId,
+          segment_id: segmentId,
+          id: id,
+          start_name: startName,
+          end_name: endName,
+          dist_nm: distNm,
+          lock_count: lockCount,
+          is_offshore: (isOffshore > 0 ? 1 : 0),
+          is_icw: (isIcw > 0 ? 1 : 0),
+          exposure_level: (exposureLevel >= 0 && exposureLevel <= 3 ? exposureLevel : "")
+        };
+      })
+      .filter(function (row) {
+        if (!row || typeof row !== "object") return false;
+        if (!Number.isFinite(row.dist_nm)) return false;
+        if (toInt(row.order_index, 0) <= 0) return false;
+        return (toInt(row.route_leg_id, 0) > 0 || toInt(row.segment_id, 0) > 0 || toInt(row.id, 0) > 0);
+      })
+      .sort(function (a, b) {
+        return toInt(a.order_index, 0) - toInt(b.order_index, 0);
+      });
+  }
+
   function canPreview(payload) {
     var p = payload || collectFormPayload();
+    var routeType = String(
+      p.route_type !== undefined ? p.route_type :
+        (p.routeType !== undefined ? p.routeType : "")
+    ).trim().toLowerCase();
+    var routeId = toInt(
+      p.route_id !== undefined ? p.route_id :
+        (p.routeId !== undefined ? p.routeId : 0),
+      0
+    );
+    if (routeType === "my_route" || routeType === "my_routes" || routeType === "custom") {
+      return !!(routeId > 0 && p.start_date);
+    }
     return !!(p.template_code && p.start_segment_id && p.end_segment_id && p.start_date);
   }
 
@@ -1278,9 +4578,15 @@
         }
 
         var data = payload.DATA || {};
+        var defaultsData = (data.defaults && typeof data.defaults === "object")
+          ? data.defaults
+          : ((data.DEFAULTS && typeof data.DEFAULTS === "object") ? data.DEFAULTS : {});
+        var vesselsData = Array.isArray(data.vessels) ? data.vessels : (Array.isArray(data.VESSELS) ? data.VESSELS : []);
         state.options.startOptions = Array.isArray(data.startOptions) ? data.startOptions : (Array.isArray(data.START_OPTIONS) ? data.START_OPTIONS : []);
         state.options.endOptions = Array.isArray(data.endOptions) ? data.endOptions : (Array.isArray(data.END_OPTIONS) ? data.END_OPTIONS : []);
         state.options.optionalStops = Array.isArray(data.optionalStops) ? data.optionalStops : (Array.isArray(data.OPTIONAL_STOPS) ? data.OPTIONAL_STOPS : []);
+        applyVesselDefaultsFromPayload(defaultsData);
+        applyAvailableVesselsFromPayload(vesselsData);
         var templateMeta = (data.template && typeof data.template === "object") ? data.template : (data.TEMPLATE || {});
         var isLoopRaw = (
           templateMeta.is_loop !== undefined ? templateMeta.is_loop :
@@ -1290,6 +4596,8 @@
         state.activeTemplateIsLoop = coerceBool(isLoopRaw, true);
 
         renderOptions();
+        syncSelectedVesselFromAvailableList();
+        applyGeneratorVesselFieldDefaults();
         setStatus("Options loaded.");
       })
       .catch(function (err) {
@@ -1301,15 +4609,62 @@
       });
   }
 
+  function fetchGeneratorVesselDefaults() {
+    var fallbackTemplateCode = "";
+    if (state.activeTemplateCode) {
+      return fetchOptions();
+    }
+    if (state.templates.length) {
+      fallbackTemplateCode = String(state.templates[0].SHORT_CODE || state.templates[0].CODE || "").trim();
+    }
+    if (!fallbackTemplateCode) return Promise.resolve();
+
+    setStatus("Loading route defaults...");
+    return fetchJson(apiUrl("routegen_getOptions"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        template_code: fallbackTemplateCode,
+        direction: getDirectionValue()
+      })
+    })
+      .then(function (payload) {
+        if (!payload || payload.SUCCESS === false) {
+          throw new Error((payload && payload.MESSAGE) ? payload.MESSAGE : "Unable to load route defaults.");
+        }
+        var data = payload.DATA || {};
+        var defaultsData = (data.defaults && typeof data.defaults === "object")
+          ? data.defaults
+          : ((data.DEFAULTS && typeof data.DEFAULTS === "object") ? data.DEFAULTS : {});
+        var vesselsData = Array.isArray(data.vessels) ? data.vessels : (Array.isArray(data.VESSELS) ? data.VESSELS : []);
+        applyVesselDefaultsFromPayload(defaultsData);
+        applyAvailableVesselsFromPayload(vesselsData);
+        syncSelectedVesselFromAvailableList();
+        applyGeneratorVesselFieldDefaults();
+        setStatus("Route defaults loaded.");
+      })
+      .catch(function (err) {
+        if (err && err.code === "UNAUTHORIZED") {
+          redirectToLogin();
+          return;
+        }
+        showError((err && err.message) ? err.message : "Unable to load route defaults.");
+      });
+  }
+
   function renderLegs(legs) {
     if (!dom.legListEl) return;
-    var list = Array.isArray(legs) ? legs : [];
+    updateLegListHeaderTimeline();
+    var list = normalizeLegList(legs);
+    var timelineHtml = renderCruiseTimelineInline();
     if (!list.length) {
-      dom.legListEl.innerHTML = '<div class="fpw-routegen__empty">No legs available for the current selection.</div>';
+      dom.legListEl.innerHTML = timelineHtml + '<div class="fpw-routegen__empty">No legs available for the current selection.</div>';
+      closeLegMapPanel();
       return;
     }
 
-    dom.legListEl.innerHTML = list.map(function (leg, idx) {
+    dom.legListEl.innerHTML = timelineHtml + list.map(function (leg, idx) {
       var order = parseInt(
         leg.order_index !== undefined ? leg.order_index :
           (leg.ORDER_INDEX !== undefined ? leg.ORDER_INDEX : (idx + 1)),
@@ -1320,6 +4675,8 @@
       var startName = String(leg.start_name !== undefined ? leg.start_name : (leg.START_NAME !== undefined ? leg.START_NAME : "")).trim();
       var endName = String(leg.end_name !== undefined ? leg.end_name : (leg.END_NAME !== undefined ? leg.END_NAME : "")).trim();
       var nm = parseFloat(leg.dist_nm !== undefined ? leg.dist_nm : leg.DIST_NM);
+      var routeLegId = toInt(leg.route_leg_id !== undefined ? leg.route_leg_id : leg.ROUTE_LEG_ID, 0);
+      var segmentId = toInt(leg.segment_id !== undefined ? leg.segment_id : leg.SEGMENT_ID, 0);
       var lockCount = parseInt(
         leg.lock_count !== undefined ? leg.lock_count :
           (leg.LOCK_COUNT !== undefined ? leg.LOCK_COUNT : 0),
@@ -1327,22 +4684,714 @@
       );
       var isOffshore = !!(leg.is_offshore || leg.IS_OFFSHORE);
       var isOptional = !!(leg.is_optional || leg.IS_OPTIONAL);
+      var hasOverride = !!(leg.has_user_override || leg.HAS_USER_OVERRIDE);
       if (!Number.isFinite(lockCount) || lockCount < 0) lockCount = 0;
 
       var flags = "";
       if (isOffshore) flags += '<span class="fpw-routegen__flag">Offshore</span>';
       if (isOptional) flags += '<span class="fpw-routegen__flag">Optional</span>';
+      if (hasOverride) flags += '<span class="fpw-routegen__flag fpw-routegen__flag--override">Override</span>';
+      var isSelected = (toInt(order, 0) === toInt(state.selectedLegOrder, 0));
+      var isExpanded = (toInt(order, 0) === toInt(state.lockPanel.expandedOrder, 0));
 
       return ''
-        + '<div class="fpw-routegen__leg">'
-        + '  <div class="fpw-routegen__legidx">' + String(order).padStart(2, "0") + '</div>'
-        + '  <div class="fpw-routegen__legroute">'
-        + '    <div class="fpw-routegen__legname">' + escapeHtml((startName || "Start") + " -> " + (endName || "End")) + flags + '</div>'
+        + '<div class="fpw-routegen__legwrap" data-leg-order="' + String(order) + '">'
+        + '  <div class="fpw-routegen__leg ' + (isSelected ? 'is-selected' : '') + ' ' + (isExpanded ? 'is-expanded' : '') + '" data-leg-order="' + String(order) + '" data-route-leg-id="' + String(routeLegId) + '" data-segment-id="' + String(segmentId) + '">'
+        + '    <div class="fpw-routegen__legidx">' + String(order).padStart(2, "0") + '</div>'
+        + '    <div class="fpw-routegen__legroute">'
+        + '      <div class="fpw-routegen__legname">' + escapeHtml((startName || "Start") + " -> " + (endName || "End")) + flags + '</div>'
+        + '    </div>'
+        + '    <div class="fpw-routegen__leglocks">' + formatNumber(lockCount, 0) + '</div>'
+        + '    <div class="fpw-routegen__legnm">' + formatNumber(Number.isFinite(nm) ? nm : 0, 1) + ' NM</div>'
+        + '    <div class="fpw-routegen__legmapaction"><button type="button" class="btn-secondary btn-sm fpw-routegen__legmapbtn" data-leg-action="open-map">Edit Route</button></div>'
         + '  </div>'
-        + '  <div class="fpw-routegen__leglocks">' + formatNumber(lockCount, 0) + '</div>'
-        + '  <div class="fpw-routegen__legnm">' + formatNumber(Number.isFinite(nm) ? nm : 0, 1) + ' NM</div>'
+        + renderLegLockPanel(leg, order)
         + '</div>';
     }).join("");
+
+    if (isLegMapOverlayOpen()) moveLegMapPanelToOverlayDock();
+    else moveLegMapPanelToDock();
+  }
+
+  function refreshTotalsFromLegs() {
+    if (!Array.isArray(state.previewLegs) || !state.previewLegs.length) return;
+    var totalNm = 0;
+    var totalLocks = 0;
+    var offshoreCount = 0;
+    state.previewLegs.forEach(function (leg) {
+      totalNm += parseFloat(getLegField(leg, "dist_nm")) || 0;
+      totalLocks += toInt(getLegField(leg, "lock_count"), 0);
+      if (getLegField(leg, "is_offshore")) offshoreCount += 1;
+    });
+    if (state.previewSummary && typeof state.previewSummary === "object") {
+      state.previewSummary.totalNm = roundTo2(totalNm);
+    }
+    if (dom.totalNmEl) dom.totalNmEl.innerHTML = formatNumber(roundTo2(totalNm), 1) + " <small>NM</small>";
+    if (dom.lockCountEl) dom.lockCountEl.textContent = String(totalLocks);
+    if (dom.offshoreCountEl) dom.offshoreCountEl.textContent = String(offshoreCount);
+    updateDerivedSummaryCards();
+    syncTimelineRouteTotalLine();
+  }
+
+  function buildLegGeometryPayload(leg) {
+    if (state.selectedLegContext === "my_route") {
+      return {
+        route_id: toInt(state.myRoutes.activeRouteId, 0),
+        route_leg_id: toInt(getLegField(leg, "route_leg_id"), 0),
+        segment_id: toInt(getLegField(leg, "segment_id"), 0),
+        leg_order: toInt(getLegField(leg, "order_index"), 0)
+      };
+    }
+    var payload = {
+      route_code: (state.modalMode === "editor" ? String(state.activeRouteCode || "").trim() : ""),
+      route_leg_id: toInt(getLegField(leg, "route_leg_id"), 0),
+      segment_id: toInt(getLegField(leg, "segment_id"), 0),
+      leg_order: toInt(getLegField(leg, "order_index"), 0),
+      direction: getDirectionValue()
+    };
+    var startLat = getLegField(leg, "start_lat");
+    var startLng = getLegField(leg, "start_lng");
+    var endLat = getLegField(leg, "end_lat");
+    var endLng = getLegField(leg, "end_lng");
+
+    if (startLat !== undefined && startLat !== null && String(startLat).trim().length) {
+      payload.start_lat = startLat;
+    }
+    if (startLng !== undefined && startLng !== null && String(startLng).trim().length) {
+      payload.start_lng = startLng;
+    }
+    if (endLat !== undefined && endLat !== null && String(endLat).trim().length) {
+      payload.end_lat = endLat;
+    }
+    if (endLng !== undefined && endLng !== null && String(endLng).trim().length) {
+      payload.end_lng = endLng;
+    }
+    return payload;
+  }
+
+  function applyLegUpdate(order, patch) {
+    var orderNum = toInt(order, 0);
+    if (orderNum <= 0) return;
+    state.previewLegs = state.previewLegs.map(function (leg) {
+      if (toInt(getLegField(leg, "order_index"), 0) !== orderNum) return leg;
+      return Object.assign({}, leg, patch || {});
+    });
+  }
+
+  function fitMapToLayer(layer) {
+    if (!layer || !state.legMap.map) return;
+    var bounds = layer.getBounds();
+    if (bounds && bounds.isValid()) {
+      state.legMap.map.fitBounds(bounds, { padding: [24, 24], maxZoom: LEG_MAP_FIT_MAX_ZOOM });
+      return;
+    }
+    state.legMap.map.setView([39.5, -95.5], 4);
+  }
+
+  function fitMapToPoints(points) {
+    if (!state.legMap.map || !window.L || !Array.isArray(points) || points.length < 2) return false;
+    var latlngs = points
+      .map(function (point) {
+        var parsed = parseLegMapPoint(point);
+        if (!parsed) return null;
+        return [parsed.lat, parsed.lon];
+      })
+      .filter(function (latlng) {
+        return Array.isArray(latlng) && Number.isFinite(latlng[0]) && Number.isFinite(latlng[1]);
+      });
+    if (latlngs.length < 2) return false;
+    var bounds = window.L.latLngBounds(latlngs);
+    if (!bounds || !bounds.isValid()) return false;
+    state.legMap.map.fitBounds(bounds, { padding: [24, 24], maxZoom: LEG_MAP_FIT_MAX_ZOOM });
+    return true;
+  }
+
+  function parseLegMapPoint(rawPoint) {
+    if (!rawPoint || typeof rawPoint !== "object") return null;
+    var lat = parseFloat(rawPoint.lat !== undefined ? rawPoint.lat : rawPoint.latitude);
+    var lon = parseFloat(
+      rawPoint.lon !== undefined ? rawPoint.lon :
+        (rawPoint.lng !== undefined ? rawPoint.lng : rawPoint.longitude)
+    );
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return { lat: lat, lon: lon };
+  }
+
+  function parseLegFieldPoint(leg, prefix) {
+    var lat = getLegField(leg, prefix + "_lat");
+    var lon = getLegField(leg, prefix + "_lon");
+    if (lon === undefined) lon = getLegField(leg, prefix + "_lng");
+    if (lon === undefined) lon = getLegField(leg, prefix + "_longitude");
+    return parseLegMapPoint({ lat: lat, lon: lon });
+  }
+
+  function readPolylineEndpoints(points) {
+    var list = Array.isArray(points) ? points : [];
+    if (list.length < 2) return { startPoint: null, endPoint: null };
+    var startPoint = parseLegMapPoint(list[0]);
+    var endPoint = parseLegMapPoint(list[list.length - 1]);
+    return {
+      startPoint: startPoint,
+      endPoint: endPoint
+    };
+  }
+
+  function endpointCacheKey(leg, geometryData) {
+    var routeCode = String(
+      (geometryData && geometryData.route_code !== undefined ? geometryData.route_code : state.activeRouteCode) || ""
+    ).trim();
+    var direction = "";
+    var order = toInt(getLegField(leg, "order_index"), toInt(geometryData && geometryData.leg_order, 0));
+    var segmentId = toInt(
+      getLegField(leg, "segment_id"),
+      toInt(geometryData && geometryData.segment_id, 0)
+    );
+    if (state.selectedLegContext !== "my_route") {
+      direction = normalizeDirection(
+        (geometryData && geometryData.direction !== undefined ? geometryData.direction : getDirectionValue())
+      );
+    }
+    return [routeCode || "preview", direction || "-", String(order), String(segmentId)].join("|");
+  }
+
+  function cacheLegEndpointPoints(leg, geometryData, startPoint, endPoint) {
+    var key = endpointCacheKey(leg, geometryData);
+    if (!key || key === "preview|0|0") return;
+    state.legEndpointCacheByKey[key] = {
+      startPoint: startPoint || null,
+      endPoint: endPoint || null
+    };
+  }
+
+  function readCachedLegEndpointPoints(leg, geometryData) {
+    var key = endpointCacheKey(leg, geometryData);
+    if (!key || key === "preview|0|0") return { startPoint: null, endPoint: null };
+    var cached = state.legEndpointCacheByKey[key];
+    if (!cached || typeof cached !== "object") return { startPoint: null, endPoint: null };
+    return {
+      startPoint: parseLegMapPoint(cached.startPoint),
+      endPoint: parseLegMapPoint(cached.endPoint)
+    };
+  }
+
+  function fillMissingEndpointPoints(primary, fallback) {
+    var p = primary || { startPoint: null, endPoint: null };
+    var f = fallback || { startPoint: null, endPoint: null };
+    return {
+      startPoint: p.startPoint || f.startPoint || null,
+      endPoint: p.endPoint || f.endPoint || null
+    };
+  }
+
+  function resolveLegEndpointPoints(leg, geometryData) {
+    var data = geometryData || {};
+    var fromLeg = {
+      startPoint: parseLegMapPoint(data.leg_start_point) || parseLegFieldPoint(leg, "start"),
+      endPoint: parseLegMapPoint(data.leg_end_point) || parseLegFieldPoint(leg, "end")
+    };
+    var fromDefault = {
+      startPoint: parseLegMapPoint(data.default_start_point),
+      endPoint: parseLegMapPoint(data.default_end_point)
+    };
+    var fromPolyline = readPolylineEndpoints(Array.isArray(data.points) ? data.points : []);
+    var fromCache = readCachedLegEndpointPoints(leg, data);
+    var merged = fillMissingEndpointPoints(fromLeg, fromDefault);
+    merged = fillMissingEndpointPoints(merged, fromPolyline);
+    merged = fillMissingEndpointPoints(merged, fromCache);
+    cacheLegEndpointPoints(leg, data, merged.startPoint, merged.endPoint);
+    return {
+      startPoint: merged.startPoint,
+      endPoint: merged.endPoint
+    };
+  }
+
+  function fitMapToEndpointPins(startPoint, endPoint) {
+    if (!state.legMap.map || !window.L) {
+      return { applied: false, tooFar: false };
+    }
+    if (!startPoint && endPoint) {
+      state.legMap.map.setView([endPoint.lat, endPoint.lon], 10);
+      return { applied: true, tooFar: false };
+    }
+    if (!startPoint) {
+      return { applied: false, tooFar: false };
+    }
+    if (!endPoint) {
+      state.legMap.map.setView([startPoint.lat, startPoint.lon], 10);
+      return { applied: true, tooFar: false };
+    }
+    var distanceNm = roundTo2(haversineMeters(startPoint.lat, startPoint.lon, endPoint.lat, endPoint.lon) / 1852);
+    if (distanceNm > MAX_ENDPOINT_FIT_NM) {
+      state.legMap.map.setView([startPoint.lat, startPoint.lon], 10);
+      return { applied: true, tooFar: true, distanceNm: distanceNm };
+    }
+    var bounds = window.L.latLngBounds([
+      [startPoint.lat, startPoint.lon],
+      [endPoint.lat, endPoint.lon]
+    ]);
+    if (!bounds || !bounds.isValid()) {
+      state.legMap.map.setView([startPoint.lat, startPoint.lon], 10);
+      return { applied: true, tooFar: false };
+    }
+    state.legMap.map.fitBounds(bounds, { padding: [24, 24], maxZoom: LEG_MAP_FIT_MAX_ZOOM });
+    return { applied: true, tooFar: false, distanceNm: distanceNm };
+  }
+
+  function applyLegMapViewport(leg, geometryData, points, layer, expectedOrder, shouldDrawUserPolyline) {
+    var endpointPoints = resolveLegEndpointPoints(leg, geometryData);
+    setLegMapEndpointMarkers(endpointPoints.startPoint, endpointPoints.endPoint);
+    var endpointView = fitMapToEndpointPins(endpointPoints.startPoint, endpointPoints.endPoint);
+    var zoomedToBounds = endpointView.applied;
+
+    if (layer) {
+      if (!endpointView.applied) {
+        fitMapToLayer(layer);
+      }
+      return endpointView;
+    }
+
+    if (!zoomedToBounds && !shouldDrawUserPolyline && points.length >= 2) {
+      zoomedToBounds = fitMapToPoints(points);
+    }
+    if (!zoomedToBounds && state.legMap.map) {
+      if (expectedOrder <= 0 || state.selectedLegOrder === expectedOrder) {
+        state.legMap.map.setView([39.5, -95.5], 4);
+      }
+    }
+    return endpointView;
+  }
+
+  function schedulePostOpenViewportRefit(loadSeq, expectedOrder, leg, geometryData, points, shouldDrawUserPolyline) {
+    if (!state.legMap || !state.legMap.map) return;
+    var runRefit = function () {
+      if (loadSeq !== state.legMapLoadSeq) return;
+      if (expectedOrder > 0 && state.selectedLegOrder !== expectedOrder) return;
+      if (!state.legMap || !state.legMap.map) return;
+      state.legMap.map.invalidateSize();
+      applyLegMapViewport(
+        leg,
+        geometryData,
+        points,
+        state.legMap.activeLayer,
+        expectedOrder,
+        shouldDrawUserPolyline
+      );
+    };
+    window.setTimeout(runRefit, LEG_MAP_POST_OPEN_FIT_DELAY_MS);
+    window.setTimeout(runRefit, LEG_MAP_POST_OPEN_REFIT_SECOND_DELAY_MS);
+  }
+
+
+  function loadLegGeometry(leg, options) {
+    var opts = options || {};
+    if (!leg) return Promise.resolve(null);
+    if (!ensureLegMap()) {
+      setLegMapStatus("Map library unavailable.");
+      return Promise.resolve(null);
+    }
+
+    var expectedOrder = toInt(getLegField(leg, "order_index"), 0);
+    state.selectedLegData = leg;
+    state.selectedLegOrder = expectedOrder;
+    state.selectedLegHasOverride = !!getLegField(leg, "has_user_override");
+    state.selectedLegSource = "default";
+    state.legMapClearIntent = false;
+    state.legMapDraftPoints = [];
+    state.legMapLoadSeq += 1;
+    var loadSeq = state.legMapLoadSeq;
+    var geometryAction = (state.selectedLegContext === "my_route")
+      ? "getRouteLegOverrideGeometry"
+      : "routegen_getleggeometry";
+    selectLegRow(state.selectedLegOrder);
+    openLegMapPanel();
+    if (state.legMap && state.legMap.map) {
+      state.legMap.map.invalidateSize();
+    }
+    if (dom.legMapTitleEl) {
+      var startName = String(getLegField(leg, "start_name") || "Start");
+      var endName = String(getLegField(leg, "end_name") || "End");
+      dom.legMapTitleEl.textContent = startName + " -> " + endName;
+    }
+    clearLegMapSearchMarker();
+    clearLegMapEndpointMarkers();
+    setLegMapLayer([]);
+    setLegMapNm(0);
+    if (!opts.silent) {
+      setLegMapStatus("Loading geometry...");
+    }
+    updateLegMapButtons(leg, !!getLegField(leg, "has_user_override"));
+    var geometryPayload = buildLegGeometryPayload(leg);
+    if (opts.ignoreSegmentOverride) {
+      geometryPayload.ignore_segment_override = true;
+    }
+
+    return fetchJson(apiUrl(geometryAction), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify(geometryPayload)
+    })
+      .then(function (payload) {
+        if (loadSeq !== state.legMapLoadSeq) return null;
+        if (expectedOrder > 0 && state.selectedLegOrder !== expectedOrder) return null;
+        if (!payload || payload.SUCCESS === false) {
+          throw new Error((payload && payload.MESSAGE) ? payload.MESSAGE : "Unable to load leg geometry.");
+        }
+        var data = payload.DATA || {};
+        var points = Array.isArray(data.points) ? data.points : [];
+        var source = String(data.source || "default");
+        var sourceLabel = sourceLabelFromCode(source);
+        var hasOverride = !!data.has_override;
+        var hasSegmentOverride = !!data.has_segment_override;
+        var hasAnyOverride = hasOverride || hasSegmentOverride || source === "user_segment";
+        var computedNm = parseFloat(data.computed_nm);
+        state.selectedLegHasOverride = hasAnyOverride;
+        state.selectedLegSource = source;
+
+        if (dom.legMapSourceEl) {
+          dom.legMapSourceEl.textContent = "Source: " + sourceLabel;
+        }
+        setLegMapNm(computedNm);
+        updateLegMapButtons(leg, hasAnyOverride);
+        if (dom.legMapHintEl) {
+          dom.legMapHintEl.textContent = canPersistLegOverride(leg)
+            ? "Draw or edit polyline, then save override."
+            : "This leg cannot be saved because it has no segment id.";
+        }
+
+        var shouldDrawUserPolyline = hasAnyOverride && points.length >= 2;
+        var layer = setLegMapLayer(shouldDrawUserPolyline ? points : []);
+        var endpointView = applyLegMapViewport(
+          leg,
+          data,
+          points,
+          layer,
+          expectedOrder,
+          shouldDrawUserPolyline
+        );
+
+        schedulePostOpenViewportRefit(
+          loadSeq,
+          expectedOrder,
+          leg,
+          data,
+          points,
+          shouldDrawUserPolyline
+        );
+
+        if (layer) {
+          if (!opts.silent) {
+            if (endpointView.tooFar) {
+              setLegMapStatus("Loaded geometry. Endpoints are far apart, centered on start.");
+            } else {
+              setLegMapStatus(source === "user_segment" ? "Loaded your saved segment geometry." : "Geometry loaded.");
+            }
+          }
+        } else if (!opts.silent) {
+          if (endpointView.tooFar) {
+            setLegMapStatus("No saved geometry for this leg. Endpoints are far apart, centered on start.");
+          } else {
+            setLegMapStatus("No saved geometry for this leg. Draw a polyline to set override.");
+          }
+        }
+        return data;
+      })
+      .catch(function (err) {
+        if (loadSeq !== state.legMapLoadSeq) return null;
+        if (expectedOrder > 0 && state.selectedLegOrder !== expectedOrder) return null;
+        if (err && err.code === "UNAUTHORIZED") {
+          redirectToLogin();
+          return null;
+        }
+        setLegMapStatus((err && err.message) ? err.message : "Unable to load leg geometry.");
+        return null;
+      });
+  }
+
+  function onLegListClick(event) {
+    var target = event.target;
+    var contextType = (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") ? "my_route" : "routegen";
+    if (!target) return;
+    var actionBtn = target.closest("[data-leg-action]");
+    if (actionBtn && dom.legListEl && dom.legListEl.contains(actionBtn)) {
+      var action = String(actionBtn.getAttribute("data-leg-action") || "").trim().toLowerCase();
+      var orderContainer = actionBtn.closest("[data-leg-order]");
+      var actionOrder = toInt(orderContainer ? orderContainer.getAttribute("data-leg-order") : 0, 0);
+      var actionLeg = getLegByOrder(actionOrder);
+      if (!actionLeg) return;
+
+      if (action === "open-map") {
+        state.selectedLegContext = contextType;
+        loadLegGeometry(actionLeg);
+        return;
+      }
+      if (action === "reload-locks") {
+        fetchLegLockDetails(actionLeg, { force: true });
+        return;
+      }
+      if (action === "collapse-locks") {
+        state.lockPanel.expandedOrder = 0;
+        state.lockPanel.loadingOrder = 0;
+        renderLegs(state.previewLegs);
+        selectLegRow(actionOrder);
+        return;
+      }
+    }
+
+    var row = target.closest(".fpw-routegen__leg[data-leg-order]");
+    if (!row || !dom.legListEl || !dom.legListEl.contains(row)) return;
+    var order = toInt(row.getAttribute("data-leg-order"), 0);
+    var leg = getLegByOrder(order);
+    if (!leg) return;
+    state.selectedLegContext = contextType;
+    state.selectedLegOrder = order;
+    state.selectedLegData = leg;
+    selectLegRow(order);
+    toggleLegLockPanel(leg);
+  }
+
+  function clearLegDrawing() {
+    if (!state.legMap || !state.legMap.map) return;
+    // Invalidate in-flight geometry responses so stale geometry cannot repaint after a clear.
+    state.legMapLoadSeq += 1;
+    disableActiveLegMapToolHandlers();
+    clearLegMapGeometryLayers();
+    state.legMapClearIntent = true;
+    state.legMapDraftPoints = [];
+    setLegMapNm(0);
+    setLegMapStatus("Geometry cleared. Draw a new line, then save override.");
+  }
+
+  function saveLegOverride() {
+    var leg = state.selectedLegData;
+    var saveMode = getLegOverrideSaveMode(leg);
+    var saveAction = "";
+    var payload = {};
+    if (!leg) {
+      setLegMapStatus("Select a leg first.");
+      return;
+    }
+    if (!saveMode) {
+      setLegMapStatus("This leg cannot be saved because no segment data is available.");
+      return;
+    }
+    var points = extractMapPoints(state.legMap.activeLayer);
+    if (points.length < 2) {
+      if (Array.isArray(state.legMapDraftPoints) && state.legMapDraftPoints.length >= 2) {
+        points = state.legMapDraftPoints.slice(0);
+        setLegMapLayer(points);
+        updateLegMapNmFromLayer();
+      }
+    }
+    if (points.length < 2) {
+      if (completeInProgressPolylineDraw()) {
+        points = extractMapPoints(state.legMap.activeLayer);
+      }
+    }
+    if (points.length < 2) {
+      points = extractInProgressDrawPoints();
+      if (points.length >= 2) {
+        setLegMapLayer(points);
+        updateLegMapNmFromLayer();
+      }
+    }
+    if (points.length < 2) {
+      if (state.legMapClearIntent) {
+        clearLegOverride();
+      } else {
+        setLegMapStatus("Finish drawing the route line (double-click the last point), then save override.");
+      }
+      return;
+    }
+    state.legMapClearIntent = false;
+    state.legMapDraftPoints = points.slice(0);
+
+    if (saveMode === "my_route_leg") {
+      saveAction = "saveRouteLegOverrideGeometry";
+      payload = buildLegGeometryPayload(leg);
+      payload.route_id = toInt(state.myRoutes.activeRouteId, 0);
+    } else if (saveMode === "route_leg") {
+      saveAction = "routegen_savelegoverride";
+      payload = buildLegGeometryPayload(leg);
+    } else {
+      saveAction = "routegen_savesegmentoverride";
+      payload = {
+        segment_id: toInt(getLegField(leg, "segment_id"), 0)
+      };
+    }
+    payload.geometry = points;
+    payload.override_fields = {};
+    setLegMapStatus("Saving override...");
+    if (dom.legSaveBtn) dom.legSaveBtn.disabled = true;
+
+    fetchJson(apiUrl(saveAction), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify(payload)
+    })
+      .then(function (res) {
+        if (!res || res.SUCCESS === false) {
+          throw new Error((res && res.MESSAGE) ? res.MESSAGE : "Unable to save leg override.");
+        }
+        var data = res.DATA || {};
+        var source = String(data.source || ((saveMode === "route_leg" || saveMode === "my_route_leg") ? "user_override" : "user_segment"));
+        var nm = parseFloat(data.computed_nm);
+        var legOrder = toInt(getLegField(leg, "order_index"), 0);
+        var legRouteLegId = toInt(getLegField(leg, "route_leg_id"), 0);
+        var legPatch = {
+          has_user_override: true,
+          dist_nm: roundTo2(nm)
+        };
+        if (saveMode === "route_leg" || saveMode === "my_route_leg") {
+          legPatch.route_leg_id = toInt(data.route_leg_id, toInt(getLegField(leg, "route_leg_id"), 0));
+        }
+        if (state.selectedLegContext === "my_route") {
+          applyMyRouteLegPatch(legRouteLegId, legPatch);
+          if (legOrder > 0) {
+            applyLegUpdate(legOrder, legPatch);
+            renderLegs(state.previewLegs);
+            selectLegRow(legOrder);
+            refreshTotalsFromLegs();
+          }
+          state.selectedLegData = (legOrder > 0 ? getLegByOrder(legOrder) : null) || getMyRouteLegById(legRouteLegId) || leg;
+          loadMyRoutes({ reloadActive: true, silentError: true })
+            .then(function () {
+              var activeMyRouteId = toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0);
+              if (String(state.activeRouteType || "").trim().toLowerCase() !== "my_route" || activeMyRouteId <= 0) {
+                return null;
+              }
+              return previewActiveMyRoute(true);
+            })
+            .catch(function () {
+              return null;
+            });
+        } else {
+          applyLegUpdate(getLegField(leg, "order_index"), legPatch);
+          state.selectedLegData = getLegByOrder(getLegField(leg, "order_index")) || leg;
+          renderLegs(state.previewLegs);
+          selectLegRow(getLegField(leg, "order_index"));
+          refreshTotalsFromLegs();
+        }
+        setLegMapNm(nm);
+        if (dom.legMapSourceEl) dom.legMapSourceEl.textContent = "Source: " + sourceLabelFromCode(source);
+        state.selectedLegHasOverride = true;
+        state.selectedLegSource = source;
+        updateLegMapButtons(state.selectedLegData, true);
+        setLegMapStatus("Override saved.");
+      })
+      .catch(function (err) {
+        if (err && err.code === "UNAUTHORIZED") {
+          redirectToLogin();
+          return;
+        }
+        setLegMapStatus((err && err.message) ? err.message : "Unable to save override.");
+      })
+      .finally(function () {
+        if (dom.legSaveBtn) dom.legSaveBtn.disabled = false;
+      });
+  }
+
+  function clearLegOverride() {
+    var leg = state.selectedLegData;
+    var saveMode = getLegOverrideSaveMode(leg);
+    var clearAction = "";
+    var clearPayload = {};
+    state.legMapClearIntent = false;
+    state.legMapDraftPoints = [];
+    if (!leg) {
+      setLegMapStatus("Select a leg first.");
+      return;
+    }
+    if (!saveMode) {
+      setLegMapStatus("This leg cannot be reverted because no segment data is available.");
+      return;
+    }
+    if (saveMode === "my_route_leg") {
+      clearAction = "clearRouteLegOverrideGeometry";
+      clearPayload = {
+        route_id: toInt(state.myRoutes.activeRouteId, 0),
+        route_leg_id: toInt(getLegField(leg, "route_leg_id"), 0)
+      };
+    } else if (saveMode === "route_leg") {
+      clearAction = "routegen_clearlegoverride";
+      clearPayload = {
+        route_code: String(state.activeRouteCode || "").trim(),
+        route_leg_id: toInt(getLegField(leg, "route_leg_id"), 0),
+        segment_id: toInt(getLegField(leg, "segment_id"), 0),
+        clear_segment_override: true
+      };
+    } else {
+      clearAction = "routegen_clearsegmentoverride";
+      clearPayload = {
+        segment_id: toInt(getLegField(leg, "segment_id"), 0)
+      };
+    }
+    setLegMapStatus("Reverting override...");
+    if (dom.legRevertBtn) dom.legRevertBtn.disabled = true;
+    fetchJson(apiUrl(clearAction), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify(clearPayload)
+    })
+      .then(function (res) {
+        if (!res || res.SUCCESS === false) {
+          throw new Error((res && res.MESSAGE) ? res.MESSAGE : "Unable to clear leg override.");
+        }
+        var data = res.DATA || {};
+        var defaultNm = parseFloat(data.default_nm);
+        var legOrder = toInt(getLegField(leg, "order_index"), 0);
+        var legRouteLegId = toInt(getLegField(leg, "route_leg_id"), 0);
+        var clearPatch = {
+          has_user_override: false,
+          dist_nm: roundTo2(defaultNm)
+        };
+        if (state.selectedLegContext === "my_route") {
+          applyMyRouteLegPatch(legRouteLegId, clearPatch);
+          if (legOrder > 0) {
+            applyLegUpdate(legOrder, clearPatch);
+            renderLegs(state.previewLegs);
+            selectLegRow(legOrder);
+            refreshTotalsFromLegs();
+          }
+          state.selectedLegData = (legOrder > 0 ? getLegByOrder(legOrder) : null) || getMyRouteLegById(legRouteLegId) || leg;
+          loadMyRoutes({ reloadActive: true, silentError: true })
+            .then(function () {
+              var activeMyRouteId = toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0);
+              if (String(state.activeRouteType || "").trim().toLowerCase() !== "my_route" || activeMyRouteId <= 0) {
+                return null;
+              }
+              return previewActiveMyRoute(true);
+            })
+            .catch(function () {
+              return null;
+            });
+        } else {
+          applyLegUpdate(getLegField(leg, "order_index"), clearPatch);
+          state.selectedLegData = getLegByOrder(getLegField(leg, "order_index")) || leg;
+          renderLegs(state.previewLegs);
+          selectLegRow(getLegField(leg, "order_index"));
+          refreshTotalsFromLegs();
+        }
+        setLegMapNm(defaultNm);
+        if (dom.legMapSourceEl) dom.legMapSourceEl.textContent = "Source: default";
+        state.selectedLegHasOverride = false;
+        state.selectedLegSource = "default";
+        updateLegMapButtons(state.selectedLegData, false);
+        setLegMapStatus("Override reverted to default.");
+        loadLegGeometry(state.selectedLegData, { silent: true, ignoreSegmentOverride: true });
+      })
+      .catch(function (err) {
+        if (err && err.code === "UNAUTHORIZED") {
+          redirectToLogin();
+          return;
+        }
+        setLegMapStatus((err && err.message) ? err.message : "Unable to clear override.");
+      })
+      .finally(function () {
+        if (dom.legRevertBtn) dom.legRevertBtn.disabled = false;
+      });
   }
 
   function renderPreviewPayload(payload, fromTimeline) {
@@ -1350,6 +5399,14 @@
     var totals = sourceData && sourceData.totals ? sourceData.totals : (sourceData && sourceData.TOTALS ? sourceData.TOTALS : {});
     var legs = sourceData && sourceData.legs ? sourceData.legs : (sourceData && sourceData.LEGS ? sourceData.LEGS : []);
     var paceLabel = getSelectedPacePreset().label;
+    var previousLegs = Array.isArray(state.previewLegs) ? state.previewLegs.slice(0) : [];
+    var previousLockPanelState = {
+      expandedOrder: toInt(state.lockPanel.expandedOrder, 0),
+      requestSeq: toInt(state.lockPanel.requestSeq, 0),
+      detailByOrder: Object.assign({}, state.lockPanel.detailByOrder || {}),
+      errorByOrder: Object.assign({}, state.lockPanel.errorByOrder || {})
+    };
+    var lockPanelRestore = null;
 
     var totalNm = parseFloat(
       totals.total_nm !== undefined ? totals.total_nm :
@@ -1408,59 +5465,124 @@
       totals.fuel_price_per_gal !== undefined ? totals.fuel_price_per_gal :
         (totals.FUEL_PRICE_PER_GAL !== undefined ? totals.FUEL_PRICE_PER_GAL : NaN)
     );
-
-    if (dom.totalNmEl) dom.totalNmEl.innerHTML = formatNumber(Number.isFinite(totalNm) ? totalNm : 0, 1) + ' <small>NM</small>';
-    if (dom.estimatedDaysEl) dom.estimatedDaysEl.textContent = String(Number.isFinite(estimatedDays) ? Math.max(0, Math.round(estimatedDays)) : 0);
+    var timelinePayload = state.cruiseTimeline.payload && typeof state.cruiseTimeline.payload === "object"
+      ? state.cruiseTimeline.payload
+      : null;
+    var hasTimelineSummary = !!timelinePayload;
+    var summaryTotalNm = Number.isFinite(totalNm) ? totalNm : 0;
+    var summaryEstimatedDays = Number.isFinite(estimatedDays) ? Math.max(0, Math.round(estimatedDays)) : 0;
+    var summaryEstimatedFuelGallons = (Number.isFinite(estimatedFuelGallons) && estimatedFuelGallons >= 0) ? estimatedFuelGallons : NaN;
     if (dom.lockCountEl) dom.lockCountEl.textContent = String(Number.isFinite(lockCount) ? Math.max(0, lockCount) : 0);
     if (dom.offshoreCountEl) dom.offshoreCountEl.textContent = String(Number.isFinite(offshoreLegCount) ? Math.max(0, offshoreLegCount) : 0);
-    if (dom.estimatedFuelEl) {
-      if (Number.isFinite(estimatedFuelGallons) && estimatedFuelGallons >= 0) {
-        dom.estimatedFuelEl.innerHTML = formatNumber(estimatedFuelGallons, 1) + ' <small>gal</small>';
-      } else {
-        dom.estimatedFuelEl.innerHTML = "-- <small>gal</small>";
+
+    if (hasTimelineSummary) {
+      applyCruiseTimelineSummaryToCards(
+        buildCruiseTimelineSummaryModel(timelinePayload, {
+          maxHoursPerDay: getCruiseTimelineMaxHoursFromUi(),
+          reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
+          weatherFactorPct: getWeatherFactorPct(),
+          effectiveSpeedKn: getEffectiveCruisingSpeed(),
+          fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
+        }),
+        {
+          fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
+        }
+      );
+    } else {
+      state.previewSummary = {
+        totalNm: summaryTotalNm,
+        estimatedDays: summaryEstimatedDays,
+        estimatedFuelGallons: summaryEstimatedFuelGallons
+      };
+
+      if (dom.totalNmEl) dom.totalNmEl.innerHTML = formatNumber(summaryTotalNm, 1) + ' <small>NM</small>';
+      if (dom.estimatedDaysEl) dom.estimatedDaysEl.textContent = String(summaryEstimatedDays);
+      if (dom.estimatedFuelEl) {
+        if (Number.isFinite(summaryEstimatedFuelGallons) && summaryEstimatedFuelGallons >= 0) {
+          dom.estimatedFuelEl.innerHTML = formatNumber(summaryEstimatedFuelGallons, 1) + ' <small>gal</small>';
+        } else {
+          dom.estimatedFuelEl.innerHTML = "-- <small>gal</small>";
+        }
       }
-    }
-    if (dom.fuelCostEl) {
-      if (Number.isFinite(fuelCostEstimate) && fuelCostEstimate >= 0 && Number.isFinite(fuelPricePerGal) && fuelPricePerGal > 0) {
-        dom.fuelCostEl.innerHTML = formatCurrency(fuelCostEstimate) + ' <small>USD</small>';
-      } else {
-        dom.fuelCostEl.innerHTML = "-- <small>USD</small>";
+      if (dom.fuelCostEl) {
+        if (Number.isFinite(fuelCostEstimate) && fuelCostEstimate >= 0 && Number.isFinite(fuelPricePerGal) && fuelPricePerGal > 0) {
+          dom.fuelCostEl.innerHTML = formatCurrency(fuelCostEstimate) + ' <small>USD</small>';
+        } else {
+          dom.fuelCostEl.innerHTML = "-- <small>USD</small>";
+        }
       }
+      if (dom.estimatedDaysSubEl) {
+        if (fromTimeline) {
+          dom.estimatedDaysSubEl.textContent = "Generated route timeline";
+        } else if (Number.isFinite(runHours) && Number.isFinite(idleHours) && Number.isFinite(totalHours)) {
+          dom.estimatedDaysSubEl.textContent = "Run " + formatNumber(runHours, 1) + "h + Idle " + formatNumber(idleHours, 1) + "h = " + formatNumber(totalHours, 1) + "h";
+        } else {
+          dom.estimatedDaysSubEl.textContent = "Pace: " + paceLabel;
+        }
+      }
+      if (dom.estimatedFuelSubEl) {
+        if (fromTimeline) {
+          dom.estimatedFuelSubEl.textContent = "Fuel estimate unavailable from timeline";
+        } else if (Number.isFinite(baseFuelGallons) && Number.isFinite(reserveFuelGallons) && Number.isFinite(reservePct)) {
+          dom.estimatedFuelSubEl.textContent = "Base " + formatNumber(baseFuelGallons, 1) + " + Reserve (" + formatNumber(reservePct, 0) + "%) " + formatNumber(reserveFuelGallons, 1);
+        } else {
+          dom.estimatedFuelSubEl.textContent = "Required = base + reserve";
+        }
+      }
+      if (dom.fuelCostSubEl) {
+        if (fromTimeline) {
+          dom.fuelCostSubEl.textContent = "Cost estimate unavailable from timeline";
+        } else if (Number.isFinite(fuelPricePerGal) && fuelPricePerGal > 0) {
+          dom.fuelCostSubEl.textContent = "Required fuel x $" + formatNumber(fuelPricePerGal, 2) + "/gal";
+        } else {
+          dom.fuelCostSubEl.textContent = "Enter fuel price to estimate";
+        }
+      }
+      updateDerivedSummaryCards();
+      syncTimelineRouteTotalLine();
     }
 
     if (dom.legCountEl) {
       dom.legCountEl.textContent = String(Array.isArray(legs) ? legs.length : 0) + " legs";
     }
 
-    if (dom.estimatedDaysSubEl) {
-      if (fromTimeline) {
-        dom.estimatedDaysSubEl.textContent = "Generated route timeline";
-      } else if (Number.isFinite(runHours) && Number.isFinite(idleHours) && Number.isFinite(totalHours)) {
-        dom.estimatedDaysSubEl.textContent = "Run " + formatNumber(runHours, 1) + "h + Idle " + formatNumber(idleHours, 1) + "h = " + formatNumber(totalHours, 1) + "h";
-      } else {
-        dom.estimatedDaysSubEl.textContent = "Pace: " + paceLabel;
+    state.previewLegs = normalizeLegList(legs);
+    if (state.weatherAssist && state.weatherAssist.envelope) {
+      applyWeatherSuggestionFromEnvelope();
+    }
+    lockPanelRestore = preserveLockPanelAcrossPreview(previousLegs, state.previewLegs, previousLockPanelState);
+    state.lockPanel.expandedOrder = toInt(lockPanelRestore.expandedOrder, 0);
+    state.lockPanel.loadingOrder = toInt(lockPanelRestore.loadingOrder, 0);
+    state.lockPanel.requestSeq = toInt(lockPanelRestore.requestSeq, toInt(state.lockPanel.requestSeq, 0));
+    state.lockPanel.detailByOrder = lockPanelRestore.detailByOrder || {};
+    state.lockPanel.errorByOrder = lockPanelRestore.errorByOrder || {};
+    renderLegs(state.previewLegs);
+    if (state.lockPanel.expandedOrder > 0 && lockPanelRestore && lockPanelRestore.restoredLeg) {
+      var restoredKey = String(state.lockPanel.expandedOrder);
+      var hasCachedDetails = !!state.lockPanel.detailByOrder[restoredKey];
+      var hasCachedError = !!String(state.lockPanel.errorByOrder[restoredKey] || "").trim();
+      if (!hasCachedDetails && !hasCachedError) {
+        fetchLegLockDetails(lockPanelRestore.restoredLeg);
       }
     }
-    if (dom.estimatedFuelSubEl) {
-      if (fromTimeline) {
-        dom.estimatedFuelSubEl.textContent = "Fuel estimate unavailable from timeline";
-      } else if (Number.isFinite(baseFuelGallons) && Number.isFinite(reserveFuelGallons) && Number.isFinite(reservePct)) {
-        dom.estimatedFuelSubEl.textContent = "Base " + formatNumber(baseFuelGallons, 1) + " + Reserve (" + formatNumber(reservePct, 0) + "%) " + formatNumber(reserveFuelGallons, 1);
+    if (!state.previewLegs.length) {
+      resetLegMapSelection();
+      return;
+    }
+    if (state.selectedLegOrder > 0) {
+      var selected = getLegByOrder(state.selectedLegOrder);
+      if (selected) {
+        state.selectedLegData = selected;
+        selectLegRow(state.selectedLegOrder);
+        var hasLoadedOverride = !!getLegField(selected, "has_user_override");
+        if (state.selectedLegHasOverride && state.selectedLegData && toInt(getLegField(state.selectedLegData, "order_index"), 0) === toInt(getLegField(selected, "order_index"), 0)) {
+          hasLoadedOverride = true;
+        }
+        updateLegMapButtons(selected, hasLoadedOverride);
       } else {
-        dom.estimatedFuelSubEl.textContent = "Required = base + reserve";
+        resetLegMapSelection();
       }
     }
-    if (dom.fuelCostSubEl) {
-      if (fromTimeline) {
-        dom.fuelCostSubEl.textContent = "Cost estimate unavailable from timeline";
-      } else if (Number.isFinite(fuelPricePerGal) && fuelPricePerGal > 0) {
-        dom.fuelCostSubEl.textContent = "Required fuel x $" + formatNumber(fuelPricePerGal, 2) + "/gal";
-      } else {
-        dom.fuelCostSubEl.textContent = "Enter fuel price to estimate";
-      }
-    }
-
-    renderLegs(legs);
   }
 
   function schedulePreview() {
@@ -1474,7 +5596,94 @@
     }, 250);
   }
 
+  function previewActiveMyRoute(forceRefresh) {
+    var routeId = toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0);
+    var payload = collectFormPayload();
+    if (routeId <= 0) {
+      if (forceRefresh) {
+        showError("Select and load a My Route first.");
+      } else {
+        clearError();
+      }
+      return Promise.resolve(null);
+    }
+
+    payload.route_id = routeId;
+    clearError();
+    state.previewReqSeq += 1;
+    var seq = state.previewReqSeq;
+
+    if (forceRefresh) {
+      setStatus("Refreshing My Route preview...");
+    } else {
+      setStatus("Updating My Route preview...");
+    }
+
+    if (dom.previewBtn) dom.previewBtn.disabled = true;
+
+    return fetchJson(apiUrl("previewUserRoute"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify(payload)
+    })
+      .then(function (resPayload) {
+        var previewLegsForTimeline = [];
+        if (seq !== state.previewReqSeq) return null;
+        if (!resPayload || resPayload.SUCCESS === false) {
+          throw new Error((resPayload && resPayload.MESSAGE) ? resPayload.MESSAGE : "My Route preview failed.");
+        }
+        state.activeRouteId = routeId;
+        state.activeRouteType = "my_route";
+        state.selectedLegContext = "my_route";
+        if (state.modalMode !== "editor") {
+          state.activeRouteCode = "";
+        }
+        setRouteCodeBadge("MY_ROUTE_" + String(routeId));
+        previewLegsForTimeline = extractPreviewLegsFromPayload(resPayload);
+        var resData = (resPayload.DATA && typeof resPayload.DATA === "object") ? resPayload.DATA : {};
+        var tpl = (resData.template && typeof resData.template === "object") ? resData.template : {};
+        if (dom.previewTemplateEl) {
+          var myRoutePreviewName = String(
+            tpl.name !== undefined ? tpl.name :
+              (tpl.NAME !== undefined ? tpl.NAME : (state.myRoutes.activeRouteName || "My Route"))
+          ).trim();
+          dom.previewTemplateEl.textContent = "Template: " + (myRoutePreviewName || "My Route");
+        }
+        renderPreviewPayload(resPayload, false);
+        scrollPreviewTimelineIntoView();
+        setStatus(forceRefresh ? "My Route preview updated." : "My Route preview ready.");
+        if (state.modalMode !== "editor") {
+          saveDraft();
+        }
+        return buildCruiseTimeline(
+          routeId,
+          dom.startDateEl ? String(dom.startDateEl.value || "").trim() : "",
+          getCruiseTimelineMaxHoursFromUi(),
+          (previewLegsForTimeline.length ? previewLegsForTimeline : state.previewLegs)
+        ).then(function () {
+          return resPayload;
+        });
+      })
+      .catch(function (err) {
+        if (err && err.code === "UNAUTHORIZED") {
+          redirectToLogin();
+          return null;
+        }
+        showError((err && err.message) ? err.message : "Unable to preview My Route.");
+        setStatus("My Route preview failed.");
+        return null;
+      })
+      .finally(function () {
+        if (dom.previewBtn) dom.previewBtn.disabled = false;
+      });
+  }
+
   function previewRoute(forceRefresh) {
+    if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route" && toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0) > 0) {
+      return previewActiveMyRoute(forceRefresh);
+    }
+
     var payload = collectFormPayload();
     if (!canPreview(payload)) {
       if (forceRefresh) {
@@ -1506,14 +5715,30 @@
       body: JSON.stringify(payload)
     })
       .then(function (resPayload) {
+        var activeRouteId = toInt(state.activeRouteId, 0);
+        var previewLegsForTimeline = [];
         if (seq !== state.previewReqSeq) return null;
         if (!resPayload || resPayload.SUCCESS === false) {
           throw new Error((resPayload && resPayload.MESSAGE) ? resPayload.MESSAGE : "Preview failed.");
         }
+        state.activeRouteType = "generated";
+        state.selectedLegContext = "routegen";
+        previewLegsForTimeline = extractPreviewLegsFromPayload(resPayload);
         renderPreviewPayload(resPayload, false);
+        scrollPreviewTimelineIntoView();
         setStatus(forceRefresh ? "Preview updated." : "Preview ready.");
         if (state.modalMode !== "editor") {
           saveDraft();
+        }
+        if (activeRouteId > 0) {
+          return buildCruiseTimeline(
+            activeRouteId,
+            dom.startDateEl ? String(dom.startDateEl.value || "").trim() : "",
+            getCruiseTimelineMaxHoursFromUi(),
+            (previewLegsForTimeline.length ? previewLegsForTimeline : state.previewLegs)
+          ).then(function () {
+            return resPayload;
+          });
         }
         return resPayload;
       })
@@ -1533,8 +5758,16 @@
 
   function generateRoute() {
     var payload = collectFormPayload();
+    var isMyRoute = (String(state.activeRouteType || "").trim().toLowerCase() === "my_route");
     if (!canPreview(payload)) {
-      showError("Select a template, start location, end location, and start date before generating.");
+      if (isMyRoute) {
+        showError("Select and load a My Route, then set a start date before generating.");
+      } else {
+        showError("Select a template, start location, end location, and start date before generating.");
+      }
+      return;
+    }
+    if (!validateRequiredRouteName("generating")) {
       return;
     }
 
@@ -1565,10 +5798,21 @@
           data.route_code !== undefined ? data.route_code :
             (data.ROUTE_CODE !== undefined ? data.ROUTE_CODE : (responsePayload.ROUTE_CODE !== undefined ? responsePayload.ROUTE_CODE : ""))
         ).trim();
+        var routeId = toInt(
+          data.route_id !== undefined ? data.route_id :
+            (data.ROUTE_ID !== undefined ? data.ROUTE_ID : (responsePayload.ROUTE_ID !== undefined ? responsePayload.ROUTE_ID : 0)),
+          0
+        );
 
         state.lastGeneratedRouteCode = routeCode;
         state.activeRouteCode = routeCode;
+        state.activeRouteId = routeId;
+        state.activeRouteType = "generated";
+        state.selectedLegContext = "routegen";
+        state.modalMode = "editor";
+        state.editorBaseline = buildEditorBaselineFromPayload(payload);
         setRouteCodeBadge(routeCode || "Generated");
+        setModalModeUI();
         setStatus("Route generated.");
 
         if (utils && typeof utils.showDashboardAlert === "function") {
@@ -1576,10 +5820,13 @@
         }
 
         notifyRoutesUpdated(routeCode);
+        buildCruiseTimeline(
+          state.activeRouteId,
+          dom.startDateEl ? String(dom.startDateEl.value || "").trim() : "",
+          getCruiseTimelineMaxHoursFromUi(),
+          state.previewLegs
+        );
 
-        if (modal) {
-          modal.hide();
-        }
       })
       .catch(function (err) {
         if (err && err.code === "UNAUTHORIZED") {
@@ -1606,6 +5853,9 @@
 
     if (!canPreview(payload)) {
       showError("Select a template, start location, end location, and start date before saving.");
+      return;
+    }
+    if (!validateRequiredRouteName("saving")) {
       return;
     }
 
@@ -1636,8 +5886,14 @@
           data.route_code !== undefined ? data.route_code :
             (data.ROUTE_CODE !== undefined ? data.ROUTE_CODE : routeCode)
         ).trim();
+        var savedRouteId = toInt(
+          data.route_id !== undefined ? data.route_id :
+            (data.ROUTE_ID !== undefined ? data.ROUTE_ID : state.activeRouteId),
+          state.activeRouteId
+        );
 
         state.activeRouteCode = savedRouteCode || routeCode;
+        state.activeRouteId = savedRouteId;
         setRouteCodeBadge(state.activeRouteCode);
         setStatus("Route saved.");
 
@@ -1675,11 +5931,18 @@
         }
 
         var sections = Array.isArray(payload.SECTIONS) ? payload.SECTIONS : [];
+        var routeMeta = payload.ROUTE || {};
+        var routeId = toInt(routeMeta.ID !== undefined ? routeMeta.ID : routeMeta.route_id, 0);
+        state.activeRouteId = routeId;
+        state.activeRouteType = "generated";
+        state.selectedLegContext = "routegen";
         var flatLegs = [];
         sections.forEach(function (section) {
           var segs = Array.isArray(section.SEGMENTS) ? section.SEGMENTS : [];
           segs.forEach(function (seg) {
             flatLegs.push({
+              ROUTE_ID: routeId,
+              ROUTE_LEG_ID: seg.ID,
               ORDER_INDEX: seg.ORDER_INDEX,
               START_NAME: seg.START_NAME,
               END_NAME: seg.END_NAME,
@@ -1702,6 +5965,7 @@
         };
 
         renderPreviewPayload(previewLike, true);
+        rebuildCruiseTimelineFromCurrentState();
         setStatus("Route loaded.");
       })
       .catch(function (err) {
@@ -1727,7 +5991,6 @@
   function resetGeneratorState() {
     clearError();
     clearPreview();
-    setRouteCodeBadge("Draft");
     setStatus("Ready");
 
     state.options = {
@@ -1735,18 +5998,69 @@
       endOptions: [],
       optionalStops: []
     };
+    state.availableVessels = [];
+    state.selectedVesselId = 0;
     state.selectedStopCodes = {};
     state.pendingDraft = null;
     state.manualOverrides.cruisingSpeed = false;
+    state.vesselDefaults = {
+      maxSpeedKn: 0,
+      mostEfficientSpeedKn: 0,
+      gphAtMostEfficientSpeed: 0,
+      gphAtMaxSpeed: 0
+    };
     state.editorBaseline = null;
     state.suppressAutoSelectOnce = false;
     state.activeTemplateCode = "";
+    state.activeRouteId = 0;
+    state.activeRouteType = "generated";
+    state.selectedLegContext = "routegen";
+    state.previewLegs = [];
+    state.myRoutes = {
+      available: false,
+      pendingCount: 0,
+      routes: [],
+      activeRouteId: 0,
+      activeRouteName: "",
+      legs: [],
+      waypoints: [],
+      startWaypointId: 0
+    };
+    state.selectedLegOrder = 0;
+    state.selectedLegData = null;
+    resetLegLockPanelState();
 
     if (dom.templateSelectEl) {
       dom.templateSelectEl.innerHTML = '<option value="">Select template</option>';
       dom.templateSelectEl.value = "";
       dom.templateSelectEl.disabled = false;
     }
+    if (dom.routeNameEl) dom.routeNameEl.value = "";
+    setRouteCodeBadge("Draft");
+    clearRouteNameValidation();
+    if (dom.vesselSelectEl) {
+      dom.vesselSelectEl.innerHTML = '<option value="">Loading vessels...</option>';
+      dom.vesselSelectEl.value = "";
+      dom.vesselSelectEl.disabled = true;
+    }
+    if (dom.myRouteNameEl) dom.myRouteNameEl.value = "";
+    if (dom.myRouteSelectEl) {
+      dom.myRouteSelectEl.innerHTML = '<option value="">Select route</option>';
+      dom.myRouteSelectEl.value = "";
+    }
+    if (dom.myRouteStartWaypointSelectEl) {
+      dom.myRouteStartWaypointSelectEl.innerHTML = '<option value="">Select start waypoint</option>';
+      dom.myRouteStartWaypointSelectEl.value = "";
+    }
+    if (dom.myRouteEndWaypointSelectEl) {
+      dom.myRouteEndWaypointSelectEl.innerHTML = '<option value="">Select end waypoint</option>';
+      dom.myRouteEndWaypointSelectEl.value = "";
+    }
+    renderMyRouteControlAvailability();
+    if (dom.myRouteLegListEl) {
+      dom.myRouteLegListEl.innerHTML = '<div class="fpw-routegen__empty">Create or select a My Route to manage legs.</div>';
+    }
+    renderMyRouteStartMeta();
     updateTemplateMeta(null);
     if (dom.previewTemplateEl) {
       dom.previewTemplateEl.textContent = "Template: -";
@@ -1762,22 +6076,27 @@
       dom.endSelectEl.value = "";
     }
     if (dom.paceEl) dom.paceEl.value = "0";
-    if (dom.underwayHoursEl) dom.underwayHoursEl.value = "8";
+    if (dom.mostEfficientSpeedEl) dom.mostEfficientSpeedEl.value = "";
+    if (dom.cruisingSpeedEl) dom.cruisingSpeedEl.value = "";
+    if (dom.underwayHoursEl) dom.underwayHoursEl.value = "";
     if (dom.comfortProfileEl) dom.comfortProfileEl.value = "PREFER_INSIDE";
     if (dom.overnightBiasEl) dom.overnightBiasEl.value = "MARINAS";
     setFuelBurnBasis(FUEL_BURN_BASIS_MAX);
+    if (dom.fuelBurnEfficientGphEl) dom.fuelBurnEfficientGphEl.value = "";
     if (dom.fuelBurnGphEl) dom.fuelBurnGphEl.value = "";
     if (dom.idleBurnGphEl) dom.idleBurnGphEl.value = "";
     if (dom.idleHoursTotalEl) dom.idleHoursTotalEl.value = "";
     if (dom.weatherFactorPctEl) dom.weatherFactorPctEl.value = String(DEFAULT_WEATHER_FACTOR_PCT);
+    resetWeatherSuggestionState("Set a valid dashboard weather ZIP to refresh this suggestion.");
     if (dom.reservePctEl) dom.reservePctEl.value = String(DEFAULT_RESERVE_PCT);
     if (dom.fuelPricePerGalEl) dom.fuelPricePerGalEl.value = "";
+    if (dom.setupPanelBodyEl) dom.setupPanelBodyEl.scrollTop = 0;
     setTodayIfMissing();
     updatePaceLabel();
-    applyPaceDefaults(true);
     updatePaceOverrideUI();
     updateFuelBurnBasisUI();
     updateDirectionControlAvailability();
+    renderOptions();
     setModalModeUI();
   }
 
@@ -1802,6 +6121,7 @@
     ensureUserId()
       .then(function () {
         if (!isActiveModalInit(initSeq)) return null;
+        refreshWeatherSuggestion({ forceFetch: false });
         return loadTemplates();
       })
       .then(function () {
@@ -1811,6 +6131,16 @@
             .then(function (editData) {
               if (!isActiveModalInit(initSeq)) return null;
               applyEditContext(editData);
+              if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") {
+                return loadMyRoutes({
+                  routeId: toInt(state.myRoutes.activeRouteId, 0),
+                  reloadActive: true,
+                  silentError: true
+                }).then(function () {
+                  if (!isActiveModalInit(initSeq)) return null;
+                  return fetchGeneratorVesselDefaults();
+                });
+              }
               if (!state.activeTemplateCode && state.templates.length) {
                 setActiveTemplate(String(state.templates[0].SHORT_CODE || state.templates[0].CODE || "").trim(), {
                   restoreDraft: false,
@@ -1844,6 +6174,9 @@
           rememberSelection: !freshStart,
           allowEmpty: freshStart
         });
+        if (freshStart && !preferred) {
+          return fetchGeneratorVesselDefaults();
+        }
         return fetchOptions();
       })
       .then(function () {
@@ -1852,6 +6185,16 @@
           return previewRoute(true);
         }
         return previewRoute(false);
+      })
+      .then(function () {
+        if (!isActiveModalInit(initSeq)) return null;
+        if (editorMode) {
+          if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") {
+            return null;
+          }
+          return loadMyRoutes({ silentError: true, noAutoLoad: true });
+        }
+        return loadMyRoutes({ silentError: true, noAutoLoad: freshStart });
       })
       .catch(function (err) {
         if (!isActiveModalInit(initSeq)) return;
@@ -1874,6 +6217,7 @@
 
   function onFormChange() {
     clearError();
+    updatePaceLabel();
     updateFuelBurnBasisUI();
     updateDirectionControlAvailability();
     if (state.modalMode !== "editor") {
@@ -1895,6 +6239,15 @@
 
     if (dom.startSelectEl) dom.startSelectEl.value = "";
     if (dom.endSelectEl) dom.endSelectEl.value = "";
+    if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") {
+      state.activeRouteId = 0;
+      if (state.modalMode !== "editor") {
+        state.activeRouteCode = "";
+        setRouteCodeBadge("Draft");
+      }
+    }
+    state.activeRouteType = "generated";
+    state.selectedLegContext = "routegen";
     updateDirectionControlAvailability();
 
     setActiveTemplate(code);
@@ -1918,22 +6271,38 @@
       start_label: "",
       end_label: ""
     };
+    state.activeRouteId = 0;
+    state.activeRouteCode = "";
+    state.activeRouteType = "generated";
+    state.selectedLegContext = "routegen";
     state.manualOverrides.cruisingSpeed = false;
     state.suppressAutoSelectOnce = true;
+    state.selectedVesselId = 0;
+    if (dom.routeNameEl) dom.routeNameEl.value = "";
+    setRouteCodeBadge("Draft");
+    clearRouteNameValidation();
 
     if (dom.paceEl) dom.paceEl.value = "0";
-    if (dom.underwayHoursEl) dom.underwayHoursEl.value = "8";
+    if (dom.mostEfficientSpeedEl) dom.mostEfficientSpeedEl.value = "";
+    if (dom.cruisingSpeedEl) dom.cruisingSpeedEl.value = "";
+    if (dom.underwayHoursEl) dom.underwayHoursEl.value = "";
     if (dom.comfortProfileEl) dom.comfortProfileEl.value = "PREFER_INSIDE";
     if (dom.overnightBiasEl) dom.overnightBiasEl.value = "MARINAS";
     setFuelBurnBasis(FUEL_BURN_BASIS_MAX);
+    if (dom.fuelBurnEfficientGphEl) dom.fuelBurnEfficientGphEl.value = "";
     if (dom.fuelBurnGphEl) dom.fuelBurnGphEl.value = "";
     if (dom.idleBurnGphEl) dom.idleBurnGphEl.value = "";
     if (dom.idleHoursTotalEl) dom.idleHoursTotalEl.value = "";
     if (dom.weatherFactorPctEl) dom.weatherFactorPctEl.value = String(DEFAULT_WEATHER_FACTOR_PCT);
+    resetWeatherSuggestionState("Set a valid dashboard weather ZIP to refresh this suggestion.");
     if (dom.reservePctEl) dom.reservePctEl.value = String(DEFAULT_RESERVE_PCT);
     if (dom.fuelPricePerGalEl) dom.fuelPricePerGalEl.value = "";
 
+    syncSelectedVesselFromAvailableList();
     applyPaceDefaults(true);
+    applyMostEfficientSpeedDefaultFromVessel();
+    applyEfficientFuelBurnDefaultFromVessel();
+    applyFuelBurnDefaultFromVessel();
     updatePaceLabel();
     updatePaceOverrideUI();
     updateFuelBurnBasisUI();
@@ -1950,10 +6319,14 @@
 
   function resetEditorToBaseline() {
     var baseline = state.editorBaseline;
+    var isMyRouteBaseline = false;
+    var baselineMyRouteId = 0;
     if (!baseline || typeof baseline !== "object") {
       showError("No baseline found for this route.");
       return;
     }
+    isMyRouteBaseline = (String(baseline.route_type || "").trim().toLowerCase() === "my_route");
+    baselineMyRouteId = toInt(baseline.route_id, 0);
 
     clearError();
     if (state.previewTimer) {
@@ -1964,8 +6337,21 @@
     setStatus("Resetting to saved route...");
 
     state.manualOverrides.cruisingSpeed = false;
+    if (dom.routeNameEl) {
+      dom.routeNameEl.value = String(baseline.route_name || "");
+    }
+    state.selectedVesselId = toInt(
+      baseline.selected_vessel_id !== undefined ? baseline.selected_vessel_id :
+        (baseline.selectedVesselId !== undefined ? baseline.selectedVesselId : 0),
+      0
+    );
+    if (dom.vesselSelectEl) {
+      dom.vesselSelectEl.value = (state.selectedVesselId > 0 ? String(state.selectedVesselId) : "");
+    }
+    setRouteCodeBadge(state.activeRouteCode);
+    clearRouteNameValidation();
 
-    if (baseline.template_code) {
+    if (!isMyRouteBaseline && baseline.template_code) {
       setActiveTemplate(String(baseline.template_code), { restoreDraft: false, rememberSelection: false });
     }
     setDirectionValue(baseline.direction);
@@ -1980,11 +6366,15 @@
     applyPaceDefaults(true);
     updatePaceLabel();
 
+    if (dom.mostEfficientSpeedEl) dom.mostEfficientSpeedEl.value = String(baseline.vessel_most_efficient_speed_kn || "");
     if (dom.cruisingSpeedEl) dom.cruisingSpeedEl.value = String(baseline.cruising_speed || "");
-    if (dom.underwayHoursEl) dom.underwayHoursEl.value = String(baseline.underway_hours_per_day || "8");
+    if (dom.underwayHoursEl) dom.underwayHoursEl.value = String(baseline.underway_hours_per_day || "");
     if (dom.comfortProfileEl) dom.comfortProfileEl.value = String(baseline.comfort_profile || "PREFER_INSIDE");
     if (dom.overnightBiasEl) dom.overnightBiasEl.value = String(baseline.overnight_bias || "MARINAS");
     setFuelBurnBasis(FUEL_BURN_BASIS_MAX);
+    if (dom.fuelBurnEfficientGphEl) {
+      dom.fuelBurnEfficientGphEl.value = String(baseline.vessel_gph_at_most_efficient_speed || "");
+    }
     if (dom.fuelBurnGphEl) {
       dom.fuelBurnGphEl.value = String(baseline.fuel_burn_gph || "");
     }
@@ -2001,6 +6391,30 @@
       baseline.optional_stop_flags.forEach(function (code) {
         state.selectedStopCodes[String(code)] = true;
       });
+    }
+
+    if (isMyRouteBaseline && baselineMyRouteId > 0) {
+      state.activeRouteType = "my_route";
+      state.selectedLegContext = "my_route";
+      state.myRoutes.activeRouteId = baselineMyRouteId;
+      state.activeRouteId = baselineMyRouteId;
+      state.pendingDraft = null;
+      loadMyRoutes({
+        routeId: baselineMyRouteId,
+        reloadActive: true,
+        silentError: true
+      })
+        .then(function () {
+          return previewActiveMyRoute(true);
+        })
+        .catch(function (err) {
+          if (err && err.code === "UNAUTHORIZED") {
+            redirectToLogin();
+            return;
+          }
+          showError((err && err.message) ? err.message : "Unable to reset this route.");
+        });
+      return;
     }
 
     state.pendingDraft = {
@@ -2049,6 +6463,15 @@
 
   function onDirectionControlChange() {
     clearError();
+    if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") {
+      state.activeRouteId = 0;
+      if (state.modalMode !== "editor") {
+        state.activeRouteCode = "";
+        setRouteCodeBadge("Draft");
+      }
+    }
+    state.activeRouteType = "generated";
+    state.selectedLegContext = "routegen";
     setDirectionValue(dom.directionToggleEl ? (dom.directionToggleEl.checked ? "CW" : "CCW") : getDirectionValue());
     setStatus("Switching direction...");
     queueDirectionSwapDraft();
@@ -2089,6 +6512,389 @@
     onFormChange();
   }
 
+  function onCruiseTimelineClick(event) {
+    var target = event.target;
+    var rebuildBtn = null;
+    if (!target || !dom.root) return;
+    rebuildBtn = target.closest("#routeGenTimelineRebuildBtn");
+    if (!rebuildBtn || !dom.root.contains(rebuildBtn)) return;
+    event.preventDefault();
+    getCruiseTimelineMaxHoursFromUi();
+    rebuildCruiseTimelineFromCurrentState();
+  }
+
+  function onCruiseTimelineInputChange(event) {
+    var target = event.target;
+    var clamped = 0;
+    if (!target || target.id !== "routeGenTimelineMaxHours") return;
+    dom.cruiseTimelineMaxHoursEl = target;
+    clamped = clampCruiseTimelineHours(target.value);
+    if (dom.underwayHoursEl) {
+      dom.underwayHoursEl.value = formatCruiseTimelineHoursInput(clamped);
+    }
+    state.cruiseTimeline.maxHoursPerDay = clamped;
+    syncCruiseTimelineMaxHoursField(clamped);
+  }
+
+  function createMyRoute() {
+    var name = dom.myRouteNameEl ? String(dom.myRouteNameEl.value || "").trim() : "";
+    if (!name) {
+      showError("Enter a route name for My Routes.");
+      return;
+    }
+    beginMyRoutePending();
+    return fetchJson(apiUrl("createUserRoute"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ route_name: name })
+    }).then(function (payload) {
+      if (!payload || payload.SUCCESS === false) {
+        throw new Error(extractApiMessage(payload, "Unable to create My Route."));
+      }
+      clearError();
+      if (dom.myRouteNameEl) dom.myRouteNameEl.value = "";
+      var createData = (payload && payload.DATA && typeof payload.DATA === "object") ? payload.DATA : {};
+      var createdRouteId = toInt(
+        createData.route_id !== undefined ? createData.route_id : createData.ROUTE_ID,
+        0
+      );
+      setStatus("My Route created.");
+      return loadMyRoutes({ routeId: createdRouteId > 0 ? createdRouteId : 0 });
+    }).catch(function (err) {
+      showError((err && err.message) ? err.message : "Unable to create My Route.");
+    }).finally(function () {
+      endMyRoutePending();
+    });
+  }
+
+  function deleteSelectedMyRoute() {
+    var routeId = toInt(dom.myRouteSelectEl ? dom.myRouteSelectEl.value : state.myRoutes.activeRouteId, 0);
+    if (routeId <= 0) {
+      showError("Select a My Route to delete.");
+      return;
+    }
+    fetchJson(apiUrl("deleteUserRoute"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ route_id: routeId })
+    }).then(function (payload) {
+      if (!payload || payload.SUCCESS === false) {
+        throw new Error(extractApiMessage(payload, "Unable to delete My Route."));
+      }
+      clearError();
+      setStatus("My Route deleted.");
+      state.myRoutes.activeRouteId = 0;
+      state.myRoutes.activeRouteName = "";
+      state.myRoutes.startWaypointId = 0;
+      setMyRouteLegs([]);
+      renderMyRouteWaypointOptions();
+      return loadMyRoutes();
+    }).catch(function (err) {
+      showError((err && err.message) ? err.message : "Unable to delete My Route.");
+    });
+  }
+
+  function setMyRouteStartWaypoint(options) {
+    var opts = options || {};
+    var routeId = toInt(state.myRoutes.activeRouteId, 0);
+    var startWaypointId = toInt(dom.myRouteStartWaypointSelectEl ? dom.myRouteStartWaypointSelectEl.value : 0, 0);
+    if (routeId <= 0) {
+      showError("Select a My Route first.");
+      return;
+    }
+    beginMyRoutePending();
+    return fetchJson(apiUrl("setUserRouteStartWaypoint"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        route_id: routeId,
+        start_waypoint_id: startWaypointId
+      })
+    }).then(function (payload) {
+      if (!payload || payload.SUCCESS === false) {
+        throw new Error(extractApiMessage(payload, "Unable to set route start waypoint."));
+      }
+      clearError();
+      var data = (payload.DATA && typeof payload.DATA === "object") ? payload.DATA : {};
+      var route = (data.route && typeof data.route === "object") ? data.route : {};
+      state.myRoutes.startWaypointId = toInt(
+        route.start_waypoint_id !== undefined ? route.start_waypoint_id : route.START_WAYPOINT_ID,
+        startWaypointId
+      );
+      setMyRouteLegs(Array.isArray(data.legs) ? data.legs : []);
+      renderMyRouteWaypointOptions();
+      if (!opts.suppressStatus) {
+        setStatus(state.myRoutes.startWaypointId > 0 ? "My Route start waypoint set." : "My Route start waypoint cleared.");
+      }
+      return loadMyRoutes({ reloadActive: true, silentError: true });
+    }).catch(function (err) {
+      var message = (err && err.message) ? err.message : "Unable to set route start waypoint.";
+      if (!opts.suppressError) {
+        showError(message);
+      }
+      if (opts.rejectOnError) {
+        throw (err instanceof Error ? err : new Error(message));
+      }
+      return null;
+    }).finally(function () {
+      endMyRoutePending();
+    });
+  }
+
+  function addWaypointLegToMyRoute() {
+    var routeId = toInt(state.myRoutes.activeRouteId, 0);
+    var persistedStartWaypointId = toInt(state.myRoutes.startWaypointId, 0);
+    var selectedStartWaypointId = toInt(dom.myRouteStartWaypointSelectEl ? dom.myRouteStartWaypointSelectEl.value : 0, 0);
+    var endWaypointId = toInt(dom.myRouteEndWaypointSelectEl ? dom.myRouteEndWaypointSelectEl.value : 0, 0);
+    var hasExistingLegs = Array.isArray(state.myRoutes.legs) && state.myRoutes.legs.length > 0;
+    var needsStartPersist = !hasExistingLegs && persistedStartWaypointId <= 0 && selectedStartWaypointId > 0;
+    var addLegPromise = Promise.resolve(null);
+    if (routeId <= 0) {
+      showError("Select a My Route first.");
+      return;
+    }
+    if (endWaypointId <= 0) {
+      showError("Select an end waypoint to add a leg.");
+      return;
+    }
+    if (needsStartPersist) {
+      addLegPromise = setMyRouteStartWaypoint({
+        suppressStatus: true,
+        suppressError: true,
+        rejectOnError: true
+      });
+    }
+    beginMyRoutePending();
+    return addLegPromise.then(function () {
+      return fetchJson(apiUrl("addWaypointLegToUserRoute"), {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({
+          route_id: routeId,
+          end_waypoint_id: endWaypointId
+        })
+      });
+    }).then(function (payload) {
+      if (!payload || payload.SUCCESS === false) {
+        throw new Error(extractApiMessage(payload, "Unable to add waypoint leg."));
+      }
+      clearError();
+      setStatus("Leg added.");
+      var data = (payload.DATA && typeof payload.DATA === "object") ? payload.DATA : {};
+      var route = (data.route && typeof data.route === "object") ? data.route : {};
+      state.myRoutes.startWaypointId = toInt(
+        route.start_waypoint_id !== undefined ? route.start_waypoint_id : route.START_WAYPOINT_ID,
+        state.myRoutes.startWaypointId
+      );
+      setMyRouteLegs(Array.isArray(data.legs) ? data.legs : []);
+      renderMyRouteWaypointOptions();
+      return loadMyRoutes({ reloadActive: true });
+    }).catch(function (err) {
+      showError((err && err.message) ? err.message : "Unable to add waypoint leg.");
+    }).finally(function () {
+      endMyRoutePending();
+    });
+  }
+
+  function loadSelectedMyRouteIntoPreview() {
+    var selectedRouteId = toInt(dom.myRouteSelectEl ? dom.myRouteSelectEl.value : state.myRoutes.activeRouteId, 0);
+    var loadPromise = Promise.resolve(null);
+    if (selectedRouteId <= 0) {
+      showError("Select a My Route to load.");
+      return;
+    }
+    if (selectedRouteId !== toInt(state.myRoutes.activeRouteId, 0)) {
+      loadPromise = loadMyRoute(selectedRouteId);
+    }
+    clearError();
+    setStatus("Loading My Route preview...");
+    loadPromise
+      .then(function () {
+        state.myRoutes.activeRouteId = toInt(state.myRoutes.activeRouteId, selectedRouteId);
+        state.activeRouteId = state.myRoutes.activeRouteId;
+        state.activeRouteType = "my_route";
+        state.selectedLegContext = "my_route";
+        if (state.modalMode !== "editor") {
+          state.activeRouteCode = "";
+        }
+        if (state.activeRouteId <= 0) {
+          throw new Error("Unable to resolve selected My Route.");
+        }
+        return previewActiveMyRoute(true);
+      })
+      .then(function () {
+        setStatus("My Route loaded.");
+      })
+      .catch(function (err) {
+        showError((err && err.message) ? err.message : "Unable to load My Route.");
+        setStatus("My Route load failed.");
+      });
+  }
+
+  function reorderMyRouteLegs(orderedLegIds) {
+    var routeId = toInt(state.myRoutes.activeRouteId, 0);
+    if (routeId <= 0) return Promise.resolve(null);
+    return fetchJson(apiUrl("reorderUserRouteLegs"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        route_id: routeId,
+        route_leg_ids: orderedLegIds
+      })
+    }).then(function (payload) {
+      if (!payload || payload.SUCCESS === false) {
+        throw new Error(extractApiMessage(payload, "Unable to reorder legs."));
+      }
+      var data = (payload.DATA && typeof payload.DATA === "object") ? payload.DATA : {};
+      setMyRouteLegs(Array.isArray(data.legs) ? data.legs : []);
+      loadMyRoutes({ reloadActive: true });
+      return payload;
+    });
+  }
+
+  function moveMyRouteLeg(routeLegId, direction) {
+    var legId = toInt(routeLegId, 0);
+    var dir = String(direction || "").toLowerCase();
+    var legs = Array.isArray(state.myRoutes.legs) ? state.myRoutes.legs.slice(0) : [];
+    var idx = -1;
+    var swapIdx = -1;
+    var orderedLegIds = [];
+    if (legId <= 0 || !legs.length) return;
+    idx = legs.findIndex(function (leg) {
+      return toInt(getLegField(leg, "route_leg_id"), 0) === legId;
+    });
+    if (idx < 0) return;
+    swapIdx = (dir === "up") ? (idx - 1) : (idx + 1);
+    if (swapIdx < 0 || swapIdx >= legs.length) return;
+    var tmp = legs[idx];
+    legs[idx] = legs[swapIdx];
+    legs[swapIdx] = tmp;
+    orderedLegIds = legs.map(function (leg) {
+      return toInt(getLegField(leg, "route_leg_id"), 0);
+    }).filter(function (id) {
+      return id > 0;
+    });
+    reorderMyRouteLegs(orderedLegIds).catch(function (err) {
+      showError((err && err.message) ? err.message : "Unable to reorder legs.");
+    });
+  }
+
+  function removeMyRouteLeg(routeLegId) {
+    var routeId = toInt(state.myRoutes.activeRouteId, 0);
+    var legId = toInt(routeLegId, 0);
+    if (routeId <= 0 || legId <= 0) return;
+    fetchJson(apiUrl("removeLegFromUserRoute"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        route_id: routeId,
+        route_leg_id: legId
+      })
+    }).then(function (payload) {
+      if (!payload || payload.SUCCESS === false) {
+        throw new Error(extractApiMessage(payload, "Unable to remove leg."));
+      }
+      var data = (payload.DATA && typeof payload.DATA === "object") ? payload.DATA : {};
+      setMyRouteLegs(Array.isArray(data.legs) ? data.legs : []);
+      loadMyRoutes({ reloadActive: true });
+      setStatus("Leg removed.");
+    }).catch(function (err) {
+      showError((err && err.message) ? err.message : "Unable to remove leg.");
+    });
+  }
+
+  function onMyRouteLegListClick(event) {
+    var target = event.target;
+    if (!target || !dom.myRouteLegListEl) return;
+    var actionBtn = target.closest("[data-my-route-action]");
+    if (!actionBtn || !dom.myRouteLegListEl.contains(actionBtn)) return;
+    var action = String(actionBtn.getAttribute("data-my-route-action") || "").trim().toLowerCase();
+    var row = actionBtn.closest("[data-route-leg-id]");
+    var routeLegId = toInt(row ? row.getAttribute("data-route-leg-id") : 0, 0);
+    var leg = getMyRouteLegById(routeLegId);
+    if (!leg) return;
+
+    if (action === "remove-leg") {
+      removeMyRouteLeg(routeLegId);
+      return;
+    }
+    if (action === "edit-geometry") {
+      state.selectedLegContext = "my_route";
+      loadLegGeometry(leg);
+    }
+  }
+
+  function onSetupPanelWheel(event) {
+    if (!dom.setupPanelBodyEl) return;
+    if (!dom.modalEl || !dom.modalEl.classList.contains("show")) return;
+    if (isLegMapOverlayOpen()) return;
+    if (event.ctrlKey) return;
+    if (!dom.setupPanelBodyEl.contains(event.target)) return;
+
+    // Let the My Route leg list consume wheel events while it still has scroll room.
+    var myRouteLegListEl = event.target && event.target.closest ? event.target.closest("#routeGenMyRouteLegList") : null;
+    if (myRouteLegListEl && dom.setupPanelBodyEl.contains(myRouteLegListEl)) {
+      var listMaxScroll = myRouteLegListEl.scrollHeight - myRouteLegListEl.clientHeight;
+      var listDelta = Number(event.deltaY) || 0;
+      var canScrollListUp = listDelta < 0 && myRouteLegListEl.scrollTop > 0;
+      var canScrollListDown = listDelta > 0 && myRouteLegListEl.scrollTop < listMaxScroll;
+      if (listMaxScroll > 0 && (canScrollListUp || canScrollListDown)) {
+        return;
+      }
+    }
+
+    var maxScroll = dom.setupPanelBodyEl.scrollHeight - dom.setupPanelBodyEl.clientHeight;
+    if (maxScroll <= 0) return;
+
+    var delta = Number(event.deltaY) || 0;
+    if (!delta) return;
+
+    var nextTop = dom.setupPanelBodyEl.scrollTop + delta;
+    if (nextTop < 0) nextTop = 0;
+    if (nextTop > maxScroll) nextTop = maxScroll;
+
+    if (nextTop === dom.setupPanelBodyEl.scrollTop) {
+      event.preventDefault();
+      return;
+    }
+
+    dom.setupPanelBodyEl.scrollTop = nextTop;
+    event.preventDefault();
+  }
+
+  function keepAdvancedSettingsOpen() {
+    if (!dom.advancedDetailsEl) return;
+
+    dom.advancedDetailsEl.open = true;
+
+    if (!dom.advancedDetailsEl.dataset.routegenAlwaysOpenBound) {
+      dom.advancedDetailsEl.addEventListener("toggle", function () {
+        if (!dom.advancedDetailsEl.open) {
+          dom.advancedDetailsEl.open = true;
+        }
+      });
+      dom.advancedDetailsEl.dataset.routegenAlwaysOpenBound = "true";
+    }
+
+    if (dom.advancedSummaryEl && !dom.advancedSummaryEl.dataset.routegenAlwaysOpenBound) {
+      dom.advancedSummaryEl.addEventListener("click", function (event) {
+        event.preventDefault();
+      });
+      dom.advancedSummaryEl.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+        }
+      });
+      dom.advancedSummaryEl.dataset.routegenAlwaysOpenBound = "true";
+    }
+  }
+
   function bindEvents() {
     if (dom.openBtn) {
       dom.openBtn.addEventListener("click", function () {
@@ -2098,16 +6904,11 @@
 
     if (dom.closeBtn) {
       dom.closeBtn.addEventListener("click", closeModal);
+      bindKeyboardActivation(dom.closeBtn, closeModal);
     }
 
     if (dom.cancelBtn) {
       dom.cancelBtn.addEventListener("click", closeModal);
-    }
-
-    if (dom.previewBtn) {
-      dom.previewBtn.addEventListener("click", function () {
-        previewRoute(true);
-      });
     }
 
     if (dom.resetBtn) {
@@ -2126,8 +6927,140 @@
       dom.templateSelectEl.addEventListener("change", onTemplateSelectChange);
     }
 
+    if (dom.routeNameEl) {
+      dom.routeNameEl.addEventListener("input", function () {
+        clearRouteNameValidation();
+        clearError();
+        setRouteCodeBadge(state.activeRouteCode);
+        if (state.modalMode !== "editor") {
+          saveDraft();
+        }
+      });
+      dom.routeNameEl.addEventListener("change", function () {
+        clearRouteNameValidation();
+        setRouteCodeBadge(state.activeRouteCode);
+        if (state.modalMode !== "editor") {
+          saveDraft();
+        }
+      });
+    }
+
     if (dom.optionalStopsEl) {
       dom.optionalStopsEl.addEventListener("click", onStopToggleClick);
+    }
+
+    if (dom.myRouteCreateBtn) {
+      dom.myRouteCreateBtn.addEventListener("click", createMyRoute);
+    }
+
+    if (dom.myRouteDeleteBtn) {
+      dom.myRouteDeleteBtn.addEventListener("click", deleteSelectedMyRoute);
+    }
+
+    if (dom.myRouteSetStartBtn) {
+      dom.myRouteSetStartBtn.addEventListener("click", setMyRouteStartWaypoint);
+    }
+
+    if (dom.myRouteStartWaypointSelectEl) {
+      dom.myRouteStartWaypointSelectEl.addEventListener("change", function () {
+        renderMyRouteControlAvailability();
+      });
+    }
+
+    if (dom.myRouteAddWaypointLegBtn) {
+      dom.myRouteAddWaypointLegBtn.addEventListener("click", addWaypointLegToMyRoute);
+    }
+
+    if (dom.myRouteLoadBtn) {
+      dom.myRouteLoadBtn.addEventListener("click", loadSelectedMyRouteIntoPreview);
+    }
+
+    if (dom.myRouteSelectEl) {
+      dom.myRouteSelectEl.addEventListener("change", function () {
+        var routeId = toInt(dom.myRouteSelectEl.value, 0);
+        if (routeId > 0) {
+          loadMyRoute(routeId);
+        } else {
+          state.myRoutes.activeRouteId = 0;
+          state.myRoutes.activeRouteName = "";
+          state.myRoutes.startWaypointId = 0;
+          setMyRouteLegs([]);
+          renderMyRouteWaypointOptions();
+        }
+      });
+    }
+
+    if (dom.myRouteLegListEl) {
+      dom.myRouteLegListEl.addEventListener("click", onMyRouteLegListClick);
+    }
+
+    if (dom.root && !dom.root.dataset.routegenCruiseTimelineBound) {
+      dom.root.addEventListener("click", onCruiseTimelineClick);
+      dom.root.addEventListener("change", onCruiseTimelineInputChange);
+      dom.root.dataset.routegenCruiseTimelineBound = "true";
+    }
+
+    if (dom.setupPanelBodyEl && !dom.setupPanelBodyEl.dataset.routegenWheelBound) {
+      dom.setupPanelBodyEl.addEventListener("wheel", onSetupPanelWheel, { passive: false, capture: true });
+      dom.setupPanelBodyEl.dataset.routegenWheelBound = "true";
+    }
+
+    if (dom.modalEl && !dom.modalEl.dataset.routegenSetupWheelBound) {
+      dom.modalEl.addEventListener("wheel", onSetupPanelWheel, { passive: false, capture: true });
+      dom.modalEl.dataset.routegenSetupWheelBound = "true";
+    }
+
+    if (dom.legListEl) {
+      dom.legListEl.addEventListener("click", onLegListClick);
+    }
+
+    if (dom.legSaveBtn) {
+      dom.legSaveBtn.addEventListener("click", saveLegOverride);
+    }
+
+    if (dom.legRevertBtn) {
+      dom.legRevertBtn.addEventListener("click", clearLegOverride);
+    }
+
+    if (dom.legClearBtn) {
+      dom.legClearBtn.addEventListener("click", clearLegDrawing);
+    }
+
+    if (dom.legSearchBtn) {
+      dom.legSearchBtn.addEventListener("click", runLegMapSearch);
+    }
+
+    if (dom.legSearchInputEl) {
+      dom.legSearchInputEl.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          runLegMapSearch();
+        }
+      });
+    }
+
+    if (dom.legSearchClearBtn) {
+      dom.legSearchClearBtn.addEventListener("click", function () {
+        clearLegMapSearchMarker();
+        setLegMapStatus("Search pin cleared.");
+      });
+    }
+
+    if (dom.legOverlayCloseBtn) {
+      dom.legOverlayCloseBtn.addEventListener("click", function () {
+        closeLegMapAndRefreshPane();
+      });
+      bindKeyboardActivation(dom.legOverlayCloseBtn, function () {
+        closeLegMapAndRefreshPane();
+      });
+    }
+
+    if (dom.legOverlayEl) {
+      dom.legOverlayEl.addEventListener("click", function (event) {
+        if (event.target === dom.legOverlayEl) {
+          closeLegMapAndRefreshPane();
+        }
+      });
     }
 
     if (dom.directionToggleEl) {
@@ -2142,6 +7075,15 @@
 
     if (dom.startSelectEl) {
       dom.startSelectEl.addEventListener("change", function () {
+        if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") {
+          state.activeRouteId = 0;
+          if (state.modalMode !== "editor") {
+            state.activeRouteCode = "";
+            setRouteCodeBadge("Draft");
+          }
+        }
+        state.activeRouteType = "generated";
+        state.selectedLegContext = "routegen";
         if (dom.endSelectEl) dom.endSelectEl.value = "";
         renderOptions();
         onFormChange();
@@ -2149,7 +7091,18 @@
     }
 
     if (dom.endSelectEl) {
-      dom.endSelectEl.addEventListener("change", onFormChange);
+      dom.endSelectEl.addEventListener("change", function () {
+        if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") {
+          state.activeRouteId = 0;
+          if (state.modalMode !== "editor") {
+            state.activeRouteCode = "";
+            setRouteCodeBadge("Draft");
+          }
+        }
+        state.activeRouteType = "generated";
+        state.selectedLegContext = "routegen";
+        onFormChange();
+      });
     }
 
     if (dom.paceEl) {
@@ -2159,6 +7112,10 @@
         updatePaceOverrideUI();
         onFormChange();
       });
+    }
+
+    if (dom.vesselSelectEl) {
+      dom.vesselSelectEl.addEventListener("change", onVesselSelectChange);
     }
 
     if (dom.cruisingSpeedEl) {
@@ -2177,6 +7134,14 @@
       dom.fuelBurnGphEl.addEventListener("input", onFormChange);
       dom.fuelBurnGphEl.addEventListener("change", onFormChange);
     }
+    if (dom.mostEfficientSpeedEl) {
+      dom.mostEfficientSpeedEl.addEventListener("input", onFormChange);
+      dom.mostEfficientSpeedEl.addEventListener("change", onFormChange);
+    }
+    if (dom.fuelBurnEfficientGphEl) {
+      dom.fuelBurnEfficientGphEl.addEventListener("input", onFormChange);
+      dom.fuelBurnEfficientGphEl.addEventListener("change", onFormChange);
+    }
     if (dom.idleBurnGphEl) {
       dom.idleBurnGphEl.addEventListener("input", onFormChange);
       dom.idleBurnGphEl.addEventListener("change", onFormChange);
@@ -2188,6 +7153,16 @@
     if (dom.weatherFactorPctEl) {
       dom.weatherFactorPctEl.addEventListener("input", onFormChange);
       dom.weatherFactorPctEl.addEventListener("change", onFormChange);
+    }
+    if (dom.weatherSuggestRefreshBtn) {
+      dom.weatherSuggestRefreshBtn.addEventListener("click", function () {
+        refreshWeatherSuggestion({ forceFetch: true });
+      });
+    }
+    if (dom.weatherSuggestApplyBtn) {
+      dom.weatherSuggestApplyBtn.addEventListener("click", function () {
+        applySuggestedWeatherFactorToInput();
+      });
     }
     if (dom.reservePctEl) {
       dom.reservePctEl.addEventListener("input", onFormChange);
@@ -2224,17 +7199,172 @@
           window.clearTimeout(state.previewTimer);
           state.previewTimer = 0;
         }
+        if (dom.setupPanelBodyEl) dom.setupPanelBodyEl.scrollTop = 0;
+        resetLegMapSelection();
       });
       dom.modalEl.dataset.routegenBound = "true";
+    }
+
+    if (dom.modalEl && !dom.modalEl.dataset.routegenEscBound) {
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && isLegMapOverlayOpen()) {
+          event.preventDefault();
+          event.stopPropagation();
+          closeLegMapAndRefreshPane();
+        }
+      });
+      dom.modalEl.dataset.routegenEscBound = "true";
+    }
+  }
+
+  function normalizeText(value) {
+    return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+  }
+
+  function bindKeyboardActivation(el, handler) {
+    if (!el || typeof handler !== "function" || el.dataset.routegenKeyboardActivationBound) return;
+    el.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        handler();
+      }
+    });
+    el.dataset.routegenKeyboardActivationBound = "true";
+  }
+
+  function ensureId(el, id) {
+    if (!el || !id) return null;
+    if (!el.id) el.id = id;
+    return el;
+  }
+
+  function findButtonByText(root, phrases) {
+    if (!root) return null;
+    var targets = Array.isArray(phrases) ? phrases : [phrases];
+    var normalizedTargets = targets.map(function (item) { return normalizeText(item); });
+    var buttons = root.querySelectorAll("button");
+    var i = 0;
+    for (i = 0; i < buttons.length; i += 1) {
+      var text = normalizeText(buttons[i].textContent || "");
+      var j = 0;
+      for (j = 0; j < normalizedTargets.length; j += 1) {
+        if (normalizedTargets[j] && text.indexOf(normalizedTargets[j]) !== -1) return buttons[i];
+      }
+    }
+    return null;
+  }
+
+  function applyMockupAliases(modalEl, rootEl) {
+    if (!rootEl) return;
+    ensureId(rootEl, "fpwRouteGen");
+
+    if (!document.getElementById("routeGenRouteCode")) {
+      ensureId(
+        rootEl.querySelector(".fpw-routegen__topactions .fpw-routegen__pill, .topbar-right .pill"),
+        "routeGenRouteCode"
+      );
+    }
+    if (!document.getElementById("routeGenStatus")) {
+      ensureId(
+        rootEl.querySelector(".fpw-routegen__statusbar > *:first-child, .statusbar > *:first-child"),
+        "routeGenStatus"
+      );
+    }
+    if (!document.getElementById("routeGenStatusContext")) {
+      ensureId(
+        rootEl.querySelector(".fpw-routegen__statusbar > *:last-child, .statusbar > *:last-child"),
+        "routeGenStatusContext"
+      );
+    }
+    if (!document.getElementById("routeGenCloseBtn")) {
+      ensureId(
+        rootEl.querySelector(".fpw-routegen__iconbtn, .topbar-right .close"),
+        "routeGenCloseBtn"
+      );
+    }
+    if (!document.getElementById("routeGenPreviewBtn")) {
+      ensureId(findButtonByText(rootEl, ["preview"]), "routeGenPreviewBtn");
+    }
+    if (!document.getElementById("routeGenResetBtn")) {
+      ensureId(findButtonByText(rootEl, ["reset"]), "routeGenResetBtn");
+    }
+    if (!document.getElementById("routeGenCancelBtn")) {
+      ensureId(findButtonByText(rootEl, ["close", "cancel"]), "routeGenCancelBtn");
+    }
+    if (!document.getElementById("routeGenGenerateBtn")) {
+      ensureId(findButtonByText(rootEl, ["generate route", "generate"]), "routeGenGenerateBtn");
+    }
+    if (!document.getElementById("routeGenWeatherSuggestRefreshBtn")) {
+      ensureId(findButtonByText(rootEl, ["refresh suggestion", "refresh"]), "routeGenWeatherSuggestRefreshBtn");
+    }
+    if (!document.getElementById("routeGenWeatherSuggestApplyBtn")) {
+      ensureId(findButtonByText(rootEl, ["apply suggested", "apply"]), "routeGenWeatherSuggestApplyBtn");
+    }
+    if (!document.getElementById("routeGenWeatherSuggestValue")) {
+      ensureId(rootEl.querySelector(".fpw-routegen__weatherassistvalue, .assist-value"), "routeGenWeatherSuggestValue");
+    }
+    if (!document.getElementById("routeGenWeatherSuggestMeta")) {
+      ensureId(
+        rootEl.querySelector(".fpw-routegen__weatherassistmeta, .assist-row .assist-copy"),
+        "routeGenWeatherSuggestMeta"
+      );
+    }
+    if (!document.getElementById("routeGenWeatherSuggestFactors")) {
+      var factorsNode = rootEl.querySelector(".fpw-routegen__weatherassistfactors");
+      if (!factorsNode) {
+        var copies = rootEl.querySelectorAll(".weather-assist .assist-copy");
+        if (copies.length > 1) factorsNode = copies[1];
+      }
+      ensureId(factorsNode, "routeGenWeatherSuggestFactors");
+    }
+    if (!document.getElementById("routeGenWeatherSuggestConfidence")) {
+      ensureId(
+        rootEl.querySelector(".fpw-routegen__weatherassistpill, .weather-top .badge"),
+        "routeGenWeatherSuggestConfidence"
+      );
+    }
+
+    if (!document.getElementById("routeGenTemplateSelect")) {
+      ensureId(rootEl.querySelector("select[name='route_template'], .section .field select"), "routeGenTemplateSelect");
+    }
+    if (!document.getElementById("routeGenStartLocation")) {
+      ensureId(rootEl.querySelector("select[name='start_location']"), "routeGenStartLocation");
+    }
+    if (!document.getElementById("routeGenEndLocation")) {
+      ensureId(rootEl.querySelector("select[name='end_location']"), "routeGenEndLocation");
+    }
+    if (!document.getElementById("routeGenStartDate")) {
+      ensureId(rootEl.querySelector("input[type='date']"), "routeGenStartDate");
+    }
+
+    if (!document.getElementById("routeGenLegList")) {
+      ensureId(rootEl.querySelector(".fpw-routegen__leglist, .timeline-table tbody"), "routeGenLegList");
+    }
+    if (!document.getElementById("routeGenTimelineRebuildBtn")) {
+      ensureId(findButtonByText(rootEl, ["rebuild timeline"]), "routeGenTimelineRebuildBtn");
+    }
+    if (!document.getElementById("routeGenTimelineMaxHours")) {
+      ensureId(rootEl.querySelector("#fpwCruiseTimelineMaxHours, .timeline-actions input[type='number']"), "routeGenTimelineMaxHours");
+    }
+    if (!document.getElementById("routeGenPaceLabel")) {
+      ensureId(rootEl.querySelector(".fpw-routegen__pacechip, .pace .badge"), "routeGenPaceLabel");
     }
   }
 
   function cacheDom() {
     dom.modalEl = document.getElementById("routeBuilderModal");
-    dom.openBtn = document.getElementById("openRouteBuilderBtn");
+    dom.openBtn = document.getElementById("openRouteBuilderBtn")
+      || document.getElementById("routeStatusOpenRouteBuilderBtn")
+      || document.querySelector("[data-quick-action='generate-route']");
     dom.root = document.getElementById("fpwRouteGen");
 
-    if (!dom.modalEl || !dom.openBtn || !dom.root) return false;
+    if (!dom.root && dom.modalEl) {
+      dom.root = dom.modalEl.querySelector("#fpwRouteGen, .fpw-routegen, .modal-content .modal, .modal-content > div");
+    }
+    applyMockupAliases(dom.modalEl, dom.root);
+    dom.root = document.getElementById("fpwRouteGen") || dom.root;
+
+    if (!dom.modalEl || !dom.root) return false;
 
     dom.closeBtn = document.getElementById("routeGenCloseBtn");
     dom.cancelBtn = document.getElementById("routeGenCancelBtn");
@@ -2247,6 +7377,7 @@
     dom.statusEl = document.getElementById("routeGenStatus");
     dom.routeCodeEl = document.getElementById("routeGenRouteCode");
 
+    dom.routeNameEl = document.getElementById("routeGenRouteName");
     dom.templateSelectEl = document.getElementById("routeGenTemplateSelect");
     dom.templateMetaEl = document.getElementById("routeGenTemplateMeta");
     dom.startSelectEl = document.getElementById("routeGenStartLocation");
@@ -2254,26 +7385,49 @@
     dom.startDateEl = document.getElementById("routeGenStartDate");
     dom.directionEl = document.getElementById("routeGenDirection");
     dom.directionToggleEl = document.getElementById("routeGenDirectionToggle");
-    dom.directionStateEl = document.getElementById("routeGenDirectionState");
     dom.paceEl = document.getElementById("routeGenPace");
     dom.paceLabelEl = document.getElementById("routeGenPaceLabel");
     dom.paceOverrideHintEl = document.getElementById("routeGenPaceOverrideHint");
     dom.resetPaceBtn = document.getElementById("routeGenResetPaceBtn");
 
+    dom.vesselSelectEl = document.getElementById("routeGenVesselSelect");
+    dom.mostEfficientSpeedEl = document.getElementById("routeGenMostEfficientSpeed");
     dom.cruisingSpeedEl = document.getElementById("routeGenCruisingSpeed");
     dom.underwayHoursEl = document.getElementById("routeGenUnderwayHoursPerDay");
     dom.comfortProfileEl = document.getElementById("routeGenComfortProfile");
     dom.overnightBiasEl = document.getElementById("routeGenOvernightBias");
     dom.fuelBurnLabelEl = document.getElementById("routeGenFuelBurnLabel");
+    dom.fuelBurnEfficientGphEl = document.getElementById("routeGenFuelBurnEfficientGph");
     dom.fuelBurnGphEl = document.getElementById("routeGenFuelBurnGph");
     dom.fuelBurnHintEl = document.getElementById("routeGenFuelBurnHint");
     dom.fuelBurnDerivedEl = document.getElementById("routeGenFuelBurnDerived");
     dom.idleBurnGphEl = document.getElementById("routeGenIdleBurnGph");
     dom.idleHoursTotalEl = document.getElementById("routeGenIdleHoursTotal");
     dom.weatherFactorPctEl = document.getElementById("routeGenWeatherFactorPct");
+    dom.weatherSuggestValueEl = document.getElementById("routeGenWeatherSuggestValue");
+    dom.weatherSuggestMetaEl = document.getElementById("routeGenWeatherSuggestMeta");
+    dom.weatherSuggestFactorsEl = document.getElementById("routeGenWeatherSuggestFactors");
+    dom.weatherSuggestConfidenceEl = document.getElementById("routeGenWeatherSuggestConfidence");
+    dom.weatherSuggestRefreshBtn = document.getElementById("routeGenWeatherSuggestRefreshBtn");
+    dom.weatherSuggestApplyBtn = document.getElementById("routeGenWeatherSuggestApplyBtn");
     dom.reservePctEl = document.getElementById("routeGenReservePct");
     dom.fuelPricePerGalEl = document.getElementById("routeGenFuelPricePerGal");
     dom.optionalStopsEl = document.getElementById("routeGenOptionalStops");
+    dom.setupPanelBodyEl = document.getElementById("routeGenSetupPanelBody");
+    dom.advancedDetailsEl = document.getElementById("routeGenAdvanced");
+    dom.advancedSummaryEl = document.getElementById("routeGenAdvancedSummary");
+    dom.myRouteNameEl = document.getElementById("routeGenMyRouteName");
+    dom.myRouteCreateBtn = document.getElementById("routeGenMyRouteCreateBtn");
+    dom.myRouteSelectEl = document.getElementById("routeGenMyRouteSelect");
+    dom.myRouteLoadBtn = document.getElementById("routeGenMyRouteLoadBtn");
+    dom.myRouteDeleteBtn = document.getElementById("routeGenMyRouteDeleteBtn");
+    dom.myRouteStartWaypointSelectEl = document.getElementById("routeGenMyRouteStartWaypointSelect");
+    dom.myRouteSetStartBtn = document.getElementById("routeGenMyRouteSetStartBtn");
+    dom.myRouteEndWaypointSelectEl = document.getElementById("routeGenMyRouteEndWaypointSelect");
+    dom.myRouteAddWaypointLegBtn = document.getElementById("routeGenMyRouteAddWaypointLegBtn");
+    dom.myRouteStartMetaEl = document.getElementById("routeGenMyRouteStartMeta");
+    dom.myRouteLegListEl = document.getElementById("routeGenMyRouteLegList");
+    renderMyRouteControlAvailability();
 
     dom.previewTemplateEl = document.getElementById("routeGenPreviewTemplate");
     dom.totalNmEl = document.getElementById("routeGenTotalNm");
@@ -2285,9 +7439,38 @@
     dom.estimatedFuelSubEl = document.getElementById("routeGenEstimatedFuelSub");
     dom.fuelCostEl = document.getElementById("routeGenFuelCost");
     dom.fuelCostSubEl = document.getElementById("routeGenFuelCostSub");
+    dom.adjustedSpeedEl = document.getElementById("routeGenAdjustedSpeed");
+    dom.adjustedSpeedSubEl = document.getElementById("routeGenAdjustedSpeedSub");
+    dom.expectedAvgGphEl = document.getElementById("routeGenExpectedAvgGph");
+    dom.expectedAvgGphSubEl = document.getElementById("routeGenExpectedAvgGphSub");
     dom.legCountEl = document.getElementById("routeGenLegCount");
+    dom.legHeaderTitleEl = document.getElementById("routeGenLegHeaderTitle");
+    dom.legHeaderCalcEl = document.getElementById("routeGenLegHeaderCalc");
+    dom.legLayoutEl = document.getElementById("routeGenLegLayout");
+    dom.rightScrollEl = dom.root ? dom.root.querySelector(".rg-right-scroll") : null;
     dom.legListEl = document.getElementById("routeGenLegList");
+    dom.cruiseTimelineEl = document.getElementById("fpwCruiseTimeline");
+    dom.cruiseTimelineMaxHoursEl = document.getElementById("routeGenTimelineMaxHours");
+    dom.cruiseTimelineRebuildBtn = document.getElementById("routeGenTimelineRebuildBtn");
+    dom.legMapDockEl = document.getElementById("routeGenLegMapDock");
+    dom.legOverlayEl = document.getElementById("routeGenLegOverlay");
+    dom.legOverlayDockEl = document.getElementById("routeGenLegOverlayDock");
+    dom.legMapPanelEl = document.getElementById("routeGenLegMapPanel");
+    dom.legMapEl = document.getElementById("routeGenLegMap");
+    dom.legMapTitleEl = document.getElementById("routeGenLegMapTitle");
+    dom.legMapSourceEl = document.getElementById("routeGenLegMapSource");
+    dom.legOverlayCloseBtn = document.getElementById("routeGenLegOverlayCloseBtn");
+    dom.legSearchInputEl = document.getElementById("routeGenLegMapSearchInput");
+    dom.legSearchBtn = document.getElementById("routeGenLegMapSearchBtn");
+    dom.legSearchClearBtn = document.getElementById("routeGenLegMapSearchClearBtn");
+    dom.legMapNmEl = document.getElementById("routeGenLegMapNm");
+    dom.legMapHintEl = document.getElementById("routeGenLegMapHint");
+    dom.legMapStatusEl = document.getElementById("routeGenLegMapStatus");
+    dom.legSaveBtn = document.getElementById("routeGenLegSaveBtn");
+    dom.legRevertBtn = document.getElementById("routeGenLegRevertBtn");
+    dom.legClearBtn = document.getElementById("routeGenLegClearBtn");
 
+    removeLegacyCruiseTimelineContainer();
     return true;
   }
 
@@ -2303,6 +7486,60 @@
     openModal("editor", routeCode, { freshStart: false });
   }
 
+  function isTestHookReady() {
+    return !!(dom.root && dom.legMapEl && dom.legSaveBtn);
+  }
+
+  function selectLegByOrderForTest(order) {
+    var wanted = toInt(order, 0);
+    var leg = getLegByOrder(wanted);
+    if (!leg) return Promise.resolve(false);
+    state.selectedLegContext = "routegen";
+    return loadLegGeometry(leg).then(function () {
+      return true;
+    }).catch(function () {
+      return false;
+    });
+  }
+
+  function setDraftGeometryForTest(points) {
+    if (!isTestHookReady()) return false;
+    if (!state.selectedLegData) return false;
+    if (!ensureLegMap()) return false;
+
+    var normalized = [];
+    (Array.isArray(points) ? points : []).forEach(function (point) {
+      var parsed = parseLegMapPoint(point);
+      if (parsed) normalized.push(parsed);
+    });
+
+    if (normalized.length < 2) return false;
+    setLegMapLayer(normalized);
+    state.legMapDraftPoints = normalized.slice(0);
+    state.legMapClearIntent = false;
+    updateLegMapNmFromLayer();
+    setLegMapStatus("Test geometry loaded.");
+    return true;
+  }
+
+  function snapshotForTest() {
+    return {
+      selectedLegOrder: state.selectedLegOrder,
+      status: dom.legMapStatusEl ? String(dom.legMapStatusEl.textContent || "").trim() : "",
+      source: dom.legMapSourceEl ? String(dom.legMapSourceEl.textContent || "").trim() : "",
+      nm: dom.legMapNmEl ? String(dom.legMapNmEl.textContent || "").trim() : ""
+    };
+  }
+
+  function buildTestHookApi() {
+    return {
+      isReady: isTestHookReady,
+      selectLegByOrder: selectLegByOrderForTest,
+      setDraftGeometry: setDraftGeometryForTest,
+      snapshot: snapshotForTest
+    };
+  }
+
   function init() {
     if (!cacheDom()) return;
 
@@ -2311,6 +7548,7 @@
     }
 
     bindEvents();
+    keepAdvancedSettingsOpen();
     resetGeneratorState();
   }
 
@@ -2319,4 +7557,8 @@
     reloadTimeline: reloadTimeline,
     openEditorForRoute: openEditorForRoute
   };
+
+  if (window.__FPW_ENABLE_TEST_HOOKS) {
+    window.FPW.DashboardModules.routeBuilder.test = buildTestHookApi();
+  }
 })(window, document);
