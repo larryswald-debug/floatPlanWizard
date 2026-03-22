@@ -114,11 +114,14 @@
 
             <cfset userInsert = buildInsert("users", userValues)>
             <cfif NOT userInsert.ok>
+                <cflog
+                    file="user_caused_errors"
+                    type="error"
+                    text="join.cfc INSERT_FAILED | message=#userInsert.message# | detail=unavailable | script=#(structKeyExists(cgi, 'script_name') ? cgi.script_name : 'unavailable')# | template=#getCurrentTemplatePath()# | time=#now()# | line=unavailable">
                 <cfset response = {
                     SUCCESS = false,
-                    MESSAGE = "Unable to create user.",
-                    ERROR   = "INSERT_FAILED",
-                    DETAIL  = userInsert.message
+                    MESSAGE = "An error has occurred while processing your request. The site administrator has been notified. If you continue to experience this issue, please contact us using the Contact Us form.",
+                    ERROR   = "INSERT_FAILED"
                 }>
                 <cfoutput>#serializeJSON(response)#</cfoutput>
                 <cfsetting enablecfoutputonly="false">
@@ -166,11 +169,14 @@
             <cfoutput>#serializeJSON(response)#</cfoutput>
 
         <cfcatch type="any">
+            <cflog
+                file="user_caused_errors"
+                type="error"
+                text="join.cfc SERVER_ERROR | message=#cfcatch.message# | detail=#(structKeyExists(cfcatch, 'detail') ? cfcatch.detail : 'unavailable')# | script=#(structKeyExists(cgi, 'script_name') ? cgi.script_name : 'unavailable')# | template=#(structKeyExists(cfcatch, 'tagContext') AND isArray(cfcatch.tagContext) AND arrayLen(cfcatch.tagContext) AND structKeyExists(cfcatch.tagContext[1], 'template') ? cfcatch.tagContext[1].template : getCurrentTemplatePath())# | time=#now()# | line=#(structKeyExists(cfcatch, 'tagContext') AND isArray(cfcatch.tagContext) AND arrayLen(cfcatch.tagContext) AND structKeyExists(cfcatch.tagContext[1], 'line') ? cfcatch.tagContext[1].line : 'unavailable')#">
             <cfset errResponse = {
                 SUCCESS = false,
-                MESSAGE = "Server error while creating user.",
-                ERROR   = "SERVER_ERROR",
-                DETAIL  = cfcatch.message
+                MESSAGE = "An error has occurred while processing your request. The site administrator has been notified. If you continue to experience this issue, please contact us using the Contact Us form.",
+                ERROR   = "SERVER_ERROR"
             }>
             <cfoutput>#serializeJSON(errResponse)#</cfoutput>
         </cfcatch>
