@@ -5,6 +5,7 @@
         <cfargument name="lastName" type="any" required="false">
         <cfargument name="email" type="any" required="false">
         <cfargument name="description" type="any" required="false">
+        <cfargument name="website" type="any" required="false">
         <cfsetting enablecfoutputonly="true" showdebugoutput="false">
 
         <cfset contactPageUrl = "/fpw/app/contact.cfm">
@@ -12,6 +13,7 @@
         <cfset lastName = structKeyExists(arguments, "lastName") ? trim(arguments.lastName) : "">
         <cfset email = structKeyExists(arguments, "email") ? trim(arguments.email) : "">
         <cfset description = structKeyExists(arguments, "description") ? trim(arguments.description) : "">
+        <cfset website = structKeyExists(arguments, "website") ? trim(arguments.website) : "">
 
         <cfset status = "">
         <cfset code = "">
@@ -21,7 +23,9 @@
         <cfset domainPart = hasSingleAt ? listLast(email, "@") : "">
         <cfset isValidEmail = hasSingleAt AND len(localPart) GT 0 AND len(domainPart) GT 0 AND find(".", domainPart) GT 1 AND find(" ", email) EQ 0>
 
-        <cfif NOT len(firstName) OR NOT len(lastName) OR NOT len(email) OR NOT len(description)>
+        <cfif len(website)>
+            <cfset status = "success">
+        <cfelseif NOT len(firstName) OR NOT len(lastName) OR NOT len(email) OR NOT len(description)>
             <cfset status = "error">
             <cfset code = "validation">
         <cfelseif NOT isValidEmail>
