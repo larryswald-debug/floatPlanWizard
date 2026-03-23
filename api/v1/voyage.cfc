@@ -205,6 +205,7 @@
                     fp.floatPlanName,
                     fp.status,
                     fp.departing,
+                    fp.departureTime,
                     fp.returning,
                     fp.returnTime,
                     fp.route_instance_id,
@@ -330,8 +331,8 @@
             body = {
                 "page_subtitle"="Follow along in real time: location, progress, updates, comments, and trip confidence.",
                 "journey_subtitle"="Current leg is active.",
-                "journey_departed_value"="",
-                "journey_departed_meta"="Departed today",
+                "journey_departed_value"=(qPlan.recordCount GT 0 AND !isNull(qPlan.departing[1]) ? trim(toString(qPlan.departing[1])) : ""),
+                "journey_departed_meta"=(qPlan.recordCount GT 0 AND !isNull(qPlan.departureTime[1]) AND isDate(qPlan.departureTime[1]) ? dateTimeFormat(qPlan.departureTime[1], "mmm d, yyyy h:nn tt") : ""),
                 "journey_checkin_value"=(len(actualCheckInLabel) ? "Checked in at " & actualCheckInLabel : "Checked in at --"),
                 "journey_checkin_meta"=(isOvernightCheckIn ? "Arrived and secure for the night. Next update expected tomorrow morning." : elapsedCheckInLabel),
                 "card_status_copy"="Monitoring is active and the trip is reporting normally.",

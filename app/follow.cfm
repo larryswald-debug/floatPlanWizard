@@ -47,7 +47,7 @@
 
       <nav class="side-nav" data-fpw-region="sidebar-nav">
         <a class="side-link active" href="#"><span>Overview</span><span class="pill live">Live</span></a>
-        <a class="side-link" href="#"><span>Map</span><span class="pill route">Route</span></a>
+        <a class="side-link" href="#followMap"><span>Map</span><span class="pill route">Route</span></a>
         <a class="side-link" href="#"><span>Stream</span><span class="pill media">Posts</span></a>
         <a class="side-link" href="#"><span>Photos</span><span class="pill media">Media</span></a>
         <a class="side-link" href="#"><span>Trip Stats</span><span class="pill media">Summary</span></a>
