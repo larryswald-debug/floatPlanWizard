@@ -177,6 +177,9 @@ function buildMetarCacheKey(required numeric lat, required numeric lng) {
       <a href="/fpw/admin/route-cleanup.cfm">Route Cleanup</a>
       <a href="/fpw/admin/fuel-calculator.cfm">Fuel Calculator</a>
       <a href="/fpw/admin/waypoint-manager.cfm">Waypoint Manager</a>
+      <a href="/fpw/admin/passenger-manager.cfm">Passenger Manager</a>
+      <a href="/fpw/admin/vessel-manager.cfm">Vessel Manager</a>
+      <a href="/fpw/admin/operator-manager.cfm">Operator Manager</a>
       <a href="/fpw/admin/metar-seed-test.cfm" class="active">METAR Seed Test</a>
     </nav>
 

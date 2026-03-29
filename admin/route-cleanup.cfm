@@ -701,6 +701,9 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
       <a href="/fpw/admin/route-cleanup.cfm" class="active">Route Cleanup</a>
       <a href="/fpw/admin/fuel-calculator.cfm">Fuel Calculator</a>
       <a href="/fpw/admin/waypoint-manager.cfm">Waypoint Manager</a>
+      <a href="/fpw/admin/passenger-manager.cfm">Passenger Manager</a>
+      <a href="/fpw/admin/vessel-manager.cfm">Vessel Manager</a>
+      <a href="/fpw/admin/operator-manager.cfm">Operator Manager</a>
     </nav>
     <h1>Admin Route Cleanup</h1>
     <p class="hint">Dev-only utility for deleting generated routes and custom My Routes by user id.</p>
