@@ -148,6 +148,7 @@
                 "stream"={},
                 "topCards"={},
                 "map"={"routeGeo"={}, "pins"=[], "current"={}},
+                "legWeather"={},
                 "pinned"={},
                 "timeline"={"summary"={}, "legs"=[], "meta"={}},
                 "body"={}
@@ -168,6 +169,7 @@
             var statusLabel = "Status Unavailable";
             var lastCheckinLabel = "n/a";
             var etaLabel = "n/a";
+            var etaUtc = "";
             var routeTotalMiles = 0;
             var routeTotalDays = 0;
             var routeTotalLocks = 0;
@@ -181,7 +183,77 @@
             var checkedInAtVal = "";
             var checkInContextVal = "";
             var isOvernightCheckIn = false;
+            var departureTimeZoneVal = "";
             var elapsedCheckInLabel = "-- since last check-in";
+            var nextStopLabelVal = "";
+            var nextStopEtaBaseDt = "";
+            var nextStopEtaDt = "";
+            var nextStopEtaMinutes = 0;
+            var overnightPauseMinutes = 0;
+            var nextMorningResumeDt = "";
+            var resumeTimeZone = "";
+            var resumeCalendar = "";
+            var plannedNextStopEtaDt = "";
+            var nextStopLeg = {};
+            var routeInstanceIdVal = 0;
+            var weatherComponent = "";
+            var weatherComponentPath = "";
+            var legWeather = {
+                "start"={ "available"=false, "summary"="", "alerts_count"=0, "top_alert_severity"="", "forecast_short"="", "wind_speed"="", "wind_direction"="", "wave_height_ft"="", "visibility_mi"="" },
+                "end"={ "available"=false, "summary"="", "alerts_count"=0, "top_alert_severity"="", "forecast_short"="", "wind_speed"="", "wind_direction"="", "wave_height_ft"="", "visibility_mi"="" },
+                "conditions"={ "available"=false, "basis"="worse_of_start_end_advisory", "headline"="", "summary"="", "meta"="" }
+            };
+            var pointDefs = {};
+            var pointKey = "";
+            var pointDef = {};
+            var pointResults = {};
+            var roundedLat = 0;
+            var roundedLng = 0;
+            var pointCacheKey = "";
+            var pointRaw = {};
+            var pointOut = {};
+            var alertIdx = 0;
+            var alertItem = {};
+            var severityTxt = "";
+            var severityRank = 0;
+            var pointSummary = "";
+            var pointForecast = {};
+            var pointMarine = {};
+            var pointSurface = {};
+            var startRank = 0;
+            var endRank = 0;
+            var worsePointKey = "";
+            var worsePoint = {};
+            var timelineSummary = {};
+            var timelineLeg = {};
+            var timelineLegDistanceNm = 0.0;
+            var timelineLegProgressPct = 0.0;
+            var timelineTotalNm = 0.0;
+            var timelineTotalHours = 0.0;
+            var timelineEffectiveSpeedKn = 0.0;
+            var completedMilesSoFarNm = 0.0;
+            var milesLeftNm = 0.0;
+            var expectedMilesByNowNm = 0.0;
+            var progressMilesForConfidenceNm = 0.0;
+            var achievedPaceKn = 0.0;
+            var elapsedTripMinutes = 0;
+            var elapsedTripHours = 0.0;
+            var confidenceNowDt = now();
+            var nextStopRemainingNm = -1.0;
+            var projectedNextStopMinutes = 0;
+            var projectedFinalMinutes = 0;
+            var projectedNextStopEtaDt = "";
+            var plannedNextStopEtaWithGraceDt = "";
+            var plannedFinalEtaDt = "";
+            var projectedFinalEtaDt = "";
+            var plannedFinalEtaWithGraceDt = "";
+            var progressRatio = 1.0;
+            var tripConfidenceScore = 50;
+            var tripConfidenceLabel = "Moderate";
+            var nextStopOnTime = false;
+            var finalDestinationOnTime = false;
+            var comparisonElapsedHours = 0.0;
+            var tripConfidenceGraceWindowMinutes = 60;
 
             if (!structCount(streamRow)) {
                 out.MESSAGE = "Stream not found";
@@ -206,6 +278,8 @@
                     fp.status,
                     fp.departing,
                     fp.departureTime,
+                    fp.departTimezone,
+                    fp.departureTZ,
                     fp.returning,
                     fp.returnTime,
                     fp.route_instance_id,
@@ -232,8 +306,13 @@
             if (qPlan.recordCount GT 0) {
                 streamTitle = trim(toString(isNull(qPlan.floatPlanName[1]) ? "" : qPlan.floatPlanName[1]));
                 statusLabel = friendlyStatusLabel(isNull(qPlan.status[1]) ? "" : qPlan.status[1]);
+                routeInstanceIdVal = (!isNull(qPlan.route_instance_id[1]) ? val(qPlan.route_instance_id[1]) : 0);
                 checkInContextVal = normalizeCheckInContext(isNull(qPlan.checkin_context[1]) ? "" : qPlan.checkin_context[1]);
                 isOvernightCheckIn = (checkInContextVal EQ "overnight");
+                departureTimeZoneVal = (isNull(qPlan.departureTZ[1]) ? "" : trim(toString(qPlan.departureTZ[1])));
+                if (!len(departureTimeZoneVal)) {
+                    departureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
+                }
                 if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
                     checkedInAtVal = qPlan.checkedInAt[1];
                     actualCheckInLabel = dateTimeFormat(checkedInAtVal, "mmm d, yyyy h:nn tt");
@@ -245,12 +324,12 @@
             }
 
             routeMap = buildRouteMapData(
-                routeInstanceId=(qPlan.recordCount GT 0 AND !isNull(qPlan.route_instance_id[1]) ? val(qPlan.route_instance_id[1]) : 0),
+                routeInstanceId=routeInstanceIdVal,
                 ownerUserId=streamRow.owner_user_id,
                 fallbackDays=(qPlan.recordCount GT 0 AND !isNull(qPlan.route_day_number[1]) ? val(qPlan.route_day_number[1]) : 0)
             );
             followTimeline = buildFollowCruiseTimeline(
-                routeInstanceId=(qPlan.recordCount GT 0 AND !isNull(qPlan.route_instance_id[1]) ? val(qPlan.route_instance_id[1]) : 0),
+                routeInstanceId=routeInstanceIdVal,
                 ownerUserId=streamRow.owner_user_id,
                 opts={}
             );
@@ -307,8 +386,395 @@
                 privacyLabel = "Invite-only share page";
             }
 
-            if (routeMap.remaining_nm GT 0) {
-                etaLabel = "~" & int(ceiling(routeMap.remaining_nm / 45)) & " days";
+            nextStopLabelVal = (len(routeMap.next_stop_label) ? trim(toString(routeMap.next_stop_label)) : "");
+            if (
+                qPlan.recordCount GT 0
+                AND !isNull(qPlan.departureTime[1])
+                AND isDate(qPlan.departureTime[1])
+                AND len(nextStopLabelVal)
+                AND isStruct(followTimeline)
+                AND structKeyExists(followTimeline, "legs")
+                AND isArray(followTimeline.legs)
+            ) {
+                nextStopEtaBaseDt = qPlan.departureTime[1];
+                for (i = 1; i LTE arrayLen(followTimeline.legs); i++) {
+                    nextStopLeg = followTimeline.legs[i];
+                    if (!isStruct(nextStopLeg)) {
+                        continue;
+                    }
+                    if (!structKeyExists(nextStopLeg, "end_name") OR !structKeyExists(nextStopLeg, "cumulative_hours")) {
+                        continue;
+                    }
+                    if (trim(toString(nextStopLeg.end_name)) NEQ nextStopLabelVal) {
+                        continue;
+                    }
+                    if (!isNumeric(nextStopLeg.cumulative_hours) OR val(nextStopLeg.cumulative_hours) LT 0) {
+                        continue;
+                    }
+                    nextStopEtaMinutes = int(round(val(nextStopLeg.cumulative_hours) * 60));
+                    plannedNextStopEtaDt = dateAdd("n", nextStopEtaMinutes, nextStopEtaBaseDt);
+                    nextStopEtaDt = plannedNextStopEtaDt;
+                    if (
+                        isDate(nextStopEtaDt)
+                        AND isOvernightCheckIn
+                        AND isDate(checkedInAtVal)
+                        AND len(departureTimeZoneVal)
+                    ) {
+                        try {
+                            resumeTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(departureTimeZoneVal);
+                            resumeCalendar = createObject("java", "java.util.GregorianCalendar").init(resumeTimeZone);
+                            resumeCalendar.setTime(checkedInAtVal);
+                            resumeCalendar.add(5, 1);
+                            resumeCalendar.set(11, 8);
+                            resumeCalendar.set(12, 0);
+                            resumeCalendar.set(13, 0);
+                            resumeCalendar.set(14, 0);
+                            nextMorningResumeDt = resumeCalendar.getTime();
+                            overnightPauseMinutes = dateDiff("n", checkedInAtVal, nextMorningResumeDt);
+                            if (overnightPauseMinutes GT 0) {
+                                nextStopEtaDt = dateAdd("n", overnightPauseMinutes, nextStopEtaDt);
+                            }
+                        } catch (any overnightEtaErr) {
+                            // Keep existing ETA behavior if resume-time derivation fails.
+                        }
+                    }
+                    if (isDate(nextStopEtaDt)) {
+                        etaLabel = dateTimeFormat(nextStopEtaDt, "mmm d, yyyy h:nn tt");
+                        etaUtc = formatUtcDate(nextStopEtaDt);
+                    }
+                    break;
+                }
+            }
+
+            timelineSummary = (
+                isStruct(followTimeline) AND structKeyExists(followTimeline, "summary") AND isStruct(followTimeline.summary)
+                    ? followTimeline.summary
+                    : {}
+            );
+            timelineTotalNm = (
+                structKeyExists(timelineSummary, "total_nm") AND isNumeric(timelineSummary.total_nm)
+                    ? val(timelineSummary.total_nm)
+                    : 0
+            );
+            timelineTotalHours = (
+                structKeyExists(timelineSummary, "total_hours") AND isNumeric(timelineSummary.total_hours)
+                    ? val(timelineSummary.total_hours)
+                    : 0
+            );
+            timelineEffectiveSpeedKn = (
+                structKeyExists(timelineSummary, "effective_speed_kn") AND isNumeric(timelineSummary.effective_speed_kn)
+                    ? val(timelineSummary.effective_speed_kn)
+                    : 0
+            );
+
+            if (isStruct(followTimeline) AND structKeyExists(followTimeline, "legs") AND isArray(followTimeline.legs)) {
+                for (i = 1; i LTE arrayLen(followTimeline.legs); i++) {
+                    timelineLeg = followTimeline.legs[i];
+                    if (!isStruct(timelineLeg)) {
+                        continue;
+                    }
+                    timelineLegDistanceNm = (
+                        structKeyExists(timelineLeg, "dist_nm") AND isNumeric(timelineLeg.dist_nm)
+                            ? val(timelineLeg.dist_nm)
+                            : 0
+                    );
+                    timelineLegProgressPct = (
+                        structKeyExists(timelineLeg, "progress")
+                        AND isStruct(timelineLeg.progress)
+                        AND structKeyExists(timelineLeg.progress, "percent_complete")
+                        AND isNumeric(timelineLeg.progress.percent_complete)
+                            ? val(timelineLeg.progress.percent_complete)
+                            : 0
+                    );
+
+                    if (timelineLegProgressPct GTE 100) {
+                        completedMilesSoFarNm += timelineLegDistanceNm;
+                    } else if (nextStopRemainingNm LT 0) {
+                        nextStopRemainingNm = timelineLegDistanceNm;
+                    }
+                }
+            }
+
+            completedMilesSoFarNm = roundTo2(completedMilesSoFarNm);
+            if (timelineTotalNm LTE 0 AND structKeyExists(routeMap, "total_nm") AND isNumeric(routeMap.total_nm)) {
+                timelineTotalNm = val(routeMap.total_nm);
+            }
+            milesLeftNm = max(0, roundTo2(timelineTotalNm - completedMilesSoFarNm));
+            if (nextStopRemainingNm LT 0) {
+                nextStopRemainingNm = 0;
+            } else {
+                nextStopRemainingNm = roundTo2(nextStopRemainingNm);
+            }
+
+            if (
+                qPlan.recordCount GT 0
+                AND !isNull(qPlan.departureTime[1])
+                AND isDate(qPlan.departureTime[1])
+            ) {
+                elapsedTripMinutes = dateDiff("n", qPlan.departureTime[1], confidenceNowDt);
+                if (elapsedTripMinutes LT 0) {
+                    elapsedTripMinutes = 0;
+                }
+                elapsedTripHours = roundTo2(elapsedTripMinutes / 60);
+                comparisonElapsedHours = elapsedTripHours;
+                if (timelineTotalHours GT 0 AND comparisonElapsedHours GT timelineTotalHours) {
+                    comparisonElapsedHours = timelineTotalHours;
+                }
+
+                if (timelineTotalNm GT 0 AND timelineTotalHours GT 0 AND comparisonElapsedHours GT 0) {
+                    expectedMilesByNowNm = roundTo2(timelineTotalNm * (comparisonElapsedHours / timelineTotalHours));
+                }
+
+                if (completedMilesSoFarNm GT 0 AND elapsedTripHours GT 0) {
+                    achievedPaceKn = roundTo2(completedMilesSoFarNm / elapsedTripHours);
+                    progressMilesForConfidenceNm = completedMilesSoFarNm;
+                } else if (timelineEffectiveSpeedKn GT 0 AND elapsedTripHours GT 0) {
+                    achievedPaceKn = roundTo2(timelineEffectiveSpeedKn);
+                    progressMilesForConfidenceNm = min(timelineTotalNm, roundTo2(achievedPaceKn * comparisonElapsedHours));
+                }
+
+                if (expectedMilesByNowNm GT 0) {
+                    progressRatio = progressMilesForConfidenceNm / expectedMilesByNowNm;
+                    if (progressRatio GTE 0.9) {
+                        tripConfidenceScore += 20;
+                    } else if (progressRatio GTE 0.7) {
+                        tripConfidenceScore += 5;
+                    } else {
+                        tripConfidenceScore -= 20;
+                    }
+                }
+
+                if (isDate(plannedNextStopEtaDt) AND achievedPaceKn GT 0) {
+                    projectedNextStopMinutes = int(round((nextStopRemainingNm / achievedPaceKn) * 60));
+                    projectedNextStopEtaDt = dateAdd("n", projectedNextStopMinutes, confidenceNowDt);
+                    plannedNextStopEtaWithGraceDt = dateAdd("n", tripConfidenceGraceWindowMinutes, plannedNextStopEtaDt);
+                    nextStopOnTime = (projectedNextStopEtaDt LTE plannedNextStopEtaWithGraceDt);
+                    tripConfidenceScore += (nextStopOnTime ? 15 : -15);
+                }
+
+                if (timelineTotalHours GT 0) {
+                    plannedFinalEtaDt = dateAdd("n", int(round(timelineTotalHours * 60)), qPlan.departureTime[1]);
+                }
+                if (isDate(plannedFinalEtaDt) AND achievedPaceKn GT 0) {
+                    projectedFinalMinutes = int(round((milesLeftNm / achievedPaceKn) * 60));
+                    projectedFinalEtaDt = dateAdd("n", projectedFinalMinutes, confidenceNowDt);
+                    plannedFinalEtaWithGraceDt = dateAdd("n", tripConfidenceGraceWindowMinutes, plannedFinalEtaDt);
+                    finalDestinationOnTime = (projectedFinalEtaDt LTE plannedFinalEtaWithGraceDt);
+                    tripConfidenceScore += (finalDestinationOnTime ? 15 : -15);
+                }
+            }
+
+            tripConfidenceScore = max(0, min(100, tripConfidenceScore));
+            if (tripConfidenceScore GTE 70) {
+                tripConfidenceLabel = "High";
+            } else if (tripConfidenceScore GTE 40) {
+                tripConfidenceLabel = "Moderate";
+            } else {
+                tripConfidenceLabel = "Low";
+            }
+
+            if (
+                routeInstanceIdVal GT 0
+                AND structKeyExists(routeMap, "active_leg_order")
+                AND val(routeMap.active_leg_order) GT 0
+            ) {
+                try {
+                    weatherComponent = createObject("component", "fpw.api.v1.weather");
+                    weatherComponentPath = "fpw.api.v1.weather";
+                } catch (any weatherComponentErrA) {
+                    try {
+                        weatherComponent = createObject("component", "api.v1.weather");
+                        weatherComponentPath = "api.v1.weather";
+                    } catch (any weatherComponentErrB) {
+                        weatherComponent = "";
+                        weatherComponentPath = "";
+                    }
+                }
+
+                if (isObject(weatherComponent) AND len(weatherComponentPath)) {
+                    pointDefs = {
+                        "start"={
+                            "lat"=(structKeyExists(routeMap, "active_leg_start_lat") ? routeMap.active_leg_start_lat : ""),
+                            "lng"=(structKeyExists(routeMap, "active_leg_start_lng") ? routeMap.active_leg_start_lng : "")
+                        },
+                        "end"={
+                            "lat"=(structKeyExists(routeMap, "active_leg_end_lat") ? routeMap.active_leg_end_lat : ""),
+                            "lng"=(structKeyExists(routeMap, "active_leg_end_lng") ? routeMap.active_leg_end_lng : "")
+                        }
+                    };
+
+                    for (pointKey in pointDefs) {
+                        pointDef = pointDefs[pointKey];
+                        pointOut = {
+                            "available"=false,
+                            "summary"="",
+                            "alerts_count"=0,
+                            "top_alert_severity"="",
+                            "forecast_short"="",
+                            "wind_speed"="",
+                            "wind_direction"="",
+                            "wave_height_ft"="",
+                            "visibility_mi"=""
+                        };
+
+                        if (
+                            !structKeyExists(pointDef, "lat")
+                            OR !structKeyExists(pointDef, "lng")
+                            OR !isNumeric(pointDef.lat)
+                            OR !isNumeric(pointDef.lng)
+                        ) {
+                            legWeather[pointKey] = pointOut;
+                            continue;
+                        }
+
+                        roundedLat = round(val(pointDef.lat) * 1000) / 1000;
+                        roundedLng = round(val(pointDef.lng) * 1000) / 1000;
+                        pointCacheKey = "lat=" & numberFormat(roundedLat, "0.000") & ":lng=" & numberFormat(roundedLng, "0.000");
+
+                        if (!structKeyExists(pointResults, pointCacheKey)) {
+                            try {
+                                pointResults[pointCacheKey] = weatherComponent.getWeatherForCoordinates(val(pointDef.lat), val(pointDef.lng), "full", false);
+                            } catch (any pointWeatherErr) {
+                                pointResults[pointCacheKey] = { "SUCCESS"=false, "MESSAGE"=pointWeatherErr.message };
+                            }
+                        }
+
+                        pointRaw = (
+                            structKeyExists(pointResults, pointCacheKey) AND isStruct(pointResults[pointCacheKey])
+                                ? duplicate(pointResults[pointCacheKey])
+                                : {}
+                        );
+
+                        if (structKeyExists(pointRaw, "SUCCESS") AND pointRaw.SUCCESS) {
+                            pointOut.available = true;
+                            pointSummary = (structKeyExists(pointRaw, "SUMMARY") ? trim(toString(pointRaw.SUMMARY)) : "");
+                            pointOut.summary = pointSummary;
+
+                            if (structKeyExists(pointRaw, "ALERTS") AND isArray(pointRaw.ALERTS)) {
+                                pointOut.alerts_count = arrayLen(pointRaw.ALERTS);
+                                for (alertIdx = 1; alertIdx LTE arrayLen(pointRaw.ALERTS); alertIdx++) {
+                                    alertItem = pointRaw.ALERTS[alertIdx];
+                                    if (!isStruct(alertItem)) {
+                                        continue;
+                                    }
+                                    severityTxt = (structKeyExists(alertItem, "severity") ? trim(toString(alertItem.severity)) : "");
+                                    severityRank = 0;
+                                    if (severityTxt EQ "Extreme") {
+                                        severityRank = 4;
+                                    } else if (severityTxt EQ "Severe") {
+                                        severityRank = 3;
+                                    } else if (severityTxt EQ "Moderate") {
+                                        severityRank = 2;
+                                    } else if (severityTxt EQ "Minor") {
+                                        severityRank = 1;
+                                    } else if (len(severityTxt)) {
+                                        severityRank = 1;
+                                    }
+                                    if (
+                                        !len(pointOut.top_alert_severity)
+                                        OR severityRank GT (
+                                            pointOut.top_alert_severity EQ "Extreme" ? 4
+                                                : pointOut.top_alert_severity EQ "Severe" ? 3
+                                                : pointOut.top_alert_severity EQ "Moderate" ? 2
+                                                : len(pointOut.top_alert_severity) ? 1
+                                                : 0
+                                        )
+                                    ) {
+                                        pointOut.top_alert_severity = severityTxt;
+                                    }
+                                }
+                            }
+
+                            if (
+                                structKeyExists(pointRaw, "FORECAST")
+                                AND isArray(pointRaw.FORECAST)
+                                AND arrayLen(pointRaw.FORECAST)
+                                AND isStruct(pointRaw.FORECAST[1])
+                            ) {
+                                pointForecast = pointRaw.FORECAST[1];
+                                pointOut.forecast_short = (structKeyExists(pointForecast, "shortForecast") ? trim(toString(pointForecast.shortForecast)) : "");
+                                pointOut.wind_speed = (structKeyExists(pointForecast, "windSpeed") ? trim(toString(pointForecast.windSpeed)) : "");
+                                pointOut.wind_direction = (structKeyExists(pointForecast, "windDirection") ? trim(toString(pointForecast.windDirection)) : "");
+                            }
+
+                            if (structKeyExists(pointRaw, "MARINE") AND isStruct(pointRaw.MARINE)) {
+                                pointMarine = pointRaw.MARINE;
+                                if (structKeyExists(pointMarine, "wave_height_ft") AND isNumeric(pointMarine.wave_height_ft)) {
+                                    pointOut.wave_height_ft = roundTo1(val(pointMarine.wave_height_ft));
+                                } else if (structKeyExists(pointMarine, "wave_height_ft")) {
+                                    pointOut.wave_height_ft = trim(toString(pointMarine.wave_height_ft));
+                                }
+                            }
+
+                            if (structKeyExists(pointRaw, "surface") AND isStruct(pointRaw.surface)) {
+                                pointSurface = pointRaw.surface;
+                                pointOut.visibility_mi = (structKeyExists(pointSurface, "visibility_mi") ? trim(toString(pointSurface.visibility_mi)) : "");
+                            }
+                        }
+
+                        legWeather[pointKey] = pointOut;
+                    }
+
+                    startRank = (
+                        legWeather.start.top_alert_severity EQ "Extreme" ? 4
+                            : legWeather.start.top_alert_severity EQ "Severe" ? 3
+                            : legWeather.start.top_alert_severity EQ "Moderate" ? 2
+                            : len(legWeather.start.top_alert_severity) ? 1
+                            : 0
+                    );
+                    endRank = (
+                        legWeather.end.top_alert_severity EQ "Extreme" ? 4
+                            : legWeather.end.top_alert_severity EQ "Severe" ? 3
+                            : legWeather.end.top_alert_severity EQ "Moderate" ? 2
+                            : len(legWeather.end.top_alert_severity) ? 1
+                            : 0
+                    );
+
+                    worsePointKey = "";
+                    if (legWeather.end.available AND !legWeather.start.available) {
+                        worsePointKey = "end";
+                    } else if (legWeather.start.available AND !legWeather.end.available) {
+                        worsePointKey = "start";
+                    } else if (legWeather.start.available OR legWeather.end.available) {
+                        if (endRank GT startRank) {
+                            worsePointKey = "end";
+                        } else if (startRank GT endRank) {
+                            worsePointKey = "start";
+                        } else if (legWeather.end.alerts_count GT legWeather.start.alerts_count) {
+                            worsePointKey = "end";
+                        } else if (legWeather.start.alerts_count GT legWeather.end.alerts_count) {
+                            worsePointKey = "start";
+                        } else if (legWeather.end.available) {
+                            worsePointKey = "end";
+                        } else {
+                            worsePointKey = "start";
+                        }
+                    }
+
+                    if (len(worsePointKey) AND structKeyExists(legWeather, worsePointKey)) {
+                        worsePoint = legWeather[worsePointKey];
+                        legWeather.conditions.available = true;
+                        if (worsePoint.alerts_count GT 0) {
+                            if (worsePointKey EQ "end") {
+                                legWeather.conditions.headline = "Alerts near next stop";
+                            } else {
+                                legWeather.conditions.headline = "Alerts near leg start";
+                            }
+                        } else if (legWeather.start.available AND legWeather.end.available) {
+                            legWeather.conditions.headline = "No alerts at leg endpoints";
+                        } else if (worsePointKey EQ "end") {
+                            legWeather.conditions.headline = "Next-stop point conditions";
+                        } else {
+                            legWeather.conditions.headline = "Leg-start point conditions";
+                        }
+                        legWeather.conditions.summary = (len(worsePoint.summary) ? worsePoint.summary : "No active hazards reported");
+                        legWeather.conditions.meta = (
+                            legWeather.start.available AND legWeather.end.available
+                                ? "Based on current leg start and next stop point weather."
+                                : "Based on available current leg point weather."
+                        );
+                    }
+                }
             }
 
             topCards = {
@@ -317,6 +783,7 @@
                 "location_label"=(len(routeMap.location_label) ? routeMap.location_label : "n/a"),
                 "next_stop"=(len(routeMap.next_stop_label) ? routeMap.next_stop_label : "n/a"),
                 "eta"=etaLabel,
+                "eta_utc"=etaUtc,
                 "conditions"="No active hazards reported"
             };
 
@@ -333,6 +800,7 @@
                 "journey_subtitle"="Current leg is active.",
                 "journey_departed_value"=(qPlan.recordCount GT 0 AND !isNull(qPlan.departing[1]) ? trim(toString(qPlan.departing[1])) : ""),
                 "journey_departed_meta"=(qPlan.recordCount GT 0 AND !isNull(qPlan.departureTime[1]) AND isDate(qPlan.departureTime[1]) ? dateTimeFormat(qPlan.departureTime[1], "mmm d, yyyy h:nn tt") : ""),
+                "journey_departed_meta_utc"=(qPlan.recordCount GT 0 AND !isNull(qPlan.departureTime[1]) AND isDate(qPlan.departureTime[1]) ? formatUtcDate(qPlan.departureTime[1]) : ""),
                 "journey_checkin_value"=(len(actualCheckInLabel) ? "Checked in at " & actualCheckInLabel : "Checked in at --"),
                 "journey_checkin_meta"=(isOvernightCheckIn ? "Arrived and secure for the night. Next update expected tomorrow morning." : elapsedCheckInLabel),
                 "card_status_copy"="Monitoring is active and the trip is reporting normally.",
@@ -340,7 +808,7 @@
                 "card_destination_copy"="Next major stop and expected overnight destination.",
                 "card_arrival_copy"="Approximate based on current pace, route progress, and last update.",
                 "card_conditions_copy"="Current trip conditions and caution state.",
-                "trip_summary_confidence"="Tracking confidence: High",
+                "trip_summary_confidence"="Tracking confidence: " & tripConfidenceLabel,
                 "trip_summary_mode"="Trip mode: Route-based monitoring",
                 "trip_summary_safety"="Safety state: Normal",
                 "family_confidence_subtitle"="Built to reassure viewers with plain-language trip and safety status.",
@@ -375,6 +843,7 @@
                 "pins"=routeMap.pins,
                 "current"=routeMap.current
             };
+            out.legWeather = legWeather;
             out.pinned = pinned;
             out.timeline = followTimeline;
             out.body = body;
@@ -1872,7 +2341,14 @@
                 "total_days"=(arguments.fallbackDays GT 0 ? arguments.fallbackDays : 0),
                 "remaining_nm"=0,
                 "location_label"="",
-                "next_stop_label"=""
+                "next_stop_label"="",
+                "active_leg_order"=0,
+                "active_leg_start_name"="",
+                "active_leg_end_name"="",
+                "active_leg_start_lat"="",
+                "active_leg_start_lng"="",
+                "active_leg_end_lat"="",
+                "active_leg_end_lng"=""
             };
             var routeInstanceIdVal = val(arguments.routeInstanceId);
             var ds = resolveDatasource();
@@ -1899,6 +2375,7 @@
             var startLngRaw = "";
             var endLatRaw = "";
             var endLngRaw = "";
+            var legOrderVal = 0;
 
             if (routeInstanceIdVal LTE 0) {
                 return out;
@@ -2083,6 +2560,29 @@
             );
             completedOrder = (qProgress.recordCount GT 0 AND !isNull(qProgress.max_leg[1]) ? val(qProgress.max_leg[1]) : 0);
 
+            for (i = 1; i LTE qLegs.recordCount; i++) {
+                legOrderVal = (isNull(qLegs.leg_order[i]) ? 0 : val(qLegs.leg_order[i]));
+                if (legOrderVal LTE completedOrder) {
+                    continue;
+                }
+                out.active_leg_order = legOrderVal;
+                out.active_leg_start_name = (isNull(qLegs.start_name[i]) ? "" : trim(toString(qLegs.start_name[i])));
+                out.active_leg_end_name = (isNull(qLegs.end_name[i]) ? "" : trim(toString(qLegs.end_name[i])));
+                startLatRaw = (isNull(qLegs.start_lat[i]) ? "" : trim(toString(qLegs.start_lat[i])));
+                startLngRaw = (isNull(qLegs.start_lng[i]) ? "" : trim(toString(qLegs.start_lng[i])));
+                endLatRaw = (isNull(qLegs.end_lat[i]) ? "" : trim(toString(qLegs.end_lat[i])));
+                endLngRaw = (isNull(qLegs.end_lng[i]) ? "" : trim(toString(qLegs.end_lng[i])));
+                if (len(startLatRaw) AND len(startLngRaw) AND isNumeric(startLatRaw) AND isNumeric(startLngRaw)) {
+                    out.active_leg_start_lat = val(startLatRaw);
+                    out.active_leg_start_lng = val(startLngRaw);
+                }
+                if (len(endLatRaw) AND len(endLngRaw) AND isNumeric(endLatRaw) AND isNumeric(endLngRaw)) {
+                    out.active_leg_end_lat = val(endLatRaw);
+                    out.active_leg_end_lng = val(endLngRaw);
+                }
+                break;
+            }
+
             if (completedOrder GT 0) {
                 qCurrentLeg = queryExecute(
                     "SELECT end_name, end_lat, end_lng
@@ -2144,7 +2644,7 @@
                 };
                 out.location_label = pointList[1].label;
             }
-            if (!len(out.next_stop_label) AND qLegs.recordCount GT 0) {
+            if (!len(out.next_stop_label) AND qLegs.recordCount GT 0 AND completedOrder LTE 0) {
                 out.next_stop_label = (isNull(qLegs.end_name[1]) ? "" : trim(toString(qLegs.end_name[1])));
             }
 

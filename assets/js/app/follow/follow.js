@@ -307,12 +307,30 @@
     var body = payload.body || {};
     var topCards = payload.topCards || {};
     var pinned = payload.pinned || {};
+    var map = payload.map || {};
+    var timeline = payload.timeline || {};
+    var summary = timeline.summary || {};
+    var legs = Array.isArray(timeline.legs) ? timeline.legs : [];
     var miles = safeNum(pinned.miles);
+    var completedMilesNm = 0;
     var photoCount = findRecentMediaPosts(posts).length;
+    var currentLocation = String(map.current && map.current.label ? map.current.label : topCards.location_label || "").trim();
+    var nextStop = String(topCards.next_stop || "").trim();
+    var progressPct = computeJourneyProgressPct(summary, legs, currentLocation, nextStop);
 
-    setHookText("today-progress-metric", miles === null ? "0" : miles.toFixed(1) + " mi");
+    legs.forEach(function (leg) {
+      var legProgress = safeNum(leg && leg.progress ? leg.progress.percent_complete : null);
+      var legDistanceNm = safeNum(leg && leg.dist_nm);
+      if (legProgress === null || legDistanceNm === null) return;
+      if (legProgress >= 100) {
+        completedMilesNm += legDistanceNm;
+      }
+    });
+
+    setHookText("today-progress-metric", completedMilesNm.toFixed(1) + " nm");
     setHookText("today-progress-location", "Current location: " + String(topCards.location_label || "").trim());
     setHookText("today-progress-eta", "Estimated arrival: " + String(topCards.eta || "").trim());
+    setHookWidth("today-progress-fill", progressPct);
     setHookText("latest-photos-count", String(photoCount) + " recent " + (photoCount === 1 ? "moment" : "moments") + " shared");
     setHookText("trip-summary-metric", formatDayCountLabel(pinned.days));
     setHookText("trip-summary-distance", miles === null ? "0" : miles.toFixed(1) + " mi");
@@ -357,31 +375,55 @@
     setHookText("timeline-next-update", body.timeline_next_update);
   }
 
-  function findActiveTimelineLeg(legs) {
+  function findActiveTimelineLeg(legs, currentLabel, nextStopLabel, summary) {
     var list = Array.isArray(legs) ? legs : [];
+    var currentName = String(currentLabel || "").trim().toLowerCase();
+    var nextName = String(nextStopLabel || "").trim().toLowerCase();
+    var completedLegs = toInt(summary && summary.completed_legs, 0);
     var i;
-    var progressPct = 0;
+    var leg = null;
+    var legStartName = "";
+    var legEndName = "";
 
     if (!list.length) return null;
 
-    for (i = 0; i < list.length; i += 1) {
-      progressPct = safeNum(list[i] && list[i].progress ? list[i].progress.percent_complete : 0);
-      if (progressPct === null || progressPct < 100) {
-        return list[i];
+    if (nextName && nextName !== "n/a") {
+      for (i = 0; i < list.length; i += 1) {
+        leg = list[i] && typeof list[i] === "object" ? list[i] : null;
+        if (!leg) continue;
+        legStartName = String(leg.start_name || "").trim().toLowerCase();
+        legEndName = String(leg.end_name || "").trim().toLowerCase();
+        if (currentName && legStartName === currentName && legEndName === nextName) {
+          return leg;
+        }
       }
+
+      for (i = 0; i < list.length; i += 1) {
+        leg = list[i] && typeof list[i] === "object" ? list[i] : null;
+        if (!leg) continue;
+        legEndName = String(leg.end_name || "").trim().toLowerCase();
+        if (legEndName === nextName) {
+          return leg;
+        }
+      }
+    }
+
+    if (completedLegs >= list.length) {
+      return list[list.length - 1];
     }
 
     return list[0];
   }
 
-  function computeJourneyProgressPct(summary, legs) {
+  function computeJourneyProgressPct(summary, legs, currentLabel, nextStopLabel) {
     var list = Array.isArray(legs) ? legs : [];
     var totalLegs = list.length;
     var completedLegs = toInt(summary && summary.completed_legs, 0);
-    var activeLeg = findActiveTimelineLeg(list);
+    var activeLeg = findActiveTimelineLeg(list, currentLabel, nextStopLabel, summary);
     var activeProgress = safeNum(activeLeg && activeLeg.progress ? activeLeg.progress.percent_complete : 0);
 
     if (!totalLegs) return null;
+    if (completedLegs >= totalLegs) return 100;
     if (activeProgress === null) activeProgress = 0;
 
     return ((completedLegs + (activeProgress / 100)) / totalLegs) * 100;
@@ -404,10 +446,39 @@
     var nextStop = String(topCards.next_stop || map.next_stop_label || "").trim();
     var eta = String(topCards.eta || "").trim();
     var conditions = String(topCards.conditions || "").trim();
-    var activeLeg = findActiveTimelineLeg(legs);
+    var legWeather = payload.legWeather || {};
+    var weatherConditions = legWeather.conditions || {};
+    var startWeather = legWeather.start || {};
+    var endWeather = legWeather.end || {};
+    var currentLocation = String(map.current && map.current.label ? map.current.label : "").trim();
+    var completedLegs = toInt(summary.completed_legs, 0);
+    var activeLeg = findActiveTimelineLeg(legs, currentLocation, nextStop, summary);
     var activeLegLabel = String(activeLeg && activeLeg.label ? activeLeg.label : "").trim();
+    var activeLegStartName = String(activeLeg && activeLeg.start_name ? activeLeg.start_name : currentLocation).trim();
+    var activeLegEndName = String(activeLeg && activeLeg.end_name ? activeLeg.end_name : nextStop).trim();
     var effectiveSpeedKn = safeNum(summary.effective_speed_kn);
-    var progressPct = computeJourneyProgressPct(summary, legs);
+    var progressPct = computeJourneyProgressPct(summary, legs, currentLocation, nextStop);
+    var departedLocalMeta = formatSidebarLastCheckinLabel(body.journey_departed_meta_utc || "") || String(body.journey_departed_meta || "").trim();
+    var nextStopLocalEta = formatSidebarLastCheckinLabel(topCards.eta_utc || "") || eta;
+    var startSummary = String(startWeather.summary || "").trim();
+    var endSummary = String(endWeather.summary || "").trim();
+    var startSummaryLine = startSummary ? (activeLegStartName ? "Start · " + activeLegStartName + " · " + startSummary : startSummary) : "";
+    var endSummaryLine = endSummary ? (activeLegEndName ? "End · " + activeLegEndName + " · " + endSummary : endSummary) : "";
+    var conditionsFallbackCopy = String(weatherConditions.meta || body.card_conditions_copy || "").trim();
+    var conditionsTitle = String(weatherConditions.headline || conditions).trim();
+    var conditionsValue = "";
+    var conditionsCopy = "";
+
+    if (endSummaryLine) {
+      conditionsValue = endSummaryLine;
+      conditionsCopy = startSummaryLine || conditionsFallbackCopy;
+    } else if (startSummaryLine) {
+      conditionsValue = conditionsFallbackCopy || String(topCards.conditions || "").trim();
+      conditionsCopy = startSummaryLine;
+    } else {
+      conditionsValue = String(topCards.conditions || "").trim();
+      conditionsCopy = String(body.card_conditions_copy || "").trim();
+    }
 
     setHookText("trip-card-title", title);
     setHookText("trip-card-status-pill", status);
@@ -432,13 +503,13 @@
     setHookText("journey-status-pill", status);
     setHookWidth("journey-progress-fill", progressPct);
     setHookText("journey-departed-value", body.journey_departed_value);
-    setHookText("journey-departed-meta", body.journey_departed_meta);
+    setHookText("journey-departed-meta", departedLocalMeta);
     setHookText("journey-current-leg-value", activeLegLabel);
-    if (effectiveSpeedKn !== null && effectiveSpeedKn > 0) {
+    if (activeLeg && completedLegs < legs.length && effectiveSpeedKn !== null && effectiveSpeedKn > 0) {
       setHookText("journey-current-leg-meta", "Making way at " + String(effectiveSpeedKn) + " kn");
     }
     setHookText("journey-next-stop-value", nextStop);
-    setHookText("journey-next-stop-meta", eta);
+    setHookText("journey-next-stop-meta", nextStopLocalEta);
     setHookText("journey-checkin-value", formatJourneyCheckinValue(body.journey_checkin_value));
     setHookText("journey-checkin-meta", body.journey_checkin_meta);
 
@@ -454,9 +525,9 @@
     setHookText("card-arrival-title", eta);
     setHookText("card-arrival-value", nextStop);
     setHookText("card-arrival-copy", body.card_arrival_copy);
-    setHookText("card-conditions-title", conditions);
-    setHookText("card-conditions-value", topCards.conditions);
-    setHookText("card-conditions-copy", body.card_conditions_copy);
+    setHookText("card-conditions-title", conditionsTitle);
+    setHookText("card-conditions-value", conditionsValue);
+    setHookText("card-conditions-copy", conditionsCopy);
     setHookText("family-confidence-subtitle", body.family_confidence_subtitle);
   }
 

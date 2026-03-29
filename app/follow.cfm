@@ -87,6 +87,12 @@
         </div>
         <div class="progress-rail"><span data-fpw-field="journey-progress-fill"></span></div>
         <div class="journey-stops">
+          <article class="card stat-card">
+            <div class="stat-top"><span>Status</span><span class="status-dot"></span></div>
+            <h3 data-fpw-field="card-status-title">—</h3>
+            <div class="big" data-fpw-field="card-status-value">—</div>
+            <p data-fpw-field="card-status-copy">—</p>
+          </article>
           <div class="journey-stop">
             <div class="kicker">Departed</div>
             <strong data-fpw-field="journey-departed-value">—</strong>
@@ -107,44 +113,13 @@
             <strong data-fpw-field="journey-checkin-value">—</strong>
             <small data-fpw-field="journey-checkin-meta">—</small>
           </div>
+          <article class="card stat-card">
+            <div class="stat-top"><span>Conditions</span><span>SEA</span></div>
+            <h3 data-fpw-field="card-conditions-title">—</h3>
+            <div class="big" data-fpw-field="card-conditions-value">—</div>
+            <p data-fpw-field="card-conditions-copy">—</p>
+          </article>
         </div>
-      </section>
-
-      <section class="summary-grid" data-fpw-region="summary-grid">
-        <article class="card stat-card">
-          <div class="stat-top"><span>Status</span><span class="status-dot"></span></div>
-          <h3 data-fpw-field="card-status-title">—</h3>
-          <div class="big" data-fpw-field="card-status-value">—</div>
-          <p data-fpw-field="card-status-copy">—</p>
-        </article>
-
-        <article class="card stat-card">
-          <div class="stat-top"><span>Current Location</span><span>LOC</span></div>
-          <h3 data-fpw-field="card-location-title">—</h3>
-          <div class="big" data-fpw-field="card-location-value">—</div>
-          <p data-fpw-field="card-location-copy">—</p>
-        </article>
-
-        <article class="card stat-card">
-          <div class="stat-top"><span>Next Destination</span><span>STOP</span></div>
-          <h3 data-fpw-field="card-destination-title">—</h3>
-          <div class="big" data-fpw-field="card-destination-value">—</div>
-          <p data-fpw-field="card-destination-copy">—</p>
-        </article>
-
-        <article class="card stat-card">
-          <div class="stat-top"><span>Arrival Estimate</span><span>ETA</span></div>
-          <h3 data-fpw-field="card-arrival-title">—</h3>
-          <div class="big" data-fpw-field="card-arrival-value">—</div>
-          <p data-fpw-field="card-arrival-copy">—</p>
-        </article>
-
-        <article class="card stat-card">
-          <div class="stat-top"><span>Conditions</span><span>SEA</span></div>
-          <h3 data-fpw-field="card-conditions-title">—</h3>
-          <div class="big" data-fpw-field="card-conditions-value">—</div>
-          <p data-fpw-field="card-conditions-copy">—</p>
-        </article>
       </section>
 
       <section class="content-grid">
@@ -414,6 +389,6 @@
   <cfinclude template="../includes/footer_scripts.cfm">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/followMap.js?v=20260303c"></script>
-  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/follow.js?v=20260320h"></script>
+  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/follow.js?v=20260328a"></script>
 </body>
 </html>
