@@ -161,6 +161,34 @@
                     </cfif>
                 </cfcase>
 
+                <cfcase value="completeleg">
+                    <cfset var completeLegId = 0>
+                    <cfset var expectedLegOrder = 0>
+                    <cfif structKeyExists(body, "floatPlanId")>
+                        <cfset completeLegId = val(body.floatPlanId)>
+                    <cfelseif structKeyExists(url, "floatPlanId")>
+                        <cfset completeLegId = val(url.floatPlanId)>
+                    <cfelseif structKeyExists(url, "id")>
+                        <cfset completeLegId = val(url.id)>
+                    </cfif>
+                    <cfif structKeyExists(body, "expectedLegOrder")>
+                        <cfset expectedLegOrder = val(body.expectedLegOrder)>
+                    <cfelseif structKeyExists(url, "expectedLegOrder")>
+                        <cfset expectedLegOrder = val(url.expectedLegOrder)>
+                    </cfif>
+
+                    <cfset var routeProgressService = createObject("component", resolveApiV1ComponentPath("RouteProgressService")).init()>
+                    <cfset var completeLegResult = routeProgressService.markCompletionFromFloatPlanCheckin(
+                        userId = userId,
+                        floatPlanId = completeLegId,
+                        datasource = "fpw",
+                        completionMode = "active_leg",
+                        expectedLegOrder = expectedLegOrder
+                    )>
+                    <cfset completeLegResult.AUTH = true>
+                    <cfoutput>#serializeJSON(completeLegResult)#</cfoutput>
+                </cfcase>
+
                 <cfdefaultcase>
                     <cfset var invalidResponse = {
                         SUCCESS = false,
@@ -1593,6 +1621,37 @@
                 return result;
             }
 
+            try {
+                var routeProgressService = createObject("component", resolveApiV1ComponentPath("RouteProgressService")).init();
+                result.ROUTE_PROGRESS = routeProgressService.markCompletionFromFloatPlanCheckin(
+                    userId = arguments.userId,
+                    floatPlanId = arguments.floatPlanId,
+                    datasource = "fpw"
+                );
+            } catch (any routeErr) {
+                result.SUCCESS = false;
+                result.ERROR = "CLOSE_TRIP_VALIDATION_FAILED";
+                result.MESSAGE = "Unable to validate final route state for closure.";
+                result.ROUTE_PROGRESS = {
+                    SUCCESS = false,
+                    MATCHED = false,
+                    MESSAGE = "Route progress close validation failed",
+                    ERROR = routeErr.message
+                };
+                return result;
+            }
+
+            if (NOT structKeyExists(result, "ROUTE_PROGRESS") OR NOT structKeyExists(result.ROUTE_PROGRESS, "SUCCESS") OR NOT result.ROUTE_PROGRESS.SUCCESS) {
+                result.SUCCESS = false;
+                result.ERROR = "CLOSE_TRIP_BLOCKED";
+                result.MESSAGE = (
+                    structKeyExists(result, "ROUTE_PROGRESS") AND structKeyExists(result.ROUTE_PROGRESS, "MESSAGE")
+                        ? result.ROUTE_PROGRESS.MESSAGE
+                        : "Close Trip is unavailable."
+                );
+                return result;
+            }
+
             updateSql =
                 "UPDATE floatplans
                  SET
@@ -1610,28 +1669,6 @@
                 planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                 userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
             }, { datasource = "fpw" });
-
-            try {
-                var routeProgressService = createObject("component", resolveApiV1ComponentPath("RouteProgressService")).init();
-                result.ROUTE_PROGRESS = routeProgressService.markCompletionFromFloatPlanCheckin(
-                    userId = arguments.userId,
-                    floatPlanId = arguments.floatPlanId,
-                    routeCode = "GREAT_LOOP_CCW",
-                    datasource = "fpw"
-                );
-            } catch (any routeErr) {
-                writeLog(
-                    type = "warning",
-                    file = "application",
-                    text = "Route progress check-in integration failed. floatPlanId=#arguments.floatPlanId#, userId=#arguments.userId#, message=#routeErr.message#"
-                );
-                result.ROUTE_PROGRESS = {
-                    SUCCESS = false,
-                    MATCHED = false,
-                    MESSAGE = "Route progress update failed",
-                    ERROR = routeErr.message
-                };
-            }
 
             result.SUCCESS = true;
             result.FLOATPLANID = arguments.floatPlanId;

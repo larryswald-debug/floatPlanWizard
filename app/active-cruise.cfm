@@ -393,11 +393,14 @@
       reserveFuelNeedGal = 0.0;
       requiredFuelNeedGal = 0.0;
       fuelCalcReady = false;
-      progressByLeg = {};
-      i = 0;
-      legOrder = 0;
-      legStatus = "";
-      isCompletedLeg = false;
+	      progressByLeg = {};
+	      i = 0;
+	      legOrder = 0;
+	      legStatus = "";
+	      isCompletedLeg = false;
+	      highestCompletedLegOrder = 0;
+	      activeLegRow = 0;
+	      displayLegRow = 0;
 
       if (activeCruiseContext.floatPlanId GT 0) {
         qPlanSql =
@@ -698,29 +701,37 @@
           destinationName = trim(toString(fpwQueryCell(qLegs, "end_name", totalLegs, "")));
         }
 
-        for (i = 1; i LTE qLegs.recordCount; i++) {
-          legOrder = val(fpwQueryCell(qLegs, "leg_order", i, i));
-          legStatus = "NOT_STARTED";
-          if (structKeyExists(progressByLeg, toString(legOrder))) {
-            legStatus = progressByLeg[toString(legOrder)];
+	        for (i = 1; i LTE qLegs.recordCount; i++) {
+	          legOrder = val(fpwQueryCell(qLegs, "leg_order", i, i));
+	          legStatus = "NOT_STARTED";
+	          if (structKeyExists(progressByLeg, toString(legOrder))) {
+	            legStatus = progressByLeg[toString(legOrder)];
           }
           isCompletedLeg = (legStatus EQ "COMPLETED");
           totalNm += val(fpwQueryCell(qLegs, "dist_nm", i, 0));
-          if (isCompletedLeg) {
-            completedNm += val(fpwQueryCell(qLegs, "dist_nm", i, 0));
-            completedLegs++;
-          } else if (NOT len(nextStop)) {
-            nextStop = trim(toString(fpwQueryCell(qLegs, "end_name", i, "")));
-          }
-        }
+	          if (isCompletedLeg) {
+	            completedNm += val(fpwQueryCell(qLegs, "dist_nm", i, 0));
+	            completedLegs++;
+	            if (legOrder GT highestCompletedLegOrder) {
+	              highestCompletedLegOrder = legOrder;
+	            }
+	          }
+	        }
 
-        if (NOT len(nextStop) AND totalLegs GT 0) {
-          nextStop = trim(toString(fpwQueryCell(qLegs, "end_name", totalLegs, "")));
-        }
+	        for (i = 1; i LTE qLegs.recordCount; i++) {
+	          legOrder = val(fpwQueryCell(qLegs, "leg_order", i, i));
+	          if (legOrder GT highestCompletedLegOrder) {
+	            activeLegRow = i;
+	            break;
+	          }
+	        }
+	        if (activeLegRow GT 0) {
+	          nextStop = trim(toString(fpwQueryCell(qLegs, "end_name", activeLegRow, "")));
+	        }
 
-        remainingNm = totalNm - completedNm;
-        if (remainingNm LT 0) {
-          remainingNm = 0;
+	        remainingNm = totalNm - completedNm;
+	        if (remainingNm LT 0) {
+	          remainingNm = 0;
         }
         if (totalNm GT 0) {
           percentComplete = int((completedNm / totalNm) * 100);
@@ -734,19 +745,17 @@
           percentComplete = 100;
         }
 
-        if (totalLegs GT 0) {
-          currentLeg = completedLegs + 1;
-          if (currentLeg GT totalLegs) {
-            currentLeg = totalLegs;
-          }
-          currentLegStartName = trim(toString(fpwQueryCell(qLegs, "start_name", currentLeg, "")));
-          currentLegEndName = trim(toString(fpwQueryCell(qLegs, "end_name", currentLeg, "")));
-          if (currentLeg LT totalLegs) {
-            nextLegEndName = trim(toString(fpwQueryCell(qLegs, "end_name", currentLeg + 1, "")));
-          }
-          currentLegDistNm = val(fpwQueryCell(qLegs, "dist_nm", currentLeg, 0));
-        }
-      }
+	        if (totalLegs GT 0) {
+	          displayLegRow = (activeLegRow GT 0 ? activeLegRow : totalLegs);
+	          currentLeg = displayLegRow;
+	          currentLegStartName = trim(toString(fpwQueryCell(qLegs, "start_name", displayLegRow, "")));
+	          currentLegEndName = trim(toString(fpwQueryCell(qLegs, "end_name", displayLegRow, "")));
+	          if (activeLegRow GT 0 AND displayLegRow LT totalLegs) {
+	            nextLegEndName = trim(toString(fpwQueryCell(qLegs, "end_name", displayLegRow + 1, "")));
+	          }
+	          currentLegDistNm = val(fpwQueryCell(qLegs, "dist_nm", displayLegRow, 0));
+	        }
+	      }
 
       if (activeCruiseContext.floatPlanId GT 0) {
         qCrew = queryExecute(
@@ -885,10 +894,8 @@
       activeCruiseView.heroDistanceComplete = fpwFormatNm(completedNm);
       activeCruiseView.heroPercentComplete = fpwFormatPct(percentComplete) & " of active route completed";
 
-      if (len(nextStop)) {
-        activeCruiseView.heroNextStop = nextStop;
-        activeCruiseView.heroNextStopMeta = "Upcoming planned stop";
-      }
+	      activeCruiseView.heroNextStop = nextStop;
+	      activeCruiseView.heroNextStopMeta = (len(nextStop) ? "Upcoming planned stop" : "");
 
       if (len(etaLabel)) {
         activeCruiseView.heroEta = etaLabel;
@@ -1947,6 +1954,7 @@
         <div class="chip" data-fpw-field="top.routeName"><cfoutput>#encodeForHtml(activeCruiseView.topRouteChip)#</cfoutput></div>
         <div class="chip" data-fpw-field="top.floatPlanState"><cfoutput>#encodeForHtml(activeCruiseView.topFloatPlanState)#</cfoutput></div>
         <button class="btn btn-secondary">View Follower Page</button>
+        <button class="btn btn-secondary" id="fpwCompleteLegBtn">Arrived / Complete Leg</button>
         <button class="btn btn-primary" id="fpwCheckInBtn">Check In Now</button>
       </div>
     </div>
@@ -2377,6 +2385,7 @@
       "use strict";
 
       var hooksEl = document.getElementById("fpw-active-cruise-hooks");
+      var completeLegButton = document.getElementById("fpwCompleteLegBtn");
       var checkInButton = document.getElementById("fpwCheckInBtn");
       var modalEl = document.getElementById("fpwCheckInModal");
       var closeBtn = document.getElementById("fpwCheckInCloseBtn");
@@ -2431,7 +2440,7 @@
 	        });
 	      }
 
-	      hydrateTimelineTimes();
+      hydrateTimelineTimes();
 
 	      function applySelectedStatus(nextStatus) {
 	        var buttons = statusGroupEl.querySelectorAll("[data-status]");
@@ -2465,6 +2474,57 @@
       checkInButton.addEventListener("click", function () {
         openModal();
       });
+
+      if (completeLegButton) {
+        completeLegButton.addEventListener("click", function () {
+          var fields = (pageHooks && (pageHooks.fields || pageHooks.FIELDS)) || {};
+          var summary = String(fields.heroCurrentLegSummary || fields.HEROCURRENTLEGSUMMARY || "").trim();
+          var match = summary.match(/^(\d+)\s+of\s+\d+$/i);
+          var expectedLegOrder = match ? parseInt(match[1], 10) : 0;
+          var originalText = completeLegButton.textContent;
+
+          if (!floatPlanId) {
+            window.alert("Unable to find the active float plan for this trip.");
+            return;
+          }
+          if (expectedLegOrder <= 0) {
+            window.alert("Unable to resolve the current leg for this trip.");
+            return;
+          }
+          if (!window.Api || typeof window.Api.completeActiveCruiseLeg !== "function") {
+            window.alert("Leg completion service is unavailable.");
+            return;
+          }
+          if (!window.confirm("Mark the current leg as arrived and complete?")) {
+            return;
+          }
+
+          completeLegButton.disabled = true;
+          completeLegButton.textContent = "Completing...";
+
+          window.Api.completeActiveCruiseLeg({
+            floatPlanId: floatPlanId,
+            expectedLegOrder: expectedLegOrder
+          })
+            .then(function (resp) {
+              if (!resp || resp.SUCCESS !== true) {
+                throw resp || new Error("Leg completion failed.");
+              }
+              if (resp.ALREADY_COMPLETE) {
+                window.alert(resp.MESSAGE || "This leg is already completed.");
+              }
+              window.location.reload();
+            })
+            .catch(function (err) {
+              var message = (err && err.MESSAGE) || (err && err.message) || "Leg completion failed.";
+              window.alert(message);
+            })
+            .finally(function () {
+              completeLegButton.disabled = false;
+              completeLegButton.textContent = originalText;
+            });
+        });
+      }
 
       closeBtn.addEventListener("click", function () {
         closeModal();

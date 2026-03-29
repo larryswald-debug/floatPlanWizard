@@ -426,7 +426,7 @@
         <cfreturn local.out>
     </cffunction>
 
-    <cffunction name="getWeatherForCoordinates" access="private" returntype="struct" output="false">
+    <cffunction name="getWeatherForCoordinates" access="public" returntype="struct" output="false">
         <cfargument name="lat" type="numeric" required="true">
         <cfargument name="lon" type="numeric" required="true">
         <cfargument name="marineMode" type="string" required="false" default="full">

@@ -258,6 +258,13 @@
       });
     },
 
+    completeActiveCruiseLeg: function (payload) {
+      return request("/floatplan.cfc?method=handle&action=completeleg", {
+        method: "POST",
+        body: payload || {}
+      });
+    },
+
     deleteFloatPlan: function (floatPlanId) {
       return request("/floatplan.cfc?method=handle", {
         method: "POST",
