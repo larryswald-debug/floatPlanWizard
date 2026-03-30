@@ -1693,8 +1693,14 @@
             var titleVal = "";
             var ds = "fpw";
             var qPlan = queryNew("");
+            var qUpdatedPlan = queryNew("");
             var updateSql = "";
             var updateParams = {};
+            var currentContextVal = "";
+            var departureTimeZoneVal = "";
+            var overnightPauseMinutesToAdd = 0;
+            var updatedCheckInDt = "";
+            var isOvernightTransition = false;
 
             if (arguments.floatPlanId LTE 0) {
                 result.SUCCESS = false;
@@ -1717,7 +1723,11 @@
             }
 
             qPlan = queryExecute(
-                "SELECT floatplanId
+                "SELECT
+                    floatplanId,
+                    departureTZ,
+                    departTimezone,
+                    checkin_context
                  FROM floatplans
                  WHERE floatplanId = :planId
                    AND userId = :userId
@@ -1735,6 +1745,13 @@
                 result.MESSAGE = "Float plan not found.";
                 return result;
             }
+
+            currentContextVal = normalizeCheckInContext(isNull(qPlan.checkin_context[1]) ? "" : qPlan.checkin_context[1]);
+            departureTimeZoneVal = (isNull(qPlan.departureTZ[1]) ? "" : trim(toString(qPlan.departureTZ[1])));
+            if (!len(departureTimeZoneVal)) {
+                departureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
+            }
+            isOvernightTransition = (contextVal EQ "overnight" AND currentContextVal NEQ "overnight");
 
             titleVal = "Check-in: " & statusVal;
             updateSql =
@@ -1756,6 +1773,39 @@
                     updateParams,
                     { datasource = ds }
                 );
+
+                if (isOvernightTransition) {
+                    qUpdatedPlan = queryExecute(
+                        "SELECT checkedInAt
+                         FROM floatplans
+                         WHERE floatplanId = :planId
+                           AND userId = :userId
+                         LIMIT 1",
+                        {
+                            planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                            userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                        },
+                        { datasource = ds }
+                    );
+                    if (qUpdatedPlan.recordCount GT 0 AND !isNull(qUpdatedPlan.checkedInAt[1]) AND isDate(qUpdatedPlan.checkedInAt[1])) {
+                        updatedCheckInDt = qUpdatedPlan.checkedInAt[1];
+                        overnightPauseMinutesToAdd = computeOvernightPauseMinutes(updatedCheckInDt, departureTimeZoneVal);
+                        if (overnightPauseMinutesToAdd GT 0) {
+                            queryExecute(
+                                "UPDATE floatplans
+                                 SET overnight_pause_minutes_total = overnight_pause_minutes_total + :pauseMinutes
+                                 WHERE floatplanId = :planId
+                                   AND userId = :userId",
+                                {
+                                    pauseMinutes = { value = overnightPauseMinutesToAdd, cfsqltype = "cf_sql_integer" },
+                                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                                },
+                                { datasource = ds }
+                            );
+                        }
+                    }
+                }
 
                 streamCtx = ensureVoyageStreamForFloatPlan(arguments.userId, arguments.floatPlanId, ds);
 
@@ -1801,6 +1851,49 @@
 
             result = { "success" = true };
             return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="computeOvernightPauseMinutes" access="private" returntype="numeric" output="false">
+        <cfargument name="checkInDt" type="any" required="false">
+        <cfargument name="timeZoneId" type="string" required="false" default="">
+        <cfscript>
+            var pauseMinutes = 0;
+            var nextMorningResumeDt = "";
+            var resumeTimeZone = "";
+            var resumeCalendar = "";
+            if (!isDate(arguments.checkInDt) OR !len(trim(arguments.timeZoneId))) {
+                return 0;
+            }
+            try {
+                resumeTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(trim(arguments.timeZoneId));
+                resumeCalendar = createObject("java", "java.util.GregorianCalendar").init(resumeTimeZone);
+                resumeCalendar.setTime(arguments.checkInDt);
+                resumeCalendar.add(5, 1);
+                resumeCalendar.set(11, 8);
+                resumeCalendar.set(12, 0);
+                resumeCalendar.set(13, 0);
+                resumeCalendar.set(14, 0);
+                nextMorningResumeDt = resumeCalendar.getTime();
+                pauseMinutes = dateDiff("n", arguments.checkInDt, nextMorningResumeDt);
+                if (pauseMinutes LT 0) {
+                    pauseMinutes = 0;
+                }
+            } catch (any overnightPauseErr) {
+                pauseMinutes = 0;
+            }
+            return pauseMinutes;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeCheckInContext" access="private" returntype="string" output="false">
+        <cfargument name="rawValue" type="any" required="false">
+        <cfscript>
+            var contextVal = lCase(trim(toString(arguments.rawValue)));
+            if (contextVal EQ "overnight") {
+                return "overnight";
+            }
+            return "";
         </cfscript>
     </cffunction>
 

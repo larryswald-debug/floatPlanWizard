@@ -2654,6 +2654,7 @@
           + '    <div class="expedition-route-meta">' + pct + '% complete • ' + formatNumber(nm, 1) + ' NM • ' + formatNumber(locks, 0) + ' locks</div>'
           + '  </div>'
           + '  <div class="expedition-route-actions">'
+          + '    <button type="button" class="btn-secondary js-expedition-open-active-cruise">Open Active Cruise</button>'
           + '    <button type="button" class="btn-secondary js-expedition-build-floatplans">Add Float Plan</button>'
           + '    <button type="button" class="btn-secondary js-expedition-follower-page">Trip Page</button>'
           + '    <button type="button" class="btn-secondary js-expedition-view-edit">View / Edit</button>'
@@ -2699,18 +2700,43 @@
         });
     }
 
-    function requestBuildFloatPlans(routeCode, rebuild) {
+    function activeCruiseUrl(routeCode, routeInstanceId) {
+      var url = BASE_PATH + "/app/active-cruise.cfm";
+      var params = [];
+      var rid = parseInt(routeInstanceId, 10);
+      var code = String(routeCode || "").trim();
+      if (Number.isFinite(rid) && rid > 0) {
+        params.push("routeInstanceId=" + encodeURIComponent(rid));
+      }
+      if (code) {
+        params.push("routeCode=" + encodeURIComponent(code));
+      }
+      if (!params.length) return url;
+      return url + "?" + params.join("&");
+    }
+
+    function openActiveCruise(routeCode, routeInstanceId) {
+      var url = activeCruiseUrl(routeCode, routeInstanceId);
+      window.open(url, "_blank", "noopener");
+    }
+
+    function requestBuildFloatPlans(routeCode, rebuild, routeInstanceId) {
       if (!routeCode) return Promise.resolve({ SUCCESS: false, MESSAGE: "routeCode is required." });
+      var rid = parseInt(routeInstanceId, 10);
+      var body = {
+        routeCode: routeCode,
+        mode: "DAILY",
+        rebuild: rebuild ? 1 : 0
+      };
+      if (Number.isFinite(rid) && rid > 0) {
+        body.routeInstanceId = rid;
+      }
       return fetchJson(routeBuilderUrl("buildFloatPlansFromRoute"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json; charset=utf-8"
         },
-        body: JSON.stringify({
-          routeCode: routeCode,
-          mode: "DAILY",
-          rebuild: rebuild ? 1 : 0
-        })
+        body: JSON.stringify(body)
       });
     }
 
@@ -2808,14 +2834,18 @@
 
     function ensureFollowerPage(routeCode, routeInstanceId, triggerButton) {
       var originalText = "";
+      var ensuredRouteInstanceId = parseInt(routeInstanceId, 10);
       if (!routeCode) return Promise.resolve();
+      if (!Number.isFinite(ensuredRouteInstanceId)) {
+        ensuredRouteInstanceId = 0;
+      }
       if (triggerButton) {
         originalText = triggerButton.textContent;
         triggerButton.disabled = true;
         triggerButton.textContent = "Creating...";
       }
 
-      return requestEnsureFollowerPage(routeCode, routeInstanceId)
+      return requestEnsureFollowerPage(routeCode, ensuredRouteInstanceId)
         .then(function (ensurePayload) {
           if (payloadSuccess(ensurePayload)) {
             return ensurePayload;
@@ -2826,12 +2856,18 @@
             throw ensurePayload || new Error("Unable to prepare follower page.");
           }
 
-          return requestBuildFloatPlans(routeCode, false)
+          return requestBuildFloatPlans(routeCode, false, ensuredRouteInstanceId)
             .then(function (buildPayload) {
               if (!buildPayload || buildPayload.SUCCESS === false) {
                 throw buildPayload || new Error("Unable to build float plans from route.");
               }
-              return requestEnsureFollowerPage(routeCode, routeInstanceId);
+              if (buildPayload.ROUTE_INSTANCE_ID !== undefined && buildPayload.ROUTE_INSTANCE_ID !== null) {
+                ensuredRouteInstanceId = parseInt(buildPayload.ROUTE_INSTANCE_ID, 10);
+                if (!Number.isFinite(ensuredRouteInstanceId)) {
+                  ensuredRouteInstanceId = 0;
+                }
+              }
+              return requestEnsureFollowerPage(routeCode, ensuredRouteInstanceId);
             });
         })
         .then(function (ensurePayload) {
@@ -2867,16 +2903,20 @@
         });
     }
 
-    function buildFloatPlans(routeCode, triggerButton) {
+    function buildFloatPlans(routeCode, triggerButton, routeInstanceId) {
       if (!routeCode) return Promise.resolve();
       var originalText = "";
+      var rid = parseInt(routeInstanceId, 10);
+      if (!Number.isFinite(rid)) {
+        rid = 0;
+      }
       if (triggerButton) {
         originalText = triggerButton.textContent;
         triggerButton.disabled = true;
         triggerButton.textContent = "Building...";
       }
 
-      return requestBuildFloatPlans(routeCode, false)
+      return requestBuildFloatPlans(routeCode, false, rid)
         .then(function (payload) {
           if (!payload || payload.SUCCESS === true) {
             return payload;
@@ -2892,7 +2932,7 @@
               : Promise.resolve(window.confirm("Draft float plans already exist for this route. Rebuild and replace them?"));
             return ask.then(function (confirmed) {
               if (!confirmed) return { CANCELLED: true };
-              return requestBuildFloatPlans(routeCode, true);
+              return requestBuildFloatPlans(routeCode, true, rid);
             });
           }
           return payload;
@@ -3031,19 +3071,23 @@
           var card = target.closest(".expedition-route-card");
           if (!card) return;
           var routeCode = card.getAttribute("data-route-code");
+          var routeInstanceId = parseInt(card.getAttribute("data-route-instance-id") || "0", 10);
+          if (!Number.isFinite(routeInstanceId)) routeInstanceId = 0;
           if (!routeCode) return;
+          if (target.classList.contains("js-expedition-open-active-cruise")) {
+            openActiveCruise(routeCode, routeInstanceId);
+            return;
+          }
           if (target.classList.contains("js-expedition-view-edit")) {
             setActiveRoute(routeCode);
             openEditor(routeCode);
             return;
           }
           if (target.classList.contains("js-expedition-build-floatplans")) {
-            buildFloatPlans(routeCode, target);
+            buildFloatPlans(routeCode, target, routeInstanceId);
             return;
           }
           if (target.classList.contains("js-expedition-follower-page")) {
-            var routeInstanceId = parseInt(card.getAttribute("data-route-instance-id") || "0", 10);
-            if (!Number.isFinite(routeInstanceId)) routeInstanceId = 0;
             ensureFollowerPage(routeCode, routeInstanceId, target);
             return;
           }

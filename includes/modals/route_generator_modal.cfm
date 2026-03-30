@@ -1554,8 +1554,8 @@
                     <div class="rg-mini-meta">Based on selected legs</div>
                   </article>
                   <article class="rg-mini-card">
-                    <div class="rg-mini-label">Estimated Days</div>
-                    <div id="routeGenEstimatedDays" class="rg-mini-value">0</div>
+                    <div class="rg-mini-label">Total Travel Hours</div>
+                    <div id="routeGenEstimatedDays" class="rg-mini-value">0.0 <small>h</small></div>
                     <div id="routeGenEstimatedDaysSub" class="rg-mini-meta">Pace-driven estimate</div>
                   </article>
                   <article class="rg-mini-card">
@@ -1740,16 +1740,27 @@
 
                 <div id="routeGenWeatherAssist" class="rg-weather-assist" aria-live="polite">
                   <div class="rg-weather-top">
-                    <div class="rg-assist-title">Live Weather Assist (Local)</div>
+                    <div class="rg-assist-title">Live Weather Assist</div>
                     <span id="routeGenWeatherSuggestConfidence" class="fpw-routegen__weatherassistpill">--</span>
                   </div>
                   <div class="rg-assist-row">
                     <p id="routeGenWeatherSuggestValue" class="rg-assist-value">Suggestion unavailable</p>
-                    <p id="routeGenWeatherSuggestMeta" class="rg-assist-copy">Set a valid dashboard weather ZIP to refresh this suggestion.</p>
+                    <p id="routeGenWeatherSuggestMeta" class="rg-assist-copy">Source: no weather loaded.</p>
                   </div>
-                  <p id="routeGenWeatherSuggestFactors" class="rg-assist-copy">No live weather data loaded.</p>
+                  <p id="routeGenWeatherSuggestFactors" class="rg-assist-copy">Load a route and refresh, or use manual coordinates.</p>
+                  <div class="rg-grid-2 mt-2">
+                    <div class="rg-field rg-field--compact">
+                      <label for="routeGenWeatherSuggestManualLat">Lat</label>
+                      <input id="routeGenWeatherSuggestManualLat" type="number" step="0.0001" min="-90" max="90" class="form-control form-control-sm" value="" placeholder="Latitude">
+                    </div>
+                    <div class="rg-field rg-field--compact">
+                      <label for="routeGenWeatherSuggestManualLng">Lng</label>
+                      <input id="routeGenWeatherSuggestManualLng" type="number" step="0.0001" min="-180" max="180" class="form-control form-control-sm" value="" placeholder="Longitude">
+                    </div>
+                  </div>
                   <div class="rg-assist-actions">
                     <button type="button" id="routeGenWeatherSuggestRefreshBtn" class="btn-secondary btn-sm">Refresh Suggestion</button>
+                    <button type="button" id="routeGenWeatherSuggestManualBtn" class="btn-secondary btn-sm">Lookup Point</button>
                     <button type="button" id="routeGenWeatherSuggestApplyBtn" class="btn-primary btn-sm" disabled>Apply Suggested</button>
                   </div>
                 </div>

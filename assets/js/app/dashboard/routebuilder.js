@@ -105,7 +105,11 @@
       factorsText: "",
       unavailableReason: "",
       envelope: null,
-      zip: ""
+      zip: "",
+      sourceType: "none",
+      sourceName: "",
+      sourceLat: null,
+      sourceLng: null
     },
     cruiseTimeline: {
       requestSeq: 0,
@@ -242,6 +246,7 @@
     var model = (summaryModel && typeof summaryModel === "object") ? summaryModel : {};
     var ui = (uiInputs && typeof uiInputs === "object") ? uiInputs : {};
     var totalNm = safeVal(model.totalNm);
+    var totalHours = safeVal(model.totalHours);
     var displayedDays = safeVal(model.displayedDays);
     var totalLocks = safeVal(model.totalLocks);
     var adjustedSpeedKn = safeVal(model.adjSpeedKn);
@@ -268,6 +273,9 @@
     if (totalNm !== null) {
       state.previewSummary.totalNm = roundTo2(totalNm);
     }
+    if (totalHours !== null) {
+      state.previewSummary.totalHours = roundTo2(totalHours);
+    }
     if (estimatedDays !== null) {
       state.previewSummary.estimatedDays = estimatedDays;
     }
@@ -280,8 +288,12 @@
     if (dom.totalNmEl && totalNm !== null) {
       dom.totalNmEl.innerHTML = formatNumber(totalNm, 1) + " <small>NM</small>";
     }
-    if (dom.estimatedDaysEl && estimatedDays !== null) {
-      dom.estimatedDaysEl.textContent = String(estimatedDays);
+    if (dom.estimatedDaysEl) {
+      if (totalHours !== null && totalHours >= 0) {
+        dom.estimatedDaysEl.innerHTML = formatNumber(totalHours, 1) + " <small>h</small>";
+      } else {
+        dom.estimatedDaysEl.innerHTML = "-- <small>h</small>";
+      }
     }
     if (dom.lockCountEl && totalLocks !== null) {
       dom.lockCountEl.textContent = String(Math.max(0, Math.round(totalLocks)));
@@ -692,8 +704,9 @@
 
   function buildTimelineRouteTotalText(summaryTotals) {
     var summary = summaryTotals && typeof summaryTotals === "object" ? summaryTotals : {};
+    var totalHours = safeVal(summary.totalHours);
     return "Route total: "
-      + formatNumber(toInt(summary.estimatedDays, 0), 0) + " days"
+      + (totalHours !== null ? (formatNumber(totalHours, 1) + " h") : "-- h")
       + " · " + formatNumber(toOneDecimal(summary.totalNm), 1) + " nm"
       + " · " + (Number.isFinite(summary.estimatedFuelGallons) && summary.estimatedFuelGallons >= 0
         ? formatNumber(summary.estimatedFuelGallons, 1)
@@ -1064,6 +1077,10 @@
     return BASE_PATH + "/api/v1/weather.cfc?method=handle&action=zip&zip=" + encodeURIComponent(zip) + "&returnFormat=json&marineMode=quick";
   }
 
+  function buildWeatherCoordsUrl(lat, lon) {
+    return BASE_PATH + "/api/v1/weather.cfc?method=handle&action=search&lat=" + encodeURIComponent(lat) + "&lon=" + encodeURIComponent(lon) + "&returnFormat=json&marineMode=quick";
+  }
+
   function resolveHomePortZipFromUser(userObj) {
     if (utils.resolveHomePortZip && userObj && typeof userObj === "object") {
       return normalizeZipCode(utils.resolveHomePortZip(userObj));
@@ -1181,6 +1198,69 @@
       surface: surface,
       summary: summary
     };
+  }
+
+  function parseWeatherSuggestionCoordinate(value, minValue, maxValue) {
+    var parsed = parseFloat(value);
+    if (!Number.isFinite(parsed)) return null;
+    if (parsed < minValue || parsed > maxValue) return null;
+    return parsed;
+  }
+
+  function formatWeatherSuggestionCoordinate(value) {
+    var parsed = parseFloat(value);
+    if (!Number.isFinite(parsed)) return "";
+    return parsed.toFixed(4);
+  }
+
+  function setWeatherSuggestionSource(type, details) {
+    var opts = details && typeof details === "object" ? details : {};
+    state.weatherAssist.sourceType = String(type || "none").trim().toLowerCase() || "none";
+    state.weatherAssist.sourceName = String(opts.name || "").trim();
+    state.weatherAssist.sourceLat = Number.isFinite(parseFloat(opts.lat)) ? parseFloat(opts.lat) : null;
+    state.weatherAssist.sourceLng = Number.isFinite(parseFloat(opts.lng)) ? parseFloat(opts.lng) : null;
+  }
+
+  function getWeatherSuggestionSourceText() {
+    var sourceType = String(state.weatherAssist.sourceType || "none").trim().toLowerCase();
+    var sourceName = String(state.weatherAssist.sourceName || "").trim();
+    var latText = formatWeatherSuggestionCoordinate(state.weatherAssist.sourceLat);
+    var lngText = formatWeatherSuggestionCoordinate(state.weatherAssist.sourceLng);
+
+    if (sourceType === "route") {
+      if (sourceName) return "Source: route leg start point - " + sourceName + ".";
+      return "Source: route leg start point.";
+    }
+
+    if (sourceType === "manual") {
+      if (latText && lngText) {
+        return "Source: manual lat/lng point - " + latText + ", " + lngText + ".";
+      }
+      return "Source: manual lat/lng point.";
+    }
+
+    return "Source: no weather loaded.";
+  }
+
+  function getFirstPreviewLegWeatherPoint() {
+    var legs = Array.isArray(state.previewLegs) ? state.previewLegs : [];
+    var idx = 0;
+    var lat = null;
+    var lng = null;
+    var leg = null;
+    for (idx = 0; idx < legs.length; idx += 1) {
+      leg = legs[idx];
+      lat = parseWeatherSuggestionCoordinate(getLegField(leg, "start_lat"), -90, 90);
+      lng = parseWeatherSuggestionCoordinate(getLegField(leg, "start_lng"), -180, 180);
+      if (lat === null || lng === null) continue;
+      return {
+        lat: lat,
+        lng: lng,
+        name: String(getLegField(leg, "start_name") || "").trim(),
+        orderIndex: toInt(getLegField(leg, "order_index"), idx + 1)
+      };
+    }
+    return null;
   }
 
   function computeLiveWeatherFactorPct(weatherEnvelope, routeContext) {
@@ -1371,15 +1451,18 @@
       dom.weatherSuggestRefreshBtn.disabled = !!suggested.loading;
       dom.weatherSuggestRefreshBtn.textContent = suggested.loading ? "Refreshing..." : "Refresh Suggestion";
     }
+    if (dom.weatherSuggestManualBtn) {
+      dom.weatherSuggestManualBtn.disabled = !!suggested.loading;
+    }
   }
 
   function setWeatherSuggestionUnavailable(reasonText) {
     state.weatherAssist.loading = false;
     state.weatherAssist.suggestedPct = null;
     state.weatherAssist.confidence = "low";
-    state.weatherAssist.metaText = String(reasonText || "Suggestion unavailable").trim();
-    state.weatherAssist.factorsText = "No live weather data loaded.";
-    state.weatherAssist.unavailableReason = state.weatherAssist.metaText;
+    state.weatherAssist.metaText = getWeatherSuggestionSourceText();
+    state.weatherAssist.factorsText = String(reasonText || "No live weather data loaded.").trim();
+    state.weatherAssist.unavailableReason = state.weatherAssist.factorsText;
     renderWeatherSuggestionState();
   }
 
@@ -1393,51 +1476,48 @@
     model = computeLiveWeatherFactorPct(envelope, buildRouteWeatherContext());
     state.weatherAssist.loading = false;
     state.weatherAssist.confidence = model.confidence || "low";
-    state.weatherAssist.metaText = model.metaText || "";
+    state.weatherAssist.metaText = getWeatherSuggestionSourceText();
     state.weatherAssist.factorsText = model.factorsText || "";
     state.weatherAssist.unavailableReason = "";
-    state.weatherAssist.sourceLabel = model.sourceLabel || "";
+    state.weatherAssist.sourceLabel = String(state.weatherAssist.sourceType || "").trim();
     state.weatherAssist.suggestedPct = model.available ? Math.round(clampNumber(model.suggestedPct, 0, 60)) : null;
     if (!model.available) {
       state.weatherAssist.unavailableReason = model.metaText || "Suggestion unavailable.";
-      if (!state.weatherAssist.metaText) state.weatherAssist.metaText = state.weatherAssist.unavailableReason;
+      if (!state.weatherAssist.factorsText) {
+        state.weatherAssist.factorsText = state.weatherAssist.unavailableReason;
+      }
     }
     renderWeatherSuggestionState();
   }
 
-  function refreshWeatherSuggestion(options) {
-    var opts = options || {};
-    var forceFetch = !!opts.forceFetch;
-    var zip = resolveWeatherSuggestionZip();
+  function fetchWeatherSuggestionByCoordinates(lat, lon, sourceDetails) {
     var seq = 0;
     var url = "";
-
-    if (!zip || zip.length !== 5) {
-      setWeatherSuggestionUnavailable("Suggestion unavailable: dashboard weather ZIP is missing.");
-      return Promise.resolve(null);
-    }
-
-    if (!forceFetch && state.weatherAssist.envelope && state.weatherAssist.zip === zip) {
-      applyWeatherSuggestionFromEnvelope();
-      return Promise.resolve(state.weatherAssist.suggestedPct);
-    }
+    var details = sourceDetails && typeof sourceDetails === "object" ? sourceDetails : {};
 
     state.weatherAssist.requestSeq += 1;
     seq = state.weatherAssist.requestSeq;
+    setWeatherSuggestionSource(details.type || "none", {
+      name: details.name || "",
+      lat: lat,
+      lng: lon
+    });
     state.weatherAssist.loading = true;
-    state.weatherAssist.metaText = "Fetching current weather signals...";
+    state.weatherAssist.metaText = getWeatherSuggestionSourceText();
     state.weatherAssist.factorsText = "Using existing FPW weather endpoint data.";
-    state.weatherAssist.zip = zip;
+    state.weatherAssist.unavailableReason = "";
+    state.weatherAssist.envelope = null;
+    state.weatherAssist.zip = "";
     renderWeatherSuggestionState();
 
-    url = buildWeatherZipUrl(zip);
+    url = buildWeatherCoordsUrl(lat, lon);
     return fetchJson(url, { credentials: "same-origin" })
       .then(function (payload) {
         if (seq !== state.weatherAssist.requestSeq) return null;
         if (!payload || payload.SUCCESS === false) {
           throw new Error(extractApiMessage(payload, "Weather suggestion unavailable."));
         }
-        state.weatherAssist.envelope = normalizeWeatherEnvelope(payload, zip);
+        state.weatherAssist.envelope = normalizeWeatherEnvelope(payload, "");
         applyWeatherSuggestionFromEnvelope();
         return state.weatherAssist.suggestedPct;
       })
@@ -1452,6 +1532,47 @@
       });
   }
 
+  function refreshWeatherSuggestion(options) {
+    var routePoint = getFirstPreviewLegWeatherPoint();
+
+    if (!routePoint) {
+      resetWeatherSuggestionState("Load a route and refresh, or use manual coordinates.");
+      return Promise.resolve(null);
+    }
+
+    return fetchWeatherSuggestionByCoordinates(routePoint.lat, routePoint.lng, {
+      type: "route",
+      name: routePoint.name || ("Leg " + String(routePoint.orderIndex || 1))
+    });
+  }
+
+  function lookupManualWeatherSuggestion() {
+    var lat = parseWeatherSuggestionCoordinate(
+      dom.weatherSuggestManualLatEl ? dom.weatherSuggestManualLatEl.value : "",
+      -90,
+      90
+    );
+    var lng = parseWeatherSuggestionCoordinate(
+      dom.weatherSuggestManualLngEl ? dom.weatherSuggestManualLngEl.value : "",
+      -180,
+      180
+    );
+
+    if (lat === null || lng === null) {
+      if (!state.weatherAssist.envelope) {
+        resetWeatherSuggestionState("Enter valid latitude and longitude, or load a route and refresh.");
+      } else {
+        state.weatherAssist.factorsText = "Enter valid latitude and longitude to load a manual point.";
+        renderWeatherSuggestionState();
+      }
+      return Promise.resolve(null);
+    }
+
+    return fetchWeatherSuggestionByCoordinates(lat, lng, {
+      type: "manual"
+    });
+  }
+
   function applySuggestedWeatherFactorToInput() {
     var suggestedPct = state.weatherAssist && Number.isFinite(state.weatherAssist.suggestedPct)
       ? Math.round(clampNumber(state.weatherAssist.suggestedPct, 0, 60))
@@ -1462,16 +1583,19 @@
   }
 
   function resetWeatherSuggestionState(reasonText) {
+    setWeatherSuggestionSource("none");
     state.weatherAssist.loading = false;
     state.weatherAssist.suggestedPct = null;
     state.weatherAssist.confidence = "";
-    state.weatherAssist.metaText = String(
-      reasonText || "Set a valid dashboard weather ZIP to refresh this suggestion."
+    state.weatherAssist.metaText = getWeatherSuggestionSourceText();
+    state.weatherAssist.factorsText = String(
+      reasonText || "Load a route and refresh, or use manual coordinates."
     ).trim();
-    state.weatherAssist.factorsText = "No live weather data loaded.";
-    state.weatherAssist.unavailableReason = state.weatherAssist.metaText;
+    state.weatherAssist.unavailableReason = state.weatherAssist.factorsText;
     state.weatherAssist.envelope = null;
     state.weatherAssist.zip = "";
+    if (dom.weatherSuggestManualLatEl) dom.weatherSuggestManualLatEl.value = "";
+    if (dom.weatherSuggestManualLngEl) dom.weatherSuggestManualLngEl.value = "";
     renderWeatherSuggestionState();
   }
 
@@ -3554,6 +3678,7 @@
     state.previewLegs = [];
     state.previewSummary = {
       totalNm: 0,
+      totalHours: 0,
       estimatedDays: 0,
       estimatedFuelGallons: NaN
     };
@@ -3566,7 +3691,7 @@
     removeLegacyCruiseTimelineContainer();
     resetLegLockPanelState();
     if (dom.totalNmEl) dom.totalNmEl.innerHTML = "0 <small>NM</small>";
-    if (dom.estimatedDaysEl) dom.estimatedDaysEl.textContent = "0";
+    if (dom.estimatedDaysEl) dom.estimatedDaysEl.innerHTML = "0.0 <small>h</small>";
     if (dom.estimatedDaysSubEl) dom.estimatedDaysSubEl.textContent = "Pace-driven estimate";
     if (dom.lockCountEl) dom.lockCountEl.textContent = "0";
     if (dom.offshoreCountEl) dom.offshoreCountEl.textContent = "0";
@@ -4486,6 +4611,10 @@
               (leg.locks !== undefined ? leg.locks : leg.LOCKS)),
           0
         );
+        var lockTimeMinTotal = parseFloat(
+          leg.lock_time_min_total !== undefined ? leg.lock_time_min_total :
+            (leg.LOCK_TIME_MIN_TOTAL !== undefined ? leg.LOCK_TIME_MIN_TOTAL : 0)
+        );
         var startName = String(
           leg.start_name !== undefined ? leg.start_name : (leg.START_NAME || "")
         ).trim();
@@ -4508,8 +4637,10 @@
           -1
         );
         if (!Number.isFinite(distNm)) distNm = NaN;
+        if (!Number.isFinite(lockTimeMinTotal)) lockTimeMinTotal = 0;
         if (distNm < 0) distNm = 0;
         if (lockCount < 0) lockCount = 0;
+        if (lockTimeMinTotal < 0) lockTimeMinTotal = 0;
         return {
           order_index: order,
           route_leg_id: routeLegId,
@@ -4519,6 +4650,7 @@
           end_name: endName,
           dist_nm: distNm,
           lock_count: lockCount,
+          lock_time_min_total: lockTimeMinTotal,
           is_offshore: (isOffshore > 0 ? 1 : 0),
           is_icw: (isIcw > 0 ? 1 : 0),
           exposure_level: (exposureLevel >= 0 && exposureLevel <= 3 ? exposureLevel : "")
@@ -5470,6 +5602,7 @@
       : null;
     var hasTimelineSummary = !!timelinePayload;
     var summaryTotalNm = Number.isFinite(totalNm) ? totalNm : 0;
+    var summaryTotalHours = (Number.isFinite(totalHours) && totalHours >= 0) ? totalHours : NaN;
     var summaryEstimatedDays = Number.isFinite(estimatedDays) ? Math.max(0, Math.round(estimatedDays)) : 0;
     var summaryEstimatedFuelGallons = (Number.isFinite(estimatedFuelGallons) && estimatedFuelGallons >= 0) ? estimatedFuelGallons : NaN;
     if (dom.lockCountEl) dom.lockCountEl.textContent = String(Number.isFinite(lockCount) ? Math.max(0, lockCount) : 0);
@@ -5491,12 +5624,19 @@
     } else {
       state.previewSummary = {
         totalNm: summaryTotalNm,
+        totalHours: summaryTotalHours,
         estimatedDays: summaryEstimatedDays,
         estimatedFuelGallons: summaryEstimatedFuelGallons
       };
 
       if (dom.totalNmEl) dom.totalNmEl.innerHTML = formatNumber(summaryTotalNm, 1) + ' <small>NM</small>';
-      if (dom.estimatedDaysEl) dom.estimatedDaysEl.textContent = String(summaryEstimatedDays);
+      if (dom.estimatedDaysEl) {
+        if (Number.isFinite(summaryTotalHours) && summaryTotalHours >= 0) {
+          dom.estimatedDaysEl.innerHTML = formatNumber(summaryTotalHours, 1) + ' <small>h</small>';
+        } else {
+          dom.estimatedDaysEl.innerHTML = '-- <small>h</small>';
+        }
+      }
       if (dom.estimatedFuelEl) {
         if (Number.isFinite(summaryEstimatedFuelGallons) && summaryEstimatedFuelGallons >= 0) {
           dom.estimatedFuelEl.innerHTML = formatNumber(summaryEstimatedFuelGallons, 1) + ' <small>gal</small>';
@@ -6087,7 +6227,7 @@
     if (dom.idleBurnGphEl) dom.idleBurnGphEl.value = "";
     if (dom.idleHoursTotalEl) dom.idleHoursTotalEl.value = "";
     if (dom.weatherFactorPctEl) dom.weatherFactorPctEl.value = String(DEFAULT_WEATHER_FACTOR_PCT);
-    resetWeatherSuggestionState("Set a valid dashboard weather ZIP to refresh this suggestion.");
+    resetWeatherSuggestionState("Load a route and refresh, or use manual coordinates.");
     if (dom.reservePctEl) dom.reservePctEl.value = String(DEFAULT_RESERVE_PCT);
     if (dom.fuelPricePerGalEl) dom.fuelPricePerGalEl.value = "";
     if (dom.setupPanelBodyEl) dom.setupPanelBodyEl.scrollTop = 0;
@@ -6121,7 +6261,6 @@
     ensureUserId()
       .then(function () {
         if (!isActiveModalInit(initSeq)) return null;
-        refreshWeatherSuggestion({ forceFetch: false });
         return loadTemplates();
       })
       .then(function () {
@@ -6294,7 +6433,7 @@
     if (dom.idleBurnGphEl) dom.idleBurnGphEl.value = "";
     if (dom.idleHoursTotalEl) dom.idleHoursTotalEl.value = "";
     if (dom.weatherFactorPctEl) dom.weatherFactorPctEl.value = String(DEFAULT_WEATHER_FACTOR_PCT);
-    resetWeatherSuggestionState("Set a valid dashboard weather ZIP to refresh this suggestion.");
+    resetWeatherSuggestionState("Load a route and refresh, or use manual coordinates.");
     if (dom.reservePctEl) dom.reservePctEl.value = String(DEFAULT_RESERVE_PCT);
     if (dom.fuelPricePerGalEl) dom.fuelPricePerGalEl.value = "";
 
@@ -7159,6 +7298,11 @@
         refreshWeatherSuggestion({ forceFetch: true });
       });
     }
+    if (dom.weatherSuggestManualBtn) {
+      dom.weatherSuggestManualBtn.addEventListener("click", function () {
+        lookupManualWeatherSuggestion();
+      });
+    }
     if (dom.weatherSuggestApplyBtn) {
       dom.weatherSuggestApplyBtn.addEventListener("click", function () {
         applySuggestedWeatherFactorToInput();
@@ -7409,6 +7553,9 @@
     dom.weatherSuggestFactorsEl = document.getElementById("routeGenWeatherSuggestFactors");
     dom.weatherSuggestConfidenceEl = document.getElementById("routeGenWeatherSuggestConfidence");
     dom.weatherSuggestRefreshBtn = document.getElementById("routeGenWeatherSuggestRefreshBtn");
+    dom.weatherSuggestManualLatEl = document.getElementById("routeGenWeatherSuggestManualLat");
+    dom.weatherSuggestManualLngEl = document.getElementById("routeGenWeatherSuggestManualLng");
+    dom.weatherSuggestManualBtn = document.getElementById("routeGenWeatherSuggestManualBtn");
     dom.weatherSuggestApplyBtn = document.getElementById("routeGenWeatherSuggestApplyBtn");
     dom.reservePctEl = document.getElementById("routeGenReservePct");
     dom.fuelPricePerGalEl = document.getElementById("routeGenFuelPricePerGal");

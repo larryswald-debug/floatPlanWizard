@@ -1130,12 +1130,16 @@ input[type="text"]:focus {
   display: grid;
   grid-template-columns: 64px minmax(0, 1.9fr) 90px 100px 100px 76px;
   gap: 12px;
-  padding: 0 12px 10px;
+  padding: 0 18px 10px;
   color: var(--soft);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: .08em;
   text-transform: uppercase;
+}
+
+.follow-timeline-legcols span:nth-child(n + 3) {
+  text-align: right;
 }
 
 .follow-timeline-legwrap {

@@ -184,6 +184,7 @@
             var checkInContextVal = "";
             var isOvernightCheckIn = false;
             var departureTimeZoneVal = "";
+            var storedOvernightPauseMinutes = 0;
             var elapsedCheckInLabel = "-- since last check-in";
             var nextStopLabelVal = "";
             var nextStopEtaBaseDt = "";
@@ -288,6 +289,7 @@
                     fp.checkedInAt,"
                     & "
                     fp.checkin_context,
+                    fp.overnight_pause_minutes_total,
                     fp.vesselId,
                     v.vesselName
                  FROM floatplans fp
@@ -309,6 +311,14 @@
                 routeInstanceIdVal = (!isNull(qPlan.route_instance_id[1]) ? val(qPlan.route_instance_id[1]) : 0);
                 checkInContextVal = normalizeCheckInContext(isNull(qPlan.checkin_context[1]) ? "" : qPlan.checkin_context[1]);
                 isOvernightCheckIn = (checkInContextVal EQ "overnight");
+                storedOvernightPauseMinutes = (
+                    !isNull(qPlan.overnight_pause_minutes_total[1]) AND isNumeric(qPlan.overnight_pause_minutes_total[1])
+                        ? val(qPlan.overnight_pause_minutes_total[1])
+                        : 0
+                );
+                if (storedOvernightPauseMinutes LT 0) {
+                    storedOvernightPauseMinutes = 0;
+                }
                 departureTimeZoneVal = (isNull(qPlan.departureTZ[1]) ? "" : trim(toString(qPlan.departureTZ[1])));
                 if (!len(departureTimeZoneVal)) {
                     departureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
@@ -413,8 +423,13 @@
                     }
                     nextStopEtaMinutes = int(round(val(nextStopLeg.cumulative_hours) * 60));
                     plannedNextStopEtaDt = dateAdd("n", nextStopEtaMinutes, nextStopEtaBaseDt);
+                    if (storedOvernightPauseMinutes GT 0) {
+                        plannedNextStopEtaDt = dateAdd("n", storedOvernightPauseMinutes, plannedNextStopEtaDt);
+                    }
                     nextStopEtaDt = plannedNextStopEtaDt;
                     if (
+                        storedOvernightPauseMinutes LTE 0
+                        AND
                         isDate(nextStopEtaDt)
                         AND isOvernightCheckIn
                         AND isDate(checkedInAtVal)
@@ -433,6 +448,7 @@
                             overnightPauseMinutes = dateDiff("n", checkedInAtVal, nextMorningResumeDt);
                             if (overnightPauseMinutes GT 0) {
                                 nextStopEtaDt = dateAdd("n", overnightPauseMinutes, nextStopEtaDt);
+                                plannedNextStopEtaDt = nextStopEtaDt;
                             }
                         } catch (any overnightEtaErr) {
                             // Keep existing ETA behavior if resume-time derivation fails.
@@ -440,7 +456,7 @@
                     }
                     if (isDate(nextStopEtaDt)) {
                         etaLabel = dateTimeFormat(nextStopEtaDt, "mmm d, yyyy h:nn tt");
-                        etaUtc = formatUtcDate(nextStopEtaDt);
+                        etaUtc = formatUtcInstantFromLocalTime(nextStopEtaDt, departureTimeZoneVal);
                     }
                     break;
                 }
@@ -2700,6 +2716,9 @@
             var lockCount = 0;
             var distNm = 0.0;
             var legHours = 0.0;
+            var lockTimeHours = 0.0;
+            var baseCycleMin = 0.0;
+            var typicalWaitMin = 0.0;
             var cumulativeHours = 0.0;
             var dayBucket = 0;
             var startName = "";
@@ -3027,13 +3046,16 @@
                     legLockDetails.locks = [];
                 }
 
+                baseCycleMin = val(structKeyExists(legLockDetails.totals, "base_cycle_min") ? legLockDetails.totals.base_cycle_min : 0);
+                if (baseCycleMin LT 0) baseCycleMin = 0;
+                typicalWaitMin = val(structKeyExists(legLockDetails.totals, "typical_wait_min") ? legLockDetails.totals.typical_wait_min : 0);
+                if (typicalWaitMin LT 0) typicalWaitMin = 0;
+                lockTimeHours = roundTo2((baseCycleMin + typicalWaitMin) / 60);
+                legHours = lockTimeHours;
                 if (effectiveSpeedKn GT 0 AND distNm GT 0) {
-                    legHours = roundTo2(distNm / effectiveSpeedKn);
-                } else {
-                    legHours = 0;
-                    if (distNm GT 0 AND effectiveSpeedKn LTE 0) {
-                        out.meta.zero_speed_guard = true;
-                    }
+                    legHours = roundTo2(legHours + (distNm / effectiveSpeedKn));
+                } else if (distNm GT 0 AND effectiveSpeedKn LTE 0) {
+                    out.meta.zero_speed_guard = true;
                 }
                 cumulativeHours = roundTo2(cumulativeHours + legHours);
                 if (maxHoursPerDay GT 0 AND cumulativeHours GT 0) {
@@ -4509,6 +4531,37 @@
                 return hours & "h since last check-in";
             }
             return hours & "h " & minutes & "m since last check-in";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="formatUtcInstantFromLocalTime" access="private" returntype="string" output="false">
+        <cfargument name="value" type="any" required="false">
+        <cfargument name="timeZoneId" type="string" required="false" default="">
+        <cfscript>
+            var zoneIdText = trim(toString(arguments.timeZoneId));
+            var zoneId = "";
+            var localDateTime = "";
+            var zonedDateTime = "";
+
+            if (isNull(arguments.value) OR !isDate(arguments.value) OR !len(zoneIdText)) {
+                return "";
+            }
+
+            try {
+                zoneId = createObject("java", "java.time.ZoneId").of(zoneIdText);
+                localDateTime = createObject("java", "java.time.LocalDateTime").of(
+                    javacast("int", year(arguments.value)),
+                    javacast("int", month(arguments.value)),
+                    javacast("int", day(arguments.value)),
+                    javacast("int", hour(arguments.value)),
+                    javacast("int", minute(arguments.value)),
+                    javacast("int", second(arguments.value))
+                );
+                zonedDateTime = createObject("java", "java.time.ZonedDateTime").of(localDateTime, zoneId);
+                return zonedDateTime.toInstant().toString();
+            } catch (any utcFormatErr) {
+                return "";
+            }
         </cfscript>
     </cffunction>
 

@@ -312,6 +312,7 @@
     var summary = timeline.summary || {};
     var legs = Array.isArray(timeline.legs) ? timeline.legs : [];
     var miles = safeNum(pinned.miles);
+    var totalHoursText = timelineValueText(summary.total_hours, 1, "h");
     var completedMilesNm = 0;
     var photoCount = findRecentMediaPosts(posts).length;
     var currentLocation = String(map.current && map.current.label ? map.current.label : topCards.location_label || "").trim();
@@ -332,7 +333,7 @@
     setHookText("today-progress-eta", "Estimated arrival: " + String(topCards.eta || "").trim());
     setHookWidth("today-progress-fill", progressPct);
     setHookText("latest-photos-count", String(photoCount) + " recent " + (photoCount === 1 ? "moment" : "moments") + " shared");
-    setHookText("trip-summary-metric", formatDayCountLabel(pinned.days));
+    setHookText("trip-summary-metric", totalHoursText === "n/a" ? "n/a" : (totalHoursText + " total"));
     setHookText("trip-summary-distance", miles === null ? "0" : miles.toFixed(1) + " mi");
     setHookText("trip-summary-confidence", body.trip_summary_confidence);
     setHookText("trip-summary-mode", body.trip_summary_mode);
@@ -359,7 +360,7 @@
     var body = payload.body || {};
     var timeline = payload.timeline || {};
     var summary = timeline.summary || {};
-    var totalDays = toInt(summary.total_days, 0);
+    var totalHoursText = timelineValueText(summary.total_hours, 1, "h");
     var totalNm = formatTimelineNumber(summary.total_nm, 1);
     var speedKn = formatTimelineNumber(summary.effective_speed_kn, 1);
     var fuelEst = formatTimelineNumber(summary.fuel_est, 1);
@@ -367,7 +368,7 @@
 
     setHookCardBody(
       "timeline-route-total",
-      String(totalDays) + " " + (totalDays === 1 ? "day" : "days") + " planned",
+      totalHoursText === "n/a" ? "n/a" : (totalHoursText + " planned"),
       totalNm + " nm on route"
     );
     setHookCardBody("timeline-eff-speed", speedKn + " kn");
@@ -697,37 +698,28 @@
     var summary = (payload.summary && typeof payload.summary === "object") ? payload.summary : {};
     var meta = (payload.meta && typeof payload.meta === "object") ? payload.meta : {};
     var order = toInt(leg.leg_order, 0);
-    var dayBucket = toInt(leg.day_bucket, 0);
-    var dayLabel = dayBucket > 0 ? String(dayBucket) : "n/a";
     var legText = String(leg.label || (String(leg.start_name || "Start") + " -> " + String(leg.end_name || "End"))).trim();
     var progress = (leg.progress && typeof leg.progress === "object") ? leg.progress : {};
     var progressPct = timelineValueText(progress.percent_complete, 0, "%");
     var lastUpdateRaw = String(progress.last_update_ts || "").trim();
     var lastUpdateText = lastUpdateRaw ? formatTimeLabel(lastUpdateRaw) : "n/a";
-    var cumulativeHours = timelineValueText(leg.cumulative_hours, 2, "h");
+    var cumulativeHours = timelineValueText(leg.cumulative_hours, 1, "h");
+    var legHours = timelineValueText(leg.hours, 1, "h");
     var maxHoursPerDay = timelineValueText(summary.max_hours_per_day, 1, "h");
-    var dayFormula = "ceil(cumulative_hours / max_hours_per_day)";
     var inputsSource = String(meta.inputs_source || "default").trim() || "default";
     var missingInputs = Array.isArray(meta.missing_inputs) ? meta.missing_inputs : [];
-    var formulaText = String(meta.formula || "").trim();
     var legFuelBurnGph = timelineValueText(summary.fuel_burn_gph, 1, "gph");
     var legFuelEst = timelineValueText((safeNum(summary.fuel_burn_gph) !== null && safeNum(leg.hours) !== null)
       ? (safeNum(summary.fuel_burn_gph) * safeNum(leg.hours))
       : null, 1, "gal");
     var lockDetailsHtml = renderLegLockDetailsHtml(leg);
 
-    if (dayBucket > 0) {
-      dayFormula = dayFormula + " = " + dayLabel;
-    } else {
-      dayFormula = dayFormula + " = n/a";
-    }
-
     return ''
       + '<div class="follow-timeline-legpanel is-open" data-leg-order="' + String(order) + '">'
       + '  <div class="follow-timeline-legpanelhead">'
       + '    <div>'
       + '      <div class="follow-timeline-kicker">Cruise Timeline Day</div>'
-      + '      <div class="follow-timeline-legpaneltitle">Day ' + escapeHtml(dayLabel) + ' | Leg ' + escapeHtml(String(order).padStart(2, "0")) + '</div>'
+      + '      <div class="follow-timeline-legpaneltitle">Cumulative ' + escapeHtml(cumulativeHours) + ' | Leg ' + escapeHtml(String(order).padStart(2, "0")) + '</div>'
       + '    </div>'
       + '    <div class="follow-timeline-legpanelactions">'
       + '      <button type="button" class="btn tiny" data-timeline-action="collapse-leg" data-leg-order="' + String(order) + '">Hide</button>'
@@ -741,12 +733,11 @@
       + '    <div class="follow-timeline-legpanelchip"><span>Progress</span><strong>' + progressPct + '</strong></div>'
       + '  </div>'
       + lockDetailsHtml
-      + '  <div class="follow-timeline-legpanelmeta">Day bucket: ' + escapeHtml(dayFormula) + ' | cumulative ' + escapeHtml(cumulativeHours) + ' | max/day ' + escapeHtml(maxHoursPerDay) + '</div>'
+      + '  <div class="follow-timeline-legpanelmeta">Cumulative: ' + escapeHtml(cumulativeHours) + ' | Leg: ' + escapeHtml(legHours) + ' | Max/day: ' + escapeHtml(maxHoursPerDay) + '</div>'
       + '  <div class="follow-timeline-legpanelmeta">Fuel est: ' + escapeHtml(legFuelEst) + ' @ ' + escapeHtml(legFuelBurnGph) + '</div>'
       + '  <div class="follow-timeline-legpanelmeta">Last update: ' + escapeHtml(lastUpdateText) + '</div>'
       + '  <div class="follow-timeline-legpanelnote">Inputs source: ' + escapeHtml(inputsSource)
       + (missingInputs.length ? (' | Missing: ' + escapeHtml(missingInputs.join(", "))) : '')
-      + (formulaText ? (' | ' + escapeHtml(formulaText)) : '')
       + '</div>'
       + '</div>';
   }
@@ -781,7 +772,7 @@
     }
 
     html += '<div class="follow-timeline-legcols">'
-      + '<span>#</span><span>Leg</span><span>Locks</span><span>NM</span><span>Hours</span><span>Day</span>'
+      + '<span>#</span><span>Leg</span><span>Locks</span><span>NM</span><span>Hours</span><span>Cum h</span>'
       + '</div>';
 
     html += list.map(function (leg, idx) {
@@ -794,8 +785,7 @@
       var nm = formatTimelineNumber(row.dist_nm, 1);
       var hours = formatTimelineNumber(row.hours, 2);
       var locks = formatTimelineNumber(row.locks, 0);
-      var dayBucketNum = toInt(row.day_bucket, 0);
-      var dayLabel = dayBucketNum > 0 ? ("D" + String(dayBucketNum)) : "n/a";
+      var cumulativeHours = timelineValueText(row.cumulative_hours, 1, "h");
       var progress = (row.progress && typeof row.progress === "object") ? row.progress : {};
       var pct = formatTimelineNumber(progress.percent_complete, 0);
       var lastUpdateRaw = String(progress.last_update_ts || "").trim();
@@ -817,7 +807,7 @@
         + '    <div class="follow-timeline-leglocks">' + locks + '</div>'
         + '    <div class="follow-timeline-legnm">' + nm + ' NM</div>'
         + '    <div class="follow-timeline-leghours">' + hours + ' h</div>'
-        + '    <div class="follow-timeline-legday">' + dayLabel + '</div>'
+        + '    <div class="follow-timeline-legday">' + cumulativeHours + '</div>'
         + '  </div>'
         + (isExpanded ? renderCruiseTimelineLegPane(row, state.timeline.payload || {}) : "")
         + '</div>';

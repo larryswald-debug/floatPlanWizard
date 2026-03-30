@@ -901,12 +901,28 @@
         <cfscript>
             var out = { "SUCCESS"=true, "AUTH"=true, "MESSAGE"="OK", "ROUTES"=[], "ACTIVE_ROUTE_CODE"="" };
             var routePrefix = "USER_ROUTE_" & int(arguments.userId) & "_%";
+            var userIdText = toString(arguments.userId);
             var qRoutes = queryExecute(
-                "SELECT id, name, short_code, description
-                 FROM loop_routes
-                 WHERE short_code LIKE :prefix
-                 ORDER BY id DESC",
-                { prefix = { value=routePrefix, cfsqltype="cf_sql_varchar" } },
+                "SELECT
+                    lr.id,
+                    lr.name,
+                    lr.short_code,
+                    lr.description,
+                    (
+                        SELECT ri.id
+                        FROM route_instances ri
+                        WHERE ri.generated_route_id = lr.id
+                          AND ri.user_id = :uid
+                        ORDER BY ri.id DESC
+                        LIMIT 1
+                    ) AS route_instance_id
+                 FROM loop_routes lr
+                 WHERE lr.short_code LIKE :prefix
+                 ORDER BY lr.id DESC",
+                {
+                    prefix = { value=routePrefix, cfsqltype="cf_sql_varchar" },
+                    uid = { value=userIdText, cfsqltype="cf_sql_varchar" }
+                },
                 { datasource = application.dsn }
             );
             var i = 0;
@@ -921,6 +937,7 @@
                     "NAME"=(isNull(qRoutes.name[i]) ? "" : qRoutes.name[i]),
                     "SHORT_CODE"=qRoutes.short_code[i],
                     "DESCRIPTION"=(isNull(qRoutes.description[i]) ? "" : qRoutes.description[i]),
+                    "ROUTE_INSTANCE_ID"=(isNull(qRoutes.route_instance_id[i]) ? 0 : val(qRoutes.route_instance_id[i])),
                     "TOTALS"=timeline.TOTALS
                 });
             }
@@ -4094,6 +4111,8 @@
             var distVal = 0;
             var lockRaw = "";
             var lockVal = 0;
+            var lockTimeMinRaw = "";
+            var lockTimeMinVal = 0;
             var isOffshoreRaw = "";
             var isOffshoreVal = 0;
             var isIcwRaw = "";
@@ -4135,6 +4154,9 @@
                 lockRaw = routegenTimelinePickLegValue(row, ["lock_count", "LOCK_COUNT", "locks", "LOCKS"], "");
                 lockVal = (isNumeric(lockRaw) ? int(val(lockRaw)) : 0);
                 if (lockVal LT 0) lockVal = 0;
+                lockTimeMinRaw = routegenTimelinePickLegValue(row, ["lock_time_min_total", "LOCK_TIME_MIN_TOTAL"], "");
+                lockTimeMinVal = (isNumeric(lockTimeMinRaw) ? val(lockTimeMinRaw) : 0);
+                if (lockTimeMinVal LT 0) lockTimeMinVal = 0;
                 isOffshoreRaw = routegenTimelinePickLegValue(row, ["is_offshore", "IS_OFFSHORE", "offshore", "OFFSHORE"], "");
                 isOffshoreVal = (isNumeric(isOffshoreRaw) AND val(isOffshoreRaw) GT 0 ? 1 : 0);
                 isIcwRaw = routegenTimelinePickLegValue(row, ["is_icw", "IS_ICW", "icw", "ICW"], "");
@@ -4160,6 +4182,7 @@
                     "end_name"=endNameVal,
                     "dist_nm"=roundTo2(distVal),
                     "lock_count"=lockVal,
+                    "lock_time_min_total"=roundTo2(lockTimeMinVal),
                     "is_offshore"=isOffshoreVal,
                     "is_icw"=isIcwVal,
                     "exposure_level"=exposureOverrideVal
@@ -4396,6 +4419,8 @@
             var normalizedLockJoinSql = "";
             var normalizedDistExpr = "ril.base_dist_nm";
             var normalizedLockExpr = "COALESCE(ril.lock_count, 0)";
+            var normalizedLockTimeExpr = "0";
+            var hasLockDelayModel = routegenHasLockDelayModelTable();
             var hasExposureLevelCol = false;
             var normalizedExposureExpr = "NULL";
             var hasWaypointCols = false;
@@ -4423,6 +4448,7 @@
             var segEndName = "";
             var segDistNm = 0;
             var segLockCount = 0;
+            var segLockTimeMin = 0.0;
             var segIsOffshoreVal = 0;
             var segExposureOverrideVal = "";
             var segBaseDistNm = 0;
@@ -4636,7 +4662,7 @@
             );
 
             if (usePreviewLegs) {
-                qSegments = queryNew("id,route_leg_id,order_index,start_name,end_name,dist_nm,lock_count,is_offshore,is_icw,exposure_level,segment_id,segment_dist_nm,start_lat,start_lng,end_lat,end_lng");
+                qSegments = queryNew("id,route_leg_id,order_index,start_name,end_name,dist_nm,lock_count,lock_time_min_total,is_offshore,is_icw,exposure_level,segment_id,segment_dist_nm,start_lat,start_lng,end_lat,end_lng");
                 for (i = 1; i LTE arrayLen(normalizedPreviewLegs); i++) {
                     previewLeg = normalizedPreviewLegs[i];
                     queryAddRow(qSegments, 1);
@@ -4647,6 +4673,7 @@
                     querySetCell(qSegments, "end_name", trim(toString(previewLeg.end_name)));
                     querySetCell(qSegments, "dist_nm", val(previewLeg.dist_nm));
                     querySetCell(qSegments, "lock_count", val(previewLeg.lock_count));
+                    querySetCell(qSegments, "lock_time_min_total", val(previewLeg.lock_time_min_total));
                     querySetCell(qSegments, "is_offshore", val(previewLeg.is_offshore));
                     querySetCell(qSegments, "is_icw", val(previewLeg.is_icw));
                     querySetCell(
@@ -4760,14 +4787,31 @@
                     }
                 }
                 if (routegenHasRouteLegLocksTable()) {
-                    normalizedLockJoinSql =
-                        " LEFT JOIN (
-                            SELECT route_code, leg, COUNT(*) AS lock_count
-                            FROM route_leg_locks
-                            GROUP BY route_code, leg
-                          ) rll
-                            ON rll.route_code COLLATE utf8mb4_unicode_ci = ri.template_route_code
-                           AND rll.leg = ril.leg_order";
+                    if (hasLockDelayModel) {
+                        normalizedLockTimeExpr = "COALESCE(rll.lock_time_min_total, 0)";
+                        normalizedLockJoinSql =
+                            " LEFT JOIN (
+                                SELECT
+                                    rll.route_code,
+                                    rll.leg,
+                                    COUNT(*) AS lock_count,
+                                    COALESCE(SUM(COALESCE(ldm.base_cycle_min, 0) + COALESCE(ldm.typical_wait_min, 0)), 0) AS lock_time_min_total
+                                FROM route_leg_locks rll
+                                LEFT JOIN lock_delay_model ldm ON ldm.lock_code = rll.lock_code
+                                GROUP BY rll.route_code, rll.leg
+                              ) rll
+                                ON rll.route_code COLLATE utf8mb4_unicode_ci = ri.template_route_code
+                               AND rll.leg = ril.leg_order";
+                    } else {
+                        normalizedLockJoinSql =
+                            " LEFT JOIN (
+                                SELECT route_code, leg, COUNT(*) AS lock_count
+                                FROM route_leg_locks
+                                GROUP BY route_code, leg
+                              ) rll
+                                ON rll.route_code COLLATE utf8mb4_unicode_ci = ri.template_route_code
+                               AND rll.leg = ril.leg_order";
+                    }
                     normalizedLockExpr = "COALESCE(rll.lock_count, ril.lock_count, 0)";
                 }
 
@@ -4780,6 +4824,7 @@
                         ril.end_name,
                         " & normalizedDistExpr & " AS dist_nm,
                         " & normalizedLockExpr & " AS lock_count,
+                        " & normalizedLockTimeExpr & " AS lock_time_min_total,
                         COALESCE(sl.is_offshore, 0) AS is_offshore,
                         COALESCE(sl.is_icw, 0) AS is_icw,
                         " & normalizedExposureExpr & " AS exposure_level,
@@ -4833,6 +4878,11 @@
                 segEndName = (isNull(qSegments.end_name[i]) ? "" : trim(toString(qSegments.end_name[i])));
                 segDistNm = (isNull(qSegments.dist_nm[i]) ? 0 : val(qSegments.dist_nm[i]));
                 segLockCount = (isNull(qSegments.lock_count[i]) ? 0 : val(qSegments.lock_count[i]));
+                segLockTimeMin = (
+                    structKeyExists(qSegments, "lock_time_min_total") AND !isNull(qSegments.lock_time_min_total[i])
+                        ? val(qSegments.lock_time_min_total[i])
+                        : 0
+                );
                 if (isMyRouteType) {
                     segBaseDistNm = (
                         structKeyExists(qSegments, "segment_dist_nm") AND !isNull(qSegments.segment_dist_nm[i])
@@ -4885,6 +4935,7 @@
 
                 if (segDistNm LT 0) segDistNm = 0;
                 if (segLockCount LT 0) segLockCount = 0;
+                if (segLockTimeMin LT 0) segLockTimeMin = 0;
                 exposureInfo = routegenResolveExposureLevel(segIsOffshoreVal, segExposureOverrideVal);
                 exposureSourceVal = trim(toString(structKeyExists(exposureInfo, "source") ? exposureInfo.source : "auto_inshore"));
                 exposureCoeffVal = routegenExposureCoefficient(
@@ -4896,6 +4947,9 @@
                 );
                 weatherAdjustedSpeedThisSegVal = routegenComputeWeatherAdjustedSpeedKn(effectiveSpeedVal, effectiveWeatherPctSegVal);
                 segHours = (segDistNm GT 0 ? (segDistNm / weatherAdjustedSpeedThisSegVal) : 0);
+                if (segLockTimeMin GT 0) {
+                    segHours += (segLockTimeMin / 60);
+                }
                 if (segHours LT 0) segHours = 0;
 
                 if (structKeyExists(exposureInfo, "level_used") AND val(exposureInfo.level_used) GT exposureMaxLevelVal) {
@@ -6623,20 +6677,39 @@
         <cfscript>
             var q = queryNew("");
             var hasRouteLegLocks = routegenHasRouteLegLocksTable();
+            var hasDelayModel = routegenHasLockDelayModelTable();
             var lockExpr = "COALESCE(sl.lock_count, 0)";
+            var lockTimeExpr = "0";
             var lockJoinSql = "";
             var sqlMainLegs = "";
 
             if (hasRouteLegLocks) {
                 lockExpr = "COALESCE(rll.lock_count, sl.lock_count, 0)";
-                lockJoinSql =
-                    " LEFT JOIN (
-                        SELECT route_code, leg, COUNT(*) AS lock_count
-                        FROM route_leg_locks
-                        GROUP BY route_code, leg
-                      ) rll
-                        ON rll.route_code COLLATE utf8mb4_unicode_ci = rt.short_code
-                       AND rll.leg = rts.order_index";
+                if (hasDelayModel) {
+                    lockTimeExpr = "COALESCE(rll.lock_time_min_total, 0)";
+                    lockJoinSql =
+                        " LEFT JOIN (
+                            SELECT
+                                rll.route_code,
+                                rll.leg,
+                                COUNT(*) AS lock_count,
+                                COALESCE(SUM(COALESCE(ldm.base_cycle_min, 0) + COALESCE(ldm.typical_wait_min, 0)), 0) AS lock_time_min_total
+                            FROM route_leg_locks rll
+                            LEFT JOIN lock_delay_model ldm ON ldm.lock_code = rll.lock_code
+                            GROUP BY rll.route_code, rll.leg
+                          ) rll
+                            ON rll.route_code COLLATE utf8mb4_unicode_ci = rt.short_code
+                           AND rll.leg = rts.order_index";
+                } else {
+                    lockJoinSql =
+                        " LEFT JOIN (
+                            SELECT route_code, leg, COUNT(*) AS lock_count
+                            FROM route_leg_locks
+                            GROUP BY route_code, leg
+                          ) rll
+                            ON rll.route_code COLLATE utf8mb4_unicode_ci = rt.short_code
+                           AND rll.leg = rts.order_index";
+                }
             }
 
             sqlMainLegs =
@@ -6653,6 +6726,7 @@
                     p2.lng AS end_lng,
                     sl.dist_nm,
                     " & lockExpr & " AS lock_count,
+                    " & lockTimeExpr & " AS lock_time_min_total,
                     sl.is_offshore,
                     sl.is_icw,
                     sl.notes
@@ -6703,6 +6777,7 @@
                     "END_LNG"=(directionVal EQ "CW" ? (isNull(q.start_lng[srcIdx]) ? "" : q.start_lng[srcIdx]) : (isNull(q.end_lng[srcIdx]) ? "" : q.end_lng[srcIdx])),
                     "DIST_NM"=(isNull(q.dist_nm[srcIdx]) ? 0 : val(q.dist_nm[srcIdx])),
                     "LOCK_COUNT"=(isNull(q.lock_count[srcIdx]) ? 0 : val(q.lock_count[srcIdx])),
+                    "LOCK_TIME_MIN_TOTAL"=(isNull(q.lock_time_min_total[srcIdx]) ? 0 : val(q.lock_time_min_total[srcIdx])),
                     "IS_OFFSHORE"=(q.is_offshore[srcIdx] EQ 1),
                     "IS_ICW"=(q.is_icw[srcIdx] EQ 1),
                     "IS_OPTIONAL"=false,
@@ -7065,6 +7140,8 @@
             var i = 0;
             var leg = {};
             var dist = 0.0;
+            var lockTimeMinTotal = 0.0;
+            var legRunHours = 0.0;
             var paceVal = routegenNormalizePace(arguments.pace);
             var paceDefaults = routegenPaceDefaults(paceVal);
             var paceRatioVal = val(paceDefaults.PACE_FACTOR);
@@ -7111,10 +7188,21 @@
                 leg = arguments.legs[i];
                 dist = val(leg.DIST_NM);
                 if (dist LT 0) dist = 0;
+                lockTimeMinTotal = val(
+                    structKeyExists(leg, "LOCK_TIME_MIN_TOTAL")
+                        ? leg.LOCK_TIME_MIN_TOTAL
+                        : (structKeyExists(leg, "lock_time_min_total") ? leg.lock_time_min_total : 0)
+                );
+                if (lockTimeMinTotal LT 0) lockTimeMinTotal = 0;
                 totalNm += dist;
+                legRunHours = 0;
                 if (dist GT 0 AND cruisingSpeedVal GT 0) {
-                    totalRunHours += (dist / cruisingSpeedVal);
+                    legRunHours += (dist / cruisingSpeedVal);
                 }
+                if (lockTimeMinTotal GT 0) {
+                    legRunHours += (lockTimeMinTotal / 60);
+                }
+                totalRunHours += legRunHours;
                 lockCount += val(leg.LOCK_COUNT);
                 if (leg.IS_OFFSHORE) offshoreCount += 1;
             }
@@ -7437,6 +7525,7 @@
                     "dist_nm"=roundTo2(val(finalLegs[i].DIST_NM)),
                     "dist_nm_default"=roundTo2(val(finalLegs[i].DIST_NM_DEFAULT)),
                     "lock_count"=val(finalLegs[i].LOCK_COUNT),
+                    "lock_time_min_total"=(structKeyExists(finalLegs[i], "LOCK_TIME_MIN_TOTAL") ? roundTo2(val(finalLegs[i].LOCK_TIME_MIN_TOTAL)) : 0),
                     "is_offshore"=(finalLegs[i].IS_OFFSHORE ? true : false),
                     "is_icw"=(finalLegs[i].IS_ICW ? true : false),
                     "is_optional"=(finalLegs[i].IS_OPTIONAL ? true : false),
