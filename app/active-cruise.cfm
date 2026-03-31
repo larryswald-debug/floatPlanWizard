@@ -215,44 +215,27 @@
 
   activeCruiseHooks = {
     context = {
-      routeCode = fpwActiveCruiseHookValue("routeCode"),
-      routeId = fpwActiveCruiseHookValue("route_id"),
-      routeInstanceId = fpwActiveCruiseHookValue("routeInstanceId"),
-      floatPlanId = fpwActiveCruiseHookValue("floatPlanId"),
-      activeRouteCode = fpwActiveCruiseHookValue("activeRouteCode")
+      floatPlanId = fpwActiveCruiseHookValue("floatPlanId")
     },
     fields = {}
   };
 
   activeCruiseContext = {
-    routeCode = trim(activeCruiseHooks.context.routeCode),
+    routeCode = "",
     routeId = 0,
     routeInstanceId = 0,
     floatPlanId = 0,
-    activeRouteCode = trim(activeCruiseHooks.context.activeRouteCode)
+    requestedFloatPlanId = 0,
+    activeRouteCode = ""
   };
-  if (len(fpwActiveCruiseHookValue("route_id"))) {
-    activeCruiseHooks.context.routeId = fpwActiveCruiseHookValue("route_id");
-  }
-  if (NOT len(activeCruiseHooks.context.routeId) AND len(fpwActiveCruiseHookValue("routeId"))) {
-    activeCruiseHooks.context.routeId = fpwActiveCruiseHookValue("routeId");
-  }
-  if (isNumeric(activeCruiseHooks.context.routeId)) {
-    activeCruiseContext.routeId = val(activeCruiseHooks.context.routeId);
-  }
-  if (isNumeric(activeCruiseHooks.context.routeInstanceId)) {
-    activeCruiseContext.routeInstanceId = val(activeCruiseHooks.context.routeInstanceId);
-  }
   if (isNumeric(activeCruiseHooks.context.floatPlanId)) {
-    activeCruiseContext.floatPlanId = val(activeCruiseHooks.context.floatPlanId);
+    activeCruiseContext.requestedFloatPlanId = val(activeCruiseHooks.context.floatPlanId);
   }
 
-  if (NOT len(activeCruiseContext.routeCode) AND len(activeCruiseContext.activeRouteCode)) {
-    activeCruiseContext.routeCode = activeCruiseContext.activeRouteCode;
-  }
-  if (NOT len(activeCruiseContext.routeCode) AND structKeyExists(session, "expeditionRouteCode")) {
-    activeCruiseContext.routeCode = trim(toString(session.expeditionRouteCode));
-  }
+  activeCruiseAccessValid = false;
+  activeCruiseAccessTitle = "No Active Trip";
+  activeCruiseAccessMessage = "Active Cruise is available only for your current monitored trip.";
+  activeCruiseAccessDetail = "Open this page from the one active float plan tied to your trip.";
 
   activeCruiseView = {
     topRouteChip = "Route: Gulf Coast Run",
@@ -380,6 +363,8 @@
       qInputsColumn = queryNew("");
       qInstInputs = queryNew("");
       qPlanSql = "";
+      qCanonicalPlan = queryNew("");
+      requestedFloatPlanId = activeCruiseContext.requestedFloatPlanId;
       hasVoyageTables = false;
       hasRoutegenInputsCol = false;
       routeInputJsonRaw = "";
@@ -402,45 +387,71 @@
 	      activeLegRow = 0;
 	      displayLegRow = 0;
 
-      if (activeCruiseContext.floatPlanId GT 0) {
-        qPlanSql =
-          "SELECT
-             floatplanId,
-             floatPlanName,
-             status,
-             route_instance_id,
-             route_day_number,
-             checkedInAt,"
-             & "
-             checkin_context,
-             returnTime,
-             returnTimezone,
-             departureTime,
-             departureTZ,
-             departing,
-             returning
-           FROM floatplans
-           WHERE floatplanId = :planId
-             AND userId = :userId
-           LIMIT 1";
-        qPlan = queryExecute(
-          qPlanSql,
-          {
-            planId = { value = activeCruiseContext.floatPlanId, cfsqltype = "cf_sql_integer" },
-            userId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" }
-          },
-          { datasource = activeCruiseDatasource }
-        );
-      }
+      qPlanSql =
+        "SELECT
+           floatplanId,
+           floatPlanName,
+           status,
+           route_instance_id,
+           route_day_number,
+           checkedInAt,"
+           & "
+           checkin_context,
+           returnTime,
+           returnTimezone,
+           departureTime,
+           departureTZ,
+           departing,
+           returning
+         FROM floatplans
+         WHERE userId = :userId
+           AND UPPER(TRIM(status)) IN (
+             'ACTIVE',
+             'DUE_NOW',
+             'OVERDUE',
+             'OVERDUE_1H',
+             'OVERDUE_2H',
+             'OVERDUE_3H',
+             'OVERDUE_4H',
+             'OVERDUE_12H',
+             'OVERDUE_24H'
+           )
+         ORDER BY floatplanId DESC
+         LIMIT 2";
+      qCanonicalPlan = queryExecute(
+        qPlanSql,
+        {
+          userId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = activeCruiseDatasource }
+      );
 
-      if (qPlan.recordCount EQ 1) {
-        activeCruiseContext.floatPlanId = val(fpwQueryCell(qPlan, "floatplanId", 1, 0));
-        if (activeCruiseContext.routeInstanceId LTE 0) {
-          activeCruiseContext.routeInstanceId = val(fpwQueryCell(qPlan, "route_instance_id", 1, 0));
+      if (qCanonicalPlan.recordCount EQ 0) {
+        activeCruiseAccessMessage = "No active trip is available for this account.";
+        activeCruiseAccessDetail = "Active Cruise only loads the current monitored float plan.";
+      } else if (qCanonicalPlan.recordCount GT 1) {
+        activeCruiseAccessMessage = "Active Cruise is unavailable because more than one monitored float plan is active.";
+        activeCruiseAccessDetail = "Resolve the extra monitored trip before using this page.";
+      } else {
+        activeCruiseContext.floatPlanId = val(fpwQueryCell(qCanonicalPlan, "floatplanId", 1, 0));
+        activeCruiseContext.routeInstanceId = val(fpwQueryCell(qCanonicalPlan, "route_instance_id", 1, 0));
+
+        if (requestedFloatPlanId GT 0 AND requestedFloatPlanId NEQ activeCruiseContext.floatPlanId) {
+          activeCruiseAccessMessage = "This Active Cruise link does not match your current active trip.";
+          activeCruiseAccessDetail = "Open Active Cruise from the canonical active float plan only.";
+          activeCruiseContext.floatPlanId = 0;
+          activeCruiseContext.routeInstanceId = 0;
+        } else if (activeCruiseContext.routeInstanceId LTE 0) {
+          activeCruiseAccessMessage = "The current active float plan is missing its route link.";
+          activeCruiseAccessDetail = "Active Cruise requires a route-linked active float plan.";
+          activeCruiseContext.floatPlanId = 0;
+        } else {
+          qPlan = qCanonicalPlan;
+          activeCruiseAccessValid = true;
         }
       }
 
-      if (activeCruiseContext.routeInstanceId GT 0) {
+      if (activeCruiseAccessValid AND activeCruiseContext.routeInstanceId GT 0) {
         qRouteCtx = queryExecute(
           "SELECT
              ri.id AS route_instance_id,
@@ -459,98 +470,19 @@
         );
       }
 
-      if (qRouteCtx.recordCount EQ 0 AND activeCruiseContext.routeId GT 0) {
-        qRouteById = queryExecute(
-          "SELECT
-             ri.id AS route_instance_id,
-             COALESCE(NULLIF(TRIM(ri.generated_route_code), ''), lr.short_code, '') AS route_code,
-             COALESCE(NULLIF(TRIM(lr.name), ''), '') AS route_name
-           FROM route_instances ri
-           INNER JOIN loop_routes lr ON lr.id = ri.generated_route_id
-           WHERE ri.user_id = :userIdText
-             AND lr.id = :routeId
-           ORDER BY ri.id DESC
-           LIMIT 1",
-          {
-            userIdText = { value = userIdText, cfsqltype = "cf_sql_varchar" },
-            routeId = { value = activeCruiseContext.routeId, cfsqltype = "cf_sql_integer" }
-          },
-          { datasource = activeCruiseDatasource }
-        );
-        if (qRouteById.recordCount EQ 1) {
-          qRouteCtx = qRouteById;
-        }
-      }
-
-      if (qRouteCtx.recordCount EQ 0 AND len(activeCruiseContext.routeCode)) {
-        qRouteCtx = queryExecute(
-          "SELECT
-             ri.id AS route_instance_id,
-             COALESCE(NULLIF(TRIM(ri.generated_route_code), ''), lr.short_code, '') AS route_code,
-             COALESCE(NULLIF(TRIM(lr.name), ''), '') AS route_name
-           FROM route_instances ri
-           LEFT JOIN loop_routes lr ON lr.id = ri.generated_route_id
-           WHERE ri.user_id = :userIdText
-             AND (
-               ri.generated_route_code = :routeCode
-               OR lr.short_code = :routeCode
-             )
-           ORDER BY ri.id DESC
-           LIMIT 1",
-          {
-            userIdText = { value = userIdText, cfsqltype = "cf_sql_varchar" },
-            routeCode = { value = activeCruiseContext.routeCode, cfsqltype = "cf_sql_varchar" }
-          },
-          { datasource = activeCruiseDatasource }
-        );
-      }
-
-      if (qRouteCtx.recordCount EQ 0) {
-        qRouteCtx = queryExecute(
-          "SELECT
-             ri.id AS route_instance_id,
-             COALESCE(NULLIF(TRIM(ri.generated_route_code), ''), lr.short_code, '') AS route_code,
-             COALESCE(NULLIF(TRIM(lr.name), ''), '') AS route_name
-           FROM route_instances ri
-           LEFT JOIN loop_routes lr ON lr.id = ri.generated_route_id
-           WHERE ri.user_id = :userIdText
-           ORDER BY ri.id DESC
-           LIMIT 1",
-          {
-            userIdText = { value = userIdText, cfsqltype = "cf_sql_varchar" }
-          },
-          { datasource = activeCruiseDatasource }
-        );
-      }
-
-      if (qRouteCtx.recordCount EQ 1) {
+      if (activeCruiseAccessValid AND qRouteCtx.recordCount EQ 1) {
         activeCruiseContext.routeInstanceId = val(fpwQueryCell(qRouteCtx, "route_instance_id", 1, 0));
         routeCodeDisplay = trim(toString(fpwQueryCell(qRouteCtx, "route_code", 1, activeCruiseContext.routeCode)));
         routeName = trim(toString(fpwQueryCell(qRouteCtx, "route_name", 1, "")));
+      } else if (activeCruiseAccessValid) {
+        activeCruiseAccessValid = false;
+        activeCruiseAccessMessage = "The active trip could not load its route instance.";
+        activeCruiseAccessDetail = "Active Cruise requires route data derived from the canonical active float plan.";
+        activeCruiseContext.floatPlanId = 0;
+        activeCruiseContext.routeInstanceId = 0;
       }
 
-      if (qRouteCtx.recordCount EQ 0 AND activeCruiseContext.routeId GT 0) {
-        qRouteNameById = queryExecute(
-          "SELECT name, short_code
-           FROM loop_routes
-           WHERE id = :routeId
-             AND short_code LIKE :routePrefix
-           LIMIT 1",
-          {
-            routeId = { value = activeCruiseContext.routeId, cfsqltype = "cf_sql_integer" },
-            routePrefix = { value = routePrefix, cfsqltype = "cf_sql_varchar" }
-          },
-          { datasource = activeCruiseDatasource }
-        );
-        if (qRouteNameById.recordCount EQ 1) {
-          routeName = trim(toString(fpwQueryCell(qRouteNameById, "name", 1, "")));
-          if (NOT len(routeCodeDisplay)) {
-            routeCodeDisplay = trim(toString(fpwQueryCell(qRouteNameById, "short_code", 1, "")));
-          }
-        }
-      }
-
-      if (NOT len(routeName) AND len(routeCodeDisplay)) {
+      if (activeCruiseAccessValid AND NOT len(routeName) AND len(routeCodeDisplay)) {
         qRouteName = queryExecute(
           "SELECT name
            FROM loop_routes
@@ -566,38 +498,6 @@
         if (qRouteName.recordCount EQ 1) {
           routeName = trim(toString(fpwQueryCell(qRouteName, "name", 1, "")));
         }
-      }
-
-      if (qPlan.recordCount EQ 0 AND activeCruiseContext.routeInstanceId GT 0) {
-        qPlanSql =
-          "SELECT
-             floatplanId,
-             floatPlanName,
-             status,
-             route_instance_id,
-             route_day_number,
-             checkedInAt,"
-             & "
-             checkin_context,
-             returnTime,
-             returnTimezone,
-             departureTime,
-             departureTZ,
-             departing,
-             returning
-           FROM floatplans
-           WHERE userId = :userId
-             AND route_instance_id = :routeInstanceId
-           ORDER BY floatplanId DESC
-           LIMIT 1";
-        qPlan = queryExecute(
-          qPlanSql,
-          {
-            userId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" },
-            routeInstanceId = { value = activeCruiseContext.routeInstanceId, cfsqltype = "cf_sql_integer" }
-          },
-          { datasource = activeCruiseDatasource }
-        );
       }
 
       if (qPlan.recordCount EQ 1) {
@@ -1951,17 +1851,22 @@
         </div>
       </div>
       <div class="top-actions">
-        <div class="chip" data-fpw-field="top.routeName"><cfoutput>#encodeForHtml(activeCruiseView.topRouteChip)#</cfoutput></div>
-        <div class="chip" data-fpw-field="top.floatPlanState"><cfoutput>#encodeForHtml(activeCruiseView.topFloatPlanState)#</cfoutput></div>
-        <button class="btn btn-secondary">View Follower Page</button>
-        <button class="btn btn-secondary" id="fpwCompleteLegBtn">Arrived / Complete Leg</button>
-        <button class="btn btn-primary" id="fpwCheckInBtn">Check In Now</button>
+        <cfif activeCruiseAccessValid>
+          <div class="chip" data-fpw-field="top.routeName"><cfoutput>#encodeForHtml(activeCruiseView.topRouteChip)#</cfoutput></div>
+          <div class="chip" data-fpw-field="top.floatPlanState"><cfoutput>#encodeForHtml(activeCruiseView.topFloatPlanState)#</cfoutput></div>
+          <button class="btn btn-secondary">View Follower Page</button>
+          <button class="btn btn-secondary" id="fpwCompleteLegBtn">Arrived / Complete Leg</button>
+          <button class="btn btn-primary" id="fpwCheckInBtn">Check In Now</button>
+        <cfelse>
+          <div class="chip">No active trip</div>
+        </cfif>
       </div>
     </div>
   </header>
 
   <main class="main">
     <div class="shell">
+      <cfif activeCruiseAccessValid>
       <section class="hero">
         <div class="panel hero-main">
           <div class="eyebrow">Voyage Console • Live Trip View</div>
@@ -2340,8 +2245,23 @@
           <p>This bridges the gap between route planning and follower sharing. It turns FPW into an actual in-trip companion, not just a pre-departure planning tool.</p>
         </div>
       </section>
+      <cfelse>
+      <section class="panel section-card">
+        <div class="section-top">
+          <div>
+            <h2><cfoutput>#encodeForHtml(activeCruiseAccessTitle)#</cfoutput></h2>
+            <p><cfoutput>#encodeForHtml(activeCruiseAccessMessage)#</cfoutput></p>
+          </div>
+          <div class="badge badge-warn">Active Cruise Unavailable</div>
+        </div>
+        <div class="floatplan-box">
+          <p style="margin:0; color:var(--muted); line-height:1.6;"><cfoutput>#encodeForHtml(activeCruiseAccessDetail)#</cfoutput></p>
+        </div>
+      </section>
+      </cfif>
     </div>
   </main>
+  <cfif activeCruiseAccessValid>
   <div class="checkin-modal" id="fpwCheckInModal" aria-hidden="true">
     <div class="checkin-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="fpwCheckInModalTitle">
       <div class="checkin-modal__head">
@@ -2592,5 +2512,6 @@
       });
     })(window, document);
   </script>
+  </cfif>
 </body>
 </html>

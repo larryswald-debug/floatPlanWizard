@@ -160,7 +160,6 @@
           '<div class="list-actions">' +
             checkInButton +
             '<button class="btn-secondary" type="button" data-action="view" data-plan-id="' + utils.escapeHtml(id) + '">View &amp; Send</button>' +
-            '<button class="btn-secondary" type="button" data-action="clone" data-plan-id="' + utils.escapeHtml(id) + '">Clone</button>' +
             '<button class="btn-secondary" type="button" data-action="edit" data-plan-id="' + utils.escapeHtml(id) + '">Edit</button>' +
             '<button class="btn-danger" type="button" data-action="delete" data-plan-id="' + utils.escapeHtml(id) + '" data-plan-status="' + utils.escapeHtml(status) + '">Delete</button>' +
           "</div>" +
@@ -363,6 +362,12 @@
     if (!wizardModalEl || !wizardModal) {
       return;
     }
+    if (!(parseInt(planId, 10) > 0)) {
+      if (utils && typeof utils.showAlertModal === "function") {
+        utils.showAlertModal("New float plans must be created from a route.");
+      }
+      return;
+    }
 
     if (window.FloatPlanWizard && typeof window.FloatPlanWizard.init === "function") {
       window.FloatPlanWizard.init({
@@ -401,8 +406,6 @@
       openWizard(planId);
     } else if (action === "view") {
       openWizard(planId, 6);
-    } else if (action === "clone") {
-      cloneFloatPlan(planId, button);
     } else if (action === "checkin") {
       utils.showConfirmModal("Check in this float plan?")
         .then(function (confirmed) {
@@ -426,40 +429,22 @@
     }
   }
 
-  function cloneFloatPlan(planId, triggerButton) {
-    if (!window.Api || typeof window.Api.cloneFloatPlan !== "function") {
-      return;
+  function disableInvalidCreationEntryPoints() {
+    var addPlanBtn = document.getElementById("addFloatPlanBtn");
+    var quickActionBtns = document.querySelectorAll('[data-quick-action="new-float-plan"]');
+    var i = 0;
+
+    if (addPlanBtn) {
+      addPlanBtn.disabled = true;
+      addPlanBtn.classList.add("d-none");
+      addPlanBtn.setAttribute("aria-hidden", "true");
     }
 
-    var originalText = "";
-    if (triggerButton) {
-      originalText = triggerButton.textContent;
-      triggerButton.disabled = true;
-      triggerButton.textContent = "Cloning...";
+    for (i = 0; i < quickActionBtns.length; i++) {
+      quickActionBtns[i].disabled = true;
+      quickActionBtns[i].classList.add("d-none");
+      quickActionBtns[i].setAttribute("aria-hidden", "true");
     }
-
-    Api.cloneFloatPlan(planId)
-      .then(function (data) {
-        if (!data.SUCCESS) {
-          throw data;
-        }
-        loadFloatPlans(FLOAT_PLAN_LIMIT);
-        var clonedName = utils.pick(data, ["CLONED_NAME", "PLANNAME"], "");
-        if (!clonedName && data.FLOATPLAN) {
-          clonedName = utils.pick(data.FLOATPLAN, ["NAME", "PLANNAME"], "");
-        }
-        showCloneModal(clonedName);
-      })
-      .catch(function (err) {
-        console.error("Failed to clone float plan:", err);
-        utils.showDashboardAlert((err && err.MESSAGE) ? err.MESSAGE : "Clone failed.", "danger");
-      })
-      .finally(function () {
-        if (triggerButton) {
-          triggerButton.disabled = false;
-          triggerButton.textContent = originalText || "Clone";
-        }
-      });
   }
 
   function checkInFloatPlan(planId, triggerButton) {
@@ -538,14 +523,8 @@
     if (!listEl && !addPlanBtn) return;
 
     ensureWizardModal();
-    ensureCloneModal();
+    disableInvalidCreationEntryPoints();
     initFloatPlansFilter();
-
-    if (addPlanBtn) {
-      addPlanBtn.addEventListener("click", function () {
-        openWizard(0);
-      });
-    }
 
     if (listEl) {
       listEl.addEventListener("click", handleFloatPlansListClick);

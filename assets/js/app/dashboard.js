@@ -35,8 +35,8 @@
   var monitoringPollTimer = 0;
   var derivedSignalsPollTimer = 0;
   var dashboardSignals = {
-    routeName: "No routes yet",
-    routeSummary: "Create your first route.",
+    routeName: "No active trip",
+    routeSummary: "No active trip is available.",
     routeProgressPct: 0,
     floatPlans: {
       active: 0,
@@ -67,8 +67,8 @@
     lastRecomputedAt: null
   };
   var MISSION_SUMMARY_TILE_LABELS = {
-    activeRoute: "Active Route",
-    routeProgress: "Route Progress",
+    activeRoute: "Active Trip",
+    routeProgress: "Trip Progress",
     floatPlans: "Float Plans",
     monitoring: "Monitoring",
     weatherRisk: "Weather Risk",
@@ -131,6 +131,7 @@
     var normalized = normalizeMissionText(value, "", 120).toLowerCase();
     if (!normalized) return true;
     return normalized === "no routes yet"
+      || normalized === "no active trip"
       || normalized === "no active route"
       || normalized === "route"
       || normalized === "not available";
@@ -141,6 +142,11 @@
     if (!normalized) return true;
     return normalized === "create your first route."
       || normalized === "create your first route"
+      || normalized === "no active trip is available."
+      || normalized === "no active trip is available"
+      || normalized === "activate a monitored float plan to begin monitoring."
+      || normalized === "activate a monitored float plan to begin monitoring"
+      || normalized === "no active trip"
       || normalized === "waiting for route data"
       || normalized === "no active route"
       || normalized === "no routes yet"
@@ -216,7 +222,8 @@
     } else if (hasActiveRoute) {
       progressMeta = Number.isFinite(routeProgress) ? "No data" : "No progress data";
     } else {
-      progressMeta = "No active route";
+      routeMeta = routeSummary || "No active trip is available.";
+      progressMeta = "No active trip";
     }
 
     if (!weatherRisk || weatherRisk.toLowerCase() === "forecast unavailable.") {
@@ -232,7 +239,7 @@
       tiles: {
         activeRoute: {
           label: MISSION_SUMMARY_TILE_LABELS.activeRoute,
-          value: hasActiveRoute ? routeName : "No active route",
+          value: hasActiveRoute ? routeName : "No active trip",
           meta: routeMeta
         },
         routeProgress: {
@@ -275,8 +282,8 @@
   function renderRouteStatusPanel() {
     var pct = parseRouteProgressPct(dashboardSignals.routeProgressPct);
     var progressBar = document.getElementById("routeStatusProgressBar");
-    setText("routeStatusName", dashboardSignals.routeName || "No routes yet");
-    setText("routeStatusMeta", dashboardSignals.routeSummary || "Create your first route.");
+    setText("routeStatusName", dashboardSignals.routeName || "No active trip");
+    setText("routeStatusMeta", dashboardSignals.routeSummary || "No active trip is available.");
     setText("routeStatusProgressLabel", Math.round(pct) + "% complete");
     if (progressBar) {
       progressBar.style.width = pct + "%";
@@ -592,8 +599,8 @@
   }
 
   function setRouteSignals(routeName, summaryText, progressPct) {
-    dashboardSignals.routeName = routeName || "No routes yet";
-    dashboardSignals.routeSummary = summaryText || "Create your first route.";
+    dashboardSignals.routeName = routeName || "No active trip";
+    dashboardSignals.routeSummary = summaryText || "No active trip is available.";
     dashboardSignals.routeProgressPct = parseRouteProgressPct(progressPct);
     renderRouteStatusPanel();
     refreshMissionSummary();
@@ -2535,7 +2542,6 @@
   }
 
   modules.expeditionTimeline = (function () {
-    var currentRouteCode = "";
     var panel = null;
     var summaryEl = null;
     var loadingEl = null;
@@ -2602,8 +2608,6 @@
         accordionEl.innerHTML = "";
         toggleHidden(accordionEl, true);
       }
-      setRouteSignals("No routes yet", "Create your first route", 0);
-      setState("ready");
     }
 
     function normalizeStatus(status) {
@@ -2611,17 +2615,43 @@
       return s === "COMPLETED" ? "COMPLETED" : "NOT_STARTED";
     }
 
-    function renderSummary(data) {
-      var totals = data && data.TOTALS ? data.TOTALS : {};
+    function buildRouteSummaryText(totals) {
+      totals = totals && typeof totals === "object" ? totals : {};
       var pct = Number.isFinite(parseFloat(totals.PCT_COMPLETE)) ? parseFloat(totals.PCT_COMPLETE) : 0;
       var totalNm = Number.isFinite(parseFloat(totals.TOTAL_NM)) ? parseFloat(totals.TOTAL_NM) : 0;
       var totalLocks = Number.isFinite(parseFloat(totals.TOTAL_LOCKS)) ? parseFloat(totals.TOTAL_LOCKS) : 0;
-      var summaryText = Math.round(pct) + "% complete • " + formatNumber(totalNm, 1) + " NM • " + formatNumber(totalLocks, 0) + " locks";
-      var routeName = (data && data.ROUTE && data.ROUTE.NAME) ? data.ROUTE.NAME : "Route";
+      return Math.round(pct) + "% complete • " + formatNumber(totalNm, 1) + " NM • " + formatNumber(totalLocks, 0) + " locks";
+    }
+
+    function renderNoActiveTrip(message) {
+      var text = "No active trip is available.";
+      if (typeof message === "string" && message.trim()) {
+        text = message.trim();
+      } else if (message && typeof message === "object") {
+        text = payloadMessage(message, text);
+      }
+      if (summaryEl) {
+        summaryEl.textContent = text;
+      }
+      setRouteSignals("No active trip", text, 0);
+    }
+
+    function renderActiveTripSummary(activeTrip) {
+      var trip = activeTrip && typeof activeTrip === "object" ? activeTrip : {};
+      var totals = trip && trip.TOTALS ? trip.TOTALS : {};
+      var pct = Number.isFinite(parseFloat(totals.PCT_COMPLETE)) ? parseFloat(totals.PCT_COMPLETE) : 0;
+      var routeName = trip.ROUTE_NAME || (trip.ROUTE && trip.ROUTE.NAME) || "Route";
+      var tripName = trip.FLOATPLAN_NAME || routeName || "Active trip";
+      var summaryText = routeName + " • " + buildRouteSummaryText(totals);
+
+      if (trip.SUCCESS !== true) {
+        renderNoActiveTrip(trip);
+        return;
+      }
       if (summaryEl) {
         summaryEl.textContent = summaryText;
       }
-      setRouteSignals(routeName, summaryText, pct);
+      setRouteSignals(tripName, summaryText, pct);
     }
 
     function renderRouteList(routes, activeCode) {
@@ -2671,13 +2701,6 @@
       toggleHidden(accordionEl, true);
     }
 
-    function setActiveRoute(routeCode) {
-      if (!routeCode) return Promise.resolve();
-      return fetch(routeBuilderUrl("setActiveRoute", { routeCode: routeCode }), { credentials: "same-origin" }).catch(function () {
-        return null;
-      });
-    }
-
     function openEditor(routeCode) {
       var rb = window.FPW && window.FPW.DashboardModules ? window.FPW.DashboardModules.routeBuilder : null;
       if (rb && typeof rb.openEditorForRoute === "function") {
@@ -2692,7 +2715,6 @@
           if (!payload || payload.SUCCESS === false) {
             throw new Error((payload && payload.MESSAGE) ? payload.MESSAGE : "Unable to delete route.");
           }
-          if (currentRouteCode === routeCode) currentRouteCode = "";
           return load();
         })
         .catch(function (err) {
@@ -2993,7 +3015,7 @@
         });
     }
 
-    function load(routeCodeOverride) {
+    function load() {
       requestSeq += 1;
       var currentSeq = requestSeq;
       setState("loading");
@@ -3009,31 +3031,23 @@
             throw new Error((routesPayload && routesPayload.MESSAGE) ? routesPayload.MESSAGE : "Unable to load routes.");
           }
           var routes = Array.isArray(routesPayload.ROUTES) ? routesPayload.ROUTES : [];
+          var activeTrip = (routesPayload.ACTIVE_TRIP && typeof routesPayload.ACTIVE_TRIP === "object")
+            ? routesPayload.ACTIVE_TRIP
+            : {};
+          var activeRouteCode = (activeTrip.SUCCESS === true && activeTrip.ROUTE_CODE)
+            ? String(activeTrip.ROUTE_CODE)
+            : "";
+
           if (!routes.length) {
             renderEmptyRoutes();
-            return null;
+          } else {
+            renderRouteList(routes, activeRouteCode);
           }
-          var selected = routeCodeOverride || currentRouteCode || routesPayload.ACTIVE_ROUTE_CODE || routes[0].SHORT_CODE;
-          var hasSelected = routes.some(function (route) {
-            return route && route.SHORT_CODE === selected;
-          });
-          if (!hasSelected) selected = routes[0].SHORT_CODE;
-          currentRouteCode = selected;
-          renderRouteList(routes, selected);
-          return fetchJson(routeUrl(selected));
-        })
-        .then(function (payload) {
-          if (currentSeq !== requestSeq || !payload) return;
-          if (!payload || payload.SUCCESS === false) {
-            if (payload && payload.AUTH === false) {
-              setState("unauthorized");
-              return;
-            }
-            throw new Error((payload && payload.MESSAGE) ? payload.MESSAGE : "Unable to load expedition timeline.");
-          }
-          renderSummary(payload);
-          renderTimeline(payload);
+
+          renderActiveTripSummary(activeTrip);
+          renderTimeline();
           setState("ready");
+          return null;
         })
         .catch(function (err) {
           if (currentSeq !== requestSeq) return;
@@ -3079,7 +3093,6 @@
             return;
           }
           if (target.classList.contains("js-expedition-view-edit")) {
-            setActiveRoute(routeCode);
             openEditor(routeCode);
             return;
           }
@@ -3110,8 +3123,10 @@
         });
       }
       document.addEventListener("fpw:routes-updated", function (event) {
-        var routeCode = event && event.detail ? event.detail.routeCode : "";
-        load(routeCode);
+        load();
+      });
+      document.addEventListener("fpw:floatplans-updated", function () {
+        load();
       });
       load();
     }

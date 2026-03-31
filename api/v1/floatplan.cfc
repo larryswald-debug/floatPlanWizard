@@ -62,7 +62,9 @@
                     </cfif>
 
                     <cfset var bootstrapData = getBootstrapData(userId, bootstrapId)>
-                    <cfset bootstrapData.SUCCESS = true>
+                    <cfif NOT structKeyExists(bootstrapData, "SUCCESS")>
+                        <cfset bootstrapData.SUCCESS = true>
+                    </cfif>
                     <cfset bootstrapData.AUTH = true>
                     <cfoutput>#serializeJSON(bootstrapData)#</cfoutput>
                 </cfcase>
@@ -151,7 +153,11 @@
                     <cfelseif structKeyExists(url, "id")>
                         <cfset checkinId = val(url.id)>
                     </cfif>
-                    <cfif len(checkinStatus) OR structKeyExists(body, "note")>
+                    <cfset var activeCruiseCheckinGuard = resolveCanonicalActiveFloatPlan(userId, checkinId)>
+                    <cfif NOT activeCruiseCheckinGuard.SUCCESS>
+                        <cfset activeCruiseCheckinGuard.AUTH = true>
+                        <cfoutput>#serializeJSON(activeCruiseCheckinGuard)#</cfoutput>
+                    <cfelseif len(checkinStatus) OR structKeyExists(body, "note")>
                         <cfset var cruiseCheckinResult = submitActiveCruiseCheckIn(userId, checkinId, checkinStatus, checkinNote, checkinContext)>
                         <cfoutput>#serializeJSON(cruiseCheckinResult)#</cfoutput>
                     <cfelse>
@@ -177,16 +183,22 @@
                         <cfset expectedLegOrder = val(url.expectedLegOrder)>
                     </cfif>
 
-                    <cfset var routeProgressService = createObject("component", resolveApiV1ComponentPath("RouteProgressService")).init()>
-                    <cfset var completeLegResult = routeProgressService.markCompletionFromFloatPlanCheckin(
-                        userId = userId,
-                        floatPlanId = completeLegId,
-                        datasource = "fpw",
-                        completionMode = "active_leg",
-                        expectedLegOrder = expectedLegOrder
-                    )>
-                    <cfset completeLegResult.AUTH = true>
-                    <cfoutput>#serializeJSON(completeLegResult)#</cfoutput>
+                    <cfset var activeCruiseLegGuard = resolveCanonicalActiveFloatPlan(userId, completeLegId)>
+                    <cfif NOT activeCruiseLegGuard.SUCCESS>
+                        <cfset activeCruiseLegGuard.AUTH = true>
+                        <cfoutput>#serializeJSON(activeCruiseLegGuard)#</cfoutput>
+                    <cfelse>
+                        <cfset var routeProgressService = createObject("component", resolveApiV1ComponentPath("RouteProgressService")).init()>
+                        <cfset var completeLegResult = routeProgressService.markCompletionFromFloatPlanCheckin(
+                            userId = userId,
+                            floatPlanId = completeLegId,
+                            datasource = "fpw",
+                            completionMode = "active_leg",
+                            expectedLegOrder = expectedLegOrder
+                        )>
+                        <cfset completeLegResult.AUTH = true>
+                        <cfoutput>#serializeJSON(completeLegResult)#</cfoutput>
+                    </cfif>
                 </cfcase>
 
                 <cfdefaultcase>
@@ -312,6 +324,14 @@
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
+            if (arguments.floatPlanId LTE 0) {
+                return {
+                    SUCCESS = false,
+                    ERROR = "ROUTE_REQUIRED",
+                    MESSAGE = "New float plans must be created from a route."
+                };
+            }
+
             var response = {
                 FLOATPLAN       = getDefaultFloatPlan(arguments.userId),
                 PLAN_PASSENGERS = [],
@@ -392,6 +412,105 @@
             }
 
             return response;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="userOwnsRouteInstance" access="private" returntype="boolean" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="true">
+        <cfscript>
+            if (arguments.userId LTE 0 OR arguments.routeInstanceId LTE 0) {
+                return false;
+            }
+
+            var qRouteInstance = queryExecute(
+                "SELECT id
+                   FROM route_instances
+                  WHERE id = :routeInstanceId
+                    AND user_id = :userId
+                  LIMIT 1",
+                {
+                    routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                },
+                { datasource = "fpw" }
+            );
+
+            return qRouteInstance.recordCount GT 0;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveCanonicalActiveFloatPlan" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                success = false,
+                MESSAGE = ""
+            };
+            var qPlan = queryNew("");
+
+            if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
+                result.ERROR = "INVALID_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            qPlan = queryExecute(
+                "SELECT floatplanId, route_instance_id, UPPER(TRIM(`status`)) AS statusValue
+                   FROM floatplans
+                  WHERE userId = :userId
+                    AND UPPER(TRIM(`status`)) IN (
+                        'ACTIVE',
+                        'DUE_NOW',
+                        'OVERDUE',
+                        'OVERDUE_1H',
+                        'OVERDUE_2H',
+                        'OVERDUE_3H',
+                        'OVERDUE_4H',
+                        'OVERDUE_12H',
+                        'OVERDUE_24H'
+                    )
+                  ORDER BY floatplanId DESC
+                  LIMIT 2",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+
+            if (qPlan.recordCount EQ 0) {
+                result.ERROR = "NO_ACTIVE_PLAN";
+                result.MESSAGE = "No active trip is available.";
+                return result;
+            }
+
+            if (qPlan.recordCount GT 1) {
+                result.ERROR = "MULTIPLE_ACTIVE_PLANS";
+                result.MESSAGE = "Multiple monitored float plans are active. Active Cruise is unavailable.";
+                return result;
+            }
+
+            result.FLOATPLANID = val(qPlan.floatplanId[1]);
+            result.ROUTE_INSTANCE_ID = val(qPlan.route_instance_id[1]);
+            result.STATUS = trim(toString(qPlan.statusValue[1]));
+
+            if (result.FLOATPLANID NEQ arguments.floatPlanId) {
+                result.ERROR = "ACTIVE_PLAN_MISMATCH";
+                result.MESSAGE = "Only the current active trip can be updated from Active Cruise.";
+                return result;
+            }
+
+            if (result.ROUTE_INSTANCE_ID LTE 0) {
+                result.ERROR = "ROUTE_REQUIRED";
+                result.MESSAGE = "The active float plan must be linked to a route.";
+                return result;
+            }
+
+            result.SUCCESS = true;
+            result.success = true;
+            return result;
         </cfscript>
     </cffunction>
 
@@ -899,6 +1018,70 @@
             var returnTzStore = returnTz;
             var departureSourceTz = departureTz;
             var returnSourceTz = returnTz;
+            var existingPlanRow = queryNew("");
+            var existingRouteInstanceId = 0;
+
+            if (planId GT 0) {
+                existingPlanRow = queryExecute(
+                    "SELECT floatplanId, route_instance_id
+                       FROM floatplans
+                      WHERE floatplanId = :planId
+                        AND userId = :userId
+                      LIMIT 1",
+                    {
+                        planId = { value = planId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = "fpw" }
+                );
+
+                if (existingPlanRow.recordCount EQ 0) {
+                    result.ERROR = "NOT_FOUND";
+                    result.MESSAGE = "Float plan not found.";
+                    return result;
+                }
+
+                existingRouteInstanceId = isNull(existingPlanRow.route_instance_id[1])
+                    ? 0
+                    : val(existingPlanRow.route_instance_id[1]);
+            }
+
+            if (planId LTE 0) {
+                if (routeInstanceId LTE 0) {
+                    result.ERROR = "ROUTE_REQUIRED";
+                    result.MESSAGE = "New float plans must be created from a route.";
+                    return result;
+                }
+                if (!userOwnsRouteInstance(arguments.userId, routeInstanceId)) {
+                    result.ERROR = "INVALID_ROUTE";
+                    result.MESSAGE = "A valid route is required to create a float plan.";
+                    return result;
+                }
+            } else if (existingRouteInstanceId GT 0) {
+                if (routeInstanceId LTE 0) {
+                    result.ERROR = "ROUTE_REQUIRED";
+                    result.MESSAGE = "Route linkage cannot be removed from an existing float plan.";
+                    return result;
+                }
+                if (routeInstanceId NEQ existingRouteInstanceId) {
+                    result.ERROR = "ROUTE_LOCKED";
+                    result.MESSAGE = "Route linkage cannot be changed from the float plan wizard.";
+                    return result;
+                }
+                if (!userOwnsRouteInstance(arguments.userId, routeInstanceId)) {
+                    result.ERROR = "INVALID_ROUTE";
+                    result.MESSAGE = "A valid route is required to update this float plan.";
+                    return result;
+                }
+            } else {
+                if (routeInstanceId GT 0) {
+                    result.ERROR = "ROUTE_ASSIGNMENT_BLOCKED";
+                    result.MESSAGE = "Legacy route-less float plans cannot be linked from the float plan wizard.";
+                    return result;
+                }
+                routeInstanceId = 0;
+                routeDayNumber = 0;
+            }
 
             if (NOT len(planName)) {
                 result.ERROR = "VALIDATION";
@@ -1228,6 +1411,10 @@
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
             var result = { SUCCESS = false };
+            result.ERROR = "CLONE_DISABLED";
+            result.MESSAGE = "Clone Float Plan is no longer supported.";
+            return result;
+
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
                 result.MESSAGE = "Float plan id is required.";
@@ -2306,6 +2493,50 @@
             if (listFindNoCase("DRAFT,CLOSED", statusVal) EQ 0) {
                 result.ERROR = "INVALID_STATUS";
                 result.MESSAGE = "Only draft or closed float plans can be sent.";
+                return result;
+            }
+
+            var routeInstanceId = val(pickValue(plan, ["ROUTE_INSTANCE_ID", "route_instance_id"], 0));
+            if (routeInstanceId LTE 0) {
+                result.ERROR = "ROUTE_REQUIRED";
+                result.MESSAGE = "Only route-linked float plans can be activated.";
+                return result;
+            }
+            if (!userOwnsRouteInstance(arguments.userId, routeInstanceId)) {
+                result.ERROR = "INVALID_ROUTE";
+                result.MESSAGE = "A valid route is required before activating this float plan.";
+                return result;
+            }
+
+            var qExistingMonitored = queryExecute(
+                "SELECT floatplanId, UPPER(TRIM(`status`)) AS statusValue
+                   FROM floatplans
+                  WHERE userId = :userId
+                    AND floatplanId <> :planId
+                    AND UPPER(TRIM(`status`)) IN (
+                        'ACTIVE',
+                        'DUE_NOW',
+                        'OVERDUE',
+                        'OVERDUE_1H',
+                        'OVERDUE_2H',
+                        'OVERDUE_3H',
+                        'OVERDUE_4H',
+                        'OVERDUE_12H',
+                        'OVERDUE_24H'
+                    )
+                  ORDER BY floatplanId DESC
+                  LIMIT 1",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+            if (qExistingMonitored.recordCount GT 0) {
+                result.ERROR = "ACTIVE_PLAN_EXISTS";
+                result.MESSAGE = "Another active or overdue float plan already exists. Close it before activating this trip.";
+                result.EXISTING_FLOATPLANID = val(qExistingMonitored.floatplanId[1]);
+                result.EXISTING_STATUS = trim(toString(qExistingMonitored.statusValue[1]));
                 return result;
             }
 

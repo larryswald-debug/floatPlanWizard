@@ -34,14 +34,14 @@
             <div class="card-body">
                 <div class="mission-summary-grid">
                     <article class="mission-summary-tile">
-                        <div class="mission-summary-label">Active Route</div>
-                        <div class="mission-summary-value" id="missionRouteValue">No routes yet</div>
-                        <div class="mission-summary-meta" id="missionRouteMeta">Create your first route</div>
+                        <div class="mission-summary-label">Active Trip</div>
+                        <div class="mission-summary-value" id="missionRouteValue">No active trip</div>
+                        <div class="mission-summary-meta" id="missionRouteMeta">No active trip is available.</div>
                     </article>
                     <article class="mission-summary-tile">
-                        <div class="mission-summary-label">Route Progress</div>
-                        <div class="mission-summary-value" id="missionProgressValue">0% complete</div>
-                        <div class="mission-summary-meta" id="missionProgressMeta">Waiting for route data</div>
+                        <div class="mission-summary-label">Trip Progress</div>
+                        <div class="mission-summary-value" id="missionProgressValue">No data</div>
+                        <div class="mission-summary-meta" id="missionProgressMeta">No active trip</div>
                     </article>
                     <article class="mission-summary-tile">
                         <div class="mission-summary-label">Float Plans</div>

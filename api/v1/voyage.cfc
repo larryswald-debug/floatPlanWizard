@@ -34,9 +34,6 @@
             <cfset var postIdVal = 0>
             <cfset var commentIdVal = 0>
             <cfset var followerIdVal = 0>
-            <cfset var routeCodeVal = "">
-            <cfset var routeInstanceIdRaw = "">
-
             <cfif act EQ "getstreambootstrap">
                 <cfset slugVal = trim(toString(pickArg(body, "slug", "route_slug", arguments.slug)))>
                 <cfset tokenVal = trim(toString(pickArg(body, "t", "token", arguments.t)))>
@@ -102,9 +99,7 @@
                 <cfreturn>
 
             <cfelseif act EQ "ownerensurestream">
-                <cfset routeCodeVal = trim(toString(pickArg(body, "routeCode", "route_code", arguments.routeCode)))>
-                <cfset routeInstanceIdRaw = trim(toString(pickArg(body, "routeInstanceId", "route_instance_id", arguments.routeInstanceId)))>
-                <cfset payload = ownerEnsureStream(routeCodeVal, routeInstanceIdRaw, currentUserId)>
+                <cfset payload = ownerEnsureStream(currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
@@ -271,6 +266,16 @@
                 return out;
             }
 
+            if (streamRow.floatplan_id LTE 0) {
+                out.MESSAGE = "No active trip";
+                out.STATUS_CODE = 404;
+                out.ERROR = {
+                    "CODE"="INVALID_STREAM",
+                    "MESSAGE"="This Trip Page is not linked to an active trip."
+                };
+                return out;
+            }
+
             qPlanSql =
                 "SELECT
                     fp.floatplanId,
@@ -305,29 +310,67 @@
                 { datasource=ds }
             );
 
-            if (qPlan.recordCount GT 0) {
-                streamTitle = trim(toString(isNull(qPlan.floatPlanName[1]) ? "" : qPlan.floatPlanName[1]));
-                statusLabel = friendlyStatusLabel(isNull(qPlan.status[1]) ? "" : qPlan.status[1]);
-                routeInstanceIdVal = (!isNull(qPlan.route_instance_id[1]) ? val(qPlan.route_instance_id[1]) : 0);
-                checkInContextVal = normalizeCheckInContext(isNull(qPlan.checkin_context[1]) ? "" : qPlan.checkin_context[1]);
-                isOvernightCheckIn = (checkInContextVal EQ "overnight");
-                storedOvernightPauseMinutes = (
-                    !isNull(qPlan.overnight_pause_minutes_total[1]) AND isNumeric(qPlan.overnight_pause_minutes_total[1])
-                        ? val(qPlan.overnight_pause_minutes_total[1])
-                        : 0
-                );
-                if (storedOvernightPauseMinutes LT 0) {
-                    storedOvernightPauseMinutes = 0;
-                }
-                departureTimeZoneVal = (isNull(qPlan.departureTZ[1]) ? "" : trim(toString(qPlan.departureTZ[1])));
-                if (!len(departureTimeZoneVal)) {
-                    departureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
-                }
-                if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
-                    checkedInAtVal = qPlan.checkedInAt[1];
-                    actualCheckInLabel = dateTimeFormat(checkedInAtVal, "mmm d, yyyy h:nn tt");
-                    elapsedCheckInLabel = formatElapsedCheckIn(checkedInAtVal);
-                }
+            if (qPlan.recordCount EQ 0) {
+                out.MESSAGE = "No active trip";
+                out.STATUS_CODE = 404;
+                out.ERROR = {
+                    "CODE"="FLOATPLAN_NOT_FOUND",
+                    "MESSAGE"="This Trip Page is not linked to an active trip."
+                };
+                return out;
+            }
+
+            if (val(qPlan.userId[1]) LTE 0 OR val(qPlan.userId[1]) NEQ streamRow.owner_user_id) {
+                out.MESSAGE = "No active trip";
+                out.STATUS_CODE = 403;
+                out.ERROR = {
+                    "CODE"="STREAM_OWNER_MISMATCH",
+                    "MESSAGE"="This Trip Page is not linked to the owner's active trip."
+                };
+                return out;
+            }
+
+            var canonicalPlan = resolveCanonicalActiveFloatPlan(streamRow.owner_user_id, streamRow.floatplan_id);
+            if (!canonicalPlan.SUCCESS) {
+                out.MESSAGE = canonicalPlan.MESSAGE;
+                out.STATUS_CODE = 403;
+                out.ERROR = {
+                    "CODE"=(structKeyExists(canonicalPlan, "ERROR") ? canonicalPlan.ERROR : "FOLLOW_UNAVAILABLE"),
+                    "MESSAGE"=canonicalPlan.MESSAGE
+                };
+                return out;
+            }
+
+            streamTitle = trim(toString(isNull(qPlan.floatPlanName[1]) ? "" : qPlan.floatPlanName[1]));
+            statusLabel = friendlyStatusLabel(isNull(qPlan.status[1]) ? "" : qPlan.status[1]);
+            routeInstanceIdVal = (!isNull(qPlan.route_instance_id[1]) ? val(qPlan.route_instance_id[1]) : 0);
+            checkInContextVal = normalizeCheckInContext(isNull(qPlan.checkin_context[1]) ? "" : qPlan.checkin_context[1]);
+            isOvernightCheckIn = (checkInContextVal EQ "overnight");
+            storedOvernightPauseMinutes = (
+                !isNull(qPlan.overnight_pause_minutes_total[1]) AND isNumeric(qPlan.overnight_pause_minutes_total[1])
+                    ? val(qPlan.overnight_pause_minutes_total[1])
+                    : 0
+            );
+            if (storedOvernightPauseMinutes LT 0) {
+                storedOvernightPauseMinutes = 0;
+            }
+            departureTimeZoneVal = (isNull(qPlan.departureTZ[1]) ? "" : trim(toString(qPlan.departureTZ[1])));
+            if (!len(departureTimeZoneVal)) {
+                departureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
+            }
+            if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
+                checkedInAtVal = qPlan.checkedInAt[1];
+                actualCheckInLabel = dateTimeFormat(checkedInAtVal, "mmm d, yyyy h:nn tt");
+                elapsedCheckInLabel = formatElapsedCheckIn(checkedInAtVal);
+            }
+            if (routeInstanceIdVal LTE 0) {
+                out.MESSAGE = "No active trip";
+                out.STATUS_CODE = 403;
+                out.ERROR = {
+                    "CODE"="ROUTE_REQUIRED",
+                    "MESSAGE"="The active trip must be linked to a route."
+                };
+                return out;
             }
             if (!len(streamTitle)) {
                 streamTitle = "Voyage " & streamRow.slug;
@@ -1700,18 +1743,12 @@
     </cffunction>
 
     <cffunction name="ownerEnsureStream" access="private" returntype="struct" output="false">
-        <cfargument name="routeCode" type="string" required="true">
-        <cfargument name="routeInstanceId" type="any" required="false" default="">
         <cfargument name="currentUserId" type="numeric" required="false" default="0">
         <cfscript>
             var ds = resolveDatasource();
             var storageCheck = checkVoyageStorageReady();
-            var routeCodeVal = trim(arguments.routeCode);
-            var routeInstanceRaw = trim(toString(arguments.routeInstanceId));
-            var routeInstanceIdVal = (len(routeInstanceRaw) ? val(routeInstanceRaw) : 0);
             var userIdText = toString(arguments.currentUserId);
-            var routePrefix = "USER_ROUTE_" & int(arguments.currentUserId) & "_%";
-            var qRoute = queryNew("");
+            var canonicalPlan = {};
             var qInst = queryNew("");
             var qPlan = queryNew("");
             var qStream = queryNew("");
@@ -1728,6 +1765,8 @@
             var responseData = {};
             var routeNameVal = "";
             var floatPlanIdVal = 0;
+            var routeInstanceIdVal = 0;
+            var routeCodeVal = "";
             var fpwBasePath = resolveFpwBasePath();
             var createSuffix = "";
 
@@ -1736,7 +1775,7 @@
                     success=false,
                     code="UNAUTHORIZED",
                     message="Owner session required.",
-                    data={ "routeCode"=routeCodeVal },
+                    data={},
                     auth=false
                 );
             }
@@ -1746,102 +1785,54 @@
                     success=false,
                     code="STREAM_STORAGE_NOT_READY",
                     message="Voyage stream tables not installed.",
-                    data={ "missing_tables"=storageCheck.missing_tables, "routeCode"=routeCodeVal },
+                    data={ "missing_tables"=storageCheck.missing_tables },
                     auth=true
                 );
             }
 
-            if (!len(routeCodeVal)) {
+            canonicalPlan = resolveCanonicalActiveFloatPlan(arguments.currentUserId, 0);
+            if (!canonicalPlan.SUCCESS) {
                 return buildApiEnvelope(
                     success=false,
-                    code="ROUTE_CODE_REQUIRED",
-                    message="routeCode is required.",
+                    code=(structKeyExists(canonicalPlan, "ERROR") ? canonicalPlan.ERROR : "NO_ACTIVE_PLAN"),
+                    message=canonicalPlan.MESSAGE,
                     data={},
                     auth=true
                 );
             }
 
-            if (!reFind("^[A-Za-z0-9_-]+$", routeCodeVal)) {
-                return buildApiEnvelope(
-                    success=false,
-                    code="INVALID_ROUTE_CODE",
-                    message="routeCode can only include letters, numbers, underscores, and dashes.",
-                    data={ "routeCode"=routeCodeVal },
-                    auth=true
-                );
-            }
+            floatPlanIdVal = canonicalPlan.FLOATPLANID;
+            routeInstanceIdVal = canonicalPlan.ROUTE_INSTANCE_ID;
 
-            if (len(routeInstanceRaw) AND !isNumeric(routeInstanceRaw)) {
-                return buildApiEnvelope(
-                    success=false,
-                    code="INVALID_ROUTE_INSTANCE_ID",
-                    message="routeInstanceId must be numeric when provided.",
-                    data={ "routeCode"=routeCodeVal, "routeInstanceId"=routeInstanceRaw },
-                    auth=true
-                );
-            }
-
-            qRoute = queryExecute(
-                "SELECT
-                    r.id AS route_id,
-                    r.name AS route_name,
-                    r.short_code AS route_code
-                 FROM loop_routes r
-                 LEFT JOIN route_instances ri ON ri.generated_route_id = r.id
-                 WHERE r.short_code = :routeCode
-                   AND (
-                        r.short_code LIKE :routePrefix
-                        OR (ri.generated_route_code = r.short_code AND ri.user_id = :uidText)
-                   )
-                 ORDER BY ri.id DESC, r.id DESC
+            qPlan = queryExecute(
+                "SELECT floatplanId, floatPlanName
+                 FROM floatplans
+                 WHERE floatplanId = :floatplanId
+                   AND userId = :uid
                  LIMIT 1",
                 {
-                    routeCode = { value=routeCodeVal, cfsqltype="cf_sql_varchar" },
-                    routePrefix = { value=routePrefix, cfsqltype="cf_sql_varchar" },
-                    uidText = { value=userIdText, cfsqltype="cf_sql_varchar" }
+                    floatplanId = { value=floatPlanIdVal, cfsqltype="cf_sql_integer" },
+                    uid = { value=arguments.currentUserId, cfsqltype="cf_sql_integer" }
                 },
                 { datasource=ds }
             );
 
-            if (qRoute.recordCount EQ 0) {
-                return buildApiEnvelope(
-                    success=false,
-                    code="ROUTE_NOT_FOUND",
-                    message="Route not found for this user.",
-                    data={ "routeCode"=routeCodeVal },
-                    auth=true
-                );
-            }
-            routeNameVal = (isNull(qRoute.route_name[1]) ? "" : trim(toString(qRoute.route_name[1])));
-
-            if (routeInstanceIdVal GT 0) {
+            if (qInst.recordCount EQ 0) {
                 qInst = queryExecute(
-                    "SELECT id, generated_route_id, generated_route_code
-                     FROM route_instances
-                     WHERE id = :routeInstanceId
-                       AND user_id = :uidText
+                    "SELECT
+                        ri.id,
+                        ri.generated_route_id,
+                        ri.generated_route_code,
+                        lr.name AS route_name,
+                        lr.short_code AS route_code
+                     FROM route_instances ri
+                     LEFT JOIN loop_routes lr ON lr.id = ri.generated_route_id
+                     WHERE ri.id = :routeInstanceId
+                       AND ri.user_id = :uidText
                      LIMIT 1",
                     {
                         routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" },
                         uidText = { value=userIdText, cfsqltype="cf_sql_varchar" }
-                    },
-                    { datasource=ds }
-                );
-            } else {
-                qInst = queryExecute(
-                    "SELECT id, generated_route_id, generated_route_code
-                     FROM route_instances
-                     WHERE user_id = :uidText
-                       AND (
-                            generated_route_code = :routeCode
-                            OR generated_route_id = :routeId
-                       )
-                     ORDER BY id DESC
-                     LIMIT 1",
-                    {
-                        uidText = { value=userIdText, cfsqltype="cf_sql_varchar" },
-                        routeCode = { value=routeCodeVal, cfsqltype="cf_sql_varchar" },
-                        routeId = { value=val(qRoute.route_id[1]), cfsqltype="cf_sql_integer" }
                     },
                     { datasource=ds }
                 );
@@ -1851,51 +1842,21 @@
                 return buildApiEnvelope(
                     success=false,
                     code="ROUTE_INSTANCE_NOT_FOUND",
-                    message="No route instance found for this route.",
-                    data={ "routeCode"=routeCodeVal },
+                    message="No route instance found for the active trip.",
+                    data={ "floatplan_id"=floatPlanIdVal, "routeInstanceId"=routeInstanceIdVal },
                     auth=true
                 );
             }
 
             routeInstanceIdVal = val(qInst.id[1]);
-            if (
-                val(qInst.generated_route_id[1]) GT 0
-                AND val(qInst.generated_route_id[1]) NEQ val(qRoute.route_id[1])
-                AND compareNoCase(trim(toString(qInst.generated_route_code[1])), routeCodeVal) NEQ 0
-            ) {
-                return buildApiEnvelope(
-                    success=false,
-                    code="ROUTE_INSTANCE_MISMATCH",
-                    message="The provided routeInstanceId does not match routeCode.",
-                    data={ "routeCode"=routeCodeVal, "routeInstanceId"=routeInstanceIdVal },
-                    auth=true
-                );
+            routeCodeVal = trim(toString(isNull(qInst.generated_route_code[1]) ? "" : qInst.generated_route_code[1]));
+            if (!len(routeCodeVal)) {
+                routeCodeVal = trim(toString(isNull(qInst.route_code[1]) ? "" : qInst.route_code[1]));
             }
-
-            qPlan = queryExecute(
-                "SELECT floatplanId, floatPlanName
-                 FROM floatplans
-                 WHERE userId = :uid
-                   AND route_instance_id = :routeInstanceId
-                 ORDER BY floatplanId DESC
-                 LIMIT 1",
-                {
-                    uid = { value=arguments.currentUserId, cfsqltype="cf_sql_integer" },
-                    routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" }
-                },
-                { datasource=ds }
-            );
-
-            if (qPlan.recordCount EQ 0) {
-                return buildApiEnvelope(
-                    success=false,
-                    code="NO_FLOATPLAN_FOR_ROUTE",
-                    message="No float plan exists for this route. Build float plans first.",
-                    data={ "routeCode"=routeCodeVal, "routeInstanceId"=routeInstanceIdVal },
-                    auth=true
-                );
+            routeNameVal = trim(toString(isNull(qInst.route_name[1]) ? "" : qInst.route_name[1]));
+            if (!len(routeNameVal) AND qPlan.recordCount GT 0) {
+                routeNameVal = trim(toString(isNull(qPlan.floatPlanName[1]) ? "" : qPlan.floatPlanName[1]));
             }
-            floatPlanIdVal = val(qPlan.floatplanId[1]);
 
             qStream = queryExecute(
                 "SELECT
@@ -1919,7 +1880,7 @@
             if (qStream.recordCount EQ 0) {
                 slugBase = normalizeSlug(routeCodeVal);
                 if (!len(slugBase)) {
-                    slugBase = "route-" & routeInstanceIdVal;
+                    slugBase = "trip-" & floatPlanIdVal;
                 }
                 if (len(slugBase) GT 104) {
                     slugBase = left(slugBase, 104);
@@ -1998,7 +1959,7 @@
                     success=false,
                     code="STREAM_CREATE_FAILED",
                     message="Unable to create or load voyage stream.",
-                    data={ "routeCode"=routeCodeVal, "routeInstanceId"=routeInstanceIdVal, "floatplan_id"=floatPlanIdVal },
+                    data={ "routeInstanceId"=routeInstanceIdVal, "floatplan_id"=floatPlanIdVal },
                     auth=true
                 );
             }
@@ -2047,6 +2008,90 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="resolveCanonicalActiveFloatPlan" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="expectedFloatPlanId" type="numeric" required="false" default="0">
+        <cfscript>
+            var result = {
+                "SUCCESS"=false,
+                "success"=false,
+                "MESSAGE"="No active trip is available."
+            };
+            var ds = resolveDatasource();
+            var qPlan = queryNew("");
+
+            if (arguments.userId LTE 0) {
+                result.ERROR = "UNAUTHORIZED";
+                result.MESSAGE = "Owner session required.";
+                return result;
+            }
+
+            qPlan = queryExecute(
+                "SELECT
+                    floatplanId,
+                    userId,
+                    floatPlanName,
+                    route_instance_id,
+                    route_day_number,
+                    UPPER(TRIM(`status`)) AS statusValue
+                 FROM floatplans
+                 WHERE userId = :userId
+                   AND UPPER(TRIM(`status`)) IN (
+                        'ACTIVE',
+                        'DUE_NOW',
+                        'OVERDUE',
+                        'OVERDUE_1H',
+                        'OVERDUE_2H',
+                        'OVERDUE_3H',
+                        'OVERDUE_4H',
+                        'OVERDUE_12H',
+                        'OVERDUE_24H'
+                   )
+                 ORDER BY floatplanId DESC
+                 LIMIT 2",
+                {
+                    userId = { value=arguments.userId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource=ds }
+            );
+
+            if (qPlan.recordCount EQ 0) {
+                result.ERROR = "NO_ACTIVE_PLAN";
+                result.MESSAGE = "No active trip is available.";
+                return result;
+            }
+
+            if (qPlan.recordCount GT 1) {
+                result.ERROR = "MULTIPLE_ACTIVE_PLANS";
+                result.MESSAGE = "Multiple active trips were found. Trip Page is unavailable.";
+                return result;
+            }
+
+            result.FLOATPLANID = val(qPlan.floatplanId[1]);
+            result.USERID = val(qPlan.userId[1]);
+            result.FLOATPLANNAME = trim(toString(isNull(qPlan.floatPlanName[1]) ? "" : qPlan.floatPlanName[1]));
+            result.ROUTE_INSTANCE_ID = (!isNull(qPlan.route_instance_id[1]) ? val(qPlan.route_instance_id[1]) : 0);
+            result.ROUTE_DAY_NUMBER = (!isNull(qPlan.route_day_number[1]) ? val(qPlan.route_day_number[1]) : 0);
+            result.STATUS = trim(toString(isNull(qPlan.statusValue[1]) ? "" : qPlan.statusValue[1]));
+
+            if (arguments.expectedFloatPlanId GT 0 AND result.FLOATPLANID NEQ arguments.expectedFloatPlanId) {
+                result.ERROR = "ACTIVE_PLAN_MISMATCH";
+                result.MESSAGE = "This Trip Page is not linked to the active trip.";
+                return result;
+            }
+
+            if (result.ROUTE_INSTANCE_ID LTE 0) {
+                result.ERROR = "ROUTE_REQUIRED";
+                result.MESSAGE = "The active trip must be linked to a route.";
+                return result;
+            }
+
+            result.SUCCESS = true;
+            result.success = true;
+            return result;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="seedDemoStream" access="private" returntype="struct" output="false">
         <cfargument name="slug" type="string" required="false" default="">
         <cfargument name="currentUserId" type="numeric" required="false" default="0">
@@ -2057,6 +2102,7 @@
                 "MESSAGE"="Unable to seed demo stream"
             };
             var ds = resolveDatasource();
+            var canonicalPlan = {};
             var qPlan = queryNew("");
             var qStream = queryNew("");
             var qPostCount = queryNew("");
@@ -2086,13 +2132,24 @@
                 return out;
             }
 
+            canonicalPlan = resolveCanonicalActiveFloatPlan(arguments.currentUserId, 0);
+            if (!canonicalPlan.SUCCESS) {
+                out.MESSAGE = canonicalPlan.MESSAGE;
+                out.ERROR = {
+                    "CODE"=(structKeyExists(canonicalPlan, "ERROR") ? canonicalPlan.ERROR : "NO_ACTIVE_PLAN"),
+                    "MESSAGE"=canonicalPlan.MESSAGE
+                };
+                return out;
+            }
+
             qPlan = queryExecute(
                 "SELECT floatplanId, floatPlanName
                  FROM floatplans
-                 WHERE userId = :uid
-                 ORDER BY floatplanId DESC
+                 WHERE floatplanId = :floatplanId
+                   AND userId = :uid
                  LIMIT 1",
                 {
+                    floatplanId = { value=canonicalPlan.FLOATPLANID, cfsqltype="cf_sql_integer" },
                     uid = { value=arguments.currentUserId, cfsqltype="cf_sql_integer" }
                 },
                 { datasource=ds }
@@ -2100,7 +2157,7 @@
 
             if (qPlan.recordCount EQ 0) {
                 out.MESSAGE = "No float plan found";
-                out.ERROR = { "MESSAGE"="Create at least one float plan before seeding a demo stream." };
+                out.ERROR = { "MESSAGE"="The active trip could not be loaded for the demo stream." };
                 return out;
             }
 

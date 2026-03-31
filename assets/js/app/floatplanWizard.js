@@ -1364,7 +1364,12 @@
 
         this.isLoading = true;
         var planId = this.initialPlanId;
-        var request = planId > 0 ? window.Api.getFloatPlanBootstrap(planId) : window.Api.getFloatPlanBootstrap();
+        if (!(planId > 0)) {
+          this.isLoading = false;
+          this.handleError("New float plans must be created from a route.", "Unable to load float plan.");
+          return;
+        }
+        var request = window.Api.getFloatPlanBootstrap(planId);
 
         request
           .then(function (data) {

@@ -899,7 +899,14 @@
     <cffunction name="listUserRoutes" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfscript>
-            var out = { "SUCCESS"=true, "AUTH"=true, "MESSAGE"="OK", "ROUTES"=[], "ACTIVE_ROUTE_CODE"="" };
+            var out = {
+                "SUCCESS"=true,
+                "AUTH"=true,
+                "MESSAGE"="OK",
+                "ROUTES"=[],
+                "ACTIVE_ROUTE_CODE"="",
+                "ACTIVE_TRIP"={}
+            };
             var routePrefix = "USER_ROUTE_" & int(arguments.userId) & "_%";
             var userIdText = toString(arguments.userId);
             var qRoutes = queryExecute(
@@ -943,21 +950,145 @@
             }
 
             if (structKeyExists(session, "expeditionRouteCode")) {
-                out.ACTIVE_ROUTE_CODE = toString(session.expeditionRouteCode);
+                structDelete(session, "expeditionRouteCode");
             }
-            var hasActive = false;
-            for (i = 1; i LTE arrayLen(out.ROUTES); i++) {
-                if (out.ROUTES[i].SHORT_CODE EQ out.ACTIVE_ROUTE_CODE) {
-                    hasActive = true;
-                    break;
+            out.ACTIVE_TRIP = resolveCanonicalDashboardActiveTrip(arguments.userId);
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveCanonicalDashboardActiveTrip" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfscript>
+            var out = {
+                "SUCCESS"=false,
+                "AUTH"=true,
+                "MESSAGE"="No active trip is available.",
+                "FLOATPLAN_ID"=0,
+                "FLOATPLAN_NAME"="",
+                "STATUS"="",
+                "ROUTE_INSTANCE_ID"=0,
+                "ROUTE_CODE"="",
+                "ROUTE_NAME"="",
+                "ROUTE"={},
+                "TOTALS"={
+                    "TOTAL_NM"=0,
+                    "TOTAL_LOCKS"=0,
+                    "COMPLETED_NM"=0,
+                    "COMPLETED_LOCKS"=0,
+                    "PCT_COMPLETE"=0
                 }
+            };
+            var qPlan = queryNew("");
+            var qRouteInstance = queryNew("");
+            var routeInstanceIdVal = 0;
+            var routeCodeVal = "";
+            var timeline = {};
+
+            if (arguments.userId LTE 0) {
+                out.AUTH = false;
+                out.MESSAGE = "Unauthorized";
+                out.ERROR = { "CODE"="UNAUTHORIZED", "MESSAGE"="No logged-in user session." };
+                return out;
             }
-            if (!hasActive) {
-                out.ACTIVE_ROUTE_CODE = "";
+
+            qPlan = queryExecute(
+                "SELECT
+                    fp.floatplanId,
+                    fp.floatPlanName,
+                    fp.route_instance_id,
+                    UPPER(TRIM(fp.status)) AS statusValue
+                 FROM floatplans fp
+                 WHERE fp.userId = :userId
+                   AND UPPER(TRIM(fp.status)) IN (
+                        'ACTIVE',
+                        'DUE_NOW',
+                        'OVERDUE',
+                        'OVERDUE_1H',
+                        'OVERDUE_2H',
+                        'OVERDUE_3H',
+                        'OVERDUE_4H',
+                        'OVERDUE_12H',
+                        'OVERDUE_24H'
+                   )
+                 ORDER BY fp.floatplanId DESC
+                 LIMIT 2",
+                {
+                    userId = { value=arguments.userId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+
+            if (qPlan.recordCount EQ 0) {
+                out.ERROR = { "CODE"="NO_ACTIVE_PLAN", "MESSAGE"="No active trip is available." };
+                return out;
             }
-            if (!len(out.ACTIVE_ROUTE_CODE) AND arrayLen(out.ROUTES)) {
-                out.ACTIVE_ROUTE_CODE = out.ROUTES[1].SHORT_CODE;
-                session.expeditionRouteCode = out.ACTIVE_ROUTE_CODE;
+
+            if (qPlan.recordCount GT 1) {
+                out.MESSAGE = "Multiple active trips were found.";
+                out.ERROR = { "CODE"="MULTIPLE_ACTIVE_PLANS", "MESSAGE"="Multiple active trips were found." };
+                return out;
+            }
+
+            routeInstanceIdVal = (isNull(qPlan.route_instance_id[1]) ? 0 : val(qPlan.route_instance_id[1]));
+            if (routeInstanceIdVal LTE 0) {
+                out.MESSAGE = "The active trip is missing route data.";
+                out.ERROR = { "CODE"="ACTIVE_PLAN_ROUTE_REQUIRED", "MESSAGE"="The active trip is missing route data." };
+                return out;
+            }
+
+            qRouteInstance = queryExecute(
+                "SELECT
+                    ri.id,
+                    COALESCE(NULLIF(TRIM(ri.generated_route_code), ''), NULLIF(TRIM(lr.short_code), '')) AS route_code,
+                    COALESCE(NULLIF(TRIM(lr.name), ''), NULLIF(TRIM(ri.generated_route_code), ''), CONCAT('Route ##', ri.id)) AS route_name
+                 FROM route_instances ri
+                 LEFT JOIN loop_routes lr ON lr.id = ri.generated_route_id
+                 WHERE ri.id = :routeInstanceId
+                   AND ri.user_id = :userId
+                 LIMIT 1",
+                {
+                    routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" },
+                    userId = { value=arguments.userId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+
+            if (qRouteInstance.recordCount EQ 0) {
+                out.MESSAGE = "The active trip route could not be found.";
+                out.ERROR = { "CODE"="ACTIVE_ROUTE_INSTANCE_NOT_FOUND", "MESSAGE"="The active trip route could not be found." };
+                return out;
+            }
+
+            routeCodeVal = trim(toString(isNull(qRouteInstance.route_code[1]) ? "" : qRouteInstance.route_code[1]));
+            if (!len(routeCodeVal)) {
+                out.MESSAGE = "The active trip route code is unavailable.";
+                out.ERROR = { "CODE"="ACTIVE_ROUTE_CODE_MISSING", "MESSAGE"="The active trip route code is unavailable." };
+                return out;
+            }
+
+            timeline = getTimeline(arguments.userId, routeCodeVal, routeInstanceIdVal);
+            if (!structKeyExists(timeline, "SUCCESS") OR timeline.SUCCESS EQ false) {
+                out.MESSAGE = (structKeyExists(timeline, "MESSAGE") ? toString(timeline.MESSAGE) : "The active trip timeline is unavailable.");
+                out.ERROR = {
+                    "CODE"="ACTIVE_TRIP_TIMELINE_UNAVAILABLE",
+                    "MESSAGE"=out.MESSAGE
+                };
+                return out;
+            }
+
+            out.SUCCESS = true;
+            out.MESSAGE = "OK";
+            out.FLOATPLAN_ID = val(qPlan.floatplanId[1]);
+            out.FLOATPLAN_NAME = trim(toString(isNull(qPlan.floatPlanName[1]) ? "" : qPlan.floatPlanName[1]));
+            out.STATUS = trim(toString(isNull(qPlan.statusValue[1]) ? "" : qPlan.statusValue[1]));
+            out.ROUTE_INSTANCE_ID = routeInstanceIdVal;
+            out.ROUTE_CODE = routeCodeVal;
+            out.ROUTE_NAME = trim(toString(isNull(qRouteInstance.route_name[1]) ? "" : qRouteInstance.route_name[1]));
+            out.ROUTE = (structKeyExists(timeline, "ROUTE") AND isStruct(timeline.ROUTE) ? timeline.ROUTE : {});
+            out.TOTALS = (structKeyExists(timeline, "TOTALS") AND isStruct(timeline.TOTALS) ? timeline.TOTALS : out.TOTALS);
+            if (!len(out.ROUTE_NAME) AND structKeyExists(out.ROUTE, "NAME")) {
+                out.ROUTE_NAME = toString(out.ROUTE.NAME);
             }
             return out;
         </cfscript>
@@ -3193,7 +3324,9 @@
                     "ERROR"={"MESSAGE"="Route is not available for this user."}
                 };
             }
-            session.expeditionRouteCode = code;
+            if (structKeyExists(session, "expeditionRouteCode")) {
+                structDelete(session, "expeditionRouteCode");
+            }
             return { "SUCCESS"=true, "AUTH"=true, "MESSAGE"="OK", "ACTIVE_ROUTE_CODE"=code };
         </cfscript>
     </cffunction>
@@ -3384,9 +3517,6 @@
                 );
             }
 
-            if (structKeyExists(session, "expeditionRouteCode") AND toString(session.expeditionRouteCode) EQ code) {
-                structDelete(session, "expeditionRouteCode");
-            }
             return { "SUCCESS"=true, "AUTH"=true, "MESSAGE"="Route deleted", "ROUTE_CODE"=code };
         </cfscript>
     </cffunction>
@@ -3394,6 +3524,7 @@
     <cffunction name="getTimeline" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="routeCode" type="string" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="false" default="0">
         <cfset var resp = {
             "SUCCESS"=true,
             "AUTH"=true,
@@ -3427,7 +3558,10 @@
             "IS_DEFAULT"=(qRoute.is_default[1] EQ 1)
         } />
 
-        <cfset var routeInstanceIdVal = routegenResolveLatestRouteInstanceId(arguments.userId, routeId) />
+        <cfset var routeInstanceIdVal = val(arguments.routeInstanceId) />
+        <cfif routeInstanceIdVal LTE 0>
+            <cfset routeInstanceIdVal = routegenResolveLatestRouteInstanceId(arguments.userId, routeId) />
+        </cfif>
         <cfset var qSections = queryNew("") />
         <cfset var qSegments = queryNew("") />
         <cfset var qProg = queryNew("") />
@@ -10664,8 +10798,6 @@
                 );
             }
 
-            session.expeditionRouteCode = routeCode;
-
             out.SUCCESS = true;
             out.MESSAGE = "Route generated";
             out.DATA = {
@@ -10933,8 +11065,6 @@
                 newLegIdByOrder = (structKeyExists(rebuildRes, "LEG_ID_BY_ORDER") AND isStruct(rebuildRes.LEG_ID_BY_ORDER) ? rebuildRes.LEG_ID_BY_ORDER : {});
                 routegenRemapLegOverrideIds(routeId, oldLegMapByOrder, newLegIdByOrder, legs);
             }
-
-            session.expeditionRouteCode = routeCodeVal;
 
             out.SUCCESS = true;
             out.MESSAGE = "Route updated";
