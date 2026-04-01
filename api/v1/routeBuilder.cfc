@@ -904,7 +904,6 @@
                 "AUTH"=true,
                 "MESSAGE"="OK",
                 "ROUTES"=[],
-                "ACTIVE_ROUTE_CODE"="",
                 "ACTIVE_TRIP"={}
             };
             var routePrefix = "USER_ROUTE_" & int(arguments.userId) & "_%";
@@ -947,10 +946,6 @@
                     "ROUTE_INSTANCE_ID"=(isNull(qRoutes.route_instance_id[i]) ? 0 : val(qRoutes.route_instance_id[i])),
                     "TOTALS"=timeline.TOTALS
                 });
-            }
-
-            if (structKeyExists(session, "expeditionRouteCode")) {
-                structDelete(session, "expeditionRouteCode");
             }
             out.ACTIVE_TRIP = resolveCanonicalDashboardActiveTrip(arguments.userId);
             return out;
@@ -2284,7 +2279,8 @@
                     "fuel_price_per_gal"=(fuelPricePerGalVal GT 0 ? fuelPricePerGalVal : ""),
                     "vessel_max_speed_kn"=(val(normalizedInput.vessel_max_speed_kn) GT 0 ? roundTo2(normalizedInput.vessel_max_speed_kn) : ""),
                     "vessel_most_efficient_speed_kn"=(val(performanceMeta.most_efficient_speed_kn) GT 0 ? roundTo2(performanceMeta.most_efficient_speed_kn) : ""),
-                    "vessel_gph_at_most_efficient_speed"=(val(performanceMeta.most_efficient_burn_gph) GT 0 ? roundTo2(performanceMeta.most_efficient_burn_gph) : "")
+                    "vessel_gph_at_most_efficient_speed"=(val(performanceMeta.most_efficient_burn_gph) GT 0 ? roundTo2(performanceMeta.most_efficient_burn_gph) : ""),
+                    "comfort_profile"=normalizedInput.comfort_profile
                 },
                 "totals"={
                     "total_nm"=totals.TOTAL_NM,
@@ -3324,10 +3320,7 @@
                     "ERROR"={"MESSAGE"="Route is not available for this user."}
                 };
             }
-            if (structKeyExists(session, "expeditionRouteCode")) {
-                structDelete(session, "expeditionRouteCode");
-            }
-            return { "SUCCESS"=true, "AUTH"=true, "MESSAGE"="OK", "ACTIVE_ROUTE_CODE"=code };
+            return { "SUCCESS"=true, "AUTH"=true, "MESSAGE"="OK" };
         </cfscript>
     </cffunction>
 

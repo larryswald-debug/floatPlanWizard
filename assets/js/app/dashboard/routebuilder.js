@@ -1642,7 +1642,7 @@
   function renderMyRouteOptions() {
     var selectEl = dom.myRouteSelectEl;
     var routes = Array.isArray(state.myRoutes.routes) ? state.myRoutes.routes : [];
-    var activeId = toInt(state.myRoutes.activeRouteId, 0);
+    var selectedRouteId = toInt(state.myRoutes.activeRouteId, 0);
     if (!selectEl) return;
 
     selectEl.innerHTML = '<option value="">Select route</option>' + routes.map(function (route) {
@@ -1651,8 +1651,8 @@
       var legCount = toInt(route.leg_count !== undefined ? route.leg_count : route.LEG_COUNT, 0);
       return '<option value="' + String(routeId) + '">' + escapeHtml(name + " (" + legCount + " legs)") + "</option>";
     }).join("");
-    if (activeId > 0) {
-      selectEl.value = String(activeId);
+    if (selectedRouteId > 0) {
+      selectEl.value = String(selectedRouteId);
     }
     if (!selectEl.value && routes.length) {
       selectEl.value = String(toInt(routes[0].route_id || routes[0].ROUTE_ID, 0));
@@ -1664,7 +1664,7 @@
   }
 
   function renderMyRouteControlAvailability() {
-    var hasActiveRoute = toInt(state.myRoutes.activeRouteId, 0) > 0;
+    var hasSelectedRoute = toInt(state.myRoutes.activeRouteId, 0) > 0;
     var hasPersistedStart = toInt(state.myRoutes.startWaypointId, 0) > 0;
     var hasExistingLegs = Array.isArray(state.myRoutes.legs) && state.myRoutes.legs.length > 0;
     var selectedStartWaypointId = toInt(dom.myRouteStartWaypointSelectEl ? dom.myRouteStartWaypointSelectEl.value : 0, 0);
@@ -1673,16 +1673,16 @@
     var isPending = isMyRoutePending();
 
     if (dom.myRouteStartWaypointSelectEl) {
-      dom.myRouteStartWaypointSelectEl.disabled = isPending || !hasActiveRoute;
+      dom.myRouteStartWaypointSelectEl.disabled = isPending || !hasSelectedRoute;
     }
     if (dom.myRouteSetStartBtn) {
-      dom.myRouteSetStartBtn.disabled = isPending || !hasActiveRoute;
+      dom.myRouteSetStartBtn.disabled = isPending || !hasSelectedRoute;
     }
     if (dom.myRouteEndWaypointSelectEl) {
-      dom.myRouteEndWaypointSelectEl.disabled = isPending || !hasActiveRoute || !canAddWaypointLeg;
+      dom.myRouteEndWaypointSelectEl.disabled = isPending || !hasSelectedRoute || !canAddWaypointLeg;
     }
     if (dom.myRouteAddWaypointLegBtn) {
-      dom.myRouteAddWaypointLegBtn.disabled = isPending || !hasActiveRoute || !canAddWaypointLeg;
+      dom.myRouteAddWaypointLegBtn.disabled = isPending || !hasSelectedRoute || !canAddWaypointLeg;
     }
   }
 
@@ -1924,12 +1924,12 @@
           renderMyRouteWaypointOptions();
           return payload;
         }
-        if (opts.reloadActive && state.myRoutes.activeRouteId > 0) {
+        if (opts.reloadSelected && state.myRoutes.activeRouteId > 0) {
           return loadMyRoute(state.myRoutes.activeRouteId, { silentError: true });
         }
         var targetRouteId = toInt(
           opts.routeId !== undefined ? opts.routeId :
-            (state.myRoutes.activeRouteId > 0 ? state.myRoutes.activeRouteId : data.active_route_id),
+            (state.myRoutes.activeRouteId > 0 ? state.myRoutes.activeRouteId : 0),
           0
         );
         if (targetRouteId > 0) {
@@ -2018,7 +2018,7 @@
     if (dom.hintLineEl) {
       dom.hintLineEl.textContent = isEditor
         ? "Editing existing route: Preview updates, then Save Route to update this route."
-        : "Recommended flow: Preview -> Generate Route -> Build Float Plans from dashboard.";
+        : "Recommended flow: Preview -> Generate Route -> create a float plan from the dashboard when you're ready to start a trip.";
     }
   }
 
@@ -2978,13 +2978,19 @@
   }
 
   function resetLegMapSelection() {
+    var currentRouteType = String(state.activeRouteType || "").trim().toLowerCase();
     state.legMapLoadSeq += 1;
     state.legMapClearIntent = false;
     state.legMapDraftPoints = [];
     closeLegMapPanel();
     state.selectedLegOrder = 0;
     state.selectedLegData = null;
-    state.selectedLegContext = "routegen";
+    applyRouteContext(
+      currentRouteType,
+      (currentRouteType === "my_route")
+        ? toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0)
+        : state.activeRouteId
+    );
     state.selectedLegHasOverride = false;
     state.selectedLegSource = "default";
     clearSelectedLegRows();
@@ -4199,6 +4205,42 @@
       });
   }
 
+  function applyRouteContext(routeType, routeId, options) {
+    var opts = options || {};
+    var normalizedType = String(routeType || "").trim().toLowerCase();
+    var isMyRoute = (normalizedType === "my_route" || normalizedType === "my_routes" || normalizedType === "custom");
+    var hasExplicitRouteId = !(routeId === undefined || routeId === null || routeId === "");
+    var resolvedRouteId = hasExplicitRouteId ? toInt(routeId, 0) : 0;
+
+    if (isMyRoute) {
+      if (resolvedRouteId <= 0) {
+        resolvedRouteId = toInt(
+          opts.fallbackMyRouteId !== undefined ? opts.fallbackMyRouteId :
+            (state.myRoutes.activeRouteId || state.activeRouteId),
+          0
+        );
+      }
+      state.activeRouteType = "my_route";
+      state.activeRouteId = resolvedRouteId;
+      state.selectedLegContext = "my_route";
+      if (opts.syncMyRouteId !== false) {
+        state.myRoutes.activeRouteId = resolvedRouteId;
+      }
+      return resolvedRouteId;
+    }
+
+    if (!hasExplicitRouteId) {
+      resolvedRouteId = toInt(
+        opts.fallbackGeneratedRouteId !== undefined ? opts.fallbackGeneratedRouteId : state.activeRouteId,
+        0
+      );
+    }
+    state.activeRouteType = "generated";
+    state.activeRouteId = resolvedRouteId;
+    state.selectedLegContext = "routegen";
+    return resolvedRouteId;
+  }
+
   function applyEditContext(editData) {
     var data = editData || {};
     var inputs = data && data.inputs ? data.inputs : data;
@@ -4228,10 +4270,7 @@
     );
     if (ctxRouteCode) state.activeRouteCode = ctxRouteCode;
     if (isMyRouteContext && ctxMyRouteId > 0) {
-      state.activeRouteType = "my_route";
-      state.selectedLegContext = "my_route";
-      state.myRoutes.activeRouteId = ctxMyRouteId;
-      state.activeRouteId = ctxMyRouteId;
+      applyRouteContext("my_route", ctxMyRouteId);
       state.myRoutes.activeRouteName = String(
         templateMeta.name !== undefined ? templateMeta.name :
           (templateMeta.NAME !== undefined ? templateMeta.NAME : state.myRoutes.activeRouteName || "")
@@ -4240,9 +4279,7 @@
         dom.previewTemplateEl.textContent = "Template: " + (state.myRoutes.activeRouteName || "My Route");
       }
     } else {
-      state.activeRouteId = ctxRouteId;
-      state.activeRouteType = "generated";
-      state.selectedLegContext = "routegen";
+      applyRouteContext("generated", ctxRouteId);
     }
     if (dom.routeNameEl) {
       dom.routeNameEl.value = String(
@@ -4538,9 +4575,19 @@
 
   function buildEditorBaselineFromPayload(payload) {
     var src = payload || {};
+    var routeType = String(
+      src.route_type !== undefined ? src.route_type :
+        (src.routeType !== undefined ? src.routeType : "")
+    ).trim().toLowerCase();
+    var isMyRoute = (routeType === "my_route" || routeType === "my_routes" || routeType === "custom");
+    var routeId = toInt(
+      src.route_id !== undefined ? src.route_id :
+        (src.routeId !== undefined ? src.routeId : 0),
+      0
+    );
     return {
-      route_type: "generated",
-      route_id: 0,
+      route_type: (isMyRoute ? "my_route" : "generated"),
+      route_id: (isMyRoute ? routeId : 0),
       route_name: String(src.route_name || ""),
       selected_vessel_id: String(src.selected_vessel_id || ""),
       template_code: String(src.template_code || ""),
@@ -5253,7 +5300,10 @@
       if (!actionLeg) return;
 
       if (action === "open-map") {
-        state.selectedLegContext = contextType;
+        applyRouteContext(
+          contextType,
+          (contextType === "my_route") ? toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0) : state.activeRouteId
+        );
         loadLegGeometry(actionLeg);
         return;
       }
@@ -5275,7 +5325,10 @@
     var order = toInt(row.getAttribute("data-leg-order"), 0);
     var leg = getLegByOrder(order);
     if (!leg) return;
-    state.selectedLegContext = contextType;
+    applyRouteContext(
+      contextType,
+      (contextType === "my_route") ? toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0) : state.activeRouteId
+    );
     state.selectedLegOrder = order;
     state.selectedLegData = leg;
     selectLegRow(order);
@@ -5387,13 +5440,13 @@
             refreshTotalsFromLegs();
           }
           state.selectedLegData = (legOrder > 0 ? getLegByOrder(legOrder) : null) || getMyRouteLegById(legRouteLegId) || leg;
-          loadMyRoutes({ reloadActive: true, silentError: true })
+          loadMyRoutes({ reloadSelected: true, silentError: true })
             .then(function () {
               var activeMyRouteId = toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0);
               if (String(state.activeRouteType || "").trim().toLowerCase() !== "my_route" || activeMyRouteId <= 0) {
                 return null;
               }
-              return previewActiveMyRoute(true);
+              return previewSelectedMyRoute(true);
             })
             .catch(function () {
               return null;
@@ -5488,13 +5541,13 @@
             refreshTotalsFromLegs();
           }
           state.selectedLegData = (legOrder > 0 ? getLegByOrder(legOrder) : null) || getMyRouteLegById(legRouteLegId) || leg;
-          loadMyRoutes({ reloadActive: true, silentError: true })
+          loadMyRoutes({ reloadSelected: true, silentError: true })
             .then(function () {
               var activeMyRouteId = toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0);
               if (String(state.activeRouteType || "").trim().toLowerCase() !== "my_route" || activeMyRouteId <= 0) {
                 return null;
               }
-              return previewActiveMyRoute(true);
+              return previewSelectedMyRoute(true);
             })
             .catch(function () {
               return null;
@@ -5736,7 +5789,7 @@
     }, 250);
   }
 
-  function previewActiveMyRoute(forceRefresh) {
+  function previewSelectedMyRoute(forceRefresh) {
     var routeId = toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0);
     var payload = collectFormPayload();
     if (routeId <= 0) {
@@ -5773,9 +5826,7 @@
         if (!resPayload || resPayload.SUCCESS === false) {
           throw new Error((resPayload && resPayload.MESSAGE) ? resPayload.MESSAGE : "My Route preview failed.");
         }
-        state.activeRouteId = routeId;
-        state.activeRouteType = "my_route";
-        state.selectedLegContext = "my_route";
+        applyRouteContext("my_route", routeId);
         if (state.modalMode !== "editor") {
           state.activeRouteCode = "";
         }
@@ -5821,7 +5872,7 @@
 
   function previewRoute(forceRefresh) {
     if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route" && toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0) > 0) {
-      return previewActiveMyRoute(forceRefresh);
+      return previewSelectedMyRoute(forceRefresh);
     }
 
     var payload = collectFormPayload();
@@ -5861,8 +5912,7 @@
         if (!resPayload || resPayload.SUCCESS === false) {
           throw new Error((resPayload && resPayload.MESSAGE) ? resPayload.MESSAGE : "Preview failed.");
         }
-        state.activeRouteType = "generated";
-        state.selectedLegContext = "routegen";
+        applyRouteContext("generated");
         previewLegsForTimeline = extractPreviewLegsFromPayload(resPayload);
         renderPreviewPayload(resPayload, false);
         scrollPreviewTimelineIntoView();
@@ -5934,6 +5984,11 @@
         }
 
         var data = responsePayload.DATA || {};
+        var sourceMyRouteId = toInt(
+          payload.route_id !== undefined ? payload.route_id :
+            (payload.routeId !== undefined ? payload.routeId : state.myRoutes.activeRouteId),
+          toInt(state.myRoutes.activeRouteId, 0)
+        );
         var routeCode = String(
           data.route_code !== undefined ? data.route_code :
             (data.ROUTE_CODE !== undefined ? data.ROUTE_CODE : (responsePayload.ROUTE_CODE !== undefined ? responsePayload.ROUTE_CODE : ""))
@@ -5946,9 +6001,11 @@
 
         state.lastGeneratedRouteCode = routeCode;
         state.activeRouteCode = routeCode;
-        state.activeRouteId = routeId;
-        state.activeRouteType = "generated";
-        state.selectedLegContext = "routegen";
+        if (isMyRoute && sourceMyRouteId > 0) {
+          applyRouteContext("my_route", sourceMyRouteId);
+        } else {
+          applyRouteContext("generated", routeId);
+        }
         state.modalMode = "editor";
         state.editorBaseline = buildEditorBaselineFromPayload(payload);
         setRouteCodeBadge(routeCode || "Generated");
@@ -6033,7 +6090,13 @@
         );
 
         state.activeRouteCode = savedRouteCode || routeCode;
-        state.activeRouteId = savedRouteId;
+        applyRouteContext(
+          state.activeRouteType,
+          (String(state.activeRouteType || "").trim().toLowerCase() === "my_route")
+            ? toInt(state.myRoutes.activeRouteId || payload.route_id || state.activeRouteId, 0)
+            : savedRouteId
+        );
+        state.editorBaseline = buildEditorBaselineFromPayload(payload);
         setRouteCodeBadge(state.activeRouteCode);
         setStatus("Route saved.");
 
@@ -6073,9 +6136,7 @@
         var sections = Array.isArray(payload.SECTIONS) ? payload.SECTIONS : [];
         var routeMeta = payload.ROUTE || {};
         var routeId = toInt(routeMeta.ID !== undefined ? routeMeta.ID : routeMeta.route_id, 0);
-        state.activeRouteId = routeId;
-        state.activeRouteType = "generated";
-        state.selectedLegContext = "routegen";
+        applyRouteContext("generated", routeId);
         var flatLegs = [];
         sections.forEach(function (section) {
           var segs = Array.isArray(section.SEGMENTS) ? section.SEGMENTS : [];
@@ -6152,9 +6213,6 @@
     state.editorBaseline = null;
     state.suppressAutoSelectOnce = false;
     state.activeTemplateCode = "";
-    state.activeRouteId = 0;
-    state.activeRouteType = "generated";
-    state.selectedLegContext = "routegen";
     state.previewLegs = [];
     state.myRoutes = {
       available: false,
@@ -6166,6 +6224,7 @@
       waypoints: [],
       startWaypointId: 0
     };
+    applyRouteContext("generated", 0);
     state.selectedLegOrder = 0;
     state.selectedLegData = null;
     resetLegLockPanelState();
@@ -6273,7 +6332,7 @@
               if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") {
                 return loadMyRoutes({
                   routeId: toInt(state.myRoutes.activeRouteId, 0),
-                  reloadActive: true,
+                  reloadSelected: true,
                   silentError: true
                 }).then(function () {
                   if (!isActiveModalInit(initSeq)) return null;
@@ -6379,14 +6438,12 @@
     if (dom.startSelectEl) dom.startSelectEl.value = "";
     if (dom.endSelectEl) dom.endSelectEl.value = "";
     if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") {
-      state.activeRouteId = 0;
       if (state.modalMode !== "editor") {
         state.activeRouteCode = "";
         setRouteCodeBadge("Draft");
       }
     }
-    state.activeRouteType = "generated";
-    state.selectedLegContext = "routegen";
+    applyRouteContext("generated", 0);
     updateDirectionControlAvailability();
 
     setActiveTemplate(code);
@@ -6410,10 +6467,8 @@
       start_label: "",
       end_label: ""
     };
-    state.activeRouteId = 0;
     state.activeRouteCode = "";
-    state.activeRouteType = "generated";
-    state.selectedLegContext = "routegen";
+    applyRouteContext("generated", 0);
     state.manualOverrides.cruisingSpeed = false;
     state.suppressAutoSelectOnce = true;
     state.selectedVesselId = 0;
@@ -6533,18 +6588,15 @@
     }
 
     if (isMyRouteBaseline && baselineMyRouteId > 0) {
-      state.activeRouteType = "my_route";
-      state.selectedLegContext = "my_route";
-      state.myRoutes.activeRouteId = baselineMyRouteId;
-      state.activeRouteId = baselineMyRouteId;
+      applyRouteContext("my_route", baselineMyRouteId);
       state.pendingDraft = null;
       loadMyRoutes({
         routeId: baselineMyRouteId,
-        reloadActive: true,
+        reloadSelected: true,
         silentError: true
       })
         .then(function () {
-          return previewActiveMyRoute(true);
+          return previewSelectedMyRoute(true);
         })
         .catch(function (err) {
           if (err && err.code === "UNAUTHORIZED") {
@@ -6603,14 +6655,12 @@
   function onDirectionControlChange() {
     clearError();
     if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") {
-      state.activeRouteId = 0;
       if (state.modalMode !== "editor") {
         state.activeRouteCode = "";
         setRouteCodeBadge("Draft");
       }
     }
-    state.activeRouteType = "generated";
-    state.selectedLegContext = "routegen";
+    applyRouteContext("generated", 0);
     setDirectionValue(dom.directionToggleEl ? (dom.directionToggleEl.checked ? "CW" : "CCW") : getDirectionValue());
     setStatus("Switching direction...");
     queueDirectionSwapDraft();
@@ -6768,7 +6818,7 @@
       if (!opts.suppressStatus) {
         setStatus(state.myRoutes.startWaypointId > 0 ? "My Route start waypoint set." : "My Route start waypoint cleared.");
       }
-      return loadMyRoutes({ reloadActive: true, silentError: true });
+      return loadMyRoutes({ reloadSelected: true, silentError: true });
     }).catch(function (err) {
       var message = (err && err.message) ? err.message : "Unable to set route start waypoint.";
       if (!opts.suppressError) {
@@ -6831,7 +6881,7 @@
       );
       setMyRouteLegs(Array.isArray(data.legs) ? data.legs : []);
       renderMyRouteWaypointOptions();
-      return loadMyRoutes({ reloadActive: true });
+      return loadMyRoutes({ reloadSelected: true });
     }).catch(function (err) {
       showError((err && err.message) ? err.message : "Unable to add waypoint leg.");
     }).finally(function () {
@@ -6854,16 +6904,14 @@
     loadPromise
       .then(function () {
         state.myRoutes.activeRouteId = toInt(state.myRoutes.activeRouteId, selectedRouteId);
-        state.activeRouteId = state.myRoutes.activeRouteId;
-        state.activeRouteType = "my_route";
-        state.selectedLegContext = "my_route";
+        applyRouteContext("my_route", state.myRoutes.activeRouteId);
         if (state.modalMode !== "editor") {
           state.activeRouteCode = "";
         }
         if (state.activeRouteId <= 0) {
           throw new Error("Unable to resolve selected My Route.");
         }
-        return previewActiveMyRoute(true);
+        return previewSelectedMyRoute(true);
       })
       .then(function () {
         setStatus("My Route loaded.");
@@ -6891,7 +6939,7 @@
       }
       var data = (payload.DATA && typeof payload.DATA === "object") ? payload.DATA : {};
       setMyRouteLegs(Array.isArray(data.legs) ? data.legs : []);
-      loadMyRoutes({ reloadActive: true });
+      loadMyRoutes({ reloadSelected: true });
       return payload;
     });
   }
@@ -6941,7 +6989,7 @@
       }
       var data = (payload.DATA && typeof payload.DATA === "object") ? payload.DATA : {};
       setMyRouteLegs(Array.isArray(data.legs) ? data.legs : []);
-      loadMyRoutes({ reloadActive: true });
+      loadMyRoutes({ reloadSelected: true });
       setStatus("Leg removed.");
     }).catch(function (err) {
       showError((err && err.message) ? err.message : "Unable to remove leg.");
@@ -6964,7 +7012,7 @@
       return;
     }
     if (action === "edit-geometry") {
-      state.selectedLegContext = "my_route";
+      applyRouteContext("my_route", toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0));
       loadLegGeometry(leg);
     }
   }
@@ -7215,14 +7263,12 @@
     if (dom.startSelectEl) {
       dom.startSelectEl.addEventListener("change", function () {
         if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") {
-          state.activeRouteId = 0;
           if (state.modalMode !== "editor") {
             state.activeRouteCode = "";
             setRouteCodeBadge("Draft");
           }
         }
-        state.activeRouteType = "generated";
-        state.selectedLegContext = "routegen";
+        applyRouteContext("generated", 0);
         if (dom.endSelectEl) dom.endSelectEl.value = "";
         renderOptions();
         onFormChange();
@@ -7232,14 +7278,12 @@
     if (dom.endSelectEl) {
       dom.endSelectEl.addEventListener("change", function () {
         if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") {
-          state.activeRouteId = 0;
           if (state.modalMode !== "editor") {
             state.activeRouteCode = "";
             setRouteCodeBadge("Draft");
           }
         }
-        state.activeRouteType = "generated";
-        state.selectedLegContext = "routegen";
+        applyRouteContext("generated", 0);
         onFormChange();
       });
     }
@@ -7640,8 +7684,14 @@
   function selectLegByOrderForTest(order) {
     var wanted = toInt(order, 0);
     var leg = getLegByOrder(wanted);
+    var currentRouteType = String(state.activeRouteType || "").trim().toLowerCase();
     if (!leg) return Promise.resolve(false);
-    state.selectedLegContext = "routegen";
+    applyRouteContext(
+      currentRouteType,
+      (currentRouteType === "my_route")
+        ? toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0)
+        : state.activeRouteId
+    );
     return loadLegGeometry(leg).then(function () {
       return true;
     }).catch(function () {

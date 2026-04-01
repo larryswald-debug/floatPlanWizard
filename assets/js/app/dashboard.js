@@ -67,7 +67,7 @@
     lastRecomputedAt: null
   };
   var MISSION_SUMMARY_TILE_LABELS = {
-    activeRoute: "Active Trip",
+    activeTrip: "Active Trip",
     routeProgress: "Trip Progress",
     floatPlans: "Float Plans",
     monitoring: "Monitoring",
@@ -194,7 +194,7 @@
     var setup = payload.setup || {};
     var routeName = normalizeMissionText(route.name, "", 56);
     var routeSummary = normalizeMissionText(route.summary, "", 84);
-    var hasActiveRoute = !isMissionRouteUnavailable(routeName);
+    var hasActiveTripRoute = !isMissionRouteUnavailable(routeName);
     var routeProgress = parseFloat(route.progressPct);
     var routePctLabel = Number.isFinite(routeProgress) ? (Math.round(clamp(routeProgress, 0, 100)) + "% complete") : "No data";
     var floatActive = normalizeMissionCount(floatPlans.active);
@@ -216,10 +216,10 @@
     var routeMeta = "No data";
     var progressMeta = "No data";
 
-    if (hasActiveRoute && !isMissionSummaryPlaceholder(routeSummary)) {
+    if (hasActiveTripRoute && !isMissionSummaryPlaceholder(routeSummary)) {
       routeMeta = routeSummary;
       progressMeta = routeSummary;
-    } else if (hasActiveRoute) {
+    } else if (hasActiveTripRoute) {
       progressMeta = Number.isFinite(routeProgress) ? "No data" : "No progress data";
     } else {
       routeMeta = routeSummary || "No active trip is available.";
@@ -237,14 +237,14 @@
     return {
       updatedAtLabel: formatMissionSummaryUpdatedAt(summaryDate),
       tiles: {
-        activeRoute: {
-          label: MISSION_SUMMARY_TILE_LABELS.activeRoute,
-          value: hasActiveRoute ? routeName : "No active trip",
+        activeTrip: {
+          label: MISSION_SUMMARY_TILE_LABELS.activeTrip,
+          value: hasActiveTripRoute ? routeName : "No active trip",
           meta: routeMeta
         },
         routeProgress: {
           label: MISSION_SUMMARY_TILE_LABELS.routeProgress,
-          value: hasActiveRoute ? routePctLabel : "No data",
+          value: hasActiveTripRoute ? routePctLabel : "No data",
           meta: progressMeta
         },
         floatPlans: {
@@ -294,7 +294,7 @@
     var summaryModel = model && model.tiles ? model : buildMissionSummaryModel(collectMissionSummaryData(), missionSummaryState.lastRecomputedAt || new Date());
     var tiles = summaryModel.tiles || {};
     var mapping = [
-      { key: "activeRoute", valueId: "missionRouteValue", metaId: "missionRouteMeta" },
+      { key: "activeTrip", valueId: "missionRouteValue", metaId: "missionRouteMeta" },
       { key: "routeProgress", valueId: "missionProgressValue", metaId: "missionProgressMeta" },
       { key: "floatPlans", valueId: "missionFloatPlansValue", metaId: "missionFloatPlansMeta" },
       { key: "monitoring", valueId: "missionMonitoringValue", metaId: "missionMonitoringMeta" },
@@ -2656,16 +2656,39 @@
 
     function renderRouteList(routes, activeCode) {
       if (!routeListEl) return;
-      var list = Array.isArray(routes) ? routes : [];
+      var list = Array.isArray(routes) ? routes.slice() : [];
+      var hasCanonicalActiveFloatPlan = normalizeActiveFloatPlanId(state.activeTripFloatPlanId) > 0;
+      var activeTripRouteIndex = -1;
+      if (activeCode) {
+        activeTripRouteIndex = list.findIndex(function (route) {
+          return route && route.SHORT_CODE && route.SHORT_CODE === activeCode;
+        });
+        if (activeTripRouteIndex > 0) {
+          list = [list[activeTripRouteIndex]]
+            .concat(list.slice(0, activeTripRouteIndex))
+            .concat(list.slice(activeTripRouteIndex + 1));
+        }
+      }
       if (!list.length) {
         routeListEl.innerHTML = "";
         if (routeEmptyEl) toggleHidden(routeEmptyEl, false);
         return;
       }
       if (routeEmptyEl) toggleHidden(routeEmptyEl, true);
+      var activeCruiseLinkRendered = false;
+      var tripPageLinkRendered = false;
       routeListEl.innerHTML = list.map(function (route) {
         var totals = route && route.TOTALS ? route.TOTALS : {};
-        var isActive = route && route.SHORT_CODE && activeCode && route.SHORT_CODE === activeCode;
+        var isRouteForActiveTrip = route && route.SHORT_CODE && activeCode && route.SHORT_CODE === activeCode;
+        var showActivateRouteAction = !hasCanonicalActiveFloatPlan;
+        var showActiveCruiseAction = hasCanonicalActiveFloatPlan && isRouteForActiveTrip && !activeCruiseLinkRendered;
+        var showTripPageAction = hasCanonicalActiveFloatPlan && isRouteForActiveTrip && !tripPageLinkRendered;
+        if (showActiveCruiseAction) {
+          activeCruiseLinkRendered = true;
+        }
+        if (showTripPageAction) {
+          tripPageLinkRendered = true;
+        }
         var routeInstanceId = route && route.ROUTE_INSTANCE_ID !== undefined && route.ROUTE_INSTANCE_ID !== null
           ? parseInt(route.ROUTE_INSTANCE_ID, 10)
           : (route && route.route_instance_id !== undefined && route.route_instance_id !== null
@@ -2678,15 +2701,16 @@
           ? ' data-route-instance-id="' + routeInstanceId + '"'
           : "";
         return ''
-          + '<div class="expedition-route-card ' + (isActive ? 'is-active' : '') + '" data-route-code="' + escapeHtml(route.SHORT_CODE || "") + '"' + routeInstanceAttr + '>'
+          + '<div class="expedition-route-card ' + (isRouteForActiveTrip ? 'is-active' : '') + '" data-route-code="' + escapeHtml(route.SHORT_CODE || "") + '"' + routeInstanceAttr + '>'
           + '  <div>'
           + '    <div class="expedition-route-name">' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</div>'
+          + (isRouteForActiveTrip ? '    <div class="small text-light opacity-75">Used by active trip</div>' : '')
           + '    <div class="expedition-route-meta">' + pct + '% complete • ' + formatNumber(nm, 1) + ' NM • ' + formatNumber(locks, 0) + ' locks</div>'
           + '  </div>'
           + '  <div class="expedition-route-actions">'
-          + '    <button type="button" class="btn-secondary js-expedition-open-active-cruise">Open Active Cruise</button>'
-          + '    <button type="button" class="btn-secondary js-expedition-build-floatplans">Add Float Plan</button>'
-          + '    <button type="button" class="btn-secondary js-expedition-follower-page">Trip Page</button>'
+          + (showActiveCruiseAction ? '    <button type="button" class="btn-secondary js-expedition-active-cruise">Active Cruise</button>' : '')
+          + (showTripPageAction ? '    <button type="button" class="btn-secondary js-expedition-trip-page">Trip Page</button>' : '')
+          + (showActivateRouteAction ? '    <button type="button" class="btn-secondary js-expedition-build-floatplans">Activate Route</button>' : '')
           + '    <button type="button" class="btn-secondary js-expedition-view-edit">View / Edit</button>'
           + '    <button type="button" class="btn-secondary js-expedition-delete">Delete</button>'
           + '  </div>'
@@ -2722,32 +2746,12 @@
         });
     }
 
-    function activeCruiseUrl(routeCode, routeInstanceId) {
-      var url = BASE_PATH + "/app/active-cruise.cfm";
-      var params = [];
-      var rid = parseInt(routeInstanceId, 10);
-      var code = String(routeCode || "").trim();
-      if (Number.isFinite(rid) && rid > 0) {
-        params.push("routeInstanceId=" + encodeURIComponent(rid));
-      }
-      if (code) {
-        params.push("routeCode=" + encodeURIComponent(code));
-      }
-      if (!params.length) return url;
-      return url + "?" + params.join("&");
-    }
-
-    function openActiveCruise(routeCode, routeInstanceId) {
-      var url = activeCruiseUrl(routeCode, routeInstanceId);
-      window.open(url, "_blank", "noopener");
-    }
-
     function requestBuildFloatPlans(routeCode, rebuild, routeInstanceId) {
       if (!routeCode) return Promise.resolve({ SUCCESS: false, MESSAGE: "routeCode is required." });
       var rid = parseInt(routeInstanceId, 10);
       var body = {
         routeCode: routeCode,
-        mode: "DAILY",
+        mode: "SINGLE_MASTER",
         rebuild: rebuild ? 1 : 0
       };
       if (Number.isFinite(rid) && rid > 0) {
@@ -2760,35 +2764,6 @@
         },
         body: JSON.stringify(body)
       });
-    }
-
-    function requestEnsureFollowerPage(routeCode, routeInstanceId) {
-      var body = { routeCode: routeCode };
-      var rid = parseInt(routeInstanceId, 10);
-      if (Number.isFinite(rid) && rid > 0) {
-        body.routeInstanceId = rid;
-      }
-      return fetchJson(voyageUrl("ownerEnsureStream"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json; charset=utf-8"
-        },
-        body: JSON.stringify(body)
-      });
-    }
-
-    function payloadSuccess(payload) {
-      if (!payload) return false;
-      if (payload.ok === true || payload.success === true || payload.SUCCESS === true) return true;
-      return false;
-    }
-
-    function payloadCode(payload) {
-      if (!payload) return "";
-      if (payload.code !== undefined && payload.code !== null && payload.code !== "") return String(payload.code).toUpperCase();
-      if (payload.CODE !== undefined && payload.CODE !== null && payload.CODE !== "") return String(payload.CODE).toUpperCase();
-      if (payload.ERROR && payload.ERROR.CODE) return String(payload.ERROR.CODE).toUpperCase();
-      return "";
     }
 
     function payloadMessage(payload, fallbackText) {
@@ -2804,126 +2779,94 @@
       return fallbackText || "Request failed.";
     }
 
-    function payloadData(payload) {
-      if (!payload || typeof payload !== "object") return {};
-      if (payload.data && typeof payload.data === "object") return payload.data;
-      if (payload.DATA && typeof payload.DATA === "object") return payload.DATA;
-      return payload;
+    function normalizeFloatPlanId(value) {
+      var planId = parseInt(value, 10);
+      if (!Number.isFinite(planId) || planId <= 0) {
+        return 0;
+      }
+      return planId;
     }
 
-    function showActionError(actionName, routeCode, payloadOrError, fallbackText) {
-      var routeLabel = routeCode || "unknown route";
-      var message = fallbackText || "Request failed.";
-      if (payloadOrError) {
-        if (payloadOrError.message) {
-          message = String(payloadOrError.message);
-        } else if (typeof payloadOrError === "object") {
-          message = payloadMessage(payloadOrError, fallbackText || message);
+    function extractPlanIdsFromArray(values) {
+      var list = Array.isArray(values) ? values : [];
+      var ids = [];
+      var i = 0;
+      var planId = 0;
+      for (i = 0; i < list.length; i += 1) {
+        planId = normalizeFloatPlanId(list[i]);
+        if (planId > 0) {
+          ids.push(planId);
         }
       }
-      var fullMessage = actionName + " failed for route " + routeLabel + ": " + message;
-      if (utils && typeof utils.showDashboardAlert === "function") {
-        utils.showDashboardAlert(fullMessage, "danger");
-        return;
-      }
-      if (utils && typeof utils.showAlertModal === "function") {
-        utils.showAlertModal(fullMessage);
-        return;
-      }
-      setState("error", fullMessage);
+      return ids;
     }
 
-    function copyFollowerUrl(followUrl) {
-      if (!followUrl) return Promise.resolve(false);
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-        return navigator.clipboard.writeText(followUrl)
-          .then(function () { return true; })
-          .catch(function () { return false; });
+    function extractPlanIdsFromObjects(entries) {
+      var list = Array.isArray(entries) ? entries : [];
+      var ids = [];
+      var i = 0;
+      var entry = null;
+      var planId = 0;
+      for (i = 0; i < list.length; i += 1) {
+        entry = list[i] && typeof list[i] === "object" ? list[i] : null;
+        if (!entry) continue;
+        planId = normalizeFloatPlanId(entry.FLOATPLAN_ID !== undefined ? entry.FLOATPLAN_ID : entry.FLOATPLANID);
+        if (planId > 0) {
+          ids.push(planId);
+        }
       }
-      return Promise.resolve(false);
+      return ids;
     }
 
-    function openFollowerUrlWithCopy(followUrl) {
-      if (!followUrl) return Promise.resolve(false);
-      window.open(followUrl, "_blank", "noopener");
-      return copyFollowerUrl(followUrl)
-        .then(function (copied) {
-          if (copied) return true;
-          window.prompt("Copy follower page link:", followUrl);
-          return false;
-        });
-    }
+    function extractSingleCreatedFloatPlanId(payload) {
+      var createdCount = Number.isFinite(parseInt(payload && payload.CREATED_COUNT, 10))
+        ? parseInt(payload.CREATED_COUNT, 10)
+        : 0;
+      var planIds = [];
 
-    function ensureFollowerPage(routeCode, routeInstanceId, triggerButton) {
-      var originalText = "";
-      var ensuredRouteInstanceId = parseInt(routeInstanceId, 10);
-      if (!routeCode) return Promise.resolve();
-      if (!Number.isFinite(ensuredRouteInstanceId)) {
-        ensuredRouteInstanceId = 0;
-      }
-      if (triggerButton) {
-        originalText = triggerButton.textContent;
-        triggerButton.disabled = true;
-        triggerButton.textContent = "Creating...";
+      if (createdCount !== 1) {
+        throw new Error("Activate Route requires exactly one draft float plan.");
       }
 
-      return requestEnsureFollowerPage(routeCode, ensuredRouteInstanceId)
-        .then(function (ensurePayload) {
-          if (payloadSuccess(ensurePayload)) {
-            return ensurePayload;
-          }
+      planIds = extractPlanIdsFromArray(payload && payload.FLOATPLAN_IDS);
+      if (planIds.length > 1) {
+        throw new Error("Activate Route expected one float plan id but received multiple.");
+      }
+      if (planIds.length === 1) {
+        return planIds[0];
+      }
 
-          var code = payloadCode(ensurePayload);
-          if (code.indexOf("NO_FLOATPLAN") === -1) {
-            throw ensurePayload || new Error("Unable to prepare follower page.");
-          }
+      planIds = extractPlanIdsFromObjects(payload && payload.FLOATPLANS);
+      if (planIds.length > 1) {
+        throw new Error("Activate Route expected one float plan id but received multiple.");
+      }
+      if (planIds.length === 1) {
+        return planIds[0];
+      }
 
-          return requestBuildFloatPlans(routeCode, false, ensuredRouteInstanceId)
-            .then(function (buildPayload) {
-              if (!buildPayload || buildPayload.SUCCESS === false) {
-                throw buildPayload || new Error("Unable to build float plans from route.");
-              }
-              if (buildPayload.ROUTE_INSTANCE_ID !== undefined && buildPayload.ROUTE_INSTANCE_ID !== null) {
-                ensuredRouteInstanceId = parseInt(buildPayload.ROUTE_INSTANCE_ID, 10);
-                if (!Number.isFinite(ensuredRouteInstanceId)) {
-                  ensuredRouteInstanceId = 0;
-                }
-              }
-              return requestEnsureFollowerPage(routeCode, ensuredRouteInstanceId);
-            });
-        })
-        .then(function (ensurePayload) {
-          if (!payloadSuccess(ensurePayload)) {
-            throw ensurePayload || new Error("Unable to prepare follower page.");
-          }
-          var data = payloadData(ensurePayload);
-          var followUrl = data && data.follow && data.follow.url ? data.follow.url : "";
-          if (!followUrl && data && data.follow && data.follow.path) {
-            followUrl = window.location.origin + data.follow.path;
-          }
-          if (!followUrl) {
-            throw new Error("Follower page URL is missing from ownerEnsureStream response.");
-          }
-          return openFollowerUrlWithCopy(followUrl)
-            .then(function (copied) {
-              if (utils && typeof utils.showDashboardAlert === "function") {
-                utils.showDashboardAlert(
-                  copied ? "Follower page ready. Link copied to clipboard." : "Follower page ready. Copy link dialog shown.",
-                  "success"
-                );
-              }
-            });
-        })
-        .catch(function (errOrPayload) {
-          showActionError("Follower Page", routeCode, errOrPayload, "Unable to create follower page.");
-        })
-        .finally(function () {
-          if (triggerButton) {
-            triggerButton.disabled = false;
-            triggerButton.textContent = originalText || "Trip Page";
-          }
-        });
+      throw new Error("The created float plan id is unavailable.");
     }
+
+    function notifyFloatPlansUpdated(routeCode, routeInstanceId, createdCount) {
+      if (document && typeof window.CustomEvent === "function") {
+        document.dispatchEvent(new window.CustomEvent("fpw:floatplans-updated", {
+          detail: {
+            routeCode: routeCode,
+            routeInstanceId: routeInstanceId || 0,
+            createdCount: createdCount || 0
+          }
+        }));
+      }
+    }
+
+    function openCreatedFloatPlanWizard(planId) {
+      var floatPlansModule = window.FPW && window.FPW.DashboardModules ? window.FPW.DashboardModules.floatplans : null;
+      if (!floatPlansModule || typeof floatPlansModule.openWizardForPlan !== "function") {
+        return false;
+      }
+      return !!floatPlansModule.openWizardForPlan(planId, 1);
+    }
+
 
     function buildFloatPlans(routeCode, triggerButton, routeInstanceId) {
       if (!routeCode) return Promise.resolve();
@@ -2967,21 +2910,28 @@
           var createdCount = Number.isFinite(parseInt(payload.CREATED_COUNT, 10))
             ? parseInt(payload.CREATED_COUNT, 10)
             : 0;
+          var createdPlanId = 0;
+          var wizardOpened = false;
+          try {
+            createdPlanId = extractSingleCreatedFloatPlanId(payload);
+          } catch (planErr) {
+            if (createdCount > 0) {
+              notifyFloatPlansUpdated(routeCode, payload.ROUTE_INSTANCE_ID || 0, createdCount);
+            }
+            throw planErr;
+          }
+          wizardOpened = openCreatedFloatPlanWizard(createdPlanId);
+          if (!wizardOpened) {
+            notifyFloatPlansUpdated(routeCode, payload.ROUTE_INSTANCE_ID || 0, createdCount);
+            throw new Error("Draft float plan was created, but the wizard could not be opened.");
+          }
           if (utils && typeof utils.showDashboardAlert === "function") {
             utils.showDashboardAlert(
               "Created " + createdCount + " draft float plan" + (createdCount === 1 ? "" : "s") + " from route.",
               "success"
             );
           }
-          if (document && typeof window.CustomEvent === "function") {
-            document.dispatchEvent(new window.CustomEvent("fpw:floatplans-updated", {
-              detail: {
-                routeCode: routeCode,
-                routeInstanceId: payload.ROUTE_INSTANCE_ID || 0,
-                createdCount: createdCount
-              }
-            }));
-          }
+          notifyFloatPlansUpdated(routeCode, payload.ROUTE_INSTANCE_ID || 0, createdCount);
         })
         .catch(function (err) {
           var msg = (err && err.message) ? err.message : "Unable to build float plans from route.";
@@ -2994,7 +2944,7 @@
         .finally(function () {
           if (triggerButton) {
             triggerButton.disabled = false;
-            triggerButton.textContent = originalText || "Add Float Plan";
+            triggerButton.textContent = originalText || "Activate Route";
           }
         });
     }
@@ -3012,6 +2962,76 @@
             throw authErr;
           }
           return response.json();
+        });
+    }
+
+    function normalizeActiveFloatPlanId(value) {
+      var planId = parseInt(value, 10);
+      if (!Number.isFinite(planId) || planId <= 0) {
+        return 0;
+      }
+      return planId;
+    }
+
+    function resolveFollowTarget(payload) {
+      var data = payload && typeof payload === "object"
+        ? ((payload.data && typeof payload.data === "object")
+          ? payload.data
+          : ((payload.DATA && typeof payload.DATA === "object") ? payload.DATA : null))
+        : null;
+      var follow = data && data.follow && typeof data.follow === "object"
+        ? data.follow
+        : null;
+      if (!follow) return "";
+      if (follow.url !== undefined && follow.url !== null && follow.url !== "") {
+        return String(follow.url);
+      }
+      if (follow.path !== undefined && follow.path !== null && follow.path !== "") {
+        return String(follow.path);
+      }
+      return "";
+    }
+
+    function openTripPage() {
+      var popup = null;
+      try {
+        popup = window.open("", "_blank");
+      } catch (err) {
+        popup = null;
+      }
+      return fetchJson(voyageUrl("ownerEnsureStream"))
+        .then(function (payload) {
+          var followTarget = "";
+          if (!payload || payload.SUCCESS === false || payload.success === false) {
+            if (popup && !popup.closed) {
+              popup.close();
+            }
+            return "";
+          }
+          followTarget = resolveFollowTarget(payload);
+          if (!followTarget) {
+            if (popup && !popup.closed) {
+              popup.close();
+            }
+            return "";
+          }
+          if (popup && !popup.closed) {
+            popup.opener = null;
+            popup.location = followTarget;
+            return followTarget;
+          }
+          window.open(followTarget, "_blank", "noopener");
+          return followTarget;
+        })
+        .catch(function () {
+          if (popup && !popup.closed) {
+            try {
+              popup.close();
+            } catch (err) {
+              // Ignore popup cleanup issues; the dashboard itself should remain unchanged.
+            }
+          }
+          return "";
         });
     }
 
@@ -3034,14 +3054,26 @@
           var activeTrip = (routesPayload.ACTIVE_TRIP && typeof routesPayload.ACTIVE_TRIP === "object")
             ? routesPayload.ACTIVE_TRIP
             : {};
-          var activeRouteCode = (activeTrip.SUCCESS === true && activeTrip.ROUTE_CODE)
+          var activeTripFloatPlanId = (activeTrip.SUCCESS === true)
+            ? normalizeActiveFloatPlanId(activeTrip.FLOATPLAN_ID !== undefined ? activeTrip.FLOATPLAN_ID : activeTrip.FLOATPLANID)
+            : 0;
+          var activeTripRouteCode = (activeTrip.SUCCESS === true && activeTrip.ROUTE_CODE)
             ? String(activeTrip.ROUTE_CODE)
             : "";
+
+          state.activeTripFloatPlanId = activeTripFloatPlanId;
+          if (document && typeof window.CustomEvent === "function") {
+            document.dispatchEvent(new window.CustomEvent("fpw:active-trip-updated", {
+              detail: {
+                floatPlanId: activeTripFloatPlanId
+              }
+            }));
+          }
 
           if (!routes.length) {
             renderEmptyRoutes();
           } else {
-            renderRouteList(routes, activeRouteCode);
+            renderRouteList(routes, activeTripRouteCode);
           }
 
           renderActiveTripSummary(activeTrip);
@@ -3088,8 +3120,12 @@
           var routeInstanceId = parseInt(card.getAttribute("data-route-instance-id") || "0", 10);
           if (!Number.isFinite(routeInstanceId)) routeInstanceId = 0;
           if (!routeCode) return;
-          if (target.classList.contains("js-expedition-open-active-cruise")) {
-            openActiveCruise(routeCode, routeInstanceId);
+          if (target.classList.contains("js-expedition-active-cruise")) {
+            window.open(BASE_PATH + "/app/active-cruise.cfm", "_blank", "noopener");
+            return;
+          }
+          if (target.classList.contains("js-expedition-trip-page")) {
+            openTripPage();
             return;
           }
           if (target.classList.contains("js-expedition-view-edit")) {
@@ -3098,10 +3134,6 @@
           }
           if (target.classList.contains("js-expedition-build-floatplans")) {
             buildFloatPlans(routeCode, target, routeInstanceId);
-            return;
-          }
-          if (target.classList.contains("js-expedition-follower-page")) {
-            ensureFollowerPage(routeCode, routeInstanceId, target);
             return;
           }
           if (target.classList.contains("js-expedition-delete")) {
