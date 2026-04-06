@@ -101,6 +101,7 @@
                 var legOrder = 0;
                 var legStatus = "";
                 var activeLegOrder = 0;
+                var nextLegOrder = 0;
 
                 for (i = 1; i LTE qProgress.recordCount; i++) {
                     legOrder = val(qProgress.leg_order[i]);
@@ -157,6 +158,28 @@
                     routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" },
                     legOrder = { value = activeLegOrder, cfsqltype = "cf_sql_integer" }
                 }, { datasource = arguments.datasource });
+
+                for (i = 1; i LTE qLegs.recordCount; i++) {
+                    legOrder = val(qLegs.leg_order[i]);
+                    if (legOrder GT activeLegOrder) {
+                        nextLegOrder = legOrder;
+                        break;
+                    }
+                }
+                if (nextLegOrder GT 0) {
+                    queryExecute("
+                        UPDATE route_instance_leg_progress
+                        SET leg_started_at = NOW()
+                        WHERE route_instance_id = :routeInstanceId
+                          AND user_id = :userId
+                          AND leg_order = :legOrder
+                          AND leg_started_at IS NULL
+                    ", {
+                        routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                        legOrder = { value = nextLegOrder, cfsqltype = "cf_sql_integer" }
+                    }, { datasource = arguments.datasource });
+                }
 
                 out.MATCHED = true;
                 out.COMPLETED = true;

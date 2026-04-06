@@ -14,8 +14,13 @@
         <cfcontent type="application/json; charset=utf-8">
         <cfheader name="Cache-Control" value="no-store, no-cache, must-revalidate">
 
+        <cflog
+            file="fpw-upload-debug"
+            text="ENTER handle(): method=#cgi.request_method#, contentType=#cgi.content_type#, query=#cgi.query_string#">
         <cftry>
-            <cfset var body = getBodyJson()>
+            <cfset var contentTypeVal = structKeyExists(cgi, "content_type") ? lCase(toString(cgi.content_type)) : "">
+            <cfset var isMultipartRequest = findNoCase("multipart/form-data", contentTypeVal) GT 0>
+            <cfset var body = isMultipartRequest ? {} : getBodyJson()>
             <cfset var act = lCase(trim(arguments.action))>
             <cfset var currentUserId = resolveSessionUserId()>
             <cfset var payload = {}>
@@ -34,11 +39,20 @@
             <cfset var postIdVal = 0>
             <cfset var commentIdVal = 0>
             <cfset var followerIdVal = 0>
+            <cfset var floatPlanIdVal = 0>
+            <cfset var pointVal = "">
             <cfif act EQ "getstreambootstrap">
                 <cfset slugVal = trim(toString(pickArg(body, "slug", "route_slug", arguments.slug)))>
                 <cfset tokenVal = trim(toString(pickArg(body, "t", "token", arguments.t)))>
                 <cfset streamIdVal = val(pickArg(body, "stream_id", "streamId", arguments.stream_id))>
                 <cfset payload = getStreamBootstrap(slugVal, tokenVal, streamIdVal, currentUserId)>
+                <cfoutput>#serializeJSON(payload)#</cfoutput>
+                <cfreturn>
+
+            <cfelseif act EQ "getactivecruiseweather">
+                <cfset floatPlanIdVal = val(pickArg(body, "floatPlanId", "float_plan_id", 0))>
+                <cfset pointVal = lCase(trim(toString(pickArg(body, "point", "leg_point", ""))))>
+                <cfset payload = getActiveCruiseWeatherCanonical(currentUserId, floatPlanIdVal, pointVal)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
@@ -86,6 +100,19 @@
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
+            <cfelseif act EQ "ownercreatepostwithmedia">
+                <cfset streamIdVal = val(structKeyExists(form, "stream_id") ? form.stream_id : pickArg(body, "stream_id", "streamId", arguments.stream_id))>
+                <cfset bodyTextVal = trim(toString(structKeyExists(form, "body") ? form.body : pickArg(body, "body", "text", "")))>
+                <cfset payload = ownerCreatePostWithMediaInternal(streamIdVal, bodyTextVal, currentUserId)>
+                <cfoutput>#serializeJSON(payload)#</cfoutput>
+                <cfreturn>
+
+            <cfelseif act EQ "ownerdeletepost">
+                <cfset postIdVal = val(pickArg(body, "post_id", "postId", 0))>
+                <cfset payload = ownerDeletePost(postIdVal, currentUserId)>
+                <cfoutput>#serializeJSON(payload)#</cfoutput>
+                <cfreturn>
+
             <cfelseif act EQ "ownerdeletecomment">
                 <cfset commentIdVal = val(pickArg(body, "comment_id", "commentId", 0))>
                 <cfset payload = ownerDeleteComment(commentIdVal, currentUserId)>
@@ -130,16 +157,94 @@
         </cftry>
     </cffunction>
 
-    <cffunction name="getStreamBootstrap" access="private" returntype="struct" output="false">
-        <cfargument name="slug" type="string" required="false" default="">
-        <cfargument name="shareToken" type="string" required="false" default="">
-        <cfargument name="streamId" type="numeric" required="false" default="0">
-        <cfargument name="currentUserId" type="numeric" required="false" default="0">
-        <cfscript>
-            var out = {
+    <cffunction name="ownerCreatePostWithMedia" access="remote" returntype="void" output="true">
+        <cflog
+            file="fpw-upload-debug"
+            text="ENTER ownerCreatePostWithMedia(): method=#cgi.request_method#, contentType=#cgi.content_type#, query=#cgi.query_string#">
+        <cfset var currentUserId = resolveSessionUserId()>
+        <cfset var streamIdVal = val(structKeyExists(form, "stream_id") ? form.stream_id : 0)>
+        <cfset var bodyTextVal = trim(toString(structKeyExists(form, "body") ? form.body : ""))>
+        <cfset var requestMethodVal = structKeyExists(cgi, "request_method") ? uCase(toString(cgi.request_method)) : "">
+        <cfset var payload = {
+            "SUCCESS"=false,
+            "AUTH"=(currentUserId GT 0),
+            "STATUS_CODE"=500,
+            "MESSAGE"="Unhandled request path",
+            "ERROR"={"MESSAGE"="Unhandled request path."}
+        }>
+        <cfcontent type="application/json; charset=utf-8">
+        <cfheader name="Cache-Control" value="no-store, no-cache, must-revalidate">
+        <cfif requestMethodVal EQ "POST">
+            <cfset payload = {
                 "SUCCESS"=false,
-                "AUTH"=true,
-                "MESSAGE"="Unable to load voyage stream",
+                "AUTH"=(currentUserId GT 0),
+                "STATUS_CODE"=405,
+                "MESSAGE"="Use handle action for media uploads",
+                "ERROR"={"MESSAGE"="POST image uploads must use method=handle&action=ownerCreatePostWithMedia."}
+            }>
+        <cfelse>
+        <cftry>
+            <cfset payload = ownerCreatePostWithMediaInternal(streamIdVal, bodyTextVal, currentUserId)>
+            <cfcatch>
+                <cfset payload = {
+                    "SUCCESS"=false,
+                    "AUTH"=(currentUserId GT 0),
+                    "STATUS_CODE"=500,
+                    "MESSAGE"="Application error",
+                    "ERROR"={"MESSAGE"=cfcatch.message, "DETAIL"=cfcatch.detail}
+                }>
+            </cfcatch>
+        </cftry>
+        </cfif>
+        <cfif !payload.SUCCESS>
+            <cfheader statuscode="#(structKeyExists(payload, 'STATUS_CODE') ? val(payload.STATUS_CODE) : 400)#">
+        </cfif>
+        <cfoutput>#serializeJSON(payload)#</cfoutput>
+        <cfreturn>
+    </cffunction>
+
+    <cffunction name="diagnosticEcho" access="remote" returntype="void" output="true">
+        <cfset var result = {
+            "method"=(structKeyExists(cgi, "request_method") ? toString(cgi.request_method) : ""),
+            "contentType"=(structKeyExists(cgi, "content_type") ? toString(cgi.content_type) : ""),
+            "query"=(structKeyExists(cgi, "query_string") ? toString(cgi.query_string) : ""),
+            "hasFormProbe"=structKeyExists(form, "probe"),
+            "formProbe"=(structKeyExists(form, "probe") ? toString(form.probe) : ""),
+            "formKeys"=structKeyList(form)
+        }>
+
+        <cfcontent type="application/json; charset=utf-8">
+        <cfheader name="Cache-Control" value="no-store, no-cache, must-revalidate">
+        <cfoutput>#serializeJSON(result)#</cfoutput>
+    </cffunction>
+
+    <cffunction name="ownerCreatePostWithMediaFromForm" access="public" returntype="struct" output="false">
+        <cfargument name="streamId" type="numeric" required="false" default="0">
+        <cfargument name="body" type="string" required="false" default="">
+        <cfscript>
+            return ownerCreatePostWithMediaInternal(
+                val(arguments.streamId),
+                trim(arguments.body),
+                resolveSessionUserId()
+            );
+        </cfscript>
+    </cffunction>
+
+	    <cffunction name="getStreamBootstrap" access="private" returntype="struct" output="false">
+	        <cfargument name="slug" type="string" required="false" default="">
+	        <cfargument name="shareToken" type="string" required="false" default="">
+	        <cfargument name="streamId" type="numeric" required="false" default="0">
+	        <cfargument name="currentUserId" type="numeric" required="false" default="0">
+	        <cfscript>
+	            var tTotalStart = getTickCount();
+	            var tSectionStart = 0;
+	            var tMap = 0;
+	            var tTimeline = 0;
+	            var tWeather = 0;
+	            var out = {
+	                "SUCCESS"=false,
+	                "AUTH"=true,
+	                "MESSAGE"="Unable to load voyage stream",
                 "stream"={},
                 "topCards"={},
                 "map"={"routeGeo"={}, "pins"=[], "current"={}},
@@ -163,6 +268,7 @@
             var isOwner = false;
             var statusLabel = "Status Unavailable";
             var lastCheckinLabel = "n/a";
+            var lastCheckinUtc = "";
             var etaLabel = "n/a";
             var etaUtc = "";
             var routeTotalMiles = 0;
@@ -175,6 +281,7 @@
             var privacyLabel = "";
             var body = {};
             var actualCheckInLabel = "";
+            var actualCheckInUtc = "";
             var checkedInAtVal = "";
             var checkInContextVal = "";
             var isOvernightCheckIn = false;
@@ -185,12 +292,20 @@
             var nextStopEtaBaseDt = "";
             var nextStopEtaDt = "";
             var nextStopEtaMinutes = 0;
+            var nextStopCumulativeMinutes = 0;
+            var activeLegEtaBaseDt = "";
+            var activeLegEtaMinutes = 0;
             var overnightPauseMinutes = 0;
             var nextMorningResumeDt = "";
             var resumeTimeZone = "";
             var resumeCalendar = "";
             var plannedNextStopEtaDt = "";
             var nextStopLeg = {};
+            var qTripStart = queryNew("");
+            var journeyDepartedDt = "";
+            var qLegTiming = queryNew("");
+            var currentLegStartedAt = "";
+            var priorLegCompletedAt = "";
             var routeInstanceIdVal = 0;
             var weatherComponent = "";
             var weatherComponentPath = "";
@@ -250,31 +365,43 @@
             var finalDestinationOnTime = false;
             var comparisonElapsedHours = 0.0;
             var tripConfidenceGraceWindowMinutes = 60;
+            var hasActiveTrip = false;
+            var hasNextStop = false;
+            var hoursSinceLastCheckin = -1.0;
+            var etaDriftHours = -1.0;
+            var etaUnknown = true;
+            var hasFreshSignal = false;
+            var hasRecentSignal = false;
+            var severeProgressMismatch = false;
+            var newlyStartedTrip = false;
 
-            if (!structCount(streamRow)) {
-                out.MESSAGE = "Stream not found";
-                out.ERROR = { "MESSAGE"="No voyage stream matched the provided slug or stream id." };
-                return out;
-            }
+	            if (!structCount(streamRow)) {
+	                out.MESSAGE = "Stream not found";
+	                out.ERROR = { "MESSAGE"="No voyage stream matched the provided slug or stream id." };
+	                writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
+	                return out;
+	            }
 
             isOwner = (arguments.currentUserId GT 0 AND arguments.currentUserId EQ streamRow.owner_user_id);
             canRead = canReadStream(streamRow, arguments.shareToken, isOwner);
-            if (!canRead.allowed) {
-                out.MESSAGE = "Forbidden";
-                out.STATUS_CODE = 403;
-                out.ERROR = { "CODE"=canRead.code, "MESSAGE"=canRead.message };
-                return out;
-            }
+	            if (!canRead.allowed) {
+	                out.MESSAGE = "Forbidden";
+	                out.STATUS_CODE = 403;
+	                out.ERROR = { "CODE"=canRead.code, "MESSAGE"=canRead.message };
+	                writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
+	                return out;
+	            }
 
-            if (streamRow.floatplan_id LTE 0) {
-                out.MESSAGE = "No active trip";
-                out.STATUS_CODE = 404;
-                out.ERROR = {
-                    "CODE"="INVALID_STREAM",
-                    "MESSAGE"="This Trip Page is not linked to an active trip."
-                };
-                return out;
-            }
+	            if (streamRow.floatplan_id LTE 0) {
+	                out.MESSAGE = "No active trip";
+	                out.STATUS_CODE = 404;
+	                out.ERROR = {
+	                    "CODE"="INVALID_STREAM",
+	                    "MESSAGE"="This Trip Page is not linked to an active trip."
+	                };
+	                writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
+	                return out;
+	            }
 
             qPlanSql =
                 "SELECT
@@ -310,36 +437,39 @@
                 { datasource=ds }
             );
 
-            if (qPlan.recordCount EQ 0) {
-                out.MESSAGE = "No active trip";
-                out.STATUS_CODE = 404;
-                out.ERROR = {
-                    "CODE"="FLOATPLAN_NOT_FOUND",
-                    "MESSAGE"="This Trip Page is not linked to an active trip."
-                };
-                return out;
-            }
+	            if (qPlan.recordCount EQ 0) {
+	                out.MESSAGE = "No active trip";
+	                out.STATUS_CODE = 404;
+	                out.ERROR = {
+	                    "CODE"="FLOATPLAN_NOT_FOUND",
+	                    "MESSAGE"="This Trip Page is not linked to an active trip."
+	                };
+	                writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
+	                return out;
+	            }
 
-            if (val(qPlan.userId[1]) LTE 0 OR val(qPlan.userId[1]) NEQ streamRow.owner_user_id) {
-                out.MESSAGE = "No active trip";
-                out.STATUS_CODE = 403;
-                out.ERROR = {
-                    "CODE"="STREAM_OWNER_MISMATCH",
-                    "MESSAGE"="This Trip Page is not linked to the owner's active trip."
-                };
-                return out;
-            }
+	            if (val(qPlan.userId[1]) LTE 0 OR val(qPlan.userId[1]) NEQ streamRow.owner_user_id) {
+	                out.MESSAGE = "No active trip";
+	                out.STATUS_CODE = 403;
+	                out.ERROR = {
+	                    "CODE"="STREAM_OWNER_MISMATCH",
+	                    "MESSAGE"="This Trip Page is not linked to the owner's active trip."
+	                };
+	                writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
+	                return out;
+	            }
 
-            var canonicalPlan = resolveCanonicalActiveFloatPlan(streamRow.owner_user_id, streamRow.floatplan_id);
-            if (!canonicalPlan.SUCCESS) {
-                out.MESSAGE = canonicalPlan.MESSAGE;
-                out.STATUS_CODE = 403;
-                out.ERROR = {
-                    "CODE"=(structKeyExists(canonicalPlan, "ERROR") ? canonicalPlan.ERROR : "FOLLOW_UNAVAILABLE"),
-                    "MESSAGE"=canonicalPlan.MESSAGE
-                };
-                return out;
-            }
+	            var canonicalPlan = resolveCanonicalActiveFloatPlan(streamRow.owner_user_id, streamRow.floatplan_id);
+	            if (!canonicalPlan.SUCCESS) {
+	                out.MESSAGE = canonicalPlan.MESSAGE;
+	                out.STATUS_CODE = 403;
+	                out.ERROR = {
+	                    "CODE"=(structKeyExists(canonicalPlan, "ERROR") ? canonicalPlan.ERROR : "FOLLOW_UNAVAILABLE"),
+	                    "MESSAGE"=canonicalPlan.MESSAGE
+	                };
+	                writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
+	                return out;
+	            }
 
             streamTitle = trim(toString(isNull(qPlan.floatPlanName[1]) ? "" : qPlan.floatPlanName[1]));
             statusLabel = friendlyStatusLabel(isNull(qPlan.status[1]) ? "" : qPlan.status[1]);
@@ -361,31 +491,40 @@
             if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
                 checkedInAtVal = qPlan.checkedInAt[1];
                 actualCheckInLabel = dateTimeFormat(checkedInAtVal, "mmm d, yyyy h:nn tt");
+                actualCheckInUtc = formatUtcDate(checkedInAtVal);
                 elapsedCheckInLabel = formatElapsedCheckIn(checkedInAtVal);
             }
-            if (routeInstanceIdVal LTE 0) {
-                out.MESSAGE = "No active trip";
-                out.STATUS_CODE = 403;
-                out.ERROR = {
-                    "CODE"="ROUTE_REQUIRED",
-                    "MESSAGE"="The active trip must be linked to a route."
-                };
-                return out;
+	            if (routeInstanceIdVal LTE 0) {
+	                out.MESSAGE = "No active trip";
+	                out.STATUS_CODE = 403;
+	                out.ERROR = {
+	                    "CODE"="ROUTE_REQUIRED",
+	                    "MESSAGE"="The active trip must be linked to a route."
+	                };
+	                writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
+	                return out;
+	            }
+            if (qPlan.recordCount GT 0 AND !isNull(qPlan.departureTime[1]) AND isDate(qPlan.departureTime[1])) {
+                journeyDepartedDt = qPlan.departureTime[1];
             }
             if (!len(streamTitle)) {
                 streamTitle = "Voyage " & streamRow.slug;
             }
 
-            routeMap = buildRouteMapData(
-                routeInstanceId=routeInstanceIdVal,
-                ownerUserId=streamRow.owner_user_id,
-                fallbackDays=(qPlan.recordCount GT 0 AND !isNull(qPlan.route_day_number[1]) ? val(qPlan.route_day_number[1]) : 0)
-            );
-            followTimeline = buildFollowCruiseTimeline(
-                routeInstanceId=routeInstanceIdVal,
-                ownerUserId=streamRow.owner_user_id,
-                opts={}
-            );
+	            tSectionStart = getTickCount();
+	            routeMap = buildRouteMapData(
+	                routeInstanceId=routeInstanceIdVal,
+	                ownerUserId=streamRow.owner_user_id,
+	                fallbackDays=(qPlan.recordCount GT 0 AND !isNull(qPlan.route_day_number[1]) ? val(qPlan.route_day_number[1]) : 0)
+	            );
+	            tMap = getTickCount() - tSectionStart;
+	            tSectionStart = getTickCount();
+	            followTimeline = buildFollowCruiseTimeline(
+	                routeInstanceId=routeInstanceIdVal,
+	                ownerUserId=streamRow.owner_user_id,
+	                opts={}
+	            );
+	            tTimeline = getTickCount() - tSectionStart;
 
             routeTotalMiles = roundTo1(routeMap.total_nm * 1.15078);
             routeTotalDays = (routeMap.total_days GT 0 ? routeMap.total_days : 0);
@@ -405,6 +544,7 @@
 
             if (qLastPost.recordCount GT 0 AND !isNull(qLastPost.created_utc[1])) {
                 lastCheckinLabel = dateTimeFormat(qLastPost.created_utc[1], "mmm d, yyyy h:nn tt");
+                lastCheckinUtc = formatUtcDate(qLastPost.created_utc[1]);
             }
 
             qWildlife = queryExecute(
@@ -450,52 +590,128 @@
                 AND isArray(followTimeline.legs)
             ) {
                 nextStopEtaBaseDt = qPlan.departureTime[1];
+                storedDepartureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
+                if (
+                    isDate(nextStopEtaBaseDt)
+                    AND ucase(storedDepartureTimeZoneVal) EQ "UTC"
+                    AND len(departureTimeZoneVal)
+                    AND ucase(departureTimeZoneVal) NEQ "UTC"
+                ) {
+                    qLocalDeparture = queryExecute("
+                        SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
+                    ", {
+                        utcDateTime = { value = nextStopEtaBaseDt, cfsqltype = "cf_sql_timestamp" },
+                        targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
+                    }, { datasource = ds });
+                    if (qLocalDeparture.recordCount GT 0 AND !isNull(qLocalDeparture.localDateTime[1])) {
+                        nextStopEtaBaseDt = qLocalDeparture.localDateTime[1];
+                    }
+                }
                 for (i = 1; i LTE arrayLen(followTimeline.legs); i++) {
                     nextStopLeg = followTimeline.legs[i];
                     if (!isStruct(nextStopLeg)) {
                         continue;
                     }
-                    if (!structKeyExists(nextStopLeg, "end_name") OR !structKeyExists(nextStopLeg, "cumulative_hours")) {
+                    if (!structKeyExists(nextStopLeg, "end_name")) {
                         continue;
                     }
                     if (trim(toString(nextStopLeg.end_name)) NEQ nextStopLabelVal) {
                         continue;
                     }
-                    if (!isNumeric(nextStopLeg.cumulative_hours) OR val(nextStopLeg.cumulative_hours) LT 0) {
-                        continue;
+                    nextStopEtaMinutes = 0;
+                    nextStopCumulativeMinutes = 0;
+                    activeLegEtaMinutes = 0;
+                    activeLegEtaBaseDt = nextStopEtaBaseDt;
+
+                    if (structKeyExists(nextStopLeg, "cumulative_hours") AND isNumeric(nextStopLeg.cumulative_hours) AND val(nextStopLeg.cumulative_hours) GTE 0) {
+                        nextStopCumulativeMinutes = int(round(val(nextStopLeg.cumulative_hours) * 60));
                     }
-                    nextStopEtaMinutes = int(round(val(nextStopLeg.cumulative_hours) * 60));
-                    plannedNextStopEtaDt = dateAdd("n", nextStopEtaMinutes, nextStopEtaBaseDt);
-                    if (storedOvernightPauseMinutes GT 0) {
-                        plannedNextStopEtaDt = dateAdd("n", storedOvernightPauseMinutes, plannedNextStopEtaDt);
+                    if (structKeyExists(nextStopLeg, "hours") AND isNumeric(nextStopLeg.hours) AND val(nextStopLeg.hours) GTE 0) {
+                        activeLegEtaMinutes = int(round(val(nextStopLeg.hours) * 60));
                     }
-                    nextStopEtaDt = plannedNextStopEtaDt;
-                    if (
-                        storedOvernightPauseMinutes LTE 0
-                        AND
-                        isDate(nextStopEtaDt)
-                        AND isOvernightCheckIn
-                        AND isDate(checkedInAtVal)
-                        AND len(departureTimeZoneVal)
-                    ) {
+                    currentLegStartedAt = "";
+                    priorLegCompletedAt = "";
+                    if (structKeyExists(nextStopLeg, "leg_order") AND isNumeric(nextStopLeg.leg_order) AND val(nextStopLeg.leg_order) GT 0) {
+                        qLegTiming = queryExecute(
+                            "SELECT
+                                curr.leg_started_at AS current_leg_started_at,
+                                prev.completed_at AS prior_leg_completed_at
+                             FROM route_instance_leg_progress curr
+                             LEFT JOIN route_instance_leg_progress prev
+                               ON prev.route_instance_id = curr.route_instance_id
+                              AND prev.user_id = curr.user_id
+                              AND prev.leg_order = curr.leg_order - 1
+                             WHERE curr.route_instance_id = :routeInstanceId
+                               AND curr.user_id = :ownerUserId
+                               AND curr.leg_order = :legOrder
+                             LIMIT 1",
+                            {
+                                routeInstanceId = { value = routeInstanceIdVal, cfsqltype = "cf_sql_integer" },
+                                ownerUserId = { value = streamRow.owner_user_id, cfsqltype = "cf_sql_integer" },
+                                legOrder = { value = val(nextStopLeg.leg_order), cfsqltype = "cf_sql_integer" }
+                            },
+                            { datasource = ds }
+                        );
+                        if (qLegTiming.recordCount GT 0) {
+                            if (!isNull(qLegTiming.current_leg_started_at[1]) AND isDate(qLegTiming.current_leg_started_at[1])) {
+                                currentLegStartedAt = qLegTiming.current_leg_started_at[1];
+                            }
+                            if (!isNull(qLegTiming.prior_leg_completed_at[1]) AND isDate(qLegTiming.prior_leg_completed_at[1])) {
+                                priorLegCompletedAt = qLegTiming.prior_leg_completed_at[1];
+                            }
+                        }
+                    }
+
+                    if (nextStopCumulativeMinutes GT 0) {
+                        plannedNextStopEtaDt = dateAdd("n", nextStopCumulativeMinutes, nextStopEtaBaseDt);
+                        if (storedOvernightPauseMinutes GT 0) {
+                            plannedNextStopEtaDt = dateAdd("n", storedOvernightPauseMinutes, plannedNextStopEtaDt);
+                        }
+                    }
+
+                    if (len(departureTimeZoneVal)) {
                         try {
-                            resumeTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(departureTimeZoneVal);
-                            resumeCalendar = createObject("java", "java.util.GregorianCalendar").init(resumeTimeZone);
-                            resumeCalendar.setTime(checkedInAtVal);
-                            resumeCalendar.add(5, 1);
-                            resumeCalendar.set(11, 8);
-                            resumeCalendar.set(12, 0);
-                            resumeCalendar.set(13, 0);
-                            resumeCalendar.set(14, 0);
-                            nextMorningResumeDt = resumeCalendar.getTime();
-                            overnightPauseMinutes = dateDiff("n", checkedInAtVal, nextMorningResumeDt);
-                            if (overnightPauseMinutes GT 0) {
-                                nextStopEtaDt = dateAdd("n", overnightPauseMinutes, nextStopEtaDt);
-                                plannedNextStopEtaDt = nextStopEtaDt;
+                            if (isOvernightCheckIn AND isDate(checkedInAtVal)) {
+                                nextMorningResumeDt = dateAdd("d", 1, checkedInAtVal);
+                            } else {
+                                nextMorningResumeDt = now();
+                            }
+                            nextMorningResumeDt = createDateTime(
+                                year(nextMorningResumeDt),
+                                month(nextMorningResumeDt),
+                                day(nextMorningResumeDt),
+                                8,
+                                0,
+                                0
+                            );
+                            if (isDate(nextMorningResumeDt)) {
+                                activeLegEtaBaseDt = nextMorningResumeDt;
+                            }
+                            if (isOvernightCheckIn AND isDate(checkedInAtVal)) {
+                                overnightPauseMinutes = dateDiff("n", checkedInAtVal, nextMorningResumeDt);
+                                if (storedOvernightPauseMinutes LTE 0 AND isDate(plannedNextStopEtaDt) AND overnightPauseMinutes GT 0) {
+                                    plannedNextStopEtaDt = dateAdd("n", overnightPauseMinutes, plannedNextStopEtaDt);
+                                }
                             }
                         } catch (any overnightEtaErr) {
-                            // Keep existing ETA behavior if resume-time derivation fails.
+                            if (isDate(currentLegStartedAt)) {
+                                activeLegEtaBaseDt = currentLegStartedAt;
+                            } else if (isDate(priorLegCompletedAt)) {
+                                activeLegEtaBaseDt = priorLegCompletedAt;
+                            }
                         }
+                    } else if (isDate(currentLegStartedAt)) {
+                        activeLegEtaBaseDt = currentLegStartedAt;
+                    } else if (isDate(priorLegCompletedAt)) {
+                        activeLegEtaBaseDt = priorLegCompletedAt;
+                    }
+
+                    if (activeLegEtaMinutes GT 0 AND isDate(activeLegEtaBaseDt)) {
+                        nextStopEtaMinutes = activeLegEtaMinutes;
+                        nextStopEtaDt = dateAdd("n", activeLegEtaMinutes, activeLegEtaBaseDt);
+                    } else {
+                        nextStopEtaMinutes = nextStopCumulativeMinutes;
+                        nextStopEtaDt = plannedNextStopEtaDt;
                     }
                     if (isDate(nextStopEtaDt)) {
                         etaLabel = dateTimeFormat(nextStopEtaDt, "mmm d, yyyy h:nn tt");
@@ -565,6 +781,15 @@
                 nextStopRemainingNm = roundTo2(nextStopRemainingNm);
             }
 
+            hasActiveTrip = (len(trim(statusLabel)) AND statusLabel NEQ "Status Unavailable");
+            hasNextStop = len(nextStopLabelVal);
+            if (isDate(checkedInAtVal)) {
+                hoursSinceLastCheckin = roundTo2(dateDiff("n", checkedInAtVal, confidenceNowDt) / 60);
+                if (hoursSinceLastCheckin LT 0) {
+                    hoursSinceLastCheckin = 0;
+                }
+            }
+
             if (
                 qPlan.recordCount GT 0
                 AND !isNull(qPlan.departureTime[1])
@@ -594,48 +819,77 @@
 
                 if (expectedMilesByNowNm GT 0) {
                     progressRatio = progressMilesForConfidenceNm / expectedMilesByNowNm;
-                    if (progressRatio GTE 0.9) {
-                        tripConfidenceScore += 20;
-                    } else if (progressRatio GTE 0.7) {
-                        tripConfidenceScore += 5;
-                    } else {
-                        tripConfidenceScore -= 20;
-                    }
                 }
 
-                if (isDate(plannedNextStopEtaDt) AND achievedPaceKn GT 0) {
+                if (isDate(plannedNextStopEtaDt) AND achievedPaceKn GT 0 AND !isOvernightCheckIn) {
                     projectedNextStopMinutes = int(round((nextStopRemainingNm / achievedPaceKn) * 60));
                     projectedNextStopEtaDt = dateAdd("n", projectedNextStopMinutes, confidenceNowDt);
-                    plannedNextStopEtaWithGraceDt = dateAdd("n", tripConfidenceGraceWindowMinutes, plannedNextStopEtaDt);
-                    nextStopOnTime = (projectedNextStopEtaDt LTE plannedNextStopEtaWithGraceDt);
-                    tripConfidenceScore += (nextStopOnTime ? 15 : -15);
-                }
-
-                if (timelineTotalHours GT 0) {
-                    plannedFinalEtaDt = dateAdd("n", int(round(timelineTotalHours * 60)), qPlan.departureTime[1]);
-                }
-                if (isDate(plannedFinalEtaDt) AND achievedPaceKn GT 0) {
-                    projectedFinalMinutes = int(round((milesLeftNm / achievedPaceKn) * 60));
-                    projectedFinalEtaDt = dateAdd("n", projectedFinalMinutes, confidenceNowDt);
-                    plannedFinalEtaWithGraceDt = dateAdd("n", tripConfidenceGraceWindowMinutes, plannedFinalEtaDt);
-                    finalDestinationOnTime = (projectedFinalEtaDt LTE plannedFinalEtaWithGraceDt);
-                    tripConfidenceScore += (finalDestinationOnTime ? 15 : -15);
                 }
             }
 
-            tripConfidenceScore = max(0, min(100, tripConfidenceScore));
-            if (tripConfidenceScore GTE 70) {
-                tripConfidenceLabel = "High";
-            } else if (tripConfidenceScore GTE 40) {
-                tripConfidenceLabel = "Moderate";
-            } else {
-                tripConfidenceLabel = "Low";
+            if (hoursSinceLastCheckin GTE 0) {
+                if (isOvernightCheckIn) {
+                    hasFreshSignal = (hoursSinceLastCheckin LTE 18);
+                    hasRecentSignal = (hoursSinceLastCheckin LTE 18);
+                } else {
+                    hasFreshSignal = (hoursSinceLastCheckin LTE 6);
+                    hasRecentSignal = (hoursSinceLastCheckin LTE 12);
+                }
             }
+
+            if (isDate(plannedNextStopEtaDt) AND isDate(projectedNextStopEtaDt)) {
+                etaUnknown = false;
+                etaDriftHours = roundTo2(abs(dateDiff("n", projectedNextStopEtaDt, plannedNextStopEtaDt)) / 60);
+            }
+
+            severeProgressMismatch = (
+                progressRatio GT 0
+                AND (progressRatio LT 0.5 OR progressRatio GT 1.5)
+            );
+            newlyStartedTrip = (hasRecentSignal AND completedMilesSoFarNm LTE 0);
 
             if (
-                routeInstanceIdVal GT 0
-                AND structKeyExists(routeMap, "active_leg_order")
-                AND val(routeMap.active_leg_order) GT 0
+                !hasActiveTrip
+                OR !hasNextStop
+                OR !isDate(plannedNextStopEtaDt)
+                OR (!isOvernightCheckIn AND hoursSinceLastCheckin GT 12)
+                OR (!etaUnknown AND etaDriftHours GT 6)
+                OR (
+                    hoursSinceLastCheckin GT (isOvernightCheckIn ? 18 : 12)
+                    AND severeProgressMismatch
+                )
+            ) {
+                tripConfidenceLabel = "Low";
+            } else if (
+                hasFreshSignal
+                AND (
+                    (!etaUnknown AND etaDriftHours LTE 2)
+                    OR (etaUnknown AND hasFreshSignal)
+                )
+            ) {
+                tripConfidenceLabel = "High";
+            } else if (
+                hasActiveTrip
+                AND hasNextStop
+                AND (
+                    (!isOvernightCheckIn AND hoursSinceLastCheckin GT 6 AND hoursSinceLastCheckin LTE 12)
+                    OR (isOvernightCheckIn AND hoursSinceLastCheckin GT 18)
+                    OR (!etaUnknown AND etaDriftHours GT 2 AND etaDriftHours LTE 6)
+                    OR (etaUnknown AND hasRecentSignal)
+                    OR newlyStartedTrip
+                    OR severeProgressMismatch
+                )
+            ) {
+                tripConfidenceLabel = "Moderate";
+            } else {
+                tripConfidenceLabel = "Moderate";
+            }
+
+	            tSectionStart = getTickCount();
+	            if (
+	                routeInstanceIdVal GT 0
+	                AND structKeyExists(routeMap, "active_leg_order")
+	                AND val(routeMap.active_leg_order) GT 0
             ) {
                 try {
                     weatherComponent = createObject("component", "fpw.api.v1.weather");
@@ -692,7 +946,7 @@
 
                         if (!structKeyExists(pointResults, pointCacheKey)) {
                             try {
-                                pointResults[pointCacheKey] = weatherComponent.getWeatherForCoordinates(val(pointDef.lat), val(pointDef.lng), "full", false);
+                                pointResults[pointCacheKey] = weatherComponent.getFollowConditionsSummary(val(pointDef.lat), val(pointDef.lng));
                             } catch (any pointWeatherErr) {
                                 pointResults[pointCacheKey] = { "SUCCESS"=false, "MESSAGE"=pointWeatherErr.message };
                             }
@@ -708,119 +962,26 @@
                             pointOut.available = true;
                             pointSummary = (structKeyExists(pointRaw, "SUMMARY") ? trim(toString(pointRaw.SUMMARY)) : "");
                             pointOut.summary = pointSummary;
-
-                            if (structKeyExists(pointRaw, "ALERTS") AND isArray(pointRaw.ALERTS)) {
-                                pointOut.alerts_count = arrayLen(pointRaw.ALERTS);
-                                for (alertIdx = 1; alertIdx LTE arrayLen(pointRaw.ALERTS); alertIdx++) {
-                                    alertItem = pointRaw.ALERTS[alertIdx];
-                                    if (!isStruct(alertItem)) {
-                                        continue;
-                                    }
-                                    severityTxt = (structKeyExists(alertItem, "severity") ? trim(toString(alertItem.severity)) : "");
-                                    severityRank = 0;
-                                    if (severityTxt EQ "Extreme") {
-                                        severityRank = 4;
-                                    } else if (severityTxt EQ "Severe") {
-                                        severityRank = 3;
-                                    } else if (severityTxt EQ "Moderate") {
-                                        severityRank = 2;
-                                    } else if (severityTxt EQ "Minor") {
-                                        severityRank = 1;
-                                    } else if (len(severityTxt)) {
-                                        severityRank = 1;
-                                    }
-                                    if (
-                                        !len(pointOut.top_alert_severity)
-                                        OR severityRank GT (
-                                            pointOut.top_alert_severity EQ "Extreme" ? 4
-                                                : pointOut.top_alert_severity EQ "Severe" ? 3
-                                                : pointOut.top_alert_severity EQ "Moderate" ? 2
-                                                : len(pointOut.top_alert_severity) ? 1
-                                                : 0
-                                        )
-                                    ) {
-                                        pointOut.top_alert_severity = severityTxt;
-                                    }
-                                }
-                            }
-
-                            if (
-                                structKeyExists(pointRaw, "FORECAST")
-                                AND isArray(pointRaw.FORECAST)
-                                AND arrayLen(pointRaw.FORECAST)
-                                AND isStruct(pointRaw.FORECAST[1])
-                            ) {
-                                pointForecast = pointRaw.FORECAST[1];
-                                pointOut.forecast_short = (structKeyExists(pointForecast, "shortForecast") ? trim(toString(pointForecast.shortForecast)) : "");
-                                pointOut.wind_speed = (structKeyExists(pointForecast, "windSpeed") ? trim(toString(pointForecast.windSpeed)) : "");
-                                pointOut.wind_direction = (structKeyExists(pointForecast, "windDirection") ? trim(toString(pointForecast.windDirection)) : "");
-                            }
-
-                            if (structKeyExists(pointRaw, "MARINE") AND isStruct(pointRaw.MARINE)) {
-                                pointMarine = pointRaw.MARINE;
-                                if (structKeyExists(pointMarine, "wave_height_ft") AND isNumeric(pointMarine.wave_height_ft)) {
-                                    pointOut.wave_height_ft = roundTo1(val(pointMarine.wave_height_ft));
-                                } else if (structKeyExists(pointMarine, "wave_height_ft")) {
-                                    pointOut.wave_height_ft = trim(toString(pointMarine.wave_height_ft));
-                                }
-                            }
-
-                            if (structKeyExists(pointRaw, "surface") AND isStruct(pointRaw.surface)) {
-                                pointSurface = pointRaw.surface;
-                                pointOut.visibility_mi = (structKeyExists(pointSurface, "visibility_mi") ? trim(toString(pointSurface.visibility_mi)) : "");
-                            }
+                            pointOut.forecast_short = (structKeyExists(pointRaw, "FORECAST_SHORT") ? trim(toString(pointRaw.FORECAST_SHORT)) : "");
+                            pointOut.wind_speed = (structKeyExists(pointRaw, "WIND_SPEED") ? trim(toString(pointRaw.WIND_SPEED)) : "");
+                            pointOut.wind_direction = (structKeyExists(pointRaw, "WIND_DIRECTION") ? trim(toString(pointRaw.WIND_DIRECTION)) : "");
                         }
 
                         legWeather[pointKey] = pointOut;
                     }
 
-                    startRank = (
-                        legWeather.start.top_alert_severity EQ "Extreme" ? 4
-                            : legWeather.start.top_alert_severity EQ "Severe" ? 3
-                            : legWeather.start.top_alert_severity EQ "Moderate" ? 2
-                            : len(legWeather.start.top_alert_severity) ? 1
-                            : 0
-                    );
-                    endRank = (
-                        legWeather.end.top_alert_severity EQ "Extreme" ? 4
-                            : legWeather.end.top_alert_severity EQ "Severe" ? 3
-                            : legWeather.end.top_alert_severity EQ "Moderate" ? 2
-                            : len(legWeather.end.top_alert_severity) ? 1
-                            : 0
-                    );
-
                     worsePointKey = "";
-                    if (legWeather.end.available AND !legWeather.start.available) {
+                    if (legWeather.end.available) {
                         worsePointKey = "end";
-                    } else if (legWeather.start.available AND !legWeather.end.available) {
+                    } else if (legWeather.start.available) {
                         worsePointKey = "start";
-                    } else if (legWeather.start.available OR legWeather.end.available) {
-                        if (endRank GT startRank) {
-                            worsePointKey = "end";
-                        } else if (startRank GT endRank) {
-                            worsePointKey = "start";
-                        } else if (legWeather.end.alerts_count GT legWeather.start.alerts_count) {
-                            worsePointKey = "end";
-                        } else if (legWeather.start.alerts_count GT legWeather.end.alerts_count) {
-                            worsePointKey = "start";
-                        } else if (legWeather.end.available) {
-                            worsePointKey = "end";
-                        } else {
-                            worsePointKey = "start";
-                        }
                     }
 
                     if (len(worsePointKey) AND structKeyExists(legWeather, worsePointKey)) {
                         worsePoint = legWeather[worsePointKey];
                         legWeather.conditions.available = true;
-                        if (worsePoint.alerts_count GT 0) {
-                            if (worsePointKey EQ "end") {
-                                legWeather.conditions.headline = "Alerts near next stop";
-                            } else {
-                                legWeather.conditions.headline = "Alerts near leg start";
-                            }
-                        } else if (legWeather.start.available AND legWeather.end.available) {
-                            legWeather.conditions.headline = "No alerts at leg endpoints";
+                        if (legWeather.start.available AND legWeather.end.available) {
+                            legWeather.conditions.headline = "Current leg endpoint conditions";
                         } else if (worsePointKey EQ "end") {
                             legWeather.conditions.headline = "Next-stop point conditions";
                         } else {
@@ -832,13 +993,15 @@
                                 ? "Based on current leg start and next stop point weather."
                                 : "Based on available current leg point weather."
                         );
-                    }
-                }
-            }
+	                    }
+	                }
+	            }
+	            tWeather = getTickCount() - tSectionStart;
 
-            topCards = {
+	            topCards = {
                 "status"=statusLabel,
                 "last_checkin"=lastCheckinLabel,
+                "last_checkin_utc"=lastCheckinUtc,
                 "location_label"=(len(routeMap.location_label) ? routeMap.location_label : "n/a"),
                 "next_stop"=(len(routeMap.next_stop_label) ? routeMap.next_stop_label : "n/a"),
                 "eta"=etaLabel,
@@ -858,8 +1021,8 @@
                 "page_subtitle"="Follow along in real time: location, progress, updates, comments, and trip confidence.",
                 "journey_subtitle"="Current leg is active.",
                 "journey_departed_value"=(qPlan.recordCount GT 0 AND !isNull(qPlan.departing[1]) ? trim(toString(qPlan.departing[1])) : ""),
-                "journey_departed_meta"=(qPlan.recordCount GT 0 AND !isNull(qPlan.departureTime[1]) AND isDate(qPlan.departureTime[1]) ? dateTimeFormat(qPlan.departureTime[1], "mmm d, yyyy h:nn tt") : ""),
-                "journey_departed_meta_utc"=(qPlan.recordCount GT 0 AND !isNull(qPlan.departureTime[1]) AND isDate(qPlan.departureTime[1]) ? formatUtcDate(qPlan.departureTime[1]) : ""),
+                "journey_departed_meta"=(isDate(journeyDepartedDt) ? dateTimeFormat(journeyDepartedDt, "mmm d, yyyy h:nn tt") : ""),
+                "journey_departed_meta_utc"=(isDate(journeyDepartedDt) ? formatUtcDate(journeyDepartedDt) : ""),
                 "journey_checkin_value"=(len(actualCheckInLabel) ? "Checked in at " & actualCheckInLabel : "Checked in at --"),
                 "journey_checkin_meta"=(isOvernightCheckIn ? "Arrived and secure for the night. Next update expected tomorrow morning." : elapsedCheckInLabel),
                 "card_status_copy"="Monitoring is active and the trip is reporting normally.",
@@ -891,6 +1054,7 @@
                 "viewer_count"=viewerCountVal,
                 "vessel_name"=vesselNameVal,
                 "last_checkin"=(len(actualCheckInLabel) ? actualCheckInLabel : ""),
+                "last_checkin_utc"=actualCheckInUtc,
                 "privacy_label"=privacyLabel,
                 "monitoring_summary"="Active with missed check-in rules enabled",
                 "monitor_state_text_html"="<strong>Monitoring active</strong><br />No missed check-ins on this voyage",
@@ -902,11 +1066,475 @@
                 "pins"=routeMap.pins,
                 "current"=routeMap.current
             };
-            out.legWeather = legWeather;
-            out.pinned = pinned;
-            out.timeline = followTimeline;
-            out.body = body;
+	            out.legWeather = legWeather;
+	            out.pinned = pinned;
+	            out.timeline = followTimeline;
+	            out.body = body;
+	            writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
+	            return out;
+	        </cfscript>
+		    </cffunction>
+
+    <cffunction name="getActiveCruiseHeroCanonical" access="public" returntype="struct" output="false">
+        <cfargument name="currentUserId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var out = {
+                "SUCCESS"=false,
+                "MESSAGE"="Unable to load canonical Active Cruise hero values.",
+                "heroVoyageStatus"="Status Unavailable",
+                "heroNextStop"="",
+                "heroEta"="--",
+                "heroEtaUtc"="",
+                "heroLastCheckIn"="--",
+                "heroLastCheckInUtc"=""
+            };
+            var canonicalPlan = {};
+            var ds = resolveDatasource();
+            var qPlan = queryNew("");
+            var routeMap = {};
+            var followTimeline = { "summary"={}, "legs"=[], "meta"={} };
+            var statusLabel = "Status Unavailable";
+            var checkedInAtVal = "";
+            var actualCheckInLabel = "";
+            var actualCheckInUtc = "";
+            var checkInContextVal = "";
+            var isOvernightCheckIn = false;
+            var storedOvernightPauseMinutes = 0;
+            var departureTimeZoneVal = "";
+            var storedDepartureTimeZoneVal = "";
+            var nextStopLabelVal = "";
+            var nextStopEtaBaseDt = "";
+            var nextStopEtaDt = "";
+            var nextStopCumulativeMinutes = 0;
+            var activeLegEtaBaseDt = "";
+            var activeLegEtaMinutes = 0;
+            var overnightPauseMinutes = 0;
+            var nextMorningResumeDt = "";
+            var plannedNextStopEtaDt = "";
+            var nextStopLeg = {};
+            var qLegTiming = queryNew("");
+            var currentLegStartedAt = "";
+            var priorLegCompletedAt = "";
+            var etaLabel = "";
+            var etaUtc = "";
+            var qLocalDeparture = queryNew("");
+            var i = 0;
+
+            if (arguments.currentUserId LTE 0 OR arguments.floatPlanId LTE 0) {
+                out.MESSAGE = "Active Cruise requires a valid owner and float plan.";
+                return out;
+            }
+
+            canonicalPlan = resolveCanonicalActiveFloatPlan(arguments.currentUserId, arguments.floatPlanId);
+            if (!canonicalPlan.SUCCESS) {
+                out.MESSAGE = canonicalPlan.MESSAGE;
+                return out;
+            }
+
+            qPlan = queryExecute(
+                "SELECT
+                    floatplanId,
+                    userId,
+                    status,
+                    route_instance_id,
+                    departureTime,
+                    departTimezone,
+                    departureTZ,
+                    checkedInAt,
+                    checkin_context,
+                    overnight_pause_minutes_total
+                 FROM floatplans
+                 WHERE floatplanId = :planId
+                   AND userId = :userId
+                 LIMIT 1",
+                {
+                    planId = { value=arguments.floatPlanId, cfsqltype="cf_sql_integer" },
+                    userId = { value=arguments.currentUserId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource=ds }
+            );
+
+            if (qPlan.recordCount EQ 0) {
+                out.MESSAGE = "Active Cruise hero values could not load the active float plan.";
+                return out;
+            }
+
+            statusLabel = friendlyStatusLabel(isNull(qPlan.status[1]) ? "" : qPlan.status[1]);
+            out.heroVoyageStatus = statusLabel;
+
+            if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
+                checkedInAtVal = qPlan.checkedInAt[1];
+                actualCheckInLabel = dateTimeFormat(checkedInAtVal, "mmm d, yyyy h:nn tt");
+                actualCheckInUtc = formatUtcDate(checkedInAtVal);
+                out.heroLastCheckIn = actualCheckInLabel;
+                out.heroLastCheckInUtc = actualCheckInUtc;
+            }
+
+            checkInContextVal = normalizeCheckInContext(isNull(qPlan.checkin_context[1]) ? "" : qPlan.checkin_context[1]);
+            isOvernightCheckIn = (checkInContextVal EQ "overnight");
+            storedOvernightPauseMinutes = (
+                !isNull(qPlan.overnight_pause_minutes_total[1]) AND isNumeric(qPlan.overnight_pause_minutes_total[1])
+                    ? val(qPlan.overnight_pause_minutes_total[1])
+                    : 0
+            );
+            if (storedOvernightPauseMinutes LT 0) {
+                storedOvernightPauseMinutes = 0;
+            }
+
+            departureTimeZoneVal = (isNull(qPlan.departureTZ[1]) ? "" : trim(toString(qPlan.departureTZ[1])));
+            if (!len(departureTimeZoneVal)) {
+                departureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
+            }
+
+            routeMap = buildRouteMapData(canonicalPlan.ROUTE_INSTANCE_ID, arguments.currentUserId);
+            followTimeline = buildFollowCruiseTimeline(canonicalPlan.ROUTE_INSTANCE_ID, arguments.currentUserId);
+
+            nextStopLabelVal = (len(routeMap.next_stop_label) ? trim(toString(routeMap.next_stop_label)) : "");
+            out.heroNextStop = (len(nextStopLabelVal) ? nextStopLabelVal : "n/a");
+
+            if (
+                !isNull(qPlan.departureTime[1])
+                AND isDate(qPlan.departureTime[1])
+                AND len(nextStopLabelVal)
+                AND isStruct(followTimeline)
+                AND structKeyExists(followTimeline, "legs")
+                AND isArray(followTimeline.legs)
+            ) {
+                nextStopEtaBaseDt = qPlan.departureTime[1];
+                storedDepartureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
+                if (
+                    isDate(nextStopEtaBaseDt)
+                    AND ucase(storedDepartureTimeZoneVal) EQ "UTC"
+                    AND len(departureTimeZoneVal)
+                    AND ucase(departureTimeZoneVal) NEQ "UTC"
+                ) {
+                    qLocalDeparture = queryExecute("
+                        SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
+                    ", {
+                        utcDateTime = { value = nextStopEtaBaseDt, cfsqltype = "cf_sql_timestamp" },
+                        targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
+                    }, { datasource = ds });
+                    if (qLocalDeparture.recordCount GT 0 AND !isNull(qLocalDeparture.localDateTime[1])) {
+                        nextStopEtaBaseDt = qLocalDeparture.localDateTime[1];
+                    }
+                }
+
+                for (i = 1; i LTE arrayLen(followTimeline.legs); i++) {
+                    nextStopLeg = followTimeline.legs[i];
+                    if (!isStruct(nextStopLeg) OR !structKeyExists(nextStopLeg, "end_name")) {
+                        continue;
+                    }
+                    if (trim(toString(nextStopLeg.end_name)) NEQ nextStopLabelVal) {
+                        continue;
+                    }
+
+                    nextStopCumulativeMinutes = 0;
+                    activeLegEtaMinutes = 0;
+                    activeLegEtaBaseDt = nextStopEtaBaseDt;
+                    plannedNextStopEtaDt = "";
+                    nextStopEtaDt = "";
+
+                    if (structKeyExists(nextStopLeg, "cumulative_hours") AND isNumeric(nextStopLeg.cumulative_hours) AND val(nextStopLeg.cumulative_hours) GTE 0) {
+                        nextStopCumulativeMinutes = int(round(val(nextStopLeg.cumulative_hours) * 60));
+                    }
+                    if (structKeyExists(nextStopLeg, "hours") AND isNumeric(nextStopLeg.hours) AND val(nextStopLeg.hours) GTE 0) {
+                        activeLegEtaMinutes = int(round(val(nextStopLeg.hours) * 60));
+                    }
+                    currentLegStartedAt = "";
+                    priorLegCompletedAt = "";
+                    if (structKeyExists(nextStopLeg, "leg_order") AND isNumeric(nextStopLeg.leg_order) AND val(nextStopLeg.leg_order) GT 0) {
+                        qLegTiming = queryExecute(
+                            "SELECT
+                                curr.leg_started_at AS current_leg_started_at,
+                                prev.completed_at AS prior_leg_completed_at
+                             FROM route_instance_leg_progress curr
+                             LEFT JOIN route_instance_leg_progress prev
+                               ON prev.route_instance_id = curr.route_instance_id
+                              AND prev.user_id = curr.user_id
+                              AND prev.leg_order = curr.leg_order - 1
+                             WHERE curr.route_instance_id = :routeInstanceId
+                               AND curr.user_id = :ownerUserId
+                               AND curr.leg_order = :legOrder
+                             LIMIT 1",
+                            {
+                                routeInstanceId = { value = canonicalPlan.ROUTE_INSTANCE_ID, cfsqltype = "cf_sql_integer" },
+                                ownerUserId = { value = arguments.currentUserId, cfsqltype = "cf_sql_integer" },
+                                legOrder = { value = val(nextStopLeg.leg_order), cfsqltype = "cf_sql_integer" }
+                            },
+                            { datasource = ds }
+                        );
+                        if (qLegTiming.recordCount GT 0) {
+                            if (!isNull(qLegTiming.current_leg_started_at[1]) AND isDate(qLegTiming.current_leg_started_at[1])) {
+                                currentLegStartedAt = qLegTiming.current_leg_started_at[1];
+                            }
+                            if (!isNull(qLegTiming.prior_leg_completed_at[1]) AND isDate(qLegTiming.prior_leg_completed_at[1])) {
+                                priorLegCompletedAt = qLegTiming.prior_leg_completed_at[1];
+                            }
+                        }
+                    }
+
+                    if (nextStopCumulativeMinutes GT 0) {
+                        plannedNextStopEtaDt = dateAdd("n", nextStopCumulativeMinutes, nextStopEtaBaseDt);
+                        if (storedOvernightPauseMinutes GT 0) {
+                            plannedNextStopEtaDt = dateAdd("n", storedOvernightPauseMinutes, plannedNextStopEtaDt);
+                        }
+                    }
+
+                    if (len(departureTimeZoneVal)) {
+                        try {
+                            if (isOvernightCheckIn AND isDate(checkedInAtVal)) {
+                                nextMorningResumeDt = dateAdd("d", 1, checkedInAtVal);
+                            } else {
+                                nextMorningResumeDt = now();
+                            }
+                            nextMorningResumeDt = createDateTime(
+                                year(nextMorningResumeDt),
+                                month(nextMorningResumeDt),
+                                day(nextMorningResumeDt),
+                                8,
+                                0,
+                                0
+                            );
+                            if (isDate(nextMorningResumeDt)) {
+                                activeLegEtaBaseDt = nextMorningResumeDt;
+                            }
+                            if (isOvernightCheckIn AND isDate(checkedInAtVal)) {
+                                overnightPauseMinutes = dateDiff("n", checkedInAtVal, nextMorningResumeDt);
+                                if (storedOvernightPauseMinutes LTE 0 AND isDate(plannedNextStopEtaDt) AND overnightPauseMinutes GT 0) {
+                                    plannedNextStopEtaDt = dateAdd("n", overnightPauseMinutes, plannedNextStopEtaDt);
+                                }
+                            }
+                        } catch (any overnightEtaErr) {
+                            // Preserve additive behavior if overnight resume derivation fails.
+                        }
+                    } else if (isDate(currentLegStartedAt)) {
+                        activeLegEtaBaseDt = currentLegStartedAt;
+                    } else if (isDate(priorLegCompletedAt)) {
+                        activeLegEtaBaseDt = priorLegCompletedAt;
+                    }
+
+                    if (activeLegEtaMinutes GT 0 AND isDate(activeLegEtaBaseDt)) {
+                        nextStopEtaDt = dateAdd("n", activeLegEtaMinutes, activeLegEtaBaseDt);
+                    } else {
+                        nextStopEtaDt = plannedNextStopEtaDt;
+                    }
+
+                    if (isDate(nextStopEtaDt)) {
+                        etaLabel = dateTimeFormat(nextStopEtaDt, "mmm d, yyyy h:nn tt");
+                        etaUtc = formatUtcInstantFromLocalTime(nextStopEtaDt, departureTimeZoneVal);
+                    }
+                    break;
+                }
+            }
+
+            if (len(etaLabel)) {
+                out.heroEta = etaLabel;
+            }
+            if (len(etaUtc)) {
+                out.heroEtaUtc = etaUtc;
+            }
+
+            out.SUCCESS = true;
+            out.MESSAGE = "OK";
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getActiveCruiseWeatherCanonical" access="private" returntype="struct" output="false">
+        <cfargument name="currentUserId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="point" type="string" required="true">
+        <cfscript>
+            var canonicalPlan = {};
+            var routeMap = {};
+            var pointKey = lCase(trim(arguments.point));
+            var pointLabel = "";
+            var pointLat = "";
+            var pointLng = "";
+            var weatherComponent = "";
+            var weatherPayload = {};
+            var weatherData = {
+                "FORECAST"=[],
+                "MARINE"={ "wave_height_ft"="" },
+                "surface"={ "visibility_mi"="" },
+                "ALERTS"=[]
+            };
+            var firstForecast = {};
+            var firstForecastOut = {
+                "windSpeed"="",
+                "windDirection"="",
+                "gustMph"=""
+            };
+            var hasForecastData = false;
+            var hasWaveData = false;
+            var hasVisibilityData = false;
+            var hasAlerts = false;
+            var hasWeatherData = false;
+
+            if (arguments.currentUserId LTE 0) {
+                return buildApiEnvelope(
+                    success=false,
+                    code="UNAUTHORIZED",
+                    message="Owner session required.",
+                    data={},
+                    auth=false
+                );
+            }
+
+            if (!listFindNoCase("start,end", pointKey)) {
+                return buildApiEnvelope(
+                    success=false,
+                    code="INVALID_POINT",
+                    message="Select Start or End to check conditions.",
+                    data={},
+                    auth=true
+                );
+            }
+
+            if (arguments.floatPlanId LTE 0) {
+                return buildApiEnvelope(
+                    success=false,
+                    code="FLOATPLAN_REQUIRED",
+                    message="Unable to find the active float plan for this trip.",
+                    data={},
+                    auth=true
+                );
+            }
+
+            canonicalPlan = resolveCanonicalActiveFloatPlan(arguments.currentUserId, arguments.floatPlanId);
+            if (!canonicalPlan.SUCCESS) {
+                return buildApiEnvelope(
+                    success=false,
+                    code=(structKeyExists(canonicalPlan, "ERROR") ? toString(canonicalPlan.ERROR) : "ACTIVE_PLAN_UNAVAILABLE"),
+                    message=canonicalPlan.MESSAGE,
+                    data={},
+                    auth=true
+                );
+            }
+
+            routeMap = buildRouteMapData(canonicalPlan.ROUTE_INSTANCE_ID, arguments.currentUserId);
+            if (pointKey EQ "start") {
+                pointLabel = (structKeyExists(routeMap, "active_leg_start_name") ? trim(toString(routeMap.active_leg_start_name)) : "");
+                pointLat = (structKeyExists(routeMap, "active_leg_start_lat") ? routeMap.active_leg_start_lat : "");
+                pointLng = (structKeyExists(routeMap, "active_leg_start_lng") ? routeMap.active_leg_start_lng : "");
+            } else {
+                pointLabel = (structKeyExists(routeMap, "active_leg_end_name") ? trim(toString(routeMap.active_leg_end_name)) : "");
+                pointLat = (structKeyExists(routeMap, "active_leg_end_lat") ? routeMap.active_leg_end_lat : "");
+                pointLng = (structKeyExists(routeMap, "active_leg_end_lng") ? routeMap.active_leg_end_lng : "");
+            }
+
+            if (!isNumeric(pointLat) OR !isNumeric(pointLng)) {
+                return buildApiEnvelope(
+                    success=true,
+                    code="OK",
+                    message="Conditions unavailable for selected leg point.",
+                    data={
+                        "point"=pointKey,
+                        "point_label"=pointLabel,
+                        "available"=false,
+                        "weather"=weatherData
+                    },
+                    auth=true
+                );
+            }
+
+            try {
+                weatherComponent = createObject("component", "fpw.api.v1.weather");
+            } catch (any weatherComponentErrA) {
+                try {
+                    weatherComponent = createObject("component", "api.v1.weather");
+                } catch (any weatherComponentErrB) {
+                    weatherComponent = "";
+                }
+            }
+
+            if (!isObject(weatherComponent)) {
+                return buildApiEnvelope(
+                    success=false,
+                    code="WEATHER_SERVICE_UNAVAILABLE",
+                    message="Weather service is unavailable.",
+                    data={},
+                    auth=true
+                );
+            }
+
+            try {
+                weatherPayload = weatherComponent.getWeatherForCoordinates(val(pointLat), val(pointLng));
+            } catch (any weatherLookupErr) {
+                return buildApiEnvelope(
+                    success=false,
+                    code="WEATHER_LOOKUP_FAILED",
+                    message=(len(trim(weatherLookupErr.message)) ? weatherLookupErr.message : "Unable to load weather right now."),
+                    data={},
+                    auth=true
+                );
+            }
+
+            if (structKeyExists(weatherPayload, "FORECAST") AND isArray(weatherPayload.FORECAST) AND arrayLen(weatherPayload.FORECAST) GTE 1 AND isStruct(weatherPayload.FORECAST[1])) {
+                firstForecast = duplicate(weatherPayload.FORECAST[1]);
+                if (structKeyExists(firstForecast, "windSpeed")) {
+                    firstForecastOut.windSpeed = firstForecast.windSpeed;
+                }
+                if (structKeyExists(firstForecast, "windDirection")) {
+                    firstForecastOut.windDirection = firstForecast.windDirection;
+                }
+                if (structKeyExists(firstForecast, "gustMph")) {
+                    firstForecastOut.gustMph = firstForecast.gustMph;
+                }
+                arrayAppend(weatherData.FORECAST, firstForecastOut);
+            }
+
+            if (structKeyExists(weatherPayload, "MARINE") AND isStruct(weatherPayload.MARINE) AND structKeyExists(weatherPayload.MARINE, "wave_height_ft")) {
+                weatherData.MARINE.wave_height_ft = weatherPayload.MARINE.wave_height_ft;
+            }
+
+            if (structKeyExists(weatherPayload, "surface") AND isStruct(weatherPayload.surface) AND structKeyExists(weatherPayload.surface, "visibility_mi")) {
+                weatherData.surface.visibility_mi = weatherPayload.surface.visibility_mi;
+            }
+
+            if (structKeyExists(weatherPayload, "ALERTS") AND isArray(weatherPayload.ALERTS)) {
+                weatherData.ALERTS = duplicate(weatherPayload.ALERTS);
+            }
+
+            hasForecastData = (
+                arrayLen(weatherData.FORECAST)
+                AND (
+                    len(trim(toString(weatherData.FORECAST[1].windSpeed)))
+                    OR len(trim(toString(weatherData.FORECAST[1].windDirection)))
+                    OR isNumeric(weatherData.FORECAST[1].gustMph)
+                    OR len(trim(toString(weatherData.FORECAST[1].gustMph)))
+                )
+            );
+            hasWaveData = (
+                structKeyExists(weatherData.MARINE, "wave_height_ft")
+                AND (
+                    isNumeric(weatherData.MARINE.wave_height_ft)
+                    OR len(trim(toString(weatherData.MARINE.wave_height_ft)))
+                )
+            );
+            hasVisibilityData = (
+                structKeyExists(weatherData.surface, "visibility_mi")
+                AND (
+                    isNumeric(weatherData.surface.visibility_mi)
+                    OR len(trim(toString(weatherData.surface.visibility_mi)))
+                )
+            );
+            hasAlerts = arrayLen(weatherData.ALERTS) GT 0;
+            hasWeatherData = (hasForecastData OR hasWaveData OR hasVisibilityData OR hasAlerts);
+
+            return buildApiEnvelope(
+                success=true,
+                code="OK",
+                message=(hasWeatherData ? "OK" : "Conditions unavailable for selected leg point."),
+                data={
+                    "point"=pointKey,
+                    "point_label"=pointLabel,
+                    "available"=hasWeatherData,
+                    "weather"=weatherData
+                },
+                auth=true
+            );
         </cfscript>
     </cffunction>
 
@@ -1600,6 +2228,228 @@
                 "viewer_reactions"={},
                 "comments"=[]
             };
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="ownerCreatePostWithMediaInternal" access="private" returntype="struct" output="false">
+        <cfargument name="streamId" type="numeric" required="true">
+        <cfargument name="body" type="string" required="false" default="">
+        <cfargument name="currentUserId" type="numeric" required="false" default="0">
+        <cfset var out = {
+            "SUCCESS"=false,
+            "AUTH"=(arguments.currentUserId GT 0),
+            "MESSAGE"="Unable to create post"
+        }>
+        <cfset var streamIdVal = val(arguments.streamId)>
+        <cfset var bodyVal = trim(arguments.body)>
+        <cfset var streamRow = {}>
+        <cfset var uploadDir = "">
+        <cfset var uploadResult = {}>
+        <cfset var sourcePath = "">
+        <cfset var generatedName = "">
+        <cfset var finalPath = "">
+        <cfset var fileExt = "">
+        <cfset var mimeVal = "">
+        <cfset var mediaUrlVal = "">
+        <cfset var createRes = {}>
+        <cfset var maxBytes = 5 * 1024 * 1024>
+        <cfif arguments.currentUserId LTE 0>
+            <cfset out.MESSAGE = "Unauthorized">
+            <cfset out.AUTH = false>
+            <cfset out.STATUS_CODE = 401>
+            <cfset out.ERROR = { "MESSAGE"="Owner session required." }>
+            <cfreturn out>
+        </cfif>
+        <cfif streamIdVal LTE 0>
+            <cfset out.MESSAGE = "stream_id required">
+            <cfset out.STATUS_CODE = 400>
+            <cfset out.ERROR = { "MESSAGE"="stream_id is required." }>
+            <cfreturn out>
+        </cfif>
+        <cfif !structKeyExists(form, "media_file") OR !len(trim(toString(form.media_file)))>
+            <cfset out.MESSAGE = "Image file required">
+            <cfset out.STATUS_CODE = 400>
+            <cfset out.ERROR = { "MESSAGE"="Select one image to upload." }>
+            <cfreturn out>
+        </cfif>
+
+        <cfset streamRow = readStream("", streamIdVal)>
+        <cfif !structCount(streamRow)>
+            <cfset out.MESSAGE = "Stream not found">
+            <cfset out.STATUS_CODE = 404>
+            <cfset out.ERROR = { "MESSAGE"="No voyage stream matched the provided stream id." }>
+            <cfreturn out>
+        </cfif>
+        <cfif streamRow.owner_user_id NEQ arguments.currentUserId>
+            <cfset out.MESSAGE = "Forbidden">
+            <cfset out.STATUS_CODE = 403>
+            <cfset out.ERROR = { "MESSAGE"="Only the stream owner can create posts." }>
+            <cfreturn out>
+        </cfif>
+
+        <cfset uploadDir = resolveVoyageUploadDirectory(streamIdVal)>
+        <cfif !directoryExists(uploadDir)>
+            <cfset directoryCreate(uploadDir)>
+        </cfif>
+
+        <cftry>
+            <cffile action="upload"
+                fileField="media_file"
+                destination="#uploadDir#"
+                nameConflict="makeunique"
+                accept="image/jpeg,image/pjpeg,image/png,image/webp,image/x-webp"
+                result="uploadResult">
+            <cfcatch>
+                <cfset out.MESSAGE = "Invalid image upload">
+                <cfset out.STATUS_CODE = 400>
+                <cfset out.ERROR = { "MESSAGE"="Only JPG, PNG, and WebP images up to 5MB are allowed." }>
+                <cfreturn out>
+            </cfcatch>
+        </cftry>
+
+        <cfset sourcePath = uploadResult.serverDirectory & "/" & uploadResult.serverFile>
+        <cfif val(uploadResult.fileSize) GT maxBytes>
+            <cfif fileExists(sourcePath)><cfset fileDelete(sourcePath)></cfif>
+            <cfset out.MESSAGE = "Image too large">
+            <cfset out.STATUS_CODE = 400>
+            <cfset out.ERROR = { "MESSAGE"="Image must be 5MB or smaller." }>
+            <cfreturn out>
+        </cfif>
+
+        <cfset fileExt = lCase(trim(toString(uploadResult.serverFileExt)))>
+        <cfset mimeVal = lCase(trim(toString((structKeyExists(uploadResult, "contentType") ? uploadResult.contentType : "") & "/" & (structKeyExists(uploadResult, "contentSubType") ? uploadResult.contentSubType : ""))))>
+        <cfif !listFindNoCase("jpg,jpeg,png,webp", fileExt)>
+            <cfif fileExists(sourcePath)><cfset fileDelete(sourcePath)></cfif>
+            <cfset out.MESSAGE = "Invalid image type">
+            <cfset out.STATUS_CODE = 400>
+            <cfset out.ERROR = { "MESSAGE"="Only JPG, PNG, and WebP images are allowed." }>
+            <cfreturn out>
+        </cfif>
+        <cfif len(mimeVal) AND !reFindNoCase("^image/(jpeg|pjpeg|png|webp|x-webp)$", mimeVal)>
+            <cfif fileExists(sourcePath)><cfset fileDelete(sourcePath)></cfif>
+            <cfset out.MESSAGE = "Invalid image type">
+            <cfset out.STATUS_CODE = 400>
+            <cfset out.ERROR = { "MESSAGE"="Only JPG, PNG, and WebP images are allowed." }>
+            <cfreturn out>
+        </cfif>
+
+        <cfset generatedName = "post-" & dateTimeFormat(now(), "yyyymmddHHnnss") & "-" & lCase(left(replace(createUUID(), "-", "", "all"), 12)) & "." & fileExt>
+        <cfset finalPath = uploadDir & "/" & generatedName>
+        <cfset fileMove(sourcePath, finalPath)>
+        <cfset mediaUrlVal = buildVoyageUploadUrl(streamIdVal, generatedName)>
+        <cfset createRes = ownerCreatePost(streamIdVal, bodyVal, mediaUrlVal, arguments.currentUserId)>
+        <cfif !createRes.SUCCESS AND fileExists(finalPath)>
+            <cfset fileDelete(finalPath)>
+        </cfif>
+        <cfreturn createRes>
+    </cffunction>
+
+    <cffunction name="ownerDeletePost" access="private" returntype="struct" output="false">
+        <cfargument name="postId" type="numeric" required="true">
+        <cfargument name="currentUserId" type="numeric" required="false" default="0">
+        <cfscript>
+            var out = {
+                "SUCCESS"=false,
+                "AUTH"=(arguments.currentUserId GT 0),
+                "MESSAGE"="Unable to delete post"
+            };
+            var postIdVal = val(arguments.postId);
+            var ds = resolveDatasource();
+            var qCheck = queryNew("");
+            var mediaUrlVal = "";
+            var streamIdVal = 0;
+            var authorTypeVal = "";
+            var postTypeVal = "";
+            var eventTypeVal = "";
+
+            if (arguments.currentUserId LTE 0) {
+                out.MESSAGE = "Unauthorized";
+                out.AUTH = false;
+                out.ERROR = { "MESSAGE"="Owner session required." };
+                return out;
+            }
+            if (postIdVal LTE 0) {
+                out.MESSAGE = "post_id required";
+                out.ERROR = { "MESSAGE"="post_id is required." };
+                return out;
+            }
+
+            qCheck = queryExecute(
+                "SELECT
+                    vp.id,
+                    vp.stream_id,
+                    vp.author_type,
+                    vp.post_type,
+                    vp.event_type,
+                    vp.media_url,
+                    vs.owner_user_id
+                 FROM voyage_posts vp
+                 INNER JOIN voyage_streams vs ON vs.id = vp.stream_id
+                 WHERE vp.id = :postId
+                 LIMIT 1",
+                {
+                    postId = { value=postIdVal, cfsqltype="cf_sql_integer" }
+                },
+                { datasource=ds }
+            );
+
+            if (qCheck.recordCount EQ 0) {
+                out.MESSAGE = "Post not found";
+                out.ERROR = { "MESSAGE"="No post matched the provided id." };
+                return out;
+            }
+            if (val(qCheck.owner_user_id[1]) NEQ arguments.currentUserId) {
+                out.MESSAGE = "Forbidden";
+                out.STATUS_CODE = 403;
+                out.ERROR = { "MESSAGE"="Only the stream owner can delete posts." };
+                return out;
+            }
+
+            authorTypeVal = lCase(trim(toString(qCheck.author_type[1])));
+            postTypeVal = lCase(trim(toString(qCheck.post_type[1])));
+            eventTypeVal = trim(toString(qCheck.event_type[1]));
+            if (authorTypeVal NEQ "owner" OR postTypeVal EQ "system_event" OR len(eventTypeVal)) {
+                out.MESSAGE = "Post cannot be deleted";
+                out.ERROR = { "MESSAGE"="Only owner-authored manual posts can be deleted." };
+                return out;
+            }
+
+            mediaUrlVal = trim(toString(qCheck.media_url[1]));
+            streamIdVal = val(qCheck.stream_id[1]);
+
+            queryExecute(
+                "DELETE FROM voyage_reactions
+                 WHERE post_id = :postId",
+                {
+                    postId = { value=postIdVal, cfsqltype="cf_sql_integer" }
+                },
+                { datasource=ds }
+            );
+
+            queryExecute(
+                "DELETE FROM voyage_comments
+                 WHERE post_id = :postId",
+                {
+                    postId = { value=postIdVal, cfsqltype="cf_sql_integer" }
+                },
+                { datasource=ds }
+            );
+
+            deleteVoyageUploadFile(mediaUrlVal, streamIdVal);
+
+            queryExecute(
+                "DELETE FROM voyage_posts
+                 WHERE id = :postId",
+                {
+                    postId = { value=postIdVal, cfsqltype="cf_sql_integer" }
+                },
+                { datasource=ds }
+            );
+
+            out.SUCCESS = true;
+            out.MESSAGE = "Post deleted";
+            out.post_id = postIdVal;
             return out;
         </cfscript>
     </cffunction>
@@ -3267,7 +4117,7 @@
                 normalized = duplicate(parsed);
                 aliasMap = {
                     "underway_hours_per_day" = [ "underwayHoursPerDay", "max_hours_per_day", "maxHoursPerDay", "UNDERWAY_HOURS_PER_DAY" ],
-                    "effective_speed_kn" = [ "effectiveSpeedKn", "effective_cruising_speed", "effectiveCruisingSpeed", "weather_adjusted_speed_kn", "weatherAdjustedSpeedKn" ],
+                    "effective_speed_kn" = [ "weather_adjusted_speed_kn", "weatherAdjustedSpeedKn", "effectiveSpeedKn", "effective_cruising_speed", "effectiveCruisingSpeed" ],
                     "cruising_speed" = [ "cruisingSpeed", "max_speed_kn", "maxSpeedKn", "CRUISING_SPEED", "MAX_SPEED_KN" ],
                     "fuel_burn_gph" = [ "fuelBurnGph", "fuel_burn_gph_input", "fuelBurnGphInput", "max_burn_gph", "maxBurnGph", "burn_gph", "burnGph", "FUEL_BURN_GPH" ],
                     "reserve_pct" = [ "reservePct", "RESERVE_PCT" ],
@@ -3352,7 +4202,7 @@
             var src = (isStruct(arguments.routeInputs) ? arguments.routeInputs : {});
             var directSpeed = getNumericFromKeys(
                 src,
-                [ "effective_speed_kn", "effectiveSpeedKn", "effective_cruising_speed", "effectiveCruisingSpeed", "weather_adjusted_speed_kn", "weatherAdjustedSpeedKn" ],
+                [ "weather_adjusted_speed_kn", "weatherAdjustedSpeedKn", "effective_speed_kn", "effectiveSpeedKn", "effective_cruising_speed", "effectiveCruisingSpeed" ],
                 true
             );
             var maxSpeed = 0;
@@ -4449,6 +5299,65 @@
                 basePath = "";
             }
             return basePath;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveVoyageUploadDirectory" access="private" returntype="string" output="false">
+        <cfargument name="streamId" type="numeric" required="true">
+        <cfscript>
+            var fileObj = createObject("java", "java.io.File").init(getDirectoryFromPath(getCurrentTemplatePath()));
+            var rootPath = fileObj.getParentFile().getParentFile().getCanonicalPath();
+            var sep = createObject("java", "java.io.File").separator;
+            return rootPath & sep & "assets" & sep & "uploads" & sep & "voyage" & sep & val(arguments.streamId);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildVoyageUploadUrl" access="private" returntype="string" output="false">
+        <cfargument name="streamId" type="numeric" required="true">
+        <cfargument name="fileName" type="string" required="true">
+        <cfscript>
+            var basePath = resolveFpwBasePath();
+            var safeName = trim(toString(arguments.fileName));
+            return basePath & "/assets/uploads/voyage/" & val(arguments.streamId) & "/" & safeName;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="deleteVoyageUploadFile" access="private" returntype="boolean" output="false">
+        <cfargument name="mediaUrl" type="string" required="false" default="">
+        <cfargument name="streamId" type="numeric" required="true">
+        <cfscript>
+            var mediaUrlVal = trim(toString(arguments.mediaUrl));
+            var expectedPrefix = buildVoyageUploadUrl(arguments.streamId, "");
+            var fileName = "";
+            var filePath = "";
+            var sep = createObject("java", "java.io.File").separator;
+
+            if (!len(mediaUrlVal)) {
+                return false;
+            }
+            if (right(expectedPrefix, 1) NEQ "/") {
+                expectedPrefix &= "/";
+            }
+            if (left(mediaUrlVal, len(expectedPrefix)) NEQ expectedPrefix) {
+                return false;
+            }
+
+            fileName = listLast(mediaUrlVal, "/");
+            if (!reFind("^[A-Za-z0-9._-]+$", fileName)) {
+                return false;
+            }
+
+            filePath = resolveVoyageUploadDirectory(arguments.streamId) & sep & fileName;
+            if (!fileExists(filePath)) {
+                return false;
+            }
+
+            try {
+                fileDelete(filePath);
+                return true;
+            } catch (any deleteErr) {
+                return false;
+            }
         </cfscript>
     </cffunction>
 

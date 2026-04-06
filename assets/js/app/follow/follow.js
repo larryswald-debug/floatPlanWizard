@@ -166,7 +166,6 @@
 
   function formatSidebarLastCheckinLabel(input) {
     var raw = String(input || "").trim();
-    var normalizedRaw = raw;
     var date = null;
     var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     var hours;
@@ -174,11 +173,7 @@
     var minutes;
     var suffix;
 
-    if (/^[A-Z][a-z]{2} \d{1,2}, \d{4} \d{1,2}:\d{2} [AP]M$/i.test(raw)) {
-      normalizedRaw = raw + " UTC";
-    }
-
-    date = normalizedRaw ? new Date(normalizedRaw) : null;
+    date = raw ? new Date(raw) : null;
 
     if (!date || Number.isNaN(date.getTime())) {
       return "";
@@ -211,7 +206,7 @@
     var sidebar = state.bootstrap && state.bootstrap.sidebar ? state.bootstrap.sidebar : {};
     var list = Array.isArray(posts) ? posts : [];
     var latestPost = list.length ? list[0] : null;
-    var label = formatSidebarLastCheckinLabel(sidebar.last_checkin || "");
+    var label = formatSidebarLastCheckinLabel(sidebar.last_checkin_utc || "");
 
     if (label) {
       setHookText("trip-card-last-checkin", label);
@@ -262,12 +257,65 @@
   function renderPhase5StreamShell(payload) {
     var pinned = payload.pinned || {};
     var topCards = payload.topCards || {};
+    var body = payload.body || {};
+    var sidebar = payload.sidebar || {};
+    var timeline = payload.timeline || {};
     var map = payload.map || {};
-    var updatedLabel = String(pinned.updated_label || "").trim();
+    var summary = timeline.summary || {};
+    var legs = Array.isArray(timeline.legs) ? timeline.legs : [];
+    var updatedLabel = formatSidebarLastCheckinLabel(topCards.last_checkin_utc || "") || "—";
     var nextStop = String(topCards.next_stop || map.next_stop_label || "").trim();
+    var etaUtc = String(topCards.eta_utc || "").trim();
+    var realLastCheckinUtc = String(sidebar.last_checkin_utc || "").trim();
+    var fallbackLastCheckinUtc = String(topCards.last_checkin_utc || "").trim();
+    var lastCheckinLabel = formatSidebarLastCheckinLabel(realLastCheckinUtc) || formatSidebarLastCheckinLabel(fallbackLastCheckinUtc) || "—";
+    var lastCheckinMeta = realLastCheckinUtc ? (String(body.journey_checkin_meta || "").trim() || "—") : "—";
+    var nextStopEtaLabel = "—";
+    var locationLabel = String(topCards.location_label || (map.current && map.current.label ? map.current.label : "") || "").trim();
+    var checkinMeta = String(body.journey_checkin_meta || "").trim();
+    var cardCheckinMeta = checkinMeta.replace(/\s*Next update expected tomorrow morning\.\s*/i, "").trim();
+    var activeLeg = findActiveTimelineLeg(
+      legs,
+      locationLabel,
+      String(topCards.next_stop || "").trim(),
+      summary
+    );
+    var completedLegs = toInt(summary && summary.completed_legs, 0);
+    var hasActiveLeg = !!activeLeg && completedLegs < legs.length;
+    var effectiveSpeed = safeNum(summary.effective_speed_kn);
+    var currentStopValue = locationLabel || "—";
+    var currentStopMeta = "—";
+    var isOvernightState = /overnight|secure for the night/i.test(checkinMeta);
+    var activeLegDistanceNm = safeNum(activeLeg && activeLeg.dist_nm);
+    var activeLegHours = safeNum(activeLeg && activeLeg.hours);
+    var activeLegProgressPct = safeNum(activeLeg && activeLeg.progress ? activeLeg.progress.percent_complete : null);
+    var milesTodayLabel = "—";
+    var hoursUnderwayLabel = "—";
+    if (activeLegDistanceNm !== null && activeLegProgressPct !== null) {
+      milesTodayLabel = (activeLegDistanceNm * Math.max(0, activeLegProgressPct) / 100).toFixed(1);
+    }
+    if (activeLegHours !== null && activeLegProgressPct !== null) {
+      hoursUnderwayLabel = (activeLegHours * Math.max(0, activeLegProgressPct) / 100).toFixed(1);
+    }
+    nextStopEtaLabel = formatSidebarLastCheckinLabel(etaUtc) || "—";
 
     setHookText("stream-glance-updated", updatedLabel);
+    setHookText("stream-glance-miles", milesTodayLabel);
+    setHookText("stream-glance-hours", hoursUnderwayLabel);
+    if (isOvernightState && locationLabel && cardCheckinMeta) {
+      currentStopValue = locationLabel;
+      currentStopMeta = cardCheckinMeta;
+    } else if (hasActiveLeg && nextStop && effectiveSpeed !== null && effectiveSpeed > 0) {
+      currentStopValue = "Underway to " + nextStop;
+      currentStopMeta = "Making way at " + String(effectiveSpeed) + " kn";
+    } else if (locationLabel || cardCheckinMeta) {
+      currentStopValue = locationLabel || "—";
+      currentStopMeta = cardCheckinMeta || "—";
+    }
+    setHookText("stream-glance-checkin", currentStopValue);
+    setHookText("stream-glance-checkin-meta", currentStopMeta);
     setHookText("stream-glance-next-stop", nextStop);
+    setHookText("stream-glance-next-stop-meta", nextStopEtaLabel);
   }
 
   function formatDayCountLabel(days) {
@@ -317,6 +365,8 @@
     var photoCount = findRecentMediaPosts(posts).length;
     var currentLocation = String(map.current && map.current.label ? map.current.label : topCards.location_label || "").trim();
     var nextStop = String(topCards.next_stop || "").trim();
+    var etaUtc = String(topCards.eta_utc || "").trim();
+    var etaLabel = "—";
     var progressPct = computeJourneyProgressPct(summary, legs, currentLocation, nextStop);
 
     legs.forEach(function (leg) {
@@ -327,10 +377,11 @@
         completedMilesNm += legDistanceNm;
       }
     });
+    etaLabel = formatSidebarLastCheckinLabel(etaUtc) || "—";
 
     setHookText("today-progress-metric", completedMilesNm.toFixed(1) + " nm");
     setHookText("today-progress-location", "Current location: " + String(topCards.location_label || "").trim());
-    setHookText("today-progress-eta", "Estimated arrival: " + String(topCards.eta || "").trim());
+    setHookText("today-progress-eta", etaLabel === "—" ? "—" : ("Estimated arrival: " + etaLabel));
     setHookWidth("today-progress-fill", progressPct);
     setHookText("latest-photos-count", String(photoCount) + " recent " + (photoCount === 1 ? "moment" : "moments") + " shared");
     setHookText("trip-summary-metric", totalHoursText === "n/a" ? "n/a" : (totalHoursText + " total"));
@@ -441,11 +492,13 @@
     var legs = Array.isArray(timeline.legs) ? timeline.legs : [];
     var title = String(stream.title || "").trim();
     var status = String(topCards.status || stream.status || "").trim();
-    var lastCheckin = String(topCards.last_checkin || "").trim();
-    var sidebarLastCheckin = formatSidebarLastCheckinLabel(sidebar.last_checkin || "") || String(lastCheckin).trim();
+    var lastCheckinUtc = String(topCards.last_checkin_utc || "").trim();
+    var realCheckInUtc = String(sidebar.last_checkin_utc || "").trim();
+    var lastCheckinLabel = formatSidebarLastCheckinLabel(lastCheckinUtc) || "";
+    var realCheckInLabel = formatSidebarLastCheckinLabel(realCheckInUtc) || "";
+    var sidebarLastCheckin = realCheckInLabel || lastCheckinLabel || "—";
     var shareSlug = String(stream.slug || state.slug || "").trim();
     var nextStop = String(topCards.next_stop || map.next_stop_label || "").trim();
-    var eta = String(topCards.eta || "").trim();
     var conditions = String(topCards.conditions || "").trim();
     var legWeather = payload.legWeather || {};
     var weatherConditions = legWeather.conditions || {};
@@ -459,8 +512,8 @@
     var activeLegEndName = String(activeLeg && activeLeg.end_name ? activeLeg.end_name : nextStop).trim();
     var effectiveSpeedKn = safeNum(summary.effective_speed_kn);
     var progressPct = computeJourneyProgressPct(summary, legs, currentLocation, nextStop);
-    var departedLocalMeta = formatSidebarLastCheckinLabel(body.journey_departed_meta_utc || "") || String(body.journey_departed_meta || "").trim();
-    var nextStopLocalEta = formatSidebarLastCheckinLabel(topCards.eta_utc || "") || eta;
+    var departedLocalMeta = formatSidebarLastCheckinLabel(body.journey_departed_meta_utc || "") || "—";
+    var nextStopLocalEta = formatSidebarLastCheckinLabel(topCards.eta_utc || "") || "—";
     var startSummary = String(startWeather.summary || "").trim();
     var endSummary = String(endWeather.summary || "").trim();
     var startSummaryLine = startSummary ? (activeLegStartName ? "Start · " + activeLegStartName + " · " + startSummary : startSummary) : "";
@@ -496,8 +549,8 @@
 
     setHookText("page-title", title);
     setHookText("page-subtitle", body.page_subtitle);
-    if (lastCheckin) {
-      setHookText("live-chip", "Live now · Updated " + lastCheckin);
+    if (lastCheckinLabel) {
+      setHookText("live-chip", "Live now · Updated " + lastCheckinLabel);
     }
 
     setHookText("journey-subtitle", body.journey_subtitle);
@@ -511,11 +564,11 @@
     }
     setHookText("journey-next-stop-value", nextStop);
     setHookText("journey-next-stop-meta", nextStopLocalEta);
-    setHookText("journey-checkin-value", formatJourneyCheckinValue(body.journey_checkin_value));
+    setHookText("journey-checkin-value", realCheckInLabel ? ("Checked in at " + realCheckInLabel) : "Checked in at --");
     setHookText("journey-checkin-meta", body.journey_checkin_meta);
 
     setHookText("card-status-title", status);
-    setHookText("card-status-value", formatSidebarLastCheckinLabel(lastCheckin) || lastCheckin);
+    setHookText("card-status-value", lastCheckinLabel || "—");
     setHookText("card-status-copy", body.card_status_copy);
     setHookText("card-location-title", String(topCards.location_label || "").trim());
     setHookText("card-location-value", nextStop);
@@ -523,7 +576,7 @@
     setHookText("card-destination-title", nextStop);
     setHookText("card-destination-value", topCards.next_stop);
     setHookText("card-destination-copy", body.card_destination_copy);
-    setHookText("card-arrival-title", eta);
+    setHookText("card-arrival-title", formatSidebarLastCheckinLabel(topCards.eta_utc || "") || "—");
     setHookText("card-arrival-value", nextStop);
     setHookText("card-arrival-copy", body.card_arrival_copy);
     setHookText("card-conditions-title", conditionsTitle);
@@ -538,10 +591,10 @@
     var pinned = payload.pinned || {};
     var title = stream.title || "Voyage Stream";
     var status = topCards.status || stream.status || "n/a";
-    var lastCheckin = topCards.last_checkin || "n/a";
+    var lastCheckin = formatSidebarLastCheckinLabel(topCards.last_checkin_utc || "") || "n/a";
     var location = topCards.location_label || "n/a";
     var nextStop = topCards.next_stop || "n/a";
-    var eta = topCards.eta || "n/a";
+    var eta = formatSidebarLastCheckinLabel(topCards.eta_utc || "") || "—";
     var conditions = topCards.conditions || "n/a";
     var miles = safeNum(pinned.miles);
     var days = toInt(pinned.days, 0);
@@ -964,12 +1017,25 @@
     var metaText = renderStreamFeedMeta(post);
     var mediaHtml = renderStreamMedia(post);
     var commentsHtml;
+    var deleteButtonHtml = "";
+    var bodyHtml = "";
 
     if (!title) {
       title = body ? body.slice(0, 90) : "Update";
     }
 
     commentsHtml = renderStreamComments(comments);
+    if (
+      state.isOwner
+      && String(post.author_type || "").toLowerCase() === "owner"
+      && String(post.post_type || "").toLowerCase() !== "system_event"
+      && !String(post.event_type || "").trim()
+    ) {
+      deleteButtonHtml = '<button type="button" class="reaction" data-owner-delete-post="' + String(id) + '">Delete</button>';
+    }
+    if (body) {
+      bodyHtml = '  <p>' + escapeHtml(body).replace(/\n/g, "<br />") + '</p>';
+    }
 
     return ''
       + '<article class="feed-card" data-post-id="' + String(id) + '">'
@@ -984,8 +1050,8 @@
       + '    <div class="feed-flag">' + escapeHtml(authorLabel) + '</div>'
       + '  </div>'
       + mediaHtml
-      + '  <p>' + escapeHtml(body).replace(/\n/g, "<br />") + '</p>'
-      + '  <div class="reactions">' + renderStreamReactions(id, reactions, viewerReactions) + '</div>'
+      + bodyHtml
+      + '  <div class="reactions">' + renderStreamReactions(id, reactions, viewerReactions) + deleteButtonHtml + '</div>'
       + '  <div id="comments-' + String(id) + '">' + (commentsHtml || "") + '</div>'
       + '  <div class="commentBox">'
       + '    <input class="commentInput" type="text" data-comment-input="' + String(id) + '" maxlength="500" placeholder="Add a comment..." />'
@@ -1014,6 +1080,75 @@
     if (dom.photoCount) {
       dom.photoCount.textContent = String(findFirstPhotoCount(list)) + " new";
     }
+  }
+
+  function normalizeCreatedPostPayload(payload) {
+    var source = payload || {};
+    var post = source.post || source.POST || {};
+    var postId = toInt(post.id || source.post_id || source.POST_ID, 0);
+
+    if (postId <= 0) return null;
+
+    return {
+      id: postId,
+      stream_id: toInt(post.stream_id, state.streamId),
+      author_type: String(post.author_type || "owner"),
+      author_user_id: toInt(post.author_user_id, 0),
+      follower_id: toInt(post.follower_id, 0),
+      title: String(post.title || ""),
+      body: String(post.body || ""),
+      post_type: String(post.post_type || (String(post.media_url || "").trim() ? "photo" : "text")),
+      event_type: String(post.event_type || ""),
+      location_label: String(post.location_label || ""),
+      lat: post.lat || "",
+      lng: post.lng || "",
+      media_url: String(post.media_url || ""),
+      media_thumb_url: String(post.media_thumb_url || ""),
+      created_utc: String(post.created_utc || ""),
+      reaction_counts: post.reaction_counts || { like: 0, love: 0, boat: 0, wave: 0 },
+      viewer_reactions: post.viewer_reactions || {},
+      comments: Array.isArray(post.comments) ? post.comments : []
+    };
+  }
+
+  function mergePostIntoList(newPost, posts) {
+    var list = Array.isArray(posts) ? posts.slice() : [];
+    var postId = toInt(newPost && newPost.id, 0);
+
+    if (postId <= 0) return list;
+
+    list = list.filter(function (post) {
+      return toInt(post && post.id, 0) !== postId;
+    });
+    list.unshift(newPost);
+    return list;
+  }
+
+  function prependPostToUi(newPost) {
+    var list = mergePostIntoList(newPost, state.posts);
+    var hasRenderedPosts = false;
+    var existing = null;
+
+    state.posts = list;
+    updateSidebarLastCheckinFromPosts(list);
+    renderPhase6LowerCards(state.bootstrap || {}, list);
+    if (dom.photoCount) {
+      dom.photoCount.textContent = String(findFirstPhotoCount(list)) + " new";
+    }
+    if (!dom.postsContainer) return;
+
+    existing = dom.postsContainer.querySelector('[data-post-id="' + String(newPost.id) + '"]');
+    if (existing && existing.parentNode) {
+      existing.parentNode.removeChild(existing);
+    }
+
+    hasRenderedPosts = !!dom.postsContainer.querySelector("[data-post-id]");
+    if (!hasRenderedPosts) {
+      dom.postsContainer.innerHTML = renderPost(newPost);
+      return;
+    }
+
+    dom.postsContainer.insertAdjacentHTML("afterbegin", renderPost(newPost));
   }
 
   function applyReactionCounts(postId, counts, activeEmoji) {
@@ -1174,12 +1309,35 @@
       });
   }
 
+  function onOwnerDeletePost(postId) {
+    var article = dom.postsContainer ? dom.postsContainer.querySelector('[data-post-id="' + String(postId) + '"]') : null;
+
+    if (!state.isOwner || postId <= 0) return;
+    if (!window.confirm("Delete this post?")) return;
+    if (article) article.style.opacity = "0.55";
+
+    fetchJson("ownerDeletePost", {
+      post_id: postId
+    }).then(function () {
+      return loadPosts();
+    }).catch(function (err) {
+      if (article) article.style.opacity = "";
+      window.alert((err && err.message) ? err.message : "Unable to delete post.");
+    });
+  }
+
   function wirePostInteractions() {
     if (!dom.postsContainer) return;
 
     dom.postsContainer.addEventListener("click", function (event) {
       var reactBtn = event.target.closest("[data-react]");
       var commentBtn = event.target.closest("[data-comment-submit]");
+      var deleteBtn = event.target.closest("[data-owner-delete-post]");
+      if (deleteBtn) {
+        event.preventDefault();
+        onOwnerDeletePost(toInt(deleteBtn.getAttribute("data-owner-delete-post"), 0));
+        return;
+      }
       if (reactBtn) {
         event.preventDefault();
         onReactClick(reactBtn);
@@ -1201,7 +1359,7 @@
     });
   }
 
-  function loadPosts() {
+  function loadPosts(preservePost) {
     return fetchJson("listPosts", {
       stream_id: state.streamId,
       cursor: 0,
@@ -1209,7 +1367,12 @@
       t: state.token,
       follower_token: state.followerToken || ""
     }).then(function (res) {
-      renderPosts(Array.isArray(res.posts) ? res.posts : []);
+      var posts = Array.isArray(res.posts) ? res.posts : [];
+      if (preservePost) {
+        posts = mergePostIntoList(preservePost, posts);
+        res.posts = posts;
+      }
+      renderPosts(posts);
       return res;
     });
   }
@@ -1236,19 +1399,83 @@
 
   function postAsOwner() {
     var text = dom.composerText ? String(dom.composerText.value || "").trim() : "";
-    var photoUrl = dom.composerPhotoUrl ? String(dom.composerPhotoUrl.value || "").trim() : "";
+    var mediaFile = (dom.composerPhotoUrl && dom.composerPhotoUrl.files && dom.composerPhotoUrl.files[0]) ? dom.composerPhotoUrl.files[0] : null;
+    var mime = String(mediaFile && mediaFile.type ? mediaFile.type : "").toLowerCase();
+    var fileName = String(mediaFile && mediaFile.name ? mediaFile.name : "");
+    var createPromise;
 
     if (!state.isOwner) return;
-    if (!text && !photoUrl) return;
+    if (!text && !mediaFile) return;
+    if (mediaFile && mediaFile.size > (5 * 1024 * 1024)) {
+      window.alert("Image must be 5MB or smaller.");
+      return;
+    }
+    if (mediaFile && ((mime && !/^image\/(jpeg|pjpeg|png|webp|x-webp)$/i.test(mime)) || !/\.(jpe?g|png|webp)$/i.test(fileName))) {
+      window.alert("Only JPG, PNG, and WebP images are allowed.");
+      return;
+    }
 
-    fetchJson("ownerCreatePost", {
-      stream_id: state.streamId,
-      body: text,
-      media_url: photoUrl
-    }).then(function () {
-      if (dom.composerText) dom.composerText.value = "";
-      if (dom.composerPhotoUrl) dom.composerPhotoUrl.value = "";
-      return loadPosts();
+    if (mediaFile) {
+      var formData = new FormData();
+      var uploadUrl = getBasePath() + "/api/v1/voyageUpload.cfm";
+      formData.append("stream_id", String(state.streamId));
+      formData.append("body", text);
+      formData.append("media_file", mediaFile);
+      createPromise = fetch(uploadUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        body: formData
+      }).then(function (res) {
+        return res.text().then(function (txt) {
+          return { ok: res.ok, status: res.status, text: txt };
+        });
+      }).then(function (txt) {
+        var json;
+        if (!txt.ok) {
+          try {
+            json = txt.text ? JSON.parse(txt.text) : {};
+          } catch (err) {
+            json = {};
+          }
+          throw new Error((json.ERROR && json.ERROR.MESSAGE) || json.MESSAGE || "Unable to publish post.");
+        }
+        if (!String(txt.text || "").trim()) {
+          return {};
+        }
+        try {
+          json = txt.text ? JSON.parse(txt.text) : {};
+        } catch (err) {
+          json = {};
+        }
+        if (json && (json.SUCCESS === false || json.success === false)) {
+          throw new Error((json.ERROR && json.ERROR.MESSAGE) || json.MESSAGE || "Unable to publish post.");
+        }
+        return json;
+      });
+    } else {
+      createPromise = fetchJson("ownerCreatePost", {
+        stream_id: state.streamId,
+        body: text,
+        media_url: ""
+      });
+    }
+
+    createPromise.then(function (createRes) {
+      var createdPost = mediaFile ? normalizeCreatedPostPayload(createRes) : null;
+
+      if (mediaFile && createdPost) {
+        prependPostToUi(createdPost);
+        if (dom.composerText) dom.composerText.value = "";
+        if (dom.composerPhotoUrl) dom.composerPhotoUrl.value = "";
+        loadPosts(createdPost).catch(function () {});
+        return null;
+      }
+
+      return loadPosts().then(function (res) {
+        if (dom.composerText) dom.composerText.value = "";
+        if (dom.composerPhotoUrl) dom.composerPhotoUrl.value = "";
+        return res;
+      });
     }).catch(function (err) {
       window.alert((err && err.message) ? err.message : "Unable to publish post.");
     });

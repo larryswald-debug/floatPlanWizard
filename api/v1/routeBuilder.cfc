@@ -8677,8 +8677,15 @@
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="routeInstanceId" type="numeric" required="true">
         <cfargument name="legs" type="array" required="true">
+        <cfargument name="preserveProgress" type="boolean" required="false" default="false">
         <cfscript>
-            var out = { "SECTION_ID"=0, "LEG_ID_BY_ORDER"={} };
+            var out = {
+                "SECTION_ID"=0,
+                "LEG_ID_BY_ORDER"={},
+                "PRESERVE_BLOCKED"=false,
+                "PRESERVED_PROGRESS"=false,
+                "MESSAGE"=""
+            };
             var i = 0;
             var leg = {};
             var legOrderVal = 0;
@@ -8707,6 +8714,25 @@
             var endLatBind = {};
             var endLngBind = {};
             var notesBind = {};
+            var normalizedLegs = [];
+            var normalizedLeg = {};
+            var preserveProgressVal = toBoolean(arguments.preserveProgress, false);
+            var qExistingLegs = queryNew("");
+            var existingLegOrderVal = 0;
+            var existingSegmentIdVal = 0;
+            var existingIsReversedVal = 0;
+            var existingIsOptionalVal = 0;
+            var existingDetourCodeVal = "";
+            var preserveReason = "";
+            var progressKey = "";
+            var preservedProgressByOrder = {};
+            var preservedProgress = {};
+            var preservedStatusVal = "";
+            var preservedCompletedAtVal = "";
+            var preservedLegStartedAtVal = "";
+            var preservedCreatedAtVal = "";
+            var preservedUpdatedAtVal = "";
+            var fallbackProgressTs = now();
 
             if (!routegenHasNormalizedTables()) return out;
             if (arguments.userId LTE 0 OR arguments.routeInstanceId LTE 0 OR !arrayLen(arguments.legs)) return out;
@@ -8718,43 +8744,6 @@
                 }
             }
             canonicalBySegment = routegenLoadCanonicalSegmentMap(segmentIds);
-
-            queryExecute(
-                "DELETE FROM route_instance_leg_progress
-                 WHERE route_instance_id = :routeInstanceId",
-                {
-                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
-                },
-                { datasource = application.dsn }
-            );
-            queryExecute(
-                "DELETE FROM route_instance_legs
-                 WHERE route_instance_id = :routeInstanceId",
-                {
-                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
-                },
-                { datasource = application.dsn }
-            );
-            queryExecute(
-                "DELETE FROM route_instance_sections
-                 WHERE route_instance_id = :routeInstanceId",
-                {
-                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
-                },
-                { datasource = application.dsn }
-            );
-
-            queryExecute(
-                "INSERT INTO route_instance_sections
-                    (route_instance_id, section_order, name, phase_num, source_section_id)
-                 VALUES
-                    (:routeInstanceId, 1, 'Route', 1, NULL)",
-                {
-                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
-                },
-                { datasource = application.dsn, result = "routegenNormSecIns" }
-            );
-            out.SECTION_ID = val(routegenNormSecIns.generatedKey);
 
             for (i = 1; i LTE arrayLen(arguments.legs); i++) {
                 leg = arguments.legs[i];
@@ -8820,8 +8809,155 @@
                     notesVal &= "[Optional stop: " & detourCodeVal & "]";
                 }
 
-                distBind = toNullableNumber((structKeyExists(leg, "dist_nm") ? leg.dist_nm : 0), "numeric");
-                lockBind = toNullableNumber((structKeyExists(leg, "lock_count") ? leg.lock_count : 0), "integer");
+                normalizedLeg = {
+                    "LEG_ORDER"=legOrderVal,
+                    "SEGMENT_ID"=segmentIdVal,
+                    "IS_REVERSED"=isReversedVal,
+                    "IS_OPTIONAL"=isOptionalVal,
+                    "DETOUR_CODE"=detourCodeVal,
+                    "START_NAME"=legStartNameVal,
+                    "END_NAME"=legEndNameVal,
+                    "START_LAT_RAW"=startLatRaw,
+                    "START_LNG_RAW"=startLngRaw,
+                    "END_LAT_RAW"=endLatRaw,
+                    "END_LNG_RAW"=endLngRaw,
+                    "DIST_NM_RAW"=(structKeyExists(leg, "dist_nm") ? leg.dist_nm : 0),
+                    "LOCK_COUNT_RAW"=(structKeyExists(leg, "lock_count") ? leg.lock_count : 0),
+                    "NOTES"=notesVal
+                };
+                arrayAppend(normalizedLegs, normalizedLeg);
+            }
+
+            if (preserveProgressVal) {
+                qExistingLegs = queryExecute(
+                    "SELECT
+                        ril.leg_order,
+                        ril.segment_id,
+                        ril.is_reversed,
+                        ril.is_optional,
+                        COALESCE(NULLIF(TRIM(ril.detour_code), ''), '') AS detour_code,
+                        COALESCE(NULLIF(TRIM(rilp.status), ''), 'NOT_STARTED') AS progress_status,
+                        rilp.leg_started_at,
+                        rilp.completed_at,
+                        rilp.created_at,
+                        rilp.updated_at
+                     FROM route_instance_legs ril
+                     LEFT JOIN route_instance_leg_progress rilp
+                       ON rilp.route_instance_id = ril.route_instance_id
+                      AND rilp.user_id = :userId
+                      AND rilp.leg_order = ril.leg_order
+                     WHERE ril.route_instance_id = :routeInstanceId
+                     ORDER BY ril.leg_order ASC, ril.id ASC",
+                    {
+                        userId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                        routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource = application.dsn }
+                );
+
+                if (qExistingLegs.recordCount EQ 0) {
+                    preserveReason = "Active route progress could not be preserved because the live route has no existing normalized legs.";
+                } else if (qExistingLegs.recordCount NEQ arrayLen(normalizedLegs)) {
+                    preserveReason = "Active route progress could not be preserved because the edited route changed the leg count.";
+                } else {
+                    for (i = 1; i LTE qExistingLegs.recordCount; i++) {
+                        normalizedLeg = normalizedLegs[i];
+                        existingLegOrderVal = val(qExistingLegs.leg_order[i]);
+                        existingSegmentIdVal = (isNull(qExistingLegs.segment_id[i]) ? 0 : val(qExistingLegs.segment_id[i]));
+                        existingIsReversedVal = (isNull(qExistingLegs.is_reversed[i]) ? 0 : val(qExistingLegs.is_reversed[i]));
+                        existingIsOptionalVal = (isNull(qExistingLegs.is_optional[i]) ? 0 : val(qExistingLegs.is_optional[i]));
+                        existingDetourCodeVal = (isNull(qExistingLegs.detour_code[i]) ? "" : trim(toString(qExistingLegs.detour_code[i])));
+                        if (
+                            existingLegOrderVal LTE 0
+                            OR val(normalizedLeg.LEG_ORDER) LTE 0
+                            OR existingSegmentIdVal LTE 0
+                            OR val(normalizedLeg.SEGMENT_ID) LTE 0
+                        ) {
+                            preserveReason = "Active route progress could not be preserved because one or more legs do not have a deterministic segment mapping.";
+                            break;
+                        }
+                        if (
+                            existingLegOrderVal NEQ val(normalizedLeg.LEG_ORDER)
+                            OR existingSegmentIdVal NEQ val(normalizedLeg.SEGMENT_ID)
+                            OR existingIsReversedVal NEQ val(normalizedLeg.IS_REVERSED)
+                            OR existingIsOptionalVal NEQ val(normalizedLeg.IS_OPTIONAL)
+                            OR existingDetourCodeVal NEQ trim(toString(normalizedLeg.DETOUR_CODE))
+                        ) {
+                            preserveReason = "Active route progress could not be preserved because the edited route changed one or more live leg identities.";
+                            break;
+                        }
+                        progressKey = toString(existingLegOrderVal);
+                        preservedProgressByOrder[progressKey] = {
+                            "STATUS"=(isNull(qExistingLegs.progress_status[i]) ? "NOT_STARTED" : trim(toString(qExistingLegs.progress_status[i]))),
+                            "LEG_STARTED_AT"=(isNull(qExistingLegs.leg_started_at[i]) ? "" : qExistingLegs.leg_started_at[i]),
+                            "COMPLETED_AT"=(isNull(qExistingLegs.completed_at[i]) ? "" : qExistingLegs.completed_at[i]),
+                            "CREATED_AT"=(isNull(qExistingLegs.created_at[i]) ? "" : qExistingLegs.created_at[i]),
+                            "UPDATED_AT"=(isNull(qExistingLegs.updated_at[i]) ? "" : qExistingLegs.updated_at[i])
+                        };
+                    }
+                }
+
+                if (len(preserveReason)) {
+                    out.PRESERVE_BLOCKED = true;
+                    out.MESSAGE = preserveReason;
+                    return out;
+                }
+            }
+
+            queryExecute(
+                "DELETE FROM route_instance_leg_progress
+                 WHERE route_instance_id = :routeInstanceId",
+                {
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+            queryExecute(
+                "DELETE FROM route_instance_legs
+                 WHERE route_instance_id = :routeInstanceId",
+                {
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+            queryExecute(
+                "DELETE FROM route_instance_sections
+                 WHERE route_instance_id = :routeInstanceId",
+                {
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+
+            queryExecute(
+                "INSERT INTO route_instance_sections
+                    (route_instance_id, section_order, name, phase_num, source_section_id)
+                 VALUES
+                    (:routeInstanceId, 1, 'Route', 1, NULL)",
+                {
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn, result = "routegenNormSecIns" }
+            );
+            out.SECTION_ID = val(routegenNormSecIns.generatedKey);
+
+            for (i = 1; i LTE arrayLen(normalizedLegs); i++) {
+                normalizedLeg = normalizedLegs[i];
+                legOrderVal = val(normalizedLeg.LEG_ORDER);
+                segmentIdVal = val(normalizedLeg.SEGMENT_ID);
+                isReversedVal = val(normalizedLeg.IS_REVERSED);
+                isOptionalVal = val(normalizedLeg.IS_OPTIONAL);
+                detourCodeVal = trim(toString(normalizedLeg.DETOUR_CODE));
+                notesVal = trim(toString(normalizedLeg.NOTES));
+                legStartNameVal = trim(toString(normalizedLeg.START_NAME));
+                legEndNameVal = trim(toString(normalizedLeg.END_NAME));
+                startLatRaw = normalizedLeg.START_LAT_RAW;
+                startLngRaw = normalizedLeg.START_LNG_RAW;
+                endLatRaw = normalizedLeg.END_LAT_RAW;
+                endLngRaw = normalizedLeg.END_LNG_RAW;
+
+                distBind = toNullableNumber(normalizedLeg.DIST_NM_RAW, "numeric");
+                lockBind = toNullableNumber(normalizedLeg.LOCK_COUNT_RAW, "integer");
                 startLatBind = toNullableNumber(startLatRaw, "numeric");
                 startLngBind = toNullableNumber(startLngRaw, "numeric");
                 endLatBind = toNullableNumber(endLatRaw, "numeric");
@@ -8863,23 +8999,73 @@
                 out.LEG_ID_BY_ORDER[toString(legOrderVal)] = val(routegenNormLegIns.generatedKey);
             }
 
-            queryExecute(
-                "INSERT INTO route_instance_leg_progress
-                    (user_id, route_instance_id, leg_order, status, completed_at)
-                 SELECT
-                    :userId,
-                    :routeInstanceId,
-                    ril.leg_order,
-                    'NOT_STARTED',
-                    NULL
-                 FROM route_instance_legs ril
-                 WHERE ril.route_instance_id = :routeInstanceId",
-                {
-                    userId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
-                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
-                },
-                { datasource = application.dsn }
-            );
+            if (preserveProgressVal) {
+                out.PRESERVED_PROGRESS = true;
+                for (i = 1; i LTE arrayLen(normalizedLegs); i++) {
+                    normalizedLeg = normalizedLegs[i];
+                    progressKey = toString(val(normalizedLeg.LEG_ORDER));
+                    preservedProgress = (
+                        structKeyExists(preservedProgressByOrder, progressKey)
+                        ? preservedProgressByOrder[progressKey]
+                        : {
+                            "STATUS"="NOT_STARTED",
+                            "LEG_STARTED_AT"="",
+                            "COMPLETED_AT"="",
+                            "CREATED_AT"="",
+                            "UPDATED_AT"=""
+                        }
+                    );
+                    preservedStatusVal = trim(toString(structKeyExists(preservedProgress, "STATUS") ? preservedProgress.STATUS : "NOT_STARTED"));
+                    if (!len(preservedStatusVal)) preservedStatusVal = "NOT_STARTED";
+                    preservedCompletedAtVal = (structKeyExists(preservedProgress, "COMPLETED_AT") ? preservedProgress.COMPLETED_AT : "");
+                    preservedLegStartedAtVal = (structKeyExists(preservedProgress, "LEG_STARTED_AT") ? preservedProgress.LEG_STARTED_AT : "");
+                    preservedCreatedAtVal = (
+                        structKeyExists(preservedProgress, "CREATED_AT") AND isDate(preservedProgress.CREATED_AT)
+                        ? preservedProgress.CREATED_AT
+                        : fallbackProgressTs
+                    );
+                    preservedUpdatedAtVal = (
+                        structKeyExists(preservedProgress, "UPDATED_AT") AND isDate(preservedProgress.UPDATED_AT)
+                        ? preservedProgress.UPDATED_AT
+                        : preservedCreatedAtVal
+                    );
+                    queryExecute(
+                        "INSERT INTO route_instance_leg_progress
+                            (user_id, route_instance_id, leg_order, status, completed_at, leg_started_at, created_at, updated_at)
+                         VALUES
+                            (:userId, :routeInstanceId, :legOrder, :status, :completedAt, :legStartedAt, :createdAt, :updatedAt)",
+                        {
+                            userId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                            routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" },
+                            legOrder = { value=val(normalizedLeg.LEG_ORDER), cfsqltype="cf_sql_integer" },
+                            status = { value=preservedStatusVal, cfsqltype="cf_sql_varchar" },
+                            completedAt = { value=preservedCompletedAtVal, cfsqltype="cf_sql_timestamp", null=NOT isDate(preservedCompletedAtVal) },
+                            legStartedAt = { value=preservedLegStartedAtVal, cfsqltype="cf_sql_timestamp", null=NOT isDate(preservedLegStartedAtVal) },
+                            createdAt = { value=preservedCreatedAtVal, cfsqltype="cf_sql_timestamp" },
+                            updatedAt = { value=preservedUpdatedAtVal, cfsqltype="cf_sql_timestamp" }
+                        },
+                        { datasource = application.dsn }
+                    );
+                }
+            } else {
+                queryExecute(
+                    "INSERT INTO route_instance_leg_progress
+                        (user_id, route_instance_id, leg_order, status, completed_at)
+                     SELECT
+                        :userId,
+                        :routeInstanceId,
+                        ril.leg_order,
+                        'NOT_STARTED',
+                        NULL
+                     FROM route_instance_legs ril
+                     WHERE ril.route_instance_id = :routeInstanceId",
+                    {
+                        userId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                        routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource = application.dsn }
+                );
+            }
 
             return out;
         </cfscript>
@@ -10924,139 +11110,186 @@
             var rebuildRes = {};
             var routeInstanceId = 0;
             var qInst = queryNew("");
+            var qActiveLinkedPlans = queryNew("");
+            var preserveProgressOnRebuild = false;
 
-            transaction {
-                queryExecute(
-                    "UPDATE loop_routes
-                     SET name = :name,
-                         description = :descr,
-                         total_nm = :totalNm,
-                         total_locks = :totalLocks,
-                         updated_at = NOW()
-                     WHERE id = :rid",
-                    {
-                        name = { value=routeNameVal, cfsqltype="cf_sql_varchar" },
-                        descr = { value=routeDesc, cfsqltype="cf_sql_varchar", null=NOT len(routeDesc) },
-                        totalNm = { value=totalNmBind.value, cfsqltype="cf_sql_decimal", null=totalNmBind.isNull },
-                        totalLocks = { value=totalLocksBind.value, cfsqltype="cf_sql_integer", null=totalLocksBind.isNull },
-                        rid = { value=routeId, cfsqltype="cf_sql_integer" }
-                    },
-                    { datasource = application.dsn }
-                );
+            try {
+                transaction {
+                    queryExecute(
+                        "UPDATE loop_routes
+                         SET name = :name,
+                             description = :descr,
+                             total_nm = :totalNm,
+                             total_locks = :totalLocks,
+                             updated_at = NOW()
+                         WHERE id = :rid",
+                        {
+                            name = { value=routeNameVal, cfsqltype="cf_sql_varchar" },
+                            descr = { value=routeDesc, cfsqltype="cf_sql_varchar", null=NOT len(routeDesc) },
+                            totalNm = { value=totalNmBind.value, cfsqltype="cf_sql_decimal", null=totalNmBind.isNull },
+                            totalLocks = { value=totalLocksBind.value, cfsqltype="cf_sql_integer", null=totalLocksBind.isNull },
+                            rid = { value=routeId, cfsqltype="cf_sql_integer" }
+                        },
+                        { datasource = application.dsn }
+                    );
 
-                qInst = queryExecute(
-                    "SELECT id
-                     FROM route_instances
-                     WHERE generated_route_id = :rid
-                       AND user_id = :uid
-                     ORDER BY id DESC
-                     LIMIT 1",
-                    {
-                        rid = { value=routeId, cfsqltype="cf_sql_integer" },
-                        uid = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
-                    },
-                    { datasource = application.dsn }
-                );
+                    qInst = queryExecute(
+                        "SELECT id
+                         FROM route_instances
+                         WHERE generated_route_id = :rid
+                           AND user_id = :uid
+                         ORDER BY id DESC
+                         LIMIT 1",
+                        {
+                            rid = { value=routeId, cfsqltype="cf_sql_integer" },
+                            uid = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
+                        },
+                        { datasource = application.dsn }
+                    );
 
-                if (qInst.recordCount GT 0) {
-                    routeInstanceId = val(qInst.id[1]);
-                    if (hasInputsJsonCol) {
-                        queryExecute(
-                            "UPDATE route_instances
-                             SET template_route_code = :templateCode,
-                                 generated_route_code = :generatedRouteCode,
-                                 direction = :direction,
-                                 trip_type = :tripType,
-                                 start_location = :startLocation,
-                                 end_location = :endLocation,
-                                 routegen_inputs_json = :routegenInputsJson,
-                                 status = 'PLANNED',
-                                 updated_at = NOW()
-                             WHERE id = :id",
+                    if (qInst.recordCount GT 0) {
+                        routeInstanceId = val(qInst.id[1]);
+                        if (hasInputsJsonCol) {
+                            queryExecute(
+                                "UPDATE route_instances
+                                 SET template_route_code = :templateCode,
+                                     generated_route_code = :generatedRouteCode,
+                                     direction = :direction,
+                                     trip_type = :tripType,
+                                     start_location = :startLocation,
+                                     end_location = :endLocation,
+                                     routegen_inputs_json = :routegenInputsJson,
+                                     status = 'PLANNED',
+                                     updated_at = NOW()
+                                 WHERE id = :id",
+                                {
+                                    templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" },
+                                    generatedRouteCode = { value=routeCodeVal, cfsqltype="cf_sql_varchar" },
+                                    direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
+                                    tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
+                                    startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
+                                    endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) },
+                                    routegenInputsJson = { value=instanceInputsJson, cfsqltype="cf_sql_longvarchar", null=NOT len(instanceInputsJson) },
+                                    id = { value=routeInstanceId, cfsqltype="cf_sql_integer" }
+                                },
+                                { datasource = application.dsn }
+                            );
+                        } else {
+                            queryExecute(
+                                "UPDATE route_instances
+                                 SET template_route_code = :templateCode,
+                                     generated_route_code = :generatedRouteCode,
+                                     direction = :direction,
+                                     trip_type = :tripType,
+                                     start_location = :startLocation,
+                                     end_location = :endLocation,
+                                     status = 'PLANNED',
+                                     updated_at = NOW()
+                                 WHERE id = :id",
+                                {
+                                    templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" },
+                                    generatedRouteCode = { value=routeCodeVal, cfsqltype="cf_sql_varchar" },
+                                    direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
+                                    tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
+                                    startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
+                                    endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) },
+                                    id = { value=routeInstanceId, cfsqltype="cf_sql_integer" }
+                                },
+                                { datasource = application.dsn }
+                            );
+                        }
+                    } else {
+                        if (hasInputsJsonCol) {
+                            queryExecute(
+                                "INSERT INTO route_instances
+                                    (user_id, template_route_code, generated_route_id, generated_route_code, direction, trip_type, start_location, end_location, routegen_inputs_json, status)
+                                 VALUES
+                                    (:userId, :templateCode, :generatedRouteId, :generatedRouteCode, :direction, :tripType, :startLocation, :endLocation, :routegenInputsJson, 'PLANNED')",
+                                {
+                                    userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
+                                    templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" },
+                                    generatedRouteId = { value=routeId, cfsqltype="cf_sql_integer" },
+                                    generatedRouteCode = { value=routeCodeVal, cfsqltype="cf_sql_varchar" },
+                                    direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
+                                    tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
+                                    startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
+                                    endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) },
+                                    routegenInputsJson = { value=instanceInputsJson, cfsqltype="cf_sql_longvarchar", null=NOT len(instanceInputsJson) }
+                                },
+                                { datasource = application.dsn, result = "routegenUpdInstIns" }
+                            );
+                        } else {
+                            queryExecute(
+                                "INSERT INTO route_instances
+                                    (user_id, template_route_code, generated_route_id, generated_route_code, direction, trip_type, start_location, end_location, status)
+                                 VALUES
+                                    (:userId, :templateCode, :generatedRouteId, :generatedRouteCode, :direction, :tripType, :startLocation, :endLocation, 'PLANNED')",
+                                {
+                                    userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
+                                    templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" },
+                                    generatedRouteId = { value=routeId, cfsqltype="cf_sql_integer" },
+                                    generatedRouteCode = { value=routeCodeVal, cfsqltype="cf_sql_varchar" },
+                                    direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
+                                    tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
+                                    startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
+                                    endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) }
+                                },
+                                { datasource = application.dsn, result = "routegenUpdInstIns" }
+                            );
+                        }
+                        routeInstanceId = val(routegenUpdInstIns.generatedKey);
+                    }
+
+                    if (routeInstanceId GT 0) {
+                        qActiveLinkedPlans = queryExecute(
+                            "SELECT floatplanId
+                             FROM floatplans
+                             WHERE userId = :userId
+                               AND route_instance_id = :routeInstanceId
+                               AND UPPER(TRIM(status)) IN (
+                                    'ACTIVE',
+                                    'DUE_NOW',
+                                    'OVERDUE',
+                                    'OVERDUE_1H',
+                                    'OVERDUE_2H',
+                                    'OVERDUE_3H',
+                                    'OVERDUE_4H',
+                                    'OVERDUE_12H',
+                                    'OVERDUE_24H'
+                               )
+                             ORDER BY floatplanId DESC
+                             LIMIT 1",
                             {
-                                templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" },
-                                generatedRouteCode = { value=routeCodeVal, cfsqltype="cf_sql_varchar" },
-                                direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
-                                tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
-                                startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
-                                endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) },
-                                routegenInputsJson = { value=instanceInputsJson, cfsqltype="cf_sql_longvarchar", null=NOT len(instanceInputsJson) },
-                                id = { value=routeInstanceId, cfsqltype="cf_sql_integer" }
+                                userId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                                routeInstanceId = { value=routeInstanceId, cfsqltype="cf_sql_integer" }
                             },
                             { datasource = application.dsn }
                         );
-                    } else {
-                        queryExecute(
-                            "UPDATE route_instances
-                             SET template_route_code = :templateCode,
-                                 generated_route_code = :generatedRouteCode,
-                                 direction = :direction,
-                                 trip_type = :tripType,
-                                 start_location = :startLocation,
-                                 end_location = :endLocation,
-                                 status = 'PLANNED',
-                                 updated_at = NOW()
-                             WHERE id = :id",
-                            {
-                                templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" },
-                                generatedRouteCode = { value=routeCodeVal, cfsqltype="cf_sql_varchar" },
-                                direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
-                                tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
-                                startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
-                                endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) },
-                                id = { value=routeInstanceId, cfsqltype="cf_sql_integer" }
-                            },
-                            { datasource = application.dsn }
+                        preserveProgressOnRebuild = (qActiveLinkedPlans.recordCount GT 0);
+                    }
+
+                    rebuildRes = routegenRebuildNormalizedInstanceLegs(
+                        userId = arguments.userId,
+                        routeInstanceId = routeInstanceId,
+                        legs = legs,
+                        preserveProgress = preserveProgressOnRebuild
+                    );
+                    if (structKeyExists(rebuildRes, "PRESERVE_BLOCKED") AND rebuildRes.PRESERVE_BLOCKED) {
+                        throw(
+                            type = "RoutegenProgressPreservation",
+                            message = (len(trim(toString(structKeyExists(rebuildRes, "MESSAGE") ? rebuildRes.MESSAGE : ""))) ? trim(toString(rebuildRes.MESSAGE)) : "Active route progress could not be preserved during route edit.")
                         );
                     }
-                } else {
-                    if (hasInputsJsonCol) {
-                        queryExecute(
-                            "INSERT INTO route_instances
-                                (user_id, template_route_code, generated_route_id, generated_route_code, direction, trip_type, start_location, end_location, routegen_inputs_json, status)
-                             VALUES
-                                (:userId, :templateCode, :generatedRouteId, :generatedRouteCode, :direction, :tripType, :startLocation, :endLocation, :routegenInputsJson, 'PLANNED')",
-                            {
-                                userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
-                                templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" },
-                                generatedRouteId = { value=routeId, cfsqltype="cf_sql_integer" },
-                                generatedRouteCode = { value=routeCodeVal, cfsqltype="cf_sql_varchar" },
-                                direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
-                                tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
-                                startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
-                                endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) },
-                                routegenInputsJson = { value=instanceInputsJson, cfsqltype="cf_sql_longvarchar", null=NOT len(instanceInputsJson) }
-                            },
-                            { datasource = application.dsn, result = "routegenUpdInstIns" }
-                        );
-                    } else {
-                        queryExecute(
-                            "INSERT INTO route_instances
-                                (user_id, template_route_code, generated_route_id, generated_route_code, direction, trip_type, start_location, end_location, status)
-                             VALUES
-                                (:userId, :templateCode, :generatedRouteId, :generatedRouteCode, :direction, :tripType, :startLocation, :endLocation, 'PLANNED')",
-                            {
-                                userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
-                                templateCode = { value=templateCodeVal, cfsqltype="cf_sql_varchar" },
-                                generatedRouteId = { value=routeId, cfsqltype="cf_sql_integer" },
-                                generatedRouteCode = { value=routeCodeVal, cfsqltype="cf_sql_varchar" },
-                                direction = { value=directionVal, cfsqltype="cf_sql_varchar" },
-                                tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
-                                startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
-                                endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) }
-                            },
-                            { datasource = application.dsn, result = "routegenUpdInstIns" }
-                        );
-                    }
-                    routeInstanceId = val(routegenUpdInstIns.generatedKey);
+                    newLegIdByOrder = (structKeyExists(rebuildRes, "LEG_ID_BY_ORDER") AND isStruct(rebuildRes.LEG_ID_BY_ORDER) ? rebuildRes.LEG_ID_BY_ORDER : {});
+                    routegenRemapLegOverrideIds(routeId, oldLegMapByOrder, newLegIdByOrder, legs);
                 }
-                rebuildRes = routegenRebuildNormalizedInstanceLegs(
-                    userId = arguments.userId,
-                    routeInstanceId = routeInstanceId,
-                    legs = legs
-                );
-                newLegIdByOrder = (structKeyExists(rebuildRes, "LEG_ID_BY_ORDER") AND isStruct(rebuildRes.LEG_ID_BY_ORDER) ? rebuildRes.LEG_ID_BY_ORDER : {});
-                routegenRemapLegOverrideIds(routeId, oldLegMapByOrder, newLegIdByOrder, legs);
+            } catch (any routegenUpdateErr) {
+                if (routegenUpdateErr.type EQ "RoutegenProgressPreservation") {
+                    out.MESSAGE = routegenUpdateErr.message;
+                    out.ERROR = { "MESSAGE"=routegenUpdateErr.message };
+                    return out;
+                }
+                rethrow;
             }
 
             out.SUCCESS = true;

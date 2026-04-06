@@ -7,7 +7,7 @@
 
   <cfinclude template="../includes/header_styles.cfm">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/follow.css?v=202603301652a" />
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/follow.css?v=20260402134211a" />
 </head>
 <body class="follow-body">
   <div class="app">
@@ -68,12 +68,6 @@
 
         <div class="topbar-right">
           <div class="live-chip" data-fpw-field="live-chip"><span class="pulse"></span> —</div>
-          <div class="mode-tabs" data-fpw-field="mode-tabs">
-            <button class="active" type="button">Family</button>
-            <button type="button">Expedition</button>
-            <button type="button">Kid Mode</button>
-          </div>
-          <button class="btn primary" id="notifyBtn" type="button" data-fpw-field="notify-action">Notify Me</button>
         </div>
       </div>
 
@@ -276,20 +270,14 @@
                 <h3 data-fpw-field="stream-title">Voyage Stream</h3>
                 <p data-fpw-field="stream-subtitle">Owner updates, automated milestones, photos, and family reactions.</p>
               </div>
-              <span class="pill route" data-fpw-field="stream-owner-pill">—</span>
-            </div>
-
-            <div class="owner-banner">
-              <span data-fpw-field="stream-owner-banner-text"><strong>—</strong> —</span>
-              <span class="pill route" data-fpw-field="stream-owner-banner-pill">—</span>
             </div>
 
             <div class="composer">
               <div class="composer-top">
-                <div class="avatar">—</div>
+                <div class="avatar" id="composerAvatar">—</div>
                 <textarea placeholder="Post a quick voyage update for family and friends..." data-fpw-field="stream-composer-text"></textarea>
               </div>
-              <input type="text" placeholder="Optional photo URL (MVP)" value="" data-fpw-field="stream-composer-photo-url" />
+              <input type="file" accept="image/*" data-fpw-field="stream-composer-photo-url" />
               <div class="composer-actions">
                 <div class="quick-tags">
                   <span class="quick-tag">All good</span>
@@ -320,12 +308,12 @@
                 <div class="glance-item">
                   <small>Last Check-In</small>
                   <strong data-fpw-field="stream-glance-checkin">—</strong>
-                  <span>—</span>
+                  <span data-fpw-field="stream-glance-checkin-meta">—</span>
                 </div>
                 <div class="glance-item">
                   <small>Next Stop</small>
                   <strong data-fpw-field="stream-glance-next-stop">—</strong>
-                  <span>—</span>
+                  <span data-fpw-field="stream-glance-next-stop-meta">—</span>
                 </div>
               </div>
             </div>
@@ -389,6 +377,6 @@
   <cfinclude template="../includes/footer_scripts.cfm">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/followMap.js?v=20260303c"></script>
-  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/follow.js?v=202603301652a"></script>
+  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/follow.js?v=20260402165500a"></script>
 </body>
 </html>

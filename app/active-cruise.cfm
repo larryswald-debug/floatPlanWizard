@@ -192,6 +192,64 @@
     return 0;
   }
 
+  function fpwFormatUtcIso(any dtValue) {
+    if (!isDate(arguments.dtValue)) {
+      return "";
+    }
+    return dateTimeFormat(dateConvert("local2Utc", arguments.dtValue), "yyyy-mm-dd'T'HH:nn:ss'Z'");
+  }
+
+  function fpwBuildTripLocalHour(any referenceDt, string timeZoneId, numeric hourValue=8, boolean advanceDay=false) {
+    var tzId = trim(arguments.timeZoneId);
+    var localCalendar = "";
+    var localTimeZone = "";
+    if (!isDate(arguments.referenceDt) OR !len(tzId)) {
+      return "";
+    }
+    try {
+      localTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(tzId);
+      localCalendar = createObject("java", "java.util.GregorianCalendar").init(localTimeZone);
+      localCalendar.setTime(arguments.referenceDt);
+      if (arguments.advanceDay) {
+        localCalendar.add(5, 1);
+      }
+      localCalendar.set(11, int(arguments.hourValue));
+      localCalendar.set(12, 0);
+      localCalendar.set(13, 0);
+      localCalendar.set(14, 0);
+      return localCalendar.getTime();
+    } catch (any tripLocalHourErr) {
+      return "";
+    }
+  }
+
+  function fpwComputeExperimentalElapsedHours(any nowDt, any startDt, any pauseStartDt="", any resumeDt="") {
+    var elapsedMinutes = 0;
+    var pauseMinutes = 0;
+    var pauseEndDt = "";
+    if (!isDate(arguments.nowDt) OR !isDate(arguments.startDt)) {
+      return 0;
+    }
+    elapsedMinutes = dateDiff("n", arguments.startDt, arguments.nowDt);
+    if (elapsedMinutes LT 0) {
+      elapsedMinutes = 0;
+    }
+    if (isDate(arguments.pauseStartDt) AND dateCompare(arguments.nowDt, arguments.pauseStartDt, "s") GT 0) {
+      pauseEndDt = arguments.nowDt;
+      if (isDate(arguments.resumeDt) AND dateCompare(arguments.nowDt, arguments.resumeDt, "s") GT 0) {
+        pauseEndDt = arguments.resumeDt;
+      }
+      pauseMinutes = dateDiff("n", arguments.pauseStartDt, pauseEndDt);
+      if (pauseMinutes GT 0) {
+        elapsedMinutes -= pauseMinutes;
+      }
+    }
+    if (elapsedMinutes LT 0) {
+      elapsedMinutes = 0;
+    }
+    return fpwRoundTo2(elapsedMinutes / 60);
+  }
+
   function fpwResolveCaptainDisplayName() {
     if (NOT structKeyExists(session, "user") OR NOT isStruct(session.user)) {
       return "Captain";
@@ -252,10 +310,18 @@
     heroEtaMeta = "Weather-adjusted arrival estimate",
     heroLastCheckIn = "--",
     heroNextExpectedCheckIn = "-- since last check-in",
+    heroTripStart = "Trip Start: --",
     legRemainingDistance = "41 nm remaining",
     legPercentComplete = "56% complete",
     legPace = "Pace: 7.4 kt",
     legRemainingFuel = "Fuel est: 6.2 gal remaining",
+    experimentalLegStatus = "Beta current-leg model unavailable",
+    experimentalLegRemainingDistance = "—",
+    experimentalLegPercentComplete = "—",
+    experimentalLegPace = "Exp pace: —",
+    experimentalLegRemainingFuel = "Exp fuel unavailable",
+    experimentalLegMeta = "Assumes an 8:00 AM departure-timezone leg start for display only.",
+    experimentalProgressBarWidth = "0%",
     monitorStatus = "Normal",
     monitorStatusColor = "var(--good)",
     monitorFollowerState = "Live",
@@ -286,6 +352,21 @@
     routeStop4Title = "Final Destination",
     routeStop4Detail = "Planned end of the active route.",
     routeStop4Stamp = "ETA"
+  };
+  activeCruiseExperimental = {
+    available = false,
+    departureTimeZone = "",
+    generatedAtUtc = "",
+    baseStartUtc = "",
+    pauseStartUtc = "",
+    pauseResumeUtc = "",
+    currentLegDistanceNm = 0,
+    speedKn = 0,
+    fuelBurnGph = 0,
+    reservePct = 0,
+    isOvernight = false,
+    assumptionLabel = "Assumes an 8:00 AM departure-timezone leg start for display only.",
+    statusLabel = "Beta current-leg model unavailable"
   };
 
   activeCruiseTimelineItems = [
@@ -329,6 +410,7 @@
       remainingNm = 0.0;
       currentLegRemainingNm = 0.0;
       percentComplete = 0;
+      tripProgressPercentComplete = 0;
       nextStop = "";
       currentLegDistNm = 0.0;
       planStatusRaw = "";
@@ -362,6 +444,7 @@
       qVoyageTables = queryNew("");
       qInputsColumn = queryNew("");
       qInstInputs = queryNew("");
+      qTripStart = queryNew("");
       qPlanSql = "";
       qCanonicalPlan = queryNew("");
       requestedFloatPlanId = activeCruiseContext.requestedFloatPlanId;
@@ -369,21 +452,28 @@
       hasRoutegenInputsCol = false;
       routeInputJsonRaw = "";
       routeInputs = {};
+      routeInputCardSpeedKn = 0.0;
       routeInputSpeedKn = 0.0;
       routeInputFuelBurnGph = 0.0;
       routeInputReservePct = 0.0;
       speedForFuelKn = 0.0;
+      canonicalTripStartDt = "";
       currentLegHours = 0.0;
       baseFuelNeedGal = 0.0;
       reserveFuelNeedGal = 0.0;
       requiredFuelNeedGal = 0.0;
       fuelCalcReady = false;
 	      progressByLeg = {};
+	      progressStartedAtByLeg = {};
+	      progressCompletedAtByLeg = {};
 	      i = 0;
 	      legOrder = 0;
 	      legStatus = "";
 	      isCompletedLeg = false;
 	      highestCompletedLegOrder = 0;
+	      currentLegOrder = 0;
+	      currentLegStartedAt = "";
+	      priorLegCompletedAt = "";
 	      activeLegRow = 0;
 	      displayLegRow = 0;
 
@@ -579,7 +669,11 @@
         );
 
         qProgress = queryExecute(
-          "SELECT leg_order, status
+          "SELECT
+             leg_order,
+             status,
+             completed_at,
+             leg_started_at
            FROM route_instance_leg_progress
            WHERE route_instance_id = :routeInstanceId
              AND user_id = :userId
@@ -590,9 +684,19 @@
           },
           { datasource = activeCruiseDatasource }
         );
+        if (isDate(fpwQueryCell(qPlan, "departureTime", 1, ""))) {
+          canonicalTripStartDt = fpwQueryCell(qPlan, "departureTime", 1, "");
+        }
 
         for (i = 1; i LTE qProgress.recordCount; i++) {
-          progressByLeg[toString(val(fpwQueryCell(qProgress, "leg_order", i, 0)))] = uCase(trim(toString(fpwQueryCell(qProgress, "status", i, ""))));
+          legOrder = val(fpwQueryCell(qProgress, "leg_order", i, 0));
+          progressByLeg[toString(legOrder)] = uCase(trim(toString(fpwQueryCell(qProgress, "status", i, ""))));
+          if (isDate(fpwQueryCell(qProgress, "leg_started_at", i, ""))) {
+            progressStartedAtByLeg[toString(legOrder)] = fpwQueryCell(qProgress, "leg_started_at", i, "");
+          }
+          if (isDate(fpwQueryCell(qProgress, "completed_at", i, ""))) {
+            progressCompletedAtByLeg[toString(legOrder)] = fpwQueryCell(qProgress, "completed_at", i, "");
+          }
         }
 
         totalLegs = qLegs.recordCount;
@@ -644,16 +748,34 @@
         if (percentComplete GT 100) {
           percentComplete = 100;
         }
+        if (totalLegs GT 0) {
+          tripProgressPercentComplete = round((completedLegs / totalLegs) * 100);
+        } else {
+          tripProgressPercentComplete = 0;
+        }
+        if (tripProgressPercentComplete LT 0) {
+          tripProgressPercentComplete = 0;
+        }
+        if (tripProgressPercentComplete GT 100) {
+          tripProgressPercentComplete = 100;
+        }
 
 	        if (totalLegs GT 0) {
 	          displayLegRow = (activeLegRow GT 0 ? activeLegRow : totalLegs);
 	          currentLeg = displayLegRow;
+	          currentLegOrder = val(fpwQueryCell(qLegs, "leg_order", displayLegRow, displayLegRow));
 	          currentLegStartName = trim(toString(fpwQueryCell(qLegs, "start_name", displayLegRow, "")));
 	          currentLegEndName = trim(toString(fpwQueryCell(qLegs, "end_name", displayLegRow, "")));
 	          if (activeLegRow GT 0 AND displayLegRow LT totalLegs) {
 	            nextLegEndName = trim(toString(fpwQueryCell(qLegs, "end_name", displayLegRow + 1, "")));
 	          }
 	          currentLegDistNm = val(fpwQueryCell(qLegs, "dist_nm", displayLegRow, 0));
+	          if (structKeyExists(progressStartedAtByLeg, toString(currentLegOrder)) AND isDate(progressStartedAtByLeg[toString(currentLegOrder)])) {
+	            currentLegStartedAt = progressStartedAtByLeg[toString(currentLegOrder)];
+	          }
+	          if (highestCompletedLegOrder GT 0 AND structKeyExists(progressCompletedAtByLeg, toString(highestCompletedLegOrder)) AND isDate(progressCompletedAtByLeg[toString(highestCompletedLegOrder)])) {
+	            priorLegCompletedAt = progressCompletedAtByLeg[toString(highestCompletedLegOrder)];
+	          }
 	        }
 	      }
 
@@ -773,13 +895,18 @@
       }
 
       activeCruiseView.topRouteChip = "Route: " & routeName;
-      if (percentComplete GTE 100) {
-        activeCruiseView.heroVoyageStatus = "Completed";
-      } else {
-        activeCruiseView.heroVoyageStatus = fpwStatusLabel(planStatusRaw, "Underway");
+      activeCruiseCanonicalHero = {};
+      if (activeCruiseAccessValid AND activeCruiseUserId GT 0 AND activeCruiseContext.floatPlanId GT 0) {
+        try {
+          activeCruiseCanonicalHero = createObject("component", "fpw.api.v1.voyage").getActiveCruiseHeroCanonical(activeCruiseUserId, activeCruiseContext.floatPlanId);
+        } catch (any activeCruiseCanonicalErr) {
+          activeCruiseCanonicalHero = {};
+        }
       }
-      if (NOT len(activeCruiseView.heroVoyageStatus)) {
-        activeCruiseView.heroVoyageStatus = "Underway";
+      if (isStruct(activeCruiseCanonicalHero) AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS") AND activeCruiseCanonicalHero.SUCCESS AND len(trim(toString(activeCruiseCanonicalHero.heroVoyageStatus)))) {
+        activeCruiseView.heroVoyageStatus = trim(toString(activeCruiseCanonicalHero.heroVoyageStatus));
+      } else {
+        activeCruiseView.heroVoyageStatus = "Status Unavailable";
       }
 
       if (totalLegs GT 0) {
@@ -794,25 +921,39 @@
       activeCruiseView.heroDistanceComplete = fpwFormatNm(completedNm);
       activeCruiseView.heroPercentComplete = fpwFormatPct(percentComplete) & " of active route completed";
 
-	      activeCruiseView.heroNextStop = nextStop;
-	      activeCruiseView.heroNextStopMeta = (len(nextStop) ? "Upcoming planned stop" : "");
+	      activeCruiseView.heroNextStop = (
+	        isStruct(activeCruiseCanonicalHero) AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS") AND activeCruiseCanonicalHero.SUCCESS AND len(trim(toString(activeCruiseCanonicalHero.heroNextStop)))
+	          ? trim(toString(activeCruiseCanonicalHero.heroNextStop))
+	          : nextStop
+	      );
+	      activeCruiseView.heroNextStopMeta = (len(activeCruiseView.heroNextStop) AND activeCruiseView.heroNextStop NEQ "n/a" ? "Upcoming planned stop" : "");
 
       if (len(etaLabel)) {
-        activeCruiseView.heroEta = etaLabel;
-        activeCruiseView.heroEtaMeta = etaMeta;
         activeCruiseView.legArrival = etaLabel;
+      }
+      if (isStruct(activeCruiseCanonicalHero) AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS") AND activeCruiseCanonicalHero.SUCCESS AND len(trim(toString(activeCruiseCanonicalHero.heroEta))) AND trim(toString(activeCruiseCanonicalHero.heroEta)) NEQ "--") {
+        activeCruiseView.heroEta = trim(toString(activeCruiseCanonicalHero.heroEta));
+        activeCruiseView.heroEtaMeta = "Active leg ETA";
+      } else {
+        activeCruiseView.heroEta = "--";
+        activeCruiseView.heroEtaMeta = "Active leg ETA unavailable";
       }
 
       if (isDate(lastCheckInDt)) {
-        activeCruiseView.heroLastCheckIn = fpwFormatClock(lastCheckInDt, "--");
         activeCruiseView.floatPlanLastCheckIn = fpwFormatClock(lastCheckInDt, "--");
       }
+      if (isStruct(activeCruiseCanonicalHero) AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS") AND activeCruiseCanonicalHero.SUCCESS AND len(trim(toString(activeCruiseCanonicalHero.heroLastCheckIn))) AND trim(toString(activeCruiseCanonicalHero.heroLastCheckIn)) NEQ "--") {
+        activeCruiseView.heroLastCheckIn = trim(toString(activeCruiseCanonicalHero.heroLastCheckIn));
+      } else {
+        activeCruiseView.heroLastCheckIn = "--";
+      }
       activeCruiseView.heroNextExpectedCheckIn = elapsedCheckInLabel;
+      activeCruiseView.heroTripStart = "Trip Start: " & (isDate(canonicalTripStartDt) ? dateTimeFormat(canonicalTripStartDt, "mmm d, yyyy h:nn tt") : "--");
       activeCruiseView.floatPlanNextExpected = elapsedCheckInLabel;
 
       activeCruiseView.legRemainingDistance = fpwFormatNm(remainingNm) & " remaining";
-      activeCruiseView.legPercentComplete = fpwFormatPct(percentComplete) & " complete";
-      activeCruiseView.progressBarWidth = fpwFormatPct(percentComplete);
+      activeCruiseView.legPercentComplete = fpwFormatPct(tripProgressPercentComplete) & " complete";
+      activeCruiseView.progressBarWidth = fpwFormatPct(tripProgressPercentComplete);
 
       if (currentLegDistNm GT 0) {
         activeCruiseView.legDistance = fpwFormatNm(currentLegDistNm);
@@ -873,6 +1014,22 @@
             activeCruiseView.legDataPace = numberFormat(paceKn, "0.0") & " kt";
           }
         }
+      }
+
+      routeInputCardSpeedKn = fpwGetNumericFromKeys(
+        routeInputs,
+        [
+          "weather_adjusted_speed_kn",
+          "weatherAdjustedSpeedKn",
+          "effective_speed_kn",
+          "effectiveSpeedKn",
+          "effective_cruising_speed",
+          "effectiveCruisingSpeed"
+        ],
+        true
+      );
+      if (routeInputCardSpeedKn GT 0) {
+        activeCruiseView.legDataPace = numberFormat(routeInputCardSpeedKn, "0.0") & " kt";
       }
 
       routeInputSpeedKn = fpwGetNumericFromKeys(
@@ -950,6 +1107,136 @@
         activeCruiseView.legRemainingFuel = "Fuel est unavailable";
       }
 
+      experimentalDepartureTimeZone = trim(toString(fpwQueryCell(qPlan, "departureTZ", 1, "")));
+      experimentalRenderDt = now();
+      experimentalReferenceDt = experimentalRenderDt;
+      experimentalStartDt = "";
+      experimentalPauseStartDt = "";
+      experimentalPauseResumeDt = "";
+      experimentalElapsedHours = 0;
+      experimentalDistanceTraveledNm = 0;
+      experimentalRemainingNm = 0;
+      experimentalPercentComplete = 0;
+      experimentalFuelBaseGal = 0;
+      experimentalFuelReserveGal = 0;
+      experimentalFuelRequiredGal = 0;
+      experimentalPauseActive = false;
+      experimentalStatusLabel = "Beta current-leg model unavailable";
+      experimentalAssumptionLabel = "Assumes an 8:00 AM departure-timezone leg start for display only.";
+
+      activeCruiseExperimental.departureTimeZone = experimentalDepartureTimeZone;
+      activeCruiseExperimental.generatedAtUtc = fpwFormatUtcIso(experimentalRenderDt);
+      activeCruiseExperimental.currentLegDistanceNm = fpwRoundTo2(currentLegDistNm);
+      activeCruiseExperimental.speedKn = fpwRoundTo2(routeInputSpeedKn);
+      activeCruiseExperimental.fuelBurnGph = fpwRoundTo2(routeInputFuelBurnGph);
+      activeCruiseExperimental.reservePct = fpwRoundTo2(routeInputReservePct);
+      activeCruiseExperimental.isOvernight = isOvernightCheckIn;
+
+	      if (!len(experimentalDepartureTimeZone)) {
+	        experimentalStatusLabel = "Waiting on departure timezone";
+	      } else if (currentLegDistNm LTE 0) {
+	        experimentalStatusLabel = "Waiting on current leg distance";
+	      } else if (routeInputSpeedKn LTE 0) {
+	        experimentalStatusLabel = "Waiting on route-input speed";
+	      } else {
+	        if (isDate(currentLegStartedAt)) {
+	          experimentalStartDt = currentLegStartedAt;
+	        } else if (isDate(priorLegCompletedAt)) {
+	          experimentalStartDt = priorLegCompletedAt;
+	        } else {
+	          if (isOvernightCheckIn AND isDate(lastCheckInDt)) {
+	            experimentalReferenceDt = lastCheckInDt;
+	          }
+	          experimentalStartDt = fpwBuildTripLocalHour(experimentalReferenceDt, experimentalDepartureTimeZone, 8, false);
+	        }
+	        if (isOvernightCheckIn AND isDate(lastCheckInDt)) {
+	          experimentalPauseStartDt = lastCheckInDt;
+	          experimentalPauseResumeDt = fpwBuildTripLocalHour(lastCheckInDt, experimentalDepartureTimeZone, 8, true);
+	        }
+        if (isDate(experimentalStartDt)) {
+          experimentalElapsedHours = fpwComputeExperimentalElapsedHours(
+            experimentalRenderDt,
+            experimentalStartDt,
+            experimentalPauseStartDt,
+            experimentalPauseResumeDt
+          );
+          experimentalDistanceTraveledNm = fpwRoundTo2(experimentalElapsedHours * routeInputSpeedKn);
+          if (experimentalDistanceTraveledNm GT currentLegDistNm) {
+            experimentalDistanceTraveledNm = fpwRoundTo2(currentLegDistNm);
+          }
+          if (experimentalDistanceTraveledNm LT 0) {
+            experimentalDistanceTraveledNm = 0;
+          }
+          experimentalRemainingNm = fpwRoundTo2(currentLegDistNm - experimentalDistanceTraveledNm);
+          if (experimentalRemainingNm LT 0) {
+            experimentalRemainingNm = 0;
+          }
+          if (currentLegDistNm GT 0) {
+            experimentalPercentComplete = int((experimentalDistanceTraveledNm / currentLegDistNm) * 100);
+          }
+          if (experimentalPercentComplete LT 0) {
+            experimentalPercentComplete = 0;
+          }
+          if (experimentalPercentComplete GT 100) {
+            experimentalPercentComplete = 100;
+          }
+
+          experimentalPauseActive = (
+            isDate(experimentalPauseStartDt)
+            AND (
+              NOT isDate(experimentalPauseResumeDt)
+              OR dateCompare(experimentalRenderDt, experimentalPauseResumeDt, "s") LT 0
+            )
+          );
+          if (experimentalPauseActive) {
+            experimentalStatusLabel = "Paused overnight";
+          } else if (isDate(experimentalPauseStartDt) AND isDate(experimentalPauseResumeDt)) {
+            experimentalStatusLabel = "Resumed after overnight pause";
+          } else {
+            experimentalStatusLabel = "Browser-time display";
+          }
+          experimentalAssumptionLabel = "Assumes an 8:00 AM start in " & experimentalDepartureTimeZone & " for display only.";
+
+          activeCruiseView.experimentalLegStatus = experimentalStatusLabel;
+          activeCruiseView.experimentalLegRemainingDistance = fpwFormatNm(experimentalRemainingNm) & " exp remaining";
+          activeCruiseView.experimentalLegPercentComplete = fpwFormatPct(experimentalPercentComplete) & " exp complete";
+          activeCruiseView.experimentalLegPace = "Exp pace: " & numberFormat(routeInputSpeedKn, "0.0") & " kt";
+          activeCruiseView.experimentalProgressBarWidth = fpwFormatPct(experimentalPercentComplete);
+          if (routeInputFuelBurnGph GT 0 AND experimentalRemainingNm GT 0) {
+            experimentalFuelBaseGal = fpwRoundTo2((experimentalRemainingNm / routeInputSpeedKn) * routeInputFuelBurnGph);
+            if (routeInputReservePct GT 0) {
+              experimentalFuelReserveGal = fpwRoundTo2(experimentalFuelBaseGal * (routeInputReservePct / 100));
+            }
+            experimentalFuelRequiredGal = fpwRoundTo2(experimentalFuelBaseGal + experimentalFuelReserveGal);
+            activeCruiseView.experimentalLegRemainingFuel = "Exp fuel: " & numberFormat(experimentalFuelRequiredGal, "0.0") & " gal";
+          } else {
+            activeCruiseView.experimentalLegRemainingFuel = "Exp fuel unavailable";
+          }
+          activeCruiseView.experimentalLegMeta = experimentalAssumptionLabel;
+          if (experimentalPauseActive AND isDate(experimentalPauseResumeDt)) {
+            activeCruiseView.experimentalLegMeta &= " Paused until " & fpwFormatClock(experimentalPauseResumeDt, "8:00 AM") & ".";
+          } else if (isDate(experimentalPauseStartDt) AND isDate(experimentalPauseResumeDt)) {
+            activeCruiseView.experimentalLegMeta &= " Overnight pause excluded until " & fpwFormatClock(experimentalPauseResumeDt, "8:00 AM") & ".";
+          }
+
+          activeCruiseExperimental.available = true;
+          activeCruiseExperimental.baseStartUtc = fpwFormatUtcIso(experimentalStartDt);
+          activeCruiseExperimental.pauseStartUtc = fpwFormatUtcIso(experimentalPauseStartDt);
+          activeCruiseExperimental.pauseResumeUtc = fpwFormatUtcIso(experimentalPauseResumeDt);
+          activeCruiseExperimental.assumptionLabel = activeCruiseView.experimentalLegMeta;
+          activeCruiseExperimental.statusLabel = experimentalStatusLabel;
+        } else {
+          experimentalStatusLabel = "Unable to build 8:00 AM leg basis";
+        }
+      }
+
+      if (NOT activeCruiseExperimental.available) {
+        activeCruiseView.experimentalLegStatus = experimentalStatusLabel;
+        activeCruiseView.experimentalLegMeta = experimentalAssumptionLabel;
+        activeCruiseExperimental.statusLabel = experimentalStatusLabel;
+        activeCruiseExperimental.assumptionLabel = experimentalAssumptionLabel;
+      }
+
       if (len(planStatusLabel)) {
         activeCruiseView.floatPlanStatus = planStatusLabel;
       } else {
@@ -1005,6 +1292,7 @@
   activeCruiseHooks.context.floatPlanId = activeCruiseContext.floatPlanId;
   activeCruiseHooks.context.activeRouteCode = activeCruiseContext.activeRouteCode;
   activeCruiseHooks.context.userId = activeCruiseUserId;
+  activeCruiseHooks.experimentalLeg = activeCruiseExperimental;
   activeCruiseHooks.fields = {
     topRouteChip = activeCruiseView.topRouteChip,
     topFloatPlanState = activeCruiseView.topFloatPlanState,
@@ -1335,7 +1623,7 @@
 
     .hero {
       display: grid;
-      grid-template-columns: 1.18fr 0.82fr;
+      grid-template-columns: 1.2fr 0.8fr;
       gap: 18px;
       margin-bottom: 18px;
     }
@@ -1425,6 +1713,7 @@
       grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 14px;
       margin-top: 18px;
+      margin-bottom: 18px;
     }
 
     .metric {
@@ -1464,6 +1753,7 @@
       padding: 18px;
       display: grid;
       gap: 16px;
+      align-self: start;
       background:
         linear-gradient(180deg, rgba(255,255,255,0.022), rgba(255,255,255,0.01)),
         radial-gradient(circle at 90% 0%, rgba(24,242,210,0.08), transparent 0 28%);
@@ -1552,6 +1842,10 @@
     }
 
     .stack { display: grid; gap: 18px; }
+
+    .hero > .stack:last-child {
+      align-self: start;
+    }
 
     .section-card {
       padding: 22px;
@@ -1867,8 +2161,9 @@
   <main class="main">
     <div class="shell">
       <cfif activeCruiseAccessValid>
-      <section class="hero">
-        <div class="panel hero-main">
+	      <section class="hero">
+	        <div class="stack">
+	          <div class="panel hero-main">
           <div class="eyebrow">Voyage Console • Live Trip View</div>
           <div class="title-row">
             <div>
@@ -1883,11 +2178,11 @@
             </div>
           </div>
 
-          <div class="header-stats">
-            <div class="metric">
-              <span>Current Leg</span>
-              <strong data-fpw-field="hero.currentLegSummary"><cfoutput>#encodeForHtml(activeCruiseView.heroCurrentLegSummary)#</cfoutput></strong>
-              <small data-fpw-field="hero.legMeta"><cfoutput>#encodeForHtml(activeCruiseView.heroLegMeta)#</cfoutput></small>
+	          <div class="header-stats">
+	            <div class="metric">
+	              <span>Current Leg</span>
+	              <strong data-fpw-field="hero.currentLegSummary"><cfoutput>#encodeForHtml(activeCruiseView.heroCurrentLegSummary)#</cfoutput></strong>
+	              <small data-fpw-field="hero.legMeta"><cfoutput>#encodeForHtml(activeCruiseView.heroLegMeta)#</cfoutput></small>
             </div>
             <div class="metric">
               <span>Distance Complete</span>
@@ -1904,57 +2199,36 @@
               <strong data-fpw-field="hero.eta"><cfoutput>#encodeForHtml(activeCruiseView.heroEta)#</cfoutput></strong>
               <small data-fpw-field="hero.etaMeta"><cfoutput>#encodeForHtml(activeCruiseView.heroEtaMeta)#</cfoutput></small>
             </div>
-            <div class="metric">
-              <span>Last Check-In</span>
-              <strong data-fpw-field="hero.lastCheckIn"><cfoutput>#encodeForHtml(activeCruiseView.heroLastCheckIn)#</cfoutput></strong>
-              <small data-fpw-field="hero.nextExpectedCheckIn"><cfoutput>#encodeForHtml(activeCruiseView.heroNextExpectedCheckIn)#</cfoutput></small>
-            </div>
-          </div>
-        </div>
+	            <div class="metric">
+	              <span>Last Check-In</span>
+	              <strong data-fpw-field="hero.lastCheckIn"><cfoutput>#encodeForHtml(activeCruiseView.heroLastCheckIn)#</cfoutput></strong>
+	              <small data-fpw-field="hero.nextExpectedCheckIn"><cfoutput>#encodeForHtml(activeCruiseView.heroNextExpectedCheckIn)#</cfoutput></small>
+	              <small data-fpw-field="hero.tripStart"><cfoutput>#encodeForHtml(activeCruiseView.heroTripStart)#</cfoutput></small>
+	            </div>
+	          </div>
 
-        <aside class="panel hero-side">
-          <div class="mini-panel">
-            <div class="mini-head">
-              <h3>Weather Snapshot</h3>
-              <span>Current</span>
-            </div>
-            <div class="weather-grid">
-              <div class="wx"><strong data-fpw-field="weather.wind">12 kt</strong><span>SE wind</span></div>
-              <div class="wx"><strong data-fpw-field="weather.gusts">18 kt</strong><span>gusts</span></div>
-              <div class="wx"><strong data-fpw-field="weather.waves">2.3 ft</strong><span>wave height</span></div>
-              <div class="wx"><strong data-fpw-field="weather.visibility">10 mi</strong><span>visibility</span></div>
-            </div>
-          </div>
-
-          <div class="mini-panel">
-            <div class="mini-head">
-              <h3>Leg Progress</h3>
-              <span>Live</span>
-            </div>
-            <div class="progress-block">
-              <div class="bar-shell"><div class="bar-fill" style="width:<cfoutput>#encodeForHtmlAttribute(activeCruiseView.progressBarWidth)#</cfoutput>;"></div></div>
-              <div class="split"><span data-fpw-field="leg.remainingDistance"><cfoutput>#encodeForHtml(activeCruiseView.legRemainingDistance)#</cfoutput></span><span data-fpw-field="leg.percentComplete"><cfoutput>#encodeForHtml(activeCruiseView.legPercentComplete)#</cfoutput></span></div>
-              <div class="split"><span data-fpw-field="leg.pace"><cfoutput>#encodeForHtml(activeCruiseView.legPace)#</cfoutput></span><span data-fpw-field="leg.remainingFuel"><cfoutput>#encodeForHtml(activeCruiseView.legRemainingFuel)#</cfoutput></span></div>
-            </div>
-          </div>
-
-          <div class="mini-panel">
-            <div class="mini-head">
-              <h3>Float Plan Monitor</h3>
-              <span>Attached</span>
-            </div>
-            <div class="split"><span>Status</span><strong style="color:<cfoutput>#encodeForHtmlAttribute(activeCruiseView.monitorStatusColor)#</cfoutput>;" data-fpw-field="monitor.status"><cfoutput>#encodeForHtml(activeCruiseView.monitorStatus)#</cfoutput></strong></div>
-            <div class="split" style="margin-top:10px;"><span>Follower Page</span><strong style="color:var(--accent);" data-fpw-field="monitor.followerState"><cfoutput>#encodeForHtml(activeCruiseView.monitorFollowerState)#</cfoutput></strong></div>
-            <div class="split" style="margin-top:10px;"><span>Emergency Contact</span><strong data-fpw-field="monitor.emergencyContact"><cfoutput>#encodeForHtml(activeCruiseView.monitorEmergencyContact)#</cfoutput></strong></div>
-          </div>
-        </aside>
-      </section>
-
-      <section class="content-grid">
-        <div class="stack">
-          <div class="panel section-card">
-            <div class="section-top">
-              <div>
+	          <div class="mini-panel">
+	            <div class="mini-head">
+	              <h3>Completed Legs</h3>
+	              <span>Live</span>
+	            </div>
+	            <div class="progress-block">
+	              <div class="bar-shell"><div class="bar-fill" style="width:<cfoutput>#encodeForHtmlAttribute(activeCruiseView.progressBarWidth)#</cfoutput>;"></div></div>
+	              <div class="split"><span data-fpw-field="leg.remainingDistance"><cfoutput>#encodeForHtml(activeCruiseView.legRemainingDistance)#</cfoutput></span><span data-fpw-field="leg.percentComplete"><cfoutput>#encodeForHtml(activeCruiseView.legPercentComplete)#</cfoutput></span></div>
+	              <div class="split"><span data-fpw-field="leg.pace"><cfoutput>#encodeForHtml(activeCruiseView.legPace)#</cfoutput></span><span data-fpw-field="leg.remainingFuel"><cfoutput>#encodeForHtml(activeCruiseView.legRemainingFuel)#</cfoutput></span></div>
+	              <div class="progress-block" style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(126,184,226,0.14);">
+	                <div class="split"><span>Current Leg (Beta)</span><span id="fpwExperimentalLegStatus"><cfoutput>#encodeForHtml(activeCruiseView.experimentalLegStatus)#</cfoutput></span></div>
+	                <div class="bar-shell" style="margin-top:10px;"><div class="bar-fill" id="fpwExperimentalLegBar" style="width:<cfoutput>#encodeForHtmlAttribute(activeCruiseView.experimentalProgressBarWidth)#</cfoutput>;"></div></div>
+	                <div class="split" style="margin-top:10px;"><span id="fpwExperimentalLegRemaining"><cfoutput>#encodeForHtml(activeCruiseView.experimentalLegRemainingDistance)#</cfoutput></span><span id="fpwExperimentalLegPercent"><cfoutput>#encodeForHtml(activeCruiseView.experimentalLegPercentComplete)#</cfoutput></span></div>
+	                <div class="split" style="margin-top:10px;"><span id="fpwExperimentalLegPace"><cfoutput>#encodeForHtml(activeCruiseView.experimentalLegPace)#</cfoutput></span><span id="fpwExperimentalLegFuel"><cfoutput>#encodeForHtml(activeCruiseView.experimentalLegRemainingFuel)#</cfoutput></span></div>
+	                <div id="fpwExperimentalLegMeta" style="margin-top:8px;color:var(--muted);font-size:0.86rem;"><cfoutput>#encodeForHtml(activeCruiseView.experimentalLegMeta)#</cfoutput></div>
+		              </div>
+		            </div>
+			          </div>
+		          </div>
+	          <div class="panel section-card">
+	            <div class="section-top">
+	              <div>
                 <h2>Current Leg Overview</h2>
                 <p>This area gives the captain the immediate operational picture: departure point, current destination, remaining distance, pace, fuel outlook, and upcoming timing for the leg in progress.</p>
               </div>
@@ -2005,7 +2279,7 @@
 
               <div class="detail-box">
                 <div class="mini-head" style="margin-bottom:16px;">
-                  <h3>Leg Data</h3>
+                  <h3>Current Leg Data</h3>
                   <span>Computed</span>
                 </div>
                 <div class="data-grid">
@@ -2017,12 +2291,12 @@
                   <div class="data-item">
                     <span>Remaining</span>
                     <strong data-fpw-field="leg.remaining"><cfoutput>#encodeForHtml(activeCruiseView.legRemaining)#</cfoutput></strong>
-                    <small>Approximate to stop</small>
+                    <small>Approximate to next stop</small>
                   </div>
                   <div class="data-item">
                     <span>Pace</span>
                     <strong data-fpw-field="leg.dataPace"><cfoutput>#encodeForHtml(activeCruiseView.legDataPace)#</cfoutput></strong>
-                    <small>Weather-adjusted cruise</small>
+                    <small>Weather-adjusted</small>
                   </div>
                   <div class="data-item">
                     <span>Fuel Need</span>
@@ -2108,12 +2382,48 @@
               </div>
             </div>
           </div>
-        </div>
+	        </div>
 
-        <div class="stack">
-          <div class="panel section-card">
-            <div class="section-top">
-              <div>
+		        <div class="stack">
+	          <aside class="panel hero-side">
+	            <div class="mini-panel">
+	              <div class="mini-head">
+	                <h3>Float Plan Monitor</h3>
+	                <span>Attached</span>
+	              </div>
+	              <div class="split"><span>Status</span><strong style="color:<cfoutput>#encodeForHtmlAttribute(activeCruiseView.monitorStatusColor)#</cfoutput>;" data-fpw-field="monitor.status"><cfoutput>#encodeForHtml(activeCruiseView.monitorStatus)#</cfoutput></strong></div>
+	              <div class="split" style="margin-top:10px;"><span>Follower Page</span><strong style="color:var(--accent);" data-fpw-field="monitor.followerState"><cfoutput>#encodeForHtml(activeCruiseView.monitorFollowerState)#</cfoutput></strong></div>
+	              <div class="split" style="margin-top:10px;"><span>Emergency Contact</span><strong data-fpw-field="monitor.emergencyContact"><cfoutput>#encodeForHtml(activeCruiseView.monitorEmergencyContact)#</cfoutput></strong></div>
+	              <div style="margin-top:12px;">
+	                <div class="split" style="align-items:center; gap:10px; flex-wrap:wrap;">
+	                  <span>Weather Lookup</span>
+	                  <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+	                    <label style="display:inline-flex; align-items:center; gap:6px;"><input type="radio" name="fpwMonitorWeatherPoint" value="start">Start</label>
+	                    <label style="display:inline-flex; align-items:center; gap:6px;"><input type="radio" name="fpwMonitorWeatherPoint" value="end">End</label>
+	                  </div>
+	                </div>
+	                <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+	                  <button class="btn btn-secondary" type="button" id="fpwMonitorWeatherBtn">Check Conditions</button>
+	                </div>
+	                <div id="fpwMonitorWeatherMessage" style="margin-top:10px; color:var(--muted); font-size:0.9rem;" aria-live="polite"></div>
+	                <div id="fpwMonitorWeatherResult" style="margin-top:10px;" hidden>
+	                  <div class="split"><span>Point</span><strong id="fpwMonitorWeatherPointLabel">—</strong></div>
+	                  <div class="split" style="margin-top:10px;"><span>Wind</span><strong id="fpwMonitorWeatherWind">—</strong></div>
+	                  <div class="split" style="margin-top:10px;"><span>Gusts</span><strong id="fpwMonitorWeatherGusts">—</strong></div>
+	                  <div class="split" style="margin-top:10px;"><span>Waves</span><strong id="fpwMonitorWeatherWaves">—</strong></div>
+	                  <div class="split" style="margin-top:10px;"><span>Visibility</span><strong id="fpwMonitorWeatherVisibility">—</strong></div>
+	                  <div style="margin-top:10px;">
+	                    <div class="split"><span>Alerts</span><strong id="fpwMonitorWeatherAlertsSummary">No alerts</strong></div>
+	                    <div id="fpwMonitorWeatherAlerts" style="margin-top:10px;"></div>
+	                  </div>
+	                </div>
+	              </div>
+	            </div>
+	          </aside>
+
+	          <div class="panel section-card">
+	            <div class="section-top">
+	              <div>
                 <h2>Attached Float Plan</h2>
                 <p>Keep the active trip tied to the actual filed float plan so the member can instantly verify monitoring status, check-in schedule, and emergency contact setup.</p>
               </div>
@@ -2318,7 +2628,25 @@
       var selectedStatus = "On Track";
       var pageHooks = {};
       var pageContext = {};
+      var experimentalLegModel = {};
       var floatPlanId = 0;
+      var weatherButton = document.getElementById("fpwMonitorWeatherBtn");
+      var weatherMessageEl = document.getElementById("fpwMonitorWeatherMessage");
+      var weatherResultEl = document.getElementById("fpwMonitorWeatherResult");
+      var weatherPointLabelEl = document.getElementById("fpwMonitorWeatherPointLabel");
+      var weatherWindEl = document.getElementById("fpwMonitorWeatherWind");
+      var weatherGustsEl = document.getElementById("fpwMonitorWeatherGusts");
+      var weatherWavesEl = document.getElementById("fpwMonitorWeatherWaves");
+      var weatherVisibilityEl = document.getElementById("fpwMonitorWeatherVisibility");
+      var weatherAlertsSummaryEl = document.getElementById("fpwMonitorWeatherAlertsSummary");
+      var weatherAlertsEl = document.getElementById("fpwMonitorWeatherAlerts");
+      var experimentalLegStatusEl = document.getElementById("fpwExperimentalLegStatus");
+      var experimentalLegBarEl = document.getElementById("fpwExperimentalLegBar");
+      var experimentalLegRemainingEl = document.getElementById("fpwExperimentalLegRemaining");
+      var experimentalLegPercentEl = document.getElementById("fpwExperimentalLegPercent");
+      var experimentalLegPaceEl = document.getElementById("fpwExperimentalLegPace");
+      var experimentalLegFuelEl = document.getElementById("fpwExperimentalLegFuel");
+      var experimentalLegMetaEl = document.getElementById("fpwExperimentalLegMeta");
 
       if (!checkInButton || !modalEl || !closeBtn || !statusGroupEl || !noteToggleBtn || !noteWrapEl || !noteInput || !overnightCheckboxEl || !submitBtn) {
         return;
@@ -2332,6 +2660,24 @@
         }
       }
       pageContext = (pageHooks && (pageHooks.context || pageHooks.CONTEXT)) || {};
+      experimentalLegModel = (pageHooks && (pageHooks.experimentalLeg || pageHooks.EXPERIMENTALLEG)) || {};
+      if (experimentalLegModel && typeof experimentalLegModel === "object") {
+        experimentalLegModel = {
+          available: experimentalLegModel.available === true || experimentalLegModel.AVAILABLE === true,
+          departureTimeZone: experimentalLegModel.departureTimeZone || experimentalLegModel.DEPARTURETIMEZONE || "",
+          generatedAtUtc: experimentalLegModel.generatedAtUtc || experimentalLegModel.GENERATEDATUTC || "",
+          baseStartUtc: experimentalLegModel.baseStartUtc || experimentalLegModel.BASESTARTUTC || "",
+          pauseStartUtc: experimentalLegModel.pauseStartUtc || experimentalLegModel.PAUSESTARTUTC || "",
+          pauseResumeUtc: experimentalLegModel.pauseResumeUtc || experimentalLegModel.PAUSERESUMEUTC || "",
+          currentLegDistanceNm: experimentalLegModel.currentLegDistanceNm || experimentalLegModel.CURRENTLEGDISTANCENM || 0,
+          speedKn: experimentalLegModel.speedKn || experimentalLegModel.SPEEDKN || 0,
+          fuelBurnGph: experimentalLegModel.fuelBurnGph || experimentalLegModel.FUELBURNGPH || 0,
+          reservePct: experimentalLegModel.reservePct || experimentalLegModel.RESERVEPCT || 0,
+          isOvernight: experimentalLegModel.isOvernight === true || experimentalLegModel.ISOVERNIGHT === true,
+          assumptionLabel: experimentalLegModel.assumptionLabel || experimentalLegModel.ASSUMPTIONLABEL || "",
+          statusLabel: experimentalLegModel.statusLabel || experimentalLegModel.STATUSLABEL || ""
+        };
+      }
       if (pageContext) {
         floatPlanId = parseInt(pageContext.floatPlanId || pageContext.FLOATPLANID, 10);
       }
@@ -2361,6 +2707,362 @@
 	      }
 
       hydrateTimelineTimes();
+
+      function parseExperimentalDate(value) {
+        var raw = String(value || "").trim();
+        var parsed = raw ? new Date(raw) : null;
+        if (!parsed || Number.isNaN(parsed.getTime())) {
+          return null;
+        }
+        return parsed;
+      }
+
+      function formatExperimentalNm(value) {
+        var numeric = Number(value);
+        if (!Number.isFinite(numeric) || numeric < 0) {
+          numeric = 0;
+        }
+        return numeric.toFixed(1) + " nm";
+      }
+
+      function formatExperimentalPct(value) {
+        var numeric = Math.floor(Number(value));
+        if (!Number.isFinite(numeric) || numeric < 0) {
+          numeric = 0;
+        }
+        if (numeric > 100) {
+          numeric = 100;
+        }
+        return String(numeric) + "%";
+      }
+
+      function computeExperimentalLegState(model, nowDate) {
+        var distanceNm = Number(model && model.currentLegDistanceNm);
+        var speedKn = Number(model && model.speedKn);
+        var fuelBurnGph = Number(model && model.fuelBurnGph);
+        var reservePct = Number(model && model.reservePct);
+        var startDt = parseExperimentalDate(model && model.baseStartUtc);
+        var pauseStartDt = parseExperimentalDate(model && model.pauseStartUtc);
+        var pauseResumeDt = parseExperimentalDate(model && model.pauseResumeUtc);
+        var elapsedMs = 0;
+        var pauseMs = 0;
+        var traveledNm = 0;
+        var remainingNm = 0;
+        var percentComplete = 0;
+        var baseFuelGal = 0;
+        var reserveFuelGal = 0;
+        var requiredFuelGal = 0;
+        var pauseActive = false;
+
+        if (!Number.isFinite(distanceNm) || distanceNm <= 0 || !Number.isFinite(speedKn) || speedKn <= 0 || !startDt) {
+          return null;
+        }
+
+        elapsedMs = nowDate.getTime() - startDt.getTime();
+        if (elapsedMs < 0) {
+          elapsedMs = 0;
+        }
+        if (pauseStartDt && nowDate.getTime() > pauseStartDt.getTime()) {
+          pauseActive = !pauseResumeDt || nowDate.getTime() < pauseResumeDt.getTime();
+          pauseMs = (pauseActive ? nowDate.getTime() : Math.min(nowDate.getTime(), pauseResumeDt.getTime())) - pauseStartDt.getTime();
+          if (pauseMs > 0) {
+            elapsedMs -= pauseMs;
+          }
+        }
+        if (elapsedMs < 0) {
+          elapsedMs = 0;
+        }
+
+        traveledNm = (elapsedMs / 3600000) * speedKn;
+        if (traveledNm > distanceNm) {
+          traveledNm = distanceNm;
+        }
+        if (traveledNm < 0) {
+          traveledNm = 0;
+        }
+        remainingNm = distanceNm - traveledNm;
+        if (remainingNm < 0) {
+          remainingNm = 0;
+        }
+        percentComplete = distanceNm > 0 ? Math.floor((traveledNm / distanceNm) * 100) : 0;
+        if (percentComplete < 0) {
+          percentComplete = 0;
+        }
+        if (percentComplete > 100) {
+          percentComplete = 100;
+        }
+
+        if (Number.isFinite(fuelBurnGph) && fuelBurnGph > 0 && remainingNm > 0) {
+          baseFuelGal = (remainingNm / speedKn) * fuelBurnGph;
+          if (!Number.isFinite(baseFuelGal) || baseFuelGal < 0) {
+            baseFuelGal = 0;
+          }
+          if (Number.isFinite(reservePct) && reservePct > 0) {
+            reserveFuelGal = baseFuelGal * (reservePct / 100);
+          }
+          requiredFuelGal = baseFuelGal + reserveFuelGal;
+        }
+
+        return {
+          remainingNm: remainingNm,
+          percentComplete: percentComplete,
+          paceKn: speedKn,
+          requiredFuelGal: requiredFuelGal,
+          pauseActive: pauseActive
+        };
+      }
+
+      function renderExperimentalLegProgress() {
+        var nowDate = new Date();
+        var state = computeExperimentalLegState(experimentalLegModel, nowDate);
+        var assumptionLabel = String((experimentalLegModel && experimentalLegModel.assumptionLabel) || "").trim();
+        var statusLabel = String((experimentalLegModel && experimentalLegModel.statusLabel) || "").trim();
+        var pauseResumeDt = parseExperimentalDate(experimentalLegModel && experimentalLegModel.pauseResumeUtc);
+
+        if (!experimentalLegStatusEl || !experimentalLegBarEl || !experimentalLegRemainingEl || !experimentalLegPercentEl || !experimentalLegPaceEl || !experimentalLegFuelEl || !experimentalLegMetaEl) {
+          return;
+        }
+
+        if (!experimentalLegModel || experimentalLegModel.available !== true || !state) {
+          experimentalLegStatusEl.textContent = statusLabel || "Beta current-leg model unavailable";
+          experimentalLegBarEl.style.width = "0%";
+          experimentalLegRemainingEl.textContent = "—";
+          experimentalLegPercentEl.textContent = "—";
+          experimentalLegPaceEl.textContent = "Exp pace: —";
+          experimentalLegFuelEl.textContent = "Exp fuel unavailable";
+          experimentalLegMetaEl.textContent = assumptionLabel || "Assumes an 8:00 AM departure-timezone leg start for display only.";
+          return;
+        }
+
+        experimentalLegStatusEl.textContent = state.pauseActive
+          ? "Paused overnight"
+          : (statusLabel || "Browser-time display");
+        experimentalLegBarEl.style.width = formatExperimentalPct(state.percentComplete);
+        experimentalLegRemainingEl.textContent = formatExperimentalNm(state.remainingNm) + " exp remaining";
+        experimentalLegPercentEl.textContent = formatExperimentalPct(state.percentComplete) + " exp complete";
+        experimentalLegPaceEl.textContent = "Exp pace: " + state.paceKn.toFixed(1) + " kt";
+        experimentalLegFuelEl.textContent = state.requiredFuelGal > 0
+          ? "Exp fuel: " + state.requiredFuelGal.toFixed(1) + " gal"
+          : "Exp fuel unavailable";
+        experimentalLegMetaEl.textContent = assumptionLabel;
+        if (state.pauseActive && pauseResumeDt) {
+          experimentalLegMetaEl.textContent += " Paused until " + pauseResumeDt.toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit"
+          }) + ".";
+        }
+      }
+
+      renderExperimentalLegProgress();
+      if (experimentalLegModel && experimentalLegModel.available === true) {
+        window.setInterval(renderExperimentalLegProgress, 60000);
+      }
+
+      function getSelectedWeatherPoint() {
+        var selected = document.querySelector('input[name="fpwMonitorWeatherPoint"]:checked');
+        return selected ? String(selected.value || "").trim().toLowerCase() : "";
+      }
+
+      function normalizeWeatherValue(value) {
+        if (value === 0) {
+          return "0";
+        }
+        if (value === null || value === undefined) {
+          return "—";
+        }
+        value = String(value).trim();
+        return value.length ? value : "—";
+      }
+
+      function resetWeatherResults() {
+        if (weatherPointLabelEl) {
+          weatherPointLabelEl.textContent = "—";
+        }
+        if (weatherWindEl) {
+          weatherWindEl.textContent = "—";
+        }
+        if (weatherGustsEl) {
+          weatherGustsEl.textContent = "—";
+        }
+        if (weatherWavesEl) {
+          weatherWavesEl.textContent = "—";
+        }
+        if (weatherVisibilityEl) {
+          weatherVisibilityEl.textContent = "—";
+        }
+        if (weatherAlertsSummaryEl) {
+          weatherAlertsSummaryEl.textContent = "No alerts";
+        }
+        if (weatherAlertsEl) {
+          weatherAlertsEl.textContent = "";
+        }
+        if (weatherResultEl) {
+          weatherResultEl.hidden = true;
+        }
+      }
+
+      function setWeatherMessage(message) {
+        if (weatherMessageEl) {
+          weatherMessageEl.textContent = String(message || "");
+        }
+      }
+
+      function setWeatherButtonLoading(isLoading) {
+        if (!weatherButton) {
+          return;
+        }
+        weatherButton.disabled = !!isLoading;
+        weatherButton.textContent = isLoading ? "Checking..." : "Check Conditions";
+      }
+
+      function buildWeatherApiUrl() {
+        return new URL("../api/v1/voyage.cfc?method=handle&action=getactivecruiseweather&returnFormat=json", window.location.href).toString();
+      }
+
+      function renderWeatherAlerts(alerts) {
+        var i = 0;
+        var alertItem = null;
+        var row = null;
+        var title = null;
+        var meta = null;
+        var ends = null;
+        var detail = null;
+        var metaParts = [];
+
+        if (!weatherAlertsEl || !weatherAlertsSummaryEl) {
+          return;
+        }
+
+        weatherAlertsEl.textContent = "";
+        if (!Array.isArray(alerts) || !alerts.length) {
+          weatherAlertsSummaryEl.textContent = "No alerts";
+          return;
+        }
+
+        weatherAlertsSummaryEl.textContent = alerts.length === 1 ? "1 alert" : String(alerts.length) + " alerts";
+        for (i = 0; i < alerts.length; i += 1) {
+          alertItem = alerts[i] || {};
+          row = document.createElement("div");
+          row.style.marginTop = i === 0 ? "10px" : "12px";
+          row.style.paddingTop = "10px";
+          row.style.borderTop = "1px solid rgba(126,184,226,0.12)";
+
+          title = document.createElement("div");
+          title.style.fontWeight = "700";
+          title.style.color = "var(--text)";
+          title.textContent = String(alertItem.headline || alertItem.event || "Alert");
+          row.appendChild(title);
+
+          metaParts = [];
+          if (alertItem.severity) {
+            metaParts.push(String(alertItem.severity));
+          }
+          if (alertItem.urgency) {
+            metaParts.push(String(alertItem.urgency));
+          }
+          if (alertItem.certainty) {
+            metaParts.push(String(alertItem.certainty));
+          }
+          if (metaParts.length) {
+            meta = document.createElement("div");
+            meta.style.marginTop = "4px";
+            meta.style.color = "var(--muted)";
+            meta.style.fontSize = "0.88rem";
+            meta.textContent = metaParts.join(" • ");
+            row.appendChild(meta);
+          }
+
+          if (alertItem.ends) {
+            ends = document.createElement("div");
+            ends.style.marginTop = "4px";
+            ends.style.color = "var(--muted)";
+            ends.style.fontSize = "0.88rem";
+            ends.textContent = "Ends: " + String(alertItem.ends);
+            row.appendChild(ends);
+          }
+
+          if (alertItem.instruction || alertItem.description) {
+            detail = document.createElement("div");
+            detail.style.marginTop = "6px";
+            detail.style.color = "var(--muted)";
+            detail.style.fontSize = "0.88rem";
+            detail.textContent = String(alertItem.instruction || alertItem.description);
+            row.appendChild(detail);
+          }
+
+          weatherAlertsEl.appendChild(row);
+        }
+      }
+
+      function renderWeatherResults(data) {
+        var weather = (data && data.weather) || {};
+        var forecast = Array.isArray(weather.FORECAST) && weather.FORECAST.length ? (weather.FORECAST[0] || {}) : {};
+        var windParts = [];
+        var windLabel = "";
+        var alerts = Array.isArray(weather.ALERTS) ? weather.ALERTS : [];
+
+        if (weatherPointLabelEl) {
+          weatherPointLabelEl.textContent = normalizeWeatherValue(data && data.point_label);
+        }
+
+        if (forecast.windDirection) {
+          windParts.push(String(forecast.windDirection).trim());
+        }
+        if (forecast.windSpeed) {
+          windParts.push(String(forecast.windSpeed).trim());
+        }
+        windLabel = windParts.join(" ").trim();
+
+        if (weatherWindEl) {
+          weatherWindEl.textContent = normalizeWeatherValue(windLabel);
+        }
+        if (weatherGustsEl) {
+          weatherGustsEl.textContent = normalizeWeatherValue(forecast.gustMph);
+        }
+        if (weatherWavesEl) {
+          weatherWavesEl.textContent = normalizeWeatherValue(weather.MARINE && weather.MARINE.wave_height_ft);
+        }
+        if (weatherVisibilityEl) {
+          weatherVisibilityEl.textContent = normalizeWeatherValue(weather.surface && weather.surface.visibility_mi);
+        }
+
+        renderWeatherAlerts(alerts);
+
+        if (weatherResultEl) {
+          weatherResultEl.hidden = false;
+        }
+      }
+
+      function requestWeather(point) {
+        return fetch(buildWeatherApiUrl(), {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          body: JSON.stringify({
+            floatPlanId: floatPlanId,
+            point: point
+          })
+        }).then(function (response) {
+          return response.text().then(function (text) {
+            var payload = {};
+            try {
+              payload = text ? JSON.parse(text) : {};
+            } catch (err) {
+              payload = {
+                SUCCESS: false,
+                MESSAGE: "Unable to load weather right now."
+              };
+            }
+            if (!response.ok || payload.SUCCESS === false) {
+              throw payload;
+            }
+            return payload;
+          });
+        });
+      }
 
 	      function applySelectedStatus(nextStatus) {
 	        var buttons = statusGroupEl.querySelectorAll("[data-status]");
@@ -2442,6 +3144,47 @@
             .finally(function () {
               completeLegButton.disabled = false;
               completeLegButton.textContent = originalText;
+            });
+        });
+      }
+
+      if (weatherButton) {
+        weatherButton.addEventListener("click", function () {
+          var selectedPoint = getSelectedWeatherPoint();
+          var data = {};
+
+          resetWeatherResults();
+
+          if (!selectedPoint) {
+            setWeatherMessage("Select Start or End to check conditions.");
+            return;
+          }
+
+          if (!floatPlanId) {
+            setWeatherMessage("Unable to find the active float plan for this trip.");
+            return;
+          }
+
+          setWeatherMessage("");
+          setWeatherButtonLoading(true);
+
+          requestWeather(selectedPoint)
+            .then(function (resp) {
+              data = (resp && (resp.data || resp.DATA)) || {};
+              if (!data.available) {
+                setWeatherMessage("Conditions unavailable for selected leg point.");
+                return;
+              }
+              setWeatherMessage("");
+              renderWeatherResults(data);
+            })
+            .catch(function (err) {
+              var message = (err && err.MESSAGE) || (err && err.message) || "Unable to load weather right now.";
+              setWeatherMessage(message);
+              resetWeatherResults();
+            })
+            .finally(function () {
+              setWeatherButtonLoading(false);
             });
         });
       }

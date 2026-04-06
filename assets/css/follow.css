@@ -949,6 +949,18 @@ input[type="text"]:focus {
   line-height: 1.55;
 }
 
+.feed-media {
+  margin: 12px 0;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.feed-media img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .feed-flag {
   background: rgba(100,130,255,0.12);
   color: #4b67e7;

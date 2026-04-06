@@ -2472,6 +2472,8 @@
                 SUCCESS = false,
                 MESSAGE = ""
             };
+            var qActivationLeg = queryNew("");
+            var activationLegOrder = 0;
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "MISSING_PLAN_ID";
@@ -2658,6 +2660,43 @@
                 planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                 userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
             }, { datasource = "fpw" });
+
+            qActivationLeg = queryExecute(
+                "SELECT ril.leg_order
+                 FROM route_instance_legs ril
+                 LEFT JOIN route_instance_leg_progress rilp
+                    ON rilp.route_instance_id = ril.route_instance_id
+                   AND rilp.leg_order = ril.leg_order
+                   AND rilp.user_id = :userId
+                 WHERE ril.route_instance_id = :routeInstanceId
+                   AND COALESCE(UPPER(TRIM(rilp.status)), 'NOT_STARTED') <> 'COMPLETED'
+                 ORDER BY ril.leg_order ASC, ril.id ASC
+                 LIMIT 1",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                    routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+            if (qActivationLeg.recordCount EQ 1) {
+                activationLegOrder = val(qActivationLeg.leg_order[1]);
+                if (activationLegOrder GT 0) {
+                    queryExecute(
+                        "UPDATE route_instance_leg_progress
+                         SET leg_started_at = NOW()
+                         WHERE route_instance_id = :routeInstanceId
+                           AND user_id = :userId
+                           AND leg_order = :legOrder
+                           AND leg_started_at IS NULL",
+                        {
+                            routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" },
+                            userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                            legOrder = { value = activationLegOrder, cfsqltype = "cf_sql_integer" }
+                        },
+                        { datasource = "fpw" }
+                    );
+                }
+            }
 
             result.SUCCESS = true;
             result.SENT_COUNT = sentCount;
