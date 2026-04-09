@@ -299,11 +299,13 @@
             var nextMorningResumeDt = "";
             var resumeTimeZone = "";
             var resumeCalendar = "";
+            var localDayStartRule = loadOvernightTimingRule();
             var plannedNextStopEtaDt = "";
             var nextStopLeg = {};
             var qTripStart = queryNew("");
             var journeyDepartedDt = "";
             var qLegTiming = queryNew("");
+            var qMilesTodayTiming = queryNew("");
             var currentLegStartedAt = "";
             var priorLegCompletedAt = "";
             var routeInstanceIdVal = 0;
@@ -374,6 +376,26 @@
             var hasRecentSignal = false;
             var severeProgressMismatch = false;
             var newlyStartedTrip = false;
+            var localNowQuery = queryNew("");
+            var localNowDt = "";
+            var utcNowDt = "";
+            var milesTodayWindowStartDt = "";
+            var milesTodayWindowEndDt = "";
+            var milesTodayNm = "";
+            var milesTodayTimingByOrder = {};
+            var milesTodayTiming = {};
+            var milesTodayLegOrder = 0;
+            var milesTodayLegKey = "";
+            var milesTodayLegDistanceNm = 0.0;
+            var milesTodayLegHours = 0.0;
+            var milesTodayLegStartDt = "";
+            var milesTodayLegEndDt = "";
+            var milesTodayOverlapStartDt = "";
+            var milesTodayOverlapEndDt = "";
+            var milesTodayOverlapMinutes = 0;
+            var milesTodayActualLegMinutes = 0;
+            var milesTodayPlannedLegMinutes = 0;
+            var milesTodayLegNm = 0.0;
 
 	            if (!structCount(streamRow)) {
 	                out.MESSAGE = "Stream not found";
@@ -680,9 +702,9 @@
                                 year(nextMorningResumeDt),
                                 month(nextMorningResumeDt),
                                 day(nextMorningResumeDt),
-                                8,
-                                0,
-                                0
+                                localDayStartRule.local_day_start_hour,
+                                localDayStartRule.local_day_start_minute,
+                                localDayStartRule.local_day_start_second
                             );
                             if (isDate(nextMorningResumeDt)) {
                                 activeLegEtaBaseDt = nextMorningResumeDt;
@@ -741,6 +763,151 @@
                     ? val(timelineSummary.effective_speed_kn)
                     : 0
             );
+
+            if (routeInstanceIdVal GT 0 AND len(departureTimeZoneVal) AND isStruct(followTimeline) AND structKeyExists(followTimeline, "legs") AND isArray(followTimeline.legs)) {
+                localNowQuery = queryExecute(
+                    "SELECT
+                        CONVERT_TZ(UTC_TIMESTAMP(), 'UTC', :targetTimeZone) AS localNow,
+                        CONVERT_TZ(
+                            CONCAT(DATE(CONVERT_TZ(UTC_TIMESTAMP(), 'UTC', :targetTimeZone)), ' ', :localDayStartTime),
+                            :targetTimeZone,
+                            'UTC'
+                        ) AS milesTodayStartUtc,
+                        UTC_TIMESTAMP() AS utcNow",
+                    {
+                        targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" },
+                        localDayStartTime = { value = localDayStartRule.local_day_start_sql, cfsqltype = "cf_sql_varchar" }
+                    },
+                    { datasource = ds }
+                );
+                if (localNowQuery.recordCount GT 0 AND !isNull(localNowQuery.localNow[1]) AND isDate(localNowQuery.localNow[1])) {
+                    localNowDt = localNowQuery.localNow[1];
+                }
+                if (localNowQuery.recordCount GT 0 AND !isNull(localNowQuery.milesTodayStartUtc[1]) AND isDate(localNowQuery.milesTodayStartUtc[1])) {
+                    milesTodayWindowStartDt = localNowQuery.milesTodayStartUtc[1];
+                }
+                if (localNowQuery.recordCount GT 0 AND !isNull(localNowQuery.utcNow[1]) AND isDate(localNowQuery.utcNow[1])) {
+                    utcNowDt = localNowQuery.utcNow[1];
+                }
+                if (isDate(milesTodayWindowStartDt)) {
+                    if (isOvernightCheckIn AND isDate(checkedInAtVal)) {
+                        milesTodayWindowEndDt = checkedInAtVal;
+                    } else if (isDate(utcNowDt)) {
+                        milesTodayWindowEndDt = utcNowDt;
+                    } else {
+                        milesTodayWindowEndDt = localNowDt;
+                    }
+                }
+
+                if (isDate(milesTodayWindowStartDt) AND isDate(milesTodayWindowEndDt)) {
+                    qMilesTodayTiming = queryExecute(
+                        "SELECT
+                            leg_order,
+                            UPPER(TRIM(status)) AS status_val,
+                            leg_started_at,
+                            completed_at
+                         FROM route_instance_leg_progress
+                         WHERE route_instance_id = :routeInstanceId
+                           AND user_id = :ownerUserId
+                         ORDER BY leg_order ASC, id DESC",
+                        {
+                            routeInstanceId = { value = routeInstanceIdVal, cfsqltype = "cf_sql_integer" },
+                            ownerUserId = { value = streamRow.owner_user_id, cfsqltype = "cf_sql_integer" }
+                        },
+                        { datasource = ds }
+                    );
+
+                    for (i = 1; i LTE qMilesTodayTiming.recordCount; i++) {
+                        milesTodayLegKey = toString(val(qMilesTodayTiming.leg_order[i]));
+                        if (structKeyExists(milesTodayTimingByOrder, milesTodayLegKey)) {
+                            continue;
+                        }
+                        milesTodayTimingByOrder[milesTodayLegKey] = {
+                            "status"=(isNull(qMilesTodayTiming.status_val[i]) ? "" : trim(toString(qMilesTodayTiming.status_val[i]))),
+                            "leg_started_at"=(isNull(qMilesTodayTiming.leg_started_at[i]) ? "" : qMilesTodayTiming.leg_started_at[i]),
+                            "completed_at"=(isNull(qMilesTodayTiming.completed_at[i]) ? "" : qMilesTodayTiming.completed_at[i])
+                        };
+                    }
+
+                    milesTodayNm = 0;
+                    for (i = 1; i LTE arrayLen(followTimeline.legs); i++) {
+                        timelineLeg = followTimeline.legs[i];
+                        if (!isStruct(timelineLeg)) {
+                            continue;
+                        }
+                        milesTodayLegOrder = (structKeyExists(timelineLeg, "leg_order") AND isNumeric(timelineLeg.leg_order) ? val(timelineLeg.leg_order) : 0);
+                        if (milesTodayLegOrder LTE 0) {
+                            continue;
+                        }
+                        milesTodayLegKey = toString(milesTodayLegOrder);
+                        if (!structKeyExists(milesTodayTimingByOrder, milesTodayLegKey)) {
+                            continue;
+                        }
+
+                        milesTodayTiming = milesTodayTimingByOrder[milesTodayLegKey];
+                        milesTodayLegStartDt = (structKeyExists(milesTodayTiming, "leg_started_at") AND isDate(milesTodayTiming.leg_started_at) ? milesTodayTiming.leg_started_at : "");
+                        if (!isDate(milesTodayLegStartDt)) {
+                            continue;
+                        }
+
+                        milesTodayLegDistanceNm = (
+                            structKeyExists(timelineLeg, "dist_nm") AND isNumeric(timelineLeg.dist_nm)
+                                ? val(timelineLeg.dist_nm)
+                                : 0
+                        );
+                        if (milesTodayLegDistanceNm LTE 0) {
+                            continue;
+                        }
+
+                        milesTodayLegNm = 0;
+                        if (structKeyExists(milesTodayTiming, "completed_at") AND isDate(milesTodayTiming.completed_at)) {
+                            if (
+                                dateCompare(milesTodayTiming.completed_at, milesTodayWindowStartDt, "s") GTE 0
+                                AND dateCompare(milesTodayTiming.completed_at, milesTodayWindowEndDt, "s") LTE 0
+                            ) {
+                                milesTodayLegNm = milesTodayLegDistanceNm;
+                            }
+                        } else {
+                            milesTodayLegEndDt = milesTodayWindowEndDt;
+                            if (!isDate(milesTodayLegEndDt)) {
+                                continue;
+                            }
+                            milesTodayOverlapStartDt = (dateCompare(milesTodayLegStartDt, milesTodayWindowStartDt, "s") GTE 0 ? milesTodayLegStartDt : milesTodayWindowStartDt);
+                            milesTodayOverlapEndDt = (dateCompare(milesTodayLegEndDt, milesTodayWindowEndDt, "s") LTE 0 ? milesTodayLegEndDt : milesTodayWindowEndDt);
+                            if (dateCompare(milesTodayOverlapEndDt, milesTodayOverlapStartDt, "s") LTE 0) {
+                                continue;
+                            }
+                            milesTodayOverlapMinutes = dateDiff("n", milesTodayOverlapStartDt, milesTodayOverlapEndDt);
+                            if (milesTodayOverlapMinutes LTE 0) {
+                                continue;
+                            }
+                            milesTodayLegHours = (
+                                structKeyExists(timelineLeg, "hours") AND isNumeric(timelineLeg.hours)
+                                    ? val(timelineLeg.hours)
+                                    : 0
+                            );
+                            if (milesTodayLegHours GT 0) {
+                                milesTodayPlannedLegMinutes = int(round(milesTodayLegHours * 60));
+                                if (milesTodayPlannedLegMinutes GT 0) {
+                                    milesTodayLegNm = milesTodayLegDistanceNm * (milesTodayOverlapMinutes / milesTodayPlannedLegMinutes);
+                                }
+                            }
+                        }
+
+                        if (milesTodayLegNm LT 0) {
+                            milesTodayLegNm = 0;
+                        }
+                        if (milesTodayLegNm GT milesTodayLegDistanceNm) {
+                            milesTodayLegNm = milesTodayLegDistanceNm;
+                        }
+                        milesTodayNm += milesTodayLegNm;
+                    }
+
+                    if (isNumeric(milesTodayNm)) {
+                        milesTodayNm = roundTo1(milesTodayNm);
+                    }
+                }
+            }
 
             if (isStruct(followTimeline) AND structKeyExists(followTimeline, "legs") AND isArray(followTimeline.legs)) {
                 for (i = 1; i LTE arrayLen(followTimeline.legs); i++) {
@@ -1011,6 +1178,7 @@
 
             pinned = {
                 "miles"=routeTotalMiles,
+                "miles_today_nm"=(isNumeric(milesTodayNm) ? milesTodayNm : ""),
                 "days"=routeTotalDays,
                 "locks"=routeTotalLocks,
                 "wildlife"=wildlifeCount,
@@ -1086,6 +1254,8 @@
                 "heroNextStop"="",
                 "heroEta"="--",
                 "heroEtaUtc"="",
+                "heroTripStartUtc"="",
+                "legArrivalUtc"="",
                 "heroLastCheckIn"="--",
                 "heroLastCheckInUtc"=""
             };
@@ -1103,6 +1273,8 @@
             var storedOvernightPauseMinutes = 0;
             var departureTimeZoneVal = "";
             var storedDepartureTimeZoneVal = "";
+            var returnTimeZoneVal = "";
+            var storedReturnTimeZoneVal = "";
             var nextStopLabelVal = "";
             var nextStopEtaBaseDt = "";
             var nextStopEtaDt = "";
@@ -1111,6 +1283,7 @@
             var activeLegEtaMinutes = 0;
             var overnightPauseMinutes = 0;
             var nextMorningResumeDt = "";
+            var localDayStartRule = loadOvernightTimingRule();
             var plannedNextStopEtaDt = "";
             var nextStopLeg = {};
             var qLegTiming = queryNew("");
@@ -1118,7 +1291,13 @@
             var priorLegCompletedAt = "";
             var etaLabel = "";
             var etaUtc = "";
+            var heroTripStartUtc = "";
+            var legArrivalUtc = "";
+            var tripStartLocalDt = "";
+            var legArrivalLocalDt = "";
             var qLocalDeparture = queryNew("");
+            var qLocalTripStart = queryNew("");
+            var qLocalLegArrival = queryNew("");
             var i = 0;
 
             if (arguments.currentUserId LTE 0 OR arguments.floatPlanId LTE 0) {
@@ -1141,6 +1320,9 @@
                     departureTime,
                     departTimezone,
                     departureTZ,
+                    returnTime,
+                    returnTimezone,
+                    returnTZ,
                     checkedInAt,
                     checkin_context,
                     overnight_pause_minutes_total
@@ -1186,6 +1368,60 @@
             if (!len(departureTimeZoneVal)) {
                 departureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
             }
+            storedDepartureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
+            returnTimeZoneVal = (isNull(qPlan.returnTZ[1]) ? "" : trim(toString(qPlan.returnTZ[1])));
+            if (!len(returnTimeZoneVal)) {
+                returnTimeZoneVal = (isNull(qPlan.returnTimezone[1]) ? "" : trim(toString(qPlan.returnTimezone[1])));
+            }
+            storedReturnTimeZoneVal = (isNull(qPlan.returnTimezone[1]) ? "" : trim(toString(qPlan.returnTimezone[1])));
+
+            tripStartLocalDt = (isNull(qPlan.departureTime[1]) ? "" : qPlan.departureTime[1]);
+            if (
+                isDate(tripStartLocalDt)
+                AND ucase(storedDepartureTimeZoneVal) EQ "UTC"
+                AND len(departureTimeZoneVal)
+                AND ucase(departureTimeZoneVal) NEQ "UTC"
+            ) {
+                qLocalTripStart = queryExecute("
+                    SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
+                ", {
+                    utcDateTime = { value = tripStartLocalDt, cfsqltype = "cf_sql_timestamp" },
+                    targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
+                }, { datasource = ds });
+                if (qLocalTripStart.recordCount GT 0 AND !isNull(qLocalTripStart.localDateTime[1])) {
+                    tripStartLocalDt = qLocalTripStart.localDateTime[1];
+                }
+            }
+            if (isDate(tripStartLocalDt) AND len(departureTimeZoneVal)) {
+                heroTripStartUtc = formatUtcInstantFromLocalTime(tripStartLocalDt, departureTimeZoneVal);
+                if (len(heroTripStartUtc)) {
+                    out.heroTripStartUtc = heroTripStartUtc;
+                }
+            }
+
+            legArrivalLocalDt = (isNull(qPlan.returnTime[1]) ? "" : qPlan.returnTime[1]);
+            if (
+                isDate(legArrivalLocalDt)
+                AND ucase(storedReturnTimeZoneVal) EQ "UTC"
+                AND len(returnTimeZoneVal)
+                AND ucase(returnTimeZoneVal) NEQ "UTC"
+            ) {
+                qLocalLegArrival = queryExecute("
+                    SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
+                ", {
+                    utcDateTime = { value = legArrivalLocalDt, cfsqltype = "cf_sql_timestamp" },
+                    targetTimeZone = { value = returnTimeZoneVal, cfsqltype = "cf_sql_varchar" }
+                }, { datasource = ds });
+                if (qLocalLegArrival.recordCount GT 0 AND !isNull(qLocalLegArrival.localDateTime[1])) {
+                    legArrivalLocalDt = qLocalLegArrival.localDateTime[1];
+                }
+            }
+            if (isDate(legArrivalLocalDt) AND len(returnTimeZoneVal)) {
+                legArrivalUtc = formatUtcInstantFromLocalTime(legArrivalLocalDt, returnTimeZoneVal);
+                if (len(legArrivalUtc)) {
+                    out.legArrivalUtc = legArrivalUtc;
+                }
+            }
 
             routeMap = buildRouteMapData(canonicalPlan.ROUTE_INSTANCE_ID, arguments.currentUserId);
             followTimeline = buildFollowCruiseTimeline(canonicalPlan.ROUTE_INSTANCE_ID, arguments.currentUserId);
@@ -1202,7 +1438,6 @@
                 AND isArray(followTimeline.legs)
             ) {
                 nextStopEtaBaseDt = qPlan.departureTime[1];
-                storedDepartureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
                 if (
                     isDate(nextStopEtaBaseDt)
                     AND ucase(storedDepartureTimeZoneVal) EQ "UTC"
@@ -1292,9 +1527,9 @@
                                 year(nextMorningResumeDt),
                                 month(nextMorningResumeDt),
                                 day(nextMorningResumeDt),
-                                8,
-                                0,
-                                0
+                                localDayStartRule.local_day_start_hour,
+                                localDayStartRule.local_day_start_minute,
+                                localDayStartRule.local_day_start_second
                             );
                             if (isDate(nextMorningResumeDt)) {
                                 activeLegEtaBaseDt = nextMorningResumeDt;
@@ -5539,6 +5774,23 @@
                 return trim(toString(arguments.value));
             }
             return dateTimeFormat(arguments.value, "yyyy-mm-dd'T'HH:nn:ss'Z'");
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="loadOvernightTimingRule" access="private" returntype="struct" output="false">
+        <cfscript>
+            var cacheKey = "fpwOvernightTimingRule";
+            var overnightTimingService = "";
+            if (structKeyExists(request, cacheKey) AND isStruct(request[cacheKey])) {
+                return duplicate(request[cacheKey]);
+            }
+            try {
+                overnightTimingService = createObject("component", "fpw.api.v1.OvernightTimingService").init();
+            } catch (any overnightTimingErr) {
+                overnightTimingService = createObject("component", "api.v1.OvernightTimingService").init();
+            }
+            request[cacheKey] = overnightTimingService.getLocalDayStartRule();
+            return duplicate(request[cacheKey]);
         </cfscript>
     </cffunction>
 

@@ -22,15 +22,15 @@
 
       <section class="trip-card" data-fpw-region="sidebar-trip-card">
         <div class="trip-top">
-          <div class="trip-title" data-fpw-field="trip-card-title">—</div>
-          <span class="pill good" data-fpw-field="trip-card-status-pill">—</span>
+          <div class="trip-title" data-fpw-field="trip-card-title" hidden>—</div>
+          <span class="pill good" data-fpw-field="trip-card-status-pill" hidden>—</span>
         </div>
 
         <div class="trip-meta">
           <div><strong>Share link:</strong> <span class="trip-link" data-fpw-field="trip-card-share-link">—</span></div>
-          <div><strong>Last check-in:</strong> <span data-fpw-field="trip-card-last-checkin">—</span> &nbsp; | &nbsp; <strong>Viewers:</strong> <span data-fpw-field="trip-card-viewer-count">—</span></div>
+          <div hidden><strong>Last check-in:</strong> <span data-fpw-field="trip-card-last-checkin">—</span> &nbsp; | &nbsp; <strong>Viewers:</strong> <span data-fpw-field="trip-card-viewer-count">—</span></div>
           <div><strong>Vessel:</strong> <span data-fpw-field="trip-card-vessel">—</span> &nbsp; | &nbsp; <strong>Privacy:</strong> <span data-fpw-field="trip-card-privacy">—</span></div>
-          <div><strong>Monitoring:</strong> <span data-fpw-field="trip-card-monitoring">—</span></div>
+          <div hidden><strong>Monitoring:</strong> <span data-fpw-field="trip-card-monitoring">—</span></div>
         </div>
 
         <div class="trip-actions">
@@ -142,7 +142,6 @@
               <div class="metric" data-fpw-field="today-progress-metric">—</div>
               <div class="label-line" data-fpw-field="today-progress-location">—</div>
               <div class="label-line" data-fpw-field="today-progress-eta">—</div>
-              <div class="track-bar"><span data-fpw-field="today-progress-fill"></span></div>
             </article>
 
             <article class="card mini-card">
@@ -166,6 +165,24 @@
                 <div data-fpw-field="trip-summary-safety">—</div>
               </div>
             </article>
+          </section>
+
+          <section class="mini-grid" data-fpw-region="lower-glance-row">
+            <div class="glance-item">
+              <small>Hours Underway</small>
+              <strong data-fpw-field="stream-glance-hours">—</strong>
+              <span>Total elapsed travel time</span>
+            </div>
+            <div class="glance-item">
+              <small>Current Location</small>
+              <strong data-fpw-field="stream-glance-checkin">—</strong>
+              <span data-fpw-field="stream-glance-checkin-meta">—</span>
+            </div>
+            <div class="glance-item">
+              <small>Next Stop</small>
+              <strong data-fpw-field="stream-glance-next-stop">—</strong>
+              <span data-fpw-field="stream-glance-next-stop-meta">—</span>
+            </div>
           </section>
 
           <article class="card trust-panel" data-fpw-region="family-confidence">
@@ -289,35 +306,6 @@
               </div>
             </div>
 
-            <div class="glance">
-              <div class="glance-top">
-                <h4>Pinned: Today at a glance</h4>
-                <span data-fpw-field="stream-glance-updated">—</span>
-              </div>
-              <div class="glance-grid">
-                <div class="glance-item">
-                  <small>Miles Today</small>
-                  <strong data-fpw-field="stream-glance-miles">—</strong>
-                  <span>Tracked on the active leg</span>
-                </div>
-                <div class="glance-item">
-                  <small>Hours Underway</small>
-                  <strong data-fpw-field="stream-glance-hours">—</strong>
-                  <span>Elapsed travel time today</span>
-                </div>
-                <div class="glance-item">
-                  <small>Last Check-In</small>
-                  <strong data-fpw-field="stream-glance-checkin">—</strong>
-                  <span data-fpw-field="stream-glance-checkin-meta">—</span>
-                </div>
-                <div class="glance-item">
-                  <small>Next Stop</small>
-                  <strong data-fpw-field="stream-glance-next-stop">—</strong>
-                  <span data-fpw-field="stream-glance-next-stop-meta">—</span>
-                </div>
-              </div>
-            </div>
-
             <div class="feed" data-fpw-field="stream-feed">
               <div class="feed-card">
                 <div class="feed-head">
@@ -377,6 +365,6 @@
   <cfinclude template="../includes/footer_scripts.cfm">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/followMap.js?v=20260303c"></script>
-  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/follow.js?v=20260402165500a"></script>
+  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/follow.js?v=20260409122300a"></script>
 </body>
 </html>

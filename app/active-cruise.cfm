@@ -939,13 +939,14 @@
         activeCruiseView.heroEtaMeta = "Active leg ETA unavailable";
       }
 
-      if (isDate(lastCheckInDt)) {
-        activeCruiseView.floatPlanLastCheckIn = fpwFormatClock(lastCheckInDt, "--");
-      }
       if (isStruct(activeCruiseCanonicalHero) AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS") AND activeCruiseCanonicalHero.SUCCESS AND len(trim(toString(activeCruiseCanonicalHero.heroLastCheckIn))) AND trim(toString(activeCruiseCanonicalHero.heroLastCheckIn)) NEQ "--") {
         activeCruiseView.heroLastCheckIn = trim(toString(activeCruiseCanonicalHero.heroLastCheckIn));
+        activeCruiseView.floatPlanLastCheckIn = activeCruiseView.heroLastCheckIn;
       } else {
         activeCruiseView.heroLastCheckIn = "--";
+        if (isDate(lastCheckInDt)) {
+          activeCruiseView.floatPlanLastCheckIn = fpwFormatClock(lastCheckInDt, "--");
+        }
       }
       activeCruiseView.heroNextExpectedCheckIn = elapsedCheckInLabel;
       activeCruiseView.heroTripStart = "Trip Start: " & (isDate(canonicalTripStartDt) ? dateTimeFormat(canonicalTripStartDt, "mmm d, yyyy h:nn tt") : "--");
@@ -1304,7 +1305,31 @@
     heroPercentComplete = activeCruiseView.heroPercentComplete,
     heroNextStop = activeCruiseView.heroNextStop,
     heroEta = activeCruiseView.heroEta,
+    heroEtaUtc = (
+      isStruct(activeCruiseCanonicalHero)
+      AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS")
+      AND activeCruiseCanonicalHero.SUCCESS
+      AND structKeyExists(activeCruiseCanonicalHero, "heroEtaUtc")
+        ? trim(toString(activeCruiseCanonicalHero.heroEtaUtc))
+        : ""
+    ),
+    heroTripStartUtc = (
+      isStruct(activeCruiseCanonicalHero)
+      AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS")
+      AND activeCruiseCanonicalHero.SUCCESS
+      AND structKeyExists(activeCruiseCanonicalHero, "heroTripStartUtc")
+        ? trim(toString(activeCruiseCanonicalHero.heroTripStartUtc))
+        : ""
+    ),
     heroLastCheckIn = activeCruiseView.heroLastCheckIn,
+    heroLastCheckInUtc = (
+      isStruct(activeCruiseCanonicalHero)
+      AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS")
+      AND activeCruiseCanonicalHero.SUCCESS
+      AND structKeyExists(activeCruiseCanonicalHero, "heroLastCheckInUtc")
+        ? trim(toString(activeCruiseCanonicalHero.heroLastCheckInUtc))
+        : ""
+    ),
     heroNextExpectedCheckIn = activeCruiseView.heroNextExpectedCheckIn,
     legRemainingDistance = activeCruiseView.legRemainingDistance,
     legPercentComplete = activeCruiseView.legPercentComplete,
@@ -1315,6 +1340,14 @@
     floatPlanId = activeCruiseView.floatPlanIdLabel,
     floatPlanLastCheckIn = activeCruiseView.floatPlanLastCheckIn,
     floatPlanNextExpected = activeCruiseView.floatPlanNextExpected,
+    legArrivalUtc = (
+      isStruct(activeCruiseCanonicalHero)
+      AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS")
+      AND activeCruiseCanonicalHero.SUCCESS
+      AND structKeyExists(activeCruiseCanonicalHero, "legArrivalUtc")
+        ? trim(toString(activeCruiseCanonicalHero.legArrivalUtc))
+        : ""
+    ),
     captainContact = activeCruiseView.captainContact,
     crewContact = activeCruiseView.crewContact,
     emergencyContact = activeCruiseView.emergencyContact,
@@ -2647,6 +2680,12 @@
       var experimentalLegPaceEl = document.getElementById("fpwExperimentalLegPace");
       var experimentalLegFuelEl = document.getElementById("fpwExperimentalLegFuel");
       var experimentalLegMetaEl = document.getElementById("fpwExperimentalLegMeta");
+      var heroEtaEl = document.querySelector('[data-fpw-field="hero.eta"]');
+      var heroTripStartEl = document.querySelector('[data-fpw-field="hero.tripStart"]');
+      var heroLastCheckInEl = document.querySelector('[data-fpw-field="hero.lastCheckIn"]');
+      var floatPlanLastCheckInEl = document.querySelector('[data-fpw-field="floatPlan.lastCheckIn"]');
+      var legArrivalEl = document.querySelector('[data-fpw-field="leg.arrival"]');
+      var routeStop4StampEl = document.querySelector('[data-fpw-field="leg.routeStop4Stamp"]');
 
       if (!checkInButton || !modalEl || !closeBtn || !statusGroupEl || !noteToggleBtn || !noteWrapEl || !noteInput || !overnightCheckboxEl || !submitBtn) {
         return;
@@ -2706,7 +2745,103 @@
 	        });
 	      }
 
+      function formatHeroEtaLabel(input) {
+        var raw = String(input || "").trim();
+        var date = raw ? new Date(raw) : null;
+        var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        var hours = 0;
+        var displayHour = 0;
+        var minutes = "";
+        var suffix = "";
+
+        if (!date || Number.isNaN(date.getTime())) {
+          return "";
+        }
+
+        hours = date.getHours();
+        displayHour = hours % 12;
+        if (displayHour === 0) {
+          displayHour = 12;
+        }
+        minutes = String(date.getMinutes());
+        if (minutes.length < 2) {
+          minutes = "0" + minutes;
+        }
+        suffix = hours >= 12 ? "PM" : "AM";
+
+        return monthNames[date.getMonth()] + " " + date.getDate() + ", " + date.getFullYear() + " " + displayHour + ":" + minutes + " " + suffix;
+      }
+
+      function hydrateHeroEta() {
+        var fields = (pageHooks && (pageHooks.fields || pageHooks.FIELDS)) || {};
+        var heroEtaUtc = String(fields.heroEtaUtc || fields.HEROETAUTC || "").trim();
+        var label = formatHeroEtaLabel(heroEtaUtc);
+
+        if (!heroEtaEl || !label) {
+          return;
+        }
+
+        heroEtaEl.textContent = label;
+      }
+
+      function hydrateHeroTripStart() {
+        var fields = (pageHooks && (pageHooks.fields || pageHooks.FIELDS)) || {};
+        var heroTripStartUtc = String(fields.heroTripStartUtc || fields.HEROTRIPSTARTUTC || "").trim();
+        var label = formatHeroEtaLabel(heroTripStartUtc);
+
+        if (!heroTripStartEl || !label) {
+          return;
+        }
+
+        heroTripStartEl.textContent = "Trip Start: " + label;
+      }
+
+      function hydrateLastCheckinLabels() {
+        var fields = (pageHooks && (pageHooks.fields || pageHooks.FIELDS)) || {};
+        var heroLastCheckInUtc = String(fields.heroLastCheckInUtc || fields.HEROLASTCHECKINUTC || "").trim();
+        var label = formatHeroEtaLabel(heroLastCheckInUtc);
+
+        if (!label) {
+          return;
+        }
+        if (heroLastCheckInEl) {
+          heroLastCheckInEl.textContent = label;
+        }
+        if (floatPlanLastCheckInEl) {
+          floatPlanLastCheckInEl.textContent = label;
+        }
+      }
+
+      function hydrateLegArrival() {
+        var fields = (pageHooks && (pageHooks.fields || pageHooks.FIELDS)) || {};
+        var legArrivalUtc = String(fields.legArrivalUtc || fields.LEGARRIVALUTC || "").trim();
+        var label = formatTimelineLocalTime(legArrivalUtc);
+
+        if (!legArrivalEl || !label) {
+          return;
+        }
+
+        legArrivalEl.textContent = label;
+      }
+
+      function hydrateRouteStop4Stamp() {
+        var fields = (pageHooks && (pageHooks.fields || pageHooks.FIELDS)) || {};
+        var heroEtaUtc = String(fields.heroEtaUtc || fields.HEROETAUTC || "").trim();
+        var label = formatHeroEtaLabel(heroEtaUtc);
+
+        if (!routeStop4StampEl || !label) {
+          return;
+        }
+
+        routeStop4StampEl.textContent = label + " ETA";
+      }
+
       hydrateTimelineTimes();
+      hydrateHeroEta();
+      hydrateHeroTripStart();
+      hydrateLastCheckinLabels();
+      hydrateLegArrival();
+      hydrateRouteStop4Stamp();
 
       function parseExperimentalDate(value) {
         var raw = String(value || "").trim();

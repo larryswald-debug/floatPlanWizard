@@ -1888,6 +1888,12 @@
             var overnightPauseMinutesToAdd = 0;
             var updatedCheckInDt = "";
             var isOvernightTransition = false;
+            var storedCheckInDt = "";
+            var overnightResumeDt = "";
+            var isOvernightPauseActive = false;
+            var resumeTimeZone = "";
+            var resumeCalendar = "";
+            var localDayStartRule = loadOvernightTimingRule();
 
             if (arguments.floatPlanId LTE 0) {
                 result.SUCCESS = false;
@@ -1912,6 +1918,7 @@
             qPlan = queryExecute(
                 "SELECT
                     floatplanId,
+                    checkedInAt,
                     departureTZ,
                     departTimezone,
                     checkin_context
@@ -1934,25 +1941,61 @@
             }
 
             currentContextVal = normalizeCheckInContext(isNull(qPlan.checkin_context[1]) ? "" : qPlan.checkin_context[1]);
+            if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
+                storedCheckInDt = qPlan.checkedInAt[1];
+            }
             departureTimeZoneVal = (isNull(qPlan.departureTZ[1]) ? "" : trim(toString(qPlan.departureTZ[1])));
             if (!len(departureTimeZoneVal)) {
                 departureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
             }
             isOvernightTransition = (contextVal EQ "overnight" AND currentContextVal NEQ "overnight");
+            if (currentContextVal EQ "overnight" AND isDate(storedCheckInDt) AND len(departureTimeZoneVal)) {
+                try {
+                    resumeTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(departureTimeZoneVal);
+                    resumeCalendar = createObject("java", "java.util.GregorianCalendar").init(resumeTimeZone);
+                    resumeCalendar.setTime(storedCheckInDt);
+                    resumeCalendar.add(5, 1);
+                    resumeCalendar.set(11, localDayStartRule.local_day_start_hour);
+                    resumeCalendar.set(12, localDayStartRule.local_day_start_minute);
+                    resumeCalendar.set(13, localDayStartRule.local_day_start_second);
+                    resumeCalendar.set(14, localDayStartRule.local_day_start_millisecond);
+                    overnightResumeDt = resumeCalendar.getTime();
+                    if (isDate(overnightResumeDt) AND dateCompare(now(), overnightResumeDt, "s") LT 0) {
+                        isOvernightPauseActive = true;
+                    }
+                } catch (any overnightResumeErr) {
+                    isOvernightPauseActive = false;
+                }
+            }
 
             titleVal = "Check-in: " & statusVal;
-            updateSql =
-                "UPDATE floatplans
-                 SET checkedInAt = UTC_TIMESTAMP(),
-                     checkin_context = :checkinContext,
-                     lastUpdateStatus = UTC_TIMESTAMP()
-                 WHERE floatplanId = :planId
-                   AND userId = :userId";
-            updateParams = {
-                checkinContext = { value = contextVal, cfsqltype = "cf_sql_varchar", null = NOT len(contextVal) },
-                planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
-                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
-            };
+            if (isOvernightPauseActive) {
+                updateSql =
+                    "UPDATE floatplans
+                     SET checkedInAt = UTC_TIMESTAMP(),
+                         checkin_context = :checkinContext,
+                         lastUpdateStatus = UTC_TIMESTAMP()
+                     WHERE floatplanId = :planId
+                       AND userId = :userId";
+                updateParams = {
+                    checkinContext = { value = contextVal, cfsqltype = "cf_sql_varchar", null = NOT len(contextVal) },
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                };
+            } else {
+                updateSql =
+                    "UPDATE floatplans
+                     SET checkedInAt = UTC_TIMESTAMP(),
+                         checkin_context = :checkinContext,
+                         lastUpdateStatus = UTC_TIMESTAMP()
+                     WHERE floatplanId = :planId
+                       AND userId = :userId";
+                updateParams = {
+                    checkinContext = { value = contextVal, cfsqltype = "cf_sql_varchar", null = NOT len(contextVal) },
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                };
+            }
 
             transaction {
                 queryExecute(
@@ -2049,6 +2092,7 @@
             var nextMorningResumeDt = "";
             var resumeTimeZone = "";
             var resumeCalendar = "";
+            var localDayStartRule = loadOvernightTimingRule();
             if (!isDate(arguments.checkInDt) OR !len(trim(arguments.timeZoneId))) {
                 return 0;
             }
@@ -2057,10 +2101,10 @@
                 resumeCalendar = createObject("java", "java.util.GregorianCalendar").init(resumeTimeZone);
                 resumeCalendar.setTime(arguments.checkInDt);
                 resumeCalendar.add(5, 1);
-                resumeCalendar.set(11, 8);
-                resumeCalendar.set(12, 0);
-                resumeCalendar.set(13, 0);
-                resumeCalendar.set(14, 0);
+                resumeCalendar.set(11, localDayStartRule.local_day_start_hour);
+                resumeCalendar.set(12, localDayStartRule.local_day_start_minute);
+                resumeCalendar.set(13, localDayStartRule.local_day_start_second);
+                resumeCalendar.set(14, localDayStartRule.local_day_start_millisecond);
                 nextMorningResumeDt = resumeCalendar.getTime();
                 pauseMinutes = dateDiff("n", arguments.checkInDt, nextMorningResumeDt);
                 if (pauseMinutes LT 0) {
@@ -2081,6 +2125,19 @@
                 return "overnight";
             }
             return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="loadOvernightTimingRule" access="private" returntype="struct" output="false">
+        <cfscript>
+            var cacheKey = "fpwOvernightTimingRule";
+            var overnightTimingService = {};
+            if (structKeyExists(request, cacheKey) AND isStruct(request[cacheKey])) {
+                return duplicate(request[cacheKey]);
+            }
+            overnightTimingService = createObject("component", resolveApiV1ComponentPath("OvernightTimingService")).init();
+            request[cacheKey] = overnightTimingService.getLocalDayStartRule();
+            return duplicate(request[cacheKey]);
         </cfscript>
     </cffunction>
 

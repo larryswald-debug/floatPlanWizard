@@ -287,16 +287,25 @@
     var currentStopMeta = "—";
     var isOvernightState = /overnight|secure for the night/i.test(checkinMeta);
     var activeLegDistanceNm = safeNum(activeLeg && activeLeg.dist_nm);
-    var activeLegHours = safeNum(activeLeg && activeLeg.hours);
     var activeLegProgressPct = safeNum(activeLeg && activeLeg.progress ? activeLeg.progress.percent_complete : null);
+    var pinnedMilesTodayNm = safeNum(pinned.miles_today_nm);
     var milesTodayLabel = "—";
     var hoursUnderwayLabel = "—";
-    if (activeLegDistanceNm !== null && activeLegProgressPct !== null) {
+    var hoursUnderwayTotal = 0;
+    if (pinnedMilesTodayNm !== null) {
+      milesTodayLabel = pinnedMilesTodayNm.toFixed(1);
+    } else if (activeLegDistanceNm !== null && activeLegProgressPct !== null) {
       milesTodayLabel = (activeLegDistanceNm * Math.max(0, activeLegProgressPct) / 100).toFixed(1);
     }
-    if (activeLegHours !== null && activeLegProgressPct !== null) {
-      hoursUnderwayLabel = (activeLegHours * Math.max(0, activeLegProgressPct) / 100).toFixed(1);
-    }
+    legs.forEach(function (leg) {
+      var legHours = safeNum(leg && leg.hours);
+      var legProgressPct = safeNum(leg && leg.progress ? leg.progress.percent_complete : null);
+      var clampedProgressPct = 0;
+      if (legHours === null || legProgressPct === null || legProgressPct <= 0) return;
+      clampedProgressPct = Math.max(0, Math.min(100, legProgressPct));
+      hoursUnderwayTotal += legHours * clampedProgressPct / 100;
+    });
+    hoursUnderwayLabel = hoursUnderwayTotal.toFixed(1);
     nextStopEtaLabel = formatSidebarLastCheckinLabel(etaUtc) || "—";
 
     setHookText("stream-glance-updated", updatedLabel);
@@ -315,7 +324,7 @@
     setHookText("stream-glance-checkin", currentStopValue);
     setHookText("stream-glance-checkin-meta", currentStopMeta);
     setHookText("stream-glance-next-stop", nextStop);
-    setHookText("stream-glance-next-stop-meta", nextStopEtaLabel);
+    setHookText("stream-glance-next-stop-meta", nextStopEtaLabel === "—" ? "—" : ("ETA " + nextStopEtaLabel));
   }
 
   function formatDayCountLabel(days) {
@@ -360,6 +369,7 @@
     var summary = timeline.summary || {};
     var legs = Array.isArray(timeline.legs) ? timeline.legs : [];
     var miles = safeNum(pinned.miles);
+    var pinnedMilesTodayNm = safeNum(pinned.miles_today_nm);
     var totalHoursText = timelineValueText(summary.total_hours, 1, "h");
     var completedMilesNm = 0;
     var photoCount = findRecentMediaPosts(posts).length;
@@ -379,7 +389,7 @@
     });
     etaLabel = formatSidebarLastCheckinLabel(etaUtc) || "—";
 
-    setHookText("today-progress-metric", completedMilesNm.toFixed(1) + " nm");
+    setHookText("today-progress-metric", (pinnedMilesTodayNm === null ? completedMilesNm : pinnedMilesTodayNm).toFixed(1) + " nm");
     setHookText("today-progress-location", "Current location: " + String(topCards.location_label || "").trim());
     setHookText("today-progress-eta", etaLabel === "—" ? "—" : ("Estimated arrival: " + etaLabel));
     setHookWidth("today-progress-fill", progressPct);
@@ -627,7 +637,7 @@
     if (dom.overlayProgress) dom.overlayProgress.textContent = (miles === null ? "n/a" : miles.toFixed(1) + " mi");
     if (dom.overlayCheckin) dom.overlayCheckin.textContent = lastCheckin;
 
-    if (dom.pinnedUpdated) dom.pinnedUpdated.textContent = "Updated " + (pinned.updated_label || "n/a");
+    if (dom.pinnedUpdated) dom.pinnedUpdated.textContent = "Updated " + lastCheckin;
     if (dom.pinnedMiles) dom.pinnedMiles.textContent = (miles === null ? "0" : miles.toFixed(1));
     if (dom.pinnedDays) dom.pinnedDays.textContent = String(days);
     if (dom.pinnedLocks) dom.pinnedLocks.textContent = String(locks);
@@ -808,18 +818,24 @@
 
   function renderCruiseTimelineLegs(legs) {
     var list = Array.isArray(legs) ? legs : [];
+    var displayList = list.filter(function (row) {
+      var progress = (row && typeof row === "object" && row.progress && typeof row.progress === "object")
+        ? safeNum(row.progress.percent_complete)
+        : null;
+      return progress !== null && progress < 100;
+    });
     var html = "";
     var expandedOrder = toInt(state.timeline.expandedLegOrder, 0);
 
     if (!dom.followTimelineLegList) return;
     state.timeline.legs = list;
 
-    if (!list.length) {
+    if (!displayList.length) {
       state.timeline.expandedLegOrder = 0;
       dom.followTimelineLegList.innerHTML = '<div class="follow-timeline-empty">No leg timeline available.</div>';
       return;
     }
-    if (!list.some(function (row) { return toInt(row.leg_order, 0) === expandedOrder; })) {
+    if (!displayList.some(function (row) { return toInt(row.leg_order, 0) === expandedOrder; })) {
       expandedOrder = 0;
       state.timeline.expandedLegOrder = 0;
     }
@@ -828,7 +844,7 @@
       + '<span>#</span><span>Leg</span><span>Locks</span><span>NM</span><span>Hours</span><span>Cum h</span>'
       + '</div>';
 
-    html += list.map(function (leg, idx) {
+    html += displayList.map(function (leg, idx) {
       var row = (leg && typeof leg === "object") ? leg : {};
       var order = toInt(row.leg_order, idx + 1);
       var isExpanded = (expandedOrder === order);

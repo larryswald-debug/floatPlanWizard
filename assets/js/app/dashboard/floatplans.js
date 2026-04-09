@@ -124,7 +124,7 @@
   }
 
   function buildFloatPlanDisplayOrder(plans) {
-    return promoteActiveFloatPlanFirst(sortFloatPlansForDisplay(plans), getCanonicalActiveFloatPlanId());
+    return promoteActiveFloatPlanFirst(plans, getCanonicalActiveFloatPlanId());
   }
 
   function renderFloatPlansList(plans, totalCount) {
@@ -165,7 +165,6 @@
         { assumeUtc: true, timeZone: returnTimezone, includeTimeZone: true }
       );
       var vessel = utils.pick(plan, ["VESSELNAME", "VESSEL"], "");
-      var updated = utils.formatPlanDate(utils.pick(plan, ["UPDATEDDATE", "UPDATEDAT", "MODIFIEDDATE"], ""));
       var waypointCount = parseInt(utils.pick(plan, ["WAYPOINTCOUNT", "waypointCount"], 0), 10);
       if (isNaN(waypointCount)) waypointCount = 0;
       var statusText = getStatusLabel(status);
@@ -185,14 +184,10 @@
       }
       if (vessel) metaParts.push(vessel);
       var metaText = metaParts.join(" • ");
-      var updatedText = updated ? "Updated " + updated : "";
 
       var metaPartsInline = [];
       if (metaText) {
         metaPartsInline.push(utils.escapeHtml(metaText));
-      }
-      if (updatedText) {
-        metaPartsInline.push(utils.escapeHtml(updatedText));
       }
       var metaInline = metaPartsInline.length
         ? "<small>" + metaPartsInline.join(" • ") + "</small>"
@@ -226,17 +221,14 @@
     var returnBy = utils.pick(plan, ["RETURNDATETIME", "RETURNDATE", "returnAt", "RETURN_TIME", "RETURNING_TO", "DESTINATION"], "");
     var departureTimezone = utils.pick(plan, ["DEPARTURE_TIMEZONE", "departureTimezone", "departTimezone"], "");
     var returnTimezone = utils.pick(plan, ["RETURN_TIMEZONE", "returnTimezone"], "");
-    var updated = utils.pick(plan, ["UPDATEDDATE", "UPDATEDAT", "MODIFIEDDATE"], "");
     var pieces = [
       name,
       status,
       vessel,
       depart,
       returnBy,
-      updated,
       utils.formatPlanDate(depart, { assumeUtc: true, timeZone: departureTimezone, includeTimeZone: true }),
-      utils.formatPlanDate(returnBy, { assumeUtc: true, timeZone: returnTimezone, includeTimeZone: true }),
-      utils.formatPlanDate(updated)
+      utils.formatPlanDate(returnBy, { assumeUtc: true, timeZone: returnTimezone, includeTimeZone: true })
     ];
     return utils.normalizeSearch(pieces.join(" "));
   }
