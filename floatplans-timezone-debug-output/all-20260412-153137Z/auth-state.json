@@ -1,0 +1,35 @@
+{
+  "cookies": [
+    {
+      "name": "CFID",
+      "value": "14838",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1810567897.537808,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "CFTOKEN",
+      "value": "728d68413d07b4ab-EDFBB99D-AB2F-BBDC-FEE4C6CD50654956",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1810567897.538044,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "JSESSIONID",
+      "value": "B46DEDFB117F726B50227B7A64621B2A.cfusion",
+      "domain": "localhost",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}

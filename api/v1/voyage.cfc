@@ -230,6 +230,42 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="ensureScheduledPlanOperationalStart" access="private" returntype="struct" output="false">
+        <cfargument name="ownerUserId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var out = {
+                "SUCCESS"=false,
+                "TRIP_STARTED"=true,
+                "PENDING_START"=false,
+                "MESSAGE"="Unable to evaluate the scheduled departure gate."
+            };
+            var floatPlanComponent = "";
+
+            if (arguments.ownerUserId LTE 0 OR arguments.floatPlanId LTE 0) {
+                out.MESSAGE = "A valid owner and float plan are required.";
+                return out;
+            }
+
+            try {
+                floatPlanComponent = createObject("component", "fpw.api.v1.floatplan");
+            } catch (any floatPlanPathErr) {
+                floatPlanComponent = createObject("component", "api.v1.floatplan");
+            }
+
+            out = floatPlanComponent.ensureOperationalStartForScheduledPlan(arguments.ownerUserId, arguments.floatPlanId);
+            if (!isStruct(out)) {
+                out = {
+                    "SUCCESS"=false,
+                    "TRIP_STARTED"=true,
+                    "PENDING_START"=false,
+                    "MESSAGE"="Unable to evaluate the scheduled departure gate."
+                };
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
 	    <cffunction name="getStreamBootstrap" access="private" returntype="struct" output="false">
 	        <cfargument name="slug" type="string" required="false" default="">
 	        <cfargument name="shareToken" type="string" required="false" default="">
@@ -283,9 +319,11 @@
             var actualCheckInLabel = "";
             var actualCheckInUtc = "";
             var checkedInAtVal = "";
+            var expectedCheckInDt = "";
             var checkInContextVal = "";
             var isOvernightCheckIn = false;
             var departureTimeZoneVal = "";
+            var dailyStartLocalTimeVal = "";
             var storedOvernightPauseMinutes = 0;
             var elapsedCheckInLabel = "-- since last check-in";
             var nextStopLabelVal = "";
@@ -308,6 +346,12 @@
             var qMilesTodayTiming = queryNew("");
             var currentLegStartedAt = "";
             var priorLegCompletedAt = "";
+            var scheduledDepartureRawDt = "";
+            var hasOperationalCheckIn = false;
+            var hasValidCurrentLegStart = false;
+            var hasValidPriorLegCompletion = false;
+            var tripStartState = {};
+            var tripStarted = true;
             var routeInstanceIdVal = 0;
             var weatherComponent = "";
             var weatherComponentPath = "";
@@ -396,6 +440,8 @@
             var milesTodayActualLegMinutes = 0;
             var milesTodayPlannedLegMinutes = 0;
             var milesTodayLegNm = 0.0;
+            var routeMapActiveLegOrder = 0;
+            var awaitingDepartureState = false;
 
 	            if (!structCount(streamRow)) {
 	                out.MESSAGE = "Stream not found";
@@ -443,6 +489,24 @@
                     fp.checkedInAt,"
                     & "
                     fp.checkin_context,
+                    fp.dailyStartLocalTime,
+                    (
+                        SELECT
+                            COALESCE(
+                                CONVERT_TZ(
+                                    m.expected_checkin_at,
+                                    'UTC',
+                                    NULLIF(COALESCE(NULLIF(fp.departureTZ, ''), NULLIF(fp.departTimezone, ''), 'UTC'), '')
+                                ),
+                                m.expected_checkin_at
+                            )
+                        FROM floatplan_monitoring m
+                        WHERE m.float_plan_id = fp.floatplanId
+                          AND m.is_monitoring_enabled = 1
+                          AND UPPER(TRIM(m.monitor_state)) <> 'CLOSED'
+                        ORDER BY m.id DESC
+                        LIMIT 1
+                    ) AS expected_checkin_at,
                     fp.overnight_pause_minutes_total,
                     fp.vesselId,
                     v.vesselName
@@ -493,6 +557,15 @@
 	                return out;
 	            }
 
+            tripStartState = ensureScheduledPlanOperationalStart(streamRow.owner_user_id, streamRow.floatplan_id);
+            if (
+                structKeyExists(tripStartState, "SUCCESS")
+                AND tripStartState.SUCCESS
+                AND structKeyExists(tripStartState, "TRIP_STARTED")
+            ) {
+                tripStarted = (tripStartState.TRIP_STARTED EQ true);
+            }
+
             streamTitle = trim(toString(isNull(qPlan.floatPlanName[1]) ? "" : qPlan.floatPlanName[1]));
             statusLabel = friendlyStatusLabel(isNull(qPlan.status[1]) ? "" : qPlan.status[1]);
             routeInstanceIdVal = (!isNull(qPlan.route_instance_id[1]) ? val(qPlan.route_instance_id[1]) : 0);
@@ -510,11 +583,39 @@
             if (!len(departureTimeZoneVal)) {
                 departureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
             }
+            dailyStartLocalTimeVal = (isNull(qPlan.dailyStartLocalTime[1]) ? "" : trim(toString(qPlan.dailyStartLocalTime[1])));
+            localDayStartRule = loadOvernightTimingRule(dailyStartLocalTimeVal);
+            if (!isNull(qPlan.departureTime[1]) AND isDate(qPlan.departureTime[1])) {
+                scheduledDepartureRawDt = qPlan.departureTime[1];
+                journeyDepartedDt = qPlan.departureTime[1];
+            }
             if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
                 checkedInAtVal = qPlan.checkedInAt[1];
+            }
+            if (!isNull(qPlan.expected_checkin_at[1]) AND isDate(qPlan.expected_checkin_at[1])) {
+                expectedCheckInDt = qPlan.expected_checkin_at[1];
+            }
+            hasOperationalCheckIn = (tripStarted AND isDate(checkedInAtVal));
+            if (hasOperationalCheckIn AND isDate(scheduledDepartureRawDt)) {
+                hasOperationalCheckIn = (dateCompare(checkedInAtVal, scheduledDepartureRawDt, "s") GTE 0);
+            }
+            if (hasOperationalCheckIn) {
                 actualCheckInLabel = dateTimeFormat(checkedInAtVal, "mmm d, yyyy h:nn tt");
                 actualCheckInUtc = formatUtcDate(checkedInAtVal);
                 elapsedCheckInLabel = formatElapsedCheckIn(checkedInAtVal);
+            } else if (tripStarted) {
+                checkedInAtVal = "";
+                elapsedCheckInLabel = "Awaiting first check-in after departure.";
+            } else {
+                checkedInAtVal = "";
+                elapsedCheckInLabel = "Monitoring begins at scheduled departure.";
+            }
+            isOvernightCheckIn = (hasOperationalCheckIn AND checkInContextVal EQ "overnight");
+            if (!tripStarted) {
+                statusLabel = "Scheduled";
+            }
+            if (!hasOperationalCheckIn) {
+                storedOvernightPauseMinutes = 0;
             }
 	            if (routeInstanceIdVal LTE 0) {
 	                out.MESSAGE = "No active trip";
@@ -526,9 +627,6 @@
 	                writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
 	                return out;
 	            }
-            if (qPlan.recordCount GT 0 AND !isNull(qPlan.departureTime[1]) AND isDate(qPlan.departureTime[1])) {
-                journeyDepartedDt = qPlan.departureTime[1];
-            }
             if (!len(streamTitle)) {
                 streamTitle = "Voyage " & streamRow.slug;
             }
@@ -541,12 +639,14 @@
 	            );
 	            tMap = getTickCount() - tSectionStart;
 	            tSectionStart = getTickCount();
-	            followTimeline = buildFollowCruiseTimeline(
-	                routeInstanceId=routeInstanceIdVal,
-	                ownerUserId=streamRow.owner_user_id,
-	                opts={}
-	            );
-	            tTimeline = getTickCount() - tSectionStart;
+		            followTimeline = buildFollowCruiseTimeline(
+		                routeInstanceId=routeInstanceIdVal,
+		                ownerUserId=streamRow.owner_user_id,
+		                opts={}
+		            );
+                    routeMapActiveLegOrder = (structKeyExists(routeMap, "active_leg_order") ? val(routeMap.active_leg_order) : 0);
+                    awaitingDepartureState = (tripStarted AND structKeyExists(routeMap, "awaiting_departure") AND routeMap.awaiting_departure EQ true);
+		            tTimeline = getTickCount() - tSectionStart;
 
             routeTotalMiles = roundTo1(routeMap.total_nm * 1.15078);
             routeTotalDays = (routeMap.total_days GT 0 ? routeMap.total_days : 0);
@@ -607,6 +707,7 @@
                 AND !isNull(qPlan.departureTime[1])
                 AND isDate(qPlan.departureTime[1])
                 AND len(nextStopLabelVal)
+                AND (!tripStarted OR routeMapActiveLegOrder GT 0)
                 AND isStruct(followTimeline)
                 AND structKeyExists(followTimeline, "legs")
                 AND isArray(followTimeline.legs)
@@ -637,6 +738,17 @@
                     if (!structKeyExists(nextStopLeg, "end_name")) {
                         continue;
                     }
+                    if (
+                        tripStarted
+                        AND routeMapActiveLegOrder GT 0
+                        AND (
+                            !structKeyExists(nextStopLeg, "leg_order")
+                            OR !isNumeric(nextStopLeg.leg_order)
+                            OR val(nextStopLeg.leg_order) NEQ routeMapActiveLegOrder
+                        )
+                    ) {
+                        continue;
+                    }
                     if (trim(toString(nextStopLeg.end_name)) NEQ nextStopLabelVal) {
                         continue;
                     }
@@ -652,12 +764,16 @@
                         activeLegEtaMinutes = int(round(val(nextStopLeg.hours) * 60));
                     }
                     currentLegStartedAt = "";
+                    currentLegStartedAtLocal = "";
                     priorLegCompletedAt = "";
+                    priorLegCompletedAtLocal = "";
                     if (structKeyExists(nextStopLeg, "leg_order") AND isNumeric(nextStopLeg.leg_order) AND val(nextStopLeg.leg_order) GT 0) {
                         qLegTiming = queryExecute(
                             "SELECT
                                 curr.leg_started_at AS current_leg_started_at,
-                                prev.completed_at AS prior_leg_completed_at
+                                COALESCE(CONVERT_TZ(curr.leg_started_at, 'UTC', :targetTimeZone), curr.leg_started_at) AS current_leg_started_at_local,
+                                prev.completed_at AS prior_leg_completed_at,
+                                COALESCE(CONVERT_TZ(prev.completed_at, 'UTC', :targetTimeZone), prev.completed_at) AS prior_leg_completed_at_local
                              FROM route_instance_leg_progress curr
                              LEFT JOIN route_instance_leg_progress prev
                                ON prev.route_instance_id = curr.route_instance_id
@@ -670,62 +786,120 @@
                             {
                                 routeInstanceId = { value = routeInstanceIdVal, cfsqltype = "cf_sql_integer" },
                                 ownerUserId = { value = streamRow.owner_user_id, cfsqltype = "cf_sql_integer" },
-                                legOrder = { value = val(nextStopLeg.leg_order), cfsqltype = "cf_sql_integer" }
+                                legOrder = { value = val(nextStopLeg.leg_order), cfsqltype = "cf_sql_integer" },
+                                targetTimeZone = { value = (len(departureTimeZoneVal) ? departureTimeZoneVal : "UTC"), cfsqltype = "cf_sql_varchar" }
                             },
                             { datasource = ds }
                         );
                         if (qLegTiming.recordCount GT 0) {
                             if (!isNull(qLegTiming.current_leg_started_at[1]) AND isDate(qLegTiming.current_leg_started_at[1])) {
                                 currentLegStartedAt = qLegTiming.current_leg_started_at[1];
+                                currentLegStartedAtLocal = currentLegStartedAt;
+                                if (
+                                    ucase(storedDepartureTimeZoneVal) EQ "UTC"
+                                    AND len(departureTimeZoneVal)
+                                    AND ucase(departureTimeZoneVal) NEQ "UTC"
+                                    AND !isNull(qLegTiming.current_leg_started_at_local[1])
+                                    AND isDate(qLegTiming.current_leg_started_at_local[1])
+                                ) {
+                                    currentLegStartedAtLocal = qLegTiming.current_leg_started_at_local[1];
+                                }
                             }
                             if (!isNull(qLegTiming.prior_leg_completed_at[1]) AND isDate(qLegTiming.prior_leg_completed_at[1])) {
                                 priorLegCompletedAt = qLegTiming.prior_leg_completed_at[1];
+                                priorLegCompletedAtLocal = priorLegCompletedAt;
+                                if (
+                                    ucase(storedDepartureTimeZoneVal) EQ "UTC"
+                                    AND len(departureTimeZoneVal)
+                                    AND ucase(departureTimeZoneVal) NEQ "UTC"
+                                    AND !isNull(qLegTiming.prior_leg_completed_at_local[1])
+                                    AND isDate(qLegTiming.prior_leg_completed_at_local[1])
+                                ) {
+                                    priorLegCompletedAtLocal = qLegTiming.prior_leg_completed_at_local[1];
+                                }
                             }
                         }
                     }
 
                     if (nextStopCumulativeMinutes GT 0) {
                         plannedNextStopEtaDt = dateAdd("n", nextStopCumulativeMinutes, nextStopEtaBaseDt);
-                        if (storedOvernightPauseMinutes GT 0) {
+                        if (tripStarted AND storedOvernightPauseMinutes GT 0) {
                             plannedNextStopEtaDt = dateAdd("n", storedOvernightPauseMinutes, plannedNextStopEtaDt);
                         }
                     }
 
-                    if (len(departureTimeZoneVal)) {
+                    hasValidCurrentLegStart = (tripStarted AND isDate(currentLegStartedAt));
+                    if (hasValidCurrentLegStart AND isDate(scheduledDepartureRawDt)) {
+                        hasValidCurrentLegStart = (dateCompare(currentLegStartedAt, scheduledDepartureRawDt, "s") GTE 0);
+                    }
+                    hasValidPriorLegCompletion = (tripStarted AND isDate(priorLegCompletedAt));
+                    if (hasValidPriorLegCompletion AND isDate(scheduledDepartureRawDt)) {
+                        hasValidPriorLegCompletion = (dateCompare(priorLegCompletedAt, scheduledDepartureRawDt, "s") GTE 0);
+                    }
+
+                    resumeDayStartDt = "";
+                    resumeAnchorDt = "";
+                    useResumedDayStartEtaBase = false;
+                    if (tripStarted AND storedOvernightPauseMinutes GT 0 AND hasOperationalCheckIn AND isDate(checkedInAtVal)) {
+                        resumeDayStartDt = createDateTime(
+                            year(checkedInAtVal),
+                            month(checkedInAtVal),
+                            day(checkedInAtVal),
+                            localDayStartRule.local_day_start_hour,
+                            localDayStartRule.local_day_start_minute,
+                            localDayStartRule.local_day_start_second
+                        );
+                        if (hasValidCurrentLegStart) {
+                            resumeAnchorDt = currentLegStartedAtLocal;
+                        } else if (hasValidPriorLegCompletion) {
+                            resumeAnchorDt = priorLegCompletedAtLocal;
+                        }
+                        if (
+                            isDate(resumeAnchorDt)
+                            AND isDate(resumeDayStartDt)
+                            AND dateCompare(resumeAnchorDt, resumeDayStartDt, "s") LT 0
+                            AND dateCompare(checkedInAtVal, resumeDayStartDt, "s") GTE 0
+                        ) {
+                            activeLegEtaBaseDt = resumeDayStartDt;
+                            useResumedDayStartEtaBase = true;
+                        }
+                    }
+
+                    if (!useResumedDayStartEtaBase AND tripStarted AND isOvernightCheckIn AND hasOperationalCheckIn AND len(departureTimeZoneVal)) {
                         try {
-                            if (isOvernightCheckIn AND isDate(checkedInAtVal)) {
-                                nextMorningResumeDt = dateAdd("d", 1, checkedInAtVal);
+                            if (isDate(expectedCheckInDt)) {
+                                nextMorningResumeDt = expectedCheckInDt;
                             } else {
-                                nextMorningResumeDt = now();
+                                nextMorningResumeDt = dateAdd("d", 1, checkedInAtVal);
+                                nextMorningResumeDt = createDateTime(
+                                    year(nextMorningResumeDt),
+                                    month(nextMorningResumeDt),
+                                    day(nextMorningResumeDt),
+                                    localDayStartRule.local_day_start_hour,
+                                    localDayStartRule.local_day_start_minute,
+                                    localDayStartRule.local_day_start_second
+                                );
                             }
-                            nextMorningResumeDt = createDateTime(
-                                year(nextMorningResumeDt),
-                                month(nextMorningResumeDt),
-                                day(nextMorningResumeDt),
-                                localDayStartRule.local_day_start_hour,
-                                localDayStartRule.local_day_start_minute,
-                                localDayStartRule.local_day_start_second
-                            );
                             if (isDate(nextMorningResumeDt)) {
                                 activeLegEtaBaseDt = nextMorningResumeDt;
                             }
-                            if (isOvernightCheckIn AND isDate(checkedInAtVal)) {
+                            if (isOvernightCheckIn AND hasOperationalCheckIn AND isDate(checkedInAtVal)) {
                                 overnightPauseMinutes = dateDiff("n", checkedInAtVal, nextMorningResumeDt);
                                 if (storedOvernightPauseMinutes LTE 0 AND isDate(plannedNextStopEtaDt) AND overnightPauseMinutes GT 0) {
                                     plannedNextStopEtaDt = dateAdd("n", overnightPauseMinutes, plannedNextStopEtaDt);
                                 }
                             }
                         } catch (any overnightEtaErr) {
-                            if (isDate(currentLegStartedAt)) {
-                                activeLegEtaBaseDt = currentLegStartedAt;
-                            } else if (isDate(priorLegCompletedAt)) {
-                                activeLegEtaBaseDt = priorLegCompletedAt;
+                            if (hasValidCurrentLegStart) {
+                                activeLegEtaBaseDt = currentLegStartedAtLocal;
+                            } else if (hasValidPriorLegCompletion) {
+                                activeLegEtaBaseDt = priorLegCompletedAtLocal;
                             }
                         }
-                    } else if (isDate(currentLegStartedAt)) {
-                        activeLegEtaBaseDt = currentLegStartedAt;
-                    } else if (isDate(priorLegCompletedAt)) {
-                        activeLegEtaBaseDt = priorLegCompletedAt;
+                    } else if (!useResumedDayStartEtaBase AND hasValidCurrentLegStart) {
+                        activeLegEtaBaseDt = currentLegStartedAtLocal;
+                    } else if (!useResumedDayStartEtaBase AND hasValidPriorLegCompletion) {
+                        activeLegEtaBaseDt = priorLegCompletedAtLocal;
                     }
 
                     if (activeLegEtaMinutes GT 0 AND isDate(activeLegEtaBaseDt)) {
@@ -764,7 +938,7 @@
                     : 0
             );
 
-            if (routeInstanceIdVal GT 0 AND len(departureTimeZoneVal) AND isStruct(followTimeline) AND structKeyExists(followTimeline, "legs") AND isArray(followTimeline.legs)) {
+            if (tripStarted AND routeInstanceIdVal GT 0 AND len(departureTimeZoneVal) AND isStruct(followTimeline) AND structKeyExists(followTimeline, "legs") AND isArray(followTimeline.legs)) {
                 localNowQuery = queryExecute(
                     "SELECT
                         CONVERT_TZ(UTC_TIMESTAMP(), 'UTC', :targetTimeZone) AS localNow,
@@ -1238,6 +1412,56 @@
 	            out.pinned = pinned;
 	            out.timeline = followTimeline;
 	            out.body = body;
+            if (!tripStarted) {
+                out.stream.status = "Scheduled";
+                out.topCards.status = "Scheduled";
+                out.topCards.last_checkin = "";
+                out.topCards.last_checkin_utc = "";
+                out.topCards.conditions = "Monitoring pending";
+                out.pinned.updated_label = "";
+                out.pinned.miles_today_nm = "";
+                out.sidebar.last_checkin = "";
+                out.sidebar.last_checkin_utc = "";
+                out.sidebar.monitoring_summary = "Monitoring starts at scheduled departure";
+                out.sidebar.monitor_state_text_html = "<strong>Monitoring pending</strong><br />The trip begins at the scheduled departure time.";
+                out.sidebar.monitor_state_label = "Pending";
+                out.body.page_subtitle = "Follow the scheduled departure and planned route timing before the trip is underway.";
+                out.body.journey_subtitle = "Scheduled departure pending.";
+                out.body.journey_checkin_meta = "Monitoring begins at scheduled departure.";
+                out.body.card_status_copy = "Monitoring starts at the scheduled departure time.";
+                out.body.card_location_copy = "Departure is scheduled and the trip has not started yet.";
+                out.body.card_destination_copy = "First planned stop after scheduled departure.";
+                out.body.card_arrival_copy = "Based on scheduled departure time plus planned leg duration.";
+                out.body.trip_summary_confidence = "Tracking confidence: Scheduled departure pending";
+                out.body.trip_summary_mode = "Trip mode: Scheduled departure pending";
+                out.body.trip_summary_safety = "Safety state: Monitoring not started";
+                out.body.family_confidence_subtitle = "The trip is scheduled and has not started yet.";
+                out.body.timeline_next_update = "At scheduled departure";
+                if (
+                    isStruct(out.timeline)
+                    AND structKeyExists(out.timeline, "summary")
+                    AND isStruct(out.timeline.summary)
+                ) {
+                    out.timeline.summary.effective_speed_kn = "";
+                }
+            } else if (!hasOperationalCheckIn) {
+                out.topCards.last_checkin = "";
+                out.topCards.last_checkin_utc = "";
+                out.pinned.updated_label = "";
+                out.sidebar.last_checkin = "";
+                out.sidebar.last_checkin_utc = "";
+                out.body.journey_checkin_meta = "Awaiting first check-in after departure.";
+            } else if (awaitingDepartureState) {
+                out.topCards.eta = "--";
+                out.topCards.eta_utc = "";
+                out.body.journey_subtitle = "Awaiting departure from the current stop.";
+                out.body.journey_checkin_meta = "Arrived at the current stop. The next leg has not started yet.";
+                out.body.card_location_copy = "The trip is paused at the current stop and awaiting the next departure.";
+                out.body.card_destination_copy = "Next planned stop after the next leg actually starts.";
+                out.body.card_arrival_copy = "ETA becomes available once the next leg starts.";
+                out.body.trip_summary_mode = "Trip mode: Awaiting departure";
+                out.body.timeline_next_update = "At next departure";
+            }
 	            writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
 	            return out;
 	        </cfscript>
@@ -1266,12 +1490,14 @@
             var followTimeline = { "summary"={}, "legs"=[], "meta"={} };
             var statusLabel = "Status Unavailable";
             var checkedInAtVal = "";
+            var expectedCheckInDt = "";
             var actualCheckInLabel = "";
             var actualCheckInUtc = "";
             var checkInContextVal = "";
             var isOvernightCheckIn = false;
             var storedOvernightPauseMinutes = 0;
             var departureTimeZoneVal = "";
+            var dailyStartLocalTimeVal = "";
             var storedDepartureTimeZoneVal = "";
             var returnTimeZoneVal = "";
             var storedReturnTimeZoneVal = "";
@@ -1298,6 +1524,14 @@
             var qLocalDeparture = queryNew("");
             var qLocalTripStart = queryNew("");
             var qLocalLegArrival = queryNew("");
+            var scheduledDepartureRawDt = "";
+            var hasOperationalCheckIn = false;
+            var hasValidCurrentLegStart = false;
+            var hasValidPriorLegCompletion = false;
+            var tripStartState = {};
+            var tripStarted = true;
+            var routeMapActiveLegOrder = 0;
+            var awaitingDepartureState = false;
             var i = 0;
 
             if (arguments.currentUserId LTE 0 OR arguments.floatPlanId LTE 0) {
@@ -1309,6 +1543,15 @@
             if (!canonicalPlan.SUCCESS) {
                 out.MESSAGE = canonicalPlan.MESSAGE;
                 return out;
+            }
+
+            tripStartState = ensureScheduledPlanOperationalStart(arguments.currentUserId, arguments.floatPlanId);
+            if (
+                structKeyExists(tripStartState, "SUCCESS")
+                AND tripStartState.SUCCESS
+                AND structKeyExists(tripStartState, "TRIP_STARTED")
+            ) {
+                tripStarted = (tripStartState.TRIP_STARTED EQ true);
             }
 
             qPlan = queryExecute(
@@ -1325,6 +1568,24 @@
                     returnTZ,
                     checkedInAt,
                     checkin_context,
+                    dailyStartLocalTime,
+                    (
+                        SELECT
+                            COALESCE(
+                                CONVERT_TZ(
+                                    m.expected_checkin_at,
+                                    'UTC',
+                                    NULLIF(COALESCE(NULLIF(floatplans.departureTZ, ''), NULLIF(floatplans.departTimezone, ''), 'UTC'), '')
+                                ),
+                                m.expected_checkin_at
+                            )
+                        FROM floatplan_monitoring m
+                        WHERE m.float_plan_id = floatplans.floatplanId
+                          AND m.is_monitoring_enabled = 1
+                          AND UPPER(TRIM(m.monitor_state)) <> 'CLOSED'
+                        ORDER BY m.id DESC
+                        LIMIT 1
+                    ) AS expected_checkin_at,
                     overnight_pause_minutes_total
                  FROM floatplans
                  WHERE floatplanId = :planId
@@ -1342,19 +1603,36 @@
                 return out;
             }
 
+            if (!isNull(qPlan.departureTime[1]) AND isDate(qPlan.departureTime[1])) {
+                scheduledDepartureRawDt = qPlan.departureTime[1];
+            }
             statusLabel = friendlyStatusLabel(isNull(qPlan.status[1]) ? "" : qPlan.status[1]);
+            if (!tripStarted) {
+                statusLabel = "Scheduled";
+            }
             out.heroVoyageStatus = statusLabel;
 
             if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
                 checkedInAtVal = qPlan.checkedInAt[1];
+            }
+            if (!isNull(qPlan.expected_checkin_at[1]) AND isDate(qPlan.expected_checkin_at[1])) {
+                expectedCheckInDt = qPlan.expected_checkin_at[1];
+            }
+            hasOperationalCheckIn = (tripStarted AND isDate(checkedInAtVal));
+            if (hasOperationalCheckIn AND isDate(scheduledDepartureRawDt)) {
+                hasOperationalCheckIn = (dateCompare(checkedInAtVal, scheduledDepartureRawDt, "s") GTE 0);
+            }
+            if (hasOperationalCheckIn) {
                 actualCheckInLabel = dateTimeFormat(checkedInAtVal, "mmm d, yyyy h:nn tt");
                 actualCheckInUtc = formatUtcDate(checkedInAtVal);
                 out.heroLastCheckIn = actualCheckInLabel;
                 out.heroLastCheckInUtc = actualCheckInUtc;
+            } else {
+                checkedInAtVal = "";
             }
 
             checkInContextVal = normalizeCheckInContext(isNull(qPlan.checkin_context[1]) ? "" : qPlan.checkin_context[1]);
-            isOvernightCheckIn = (checkInContextVal EQ "overnight");
+            isOvernightCheckIn = (hasOperationalCheckIn AND checkInContextVal EQ "overnight");
             storedOvernightPauseMinutes = (
                 !isNull(qPlan.overnight_pause_minutes_total[1]) AND isNumeric(qPlan.overnight_pause_minutes_total[1])
                     ? val(qPlan.overnight_pause_minutes_total[1])
@@ -1363,11 +1641,16 @@
             if (storedOvernightPauseMinutes LT 0) {
                 storedOvernightPauseMinutes = 0;
             }
+            if (!hasOperationalCheckIn) {
+                storedOvernightPauseMinutes = 0;
+            }
 
             departureTimeZoneVal = (isNull(qPlan.departureTZ[1]) ? "" : trim(toString(qPlan.departureTZ[1])));
             if (!len(departureTimeZoneVal)) {
                 departureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
             }
+            dailyStartLocalTimeVal = (isNull(qPlan.dailyStartLocalTime[1]) ? "" : trim(toString(qPlan.dailyStartLocalTime[1])));
+            localDayStartRule = loadOvernightTimingRule(dailyStartLocalTimeVal);
             storedDepartureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
             returnTimeZoneVal = (isNull(qPlan.returnTZ[1]) ? "" : trim(toString(qPlan.returnTZ[1])));
             if (!len(returnTimeZoneVal)) {
@@ -1425,6 +1708,8 @@
 
             routeMap = buildRouteMapData(canonicalPlan.ROUTE_INSTANCE_ID, arguments.currentUserId);
             followTimeline = buildFollowCruiseTimeline(canonicalPlan.ROUTE_INSTANCE_ID, arguments.currentUserId);
+            routeMapActiveLegOrder = (structKeyExists(routeMap, "active_leg_order") ? val(routeMap.active_leg_order) : 0);
+            awaitingDepartureState = (tripStarted AND structKeyExists(routeMap, "awaiting_departure") AND routeMap.awaiting_departure EQ true);
 
             nextStopLabelVal = (len(routeMap.next_stop_label) ? trim(toString(routeMap.next_stop_label)) : "");
             out.heroNextStop = (len(nextStopLabelVal) ? nextStopLabelVal : "n/a");
@@ -1433,6 +1718,7 @@
                 !isNull(qPlan.departureTime[1])
                 AND isDate(qPlan.departureTime[1])
                 AND len(nextStopLabelVal)
+                AND (!tripStarted OR routeMapActiveLegOrder GT 0)
                 AND isStruct(followTimeline)
                 AND structKeyExists(followTimeline, "legs")
                 AND isArray(followTimeline.legs)
@@ -1460,6 +1746,17 @@
                     if (!isStruct(nextStopLeg) OR !structKeyExists(nextStopLeg, "end_name")) {
                         continue;
                     }
+                    if (
+                        tripStarted
+                        AND routeMapActiveLegOrder GT 0
+                        AND (
+                            !structKeyExists(nextStopLeg, "leg_order")
+                            OR !isNumeric(nextStopLeg.leg_order)
+                            OR val(nextStopLeg.leg_order) NEQ routeMapActiveLegOrder
+                        )
+                    ) {
+                        continue;
+                    }
                     if (trim(toString(nextStopLeg.end_name)) NEQ nextStopLabelVal) {
                         continue;
                     }
@@ -1477,12 +1774,16 @@
                         activeLegEtaMinutes = int(round(val(nextStopLeg.hours) * 60));
                     }
                     currentLegStartedAt = "";
+                    currentLegStartedAtLocal = "";
                     priorLegCompletedAt = "";
+                    priorLegCompletedAtLocal = "";
                     if (structKeyExists(nextStopLeg, "leg_order") AND isNumeric(nextStopLeg.leg_order) AND val(nextStopLeg.leg_order) GT 0) {
                         qLegTiming = queryExecute(
                             "SELECT
                                 curr.leg_started_at AS current_leg_started_at,
-                                prev.completed_at AS prior_leg_completed_at
+                                COALESCE(CONVERT_TZ(curr.leg_started_at, 'UTC', :targetTimeZone), curr.leg_started_at) AS current_leg_started_at_local,
+                                prev.completed_at AS prior_leg_completed_at,
+                                COALESCE(CONVERT_TZ(prev.completed_at, 'UTC', :targetTimeZone), prev.completed_at) AS prior_leg_completed_at_local
                              FROM route_instance_leg_progress curr
                              LEFT JOIN route_instance_leg_progress prev
                                ON prev.route_instance_id = curr.route_instance_id
@@ -1495,58 +1796,114 @@
                             {
                                 routeInstanceId = { value = canonicalPlan.ROUTE_INSTANCE_ID, cfsqltype = "cf_sql_integer" },
                                 ownerUserId = { value = arguments.currentUserId, cfsqltype = "cf_sql_integer" },
-                                legOrder = { value = val(nextStopLeg.leg_order), cfsqltype = "cf_sql_integer" }
+                                legOrder = { value = val(nextStopLeg.leg_order), cfsqltype = "cf_sql_integer" },
+                                targetTimeZone = { value = (len(departureTimeZoneVal) ? departureTimeZoneVal : "UTC"), cfsqltype = "cf_sql_varchar" }
                             },
                             { datasource = ds }
                         );
                         if (qLegTiming.recordCount GT 0) {
                             if (!isNull(qLegTiming.current_leg_started_at[1]) AND isDate(qLegTiming.current_leg_started_at[1])) {
                                 currentLegStartedAt = qLegTiming.current_leg_started_at[1];
+                                currentLegStartedAtLocal = currentLegStartedAt;
+                                if (
+                                    ucase(storedDepartureTimeZoneVal) EQ "UTC"
+                                    AND len(departureTimeZoneVal)
+                                    AND ucase(departureTimeZoneVal) NEQ "UTC"
+                                    AND !isNull(qLegTiming.current_leg_started_at_local[1])
+                                    AND isDate(qLegTiming.current_leg_started_at_local[1])
+                                ) {
+                                    currentLegStartedAtLocal = qLegTiming.current_leg_started_at_local[1];
+                                }
                             }
                             if (!isNull(qLegTiming.prior_leg_completed_at[1]) AND isDate(qLegTiming.prior_leg_completed_at[1])) {
                                 priorLegCompletedAt = qLegTiming.prior_leg_completed_at[1];
+                                priorLegCompletedAtLocal = priorLegCompletedAt;
+                                if (
+                                    ucase(storedDepartureTimeZoneVal) EQ "UTC"
+                                    AND len(departureTimeZoneVal)
+                                    AND ucase(departureTimeZoneVal) NEQ "UTC"
+                                    AND !isNull(qLegTiming.prior_leg_completed_at_local[1])
+                                    AND isDate(qLegTiming.prior_leg_completed_at_local[1])
+                                ) {
+                                    priorLegCompletedAtLocal = qLegTiming.prior_leg_completed_at_local[1];
+                                }
                             }
                         }
                     }
 
                     if (nextStopCumulativeMinutes GT 0) {
                         plannedNextStopEtaDt = dateAdd("n", nextStopCumulativeMinutes, nextStopEtaBaseDt);
-                        if (storedOvernightPauseMinutes GT 0) {
+                        if (tripStarted AND storedOvernightPauseMinutes GT 0) {
                             plannedNextStopEtaDt = dateAdd("n", storedOvernightPauseMinutes, plannedNextStopEtaDt);
                         }
                     }
 
-                    if (len(departureTimeZoneVal)) {
+                    hasValidCurrentLegStart = (tripStarted AND isDate(currentLegStartedAt));
+                    if (hasValidCurrentLegStart AND isDate(scheduledDepartureRawDt)) {
+                        hasValidCurrentLegStart = (dateCompare(currentLegStartedAt, scheduledDepartureRawDt, "s") GTE 0);
+                    }
+                    hasValidPriorLegCompletion = (tripStarted AND isDate(priorLegCompletedAt));
+                    if (hasValidPriorLegCompletion AND isDate(scheduledDepartureRawDt)) {
+                        hasValidPriorLegCompletion = (dateCompare(priorLegCompletedAt, scheduledDepartureRawDt, "s") GTE 0);
+                    }
+
+                    resumeDayStartDt = "";
+                    resumeAnchorDt = "";
+                    useResumedDayStartEtaBase = false;
+                    if (tripStarted AND storedOvernightPauseMinutes GT 0 AND hasOperationalCheckIn AND isDate(checkedInAtVal)) {
+                        resumeDayStartDt = createDateTime(
+                            year(checkedInAtVal),
+                            month(checkedInAtVal),
+                            day(checkedInAtVal),
+                            localDayStartRule.local_day_start_hour,
+                            localDayStartRule.local_day_start_minute,
+                            localDayStartRule.local_day_start_second
+                        );
+                        if (hasValidCurrentLegStart) {
+                            resumeAnchorDt = currentLegStartedAtLocal;
+                        } else if (hasValidPriorLegCompletion) {
+                            resumeAnchorDt = priorLegCompletedAtLocal;
+                        }
+                        if (
+                            isDate(resumeAnchorDt)
+                            AND isDate(resumeDayStartDt)
+                            AND dateCompare(resumeAnchorDt, resumeDayStartDt, "s") LT 0
+                            AND dateCompare(checkedInAtVal, resumeDayStartDt, "s") GTE 0
+                        ) {
+                            activeLegEtaBaseDt = resumeDayStartDt;
+                            useResumedDayStartEtaBase = true;
+                        }
+                    }
+
+                    if (!useResumedDayStartEtaBase AND tripStarted AND isOvernightCheckIn AND hasOperationalCheckIn AND len(departureTimeZoneVal)) {
                         try {
-                            if (isOvernightCheckIn AND isDate(checkedInAtVal)) {
+                            if (isDate(expectedCheckInDt)) {
+                                nextMorningResumeDt = expectedCheckInDt;
+                            } else if (isDate(checkedInAtVal)) {
                                 nextMorningResumeDt = dateAdd("d", 1, checkedInAtVal);
-                            } else {
-                                nextMorningResumeDt = now();
+                                nextMorningResumeDt = createDateTime(
+                                    year(nextMorningResumeDt),
+                                    month(nextMorningResumeDt),
+                                    day(nextMorningResumeDt),
+                                    localDayStartRule.local_day_start_hour,
+                                    localDayStartRule.local_day_start_minute,
+                                    localDayStartRule.local_day_start_second
+                                );
                             }
-                            nextMorningResumeDt = createDateTime(
-                                year(nextMorningResumeDt),
-                                month(nextMorningResumeDt),
-                                day(nextMorningResumeDt),
-                                localDayStartRule.local_day_start_hour,
-                                localDayStartRule.local_day_start_minute,
-                                localDayStartRule.local_day_start_second
-                            );
                             if (isDate(nextMorningResumeDt)) {
                                 activeLegEtaBaseDt = nextMorningResumeDt;
                             }
-                            if (isOvernightCheckIn AND isDate(checkedInAtVal)) {
-                                overnightPauseMinutes = dateDiff("n", checkedInAtVal, nextMorningResumeDt);
-                                if (storedOvernightPauseMinutes LTE 0 AND isDate(plannedNextStopEtaDt) AND overnightPauseMinutes GT 0) {
-                                    plannedNextStopEtaDt = dateAdd("n", overnightPauseMinutes, plannedNextStopEtaDt);
-                                }
+                            overnightPauseMinutes = dateDiff("n", checkedInAtVal, nextMorningResumeDt);
+                            if (storedOvernightPauseMinutes LTE 0 AND isDate(plannedNextStopEtaDt) AND overnightPauseMinutes GT 0) {
+                                plannedNextStopEtaDt = dateAdd("n", overnightPauseMinutes, plannedNextStopEtaDt);
                             }
                         } catch (any overnightEtaErr) {
                             // Preserve additive behavior if overnight resume derivation fails.
                         }
-                    } else if (isDate(currentLegStartedAt)) {
-                        activeLegEtaBaseDt = currentLegStartedAt;
-                    } else if (isDate(priorLegCompletedAt)) {
-                        activeLegEtaBaseDt = priorLegCompletedAt;
+                    } else if (!useResumedDayStartEtaBase AND hasValidCurrentLegStart) {
+                        activeLegEtaBaseDt = currentLegStartedAtLocal;
+                    } else if (!useResumedDayStartEtaBase AND hasValidPriorLegCompletion) {
+                        activeLegEtaBaseDt = priorLegCompletedAtLocal;
                     }
 
                     if (activeLegEtaMinutes GT 0 AND isDate(activeLegEtaBaseDt)) {
@@ -1568,6 +1925,10 @@
             }
             if (len(etaUtc)) {
                 out.heroEtaUtc = etaUtc;
+            }
+            if (awaitingDepartureState) {
+                out.heroEta = "--";
+                out.heroEtaUtc = "";
             }
 
             out.SUCCESS = true;
@@ -3500,6 +3861,7 @@
                 "remaining_nm"=0,
                 "location_label"="",
                 "next_stop_label"="",
+                "awaiting_departure"=false,
                 "active_leg_order"=0,
                 "active_leg_start_name"="",
                 "active_leg_end_name"="",
@@ -3534,6 +3896,12 @@
             var endLatRaw = "";
             var endLngRaw = "";
             var legOrderVal = 0;
+            var activeStartedLegOrder = 0;
+            var pendingLegOrder = 0;
+            var progressStatusByLeg = {};
+            var progressStartedByLeg = {};
+            var progressKey = "";
+            var progressStatusVal = "";
 
             if (routeInstanceIdVal LTE 0) {
                 return out;
@@ -3705,22 +4073,57 @@
             };
 
             qProgress = queryExecute(
-                "SELECT MAX(leg_order) AS max_leg
+                "SELECT
+                    leg_order,
+                    UPPER(TRIM(status)) AS status_val,
+                    leg_started_at
                  FROM route_instance_leg_progress
                  WHERE route_instance_id = :routeInstanceId
                    AND user_id = :userId
-                   AND UPPER(TRIM(status)) = 'COMPLETED'",
+                 ORDER BY leg_order ASC, id DESC",
                 {
                     routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" },
                     userId = { value=arguments.ownerUserId, cfsqltype="cf_sql_integer" }
                 },
                 { datasource=ds }
             );
-            completedOrder = (qProgress.recordCount GT 0 AND !isNull(qProgress.max_leg[1]) ? val(qProgress.max_leg[1]) : 0);
+
+            for (i = 1; i LTE qProgress.recordCount; i++) {
+                progressKey = toString(isNull(qProgress.leg_order[i]) ? 0 : val(qProgress.leg_order[i]));
+                if (structKeyExists(progressStatusByLeg, progressKey)) {
+                    continue;
+                }
+                progressStatusVal = (isNull(qProgress.status_val[i]) ? "" : trim(toString(qProgress.status_val[i])));
+                progressStatusByLeg[progressKey] = progressStatusVal;
+                if (!isNull(qProgress.leg_started_at[i]) AND isDate(qProgress.leg_started_at[i])) {
+                    progressStartedByLeg[progressKey] = qProgress.leg_started_at[i];
+                }
+                if (progressStatusVal EQ "COMPLETED" AND val(qProgress.leg_order[i]) GT completedOrder) {
+                    completedOrder = val(qProgress.leg_order[i]);
+                }
+            }
 
             for (i = 1; i LTE qLegs.recordCount; i++) {
                 legOrderVal = (isNull(qLegs.leg_order[i]) ? 0 : val(qLegs.leg_order[i]));
                 if (legOrderVal LTE completedOrder) {
+                    continue;
+                }
+                if (pendingLegOrder LTE 0) {
+                    pendingLegOrder = legOrderVal;
+                }
+                progressKey = toString(legOrderVal);
+                progressStatusVal = (structKeyExists(progressStatusByLeg, progressKey) ? progressStatusByLeg[progressKey] : "NOT_STARTED");
+                if (
+                    activeStartedLegOrder LTE 0
+                    AND (
+                        structKeyExists(progressStartedByLeg, progressKey)
+                        OR progressStatusVal EQ "STARTED"
+                        OR progressStatusVal EQ "IN_PROGRESS"
+                    )
+                ) {
+                    activeStartedLegOrder = legOrderVal;
+                }
+                if (activeStartedLegOrder LTE 0 OR legOrderVal NEQ activeStartedLegOrder) {
                     continue;
                 }
                 out.active_leg_order = legOrderVal;
@@ -3739,6 +4142,10 @@
                     out.active_leg_end_lng = val(endLngRaw);
                 }
                 break;
+            }
+
+            if (completedOrder GT 0 AND pendingLegOrder GT 0 AND activeStartedLegOrder LTE 0) {
+                out.awaiting_departure = true;
             }
 
             if (completedOrder GT 0) {
@@ -5778,8 +6185,9 @@
     </cffunction>
 
     <cffunction name="loadOvernightTimingRule" access="private" returntype="struct" output="false">
+        <cfargument name="dailyStartLocalTime" type="string" required="false" default="">
         <cfscript>
-            var cacheKey = "fpwOvernightTimingRule";
+            var cacheKey = "fpwOvernightTimingRule:" & trim(arguments.dailyStartLocalTime);
             var overnightTimingService = "";
             if (structKeyExists(request, cacheKey) AND isStruct(request[cacheKey])) {
                 return duplicate(request[cacheKey]);
@@ -5789,7 +6197,7 @@
             } catch (any overnightTimingErr) {
                 overnightTimingService = createObject("component", "api.v1.OvernightTimingService").init();
             }
-            request[cacheKey] = overnightTimingService.getLocalDayStartRule();
+            request[cacheKey] = overnightTimingService.getLocalDayStartRule(arguments.dailyStartLocalTime);
             return duplicate(request[cacheKey]);
         </cfscript>
     </cffunction>

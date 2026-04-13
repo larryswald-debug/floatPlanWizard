@@ -202,6 +202,42 @@
     return converted ? (prefix + converted) : raw;
   }
 
+  function isAwaitingDepartureState(body, topCards, timeline) {
+    var tripSummaryMode = String(body && body.trip_summary_mode ? body.trip_summary_mode : "").trim();
+    var journeySubtitle = String(body && body.journey_subtitle ? body.journey_subtitle : "").trim();
+    var etaUtc = String(topCards && topCards.eta_utc ? topCards.eta_utc : "").trim();
+    var summary = (timeline && typeof timeline === "object" && timeline.summary && typeof timeline.summary === "object")
+      ? timeline.summary
+      : {};
+    var legs = Array.isArray(timeline && timeline.legs) ? timeline.legs : [];
+    var completedLegs = toInt(summary.completed_legs, 0);
+    var hasPendingLeg = false;
+    var i;
+    var leg = null;
+    var legOrder = 0;
+    var legProgress = null;
+
+    if (/awaiting departure/i.test(tripSummaryMode) || /awaiting departure/i.test(journeySubtitle)) {
+      return true;
+    }
+    if (completedLegs <= 0 || etaUtc) {
+      return false;
+    }
+
+    for (i = 0; i < legs.length; i += 1) {
+      leg = legs[i] && typeof legs[i] === "object" ? legs[i] : null;
+      if (!leg) continue;
+      legOrder = toInt(leg.leg_order, 0);
+      legProgress = safeNum(leg.progress && leg.progress.percent_complete);
+      if (legOrder > completedLegs && (legProgress === null || legProgress < 100)) {
+        hasPendingLeg = true;
+        break;
+      }
+    }
+
+    return hasPendingLeg;
+  }
+
   function updateSidebarLastCheckinFromPosts(posts) {
     var sidebar = state.bootstrap && state.bootstrap.sidebar ? state.bootstrap.sidebar : {};
     var list = Array.isArray(posts) ? posts : [];
@@ -274,11 +310,13 @@
     var locationLabel = String(topCards.location_label || (map.current && map.current.label ? map.current.label : "") || "").trim();
     var checkinMeta = String(body.journey_checkin_meta || "").trim();
     var cardCheckinMeta = checkinMeta.replace(/\s*Next update expected tomorrow morning\.\s*/i, "").trim();
+    var isAwaitingDeparture = isAwaitingDepartureState(body, topCards, timeline);
     var activeLeg = findActiveTimelineLeg(
       legs,
       locationLabel,
       String(topCards.next_stop || "").trim(),
-      summary
+      summary,
+      isAwaitingDeparture
     );
     var completedLegs = toInt(summary && summary.completed_legs, 0);
     var hasActiveLeg = !!activeLeg && completedLegs < legs.length;
@@ -314,6 +352,9 @@
     if (isOvernightState && locationLabel && cardCheckinMeta) {
       currentStopValue = locationLabel;
       currentStopMeta = cardCheckinMeta;
+    } else if (isAwaitingDeparture) {
+      currentStopValue = locationLabel || "—";
+      currentStopMeta = "Awaiting departure for the next leg.";
     } else if (hasActiveLeg && nextStop && effectiveSpeed !== null && effectiveSpeed > 0) {
       currentStopValue = "Underway to " + nextStop;
       currentStopMeta = "Making way at " + String(effectiveSpeed) + " kn";
@@ -324,7 +365,7 @@
     setHookText("stream-glance-checkin", currentStopValue);
     setHookText("stream-glance-checkin-meta", currentStopMeta);
     setHookText("stream-glance-next-stop", nextStop);
-    setHookText("stream-glance-next-stop-meta", nextStopEtaLabel === "—" ? "—" : ("ETA " + nextStopEtaLabel));
+    setHookText("stream-glance-next-stop-meta", isAwaitingDeparture ? "Awaiting departure" : (nextStopEtaLabel === "—" ? "—" : ("ETA " + nextStopEtaLabel)));
   }
 
   function formatDayCountLabel(days) {
@@ -377,7 +418,8 @@
     var nextStop = String(topCards.next_stop || "").trim();
     var etaUtc = String(topCards.eta_utc || "").trim();
     var etaLabel = "—";
-    var progressPct = computeJourneyProgressPct(summary, legs, currentLocation, nextStop);
+    var isAwaitingDeparture = isAwaitingDepartureState(body, topCards, timeline);
+    var progressPct = computeJourneyProgressPct(summary, legs, currentLocation, nextStop, isAwaitingDeparture);
 
     legs.forEach(function (leg) {
       var legProgress = safeNum(leg && leg.progress ? leg.progress.percent_complete : null);
@@ -391,13 +433,13 @@
 
     setHookText("today-progress-metric", (pinnedMilesTodayNm === null ? completedMilesNm : pinnedMilesTodayNm).toFixed(1) + " nm");
     setHookText("today-progress-location", "Current location: " + String(topCards.location_label || "").trim());
-    setHookText("today-progress-eta", etaLabel === "—" ? "—" : ("Estimated arrival: " + etaLabel));
+    setHookText("today-progress-eta", isAwaitingDeparture ? "Awaiting departure" : (etaLabel === "—" ? "—" : ("Estimated arrival: " + etaLabel)));
     setHookWidth("today-progress-fill", progressPct);
     setHookText("latest-photos-count", String(photoCount) + " recent " + (photoCount === 1 ? "moment" : "moments") + " shared");
     setHookText("trip-summary-metric", totalHoursText === "n/a" ? "n/a" : (totalHoursText + " total"));
     setHookText("trip-summary-distance", miles === null ? "0" : miles.toFixed(1) + " mi");
     setHookText("trip-summary-confidence", body.trip_summary_confidence);
-    setHookText("trip-summary-mode", body.trip_summary_mode);
+    setHookText("trip-summary-mode", isAwaitingDeparture ? "Trip mode: Awaiting departure" : body.trip_summary_mode);
     setHookText("trip-summary-safety", body.trip_summary_safety);
     renderLatestPhotoRow(posts);
   }
@@ -437,7 +479,7 @@
     setHookText("timeline-next-update", body.timeline_next_update);
   }
 
-  function findActiveTimelineLeg(legs, currentLabel, nextStopLabel, summary) {
+  function findActiveTimelineLeg(legs, currentLabel, nextStopLabel, summary, awaitingDeparture) {
     var list = Array.isArray(legs) ? legs : [];
     var currentName = String(currentLabel || "").trim().toLowerCase();
     var nextName = String(nextStopLabel || "").trim().toLowerCase();
@@ -448,6 +490,7 @@
     var legEndName = "";
 
     if (!list.length) return null;
+    if (awaitingDeparture) return null;
 
     if (nextName && nextName !== "n/a") {
       for (i = 0; i < list.length; i += 1) {
@@ -477,11 +520,11 @@
     return list[0];
   }
 
-  function computeJourneyProgressPct(summary, legs, currentLabel, nextStopLabel) {
+  function computeJourneyProgressPct(summary, legs, currentLabel, nextStopLabel, awaitingDeparture) {
     var list = Array.isArray(legs) ? legs : [];
     var totalLegs = list.length;
     var completedLegs = toInt(summary && summary.completed_legs, 0);
-    var activeLeg = findActiveTimelineLeg(list, currentLabel, nextStopLabel, summary);
+    var activeLeg = findActiveTimelineLeg(list, currentLabel, nextStopLabel, summary, awaitingDeparture);
     var activeProgress = safeNum(activeLeg && activeLeg.progress ? activeLeg.progress.percent_complete : 0);
 
     if (!totalLegs) return null;
@@ -516,12 +559,13 @@
     var endWeather = legWeather.end || {};
     var currentLocation = String(map.current && map.current.label ? map.current.label : "").trim();
     var completedLegs = toInt(summary.completed_legs, 0);
-    var activeLeg = findActiveTimelineLeg(legs, currentLocation, nextStop, summary);
+    var isAwaitingDeparture = isAwaitingDepartureState(body, topCards, timeline);
+    var activeLeg = findActiveTimelineLeg(legs, currentLocation, nextStop, summary, isAwaitingDeparture);
     var activeLegLabel = String(activeLeg && activeLeg.label ? activeLeg.label : "").trim();
     var activeLegStartName = String(activeLeg && activeLeg.start_name ? activeLeg.start_name : currentLocation).trim();
     var activeLegEndName = String(activeLeg && activeLeg.end_name ? activeLeg.end_name : nextStop).trim();
     var effectiveSpeedKn = safeNum(summary.effective_speed_kn);
-    var progressPct = computeJourneyProgressPct(summary, legs, currentLocation, nextStop);
+    var progressPct = computeJourneyProgressPct(summary, legs, currentLocation, nextStop, isAwaitingDeparture);
     var departedLocalMeta = formatSidebarLastCheckinLabel(body.journey_departed_meta_utc || "") || "—";
     var nextStopLocalEta = formatSidebarLastCheckinLabel(topCards.eta_utc || "") || "—";
     var startSummary = String(startWeather.summary || "").trim();
@@ -563,13 +607,15 @@
       setHookText("live-chip", "Live now · Updated " + lastCheckinLabel);
     }
 
-    setHookText("journey-subtitle", body.journey_subtitle);
+    setHookText("journey-subtitle", isAwaitingDeparture ? "Awaiting departure from the current stop." : body.journey_subtitle);
     setHookText("journey-status-pill", status);
     setHookWidth("journey-progress-fill", progressPct);
     setHookText("journey-departed-value", body.journey_departed_value);
     setHookText("journey-departed-meta", departedLocalMeta);
-    setHookText("journey-current-leg-value", activeLegLabel);
-    if (activeLeg && completedLegs < legs.length && effectiveSpeedKn !== null && effectiveSpeedKn > 0) {
+    setHookText("journey-current-leg-value", isAwaitingDeparture ? "Awaiting Departure" : activeLegLabel);
+    if (isAwaitingDeparture) {
+      setHookText("journey-current-leg-meta", "Next leg has not started yet.");
+    } else if (activeLeg && completedLegs < legs.length && effectiveSpeedKn !== null && effectiveSpeedKn > 0) {
       setHookText("journey-current-leg-meta", "Making way at " + String(effectiveSpeedKn) + " kn");
     }
     setHookText("journey-next-stop-value", nextStop);
@@ -582,13 +628,13 @@
     setHookText("card-status-copy", body.card_status_copy);
     setHookText("card-location-title", String(topCards.location_label || "").trim());
     setHookText("card-location-value", nextStop);
-    setHookText("card-location-copy", body.card_location_copy);
+    setHookText("card-location-copy", isAwaitingDeparture ? "The trip is paused at the current stop and awaiting the next departure." : body.card_location_copy);
     setHookText("card-destination-title", nextStop);
     setHookText("card-destination-value", topCards.next_stop);
     setHookText("card-destination-copy", body.card_destination_copy);
     setHookText("card-arrival-title", formatSidebarLastCheckinLabel(topCards.eta_utc || "") || "—");
     setHookText("card-arrival-value", nextStop);
-    setHookText("card-arrival-copy", body.card_arrival_copy);
+    setHookText("card-arrival-copy", isAwaitingDeparture ? "Departure has not started for the next leg yet." : body.card_arrival_copy);
     setHookText("card-conditions-title", conditionsTitle);
     setHookText("card-conditions-value", conditionsValue);
     setHookText("card-conditions-copy", conditionsCopy);
@@ -1229,7 +1275,7 @@
       password: password,
       t: state.token
     }).then(function (res) {
-      state.followerToken = String(res.follower_token || "");
+      state.followerToken = String(res.follower_token || res.FOLLOWER_TOKEN || "");
       cacheFollowerToken(state.followerToken);
       if (dom.followActionBtn) dom.followActionBtn.textContent = "Following";
       return state.followerToken;

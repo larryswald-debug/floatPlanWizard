@@ -2,7 +2,9 @@ component extends="testbox.system.BaseSpec" output="false" {
 
   function beforeAll() {
     variables.ctx = {
-      createdPlanIds = []
+      createdPlanIds = [],
+      createdRouteCodes = [],
+      createdVesselIds = []
     };
 
     if ( structKeyExists( CGI, "SCRIPT_NAME" ) && findNoCase( "/testbox/", CGI.SCRIPT_NAME ) ) {
@@ -27,6 +29,10 @@ component extends="testbox.system.BaseSpec" output="false" {
 
     ensureSessionUser();
     variables.ctx.sessionReady = !structKeyExists( variables.ctx, "sessionError" );
+    variables.ctx.monitorService = new fpw.api.v1.monitor().init();
+    variables.ctx.apiSupport = new fpw.tests.support.FpwApiSupport().init( baseUrl = variables.ctx.baseUrl & "/fpw" );
+    variables.ctx.cleanupSupport = new fpw.tests.support.FpwCleanupSupport().init( variables.ctx.apiSupport );
+    variables.ctx.namingSupport = new fpw.tests.support.FpwNamingSupport();
   }
 
   function afterAll() {
@@ -35,7 +41,18 @@ component extends="testbox.system.BaseSpec" output="false" {
     }
 
     for ( var i = 1; i LTE arrayLen( variables.ctx.createdPlanIds ); i++ ) {
+      deleteMonitoringRows( variables.ctx.createdPlanIds[ i ] );
       floatPlanPost( "delete", { floatPlanId = variables.ctx.createdPlanIds[ i ] } );
+    }
+    for ( var j = arrayLen( variables.ctx.createdRouteCodes ); j GTE 1; j-- ) {
+      try {
+        variables.ctx.cleanupSupport.cleanupRoute( variables.ctx.createdRouteCodes[ j ] );
+      } catch ( any ignoredRouteCleanup ) {}
+    }
+    for ( var k = arrayLen( variables.ctx.createdVesselIds ); k GTE 1; k-- ) {
+      try {
+        variables.ctx.cleanupSupport.cleanupVessel( variables.ctx.createdVesselIds[ k ] );
+      } catch ( any ignoredVesselCleanup ) {}
     }
   }
 
@@ -73,9 +90,39 @@ component extends="testbox.system.BaseSpec" output="false" {
         var hasExpectedSendFailure = ( sendCode EQ "NO_CONTACTS" || sendCode EQ "NO_EMAILS" || findNoCase( "contact", sendMessage ) GT 0 );
         expect( hasExpectedSendFailure ).toBeTrue( "Unexpected send failure reason: #serializeJSON(sendRes)#" );
 
-        var checkinRes = floatPlanPost( "checkin", { floatPlanId = plan.planId } );
-        expect( pickBool( checkinRes, "SUCCESS" ) ).toBeTrue( "checkin failed: #serializeJSON(checkinRes)#" );
-        expect( val( pickFirst( checkinRes, [ "FLOATPLANID", "floatPlanId", "id" ], 0 ) ) ).toBe( plan.planId );
+        var invalidCheckinRes = floatPlanPost( "checkin", { floatPlanId = plan.planId } );
+        expect( pickBool( invalidCheckinRes, "SUCCESS" ) ).toBeFalse( "route-less draft check-in should fail: #serializeJSON(invalidCheckinRes)#" );
+        expect( uCase( toString( pickFirst( invalidCheckinRes, [ "ERROR", "error" ], "" ) ) ) ).toBe( "NO_ACTIVE_PLAN" );
+
+        var routePlan = createRouteLinkedPlan( "active-checkin" );
+        var activeDepartureAt = dateAdd( "h", -1, now() );
+        var activeReturnAt = dateAdd( "h", 6, activeDepartureAt );
+        expect( routePlan.planId ).toBeGT( 0, "Unable to create route-backed plan: #serializeJSON(routePlan)#" );
+        setPlanSchedule( routePlan.planId, dtString( activeDepartureAt ), dtString( activeReturnAt ), "US/Eastern" );
+        markPlanActive( routePlan.planId );
+        var startMonitoringRes = variables.ctx.monitorService.startMonitoringForFloatPlan( routePlan.planId, "active_route" );
+        expect( pickBool( startMonitoringRes, "SUCCESS" ) ).toBeTrue( "start monitoring failed: #serializeJSON(startMonitoringRes)#" );
+
+        var checkinRes = floatPlanPost( "checkin", {
+          floatPlanId = routePlan.planId,
+          status = "On Track",
+          note = "Route-backed lifecycle check-in"
+        } );
+        expect( pickBool( checkinRes, "SUCCESS" ) ).toBeTrue( "active route-backed check-in failed: #serializeJSON(checkinRes)#" );
+        queryExecute(
+          "UPDATE floatplans
+           SET `status` = 'CLOSED',
+               checkedInAt = UTC_TIMESTAMP(),
+               checkin_context = NULL,
+               closedAt = UTC_TIMESTAMP(),
+               lastUpdateStatus = UTC_TIMESTAMP()
+           WHERE floatplanId = :floatPlanId",
+          {
+            floatPlanId = { value = routePlan.planId, cfsqltype = "cf_sql_integer" }
+          },
+          { datasource = "fpw" }
+        );
+        deleteMonitoringRows( routePlan.planId );
 
         var cloneRes = floatPlanPost( "clone", { floatPlanId = plan.planId } );
         expect( pickBool( cloneRes, "SUCCESS" ) ).toBeTrue( "clone failed: #serializeJSON(cloneRes)#" );
@@ -92,24 +139,61 @@ component extends="testbox.system.BaseSpec" output="false" {
         forgetCreatedPlanId( plan.planId );
       } );
 
-      it( "covers bulk-delete guardrails", function() {
+      it( "routes Arrived through the existing close path and closes monitoring", function() {
         if ( !variables.ctx.sessionReady ) {
           skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
         }
 
-        var invalidTargetRes = floatPlanPost( "deleteallbyuser", { targetUserId = 0 } );
-        expect( pickBool( invalidTargetRes, "SUCCESS" ) ).toBeFalse( "deleteallbyuser should reject missing target user id: #serializeJSON(invalidTargetRes)#" );
-        expect( uCase( toString( pickFirst( invalidTargetRes, [ "ERROR", "error" ], "" ) ) ) ).toBe( "INVALID_USER_ID" );
+        var plan = createRouteLinkedPlan( "arrived-lifecycle" );
+        expect( plan.planId ).toBeGT( 0, "Unable to create draft plan: #serializeJSON(plan)#" );
 
-        var noPlansRes = floatPlanPost( "deleteallbyuser", { targetUserId = 999999 } );
-        expect( pickBool( noPlansRes, "SUCCESS" ) ).toBeTrue( "deleteallbyuser for empty user should succeed: #serializeJSON(noPlansRes)#" );
-        expect( val( pickFirst( noPlansRes, [ "DELETED_COUNT", "deleted_count" ], 0 ) ) ).toBe( 0 );
+        setPlanSchedule( plan.planId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
+        markPlanActive( plan.planId );
+        var startMonitoringRes = variables.ctx.monitorService.startMonitoringForFloatPlan( plan.planId, "active_route" );
+        expect( pickBool( startMonitoringRes, "SUCCESS" ) ).toBeTrue( "start monitoring failed: #serializeJSON(startMonitoringRes)#" );
+
+        var arrivedRes = floatPlanPost( "checkin", {
+          floatPlanId = plan.planId,
+          status = "Arrived",
+          note = "Arrived through Active Cruise"
+        } );
+        var planRow = loadPlanRow( plan.planId );
+        var monitoringRow = loadMonitoringRow( plan.planId );
+
+        expect( pickBool( arrivedRes, "SUCCESS" ) ).toBeTrue( "Arrived close failed: #serializeJSON(arrivedRes)#" );
+        expect( planRow.status_value ).toBe( "CLOSED" );
+        expect( planRow.checkin_context ).toBe( "" );
+        expect( isDate( planRow.closed_at ) ).toBeTrue();
+        expect( monitoringRow.monitor_state ).toBe( "CLOSED" );
+        expect( monitoringRow.is_monitoring_enabled ).toBeFalse();
+      } );
+
+      it( "covers bulk-delete guardrails", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
 
         var originalSessionUser = structKeyExists( session, "user" ) && isStruct( session.user ) ? duplicate( session.user ) : {};
         try {
           if ( !structKeyExists( session, "user" ) || !isStruct( session.user ) ) {
             session.user = {};
           }
+          session.user.userId = 9999;
+          session.user.id = 9999;
+          session.user.USERID = 9999;
+
+          var invalidTargetRes = floatPlanPost( "deleteallbyuser", { targetUserId = 0 } );
+          expect( pickBool( invalidTargetRes, "SUCCESS" ) ).toBeFalse( "deleteallbyuser should reject missing target user id before auth: #serializeJSON(invalidTargetRes)#" );
+          expect( uCase( toString( pickFirst( invalidTargetRes, [ "ERROR", "error" ], "" ) ) ) ).toBe( "INVALID_USER_ID" );
+
+          session.user.userId = 187;
+          session.user.id = 187;
+          session.user.USERID = 187;
+
+          var noPlansRes = floatPlanPost( "deleteallbyuser", { targetUserId = 999999 } );
+          expect( pickBool( noPlansRes, "SUCCESS" ) ).toBeTrue( "deleteallbyuser for empty user should succeed: #serializeJSON(noPlansRes)#" );
+          expect( val( pickFirst( noPlansRes, [ "DELETED_COUNT", "deleted_count" ], 0 ) ) ).toBe( 0 );
+
           session.user.userId = 9999;
           session.user.id = 9999;
           session.user.USERID = 9999;
@@ -199,6 +283,66 @@ component extends="testbox.system.BaseSpec" output="false" {
     };
   }
 
+  private struct function createRouteLinkedPlan( required string scenarioSlug ) {
+    var prefix = variables.ctx.namingSupport.buildPrefix( "float-plan-actions", arguments.scenarioSlug );
+    var vesselPayload = variables.ctx.apiSupport.saveVessel( {
+      vesselId = 0,
+      vesselName = variables.ctx.namingSupport.buildName( prefix, "Actions Vessel" ),
+      type = "Cruiser",
+      length = 34,
+      color = "White"
+    } );
+    var vesselId = val( vesselPayload.VESSELID ?: 0 );
+    var options = variables.ctx.apiSupport.routeBuilder( "routegen_getoptions", {
+      template_code = "GULF-WEST",
+      direction = "CCW"
+    } );
+    var generate = {};
+    var routeCode = "";
+    var buildPayload = {};
+    var planId = 0;
+
+    expect( pickBool( vesselPayload, "SUCCESS" ) ).toBeTrue( serializeJSON( vesselPayload ) );
+    expect( pickBool( options, "SUCCESS" ) ).toBeTrue( serializeJSON( options ) );
+
+    generate = variables.ctx.apiSupport.routeBuilder( "routegen_generate", {
+      route_name = variables.ctx.namingSupport.buildName( prefix, "Actions Route" ),
+      template_code = "GULF-WEST",
+      direction = "CCW",
+      start_segment_id = options.DATA.startOptions[ 1 ].segment_id,
+      end_segment_id = options.DATA.endOptions[ arrayLen( options.DATA.endOptions ) ].segment_id,
+      start_location_label = options.DATA.startOptions[ 1 ].label,
+      end_location_label = options.DATA.endOptions[ arrayLen( options.DATA.endOptions ) ].label,
+      start_date = dateFormat( now(), "yyyy-mm-dd" ),
+      optional_stop_flags = [ "ship_island_out_and_back" ]
+    } );
+    expect( pickBool( generate, "SUCCESS" ) ).toBeTrue( serializeJSON( generate ) );
+
+    routeCode = trim( toString( generate.ROUTE_CODE ?: generate.DATA.route_code ?: "" ) );
+    buildPayload = variables.ctx.apiSupport.routeBuilder( "buildFloatPlansFromRoute", {
+      routeCode = routeCode,
+      mode = "DAILY",
+      vesselId = vesselId,
+      rebuild = 0
+    } );
+    expect( pickBool( buildPayload, "SUCCESS" ) ).toBeTrue( serializeJSON( buildPayload ) );
+
+    planId = val( buildPayload.FLOATPLAN_IDS[ 1 ] ?: 0 );
+    expect( planId ).toBeGT( 0, serializeJSON( buildPayload ) );
+
+    arrayAppend( variables.ctx.createdVesselIds, vesselId );
+    arrayAppend( variables.ctx.createdRouteCodes, routeCode );
+    for ( var id in buildPayload.FLOATPLAN_IDS ) {
+      rememberCreatedPlanId( val( id ) );
+    }
+
+    return {
+      planId = planId,
+      routeCode = routeCode,
+      vesselId = vesselId
+    };
+  }
+
   private void function rememberCreatedPlanId( required numeric planId ) {
     if ( arguments.planId LTE 0 ) return;
     if ( arrayFind( variables.ctx.createdPlanIds, arguments.planId ) EQ 0 ) {
@@ -211,6 +355,109 @@ component extends="testbox.system.BaseSpec" output="false" {
     if ( idx GT 0 ) {
       arrayDeleteAt( variables.ctx.createdPlanIds, idx );
     }
+  }
+
+  private void function markPlanActive( required numeric planId ) {
+    queryExecute(
+      "UPDATE floatplans
+       SET `status` = 'ACTIVE',
+           activatedAt = UTC_TIMESTAMP(),
+           checkedInAt = NULL,
+           checkin_context = NULL,
+           closedAt = NULL,
+           lastUpdateStatus = UTC_TIMESTAMP()
+       WHERE floatplanId = :floatPlanId",
+      {
+        floatPlanId = { value = arguments.planId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
+  private void function setPlanSchedule(
+    required numeric planId,
+    required string departureLocal,
+    required string returnLocal,
+    required string timeZoneId
+  ) {
+    queryExecute(
+      "UPDATE floatplans
+       SET departureTime = CONVERT_TZ(:departureLocal, :timeZoneId, 'UTC'),
+           departTimezone = :timeZoneId,
+           departureTZ = :timeZoneId,
+           returnTime = CONVERT_TZ(:returnLocal, :timeZoneId, 'UTC'),
+           returnTimezone = :timeZoneId,
+           returnTZ = :timeZoneId,
+           checkedInAt = NULL,
+           checkin_context = NULL,
+           closedAt = NULL,
+           lastUpdateStatus = UTC_TIMESTAMP()
+       WHERE floatplanId = :floatPlanId",
+      {
+        departureLocal = { value = arguments.departureLocal, cfsqltype = "cf_sql_timestamp" },
+        returnLocal = { value = arguments.returnLocal, cfsqltype = "cf_sql_timestamp" },
+        timeZoneId = { value = arguments.timeZoneId, cfsqltype = "cf_sql_varchar" },
+        floatPlanId = { value = arguments.planId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
+  private struct function loadPlanRow( required numeric planId ) {
+    var qPlan = queryExecute(
+      "SELECT
+          UPPER(TRIM(`status`)) AS status_value,
+          checkin_context,
+          closedAt
+       FROM floatplans
+       WHERE floatplanId = :floatPlanId
+       LIMIT 1",
+      {
+        floatPlanId = { value = arguments.planId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    expect( qPlan.recordCount ).toBe( 1 );
+    return {
+      status_value = trim( toString( qPlan.status_value[ 1 ] ) ),
+      checkin_context = isNull( qPlan.checkin_context[ 1 ] ) ? "" : trim( toString( qPlan.checkin_context[ 1 ] ) ),
+      closed_at = isNull( qPlan.closedAt[ 1 ] ) ? "" : qPlan.closedAt[ 1 ]
+    };
+  }
+
+  private struct function loadMonitoringRow( required numeric planId ) {
+    var qRow = queryExecute(
+      "SELECT monitor_state, is_monitoring_enabled
+       FROM floatplan_monitoring
+       WHERE float_plan_id = :floatPlanId
+       LIMIT 1",
+      {
+        floatPlanId = { value = arguments.planId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    expect( qRow.recordCount ).toBe( 1 );
+    return {
+      monitor_state = trim( toString( qRow.monitor_state[ 1 ] ) ),
+      is_monitoring_enabled = val( qRow.is_monitoring_enabled[ 1 ] ) NEQ 0
+    };
+  }
+
+  private void function deleteMonitoringRows( required numeric planId ) {
+    queryExecute(
+      "DELETE FROM floatplan_monitor_events WHERE float_plan_id = :floatPlanId",
+      {
+        floatPlanId = { value = arguments.planId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "DELETE FROM floatplan_monitoring WHERE float_plan_id = :floatPlanId",
+      {
+        floatPlanId = { value = arguments.planId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
   }
 
   private void function ensureSessionUser() {
