@@ -4034,6 +4034,8 @@
             out.fuel_source = trim(toString(fuelMeta.fuel_source));
             out.fuel_key = trim(toString(fuelMeta.fuel_key));
 
+            usingUserFuel = (out.fuel_source EQ "route_inputs" OR out.fuel_source EQ "route_inputs_alias");
+
             if (paceVal EQ "BALANCED") {
                 if (resolvedMaxSpeedVal GT 0 AND resolvedEffectiveSpeedVal GT 0) {
                     out.pace_ratio = roundTo2(resolvedEffectiveSpeedVal / resolvedMaxSpeedVal);
@@ -4041,16 +4043,17 @@
                 if (resolvedEffectiveSpeedVal GT 0 AND mostEffSpeedVal GT 0) {
                     out.speed_source = "vessel_most_efficient";
                 }
-                out.fuel_burn_gph = (mostEffBurnVal GT 0 ? roundTo2(mostEffBurnVal) : 0);
-                out.fuel_source = (mostEffBurnVal GT 0 ? "vessel_most_efficient" : "missing");
-                out.fuel_key = "vessel_gph_at_most_efficient_speed";
+                if (!usingUserFuel) {
+                    out.fuel_burn_gph = (mostEffBurnVal GT 0 ? roundTo2(mostEffBurnVal) : 0);
+                    out.fuel_source = (mostEffBurnVal GT 0 ? "vessel_most_efficient" : "missing");
+                    out.fuel_key = "vessel_gph_at_most_efficient_speed";
+                    out.burn_model = "most_efficient";
+                }
                 out.max_burn_for_estimate = out.fuel_burn_gph;
-                out.burn_model = "most_efficient";
                 if (out.max_burn_for_estimate LT 0) out.max_burn_for_estimate = 0;
                 return out;
             }
 
-            usingUserFuel = (out.fuel_source EQ "route_inputs" OR out.fuel_source EQ "route_inputs_alias");
             out.max_burn_for_estimate = out.fuel_burn_gph;
 
             if (!usingUserFuel AND resolvedEffectiveSpeedVal GT 0 AND mostEffSpeedVal GT 0 AND mostEffBurnVal GT 0) {
@@ -6036,8 +6039,9 @@
             if (paceVal EQ "BALANCED" AND structKeyExists(arguments, "mostEfficientSpeedKn")) {
                 mostEffVal = val(arguments.mostEfficientSpeedKn);
                 if (mostEffVal GT 60) mostEffVal = 60;
-                if (mostEffVal LT 1) return 0;
-                return roundTo2(mostEffVal);
+                if (mostEffVal GTE 1) {
+                    return roundTo2(mostEffVal);
+                }
             }
             if (factorVal LTE 0) factorVal = 0.25;
             effectiveSpeed = maxSpeedVal * factorVal;
@@ -6353,7 +6357,7 @@
             var reserveGallonsVal = val(structKeyExists(src, "reserveGallons") ? src.reserveGallons : 0);
             var idleFuelGallonsVal = val(structKeyExists(src, "idleFuelGallons") ? src.idleFuelGallons : 0);
             var fuelPriceVal = val(structKeyExists(src, "fuelPricePerGallon") ? src.fuelPricePerGallon : 0);
-            var useMostEfficientValues = (paceEnumVal EQ "BALANCED");
+            var useMostEfficientValues = false;
             var allowAnchoredBurn = false;
 
             if (efficientSpeedVal LT 1) efficientSpeedVal = 0;
@@ -6365,6 +6369,13 @@
                         : (val(src.allowAnchoredBurn) EQ 1)
                 );
             }
+
+            useMostEfficientValues = (
+                paceEnumVal EQ "BALANCED"
+                AND efficientSpeedVal GT 0
+                AND efficientBurnVal GT 0
+                AND (maxBurnVal LTE 0 OR abs(maxBurnVal - efficientBurnVal) LT 0.01)
+            );
 
             if (distanceVal LTE 0 OR maxSpeedVal LTE 0) {
                 return out;

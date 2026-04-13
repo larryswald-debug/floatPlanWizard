@@ -82,6 +82,13 @@ component extends="testbox.system.BaseSpec" output="false" {
 
         var plan = createDraftPlan( "Action lifecycle" );
         expect( plan.planId ).toBeGT( 0, "Unable to create draft plan: #serializeJSON(plan)#" );
+        queryExecute(
+          "DELETE FROM floatplan_contacts WHERE floatplanId = :floatPlanId",
+          {
+            floatPlanId = { value = plan.planId, cfsqltype = "cf_sql_integer" }
+          },
+          { datasource = "fpw" }
+        );
 
         var sendRes = floatPlanPost( "send", { floatPlanId = plan.planId } );
         expect( pickBool( sendRes, "SUCCESS" ) ).toBeFalse( "send should fail when no contacts are selected: #serializeJSON(sendRes)#" );
@@ -125,14 +132,8 @@ component extends="testbox.system.BaseSpec" output="false" {
         deleteMonitoringRows( routePlan.planId );
 
         var cloneRes = floatPlanPost( "clone", { floatPlanId = plan.planId } );
-        expect( pickBool( cloneRes, "SUCCESS" ) ).toBeTrue( "clone failed: #serializeJSON(cloneRes)#" );
-        var cloneId = val( pickFirst( cloneRes, [ "FLOATPLANID", "floatPlanId", "id" ], 0 ) );
-        expect( cloneId ).toBeGT( 0, "clone did not return a plan id: #serializeJSON(cloneRes)#" );
-        rememberCreatedPlanId( cloneId );
-
-        var deleteCloneRes = floatPlanPost( "delete", { floatPlanId = cloneId } );
-        expect( pickBool( deleteCloneRes, "SUCCESS" ) ).toBeTrue( "delete clone failed: #serializeJSON(deleteCloneRes)#" );
-        forgetCreatedPlanId( cloneId );
+        expect( pickBool( cloneRes, "SUCCESS" ) ).toBeFalse( "clone should be disabled: #serializeJSON(cloneRes)#" );
+        expect( uCase( toString( pickFirst( cloneRes, [ "ERROR", "error" ], "" ) ) ) ).toBe( "CLONE_DISABLED" );
 
         var deleteSourceRes = floatPlanPost( "delete", { floatPlanId = plan.planId } );
         expect( pickBool( deleteSourceRes, "SUCCESS" ) ).toBeTrue( "delete source failed: #serializeJSON(deleteSourceRes)#" );

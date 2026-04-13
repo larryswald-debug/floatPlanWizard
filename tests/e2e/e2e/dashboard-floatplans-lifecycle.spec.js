@@ -39,9 +39,26 @@ async function waitForApiHelpers(page, methodNames) {
 }
 
 async function triggerFloatPlansRefresh(page) {
-  await page.evaluate(() => {
-    document.dispatchEvent(new window.CustomEvent("fpw:floatplans-updated"));
+  if (page.isClosed()) {
+    return;
+  }
+  try {
+    await page.evaluate(() => {
+      document.dispatchEvent(new window.CustomEvent("fpw:floatplans-updated"));
+    });
+  } catch (error) {
+    if (!page.isClosed()) {
+      throw error;
+    }
+  }
+}
+
+async function clickListAction(button) {
+  await expect(button).toBeVisible({ timeout: 15000 });
+  await button.evaluate((node) => {
+    node.scrollIntoView({ block: "center", inline: "nearest" });
   });
+  await button.click();
 }
 
 async function cleanupPlansByIds(page, planIds) {
@@ -127,12 +144,12 @@ test("Dashboard float-plan list supports view/delete and check-in UI wiring for 
     await expect(sourceRow).toBeVisible({ timeout: 20000 });
     await expect(page.locator("#floatPlansFilterCount")).toContainText(/Showing/i);
 
-    await sourceRow.locator('button[data-action="view"]').click();
+    await clickListAction(sourceRow.locator('button[data-action="view"]'));
     await expect(page.locator("#floatPlanWizardModal")).toBeVisible({ timeout: 15000 });
     await page.locator("#floatPlanWizardModal .btn-close").click();
     await expect(page.locator("#floatPlanWizardModal")).toBeHidden({ timeout: 15000 });
 
-    await sourceRow.locator('button[data-action="delete"]').click();
+    await clickListAction(sourceRow.locator('button[data-action="delete"]'));
     await confirmModalOk(page);
     await expect(page.locator(`#floatPlansList [data-action="view"][data-plan-id="${createdPlanIds[0]}"]`)).toHaveCount(0, { timeout: 20000 });
     createdPlanIds = createdPlanIds.filter((value) => value !== createdPlanIds[0]);
@@ -154,9 +171,12 @@ test("Dashboard float-plan list supports view/delete and check-in UI wiring for 
         + '<div class="list-main"><div class="list-title">Synthetic Active Plan:</div><small>Status: Active</small></div>'
         + '<div class="list-actions"><button class="btn-success" type="button" data-action="checkin" data-plan-id="999001">Check-In</button></div>';
       list.prepend(row);
+      const button = row.querySelector('button[data-action="checkin"]');
+      if (button) {
+        button.click();
+      }
     });
 
-    await page.click('#floatPlansList .list-item[data-test-checkin="1"] button[data-action="checkin"]');
     await confirmModalOk(page);
     await expect.poll(async () => {
       return page.evaluate(() => Array.isArray(window.__FPW_CHECKIN_CALLS) ? window.__FPW_CHECKIN_CALLS.length : 0);

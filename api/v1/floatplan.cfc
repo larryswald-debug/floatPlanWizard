@@ -146,6 +146,10 @@
                             ? toString(body.checkinContext)
                             : (structKeyExists(body, "checkin_context") ? toString(body.checkin_context) : "")
                     )>
+                    <cfset var allowRouteLessFinalClose = false>
+                    <cfset var qRouteLessClosePlan = queryNew("")>
+                    <cfset var routeLessCloseStatus = "">
+                    <cfset var routeLessCloseInstanceId = 0>
                     <cfif structKeyExists(body, "floatPlanId")>
                         <cfset checkinId = val(body.floatPlanId)>
                     <cfelseif structKeyExists(url, "floatPlanId")>
@@ -154,7 +158,29 @@
                         <cfset checkinId = val(url.id)>
                     </cfif>
                     <cfset var activeCruiseCheckinGuard = resolveCanonicalActiveFloatPlan(userId, checkinId)>
-                    <cfif NOT activeCruiseCheckinGuard.SUCCESS>
+                    <cfif !len(checkinStatus) AND !len(trim(checkinNote)) AND !len(checkinContext) AND checkinId GT 0>
+                        <cfset qRouteLessClosePlan = queryExecute(
+                            "SELECT route_instance_id, UPPER(TRIM(`status`)) AS statusValue
+                               FROM floatplans
+                              WHERE floatplanId = :planId
+                                AND userId = :userId
+                              LIMIT 1",
+                            {
+                                planId = { value = checkinId, cfsqltype = "cf_sql_integer" },
+                                userId = { value = userId, cfsqltype = "cf_sql_integer" }
+                            },
+                            { datasource = "fpw" }
+                        )>
+                        <cfif qRouteLessClosePlan.recordCount EQ 1>
+                            <cfset routeLessCloseStatus = trim(toString(qRouteLessClosePlan.statusValue[1]))>
+                            <cfset routeLessCloseInstanceId = isNull(qRouteLessClosePlan.route_instance_id[1]) ? 0 : val(qRouteLessClosePlan.route_instance_id[1])>
+                            <cfset allowRouteLessFinalClose = (
+                                routeLessCloseInstanceId LTE 0
+                                AND listFindNoCase("ACTIVE,DUE_NOW,OVERDUE,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H", routeLessCloseStatus) GT 0
+                            )>
+                        </cfif>
+                    </cfif>
+                    <cfif NOT activeCruiseCheckinGuard.SUCCESS AND NOT allowRouteLessFinalClose>
                         <cfset activeCruiseCheckinGuard.AUTH = true>
                         <cfoutput>#serializeJSON(activeCruiseCheckinGuard)#</cfoutput>
                     <cfelseif compareNoCase(checkinStatus, "Arrived") EQ 0>
@@ -1888,30 +1914,74 @@
             var updateSql = "";
             var monitoringService = {};
             var monitoringResult = {};
+            var qPlan = queryNew("");
+            var planStatus = "";
+            var routeInstanceId = 0;
+            var requiresRouteCloseValidation = false;
+            var scheduledStartState = {};
+            var allowMissingMonitoringClose = false;
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
                 result.MESSAGE = "Float plan id is required.";
                 return result;
             }
 
-            try {
-                var routeProgressService = createObject("component", resolveApiV1ComponentPath("RouteProgressService")).init();
-                result.ROUTE_PROGRESS = routeProgressService.markCompletionFromFloatPlanCheckin(
-                    userId = arguments.userId,
-                    floatPlanId = arguments.floatPlanId,
-                    datasource = "fpw"
-                );
-            } catch (any routeErr) {
-                result.SUCCESS = false;
-                result.ERROR = "CLOSE_TRIP_VALIDATION_FAILED";
-                result.MESSAGE = "Unable to validate final route state for closure.";
-                result.ROUTE_PROGRESS = {
-                    SUCCESS = false,
-                    MATCHED = false,
-                    MESSAGE = "Route progress close validation failed",
-                    ERROR = routeErr.message
-                };
+            qPlan = queryExecute(
+                "SELECT route_instance_id, UPPER(TRIM(`status`)) AS statusValue
+                   FROM floatplans
+                  WHERE floatplanId = :planId
+                    AND userId = :userId
+                  LIMIT 1",
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+
+            if (qPlan.recordCount EQ 0) {
+                result.ERROR = "NOT_FOUND";
+                result.MESSAGE = "Float plan not found.";
                 return result;
+            }
+
+            planStatus = trim(toString(qPlan.statusValue[1]));
+            routeInstanceId = isNull(qPlan.route_instance_id[1]) ? 0 : val(qPlan.route_instance_id[1]);
+            requiresRouteCloseValidation = (routeInstanceId GT 0);
+
+            if (listFindNoCase(allowedStatuses, planStatus) EQ 0) {
+                result.ERROR = "NO_ACTIVE_PLAN";
+                result.MESSAGE = "No active float plan is available for check-in.";
+                return result;
+            }
+
+            if (requiresRouteCloseValidation) {
+                try {
+                    var routeProgressService = createObject("component", resolveApiV1ComponentPath("RouteProgressService")).init();
+                    result.ROUTE_PROGRESS = routeProgressService.markCompletionFromFloatPlanCheckin(
+                        userId = arguments.userId,
+                        floatPlanId = arguments.floatPlanId,
+                        datasource = "fpw"
+                    );
+                } catch (any routeErr) {
+                    result.SUCCESS = false;
+                    result.ERROR = "CLOSE_TRIP_VALIDATION_FAILED";
+                    result.MESSAGE = "Unable to validate final route state for closure.";
+                    result.ROUTE_PROGRESS = {
+                        SUCCESS = false,
+                        MATCHED = false,
+                        MESSAGE = "Route progress close validation failed",
+                        ERROR = routeErr.message
+                    };
+                    return result;
+                }
+            } else {
+                result.ROUTE_PROGRESS = {
+                    SUCCESS = true,
+                    MATCHED = false,
+                    SKIPPED = true,
+                    MESSAGE = "Route progress close validation is not required for route-less float plans."
+                };
             }
 
             if (NOT structKeyExists(result, "ROUTE_PROGRESS") OR NOT structKeyExists(result.ROUTE_PROGRESS, "SUCCESS") OR NOT result.ROUTE_PROGRESS.SUCCESS) {
@@ -1923,6 +1993,18 @@
                         : "Close Trip is unavailable."
                 );
                 return result;
+            }
+
+            if (requiresRouteCloseValidation) {
+                scheduledStartState = getScheduledStartStateForFloatPlan(arguments.userId, arguments.floatPlanId);
+                if (
+                    structKeyExists(scheduledStartState, "SUCCESS")
+                    AND scheduledStartState.SUCCESS
+                    AND structKeyExists(scheduledStartState, "TRIP_STARTED")
+                    AND !booleanValue(scheduledStartState.TRIP_STARTED)
+                ) {
+                    allowMissingMonitoringClose = true;
+                }
             }
 
             updateSql =
@@ -1948,7 +2030,14 @@
                 monitoringResult = monitoringService.closeMonitoringForFloatPlan(arguments.floatPlanId, "final_arrival");
                 if (
                     !structKeyExists(monitoringResult, "SUCCESS")
-                    OR monitoringResult.SUCCESS NEQ true
+                    OR (
+                        monitoringResult.SUCCESS NEQ true
+                        AND (
+                            (requiresRouteCloseValidation AND !allowMissingMonitoringClose)
+                            OR !structKeyExists(monitoringResult, "ERROR")
+                            OR uCase(trim(toString(monitoringResult.ERROR))) NEQ "MONITORING_NOT_FOUND"
+                        )
+                    )
                 ) {
                     throw(
                         message = "Monitoring close failed.",

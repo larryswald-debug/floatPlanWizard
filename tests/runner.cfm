@@ -44,12 +44,10 @@ if ( isDefined( "CFTOKEN" ) ) {
 if ( !structKeyExists( session, "user" ) || !isStruct( session.user ) ) {
   session.user = {};
 }
-if ( !structKeyExists( session.user, "userId" ) || !isNumeric( session.user.userId ) || val( session.user.userId ) LTE 0 ) {
-  runnerUserId = structKeyExists( url, "testUserId" ) && isNumeric( url.testUserId ) ? val( url.testUserId ) : 187;
-  session.user.userId = runnerUserId;
-  session.user.id = runnerUserId;
-  session.user.USERID = runnerUserId;
-}
+runnerUserId = structKeyExists( url, "testUserId" ) && isNumeric( url.testUserId ) && val( url.testUserId ) GT 0 ? val( url.testUserId ) : 187;
+session.user.userId = runnerUserId;
+session.user.id = runnerUserId;
+session.user.USERID = runnerUserId;
 
 // Optional: list spec files so we KNOW they’re visible
 specFiles = directoryList(specAbsPath, true, "path", "*Spec.cfc");

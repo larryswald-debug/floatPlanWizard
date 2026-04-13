@@ -332,12 +332,12 @@ test("Route Builder weather suggestion assist applies manually and preview keeps
     }
   };
   let lastPreviewWeatherFactor = "";
-  let weatherZipRequestCount = 0;
+  let weatherSearchRequestCount = 0;
 
   await page.route("**/api/v1/weather.cfc?*", async (route) => {
     const url = route.request().url();
-    if (/action=zip/i.test(url)) {
-      weatherZipRequestCount += 1;
+    if (/action=search/i.test(url)) {
+      weatherSearchRequestCount += 1;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -401,6 +401,7 @@ test("Route Builder weather suggestion assist applies manually and preview keeps
   }, { timeout: 20000 });
   await page.selectOption("#routeGenEndLocation", { index: 1 });
 
+  await waitForPreviewWhenReady(page);
   await expect(page.locator("#routeGenWeatherSuggestRefreshBtn")).toBeVisible({ timeout: 10000 });
   await page.click("#routeGenWeatherSuggestRefreshBtn");
   await expect(page.locator("#routeGenWeatherSuggestValue")).toHaveText(/^\d+%$/, { timeout: 15000 });
@@ -433,18 +434,23 @@ test("Route Builder weather suggestion assist applies manually and preview keeps
   expect(appliedPct).toBeLessThanOrEqual(60);
   expect(appliedPct).toBe(suggestedPctAfterApply);
 
+  const previewRefreshPromise = page.waitForResponse((response) => {
+    return response.request().method() === "POST"
+      && response.url().includes("action=routegen_preview");
+  }, { timeout: 30000 });
   await page.fill("#routeGenWeatherFactorPct", "13");
   await page.dispatchEvent("#routeGenWeatherFactorPct", "input");
   await page.dispatchEvent("#routeGenWeatherFactorPct", "change");
   await expect(page.locator("#routeGenWeatherFactorPct")).toHaveValue("13");
 
+  await previewRefreshPromise;
   await waitForPreviewWhenReady(page);
   await page.waitForFunction(() => {
     const rows = document.querySelectorAll("#routeGenLegList .fpw-routegen__leg");
     return rows.length > 0;
   }, { timeout: 30000 });
   expect(lastPreviewWeatherFactor).toBe("13");
-  expect(weatherZipRequestCount).toBeGreaterThan(0);
+  expect(weatherSearchRequestCount).toBeGreaterThan(0);
 
   await page.click("#routeGenCancelBtn");
   await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 15000 });
