@@ -1364,7 +1364,12 @@
 
         this.isLoading = true;
         var planId = this.initialPlanId;
-        var request = planId > 0 ? window.Api.getFloatPlanBootstrap(planId) : window.Api.getFloatPlanBootstrap();
+        if (!(planId > 0)) {
+          this.isLoading = false;
+          this.handleError("New float plans must be created from a route.", "Unable to load float plan.");
+          return;
+        }
+        var request = window.Api.getFloatPlanBootstrap(planId);
 
         request
           .then(function (data) {
@@ -1450,6 +1455,18 @@
       }
       ,
       applySaveResponse: function (response) {
+        var savedWaypoints = sortByOrder(
+          toArray(response.PLAN_WAYPOINTS)
+            .map(normalizeWaypointSelection)
+            .filter(function (item) { return !!item; }),
+          "SORT_ORDER"
+        );
+        var savedContacts = sortByOrder(
+          toArray(response.PLAN_CONTACTS)
+            .map(normalizeContactSelection)
+            .filter(function (item) { return !!item; }),
+          "SORT_ORDER"
+        );
         this.fp.FLOATPLAN = normalizeFloatPlan(response.FLOATPLAN || response);
         this.syncRescueCenterSelection();
         this.fp.PASSENGERS = sortByOrder(
@@ -1458,18 +1475,28 @@
             .filter(function (item) { return !!item; }),
           "SORT_ORDER"
         );
-        this.fp.CONTACTS = sortByOrder(
-          toArray(response.PLAN_CONTACTS)
-            .map(normalizeContactSelection)
-            .filter(function (item) { return !!item; }),
-          "SORT_ORDER"
-        );
-        this.fp.WAYPOINTS = sortByOrder(
-          toArray(response.PLAN_WAYPOINTS)
-            .map(normalizeWaypointSelection)
-            .filter(function (item) { return !!item; }),
-          "SORT_ORDER"
-        );
+        this.fp.CONTACTS = savedContacts;
+        if (!this.fp.CONTACTS.length && this.isFromRoutePlan()) {
+          this.fp.CONTACTS = [{
+            CONTACTID: USER_TO_SET_SENTINEL_ID,
+            SORT_ORDER: 1
+          }];
+        }
+        this.fp.WAYPOINTS = savedWaypoints;
+        if (
+          !this.fp.WAYPOINTS.length
+          && this.isFromRoutePlan()
+          && this.routeDefaults
+          && Array.isArray(this.routeDefaults.WAYPOINT_SELECTIONS)
+          && this.routeDefaults.WAYPOINT_SELECTIONS.length
+        ) {
+          this.fp.WAYPOINTS = sortByOrder(
+            this.routeDefaults.WAYPOINT_SELECTIONS
+              .map(normalizeWaypointSelection)
+              .filter(function (item) { return !!item; }),
+            "SORT_ORDER"
+          );
+        }
         this.initialPlanId = numeric(this.fp.FLOATPLAN.FLOATPLANID) || this.initialPlanId;
       },
 

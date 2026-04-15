@@ -5,14 +5,10 @@ if (!process.env.FPW_EMAIL || !process.env.FPW_PASSWORD) {
 }
 
 const { test, expect } = require("@playwright/test");
+const { loginApprovedUser } = require("../support/fpwSession");
 
 async function loginToDashboard(page) {
-  await page.goto("/fpw/index.cfm", { waitUntil: "domcontentloaded" });
-  await page.fill('input[name="email"], input[name="EMAIL"]', process.env.FPW_EMAIL || "");
-  await page.fill('input[type="password"], input[name="password"], input[name="PASSWORD"]', process.env.FPW_PASSWORD || "");
-  await page.click('button[type="submit"], input[type="submit"]');
-  await page.waitForLoadState("networkidle");
-  await expect(page).not.toHaveURL(/index\.cfm$/i);
+  await loginApprovedUser(page);
 }
 
 test("WPI ports overlay supports search, clear, ajax save, and in-place restore", async ({ page }) => {

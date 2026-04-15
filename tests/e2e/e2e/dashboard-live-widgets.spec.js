@@ -1,6 +1,3 @@
-const { loginAsTestUser, requireCredentials } = require("./test-hooks");
-requireCredentials();
-
 const { test, expect } = require("@playwright/test");
 
 test.describe.configure({ timeout: 120000 });
@@ -73,18 +70,72 @@ function successPayload(zip) {
   };
 }
 
-async function loginToDashboard(page) {
-  await loginAsTestUser(page);
-  await page.waitForLoadState("networkidle");
-  await expect(page).not.toHaveURL(/index\.cfm$/i);
-  await page.goto("/fpw/app/dashboard.cfm", { waitUntil: "domcontentloaded" });
-  await page.evaluate(() => {
-    const collapse = document.getElementById("alertsCollapse");
-    const toggle = document.querySelector('[data-bs-target="#alertsCollapse"]');
-    if (collapse && !collapse.classList.contains("show") && toggle) {
-      toggle.click();
+function currentUserPayload() {
+  return {
+    SUCCESS: true,
+    AUTH: true,
+    USER: {
+      DISPLAYNAME: "Weather Tester",
+      PROFILE: {
+        HOMEPORT: {
+          ZIP: "60601",
+          LAT: "27.9506",
+          LNG: "-82.4572"
+        }
+      }
+    }
+  };
+}
+
+function buildUniqueEmail(prefix) {
+  return `${prefix || "weather-nav"}-${Date.now()}-${Math.random().toString(16).slice(2, 10)}@example.com`;
+}
+
+async function mockAuthenticatedSession(page) {
+  await page.route("**/api/v1/me.cfc?*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(currentUserPayload())
+    });
+  });
+}
+
+async function createLoggedInAppSession(page) {
+  const email = buildUniqueEmail("weather-nav");
+  const password = "changeIt";
+  const joinResponse = await page.request.post("/fpw/api/v1/join.cfc?method=handle&returnFormat=json", {
+    data: {
+      firstName: "Weather",
+      lastName: "Tester",
+      email,
+      password
     }
   });
+  expect(joinResponse.ok()).toBeTruthy();
+  const joinPayload = await joinResponse.json();
+  expect(joinPayload.SUCCESS).toBeTruthy();
+
+  const loginResponse = await page.request.post("/fpw/api/v1/auth.cfc?method=handle&returnFormat=json", {
+    data: {
+      action: "login",
+      email,
+      password
+    }
+  });
+  expect(loginResponse.ok()).toBeTruthy();
+  const loginPayload = await loginResponse.json();
+  expect(loginPayload.SUCCESS).toBeTruthy();
+}
+
+async function loginToDashboard(page) {
+  await mockAuthenticatedSession(page);
+  await page.goto("/fpw/app/dashboard.cfm", { waitUntil: "domcontentloaded" });
+}
+
+async function loginToWeatherPage(page) {
+  await mockAuthenticatedSession(page);
+  await page.goto("/fpw/app/weather.cfm", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#alertsCollapse")).toHaveClass(/show/, { timeout: 10000 });
   await expect(page.locator("#weatherRefreshBtn")).toBeVisible({ timeout: 30000 });
 }
@@ -96,7 +147,7 @@ async function clickWeatherRefresh(page) {
   });
 }
 
-test("Dashboard weather/tide/alerts widgets render success and error states", async ({ page }) => {
+test("Standalone weather page renders weather/tide/alerts success and error states", async ({ page }) => {
   let searchZipRequests = 0;
   await page.route("**/api/v1/weather.cfc?*", async (route) => {
     const reqUrl = new URL(route.request().url());
@@ -120,7 +171,7 @@ test("Dashboard weather/tide/alerts widgets render success and error states", as
     });
   });
 
-  await loginToDashboard(page);
+  await loginToWeatherPage(page);
   await page.selectOption("#weatherLocationMode", "zip");
 
   await page.fill("#weatherZip", "60601");
@@ -147,7 +198,7 @@ test("Dashboard weather/tide/alerts widgets render success and error states", as
   expect(searchZipRequests).toBeGreaterThan(0);
 });
 
-test("Dashboard weather supports coordinates mode and client-side coordinate validation", async ({ page }) => {
+test("Standalone weather page supports coordinates mode and client-side coordinate validation", async ({ page }) => {
   const coordRequests = [];
   await page.route("**/api/v1/weather.cfc?*", async (route) => {
     const reqUrl = new URL(route.request().url());
@@ -164,7 +215,7 @@ test("Dashboard weather supports coordinates mode and client-side coordinate val
     });
   });
 
-  await loginToDashboard(page);
+  await loginToWeatherPage(page);
 
   await page.selectOption("#weatherLocationMode", "coords");
   await expect(page.locator("#weatherLocationMode")).toBeVisible();
@@ -196,4 +247,18 @@ test("Dashboard weather supports coordinates mode and client-side coordinate val
   await page.fill("#weatherLat", "95");
   await clickWeatherRefresh(page);
   await expect(page.locator("#weatherError")).toContainText("Enter a valid latitude between -90 and 90.", { timeout: 10000 });
+});
+
+test("Dashboard weather panel is removed and top-nav Weather routes to the standalone page", async ({ page }) => {
+  await createLoggedInAppSession(page);
+  await page.goto("/fpw/app/dashboard.cfm", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#weather")).toHaveCount(0);
+  const desktopWeatherLink = page.locator("#fpwNavWeatherLink");
+  await expect(desktopWeatherLink).toBeVisible({ timeout: 10000 });
+  await expect(desktopWeatherLink).toHaveAttribute("href", "/fpw/app/weather.cfm");
+
+  await desktopWeatherLink.click();
+  await expect(page).toHaveURL(/\/fpw\/app\/weather\.cfm$/);
+  await expect(page.locator("#weatherRefreshBtn")).toBeVisible({ timeout: 30000 });
+  await expect(page.locator(".tabs .tab.active")).toContainText("Weather");
 });

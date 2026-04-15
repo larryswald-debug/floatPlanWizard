@@ -1,0 +1,79 @@
+{
+  "baseUrl": "http://localhost:8500",
+  "path": "/fpw/app/dashboard.cfm",
+  "hostTimezone": "America/New_York",
+  "locale": "en-US",
+  "allTimezones": false,
+  "includeCriticalTimezones": true,
+  "appReadySelector": "#floatPlansPanel",
+  "probes": [
+    {
+      "name": "floatplans-panel",
+      "stage": "dashboard",
+      "selector": "#floatPlansPanel",
+      "extract": "text"
+    },
+    {
+      "name": "plan-row",
+      "stage": "dashboard",
+      "selector": "#floatPlansList [data-plan-id=\"{{floatPlanId}}\"]",
+      "extract": "text"
+    },
+    {
+      "name": "plan-meta",
+      "stage": "dashboard",
+      "selector": "#floatPlansList [data-plan-id=\"{{floatPlanId}}\"] small",
+      "extract": "text"
+    },
+    {
+      "name": "wizard-step-title",
+      "stage": "edit-step2",
+      "selector": "#floatPlanWizardModal h2.h5",
+      "extract": "text"
+    }
+  ],
+  "timeFields": [
+    {
+      "name": "browser-fixed-now",
+      "source": "fact",
+      "key": "browserFixedNowLocal",
+      "assertionMode": "absolute",
+      "expectedStrategy": "formatInstant"
+    },
+    {
+      "name": "departure-input",
+      "stage": "edit-step2",
+      "selector": "#floatPlanWizardModal [name=\"DEPARTURE_TIME\"]",
+      "extract": "value",
+      "assertionMode": "floating"
+    },
+    {
+      "name": "departure-timezone",
+      "stage": "edit-step2",
+      "selector": "#departureTimezone",
+      "extract": "value",
+      "assertionMode": "floating"
+    },
+    {
+      "name": "return-input",
+      "stage": "edit-step2",
+      "selector": "#floatPlanWizardModal [name=\"RETURN_TIME\"]",
+      "extract": "value",
+      "assertionMode": "floating"
+    },
+    {
+      "name": "return-timezone",
+      "stage": "edit-step2",
+      "selector": "#returnTimezone",
+      "extract": "value",
+      "assertionMode": "floating"
+    },
+    {
+      "name": "plan-meta",
+      "stage": "dashboard",
+      "selector": "#floatPlansList [data-plan-id=\"{{floatPlanId}}\"] small",
+      "extract": "text",
+      "assertionMode": "floating"
+    }
+  ]
+}

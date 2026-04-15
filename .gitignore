@@ -42,5 +42,7 @@ temp/
 tests/*
 test_results/*
 
-test-results/e2e-e2e-*
+test-results*
 *codex-snapshots*
+
+error-context*

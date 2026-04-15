@@ -17,10 +17,52 @@
       payload: null,
       legs: [],
       expandedLegOrder: 0
+    },
+    loader: {
+      label: "Follow Page Loading",
+      percent: 0,
+      message: "Preparing the shared trip view."
     }
   };
 
   var dom = {};
+  var loaderMilestones = {
+    initial: {
+      label: "Follow Page Loading",
+      percent: 5,
+      message: "Preparing the shared trip view."
+    },
+    bootstrap: {
+      label: "Follow Page Loading",
+      percent: 18,
+      message: "Requesting shared trip data."
+    },
+    floatPlan: {
+      label: "Float Plan Loading",
+      percent: 38,
+      message: "Hydrating trip status and summary."
+    },
+    weather: {
+      label: "Weather Loading",
+      percent: 58,
+      message: "Applying current conditions from the bootstrap payload."
+    },
+    route: {
+      label: "Route Loading",
+      percent: 78,
+      message: "Rendering the route map and cruise timeline."
+    },
+    finalize: {
+      label: "Finalizing Display",
+      percent: 92,
+      message: "Loading voyage stream posts."
+    },
+    ready: {
+      label: "Finalizing Display",
+      percent: 100,
+      message: "Shared trip view ready."
+    }
+  };
 
   function safeNum(value) {
     var n = parseFloat(value);
@@ -40,6 +82,54 @@
       .replace(/>/g, "&gt;")
       .replace(/\"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function clampLoaderPercent(value) {
+    var n = parseInt(value, 10);
+    if (!Number.isFinite(n)) return 0;
+    return Math.max(0, Math.min(100, n));
+  }
+
+  function setLoaderState(label, percent, message) {
+    var nextPercent = Math.max(clampLoaderPercent(percent), clampLoaderPercent(state.loader.percent));
+    var nextLabel = String(label || state.loader.label || "Follow Page Loading").trim() || "Follow Page Loading";
+    var nextMessage = String(message || state.loader.message || "").trim();
+
+    state.loader.label = nextLabel;
+    state.loader.percent = nextPercent;
+    state.loader.message = nextMessage;
+
+    if (document.body) {
+      document.body.classList.add("follow-loading");
+    }
+    if (dom.loaderPhase) dom.loaderPhase.textContent = nextLabel;
+    if (dom.loaderPercent) dom.loaderPercent.textContent = String(nextPercent) + "%";
+    if (dom.loaderBar) dom.loaderBar.style.width = String(nextPercent) + "%";
+    if (dom.loaderMessage) dom.loaderMessage.textContent = nextMessage;
+  }
+
+  function setLoaderMilestone(milestoneKey) {
+    var milestone = loaderMilestones[milestoneKey];
+    if (!milestone) return;
+    setLoaderState(milestone.label, milestone.percent, milestone.message);
+  }
+
+  function finishLoader() {
+    setLoaderMilestone("ready");
+    window.requestAnimationFrame(function () {
+      if (!document.body) return;
+      document.body.classList.remove("follow-load-error");
+      document.body.classList.remove("follow-loading");
+    });
+  }
+
+  function failLoader(message) {
+    var errorMessage = String(message || "Unable to load voyage stream.").trim() || "Unable to load voyage stream.";
+    setLoaderState(state.loader.label, state.loader.percent, errorMessage);
+    if (document.body) {
+      document.body.classList.add("follow-load-error");
+      document.body.classList.add("follow-loading");
+    }
   }
 
   function readPageContext() {
@@ -166,7 +256,6 @@
 
   function formatSidebarLastCheckinLabel(input) {
     var raw = String(input || "").trim();
-    var normalizedRaw = raw;
     var date = null;
     var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     var hours;
@@ -174,11 +263,7 @@
     var minutes;
     var suffix;
 
-    if (/^[A-Z][a-z]{2} \d{1,2}, \d{4} \d{1,2}:\d{2} [AP]M$/i.test(raw)) {
-      normalizedRaw = raw + " UTC";
-    }
-
-    date = normalizedRaw ? new Date(normalizedRaw) : null;
+    date = raw ? new Date(raw) : null;
 
     if (!date || Number.isNaN(date.getTime())) {
       return "";
@@ -207,11 +292,47 @@
     return converted ? (prefix + converted) : raw;
   }
 
+  function isAwaitingDepartureState(body, topCards, timeline) {
+    var tripSummaryMode = String(body && body.trip_summary_mode ? body.trip_summary_mode : "").trim();
+    var journeySubtitle = String(body && body.journey_subtitle ? body.journey_subtitle : "").trim();
+    var etaUtc = String(topCards && topCards.eta_utc ? topCards.eta_utc : "").trim();
+    var summary = (timeline && typeof timeline === "object" && timeline.summary && typeof timeline.summary === "object")
+      ? timeline.summary
+      : {};
+    var legs = Array.isArray(timeline && timeline.legs) ? timeline.legs : [];
+    var completedLegs = toInt(summary.completed_legs, 0);
+    var hasPendingLeg = false;
+    var i;
+    var leg = null;
+    var legOrder = 0;
+    var legProgress = null;
+
+    if (/awaiting departure/i.test(tripSummaryMode) || /awaiting departure/i.test(journeySubtitle)) {
+      return true;
+    }
+    if (completedLegs <= 0 || etaUtc) {
+      return false;
+    }
+
+    for (i = 0; i < legs.length; i += 1) {
+      leg = legs[i] && typeof legs[i] === "object" ? legs[i] : null;
+      if (!leg) continue;
+      legOrder = toInt(leg.leg_order, 0);
+      legProgress = safeNum(leg.progress && leg.progress.percent_complete);
+      if (legOrder > completedLegs && (legProgress === null || legProgress < 100)) {
+        hasPendingLeg = true;
+        break;
+      }
+    }
+
+    return hasPendingLeg;
+  }
+
   function updateSidebarLastCheckinFromPosts(posts) {
     var sidebar = state.bootstrap && state.bootstrap.sidebar ? state.bootstrap.sidebar : {};
     var list = Array.isArray(posts) ? posts : [];
     var latestPost = list.length ? list[0] : null;
-    var label = formatSidebarLastCheckinLabel(sidebar.last_checkin || "");
+    var label = formatSidebarLastCheckinLabel(sidebar.last_checkin_utc || "");
 
     if (label) {
       setHookText("trip-card-last-checkin", label);
@@ -262,12 +383,79 @@
   function renderPhase5StreamShell(payload) {
     var pinned = payload.pinned || {};
     var topCards = payload.topCards || {};
+    var body = payload.body || {};
+    var sidebar = payload.sidebar || {};
+    var timeline = payload.timeline || {};
     var map = payload.map || {};
-    var updatedLabel = String(pinned.updated_label || "").trim();
+    var summary = timeline.summary || {};
+    var legs = Array.isArray(timeline.legs) ? timeline.legs : [];
+    var updatedLabel = formatSidebarLastCheckinLabel(topCards.last_checkin_utc || "") || "—";
     var nextStop = String(topCards.next_stop || map.next_stop_label || "").trim();
+    var etaUtc = String(topCards.eta_utc || "").trim();
+    var realLastCheckinUtc = String(sidebar.last_checkin_utc || "").trim();
+    var fallbackLastCheckinUtc = String(topCards.last_checkin_utc || "").trim();
+    var lastCheckinLabel = formatSidebarLastCheckinLabel(realLastCheckinUtc) || formatSidebarLastCheckinLabel(fallbackLastCheckinUtc) || "—";
+    var lastCheckinMeta = realLastCheckinUtc ? (String(body.journey_checkin_meta || "").trim() || "—") : "—";
+    var nextStopEtaLabel = "—";
+    var locationLabel = String(topCards.location_label || (map.current && map.current.label ? map.current.label : "") || "").trim();
+    var checkinMeta = String(body.journey_checkin_meta || "").trim();
+    var cardCheckinMeta = checkinMeta.replace(/\s*Next update expected tomorrow morning\.\s*/i, "").trim();
+    var isAwaitingDeparture = isAwaitingDepartureState(body, topCards, timeline);
+    var activeLeg = findActiveTimelineLeg(
+      legs,
+      locationLabel,
+      String(topCards.next_stop || "").trim(),
+      summary,
+      isAwaitingDeparture
+    );
+    var completedLegs = toInt(summary && summary.completed_legs, 0);
+    var hasActiveLeg = !!activeLeg && completedLegs < legs.length;
+    var effectiveSpeed = safeNum(summary.effective_speed_kn);
+    var currentStopValue = locationLabel || "—";
+    var currentStopMeta = "—";
+    var isOvernightState = /overnight|secure for the night/i.test(checkinMeta);
+    var activeLegDistanceNm = safeNum(activeLeg && activeLeg.dist_nm);
+    var activeLegProgressPct = safeNum(activeLeg && activeLeg.progress ? activeLeg.progress.percent_complete : null);
+    var pinnedMilesTodayNm = safeNum(pinned.miles_today_nm);
+    var milesTodayLabel = "—";
+    var hoursUnderwayLabel = "—";
+    var hoursUnderwayTotal = 0;
+    if (pinnedMilesTodayNm !== null) {
+      milesTodayLabel = pinnedMilesTodayNm.toFixed(1);
+    } else if (activeLegDistanceNm !== null && activeLegProgressPct !== null) {
+      milesTodayLabel = (activeLegDistanceNm * Math.max(0, activeLegProgressPct) / 100).toFixed(1);
+    }
+    legs.forEach(function (leg) {
+      var legHours = safeNum(leg && leg.hours);
+      var legProgressPct = safeNum(leg && leg.progress ? leg.progress.percent_complete : null);
+      var clampedProgressPct = 0;
+      if (legHours === null || legProgressPct === null || legProgressPct <= 0) return;
+      clampedProgressPct = Math.max(0, Math.min(100, legProgressPct));
+      hoursUnderwayTotal += legHours * clampedProgressPct / 100;
+    });
+    hoursUnderwayLabel = hoursUnderwayTotal.toFixed(1);
+    nextStopEtaLabel = formatSidebarLastCheckinLabel(etaUtc) || "—";
 
     setHookText("stream-glance-updated", updatedLabel);
+    setHookText("stream-glance-miles", milesTodayLabel);
+    setHookText("stream-glance-hours", hoursUnderwayLabel);
+    if (isOvernightState && locationLabel && cardCheckinMeta) {
+      currentStopValue = locationLabel;
+      currentStopMeta = cardCheckinMeta;
+    } else if (isAwaitingDeparture) {
+      currentStopValue = locationLabel || "—";
+      currentStopMeta = "Awaiting departure for the next leg.";
+    } else if (hasActiveLeg && nextStop && effectiveSpeed !== null && effectiveSpeed > 0) {
+      currentStopValue = "Underway to " + nextStop;
+      currentStopMeta = "Making way at " + String(effectiveSpeed) + " kn";
+    } else if (locationLabel || cardCheckinMeta) {
+      currentStopValue = locationLabel || "—";
+      currentStopMeta = cardCheckinMeta || "—";
+    }
+    setHookText("stream-glance-checkin", currentStopValue);
+    setHookText("stream-glance-checkin-meta", currentStopMeta);
     setHookText("stream-glance-next-stop", nextStop);
+    setHookText("stream-glance-next-stop-meta", isAwaitingDeparture ? "Awaiting departure" : (nextStopEtaLabel === "—" ? "—" : ("ETA " + nextStopEtaLabel)));
   }
 
   function formatDayCountLabel(days) {
@@ -307,17 +495,41 @@
     var body = payload.body || {};
     var topCards = payload.topCards || {};
     var pinned = payload.pinned || {};
+    var map = payload.map || {};
+    var timeline = payload.timeline || {};
+    var summary = timeline.summary || {};
+    var legs = Array.isArray(timeline.legs) ? timeline.legs : [];
     var miles = safeNum(pinned.miles);
+    var pinnedMilesTodayNm = safeNum(pinned.miles_today_nm);
+    var totalHoursText = timelineValueText(summary.total_hours, 1, "h");
+    var completedMilesNm = 0;
     var photoCount = findRecentMediaPosts(posts).length;
+    var currentLocation = String(map.current && map.current.label ? map.current.label : topCards.location_label || "").trim();
+    var nextStop = String(topCards.next_stop || "").trim();
+    var etaUtc = String(topCards.eta_utc || "").trim();
+    var etaLabel = "—";
+    var isAwaitingDeparture = isAwaitingDepartureState(body, topCards, timeline);
+    var progressPct = computeJourneyProgressPct(summary, legs, currentLocation, nextStop, isAwaitingDeparture);
 
-    setHookText("today-progress-metric", miles === null ? "0" : miles.toFixed(1) + " mi");
+    legs.forEach(function (leg) {
+      var legProgress = safeNum(leg && leg.progress ? leg.progress.percent_complete : null);
+      var legDistanceNm = safeNum(leg && leg.dist_nm);
+      if (legProgress === null || legDistanceNm === null) return;
+      if (legProgress >= 100) {
+        completedMilesNm += legDistanceNm;
+      }
+    });
+    etaLabel = formatSidebarLastCheckinLabel(etaUtc) || "—";
+
+    setHookText("today-progress-metric", (pinnedMilesTodayNm === null ? completedMilesNm : pinnedMilesTodayNm).toFixed(1) + " nm");
     setHookText("today-progress-location", "Current location: " + String(topCards.location_label || "").trim());
-    setHookText("today-progress-eta", "Estimated arrival: " + String(topCards.eta || "").trim());
+    setHookText("today-progress-eta", isAwaitingDeparture ? "Awaiting departure" : (etaLabel === "—" ? "—" : ("Estimated arrival: " + etaLabel)));
+    setHookWidth("today-progress-fill", progressPct);
     setHookText("latest-photos-count", String(photoCount) + " recent " + (photoCount === 1 ? "moment" : "moments") + " shared");
-    setHookText("trip-summary-metric", formatDayCountLabel(pinned.days));
+    setHookText("trip-summary-metric", totalHoursText === "n/a" ? "n/a" : (totalHoursText + " total"));
     setHookText("trip-summary-distance", miles === null ? "0" : miles.toFixed(1) + " mi");
     setHookText("trip-summary-confidence", body.trip_summary_confidence);
-    setHookText("trip-summary-mode", body.trip_summary_mode);
+    setHookText("trip-summary-mode", isAwaitingDeparture ? "Trip mode: Awaiting departure" : body.trip_summary_mode);
     setHookText("trip-summary-safety", body.trip_summary_safety);
     renderLatestPhotoRow(posts);
   }
@@ -341,7 +553,7 @@
     var body = payload.body || {};
     var timeline = payload.timeline || {};
     var summary = timeline.summary || {};
-    var totalDays = toInt(summary.total_days, 0);
+    var totalHoursText = timelineValueText(summary.total_hours, 1, "h");
     var totalNm = formatTimelineNumber(summary.total_nm, 1);
     var speedKn = formatTimelineNumber(summary.effective_speed_kn, 1);
     var fuelEst = formatTimelineNumber(summary.fuel_est, 1);
@@ -349,7 +561,7 @@
 
     setHookCardBody(
       "timeline-route-total",
-      String(totalDays) + " " + (totalDays === 1 ? "day" : "days") + " planned",
+      totalHoursText === "n/a" ? "n/a" : (totalHoursText + " planned"),
       totalNm + " nm on route"
     );
     setHookCardBody("timeline-eff-speed", speedKn + " kn");
@@ -357,31 +569,56 @@
     setHookText("timeline-next-update", body.timeline_next_update);
   }
 
-  function findActiveTimelineLeg(legs) {
+  function findActiveTimelineLeg(legs, currentLabel, nextStopLabel, summary, awaitingDeparture) {
     var list = Array.isArray(legs) ? legs : [];
+    var currentName = String(currentLabel || "").trim().toLowerCase();
+    var nextName = String(nextStopLabel || "").trim().toLowerCase();
+    var completedLegs = toInt(summary && summary.completed_legs, 0);
     var i;
-    var progressPct = 0;
+    var leg = null;
+    var legStartName = "";
+    var legEndName = "";
 
     if (!list.length) return null;
+    if (awaitingDeparture) return null;
 
-    for (i = 0; i < list.length; i += 1) {
-      progressPct = safeNum(list[i] && list[i].progress ? list[i].progress.percent_complete : 0);
-      if (progressPct === null || progressPct < 100) {
-        return list[i];
+    if (nextName && nextName !== "n/a") {
+      for (i = 0; i < list.length; i += 1) {
+        leg = list[i] && typeof list[i] === "object" ? list[i] : null;
+        if (!leg) continue;
+        legStartName = String(leg.start_name || "").trim().toLowerCase();
+        legEndName = String(leg.end_name || "").trim().toLowerCase();
+        if (currentName && legStartName === currentName && legEndName === nextName) {
+          return leg;
+        }
       }
+
+      for (i = 0; i < list.length; i += 1) {
+        leg = list[i] && typeof list[i] === "object" ? list[i] : null;
+        if (!leg) continue;
+        legEndName = String(leg.end_name || "").trim().toLowerCase();
+        if (legEndName === nextName) {
+          return leg;
+        }
+      }
+    }
+
+    if (completedLegs >= list.length) {
+      return list[list.length - 1];
     }
 
     return list[0];
   }
 
-  function computeJourneyProgressPct(summary, legs) {
+  function computeJourneyProgressPct(summary, legs, currentLabel, nextStopLabel, awaitingDeparture) {
     var list = Array.isArray(legs) ? legs : [];
     var totalLegs = list.length;
     var completedLegs = toInt(summary && summary.completed_legs, 0);
-    var activeLeg = findActiveTimelineLeg(list);
+    var activeLeg = findActiveTimelineLeg(list, currentLabel, nextStopLabel, summary, awaitingDeparture);
     var activeProgress = safeNum(activeLeg && activeLeg.progress ? activeLeg.progress.percent_complete : 0);
 
     if (!totalLegs) return null;
+    if (completedLegs >= totalLegs) return 100;
     if (activeProgress === null) activeProgress = 0;
 
     return ((completedLegs + (activeProgress / 100)) / totalLegs) * 100;
@@ -398,16 +635,51 @@
     var legs = Array.isArray(timeline.legs) ? timeline.legs : [];
     var title = String(stream.title || "").trim();
     var status = String(topCards.status || stream.status || "").trim();
-    var lastCheckin = String(topCards.last_checkin || "").trim();
-    var sidebarLastCheckin = formatSidebarLastCheckinLabel(sidebar.last_checkin || "") || String(lastCheckin).trim();
+    var voyageProgressStatus = String(topCards.voyage_progress_status || status || "").trim();
+    var voyageProgressStatusVariant = String(topCards.voyage_progress_status_variant || "good").trim().toLowerCase();
+    var lastCheckinUtc = String(topCards.last_checkin_utc || "").trim();
+    var realCheckInUtc = String(sidebar.last_checkin_utc || "").trim();
+    var lastCheckinLabel = formatSidebarLastCheckinLabel(lastCheckinUtc) || "";
+    var realCheckInLabel = formatSidebarLastCheckinLabel(realCheckInUtc) || "";
+    var sidebarLastCheckin = realCheckInLabel || lastCheckinLabel || "—";
     var shareSlug = String(stream.slug || state.slug || "").trim();
     var nextStop = String(topCards.next_stop || map.next_stop_label || "").trim();
-    var eta = String(topCards.eta || "").trim();
     var conditions = String(topCards.conditions || "").trim();
-    var activeLeg = findActiveTimelineLeg(legs);
+    var legWeather = payload.legWeather || {};
+    var weatherConditions = legWeather.conditions || {};
+    var startWeather = legWeather.start || {};
+    var endWeather = legWeather.end || {};
+    var currentLocation = String(map.current && map.current.label ? map.current.label : "").trim();
+    var completedLegs = toInt(summary.completed_legs, 0);
+    var isAwaitingDeparture = isAwaitingDepartureState(body, topCards, timeline);
+    var activeLeg = findActiveTimelineLeg(legs, currentLocation, nextStop, summary, isAwaitingDeparture);
     var activeLegLabel = String(activeLeg && activeLeg.label ? activeLeg.label : "").trim();
+    var activeLegStartName = String(activeLeg && activeLeg.start_name ? activeLeg.start_name : currentLocation).trim();
+    var activeLegEndName = String(activeLeg && activeLeg.end_name ? activeLeg.end_name : nextStop).trim();
     var effectiveSpeedKn = safeNum(summary.effective_speed_kn);
-    var progressPct = computeJourneyProgressPct(summary, legs);
+    var progressPct = computeJourneyProgressPct(summary, legs, currentLocation, nextStop, isAwaitingDeparture);
+    var departedLocalMeta = formatSidebarLastCheckinLabel(body.journey_departed_meta_utc || "") || "—";
+    var nextStopLocalEta = formatSidebarLastCheckinLabel(topCards.eta_utc || "") || "—";
+    var startSummary = String(startWeather.summary || "").trim();
+    var endSummary = String(endWeather.summary || "").trim();
+    var startSummaryLine = startSummary ? (activeLegStartName ? "Start · " + activeLegStartName + " · " + startSummary : startSummary) : "";
+    var endSummaryLine = endSummary ? (activeLegEndName ? "End · " + activeLegEndName + " · " + endSummary : endSummary) : "";
+    var conditionsFallbackCopy = String(weatherConditions.meta || body.card_conditions_copy || "").trim();
+    var conditionsTitle = String(weatherConditions.headline || conditions).trim();
+    var voyageProgressStatusCopy = String(body.voyage_progress_status_copy || body.card_status_copy || "").trim();
+    var conditionsValue = "";
+    var conditionsCopy = "";
+
+    if (endSummaryLine) {
+      conditionsValue = endSummaryLine;
+      conditionsCopy = startSummaryLine || conditionsFallbackCopy;
+    } else if (startSummaryLine) {
+      conditionsValue = conditionsFallbackCopy || String(topCards.conditions || "").trim();
+      conditionsCopy = startSummaryLine;
+    } else {
+      conditionsValue = String(topCards.conditions || "").trim();
+      conditionsCopy = String(body.card_conditions_copy || "").trim();
+    }
 
     setHookText("trip-card-title", title);
     setHookText("trip-card-status-pill", status);
@@ -424,39 +696,49 @@
 
     setHookText("page-title", title);
     setHookText("page-subtitle", body.page_subtitle);
-    if (lastCheckin) {
-      setHookText("live-chip", "Live now · Updated " + lastCheckin);
+    if (lastCheckinLabel) {
+      setHookText("live-chip", "Live now · Updated " + lastCheckinLabel);
     }
 
-    setHookText("journey-subtitle", body.journey_subtitle);
-    setHookText("journey-status-pill", status);
+    setHookText("journey-subtitle", isAwaitingDeparture ? "Awaiting departure from the current stop." : body.journey_subtitle);
+    setHookText("journey-status-pill", voyageProgressStatus);
+    if (dom.journeyStatusPill) {
+      dom.journeyStatusPill.classList.toggle("danger", voyageProgressStatusVariant === "danger");
+      dom.journeyStatusPill.classList.toggle("good", voyageProgressStatusVariant !== "danger");
+    }
     setHookWidth("journey-progress-fill", progressPct);
     setHookText("journey-departed-value", body.journey_departed_value);
-    setHookText("journey-departed-meta", body.journey_departed_meta);
-    setHookText("journey-current-leg-value", activeLegLabel);
-    if (effectiveSpeedKn !== null && effectiveSpeedKn > 0) {
+    setHookText("journey-departed-meta", departedLocalMeta);
+    setHookText("journey-current-leg-value", isAwaitingDeparture ? "Awaiting Departure" : activeLegLabel);
+    if (isAwaitingDeparture) {
+      setHookText("journey-current-leg-meta", "Next leg has not started yet.");
+    } else if (activeLeg && completedLegs < legs.length && effectiveSpeedKn !== null && effectiveSpeedKn > 0) {
       setHookText("journey-current-leg-meta", "Making way at " + String(effectiveSpeedKn) + " kn");
     }
     setHookText("journey-next-stop-value", nextStop);
-    setHookText("journey-next-stop-meta", eta);
-    setHookText("journey-checkin-value", formatJourneyCheckinValue(body.journey_checkin_value));
+    setHookText("journey-next-stop-meta", nextStopLocalEta);
+    setHookText("journey-checkin-value", realCheckInLabel ? ("Checked in at " + realCheckInLabel) : "Checked in at --");
     setHookText("journey-checkin-meta", body.journey_checkin_meta);
 
-    setHookText("card-status-title", status);
-    setHookText("card-status-value", formatSidebarLastCheckinLabel(lastCheckin) || lastCheckin);
-    setHookText("card-status-copy", body.card_status_copy);
+    setHookText("card-status-title", voyageProgressStatus);
+    setHookText("card-status-value", lastCheckinLabel || "—");
+    setHookText("card-status-copy", voyageProgressStatusCopy);
+    if (dom.statusDot) {
+      dom.statusDot.classList.toggle("warning", voyageProgressStatusVariant === "warning");
+      dom.statusDot.classList.toggle("danger", voyageProgressStatusVariant === "danger");
+    }
     setHookText("card-location-title", String(topCards.location_label || "").trim());
     setHookText("card-location-value", nextStop);
-    setHookText("card-location-copy", body.card_location_copy);
+    setHookText("card-location-copy", isAwaitingDeparture ? "The trip is paused at the current stop and awaiting the next departure." : body.card_location_copy);
     setHookText("card-destination-title", nextStop);
     setHookText("card-destination-value", topCards.next_stop);
     setHookText("card-destination-copy", body.card_destination_copy);
-    setHookText("card-arrival-title", eta);
+    setHookText("card-arrival-title", formatSidebarLastCheckinLabel(topCards.eta_utc || "") || "—");
     setHookText("card-arrival-value", nextStop);
-    setHookText("card-arrival-copy", body.card_arrival_copy);
-    setHookText("card-conditions-title", conditions);
-    setHookText("card-conditions-value", topCards.conditions);
-    setHookText("card-conditions-copy", body.card_conditions_copy);
+    setHookText("card-arrival-copy", isAwaitingDeparture ? "Departure has not started for the next leg yet." : body.card_arrival_copy);
+    setHookText("card-conditions-title", conditionsTitle);
+    setHookText("card-conditions-value", conditionsValue);
+    setHookText("card-conditions-copy", conditionsCopy);
     setHookText("family-confidence-subtitle", body.family_confidence_subtitle);
   }
 
@@ -466,10 +748,10 @@
     var pinned = payload.pinned || {};
     var title = stream.title || "Voyage Stream";
     var status = topCards.status || stream.status || "n/a";
-    var lastCheckin = topCards.last_checkin || "n/a";
+    var lastCheckin = formatSidebarLastCheckinLabel(topCards.last_checkin_utc || "") || "n/a";
     var location = topCards.location_label || "n/a";
     var nextStop = topCards.next_stop || "n/a";
-    var eta = topCards.eta || "n/a";
+    var eta = formatSidebarLastCheckinLabel(topCards.eta_utc || "") || "—";
     var conditions = topCards.conditions || "n/a";
     var miles = safeNum(pinned.miles);
     var days = toInt(pinned.days, 0);
@@ -502,7 +784,7 @@
     if (dom.overlayProgress) dom.overlayProgress.textContent = (miles === null ? "n/a" : miles.toFixed(1) + " mi");
     if (dom.overlayCheckin) dom.overlayCheckin.textContent = lastCheckin;
 
-    if (dom.pinnedUpdated) dom.pinnedUpdated.textContent = "Updated " + (pinned.updated_label || "n/a");
+    if (dom.pinnedUpdated) dom.pinnedUpdated.textContent = "Updated " + lastCheckin;
     if (dom.pinnedMiles) dom.pinnedMiles.textContent = (miles === null ? "0" : miles.toFixed(1));
     if (dom.pinnedDays) dom.pinnedDays.textContent = String(days);
     if (dom.pinnedLocks) dom.pinnedLocks.textContent = String(locks);
@@ -626,37 +908,28 @@
     var summary = (payload.summary && typeof payload.summary === "object") ? payload.summary : {};
     var meta = (payload.meta && typeof payload.meta === "object") ? payload.meta : {};
     var order = toInt(leg.leg_order, 0);
-    var dayBucket = toInt(leg.day_bucket, 0);
-    var dayLabel = dayBucket > 0 ? String(dayBucket) : "n/a";
     var legText = String(leg.label || (String(leg.start_name || "Start") + " -> " + String(leg.end_name || "End"))).trim();
     var progress = (leg.progress && typeof leg.progress === "object") ? leg.progress : {};
     var progressPct = timelineValueText(progress.percent_complete, 0, "%");
     var lastUpdateRaw = String(progress.last_update_ts || "").trim();
     var lastUpdateText = lastUpdateRaw ? formatTimeLabel(lastUpdateRaw) : "n/a";
-    var cumulativeHours = timelineValueText(leg.cumulative_hours, 2, "h");
+    var cumulativeHours = timelineValueText(leg.cumulative_hours, 1, "h");
+    var legHours = timelineValueText(leg.hours, 1, "h");
     var maxHoursPerDay = timelineValueText(summary.max_hours_per_day, 1, "h");
-    var dayFormula = "ceil(cumulative_hours / max_hours_per_day)";
     var inputsSource = String(meta.inputs_source || "default").trim() || "default";
     var missingInputs = Array.isArray(meta.missing_inputs) ? meta.missing_inputs : [];
-    var formulaText = String(meta.formula || "").trim();
     var legFuelBurnGph = timelineValueText(summary.fuel_burn_gph, 1, "gph");
     var legFuelEst = timelineValueText((safeNum(summary.fuel_burn_gph) !== null && safeNum(leg.hours) !== null)
       ? (safeNum(summary.fuel_burn_gph) * safeNum(leg.hours))
       : null, 1, "gal");
     var lockDetailsHtml = renderLegLockDetailsHtml(leg);
 
-    if (dayBucket > 0) {
-      dayFormula = dayFormula + " = " + dayLabel;
-    } else {
-      dayFormula = dayFormula + " = n/a";
-    }
-
     return ''
       + '<div class="follow-timeline-legpanel is-open" data-leg-order="' + String(order) + '">'
       + '  <div class="follow-timeline-legpanelhead">'
       + '    <div>'
       + '      <div class="follow-timeline-kicker">Cruise Timeline Day</div>'
-      + '      <div class="follow-timeline-legpaneltitle">Day ' + escapeHtml(dayLabel) + ' | Leg ' + escapeHtml(String(order).padStart(2, "0")) + '</div>'
+      + '      <div class="follow-timeline-legpaneltitle">Cumulative ' + escapeHtml(cumulativeHours) + ' | Leg ' + escapeHtml(String(order).padStart(2, "0")) + '</div>'
       + '    </div>'
       + '    <div class="follow-timeline-legpanelactions">'
       + '      <button type="button" class="btn tiny" data-timeline-action="collapse-leg" data-leg-order="' + String(order) + '">Hide</button>'
@@ -670,12 +943,11 @@
       + '    <div class="follow-timeline-legpanelchip"><span>Progress</span><strong>' + progressPct + '</strong></div>'
       + '  </div>'
       + lockDetailsHtml
-      + '  <div class="follow-timeline-legpanelmeta">Day bucket: ' + escapeHtml(dayFormula) + ' | cumulative ' + escapeHtml(cumulativeHours) + ' | max/day ' + escapeHtml(maxHoursPerDay) + '</div>'
+      + '  <div class="follow-timeline-legpanelmeta">Cumulative: ' + escapeHtml(cumulativeHours) + ' | Leg: ' + escapeHtml(legHours) + ' | Max/day: ' + escapeHtml(maxHoursPerDay) + '</div>'
       + '  <div class="follow-timeline-legpanelmeta">Fuel est: ' + escapeHtml(legFuelEst) + ' @ ' + escapeHtml(legFuelBurnGph) + '</div>'
       + '  <div class="follow-timeline-legpanelmeta">Last update: ' + escapeHtml(lastUpdateText) + '</div>'
       + '  <div class="follow-timeline-legpanelnote">Inputs source: ' + escapeHtml(inputsSource)
       + (missingInputs.length ? (' | Missing: ' + escapeHtml(missingInputs.join(", "))) : '')
-      + (formulaText ? (' | ' + escapeHtml(formulaText)) : '')
       + '</div>'
       + '</div>';
   }
@@ -710,7 +982,7 @@
     }
 
     html += '<div class="follow-timeline-legcols">'
-      + '<span>#</span><span>Leg</span><span>Locks</span><span>NM</span><span>Hours</span><span>Day</span>'
+      + '<span>#</span><span>Leg</span><span>Locks</span><span>NM</span><span>Hours</span><span>Cum h</span>'
       + '</div>';
 
     html += list.map(function (leg, idx) {
@@ -723,8 +995,7 @@
       var nm = formatTimelineNumber(row.dist_nm, 1);
       var hours = formatTimelineNumber(row.hours, 2);
       var locks = formatTimelineNumber(row.locks, 0);
-      var dayBucketNum = toInt(row.day_bucket, 0);
-      var dayLabel = dayBucketNum > 0 ? ("D" + String(dayBucketNum)) : "n/a";
+      var cumulativeHours = timelineValueText(row.cumulative_hours, 1, "h");
       var progress = (row.progress && typeof row.progress === "object") ? row.progress : {};
       var pct = formatTimelineNumber(progress.percent_complete, 0);
       var lastUpdateRaw = String(progress.last_update_ts || "").trim();
@@ -746,7 +1017,7 @@
         + '    <div class="follow-timeline-leglocks">' + locks + '</div>'
         + '    <div class="follow-timeline-legnm">' + nm + ' NM</div>'
         + '    <div class="follow-timeline-leghours">' + hours + ' h</div>'
-        + '    <div class="follow-timeline-legday">' + dayLabel + '</div>'
+        + '    <div class="follow-timeline-legday">' + cumulativeHours + '</div>'
         + '  </div>'
         + (isExpanded ? renderCruiseTimelineLegPane(row, state.timeline.payload || {}) : "")
         + '</div>';
@@ -903,12 +1174,25 @@
     var metaText = renderStreamFeedMeta(post);
     var mediaHtml = renderStreamMedia(post);
     var commentsHtml;
+    var deleteButtonHtml = "";
+    var bodyHtml = "";
 
     if (!title) {
       title = body ? body.slice(0, 90) : "Update";
     }
 
     commentsHtml = renderStreamComments(comments);
+    if (
+      state.isOwner
+      && String(post.author_type || "").toLowerCase() === "owner"
+      && String(post.post_type || "").toLowerCase() !== "system_event"
+      && !String(post.event_type || "").trim()
+    ) {
+      deleteButtonHtml = '<button type="button" class="reaction" data-owner-delete-post="' + String(id) + '">Delete</button>';
+    }
+    if (body) {
+      bodyHtml = '  <p>' + escapeHtml(body).replace(/\n/g, "<br />") + '</p>';
+    }
 
     return ''
       + '<article class="feed-card" data-post-id="' + String(id) + '">'
@@ -923,8 +1207,8 @@
       + '    <div class="feed-flag">' + escapeHtml(authorLabel) + '</div>'
       + '  </div>'
       + mediaHtml
-      + '  <p>' + escapeHtml(body).replace(/\n/g, "<br />") + '</p>'
-      + '  <div class="reactions">' + renderStreamReactions(id, reactions, viewerReactions) + '</div>'
+      + bodyHtml
+      + '  <div class="reactions">' + renderStreamReactions(id, reactions, viewerReactions) + deleteButtonHtml + '</div>'
       + '  <div id="comments-' + String(id) + '">' + (commentsHtml || "") + '</div>'
       + '  <div class="commentBox">'
       + '    <input class="commentInput" type="text" data-comment-input="' + String(id) + '" maxlength="500" placeholder="Add a comment..." />'
@@ -953,6 +1237,75 @@
     if (dom.photoCount) {
       dom.photoCount.textContent = String(findFirstPhotoCount(list)) + " new";
     }
+  }
+
+  function normalizeCreatedPostPayload(payload) {
+    var source = payload || {};
+    var post = source.post || source.POST || {};
+    var postId = toInt(post.id || source.post_id || source.POST_ID, 0);
+
+    if (postId <= 0) return null;
+
+    return {
+      id: postId,
+      stream_id: toInt(post.stream_id, state.streamId),
+      author_type: String(post.author_type || "owner"),
+      author_user_id: toInt(post.author_user_id, 0),
+      follower_id: toInt(post.follower_id, 0),
+      title: String(post.title || ""),
+      body: String(post.body || ""),
+      post_type: String(post.post_type || (String(post.media_url || "").trim() ? "photo" : "text")),
+      event_type: String(post.event_type || ""),
+      location_label: String(post.location_label || ""),
+      lat: post.lat || "",
+      lng: post.lng || "",
+      media_url: String(post.media_url || ""),
+      media_thumb_url: String(post.media_thumb_url || ""),
+      created_utc: String(post.created_utc || ""),
+      reaction_counts: post.reaction_counts || { like: 0, love: 0, boat: 0, wave: 0 },
+      viewer_reactions: post.viewer_reactions || {},
+      comments: Array.isArray(post.comments) ? post.comments : []
+    };
+  }
+
+  function mergePostIntoList(newPost, posts) {
+    var list = Array.isArray(posts) ? posts.slice() : [];
+    var postId = toInt(newPost && newPost.id, 0);
+
+    if (postId <= 0) return list;
+
+    list = list.filter(function (post) {
+      return toInt(post && post.id, 0) !== postId;
+    });
+    list.unshift(newPost);
+    return list;
+  }
+
+  function prependPostToUi(newPost) {
+    var list = mergePostIntoList(newPost, state.posts);
+    var hasRenderedPosts = false;
+    var existing = null;
+
+    state.posts = list;
+    updateSidebarLastCheckinFromPosts(list);
+    renderPhase6LowerCards(state.bootstrap || {}, list);
+    if (dom.photoCount) {
+      dom.photoCount.textContent = String(findFirstPhotoCount(list)) + " new";
+    }
+    if (!dom.postsContainer) return;
+
+    existing = dom.postsContainer.querySelector('[data-post-id="' + String(newPost.id) + '"]');
+    if (existing && existing.parentNode) {
+      existing.parentNode.removeChild(existing);
+    }
+
+    hasRenderedPosts = !!dom.postsContainer.querySelector("[data-post-id]");
+    if (!hasRenderedPosts) {
+      dom.postsContainer.innerHTML = renderPost(newPost);
+      return;
+    }
+
+    dom.postsContainer.insertAdjacentHTML("afterbegin", renderPost(newPost));
   }
 
   function applyReactionCounts(postId, counts, activeEmoji) {
@@ -1017,7 +1370,7 @@
       password: password,
       t: state.token
     }).then(function (res) {
-      state.followerToken = String(res.follower_token || "");
+      state.followerToken = String(res.follower_token || res.FOLLOWER_TOKEN || "");
       cacheFollowerToken(state.followerToken);
       if (dom.followActionBtn) dom.followActionBtn.textContent = "Following";
       return state.followerToken;
@@ -1113,12 +1466,35 @@
       });
   }
 
+  function onOwnerDeletePost(postId) {
+    var article = dom.postsContainer ? dom.postsContainer.querySelector('[data-post-id="' + String(postId) + '"]') : null;
+
+    if (!state.isOwner || postId <= 0) return;
+    if (!window.confirm("Delete this post?")) return;
+    if (article) article.style.opacity = "0.55";
+
+    fetchJson("ownerDeletePost", {
+      post_id: postId
+    }).then(function () {
+      return loadPosts();
+    }).catch(function (err) {
+      if (article) article.style.opacity = "";
+      window.alert((err && err.message) ? err.message : "Unable to delete post.");
+    });
+  }
+
   function wirePostInteractions() {
     if (!dom.postsContainer) return;
 
     dom.postsContainer.addEventListener("click", function (event) {
       var reactBtn = event.target.closest("[data-react]");
       var commentBtn = event.target.closest("[data-comment-submit]");
+      var deleteBtn = event.target.closest("[data-owner-delete-post]");
+      if (deleteBtn) {
+        event.preventDefault();
+        onOwnerDeletePost(toInt(deleteBtn.getAttribute("data-owner-delete-post"), 0));
+        return;
+      }
       if (reactBtn) {
         event.preventDefault();
         onReactClick(reactBtn);
@@ -1140,7 +1516,7 @@
     });
   }
 
-  function loadPosts() {
+  function loadPosts(preservePost) {
     return fetchJson("listPosts", {
       stream_id: state.streamId,
       cursor: 0,
@@ -1148,7 +1524,12 @@
       t: state.token,
       follower_token: state.followerToken || ""
     }).then(function (res) {
-      renderPosts(Array.isArray(res.posts) ? res.posts : []);
+      var posts = Array.isArray(res.posts) ? res.posts : [];
+      if (preservePost) {
+        posts = mergePostIntoList(preservePost, posts);
+        res.posts = posts;
+      }
+      renderPosts(posts);
       return res;
     });
   }
@@ -1175,19 +1556,83 @@
 
   function postAsOwner() {
     var text = dom.composerText ? String(dom.composerText.value || "").trim() : "";
-    var photoUrl = dom.composerPhotoUrl ? String(dom.composerPhotoUrl.value || "").trim() : "";
+    var mediaFile = (dom.composerPhotoUrl && dom.composerPhotoUrl.files && dom.composerPhotoUrl.files[0]) ? dom.composerPhotoUrl.files[0] : null;
+    var mime = String(mediaFile && mediaFile.type ? mediaFile.type : "").toLowerCase();
+    var fileName = String(mediaFile && mediaFile.name ? mediaFile.name : "");
+    var createPromise;
 
     if (!state.isOwner) return;
-    if (!text && !photoUrl) return;
+    if (!text && !mediaFile) return;
+    if (mediaFile && mediaFile.size > (5 * 1024 * 1024)) {
+      window.alert("Image must be 5MB or smaller.");
+      return;
+    }
+    if (mediaFile && ((mime && !/^image\/(jpeg|pjpeg|png|webp|x-webp)$/i.test(mime)) || !/\.(jpe?g|png|webp)$/i.test(fileName))) {
+      window.alert("Only JPG, PNG, and WebP images are allowed.");
+      return;
+    }
 
-    fetchJson("ownerCreatePost", {
-      stream_id: state.streamId,
-      body: text,
-      media_url: photoUrl
-    }).then(function () {
-      if (dom.composerText) dom.composerText.value = "";
-      if (dom.composerPhotoUrl) dom.composerPhotoUrl.value = "";
-      return loadPosts();
+    if (mediaFile) {
+      var formData = new FormData();
+      var uploadUrl = getBasePath() + "/api/v1/voyageUpload.cfm";
+      formData.append("stream_id", String(state.streamId));
+      formData.append("body", text);
+      formData.append("media_file", mediaFile);
+      createPromise = fetch(uploadUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        body: formData
+      }).then(function (res) {
+        return res.text().then(function (txt) {
+          return { ok: res.ok, status: res.status, text: txt };
+        });
+      }).then(function (txt) {
+        var json;
+        if (!txt.ok) {
+          try {
+            json = txt.text ? JSON.parse(txt.text) : {};
+          } catch (err) {
+            json = {};
+          }
+          throw new Error((json.ERROR && json.ERROR.MESSAGE) || json.MESSAGE || "Unable to publish post.");
+        }
+        if (!String(txt.text || "").trim()) {
+          return {};
+        }
+        try {
+          json = txt.text ? JSON.parse(txt.text) : {};
+        } catch (err) {
+          json = {};
+        }
+        if (json && (json.SUCCESS === false || json.success === false)) {
+          throw new Error((json.ERROR && json.ERROR.MESSAGE) || json.MESSAGE || "Unable to publish post.");
+        }
+        return json;
+      });
+    } else {
+      createPromise = fetchJson("ownerCreatePost", {
+        stream_id: state.streamId,
+        body: text,
+        media_url: ""
+      });
+    }
+
+    createPromise.then(function (createRes) {
+      var createdPost = mediaFile ? normalizeCreatedPostPayload(createRes) : null;
+
+      if (mediaFile && createdPost) {
+        prependPostToUi(createdPost);
+        if (dom.composerText) dom.composerText.value = "";
+        if (dom.composerPhotoUrl) dom.composerPhotoUrl.value = "";
+        loadPosts(createdPost).catch(function () {});
+        return null;
+      }
+
+      return loadPosts().then(function (res) {
+        if (dom.composerText) dom.composerText.value = "";
+        if (dom.composerPhotoUrl) dom.composerPhotoUrl.value = "";
+        return res;
+      });
     }).catch(function (err) {
       window.alert((err && err.message) ? err.message : "Unable to publish post.");
     });
@@ -1220,6 +1665,7 @@
   }
 
   function bootstrapStream() {
+    setLoaderMilestone("bootstrap");
     return fetchJson("getStreamBootstrap", {
       slug: state.slug,
       stream_id: state.streamId,
@@ -1233,12 +1679,19 @@
       state.followerStorageKey = "fpw.voyage.follower." + String(state.streamId || state.slug || "stream");
       state.followerToken = readCachedFollowerToken();
 
+      setLoaderMilestone("floatPlan");
       renderHeaderAndCards(res);
+      setLoaderMilestone("weather");
       renderMap(res.map || {});
+      setLoaderMilestone("route");
       renderCruiseTimelineInline(res.timeline || {});
       renderCruiseTimelineLegs(res.timeline && Array.isArray(res.timeline.legs) ? res.timeline.legs : []);
       setComposerMode();
-      return loadPosts();
+      setLoaderMilestone("finalize");
+      return loadPosts().then(function (postsRes) {
+        finishLoader();
+        return postsRes;
+      });
     });
   }
 
@@ -1293,6 +1746,13 @@
     dom.composerPostBtn = document.getElementById("composerPostBtn") || getHookField("stream-composer-post");
     dom.composerHelp = document.getElementById("composerHelp");
     dom.postsContainer = document.getElementById("postsContainer") || getHookField("stream-feed");
+    dom.loader = document.getElementById("followLoader");
+    dom.loaderPhase = document.getElementById("followLoaderPhase");
+    dom.loaderPercent = document.getElementById("followLoaderPercent");
+    dom.loaderBar = document.getElementById("followLoaderBar");
+    dom.loaderMessage = document.getElementById("followLoaderMessage");
+    dom.journeyStatusPill = getHookField("journey-status-pill");
+    dom.statusDot = document.querySelector(".status-dot");
 
     if (dom.copyLinkBtn) {
       dom.copyLinkBtn.addEventListener("click", copyShareLink);
@@ -1343,11 +1803,14 @@
     state.streamId = route.streamId;
 
     bindUi();
+    setLoaderMilestone("initial");
 
     bootstrapStream().catch(function (err) {
+      var errorMessage = (err && err.message) ? err.message : "Unable to load voyage stream.";
       if (dom.postsContainer) {
-        dom.postsContainer.innerHTML = '<div class="emptyState">' + escapeHtml((err && err.message) ? err.message : "Unable to load voyage stream.") + '</div>';
+        dom.postsContainer.innerHTML = '<div class="emptyState">' + escapeHtml(errorMessage) + '</div>';
       }
+      failLoader(errorMessage);
     });
   }
 

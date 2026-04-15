@@ -62,7 +62,9 @@
                     </cfif>
 
                     <cfset var bootstrapData = getBootstrapData(userId, bootstrapId)>
-                    <cfset bootstrapData.SUCCESS = true>
+                    <cfif NOT structKeyExists(bootstrapData, "SUCCESS")>
+                        <cfset bootstrapData.SUCCESS = true>
+                    </cfif>
                     <cfset bootstrapData.AUTH = true>
                     <cfoutput>#serializeJSON(bootstrapData)#</cfoutput>
                 </cfcase>
@@ -144,6 +146,10 @@
                             ? toString(body.checkinContext)
                             : (structKeyExists(body, "checkin_context") ? toString(body.checkin_context) : "")
                     )>
+                    <cfset var allowRouteLessFinalClose = false>
+                    <cfset var qRouteLessClosePlan = queryNew("")>
+                    <cfset var routeLessCloseStatus = "">
+                    <cfset var routeLessCloseInstanceId = 0>
                     <cfif structKeyExists(body, "floatPlanId")>
                         <cfset checkinId = val(body.floatPlanId)>
                     <cfelseif structKeyExists(url, "floatPlanId")>
@@ -151,13 +157,166 @@
                     <cfelseif structKeyExists(url, "id")>
                         <cfset checkinId = val(url.id)>
                     </cfif>
-                    <cfif len(checkinStatus) OR structKeyExists(body, "note")>
+                    <cfset var activeCruiseCheckinGuard = resolveCanonicalActiveFloatPlan(userId, checkinId)>
+                    <cfif !len(checkinStatus) AND !len(trim(checkinNote)) AND !len(checkinContext) AND checkinId GT 0>
+                        <cfset qRouteLessClosePlan = queryExecute(
+                            "SELECT route_instance_id, UPPER(TRIM(`status`)) AS statusValue
+                               FROM floatplans
+                              WHERE floatplanId = :planId
+                                AND userId = :userId
+                              LIMIT 1",
+                            {
+                                planId = { value = checkinId, cfsqltype = "cf_sql_integer" },
+                                userId = { value = userId, cfsqltype = "cf_sql_integer" }
+                            },
+                            { datasource = "fpw" }
+                        )>
+                        <cfif qRouteLessClosePlan.recordCount EQ 1>
+                            <cfset routeLessCloseStatus = trim(toString(qRouteLessClosePlan.statusValue[1]))>
+                            <cfset routeLessCloseInstanceId = isNull(qRouteLessClosePlan.route_instance_id[1]) ? 0 : val(qRouteLessClosePlan.route_instance_id[1])>
+                            <cfset allowRouteLessFinalClose = (
+                                routeLessCloseInstanceId LTE 0
+                                AND listFindNoCase("ACTIVE,DUE_NOW,OVERDUE,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H", routeLessCloseStatus) GT 0
+                            )>
+                        </cfif>
+                    </cfif>
+                    <cfif NOT activeCruiseCheckinGuard.SUCCESS AND NOT allowRouteLessFinalClose>
+                        <cfset activeCruiseCheckinGuard.AUTH = true>
+                        <cfoutput>#serializeJSON(activeCruiseCheckinGuard)#</cfoutput>
+                    <cfelseif compareNoCase(checkinStatus, "Arrived") EQ 0>
+                        <cfset var arrivedCheckinResult = checkInFloatPlan(userId, checkinId)>
+                        <cfset arrivedCheckinResult.AUTH = true>
+                        <cfoutput>#serializeJSON(arrivedCheckinResult)#</cfoutput>
+                    <cfelseif len(checkinStatus) OR structKeyExists(body, "note")>
                         <cfset var cruiseCheckinResult = submitActiveCruiseCheckIn(userId, checkinId, checkinStatus, checkinNote, checkinContext)>
                         <cfoutput>#serializeJSON(cruiseCheckinResult)#</cfoutput>
                     <cfelse>
                         <cfset var checkinResult = checkInFloatPlan(userId, checkinId)>
                         <cfset checkinResult.AUTH = true>
                         <cfoutput>#serializeJSON(checkinResult)#</cfoutput>
+                    </cfif>
+                </cfcase>
+
+                <cfcase value="updatedailystart">
+                    <cfset var dailyStartId = 0>
+                    <cfset var dailyStartValue = trim(
+                        structKeyExists(body, "dailyStartLocalTime")
+                            ? toString(body.dailyStartLocalTime)
+                            : (structKeyExists(body, "daily_start_local_time") ? toString(body.daily_start_local_time) : "")
+                    )>
+                    <cfif structKeyExists(body, "floatPlanId")>
+                        <cfset dailyStartId = val(body.floatPlanId)>
+                    <cfelseif structKeyExists(url, "floatPlanId")>
+                        <cfset dailyStartId = val(url.floatPlanId)>
+                    <cfelseif structKeyExists(url, "id")>
+                        <cfset dailyStartId = val(url.id)>
+                    </cfif>
+                    <cfset var activeCruiseDailyStartGuard = resolveCanonicalActiveFloatPlan(userId, dailyStartId)>
+                    <cfif NOT activeCruiseDailyStartGuard.SUCCESS>
+                        <cfset activeCruiseDailyStartGuard.AUTH = true>
+                        <cfoutput>#serializeJSON(activeCruiseDailyStartGuard)#</cfoutput>
+                    <cfelse>
+                        <cfset var dailyStartResult = updateActiveCruiseDailyStart(userId, dailyStartId, dailyStartValue)>
+                        <cfset dailyStartResult.AUTH = true>
+                        <cfoutput>#serializeJSON(dailyStartResult)#</cfoutput>
+                    </cfif>
+                </cfcase>
+
+                <cfcase value="completeleg">
+                    <cfset var completeLegId = 0>
+                    <cfset var expectedLegOrder = 0>
+                    <cfif structKeyExists(body, "floatPlanId")>
+                        <cfset completeLegId = val(body.floatPlanId)>
+                    <cfelseif structKeyExists(url, "floatPlanId")>
+                        <cfset completeLegId = val(url.floatPlanId)>
+                    <cfelseif structKeyExists(url, "id")>
+                        <cfset completeLegId = val(url.id)>
+                    </cfif>
+                    <cfif structKeyExists(body, "expectedLegOrder")>
+                        <cfset expectedLegOrder = val(body.expectedLegOrder)>
+                    <cfelseif structKeyExists(url, "expectedLegOrder")>
+                        <cfset expectedLegOrder = val(url.expectedLegOrder)>
+                    </cfif>
+
+                    <cfset var activeCruiseLegGuard = resolveCanonicalActiveFloatPlan(userId, completeLegId)>
+                    <cfif NOT activeCruiseLegGuard.SUCCESS>
+                        <cfset activeCruiseLegGuard.AUTH = true>
+                        <cfoutput>#serializeJSON(activeCruiseLegGuard)#</cfoutput>
+                    <cfelse>
+                        <cfset var routeProgressService = createObject("component", resolveApiV1ComponentPath("RouteProgressService")).init()>
+                        <cfset var completeLegResult = routeProgressService.markCompletionFromFloatPlanCheckin(
+                            userId = userId,
+                            floatPlanId = completeLegId,
+                            datasource = "fpw",
+                            completionMode = "active_leg",
+                            expectedLegOrder = expectedLegOrder
+                        )>
+                        <cfset completeLegResult.AUTH = true>
+                        <cfoutput>#serializeJSON(completeLegResult)#</cfoutput>
+                    </cfif>
+                </cfcase>
+
+                <cfcase value="startnextleg">
+                    <cfset var startNextLegId = 0>
+                    <cfset var activeCruiseStartGuard = {}>
+                    <cfset var startNextLegRouteProgressService = {}>
+                    <cfset var startNextLegResult = {}>
+                    <cfset var qStartNextLegPlan = queryNew("")>
+                    <cfset var startNextLegCheckInContext = "">
+                    <cfif structKeyExists(body, "floatPlanId")>
+                        <cfset startNextLegId = val(body.floatPlanId)>
+                    <cfelseif structKeyExists(url, "floatPlanId")>
+                        <cfset startNextLegId = val(url.floatPlanId)>
+                    <cfelseif structKeyExists(url, "id")>
+                        <cfset startNextLegId = val(url.id)>
+                    </cfif>
+
+                    <cfset activeCruiseStartGuard = resolveCanonicalActiveFloatPlan(userId, startNextLegId)>
+                    <cfif NOT activeCruiseStartGuard.SUCCESS>
+                        <cfset activeCruiseStartGuard.AUTH = true>
+                        <cfoutput>#serializeJSON(activeCruiseStartGuard)#</cfoutput>
+                    <cfelse>
+                        <cfset qStartNextLegPlan = queryExecute(
+                            "SELECT checkin_context
+                             FROM floatplans
+                             WHERE floatplanId = :planId
+                               AND userId = :userId
+                             LIMIT 1",
+                            {
+                                planId = { value = startNextLegId, cfsqltype = "cf_sql_integer" },
+                                userId = { value = userId, cfsqltype = "cf_sql_integer" }
+                            },
+                            { datasource = "fpw" }
+                        )>
+                        <cfif qStartNextLegPlan.recordCount EQ 1>
+                            <cfset startNextLegCheckInContext = normalizeCheckInContext(isNull(qStartNextLegPlan.checkin_context[1]) ? "" : qStartNextLegPlan.checkin_context[1])>
+                        </cfif>
+
+                        <cfset startNextLegRouteProgressService = createObject("component", resolveApiV1ComponentPath("RouteProgressService")).init()>
+                        <cfset startNextLegResult = startNextLegRouteProgressService.startNextPendingLegForFloatPlan(
+                            userId = userId,
+                            floatPlanId = startNextLegId,
+                            datasource = "fpw"
+                        )>
+
+                        <cfif structKeyExists(startNextLegResult, "SUCCESS") AND startNextLegResult.SUCCESS EQ true>
+                            <cfset queryExecute(
+                                "UPDATE floatplans
+                                 SET checkin_context = NULL,
+                                     lastUpdateStatus = UTC_TIMESTAMP()
+                                 WHERE floatplanId = :planId
+                                   AND userId = :userId",
+                                {
+                                    planId = { value = startNextLegId, cfsqltype = "cf_sql_integer" },
+                                    userId = { value = userId, cfsqltype = "cf_sql_integer" }
+                                },
+                                { datasource = "fpw" }
+                            )>
+                            <cfset startNextLegResult.CLEARED_CHECKIN_CONTEXT = (len(startNextLegCheckInContext) GT 0)>
+                        </cfif>
+
+                        <cfset startNextLegResult.AUTH = true>
+                        <cfoutput>#serializeJSON(startNextLegResult)#</cfoutput>
                     </cfif>
                 </cfcase>
 
@@ -364,6 +523,105 @@
             }
 
             return response;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="userOwnsRouteInstance" access="private" returntype="boolean" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="true">
+        <cfscript>
+            if (arguments.userId LTE 0 OR arguments.routeInstanceId LTE 0) {
+                return false;
+            }
+
+            var qRouteInstance = queryExecute(
+                "SELECT id
+                   FROM route_instances
+                  WHERE id = :routeInstanceId
+                    AND user_id = :userId
+                  LIMIT 1",
+                {
+                    routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                },
+                { datasource = "fpw" }
+            );
+
+            return qRouteInstance.recordCount GT 0;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveCanonicalActiveFloatPlan" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                success = false,
+                MESSAGE = ""
+            };
+            var qPlan = queryNew("");
+
+            if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
+                result.ERROR = "INVALID_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            qPlan = queryExecute(
+                "SELECT floatplanId, route_instance_id, UPPER(TRIM(`status`)) AS statusValue
+                   FROM floatplans
+                  WHERE userId = :userId
+                    AND UPPER(TRIM(`status`)) IN (
+                        'ACTIVE',
+                        'DUE_NOW',
+                        'OVERDUE',
+                        'OVERDUE_1H',
+                        'OVERDUE_2H',
+                        'OVERDUE_3H',
+                        'OVERDUE_4H',
+                        'OVERDUE_12H',
+                        'OVERDUE_24H'
+                    )
+                  ORDER BY floatplanId DESC
+                  LIMIT 2",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+
+            if (qPlan.recordCount EQ 0) {
+                result.ERROR = "NO_ACTIVE_PLAN";
+                result.MESSAGE = "No active trip is available.";
+                return result;
+            }
+
+            if (qPlan.recordCount GT 1) {
+                result.ERROR = "MULTIPLE_ACTIVE_PLANS";
+                result.MESSAGE = "Multiple monitored float plans are active. Active Cruise is unavailable.";
+                return result;
+            }
+
+            result.FLOATPLANID = val(qPlan.floatplanId[1]);
+            result.ROUTE_INSTANCE_ID = val(qPlan.route_instance_id[1]);
+            result.STATUS = trim(toString(qPlan.statusValue[1]));
+
+            if (result.FLOATPLANID NEQ arguments.floatPlanId) {
+                result.ERROR = "ACTIVE_PLAN_MISMATCH";
+                result.MESSAGE = "Only the current active trip can be updated from Active Cruise.";
+                return result;
+            }
+
+            if (result.ROUTE_INSTANCE_ID LTE 0) {
+                result.ERROR = "ROUTE_REQUIRED";
+                result.MESSAGE = "The active float plan must be linked to a route.";
+                return result;
+            }
+
+            result.SUCCESS = true;
+            result.success = true;
+            return result;
         </cfscript>
     </cffunction>
 
@@ -871,6 +1129,69 @@
             var returnTzStore = returnTz;
             var departureSourceTz = departureTz;
             var returnSourceTz = returnTz;
+            var existingPlanRow = queryNew("");
+            var existingRouteInstanceId = 0;
+
+            if (planId GT 0) {
+                existingPlanRow = queryExecute(
+                    "SELECT floatplanId, route_instance_id
+                       FROM floatplans
+                      WHERE floatplanId = :planId
+                        AND userId = :userId
+                      LIMIT 1",
+                    {
+                        planId = { value = planId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = "fpw" }
+                );
+
+                if (existingPlanRow.recordCount EQ 0) {
+                    result.ERROR = "NOT_FOUND";
+                    result.MESSAGE = "Float plan not found.";
+                    return result;
+                }
+
+                existingRouteInstanceId = isNull(existingPlanRow.route_instance_id[1])
+                    ? 0
+                    : val(existingPlanRow.route_instance_id[1]);
+            }
+
+            if (planId LTE 0) {
+                if (routeInstanceId GT 0 AND !userOwnsRouteInstance(arguments.userId, routeInstanceId)) {
+                    result.ERROR = "INVALID_ROUTE";
+                    result.MESSAGE = "A valid route is required to create a float plan.";
+                    return result;
+                }
+                if (routeInstanceId LTE 0) {
+                    routeInstanceId = 0;
+                    routeDayNumber = 0;
+                }
+            } else if (existingRouteInstanceId GT 0) {
+                if (routeInstanceId LTE 0) {
+                    result.ERROR = "ROUTE_REQUIRED";
+                    result.MESSAGE = "Route linkage cannot be removed from an existing float plan.";
+                    return result;
+                }
+                if (routeInstanceId NEQ existingRouteInstanceId) {
+                    result.ERROR = "ROUTE_LOCKED";
+                    result.MESSAGE = "Route linkage cannot be changed from the float plan wizard.";
+                    return result;
+                }
+                if (!userOwnsRouteInstance(arguments.userId, routeInstanceId)) {
+                    result.ERROR = "INVALID_ROUTE";
+                    result.MESSAGE = "A valid route is required to update this float plan.";
+                    return result;
+                }
+            } else {
+                if (routeInstanceId GT 0) {
+                    result.ERROR = "ROUTE_ASSIGNMENT_BLOCKED";
+                    result.MESSAGE = "Legacy route-less float plans cannot be linked from the float plan wizard.";
+                    return result;
+                }
+                routeInstanceId = 0;
+                routeDayNumber = 0;
+            }
 
             if (NOT len(planName)) {
                 result.ERROR = "VALIDATION";
@@ -1200,6 +1521,10 @@
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
             var result = { SUCCESS = false };
+            result.ERROR = "CLONE_DISABLED";
+            result.MESSAGE = "Clone Float Plan is no longer supported.";
+            return result;
+
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
                 result.MESSAGE = "Float plan id is required.";
@@ -1516,15 +1841,15 @@
             var planStatus = "";
             var deleteRes = {};
 
-            if (!isAdminBulkDeleteUser(arguments.requestingUserId)) {
-                result.ERROR = "FORBIDDEN";
-                result.MESSAGE = "This action is restricted to admin access.";
-                return result;
-            }
-
             if (arguments.targetUserId LTE 0) {
                 result.ERROR = "INVALID_USER_ID";
                 result.MESSAGE = "A valid target userId is required.";
+                return result;
+            }
+
+            if (!isAdminBulkDeleteUser(arguments.requestingUserId)) {
+                result.ERROR = "FORBIDDEN";
+                result.MESSAGE = "This action is restricted to admin access.";
                 return result;
             }
 
@@ -1587,10 +1912,99 @@
             var result = { SUCCESS = false };
             var allowedStatuses = "ACTIVE,OVERDUE,DUE_NOW,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H";
             var updateSql = "";
+            var monitoringService = {};
+            var monitoringResult = {};
+            var qPlan = queryNew("");
+            var planStatus = "";
+            var routeInstanceId = 0;
+            var requiresRouteCloseValidation = false;
+            var scheduledStartState = {};
+            var allowMissingMonitoringClose = false;
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
                 result.MESSAGE = "Float plan id is required.";
                 return result;
+            }
+
+            qPlan = queryExecute(
+                "SELECT route_instance_id, UPPER(TRIM(`status`)) AS statusValue
+                   FROM floatplans
+                  WHERE floatplanId = :planId
+                    AND userId = :userId
+                  LIMIT 1",
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+
+            if (qPlan.recordCount EQ 0) {
+                result.ERROR = "NOT_FOUND";
+                result.MESSAGE = "Float plan not found.";
+                return result;
+            }
+
+            planStatus = trim(toString(qPlan.statusValue[1]));
+            routeInstanceId = isNull(qPlan.route_instance_id[1]) ? 0 : val(qPlan.route_instance_id[1]);
+            requiresRouteCloseValidation = (routeInstanceId GT 0);
+
+            if (listFindNoCase(allowedStatuses, planStatus) EQ 0) {
+                result.ERROR = "NO_ACTIVE_PLAN";
+                result.MESSAGE = "No active float plan is available for check-in.";
+                return result;
+            }
+
+            if (requiresRouteCloseValidation) {
+                try {
+                    var routeProgressService = createObject("component", resolveApiV1ComponentPath("RouteProgressService")).init();
+                    result.ROUTE_PROGRESS = routeProgressService.markCompletionFromFloatPlanCheckin(
+                        userId = arguments.userId,
+                        floatPlanId = arguments.floatPlanId,
+                        datasource = "fpw"
+                    );
+                } catch (any routeErr) {
+                    result.SUCCESS = false;
+                    result.ERROR = "CLOSE_TRIP_VALIDATION_FAILED";
+                    result.MESSAGE = "Unable to validate final route state for closure.";
+                    result.ROUTE_PROGRESS = {
+                        SUCCESS = false,
+                        MATCHED = false,
+                        MESSAGE = "Route progress close validation failed",
+                        ERROR = routeErr.message
+                    };
+                    return result;
+                }
+            } else {
+                result.ROUTE_PROGRESS = {
+                    SUCCESS = true,
+                    MATCHED = false,
+                    SKIPPED = true,
+                    MESSAGE = "Route progress close validation is not required for route-less float plans."
+                };
+            }
+
+            if (NOT structKeyExists(result, "ROUTE_PROGRESS") OR NOT structKeyExists(result.ROUTE_PROGRESS, "SUCCESS") OR NOT result.ROUTE_PROGRESS.SUCCESS) {
+                result.SUCCESS = false;
+                result.ERROR = "CLOSE_TRIP_BLOCKED";
+                result.MESSAGE = (
+                    structKeyExists(result, "ROUTE_PROGRESS") AND structKeyExists(result.ROUTE_PROGRESS, "MESSAGE")
+                        ? result.ROUTE_PROGRESS.MESSAGE
+                        : "Close Trip is unavailable."
+                );
+                return result;
+            }
+
+            if (requiresRouteCloseValidation) {
+                scheduledStartState = getScheduledStartStateForFloatPlan(arguments.userId, arguments.floatPlanId);
+                if (
+                    structKeyExists(scheduledStartState, "SUCCESS")
+                    AND scheduledStartState.SUCCESS
+                    AND structKeyExists(scheduledStartState, "TRIP_STARTED")
+                    AND !booleanValue(scheduledStartState.TRIP_STARTED)
+                ) {
+                    allowMissingMonitoringClose = true;
+                }
             }
 
             updateSql =
@@ -1606,31 +2020,30 @@
                    AND userId = :userId
                    AND UPPER(TRIM(`status`)) IN (#listQualify(allowedStatuses, "'")#)";
 
-            queryExecute(updateSql, {
-                planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
-                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
-            }, { datasource = "fpw" });
+            transaction {
+                queryExecute(updateSql, {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                }, { datasource = "fpw" });
 
-            try {
-                var routeProgressService = createObject("component", resolveApiV1ComponentPath("RouteProgressService")).init();
-                result.ROUTE_PROGRESS = routeProgressService.markCompletionFromFloatPlanCheckin(
-                    userId = arguments.userId,
-                    floatPlanId = arguments.floatPlanId,
-                    routeCode = "GREAT_LOOP_CCW",
-                    datasource = "fpw"
-                );
-            } catch (any routeErr) {
-                writeLog(
-                    type = "warning",
-                    file = "application",
-                    text = "Route progress check-in integration failed. floatPlanId=#arguments.floatPlanId#, userId=#arguments.userId#, message=#routeErr.message#"
-                );
-                result.ROUTE_PROGRESS = {
-                    SUCCESS = false,
-                    MATCHED = false,
-                    MESSAGE = "Route progress update failed",
-                    ERROR = routeErr.message
-                };
+                monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
+                monitoringResult = monitoringService.closeMonitoringForFloatPlan(arguments.floatPlanId, "final_arrival");
+                if (
+                    !structKeyExists(monitoringResult, "SUCCESS")
+                    OR (
+                        monitoringResult.SUCCESS NEQ true
+                        AND (
+                            (requiresRouteCloseValidation AND !allowMissingMonitoringClose)
+                            OR !structKeyExists(monitoringResult, "ERROR")
+                            OR uCase(trim(toString(monitoringResult.ERROR))) NEQ "MONITORING_NOT_FOUND"
+                        )
+                    )
+                ) {
+                    throw(
+                        message = "Monitoring close failed.",
+                        detail = serializeJSON(monitoringResult)
+                    );
+                }
             }
 
             result.SUCCESS = true;
@@ -1648,7 +2061,7 @@
         <cfargument name="checkinContext" type="string" required="false" default="">
         <cfscript>
             var result = { "success" = false };
-            var allowedStatuses = "On Track,Delayed,Changed Plan,Need Attention";
+            var allowedStatuses = "On Track,Delayed,Changed Plan,Assistance Needed,Secure for the Night";
             var statusVal = trim(arguments.status);
             var noteVal = toString(arguments.note);
             var contextVal = lCase(trim(arguments.checkinContext));
@@ -1656,8 +2069,28 @@
             var titleVal = "";
             var ds = "fpw";
             var qPlan = queryNew("");
+            var qUpdatedPlan = queryNew("");
             var updateSql = "";
             var updateParams = {};
+            var currentContextVal = "";
+            var departureTimeZoneVal = "";
+            var dailyStartLocalTimeVal = "";
+            var overnightPauseMinutesToAdd = 0;
+            var updatedCheckInDt = "";
+            var isOvernightTransition = false;
+            var storedCheckInDt = "";
+            var expectedCheckInDt = "";
+            var overnightResumeDt = "";
+            var isOvernightPauseActive = false;
+            var resumeTimeZone = "";
+            var resumeCalendar = "";
+            var localDayStartRule = {};
+            var monitoringService = {};
+            var monitoringResult = {};
+            var monitoringStatusVal = "";
+            var planNameVal = "";
+            var assistanceAlertService = {};
+            var assistanceAlertResult = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.SUCCESS = false;
@@ -1666,10 +2099,14 @@
                 return result;
             }
 
+            if (compareNoCase(statusVal, "Secure for the Night") EQ 0 AND !len(contextVal)) {
+                contextVal = "overnight";
+            }
+
             if (!listFindNoCase(allowedStatuses, statusVal)) {
                 result.SUCCESS = false;
                 result.ERROR = "INVALID_STATUS";
-                result.MESSAGE = "Status must be one of On Track, Delayed, Changed Plan, or Need Attention.";
+                result.MESSAGE = "Status must be one of On Track, Delayed, Changed Plan, Assistance Needed, or Secure for the Night.";
                 return result;
             }
             if (len(contextVal) AND contextVal NEQ "overnight") {
@@ -1680,7 +2117,23 @@
             }
 
             qPlan = queryExecute(
-                "SELECT floatplanId
+                "SELECT
+                    floatPlanName,
+                    floatplanId,
+                    checkedInAt,
+                    departureTZ,
+                    departTimezone,
+                    dailyStartLocalTime,
+                    (
+                        SELECT m.expected_checkin_at
+                        FROM floatplan_monitoring m
+                        WHERE m.float_plan_id = floatplans.floatplanId
+                          AND m.is_monitoring_enabled = 1
+                          AND UPPER(TRIM(m.monitor_state)) <> 'CLOSED'
+                        ORDER BY m.id DESC
+                        LIMIT 1
+                    ) AS expected_checkin_at,
+                    checkin_context
                  FROM floatplans
                  WHERE floatplanId = :planId
                    AND userId = :userId
@@ -1699,19 +2152,85 @@
                 return result;
             }
 
+            currentContextVal = normalizeCheckInContext(isNull(qPlan.checkin_context[1]) ? "" : qPlan.checkin_context[1]);
+            if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
+                storedCheckInDt = qPlan.checkedInAt[1];
+            }
+            departureTimeZoneVal = (isNull(qPlan.departureTZ[1]) ? "" : trim(toString(qPlan.departureTZ[1])));
+            if (!len(departureTimeZoneVal)) {
+                departureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
+            }
+            dailyStartLocalTimeVal = (isNull(qPlan.dailyStartLocalTime[1]) ? "" : trim(toString(qPlan.dailyStartLocalTime[1])));
+            if (!isNull(qPlan.expected_checkin_at[1]) AND isDate(qPlan.expected_checkin_at[1])) {
+                expectedCheckInDt = qPlan.expected_checkin_at[1];
+            }
+            planNameVal = trim(toString(isNull(qPlan.floatPlanName[1]) ? "" : qPlan.floatPlanName[1]));
+            if (!len(planNameVal)) {
+                planNameVal = "Float Plan";
+            }
+            localDayStartRule = loadOvernightTimingRule(dailyStartLocalTimeVal);
+            isOvernightTransition = (contextVal EQ "overnight" AND currentContextVal NEQ "overnight");
+            if (currentContextVal EQ "overnight" AND isDate(storedCheckInDt) AND len(departureTimeZoneVal)) {
+                if (isDate(expectedCheckInDt)) {
+                    overnightResumeDt = expectedCheckInDt;
+                    if (dateCompare(now(), overnightResumeDt, "s") LT 0) {
+                        isOvernightPauseActive = true;
+                    }
+                } else {
+                    try {
+                        resumeTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(departureTimeZoneVal);
+                        resumeCalendar = createObject("java", "java.util.GregorianCalendar").init(resumeTimeZone);
+                        resumeCalendar.setTime(storedCheckInDt);
+                        resumeCalendar.add(5, 1);
+                        resumeCalendar.set(11, localDayStartRule.local_day_start_hour);
+                        resumeCalendar.set(12, localDayStartRule.local_day_start_minute);
+                        resumeCalendar.set(13, localDayStartRule.local_day_start_second);
+                        resumeCalendar.set(14, localDayStartRule.local_day_start_millisecond);
+                        overnightResumeDt = resumeCalendar.getTime();
+                        if (isDate(overnightResumeDt) AND dateCompare(now(), overnightResumeDt, "s") LT 0) {
+                            isOvernightPauseActive = true;
+                        }
+                    } catch (any overnightResumeErr) {
+                        isOvernightPauseActive = false;
+                    }
+                }
+            }
+
             titleVal = "Check-in: " & statusVal;
-            updateSql =
-                "UPDATE floatplans
-                 SET checkedInAt = UTC_TIMESTAMP(),
-                     checkin_context = :checkinContext,
-                     lastUpdateStatus = UTC_TIMESTAMP()
-                 WHERE floatplanId = :planId
-                   AND userId = :userId";
-            updateParams = {
-                checkinContext = { value = contextVal, cfsqltype = "cf_sql_varchar", null = NOT len(contextVal) },
-                planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
-                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
-            };
+            monitoringStatusVal = mapMonitoringCheckinStatus(statusVal, contextVal);
+            if (!len(monitoringStatusVal)) {
+                result.SUCCESS = false;
+                result.ERROR = "INVALID_MONITORING_STATUS";
+                result.MESSAGE = "Unable to map this check-in to a monitoring status.";
+                return result;
+            }
+            if (isOvernightPauseActive) {
+                updateSql =
+                    "UPDATE floatplans
+                     SET checkedInAt = UTC_TIMESTAMP(),
+                         checkin_context = :checkinContext,
+                         lastUpdateStatus = UTC_TIMESTAMP()
+                     WHERE floatplanId = :planId
+                       AND userId = :userId";
+                updateParams = {
+                    checkinContext = { value = contextVal, cfsqltype = "cf_sql_varchar", null = NOT len(contextVal) },
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                };
+            } else {
+                updateSql =
+                    "UPDATE floatplans
+                     SET checkedInAt = UTC_TIMESTAMP(),
+                         checkin_context = :checkinContext,
+                         lastUpdateStatus = UTC_TIMESTAMP()
+                     WHERE floatplanId = :planId
+                       AND userId = :userId";
+                updateParams = {
+                    checkinContext = { value = contextVal, cfsqltype = "cf_sql_varchar", null = NOT len(contextVal) },
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                };
+            }
 
             transaction {
                 queryExecute(
@@ -1719,6 +2238,39 @@
                     updateParams,
                     { datasource = ds }
                 );
+
+                if (isOvernightTransition) {
+                    qUpdatedPlan = queryExecute(
+                        "SELECT checkedInAt
+                         FROM floatplans
+                         WHERE floatplanId = :planId
+                           AND userId = :userId
+                         LIMIT 1",
+                        {
+                            planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                            userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                        },
+                        { datasource = ds }
+                    );
+                    if (qUpdatedPlan.recordCount GT 0 AND !isNull(qUpdatedPlan.checkedInAt[1]) AND isDate(qUpdatedPlan.checkedInAt[1])) {
+                        updatedCheckInDt = qUpdatedPlan.checkedInAt[1];
+                        overnightPauseMinutesToAdd = computeOvernightPauseMinutes(updatedCheckInDt, departureTimeZoneVal, dailyStartLocalTimeVal);
+                        if (overnightPauseMinutesToAdd GT 0) {
+                            queryExecute(
+                                "UPDATE floatplans
+                                 SET overnight_pause_minutes_total = overnight_pause_minutes_total + :pauseMinutes
+                                 WHERE floatplanId = :planId
+                                   AND userId = :userId",
+                                {
+                                    pauseMinutes = { value = overnightPauseMinutesToAdd, cfsqltype = "cf_sql_integer" },
+                                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                                },
+                                { datasource = ds }
+                            );
+                        }
+                    }
+                }
 
                 streamCtx = ensureVoyageStreamForFloatPlan(arguments.userId, arguments.floatPlanId, ds);
 
@@ -1760,10 +2312,220 @@
                     },
                     { datasource = ds }
                 );
+
+                monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
+                monitoringResult = monitoringService.recordMonitoringCheckin(arguments.floatPlanId, monitoringStatusVal);
+                if (
+                    !structKeyExists(monitoringResult, "SUCCESS")
+                    OR monitoringResult.SUCCESS NEQ true
+                ) {
+                    throw(
+                        message = "Monitoring check-in failed.",
+                        detail = serializeJSON(monitoringResult)
+                    );
+                }
             }
 
             result = { "success" = true };
+            if (monitoringStatusVal EQ "NEED_ATTENTION") {
+                qUpdatedPlan = queryExecute(
+                    "SELECT checkedInAt
+                     FROM floatplans
+                     WHERE floatplanId = :planId
+                       AND userId = :userId
+                     LIMIT 1",
+                    {
+                        planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = ds }
+                );
+                if (qUpdatedPlan.recordCount GT 0 AND !isNull(qUpdatedPlan.checkedInAt[1]) AND isDate(qUpdatedPlan.checkedInAt[1])) {
+                    updatedCheckInDt = qUpdatedPlan.checkedInAt[1];
+                }
+                try {
+                    assistanceAlertService = createObject("component", resolveApiV1ComponentPath("OverdueAlertService")).init();
+                    assistanceAlertResult = assistanceAlertService.sendAssistanceNeededEmail(
+                        arguments.floatPlanId,
+                        planNameVal,
+                        updatedCheckInDt,
+                        noteVal
+                    );
+                    result.ALERT_SENT = (
+                        structKeyExists(assistanceAlertResult, "SUCCESS")
+                        AND assistanceAlertResult.SUCCESS EQ true
+                    );
+                    result.ALERT_RECIPIENT_COUNT = (
+                        structKeyExists(assistanceAlertResult, "RECIPIENT_COUNT")
+                        ? val(assistanceAlertResult.RECIPIENT_COUNT)
+                        : 0
+                    );
+                } catch (any assistanceAlertErr) {
+                    result.ALERT_SENT = false;
+                    result.ALERT_ERROR = left(trim(toString(assistanceAlertErr.message)), 500);
+                }
+            }
             return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="computeOvernightPauseMinutes" access="private" returntype="numeric" output="false">
+        <cfargument name="checkInDt" type="any" required="false">
+        <cfargument name="timeZoneId" type="string" required="false" default="">
+        <cfargument name="dailyStartLocalTime" type="string" required="false" default="">
+        <cfscript>
+            var pauseMinutes = 0;
+            var nextMorningResumeDt = "";
+            var resumeTimeZone = "";
+            var resumeCalendar = "";
+            var localDayStartRule = loadOvernightTimingRule(arguments.dailyStartLocalTime);
+            if (!isDate(arguments.checkInDt) OR !len(trim(arguments.timeZoneId))) {
+                return 0;
+            }
+            try {
+                resumeTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(trim(arguments.timeZoneId));
+                resumeCalendar = createObject("java", "java.util.GregorianCalendar").init(resumeTimeZone);
+                resumeCalendar.setTime(arguments.checkInDt);
+                resumeCalendar.add(5, 1);
+                resumeCalendar.set(11, localDayStartRule.local_day_start_hour);
+                resumeCalendar.set(12, localDayStartRule.local_day_start_minute);
+                resumeCalendar.set(13, localDayStartRule.local_day_start_second);
+                resumeCalendar.set(14, localDayStartRule.local_day_start_millisecond);
+                nextMorningResumeDt = resumeCalendar.getTime();
+                pauseMinutes = dateDiff("n", arguments.checkInDt, nextMorningResumeDt);
+                if (pauseMinutes LT 0) {
+                    pauseMinutes = 0;
+                }
+            } catch (any overnightPauseErr) {
+                pauseMinutes = 0;
+            }
+            return pauseMinutes;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeCheckInContext" access="private" returntype="string" output="false">
+        <cfargument name="rawValue" type="any" required="false">
+        <cfscript>
+            var contextVal = lCase(trim(toString(arguments.rawValue)));
+            if (contextVal EQ "overnight") {
+                return "overnight";
+            }
+            return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="mapMonitoringCheckinStatus" access="private" returntype="string" output="false">
+        <cfargument name="statusValue" type="string" required="true">
+        <cfargument name="checkinContext" type="string" required="false" default="">
+        <cfscript>
+            var contextVal = normalizeCheckInContext(arguments.checkinContext);
+            var normalizedStatus = trim(arguments.statusValue);
+            if (contextVal EQ "overnight") {
+                return "SECURE_FOR_NIGHT";
+            }
+            switch (normalizedStatus) {
+                case "On Track":
+                    return "ON_TRACK";
+                case "Delayed":
+                    return "DELAYED";
+                case "Changed Plan":
+                    return "CHANGED_PLAN";
+                case "Assistance Needed":
+                    return "NEED_ATTENTION";
+                case "Secure for the Night":
+                    return "SECURE_FOR_NIGHT";
+            }
+            return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="updateActiveCruiseDailyStart" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="dailyStartLocalTime" type="string" required="false" default="">
+        <cfscript>
+            var result = { SUCCESS = false };
+            var ds = "fpw";
+            var qPlan = queryNew("");
+            var overnightTimingService = createObject("component", resolveApiV1ComponentPath("OvernightTimingService")).init();
+            var normalizedDailyStart = overnightTimingService.normalizeLocalDayStartTime(arguments.dailyStartLocalTime);
+            var monitoringService = {};
+            var refreshResult = {};
+
+            if (arguments.floatPlanId LTE 0) {
+                result.ERROR = "INVALID_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            if (!len(normalizedDailyStart)) {
+                result.ERROR = "INVALID_DAILY_START";
+                result.MESSAGE = "Daily start time must be provided in HH:MM format.";
+                return result;
+            }
+
+            qPlan = queryExecute(
+                "SELECT floatplanId
+                 FROM floatplans
+                 WHERE floatplanId = :planId
+                   AND userId = :userId
+                 LIMIT 1",
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = ds }
+            );
+
+            if (qPlan.recordCount EQ 0) {
+                result.ERROR = "NOT_FOUND";
+                result.MESSAGE = "Float plan not found.";
+                return result;
+            }
+
+            transaction {
+                queryExecute(
+                    "UPDATE floatplans
+                     SET dailyStartLocalTime = :dailyStartLocalTime,
+                         lastUpdate = NOW()
+                     WHERE floatplanId = :planId
+                       AND userId = :userId",
+                    {
+                        dailyStartLocalTime = { value = normalizedDailyStart, cfsqltype = "cf_sql_time" },
+                        planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = ds }
+                );
+
+                monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
+                refreshResult = monitoringService.refreshSecureForNightCheckpoint(arguments.floatPlanId);
+                if (!structKeyExists(refreshResult, "SUCCESS") OR refreshResult.SUCCESS NEQ true) {
+                    throw(
+                        message = "Unable to refresh overnight monitoring timing.",
+                        detail = serializeJSON(refreshResult)
+                    );
+                }
+            }
+
+            result.SUCCESS = true;
+            result.MESSAGE = "Daily start time updated.";
+            result.DAILYSTARTLOCALTIME = normalizedDailyStart;
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="loadOvernightTimingRule" access="private" returntype="struct" output="false">
+        <cfargument name="dailyStartLocalTime" type="string" required="false" default="">
+        <cfscript>
+            var cacheKey = "fpwOvernightTimingRule:" & trim(arguments.dailyStartLocalTime);
+            var overnightTimingService = {};
+            if (structKeyExists(request, cacheKey) AND isStruct(request[cacheKey])) {
+                return duplicate(request[cacheKey]);
+            }
+            overnightTimingService = createObject("component", resolveApiV1ComponentPath("OvernightTimingService")).init();
+            request[cacheKey] = overnightTimingService.getLocalDayStartRule(arguments.dailyStartLocalTime);
+            return duplicate(request[cacheKey]);
         </cfscript>
     </cffunction>
 
@@ -2155,6 +2917,13 @@
                 SUCCESS = false,
                 MESSAGE = ""
             };
+            var qActivationLeg = queryNew("");
+            var activationLegOrder = 0;
+            var monitoringService = {};
+            var monitoringResult = {};
+            var startGateState = {};
+            var shouldStartOperationally = false;
+            var operationalStartResult = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "MISSING_PLAN_ID";
@@ -2176,6 +2945,45 @@
             if (listFindNoCase("DRAFT,CLOSED", statusVal) EQ 0) {
                 result.ERROR = "INVALID_STATUS";
                 result.MESSAGE = "Only draft or closed float plans can be sent.";
+                return result;
+            }
+
+            var routeInstanceId = val(pickValue(plan, ["ROUTE_INSTANCE_ID", "route_instance_id"], 0));
+            if (routeInstanceId GT 0 AND !userOwnsRouteInstance(arguments.userId, routeInstanceId)) {
+                result.ERROR = "INVALID_ROUTE";
+                result.MESSAGE = "A valid route is required before activating this float plan.";
+                return result;
+            }
+
+            var qExistingMonitored = queryExecute(
+                "SELECT floatplanId, UPPER(TRIM(`status`)) AS statusValue
+                   FROM floatplans
+                  WHERE userId = :userId
+                    AND floatplanId <> :planId
+                    AND UPPER(TRIM(`status`)) IN (
+                        'ACTIVE',
+                        'DUE_NOW',
+                        'OVERDUE',
+                        'OVERDUE_1H',
+                        'OVERDUE_2H',
+                        'OVERDUE_3H',
+                        'OVERDUE_4H',
+                        'OVERDUE_12H',
+                        'OVERDUE_24H'
+                    )
+                  ORDER BY floatplanId DESC
+                  LIMIT 1",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+            if (qExistingMonitored.recordCount GT 0) {
+                result.ERROR = "ACTIVE_PLAN_EXISTS";
+                result.MESSAGE = "Another active or overdue float plan already exists. Close it before activating this trip.";
+                result.EXISTING_FLOATPLANID = val(qExistingMonitored.floatplanId[1]);
+                result.EXISTING_STATUS = trim(toString(qExistingMonitored.statusValue[1]));
                 return result;
             }
 
@@ -2203,6 +3011,14 @@
                 result.ERROR = "RETURN_TIME_PAST";
                 result.MESSAGE = "Return time must be in the future before sending a float plan.";
                 return result;
+            }
+
+            if (routeInstanceId GT 0) {
+                shouldStartOperationally = true;
+                startGateState = getScheduledStartStateForFloatPlan(arguments.userId, arguments.floatPlanId);
+                if (startGateState.SUCCESS AND structKeyExists(startGateState, "TRIP_STARTED")) {
+                    shouldStartOperationally = booleanValue(startGateState.TRIP_STARTED);
+                }
             }
 
             var contacts = loadPlanContactEmails(arguments.userId, arguments.floatPlanId);
@@ -2283,25 +3099,99 @@
             </cfmail>
         </cfloop>
 
-        <cfscript>
-            queryExecute("
-                UPDATE floatplans
-                SET
-                    `status` = 'ACTIVE',
-                    activatedAt = UTC_TIMESTAMP(),
-                    lastUpdateStatus = UTC_TIMESTAMP()
-                WHERE floatplanId = :planId
-                  AND userId = :userId
-                  AND UPPER(TRIM(`status`)) IN ('DRAFT', 'CLOSED')
-            ", {
-                planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
-                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
-            }, { datasource = "fpw" });
+            <cfscript>
+            transaction {
+                queryExecute("
+                    UPDATE floatplans
+                    SET
+                        `status` = 'ACTIVE',
+                        activatedAt = COALESCE(activatedAt, UTC_TIMESTAMP()),
+                        lastUpdateStatus = UTC_TIMESTAMP()
+                    WHERE floatplanId = :planId
+                      AND userId = :userId
+                      AND UPPER(TRIM(`status`)) IN ('DRAFT', 'CLOSED')
+                ", {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                }, { datasource = "fpw" });
+
+                if (shouldStartOperationally) {
+                    operationalStartResult = startOperationalTripNow(arguments.userId, arguments.floatPlanId, routeInstanceId);
+                    if (
+                        !structKeyExists(operationalStartResult, "SUCCESS")
+                        OR operationalStartResult.SUCCESS NEQ true
+                    ) {
+                        throw(
+                            message = "Monitoring start failed.",
+                            detail = serializeJSON(operationalStartResult)
+                        );
+                    }
+                }
+            }
 
             result.SUCCESS = true;
             result.SENT_COUNT = sentCount;
             result.SKIPPED_COUNT = skippedCount;
             result.MESSAGE = "Float plan sent to " & sentCount & " contact" & (sentCount EQ 1 ? "" : "s") & ".";
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="ensureOperationalStartForScheduledPlan" access="public" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                MESSAGE = "Unable to evaluate the scheduled trip start gate.",
+                TRIP_STARTED = true,
+                PENDING_START = false,
+                MONITORING_STARTED = false
+            };
+            var startState = {};
+            var operationalStartResult = {};
+
+            startState = getScheduledStartStateForFloatPlan(arguments.userId, arguments.floatPlanId);
+            if (!startState.SUCCESS) {
+                return startState;
+            }
+
+            result = duplicate(startState);
+            result.SUCCESS = true;
+            if (!result.TRIP_STARTED) {
+                result.PENDING_START = true;
+                result.MESSAGE = "Scheduled departure is still pending.";
+                return result;
+            }
+
+            if (
+                listFindNoCase(
+                    "ACTIVE,DUE_NOW,OVERDUE,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H",
+                    result.STATUS
+                ) EQ 0
+            ) {
+                result.MESSAGE = "Float plan is not in an operational monitoring state.";
+                return result;
+            }
+
+            transaction {
+                operationalStartResult = startOperationalTripNow(arguments.userId, arguments.floatPlanId, result.ROUTE_INSTANCE_ID);
+                if (
+                    !structKeyExists(operationalStartResult, "SUCCESS")
+                    OR operationalStartResult.SUCCESS NEQ true
+                ) {
+                    throw(
+                        message = "Operational trip start failed.",
+                        detail = serializeJSON(operationalStartResult)
+                    );
+                }
+            }
+
+            result.MONITORING_STARTED = (
+                structKeyExists(operationalStartResult, "MONITORING_STARTED")
+                AND booleanValue(operationalStartResult.MONITORING_STARTED)
+            );
+            result.MESSAGE = "Operational trip start is ready.";
             return result;
         </cfscript>
     </cffunction>
@@ -2523,6 +3413,247 @@
                 return arguments.utcDateTime;
             }
             return qLocal.localDateTime[1];
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="startOperationalTripNow" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                MONITORING_STARTED = false
+            };
+            var qActivationLeg = queryNew("");
+            var qCompletedLeg = queryNew("");
+            var qMonitoring = queryNew("");
+            var activationLegOrder = 0;
+            var hasCompletedLeg = false;
+            var monitoringService = {};
+            var monitoringResult = {};
+
+            queryExecute(
+                "UPDATE floatplans
+                 SET lastUpdateStatus = CASE
+                         WHEN activatedAt IS NULL THEN UTC_TIMESTAMP()
+                         ELSE lastUpdateStatus
+                     END,
+                     activatedAt = COALESCE(activatedAt, UTC_TIMESTAMP())
+                 WHERE floatplanId = :planId
+                   AND userId = :userId
+                   AND UPPER(TRIM(`status`)) IN (
+                        'ACTIVE',
+                        'DUE_NOW',
+                        'OVERDUE',
+                        'OVERDUE_1H',
+                        'OVERDUE_2H',
+                        'OVERDUE_3H',
+                        'OVERDUE_4H',
+                        'OVERDUE_12H',
+                        'OVERDUE_24H'
+                   )",
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+
+            if (arguments.routeInstanceId GT 0) {
+                qActivationLeg = queryExecute(
+                    "SELECT ril.leg_order
+                     FROM route_instance_legs ril
+                     LEFT JOIN route_instance_leg_progress rilp
+                        ON rilp.route_instance_id = ril.route_instance_id
+                       AND rilp.leg_order = ril.leg_order
+                       AND rilp.user_id = :userId
+                     WHERE ril.route_instance_id = :routeInstanceId
+                       AND COALESCE(UPPER(TRIM(rilp.status)), 'NOT_STARTED') <> 'COMPLETED'
+                     ORDER BY ril.leg_order ASC, ril.id ASC
+                     LIMIT 1",
+                    {
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = "fpw" }
+                );
+                if (qActivationLeg.recordCount EQ 1) {
+                    activationLegOrder = val(qActivationLeg.leg_order[1]);
+                    if (activationLegOrder GT 0) {
+                        qCompletedLeg = queryExecute(
+                            "SELECT 1
+                             FROM route_instance_leg_progress
+                             WHERE route_instance_id = :routeInstanceId
+                               AND user_id = :userId
+                               AND UPPER(TRIM(status)) = 'COMPLETED'
+                             LIMIT 1",
+                            {
+                                routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" },
+                                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                            },
+                            { datasource = "fpw" }
+                        );
+                        hasCompletedLeg = (qCompletedLeg.recordCount GT 0);
+                        if (!hasCompletedLeg) {
+                            queryExecute(
+                                "UPDATE route_instance_leg_progress
+                                 SET leg_started_at = NOW()
+                                 WHERE route_instance_id = :routeInstanceId
+                                   AND user_id = :userId
+                                   AND leg_order = :legOrder
+                                   AND leg_started_at IS NULL",
+                                {
+                                    routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" },
+                                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                                    legOrder = { value = activationLegOrder, cfsqltype = "cf_sql_integer" }
+                                },
+                                { datasource = "fpw" }
+                            );
+                        }
+                    }
+                }
+            }
+
+            qMonitoring = queryExecute(
+                "SELECT id
+                 FROM floatplan_monitoring
+                 WHERE float_plan_id = :planId
+                   AND is_monitoring_enabled = 1
+                   AND UPPER(TRIM(monitor_state)) <> 'CLOSED'
+                 ORDER BY id DESC
+                 LIMIT 1",
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+            if (qMonitoring.recordCount EQ 0) {
+                monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
+                monitoringResult = monitoringService.startMonitoringForFloatPlan(arguments.floatPlanId, "active_route");
+                if (
+                    !structKeyExists(monitoringResult, "SUCCESS")
+                    OR monitoringResult.SUCCESS NEQ true
+                ) {
+                    return monitoringResult;
+                }
+                result.MONITORING_STARTED = true;
+            }
+
+            result.SUCCESS = true;
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getScheduledStartStateForFloatPlan" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                MESSAGE = "Float plan not found.",
+                TRIP_STARTED = true,
+                PENDING_START = false,
+                STATUS = "",
+                ROUTE_INSTANCE_ID = 0,
+                DEPARTURE_TIME = "",
+                DEPARTURE_TIMEZONE = "",
+                STORED_DEPARTURE_TIMEZONE = ""
+            };
+            var qPlan = queryNew("");
+            var gate = {};
+
+            qPlan = queryExecute(
+                "SELECT
+                    floatplanId,
+                    userId,
+                    route_instance_id,
+                    departureTime,
+                    departureTZ,
+                    departTimezone,
+                    UPPER(TRIM(`status`)) AS statusValue
+                 FROM floatplans
+                 WHERE floatplanId = :planId
+                   AND userId = :userId
+                 LIMIT 1",
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+            if (qPlan.recordCount EQ 0) {
+                result.ERROR = "PLAN_NOT_FOUND";
+                return result;
+            }
+
+            result.STATUS = (isNull(qPlan.statusValue[1]) ? "" : trim(toString(qPlan.statusValue[1])));
+            result.ROUTE_INSTANCE_ID = (isNull(qPlan.route_instance_id[1]) ? 0 : val(qPlan.route_instance_id[1]));
+            result.DEPARTURE_TIME = (!isNull(qPlan.departureTime[1]) AND isDate(qPlan.departureTime[1])) ? qPlan.departureTime[1] : "";
+            result.DEPARTURE_TIMEZONE = (isNull(qPlan.departureTZ[1]) ? "" : trim(toString(qPlan.departureTZ[1])));
+            if (!len(result.DEPARTURE_TIMEZONE)) {
+                result.DEPARTURE_TIMEZONE = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
+            }
+            result.STORED_DEPARTURE_TIMEZONE = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
+
+            gate = evaluateScheduledStartGate(
+                result.DEPARTURE_TIME,
+                result.DEPARTURE_TIMEZONE,
+                result.STORED_DEPARTURE_TIMEZONE,
+                "fpw"
+            );
+            result.TRIP_STARTED = gate.trip_started;
+            result.PENDING_START = !result.TRIP_STARTED;
+            result.SUCCESS = true;
+            result.MESSAGE = (result.TRIP_STARTED ? "Scheduled departure is due." : "Scheduled departure is still pending.");
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="evaluateScheduledStartGate" access="private" returntype="struct" output="false">
+        <cfargument name="departureTime" required="true">
+        <cfargument name="departureTimeZone" type="string" required="false" default="">
+        <cfargument name="storedDepartureTimeZone" type="string" required="false" default="">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var result = { trip_started = true };
+            var comparisonNow = "";
+            var qNow = queryNew("");
+            var timeZoneId = trim(arguments.departureTimeZone);
+            var storedTimeZoneId = uCase(trim(arguments.storedDepartureTimeZone));
+
+            if (!isDate(arguments.departureTime)) {
+                return result;
+            }
+
+            if (storedTimeZoneId EQ "UTC") {
+                qNow = queryExecute(
+                    "SELECT UTC_TIMESTAMP() AS comparisonNow",
+                    {},
+                    { datasource = arguments.datasource }
+                );
+                if (qNow.recordCount GT 0 AND !isNull(qNow.comparisonNow[1]) AND isDate(qNow.comparisonNow[1])) {
+                    comparisonNow = qNow.comparisonNow[1];
+                }
+            } else if (len(timeZoneId)) {
+                qNow = queryExecute(
+                    "SELECT CONVERT_TZ(UTC_TIMESTAMP(), 'UTC', :targetTimeZone) AS comparisonNow",
+                    {
+                        targetTimeZone = { value = timeZoneId, cfsqltype = "cf_sql_varchar" }
+                    },
+                    { datasource = arguments.datasource }
+                );
+                if (qNow.recordCount GT 0 AND !isNull(qNow.comparisonNow[1]) AND isDate(qNow.comparisonNow[1])) {
+                    comparisonNow = qNow.comparisonNow[1];
+                }
+            }
+
+            if (!isDate(comparisonNow)) {
+                comparisonNow = now();
+            }
+
+            result.trip_started = (dateCompare(comparisonNow, arguments.departureTime, "s") GTE 0);
+            return result;
         </cfscript>
     </cffunction>
 

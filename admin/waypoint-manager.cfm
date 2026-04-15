@@ -105,6 +105,9 @@ isAuthorized = isLoggedIn AND isAdmin;
       <a href="/fpw/admin/route-cleanup.cfm">Route Cleanup</a>
       <a href="/fpw/admin/fuel-calculator.cfm">Fuel Calculator</a>
       <a href="/fpw/admin/waypoint-manager.cfm" class="active">Waypoint Manager</a>
+      <a href="/fpw/admin/passenger-manager.cfm">Passenger Manager</a>
+      <a href="/fpw/admin/vessel-manager.cfm">Vessel Manager</a>
+      <a href="/fpw/admin/operator-manager.cfm">Operator Manager</a>
     </nav>
 
     <h1>Admin Waypoint Manager</h1>

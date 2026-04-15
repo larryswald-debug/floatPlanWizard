@@ -105,7 +105,11 @@
       factorsText: "",
       unavailableReason: "",
       envelope: null,
-      zip: ""
+      zip: "",
+      sourceType: "none",
+      sourceName: "",
+      sourceLat: null,
+      sourceLng: null
     },
     cruiseTimeline: {
       requestSeq: 0,
@@ -242,6 +246,7 @@
     var model = (summaryModel && typeof summaryModel === "object") ? summaryModel : {};
     var ui = (uiInputs && typeof uiInputs === "object") ? uiInputs : {};
     var totalNm = safeVal(model.totalNm);
+    var totalHours = safeVal(model.totalHours);
     var displayedDays = safeVal(model.displayedDays);
     var totalLocks = safeVal(model.totalLocks);
     var adjustedSpeedKn = safeVal(model.adjSpeedKn);
@@ -268,6 +273,9 @@
     if (totalNm !== null) {
       state.previewSummary.totalNm = roundTo2(totalNm);
     }
+    if (totalHours !== null) {
+      state.previewSummary.totalHours = roundTo2(totalHours);
+    }
     if (estimatedDays !== null) {
       state.previewSummary.estimatedDays = estimatedDays;
     }
@@ -280,8 +288,12 @@
     if (dom.totalNmEl && totalNm !== null) {
       dom.totalNmEl.innerHTML = formatNumber(totalNm, 1) + " <small>NM</small>";
     }
-    if (dom.estimatedDaysEl && estimatedDays !== null) {
-      dom.estimatedDaysEl.textContent = String(estimatedDays);
+    if (dom.estimatedDaysEl) {
+      if (totalHours !== null && totalHours >= 0) {
+        dom.estimatedDaysEl.innerHTML = formatNumber(totalHours, 1) + " <small>h</small>";
+      } else {
+        dom.estimatedDaysEl.innerHTML = "-- <small>h</small>";
+      }
     }
     if (dom.lockCountEl && totalLocks !== null) {
       dom.lockCountEl.textContent = String(Math.max(0, Math.round(totalLocks)));
@@ -692,8 +704,9 @@
 
   function buildTimelineRouteTotalText(summaryTotals) {
     var summary = summaryTotals && typeof summaryTotals === "object" ? summaryTotals : {};
+    var totalHours = safeVal(summary.totalHours);
     return "Route total: "
-      + formatNumber(toInt(summary.estimatedDays, 0), 0) + " days"
+      + (totalHours !== null ? (formatNumber(totalHours, 1) + " h") : "-- h")
       + " · " + formatNumber(toOneDecimal(summary.totalNm), 1) + " nm"
       + " · " + (Number.isFinite(summary.estimatedFuelGallons) && summary.estimatedFuelGallons >= 0
         ? formatNumber(summary.estimatedFuelGallons, 1)
@@ -1064,6 +1077,10 @@
     return BASE_PATH + "/api/v1/weather.cfc?method=handle&action=zip&zip=" + encodeURIComponent(zip) + "&returnFormat=json&marineMode=quick";
   }
 
+  function buildWeatherCoordsUrl(lat, lon) {
+    return BASE_PATH + "/api/v1/weather.cfc?method=handle&action=search&lat=" + encodeURIComponent(lat) + "&lon=" + encodeURIComponent(lon) + "&returnFormat=json&marineMode=quick";
+  }
+
   function resolveHomePortZipFromUser(userObj) {
     if (utils.resolveHomePortZip && userObj && typeof userObj === "object") {
       return normalizeZipCode(utils.resolveHomePortZip(userObj));
@@ -1144,8 +1161,8 @@
     return 1;
   }
 
-  function buildRouteWeatherContext() {
-    var legs = Array.isArray(state.previewLegs) ? state.previewLegs : [];
+  function buildRouteWeatherContextFromLegs(legsInput) {
+    var legs = Array.isArray(legsInput) ? legsInput : [];
     var offshoreCount = 0;
     var idx = 0;
     if (!legs.length) {
@@ -1159,6 +1176,10 @@
       legCount: legs.length,
       offshoreCount: offshoreCount
     };
+  }
+
+  function buildRouteWeatherContext() {
+    return buildRouteWeatherContextFromLegs(state.previewLegs);
   }
 
   function normalizeWeatherEnvelope(payload, zip) {
@@ -1181,6 +1202,69 @@
       surface: surface,
       summary: summary
     };
+  }
+
+  function parseWeatherSuggestionCoordinate(value, minValue, maxValue) {
+    var parsed = parseFloat(value);
+    if (!Number.isFinite(parsed)) return null;
+    if (parsed < minValue || parsed > maxValue) return null;
+    return parsed;
+  }
+
+  function formatWeatherSuggestionCoordinate(value) {
+    var parsed = parseFloat(value);
+    if (!Number.isFinite(parsed)) return "";
+    return parsed.toFixed(4);
+  }
+
+  function setWeatherSuggestionSource(type, details) {
+    var opts = details && typeof details === "object" ? details : {};
+    state.weatherAssist.sourceType = String(type || "none").trim().toLowerCase() || "none";
+    state.weatherAssist.sourceName = String(opts.name || "").trim();
+    state.weatherAssist.sourceLat = Number.isFinite(parseFloat(opts.lat)) ? parseFloat(opts.lat) : null;
+    state.weatherAssist.sourceLng = Number.isFinite(parseFloat(opts.lng)) ? parseFloat(opts.lng) : null;
+  }
+
+  function getWeatherSuggestionSourceText() {
+    var sourceType = String(state.weatherAssist.sourceType || "none").trim().toLowerCase();
+    var sourceName = String(state.weatherAssist.sourceName || "").trim();
+    var latText = formatWeatherSuggestionCoordinate(state.weatherAssist.sourceLat);
+    var lngText = formatWeatherSuggestionCoordinate(state.weatherAssist.sourceLng);
+
+    if (sourceType === "route") {
+      if (sourceName) return "Source: route leg start point - " + sourceName + ".";
+      return "Source: route leg start point.";
+    }
+
+    if (sourceType === "manual") {
+      if (latText && lngText) {
+        return "Source: manual lat/lng point - " + latText + ", " + lngText + ".";
+      }
+      return "Source: manual lat/lng point.";
+    }
+
+    return "Source: no weather loaded.";
+  }
+
+  function getFirstPreviewLegWeatherPoint() {
+    var legs = Array.isArray(state.previewLegs) ? state.previewLegs : [];
+    var idx = 0;
+    var lat = null;
+    var lng = null;
+    var leg = null;
+    for (idx = 0; idx < legs.length; idx += 1) {
+      leg = legs[idx];
+      lat = parseWeatherSuggestionCoordinate(getLegField(leg, "start_lat"), -90, 90);
+      lng = parseWeatherSuggestionCoordinate(getLegField(leg, "start_lng"), -180, 180);
+      if (lat === null || lng === null) continue;
+      return {
+        lat: lat,
+        lng: lng,
+        name: String(getLegField(leg, "start_name") || "").trim(),
+        orderIndex: toInt(getLegField(leg, "order_index"), idx + 1)
+      };
+    }
+    return null;
   }
 
   function computeLiveWeatherFactorPct(weatherEnvelope, routeContext) {
@@ -1371,15 +1455,18 @@
       dom.weatherSuggestRefreshBtn.disabled = !!suggested.loading;
       dom.weatherSuggestRefreshBtn.textContent = suggested.loading ? "Refreshing..." : "Refresh Suggestion";
     }
+    if (dom.weatherSuggestManualBtn) {
+      dom.weatherSuggestManualBtn.disabled = !!suggested.loading;
+    }
   }
 
   function setWeatherSuggestionUnavailable(reasonText) {
     state.weatherAssist.loading = false;
     state.weatherAssist.suggestedPct = null;
     state.weatherAssist.confidence = "low";
-    state.weatherAssist.metaText = String(reasonText || "Suggestion unavailable").trim();
-    state.weatherAssist.factorsText = "No live weather data loaded.";
-    state.weatherAssist.unavailableReason = state.weatherAssist.metaText;
+    state.weatherAssist.metaText = getWeatherSuggestionSourceText();
+    state.weatherAssist.factorsText = String(reasonText || "No live weather data loaded.").trim();
+    state.weatherAssist.unavailableReason = state.weatherAssist.factorsText;
     renderWeatherSuggestionState();
   }
 
@@ -1393,51 +1480,48 @@
     model = computeLiveWeatherFactorPct(envelope, buildRouteWeatherContext());
     state.weatherAssist.loading = false;
     state.weatherAssist.confidence = model.confidence || "low";
-    state.weatherAssist.metaText = model.metaText || "";
+    state.weatherAssist.metaText = getWeatherSuggestionSourceText();
     state.weatherAssist.factorsText = model.factorsText || "";
     state.weatherAssist.unavailableReason = "";
-    state.weatherAssist.sourceLabel = model.sourceLabel || "";
+    state.weatherAssist.sourceLabel = String(state.weatherAssist.sourceType || "").trim();
     state.weatherAssist.suggestedPct = model.available ? Math.round(clampNumber(model.suggestedPct, 0, 60)) : null;
     if (!model.available) {
       state.weatherAssist.unavailableReason = model.metaText || "Suggestion unavailable.";
-      if (!state.weatherAssist.metaText) state.weatherAssist.metaText = state.weatherAssist.unavailableReason;
+      if (!state.weatherAssist.factorsText) {
+        state.weatherAssist.factorsText = state.weatherAssist.unavailableReason;
+      }
     }
     renderWeatherSuggestionState();
   }
 
-  function refreshWeatherSuggestion(options) {
-    var opts = options || {};
-    var forceFetch = !!opts.forceFetch;
-    var zip = resolveWeatherSuggestionZip();
+  function fetchWeatherSuggestionByCoordinates(lat, lon, sourceDetails) {
     var seq = 0;
     var url = "";
-
-    if (!zip || zip.length !== 5) {
-      setWeatherSuggestionUnavailable("Suggestion unavailable: dashboard weather ZIP is missing.");
-      return Promise.resolve(null);
-    }
-
-    if (!forceFetch && state.weatherAssist.envelope && state.weatherAssist.zip === zip) {
-      applyWeatherSuggestionFromEnvelope();
-      return Promise.resolve(state.weatherAssist.suggestedPct);
-    }
+    var details = sourceDetails && typeof sourceDetails === "object" ? sourceDetails : {};
 
     state.weatherAssist.requestSeq += 1;
     seq = state.weatherAssist.requestSeq;
+    setWeatherSuggestionSource(details.type || "none", {
+      name: details.name || "",
+      lat: lat,
+      lng: lon
+    });
     state.weatherAssist.loading = true;
-    state.weatherAssist.metaText = "Fetching current weather signals...";
+    state.weatherAssist.metaText = getWeatherSuggestionSourceText();
     state.weatherAssist.factorsText = "Using existing FPW weather endpoint data.";
-    state.weatherAssist.zip = zip;
+    state.weatherAssist.unavailableReason = "";
+    state.weatherAssist.envelope = null;
+    state.weatherAssist.zip = "";
     renderWeatherSuggestionState();
 
-    url = buildWeatherZipUrl(zip);
+    url = buildWeatherCoordsUrl(lat, lon);
     return fetchJson(url, { credentials: "same-origin" })
       .then(function (payload) {
         if (seq !== state.weatherAssist.requestSeq) return null;
         if (!payload || payload.SUCCESS === false) {
           throw new Error(extractApiMessage(payload, "Weather suggestion unavailable."));
         }
-        state.weatherAssist.envelope = normalizeWeatherEnvelope(payload, zip);
+        state.weatherAssist.envelope = normalizeWeatherEnvelope(payload, "");
         applyWeatherSuggestionFromEnvelope();
         return state.weatherAssist.suggestedPct;
       })
@@ -1452,6 +1536,47 @@
       });
   }
 
+  function refreshWeatherSuggestion(options) {
+    var routePoint = getFirstPreviewLegWeatherPoint();
+
+    if (!routePoint) {
+      resetWeatherSuggestionState("Load a route and refresh, or use manual coordinates.");
+      return Promise.resolve(null);
+    }
+
+    return fetchWeatherSuggestionByCoordinates(routePoint.lat, routePoint.lng, {
+      type: "route",
+      name: routePoint.name || ("Leg " + String(routePoint.orderIndex || 1))
+    });
+  }
+
+  function lookupManualWeatherSuggestion() {
+    var lat = parseWeatherSuggestionCoordinate(
+      dom.weatherSuggestManualLatEl ? dom.weatherSuggestManualLatEl.value : "",
+      -90,
+      90
+    );
+    var lng = parseWeatherSuggestionCoordinate(
+      dom.weatherSuggestManualLngEl ? dom.weatherSuggestManualLngEl.value : "",
+      -180,
+      180
+    );
+
+    if (lat === null || lng === null) {
+      if (!state.weatherAssist.envelope) {
+        resetWeatherSuggestionState("Enter valid latitude and longitude, or load a route and refresh.");
+      } else {
+        state.weatherAssist.factorsText = "Enter valid latitude and longitude to load a manual point.";
+        renderWeatherSuggestionState();
+      }
+      return Promise.resolve(null);
+    }
+
+    return fetchWeatherSuggestionByCoordinates(lat, lng, {
+      type: "manual"
+    });
+  }
+
   function applySuggestedWeatherFactorToInput() {
     var suggestedPct = state.weatherAssist && Number.isFinite(state.weatherAssist.suggestedPct)
       ? Math.round(clampNumber(state.weatherAssist.suggestedPct, 0, 60))
@@ -1462,16 +1587,19 @@
   }
 
   function resetWeatherSuggestionState(reasonText) {
+    setWeatherSuggestionSource("none");
     state.weatherAssist.loading = false;
     state.weatherAssist.suggestedPct = null;
     state.weatherAssist.confidence = "";
-    state.weatherAssist.metaText = String(
-      reasonText || "Set a valid dashboard weather ZIP to refresh this suggestion."
+    state.weatherAssist.metaText = getWeatherSuggestionSourceText();
+    state.weatherAssist.factorsText = String(
+      reasonText || "Load a route and refresh, or use manual coordinates."
     ).trim();
-    state.weatherAssist.factorsText = "No live weather data loaded.";
-    state.weatherAssist.unavailableReason = state.weatherAssist.metaText;
+    state.weatherAssist.unavailableReason = state.weatherAssist.factorsText;
     state.weatherAssist.envelope = null;
     state.weatherAssist.zip = "";
+    if (dom.weatherSuggestManualLatEl) dom.weatherSuggestManualLatEl.value = "";
+    if (dom.weatherSuggestManualLngEl) dom.weatherSuggestManualLngEl.value = "";
     renderWeatherSuggestionState();
   }
 
@@ -1518,7 +1646,7 @@
   function renderMyRouteOptions() {
     var selectEl = dom.myRouteSelectEl;
     var routes = Array.isArray(state.myRoutes.routes) ? state.myRoutes.routes : [];
-    var activeId = toInt(state.myRoutes.activeRouteId, 0);
+    var selectedRouteId = toInt(state.myRoutes.activeRouteId, 0);
     if (!selectEl) return;
 
     selectEl.innerHTML = '<option value="">Select route</option>' + routes.map(function (route) {
@@ -1527,8 +1655,8 @@
       var legCount = toInt(route.leg_count !== undefined ? route.leg_count : route.LEG_COUNT, 0);
       return '<option value="' + String(routeId) + '">' + escapeHtml(name + " (" + legCount + " legs)") + "</option>";
     }).join("");
-    if (activeId > 0) {
-      selectEl.value = String(activeId);
+    if (selectedRouteId > 0) {
+      selectEl.value = String(selectedRouteId);
     }
     if (!selectEl.value && routes.length) {
       selectEl.value = String(toInt(routes[0].route_id || routes[0].ROUTE_ID, 0));
@@ -1540,7 +1668,7 @@
   }
 
   function renderMyRouteControlAvailability() {
-    var hasActiveRoute = toInt(state.myRoutes.activeRouteId, 0) > 0;
+    var hasSelectedRoute = toInt(state.myRoutes.activeRouteId, 0) > 0;
     var hasPersistedStart = toInt(state.myRoutes.startWaypointId, 0) > 0;
     var hasExistingLegs = Array.isArray(state.myRoutes.legs) && state.myRoutes.legs.length > 0;
     var selectedStartWaypointId = toInt(dom.myRouteStartWaypointSelectEl ? dom.myRouteStartWaypointSelectEl.value : 0, 0);
@@ -1549,16 +1677,16 @@
     var isPending = isMyRoutePending();
 
     if (dom.myRouteStartWaypointSelectEl) {
-      dom.myRouteStartWaypointSelectEl.disabled = isPending || !hasActiveRoute;
+      dom.myRouteStartWaypointSelectEl.disabled = isPending || !hasSelectedRoute;
     }
     if (dom.myRouteSetStartBtn) {
-      dom.myRouteSetStartBtn.disabled = isPending || !hasActiveRoute;
+      dom.myRouteSetStartBtn.disabled = isPending || !hasSelectedRoute;
     }
     if (dom.myRouteEndWaypointSelectEl) {
-      dom.myRouteEndWaypointSelectEl.disabled = isPending || !hasActiveRoute || !canAddWaypointLeg;
+      dom.myRouteEndWaypointSelectEl.disabled = isPending || !hasSelectedRoute || !canAddWaypointLeg;
     }
     if (dom.myRouteAddWaypointLegBtn) {
-      dom.myRouteAddWaypointLegBtn.disabled = isPending || !hasActiveRoute || !canAddWaypointLeg;
+      dom.myRouteAddWaypointLegBtn.disabled = isPending || !hasSelectedRoute || !canAddWaypointLeg;
     }
   }
 
@@ -1800,12 +1928,12 @@
           renderMyRouteWaypointOptions();
           return payload;
         }
-        if (opts.reloadActive && state.myRoutes.activeRouteId > 0) {
+        if (opts.reloadSelected && state.myRoutes.activeRouteId > 0) {
           return loadMyRoute(state.myRoutes.activeRouteId, { silentError: true });
         }
         var targetRouteId = toInt(
           opts.routeId !== undefined ? opts.routeId :
-            (state.myRoutes.activeRouteId > 0 ? state.myRoutes.activeRouteId : data.active_route_id),
+            (state.myRoutes.activeRouteId > 0 ? state.myRoutes.activeRouteId : 0),
           0
         );
         if (targetRouteId > 0) {
@@ -1894,7 +2022,7 @@
     if (dom.hintLineEl) {
       dom.hintLineEl.textContent = isEditor
         ? "Editing existing route: Preview updates, then Save Route to update this route."
-        : "Recommended flow: Preview -> Generate Route -> Build Float Plans from dashboard.";
+        : "Recommended flow: Preview -> Generate Route -> create a float plan from the dashboard when you're ready to start a trip.";
     }
   }
 
@@ -2854,13 +2982,19 @@
   }
 
   function resetLegMapSelection() {
+    var currentRouteType = String(state.activeRouteType || "").trim().toLowerCase();
     state.legMapLoadSeq += 1;
     state.legMapClearIntent = false;
     state.legMapDraftPoints = [];
     closeLegMapPanel();
     state.selectedLegOrder = 0;
     state.selectedLegData = null;
-    state.selectedLegContext = "routegen";
+    applyRouteContext(
+      currentRouteType,
+      (currentRouteType === "my_route")
+        ? toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0)
+        : state.activeRouteId
+    );
     state.selectedLegHasOverride = false;
     state.selectedLegSource = "default";
     clearSelectedLegRows();
@@ -3554,6 +3688,7 @@
     state.previewLegs = [];
     state.previewSummary = {
       totalNm: 0,
+      totalHours: 0,
       estimatedDays: 0,
       estimatedFuelGallons: NaN
     };
@@ -3566,7 +3701,7 @@
     removeLegacyCruiseTimelineContainer();
     resetLegLockPanelState();
     if (dom.totalNmEl) dom.totalNmEl.innerHTML = "0 <small>NM</small>";
-    if (dom.estimatedDaysEl) dom.estimatedDaysEl.textContent = "0";
+    if (dom.estimatedDaysEl) dom.estimatedDaysEl.innerHTML = "0.0 <small>h</small>";
     if (dom.estimatedDaysSubEl) dom.estimatedDaysSubEl.textContent = "Pace-driven estimate";
     if (dom.lockCountEl) dom.lockCountEl.textContent = "0";
     if (dom.offshoreCountEl) dom.offshoreCountEl.textContent = "0";
@@ -4074,6 +4209,42 @@
       });
   }
 
+  function applyRouteContext(routeType, routeId, options) {
+    var opts = options || {};
+    var normalizedType = String(routeType || "").trim().toLowerCase();
+    var isMyRoute = (normalizedType === "my_route" || normalizedType === "my_routes" || normalizedType === "custom");
+    var hasExplicitRouteId = !(routeId === undefined || routeId === null || routeId === "");
+    var resolvedRouteId = hasExplicitRouteId ? toInt(routeId, 0) : 0;
+
+    if (isMyRoute) {
+      if (resolvedRouteId <= 0) {
+        resolvedRouteId = toInt(
+          opts.fallbackMyRouteId !== undefined ? opts.fallbackMyRouteId :
+            (state.myRoutes.activeRouteId || state.activeRouteId),
+          0
+        );
+      }
+      state.activeRouteType = "my_route";
+      state.activeRouteId = resolvedRouteId;
+      state.selectedLegContext = "my_route";
+      if (opts.syncMyRouteId !== false) {
+        state.myRoutes.activeRouteId = resolvedRouteId;
+      }
+      return resolvedRouteId;
+    }
+
+    if (!hasExplicitRouteId) {
+      resolvedRouteId = toInt(
+        opts.fallbackGeneratedRouteId !== undefined ? opts.fallbackGeneratedRouteId : state.activeRouteId,
+        0
+      );
+    }
+    state.activeRouteType = "generated";
+    state.activeRouteId = resolvedRouteId;
+    state.selectedLegContext = "routegen";
+    return resolvedRouteId;
+  }
+
   function applyEditContext(editData) {
     var data = editData || {};
     var inputs = data && data.inputs ? data.inputs : data;
@@ -4103,10 +4274,7 @@
     );
     if (ctxRouteCode) state.activeRouteCode = ctxRouteCode;
     if (isMyRouteContext && ctxMyRouteId > 0) {
-      state.activeRouteType = "my_route";
-      state.selectedLegContext = "my_route";
-      state.myRoutes.activeRouteId = ctxMyRouteId;
-      state.activeRouteId = ctxMyRouteId;
+      applyRouteContext("my_route", ctxMyRouteId);
       state.myRoutes.activeRouteName = String(
         templateMeta.name !== undefined ? templateMeta.name :
           (templateMeta.NAME !== undefined ? templateMeta.NAME : state.myRoutes.activeRouteName || "")
@@ -4115,9 +4283,7 @@
         dom.previewTemplateEl.textContent = "Template: " + (state.myRoutes.activeRouteName || "My Route");
       }
     } else {
-      state.activeRouteId = ctxRouteId;
-      state.activeRouteType = "generated";
-      state.selectedLegContext = "routegen";
+      applyRouteContext("generated", ctxRouteId);
     }
     if (dom.routeNameEl) {
       dom.routeNameEl.value = String(
@@ -4413,9 +4579,19 @@
 
   function buildEditorBaselineFromPayload(payload) {
     var src = payload || {};
+    var routeType = String(
+      src.route_type !== undefined ? src.route_type :
+        (src.routeType !== undefined ? src.routeType : "")
+    ).trim().toLowerCase();
+    var isMyRoute = (routeType === "my_route" || routeType === "my_routes" || routeType === "custom");
+    var routeId = toInt(
+      src.route_id !== undefined ? src.route_id :
+        (src.routeId !== undefined ? src.routeId : 0),
+      0
+    );
     return {
-      route_type: "generated",
-      route_id: 0,
+      route_type: (isMyRoute ? "my_route" : "generated"),
+      route_id: (isMyRoute ? routeId : 0),
       route_name: String(src.route_name || ""),
       selected_vessel_id: String(src.selected_vessel_id || ""),
       template_code: String(src.template_code || ""),
@@ -4486,6 +4662,10 @@
               (leg.locks !== undefined ? leg.locks : leg.LOCKS)),
           0
         );
+        var lockTimeMinTotal = parseFloat(
+          leg.lock_time_min_total !== undefined ? leg.lock_time_min_total :
+            (leg.LOCK_TIME_MIN_TOTAL !== undefined ? leg.LOCK_TIME_MIN_TOTAL : 0)
+        );
         var startName = String(
           leg.start_name !== undefined ? leg.start_name : (leg.START_NAME || "")
         ).trim();
@@ -4508,8 +4688,10 @@
           -1
         );
         if (!Number.isFinite(distNm)) distNm = NaN;
+        if (!Number.isFinite(lockTimeMinTotal)) lockTimeMinTotal = 0;
         if (distNm < 0) distNm = 0;
         if (lockCount < 0) lockCount = 0;
+        if (lockTimeMinTotal < 0) lockTimeMinTotal = 0;
         return {
           order_index: order,
           route_leg_id: routeLegId,
@@ -4519,6 +4701,7 @@
           end_name: endName,
           dist_nm: distNm,
           lock_count: lockCount,
+          lock_time_min_total: lockTimeMinTotal,
           is_offshore: (isOffshore > 0 ? 1 : 0),
           is_icw: (isIcw > 0 ? 1 : 0),
           exposure_level: (exposureLevel >= 0 && exposureLevel <= 3 ? exposureLevel : "")
@@ -5121,7 +5304,10 @@
       if (!actionLeg) return;
 
       if (action === "open-map") {
-        state.selectedLegContext = contextType;
+        applyRouteContext(
+          contextType,
+          (contextType === "my_route") ? toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0) : state.activeRouteId
+        );
         loadLegGeometry(actionLeg);
         return;
       }
@@ -5143,7 +5329,10 @@
     var order = toInt(row.getAttribute("data-leg-order"), 0);
     var leg = getLegByOrder(order);
     if (!leg) return;
-    state.selectedLegContext = contextType;
+    applyRouteContext(
+      contextType,
+      (contextType === "my_route") ? toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0) : state.activeRouteId
+    );
     state.selectedLegOrder = order;
     state.selectedLegData = leg;
     selectLegRow(order);
@@ -5255,13 +5444,13 @@
             refreshTotalsFromLegs();
           }
           state.selectedLegData = (legOrder > 0 ? getLegByOrder(legOrder) : null) || getMyRouteLegById(legRouteLegId) || leg;
-          loadMyRoutes({ reloadActive: true, silentError: true })
+          loadMyRoutes({ reloadSelected: true, silentError: true })
             .then(function () {
               var activeMyRouteId = toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0);
               if (String(state.activeRouteType || "").trim().toLowerCase() !== "my_route" || activeMyRouteId <= 0) {
                 return null;
               }
-              return previewActiveMyRoute(true);
+              return previewSelectedMyRoute(true);
             })
             .catch(function () {
               return null;
@@ -5356,13 +5545,13 @@
             refreshTotalsFromLegs();
           }
           state.selectedLegData = (legOrder > 0 ? getLegByOrder(legOrder) : null) || getMyRouteLegById(legRouteLegId) || leg;
-          loadMyRoutes({ reloadActive: true, silentError: true })
+          loadMyRoutes({ reloadSelected: true, silentError: true })
             .then(function () {
               var activeMyRouteId = toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0);
               if (String(state.activeRouteType || "").trim().toLowerCase() !== "my_route" || activeMyRouteId <= 0) {
                 return null;
               }
-              return previewActiveMyRoute(true);
+              return previewSelectedMyRoute(true);
             })
             .catch(function () {
               return null;
@@ -5470,6 +5659,7 @@
       : null;
     var hasTimelineSummary = !!timelinePayload;
     var summaryTotalNm = Number.isFinite(totalNm) ? totalNm : 0;
+    var summaryTotalHours = (Number.isFinite(totalHours) && totalHours >= 0) ? totalHours : NaN;
     var summaryEstimatedDays = Number.isFinite(estimatedDays) ? Math.max(0, Math.round(estimatedDays)) : 0;
     var summaryEstimatedFuelGallons = (Number.isFinite(estimatedFuelGallons) && estimatedFuelGallons >= 0) ? estimatedFuelGallons : NaN;
     if (dom.lockCountEl) dom.lockCountEl.textContent = String(Number.isFinite(lockCount) ? Math.max(0, lockCount) : 0);
@@ -5491,12 +5681,19 @@
     } else {
       state.previewSummary = {
         totalNm: summaryTotalNm,
+        totalHours: summaryTotalHours,
         estimatedDays: summaryEstimatedDays,
         estimatedFuelGallons: summaryEstimatedFuelGallons
       };
 
       if (dom.totalNmEl) dom.totalNmEl.innerHTML = formatNumber(summaryTotalNm, 1) + ' <small>NM</small>';
-      if (dom.estimatedDaysEl) dom.estimatedDaysEl.textContent = String(summaryEstimatedDays);
+      if (dom.estimatedDaysEl) {
+        if (Number.isFinite(summaryTotalHours) && summaryTotalHours >= 0) {
+          dom.estimatedDaysEl.innerHTML = formatNumber(summaryTotalHours, 1) + ' <small>h</small>';
+        } else {
+          dom.estimatedDaysEl.innerHTML = '-- <small>h</small>';
+        }
+      }
       if (dom.estimatedFuelEl) {
         if (Number.isFinite(summaryEstimatedFuelGallons) && summaryEstimatedFuelGallons >= 0) {
           dom.estimatedFuelEl.innerHTML = formatNumber(summaryEstimatedFuelGallons, 1) + ' <small>gal</small>';
@@ -5596,7 +5793,7 @@
     }, 250);
   }
 
-  function previewActiveMyRoute(forceRefresh) {
+  function previewSelectedMyRoute(forceRefresh) {
     var routeId = toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0);
     var payload = collectFormPayload();
     if (routeId <= 0) {
@@ -5633,9 +5830,7 @@
         if (!resPayload || resPayload.SUCCESS === false) {
           throw new Error((resPayload && resPayload.MESSAGE) ? resPayload.MESSAGE : "My Route preview failed.");
         }
-        state.activeRouteId = routeId;
-        state.activeRouteType = "my_route";
-        state.selectedLegContext = "my_route";
+        applyRouteContext("my_route", routeId);
         if (state.modalMode !== "editor") {
           state.activeRouteCode = "";
         }
@@ -5681,7 +5876,7 @@
 
   function previewRoute(forceRefresh) {
     if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route" && toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0) > 0) {
-      return previewActiveMyRoute(forceRefresh);
+      return previewSelectedMyRoute(forceRefresh);
     }
 
     var payload = collectFormPayload();
@@ -5721,8 +5916,7 @@
         if (!resPayload || resPayload.SUCCESS === false) {
           throw new Error((resPayload && resPayload.MESSAGE) ? resPayload.MESSAGE : "Preview failed.");
         }
-        state.activeRouteType = "generated";
-        state.selectedLegContext = "routegen";
+        applyRouteContext("generated");
         previewLegsForTimeline = extractPreviewLegsFromPayload(resPayload);
         renderPreviewPayload(resPayload, false);
         scrollPreviewTimelineIntoView();
@@ -5794,6 +5988,11 @@
         }
 
         var data = responsePayload.DATA || {};
+        var sourceMyRouteId = toInt(
+          payload.route_id !== undefined ? payload.route_id :
+            (payload.routeId !== undefined ? payload.routeId : state.myRoutes.activeRouteId),
+          toInt(state.myRoutes.activeRouteId, 0)
+        );
         var routeCode = String(
           data.route_code !== undefined ? data.route_code :
             (data.ROUTE_CODE !== undefined ? data.ROUTE_CODE : (responsePayload.ROUTE_CODE !== undefined ? responsePayload.ROUTE_CODE : ""))
@@ -5806,9 +6005,11 @@
 
         state.lastGeneratedRouteCode = routeCode;
         state.activeRouteCode = routeCode;
-        state.activeRouteId = routeId;
-        state.activeRouteType = "generated";
-        state.selectedLegContext = "routegen";
+        if (isMyRoute && sourceMyRouteId > 0) {
+          applyRouteContext("my_route", sourceMyRouteId);
+        } else {
+          applyRouteContext("generated", routeId);
+        }
         state.modalMode = "editor";
         state.editorBaseline = buildEditorBaselineFromPayload(payload);
         setRouteCodeBadge(routeCode || "Generated");
@@ -5893,7 +6094,13 @@
         );
 
         state.activeRouteCode = savedRouteCode || routeCode;
-        state.activeRouteId = savedRouteId;
+        applyRouteContext(
+          state.activeRouteType,
+          (String(state.activeRouteType || "").trim().toLowerCase() === "my_route")
+            ? toInt(state.myRoutes.activeRouteId || payload.route_id || state.activeRouteId, 0)
+            : savedRouteId
+        );
+        state.editorBaseline = buildEditorBaselineFromPayload(payload);
         setRouteCodeBadge(state.activeRouteCode);
         setStatus("Route saved.");
 
@@ -5933,9 +6140,7 @@
         var sections = Array.isArray(payload.SECTIONS) ? payload.SECTIONS : [];
         var routeMeta = payload.ROUTE || {};
         var routeId = toInt(routeMeta.ID !== undefined ? routeMeta.ID : routeMeta.route_id, 0);
-        state.activeRouteId = routeId;
-        state.activeRouteType = "generated";
-        state.selectedLegContext = "routegen";
+        applyRouteContext("generated", routeId);
         var flatLegs = [];
         sections.forEach(function (section) {
           var segs = Array.isArray(section.SEGMENTS) ? section.SEGMENTS : [];
@@ -6012,9 +6217,6 @@
     state.editorBaseline = null;
     state.suppressAutoSelectOnce = false;
     state.activeTemplateCode = "";
-    state.activeRouteId = 0;
-    state.activeRouteType = "generated";
-    state.selectedLegContext = "routegen";
     state.previewLegs = [];
     state.myRoutes = {
       available: false,
@@ -6026,6 +6228,7 @@
       waypoints: [],
       startWaypointId: 0
     };
+    applyRouteContext("generated", 0);
     state.selectedLegOrder = 0;
     state.selectedLegData = null;
     resetLegLockPanelState();
@@ -6087,7 +6290,7 @@
     if (dom.idleBurnGphEl) dom.idleBurnGphEl.value = "";
     if (dom.idleHoursTotalEl) dom.idleHoursTotalEl.value = "";
     if (dom.weatherFactorPctEl) dom.weatherFactorPctEl.value = String(DEFAULT_WEATHER_FACTOR_PCT);
-    resetWeatherSuggestionState("Set a valid dashboard weather ZIP to refresh this suggestion.");
+    resetWeatherSuggestionState("Load a route and refresh, or use manual coordinates.");
     if (dom.reservePctEl) dom.reservePctEl.value = String(DEFAULT_RESERVE_PCT);
     if (dom.fuelPricePerGalEl) dom.fuelPricePerGalEl.value = "";
     if (dom.setupPanelBodyEl) dom.setupPanelBodyEl.scrollTop = 0;
@@ -6121,7 +6324,6 @@
     ensureUserId()
       .then(function () {
         if (!isActiveModalInit(initSeq)) return null;
-        refreshWeatherSuggestion({ forceFetch: false });
         return loadTemplates();
       })
       .then(function () {
@@ -6134,7 +6336,7 @@
               if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") {
                 return loadMyRoutes({
                   routeId: toInt(state.myRoutes.activeRouteId, 0),
-                  reloadActive: true,
+                  reloadSelected: true,
                   silentError: true
                 }).then(function () {
                   if (!isActiveModalInit(initSeq)) return null;
@@ -6240,14 +6442,12 @@
     if (dom.startSelectEl) dom.startSelectEl.value = "";
     if (dom.endSelectEl) dom.endSelectEl.value = "";
     if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") {
-      state.activeRouteId = 0;
       if (state.modalMode !== "editor") {
         state.activeRouteCode = "";
         setRouteCodeBadge("Draft");
       }
     }
-    state.activeRouteType = "generated";
-    state.selectedLegContext = "routegen";
+    applyRouteContext("generated", 0);
     updateDirectionControlAvailability();
 
     setActiveTemplate(code);
@@ -6271,10 +6471,8 @@
       start_label: "",
       end_label: ""
     };
-    state.activeRouteId = 0;
     state.activeRouteCode = "";
-    state.activeRouteType = "generated";
-    state.selectedLegContext = "routegen";
+    applyRouteContext("generated", 0);
     state.manualOverrides.cruisingSpeed = false;
     state.suppressAutoSelectOnce = true;
     state.selectedVesselId = 0;
@@ -6294,7 +6492,7 @@
     if (dom.idleBurnGphEl) dom.idleBurnGphEl.value = "";
     if (dom.idleHoursTotalEl) dom.idleHoursTotalEl.value = "";
     if (dom.weatherFactorPctEl) dom.weatherFactorPctEl.value = String(DEFAULT_WEATHER_FACTOR_PCT);
-    resetWeatherSuggestionState("Set a valid dashboard weather ZIP to refresh this suggestion.");
+    resetWeatherSuggestionState("Load a route and refresh, or use manual coordinates.");
     if (dom.reservePctEl) dom.reservePctEl.value = String(DEFAULT_RESERVE_PCT);
     if (dom.fuelPricePerGalEl) dom.fuelPricePerGalEl.value = "";
 
@@ -6394,18 +6592,15 @@
     }
 
     if (isMyRouteBaseline && baselineMyRouteId > 0) {
-      state.activeRouteType = "my_route";
-      state.selectedLegContext = "my_route";
-      state.myRoutes.activeRouteId = baselineMyRouteId;
-      state.activeRouteId = baselineMyRouteId;
+      applyRouteContext("my_route", baselineMyRouteId);
       state.pendingDraft = null;
       loadMyRoutes({
         routeId: baselineMyRouteId,
-        reloadActive: true,
+        reloadSelected: true,
         silentError: true
       })
         .then(function () {
-          return previewActiveMyRoute(true);
+          return previewSelectedMyRoute(true);
         })
         .catch(function (err) {
           if (err && err.code === "UNAUTHORIZED") {
@@ -6464,14 +6659,12 @@
   function onDirectionControlChange() {
     clearError();
     if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") {
-      state.activeRouteId = 0;
       if (state.modalMode !== "editor") {
         state.activeRouteCode = "";
         setRouteCodeBadge("Draft");
       }
     }
-    state.activeRouteType = "generated";
-    state.selectedLegContext = "routegen";
+    applyRouteContext("generated", 0);
     setDirectionValue(dom.directionToggleEl ? (dom.directionToggleEl.checked ? "CW" : "CCW") : getDirectionValue());
     setStatus("Switching direction...");
     queueDirectionSwapDraft();
@@ -6629,7 +6822,7 @@
       if (!opts.suppressStatus) {
         setStatus(state.myRoutes.startWaypointId > 0 ? "My Route start waypoint set." : "My Route start waypoint cleared.");
       }
-      return loadMyRoutes({ reloadActive: true, silentError: true });
+      return loadMyRoutes({ reloadSelected: true, silentError: true });
     }).catch(function (err) {
       var message = (err && err.message) ? err.message : "Unable to set route start waypoint.";
       if (!opts.suppressError) {
@@ -6692,7 +6885,7 @@
       );
       setMyRouteLegs(Array.isArray(data.legs) ? data.legs : []);
       renderMyRouteWaypointOptions();
-      return loadMyRoutes({ reloadActive: true });
+      return loadMyRoutes({ reloadSelected: true });
     }).catch(function (err) {
       showError((err && err.message) ? err.message : "Unable to add waypoint leg.");
     }).finally(function () {
@@ -6715,16 +6908,14 @@
     loadPromise
       .then(function () {
         state.myRoutes.activeRouteId = toInt(state.myRoutes.activeRouteId, selectedRouteId);
-        state.activeRouteId = state.myRoutes.activeRouteId;
-        state.activeRouteType = "my_route";
-        state.selectedLegContext = "my_route";
+        applyRouteContext("my_route", state.myRoutes.activeRouteId);
         if (state.modalMode !== "editor") {
           state.activeRouteCode = "";
         }
         if (state.activeRouteId <= 0) {
           throw new Error("Unable to resolve selected My Route.");
         }
-        return previewActiveMyRoute(true);
+        return previewSelectedMyRoute(true);
       })
       .then(function () {
         setStatus("My Route loaded.");
@@ -6752,7 +6943,7 @@
       }
       var data = (payload.DATA && typeof payload.DATA === "object") ? payload.DATA : {};
       setMyRouteLegs(Array.isArray(data.legs) ? data.legs : []);
-      loadMyRoutes({ reloadActive: true });
+      loadMyRoutes({ reloadSelected: true });
       return payload;
     });
   }
@@ -6802,7 +6993,7 @@
       }
       var data = (payload.DATA && typeof payload.DATA === "object") ? payload.DATA : {};
       setMyRouteLegs(Array.isArray(data.legs) ? data.legs : []);
-      loadMyRoutes({ reloadActive: true });
+      loadMyRoutes({ reloadSelected: true });
       setStatus("Leg removed.");
     }).catch(function (err) {
       showError((err && err.message) ? err.message : "Unable to remove leg.");
@@ -6825,7 +7016,7 @@
       return;
     }
     if (action === "edit-geometry") {
-      state.selectedLegContext = "my_route";
+      applyRouteContext("my_route", toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0));
       loadLegGeometry(leg);
     }
   }
@@ -7076,14 +7267,12 @@
     if (dom.startSelectEl) {
       dom.startSelectEl.addEventListener("change", function () {
         if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") {
-          state.activeRouteId = 0;
           if (state.modalMode !== "editor") {
             state.activeRouteCode = "";
             setRouteCodeBadge("Draft");
           }
         }
-        state.activeRouteType = "generated";
-        state.selectedLegContext = "routegen";
+        applyRouteContext("generated", 0);
         if (dom.endSelectEl) dom.endSelectEl.value = "";
         renderOptions();
         onFormChange();
@@ -7093,14 +7282,12 @@
     if (dom.endSelectEl) {
       dom.endSelectEl.addEventListener("change", function () {
         if (String(state.activeRouteType || "").trim().toLowerCase() === "my_route") {
-          state.activeRouteId = 0;
           if (state.modalMode !== "editor") {
             state.activeRouteCode = "";
             setRouteCodeBadge("Draft");
           }
         }
-        state.activeRouteType = "generated";
-        state.selectedLegContext = "routegen";
+        applyRouteContext("generated", 0);
         onFormChange();
       });
     }
@@ -7157,6 +7344,11 @@
     if (dom.weatherSuggestRefreshBtn) {
       dom.weatherSuggestRefreshBtn.addEventListener("click", function () {
         refreshWeatherSuggestion({ forceFetch: true });
+      });
+    }
+    if (dom.weatherSuggestManualBtn) {
+      dom.weatherSuggestManualBtn.addEventListener("click", function () {
+        lookupManualWeatherSuggestion();
       });
     }
     if (dom.weatherSuggestApplyBtn) {
@@ -7409,6 +7601,9 @@
     dom.weatherSuggestFactorsEl = document.getElementById("routeGenWeatherSuggestFactors");
     dom.weatherSuggestConfidenceEl = document.getElementById("routeGenWeatherSuggestConfidence");
     dom.weatherSuggestRefreshBtn = document.getElementById("routeGenWeatherSuggestRefreshBtn");
+    dom.weatherSuggestManualLatEl = document.getElementById("routeGenWeatherSuggestManualLat");
+    dom.weatherSuggestManualLngEl = document.getElementById("routeGenWeatherSuggestManualLng");
+    dom.weatherSuggestManualBtn = document.getElementById("routeGenWeatherSuggestManualBtn");
     dom.weatherSuggestApplyBtn = document.getElementById("routeGenWeatherSuggestApplyBtn");
     dom.reservePctEl = document.getElementById("routeGenReservePct");
     dom.fuelPricePerGalEl = document.getElementById("routeGenFuelPricePerGal");
@@ -7493,8 +7688,14 @@
   function selectLegByOrderForTest(order) {
     var wanted = toInt(order, 0);
     var leg = getLegByOrder(wanted);
+    var currentRouteType = String(state.activeRouteType || "").trim().toLowerCase();
     if (!leg) return Promise.resolve(false);
-    state.selectedLegContext = "routegen";
+    applyRouteContext(
+      currentRouteType,
+      (currentRouteType === "my_route")
+        ? toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0)
+        : state.activeRouteId
+    );
     return loadLegGeometry(leg).then(function () {
       return true;
     }).catch(function () {
@@ -7556,6 +7757,12 @@
     init: init,
     reloadTimeline: reloadTimeline,
     openEditorForRoute: openEditorForRoute
+  };
+
+  window.FPW.RouteWeatherAssist = {
+    normalizeWeatherEnvelope: normalizeWeatherEnvelope,
+    computeLiveWeatherFactorPct: computeLiveWeatherFactorPct,
+    buildRouteWeatherContextFromLegs: buildRouteWeatherContextFromLegs
   };
 
   if (window.__FPW_ENABLE_TEST_HOOKS) {

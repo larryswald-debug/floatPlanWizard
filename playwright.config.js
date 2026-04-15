@@ -2,7 +2,7 @@ const { devices } = require("@playwright/test");
 
 module.exports = {
   testDir: "./tests",
-  workers: process.env.PW_WORKERS ? Number(process.env.PW_WORKERS) : 3,
+  workers: process.env.PW_WORKERS ? Number(process.env.PW_WORKERS) : 1,
   use: {
     baseURL: "http://localhost:8500", // change if FPW runs elsewhere
     headless: false,                  // visible browser (best for learning)

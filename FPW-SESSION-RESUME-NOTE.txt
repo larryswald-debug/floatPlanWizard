@@ -1,0 +1,119 @@
+FPW SESSION STATE — RESUME NOTE
+
+Primary current objective:
+- Active Cruise page cleanup: separate live monitoring/check-in state from float plan setup details.
+
+Current phase:
+- Implementation complete for the approved one-file Active Cruise change.
+- Waiting for user review / next instruction.
+- No commit created yet.
+
+Latest completed task:
+- Implemented a new "Monitoring Status" card on the Active Cruise page.
+- Removed live check-in fields from the lower "Attached Float Plan" card.
+- Kept scope to ONE file only:
+  /Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/app/active-cruise.cfm
+
+Approved scope that was implemented:
+- Move these fields into the new Monitoring Status card:
+  - Last Check-In
+  - Since Check-In
+- Add canonical:
+  - Next Expected Check-In
+- Keep Attached Float Plan focused on setup/config only:
+  - Plan Status
+  - Plan ID
+  - existing attached/monitoring badge context
+
+Canonical data rules used:
+- Last Check-In:
+  - floatplans.checkedInAt
+- Since Check-In:
+  - existing local helper fpwFormatElapsedCheckIn()
+- Next Expected Check-In:
+  - floatplan_monitoring.expected_checkin_at
+- Explicitly NOT reused as canonical:
+  - heroNextExpectedCheckIn
+  - floatPlanNextExpected
+  - those remain elapsed-label fields, not true expected-check-in timestamps
+
+Exact file changes made in active-cruise.cfm:
+- Extended the existing qPlanSql block to include canonical expected_checkin_at from floatplan_monitoring.
+- Added local variable:
+  - expectedCheckInDt
+- Added server-rendered view field:
+  - activeCruiseView.monitorNextExpectedCheckIn
+- Updated lower-card markup:
+  - Attached Float Plan no longer renders Last Check-In / Since Check-In
+  - New sibling card "Monitoring Status" now renders:
+    - Last Check-In
+    - Since Check-In
+    - Next Expected Check-In
+- Preserved existing binding:
+  - data-fpw-field="floatPlan.lastCheckIn"
+- No JS changes were needed for the new next-expected field because the check-in flow reloads the page.
+
+Snapshot created before edit:
+- /tmp/codex-fpw-backups/monitoring-status-card-20260410-134936/active-cruise.cfm.snapshot
+
+MCP / runtime verification completed:
+- getActiveCruiseSnapshot(381) still returns:
+  - lastCheckin.at = 2026-04-10T16:42:33Z
+- Canonical DB verification for floatPlanId 381:
+  - checkedInAt = April 10 2026 16:42:33
+  - expected_checkin_at = April 10 2026 22:00:00
+  - next_monitor_eval_at = April 10 2026 22:00:00
+- Logged-in UI validation completed with:
+  - user: detroit@email.com
+  - password: changeIt
+- Active Cruise page verified at:
+  - http://localhost:8500/fpw/app/active-cruise.cfm
+- Verified in rendered UI:
+  - Monitoring Status card exists
+  - Last Check-In rendered
+  - Since Check-In rendered
+  - Next Expected Check-In rendered
+  - Attached Float Plan card no longer contains check-in fields
+- Console status:
+  - page loaded without app errors
+  - only unrelated favicon.ico 404 observed
+
+Important current UI result:
+- Attached Float Plan now reads as setup/config only.
+- Monitoring Status now contains the live safety/check-in state.
+- Example rendered values seen during validation:
+  - Last Check-In: Apr 10, 2026 12:42 PM
+  - Since Check-In: 1h 9m since last check-in
+  - Next Expected Check-In: Apr 10, 2026 6:00 PM
+
+Current worktree status at stop point:
+- The repo is dirty. Current git status showed:
+  - M api/v1/floatplan.cfc
+  - M api/v1/monitor.cfc
+  - M api/v1/voyage.cfc
+  - M app/active-cruise.cfm
+  - M tests/integration/FloatPlanActionsSpec.cfc
+  - ?? assets/uploads/voyage/50/
+- Do NOT assume all of those are part of the last Active Cruise card task.
+- For the last approved task, only app/active-cruise.cfm was intentionally modified.
+
+Important prior session context still relevant:
+- Future-scheduled trip start fix had already been implemented earlier in:
+  - /Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/api/v1/floatplan.cfc
+  - /Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/api/v1/voyage.cfc
+  - /Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/app/active-cruise.cfm
+- MCPCFC tool compareActiveCruiseVsFollow was added earlier in the mcpcfc repo and server restart was completed.
+- Active-vs-follow parity for stream_id 50 / floatPlanId 381 was previously checked and the old +1 day ETA mismatch was gone.
+
+Exact stop point:
+- Last task is implemented and validated.
+- No commit yet.
+- Waiting for user direction on review, additional discovery, or commit.
+
+Next likely step:
+- Ask whether to:
+  1. keep this change as-is,
+  2. make follow-up tweaks to the Active Cruise monitoring/status presentation,
+  3. or commit the approved change set.
+
+Do not proceed autonomously after resume.
