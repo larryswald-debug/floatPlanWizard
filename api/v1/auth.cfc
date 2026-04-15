@@ -155,7 +155,7 @@
                     SUCCESS = false,
                     MESSAGE = "Server error during login",
                     ERROR   = "SERVER_ERROR",
-                    DETAIL  = cfcatch.message
+                    DETAIL  = "An unexpected error occurred."
                 }>
                 <cfset response = serializeJSON( errResponse )>
                 <cfoutput>#response#</cfoutput>

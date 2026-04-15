@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration to leverage `cbproxies` instead of duplicating work. This allows us to use `parallel()` finally with no issues on all engines.
 - Added `collectAsSet()` to collect items into a non-duplicate set instance
 - Added mappings for API Docs
-- Added more experimental Adobe/Lucee CFML Context loading for parallel streams
+- Added more Beta Adobe/Lucee CFML Context loading for parallel streams
 - Migrated to github actions
 - Migrated to new module template
 
@@ -57,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.5.0] => 2019-JUL-02
 
 - Added ACF support for `java.util.ArrayList` native arrays to be casted correctly to Java Streams.
-- Experimental: Added the ability to transfer page contexts and fusion contexts for running parallel threads. This is a major breakthrough for parallelization of the fork join framework and bridging to the CFML engines. Only works on ACF, and partially.
+- Beta: Added the ability to transfer page contexts and fusion contexts for running parallel threads. This is a major breakthrough for parallelization of the fork join framework and bridging to the CFML engines. Only works on ACF, and partially.
 
 ## [1.4.0]
 

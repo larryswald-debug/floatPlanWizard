@@ -1414,6 +1414,10 @@ main.dashboard-main{
             align-items: start;
         }
 
+        #floatPlanWizardModal .fpw-manifest--waypoints {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
         #floatPlanWizardModal .fpw-manifest__summary,
         #floatPlanWizardModal .fpw-manifest__available {
             border: 1px solid var(--panel-border);

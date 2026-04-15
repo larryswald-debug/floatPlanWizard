@@ -80,9 +80,6 @@
         });
 
         var msg = (data && data.MESSAGE) ? data.MESSAGE : "User created.";
-        if (data && data.TEMP_PASSWORD) {
-          msg += " Default password: " + data.TEMP_PASSWORD;
-        }
 
         showAlert(msg, "success");
         form.reset();

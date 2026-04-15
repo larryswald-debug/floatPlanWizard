@@ -74,6 +74,9 @@
       <a href="/fpw/admin/route-cleanup.cfm">Route Cleanup</a>
       <a href="/fpw/admin/fuel-calculator.cfm" class="active">Fuel Calculator</a>
       <a href="/fpw/admin/waypoint-manager.cfm">Waypoint Manager</a>
+      <a href="/fpw/admin/passenger-manager.cfm">Passenger Manager</a>
+      <a href="/fpw/admin/vessel-manager.cfm">Vessel Manager</a>
+      <a href="/fpw/admin/operator-manager.cfm">Operator Manager</a>
     </nav>
 
     <h1>Admin QA Fuel Calculator</h1>

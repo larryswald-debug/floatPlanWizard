@@ -2,6 +2,7 @@
 setting requestTimeout=180;
 
 reporter = trim(url.reporter ?: "text");
+bundles = trim( url.bundles ?: "" );
 
 // HARD SET: this is the web-mapped path to your specs.
 specWebPath = "/fpw/tests";
@@ -44,12 +45,10 @@ if ( isDefined( "CFTOKEN" ) ) {
 if ( !structKeyExists( session, "user" ) || !isStruct( session.user ) ) {
   session.user = {};
 }
-if ( !structKeyExists( session.user, "userId" ) || !isNumeric( session.user.userId ) || val( session.user.userId ) LTE 0 ) {
-  runnerUserId = structKeyExists( url, "testUserId" ) && isNumeric( url.testUserId ) ? val( url.testUserId ) : 187;
-  session.user.userId = runnerUserId;
-  session.user.id = runnerUserId;
-  session.user.USERID = runnerUserId;
-}
+runnerUserId = structKeyExists( url, "testUserId" ) && isNumeric( url.testUserId ) && val( url.testUserId ) GT 0 ? val( url.testUserId ) : 187;
+session.user.userId = runnerUserId;
+session.user.id = runnerUserId;
+session.user.USERID = runnerUserId;
 
 // Optional: list spec files so we KNOW they’re visible
 specFiles = directoryList(specAbsPath, true, "path", "*Spec.cfc");
@@ -57,11 +56,17 @@ writeOutput("Found *Spec.cfc files: " & arrayLen(specFiles) & chr(10));
 for (f in specFiles) writeOutput(" - " & f & chr(10));
 writeOutput(chr(10) & "----- RUNNING TESTBOX -----" & chr(10));
 
-tb = new testbox.system.TestBox(
-  directory = specMapping,
-  recurse   = true,
-  reporter  = reporter
-);
+tbArgs = {
+  recurse  = true,
+  reporter = reporter
+};
+if ( len( bundles ) ) {
+  tbArgs.bundles = bundles;
+} else {
+  tbArgs.directory = specMapping;
+}
+
+tb = new testbox.system.TestBox( argumentCollection = tbArgs );
 
 writeOutput(tb.run());
 </cfscript>

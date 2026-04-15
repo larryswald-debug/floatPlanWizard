@@ -516,6 +516,8 @@ if (!len(trim(basePath)) && structKeyExists(cgi, "script_name")) {
 </style>
 
 <cfif len(userDisplayName)>
+  <cfparam name="request.fpwTopNavActive" default="dashboard">
+
   <header class="topbar nav--app" role="banner">
     <div class="inner">
       <a class="brand brandCompact" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm" aria-label="Dashboard">
@@ -526,9 +528,9 @@ if (!len(trim(basePath)) && structKeyExists(cgi, "script_name")) {
       </a>
 
       <nav class="tabs" aria-label="App Primary">
-        <a class="tab active" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm">Dashboard</a>
+        <a class="tab<cfif request.fpwTopNavActive EQ 'dashboard'> active</cfif>" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm">Dashboard</a>
         <a class="tab" href="#monitoring">Monitoring</a>
-        <a class="tab" id="fpwNavWeatherLink" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm#weather">Weather</a>
+        <a class="tab<cfif request.fpwTopNavActive EQ 'weather'> active</cfif>" id="fpwNavWeatherLink" href="<cfoutput>#basePath#</cfoutput>/app/weather.cfm">Weather</a>
         <a class="tab" href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm">Fuel Calculator</a>
       </nav>
 
@@ -562,7 +564,7 @@ if (!len(trim(basePath)) && structKeyExists(cgi, "script_name")) {
   <nav class="fpwMobileMenu fpwMobileMenu--app" id="fpwMobileMenuApp" role="navigation" aria-label="Mobile app menu" aria-hidden="true">
     <a href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm">Dashboard</a>
     <a href="#monitoring">Monitoring</a>
-    <a id="fpwMobileWeatherLink" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm#weather">Weather</a>
+    <a id="fpwMobileWeatherLink" href="<cfoutput>#basePath#</cfoutput>/app/weather.cfm">Weather</a>
     <a href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm">Fuel Calculator</a>
     <hr />
     <div class="fpwMobileSection">Account</div>
@@ -584,33 +586,6 @@ if (!len(trim(basePath)) && structKeyExists(cgi, "script_name")) {
         var mobileNewFloatPlanBtn = document.getElementById("fpwMobileNewFloatPlanBtn");
         var mobileLogoutBtn = document.getElementById("fpwMobileLogoutBtn");
         var appTopbar = document.querySelector(".topbar.nav--app");
-
-        function openWeatherPanel() {
-          var weatherCard = document.querySelector(".fpw-card.fpw-alerts");
-          var weatherCollapse = document.getElementById("alertsCollapse");
-          var navHeight = appTopbar ? Math.round(appTopbar.getBoundingClientRect().height) : 0;
-          var topGap = 22;
-
-          if (weatherCollapse) {
-            if (window.bootstrap && window.bootstrap.Collapse) {
-              window.bootstrap.Collapse.getOrCreateInstance(weatherCollapse, { toggle: false }).show();
-            } else {
-              weatherCollapse.classList.add("show");
-            }
-          }
-
-          if (weatherCard && typeof weatherCard.getBoundingClientRect === "function") {
-            window.requestAnimationFrame(function () {
-              var top = weatherCard.getBoundingClientRect().top + window.pageYOffset - navHeight - topGap;
-              window.scrollTo({
-                top: Math.max(0, Math.round(top)),
-                behavior: "smooth"
-              });
-            });
-          }
-
-          return !!(weatherCard || weatherCollapse);
-        }
 
         function syncAppMobileMenuTop() {
           if (!appTopbar || !appMobileMenu) return;
@@ -669,27 +644,10 @@ if (!len(trim(basePath)) && structKeyExists(cgi, "script_name")) {
         });
 
         Array.prototype.forEach.call(weatherLinks, function (weatherLink) {
-          weatherLink.addEventListener("click", function (event) {
-            var didOpen = openWeatherPanel();
+          weatherLink.addEventListener("click", function () {
             setAppMobileOpen(false);
-            if (didOpen) {
-              event.preventDefault();
-              try {
-                window.sessionStorage.removeItem("fpwOpenWeatherPanel");
-              } catch (e) {}
-            } else {
-              try {
-                window.sessionStorage.setItem("fpwOpenWeatherPanel", "1");
-              } catch (e2) {}
-            }
           });
         });
-
-        try {
-          if (window.sessionStorage.getItem("fpwOpenWeatherPanel") === "1" && openWeatherPanel()) {
-            window.sessionStorage.removeItem("fpwOpenWeatherPanel");
-          }
-        } catch (e3) {}
 
         if (newRouteLink) {
           newRouteLink.addEventListener("click", function (event) {

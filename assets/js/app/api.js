@@ -114,10 +114,13 @@
     },
 
     getFloatPlanBootstrap: function (floatPlanId) {
-      var path = "/floatplan.cfc?method=handle&action=bootstrap";
-      if (floatPlanId) {
-        path += "&id=" + encodeURIComponent(floatPlanId);
+      if (!(parseInt(floatPlanId, 10) > 0)) {
+        return Promise.reject({
+          MESSAGE: "New float plans must be created from a route."
+        });
       }
+      var path = "/floatplan.cfc?method=handle&action=bootstrap";
+      path += "&id=" + encodeURIComponent(floatPlanId);
       return request(path, { method: "GET" });
     },
 
@@ -258,6 +261,20 @@
       });
     },
 
+    completeActiveCruiseLeg: function (payload) {
+      return request("/floatplan.cfc?method=handle&action=completeleg", {
+        method: "POST",
+        body: payload || {}
+      });
+    },
+
+    startNextActiveCruiseLeg: function (payload) {
+      return request("/floatplan.cfc?method=handle&action=startnextleg", {
+        method: "POST",
+        body: payload || {}
+      });
+    },
+
     deleteFloatPlan: function (floatPlanId) {
       return request("/floatplan.cfc?method=handle", {
         method: "POST",
@@ -269,12 +286,8 @@
     },
 
     cloneFloatPlan: function (floatPlanId) {
-      return request("/floatplan.cfc?method=handle", {
-        method: "POST",
-        body: {
-          action: "clone",
-          floatPlanId: floatPlanId
-        }
+      return Promise.reject({
+        MESSAGE: "Clone Float Plan is no longer supported."
       });
     },
 
