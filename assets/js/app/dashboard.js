@@ -361,29 +361,7 @@
   }
 
   function openWeatherPanelFromDashboard() {
-    var weatherCard = document.querySelector(".fpw-card.fpw-alerts");
-    var weatherCollapse = document.getElementById("alertsCollapse");
-    var appTopbar = document.querySelector(".topbar.nav--app");
-    var navHeight = appTopbar ? Math.round(appTopbar.getBoundingClientRect().height) : 0;
-    var topGap = 22;
-
-    if (weatherCollapse) {
-      if (window.bootstrap && window.bootstrap.Collapse) {
-        window.bootstrap.Collapse.getOrCreateInstance(weatherCollapse, { toggle: false }).show();
-      } else {
-        weatherCollapse.classList.add("show");
-      }
-    }
-
-    if (weatherCard && typeof weatherCard.getBoundingClientRect === "function") {
-      window.requestAnimationFrame(function () {
-        var top = weatherCard.getBoundingClientRect().top + window.pageYOffset - navHeight - topGap;
-        window.scrollTo({
-          top: Math.max(0, Math.round(top)),
-          behavior: "smooth"
-        });
-      });
-    }
+    window.location.href = BASE_PATH + "/app/weather.cfm";
   }
 
   function scrollToPanel(selector) {
@@ -3264,7 +3242,10 @@
         redirectToLogin();
       });
 
-    // Wire up logout
+    bindLogoutButton();
+  }
+
+  function bindLogoutButton() {
     var logoutBtn = document.getElementById("logoutButton");
     if (logoutBtn) {
       logoutBtn.addEventListener("click", function () {
@@ -3278,9 +3259,45 @@
           });
       });
     }
+  }
 
+  function initWeatherStandalonePage() {
+    Api.getCurrentUser()
+      .then(function (data) {
+        if (utils.ensureAuthResponse && !utils.ensureAuthResponse(data)) {
+          return;
+        }
+
+        if (!data.USER) {
+          redirectToLogin();
+          return;
+        }
+
+        populateUserInfo(data.USER);
+        if (utils.resolveHomePortLatLng) {
+          state.homePortLatLng = utils.resolveHomePortLatLng(data.USER);
+        }
+        var homePortZip = "";
+        if (utils.resolveHomePortZip) {
+          homePortZip = utils.resolveHomePortZip(data.USER);
+        }
+        initWeatherPanel(homePortZip, state.homePortLatLng || null);
+      })
+      .catch(function (err) {
+        console.error("Failed to load current user:", err);
+        redirectToLogin();
+      });
+
+    bindLogoutButton();
   }
 
   window.FPW_DASHBOARD_VERSION = "20260211y";
-  document.addEventListener("DOMContentLoaded", initDashboard);
+  document.addEventListener("DOMContentLoaded", function () {
+    var pageName = document.body ? String(document.body.getAttribute("data-fpw-page") || "").toLowerCase() : "";
+    if (pageName === "weather") {
+      initWeatherStandalonePage();
+      return;
+    }
+    initDashboard();
+  });
 })(window, document);

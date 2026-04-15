@@ -2,6 +2,7 @@
 setting requestTimeout=180;
 
 reporter = trim(url.reporter ?: "text");
+bundles = trim( url.bundles ?: "" );
 
 // HARD SET: this is the web-mapped path to your specs.
 specWebPath = "/fpw/tests";
@@ -55,11 +56,17 @@ writeOutput("Found *Spec.cfc files: " & arrayLen(specFiles) & chr(10));
 for (f in specFiles) writeOutput(" - " & f & chr(10));
 writeOutput(chr(10) & "----- RUNNING TESTBOX -----" & chr(10));
 
-tb = new testbox.system.TestBox(
-  directory = specMapping,
-  recurse   = true,
-  reporter  = reporter
-);
+tbArgs = {
+  recurse  = true,
+  reporter = reporter
+};
+if ( len( bundles ) ) {
+  tbArgs.bundles = bundles;
+} else {
+  tbArgs.directory = specMapping;
+}
+
+tb = new testbox.system.TestBox( argumentCollection = tbArgs );
 
 writeOutput(tb.run());
 </cfscript>

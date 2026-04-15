@@ -17,10 +17,52 @@
       payload: null,
       legs: [],
       expandedLegOrder: 0
+    },
+    loader: {
+      label: "Follow Page Loading",
+      percent: 0,
+      message: "Preparing the shared trip view."
     }
   };
 
   var dom = {};
+  var loaderMilestones = {
+    initial: {
+      label: "Follow Page Loading",
+      percent: 5,
+      message: "Preparing the shared trip view."
+    },
+    bootstrap: {
+      label: "Follow Page Loading",
+      percent: 18,
+      message: "Requesting shared trip data."
+    },
+    floatPlan: {
+      label: "Float Plan Loading",
+      percent: 38,
+      message: "Hydrating trip status and summary."
+    },
+    weather: {
+      label: "Weather Loading",
+      percent: 58,
+      message: "Applying current conditions from the bootstrap payload."
+    },
+    route: {
+      label: "Route Loading",
+      percent: 78,
+      message: "Rendering the route map and cruise timeline."
+    },
+    finalize: {
+      label: "Finalizing Display",
+      percent: 92,
+      message: "Loading voyage stream posts."
+    },
+    ready: {
+      label: "Finalizing Display",
+      percent: 100,
+      message: "Shared trip view ready."
+    }
+  };
 
   function safeNum(value) {
     var n = parseFloat(value);
@@ -40,6 +82,54 @@
       .replace(/>/g, "&gt;")
       .replace(/\"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function clampLoaderPercent(value) {
+    var n = parseInt(value, 10);
+    if (!Number.isFinite(n)) return 0;
+    return Math.max(0, Math.min(100, n));
+  }
+
+  function setLoaderState(label, percent, message) {
+    var nextPercent = Math.max(clampLoaderPercent(percent), clampLoaderPercent(state.loader.percent));
+    var nextLabel = String(label || state.loader.label || "Follow Page Loading").trim() || "Follow Page Loading";
+    var nextMessage = String(message || state.loader.message || "").trim();
+
+    state.loader.label = nextLabel;
+    state.loader.percent = nextPercent;
+    state.loader.message = nextMessage;
+
+    if (document.body) {
+      document.body.classList.add("follow-loading");
+    }
+    if (dom.loaderPhase) dom.loaderPhase.textContent = nextLabel;
+    if (dom.loaderPercent) dom.loaderPercent.textContent = String(nextPercent) + "%";
+    if (dom.loaderBar) dom.loaderBar.style.width = String(nextPercent) + "%";
+    if (dom.loaderMessage) dom.loaderMessage.textContent = nextMessage;
+  }
+
+  function setLoaderMilestone(milestoneKey) {
+    var milestone = loaderMilestones[milestoneKey];
+    if (!milestone) return;
+    setLoaderState(milestone.label, milestone.percent, milestone.message);
+  }
+
+  function finishLoader() {
+    setLoaderMilestone("ready");
+    window.requestAnimationFrame(function () {
+      if (!document.body) return;
+      document.body.classList.remove("follow-load-error");
+      document.body.classList.remove("follow-loading");
+    });
+  }
+
+  function failLoader(message) {
+    var errorMessage = String(message || "Unable to load voyage stream.").trim() || "Unable to load voyage stream.";
+    setLoaderState(state.loader.label, state.loader.percent, errorMessage);
+    if (document.body) {
+      document.body.classList.add("follow-load-error");
+      document.body.classList.add("follow-loading");
+    }
   }
 
   function readPageContext() {
@@ -545,6 +635,8 @@
     var legs = Array.isArray(timeline.legs) ? timeline.legs : [];
     var title = String(stream.title || "").trim();
     var status = String(topCards.status || stream.status || "").trim();
+    var voyageProgressStatus = String(topCards.voyage_progress_status || status || "").trim();
+    var voyageProgressStatusVariant = String(topCards.voyage_progress_status_variant || "good").trim().toLowerCase();
     var lastCheckinUtc = String(topCards.last_checkin_utc || "").trim();
     var realCheckInUtc = String(sidebar.last_checkin_utc || "").trim();
     var lastCheckinLabel = formatSidebarLastCheckinLabel(lastCheckinUtc) || "";
@@ -574,6 +666,7 @@
     var endSummaryLine = endSummary ? (activeLegEndName ? "End · " + activeLegEndName + " · " + endSummary : endSummary) : "";
     var conditionsFallbackCopy = String(weatherConditions.meta || body.card_conditions_copy || "").trim();
     var conditionsTitle = String(weatherConditions.headline || conditions).trim();
+    var voyageProgressStatusCopy = String(body.voyage_progress_status_copy || body.card_status_copy || "").trim();
     var conditionsValue = "";
     var conditionsCopy = "";
 
@@ -608,7 +701,11 @@
     }
 
     setHookText("journey-subtitle", isAwaitingDeparture ? "Awaiting departure from the current stop." : body.journey_subtitle);
-    setHookText("journey-status-pill", status);
+    setHookText("journey-status-pill", voyageProgressStatus);
+    if (dom.journeyStatusPill) {
+      dom.journeyStatusPill.classList.toggle("danger", voyageProgressStatusVariant === "danger");
+      dom.journeyStatusPill.classList.toggle("good", voyageProgressStatusVariant !== "danger");
+    }
     setHookWidth("journey-progress-fill", progressPct);
     setHookText("journey-departed-value", body.journey_departed_value);
     setHookText("journey-departed-meta", departedLocalMeta);
@@ -623,9 +720,13 @@
     setHookText("journey-checkin-value", realCheckInLabel ? ("Checked in at " + realCheckInLabel) : "Checked in at --");
     setHookText("journey-checkin-meta", body.journey_checkin_meta);
 
-    setHookText("card-status-title", status);
+    setHookText("card-status-title", voyageProgressStatus);
     setHookText("card-status-value", lastCheckinLabel || "—");
-    setHookText("card-status-copy", body.card_status_copy);
+    setHookText("card-status-copy", voyageProgressStatusCopy);
+    if (dom.statusDot) {
+      dom.statusDot.classList.toggle("warning", voyageProgressStatusVariant === "warning");
+      dom.statusDot.classList.toggle("danger", voyageProgressStatusVariant === "danger");
+    }
     setHookText("card-location-title", String(topCards.location_label || "").trim());
     setHookText("card-location-value", nextStop);
     setHookText("card-location-copy", isAwaitingDeparture ? "The trip is paused at the current stop and awaiting the next departure." : body.card_location_copy);
@@ -864,24 +965,18 @@
 
   function renderCruiseTimelineLegs(legs) {
     var list = Array.isArray(legs) ? legs : [];
-    var displayList = list.filter(function (row) {
-      var progress = (row && typeof row === "object" && row.progress && typeof row.progress === "object")
-        ? safeNum(row.progress.percent_complete)
-        : null;
-      return progress !== null && progress < 100;
-    });
     var html = "";
     var expandedOrder = toInt(state.timeline.expandedLegOrder, 0);
 
     if (!dom.followTimelineLegList) return;
     state.timeline.legs = list;
 
-    if (!displayList.length) {
+    if (!list.length) {
       state.timeline.expandedLegOrder = 0;
       dom.followTimelineLegList.innerHTML = '<div class="follow-timeline-empty">No leg timeline available.</div>';
       return;
     }
-    if (!displayList.some(function (row) { return toInt(row.leg_order, 0) === expandedOrder; })) {
+    if (!list.some(function (row) { return toInt(row.leg_order, 0) === expandedOrder; })) {
       expandedOrder = 0;
       state.timeline.expandedLegOrder = 0;
     }
@@ -890,7 +985,7 @@
       + '<span>#</span><span>Leg</span><span>Locks</span><span>NM</span><span>Hours</span><span>Cum h</span>'
       + '</div>';
 
-    html += displayList.map(function (leg, idx) {
+    html += list.map(function (leg, idx) {
       var row = (leg && typeof leg === "object") ? leg : {};
       var order = toInt(row.leg_order, idx + 1);
       var isExpanded = (expandedOrder === order);
@@ -1570,6 +1665,7 @@
   }
 
   function bootstrapStream() {
+    setLoaderMilestone("bootstrap");
     return fetchJson("getStreamBootstrap", {
       slug: state.slug,
       stream_id: state.streamId,
@@ -1583,12 +1679,19 @@
       state.followerStorageKey = "fpw.voyage.follower." + String(state.streamId || state.slug || "stream");
       state.followerToken = readCachedFollowerToken();
 
+      setLoaderMilestone("floatPlan");
       renderHeaderAndCards(res);
+      setLoaderMilestone("weather");
       renderMap(res.map || {});
+      setLoaderMilestone("route");
       renderCruiseTimelineInline(res.timeline || {});
       renderCruiseTimelineLegs(res.timeline && Array.isArray(res.timeline.legs) ? res.timeline.legs : []);
       setComposerMode();
-      return loadPosts();
+      setLoaderMilestone("finalize");
+      return loadPosts().then(function (postsRes) {
+        finishLoader();
+        return postsRes;
+      });
     });
   }
 
@@ -1643,6 +1746,13 @@
     dom.composerPostBtn = document.getElementById("composerPostBtn") || getHookField("stream-composer-post");
     dom.composerHelp = document.getElementById("composerHelp");
     dom.postsContainer = document.getElementById("postsContainer") || getHookField("stream-feed");
+    dom.loader = document.getElementById("followLoader");
+    dom.loaderPhase = document.getElementById("followLoaderPhase");
+    dom.loaderPercent = document.getElementById("followLoaderPercent");
+    dom.loaderBar = document.getElementById("followLoaderBar");
+    dom.loaderMessage = document.getElementById("followLoaderMessage");
+    dom.journeyStatusPill = getHookField("journey-status-pill");
+    dom.statusDot = document.querySelector(".status-dot");
 
     if (dom.copyLinkBtn) {
       dom.copyLinkBtn.addEventListener("click", copyShareLink);
@@ -1693,11 +1803,14 @@
     state.streamId = route.streamId;
 
     bindUi();
+    setLoaderMilestone("initial");
 
     bootstrapStream().catch(function (err) {
+      var errorMessage = (err && err.message) ? err.message : "Unable to load voyage stream.";
       if (dom.postsContainer) {
-        dom.postsContainer.innerHTML = '<div class="emptyState">' + escapeHtml((err && err.message) ? err.message : "Unable to load voyage stream.") + '</div>';
+        dom.postsContainer.innerHTML = '<div class="emptyState">' + escapeHtml(errorMessage) + '</div>';
       }
+      failLoader(errorMessage);
     });
   }
 

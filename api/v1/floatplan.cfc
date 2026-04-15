@@ -2061,7 +2061,7 @@
         <cfargument name="checkinContext" type="string" required="false" default="">
         <cfscript>
             var result = { "success" = false };
-            var allowedStatuses = "On Track,Delayed,Changed Plan,Need Attention,Secure for the Night";
+            var allowedStatuses = "On Track,Delayed,Changed Plan,Assistance Needed,Secure for the Night";
             var statusVal = trim(arguments.status);
             var noteVal = toString(arguments.note);
             var contextVal = lCase(trim(arguments.checkinContext));
@@ -2088,6 +2088,9 @@
             var monitoringService = {};
             var monitoringResult = {};
             var monitoringStatusVal = "";
+            var planNameVal = "";
+            var assistanceAlertService = {};
+            var assistanceAlertResult = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.SUCCESS = false;
@@ -2103,7 +2106,7 @@
             if (!listFindNoCase(allowedStatuses, statusVal)) {
                 result.SUCCESS = false;
                 result.ERROR = "INVALID_STATUS";
-                result.MESSAGE = "Status must be one of On Track, Delayed, Changed Plan, Need Attention, or Secure for the Night.";
+                result.MESSAGE = "Status must be one of On Track, Delayed, Changed Plan, Assistance Needed, or Secure for the Night.";
                 return result;
             }
             if (len(contextVal) AND contextVal NEQ "overnight") {
@@ -2115,6 +2118,7 @@
 
             qPlan = queryExecute(
                 "SELECT
+                    floatPlanName,
                     floatplanId,
                     checkedInAt,
                     departureTZ,
@@ -2159,6 +2163,10 @@
             dailyStartLocalTimeVal = (isNull(qPlan.dailyStartLocalTime[1]) ? "" : trim(toString(qPlan.dailyStartLocalTime[1])));
             if (!isNull(qPlan.expected_checkin_at[1]) AND isDate(qPlan.expected_checkin_at[1])) {
                 expectedCheckInDt = qPlan.expected_checkin_at[1];
+            }
+            planNameVal = trim(toString(isNull(qPlan.floatPlanName[1]) ? "" : qPlan.floatPlanName[1]));
+            if (!len(planNameVal)) {
+                planNameVal = "Float Plan";
             }
             localDayStartRule = loadOvernightTimingRule(dailyStartLocalTimeVal);
             isOvernightTransition = (contextVal EQ "overnight" AND currentContextVal NEQ "overnight");
@@ -2319,6 +2327,44 @@
             }
 
             result = { "success" = true };
+            if (monitoringStatusVal EQ "NEED_ATTENTION") {
+                qUpdatedPlan = queryExecute(
+                    "SELECT checkedInAt
+                     FROM floatplans
+                     WHERE floatplanId = :planId
+                       AND userId = :userId
+                     LIMIT 1",
+                    {
+                        planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = ds }
+                );
+                if (qUpdatedPlan.recordCount GT 0 AND !isNull(qUpdatedPlan.checkedInAt[1]) AND isDate(qUpdatedPlan.checkedInAt[1])) {
+                    updatedCheckInDt = qUpdatedPlan.checkedInAt[1];
+                }
+                try {
+                    assistanceAlertService = createObject("component", resolveApiV1ComponentPath("OverdueAlertService")).init();
+                    assistanceAlertResult = assistanceAlertService.sendAssistanceNeededEmail(
+                        arguments.floatPlanId,
+                        planNameVal,
+                        updatedCheckInDt,
+                        noteVal
+                    );
+                    result.ALERT_SENT = (
+                        structKeyExists(assistanceAlertResult, "SUCCESS")
+                        AND assistanceAlertResult.SUCCESS EQ true
+                    );
+                    result.ALERT_RECIPIENT_COUNT = (
+                        structKeyExists(assistanceAlertResult, "RECIPIENT_COUNT")
+                        ? val(assistanceAlertResult.RECIPIENT_COUNT)
+                        : 0
+                    );
+                } catch (any assistanceAlertErr) {
+                    result.ALERT_SENT = false;
+                    result.ALERT_ERROR = left(trim(toString(assistanceAlertErr.message)), 500);
+                }
+            }
             return result;
         </cfscript>
     </cffunction>
@@ -2384,7 +2430,7 @@
                     return "DELAYED";
                 case "Changed Plan":
                     return "CHANGED_PLAN";
-                case "Need Attention":
+                case "Assistance Needed":
                     return "NEED_ATTENTION";
                 case "Secure for the Night":
                     return "SECURE_FOR_NIGHT";

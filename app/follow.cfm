@@ -7,9 +7,35 @@
 
   <cfinclude template="../includes/header_styles.cfm">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/follow.css?v=20260402134211a" />
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/follow.css?v=202604141447a" />
+  <style>
+    body.follow-loading { overflow: hidden; }
+    body.follow-loading .app { visibility: hidden; }
+    .follow-loader {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      visibility: hidden;
+      opacity: 0;
+    }
+    body.follow-loading .follow-loader {
+      visibility: visible;
+      opacity: 1;
+    }
+  </style>
 </head>
-<body class="follow-body">
+<body class="follow-body follow-loading">
+  <div class="follow-loader" id="followLoader" role="status" aria-live="polite" aria-atomic="true">
+    <div class="follow-loader__card">
+      <div class="follow-loader__eyebrow">FloatPlanWizard</div>
+      <h2 class="follow-loader__phase" id="followLoaderPhase">Follow Page Loading</h2>
+      <div class="follow-loader__percent" id="followLoaderPercent">0%</div>
+      <div class="follow-loader__bar" aria-hidden="true"><span id="followLoaderBar"></span></div>
+      <p class="follow-loader__message" id="followLoaderMessage">Preparing the shared trip view.</p>
+    </div>
+  </div>
   <div class="app">
     <aside class="sidebar">
       <div class="brand">
@@ -364,7 +390,7 @@
 
   <cfinclude template="../includes/footer_scripts.cfm">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/followMap.js?v=20260303c"></script>
-  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/follow.js?v=20260411101015a"></script>
+  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/followMap.js?v=202604131858a"></script>
+  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/follow.js?v=202604141447a"></script>
 </body>
 </html>

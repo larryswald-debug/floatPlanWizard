@@ -1161,8 +1161,8 @@
     return 1;
   }
 
-  function buildRouteWeatherContext() {
-    var legs = Array.isArray(state.previewLegs) ? state.previewLegs : [];
+  function buildRouteWeatherContextFromLegs(legsInput) {
+    var legs = Array.isArray(legsInput) ? legsInput : [];
     var offshoreCount = 0;
     var idx = 0;
     if (!legs.length) {
@@ -1176,6 +1176,10 @@
       legCount: legs.length,
       offshoreCount: offshoreCount
     };
+  }
+
+  function buildRouteWeatherContext() {
+    return buildRouteWeatherContextFromLegs(state.previewLegs);
   }
 
   function normalizeWeatherEnvelope(payload, zip) {
@@ -7753,6 +7757,12 @@
     init: init,
     reloadTimeline: reloadTimeline,
     openEditorForRoute: openEditorForRoute
+  };
+
+  window.FPW.RouteWeatherAssist = {
+    normalizeWeatherEnvelope: normalizeWeatherEnvelope,
+    computeLiveWeatherFactorPct: computeLiveWeatherFactorPct,
+    buildRouteWeatherContextFromLegs: buildRouteWeatherContextFromLegs
   };
 
   if (window.__FPW_ENABLE_TEST_HOOKS) {

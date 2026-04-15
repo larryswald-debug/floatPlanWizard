@@ -182,6 +182,61 @@ Recipients: #toList#
         </cfmail>
     </cffunction>
 
+    <cffunction name="sendAssistanceNeededEmail" access="public" returntype="struct" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="planName" type="string" required="false" default="">
+        <cfargument name="checkinAt" required="false">
+        <cfargument name="note" type="string" required="false" default="">
+
+        <cfset var alertType = "ASSISTANCE_NEEDED">
+        <cfset var recipients = getRecipientEmails(arguments.floatPlanId)>
+        <cfset var toList = arrayToList(recipients, ", ")>
+        <cfset var resolvedPlanName = trim(arguments.planName)>
+        <cfset var checkinLabel = dateTimeFormat(now(), "mmm d, yyyy h:nn tt")>
+        <cfset var noteLine = "">
+        <cfif !len(resolvedPlanName)>
+            <cfset resolvedPlanName = "Float Plan ##" & int(arguments.floatPlanId)>
+        </cfif>
+        <cfif isDate(arguments.checkinAt)>
+            <cfset checkinLabel = dateTimeFormat(arguments.checkinAt, "mmm d, yyyy h:nn tt")>
+        </cfif>
+        <cfif len(trim(arguments.note))>
+            <cfset noteLine = "Captain Note: " & trim(arguments.note) & chr(10)>
+        </cfif>
+        <cfset var subject = "FPW Assistance Needed Alert: " & resolvedPlanName>
+        <cfset var body = "Status: Assistance Needed" & chr(10)
+            & "Float Plan: " & resolvedPlanName & chr(10)
+            & "Timestamp: " & checkinLabel & chr(10)
+            & noteLine
+            & "Float Plan ID: " & int(arguments.floatPlanId) & chr(10)
+            & "Recipients: " & toList>
+
+        <cfset ensureHistory(int(arguments.floatPlanId), alertType)>
+
+        <cfif arrayLen(recipients) EQ 0>
+            <cfset markFailed(int(arguments.floatPlanId), alertType, "No recipients found for assistance alert.")>
+            <cfthrow message="No recipients found for floatPlanId=#arguments.floatPlanId#">
+        </cfif>
+
+        <cftry>
+            <cfmail
+                to="#toList#"
+                from="alerts@fpw.test"
+                subject="#subject#"
+                type="text">#body#
+            </cfmail>
+            <cfset markSent(int(arguments.floatPlanId), alertType)>
+            <cfreturn {
+                "SUCCESS" = true,
+                "RECIPIENT_COUNT" = arrayLen(recipients)
+            }>
+            <cfcatch>
+                <cfset markFailed(int(arguments.floatPlanId), alertType, cfcatch.message)>
+                <cfthrow message="#cfcatch.message#" detail="#cfcatch.detail#">
+            </cfcatch>
+        </cftry>
+    </cffunction>
+
     <!-- History -->
     <cffunction name="ensureHistory" access="public" returntype="void" output="false">
         <cfargument name="floatPlanId" type="numeric" required="true">

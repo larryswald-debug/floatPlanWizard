@@ -4074,6 +4074,96 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="routegenEstimateFuelForDistance" access="public" returntype="struct" output="false">
+        <cfargument name="routeInputs" type="struct" required="true">
+        <cfargument name="distanceNm" type="numeric" required="true">
+        <cfargument name="idleFuelGallons" type="any" required="false" default="0">
+        <cfscript>
+            var out = {
+                "SUCCESS"=false,
+                "MESSAGE"="Unable to calculate route fuel estimate.",
+                "FUEL_ESTIMATE"={},
+                "PERFORMANCE_META"={},
+                "ALLOW_ANCHORED_BURN"=false,
+                "DISTANCE_NM"=0,
+                "WEATHER_FACTOR_PCT"=0,
+                "RESERVE_PCT"=33
+            };
+            var effectiveInputs = (isStruct(arguments.routeInputs) ? duplicate(arguments.routeInputs) : {});
+            var distanceVal = val(arguments.distanceNm);
+            var idleFuelGallonsVal = val(arguments.idleFuelGallons);
+            var paceVal = "";
+            var paceDefaults = {};
+            var performanceMeta = {};
+            var allowAnchoredBurnVal = false;
+            var weatherFactorPctVal = 0;
+            var reservePctVal = 33;
+            var maxSpeedVal = 0;
+            var maxBurnForEstimateVal = 0;
+            var fuelBurnGphVal = 0;
+            var fuelEstimate = {};
+
+            if (!structCount(effectiveInputs)) {
+                out.MESSAGE = "Route inputs are required.";
+                return out;
+            }
+
+            if (distanceVal LT 0) distanceVal = 0;
+            if (idleFuelGallonsVal LT 0) idleFuelGallonsVal = 0;
+
+            paceVal = routegenNormalizePace(structKeyExists(effectiveInputs, "pace") ? effectiveInputs.pace : "");
+            paceDefaults = routegenPaceDefaults(paceVal);
+            performanceMeta = routegenResolvePerformanceModel(effectiveInputs, paceVal);
+            allowAnchoredBurnVal = routegenCanUseAnchoredBurn(performanceMeta);
+            weatherFactorPctVal = routegenNormalizeWeatherFactorPct(
+                structKeyExists(effectiveInputs, "weather_factor_pct")
+                    ? effectiveInputs.weather_factor_pct
+                    : (structKeyExists(effectiveInputs, "weather_factor") ? effectiveInputs.weather_factor : "")
+            );
+            reservePctVal = routegenNormalizeReservePct(
+                structKeyExists(effectiveInputs, "reserve_pct") ? effectiveInputs.reserve_pct : "",
+                33
+            );
+            maxSpeedVal = routegenNormalizeCruisingSpeed(performanceMeta.max_speed_kn, paceDefaults.MAX_SPEED_KN);
+            maxBurnForEstimateVal = routegenNormalizeFuelBurnGph(performanceMeta.max_burn_for_estimate);
+            fuelBurnGphVal = routegenNormalizeFuelBurnGph(performanceMeta.fuel_burn_gph);
+
+            out.PERFORMANCE_META = performanceMeta;
+            out.ALLOW_ANCHORED_BURN = allowAnchoredBurnVal;
+            out.DISTANCE_NM = roundTo2(distanceVal);
+            out.WEATHER_FACTOR_PCT = weatherFactorPctVal;
+            out.RESERVE_PCT = reservePctVal;
+
+            if (distanceVal GT 0 AND maxSpeedVal LTE 0) {
+                out.MESSAGE = "Cruising speed is unavailable for fuel estimation.";
+                return out;
+            }
+            if (distanceVal GT 0 AND maxBurnForEstimateVal LTE 0 AND fuelBurnGphVal LTE 0) {
+                out.MESSAGE = "Fuel burn inputs are unavailable for fuel estimation.";
+                return out;
+            }
+
+            fuelEstimate = calculateFuelEstimate({
+                "distanceNm"=distanceVal,
+                "maxSpeedKnots"=maxSpeedVal,
+                "maxBurnGph"=(maxBurnForEstimateVal GT 0 ? maxBurnForEstimateVal : fuelBurnGphVal),
+                "efficientSpeedKnots"=performanceMeta.most_efficient_speed_kn,
+                "efficientBurnGph"=performanceMeta.most_efficient_burn_gph,
+                "pace"=paceVal,
+                "paceRatio"=performanceMeta.pace_ratio,
+                "weatherPct"=weatherFactorPctVal,
+                "idleFuelGallons"=idleFuelGallonsVal,
+                "reservePct"=reservePctVal,
+                "allowAnchoredBurn"=allowAnchoredBurnVal
+            });
+
+            out.SUCCESS = true;
+            out.MESSAGE = "Fuel estimate calculated.";
+            out.FUEL_ESTIMATE = fuelEstimate;
+            return out;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="resolveTimelineFuelBurnFromInputs" access="private" returntype="struct" output="false">
         <cfargument name="routeInputs" type="struct" required="true">
         <cfscript>
@@ -8689,6 +8779,7 @@
         <cfargument name="routeInstanceId" type="numeric" required="true">
         <cfargument name="legs" type="array" required="true">
         <cfargument name="preserveProgress" type="boolean" required="false" default="false">
+        <cfargument name="customRouteId" type="numeric" required="false" default="0">
         <cfscript>
             var out = {
                 "SECTION_ID"=0,
@@ -8744,6 +8835,13 @@
             var preservedCreatedAtVal = "";
             var preservedUpdatedAtVal = "";
             var fallbackProgressTs = now();
+            var qRouteInstanceMeta = queryNew("");
+            var routeInstanceTemplateCodeVal = "";
+            var routeInstanceStoredInputs = {};
+            var routeInstanceStoredCustomRouteIdVal = 0;
+            var customRouteIdArgVal = val(arguments.customRouteId);
+            var allowCustomRouteOrderFallback = false;
+            var useCustomRouteOrderFallback = false;
 
             if (!routegenHasNormalizedTables()) return out;
             if (arguments.userId LTE 0 OR arguments.routeInstanceId LTE 0 OR !arrayLen(arguments.legs)) return out;
@@ -8840,6 +8938,39 @@
             }
 
             if (preserveProgressVal) {
+                if (customRouteIdArgVal GT 0 AND routegenHasInputsJsonColumn()) {
+                    qRouteInstanceMeta = queryExecute(
+                        "SELECT template_route_code, routegen_inputs_json
+                         FROM route_instances
+                         WHERE id = :routeInstanceId
+                         LIMIT 1",
+                        {
+                            routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" }
+                        },
+                        { datasource = application.dsn }
+                    );
+                    if (qRouteInstanceMeta.recordCount GT 0) {
+                        routeInstanceTemplateCodeVal = (
+                            isNull(qRouteInstanceMeta.template_route_code[1])
+                                ? ""
+                                : trim(toString(qRouteInstanceMeta.template_route_code[1]))
+                        );
+                        if (!isNull(qRouteInstanceMeta.routegen_inputs_json[1])) {
+                            routeInstanceStoredInputs = routegenParseStoredInputs(qRouteInstanceMeta.routegen_inputs_json[1]);
+                            routeInstanceStoredCustomRouteIdVal = val(
+                                structKeyExists(routeInstanceStoredInputs, "route_id")
+                                    ? routeInstanceStoredInputs.route_id
+                                    : 0
+                            );
+                        }
+                    }
+                    allowCustomRouteOrderFallback = (
+                        routeInstanceTemplateCodeVal EQ "MY_ROUTE"
+                        AND routeInstanceStoredCustomRouteIdVal GT 0
+                        AND routeInstanceStoredCustomRouteIdVal EQ customRouteIdArgVal
+                    );
+                }
+
                 qExistingLegs = queryExecute(
                     "SELECT
                         ril.leg_order,
@@ -8878,18 +9009,33 @@
                         existingIsReversedVal = (isNull(qExistingLegs.is_reversed[i]) ? 0 : val(qExistingLegs.is_reversed[i]));
                         existingIsOptionalVal = (isNull(qExistingLegs.is_optional[i]) ? 0 : val(qExistingLegs.is_optional[i]));
                         existingDetourCodeVal = (isNull(qExistingLegs.detour_code[i]) ? "" : trim(toString(qExistingLegs.detour_code[i])));
+                        useCustomRouteOrderFallback = (
+                            allowCustomRouteOrderFallback
+                            AND existingLegOrderVal GT 0
+                            AND val(normalizedLeg.LEG_ORDER) GT 0
+                            AND existingSegmentIdVal LTE 0
+                            AND val(normalizedLeg.SEGMENT_ID) LTE 0
+                        );
                         if (
                             existingLegOrderVal LTE 0
                             OR val(normalizedLeg.LEG_ORDER) LTE 0
-                            OR existingSegmentIdVal LTE 0
-                            OR val(normalizedLeg.SEGMENT_ID) LTE 0
+                            OR (
+                                !useCustomRouteOrderFallback
+                                AND (
+                                    existingSegmentIdVal LTE 0
+                                    OR val(normalizedLeg.SEGMENT_ID) LTE 0
+                                )
+                            )
                         ) {
                             preserveReason = "Active route progress could not be preserved because one or more legs do not have a deterministic segment mapping.";
                             break;
                         }
                         if (
                             existingLegOrderVal NEQ val(normalizedLeg.LEG_ORDER)
-                            OR existingSegmentIdVal NEQ val(normalizedLeg.SEGMENT_ID)
+                            OR (
+                                !useCustomRouteOrderFallback
+                                AND existingSegmentIdVal NEQ val(normalizedLeg.SEGMENT_ID)
+                            )
                             OR existingIsReversedVal NEQ val(normalizedLeg.IS_REVERSED)
                             OR existingIsOptionalVal NEQ val(normalizedLeg.IS_OPTIONAL)
                             OR existingDetourCodeVal NEQ trim(toString(normalizedLeg.DETOUR_CODE))
@@ -11283,7 +11429,8 @@
                         userId = arguments.userId,
                         routeInstanceId = routeInstanceId,
                         legs = legs,
-                        preserveProgress = preserveProgressOnRebuild
+                        preserveProgress = preserveProgressOnRebuild,
+                        customRouteId = (isMyRouteUpdate ? inputRouteIdVal : 0)
                     );
                     if (structKeyExists(rebuildRes, "PRESERVE_BLOCKED") AND rebuildRes.PRESERVE_BLOCKED) {
                         throw(

@@ -507,6 +507,16 @@
                         ORDER BY m.id DESC
                         LIMIT 1
                     ) AS expected_checkin_at,
+                    (
+                        SELECT
+                            m.last_checkin_status
+                        FROM floatplan_monitoring m
+                        WHERE m.float_plan_id = fp.floatplanId
+                          AND m.is_monitoring_enabled = 1
+                          AND UPPER(TRIM(m.monitor_state)) <> 'CLOSED'
+                        ORDER BY m.id DESC
+                        LIMIT 1
+                    ) AS last_checkin_status,
                     fp.overnight_pause_minutes_total,
                     fp.vesselId,
                     v.vesselName
@@ -617,7 +627,30 @@
             if (!hasOperationalCheckIn) {
                 storedOvernightPauseMinutes = 0;
             }
-	            if (routeInstanceIdVal LTE 0) {
+            monitoringCheckinStatusVal = uCase(trim(isNull(qPlan.last_checkin_status[1]) ? "" : qPlan.last_checkin_status[1]));
+            voyageProgressStatusLabel = statusLabel;
+            voyageProgressStatusVariant = "good";
+            voyageProgressStatusCopy = "Monitoring is active and the trip is reporting normally.";
+            if (tripStarted AND hasOperationalCheckIn) {
+                switch (monitoringCheckinStatusVal) {
+                    case "DELAYED":
+                        voyageProgressStatusLabel = "Delayed";
+                        voyageProgressStatusVariant = "warning";
+                        voyageProgressStatusCopy = "Latest check-in reported Delayed.";
+                        break;
+                    case "CHANGED_PLAN":
+                        voyageProgressStatusLabel = "Changed Plan";
+                        voyageProgressStatusVariant = "warning";
+                        voyageProgressStatusCopy = "Latest check-in reported Changed Plan.";
+                        break;
+                    case "NEED_ATTENTION":
+                        voyageProgressStatusLabel = "Assistance Needed";
+                        voyageProgressStatusVariant = "danger";
+                        voyageProgressStatusCopy = "Latest check-in reported Assistance Needed.";
+                        break;
+                }
+            }
+			if (routeInstanceIdVal LTE 0) {
 	                out.MESSAGE = "No active trip";
 	                out.STATUS_CODE = 403;
 	                out.ERROR = {
@@ -1339,8 +1372,10 @@
 	            }
 	            tWeather = getTickCount() - tSectionStart;
 
-	            topCards = {
+            topCards = {
                 "status"=statusLabel,
+                "voyage_progress_status"=voyageProgressStatusLabel,
+                "voyage_progress_status_variant"=voyageProgressStatusVariant,
                 "last_checkin"=lastCheckinLabel,
                 "last_checkin_utc"=lastCheckinUtc,
                 "location_label"=(len(routeMap.location_label) ? routeMap.location_label : "n/a"),
@@ -1368,6 +1403,7 @@
                 "journey_checkin_value"=(len(actualCheckInLabel) ? "Checked in at " & actualCheckInLabel : "Checked in at --"),
                 "journey_checkin_meta"=(isOvernightCheckIn ? "Arrived and secure for the night. Next update expected tomorrow morning." : elapsedCheckInLabel),
                 "card_status_copy"="Monitoring is active and the trip is reporting normally.",
+                "voyage_progress_status_copy"=voyageProgressStatusCopy,
                 "card_location_copy"="Heading toward the current active route target.",
                 "card_destination_copy"="Next major stop and expected overnight destination.",
                 "card_arrival_copy"="Approximate based on current pace, route progress, and last update.",
@@ -1415,6 +1451,8 @@
             if (!tripStarted) {
                 out.stream.status = "Scheduled";
                 out.topCards.status = "Scheduled";
+                out.topCards.voyage_progress_status = "Scheduled";
+                out.topCards.voyage_progress_status_variant = "good";
                 out.topCards.last_checkin = "";
                 out.topCards.last_checkin_utc = "";
                 out.topCards.conditions = "Monitoring pending";
@@ -1429,6 +1467,7 @@
                 out.body.journey_subtitle = "Scheduled departure pending.";
                 out.body.journey_checkin_meta = "Monitoring begins at scheduled departure.";
                 out.body.card_status_copy = "Monitoring starts at the scheduled departure time.";
+                out.body.voyage_progress_status_copy = out.body.card_status_copy;
                 out.body.card_location_copy = "Departure is scheduled and the trip has not started yet.";
                 out.body.card_destination_copy = "First planned stop after scheduled departure.";
                 out.body.card_arrival_copy = "Based on scheduled departure time plus planned leg duration.";
@@ -1475,6 +1514,7 @@
                 "SUCCESS"=false,
                 "MESSAGE"="Unable to load canonical Active Cruise hero values.",
                 "heroVoyageStatus"="Status Unavailable",
+                "heroVoyageStatusVariant"="good",
                 "heroNextStop"="",
                 "heroEta"="--",
                 "heroEtaUtc"="",
@@ -1489,6 +1529,7 @@
             var routeMap = {};
             var followTimeline = { "summary"={}, "legs"=[], "meta"={} };
             var statusLabel = "Status Unavailable";
+            var statusVariant = "good";
             var checkedInAtVal = "";
             var expectedCheckInDt = "";
             var actualCheckInLabel = "";
@@ -1532,6 +1573,7 @@
             var tripStarted = true;
             var routeMapActiveLegOrder = 0;
             var awaitingDepartureState = false;
+            var lastCheckinStatusVal = "";
             var i = 0;
 
             if (arguments.currentUserId LTE 0 OR arguments.floatPlanId LTE 0) {
@@ -1570,6 +1612,15 @@
                     checkin_context,
                     dailyStartLocalTime,
                     (
+                        SELECT NULLIF(UPPER(TRIM(m.last_checkin_status)), '')
+                        FROM floatplan_monitoring m
+                        WHERE m.float_plan_id = floatplans.floatplanId
+                          AND m.is_monitoring_enabled = 1
+                          AND UPPER(TRIM(m.monitor_state)) <> 'CLOSED'
+                        ORDER BY m.id DESC
+                        LIMIT 1
+                    ) AS last_checkin_status,
+                    (
                         SELECT
                             COALESCE(
                                 CONVERT_TZ(
@@ -1607,10 +1658,23 @@
                 scheduledDepartureRawDt = qPlan.departureTime[1];
             }
             statusLabel = friendlyStatusLabel(isNull(qPlan.status[1]) ? "" : qPlan.status[1]);
+            if (!isNull(qPlan.last_checkin_status[1])) {
+                lastCheckinStatusVal = uCase(trim(toString(qPlan.last_checkin_status[1])));
+            }
             if (!tripStarted) {
                 statusLabel = "Scheduled";
+            } else if (lastCheckinStatusVal EQ "DELAYED") {
+                statusLabel = "Delayed";
+                statusVariant = "warning";
+            } else if (lastCheckinStatusVal EQ "CHANGED_PLAN") {
+                statusLabel = "Changed Plan";
+                statusVariant = "warning";
+            } else if (lastCheckinStatusVal EQ "NEED_ATTENTION") {
+                statusLabel = "Assistance Needed";
+                statusVariant = "danger";
             }
             out.heroVoyageStatus = statusLabel;
+            out.heroVoyageStatusVariant = statusVariant;
 
             if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
                 checkedInAtVal = qPlan.checkedInAt[1];
@@ -3440,7 +3504,7 @@
                 },
                 "map"={
                     "pins"=ensurePins,
-                    "routeGeo"=(structKeyExists(routeMap, "route_geo") ? routeMap.route_geo : { "type"="LineString", "coordinates"=[] })
+                    "routeGeo"=(structKeyExists(routeMap, "route_geo") ? routeMap.route_geo : { "type"="MultiLineString", "coordinates"=[] })
                 }
             };
 
@@ -3852,7 +3916,7 @@
         <cfargument name="fallbackDays" type="numeric" required="false" default="0">
         <cfscript>
             var out = {
-                "route_geo"={ "type"="LineString", "coordinates"=[] },
+                "route_geo"={ "type"="MultiLineString", "coordinates"=[] },
                 "pins"=[],
                 "current"={},
                 "total_nm"=0,
@@ -3876,11 +3940,13 @@
             var qProgress = queryNew("");
             var qCurrentLeg = queryNew("");
             var qNextLeg = queryNew("");
+            var qRouteInstance = queryNew("");
             var qLegCoords = queryNew("");
             var i = 0;
             var pt = {};
             var pointList = [];
-            var coords = [];
+            var routeSegments = [];
+            var segmentCoords = [];
             var startLat = 0.0;
             var startLng = 0.0;
             var endLat = 0.0;
@@ -3902,15 +3968,62 @@
             var progressStartedByLeg = {};
             var progressKey = "";
             var progressStatusVal = "";
+            var generatedRouteId = 0;
+            var originalCustomRouteId = 0;
+            var routeInstanceInputsRaw = "";
+            var routeInstanceInputs = {};
+            var templateRouteCode = "";
+            var routeLegIdVal = 0;
+            var segmentIdVal = 0;
+            var routeLookupIdVal = 0;
+            var routeLegLookupIdVal = 0;
+            var useRouteLegOrderFallback = false;
 
             if (routeInstanceIdVal LTE 0) {
                 return out;
+            }
+
+            qRouteInstance = queryExecute(
+                "SELECT generated_route_id, template_route_code, routegen_inputs_json
+                 FROM route_instances
+                 WHERE id = :routeInstanceId
+                 LIMIT 1",
+                {
+                    routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" }
+                },
+                { datasource=ds }
+            );
+            if (qRouteInstance.recordCount GT 0 AND !isNull(qRouteInstance.generated_route_id[1])) {
+                generatedRouteId = val(qRouteInstance.generated_route_id[1]);
+            }
+            if (qRouteInstance.recordCount GT 0 AND !isNull(qRouteInstance.template_route_code[1])) {
+                templateRouteCode = uCase(trim(toString(qRouteInstance.template_route_code[1])));
+            }
+            if (qRouteInstance.recordCount GT 0 AND !isNull(qRouteInstance.routegen_inputs_json[1])) {
+                routeInstanceInputsRaw = trim(toString(qRouteInstance.routegen_inputs_json[1]));
+            }
+            if (templateRouteCode EQ "MY_ROUTE" AND len(routeInstanceInputsRaw)) {
+                try {
+                    routeInstanceInputs = deserializeJSON(routeInstanceInputsRaw);
+                } catch (any routeInputsErr) {
+                    routeInstanceInputs = {};
+                }
+                if (
+                    isStruct(routeInstanceInputs)
+                    AND structKeyExists(routeInstanceInputs, "route_id")
+                    AND isNumeric(routeInstanceInputs.route_id)
+                    AND val(routeInstanceInputs.route_id) GT 0
+                ) {
+                    originalCustomRouteId = val(routeInstanceInputs.route_id);
+                }
             }
 
             qLegs = queryExecute(
                 "SELECT
                     id,
                     leg_order,
+                    segment_id,
+                    source_loop_segment_id,
                     start_name,
                     end_name,
                     start_lat,
@@ -3942,6 +4055,39 @@
                 startLngRaw = (isNull(qLegs.start_lng[i]) ? "" : trim(toString(qLegs.start_lng[i])));
                 endLatRaw = (isNull(qLegs.end_lat[i]) ? "" : trim(toString(qLegs.end_lat[i])));
                 endLngRaw = (isNull(qLegs.end_lng[i]) ? "" : trim(toString(qLegs.end_lng[i])));
+                legOrderVal = (isNull(qLegs.leg_order[i]) ? 0 : val(qLegs.leg_order[i]));
+                routeLegIdVal = (
+                    isNull(qLegs.source_loop_segment_id[i]) OR val(qLegs.source_loop_segment_id[i]) LTE 0
+                        ? val(qLegs.id[i])
+                        : val(qLegs.source_loop_segment_id[i])
+                );
+                segmentIdVal = (isNull(qLegs.segment_id[i]) ? 0 : val(qLegs.segment_id[i]));
+                routeLookupIdVal = generatedRouteId;
+                routeLegLookupIdVal = routeLegIdVal;
+                useRouteLegOrderFallback = false;
+                if (
+                    originalCustomRouteId GT 0
+                    AND segmentIdVal LTE 0
+                    AND (
+                        isNull(qLegs.source_loop_segment_id[i])
+                        OR val(qLegs.source_loop_segment_id[i]) LTE 0
+                    )
+                ) {
+                    routeLookupIdVal = originalCustomRouteId;
+                    routeLegLookupIdVal = 0;
+                    useRouteLegOrderFallback = (legOrderVal GT 0);
+                }
+                segmentCoords = loadFollowRouteSegmentCoordinates(
+                    ownerUserId=arguments.ownerUserId,
+                    routeId=routeLookupIdVal,
+                    routeLegId=routeLegLookupIdVal,
+                    routeLegOrder=legOrderVal,
+                    segmentId=segmentIdVal,
+                    allowRouteLegOrderFallback=useRouteLegOrderFallback
+                );
+                if (arrayLen(segmentCoords) GTE 2) {
+                    arrayAppend(routeSegments, segmentCoords);
+                }
                 hasStartCoord = (len(startLatRaw) AND len(startLngRaw) AND isNumeric(startLatRaw) AND isNumeric(startLngRaw));
                 hasEndCoord = (len(endLatRaw) AND len(endLngRaw) AND isNumeric(endLatRaw) AND isNumeric(endLngRaw));
                 startName = (isNull(qLegs.start_name[i]) ? "Start" : trim(toString(qLegs.start_name[i])));
@@ -4057,7 +4203,6 @@
 
             for (i = 1; i LTE arrayLen(pointList); i++) {
                 pt = pointList[i];
-                arrayAppend(coords, [pt.lng, pt.lat]);
                 arrayAppend(out.pins, {
                     "lat"=pt.lat,
                     "lng"=pt.lng,
@@ -4068,8 +4213,8 @@
                 });
             }
             out.route_geo = {
-                "type"="LineString",
-                "coordinates"=coords
+                "type"="MultiLineString",
+                "coordinates"=routeSegments
             };
 
             qProgress = queryExecute(
@@ -4216,6 +4361,123 @@
             out.total_nm = roundTo2(out.total_nm);
             out.remaining_nm = max(0, roundTo2(out.total_nm - completedNm));
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="loadFollowRouteSegmentCoordinates" access="private" returntype="array" output="false">
+        <cfargument name="ownerUserId" type="numeric" required="true">
+        <cfargument name="routeId" type="numeric" required="false" default="0">
+        <cfargument name="routeLegId" type="numeric" required="false" default="0">
+        <cfargument name="routeLegOrder" type="numeric" required="false" default="0">
+        <cfargument name="segmentId" type="numeric" required="false" default="0">
+        <cfargument name="allowRouteLegOrderFallback" type="boolean" required="false" default="false">
+        <cfscript>
+            var ds = resolveDatasource();
+            var q = queryNew("");
+            var rawJson = "";
+            var coords = [];
+
+            if (arguments.ownerUserId LTE 0) {
+                return [];
+            }
+
+            if (arguments.routeId GT 0 AND arguments.routeLegId GT 0) {
+                q = queryExecute(
+                    "SELECT geometry_json
+                     FROM route_leg_user_overrides
+                     WHERE user_id = :userId
+                       AND route_id = :routeId
+                       AND route_leg_id = :routeLegId
+                     LIMIT 1",
+                    {
+                        userId = { value=arguments.ownerUserId, cfsqltype="cf_sql_integer" },
+                        routeId = { value=arguments.routeId, cfsqltype="cf_sql_integer" },
+                        routeLegId = { value=arguments.routeLegId, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource=ds }
+                );
+                if (q.recordCount GT 0 AND !isNull(q.geometry_json[1])) {
+                    rawJson = toString(q.geometry_json[1]);
+                    coords = parseFollowGeometryCoordinates(rawJson);
+                    if (arrayLen(coords) GTE 2) {
+                        return coords;
+                    }
+                }
+            }
+
+            if (
+                arguments.allowRouteLegOrderFallback
+                AND arguments.routeId GT 0
+                AND arguments.routeLegOrder GT 0
+                AND arguments.segmentId LTE 0
+            ) {
+                q = queryExecute(
+                    "SELECT geometry_json
+                     FROM route_leg_user_overrides
+                     WHERE user_id = :userId
+                       AND route_id = :routeId
+                       AND route_leg_order = :routeLegOrder
+                     ORDER BY updated_at DESC, id DESC
+                     LIMIT 1",
+                    {
+                        userId = { value=arguments.ownerUserId, cfsqltype="cf_sql_integer" },
+                        routeId = { value=arguments.routeId, cfsqltype="cf_sql_integer" },
+                        routeLegOrder = { value=arguments.routeLegOrder, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource=ds }
+                );
+                if (q.recordCount GT 0 AND !isNull(q.geometry_json[1])) {
+                    rawJson = toString(q.geometry_json[1]);
+                    coords = parseFollowGeometryCoordinates(rawJson);
+                    if (arrayLen(coords) GTE 2) {
+                        return coords;
+                    }
+                }
+            }
+
+            if (arguments.segmentId GT 0) {
+                q = queryExecute(
+                    "SELECT geometry_json
+                     FROM route_leg_user_overrides
+                     WHERE user_id = :userId
+                       AND segment_id = :segmentId
+                     ORDER BY updated_at DESC, id DESC
+                     LIMIT 1",
+                    {
+                        userId = { value=arguments.ownerUserId, cfsqltype="cf_sql_integer" },
+                        segmentId = { value=arguments.segmentId, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource=ds }
+                );
+                if (q.recordCount GT 0 AND !isNull(q.geometry_json[1])) {
+                    rawJson = toString(q.geometry_json[1]);
+                    coords = parseFollowGeometryCoordinates(rawJson);
+                    if (arrayLen(coords) GTE 2) {
+                        return coords;
+                    }
+                }
+
+                q = queryExecute(
+                    "SELECT polyline_json
+                     FROM segment_geometries
+                     WHERE segment_id = :segmentId
+                     ORDER BY version DESC, id DESC
+                     LIMIT 1",
+                    {
+                        segmentId = { value=arguments.segmentId, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource=ds }
+                );
+                if (q.recordCount GT 0 AND !isNull(q.polyline_json[1])) {
+                    rawJson = toString(q.polyline_json[1]);
+                    coords = parseFollowGeometryCoordinates(rawJson);
+                    if (arrayLen(coords) GTE 2) {
+                        return coords;
+                    }
+                }
+            }
+
+            return [];
         </cfscript>
     </cffunction>
 
@@ -6024,6 +6286,108 @@
                 pathVal = "/" & pathVal;
             }
             return scheme & "://" & host & pathVal;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="parseFollowGeometryCoordinates" access="private" returntype="array" output="false">
+        <cfargument name="rawJson" type="any" required="false">
+        <cfscript>
+            var out = [];
+            var raw = (isNull(arguments.rawJson) ? "" : trim(toString(arguments.rawJson)));
+            var parsed = "";
+            var item = "";
+            var latVal = 0.0;
+            var lngVal = 0.0;
+            var existing = [];
+            var i = 0;
+
+            if (!len(raw)) {
+                return out;
+            }
+
+            try {
+                parsed = deserializeJSON(raw, false);
+            } catch (any parseErr) {
+                return out;
+            }
+
+            if (!isArray(parsed)) {
+                return out;
+            }
+
+            for (i = 1; i LTE arrayLen(parsed); i++) {
+                item = parsed[i];
+                if (isArray(item) AND arrayLen(item) GTE 2 AND isNumeric(item[1]) AND isNumeric(item[2])) {
+                    lngVal = val(item[1]);
+                    latVal = val(item[2]);
+                } else if (isStruct(item)) {
+                    if (
+                        structKeyExists(item, "lat")
+                        AND (
+                            structKeyExists(item, "lng")
+                            OR structKeyExists(item, "lon")
+                            OR structKeyExists(item, "longitude")
+                        )
+                    ) {
+                        if (!isNumeric(item.lat)) {
+                            continue;
+                        }
+                        latVal = val(item.lat);
+                        if (structKeyExists(item, "lng") AND isNumeric(item.lng)) {
+                            lngVal = val(item.lng);
+                        } else if (structKeyExists(item, "lon") AND isNumeric(item.lon)) {
+                            lngVal = val(item.lon);
+                        } else if (structKeyExists(item, "longitude") AND isNumeric(item.longitude)) {
+                            lngVal = val(item.longitude);
+                        } else {
+                            continue;
+                        }
+                    } else if (
+                        structKeyExists(item, "latitude")
+                        AND (
+                            structKeyExists(item, "lng")
+                            OR structKeyExists(item, "lon")
+                            OR structKeyExists(item, "longitude")
+                        )
+                    ) {
+                        if (!isNumeric(item.latitude)) {
+                            continue;
+                        }
+                        latVal = val(item.latitude);
+                        if (structKeyExists(item, "lng") AND isNumeric(item.lng)) {
+                            lngVal = val(item.lng);
+                        } else if (structKeyExists(item, "lon") AND isNumeric(item.lon)) {
+                            lngVal = val(item.lon);
+                        } else if (structKeyExists(item, "longitude") AND isNumeric(item.longitude)) {
+                            lngVal = val(item.longitude);
+                        } else {
+                            continue;
+                        }
+                    } else {
+                        continue;
+                    }
+                } else {
+                    continue;
+                }
+
+                if (arrayLen(out) GT 0) {
+                    existing = out[arrayLen(out)];
+                    if (
+                        isArray(existing)
+                        AND arrayLen(existing) GTE 2
+                        AND existing[1] EQ lngVal
+                        AND existing[2] EQ latVal
+                    ) {
+                        continue;
+                    }
+                }
+                arrayAppend(out, [lngVal, latVal]);
+            }
+
+            if (arrayLen(out) LT 2) {
+                return [];
+            }
+            return out;
         </cfscript>
     </cffunction>
 
