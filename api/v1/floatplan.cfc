@@ -222,6 +222,47 @@
                     </cfif>
                 </cfcase>
 
+                <cfcase value="adddelay">
+                    <cfset var addDelayId = 0>
+                    <cfset var addDelayMinutes = structKeyExists(body, "minutes") ? body.minutes : (structKeyExists(url, "minutes") ? url.minutes : "")>
+                    <cfif structKeyExists(body, "floatPlanId")>
+                        <cfset addDelayId = val(body.floatPlanId)>
+                    <cfelseif structKeyExists(url, "floatPlanId")>
+                        <cfset addDelayId = val(url.floatPlanId)>
+                    <cfelseif structKeyExists(url, "id")>
+                        <cfset addDelayId = val(url.id)>
+                    </cfif>
+                    <cfset var activeCruiseDelayGuard = resolveCanonicalActiveFloatPlan(userId, addDelayId)>
+                    <cfif NOT activeCruiseDelayGuard.SUCCESS>
+                        <cfset activeCruiseDelayGuard.AUTH = true>
+                        <cfoutput>#serializeJSON(activeCruiseDelayGuard)#</cfoutput>
+                    <cfelse>
+                        <cfset var addDelayResult = addActiveCruiseDelayMinutes(userId, addDelayId, addDelayMinutes)>
+                        <cfset addDelayResult.AUTH = true>
+                        <cfoutput>#serializeJSON(addDelayResult)#</cfoutput>
+                    </cfif>
+                </cfcase>
+
+                <cfcase value="cleardelay">
+                    <cfset var clearDelayId = 0>
+                    <cfif structKeyExists(body, "floatPlanId")>
+                        <cfset clearDelayId = val(body.floatPlanId)>
+                    <cfelseif structKeyExists(url, "floatPlanId")>
+                        <cfset clearDelayId = val(url.floatPlanId)>
+                    <cfelseif structKeyExists(url, "id")>
+                        <cfset clearDelayId = val(url.id)>
+                    </cfif>
+                    <cfset var activeCruiseClearDelayGuard = resolveCanonicalActiveFloatPlan(userId, clearDelayId)>
+                    <cfif NOT activeCruiseClearDelayGuard.SUCCESS>
+                        <cfset activeCruiseClearDelayGuard.AUTH = true>
+                        <cfoutput>#serializeJSON(activeCruiseClearDelayGuard)#</cfoutput>
+                    <cfelse>
+                        <cfset var clearDelayResult = clearActiveCruiseDelayMinutes(userId, clearDelayId)>
+                        <cfset clearDelayResult.AUTH = true>
+                        <cfoutput>#serializeJSON(clearDelayResult)#</cfoutput>
+                    </cfif>
+                </cfcase>
+
                 <cfcase value="completeleg">
                     <cfset var completeLegId = 0>
                     <cfset var expectedLegOrder = 0>
@@ -2049,6 +2090,196 @@
             result.SUCCESS = true;
             result.FLOATPLANID = arguments.floatPlanId;
             result.STATUS = "CLOSED";
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="addActiveCruiseDelayMinutes" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="minutesValue" type="any" required="false" default="">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                success = false
+            };
+            var ds = "fpw";
+            var rawMinutes = trim(toString(arguments.minutesValue));
+            var minutesToAdd = 0;
+            var totalDelayMinutes = 0;
+            var streamCtx = {};
+            var titleVal = "";
+            var bodyVal = "";
+            var qTotal = queryNew("");
+
+            if (arguments.floatPlanId LTE 0) {
+                result.ERROR = "INVALID_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            if (!len(rawMinutes) OR !reFind("^[0-9]+$", rawMinutes)) {
+                result.ERROR = "INVALID_MINUTES";
+                result.MESSAGE = "Delay minutes must be a positive whole number.";
+                return result;
+            }
+
+            minutesToAdd = val(rawMinutes);
+            if (minutesToAdd LTE 0) {
+                result.ERROR = "INVALID_MINUTES";
+                result.MESSAGE = "Delay minutes must be a positive whole number.";
+                return result;
+            }
+
+            titleVal = "Delay added: " & minutesToAdd & " minutes";
+            bodyVal = "Captain added " & minutesToAdd & " manual delay minutes to the trip timeline.";
+
+            transaction {
+                queryExecute(
+                    "UPDATE floatplans
+                     SET manual_delay_minutes_total = manual_delay_minutes_total + :minutesToAdd
+                     WHERE floatplanId = :planId
+                       AND userId = :userId",
+                    {
+                        minutesToAdd = { value = minutesToAdd, cfsqltype = "cf_sql_integer" },
+                        planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = ds }
+                );
+
+                qTotal = queryExecute(
+                    "SELECT manual_delay_minutes_total
+                     FROM floatplans
+                     WHERE floatplanId = :planId
+                       AND userId = :userId
+                     LIMIT 1",
+                    {
+                        planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = ds }
+                );
+
+                if (qTotal.recordCount EQ 0) {
+                    throw(
+                        message = "Float plan not found after delay update.",
+                        detail = "No float plan row was returned after incrementing manual delay minutes."
+                    );
+                }
+
+                totalDelayMinutes = val(qTotal.manual_delay_minutes_total[1]);
+
+                streamCtx = ensureVoyageStreamForFloatPlan(arguments.userId, arguments.floatPlanId, ds);
+
+                queryExecute(
+                    "INSERT INTO voyage_posts (
+                        stream_id,
+                        author_type,
+                        author_user_id,
+                        title,
+                        body,
+                        post_type,
+                        event_type,
+                        created_utc
+                     ) VALUES (
+                        :streamId,
+                        'system',
+                        :userId,
+                        :title,
+                        :body,
+                        'system_event',
+                        'delay_added',
+                        UTC_TIMESTAMP()
+                     )",
+                    {
+                        streamId = { value = streamCtx.streamId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                        title = { value = titleVal, cfsqltype = "cf_sql_varchar" },
+                        body = { value = bodyVal, cfsqltype = "cf_sql_longvarchar" }
+                    },
+                    { datasource = ds }
+                );
+
+                queryExecute(
+                    "UPDATE voyage_streams
+                     SET updated_utc = UTC_TIMESTAMP()
+                     WHERE id = :streamId",
+                    {
+                        streamId = { value = streamCtx.streamId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = ds }
+                );
+            }
+
+            result.SUCCESS = true;
+            result.success = true;
+            result.FLOATPLANID = arguments.floatPlanId;
+            result.ADDED_MINUTES = minutesToAdd;
+            result.MANUAL_DELAY_MINUTES_TOTAL = totalDelayMinutes;
+            result.EVENT_LOGGED = true;
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="clearActiveCruiseDelayMinutes" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                success = false
+            };
+            var ds = "fpw";
+            var totalDelayMinutes = 0;
+            var qTotal = queryNew("");
+
+            if (arguments.floatPlanId LTE 0) {
+                result.ERROR = "INVALID_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            transaction {
+                queryExecute(
+                    "UPDATE floatplans
+                     SET manual_delay_minutes_total = 0
+                     WHERE floatplanId = :planId
+                       AND userId = :userId",
+                    {
+                        planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = ds }
+                );
+
+                qTotal = queryExecute(
+                    "SELECT manual_delay_minutes_total
+                     FROM floatplans
+                     WHERE floatplanId = :planId
+                       AND userId = :userId
+                     LIMIT 1",
+                    {
+                        planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = ds }
+                );
+
+                if (qTotal.recordCount EQ 0) {
+                    throw(
+                        message = "Float plan not found after delay reset.",
+                        detail = "No float plan row was returned after clearing manual delay minutes."
+                    );
+                }
+
+                totalDelayMinutes = val(qTotal.manual_delay_minutes_total[1]);
+            }
+
+            result.SUCCESS = true;
+            result.success = true;
+            result.FLOATPLANID = arguments.floatPlanId;
+            result.MANUAL_DELAY_MINUTES_TOTAL = totalDelayMinutes;
             return result;
         </cfscript>
     </cffunction>

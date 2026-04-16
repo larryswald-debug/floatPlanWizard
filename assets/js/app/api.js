@@ -275,6 +275,20 @@
       });
     },
 
+    addActiveCruiseDelay: function (payload) {
+      return request("/floatplan.cfc?method=handle&action=adddelay", {
+        method: "POST",
+        body: payload || {}
+      });
+    },
+
+    clearActiveCruiseDelay: function (payload) {
+      return request("/floatplan.cfc?method=handle&action=cleardelay", {
+        method: "POST",
+        body: payload || {}
+      });
+    },
+
     deleteFloatPlan: function (floatPlanId) {
       return request("/floatplan.cfc?method=handle", {
         method: "POST",

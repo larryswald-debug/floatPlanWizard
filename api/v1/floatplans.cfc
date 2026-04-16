@@ -85,7 +85,13 @@
                     fp.departureTime,
                     fp.departTimezone,
                     fp.departureTZ,
-                    fp.returnTime,
+                    DATE_ADD(
+                        fp.returnTime,
+                        INTERVAL (
+                            COALESCE(fp.overnight_pause_minutes_total, 0)
+                            + COALESCE(fp.manual_delay_minutes_total, 0)
+                        ) MINUTE
+                    ) AS returnTime,
                     fp.returnTimezone,
                     fp.returnTZ,
                     fp.vesselId,

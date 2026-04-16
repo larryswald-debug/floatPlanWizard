@@ -325,6 +325,7 @@
             var departureTimeZoneVal = "";
             var dailyStartLocalTimeVal = "";
             var storedOvernightPauseMinutes = 0;
+            var storedManualDelayMinutes = 0;
             var elapsedCheckInLabel = "-- since last check-in";
             var nextStopLabelVal = "";
             var nextStopEtaBaseDt = "";
@@ -442,6 +443,7 @@
             var milesTodayLegNm = 0.0;
             var routeMapActiveLegOrder = 0;
             var awaitingDepartureState = false;
+            var usingActiveLegEta = false;
 
 	            if (!structCount(streamRow)) {
 	                out.MESSAGE = "Stream not found";
@@ -518,6 +520,7 @@
                         LIMIT 1
                     ) AS last_checkin_status,
                     fp.overnight_pause_minutes_total,
+                    fp.manual_delay_minutes_total,
                     fp.vesselId,
                     v.vesselName
                  FROM floatplans fp
@@ -588,6 +591,14 @@
             );
             if (storedOvernightPauseMinutes LT 0) {
                 storedOvernightPauseMinutes = 0;
+            }
+            storedManualDelayMinutes = (
+                !isNull(qPlan.manual_delay_minutes_total[1]) AND isNumeric(qPlan.manual_delay_minutes_total[1])
+                    ? val(qPlan.manual_delay_minutes_total[1])
+                    : 0
+            );
+            if (storedManualDelayMinutes LT 0) {
+                storedManualDelayMinutes = 0;
             }
             departureTimeZoneVal = (isNull(qPlan.departureTZ[1]) ? "" : trim(toString(qPlan.departureTZ[1])));
             if (!len(departureTimeZoneVal)) {
@@ -935,12 +946,17 @@
                         activeLegEtaBaseDt = priorLegCompletedAtLocal;
                     }
 
+                    usingActiveLegEta = false;
                     if (activeLegEtaMinutes GT 0 AND isDate(activeLegEtaBaseDt)) {
+                        usingActiveLegEta = true;
                         nextStopEtaMinutes = activeLegEtaMinutes;
                         nextStopEtaDt = dateAdd("n", activeLegEtaMinutes, activeLegEtaBaseDt);
                     } else {
                         nextStopEtaMinutes = nextStopCumulativeMinutes;
                         nextStopEtaDt = plannedNextStopEtaDt;
+                    }
+                    if (usingActiveLegEta AND tripStarted AND storedManualDelayMinutes GT 0 AND isDate(nextStopEtaDt)) {
+                        nextStopEtaDt = dateAdd("n", storedManualDelayMinutes, nextStopEtaDt);
                     }
                     if (isDate(nextStopEtaDt)) {
                         etaLabel = dateTimeFormat(nextStopEtaDt, "mmm d, yyyy h:nn tt");
@@ -1521,7 +1537,8 @@
                 "heroTripStartUtc"="",
                 "legArrivalUtc"="",
                 "heroLastCheckIn"="--",
-                "heroLastCheckInUtc"=""
+                "heroLastCheckInUtc"="",
+                "manualDelayMinutesTotal"=0
             };
             var canonicalPlan = {};
             var ds = resolveDatasource();
@@ -1537,6 +1554,7 @@
             var checkInContextVal = "";
             var isOvernightCheckIn = false;
             var storedOvernightPauseMinutes = 0;
+            var storedManualDelayMinutes = 0;
             var departureTimeZoneVal = "";
             var dailyStartLocalTimeVal = "";
             var storedDepartureTimeZoneVal = "";
@@ -1574,6 +1592,7 @@
             var routeMapActiveLegOrder = 0;
             var awaitingDepartureState = false;
             var lastCheckinStatusVal = "";
+            var usingActiveLegEta = false;
             var i = 0;
 
             if (arguments.currentUserId LTE 0 OR arguments.floatPlanId LTE 0) {
@@ -1637,7 +1656,8 @@
                         ORDER BY m.id DESC
                         LIMIT 1
                     ) AS expected_checkin_at,
-                    overnight_pause_minutes_total
+                    overnight_pause_minutes_total,
+                    manual_delay_minutes_total
                  FROM floatplans
                  WHERE floatplanId = :planId
                    AND userId = :userId
@@ -1708,6 +1728,15 @@
             if (!hasOperationalCheckIn) {
                 storedOvernightPauseMinutes = 0;
             }
+            storedManualDelayMinutes = (
+                !isNull(qPlan.manual_delay_minutes_total[1]) AND isNumeric(qPlan.manual_delay_minutes_total[1])
+                    ? val(qPlan.manual_delay_minutes_total[1])
+                    : 0
+            );
+            if (storedManualDelayMinutes LT 0) {
+                storedManualDelayMinutes = 0;
+            }
+            out.manualDelayMinutesTotal = storedManualDelayMinutes;
 
             departureTimeZoneVal = (isNull(qPlan.departureTZ[1]) ? "" : trim(toString(qPlan.departureTZ[1])));
             if (!len(departureTimeZoneVal)) {
@@ -1970,10 +1999,15 @@
                         activeLegEtaBaseDt = priorLegCompletedAtLocal;
                     }
 
+                    usingActiveLegEta = false;
                     if (activeLegEtaMinutes GT 0 AND isDate(activeLegEtaBaseDt)) {
+                        usingActiveLegEta = true;
                         nextStopEtaDt = dateAdd("n", activeLegEtaMinutes, activeLegEtaBaseDt);
                     } else {
                         nextStopEtaDt = plannedNextStopEtaDt;
+                    }
+                    if (usingActiveLegEta AND tripStarted AND storedManualDelayMinutes GT 0 AND isDate(nextStopEtaDt)) {
+                        nextStopEtaDt = dateAdd("n", storedManualDelayMinutes, nextStopEtaDt);
                     }
 
                     if (isDate(nextStopEtaDt)) {
@@ -4565,6 +4599,13 @@
             var usedFloatplans = false;
             var planVesselId = 0;
             var legLockDetails = {};
+            var canonicalActivePlan = {};
+            var qActivePlanDelay = queryNew("");
+            var manualDelayMinutesTotal = 0;
+            var manualDelayHoursTotal = 0.0;
+            var adjustedCumulativeHours = 0.0;
+            var adjustedDayBucket = 0;
+            var adjustedTotalHours = 0.0;
 
             if (routeInstanceIdVal LTE 0 OR ownerUserIdVal LTE 0) {
                 return out;
@@ -4609,6 +4650,39 @@
             );
             storedInputs = loadRouteInstanceTimelineInputs(routeInstanceIdVal, ownerUserIdVal);
             lockDetailsByOrder = loadFollowLegLockDetailsMap(routeInstanceIdVal, ownerUserIdVal, qLegs);
+            canonicalActivePlan = resolveCanonicalActiveFloatPlan(ownerUserIdVal, 0);
+            if (
+                structKeyExists(canonicalActivePlan, "SUCCESS")
+                AND canonicalActivePlan.SUCCESS
+                AND structKeyExists(canonicalActivePlan, "ROUTE_INSTANCE_ID")
+                AND val(canonicalActivePlan.ROUTE_INSTANCE_ID) EQ routeInstanceIdVal
+            ) {
+                qActivePlanDelay = queryExecute(
+                    "SELECT manual_delay_minutes_total
+                     FROM floatplans
+                     WHERE floatplanId = :planId
+                       AND userId = :ownerUserId
+                     LIMIT 1",
+                    {
+                        planId = { value = val(canonicalActivePlan.FLOATPLANID), cfsqltype = "cf_sql_integer" },
+                        ownerUserId = { value = ownerUserIdVal, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = ds }
+                );
+                if (
+                    qActivePlanDelay.recordCount GT 0
+                    AND !isNull(qActivePlanDelay.manual_delay_minutes_total[1])
+                    AND isNumeric(qActivePlanDelay.manual_delay_minutes_total[1])
+                ) {
+                    manualDelayMinutesTotal = val(qActivePlanDelay.manual_delay_minutes_total[1]);
+                }
+            }
+            if (manualDelayMinutesTotal LT 0) {
+                manualDelayMinutesTotal = 0;
+            }
+            if (manualDelayMinutesTotal GT 0) {
+                manualDelayHoursTotal = roundTo2(manualDelayMinutesTotal / 60);
+            }
 
             qProgress = queryExecute(
                 "SELECT
@@ -4898,9 +4972,17 @@
                         }
                     }
                 }
+                adjustedCumulativeHours = cumulativeHours;
+                adjustedDayBucket = dayBucket;
+                if (manualDelayHoursTotal GT 0 AND statusVal NEQ "COMPLETED") {
+                    adjustedCumulativeHours = roundTo2(cumulativeHours + manualDelayHoursTotal);
+                    if (maxHoursPerDay GT 0 AND adjustedCumulativeHours GT 0) {
+                        adjustedDayBucket = int(ceiling(adjustedCumulativeHours / maxHoursPerDay));
+                    }
+                }
 
                 arrayAppend(out.legs, {
-                    "day_bucket"=dayBucket,
+                    "day_bucket"=adjustedDayBucket,
                     "leg_order"=orderVal,
                     "label"=startName & " -> " & endName,
                     "start_name"=startName,
@@ -4909,7 +4991,7 @@
                     "hours"=legHours,
                     "locks"=lockCount,
                     "lock_details"=legLockDetails,
-                    "cumulative_hours"=cumulativeHours,
+                    "cumulative_hours"=adjustedCumulativeHours,
                     "progress"={
                         "percent_complete"=progressPct,
                         "last_update_ts"=lastUpdateTs
@@ -4926,11 +5008,12 @@
                 }
             }
 
+            adjustedTotalHours = roundTo2(cumulativeHours + manualDelayHoursTotal);
             out.summary = {
                 "total_nm"=totalNm,
                 "total_locks"=totalLocks,
-                "total_hours"=roundTo2(cumulativeHours),
-                "total_days"=(maxHoursPerDay GT 0 AND cumulativeHours GT 0 ? int(ceiling(cumulativeHours / maxHoursPerDay)) : 0),
+                "total_hours"=adjustedTotalHours,
+                "total_days"=(maxHoursPerDay GT 0 AND adjustedTotalHours GT 0 ? int(ceiling(adjustedTotalHours / maxHoursPerDay)) : 0),
                 "fuel_est"=fuelEst,
                 "reserve_est"=reserveEst,
                 "required_fuel_est"=roundTo2(fuelEst + reserveEst),

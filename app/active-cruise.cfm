@@ -468,6 +468,8 @@
     monitorWeatherFactor = "—",
     monitorDailyStartLabel = "8:00 AM",
     monitorDailyStartInput = "08:00",
+    manualDelayMinutesTotal = 0,
+    manualDelayMinutesLabel = "0 minutes",
     legDistance = "82 nm",
     legRemaining = "41 nm",
     legDataPace = "7.4 kt",
@@ -1214,6 +1216,19 @@
       activeCruiseView.monitorNextExpectedCheckIn = (isDate(expectedCheckInDt) ? dateTimeFormat(expectedCheckInDt, "mmm d, yyyy h:nn tt") : "--");
       activeCruiseView.monitorDailyStartLabel = fpwFormatLocalTimeLabel(dailyStartLocalTimeVal, "8:00 AM");
       activeCruiseView.monitorDailyStartInput = fpwFormatLocalTimeInput(dailyStartLocalTimeVal, "08:00");
+      activeCruiseView.manualDelayMinutesTotal = (
+        isStruct(activeCruiseCanonicalHero)
+        AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS")
+        AND activeCruiseCanonicalHero.SUCCESS
+        AND structKeyExists(activeCruiseCanonicalHero, "manualDelayMinutesTotal")
+        AND isNumeric(activeCruiseCanonicalHero.manualDelayMinutesTotal)
+          ? val(activeCruiseCanonicalHero.manualDelayMinutesTotal)
+          : 0
+      );
+      if (activeCruiseView.manualDelayMinutesTotal LT 0) {
+        activeCruiseView.manualDelayMinutesTotal = 0;
+      }
+      activeCruiseView.manualDelayMinutesLabel = activeCruiseView.manualDelayMinutesTotal & " minute" & (activeCruiseView.manualDelayMinutesTotal EQ 1 ? "" : "s");
       if (isStruct(routeInputs) AND structCount(routeInputs) AND structKeyExists(routeInputs, "weather_factor_pct") AND !isNull(routeInputs.weather_factor_pct)) {
         routeWeatherFactorRaw = trim(toString(routeInputs.weather_factor_pct));
         if (len(routeWeatherFactorRaw)) {
@@ -1722,6 +1737,7 @@
         : ""
     ),
     heroNextExpectedCheckIn = activeCruiseView.heroNextExpectedCheckIn,
+    manualDelayMinutesTotal = activeCruiseView.manualDelayMinutesTotal,
     legRemainingDistance = activeCruiseView.legRemainingDistance,
     legPercentComplete = activeCruiseView.legPercentComplete,
     monitorStatus = activeCruiseView.monitorStatus,
@@ -2673,6 +2689,38 @@
 		              </div>
 		            </div>
 			          </div>
+		          <div class="mini-panel" style="margin-top:16px;">
+		            <div class="mini-head">
+		              <h3>Weather Lookup</h3>
+		              <span>Current Leg</span>
+		            </div>
+		            <div class="split" style="align-items:center; gap:10px; flex-wrap:wrap;">
+		              <span>Lookup Point</span>
+		              <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+		                <label style="display:inline-flex; align-items:center; gap:6px;"><input type="radio" name="fpwMonitorWeatherPoint" value="start"><cfoutput>#encodeForHtml(len(trim(currentLegStartName)) ? currentLegStartName : "Start")#</cfoutput></label>
+		                <label style="display:inline-flex; align-items:center; gap:6px;"><input type="radio" name="fpwMonitorWeatherPoint" value="end"><cfoutput>#encodeForHtml(len(trim(currentLegEndName)) ? currentLegEndName : "End")#</cfoutput></label>
+		              </div>
+		            </div>
+		            <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+		              <button class="btn btn-secondary" type="button" id="fpwMonitorWeatherBtn">Check Conditions</button>
+		            </div>
+		            <div id="fpwMonitorWeatherMessage" style="margin-top:10px; color:var(--muted); font-size:0.9rem;" aria-live="polite"></div>
+		            <div id="fpwMonitorWeatherResult" style="margin-top:10px;" hidden>
+		              <div class="split"><span>Point</span><strong id="fpwMonitorWeatherPointLabel">—</strong></div>
+		              <div class="split" style="margin-top:10px;"><span>Wind</span><strong id="fpwMonitorWeatherWind">—</strong></div>
+		              <div class="split" style="margin-top:10px;"><span>Gusts</span><strong id="fpwMonitorWeatherGusts">—</strong></div>
+		              <div class="split" style="margin-top:10px;"><span>Waves</span><strong id="fpwMonitorWeatherWaves">—</strong></div>
+		              <div class="split" style="margin-top:10px;"><span>Visibility</span><strong id="fpwMonitorWeatherVisibility">—</strong></div>
+		              <div class="split" style="margin-top:10px;"><span>Weather % Factor</span><strong id="fpwMonitorWeatherFactor" data-fpw-field="monitor.weatherFactor"><cfoutput>#encodeForHtml(activeCruiseView.monitorWeatherFactor)#</cfoutput></strong></div>
+		              <div style="margin-top:10px;">
+		                <div class="split"><span>Alerts</span><strong id="fpwMonitorWeatherAlertsSummary">No alerts</strong></div>
+		                <div id="fpwMonitorWeatherAlerts" style="margin-top:10px;"></div>
+		              </div>
+		              <div id="fpwMonitorWeatherApplyWrap" style="margin-top:12px; display:flex; justify-content:flex-end;" hidden>
+		                <button class="btn btn-secondary" type="button" id="fpwMonitorWeatherApplyBtn" disabled>Apply Weather to Route</button>
+		              </div>
+		            </div>
+		          </div>
 		          </div>
 	          <div class="panel section-card">
 	            <div class="section-top">
@@ -2857,6 +2905,40 @@
                   <small>Canonical monitoring checkpoint</small>
                 </div>
                 <div class="data-item">
+                  <span>Current Delay</span>
+                  <strong data-fpw-field="delay.currentTotal"><cfoutput>#encodeForHtml(activeCruiseView.manualDelayMinutesLabel)#</cfoutput></strong>
+                  <small>Current manual delay total applied to canonical trip timing.</small>
+                  <button
+                    type="button"
+                    id="fpwManualDelayClearBtn"
+                    class="action-btn"
+                    style="margin-top:12px; width:100%; padding:8px 14px; min-height:auto;"
+                  >Clear Delay</button>
+                </div>
+                <div class="data-item" style="grid-column:1 / -1;">
+                  <span>Add Delay Time</span>
+                  <strong>Manual timing adjustment</strong>
+                  <small>Add positive minutes to the active trip timeline without changing monitoring cadence.</small>
+                  <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
+                    <input
+                      type="number"
+                      id="fpwManualDelayMinutesInput"
+                      min="1"
+                      step="1"
+                      inputmode="numeric"
+                      placeholder="Minutes"
+                      style="min-width:128px; padding:8px 10px; border-radius:10px; border:1px solid rgba(126,184,226,0.18); background:rgba(8,18,28,0.82); color:var(--text);"
+                    >
+                    <button
+                      type="button"
+                      id="fpwManualDelayAddBtn"
+                      class="action-btn"
+                      style="padding:8px 14px; min-height:auto;"
+                    >Add Delay Time</button>
+                  </div>
+                  <small id="fpwManualDelayNote">Adds minutes to the canonical trip delay total used by Active Cruise and Follow timing.</small>
+                </div>
+                <div class="data-item" style="grid-column:1 / -1;">
                   <span>Daily Start Time</span>
                   <strong data-fpw-field="monitor.dailyStartLabel"><cfoutput>#encodeForHtml(activeCruiseView.monitorDailyStartLabel)#</cfoutput></strong>
                   <small>Applied to overnight resume and next-day monitoring.</small>
@@ -2890,34 +2972,6 @@
 	              <div class="split"><span>Status</span><strong style="color:<cfoutput>#encodeForHtmlAttribute(activeCruiseView.monitorStatusColor)#</cfoutput>;" data-fpw-field="monitor.status"><cfoutput>#encodeForHtml(activeCruiseView.monitorStatus)#</cfoutput></strong></div>
 	              <div class="split" style="margin-top:10px;"><span>Follower Page</span><strong style="color:var(--accent);" data-fpw-field="monitor.followerState"><cfoutput>#encodeForHtml(activeCruiseView.monitorFollowerState)#</cfoutput></strong></div>
 	              <div class="split" style="margin-top:10px;"><span>Emergency Contact</span><strong data-fpw-field="monitor.emergencyContact"><cfoutput>#encodeForHtml(activeCruiseView.monitorEmergencyContact)#</cfoutput></strong></div>
-	              <div style="margin-top:12px;">
-	                <div class="split" style="align-items:center; gap:10px; flex-wrap:wrap;">
-	                  <span>Weather Lookup</span>
-	                  <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-	                    <label style="display:inline-flex; align-items:center; gap:6px;"><input type="radio" name="fpwMonitorWeatherPoint" value="start"><cfoutput>#encodeForHtml(len(trim(currentLegStartName)) ? currentLegStartName : "Start")#</cfoutput></label>
-	                    <label style="display:inline-flex; align-items:center; gap:6px;"><input type="radio" name="fpwMonitorWeatherPoint" value="end"><cfoutput>#encodeForHtml(len(trim(currentLegEndName)) ? currentLegEndName : "End")#</cfoutput></label>
-	                  </div>
-	                </div>
-	                <div style="margin-top:10px; display:flex; justify-content:flex-end;">
-	                  <button class="btn btn-secondary" type="button" id="fpwMonitorWeatherBtn">Check Conditions</button>
-	                </div>
-	                <div id="fpwMonitorWeatherMessage" style="margin-top:10px; color:var(--muted); font-size:0.9rem;" aria-live="polite"></div>
-	                <div id="fpwMonitorWeatherResult" style="margin-top:10px;" hidden>
-	                  <div class="split"><span>Point</span><strong id="fpwMonitorWeatherPointLabel">—</strong></div>
-	                  <div class="split" style="margin-top:10px;"><span>Wind</span><strong id="fpwMonitorWeatherWind">—</strong></div>
-	                  <div class="split" style="margin-top:10px;"><span>Gusts</span><strong id="fpwMonitorWeatherGusts">—</strong></div>
-	                  <div class="split" style="margin-top:10px;"><span>Waves</span><strong id="fpwMonitorWeatherWaves">—</strong></div>
-	                  <div class="split" style="margin-top:10px;"><span>Visibility</span><strong id="fpwMonitorWeatherVisibility">—</strong></div>
-	                  <div class="split" style="margin-top:10px;"><span>Weather % Factor</span><strong id="fpwMonitorWeatherFactor" data-fpw-field="monitor.weatherFactor"><cfoutput>#encodeForHtml(activeCruiseView.monitorWeatherFactor)#</cfoutput></strong></div>
-	                  <div style="margin-top:10px;">
-	                    <div class="split"><span>Alerts</span><strong id="fpwMonitorWeatherAlertsSummary">No alerts</strong></div>
-	                    <div id="fpwMonitorWeatherAlerts" style="margin-top:10px;"></div>
-	                  </div>
-	                  <div id="fpwMonitorWeatherApplyWrap" style="margin-top:12px; display:flex; justify-content:flex-end;" hidden>
-	                    <button class="btn btn-secondary" type="button" id="fpwMonitorWeatherApplyBtn" disabled>Apply Weather to Route</button>
-	                  </div>
-	                </div>
-	              </div>
 	            </div>
 	          </aside>
 
@@ -3094,7 +3148,7 @@
       </div>
     </div>
   </div>
-  <script src="../assets/js/app/api.js?v=20260320a"></script>
+  <script src="../assets/js/app/api.js?v=20260415b"></script>
   <script src="../assets/js/app/dashboard/routebuilder.js?v=20260414a"></script>
   <script id="fpw-active-cruise-hooks" type="application/json"><cfoutput>#activeCruiseHooksJson#</cfoutput></script>
   <script>
@@ -3148,6 +3202,10 @@
       var floatPlanLastCheckInEl = document.querySelector('[data-fpw-field="floatPlan.lastCheckIn"]');
       var monitorDailyStartInputEl = document.getElementById("fpwMonitorDailyStartInput");
       var monitorDailyStartSaveBtn = document.getElementById("fpwMonitorDailyStartSaveBtn");
+      var manualDelayCurrentTotalEl = document.querySelector('[data-fpw-field="delay.currentTotal"]');
+      var manualDelayMinutesInputEl = document.getElementById("fpwManualDelayMinutesInput");
+      var manualDelayAddBtn = document.getElementById("fpwManualDelayAddBtn");
+      var manualDelayClearBtn = document.getElementById("fpwManualDelayClearBtn");
       var legArrivalEl = document.querySelector('[data-fpw-field="leg.arrival"]');
       var routeStop4StampEl = document.querySelector('[data-fpw-field="leg.routeStop4Stamp"]');
 
@@ -3310,12 +3368,35 @@
         routeStop4StampEl.textContent = label + " ETA";
       }
 
+      function formatManualDelayLabel(rawValue) {
+        var total = parseInt(rawValue, 10);
+        if (!Number.isFinite(total) || total < 0) {
+          total = 0;
+        }
+        return String(total) + " minute" + (total === 1 ? "" : "s");
+      }
+
+      function hydrateManualDelayTotal() {
+        var fields = (pageHooks && (pageHooks.fields || pageHooks.FIELDS)) || {};
+        var total = fields.manualDelayMinutesTotal;
+
+        if (typeof total === "undefined") {
+          total = fields.MANUALDELAYMINUTESTOTAL;
+        }
+        if (!manualDelayCurrentTotalEl) {
+          return;
+        }
+
+        manualDelayCurrentTotalEl.textContent = formatManualDelayLabel(total);
+      }
+
       hydrateTimelineTimes();
       hydrateHeroEta();
       hydrateHeroTripStart();
       hydrateLastCheckinLabels();
       hydrateLegArrival();
       hydrateRouteStop4Stamp();
+      hydrateManualDelayTotal();
 
       function parseExperimentalDate(value) {
         var raw = String(value || "").trim();
@@ -3682,7 +3763,7 @@
         if (!routeCode) {
           return Promise.reject({ MESSAGE: "Unable to resolve the active route code." });
         }
-        if (!weatherLookupState.data || weatherLookupState.data.available !== true || !weatherLookupState.data.weather) {
+        if (!weatherLookupState.data || !weatherLookupState.data.available || !weatherLookupState.data.weather) {
           return Promise.reject({ MESSAGE: "Check current-leg conditions before applying weather to the route." });
         }
 
@@ -4310,6 +4391,109 @@
           }).finally(function () {
             monitorDailyStartSaveBtn.disabled = false;
             monitorDailyStartSaveBtn.textContent = "Save";
+          });
+        });
+      }
+
+      if (manualDelayMinutesInputEl && manualDelayAddBtn) {
+        manualDelayAddBtn.addEventListener("click", function () {
+          var originalText = manualDelayAddBtn.textContent;
+          var minutesRaw = String(manualDelayMinutesInputEl.value || "").trim();
+          var minutesValue = parseInt(minutesRaw, 10);
+          var successMessage = "";
+          var totalMinutes = 0;
+
+          if (!floatPlanId) {
+            window.alert("Unable to find the active float plan for this trip.");
+            return;
+          }
+          if (!minutesRaw) {
+            window.alert("Delay minutes are required.");
+            return;
+          }
+          if (!/^\d+$/.test(minutesRaw) || !Number.isFinite(minutesValue) || minutesValue <= 0) {
+            window.alert("Delay minutes must be a positive whole number.");
+            return;
+          }
+          if (!window.Api || typeof window.Api.addActiveCruiseDelay !== "function") {
+            window.alert("Delay-time service is unavailable.");
+            return;
+          }
+
+          manualDelayAddBtn.disabled = true;
+          if (manualDelayClearBtn) {
+            manualDelayClearBtn.disabled = true;
+          }
+          manualDelayAddBtn.textContent = "Adding...";
+
+          window.Api.addActiveCruiseDelay({
+            floatPlanId: floatPlanId,
+            minutes: minutesValue
+          }).then(function (resp) {
+            if (!resp || resp.SUCCESS !== true) {
+              throw resp || new Error("Unable to add delay time.");
+            }
+            totalMinutes = parseInt(resp.MANUAL_DELAY_MINUTES_TOTAL, 10);
+            successMessage = "Added " + minutesValue + " minutes of delay time.";
+            if (Number.isFinite(totalMinutes) && totalMinutes > 0) {
+              successMessage += " Total manual delay: " + totalMinutes + " minutes.";
+            }
+            window.alert(successMessage);
+            window.location.reload();
+          }).catch(function (err) {
+            var message = (err && err.MESSAGE) || (err && err.message) || "Unable to add delay time.";
+            window.alert(message);
+          }).finally(function () {
+            manualDelayAddBtn.disabled = false;
+            if (manualDelayClearBtn) {
+              manualDelayClearBtn.disabled = false;
+            }
+            manualDelayAddBtn.textContent = originalText;
+          });
+        });
+      }
+
+      if (manualDelayClearBtn) {
+        manualDelayClearBtn.addEventListener("click", function () {
+          var originalText = manualDelayClearBtn.textContent;
+          var totalMinutes = 0;
+
+          if (!floatPlanId) {
+            window.alert("Unable to find the active float plan for this trip.");
+            return;
+          }
+          if (!window.Api || typeof window.Api.clearActiveCruiseDelay !== "function") {
+            window.alert("Delay-time service is unavailable.");
+            return;
+          }
+
+          manualDelayClearBtn.disabled = true;
+          if (manualDelayAddBtn) {
+            manualDelayAddBtn.disabled = true;
+          }
+          manualDelayClearBtn.textContent = "Clearing...";
+
+          window.Api.clearActiveCruiseDelay({
+            floatPlanId: floatPlanId
+          }).then(function (resp) {
+            if (!resp || resp.SUCCESS !== true) {
+              throw resp || new Error("Unable to clear delay time.");
+            }
+            totalMinutes = parseInt(resp.MANUAL_DELAY_MINUTES_TOTAL, 10);
+            if (!Number.isFinite(totalMinutes) || totalMinutes < 0) {
+              totalMinutes = 0;
+            }
+            window.alert("Cleared manual delay time. Total manual delay: " + totalMinutes + " minutes.");
+            window.location.reload();
+          }).catch(function (err) {
+            var message = (err && err.MESSAGE) || (err && err.message) || "Unable to clear delay time.";
+            window.alert(message);
+          }).finally(function () {
+            manualDelayClearBtn.disabled = false;
+            if (manualDelayAddBtn) {
+              manualDelayAddBtn.disabled = false;
+            }
+            manualDelayClearBtn.textContent = originalText;
           });
         });
       }
