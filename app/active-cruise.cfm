@@ -424,6 +424,14 @@
     requestedFloatPlanId = 0,
     activeRouteCode = ""
   };
+  activeCruiseMapPayload = {
+    routeGeo = { type = "MultiLineString", coordinates = [] },
+    pins = [],
+    current = {},
+    streamId = 0,
+    slug = "",
+    shareToken = ""
+  };
   if (isNumeric(activeCruiseHooks.context.floatPlanId)) {
     activeCruiseContext.requestedFloatPlanId = val(activeCruiseHooks.context.floatPlanId);
   }
@@ -1069,7 +1077,7 @@
 
         if (hasVoyageTables) {
           qStream = queryExecute(
-            "SELECT id
+            "SELECT id, slug, share_token
              FROM voyage_streams
              WHERE floatplan_id = :planId
                AND owner_user_id = :ownerUserId
@@ -1084,6 +1092,9 @@
           streamLive = (qStream.recordCount EQ 1);
 
           if (streamLive) {
+            activeCruiseMapPayload.streamId = val(fpwQueryCell(qStream, "id", 1, 0));
+            activeCruiseMapPayload.slug = trim(toString(fpwQueryCell(qStream, "slug", 1, "")));
+            activeCruiseMapPayload.shareToken = trim(toString(fpwQueryCell(qStream, "share_token", 1, "")));
             qTimelinePosts = queryExecute(
               "SELECT recent.title, recent.body, recent.created_utc
                FROM (
@@ -1778,6 +1789,42 @@
   ) {
     activeCruiseHooks.fields.legArrivalUtc = trim(toString(activeCruiseHooks.fields.heroEtaUtc));
   }
+  if (activeCruiseAccessValid AND activeCruiseContext.routeInstanceId GT 0 AND activeCruiseUserId GT 0) {
+    activeCruiseMapComponent = "";
+    activeCruiseMapRaw = {};
+    try {
+      activeCruiseMapComponent = createObject("component", "fpw.api.v1.voyage");
+    } catch (any activeCruiseMapComponentErrA) {
+      try {
+        activeCruiseMapComponent = createObject("component", "api.v1.voyage");
+      } catch (any activeCruiseMapComponentErrB) {
+        activeCruiseMapComponent = "";
+      }
+    }
+    if (isObject(activeCruiseMapComponent)) {
+      try {
+        activeCruiseMapRaw = activeCruiseMapComponent.buildRouteMapData(
+          routeInstanceId = activeCruiseContext.routeInstanceId,
+          ownerUserId = activeCruiseUserId,
+          fallbackDays = 0
+        );
+      } catch (any activeCruiseMapBuildErr) {
+        activeCruiseMapRaw = {};
+      }
+    }
+    if (isStruct(activeCruiseMapRaw) AND structCount(activeCruiseMapRaw)) {
+      if (structKeyExists(activeCruiseMapRaw, "route_geo") AND isStruct(activeCruiseMapRaw.route_geo)) {
+        activeCruiseMapPayload.routeGeo = duplicate(activeCruiseMapRaw.route_geo);
+      }
+      if (structKeyExists(activeCruiseMapRaw, "pins") AND isArray(activeCruiseMapRaw.pins)) {
+        activeCruiseMapPayload.pins = duplicate(activeCruiseMapRaw.pins);
+      }
+      if (structKeyExists(activeCruiseMapRaw, "current") AND isStruct(activeCruiseMapRaw.current)) {
+        activeCruiseMapPayload.current = duplicate(activeCruiseMapRaw.current);
+      }
+    }
+  }
+  activeCruiseHooks.map = activeCruiseMapPayload;
   activeCruiseHooksJson = replace(serializeJSON(activeCruiseHooks), "</", "<\/", "all");
 </cfscript>
 <!DOCTYPE html>
@@ -1786,6 +1833,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FPW Active Cruise Console</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <style>
     :root {
       --bg: #06111a;
@@ -2255,6 +2303,113 @@
       font-weight: 800;
     }
 
+    .active-cruise-map-panel {
+      margin-bottom: 18px;
+      overflow: hidden;
+    }
+
+    .active-cruise-map-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+
+    .active-cruise-map-copy h3 {
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .active-cruise-map-copy p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .active-cruise-map-wrap {
+      position: relative;
+    }
+
+    .active-cruise-map-canvas {
+      position: relative;
+      height: 420px;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(208, 221, 233, 0.24);
+      background: rgba(126,184,226,0.04);
+    }
+
+    #fpwActiveCruiseMap .radar-opacity-control {
+      background: rgba(255, 255, 255, 0.92);
+      padding: 0.35rem 0.5rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      font-size: 0.7rem;
+      min-width: 140px;
+    }
+
+    #fpwActiveCruiseMap .radar-opacity-control label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      color: #1b1b1b;
+    }
+
+    #fpwActiveCruiseMap .radar-opacity-control input[type="range"] {
+      width: 100%;
+    }
+
+    #fpwActiveCruiseMap .radar-opacity-control.is-disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    .follow-pin {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 600;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+    }
+
+    .follow-pin.start {
+      background: #22c55e;
+    }
+
+    .follow-pin.end {
+      background: #2563eb;
+    }
+
+    .follow-pin.intermediate {
+      background: #64748b;
+      width: 17px;
+      height: 17px;
+    }
+
+    .follow-boat-marker {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: #0ea5e9;
+      border: 3px solid #fff;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+    }
+
     .weather-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2578,6 +2733,7 @@
       .shell { width: min(calc(100% - 18px), var(--max)); }
       .topbar-inner,
       .title-row,
+      .active-cruise-map-head,
       .section-top {
         flex-direction: column;
         align-items: flex-start;
@@ -2594,6 +2750,8 @@
       .weather-grid,
       .data-grid,
       .footer-band { grid-template-columns: 1fr; }
+
+      .active-cruise-map-canvas { height: 340px; }
 
       .timeline-row {
         grid-template-columns: 72px 16px 1fr;
@@ -2645,6 +2803,19 @@
             <div class="status-pill<cfoutput><cfif len(trim(activeCruiseView.heroVoyageStatusVariant))> status-pill--#encodeForHtmlAttribute(activeCruiseView.heroVoyageStatusVariant)#</cfif></cfoutput>">
               <b>Voyage Status</b>
               <strong data-fpw-field="hero.voyageStatus"><cfoutput>#encodeForHtml(activeCruiseView.heroVoyageStatus)#</cfoutput></strong>
+            </div>
+          </div>
+
+          <div class="mini-panel active-cruise-map-panel">
+            <div class="active-cruise-map-head">
+              <div class="active-cruise-map-copy">
+                <h3>Map Overview</h3>
+                <p>Live route view with current position, completed track, and destination.</p>
+              </div>
+              <button class="btn btn-secondary" id="fpwActiveCruiseOpenFullMapBtn" type="button">Open Full Map</button>
+            </div>
+            <div class="active-cruise-map-wrap">
+              <div id="fpwActiveCruiseMap" class="active-cruise-map-canvas" aria-label="Voyage route map"></div>
             </div>
           </div>
 
@@ -3150,6 +3321,9 @@
   </div>
   <script src="../assets/js/app/api.js?v=20260415b"></script>
   <script src="../assets/js/app/dashboard/routebuilder.js?v=20260414a"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="../assets/js/app/follow/followMap.js?v=202604131858a"></script>
+  <script src="../assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260416a"></script>
   <script id="fpw-active-cruise-hooks" type="application/json"><cfoutput>#activeCruiseHooksJson#</cfoutput></script>
   <script>
     (function (window, document) {
@@ -3208,6 +3382,9 @@
       var manualDelayClearBtn = document.getElementById("fpwManualDelayClearBtn");
       var legArrivalEl = document.querySelector('[data-fpw-field="leg.arrival"]');
       var routeStop4StampEl = document.querySelector('[data-fpw-field="leg.routeStop4Stamp"]');
+      var activeCruiseMapEl = document.getElementById("fpwActiveCruiseMap");
+      var activeCruiseOpenFullMapBtn = document.getElementById("fpwActiveCruiseOpenFullMapBtn");
+      var activeCruiseMapInstance = null;
 
       if (!checkInButton || !modalEl || !closeBtn || !statusGroupEl || !noteToggleBtn || !noteWrapEl || !noteInput || !submitBtn) {
         return;
@@ -3397,6 +3574,9 @@
       hydrateLegArrival();
       hydrateRouteStop4Stamp();
       hydrateManualDelayTotal();
+      renderActiveCruiseMap();
+      window.addEventListener("load", syncActiveCruiseMapSize);
+      window.addEventListener("resize", syncActiveCruiseMapSize);
 
       function parseExperimentalDate(value) {
         var raw = String(value || "").trim();
@@ -3593,6 +3773,156 @@
           body: JSON.stringify(payload || {})
         }).then(function (response) {
           return parseJsonResponse(response, fallbackMessage);
+        });
+      }
+
+      function buildVoyageApiUrl(action) {
+        return new URL(
+          "../api/v1/voyage.cfc?method=handle&action=" + encodeURIComponent(action) + "&returnFormat=json",
+          window.location.href
+        ).toString();
+      }
+
+      function normalizeActiveCruiseMapPayload(rawMap) {
+        var payload = (rawMap && typeof rawMap === "object") ? rawMap : {};
+        return {
+          routeGeo: payload.routeGeo || payload.route_geo || payload.ROUTEGEO || payload.ROUTE_GEO || { type: "MultiLineString", coordinates: [] },
+          pins: Array.isArray(payload.pins || payload.PINS) ? (payload.pins || payload.PINS) : [],
+          current: (payload.current && typeof payload.current === "object") ? payload.current : ((payload.CURRENT && typeof payload.CURRENT === "object") ? payload.CURRENT : {}),
+          streamId: parseInt(payload.streamId || payload.stream_id || payload.STREAMID || payload.STREAM_ID || 0, 10) || 0,
+          slug: String(payload.slug || payload.SLUG || "").trim(),
+          shareToken: String(payload.shareToken || payload.share_token || payload.SHARETOKEN || payload.SHARE_TOKEN || "").trim()
+        };
+      }
+
+      function readActiveCruiseMapPayload() {
+        var rawMap = (pageHooks && (pageHooks.map || pageHooks.MAP)) || {};
+        return normalizeActiveCruiseMapPayload(rawMap);
+      }
+
+      function updateActiveCruiseMapStreamContext(streamId, slug, shareToken) {
+        var nextMap = readActiveCruiseMapPayload();
+        nextMap.streamId = parseInt(streamId, 10) || 0;
+        nextMap.slug = String(slug || "").trim();
+        nextMap.shareToken = String(shareToken || "").trim();
+        pageHooks.map = nextMap;
+        return nextMap;
+      }
+
+      function syncActiveCruiseMapSize() {
+        if (!activeCruiseMapInstance || typeof activeCruiseMapInstance.invalidateSize !== "function") {
+          return;
+        }
+        window.setTimeout(function () {
+          activeCruiseMapInstance.invalidateSize(false);
+        }, 0);
+      }
+
+      function renderActiveCruiseMap() {
+        var mapPayload = readActiveCruiseMapPayload();
+        var current = mapPayload.current || {};
+        var lat = Number(current.lat);
+        var lng = Number(current.lng);
+
+        if (!activeCruiseMapEl || !window.FPWFollowMap || typeof window.FPWFollowMap.initFollowMap !== "function") {
+          return;
+        }
+
+        activeCruiseMapInstance = window.FPWFollowMap.initFollowMap("fpwActiveCruiseMap", {});
+        if (window.FPW && typeof window.FPW.attachLeafletMarineLayers === "function") {
+          window.FPW.attachLeafletMarineLayers({
+            map: activeCruiseMapInstance
+          });
+        }
+        window.FPWFollowMap.renderRoute(mapPayload.routeGeo);
+        window.FPWFollowMap.renderPins(mapPayload.pins);
+        window.FPWFollowMap.fitBoundsToRoute(mapPayload.routeGeo, mapPayload.pins);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          window.FPWFollowMap.updateBoatMarker(lat, lng, current.label || current.name || "Current position");
+        }
+        syncActiveCruiseMapSize();
+      }
+
+      function buildActiveCruiseFullMapUrl(streamData) {
+        var stream = (streamData && typeof streamData === "object") ? streamData : {};
+        var params = new URLSearchParams();
+        var baseUrl = new URL("follow-full-map.cfm", window.location.href);
+        var streamId = parseInt(stream.streamId || stream.id || stream.stream_id || 0, 10) || 0;
+        var slug = String(stream.slug || "").trim();
+        var shareToken = String(stream.shareToken || stream.share_token || "").trim();
+
+        if (!slug || !shareToken || streamId <= 0) {
+          return "";
+        }
+
+        params.set("slug", slug);
+        params.set("t", shareToken);
+        params.set("stream_id", String(streamId));
+        params.set("source", "active-cruise");
+        baseUrl.search = params.toString();
+        return baseUrl.toString();
+      }
+
+      function openActiveCruiseFullMapWindow(targetUrl) {
+        var featureParts = [
+          "popup=yes",
+          "left=0",
+          "top=0",
+          "width=" + String(window.screen && window.screen.availWidth ? window.screen.availWidth : 1440),
+          "height=" + String(window.screen && window.screen.availHeight ? window.screen.availHeight : 900)
+        ];
+        var popup = null;
+
+        if (!targetUrl) {
+          return "";
+        }
+
+        try {
+          popup = window.open("", "_blank", featureParts.join(","));
+        } catch (err) {
+          popup = null;
+        }
+
+        if (popup && !popup.closed) {
+          try {
+            popup.opener = null;
+          } catch (ignoreErr) {}
+          popup.location = targetUrl;
+          return targetUrl;
+        }
+
+        featureParts.unshift("noopener");
+        window.open(targetUrl, "_blank", featureParts.join(","));
+        return targetUrl;
+      }
+
+      function ensureActiveCruiseFollowStream() {
+        var mapPayload = readActiveCruiseMapPayload();
+
+        if (mapPayload.streamId > 0 && mapPayload.slug && mapPayload.shareToken) {
+          return Promise.resolve(mapPayload);
+        }
+
+        return fetch(buildVoyageApiUrl("ownerensurestream"), {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            "Accept": "application/json"
+          }
+        }).then(function (response) {
+          return parseJsonResponse(response, "Follower page unavailable.");
+        }).then(function (payload) {
+          var data = (payload && (payload.data || payload.DATA)) || {};
+          var stream = (data && (data.stream || data.STREAM)) || {};
+          var streamId = parseInt(stream.id || stream.stream_id || 0, 10) || 0;
+          var slug = String(stream.slug || "").trim();
+          var shareToken = String(stream.share_token || "").trim();
+
+          if (streamId <= 0 || !slug || !shareToken) {
+            throw new Error("Follower page unavailable.");
+          }
+
+          return updateActiveCruiseMapStreamContext(streamId, slug, shareToken);
         });
       }
 
@@ -4167,6 +4497,32 @@
             .finally(function () {
               startNextLegButton.disabled = false;
               startNextLegButton.textContent = originalText;
+            });
+        });
+      }
+
+      if (activeCruiseOpenFullMapBtn) {
+        activeCruiseOpenFullMapBtn.addEventListener("click", function () {
+          var originalText = activeCruiseOpenFullMapBtn.textContent;
+
+          activeCruiseOpenFullMapBtn.disabled = true;
+          activeCruiseOpenFullMapBtn.textContent = "Opening...";
+
+          ensureActiveCruiseFollowStream()
+            .then(function (streamData) {
+              var targetUrl = buildActiveCruiseFullMapUrl(streamData);
+              if (!targetUrl) {
+                throw new Error("Full map link unavailable.");
+              }
+              openActiveCruiseFullMapWindow(targetUrl);
+            })
+            .catch(function (err) {
+              var message = (err && err.MESSAGE) || (err && err.message) || "Full map unavailable.";
+              window.alert(message);
+            })
+            .finally(function () {
+              activeCruiseOpenFullMapBtn.disabled = false;
+              activeCruiseOpenFullMapBtn.textContent = originalText;
             });
         });
       }

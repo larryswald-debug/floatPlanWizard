@@ -1664,6 +1664,53 @@
     window.prompt("Copy this link:", url);
   }
 
+  function buildFollowContextUrl(pagePath) {
+    var params = new URLSearchParams();
+    var relativePath = String(pagePath || "").trim() || "/app/follow.cfm";
+
+    if (state.slug) {
+      params.set("slug", state.slug);
+    }
+    if (state.token) {
+      params.set("t", state.token);
+    }
+    if (state.streamId > 0) {
+      params.set("stream_id", String(state.streamId));
+    }
+
+    return window.location.origin + getBasePath() + relativePath + (params.toString() ? ("?" + params.toString()) : "");
+  }
+
+  function openFullMapWindow() {
+    var targetUrl = buildFollowContextUrl("/app/follow-full-map.cfm");
+    var featureParts = [
+      "popup=yes",
+      "left=0",
+      "top=0",
+      "width=" + String(window.screen && window.screen.availWidth ? window.screen.availWidth : 1440),
+      "height=" + String(window.screen && window.screen.availHeight ? window.screen.availHeight : 900)
+    ];
+    var popup = null;
+
+    try {
+      popup = window.open("", "_blank", featureParts.join(","));
+    } catch (err) {
+      popup = null;
+    }
+
+    if (popup && !popup.closed) {
+      try {
+        popup.opener = null;
+      } catch (ignoreErr) {}
+      popup.location = targetUrl;
+      return targetUrl;
+    }
+
+    featureParts.unshift("noopener");
+    window.open(targetUrl, "_blank", featureParts.join(","));
+    return targetUrl;
+  }
+
   function bootstrapStream() {
     setLoaderMilestone("bootstrap");
     return fetchJson("getStreamBootstrap", {
@@ -1753,6 +1800,7 @@
     dom.loaderMessage = document.getElementById("followLoaderMessage");
     dom.journeyStatusPill = getHookField("journey-status-pill");
     dom.statusDot = document.querySelector(".status-dot");
+    dom.openFullMapBtn = document.getElementById("openFullMapBtn");
 
     if (dom.copyLinkBtn) {
       dom.copyLinkBtn.addEventListener("click", copyShareLink);
@@ -1761,6 +1809,12 @@
     if (dom.privacyBtn) {
       dom.privacyBtn.addEventListener("click", function () {
         window.alert("Privacy settings are managed from the owner dashboard.");
+      });
+    }
+
+    if (dom.openFullMapBtn) {
+      dom.openFullMapBtn.addEventListener("click", function () {
+        openFullMapWindow();
       });
     }
 

@@ -3944,7 +3944,7 @@
         </cfscript>
     </cffunction>
 
-    <cffunction name="buildRouteMapData" access="private" returntype="struct" output="false">
+    <cffunction name="buildRouteMapData" access="public" returntype="struct" output="false">
         <cfargument name="routeInstanceId" type="numeric" required="true">
         <cfargument name="ownerUserId" type="numeric" required="true">
         <cfargument name="fallbackDays" type="numeric" required="false" default="0">

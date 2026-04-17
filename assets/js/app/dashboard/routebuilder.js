@@ -3207,6 +3207,14 @@
       attribution: "&copy; OpenStreetMap contributors",
       maxZoom: 19
     }).addTo(state.legMap.map);
+    if (
+      window.FPW
+      && typeof window.FPW.attachLeafletMarineLayers === "function"
+    ) {
+      window.FPW.attachLeafletMarineLayers({
+        map: state.legMap.map
+      });
+    }
 
     state.legMap.drawnItems = new window.L.FeatureGroup();
     state.legMap.map.addLayer(state.legMap.drawnItems);
