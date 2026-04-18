@@ -1,9 +1,5 @@
 <cfcomponent output="false">
 
-    <cfset variables.CHECKIN_INTERVAL_MINUTES = 60>
-    <cfset variables.ESCALATION_DELAY_MINUTES = 30>
-    <cfset variables.MONITOR_TASK_KEY = "CHANGE_ME">
-
     <cffunction name="handle" access="remote" returntype="void" output="true">
         <cfargument name="limit" type="any" required="false">
         <cfsetting enablecfoutputonly="true" showdebugoutput="false">
@@ -182,24 +178,14 @@
                 <cfabort>
             </cfif>
 
-            <cfquery name="qUpdate" result="qUpdateResult" datasource="fpw">
-                UPDATE floatplans
-                SET status = 'OVERDUE'
-                WHERE UPPER(TRIM(status)) = 'ACTIVE'
-                  AND (
-                        (returnTime IS NOT NULL AND COALESCE(CONVERT_TZ(returnTime, NULLIF(returnTimezone, ''), @@session.time_zone), returnTime) < NOW())
-                     OR (checkedInAt IS NOT NULL AND checkedInAt < DATE_SUB(NOW(), INTERVAL <cfqueryparam cfsqltype="cf_sql_integer" value="#variables.CHECKIN_INTERVAL_MINUTES#"> MINUTE))
-                  )
-            </cfquery>
-
             <cfset response = {
                 SUCCESS = true,
-                DATA = { overdueMarked = qUpdateResult.recordCount },
-                MESSAGE = ""
+                DATA = {
+                    overdueMarked = 0,
+                    retired = true
+                },
+                MESSAGE = "Legacy monitor tick retired. Use canonical row-based monitoring evaluator."
             }>
-            <cflog file="floatplan_monitor" text="Monitor tick completed. Overdue plans marked: #qUpdateResult.recordCount#">
-            <!--- CF scheduled task example:
-                  http://localhost:8500/fpw/api/v1/floatplans.cfc?method=runMonitorTick&taskKey=CHANGE_ME --->
             <cfoutput>#serializeJSON(response)#</cfoutput>
 
             <cfcatch type="any">
@@ -260,45 +246,49 @@
 
             <cfquery name="qPlans" datasource="fpw">
                 SELECT
-                    fp.floatplanId,
+                    m.float_plan_id AS floatplanId,
                     fp.userId,
                     fp.floatPlanName,
-                    fp.status,
+                    UPPER(TRIM(m.monitor_state)) AS status,
                     fp.departureTime,
                     fp.returnTime,
-                    fp.checkedInAt,
+                    m.last_checkin_at AS lastCheckInAt,
                     v.vesselName,
-                    TIMESTAMPDIFF(MINUTE, fp.checkedInAt, NOW()) AS minutesSinceCheckIn,
                     CASE
-                        WHEN fp.returnTime IS NULL THEN NULL
-                        WHEN UPPER(TRIM(fp.status)) IN ('OVERDUE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H') THEN GREATEST(
-                            TIMESTAMPDIFF(
-                                MINUTE,
-                                COALESCE(CONVERT_TZ(fp.returnTime, NULLIF(fp.returnTimezone, ''), @@session.time_zone), fp.returnTime),
-                                NOW()
-                            ),
-                            0
-                        )
+                        WHEN m.last_checkin_at IS NULL THEN NULL
+                        ELSE TIMESTAMPDIFF(MINUTE, m.last_checkin_at, UTC_TIMESTAMP())
+                    END AS minutesSinceCheckIn,
+                    CASE
+                        WHEN UPPER(TRIM(m.monitor_state)) IN ('LATE','MISSED','ESCALATED')
+                         AND m.expected_checkin_at IS NOT NULL
+                        THEN GREATEST(TIMESTAMPDIFF(MINUTE, m.expected_checkin_at, UTC_TIMESTAMP()), 0)
                         ELSE 0
                     END AS minutesOverdue,
                     CASE
-                        WHEN UPPER(TRIM(fp.status)) IN ('OVERDUE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H')
-                         AND fp.returnTime IS NOT NULL
-                         AND NOW() > DATE_ADD(
-                            COALESCE(CONVERT_TZ(fp.returnTime, NULLIF(fp.returnTimezone, ''), @@session.time_zone), fp.returnTime),
-                            INTERVAL <cfqueryparam cfsqltype="cf_sql_integer" value="#variables.ESCALATION_DELAY_MINUTES#"> MINUTE
-                         )
-                        THEN 1
+                        WHEN UPPER(TRIM(m.monitor_state)) = 'ESCALATED' THEN 1
                         ELSE 0
                     END AS isEscalated
-                FROM floatplans fp
+                FROM floatplan_monitoring m
+                INNER JOIN (
+                    SELECT MAX(id) AS id
+                    FROM floatplan_monitoring
+                    WHERE user_id = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                      AND is_monitoring_enabled = 1
+                      AND UPPER(TRIM(monitor_state)) <> 'CLOSED'
+                    GROUP BY float_plan_id
+                ) latest ON latest.id = m.id
+                INNER JOIN floatplans fp ON fp.floatplanId = m.float_plan_id
                 LEFT JOIN vessels v ON fp.vesselId = v.vesselId
-                WHERE fp.userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
-                  AND UPPER(TRIM(fp.status)) IN ('ACTIVE','OVERDUE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H')
                 ORDER BY
-                    CASE WHEN UPPER(TRIM(fp.status)) IN ('OVERDUE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H') THEN 0 ELSE 1 END,
-                    CASE WHEN fp.returnTime IS NULL THEN 1 ELSE 0 END,
-                    fp.returnTime ASC
+                    CASE
+                        WHEN UPPER(TRIM(m.monitor_state)) = 'ESCALATED' THEN 0
+                        WHEN UPPER(TRIM(m.monitor_state)) = 'MISSED' THEN 1
+                        WHEN UPPER(TRIM(m.monitor_state)) = 'LATE' THEN 2
+                        ELSE 3
+                    END,
+                    CASE WHEN m.expected_checkin_at IS NULL THEN 1 ELSE 0 END,
+                    m.expected_checkin_at ASC,
+                    m.id DESC
                 LIMIT <cfqueryparam cfsqltype="cf_sql_integer" value="50">
             </cfquery>
 
@@ -315,10 +305,10 @@
 
                 <cfif statusUpper EQ "ACTIVE">
                     <cfset counts.active++>
-                <cfelseif listFindNoCase("OVERDUE,DUE_NOW,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H", statusUpper) GT 0>
+                <cfelseif listFindNoCase("LATE,MISSED,ESCALATED", statusUpper) GT 0>
                     <cfset counts.overdue++>
                 </cfif>
-                <cfif qPlans.isEscalated EQ 1>
+                <cfif statusUpper EQ "ESCALATED">
                     <cfset counts.escalated++>
                 </cfif>
 
@@ -327,7 +317,7 @@
                     status = qPlans.status,
                     departureDateTime = qPlans.departureTime,
                     returnByDateTime = qPlans.returnTime,
-                    lastCheckInDateTime = qPlans.checkedInAt,
+                    lastCheckInDateTime = qPlans.lastCheckInAt,
                     isEscalated = (qPlans.isEscalated EQ 1),
                     minutesSinceCheckIn = qPlans.minutesSinceCheckIn,
                     minutesOverdue = qPlans.minutesOverdue,
@@ -368,14 +358,7 @@
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
             var row = {};
-            var q = queryExecute("
-                SELECT floatplanId, userId, status, returnTime, returnTimezone,
-                    floatPlanName, departing, returning, departureTime, departTimezone,
-                    rescueAuthority, rescueAuthorityPhone
-                FROM floatplans
-                WHERE floatplanId = :planId AND userId = :userId
-                LIMIT 1
-            ", {
+            var q = queryExecute("\n                SELECT floatplanId, userId, status, returnTime, returnTimezone,\n                    floatPlanName, departing, returning, departureTime, departTimezone,\n                    rescueAuthority, rescueAuthorityPhone\n                FROM floatplans\n                WHERE floatplanId = :planId AND userId = :userId\n                LIMIT 1\n            ", {
                 planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                 userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
             }, { datasource = "fpw" });
@@ -403,3 +386,4 @@
 
 
 </cfcomponent>
+

@@ -278,28 +278,25 @@
                 return out;
             }
 
-            if (qProgressClose.recordCount EQ 0) {
-                activeLegOrderClose = finalLegOrder;
-            } else {
-                for (i = 1; i LTE qLegsClose.recordCount; i++) {
-                    closeLegOrder = val(qLegsClose.leg_order[i]);
-                    closeLegStatus = (structKeyExists(progressStatusByLegClose, toString(closeLegOrder)) ? progressStatusByLegClose[toString(closeLegOrder)] : "NOT_STARTED");
-                    if (
-                        closeLegOrder GT highestCompletedLegOrderClose
-                        AND (
-                            structKeyExists(progressStartedByLegClose, toString(closeLegOrder))
-                            OR closeLegStatus EQ "STARTED"
-                            OR closeLegStatus EQ "IN_PROGRESS"
-                        )
-                    ) {
-                        activeLegOrderClose = closeLegOrder;
-                        break;
-                    }
+            for (i = 1; i LTE qLegsClose.recordCount; i++) {
+                closeLegOrder = val(qLegsClose.leg_order[i]);
+                closeLegStatus = (structKeyExists(progressStatusByLegClose, toString(closeLegOrder)) ? progressStatusByLegClose[toString(closeLegOrder)] : "NOT_STARTED");
+                if (
+                    closeLegOrder GT highestCompletedLegOrderClose
+                    AND (
+                        structKeyExists(progressStartedByLegClose, toString(closeLegOrder))
+                        OR closeLegStatus EQ "STARTED"
+                        OR closeLegStatus EQ "IN_PROGRESS"
+                    )
+                ) {
+                    activeLegOrderClose = closeLegOrder;
+                    break;
                 }
             }
 
             if (activeLegOrderClose LTE 0) {
-                out.MESSAGE = "All legs are already completed.";
+                out.SUCCESS = false;
+                out.MESSAGE = "Close Trip is only available once the final leg is active.";
                 return out;
             }
 
@@ -551,3 +548,4 @@
     </cffunction>
 
 </cfcomponent>
+

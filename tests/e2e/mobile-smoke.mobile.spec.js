@@ -3,17 +3,13 @@ if (!process.env.FPW_EMAIL || !process.env.FPW_PASSWORD) {
 }
 
 const { test, expect } = require("@playwright/test");
-const { loginApprovedUser } = require("./support/fpwSession");
+const { loginApprovedUser, openRouteBuilder } = require("./support/fpwSession");
 
 test.describe.configure({ timeout: 120000 });
 
 test("Mobile dashboard opens and closes Route Builder modal", async ({ page }) => {
   await loginApprovedUser(page);
-  await expect(page.locator("#openRouteBuilderBtn")).toBeVisible({ timeout: 30000 });
-
-  await page.click("#openRouteBuilderBtn");
-  await expect(page.locator("#routeBuilderModal")).toBeVisible({ timeout: 30000 });
-  await expect(page.locator("#fpwRouteGen")).toBeVisible({ timeout: 30000 });
+  await openRouteBuilder(page);
 
   await page.click("#routeGenCancelBtn");
   await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 30000 });
@@ -22,11 +18,7 @@ test("Mobile dashboard opens and closes Route Builder modal", async ({ page }) =
 
 test("Mobile route builder preview supports setup-panel scroll and map overlay reopen", async ({ page }) => {
   await loginApprovedUser(page);
-  await expect(page.locator("#openRouteBuilderBtn")).toBeVisible({ timeout: 30000 });
-
-  await page.click("#openRouteBuilderBtn");
-  await expect(page.locator("#routeBuilderModal")).toBeVisible({ timeout: 30000 });
-  await expect(page.locator("#fpwRouteGen")).toBeVisible({ timeout: 30000 });
+  await openRouteBuilder(page);
 
   const today = new Date().toISOString().slice(0, 10);
   await page.waitForFunction(() => {

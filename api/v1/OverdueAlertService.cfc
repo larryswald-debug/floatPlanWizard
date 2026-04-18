@@ -9,66 +9,10 @@
         <cfreturn this>
     </cffunction>
 
-    <cffunction name="getOverdueTiers" access="private" returntype="array" output="false">
-        <cfset var tiers = []>
-
-        <cfset arrayAppend(tiers, { "thresholdSeconds"=0,     "alertType"="DUE_NOW" })>
-        <cfset arrayAppend(tiers, { "thresholdSeconds"=3600,  "alertType"="OVERDUE_1H" })>
-        <cfset arrayAppend(tiers, { "thresholdSeconds"=7200,  "alertType"="OVERDUE_2H" })>
-        <cfset arrayAppend(tiers, { "thresholdSeconds"=10800, "alertType"="OVERDUE_3H" })>
-        <cfset arrayAppend(tiers, { "thresholdSeconds"=14400, "alertType"="OVERDUE_4H" })>
-        <cfset arrayAppend(tiers, { "thresholdSeconds"=43200, "alertType"="OVERDUE_12H" })>
-        <cfset arrayAppend(tiers, { "thresholdSeconds"=86400, "alertType"="OVERDUE_24H" })>
-
-        <cfreturn tiers>
-    </cffunction>
-
     <cffunction name="buildOverdueAlertJobs" access="public" returntype="array" output="false">
         <cfargument name="plans" type="array" required="true">
 
-        <cfset var jobs  = []>
-        <cfset var p     = {}>
-        <cfset var tiers = getOverdueTiers()>
-        <cfset var t     = {}>
-        <cfset var overdue = 0>
-        <cfset var bestTierType = "">
-
-        <cfloop array="#arguments.plans#" index="p">
-
-            <cfset bestTierType = "">
-
-            <cfif structKeyExists(p,"FLOATPLANID") AND structKeyExists(p,"OVERDUE_SECONDS")>
-                <cfset overdue = int(val(p.OVERDUE_SECONDS))>
-
-                <cfif overdue GTE 0>
-
-                    <!-- Highest eligible tier wins -->
-                    <cfloop array="#tiers#" index="t">
-                        <cfif overdue GTE int(val(t.thresholdSeconds))>
-                            <cfset bestTierType = toString(t.alertType)>
-                        <cfelse>
-                            <cfbreak>
-                        </cfif>
-                    </cfloop>
-
-                    <cfif len(bestTierType)>
-                        <cfset ensureHistory(int(val(p.FLOATPLANID)), bestTierType)>
-
-                        <cfif canAttempt(int(val(p.FLOATPLANID)), bestTierType)>
-                            <cfset arrayAppend(jobs,{
-                                "FLOATPLANID"     = int(val(p.FLOATPLANID)),
-                                "ALERTTYPE"       = bestTierType,
-                                "OVERDUE_SECONDS" = overdue
-                            })>
-                        </cfif>
-                    </cfif>
-
-                </cfif>
-            </cfif>
-
-        </cfloop>
-
-        <cfreturn jobs>
+        <cfreturn []>
     </cffunction>
 
     <cffunction name="getRecipientEmails" access="public" returntype="array" output="false">
@@ -160,26 +104,295 @@
         <cfreturn emails>
     </cffunction>
 
+    <cffunction name="loadFloatPlanAlertContext" access="private" returntype="struct" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+
+        <cfset var context = {
+            FLOATPLANID = int( arguments.floatPlanId ),
+            USERID = 0,
+            PLANNAME = "",
+            OWNEREMAIL = ""
+        }>
+
+        <cfquery name="qPlan" datasource="fpw">
+            SELECT fp.floatplanId, fp.userId, fp.floatPlanName, u.email AS ownerEmail
+            FROM floatplans fp
+            INNER JOIN users u ON u.userId = fp.userId
+            WHERE fp.floatplanId = <cfqueryparam value="#int(arguments.floatPlanId)#" cfsqltype="cf_sql_integer">
+            LIMIT 1
+        </cfquery>
+
+        <cfif qPlan.recordCount EQ 1>
+            <cfset context.FLOATPLANID = int( qPlan.floatplanId )>
+            <cfset context.USERID = int( qPlan.userId )>
+            <cfset context.PLANNAME = trim( toString( qPlan.floatPlanName ) )>
+            <cfset context.OWNEREMAIL = trim( toString( qPlan.ownerEmail ) )>
+        </cfif>
+
+        <cfreturn context>
+    </cffunction>
+
+    <cffunction name="getOwnerAlertEmails" access="private" returntype="array" output="false">
+        <cfargument name="planContext" type="struct" required="true">
+
+        <cfset var emails = []>
+        <cfset var ownerEmail = lcase( trim( toString( arguments.planContext.OWNEREMAIL ) ) )>
+
+        <cfif len( ownerEmail ) AND isValid( "email", ownerEmail )>
+            <cfset arrayAppend( emails, ownerEmail )>
+        </cfif>
+
+        <cfreturn emails>
+    </cffunction>
+
+    <cffunction name="getSelectedContactEmails" access="private" returntype="array" output="false">
+        <cfargument name="planContext" type="struct" required="true">
+
+        <cfset var emails = []>
+        <cfset var seen = {}>
+        <cfset var e = "">
+
+        <cfif int( arguments.planContext.FLOATPLANID ) LTE 0 OR int( arguments.planContext.USERID ) LTE 0>
+            <cfreturn emails>
+        </cfif>
+
+        <cfquery name="qContacts" datasource="fpw">
+            SELECT c.email
+            FROM floatplan_contacts fc
+            INNER JOIN floatplans fp ON fp.floatplanId = fc.floatplanId
+            INNER JOIN contacts c ON c.contactId = fc.contactId
+            WHERE fp.userId = <cfqueryparam value="#int(arguments.planContext.USERID)#" cfsqltype="cf_sql_integer">
+              AND fp.floatplanId = <cfqueryparam value="#int(arguments.planContext.FLOATPLANID)#" cfsqltype="cf_sql_integer">
+            ORDER BY fc.recId ASC
+        </cfquery>
+
+        <cfloop query="qContacts">
+            <cfif len( trim( qContacts.email ) )>
+                <cfset e = lcase( trim( qContacts.email ) )>
+                <cfif isValid( "email", e ) AND NOT structKeyExists( seen, e )>
+                    <cfset seen[ e ] = true>
+                    <cfset arrayAppend( emails, e )>
+                </cfif>
+            </cfif>
+        </cfloop>
+
+        <cfreturn emails>
+    </cffunction>
+
+    <cffunction name="buildMonitoringCycleAlertType" access="private" returntype="string" output="false">
+        <cfargument name="prefix" type="string" required="true">
+        <cfargument name="monitoringId" type="numeric" required="true">
+        <cfargument name="cycleAt" required="true">
+
+        <cfset var normalizedPrefix = uCase( trim( arguments.prefix ) )>
+        <cfset var cycleStamp = isDate( arguments.cycleAt ) ? dateTimeFormat( arguments.cycleAt, "yyyymmddHHnnss" ) : "unknown">
+        <cfset var fullAlertType = normalizedPrefix & "_" & int( arguments.monitoringId ) & "_" & cycleStamp>
+        <cfset var compactCycleStamp = isDate( arguments.cycleAt ) ? dateTimeFormat( arguments.cycleAt, "yymmddHHnnss" ) : "unknown">
+        <cfset var compactAlertType = normalizedPrefix & "_" & compactCycleStamp>
+
+        <cfif len( fullAlertType ) LTE 32>
+            <cfreturn fullAlertType>
+        </cfif>
+
+        <cfif len( compactAlertType ) LTE 32>
+            <cfreturn compactAlertType>
+        </cfif>
+
+        <cfreturn left( compactAlertType, 32 )>
+    </cffunction>
+
+    <cffunction name="buildMonitoringPlanName" access="private" returntype="string" output="false">
+        <cfargument name="planContext" type="struct" required="true">
+
+        <cfif len( trim( toString( arguments.planContext.PLANNAME ) ) )>
+            <cfreturn trim( toString( arguments.planContext.PLANNAME ) )>
+        </cfif>
+
+        <cfreturn "Float Plan ##" & int( arguments.planContext.FLOATPLANID )>
+    </cffunction>
+
+    <cffunction name="buildMonitoringTimestampLabel" access="private" returntype="string" output="false">
+        <cfargument name="eventAt" required="true">
+
+        <cfif isDate( arguments.eventAt )>
+            <cfreturn dateTimeFormat( arguments.eventAt, "mmm d, yyyy h:nn tt" )>
+        </cfif>
+
+        <cfreturn dateTimeFormat( now(), "mmm d, yyyy h:nn tt" )>
+    </cffunction>
+
+    <cffunction name="sendMonitoringMissedOwnerEmail" access="public" returntype="struct" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="monitoringId" type="numeric" required="true">
+        <cfargument name="missedAt" required="true">
+
+        <cfset var context = loadFloatPlanAlertContext( arguments.floatPlanId )>
+        <cfset var alertType = buildMonitoringCycleAlertType( "MISSED_OWNER", arguments.monitoringId, arguments.missedAt )>
+        <cfset var recipients = []>
+        <cfset var toList = "">
+        <cfset var planName = buildMonitoringPlanName( context )>
+        <cfset var eventLabel = buildMonitoringTimestampLabel( arguments.missedAt )>
+        <cfset var subject = "FPW Monitoring Alert: Missed Check-In - " & planName>
+        <cfset var body = "">
+
+        <cfset ensureHistory( int( arguments.floatPlanId ), alertType )>
+
+        <cfif int( context.USERID ) LTE 0>
+            <cfset markFailed( int( arguments.floatPlanId ), alertType, "Float plan context not found for missed owner alert." )>
+            <cfreturn {
+                "SUCCESS" = false,
+                "ERROR" = "CONTEXT_NOT_FOUND",
+                "ALERTTYPE" = alertType,
+                "RECIPIENT_COUNT" = 0,
+                "RECIPIENTS" = []
+            }>
+        </cfif>
+
+        <cfif NOT canAttempt( int( arguments.floatPlanId ), alertType )>
+            <cfreturn {
+                "SUCCESS" = true,
+                "SKIPPED" = true,
+                "ALERTTYPE" = alertType,
+                "RECIPIENT_COUNT" = 0,
+                "RECIPIENTS" = []
+            }>
+        </cfif>
+
+        <cfset recipients = getOwnerAlertEmails( context )>
+        <cfset toList = arrayToList( recipients, ", " )>
+        <cfset body = "Status: Missed Check-In" & chr(10)
+            & "Float Plan: " & planName & chr(10)
+            & "Timestamp: " & eventLabel & chr(10)
+            & "Float Plan ID: " & int( arguments.floatPlanId ) & chr(10)
+            & "Recipients: " & toList>
+
+        <cfif arrayLen( recipients ) EQ 0>
+            <cfset markFailed( int( arguments.floatPlanId ), alertType, "No owner/captain email found for missed monitoring alert." )>
+            <cfreturn {
+                "SUCCESS" = false,
+                "ERROR" = "NO_RECIPIENTS",
+                "ALERTTYPE" = alertType,
+                "RECIPIENT_COUNT" = 0,
+                "RECIPIENTS" = []
+            }>
+        </cfif>
+
+        <cftry>
+            <cfmail
+                to="#toList#"
+                from="alerts@fpw.test"
+                subject="#subject#"
+                type="text">#body#
+            </cfmail>
+            <cfset markSent( int( arguments.floatPlanId ), alertType )>
+            <cfreturn {
+                "SUCCESS" = true,
+                "ALERTTYPE" = alertType,
+                "RECIPIENT_COUNT" = arrayLen( recipients ),
+                "RECIPIENTS" = duplicate( recipients )
+            }>
+            <cfcatch>
+                <cfset markFailed( int( arguments.floatPlanId ), alertType, cfcatch.message )>
+                <cfreturn {
+                    "SUCCESS" = false,
+                    "ERROR" = "SEND_FAILED",
+                    "MESSAGE" = cfcatch.message,
+                    "ALERTTYPE" = alertType,
+                    "RECIPIENT_COUNT" = arrayLen( recipients ),
+                    "RECIPIENTS" = duplicate( recipients )
+                }>
+            </cfcatch>
+        </cftry>
+    </cffunction>
+
+    <cffunction name="sendMonitoringEscalatedContactEmail" access="public" returntype="struct" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="monitoringId" type="numeric" required="true">
+        <cfargument name="escalatedAt" required="true">
+
+        <cfset var context = loadFloatPlanAlertContext( arguments.floatPlanId )>
+        <cfset var alertType = buildMonitoringCycleAlertType( "ESCALATED_CONTACTS", arguments.monitoringId, arguments.escalatedAt )>
+        <cfset var recipients = []>
+        <cfset var toList = "">
+        <cfset var planName = buildMonitoringPlanName( context )>
+        <cfset var eventLabel = buildMonitoringTimestampLabel( arguments.escalatedAt )>
+        <cfset var subject = "FPW Monitoring Alert: Escalated - " & planName>
+        <cfset var body = "">
+
+        <cfset ensureHistory( int( arguments.floatPlanId ), alertType )>
+
+        <cfif int( context.USERID ) LTE 0>
+            <cfset markFailed( int( arguments.floatPlanId ), alertType, "Float plan context not found for escalated contact alert." )>
+            <cfreturn {
+                "SUCCESS" = false,
+                "ERROR" = "CONTEXT_NOT_FOUND",
+                "ALERTTYPE" = alertType,
+                "RECIPIENT_COUNT" = 0,
+                "RECIPIENTS" = []
+            }>
+        </cfif>
+
+        <cfif NOT canAttempt( int( arguments.floatPlanId ), alertType )>
+            <cfreturn {
+                "SUCCESS" = true,
+                "SKIPPED" = true,
+                "ALERTTYPE" = alertType,
+                "RECIPIENT_COUNT" = 0,
+                "RECIPIENTS" = []
+            }>
+        </cfif>
+
+        <cfset recipients = getSelectedContactEmails( context )>
+        <cfset toList = arrayToList( recipients, ", " )>
+        <cfset body = "Status: Escalated" & chr(10)
+            & "Float Plan: " & planName & chr(10)
+            & "Timestamp: " & eventLabel & chr(10)
+            & "Float Plan ID: " & int( arguments.floatPlanId ) & chr(10)
+            & "Recipients: " & toList>
+
+        <cfif arrayLen( recipients ) EQ 0>
+            <cfset markFailed( int( arguments.floatPlanId ), alertType, "No selected contact emails found for escalated monitoring alert." )>
+            <cfreturn {
+                "SUCCESS" = false,
+                "ERROR" = "NO_RECIPIENTS",
+                "ALERTTYPE" = alertType,
+                "RECIPIENT_COUNT" = 0,
+                "RECIPIENTS" = []
+            }>
+        </cfif>
+
+        <cftry>
+            <cfmail
+                to="#toList#"
+                from="alerts@fpw.test"
+                subject="#subject#"
+                type="text">#body#
+            </cfmail>
+            <cfset markSent( int( arguments.floatPlanId ), alertType )>
+            <cfreturn {
+                "SUCCESS" = true,
+                "ALERTTYPE" = alertType,
+                "RECIPIENT_COUNT" = arrayLen( recipients ),
+                "RECIPIENTS" = duplicate( recipients )
+            }>
+            <cfcatch>
+                <cfset markFailed( int( arguments.floatPlanId ), alertType, cfcatch.message )>
+                <cfreturn {
+                    "SUCCESS" = false,
+                    "ERROR" = "SEND_FAILED",
+                    "MESSAGE" = cfcatch.message,
+                    "ALERTTYPE" = alertType,
+                    "RECIPIENT_COUNT" = arrayLen( recipients ),
+                    "RECIPIENTS" = duplicate( recipients )
+                }>
+            </cfcatch>
+        </cftry>
+    </cffunction>
+
     <cffunction name="sendOverdueEmail" access="public" returntype="void" output="false">
         <cfargument name="job" type="struct" required="true">
 
-        <cfset var recipients = getRecipientEmails(arguments.job.FLOATPLANID)>
-        <cfset var toList = arrayToList(recipients, ", ")>
-
-        <cfif arrayLen(recipients) EQ 0>
-            <cfthrow message="No recipients found for floatPlanId=#arguments.job.FLOATPLANID#">
-        </cfif>
-
-        <cfmail
-            to="#toList#"
-            from="alerts@fpw.test"
-            subject="FPW Overdue Float Plan Alert (#arguments.job.ALERTTYPE#)"
-            type="text">
-Float Plan ID: #arguments.job.FLOATPLANID#
-Alert Type: #arguments.job.ALERTTYPE#
-Overdue Seconds: #arguments.job.OVERDUE_SECONDS#
-Recipients: #toList#
-        </cfmail>
+        <cfthrow message="Legacy overdue email path is retired." detail="Use canonical monitoring-cycle alerts from floatplan_monitoring.">
     </cffunction>
 
     <cffunction name="sendAssistanceNeededEmail" access="public" returntype="struct" output="false">
@@ -330,3 +543,5 @@ Recipients: #toList#
     </cffunction>
 
 </cfcomponent>
+
+

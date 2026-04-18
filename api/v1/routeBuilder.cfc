@@ -992,24 +992,23 @@
                     fp.floatplanId,
                     fp.floatPlanName,
                     fp.route_instance_id,
-                    UPPER(TRIM(fp.status)) AS statusValue
-                 FROM floatplans fp
-                 WHERE fp.userId = :userId
-                   AND UPPER(TRIM(fp.status)) IN (
-                        'ACTIVE',
-                        'DUE_NOW',
-                        'OVERDUE',
-                        'OVERDUE_1H',
-                        'OVERDUE_2H',
-                        'OVERDUE_3H',
-                        'OVERDUE_4H',
-                        'OVERDUE_12H',
-                        'OVERDUE_24H'
-                   )
-                 ORDER BY fp.floatplanId DESC
+                    UPPER(TRIM(m.monitor_state)) AS statusValue
+                 FROM floatplan_monitoring m
+                 INNER JOIN (
+                    SELECT MAX(id) AS id
+                    FROM floatplan_monitoring
+                    WHERE user_id = :monitorUserId
+                      AND is_monitoring_enabled = 1
+                      AND UPPER(TRIM(monitor_state)) <> 'CLOSED'
+                    GROUP BY float_plan_id
+                 ) latest ON latest.id = m.id
+                 INNER JOIN floatplans fp ON fp.floatplanId = m.float_plan_id
+                 WHERE fp.userId = :planUserId
+                 ORDER BY m.id DESC
                  LIMIT 2",
                 {
-                    userId = { value=arguments.userId, cfsqltype="cf_sql_integer" }
+                    monitorUserId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                    planUserId = { value=arguments.userId, cfsqltype="cf_sql_integer" }
                 },
                 { datasource = application.dsn }
             );
@@ -3355,6 +3354,7 @@
 	            var hasRouteInstancesTbl = false;
 	            var qFloatplanRouteCols = queryNew("");
 	            var hasFloatplanRouteCols = false;
+                var qActiveAttachedPlan = queryNew("");
 	            if (!isUserOwnedRoute(arguments.userId, code)) {
 	                return {
 	                    "SUCCESS"=false,
@@ -3403,6 +3403,42 @@
 	                );
 	                hasFloatplanRouteCols = (qFloatplanRouteCols.recordCount GT 0 AND val(qFloatplanRouteCols.cnt[1]) GTE 2);
 	            }
+                if (hasRouteInstancesTbl AND hasFloatplanRouteCols) {
+                    qActiveAttachedPlan = queryExecute(
+                        "SELECT fp.floatplanId
+                           FROM floatplans fp
+                           INNER JOIN route_instances ri ON ri.id = fp.route_instance_id
+                          WHERE fp.userId = :userId
+                            AND UPPER(TRIM(fp.`status`)) = 'ACTIVE'
+                            AND ri.user_id = :uid
+                            AND (
+                                ri.generated_route_id = :rid
+                                OR ri.generated_route_code = :rcode
+                            )
+                          ORDER BY fp.activatedAt DESC, fp.floatplanId DESC
+                          LIMIT 1",
+                        {
+                            userId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                            uid = { value=userIdText, cfsqltype="cf_sql_varchar" },
+                            rid = { value=routeId, cfsqltype="cf_sql_integer" },
+                            rcode = { value=code, cfsqltype="cf_sql_varchar" }
+                        },
+                        { datasource = application.dsn }
+                    );
+                    if (qActiveAttachedPlan.recordCount GT 0) {
+                        return {
+                            "SUCCESS"=false,
+                            "AUTH"=true,
+                            "MESSAGE"="Route is attached to an active float plan.",
+                            "ERROR"={
+                                "CODE"="ACTIVE_ROUTE_DELETE_BLOCKED",
+                                "MESSAGE"="This route is attached to the active float plan and cannot be deleted until that float plan is closed."
+                            },
+                            "FLOATPLANID"=val(qActiveAttachedPlan.floatplanId[1]),
+                            "ROUTE_CODE"=code
+                        };
+                    }
+                }
 	            transaction {
 	                if (hasRouteInstancesTbl AND hasFloatplanRouteCols) {
 	                    queryExecute(

@@ -580,6 +580,7 @@
       nextStop = "";
       currentLegDistNm = 0.0;
       planStatusRaw = "";
+      monitorStatusRaw = "";
       planStatusLabel = "";
       monitorStatus = "";
       paceKn = 0.0;
@@ -663,6 +664,7 @@
            fp.floatplanId,
            fp.floatPlanName,
            fp.status,
+           UPPER(TRIM(m.monitor_state)) AS monitor_state,
            fp.route_instance_id,
            fp.route_day_number,
            fp.checkedInAt,"
@@ -675,42 +677,32 @@
            fp.dailyStartLocalTime,
            fp.departing,
            fp.returning,
-           (
-             SELECT
-               COALESCE(
-                 CONVERT_TZ(
-                   m.expected_checkin_at,
-                   'UTC',
-                   NULLIF(COALESCE(NULLIF(fp.departureTZ, ''), NULLIF(fp.departTimezone, ''), 'UTC'), '')
-                 ),
-                 m.expected_checkin_at
-               )
-             FROM floatplan_monitoring m
-             WHERE m.float_plan_id = fp.floatplanId
-               AND m.is_monitoring_enabled = 1
-               AND UPPER(TRIM(m.monitor_state)) <> 'CLOSED'
-             ORDER BY m.id DESC
-             LIMIT 1
+           COALESCE(
+             CONVERT_TZ(
+               m.expected_checkin_at,
+               'UTC',
+               NULLIF(COALESCE(NULLIF(fp.departureTZ, ''), NULLIF(fp.departTimezone, ''), 'UTC'), '')
+             ),
+             m.expected_checkin_at
            ) AS expected_checkin_at
-         FROM floatplans fp
-         WHERE fp.userId = :userId
-           AND UPPER(TRIM(fp.status)) IN (
-             'ACTIVE',
-             'DUE_NOW',
-             'OVERDUE',
-             'OVERDUE_1H',
-             'OVERDUE_2H',
-             'OVERDUE_3H',
-             'OVERDUE_4H',
-             'OVERDUE_12H',
-             'OVERDUE_24H'
-           )
-         ORDER BY floatplanId DESC
+         FROM floatplan_monitoring m
+         INNER JOIN (
+           SELECT MAX(id) AS id
+           FROM floatplan_monitoring
+           WHERE user_id = :monitorUserId
+             AND is_monitoring_enabled = 1
+             AND UPPER(TRIM(monitor_state)) <> 'CLOSED'
+           GROUP BY float_plan_id
+         ) latest ON latest.id = m.id
+         INNER JOIN floatplans fp ON fp.floatplanId = m.float_plan_id
+         WHERE fp.userId = :planUserId
+         ORDER BY m.id DESC
          LIMIT 2";
       qCanonicalPlan = queryExecute(
         qPlanSql,
         {
-          userId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" }
+          monitorUserId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" },
+          planUserId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" }
         },
         { datasource = activeCruiseDatasource }
       );
@@ -804,11 +796,12 @@
           canonicalTripStartDt = fpwQueryCell(qPlan, "departureTime", 1, "");
         }
         planStatusRaw = trim(toString(fpwQueryCell(qPlan, "status", 1, "")));
+        monitorStatusRaw = trim(toString(fpwQueryCell(qPlan, "monitor_state", 1, "")));
         planStatusLabel = fpwStatusLabel(planStatusRaw, "Active");
         if (NOT len(planStatusLabel)) {
           planStatusLabel = "Unknown";
         }
-        monitorStatus = fpwStatusLabel(planStatusRaw, "Normal");
+        monitorStatus = fpwStatusLabel(monitorStatusRaw, "Normal");
         if (NOT len(monitorStatus)) {
           monitorStatus = "Unknown";
         }
@@ -4858,3 +4851,4 @@
   </cfif>
 </body>
 </html>
+

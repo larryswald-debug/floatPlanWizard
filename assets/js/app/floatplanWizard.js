@@ -1594,11 +1594,11 @@
         if (this.fp && this.fp.FLOATPLAN && this.fp.FLOATPLAN.STATUS !== undefined) {
           statusVal = String(this.fp.FLOATPLAN.STATUS || "").trim().toUpperCase();
         }
-        if (this.step === this.totalSteps && (statusVal === "ACTIVE" || statusVal === "OVERDUE")) {
+        if (this.step === this.totalSteps && statusVal.length && statusVal !== "DRAFT" && statusVal !== "CLOSED") {
           if (window.FPW && window.FPW.DashboardUtils && window.FPW.DashboardUtils.showAlertModal) {
-            window.FPW.DashboardUtils.showAlertModal("Active or overdue float plans cannot be deleted.");
+            window.FPW.DashboardUtils.showAlertModal("Only draft or closed float plans can be deleted.");
           } else {
-            window.alert("Active or overdue float plans cannot be deleted.");
+            window.alert("Only draft or closed float plans can be deleted.");
           }
           return;
         }
@@ -1730,3 +1730,5 @@
     initWizard({ mountEl: autoMountEl });
   }
 })(window, document, window.Vue);
+
+

@@ -310,43 +310,8 @@ test("Route Builder saves and clears leg override via deterministic geometry hoo
   await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 15000 });
 });
 
-test("Route Builder weather suggestion assist applies manually and preview keeps manual weather factor payload", async ({ page }) => {
-  const weatherZipPayload = {
-    SUCCESS: true,
-    DATA: {
-      FORECAST: [
-        { windSpeed: "18 to 26 mph", gustMph: 31 }
-      ],
-      ALERTS: [
-        { severity: "Moderate" },
-        { severity: "Severe" }
-      ],
-      MARINE: {
-        wave_height_ft: 3.6
-      },
-      surface: {
-        visibility_mi: "10+",
-        pressure_inhg: "30.22",
-        pressure_trend: null
-      }
-    }
-  };
+test("Route Builder keeps manual weather factor payload while weather assist stays hidden", async ({ page }) => {
   let lastPreviewWeatherFactor = "";
-  let weatherSearchRequestCount = 0;
-
-  await page.route("**/api/v1/weather.cfc?*", async (route) => {
-    const url = route.request().url();
-    if (/action=search/i.test(url)) {
-      weatherSearchRequestCount += 1;
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(weatherZipPayload)
-      });
-      return;
-    }
-    await route.continue();
-  });
 
   await page.route("**/api/v1/routeBuilder.cfc?*", async (route) => {
     const request = route.request();
@@ -402,37 +367,8 @@ test("Route Builder weather suggestion assist applies manually and preview keeps
   await page.selectOption("#routeGenEndLocation", { index: 1 });
 
   await waitForPreviewWhenReady(page);
-  await expect(page.locator("#routeGenWeatherSuggestRefreshBtn")).toBeVisible({ timeout: 10000 });
-  await page.click("#routeGenWeatherSuggestRefreshBtn");
-  await expect(page.locator("#routeGenWeatherSuggestValue")).toHaveText(/^\d+%$/, { timeout: 15000 });
-  await expect(page.locator("#routeGenWeatherSuggestApplyBtn")).toBeEnabled({ timeout: 10000 });
-  await expect(page.locator("#routeGenWeatherSuggestFactors")).toContainText("Pressure 30.22 inHg", { timeout: 10000 });
-  await expect(page.locator("#routeGenWeatherSuggestFactors")).not.toContainText(/null/i, { timeout: 10000 });
-
-  const suggestedPct = await page.evaluate(() => {
-    var text = String((document.getElementById("routeGenWeatherSuggestValue") || {}).textContent || "");
-    var n = parseInt(text.replace(/[^0-9]/g, ""), 10);
-    return Number.isFinite(n) ? n : -1;
-  });
-  expect(suggestedPct).toBeGreaterThanOrEqual(0);
-  expect(suggestedPct).toBeLessThanOrEqual(60);
-
-  await page.click("#routeGenWeatherSuggestApplyBtn");
-  await expect(page.locator("#routeGenWeatherFactorPct")).toHaveValue(/^\d+$/, { timeout: 10000 });
-  const appliedPct = await page.evaluate(() => {
-    var input = document.getElementById("routeGenWeatherFactorPct");
-    var txt = input ? String(input.value || "") : "";
-    var n = parseInt(txt.replace(/[^0-9]/g, ""), 10);
-    return Number.isFinite(n) ? n : -1;
-  });
-  const suggestedPctAfterApply = await page.evaluate(() => {
-    var text = String((document.getElementById("routeGenWeatherSuggestValue") || {}).textContent || "");
-    var n = parseInt(text.replace(/[^0-9]/g, ""), 10);
-    return Number.isFinite(n) ? n : -1;
-  });
-  expect(appliedPct).toBeGreaterThanOrEqual(0);
-  expect(appliedPct).toBeLessThanOrEqual(60);
-  expect(appliedPct).toBe(suggestedPctAfterApply);
+  await expect(page.locator("#routeGenWeatherAssist")).toBeHidden({ timeout: 10000 });
+  await expect(page.locator("#routeGenWeatherFactorPct")).toBeVisible({ timeout: 10000 });
 
   const previewRefreshPromise = page.waitForResponse((response) => {
     return response.request().method() === "POST"
@@ -450,7 +386,6 @@ test("Route Builder weather suggestion assist applies manually and preview keeps
     return rows.length > 0;
   }, { timeout: 30000 });
   expect(lastPreviewWeatherFactor).toBe("13");
-  expect(weatherSearchRequestCount).toBeGreaterThan(0);
 
   await page.click("#routeGenCancelBtn");
   await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 15000 });

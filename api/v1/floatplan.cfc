@@ -146,10 +146,6 @@
                             ? toString(body.checkinContext)
                             : (structKeyExists(body, "checkin_context") ? toString(body.checkin_context) : "")
                     )>
-                    <cfset var allowRouteLessFinalClose = false>
-                    <cfset var qRouteLessClosePlan = queryNew("")>
-                    <cfset var routeLessCloseStatus = "">
-                    <cfset var routeLessCloseInstanceId = 0>
                     <cfif structKeyExists(body, "floatPlanId")>
                         <cfset checkinId = val(body.floatPlanId)>
                     <cfelseif structKeyExists(url, "floatPlanId")>
@@ -158,29 +154,7 @@
                         <cfset checkinId = val(url.id)>
                     </cfif>
                     <cfset var activeCruiseCheckinGuard = resolveCanonicalActiveFloatPlan(userId, checkinId)>
-                    <cfif !len(checkinStatus) AND !len(trim(checkinNote)) AND !len(checkinContext) AND checkinId GT 0>
-                        <cfset qRouteLessClosePlan = queryExecute(
-                            "SELECT route_instance_id, UPPER(TRIM(`status`)) AS statusValue
-                               FROM floatplans
-                              WHERE floatplanId = :planId
-                                AND userId = :userId
-                              LIMIT 1",
-                            {
-                                planId = { value = checkinId, cfsqltype = "cf_sql_integer" },
-                                userId = { value = userId, cfsqltype = "cf_sql_integer" }
-                            },
-                            { datasource = "fpw" }
-                        )>
-                        <cfif qRouteLessClosePlan.recordCount EQ 1>
-                            <cfset routeLessCloseStatus = trim(toString(qRouteLessClosePlan.statusValue[1]))>
-                            <cfset routeLessCloseInstanceId = isNull(qRouteLessClosePlan.route_instance_id[1]) ? 0 : val(qRouteLessClosePlan.route_instance_id[1])>
-                            <cfset allowRouteLessFinalClose = (
-                                routeLessCloseInstanceId LTE 0
-                                AND listFindNoCase("ACTIVE,DUE_NOW,OVERDUE,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H", routeLessCloseStatus) GT 0
-                            )>
-                        </cfif>
-                    </cfif>
-                    <cfif NOT activeCruiseCheckinGuard.SUCCESS AND NOT allowRouteLessFinalClose>
+                    <cfif NOT activeCruiseCheckinGuard.SUCCESS>
                         <cfset activeCruiseCheckinGuard.AUTH = true>
                         <cfoutput>#serializeJSON(activeCruiseCheckinGuard)#</cfoutput>
                     <cfelseif compareNoCase(checkinStatus, "Arrived") EQ 0>
@@ -610,22 +584,22 @@
             }
 
             qPlan = queryExecute(
-                "SELECT floatplanId, route_instance_id, UPPER(TRIM(`status`)) AS statusValue
-                   FROM floatplans
-                  WHERE userId = :userId
-                    AND UPPER(TRIM(`status`)) IN (
-                        'ACTIVE',
-                        'DUE_NOW',
-                        'OVERDUE',
-                        'OVERDUE_1H',
-                        'OVERDUE_2H',
-                        'OVERDUE_3H',
-                        'OVERDUE_4H',
-                        'OVERDUE_12H',
-                        'OVERDUE_24H'
-                    )
-                  ORDER BY floatplanId DESC
-                  LIMIT 2",
+                "SELECT
+                    fp.floatplanId,
+                    fp.route_instance_id,
+                    UPPER(TRIM(m.monitor_state)) AS monitorState
+                 FROM floatplan_monitoring m
+                 INNER JOIN (
+                    SELECT MAX(id) AS id
+                    FROM floatplan_monitoring
+                    WHERE user_id = :userId
+                      AND is_monitoring_enabled = 1
+                      AND UPPER(TRIM(monitor_state)) <> 'CLOSED'
+                    GROUP BY float_plan_id
+                 ) latest ON latest.id = m.id
+                 INNER JOIN floatplans fp ON fp.floatplanId = m.float_plan_id
+                 ORDER BY m.id DESC
+                 LIMIT 2",
                 {
                     userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
                 },
@@ -645,8 +619,8 @@
             }
 
             result.FLOATPLANID = val(qPlan.floatplanId[1]);
-            result.ROUTE_INSTANCE_ID = val(qPlan.route_instance_id[1]);
-            result.STATUS = trim(toString(qPlan.statusValue[1]));
+            result.ROUTE_INSTANCE_ID = isNull(qPlan.route_instance_id[1]) ? 0 : val(qPlan.route_instance_id[1]);
+            result.STATUS = trim(toString(qPlan.monitorState[1]));
 
             if (result.FLOATPLANID NEQ arguments.floatPlanId) {
                 result.ERROR = "ACTIVE_PLAN_MISMATCH";
@@ -1951,7 +1925,6 @@
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
             var result = { SUCCESS = false };
-            var allowedStatuses = "ACTIVE,OVERDUE,DUE_NOW,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H";
             var updateSql = "";
             var monitoringService = {};
             var monitoringResult = {};
@@ -1961,6 +1934,7 @@
             var requiresRouteCloseValidation = false;
             var scheduledStartState = {};
             var allowMissingMonitoringClose = false;
+            var hasOpenMonitoring = false;
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
                 result.MESSAGE = "Float plan id is required.";
@@ -1968,11 +1942,27 @@
             }
 
             qPlan = queryExecute(
-                "SELECT route_instance_id, UPPER(TRIM(`status`)) AS statusValue
-                   FROM floatplans
-                  WHERE floatplanId = :planId
-                    AND userId = :userId
-                  LIMIT 1",
+                "SELECT
+                    fp.route_instance_id,
+                    UPPER(TRIM(fp.`status`)) AS statusValue,
+                    m.id AS monitoringId,
+                    UPPER(TRIM(m.monitor_state)) AS monitorState
+                 FROM floatplans fp
+                 LEFT JOIN (
+                    SELECT m1.id, m1.float_plan_id, m1.monitor_state
+                    FROM floatplan_monitoring m1
+                    INNER JOIN (
+                        SELECT MAX(id) AS id
+                        FROM floatplan_monitoring
+                        WHERE float_plan_id = :planId
+                          AND is_monitoring_enabled = 1
+                          AND UPPER(TRIM(monitor_state)) <> 'CLOSED'
+                        GROUP BY float_plan_id
+                    ) latest ON latest.id = m1.id
+                 ) m ON m.float_plan_id = fp.floatplanId
+                 WHERE fp.floatplanId = :planId
+                   AND fp.userId = :userId
+                 LIMIT 1",
                 {
                     planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                     userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
@@ -1989,8 +1979,30 @@
             planStatus = trim(toString(qPlan.statusValue[1]));
             routeInstanceId = isNull(qPlan.route_instance_id[1]) ? 0 : val(qPlan.route_instance_id[1]);
             requiresRouteCloseValidation = (routeInstanceId GT 0);
+            hasOpenMonitoring = (!isNull(qPlan.monitoringId[1]) AND val(qPlan.monitoringId[1]) GT 0);
 
-            if (listFindNoCase(allowedStatuses, planStatus) EQ 0) {
+            if (requiresRouteCloseValidation) {
+                if (!hasOpenMonitoring) {
+                    if (planStatus EQ "ACTIVE") {
+                        allowMissingMonitoringClose = true;
+                    } else {
+                        scheduledStartState = getScheduledStartStateForFloatPlan(arguments.userId, arguments.floatPlanId);
+                        if (
+                            structKeyExists(scheduledStartState, "SUCCESS")
+                            AND scheduledStartState.SUCCESS
+                            AND structKeyExists(scheduledStartState, "TRIP_STARTED")
+                            AND !booleanValue(scheduledStartState.TRIP_STARTED)
+                        ) {
+                            allowMissingMonitoringClose = true;
+                        }
+                    }
+                    if (!allowMissingMonitoringClose) {
+                        result.ERROR = "NO_ACTIVE_PLAN";
+                        result.MESSAGE = "No active float plan is available for check-in.";
+                        return result;
+                    }
+                }
+            } else if (!hasOpenMonitoring AND planStatus NEQ "ACTIVE") {
                 result.ERROR = "NO_ACTIVE_PLAN";
                 result.MESSAGE = "No active float plan is available for check-in.";
                 return result;
@@ -2036,22 +2048,10 @@
                 return result;
             }
 
-            if (requiresRouteCloseValidation) {
-                scheduledStartState = getScheduledStartStateForFloatPlan(arguments.userId, arguments.floatPlanId);
-                if (
-                    structKeyExists(scheduledStartState, "SUCCESS")
-                    AND scheduledStartState.SUCCESS
-                    AND structKeyExists(scheduledStartState, "TRIP_STARTED")
-                    AND !booleanValue(scheduledStartState.TRIP_STARTED)
-                ) {
-                    allowMissingMonitoringClose = true;
-                }
-            }
-
             updateSql =
                 "UPDATE floatplans
                  SET
-                    `status` = 'CLOSED',
+                    `status` = 'Draft',
                     checkedInAt = UTC_TIMESTAMP(),"
                     & "
                     checkin_context = NULL,
@@ -2059,7 +2059,7 @@
                     lastUpdateStatus = UTC_TIMESTAMP()
                  WHERE floatplanId = :planId
                    AND userId = :userId
-                   AND UPPER(TRIM(`status`)) IN (#listQualify(allowedStatuses, "'")#)";
+                   AND UPPER(TRIM(`status`)) NOT IN ('DRAFT','CLOSED')";
 
             transaction {
                 queryExecute(updateSql, {
@@ -2089,7 +2089,7 @@
 
             result.SUCCESS = true;
             result.FLOATPLANID = arguments.floatPlanId;
-            result.STATUS = "CLOSED";
+            result.STATUS = "DRAFT";
             return result;
         </cfscript>
     </cffunction>
@@ -3155,6 +3155,8 @@
             var startGateState = {};
             var shouldStartOperationally = false;
             var operationalStartResult = {};
+            var qExistingActivePlan = queryNew("");
+            var qRouteReuse = queryNew("");
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "MISSING_PLAN_ID";
@@ -3180,41 +3182,71 @@
             }
 
             var routeInstanceId = val(pickValue(plan, ["ROUTE_INSTANCE_ID", "route_instance_id"], 0));
-            if (routeInstanceId GT 0 AND !userOwnsRouteInstance(arguments.userId, routeInstanceId)) {
-                result.ERROR = "INVALID_ROUTE";
+            if (routeInstanceId LTE 0 OR !userOwnsRouteInstance(arguments.userId, routeInstanceId)) {
+                result.ERROR = "ROUTE_REQUIRED_FOR_ACTIVATION";
                 result.MESSAGE = "A valid route is required before activating this float plan.";
                 return result;
             }
 
-            var qExistingMonitored = queryExecute(
-                "SELECT floatplanId, UPPER(TRIM(`status`)) AS statusValue
-                   FROM floatplans
-                  WHERE userId = :userId
-                    AND floatplanId <> :planId
-                    AND UPPER(TRIM(`status`)) IN (
-                        'ACTIVE',
-                        'DUE_NOW',
-                        'OVERDUE',
-                        'OVERDUE_1H',
-                        'OVERDUE_2H',
-                        'OVERDUE_3H',
-                        'OVERDUE_4H',
-                        'OVERDUE_12H',
-                        'OVERDUE_24H'
-                    )
-                  ORDER BY floatplanId DESC
-                  LIMIT 1",
+            qExistingActivePlan = queryExecute(
+                "SELECT
+                    floatplanId,
+                    route_instance_id,
+                    UPPER(TRIM(`status`)) AS statusValue
+                 FROM floatplans
+                 WHERE userId = :userId
+                   AND floatplanId <> :planId
+                   AND UPPER(TRIM(`status`)) = 'ACTIVE'
+                 ORDER BY activatedAt DESC, floatplanId DESC
+                 LIMIT 1",
                 {
                     userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
                     planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
                 },
                 { datasource = "fpw" }
             );
-            if (qExistingMonitored.recordCount GT 0) {
+            if (qExistingActivePlan.recordCount GT 0) {
                 result.ERROR = "ACTIVE_PLAN_EXISTS";
-                result.MESSAGE = "Another active or overdue float plan already exists. Close it before activating this trip.";
-                result.EXISTING_FLOATPLANID = val(qExistingMonitored.floatplanId[1]);
-                result.EXISTING_STATUS = trim(toString(qExistingMonitored.statusValue[1]));
+                result.MESSAGE = "Another active float plan is already open. Close it before activating this trip.";
+                result.EXISTING_FLOATPLANID = val(qExistingActivePlan.floatplanId[1]);
+                result.EXISTING_ROUTE_INSTANCE_ID = isNull(qExistingActivePlan.route_instance_id[1]) ? 0 : val(qExistingActivePlan.route_instance_id[1]);
+                result.EXISTING_STATUS = trim(toString(qExistingActivePlan.statusValue[1]));
+                return result;
+            }
+
+            qRouteReuse = queryExecute(
+                "SELECT
+                    floatplanId,
+                    UPPER(TRIM(`status`)) AS statusValue
+                 FROM floatplans
+                 WHERE userId = :userId
+                   AND route_instance_id = :routeInstanceId
+                   AND (
+                        activatedAt IS NOT NULL
+                        OR initialSentAt IS NOT NULL
+                        OR checkedInAt IS NOT NULL
+                        OR closedAt IS NOT NULL
+                        OR UPPER(TRIM(`status`)) <> 'DRAFT'
+                   )
+                 ORDER BY
+                    CASE WHEN floatplanId = :planId THEN 0 ELSE 1 END ASC,
+                    activatedAt DESC,
+                    initialSentAt DESC,
+                    closedAt DESC,
+                    floatplanId DESC
+                 LIMIT 1",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+            if (qRouteReuse.recordCount GT 0) {
+                result.ERROR = "ROUTE_ALREADY_HAS_FLOAT_PLAN";
+                result.MESSAGE = "This route already has a historical float plan. Use Activate Route to create a replacement draft before sending again.";
+                result.EXISTING_FLOATPLANID = val(qRouteReuse.floatplanId[1]);
+                result.EXISTING_STATUS = trim(toString(qRouteReuse.statusValue[1]));
                 return result;
             }
 
@@ -3381,6 +3413,7 @@
             };
             var startState = {};
             var operationalStartResult = {};
+            var qMonitoring = queryNew("");
 
             startState = getScheduledStartStateForFloatPlan(arguments.userId, arguments.floatPlanId);
             if (!startState.SUCCESS) {
@@ -3395,12 +3428,21 @@
                 return result;
             }
 
-            if (
-                listFindNoCase(
-                    "ACTIVE,DUE_NOW,OVERDUE,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H",
-                    result.STATUS
-                ) EQ 0
-            ) {
+            qMonitoring = queryExecute(
+                "SELECT id
+                 FROM floatplan_monitoring
+                 WHERE float_plan_id = :planId
+                   AND is_monitoring_enabled = 1
+                   AND UPPER(TRIM(monitor_state)) <> 'CLOSED'
+                 ORDER BY id DESC
+                 LIMIT 1",
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+
+            if (qMonitoring.recordCount EQ 0 AND listFindNoCase("DRAFT,CLOSED", result.STATUS) GT 0) {
                 result.MESSAGE = "Float plan is not in an operational monitoring state.";
                 return result;
             }
@@ -3673,17 +3715,7 @@
                      activatedAt = COALESCE(activatedAt, UTC_TIMESTAMP())
                  WHERE floatplanId = :planId
                    AND userId = :userId
-                   AND UPPER(TRIM(`status`)) IN (
-                        'ACTIVE',
-                        'DUE_NOW',
-                        'OVERDUE',
-                        'OVERDUE_1H',
-                        'OVERDUE_2H',
-                        'OVERDUE_3H',
-                        'OVERDUE_4H',
-                        'OVERDUE_12H',
-                        'OVERDUE_24H'
-                   )",
+                   AND UPPER(TRIM(`status`)) NOT IN ('DRAFT','CLOSED')",
                 {
                     planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                     userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
@@ -3918,3 +3950,13 @@
     </cffunction>
 
 </cfcomponent>
+
+
+
+
+
+
+
+
+
+
