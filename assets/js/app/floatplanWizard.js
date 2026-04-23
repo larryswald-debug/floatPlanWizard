@@ -1590,6 +1590,14 @@
         if (planId <= 0) {
           return;
         }
+        if (this.isFromRoutePlan()) {
+          if (window.FPW && window.FPW.DashboardUtils && window.FPW.DashboardUtils.showAlertModal) {
+            window.FPW.DashboardUtils.showAlertModal("Delete the parent route to remove a route-linked float plan.");
+          } else {
+            window.alert("Delete the parent route to remove a route-linked float plan.");
+          }
+          return;
+        }
         var statusVal = "";
         if (this.fp && this.fp.FLOATPLAN && this.fp.FLOATPLAN.STATUS !== undefined) {
           statusVal = String(this.fp.FLOATPLAN.STATUS || "").trim().toUpperCase();
@@ -1730,5 +1738,4 @@
     initWizard({ mountEl: autoMountEl });
   }
 })(window, document, window.Vue);
-
 

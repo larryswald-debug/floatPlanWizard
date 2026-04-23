@@ -366,6 +366,38 @@
     return result;
   }
 
+  function fpwResolveCurrentActiveCruiseGroup(required numeric userId) {
+    var result = {
+      SUCCESS = false,
+      HAS_CURRENT_GROUP = false,
+      IS_ACTIVE = false,
+      MESSAGE = "No active trip is available."
+    };
+    var floatPlanComponent = "";
+
+    if (arguments.userId LTE 0) {
+      result.MESSAGE = "A valid owner is required.";
+      return result;
+    }
+
+    try {
+      floatPlanComponent = createObject("component", "fpw.api.v1.floatplan");
+    } catch (any floatPlanPathErr) {
+      floatPlanComponent = createObject("component", "api.v1.floatplan");
+    }
+
+    result = floatPlanComponent.resolveCurrentRouteFloatPlanGroup(arguments.userId);
+    if (!isStruct(result)) {
+      result = {
+        SUCCESS = false,
+        HAS_CURRENT_GROUP = false,
+        IS_ACTIVE = false,
+        MESSAGE = "No active trip is available."
+      };
+    }
+    return result;
+  }
+
   function fpwGetCanonicalFuelEstimate(required struct routeInputs, required numeric distanceNm, any idleFuelGallons=0) {
     var result = {
       SUCCESS = false,
@@ -438,7 +470,7 @@
 
   activeCruiseAccessValid = false;
   activeCruiseAccessTitle = "No Active Trip";
-  activeCruiseAccessMessage = "Active Cruise is available only for your current monitored trip.";
+  activeCruiseAccessMessage = "Active Cruise is available only for your current active trip.";
   activeCruiseAccessDetail = "Open this page from the one active float plan tied to your trip.";
 
   activeCruiseView = {
@@ -618,6 +650,7 @@
       qInstInputs = queryNew("");
       qTripStart = queryNew("");
       qPlanSql = "";
+      currentGroup = {};
       qCanonicalPlan = queryNew("");
       requestedFloatPlanId = activeCruiseContext.requestedFloatPlanId;
       hasVoyageTables = false;
@@ -659,63 +692,21 @@
       timelineItems = [];
       timelinePostDt = "";
 
-      qPlanSql =
-        "SELECT
-           fp.floatplanId,
-           fp.floatPlanName,
-           fp.status,
-           UPPER(TRIM(m.monitor_state)) AS monitor_state,
-           fp.route_instance_id,
-           fp.route_day_number,
-           fp.checkedInAt,"
-           & "
-           fp.checkin_context,
-           fp.returnTime,
-           fp.returnTimezone,
-           fp.departureTime,
-           fp.departureTZ,
-           fp.dailyStartLocalTime,
-           fp.departing,
-           fp.returning,
-           COALESCE(
-             CONVERT_TZ(
-               m.expected_checkin_at,
-               'UTC',
-               NULLIF(COALESCE(NULLIF(fp.departureTZ, ''), NULLIF(fp.departTimezone, ''), 'UTC'), '')
-             ),
-             m.expected_checkin_at
-           ) AS expected_checkin_at
-         FROM floatplan_monitoring m
-         INNER JOIN (
-           SELECT MAX(id) AS id
-           FROM floatplan_monitoring
-           WHERE user_id = :monitorUserId
-             AND is_monitoring_enabled = 1
-             AND UPPER(TRIM(monitor_state)) <> 'CLOSED'
-           GROUP BY float_plan_id
-         ) latest ON latest.id = m.id
-         INNER JOIN floatplans fp ON fp.floatplanId = m.float_plan_id
-         WHERE fp.userId = :planUserId
-         ORDER BY m.id DESC
-         LIMIT 2";
-      qCanonicalPlan = queryExecute(
-        qPlanSql,
-        {
-          monitorUserId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" },
-          planUserId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" }
-        },
-        { datasource = activeCruiseDatasource }
-      );
+      currentGroup = fpwResolveCurrentActiveCruiseGroup(activeCruiseUserId);
 
-      if (qCanonicalPlan.recordCount EQ 0) {
+      if (
+        isStruct(currentGroup)
+        AND structKeyExists(currentGroup, "ERROR")
+        AND trim(toString(currentGroup.ERROR)) EQ "MULTIPLE_ACTIVE_GROUPS"
+      ) {
+        activeCruiseAccessMessage = "Active Cruise is unavailable because more than one active route/float-plan group exists.";
+        activeCruiseAccessDetail = "Resolve the extra active group before using this page.";
+      } else if (!currentGroup.SUCCESS OR !currentGroup.IS_ACTIVE) {
         activeCruiseAccessMessage = "No active trip is available for this account.";
-        activeCruiseAccessDetail = "Active Cruise only loads the current monitored float plan.";
-      } else if (qCanonicalPlan.recordCount GT 1) {
-        activeCruiseAccessMessage = "Active Cruise is unavailable because more than one monitored float plan is active.";
-        activeCruiseAccessDetail = "Resolve the extra monitored trip before using this page.";
+        activeCruiseAccessDetail = "Active Cruise only loads the current active float plan.";
       } else {
-        activeCruiseContext.floatPlanId = val(fpwQueryCell(qCanonicalPlan, "floatplanId", 1, 0));
-        activeCruiseContext.routeInstanceId = val(fpwQueryCell(qCanonicalPlan, "route_instance_id", 1, 0));
+        activeCruiseContext.floatPlanId = val(structKeyExists(currentGroup, "FLOATPLANID") ? currentGroup.FLOATPLANID : 0);
+        activeCruiseContext.routeInstanceId = val(structKeyExists(currentGroup, "ROUTE_INSTANCE_ID") ? currentGroup.ROUTE_INSTANCE_ID : 0);
 
         if (requestedFloatPlanId GT 0 AND requestedFloatPlanId NEQ activeCruiseContext.floatPlanId) {
           activeCruiseAccessMessage = "This Active Cruise link does not match your current active trip.";
@@ -727,7 +718,66 @@
           activeCruiseAccessDetail = "Active Cruise requires a route-linked active float plan.";
           activeCruiseContext.floatPlanId = 0;
         } else {
-          qPlan = qCanonicalPlan;
+          qPlanSql =
+            "SELECT
+               fp.floatplanId,
+               fp.floatPlanName,
+               fp.status,
+               UPPER(TRIM(COALESCE(NULLIF(m.monitor_state, ''), fp.status))) AS monitor_state,
+               fp.route_instance_id,
+               fp.route_day_number,
+               fp.checkedInAt,"
+               & "
+               fp.checkin_context,
+               fp.returnTime,
+               fp.returnTimezone,
+               fp.departureTime,
+               fp.departureTZ,
+               fp.dailyStartLocalTime,
+               fp.departing,
+               fp.returning,
+               COALESCE(
+                 CONVERT_TZ(
+                   m.expected_checkin_at,
+                   'UTC',
+                   NULLIF(COALESCE(NULLIF(fp.departureTZ, ''), NULLIF(fp.departTimezone, ''), 'UTC'), '')
+                 ),
+                 m.expected_checkin_at
+               ) AS expected_checkin_at
+             FROM floatplans fp
+             LEFT JOIN (
+               SELECT
+                 m1.float_plan_id,
+                 m1.monitor_state,
+                 m1.expected_checkin_at
+               FROM floatplan_monitoring m1
+               INNER JOIN (
+                 SELECT MAX(id) AS id
+                 FROM floatplan_monitoring
+                 WHERE user_id = :monitorUserId
+                   AND is_monitoring_enabled = 1
+                   AND UPPER(TRIM(monitor_state)) <> 'CLOSED'
+                 GROUP BY float_plan_id
+               ) latest ON latest.id = m1.id
+             ) m ON m.float_plan_id = fp.floatplanId
+             WHERE fp.floatplanId = :floatPlanId
+               AND fp.userId = :planUserId
+             LIMIT 1";
+          qPlan = queryExecute(
+            qPlanSql,
+            {
+              monitorUserId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" },
+              floatPlanId = { value = activeCruiseContext.floatPlanId, cfsqltype = "cf_sql_integer" },
+              planUserId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" }
+            },
+            { datasource = activeCruiseDatasource }
+          );
+          if (qPlan.recordCount NEQ 1) {
+            activeCruiseAccessMessage = "The current active float plan could not be loaded.";
+            activeCruiseAccessDetail = "Active Cruise requires the canonical active float plan record.";
+            activeCruiseContext.floatPlanId = 0;
+            activeCruiseContext.routeInstanceId = 0;
+          } else {
           activeCruiseAccessValid = true;
           activeCruiseTripStartState = fpwEnsureScheduledTripStart(activeCruiseUserId, activeCruiseContext.floatPlanId);
           if (
@@ -737,6 +787,7 @@
             AND structKeyExists(activeCruiseTripStartState, "TRIP_STARTED")
           ) {
             activeCruiseTripStarted = (activeCruiseTripStartState.TRIP_STARTED EQ true);
+          }
           }
         }
       }
@@ -3312,8 +3363,8 @@
       </div>
     </div>
   </div>
-  <script src="../assets/js/app/api.js?v=20260415b"></script>
-  <script src="../assets/js/app/dashboard/routebuilder.js?v=20260414a"></script>
+  <script src="../assets/js/app/api.js?v=20260423a"></script>
+  <script src="../assets/js/app/dashboard/routebuilder.js?v=20260422b"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="../assets/js/app/follow/followMap.js?v=202604131858a"></script>
   <script src="../assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260416a"></script>
@@ -4851,4 +4902,3 @@
   </cfif>
 </body>
 </html>
-

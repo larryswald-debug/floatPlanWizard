@@ -1,6 +1,7 @@
 <cfcomponent output="false">
 
     <cffunction name="handle" access="remote" returntype="void" output="true">
+        <cfargument name="action" type="string" required="false" default="">
         <cfsetting enablecfoutputonly="true" showdebugoutput="false">
         <cfcontent type="application/json; charset=utf-8">
         <cfheader name="Cache-Control" value="no-store, no-cache, must-revalidate">
@@ -16,8 +17,7 @@
                     MESSAGE = "Not logged in."
                 }>
                 <cfoutput>#serializeJSON(response)#</cfoutput>
-                <cfsetting enablecfoutputonly="false">
-                <cfabort>
+                <cfreturn>
             </cfif>
 
             <!-- Resolve userId from session -->
@@ -38,8 +38,7 @@
                     MESSAGE = "Session user is invalid."
                 }>
                 <cfoutput>#serializeJSON(response)#</cfoutput>
-                <cfsetting enablecfoutputonly="false">
-                <cfabort>
+                <cfreturn>
             </cfif>
 
             <!-- Optional JSON body -->
@@ -57,7 +56,9 @@
             </cfif>
 
             <cfset action = "">
-            <cfif structKeyExists(url, "action")>
+            <cfif len(trim(arguments.action))>
+                <cfset action = lcase(trim(arguments.action))>
+            <cfelseif structKeyExists(url, "action")>
                 <cfset action = lcase(trim(url.action))>
             <cfelseif structKeyExists(body, "action")>
                 <cfset action = lcase(trim(body.action))>
@@ -120,8 +121,7 @@
                     WAYPOINTID = waypointId
                 }>
                 <cfoutput>#serializeJSON(response)#</cfoutput>
-                <cfsetting enablecfoutputonly="false">
-                <cfabort>
+                <cfreturn>
             </cfif>
 
             <cfif action EQ "delete">
@@ -244,6 +244,7 @@
                     DETAIL  = cfcatch.message
                 }>
                 <cfoutput>#serializeJSON(errResponse)#</cfoutput>
+                <cfreturn>
             </cfcatch>
 
         </cftry>

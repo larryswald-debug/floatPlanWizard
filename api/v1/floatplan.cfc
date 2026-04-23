@@ -120,6 +120,21 @@
                     <cfoutput>#serializeJSON(deleteResult)#</cfoutput>
                 </cfcase>
 
+                <cfcase value="cancel">
+                    <cfset var cancelId = 0>
+                    <cfif structKeyExists(body, "floatPlanId")>
+                        <cfset cancelId = val(body.floatPlanId)>
+                    <cfelseif structKeyExists(url, "floatPlanId")>
+                        <cfset cancelId = val(url.floatPlanId)>
+                    <cfelseif structKeyExists(url, "id")>
+                        <cfset cancelId = val(url.id)>
+                    </cfif>
+
+                    <cfset var cancelResult = cancelFloatPlan(userId, cancelId)>
+                    <cfset cancelResult.AUTH = true>
+                    <cfoutput>#serializeJSON(cancelResult)#</cfoutput>
+                </cfcase>
+
                 <cfcase value="deleteallbyuser,deleteallbyuserid">
                     <cfset var targetUserId = 0>
                     <cfif structKeyExists(body, "targetUserId")>
@@ -566,6 +581,141 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="resolveCurrentRouteFloatPlanGroup" access="public" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="false" default="0">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                success = false,
+                HAS_CURRENT_GROUP = false,
+                CURRENT_STATE = "",
+                MESSAGE = "No current route/float-plan group is available.",
+                FLOATPLANID = 0,
+                FLOATPLAN_NAME = "",
+                STATUS = "",
+                ROUTE_INSTANCE_ID = 0,
+                ROUTE_DAY_NUMBER = 0,
+                ROUTE_CODE = "",
+                ROUTE_NAME = "",
+                IS_DRAFT = false,
+                IS_ACTIVE = false,
+                IS_ROUTE_MATCH = false
+            };
+            var qDraft = queryNew("");
+            var qActive = queryNew("");
+            var useRouteInstanceId = val(arguments.routeInstanceId);
+            var row = {};
+
+            if (arguments.userId LTE 0) {
+                result.ERROR = "INVALID_USER_ID";
+                result.MESSAGE = "A valid user id is required.";
+                return result;
+            }
+
+            qDraft = queryExecute(
+                "SELECT
+                    fp.floatplanId,
+                    fp.floatPlanName,
+                    fp.route_instance_id,
+                    fp.route_day_number,
+                    UPPER(TRIM(fp.`status`)) AS statusValue,
+                    COALESCE(NULLIF(TRIM(ri.generated_route_code), ''), NULLIF(TRIM(lr.short_code), '')) AS route_code,
+                    COALESCE(NULLIF(TRIM(lr.name), ''), NULLIF(TRIM(ri.generated_route_code), ''), CONCAT('Route ##', ri.id)) AS route_name
+                 FROM floatplans fp
+                 INNER JOIN route_instances ri
+                    ON ri.id = fp.route_instance_id
+                   AND ri.user_id = :routeUserId
+                 LEFT JOIN loop_routes lr ON lr.id = ri.generated_route_id
+                 WHERE fp.userId = :planUserId
+                   AND UPPER(TRIM(fp.`status`)) = 'DRAFT'
+                   AND fp.activatedAt IS NULL
+                   AND fp.initialSentAt IS NULL
+                   AND fp.checkedInAt IS NULL
+                   AND fp.closedAt IS NULL
+                 ORDER BY fp.floatplanId DESC
+                 LIMIT 2",
+                {
+                    planUserId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                    routeUserId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                },
+                { datasource = "fpw" }
+            );
+
+            qActive = queryExecute(
+                "SELECT
+                    fp.floatplanId,
+                    fp.floatPlanName,
+                    fp.route_instance_id,
+                    fp.route_day_number,
+                    'ACTIVE' AS statusValue,
+                    COALESCE(NULLIF(TRIM(ri.generated_route_code), ''), NULLIF(TRIM(lr.short_code), '')) AS route_code,
+                    COALESCE(NULLIF(TRIM(lr.name), ''), NULLIF(TRIM(ri.generated_route_code), ''), CONCAT('Route ##', ri.id)) AS route_name
+                 FROM floatplans fp
+                 INNER JOIN route_instances ri
+                    ON ri.id = fp.route_instance_id
+                   AND ri.user_id = :routeUserId
+                 LEFT JOIN loop_routes lr ON lr.id = ri.generated_route_id
+                 WHERE fp.userId = :planUserId
+                   AND UPPER(TRIM(fp.`status`)) = 'ACTIVE'
+                   AND fp.route_instance_id IS NOT NULL
+                 ORDER BY fp.activatedAt DESC, fp.floatplanId DESC
+                 LIMIT 2",
+                {
+                    planUserId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                    routeUserId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                },
+                { datasource = "fpw" }
+            );
+
+            if (qDraft.recordCount GT 1) {
+                result.ERROR = "MULTIPLE_CURRENT_DRAFT_GROUPS";
+                result.MESSAGE = "Multiple current draft route/float-plan groups exist for this user.";
+                return result;
+            }
+
+            if (qActive.recordCount GT 1) {
+                result.ERROR = "MULTIPLE_ACTIVE_GROUPS";
+                result.MESSAGE = "Multiple active route/float-plan groups exist for this user.";
+                return result;
+            }
+
+            if (qDraft.recordCount GT 0 AND qActive.recordCount GT 0) {
+                result.ERROR = "CURRENT_GROUP_CONFLICT";
+                result.MESSAGE = "A current draft group and an active group both exist for this user.";
+                return result;
+            }
+
+            if (qDraft.recordCount EQ 0 AND qActive.recordCount EQ 0) {
+                return result;
+            }
+
+            if (qDraft.recordCount EQ 1) {
+                row = qDraft;
+                result.CURRENT_STATE = "DRAFT";
+                result.IS_DRAFT = true;
+            } else {
+                row = qActive;
+                result.CURRENT_STATE = "ACTIVE";
+                result.IS_ACTIVE = true;
+            }
+
+            result.SUCCESS = true;
+            result.success = true;
+            result.HAS_CURRENT_GROUP = true;
+            result.MESSAGE = "OK";
+            result.FLOATPLANID = val(row.floatplanId[1]);
+            result.FLOATPLAN_NAME = isNull(row.floatPlanName[1]) ? "" : trim(toString(row.floatPlanName[1]));
+            result.STATUS = isNull(row.statusValue[1]) ? "" : trim(toString(row.statusValue[1]));
+            result.ROUTE_INSTANCE_ID = isNull(row.route_instance_id[1]) ? 0 : val(row.route_instance_id[1]);
+            result.ROUTE_DAY_NUMBER = isNull(row.route_day_number[1]) ? 0 : val(row.route_day_number[1]);
+            result.ROUTE_CODE = isNull(row.route_code[1]) ? "" : trim(toString(row.route_code[1]));
+            result.ROUTE_NAME = isNull(row.route_name[1]) ? "" : trim(toString(row.route_name[1]));
+            result.IS_ROUTE_MATCH = (useRouteInstanceId GT 0 AND result.ROUTE_INSTANCE_ID EQ useRouteInstanceId);
+            return result;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="resolveCanonicalActiveFloatPlan" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
@@ -575,7 +725,7 @@
                 success = false,
                 MESSAGE = ""
             };
-            var qPlan = queryNew("");
+            var currentGroup = {};
 
             if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
@@ -583,44 +733,16 @@
                 return result;
             }
 
-            qPlan = queryExecute(
-                "SELECT
-                    fp.floatplanId,
-                    fp.route_instance_id,
-                    UPPER(TRIM(m.monitor_state)) AS monitorState
-                 FROM floatplan_monitoring m
-                 INNER JOIN (
-                    SELECT MAX(id) AS id
-                    FROM floatplan_monitoring
-                    WHERE user_id = :userId
-                      AND is_monitoring_enabled = 1
-                      AND UPPER(TRIM(monitor_state)) <> 'CLOSED'
-                    GROUP BY float_plan_id
-                 ) latest ON latest.id = m.id
-                 INNER JOIN floatplans fp ON fp.floatplanId = m.float_plan_id
-                 ORDER BY m.id DESC
-                 LIMIT 2",
-                {
-                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
-                },
-                { datasource = "fpw" }
-            );
-
-            if (qPlan.recordCount EQ 0) {
+            currentGroup = resolveCurrentRouteFloatPlanGroup(arguments.userId);
+            if (!currentGroup.SUCCESS OR !currentGroup.IS_ACTIVE) {
                 result.ERROR = "NO_ACTIVE_PLAN";
                 result.MESSAGE = "No active trip is available.";
                 return result;
             }
 
-            if (qPlan.recordCount GT 1) {
-                result.ERROR = "MULTIPLE_ACTIVE_PLANS";
-                result.MESSAGE = "Multiple monitored float plans are active. Active Cruise is unavailable.";
-                return result;
-            }
-
-            result.FLOATPLANID = val(qPlan.floatplanId[1]);
-            result.ROUTE_INSTANCE_ID = isNull(qPlan.route_instance_id[1]) ? 0 : val(qPlan.route_instance_id[1]);
-            result.STATUS = trim(toString(qPlan.monitorState[1]));
+            result.FLOATPLANID = currentGroup.FLOATPLANID;
+            result.ROUTE_INSTANCE_ID = currentGroup.ROUTE_INSTANCE_ID;
+            result.STATUS = currentGroup.STATUS;
 
             if (result.FLOATPLANID NEQ arguments.floatPlanId) {
                 result.ERROR = "ACTIVE_PLAN_MISMATCH";
@@ -1146,10 +1268,12 @@
             var returnSourceTz = returnTz;
             var existingPlanRow = queryNew("");
             var existingRouteInstanceId = 0;
+            var existingStatus = "";
+            var currentGroup = {};
 
             if (planId GT 0) {
                 existingPlanRow = queryExecute(
-                    "SELECT floatplanId, route_instance_id
+                    "SELECT floatplanId, route_instance_id, UPPER(TRIM(`status`)) AS statusValue
                        FROM floatplans
                       WHERE floatplanId = :planId
                         AND userId = :userId
@@ -1170,6 +1294,9 @@
                 existingRouteInstanceId = isNull(existingPlanRow.route_instance_id[1])
                     ? 0
                     : val(existingPlanRow.route_instance_id[1]);
+                existingStatus = isNull(existingPlanRow.statusValue[1])
+                    ? ""
+                    : trim(toString(existingPlanRow.statusValue[1]));
             }
 
             if (planId LTE 0) {
@@ -1179,8 +1306,9 @@
                     return result;
                 }
                 if (routeInstanceId LTE 0) {
-                    routeInstanceId = 0;
-                    routeDayNumber = 0;
+                    result.ERROR = "ROUTE_REQUIRED";
+                    result.MESSAGE = "A valid route is required to create a float plan.";
+                    return result;
                 }
             } else if (existingRouteInstanceId GT 0) {
                 if (routeInstanceId LTE 0) {
@@ -1199,13 +1327,53 @@
                     return result;
                 }
             } else {
-                if (routeInstanceId GT 0) {
-                    result.ERROR = "ROUTE_ASSIGNMENT_BLOCKED";
-                    result.MESSAGE = "Legacy route-less float plans cannot be linked from the float plan wizard.";
+                result.ERROR = "ROUTE_REQUIRED";
+                result.MESSAGE = "Legacy route-less float plans cannot be updated from the float plan wizard.";
+                return result;
+            }
+
+            currentGroup = resolveCurrentRouteFloatPlanGroup(arguments.userId, routeInstanceId);
+            if (
+                structKeyExists(currentGroup, "ERROR")
+                AND listFindNoCase("MULTIPLE_CURRENT_DRAFT_GROUPS,MULTIPLE_ACTIVE_GROUPS,CURRENT_GROUP_CONFLICT", trim(toString(currentGroup.ERROR))) GT 0
+            ) {
+                return currentGroup;
+            }
+
+            if (planId LTE 0) {
+                if (currentGroup.SUCCESS AND currentGroup.HAS_CURRENT_GROUP) {
+                    if (currentGroup.IS_ROUTE_MATCH) {
+                        result.ERROR = "CURRENT_GROUP_ALREADY_EXISTS";
+                        result.MESSAGE = "This route already has a current route/float-plan group.";
+                        result.EXISTING_FLOATPLANID = currentGroup.FLOATPLANID;
+                    } else {
+                        result.ERROR = "ANOTHER_CURRENT_GROUP_EXISTS";
+                        result.MESSAGE = "End the current route/float-plan group before starting another route.";
+                        result.EXISTING_FLOATPLANID = currentGroup.FLOATPLANID;
+                        result.EXISTING_ROUTE_INSTANCE_ID = currentGroup.ROUTE_INSTANCE_ID;
+                        result.EXISTING_ROUTE_CODE = currentGroup.ROUTE_CODE;
+                    }
                     return result;
                 }
-                routeInstanceId = 0;
-                routeDayNumber = 0;
+            } else if (currentGroup.SUCCESS AND currentGroup.HAS_CURRENT_GROUP) {
+                if (currentGroup.FLOATPLANID NEQ planId) {
+                    if (currentGroup.IS_ROUTE_MATCH) {
+                        result.ERROR = "CURRENT_GROUP_ALREADY_EXISTS";
+                        result.MESSAGE = "This route already has a different current route/float-plan group.";
+                        result.EXISTING_FLOATPLANID = currentGroup.FLOATPLANID;
+                    } else {
+                        result.ERROR = "ANOTHER_CURRENT_GROUP_EXISTS";
+                        result.MESSAGE = "End the current route/float-plan group before editing another route.";
+                        result.EXISTING_FLOATPLANID = currentGroup.FLOATPLANID;
+                        result.EXISTING_ROUTE_INSTANCE_ID = currentGroup.ROUTE_INSTANCE_ID;
+                        result.EXISTING_ROUTE_CODE = currentGroup.ROUTE_CODE;
+                    }
+                    return result;
+                }
+            } else if (listFindNoCase("CLOSED,CANCELLED,CANCELED", existingStatus) GT 0) {
+                result.ERROR = "HISTORICAL_GROUP_READ_ONLY";
+                result.MESSAGE = "Closed or cancelled route-linked float plans are preserved as history and cannot be edited.";
+                return result;
             }
 
             if (NOT len(planName)) {
@@ -1784,6 +1952,157 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="purgeFloatPlansByIds" access="public" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanIds" type="array" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = true,
+                DELETED_COUNT = 0,
+                FLOATPLAN_IDS = []
+            };
+            var cleanIds = [];
+            var i = 0;
+            var planId = 0;
+            var idList = "";
+
+            for (i = 1; i LTE arrayLen(arguments.floatPlanIds); i++) {
+                planId = int(val(arguments.floatPlanIds[i]));
+                if (planId LTE 0) {
+                    continue;
+                }
+                if (listFind(idList, planId) GT 0) {
+                    continue;
+                }
+                arrayAppend(cleanIds, planId);
+                idList = listAppend(idList, planId);
+            }
+
+            if (!arrayLen(cleanIds)) {
+                return result;
+            }
+
+            queryExecute(
+                "DELETE FROM floatplan_monitor_events
+                 WHERE float_plan_id IN (:planIds)",
+                {
+                    planIds = { value = idList, cfsqltype = "cf_sql_integer", list = true }
+                },
+                { datasource = "fpw" }
+            );
+            queryExecute(
+                "DELETE FROM floatplan_monitoring
+                 WHERE float_plan_id IN (:planIds)",
+                {
+                    planIds = { value = idList, cfsqltype = "cf_sql_integer", list = true }
+                },
+                { datasource = "fpw" }
+            );
+            queryExecute(
+                "DELETE FROM floatplan_alert_history
+                 WHERE floatPlanId IN (:planIds)",
+                {
+                    planIds = { value = idList, cfsqltype = "cf_sql_integer", list = true }
+                },
+                { datasource = "fpw" }
+            );
+            queryExecute(
+                "DELETE FROM floatplan_history
+                 WHERE floatPlanId IN (:planIds)",
+                {
+                    planIds = { value = idList, cfsqltype = "cf_sql_integer", list = true }
+                },
+                { datasource = "fpw" }
+            );
+            queryExecute(
+                "DELETE FROM floatplan_notification_log
+                 WHERE floatplanId IN (:planIds)",
+                {
+                    planIds = { value = idList, cfsqltype = "cf_sql_integer", list = true }
+                },
+                { datasource = "fpw" }
+            );
+            queryExecute(
+                "DELETE FROM floatplan_notifications
+                 WHERE floatplanId IN (:planIds)",
+                {
+                    planIds = { value = idList, cfsqltype = "cf_sql_integer", list = true }
+                },
+                { datasource = "fpw" }
+            );
+            queryExecute(
+                "DELETE FROM floatplan_contacts
+                 WHERE floatPlanId IN (:planIds)",
+                {
+                    planIds = { value = idList, cfsqltype = "cf_sql_integer", list = true }
+                },
+                { datasource = "fpw" }
+            );
+            queryExecute(
+                "DELETE FROM floatplan_operators
+                 WHERE floatPlanId IN (:planIds)",
+                {
+                    planIds = { value = idList, cfsqltype = "cf_sql_integer", list = true }
+                },
+                { datasource = "fpw" }
+            );
+            queryExecute(
+                "DELETE FROM floatplan_passengers
+                 WHERE floatPlanId IN (:planIds)",
+                {
+                    planIds = { value = idList, cfsqltype = "cf_sql_integer", list = true }
+                },
+                { datasource = "fpw" }
+            );
+            queryExecute(
+                "DELETE FROM floatplan_vessels
+                 WHERE floatPlanId IN (:planIds)",
+                {
+                    planIds = { value = idList, cfsqltype = "cf_sql_integer", list = true }
+                },
+                { datasource = "fpw" }
+            );
+            queryExecute(
+                "DELETE FROM floatplan_waypoints
+                 WHERE floatPlanId IN (:planIds)",
+                {
+                    planIds = { value = idList, cfsqltype = "cf_sql_integer", list = true }
+                },
+                { datasource = "fpw" }
+            );
+            queryExecute(
+                "DELETE FROM floatplans_tosend
+                 WHERE floatPlanId IN (:planIds)",
+                {
+                    planIds = { value = idList, cfsqltype = "cf_sql_integer", list = true }
+                },
+                { datasource = "fpw" }
+            );
+            queryExecute(
+                "DELETE FROM fpw_notification_log
+                 WHERE floatPlanId IN (:planIds)",
+                {
+                    planIds = { value = idList, cfsqltype = "cf_sql_integer", list = true }
+                },
+                { datasource = "fpw" }
+            );
+            queryExecute(
+                "DELETE FROM floatplans
+                 WHERE floatplanId IN (:planIds)
+                   AND userId = :userId",
+                {
+                    planIds = { value = idList, cfsqltype = "cf_sql_integer", list = true },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+
+            result.DELETED_COUNT = arrayLen(cleanIds);
+            result.FLOATPLAN_IDS = cleanIds;
+            return result;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="deleteFloatPlan" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
@@ -1796,7 +2115,7 @@
             }
 
             var planExists = queryExecute("
-                SELECT floatplanId, UPPER(TRIM(`status`)) AS statusValue
+                SELECT floatplanId, route_instance_id, UPPER(TRIM(`status`)) AS statusValue
                   FROM floatplans
                  WHERE floatplanId = :planId
                    AND userId = :userId
@@ -1813,23 +2132,26 @@
             }
 
             var planStatus = "";
+            var routeInstanceId = 0;
             if (listFindNoCase(planExists.columnList, "statusValue") GT 0) {
                 planStatus = trim(toString(planExists["statusValue"][1]));
             }
-            if (listFindNoCase("DRAFT,CLOSED", planStatus) EQ 0) {
+            if (listFindNoCase(planExists.columnList, "route_instance_id") GT 0) {
+                routeInstanceId = isNull(planExists.route_instance_id[1]) ? 0 : val(planExists.route_instance_id[1]);
+            }
+            if (routeInstanceId GT 0) {
+                result.ERROR = "ROUTE_GROUP_DELETE_REQUIRED";
+                result.MESSAGE = "Delete the parent route to remove a route-linked float plan.";
+                return result;
+            }
+            if (listFindNoCase("DRAFT,CLOSED,CANCELLED,CANCELED", planStatus) EQ 0) {
                 result.ERROR = "DELETE_BLOCKED";
                 result.MESSAGE = "Only draft or closed float plans can be deleted.";
                 return result;
             }
 
             transaction {
-                queryExecute("DELETE FROM floatplan_passengers WHERE floatplanId = :planId", { planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" } }, { datasource = "fpw" });
-                queryExecute("DELETE FROM floatplan_contacts WHERE floatplanId = :planId", { planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" } }, { datasource = "fpw" });
-                queryExecute("DELETE FROM floatplan_waypoints WHERE floatplanId = :planId", { planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" } }, { datasource = "fpw" });
-                queryExecute("DELETE FROM floatplans WHERE floatplanId = :planId AND userId = :userId AND UPPER(TRIM(`status`)) IN ('DRAFT','CLOSED')", {
-                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
-                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
-                }, { datasource = "fpw" });
+                purgeFloatPlansByIds(arguments.userId, [ arguments.floatPlanId ]);
             }
 
             result.SUCCESS = true;
@@ -2051,7 +2373,7 @@
             updateSql =
                 "UPDATE floatplans
                  SET
-                    `status` = 'Draft',
+                    `status` = 'CLOSED',
                     checkedInAt = UTC_TIMESTAMP(),"
                     & "
                     checkin_context = NULL,
@@ -2089,7 +2411,82 @@
 
             result.SUCCESS = true;
             result.FLOATPLANID = arguments.floatPlanId;
-            result.STATUS = "DRAFT";
+            result.STATUS = "CLOSED";
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="cancelFloatPlan" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var result = { SUCCESS = false };
+            var currentGroup = {};
+            var monitoringService = {};
+            var monitoringResult = {};
+
+            if (arguments.floatPlanId LTE 0) {
+                result.ERROR = "INVALID_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            currentGroup = resolveCurrentRouteFloatPlanGroup(arguments.userId);
+            if (!currentGroup.SUCCESS OR !currentGroup.HAS_CURRENT_GROUP OR !currentGroup.IS_ACTIVE) {
+                result.ERROR = "NO_ACTIVE_GROUP";
+                result.MESSAGE = "No active route/float-plan group is available to cancel.";
+                return result;
+            }
+
+            if (currentGroup.FLOATPLANID NEQ arguments.floatPlanId) {
+                result.ERROR = "ACTIVE_GROUP_MISMATCH";
+                result.MESSAGE = "Only the current active route/float-plan group can be cancelled.";
+                result.EXISTING_FLOATPLANID = currentGroup.FLOATPLANID;
+                result.EXISTING_ROUTE_INSTANCE_ID = currentGroup.ROUTE_INSTANCE_ID;
+                result.EXISTING_ROUTE_CODE = currentGroup.ROUTE_CODE;
+                return result;
+            }
+
+            transaction {
+                queryExecute(
+                    "UPDATE floatplans
+                        SET `status` = 'CANCELLED',
+                            checkin_context = NULL,
+                            closedAt = UTC_TIMESTAMP(),
+                            lastUpdateStatus = UTC_TIMESTAMP()
+                      WHERE floatplanId = :planId
+                        AND userId = :userId
+                        AND UPPER(TRIM(`status`)) = 'ACTIVE'",
+                    {
+                        planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = "fpw" }
+                );
+
+                monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
+                monitoringResult = monitoringService.closeMonitoringForFloatPlan(arguments.floatPlanId, "manual_cancel");
+                if (
+                    !structKeyExists(monitoringResult, "SUCCESS")
+                    OR (
+                        monitoringResult.SUCCESS NEQ true
+                        AND (
+                            !structKeyExists(monitoringResult, "ERROR")
+                            OR uCase(trim(toString(monitoringResult.ERROR))) NEQ "MONITORING_NOT_FOUND"
+                        )
+                    )
+                ) {
+                    throw(
+                        message = "Monitoring close failed.",
+                        detail = serializeJSON(monitoringResult)
+                    );
+                }
+            }
+
+            result.SUCCESS = true;
+            result.FLOATPLANID = arguments.floatPlanId;
+            result.STATUS = "CANCELLED";
+            result.MESSAGE = "The active route/float-plan group was cancelled.";
             return result;
         </cfscript>
     </cffunction>
@@ -3155,8 +3552,7 @@
             var startGateState = {};
             var shouldStartOperationally = false;
             var operationalStartResult = {};
-            var qExistingActivePlan = queryNew("");
-            var qRouteReuse = queryNew("");
+            var currentGroup = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "MISSING_PLAN_ID";
@@ -3175,9 +3571,9 @@
             if (structKeyExists(plan, "STATUS") AND NOT isNull(plan.STATUS)) {
                 statusVal = ucase(trim(toString(plan.STATUS)));
             }
-            if (listFindNoCase("DRAFT,CLOSED", statusVal) EQ 0) {
+            if (statusVal NEQ "DRAFT") {
                 result.ERROR = "INVALID_STATUS";
-                result.MESSAGE = "Only draft or closed float plans can be sent.";
+                result.MESSAGE = "Only the current draft route/float-plan group can be activated.";
                 return result;
             }
 
@@ -3188,65 +3584,32 @@
                 return result;
             }
 
-            qExistingActivePlan = queryExecute(
-                "SELECT
-                    floatplanId,
-                    route_instance_id,
-                    UPPER(TRIM(`status`)) AS statusValue
-                 FROM floatplans
-                 WHERE userId = :userId
-                   AND floatplanId <> :planId
-                   AND UPPER(TRIM(`status`)) = 'ACTIVE'
-                 ORDER BY activatedAt DESC, floatplanId DESC
-                 LIMIT 1",
-                {
-                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
-                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
-                },
-                { datasource = "fpw" }
-            );
-            if (qExistingActivePlan.recordCount GT 0) {
-                result.ERROR = "ACTIVE_PLAN_EXISTS";
-                result.MESSAGE = "Another active float plan is already open. Close it before activating this trip.";
-                result.EXISTING_FLOATPLANID = val(qExistingActivePlan.floatplanId[1]);
-                result.EXISTING_ROUTE_INSTANCE_ID = isNull(qExistingActivePlan.route_instance_id[1]) ? 0 : val(qExistingActivePlan.route_instance_id[1]);
-                result.EXISTING_STATUS = trim(toString(qExistingActivePlan.statusValue[1]));
+            currentGroup = resolveCurrentRouteFloatPlanGroup(arguments.userId, routeInstanceId);
+            if (
+                structKeyExists(currentGroup, "ERROR")
+                AND listFindNoCase("MULTIPLE_CURRENT_DRAFT_GROUPS,MULTIPLE_ACTIVE_GROUPS,CURRENT_GROUP_CONFLICT", trim(toString(currentGroup.ERROR))) GT 0
+            ) {
+                return currentGroup;
+            }
+
+            if (!currentGroup.SUCCESS OR !currentGroup.HAS_CURRENT_GROUP) {
+                result.ERROR = "CURRENT_GROUP_REQUIRED";
+                result.MESSAGE = "Activate Route must open the current draft route/float-plan group before sending.";
                 return result;
             }
 
-            qRouteReuse = queryExecute(
-                "SELECT
-                    floatplanId,
-                    UPPER(TRIM(`status`)) AS statusValue
-                 FROM floatplans
-                 WHERE userId = :userId
-                   AND route_instance_id = :routeInstanceId
-                   AND (
-                        activatedAt IS NOT NULL
-                        OR initialSentAt IS NOT NULL
-                        OR checkedInAt IS NOT NULL
-                        OR closedAt IS NOT NULL
-                        OR UPPER(TRIM(`status`)) <> 'DRAFT'
-                   )
-                 ORDER BY
-                    CASE WHEN floatplanId = :planId THEN 0 ELSE 1 END ASC,
-                    activatedAt DESC,
-                    initialSentAt DESC,
-                    closedAt DESC,
-                    floatplanId DESC
-                 LIMIT 1",
-                {
-                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
-                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
-                    routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" }
-                },
-                { datasource = "fpw" }
-            );
-            if (qRouteReuse.recordCount GT 0) {
-                result.ERROR = "ROUTE_ALREADY_HAS_FLOAT_PLAN";
-                result.MESSAGE = "This route already has a historical float plan. Use Activate Route to create a replacement draft before sending again.";
-                result.EXISTING_FLOATPLANID = val(qRouteReuse.floatplanId[1]);
-                result.EXISTING_STATUS = trim(toString(qRouteReuse.statusValue[1]));
+            if (currentGroup.FLOATPLANID NEQ arguments.floatPlanId) {
+                if (currentGroup.IS_ACTIVE) {
+                    result.ERROR = "ACTIVE_PLAN_EXISTS";
+                    result.MESSAGE = "Another active route/float-plan group is already open. End it before activating this route.";
+                } else {
+                    result.ERROR = "ANOTHER_CURRENT_GROUP_EXISTS";
+                    result.MESSAGE = "Another draft route/float-plan group already exists. Delete or finish it before activating a different route.";
+                }
+                result.EXISTING_FLOATPLANID = currentGroup.FLOATPLANID;
+                result.EXISTING_ROUTE_INSTANCE_ID = currentGroup.ROUTE_INSTANCE_ID;
+                result.EXISTING_ROUTE_CODE = currentGroup.ROUTE_CODE;
+                result.EXISTING_STATUS = currentGroup.STATUS;
                 return result;
             }
 
@@ -3369,10 +3732,11 @@
                     SET
                         `status` = 'ACTIVE',
                         activatedAt = COALESCE(activatedAt, UTC_TIMESTAMP()),
+                        initialSentAt = COALESCE(initialSentAt, UTC_TIMESTAMP()),
                         lastUpdateStatus = UTC_TIMESTAMP()
                     WHERE floatplanId = :planId
                       AND userId = :userId
-                      AND UPPER(TRIM(`status`)) IN ('DRAFT', 'CLOSED')
+                      AND UPPER(TRIM(`status`)) = 'DRAFT'
                 ", {
                     planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                     userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
@@ -3950,13 +4314,3 @@
     </cffunction>
 
 </cfcomponent>
-
-
-
-
-
-
-
-
-
-

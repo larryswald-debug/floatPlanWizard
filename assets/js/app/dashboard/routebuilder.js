@@ -44,6 +44,7 @@
     optionReqSeq: 0,
     previewReqSeq: 0,
     previewTimer: 0,
+    routeInteractionLockCount: 0,
     manualOverrides: {
       cruisingSpeed: false
     },
@@ -56,6 +57,7 @@
     freshStartSession: false,
     modalMode: "generator",
     pendingDraft: null,
+    legOverrideDrafts: {},
     lastGeneratedRouteCode: "",
     activeRouteCode: "",
     activeRouteId: 0,
@@ -214,13 +216,18 @@
   }
 
   function buildCruiseTimelineSummaryModel(timelinePayload, uiInputs) {
+    var summaryInputs = (uiInputs && typeof uiInputs === "object") ? Object.assign({}, uiInputs) : {};
+    summaryInputs.timelineCruiseOnly = true;
+    summaryInputs.idleBurnGph = (dom.idleBurnGphEl ? dom.idleBurnGphEl.value : "");
+    summaryInputs.idleHoursTotal = (dom.idleHoursTotalEl ? dom.idleHoursTotalEl.value : "");
     if (sharedFuelMath && typeof sharedFuelMath.buildCruiseTimelineSummaryModel === "function") {
-      return sharedFuelMath.buildCruiseTimelineSummaryModel(timelinePayload, uiInputs);
+      return sharedFuelMath.buildCruiseTimelineSummaryModel(timelinePayload, summaryInputs);
     }
     return {
       calcLine: "Calc: n/a",
       totalNm: null,
       totalHours: null,
+      summaryTotalHours: null,
       maxHoursPerDay: null,
       displayedDays: null,
       totalLocks: null,
@@ -246,7 +253,10 @@
     var model = (summaryModel && typeof summaryModel === "object") ? summaryModel : {};
     var ui = (uiInputs && typeof uiInputs === "object") ? uiInputs : {};
     var totalNm = safeVal(model.totalNm);
-    var totalHours = safeVal(model.totalHours);
+    var totalHours = safeVal(model.summaryTotalHours);
+    if (totalHours === null) {
+      totalHours = safeVal(model.totalHours);
+    }
     var displayedDays = safeVal(model.displayedDays);
     var totalLocks = safeVal(model.totalLocks);
     var adjustedSpeedKn = safeVal(model.adjSpeedKn);
@@ -1619,6 +1629,7 @@
       leg.is_offshore = toInt(getLegField(leg, "is_offshore"), 0);
       leg.is_icw = toInt(getLegField(leg, "is_icw"), 0);
       leg.has_user_override = !!getLegField(leg, "has_user_override");
+      leg.has_effective_override = !!(getLegField(leg, "has_effective_override") || leg.has_user_override);
       leg.has_coordinate_error = !!getLegField(leg, "has_coordinate_error");
       leg.coordinate_error = String(getLegField(leg, "coordinate_error") || "").trim();
       leg.dist_nm_default = roundTo2(parseFloat(getLegField(leg, "dist_nm_default")));
@@ -2063,8 +2074,32 @@
     return !!(startVal && endVal);
   }
 
+  function isRouteInteractionLocked() {
+    return toInt(state.routeInteractionLockCount, 0) > 0;
+  }
+
+  function syncRouteInteractionControls() {
+    var locked = isRouteInteractionLocked();
+    if (dom.startSelectEl) dom.startSelectEl.disabled = locked;
+    if (dom.endSelectEl) dom.endSelectEl.disabled = locked;
+    if (dom.previewBtn) dom.previewBtn.disabled = locked;
+    if (dom.generateBtn) dom.generateBtn.disabled = locked;
+    if (dom.saveBtn) dom.saveBtn.disabled = locked;
+    updateDirectionControlAvailability();
+  }
+
+  function beginRouteInteractionLock() {
+    state.routeInteractionLockCount = toInt(state.routeInteractionLockCount, 0) + 1;
+    syncRouteInteractionControls();
+  }
+
+  function endRouteInteractionLock() {
+    state.routeInteractionLockCount = Math.max(0, toInt(state.routeInteractionLockCount, 0) - 1);
+    syncRouteInteractionControls();
+  }
+
   function updateDirectionControlAvailability() {
-    var enabled = hasLocationSelections();
+    var enabled = hasLocationSelections() && !isRouteInteractionLocked();
     if (dom.directionToggleEl) dom.directionToggleEl.disabled = !enabled;
     if (dom.directionEl) dom.directionEl.disabled = !enabled;
   }
@@ -2517,6 +2552,10 @@
       row.route_leg_id = toInt(getLegField(row, "route_leg_id"), 0);
       row.segment_id = toInt(getLegField(row, "segment_id"), 0);
       row.has_user_override = !!(getLegField(row, "has_user_override"));
+      row.has_effective_override = !!(
+        getLegField(row, "has_effective_override") || row.has_user_override
+      );
+      row.override_source = String(getLegField(row, "override_source") || "").trim();
       row.dist_nm = roundTo2(parseFloat(getLegField(row, "dist_nm")));
       row.dist_nm_default = roundTo2(parseFloat(getLegField(row, "dist_nm_default")));
       if (!Number.isFinite(row.dist_nm_default) || row.dist_nm_default <= 0) {
@@ -2888,6 +2927,18 @@
     return getLegOverrideSaveMode(leg) !== "";
   }
 
+  function legHasEffectiveOverride(leg) {
+    return !!(getLegField(leg, "has_effective_override") || getLegField(leg, "has_user_override"));
+  }
+
+  function legOverrideSourceCode(leg) {
+    var source = String(getLegField(leg, "override_source") || "").trim();
+    if (source) return source;
+    if (getLegField(leg, "has_user_override")) return "user_override";
+    if (getLegField(leg, "has_effective_override")) return "user_segment";
+    return "default";
+  }
+
   function getLegOverrideSaveMode(leg) {
     var routeCode = String(state.activeRouteCode || "").trim();
     var myRouteId = toInt(state.myRoutes.activeRouteId, 0);
@@ -2908,6 +2959,7 @@
 
   function sourceLabelFromCode(source) {
     if (source === "user_override") return "user override";
+    if (source === "draft_override") return "draft override";
     if (source === "user_segment") return "your saved segment";
     if (source === "default_line") return "default straight line";
     if (source === "default_segment") return "default segment";
@@ -3517,6 +3569,87 @@
     return state.userId ? String(state.userId) : "anon";
   }
 
+  function normalizeLegOverrideDrafts(rawDrafts) {
+    var source = (rawDrafts && typeof rawDrafts === "object") ? rawDrafts : {};
+    var out = {};
+    Object.keys(source).forEach(function (rawKey) {
+      var entry = source[rawKey];
+      var segmentId = toInt(
+        entry && entry.segment_id !== undefined ? entry.segment_id : rawKey,
+        0
+      );
+      var geometryRaw = Array.isArray(entry && entry.geometry)
+        ? entry.geometry
+        : (Array.isArray(entry && entry.points) ? entry.points : []);
+      var points = geometryRaw
+        .map(function (point) {
+          var parsed = parseLegMapPoint(point);
+          if (!parsed) return null;
+          return {
+            lat: Math.round(parsed.lat * 1000000) / 1000000,
+            lon: Math.round(parsed.lon * 1000000) / 1000000
+          };
+        })
+        .filter(function (point) {
+          return !!point;
+        });
+      var overrideFields = (entry && entry.override_fields && typeof entry.override_fields === "object" && !Array.isArray(entry.override_fields))
+        ? Object.assign({}, entry.override_fields)
+        : {};
+      var computedNm = roundTo2(
+        parseFloat(entry && entry.computed_nm !== undefined ? entry.computed_nm : calculatePolylineNm(points))
+      );
+      if (segmentId <= 0 || points.length < 2) return;
+      out[String(segmentId)] = {
+        segment_id: segmentId,
+        geometry: points,
+        computed_nm: computedNm,
+        override_fields: overrideFields
+      };
+    });
+    return out;
+  }
+
+  function buildLegOverrideDraftPayload() {
+    return normalizeLegOverrideDrafts(state.legOverrideDrafts);
+  }
+
+  function getLegOverrideDraftKey(legOrSegmentId) {
+    if (typeof legOrSegmentId === "object") {
+      return String(toInt(getLegField(legOrSegmentId, "segment_id"), 0) || "");
+    }
+    return String(toInt(legOrSegmentId, 0) || "");
+  }
+
+  function readLegOverrideDraft(legOrSegmentId) {
+    var key = getLegOverrideDraftKey(legOrSegmentId);
+    var one = {};
+    if (!key || !state.legOverrideDrafts || !Object.prototype.hasOwnProperty.call(state.legOverrideDrafts, key)) {
+      return null;
+    }
+    one[key] = state.legOverrideDrafts[key];
+    one = normalizeLegOverrideDrafts(one);
+    return (Object.prototype.hasOwnProperty.call(one, key) ? one[key] : null);
+  }
+
+  function writeLegOverrideDraft(segmentId, draft) {
+    var key = getLegOverrideDraftKey(segmentId);
+    var one = {};
+    var normalized = {};
+    if (!key) return null;
+    one[key] = draft || {};
+    normalized = normalizeLegOverrideDrafts(one);
+    if (!Object.prototype.hasOwnProperty.call(normalized, key)) return null;
+    state.legOverrideDrafts[key] = normalized[key];
+    return normalized[key];
+  }
+
+  function removeLegOverrideDraft(segmentId) {
+    var key = getLegOverrideDraftKey(segmentId);
+    if (!key || !state.legOverrideDrafts || !Object.prototype.hasOwnProperty.call(state.legOverrideDrafts, key)) return;
+    delete state.legOverrideDrafts[key];
+  }
+
   function draftKey(templateCode) {
     return "fpw:routegen:draft:" + getUserScope() + ":" + String(templateCode || "none");
   }
@@ -3584,6 +3717,7 @@
       optional_stop_flags: Object.keys(state.selectedStopCodes).filter(function (code) {
         return !!state.selectedStopCodes[code];
       }),
+      leg_override_drafts: buildLegOverrideDraftPayload(),
       overrides: {
         cruisingSpeed: !!state.manualOverrides.cruisingSpeed
       }
@@ -3686,6 +3820,11 @@
       });
     }
 
+    state.legOverrideDrafts = normalizeLegOverrideDrafts(
+      draft.leg_override_drafts !== undefined
+        ? draft.leg_override_drafts
+        : (draft.legOverrideDrafts !== undefined ? draft.legOverrideDrafts : {})
+    );
     state.pendingDraft = draft;
     updatePaceLabel();
     updatePaceOverrideUI();
@@ -3723,6 +3862,15 @@
     if (dom.expectedAvgGphSubEl) dom.expectedAvgGphSubEl.textContent = "Current pace + weather burn";
     if (dom.legCountEl) dom.legCountEl.textContent = "0 legs";
     if (dom.legListEl) dom.legListEl.innerHTML = '<div class="fpw-routegen__empty">Pick template/start/end to see a live preview.</div>';
+    resetLegMapSelection();
+  }
+
+  function showPreviewLoadingState(message) {
+    state.previewLegs = [];
+    if (dom.legCountEl) dom.legCountEl.textContent = "Updating...";
+    if (dom.legListEl) {
+      dom.legListEl.innerHTML = '<div class="fpw-routegen__empty">' + escapeHtml(String(message || "Updating preview...")) + "</div>";
+    }
     resetLegMapSelection();
   }
 
@@ -4510,6 +4658,7 @@
         dom.previewTemplateEl.textContent = "Template: -";
       }
       state.pendingDraft = null;
+      state.legOverrideDrafts = {};
       return;
     }
 
@@ -4530,9 +4679,11 @@
 
     if (!restoreDraft) {
       state.pendingDraft = null;
+      state.legOverrideDrafts = {};
       return;
     }
 
+    state.legOverrideDrafts = {};
     var draft = readDraft(state.activeTemplateCode);
     applyDraftToForm(draft);
   }
@@ -4581,7 +4732,8 @@
       vessel_max_speed_kn: (vesselMaxSpeedKn > 0 ? String(vesselMaxSpeedKn) : ""),
       vessel_most_efficient_speed_kn: (vesselMostEffSpeedKn > 0 ? String(vesselMostEffSpeedKn) : ""),
       vessel_gph_at_most_efficient_speed: (vesselMostEffGph > 0 ? String(vesselMostEffGph) : ""),
-      optional_stop_flags: selectedStops
+      optional_stop_flags: selectedStops,
+      leg_override_drafts: buildLegOverrideDraftPayload()
     };
   }
 
@@ -4875,7 +5027,7 @@
       );
       var isOffshore = !!(leg.is_offshore || leg.IS_OFFSHORE);
       var isOptional = !!(leg.is_optional || leg.IS_OPTIONAL);
-      var hasOverride = !!(leg.has_user_override || leg.HAS_USER_OVERRIDE);
+      var hasOverride = legHasEffectiveOverride(leg);
       if (!Number.isFinite(lockCount) || lockCount < 0) lockCount = 0;
 
       var flags = "";
@@ -4925,26 +5077,34 @@
   }
 
   function buildLegGeometryPayload(leg) {
+    var routeLegId = toInt(getLegField(leg, "route_leg_id"), 0);
+    var segmentId = toInt(getLegField(leg, "segment_id"), 0);
+    var legOrder = toInt(getLegField(leg, "order_index"), 0);
     if (state.selectedLegContext === "my_route") {
       return {
         route_id: toInt(state.myRoutes.activeRouteId, 0),
-        route_leg_id: toInt(getLegField(leg, "route_leg_id"), 0),
-        segment_id: toInt(getLegField(leg, "segment_id"), 0),
-        leg_order: toInt(getLegField(leg, "order_index"), 0)
+        route_leg_id: routeLegId,
+        segment_id: segmentId,
+        leg_order: legOrder
       };
     }
     var payload = {
       route_code: (state.modalMode === "editor" ? String(state.activeRouteCode || "").trim() : ""),
-      route_leg_id: toInt(getLegField(leg, "route_leg_id"), 0),
-      segment_id: toInt(getLegField(leg, "segment_id"), 0),
-      leg_order: toInt(getLegField(leg, "order_index"), 0),
+      route_leg_id: routeLegId,
+      segment_id: segmentId,
       direction: getDirectionValue()
     };
+    if (state.modalMode !== "editor") {
+      payload.leg_override_drafts = buildLegOverrideDraftPayload();
+    }
     var startLat = getLegField(leg, "start_lat");
     var startLng = getLegField(leg, "start_lng");
     var endLat = getLegField(leg, "end_lat");
     var endLng = getLegField(leg, "end_lng");
 
+    if (payload.route_leg_id <= 0 && payload.segment_id <= 0 && legOrder > 0) {
+      payload.leg_order = legOrder;
+    }
     if (startLat !== undefined && startLat !== null && String(startLat).trim().length) {
       payload.start_lat = startLat;
     }
@@ -5184,8 +5344,8 @@
     var expectedOrder = toInt(getLegField(leg, "order_index"), 0);
     state.selectedLegData = leg;
     state.selectedLegOrder = expectedOrder;
-    state.selectedLegHasOverride = !!getLegField(leg, "has_user_override");
-    state.selectedLegSource = "default";
+    state.selectedLegHasOverride = legHasEffectiveOverride(leg);
+    state.selectedLegSource = legOverrideSourceCode(leg);
     state.legMapClearIntent = false;
     state.legMapDraftPoints = [];
     state.legMapLoadSeq += 1;
@@ -5210,7 +5370,7 @@
     if (!opts.silent) {
       setLegMapStatus("Loading geometry...");
     }
-    updateLegMapButtons(leg, !!getLegField(leg, "has_user_override"));
+    updateLegMapButtons(leg, legHasEffectiveOverride(leg));
     var geometryPayload = buildLegGeometryPayload(leg);
     if (opts.ignoreSegmentOverride) {
       geometryPayload.ignore_segment_override = true;
@@ -5234,7 +5394,7 @@
         var sourceLabel = sourceLabelFromCode(source);
         var hasOverride = !!data.has_override;
         var hasSegmentOverride = !!data.has_segment_override;
-        var hasAnyOverride = hasOverride || hasSegmentOverride || source === "user_segment";
+        var hasAnyOverride = !!data.has_effective_override || hasOverride || hasSegmentOverride || source === "user_segment" || source === "draft_override";
         var computedNm = parseFloat(data.computed_nm);
         state.selectedLegHasOverride = hasAnyOverride;
         state.selectedLegSource = source;
@@ -5275,7 +5435,11 @@
             if (endpointView.tooFar) {
               setLegMapStatus("Loaded geometry. Endpoints are far apart, centered on start.");
             } else {
-              setLegMapStatus(source === "user_segment" ? "Loaded your saved segment geometry." : "Geometry loaded.");
+              setLegMapStatus(
+                source === "user_segment"
+                  ? "Loaded your saved segment geometry."
+                  : (source === "draft_override" ? "Loaded draft override geometry." : "Geometry loaded.")
+              );
             }
           }
         } else if (!opts.silent) {
@@ -5403,6 +5567,36 @@
     state.legMapClearIntent = false;
     state.legMapDraftPoints = points.slice(0);
 
+    if (saveMode === "segment") {
+      var draftOverride = writeLegOverrideDraft(toInt(getLegField(leg, "segment_id"), 0), {
+        segment_id: toInt(getLegField(leg, "segment_id"), 0),
+        geometry: points,
+        computed_nm: calculatePolylineNm(points),
+        override_fields: {}
+      });
+      var draftNm = roundTo2(draftOverride ? draftOverride.computed_nm : calculatePolylineNm(points));
+      applyLegUpdate(getLegField(leg, "order_index"), {
+        has_user_override: false,
+        has_effective_override: true,
+        override_source: "draft_override",
+        dist_nm: draftNm
+      });
+      state.selectedLegData = getLegByOrder(getLegField(leg, "order_index")) || leg;
+      renderLegs(state.previewLegs);
+      selectLegRow(getLegField(leg, "order_index"));
+      refreshTotalsFromLegs();
+      if (state.modalMode !== "editor") {
+        saveDraft();
+      }
+      setLegMapNm(draftNm);
+      if (dom.legMapSourceEl) dom.legMapSourceEl.textContent = "Source: " + sourceLabelFromCode("draft_override");
+      state.selectedLegHasOverride = true;
+      state.selectedLegSource = "draft_override";
+      updateLegMapButtons(state.selectedLegData, true);
+      setLegMapStatus("Draft override saved. It will be applied when the route is generated.");
+      return;
+    }
+
     if (saveMode === "my_route_leg") {
       saveAction = "saveRouteLegOverrideGeometry";
       payload = buildLegGeometryPayload(leg);
@@ -5410,11 +5604,6 @@
     } else if (saveMode === "route_leg") {
       saveAction = "routegen_savelegoverride";
       payload = buildLegGeometryPayload(leg);
-    } else {
-      saveAction = "routegen_savesegmentoverride";
-      payload = {
-        segment_id: toInt(getLegField(leg, "segment_id"), 0)
-      };
     }
     payload.geometry = points;
     payload.override_fields = {};
@@ -5438,6 +5627,8 @@
         var legRouteLegId = toInt(getLegField(leg, "route_leg_id"), 0);
         var legPatch = {
           has_user_override: true,
+          has_effective_override: true,
+          override_source: source,
           dist_nm: roundTo2(nm)
         };
         if (saveMode === "route_leg" || saveMode === "my_route_leg") {
@@ -5504,6 +5695,53 @@
       setLegMapStatus("This leg cannot be reverted because no segment data is available.");
       return;
     }
+    if (saveMode === "segment") {
+      var segmentIdVal = toInt(getLegField(leg, "segment_id"), 0);
+      var legOrderVal = toInt(getLegField(leg, "order_index"), 0);
+      var fallbackNm = roundTo2(parseFloat(getLegField(leg, "dist_nm_default")));
+      if (!Number.isFinite(fallbackNm) || fallbackNm < 0) {
+        fallbackNm = roundTo2(parseFloat(getLegField(leg, "dist_nm")));
+      }
+      removeLegOverrideDraft(segmentIdVal);
+      if (state.modalMode !== "editor") {
+        saveDraft();
+      }
+      state.selectedLegHasOverride = false;
+      state.selectedLegSource = "default";
+      setLegMapStatus("Reverting draft override...");
+      if (dom.legRevertBtn) dom.legRevertBtn.disabled = true;
+      loadLegGeometry(leg, { silent: true })
+        .then(function (data) {
+          var effectiveNm = fallbackNm;
+          var hasEffectiveOverride = false;
+          var source = "default";
+          if (data && typeof data === "object") {
+            effectiveNm = roundTo2(parseFloat(data.computed_nm));
+            if (!Number.isFinite(effectiveNm) || effectiveNm < 0) effectiveNm = fallbackNm;
+            hasEffectiveOverride = !!(data.has_effective_override || data.has_override || data.has_segment_override);
+            source = String(data.source || "default");
+          }
+          applyLegUpdate(legOrderVal, {
+            has_user_override: false,
+            has_effective_override: hasEffectiveOverride,
+            override_source: source,
+            dist_nm: effectiveNm
+          });
+          state.selectedLegData = getLegByOrder(legOrderVal) || leg;
+          renderLegs(state.previewLegs);
+          selectLegRow(legOrderVal);
+          refreshTotalsFromLegs();
+          if (source === "user_segment") {
+            setLegMapStatus("Draft override cleared. Using your saved segment geometry.");
+          } else {
+            setLegMapStatus("Draft override cleared.");
+          }
+        })
+        .finally(function () {
+          if (dom.legRevertBtn) dom.legRevertBtn.disabled = false;
+        });
+      return;
+    }
     if (saveMode === "my_route_leg") {
       clearAction = "clearRouteLegOverrideGeometry";
       clearPayload = {
@@ -5542,6 +5780,8 @@
         var legRouteLegId = toInt(getLegField(leg, "route_leg_id"), 0);
         var clearPatch = {
           has_user_override: false,
+          has_effective_override: false,
+          override_source: "default",
           dist_nm: roundTo2(defaultNm)
         };
         if (state.selectedLegContext === "my_route") {
@@ -5779,10 +6019,11 @@
       if (selected) {
         state.selectedLegData = selected;
         selectLegRow(state.selectedLegOrder);
-        var hasLoadedOverride = !!getLegField(selected, "has_user_override");
+        var hasLoadedOverride = legHasEffectiveOverride(selected);
         if (state.selectedLegHasOverride && state.selectedLegData && toInt(getLegField(state.selectedLegData, "order_index"), 0) === toInt(getLegField(selected, "order_index"), 0)) {
           hasLoadedOverride = true;
         }
+        state.selectedLegSource = legOverrideSourceCode(selected);
         updateLegMapButtons(selected, hasLoadedOverride);
       } else {
         resetLegMapSelection();
@@ -5878,7 +6119,7 @@
         return null;
       })
       .finally(function () {
-        if (dom.previewBtn) dom.previewBtn.disabled = false;
+        if (dom.previewBtn) dom.previewBtn.disabled = isRouteInteractionLocked();
       });
   }
 
@@ -5954,7 +6195,7 @@
         return null;
       })
       .finally(function () {
-        if (dom.previewBtn) dom.previewBtn.disabled = false;
+        if (dom.previewBtn) dom.previewBtn.disabled = isRouteInteractionLocked();
       });
   }
 
@@ -6013,6 +6254,8 @@
 
         state.lastGeneratedRouteCode = routeCode;
         state.activeRouteCode = routeCode;
+        state.legOverrideDrafts = {};
+        saveDraft();
         if (isMyRoute && sourceMyRouteId > 0) {
           applyRouteContext("my_route", sourceMyRouteId);
         } else {
@@ -6070,7 +6313,7 @@
 
     clearError();
     setStatus("Saving route...");
-    if (dom.saveBtn) dom.saveBtn.disabled = true;
+    beginRouteInteractionLock();
 
     previewRoute(true)
       .then(function (previewPayload) {
@@ -6128,7 +6371,7 @@
         setStatus("Save failed.");
       })
       .finally(function () {
-        if (dom.saveBtn) dom.saveBtn.disabled = false;
+        endRouteInteractionLock();
       });
   }
 
@@ -6161,6 +6404,8 @@
               END_NAME: seg.END_NAME,
               DIST_NM: seg.DIST_NM,
               LOCK_COUNT: seg.LOCK_COUNT,
+              HAS_USER_OVERRIDE: !!(seg.HAS_USER_OVERRIDE || seg.has_user_override),
+              HAS_EFFECTIVE_OVERRIDE: !!(seg.HAS_EFFECTIVE_OVERRIDE || seg.has_effective_override || seg.HAS_USER_OVERRIDE || seg.has_user_override),
               IS_OFFSHORE: false,
               IS_OPTIONAL: false
             });
@@ -6215,6 +6460,7 @@
     state.selectedVesselId = 0;
     state.selectedStopCodes = {};
     state.pendingDraft = null;
+    state.legOverrideDrafts = {};
     state.manualOverrides.cruisingSpeed = false;
     state.vesselDefaults = {
       maxSpeedKn: 0,
@@ -6676,26 +6922,15 @@
     setDirectionValue(dom.directionToggleEl ? (dom.directionToggleEl.checked ? "CW" : "CCW") : getDirectionValue());
     setStatus("Switching direction...");
     queueDirectionSwapDraft();
-
-    if (dom.directionToggleEl) dom.directionToggleEl.disabled = true;
-    if (dom.directionEl) dom.directionEl.disabled = true;
-    if (dom.startSelectEl) dom.startSelectEl.disabled = true;
-    if (dom.endSelectEl) dom.endSelectEl.disabled = true;
-    if (dom.previewBtn) dom.previewBtn.disabled = true;
-    if (dom.generateBtn) dom.generateBtn.disabled = true;
-    if (dom.saveBtn) dom.saveBtn.disabled = true;
+    beginRouteInteractionLock();
+    showPreviewLoadingState("Switching direction...");
 
     fetchOptions()
       .then(function () {
-        onFormChange();
+        return previewRoute(true);
       })
       .finally(function () {
-        updateDirectionControlAvailability();
-        if (dom.startSelectEl) dom.startSelectEl.disabled = false;
-        if (dom.endSelectEl) dom.endSelectEl.disabled = false;
-        if (dom.previewBtn) dom.previewBtn.disabled = false;
-        if (dom.generateBtn) dom.generateBtn.disabled = false;
-        if (dom.saveBtn) dom.saveBtn.disabled = false;
+        endRouteInteractionLock();
       });
   }
 
@@ -7251,14 +7486,6 @@
       });
       bindKeyboardActivation(dom.legOverlayCloseBtn, function () {
         closeLegMapAndRefreshPane();
-      });
-    }
-
-    if (dom.legOverlayEl) {
-      dom.legOverlayEl.addEventListener("click", function (event) {
-        if (event.target === dom.legOverlayEl) {
-          closeLegMapAndRefreshPane();
-        }
       });
     }
 

@@ -3696,8 +3696,8 @@
                 "success"=false,
                 "MESSAGE"="No active trip is available."
             };
-            var ds = resolveDatasource();
-            var qPlan = queryNew("");
+            var floatPlanComponent = "";
+            var currentGroup = {};
 
             if (arguments.userId LTE 0) {
                 result.ERROR = "UNAUTHORIZED";
@@ -3705,50 +3705,37 @@
                 return result;
             }
 
-            qPlan = queryExecute(
-                "SELECT
-                    fp.floatplanId,
-                    fp.userId,
-                    fp.floatPlanName,
-                    fp.route_instance_id,
-                    fp.route_day_number,
-                    UPPER(TRIM(m.monitor_state)) AS monitorState
-                 FROM floatplan_monitoring m
-                 INNER JOIN (
-                    SELECT MAX(id) AS id
-                    FROM floatplan_monitoring
-                    WHERE user_id = :userId
-                      AND is_monitoring_enabled = 1
-                      AND UPPER(TRIM(monitor_state)) <> 'CLOSED'
-                    GROUP BY float_plan_id
-                 ) latest ON latest.id = m.id
-                 INNER JOIN floatplans fp ON fp.floatplanId = m.float_plan_id
-                 ORDER BY m.id DESC
-                 LIMIT 2",
-                {
-                    userId = { value=arguments.userId, cfsqltype="cf_sql_integer" }
-                },
-                { datasource=ds }
-            );
+            try {
+                floatPlanComponent = createObject("component", "fpw.api.v1.floatplan");
+            } catch (any floatPlanPathErr) {
+                floatPlanComponent = createObject("component", "api.v1.floatplan");
+            }
 
-            if (qPlan.recordCount EQ 0) {
+            currentGroup = floatPlanComponent.resolveCurrentRouteFloatPlanGroup(arguments.userId);
+            if (!isStruct(currentGroup)) {
                 result.ERROR = "NO_ACTIVE_PLAN";
                 result.MESSAGE = "No active trip is available.";
                 return result;
             }
 
-            if (qPlan.recordCount GT 1) {
+            if (structKeyExists(currentGroup, "ERROR") AND trim(toString(currentGroup.ERROR)) EQ "MULTIPLE_ACTIVE_GROUPS") {
                 result.ERROR = "MULTIPLE_ACTIVE_PLANS";
                 result.MESSAGE = "Multiple active trips were found. Trip Page is unavailable.";
                 return result;
             }
 
-            result.FLOATPLANID = val(qPlan.floatplanId[1]);
-            result.USERID = val(qPlan.userId[1]);
-            result.FLOATPLANNAME = trim(toString(isNull(qPlan.floatPlanName[1]) ? "" : qPlan.floatPlanName[1]));
-            result.ROUTE_INSTANCE_ID = (!isNull(qPlan.route_instance_id[1]) ? val(qPlan.route_instance_id[1]) : 0);
-            result.ROUTE_DAY_NUMBER = (!isNull(qPlan.route_day_number[1]) ? val(qPlan.route_day_number[1]) : 0);
-            result.STATUS = trim(toString(isNull(qPlan.monitorState[1]) ? "" : qPlan.monitorState[1]));
+            if (!currentGroup.SUCCESS OR !currentGroup.IS_ACTIVE) {
+                result.ERROR = "NO_ACTIVE_PLAN";
+                result.MESSAGE = "No active trip is available.";
+                return result;
+            }
+
+            result.FLOATPLANID = val(currentGroup.FLOATPLANID);
+            result.USERID = arguments.userId;
+            result.FLOATPLANNAME = trim(toString(structKeyExists(currentGroup, "FLOATPLAN_NAME") ? currentGroup.FLOATPLAN_NAME : ""));
+            result.ROUTE_INSTANCE_ID = val(structKeyExists(currentGroup, "ROUTE_INSTANCE_ID") ? currentGroup.ROUTE_INSTANCE_ID : 0);
+            result.ROUTE_DAY_NUMBER = val(structKeyExists(currentGroup, "ROUTE_DAY_NUMBER") ? currentGroup.ROUTE_DAY_NUMBER : 0);
+            result.STATUS = trim(toString(structKeyExists(currentGroup, "STATUS") ? currentGroup.STATUS : ""));
 
             if (arguments.expectedFloatPlanId GT 0 AND result.FLOATPLANID NEQ arguments.expectedFloatPlanId) {
                 result.ERROR = "ACTIVE_PLAN_MISMATCH";
@@ -6988,7 +6975,6 @@
     </cffunction>
 
 </cfcomponent>
-
 
 
 

@@ -99,6 +99,50 @@ async function openMapForFirstSegmentLeg(page) {
   await expect(page.locator("#routeGenLegMap")).toBeVisible({ timeout: 10000 });
 }
 
+async function openEditorForFirstAvailableRoute(page) {
+  await page.waitForFunction(() => {
+    return document.querySelectorAll(".expedition-route-card[data-route-code]").length > 0;
+  }, { timeout: 30000 });
+
+  const routeCode = await page.evaluate(() => {
+    const card = document.querySelector(".expedition-route-card[data-route-code]");
+    return card ? String(card.getAttribute("data-route-code") || "").trim() : "";
+  });
+  expect(routeCode).not.toEqual("");
+
+  const editContextPromise = page.waitForResponse((response) => {
+    return response.request().method() === "POST"
+      && response.url().includes("action=routegen_geteditcontext")
+      && String(response.request().postData() || "").includes(routeCode);
+  }, { timeout: 30000 });
+  const previewPromise = page.waitForResponse((response) => {
+    return response.request().method() === "POST"
+      && response.url().includes("action=routegen_preview");
+  }, { timeout: 30000 });
+
+  await page.waitForFunction(() => {
+    return !!(
+      window.FPW
+      && window.FPW.DashboardModules
+      && window.FPW.DashboardModules.routeBuilder
+      && typeof window.FPW.DashboardModules.routeBuilder.openEditorForRoute === "function"
+    );
+  }, { timeout: 15000 });
+
+  await page.evaluate((code) => {
+    window.FPW.DashboardModules.routeBuilder.openEditorForRoute(code);
+  }, routeCode);
+
+  await expect(page.locator("#routeBuilderModal")).toBeVisible({ timeout: 15000 });
+  await editContextPromise;
+  await previewPromise;
+  await page.waitForFunction(() => {
+    return document.querySelectorAll("#routeGenLegList .fpw-routegen__leg").length > 0;
+  }, { timeout: 30000 });
+
+  return routeCode;
+}
+
 async function waitForTestHook(page) {
   await page.waitForFunction(() => {
     const hook = window.FPW
@@ -156,6 +200,25 @@ async function runGesturePath(page) {
   await expect(page.locator("#routeGenLegMapStatus")).toContainText(/Draft geometry updated/i, { timeout: 10000 });
 }
 
+async function dragMapIntoOverlayBottomGutter(page) {
+  const mapBox = await page.locator("#routeGenLegMap").boundingBox();
+  const overlayBox = await page.locator("#routeGenLegOverlay").boundingBox();
+  if (!mapBox || !overlayBox) {
+    throw new Error("Leg map or overlay bounding box is unavailable.");
+  }
+
+  const startX = Math.round(mapBox.x + (mapBox.width * 0.5));
+  const startY = Math.round(mapBox.y + (mapBox.height * 0.55));
+  const endX = Math.round(overlayBox.x + (overlayBox.width * 0.5));
+  const endY = Math.round(overlayBox.y + overlayBox.height - 4);
+
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(endX, endY, { steps: 40 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+}
+
 test("Route Builder supports draw/save/clear via map interaction across browsers", async ({ page, browserName }) => {
   await page.addInitScript(() => {
     window.__FPW_ENABLE_TEST_HOOKS = true;
@@ -190,4 +253,26 @@ test("Route Builder supports draw/save/clear via map interaction across browsers
   await expect(page.locator("#routeGenLegOverlay")).not.toHaveClass(/is-open/, { timeout: 10000 });
   await page.click("#routeGenCancelBtn");
   await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 15000 });
+});
+
+test("Leg map overlay stays open when a map drag ends on the overlay gutter and still closes with X and Escape", async ({ page }) => {
+  await loginToDashboard(page);
+  await openEditorForFirstAvailableRoute(page);
+  await openMapForFirstSegmentLeg(page);
+
+  await dragMapIntoOverlayBottomGutter(page);
+  await expect(page.locator("#routeGenLegOverlay")).toHaveClass(/is-open/, { timeout: 10000 });
+  await expect(page.locator("#routeGenLegMapPanel")).toHaveClass(/is-open/, { timeout: 10000 });
+  await expect(page.locator("#routeBuilderModal")).toBeVisible({ timeout: 10000 });
+
+  await page.click("#routeGenLegOverlayCloseBtn");
+  await expect(page.locator("#routeGenLegOverlay")).not.toHaveClass(/is-open/, { timeout: 10000 });
+  await expect(page.locator("#routeGenLegMapPanel")).not.toHaveClass(/is-open/, { timeout: 10000 });
+  await expect(page.locator("#routeBuilderModal")).toBeVisible({ timeout: 10000 });
+
+  await openMapForFirstSegmentLeg(page);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#routeGenLegOverlay")).not.toHaveClass(/is-open/, { timeout: 10000 });
+  await expect(page.locator("#routeGenLegMapPanel")).not.toHaveClass(/is-open/, { timeout: 10000 });
+  await expect(page.locator("#routeBuilderModal")).toBeVisible({ timeout: 10000 });
 });
