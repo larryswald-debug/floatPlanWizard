@@ -172,16 +172,7 @@ function buildMetarCacheKey(required numeric lat, required numeric lng) {
 </head>
 <body>
   <div class="wrap">
-    <nav class="admin-nav" aria-label="Admin Tools">
-      <a href="/fpw/admin/floatplan-cleanup.cfm">FloatPlan Cleanup</a>
-      <a href="/fpw/admin/route-cleanup.cfm">Route Cleanup</a>
-      <a href="/fpw/admin/fuel-calculator.cfm">Fuel Calculator</a>
-      <a href="/fpw/admin/waypoint-manager.cfm">Waypoint Manager</a>
-      <a href="/fpw/admin/passenger-manager.cfm">Passenger Manager</a>
-      <a href="/fpw/admin/vessel-manager.cfm">Vessel Manager</a>
-      <a href="/fpw/admin/operator-manager.cfm">Operator Manager</a>
-      <a href="/fpw/admin/metar-seed-test.cfm" class="active">METAR Seed Test</a>
-    </nav>
+    <cfinclude template="includes/admin_reports_nav.cfm">
 
     <h1>METAR Trend Seed Test</h1>
     <p class="hint">Seeds a stale prior METAR sample in server cache, then fetches live weather API response so <code>DATA.surface.pressure_rate_per_hr</code> can populate immediately.</p>
@@ -309,3 +300,4 @@ function buildMetarCacheKey(required numeric lat, required numeric lng) {
   </script>
 </body>
 </html>
+

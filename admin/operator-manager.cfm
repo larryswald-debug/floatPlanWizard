@@ -70,6 +70,7 @@ isAuthorized = isLoggedIn AND isAdmin;
     .toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
     .toolbar-actions button { padding: 8px 12px; border-radius: 4px; border: 1px solid #666; background: #efefef; cursor: pointer; font-size: 14px; }
     .toolbar-actions button.primary { background: #111; border-color: #111; color: #fff; }
+    .toolbar-actions button.danger { background: #c82333; border-color: #9f1d1d; color: #fff; }
     .summary-line { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; color: #444; margin: 8px 0 12px; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
@@ -96,15 +97,7 @@ isAuthorized = isLoggedIn AND isAdmin;
 </head>
 <body>
   <div class="wrap">
-    <nav class="admin-nav" aria-label="Admin Tools">
-      <a href="/fpw/admin/floatplan-cleanup.cfm">FloatPlan Cleanup</a>
-      <a href="/fpw/admin/route-cleanup.cfm">Route Cleanup</a>
-      <a href="/fpw/admin/fuel-calculator.cfm">Fuel Calculator</a>
-      <a href="/fpw/admin/waypoint-manager.cfm">Waypoint Manager</a>
-      <a href="/fpw/admin/passenger-manager.cfm">Passenger Manager</a>
-      <a href="/fpw/admin/vessel-manager.cfm">Vessel Manager</a>
-      <a href="/fpw/admin/operator-manager.cfm" class="active">Operator Manager</a>
-    </nav>
+    <cfinclude template="includes/admin_reports_nav.cfm">
 
     <h1>Admin Operator Manager</h1>
     <p class="hint">Manage operator records with full CRUD, owner selection on create, and linked float-plan usage visibility.</p>
@@ -144,6 +137,7 @@ isAuthorized = isLoggedIn AND isAdmin;
           <button type="submit" class="primary">Search</button>
           <button type="button" id="resetFiltersBtn">Reset</button>
           <button type="button" id="addOperatorBtn">Add Operator</button>
+          <button type="button" id="bulkDeleteOperatorsBtn" class="danger" disabled>Delete Checked</button>
         </div>
       </form>
 
@@ -155,6 +149,7 @@ isAuthorized = isLoggedIn AND isAdmin;
         <table>
           <thead>
             <tr>
+              <th style="width:70px;"><label><input id="selectAllOperators" type="checkbox"> All</label></th>
               <th style="width:70px;">ID</th>
               <th style="width:90px;">Owner ID</th>
               <th style="width:220px;">Owner Email</th>
@@ -167,7 +162,7 @@ isAuthorized = isLoggedIn AND isAdmin;
             </tr>
           </thead>
           <tbody id="operatorTableBody">
-            <tr><td colspan="9">Loading...</td></tr>
+            <tr><td colspan="10">Loading...</td></tr>
           </tbody>
         </table>
       </div>
@@ -243,7 +238,7 @@ isAuthorized = isLoggedIn AND isAdmin;
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
   <cfif isAuthorized>
-    <script src="/fpw/assets/js/app/admin/operator-manager.js?v=20260328a"></script>
+    <script src="/fpw/assets/js/app/admin/operator-manager.js?v=20260423b"></script>
   </cfif>
 </body>
 </html>

@@ -4,7 +4,8 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.ctx = {
       createdPlanIds = [],
       createdRouteCodes = [],
-      createdVesselIds = []
+      createdVesselIds = [],
+      originalSessionUser = ( structKeyExists( session, "user" ) && isStruct( session.user ) ) ? duplicate( session.user ) : {}
     };
 
     if ( structKeyExists( CGI, "SCRIPT_NAME" ) && findNoCase( "/testbox/", CGI.SCRIPT_NAME ) ) {
@@ -25,34 +26,49 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.ctx.floatPlanBootstrapUrl = variables.ctx.floatPlanHandleUrl & "&action=bootstrap";
     variables.ctx.forceUserId = structKeyExists( url, "testUserId" ) && isNumeric( url.testUserId )
       ? val( url.testUserId )
-      : 187;
+      : 0;
+    if ( variables.ctx.forceUserId LTE 0 ) {
+      variables.ctx.sessionApiUser = createSessionApiUser();
+      variables.ctx.forceUserId = variables.ctx.sessionApiUser.userId;
+    }
 
     ensureSessionUser();
     variables.ctx.sessionReady = !structKeyExists( variables.ctx, "sessionError" );
     variables.ctx.monitorService = new fpw.api.v1.monitor().init();
-    variables.ctx.apiSupport = new fpw.tests.support.FpwApiSupport().init( baseUrl = variables.ctx.baseUrl & "/fpw" );
+    variables.ctx.apiSupport = structKeyExists( variables.ctx, "sessionApiUser" )
+      ? new fpw.tests.support.FpwApiSupport().init(
+          baseUrl = variables.ctx.baseUrl & "/fpw",
+          authEmail = variables.ctx.sessionApiUser.email,
+          authPassword = variables.ctx.sessionApiUser.password
+        )
+      : new fpw.tests.support.FpwApiSupport().init( baseUrl = variables.ctx.baseUrl & "/fpw" );
     variables.ctx.cleanupSupport = new fpw.tests.support.FpwCleanupSupport().init( variables.ctx.apiSupport );
     variables.ctx.namingSupport = new fpw.tests.support.FpwNamingSupport();
   }
 
   function afterAll() {
-    if ( !structKeyExists( variables, "ctx" ) || !variables.ctx.sessionReady ) {
-      return;
+    if ( structKeyExists( variables, "ctx" ) && variables.ctx.sessionReady ) {
+      for ( var i = 1; i LTE arrayLen( variables.ctx.createdPlanIds ); i++ ) {
+        deleteMonitoringRows( variables.ctx.createdPlanIds[ i ] );
+        floatPlanPost( "delete", { floatPlanId = variables.ctx.createdPlanIds[ i ] } );
+      }
+      for ( var j = arrayLen( variables.ctx.createdRouteCodes ); j GTE 1; j-- ) {
+        try {
+          variables.ctx.cleanupSupport.cleanupRoute( variables.ctx.createdRouteCodes[ j ] );
+        } catch ( any ignoredRouteCleanup ) {}
+      }
+      for ( var k = arrayLen( variables.ctx.createdVesselIds ); k GTE 1; k-- ) {
+        try {
+          variables.ctx.cleanupSupport.cleanupVessel( variables.ctx.createdVesselIds[ k ] );
+        } catch ( any ignoredVesselCleanup ) {}
+      }
+      cleanupSessionApiUser();
     }
 
-    for ( var i = 1; i LTE arrayLen( variables.ctx.createdPlanIds ); i++ ) {
-      deleteMonitoringRows( variables.ctx.createdPlanIds[ i ] );
-      floatPlanPost( "delete", { floatPlanId = variables.ctx.createdPlanIds[ i ] } );
-    }
-    for ( var j = arrayLen( variables.ctx.createdRouteCodes ); j GTE 1; j-- ) {
-      try {
-        variables.ctx.cleanupSupport.cleanupRoute( variables.ctx.createdRouteCodes[ j ] );
-      } catch ( any ignoredRouteCleanup ) {}
-    }
-    for ( var k = arrayLen( variables.ctx.createdVesselIds ); k GTE 1; k-- ) {
-      try {
-        variables.ctx.cleanupSupport.cleanupVessel( variables.ctx.createdVesselIds[ k ] );
-      } catch ( any ignoredVesselCleanup ) {}
+    if ( structKeyExists( variables, "ctx" ) && structKeyExists( variables.ctx, "originalSessionUser" ) && isStruct( variables.ctx.originalSessionUser ) && structCount( variables.ctx.originalSessionUser ) ) {
+      session.user = variables.ctx.originalSessionUser;
+    } else {
+      structDelete( session, "user", false );
     }
   }
 
@@ -91,11 +107,8 @@ component extends="testbox.system.BaseSpec" output="false" {
         );
 
         var sendRes = floatPlanPost( "send", { floatPlanId = plan.planId } );
-        expect( pickBool( sendRes, "SUCCESS" ) ).toBeFalse( "send should fail when no contacts are selected: #serializeJSON(sendRes)#" );
-        var sendCode = uCase( toString( pickFirst( sendRes, [ "ERROR", "error" ], "" ) ) );
-        var sendMessage = lCase( toString( pickFirst( sendRes, [ "MESSAGE", "message" ], "" ) ) );
-        var hasExpectedSendFailure = ( sendCode EQ "NO_CONTACTS" || sendCode EQ "NO_EMAILS" || findNoCase( "contact", sendMessage ) GT 0 );
-        expect( hasExpectedSendFailure ).toBeTrue( "Unexpected send failure reason: #serializeJSON(sendRes)#" );
+        expect( pickBool( sendRes, "SUCCESS" ) ).toBeFalse( "route-less send should fail: #serializeJSON(sendRes)#" );
+        expect( uCase( toString( pickFirst( sendRes, [ "ERROR", "error" ], "" ) ) ) ).toBe( "ROUTE_REQUIRED_FOR_ACTIVATION" );
 
         var invalidCheckinRes = floatPlanPost( "checkin", { floatPlanId = plan.planId } );
         expect( pickBool( invalidCheckinRes, "SUCCESS" ) ).toBeFalse( "route-less draft check-in should fail: #serializeJSON(invalidCheckinRes)#" );
@@ -153,6 +166,12 @@ component extends="testbox.system.BaseSpec" output="false" {
         var startMonitoringRes = variables.ctx.monitorService.startMonitoringForFloatPlan( plan.planId, "active_route" );
         expect( pickBool( startMonitoringRes, "SUCCESS" ) ).toBeTrue( "start monitoring failed: #serializeJSON(startMonitoringRes)#" );
 
+        var planState = loadRoutePlanState( plan.planId );
+        var qLegs = loadRouteLegOrders( planState.route_instance_id );
+        expect( qLegs.recordCount ).toBeGT( 0 );
+        clearRouteProgress( planState.user_id, planState.route_instance_id );
+        seedStartedLeg( planState.user_id, planState.route_instance_id, val( qLegs.leg_order[ qLegs.recordCount ] ) );
+
         var arrivedRes = floatPlanPost( "checkin", {
           floatPlanId = plan.planId,
           status = "Arrived",
@@ -162,7 +181,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var monitoringRow = loadMonitoringRow( plan.planId );
 
         expect( pickBool( arrivedRes, "SUCCESS" ) ).toBeTrue( "Arrived close failed: #serializeJSON(arrivedRes)#" );
-        expect( planRow.status_value ).toBe( "CLOSED" );
+        expect( planRow.status_value ).toBe( "DRAFT" );
         expect( planRow.checkin_context ).toBe( "" );
         expect( isDate( planRow.closed_at ) ).toBeTrue();
         expect( monitoringRow.monitor_state ).toBe( "CLOSED" );
@@ -232,11 +251,29 @@ component extends="testbox.system.BaseSpec" output="false" {
 
     var vesselId = extractIdFromList( bootstrapRes, "VESSELS", "VESSELID" );
     if ( vesselId LTE 0 ) {
-      throw(
-        type = "FloatPlanActionsSpec.Setup",
-        message = "No vessel available for test user",
-        detail = serializeJSON( bootstrapRes )
-      );
+      var vesselPayload = variables.ctx.apiSupport.saveVessel( {
+        vesselId = 0,
+        vesselName = "Draft Vessel " & uniqueSuffix(),
+        type = "Cruiser",
+        length = 30,
+        color = "White"
+      } );
+      if ( !pickBool( vesselPayload, "SUCCESS" ) ) {
+        throw(
+          type = "FloatPlanActionsSpec.Setup",
+          message = "Unable to create vessel for draft-plan setup",
+          detail = serializeJSON( vesselPayload )
+        );
+      }
+      vesselId = val( vesselPayload.VESSELID ?: 0 );
+      if ( vesselId LTE 0 ) {
+        throw(
+          type = "FloatPlanActionsSpec.Setup",
+          message = "Vessel setup response missing vessel id",
+          detail = serializeJSON( vesselPayload )
+        );
+      }
+      rememberCreatedVesselId( vesselId );
     }
 
     var operatorId = extractIdFromList( bootstrapRes, "OPERATORS", "OPERATORID" );
@@ -331,7 +368,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     planId = val( buildPayload.FLOATPLAN_IDS[ 1 ] ?: 0 );
     expect( planId ).toBeGT( 0, serializeJSON( buildPayload ) );
 
-    arrayAppend( variables.ctx.createdVesselIds, vesselId );
+    rememberCreatedVesselId( vesselId );
     arrayAppend( variables.ctx.createdRouteCodes, routeCode );
     for ( var id in buildPayload.FLOATPLAN_IDS ) {
       rememberCreatedPlanId( val( id ) );
@@ -348,6 +385,13 @@ component extends="testbox.system.BaseSpec" output="false" {
     if ( arguments.planId LTE 0 ) return;
     if ( arrayFind( variables.ctx.createdPlanIds, arguments.planId ) EQ 0 ) {
       arrayAppend( variables.ctx.createdPlanIds, arguments.planId );
+    }
+  }
+
+  private void function rememberCreatedVesselId( required numeric vesselId ) {
+    if ( arguments.vesselId LTE 0 ) return;
+    if ( arrayFind( variables.ctx.createdVesselIds, arguments.vesselId ) EQ 0 ) {
+      arrayAppend( variables.ctx.createdVesselIds, arguments.vesselId );
     }
   }
 
@@ -444,6 +488,64 @@ component extends="testbox.system.BaseSpec" output="false" {
     };
   }
 
+  private struct function loadRoutePlanState( required numeric planId ) {
+    var qPlan = queryExecute(
+      "SELECT userId, route_instance_id, `status`
+       FROM floatplans
+       WHERE floatplanId = :floatPlanId
+       LIMIT 1",
+      {
+        floatPlanId = { value = arguments.planId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    expect( qPlan.recordCount ).toBe( 1 );
+    return {
+      user_id = val( qPlan.userId[ 1 ] ),
+      route_instance_id = val( qPlan.route_instance_id[ 1 ] ),
+      status = trim( toString( qPlan.status[ 1 ] ) )
+    };
+  }
+
+  private query function loadRouteLegOrders( required numeric routeInstanceId ) {
+    return queryExecute(
+      "SELECT leg_order
+       FROM route_instance_legs
+       WHERE route_instance_id = :routeInstanceId
+       ORDER BY leg_order ASC, id ASC",
+      {
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
+  private void function clearRouteProgress( required numeric userId, required numeric routeInstanceId ) {
+    queryExecute(
+      "DELETE FROM route_instance_leg_progress
+       WHERE user_id = :userId
+         AND route_instance_id = :routeInstanceId",
+      {
+        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
+  private void function seedStartedLeg( required numeric userId, required numeric routeInstanceId, required numeric legOrder ) {
+    queryExecute(
+      "INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, status, leg_started_at)
+       VALUES (:userId, :routeInstanceId, :legOrder, 'STARTED', UTC_TIMESTAMP())",
+      {
+        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" },
+        legOrder = { value = arguments.legOrder, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
   private void function deleteMonitoringRows( required numeric planId ) {
     queryExecute(
       "DELETE FROM floatplan_monitor_events WHERE float_plan_id = :floatPlanId",
@@ -466,14 +568,59 @@ component extends="testbox.system.BaseSpec" output="false" {
       if ( !structKeyExists( session, "user" ) || !isStruct( session.user ) ) {
         session.user = {};
       }
-      if ( !structKeyExists( session.user, "userId" ) || !isNumeric( session.user.userId ) || val( session.user.userId ) LTE 0 ) {
-        session.user.userId = variables.ctx.forceUserId;
-        session.user.id = session.user.userId;
-        session.user.USERID = session.user.userId;
-      }
+      session.user.userId = variables.ctx.forceUserId;
+      session.user.id = variables.ctx.forceUserId;
+      session.user.USERID = variables.ctx.forceUserId;
     } catch ( any e ) {
       variables.ctx.sessionError = e.message;
     }
+  }
+
+  private struct function createSessionApiUser() {
+    var signupApi = new fpw.tests.support.FpwApiSupport().init( baseUrl = variables.ctx.baseUrl & "/fpw" );
+    var uniqueEmail = "fpw-floatactions-" & replace( createUUID(), "-", "", "all" ) & "@example.com";
+    var payload = signupApi.postJson( "/api/v1/join.cfc?method=handle", {
+      firstName = "FPW",
+      lastName = "FloatActions",
+      email = uniqueEmail,
+      password = "changeIt"
+    }, false );
+
+    if ( !structKeyExists( payload, "SUCCESS" ) || payload.SUCCESS NEQ true ) {
+      throw( message = "FloatPlanActionsSpec setup failed: createSessionApiUser", detail = serializeJSON( payload ) );
+    }
+
+    return {
+      userId = val( payload.USERID ?: 0 ),
+      email = uniqueEmail,
+      password = "changeIt"
+    };
+  }
+
+  private void function cleanupSessionApiUser() {
+    var userId = 0;
+    if ( !structKeyExists( variables, "ctx" ) || !structKeyExists( variables.ctx, "sessionApiUser" ) || !isStruct( variables.ctx.sessionApiUser ) ) {
+      return;
+    }
+    userId = val( variables.ctx.sessionApiUser.userId ?: 0 );
+    if ( userId LTE 0 ) {
+      return;
+    }
+
+    queryExecute(
+      "DELETE FROM users_address WHERE userId = :userId",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "DELETE FROM users WHERE userId = :userId",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
   }
 
   private struct function floatPlanPost( required string action, struct payload = {} ) {

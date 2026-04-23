@@ -254,6 +254,16 @@
       });
     },
 
+    cancelFloatPlan: function (floatPlanId) {
+      return request("/floatplan.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "cancel",
+          floatPlanId: floatPlanId
+        }
+      });
+    },
+
     submitFloatPlanCheckIn: function (payload) {
       return request("/floatplan.cfc?method=handle&action=checkin", {
         method: "POST",
@@ -270,6 +280,20 @@
 
     startNextActiveCruiseLeg: function (payload) {
       return request("/floatplan.cfc?method=handle&action=startnextleg", {
+        method: "POST",
+        body: payload || {}
+      });
+    },
+
+    addActiveCruiseDelay: function (payload) {
+      return request("/floatplan.cfc?method=handle&action=adddelay", {
+        method: "POST",
+        body: payload || {}
+      });
+    },
+
+    clearActiveCruiseDelay: function (payload) {
+      return request("/floatplan.cfc?method=handle&action=cleardelay", {
         method: "POST",
         body: payload || {}
       });

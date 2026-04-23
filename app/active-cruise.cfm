@@ -366,6 +366,38 @@
     return result;
   }
 
+  function fpwResolveCurrentActiveCruiseGroup(required numeric userId) {
+    var result = {
+      SUCCESS = false,
+      HAS_CURRENT_GROUP = false,
+      IS_ACTIVE = false,
+      MESSAGE = "No active trip is available."
+    };
+    var floatPlanComponent = "";
+
+    if (arguments.userId LTE 0) {
+      result.MESSAGE = "A valid owner is required.";
+      return result;
+    }
+
+    try {
+      floatPlanComponent = createObject("component", "fpw.api.v1.floatplan");
+    } catch (any floatPlanPathErr) {
+      floatPlanComponent = createObject("component", "api.v1.floatplan");
+    }
+
+    result = floatPlanComponent.resolveCurrentRouteFloatPlanGroup(arguments.userId);
+    if (!isStruct(result)) {
+      result = {
+        SUCCESS = false,
+        HAS_CURRENT_GROUP = false,
+        IS_ACTIVE = false,
+        MESSAGE = "No active trip is available."
+      };
+    }
+    return result;
+  }
+
   function fpwGetCanonicalFuelEstimate(required struct routeInputs, required numeric distanceNm, any idleFuelGallons=0) {
     var result = {
       SUCCESS = false,
@@ -424,13 +456,21 @@
     requestedFloatPlanId = 0,
     activeRouteCode = ""
   };
+  activeCruiseMapPayload = {
+    routeGeo = { type = "MultiLineString", coordinates = [] },
+    pins = [],
+    current = {},
+    streamId = 0,
+    slug = "",
+    shareToken = ""
+  };
   if (isNumeric(activeCruiseHooks.context.floatPlanId)) {
     activeCruiseContext.requestedFloatPlanId = val(activeCruiseHooks.context.floatPlanId);
   }
 
   activeCruiseAccessValid = false;
   activeCruiseAccessTitle = "No Active Trip";
-  activeCruiseAccessMessage = "Active Cruise is available only for your current monitored trip.";
+  activeCruiseAccessMessage = "Active Cruise is available only for your current active trip.";
   activeCruiseAccessDetail = "Open this page from the one active float plan tied to your trip.";
 
   activeCruiseView = {
@@ -468,6 +508,8 @@
     monitorWeatherFactor = "—",
     monitorDailyStartLabel = "8:00 AM",
     monitorDailyStartInput = "08:00",
+    manualDelayMinutesTotal = 0,
+    manualDelayMinutesLabel = "0 minutes",
     legDistance = "82 nm",
     legRemaining = "41 nm",
     legDataPace = "7.4 kt",
@@ -570,6 +612,7 @@
       nextStop = "";
       currentLegDistNm = 0.0;
       planStatusRaw = "";
+      monitorStatusRaw = "";
       planStatusLabel = "";
       monitorStatus = "";
       paceKn = 0.0;
@@ -607,6 +650,7 @@
       qInstInputs = queryNew("");
       qTripStart = queryNew("");
       qPlanSql = "";
+      currentGroup = {};
       qCanonicalPlan = queryNew("");
       requestedFloatPlanId = activeCruiseContext.requestedFloatPlanId;
       hasVoyageTables = false;
@@ -648,72 +692,21 @@
       timelineItems = [];
       timelinePostDt = "";
 
-      qPlanSql =
-        "SELECT
-           fp.floatplanId,
-           fp.floatPlanName,
-           fp.status,
-           fp.route_instance_id,
-           fp.route_day_number,
-           fp.checkedInAt,"
-           & "
-           fp.checkin_context,
-           fp.returnTime,
-           fp.returnTimezone,
-           fp.departureTime,
-           fp.departureTZ,
-           fp.dailyStartLocalTime,
-           fp.departing,
-           fp.returning,
-           (
-             SELECT
-               COALESCE(
-                 CONVERT_TZ(
-                   m.expected_checkin_at,
-                   'UTC',
-                   NULLIF(COALESCE(NULLIF(fp.departureTZ, ''), NULLIF(fp.departTimezone, ''), 'UTC'), '')
-                 ),
-                 m.expected_checkin_at
-               )
-             FROM floatplan_monitoring m
-             WHERE m.float_plan_id = fp.floatplanId
-               AND m.is_monitoring_enabled = 1
-               AND UPPER(TRIM(m.monitor_state)) <> 'CLOSED'
-             ORDER BY m.id DESC
-             LIMIT 1
-           ) AS expected_checkin_at
-         FROM floatplans fp
-         WHERE fp.userId = :userId
-           AND UPPER(TRIM(fp.status)) IN (
-             'ACTIVE',
-             'DUE_NOW',
-             'OVERDUE',
-             'OVERDUE_1H',
-             'OVERDUE_2H',
-             'OVERDUE_3H',
-             'OVERDUE_4H',
-             'OVERDUE_12H',
-             'OVERDUE_24H'
-           )
-         ORDER BY floatplanId DESC
-         LIMIT 2";
-      qCanonicalPlan = queryExecute(
-        qPlanSql,
-        {
-          userId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" }
-        },
-        { datasource = activeCruiseDatasource }
-      );
+      currentGroup = fpwResolveCurrentActiveCruiseGroup(activeCruiseUserId);
 
-      if (qCanonicalPlan.recordCount EQ 0) {
+      if (
+        isStruct(currentGroup)
+        AND structKeyExists(currentGroup, "ERROR")
+        AND trim(toString(currentGroup.ERROR)) EQ "MULTIPLE_ACTIVE_GROUPS"
+      ) {
+        activeCruiseAccessMessage = "Active Cruise is unavailable because more than one active route/float-plan group exists.";
+        activeCruiseAccessDetail = "Resolve the extra active group before using this page.";
+      } else if (!currentGroup.SUCCESS OR !currentGroup.IS_ACTIVE) {
         activeCruiseAccessMessage = "No active trip is available for this account.";
-        activeCruiseAccessDetail = "Active Cruise only loads the current monitored float plan.";
-      } else if (qCanonicalPlan.recordCount GT 1) {
-        activeCruiseAccessMessage = "Active Cruise is unavailable because more than one monitored float plan is active.";
-        activeCruiseAccessDetail = "Resolve the extra monitored trip before using this page.";
+        activeCruiseAccessDetail = "Active Cruise only loads the current active float plan.";
       } else {
-        activeCruiseContext.floatPlanId = val(fpwQueryCell(qCanonicalPlan, "floatplanId", 1, 0));
-        activeCruiseContext.routeInstanceId = val(fpwQueryCell(qCanonicalPlan, "route_instance_id", 1, 0));
+        activeCruiseContext.floatPlanId = val(structKeyExists(currentGroup, "FLOATPLANID") ? currentGroup.FLOATPLANID : 0);
+        activeCruiseContext.routeInstanceId = val(structKeyExists(currentGroup, "ROUTE_INSTANCE_ID") ? currentGroup.ROUTE_INSTANCE_ID : 0);
 
         if (requestedFloatPlanId GT 0 AND requestedFloatPlanId NEQ activeCruiseContext.floatPlanId) {
           activeCruiseAccessMessage = "This Active Cruise link does not match your current active trip.";
@@ -725,7 +718,66 @@
           activeCruiseAccessDetail = "Active Cruise requires a route-linked active float plan.";
           activeCruiseContext.floatPlanId = 0;
         } else {
-          qPlan = qCanonicalPlan;
+          qPlanSql =
+            "SELECT
+               fp.floatplanId,
+               fp.floatPlanName,
+               fp.status,
+               UPPER(TRIM(COALESCE(NULLIF(m.monitor_state, ''), fp.status))) AS monitor_state,
+               fp.route_instance_id,
+               fp.route_day_number,
+               fp.checkedInAt,"
+               & "
+               fp.checkin_context,
+               fp.returnTime,
+               fp.returnTimezone,
+               fp.departureTime,
+               fp.departureTZ,
+               fp.dailyStartLocalTime,
+               fp.departing,
+               fp.returning,
+               COALESCE(
+                 CONVERT_TZ(
+                   m.expected_checkin_at,
+                   'UTC',
+                   NULLIF(COALESCE(NULLIF(fp.departureTZ, ''), NULLIF(fp.departTimezone, ''), 'UTC'), '')
+                 ),
+                 m.expected_checkin_at
+               ) AS expected_checkin_at
+             FROM floatplans fp
+             LEFT JOIN (
+               SELECT
+                 m1.float_plan_id,
+                 m1.monitor_state,
+                 m1.expected_checkin_at
+               FROM floatplan_monitoring m1
+               INNER JOIN (
+                 SELECT MAX(id) AS id
+                 FROM floatplan_monitoring
+                 WHERE user_id = :monitorUserId
+                   AND is_monitoring_enabled = 1
+                   AND UPPER(TRIM(monitor_state)) <> 'CLOSED'
+                 GROUP BY float_plan_id
+               ) latest ON latest.id = m1.id
+             ) m ON m.float_plan_id = fp.floatplanId
+             WHERE fp.floatplanId = :floatPlanId
+               AND fp.userId = :planUserId
+             LIMIT 1";
+          qPlan = queryExecute(
+            qPlanSql,
+            {
+              monitorUserId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" },
+              floatPlanId = { value = activeCruiseContext.floatPlanId, cfsqltype = "cf_sql_integer" },
+              planUserId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" }
+            },
+            { datasource = activeCruiseDatasource }
+          );
+          if (qPlan.recordCount NEQ 1) {
+            activeCruiseAccessMessage = "The current active float plan could not be loaded.";
+            activeCruiseAccessDetail = "Active Cruise requires the canonical active float plan record.";
+            activeCruiseContext.floatPlanId = 0;
+            activeCruiseContext.routeInstanceId = 0;
+          } else {
           activeCruiseAccessValid = true;
           activeCruiseTripStartState = fpwEnsureScheduledTripStart(activeCruiseUserId, activeCruiseContext.floatPlanId);
           if (
@@ -735,6 +787,7 @@
             AND structKeyExists(activeCruiseTripStartState, "TRIP_STARTED")
           ) {
             activeCruiseTripStarted = (activeCruiseTripStartState.TRIP_STARTED EQ true);
+          }
           }
         }
       }
@@ -794,11 +847,12 @@
           canonicalTripStartDt = fpwQueryCell(qPlan, "departureTime", 1, "");
         }
         planStatusRaw = trim(toString(fpwQueryCell(qPlan, "status", 1, "")));
+        monitorStatusRaw = trim(toString(fpwQueryCell(qPlan, "monitor_state", 1, "")));
         planStatusLabel = fpwStatusLabel(planStatusRaw, "Active");
         if (NOT len(planStatusLabel)) {
           planStatusLabel = "Unknown";
         }
-        monitorStatus = fpwStatusLabel(planStatusRaw, "Normal");
+        monitorStatus = fpwStatusLabel(monitorStatusRaw, "Normal");
         if (NOT len(monitorStatus)) {
           monitorStatus = "Unknown";
         }
@@ -1067,7 +1121,7 @@
 
         if (hasVoyageTables) {
           qStream = queryExecute(
-            "SELECT id
+            "SELECT id, slug, share_token
              FROM voyage_streams
              WHERE floatplan_id = :planId
                AND owner_user_id = :ownerUserId
@@ -1082,6 +1136,9 @@
           streamLive = (qStream.recordCount EQ 1);
 
           if (streamLive) {
+            activeCruiseMapPayload.streamId = val(fpwQueryCell(qStream, "id", 1, 0));
+            activeCruiseMapPayload.slug = trim(toString(fpwQueryCell(qStream, "slug", 1, "")));
+            activeCruiseMapPayload.shareToken = trim(toString(fpwQueryCell(qStream, "share_token", 1, "")));
             qTimelinePosts = queryExecute(
               "SELECT recent.title, recent.body, recent.created_utc
                FROM (
@@ -1214,6 +1271,19 @@
       activeCruiseView.monitorNextExpectedCheckIn = (isDate(expectedCheckInDt) ? dateTimeFormat(expectedCheckInDt, "mmm d, yyyy h:nn tt") : "--");
       activeCruiseView.monitorDailyStartLabel = fpwFormatLocalTimeLabel(dailyStartLocalTimeVal, "8:00 AM");
       activeCruiseView.monitorDailyStartInput = fpwFormatLocalTimeInput(dailyStartLocalTimeVal, "08:00");
+      activeCruiseView.manualDelayMinutesTotal = (
+        isStruct(activeCruiseCanonicalHero)
+        AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS")
+        AND activeCruiseCanonicalHero.SUCCESS
+        AND structKeyExists(activeCruiseCanonicalHero, "manualDelayMinutesTotal")
+        AND isNumeric(activeCruiseCanonicalHero.manualDelayMinutesTotal)
+          ? val(activeCruiseCanonicalHero.manualDelayMinutesTotal)
+          : 0
+      );
+      if (activeCruiseView.manualDelayMinutesTotal LT 0) {
+        activeCruiseView.manualDelayMinutesTotal = 0;
+      }
+      activeCruiseView.manualDelayMinutesLabel = activeCruiseView.manualDelayMinutesTotal & " minute" & (activeCruiseView.manualDelayMinutesTotal EQ 1 ? "" : "s");
       if (isStruct(routeInputs) AND structCount(routeInputs) AND structKeyExists(routeInputs, "weather_factor_pct") AND !isNull(routeInputs.weather_factor_pct)) {
         routeWeatherFactorRaw = trim(toString(routeInputs.weather_factor_pct));
         if (len(routeWeatherFactorRaw)) {
@@ -1722,6 +1792,7 @@
         : ""
     ),
     heroNextExpectedCheckIn = activeCruiseView.heroNextExpectedCheckIn,
+    manualDelayMinutesTotal = activeCruiseView.manualDelayMinutesTotal,
     legRemainingDistance = activeCruiseView.legRemainingDistance,
     legPercentComplete = activeCruiseView.legPercentComplete,
     monitorStatus = activeCruiseView.monitorStatus,
@@ -1762,6 +1833,42 @@
   ) {
     activeCruiseHooks.fields.legArrivalUtc = trim(toString(activeCruiseHooks.fields.heroEtaUtc));
   }
+  if (activeCruiseAccessValid AND activeCruiseContext.routeInstanceId GT 0 AND activeCruiseUserId GT 0) {
+    activeCruiseMapComponent = "";
+    activeCruiseMapRaw = {};
+    try {
+      activeCruiseMapComponent = createObject("component", "fpw.api.v1.voyage");
+    } catch (any activeCruiseMapComponentErrA) {
+      try {
+        activeCruiseMapComponent = createObject("component", "api.v1.voyage");
+      } catch (any activeCruiseMapComponentErrB) {
+        activeCruiseMapComponent = "";
+      }
+    }
+    if (isObject(activeCruiseMapComponent)) {
+      try {
+        activeCruiseMapRaw = activeCruiseMapComponent.buildRouteMapData(
+          routeInstanceId = activeCruiseContext.routeInstanceId,
+          ownerUserId = activeCruiseUserId,
+          fallbackDays = 0
+        );
+      } catch (any activeCruiseMapBuildErr) {
+        activeCruiseMapRaw = {};
+      }
+    }
+    if (isStruct(activeCruiseMapRaw) AND structCount(activeCruiseMapRaw)) {
+      if (structKeyExists(activeCruiseMapRaw, "route_geo") AND isStruct(activeCruiseMapRaw.route_geo)) {
+        activeCruiseMapPayload.routeGeo = duplicate(activeCruiseMapRaw.route_geo);
+      }
+      if (structKeyExists(activeCruiseMapRaw, "pins") AND isArray(activeCruiseMapRaw.pins)) {
+        activeCruiseMapPayload.pins = duplicate(activeCruiseMapRaw.pins);
+      }
+      if (structKeyExists(activeCruiseMapRaw, "current") AND isStruct(activeCruiseMapRaw.current)) {
+        activeCruiseMapPayload.current = duplicate(activeCruiseMapRaw.current);
+      }
+    }
+  }
+  activeCruiseHooks.map = activeCruiseMapPayload;
   activeCruiseHooksJson = replace(serializeJSON(activeCruiseHooks), "</", "<\/", "all");
 </cfscript>
 <!DOCTYPE html>
@@ -1770,6 +1877,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FPW Active Cruise Console</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <style>
     :root {
       --bg: #06111a;
@@ -2239,6 +2347,113 @@
       font-weight: 800;
     }
 
+    .active-cruise-map-panel {
+      margin-bottom: 18px;
+      overflow: hidden;
+    }
+
+    .active-cruise-map-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+
+    .active-cruise-map-copy h3 {
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .active-cruise-map-copy p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .active-cruise-map-wrap {
+      position: relative;
+    }
+
+    .active-cruise-map-canvas {
+      position: relative;
+      height: 420px;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(208, 221, 233, 0.24);
+      background: rgba(126,184,226,0.04);
+    }
+
+    #fpwActiveCruiseMap .radar-opacity-control {
+      background: rgba(255, 255, 255, 0.92);
+      padding: 0.35rem 0.5rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      font-size: 0.7rem;
+      min-width: 140px;
+    }
+
+    #fpwActiveCruiseMap .radar-opacity-control label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      color: #1b1b1b;
+    }
+
+    #fpwActiveCruiseMap .radar-opacity-control input[type="range"] {
+      width: 100%;
+    }
+
+    #fpwActiveCruiseMap .radar-opacity-control.is-disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    .follow-pin {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 600;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+    }
+
+    .follow-pin.start {
+      background: #22c55e;
+    }
+
+    .follow-pin.end {
+      background: #2563eb;
+    }
+
+    .follow-pin.intermediate {
+      background: #64748b;
+      width: 17px;
+      height: 17px;
+    }
+
+    .follow-boat-marker {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: #0ea5e9;
+      border: 3px solid #fff;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+    }
+
     .weather-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2562,6 +2777,7 @@
       .shell { width: min(calc(100% - 18px), var(--max)); }
       .topbar-inner,
       .title-row,
+      .active-cruise-map-head,
       .section-top {
         flex-direction: column;
         align-items: flex-start;
@@ -2578,6 +2794,8 @@
       .weather-grid,
       .data-grid,
       .footer-band { grid-template-columns: 1fr; }
+
+      .active-cruise-map-canvas { height: 340px; }
 
       .timeline-row {
         grid-template-columns: 72px 16px 1fr;
@@ -2632,6 +2850,19 @@
             </div>
           </div>
 
+          <div class="mini-panel active-cruise-map-panel">
+            <div class="active-cruise-map-head">
+              <div class="active-cruise-map-copy">
+                <h3>Map Overview</h3>
+                <p>Live route view with current position, completed track, and destination.</p>
+              </div>
+              <button class="btn btn-secondary" id="fpwActiveCruiseOpenFullMapBtn" type="button">Open Full Map</button>
+            </div>
+            <div class="active-cruise-map-wrap">
+              <div id="fpwActiveCruiseMap" class="active-cruise-map-canvas" aria-label="Voyage route map"></div>
+            </div>
+          </div>
+
 	          <div class="header-stats">
 	            <div class="metric">
 	              <span>Current Leg</span>
@@ -2673,6 +2904,38 @@
 		              </div>
 		            </div>
 			          </div>
+		          <div class="mini-panel" style="margin-top:16px;">
+		            <div class="mini-head">
+		              <h3>Weather Lookup</h3>
+		              <span>Current Leg</span>
+		            </div>
+		            <div class="split" style="align-items:center; gap:10px; flex-wrap:wrap;">
+		              <span>Lookup Point</span>
+		              <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+		                <label style="display:inline-flex; align-items:center; gap:6px;"><input type="radio" name="fpwMonitorWeatherPoint" value="start"><cfoutput>#encodeForHtml(len(trim(currentLegStartName)) ? currentLegStartName : "Start")#</cfoutput></label>
+		                <label style="display:inline-flex; align-items:center; gap:6px;"><input type="radio" name="fpwMonitorWeatherPoint" value="end"><cfoutput>#encodeForHtml(len(trim(currentLegEndName)) ? currentLegEndName : "End")#</cfoutput></label>
+		              </div>
+		            </div>
+		            <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+		              <button class="btn btn-secondary" type="button" id="fpwMonitorWeatherBtn">Check Conditions</button>
+		            </div>
+		            <div id="fpwMonitorWeatherMessage" style="margin-top:10px; color:var(--muted); font-size:0.9rem;" aria-live="polite"></div>
+		            <div id="fpwMonitorWeatherResult" style="margin-top:10px;" hidden>
+		              <div class="split"><span>Point</span><strong id="fpwMonitorWeatherPointLabel">—</strong></div>
+		              <div class="split" style="margin-top:10px;"><span>Wind</span><strong id="fpwMonitorWeatherWind">—</strong></div>
+		              <div class="split" style="margin-top:10px;"><span>Gusts</span><strong id="fpwMonitorWeatherGusts">—</strong></div>
+		              <div class="split" style="margin-top:10px;"><span>Waves</span><strong id="fpwMonitorWeatherWaves">—</strong></div>
+		              <div class="split" style="margin-top:10px;"><span>Visibility</span><strong id="fpwMonitorWeatherVisibility">—</strong></div>
+		              <div class="split" style="margin-top:10px;"><span>Weather % Factor</span><strong id="fpwMonitorWeatherFactor" data-fpw-field="monitor.weatherFactor"><cfoutput>#encodeForHtml(activeCruiseView.monitorWeatherFactor)#</cfoutput></strong></div>
+		              <div style="margin-top:10px;">
+		                <div class="split"><span>Alerts</span><strong id="fpwMonitorWeatherAlertsSummary">No alerts</strong></div>
+		                <div id="fpwMonitorWeatherAlerts" style="margin-top:10px;"></div>
+		              </div>
+		              <div id="fpwMonitorWeatherApplyWrap" style="margin-top:12px; display:flex; justify-content:flex-end;" hidden>
+		                <button class="btn btn-secondary" type="button" id="fpwMonitorWeatherApplyBtn" disabled>Apply Weather to Route</button>
+		              </div>
+		            </div>
+		          </div>
 		          </div>
 	          <div class="panel section-card">
 	            <div class="section-top">
@@ -2857,6 +3120,40 @@
                   <small>Canonical monitoring checkpoint</small>
                 </div>
                 <div class="data-item">
+                  <span>Current Delay</span>
+                  <strong data-fpw-field="delay.currentTotal"><cfoutput>#encodeForHtml(activeCruiseView.manualDelayMinutesLabel)#</cfoutput></strong>
+                  <small>Current manual delay total applied to canonical trip timing.</small>
+                  <button
+                    type="button"
+                    id="fpwManualDelayClearBtn"
+                    class="action-btn"
+                    style="margin-top:12px; width:100%; padding:8px 14px; min-height:auto;"
+                  >Clear Delay</button>
+                </div>
+                <div class="data-item" style="grid-column:1 / -1;">
+                  <span>Add Delay Time</span>
+                  <strong>Manual timing adjustment</strong>
+                  <small>Add positive minutes to the active trip timeline without changing monitoring cadence.</small>
+                  <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
+                    <input
+                      type="number"
+                      id="fpwManualDelayMinutesInput"
+                      min="1"
+                      step="1"
+                      inputmode="numeric"
+                      placeholder="Minutes"
+                      style="min-width:128px; padding:8px 10px; border-radius:10px; border:1px solid rgba(126,184,226,0.18); background:rgba(8,18,28,0.82); color:var(--text);"
+                    >
+                    <button
+                      type="button"
+                      id="fpwManualDelayAddBtn"
+                      class="action-btn"
+                      style="padding:8px 14px; min-height:auto;"
+                    >Add Delay Time</button>
+                  </div>
+                  <small id="fpwManualDelayNote">Adds minutes to the canonical trip delay total used by Active Cruise and Follow timing.</small>
+                </div>
+                <div class="data-item" style="grid-column:1 / -1;">
                   <span>Daily Start Time</span>
                   <strong data-fpw-field="monitor.dailyStartLabel"><cfoutput>#encodeForHtml(activeCruiseView.monitorDailyStartLabel)#</cfoutput></strong>
                   <small>Applied to overnight resume and next-day monitoring.</small>
@@ -2890,34 +3187,6 @@
 	              <div class="split"><span>Status</span><strong style="color:<cfoutput>#encodeForHtmlAttribute(activeCruiseView.monitorStatusColor)#</cfoutput>;" data-fpw-field="monitor.status"><cfoutput>#encodeForHtml(activeCruiseView.monitorStatus)#</cfoutput></strong></div>
 	              <div class="split" style="margin-top:10px;"><span>Follower Page</span><strong style="color:var(--accent);" data-fpw-field="monitor.followerState"><cfoutput>#encodeForHtml(activeCruiseView.monitorFollowerState)#</cfoutput></strong></div>
 	              <div class="split" style="margin-top:10px;"><span>Emergency Contact</span><strong data-fpw-field="monitor.emergencyContact"><cfoutput>#encodeForHtml(activeCruiseView.monitorEmergencyContact)#</cfoutput></strong></div>
-	              <div style="margin-top:12px;">
-	                <div class="split" style="align-items:center; gap:10px; flex-wrap:wrap;">
-	                  <span>Weather Lookup</span>
-	                  <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-	                    <label style="display:inline-flex; align-items:center; gap:6px;"><input type="radio" name="fpwMonitorWeatherPoint" value="start"><cfoutput>#encodeForHtml(len(trim(currentLegStartName)) ? currentLegStartName : "Start")#</cfoutput></label>
-	                    <label style="display:inline-flex; align-items:center; gap:6px;"><input type="radio" name="fpwMonitorWeatherPoint" value="end"><cfoutput>#encodeForHtml(len(trim(currentLegEndName)) ? currentLegEndName : "End")#</cfoutput></label>
-	                  </div>
-	                </div>
-	                <div style="margin-top:10px; display:flex; justify-content:flex-end;">
-	                  <button class="btn btn-secondary" type="button" id="fpwMonitorWeatherBtn">Check Conditions</button>
-	                </div>
-	                <div id="fpwMonitorWeatherMessage" style="margin-top:10px; color:var(--muted); font-size:0.9rem;" aria-live="polite"></div>
-	                <div id="fpwMonitorWeatherResult" style="margin-top:10px;" hidden>
-	                  <div class="split"><span>Point</span><strong id="fpwMonitorWeatherPointLabel">—</strong></div>
-	                  <div class="split" style="margin-top:10px;"><span>Wind</span><strong id="fpwMonitorWeatherWind">—</strong></div>
-	                  <div class="split" style="margin-top:10px;"><span>Gusts</span><strong id="fpwMonitorWeatherGusts">—</strong></div>
-	                  <div class="split" style="margin-top:10px;"><span>Waves</span><strong id="fpwMonitorWeatherWaves">—</strong></div>
-	                  <div class="split" style="margin-top:10px;"><span>Visibility</span><strong id="fpwMonitorWeatherVisibility">—</strong></div>
-	                  <div class="split" style="margin-top:10px;"><span>Weather % Factor</span><strong id="fpwMonitorWeatherFactor" data-fpw-field="monitor.weatherFactor"><cfoutput>#encodeForHtml(activeCruiseView.monitorWeatherFactor)#</cfoutput></strong></div>
-	                  <div style="margin-top:10px;">
-	                    <div class="split"><span>Alerts</span><strong id="fpwMonitorWeatherAlertsSummary">No alerts</strong></div>
-	                    <div id="fpwMonitorWeatherAlerts" style="margin-top:10px;"></div>
-	                  </div>
-	                  <div id="fpwMonitorWeatherApplyWrap" style="margin-top:12px; display:flex; justify-content:flex-end;" hidden>
-	                    <button class="btn btn-secondary" type="button" id="fpwMonitorWeatherApplyBtn" disabled>Apply Weather to Route</button>
-	                  </div>
-	                </div>
-	              </div>
 	            </div>
 	          </aside>
 
@@ -3094,8 +3363,11 @@
       </div>
     </div>
   </div>
-  <script src="../assets/js/app/api.js?v=20260320a"></script>
-  <script src="../assets/js/app/dashboard/routebuilder.js?v=20260414a"></script>
+  <script src="../assets/js/app/api.js?v=20260423a"></script>
+  <script src="../assets/js/app/dashboard/routebuilder.js?v=20260422b"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="../assets/js/app/follow/followMap.js?v=202604131858a"></script>
+  <script src="../assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260416a"></script>
   <script id="fpw-active-cruise-hooks" type="application/json"><cfoutput>#activeCruiseHooksJson#</cfoutput></script>
   <script>
     (function (window, document) {
@@ -3148,8 +3420,15 @@
       var floatPlanLastCheckInEl = document.querySelector('[data-fpw-field="floatPlan.lastCheckIn"]');
       var monitorDailyStartInputEl = document.getElementById("fpwMonitorDailyStartInput");
       var monitorDailyStartSaveBtn = document.getElementById("fpwMonitorDailyStartSaveBtn");
+      var manualDelayCurrentTotalEl = document.querySelector('[data-fpw-field="delay.currentTotal"]');
+      var manualDelayMinutesInputEl = document.getElementById("fpwManualDelayMinutesInput");
+      var manualDelayAddBtn = document.getElementById("fpwManualDelayAddBtn");
+      var manualDelayClearBtn = document.getElementById("fpwManualDelayClearBtn");
       var legArrivalEl = document.querySelector('[data-fpw-field="leg.arrival"]');
       var routeStop4StampEl = document.querySelector('[data-fpw-field="leg.routeStop4Stamp"]');
+      var activeCruiseMapEl = document.getElementById("fpwActiveCruiseMap");
+      var activeCruiseOpenFullMapBtn = document.getElementById("fpwActiveCruiseOpenFullMapBtn");
+      var activeCruiseMapInstance = null;
 
       if (!checkInButton || !modalEl || !closeBtn || !statusGroupEl || !noteToggleBtn || !noteWrapEl || !noteInput || !submitBtn) {
         return;
@@ -3310,12 +3589,38 @@
         routeStop4StampEl.textContent = label + " ETA";
       }
 
+      function formatManualDelayLabel(rawValue) {
+        var total = parseInt(rawValue, 10);
+        if (!Number.isFinite(total) || total < 0) {
+          total = 0;
+        }
+        return String(total) + " minute" + (total === 1 ? "" : "s");
+      }
+
+      function hydrateManualDelayTotal() {
+        var fields = (pageHooks && (pageHooks.fields || pageHooks.FIELDS)) || {};
+        var total = fields.manualDelayMinutesTotal;
+
+        if (typeof total === "undefined") {
+          total = fields.MANUALDELAYMINUTESTOTAL;
+        }
+        if (!manualDelayCurrentTotalEl) {
+          return;
+        }
+
+        manualDelayCurrentTotalEl.textContent = formatManualDelayLabel(total);
+      }
+
       hydrateTimelineTimes();
       hydrateHeroEta();
       hydrateHeroTripStart();
       hydrateLastCheckinLabels();
       hydrateLegArrival();
       hydrateRouteStop4Stamp();
+      hydrateManualDelayTotal();
+      renderActiveCruiseMap();
+      window.addEventListener("load", syncActiveCruiseMapSize);
+      window.addEventListener("resize", syncActiveCruiseMapSize);
 
       function parseExperimentalDate(value) {
         var raw = String(value || "").trim();
@@ -3515,6 +3820,156 @@
         });
       }
 
+      function buildVoyageApiUrl(action) {
+        return new URL(
+          "../api/v1/voyage.cfc?method=handle&action=" + encodeURIComponent(action) + "&returnFormat=json",
+          window.location.href
+        ).toString();
+      }
+
+      function normalizeActiveCruiseMapPayload(rawMap) {
+        var payload = (rawMap && typeof rawMap === "object") ? rawMap : {};
+        return {
+          routeGeo: payload.routeGeo || payload.route_geo || payload.ROUTEGEO || payload.ROUTE_GEO || { type: "MultiLineString", coordinates: [] },
+          pins: Array.isArray(payload.pins || payload.PINS) ? (payload.pins || payload.PINS) : [],
+          current: (payload.current && typeof payload.current === "object") ? payload.current : ((payload.CURRENT && typeof payload.CURRENT === "object") ? payload.CURRENT : {}),
+          streamId: parseInt(payload.streamId || payload.stream_id || payload.STREAMID || payload.STREAM_ID || 0, 10) || 0,
+          slug: String(payload.slug || payload.SLUG || "").trim(),
+          shareToken: String(payload.shareToken || payload.share_token || payload.SHARETOKEN || payload.SHARE_TOKEN || "").trim()
+        };
+      }
+
+      function readActiveCruiseMapPayload() {
+        var rawMap = (pageHooks && (pageHooks.map || pageHooks.MAP)) || {};
+        return normalizeActiveCruiseMapPayload(rawMap);
+      }
+
+      function updateActiveCruiseMapStreamContext(streamId, slug, shareToken) {
+        var nextMap = readActiveCruiseMapPayload();
+        nextMap.streamId = parseInt(streamId, 10) || 0;
+        nextMap.slug = String(slug || "").trim();
+        nextMap.shareToken = String(shareToken || "").trim();
+        pageHooks.map = nextMap;
+        return nextMap;
+      }
+
+      function syncActiveCruiseMapSize() {
+        if (!activeCruiseMapInstance || typeof activeCruiseMapInstance.invalidateSize !== "function") {
+          return;
+        }
+        window.setTimeout(function () {
+          activeCruiseMapInstance.invalidateSize(false);
+        }, 0);
+      }
+
+      function renderActiveCruiseMap() {
+        var mapPayload = readActiveCruiseMapPayload();
+        var current = mapPayload.current || {};
+        var lat = Number(current.lat);
+        var lng = Number(current.lng);
+
+        if (!activeCruiseMapEl || !window.FPWFollowMap || typeof window.FPWFollowMap.initFollowMap !== "function") {
+          return;
+        }
+
+        activeCruiseMapInstance = window.FPWFollowMap.initFollowMap("fpwActiveCruiseMap", {});
+        if (window.FPW && typeof window.FPW.attachLeafletMarineLayers === "function") {
+          window.FPW.attachLeafletMarineLayers({
+            map: activeCruiseMapInstance
+          });
+        }
+        window.FPWFollowMap.renderRoute(mapPayload.routeGeo);
+        window.FPWFollowMap.renderPins(mapPayload.pins);
+        window.FPWFollowMap.fitBoundsToRoute(mapPayload.routeGeo, mapPayload.pins);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          window.FPWFollowMap.updateBoatMarker(lat, lng, current.label || current.name || "Current position");
+        }
+        syncActiveCruiseMapSize();
+      }
+
+      function buildActiveCruiseFullMapUrl(streamData) {
+        var stream = (streamData && typeof streamData === "object") ? streamData : {};
+        var params = new URLSearchParams();
+        var baseUrl = new URL("follow-full-map.cfm", window.location.href);
+        var streamId = parseInt(stream.streamId || stream.id || stream.stream_id || 0, 10) || 0;
+        var slug = String(stream.slug || "").trim();
+        var shareToken = String(stream.shareToken || stream.share_token || "").trim();
+
+        if (!slug || !shareToken || streamId <= 0) {
+          return "";
+        }
+
+        params.set("slug", slug);
+        params.set("t", shareToken);
+        params.set("stream_id", String(streamId));
+        params.set("source", "active-cruise");
+        baseUrl.search = params.toString();
+        return baseUrl.toString();
+      }
+
+      function openActiveCruiseFullMapWindow(targetUrl) {
+        var featureParts = [
+          "popup=yes",
+          "left=0",
+          "top=0",
+          "width=" + String(window.screen && window.screen.availWidth ? window.screen.availWidth : 1440),
+          "height=" + String(window.screen && window.screen.availHeight ? window.screen.availHeight : 900)
+        ];
+        var popup = null;
+
+        if (!targetUrl) {
+          return "";
+        }
+
+        try {
+          popup = window.open("", "_blank", featureParts.join(","));
+        } catch (err) {
+          popup = null;
+        }
+
+        if (popup && !popup.closed) {
+          try {
+            popup.opener = null;
+          } catch (ignoreErr) {}
+          popup.location = targetUrl;
+          return targetUrl;
+        }
+
+        featureParts.unshift("noopener");
+        window.open(targetUrl, "_blank", featureParts.join(","));
+        return targetUrl;
+      }
+
+      function ensureActiveCruiseFollowStream() {
+        var mapPayload = readActiveCruiseMapPayload();
+
+        if (mapPayload.streamId > 0 && mapPayload.slug && mapPayload.shareToken) {
+          return Promise.resolve(mapPayload);
+        }
+
+        return fetch(buildVoyageApiUrl("ownerensurestream"), {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            "Accept": "application/json"
+          }
+        }).then(function (response) {
+          return parseJsonResponse(response, "Follower page unavailable.");
+        }).then(function (payload) {
+          var data = (payload && (payload.data || payload.DATA)) || {};
+          var stream = (data && (data.stream || data.STREAM)) || {};
+          var streamId = parseInt(stream.id || stream.stream_id || 0, 10) || 0;
+          var slug = String(stream.slug || "").trim();
+          var shareToken = String(stream.share_token || "").trim();
+
+          if (streamId <= 0 || !slug || !shareToken) {
+            throw new Error("Follower page unavailable.");
+          }
+
+          return updateActiveCruiseMapStreamContext(streamId, slug, shareToken);
+        });
+      }
+
       function readCanonicalRouteCode() {
         return String(
           pageContext.routeCode ||
@@ -3682,7 +4137,7 @@
         if (!routeCode) {
           return Promise.reject({ MESSAGE: "Unable to resolve the active route code." });
         }
-        if (!weatherLookupState.data || weatherLookupState.data.available !== true || !weatherLookupState.data.weather) {
+        if (!weatherLookupState.data || !weatherLookupState.data.available || !weatherLookupState.data.weather) {
           return Promise.reject({ MESSAGE: "Check current-leg conditions before applying weather to the route." });
         }
 
@@ -4090,6 +4545,32 @@
         });
       }
 
+      if (activeCruiseOpenFullMapBtn) {
+        activeCruiseOpenFullMapBtn.addEventListener("click", function () {
+          var originalText = activeCruiseOpenFullMapBtn.textContent;
+
+          activeCruiseOpenFullMapBtn.disabled = true;
+          activeCruiseOpenFullMapBtn.textContent = "Opening...";
+
+          ensureActiveCruiseFollowStream()
+            .then(function (streamData) {
+              var targetUrl = buildActiveCruiseFullMapUrl(streamData);
+              if (!targetUrl) {
+                throw new Error("Full map link unavailable.");
+              }
+              openActiveCruiseFullMapWindow(targetUrl);
+            })
+            .catch(function (err) {
+              var message = (err && err.MESSAGE) || (err && err.message) || "Full map unavailable.";
+              window.alert(message);
+            })
+            .finally(function () {
+              activeCruiseOpenFullMapBtn.disabled = false;
+              activeCruiseOpenFullMapBtn.textContent = originalText;
+            });
+        });
+      }
+
       if (weatherButton) {
         weatherButton.addEventListener("click", function () {
           var selectedPoint = getSelectedWeatherPoint();
@@ -4310,6 +4791,109 @@
           }).finally(function () {
             monitorDailyStartSaveBtn.disabled = false;
             monitorDailyStartSaveBtn.textContent = "Save";
+          });
+        });
+      }
+
+      if (manualDelayMinutesInputEl && manualDelayAddBtn) {
+        manualDelayAddBtn.addEventListener("click", function () {
+          var originalText = manualDelayAddBtn.textContent;
+          var minutesRaw = String(manualDelayMinutesInputEl.value || "").trim();
+          var minutesValue = parseInt(minutesRaw, 10);
+          var successMessage = "";
+          var totalMinutes = 0;
+
+          if (!floatPlanId) {
+            window.alert("Unable to find the active float plan for this trip.");
+            return;
+          }
+          if (!minutesRaw) {
+            window.alert("Delay minutes are required.");
+            return;
+          }
+          if (!/^\d+$/.test(minutesRaw) || !Number.isFinite(minutesValue) || minutesValue <= 0) {
+            window.alert("Delay minutes must be a positive whole number.");
+            return;
+          }
+          if (!window.Api || typeof window.Api.addActiveCruiseDelay !== "function") {
+            window.alert("Delay-time service is unavailable.");
+            return;
+          }
+
+          manualDelayAddBtn.disabled = true;
+          if (manualDelayClearBtn) {
+            manualDelayClearBtn.disabled = true;
+          }
+          manualDelayAddBtn.textContent = "Adding...";
+
+          window.Api.addActiveCruiseDelay({
+            floatPlanId: floatPlanId,
+            minutes: minutesValue
+          }).then(function (resp) {
+            if (!resp || resp.SUCCESS !== true) {
+              throw resp || new Error("Unable to add delay time.");
+            }
+            totalMinutes = parseInt(resp.MANUAL_DELAY_MINUTES_TOTAL, 10);
+            successMessage = "Added " + minutesValue + " minutes of delay time.";
+            if (Number.isFinite(totalMinutes) && totalMinutes > 0) {
+              successMessage += " Total manual delay: " + totalMinutes + " minutes.";
+            }
+            window.alert(successMessage);
+            window.location.reload();
+          }).catch(function (err) {
+            var message = (err && err.MESSAGE) || (err && err.message) || "Unable to add delay time.";
+            window.alert(message);
+          }).finally(function () {
+            manualDelayAddBtn.disabled = false;
+            if (manualDelayClearBtn) {
+              manualDelayClearBtn.disabled = false;
+            }
+            manualDelayAddBtn.textContent = originalText;
+          });
+        });
+      }
+
+      if (manualDelayClearBtn) {
+        manualDelayClearBtn.addEventListener("click", function () {
+          var originalText = manualDelayClearBtn.textContent;
+          var totalMinutes = 0;
+
+          if (!floatPlanId) {
+            window.alert("Unable to find the active float plan for this trip.");
+            return;
+          }
+          if (!window.Api || typeof window.Api.clearActiveCruiseDelay !== "function") {
+            window.alert("Delay-time service is unavailable.");
+            return;
+          }
+
+          manualDelayClearBtn.disabled = true;
+          if (manualDelayAddBtn) {
+            manualDelayAddBtn.disabled = true;
+          }
+          manualDelayClearBtn.textContent = "Clearing...";
+
+          window.Api.clearActiveCruiseDelay({
+            floatPlanId: floatPlanId
+          }).then(function (resp) {
+            if (!resp || resp.SUCCESS !== true) {
+              throw resp || new Error("Unable to clear delay time.");
+            }
+            totalMinutes = parseInt(resp.MANUAL_DELAY_MINUTES_TOTAL, 10);
+            if (!Number.isFinite(totalMinutes) || totalMinutes < 0) {
+              totalMinutes = 0;
+            }
+            window.alert("Cleared manual delay time. Total manual delay: " + totalMinutes + " minutes.");
+            window.location.reload();
+          }).catch(function (err) {
+            var message = (err && err.MESSAGE) || (err && err.message) || "Unable to clear delay time.";
+            window.alert(message);
+          }).finally(function () {
+            manualDelayClearBtn.disabled = false;
+            if (manualDelayAddBtn) {
+              manualDelayAddBtn.disabled = false;
+            }
+            manualDelayClearBtn.textContent = originalText;
           });
         });
       }

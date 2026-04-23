@@ -562,10 +562,11 @@
     }
 
     #fpwRouteGen #routeGenWeatherAssist {
-      grid-column: 4 / 6;
-      grid-row: 1 / span 2;
-      min-width: 0;
-      align-self: stretch;
+      display: none;
+    }
+
+    #fpwRouteGen .rg-pace--inset {
+      margin-bottom: 0;
     }
 
     #fpwRouteGen .rg-config-grid-bottom .rg-pace--inset {
@@ -1231,6 +1232,31 @@
       overflow: hidden;
       background: rgba(0, 0, 0, 0.2);
       margin: 0 12px 8px;
+    }
+
+    #routeGenLegMap .radar-opacity-control {
+      background: rgba(255, 255, 255, 0.92);
+      padding: 0.35rem 0.5rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      font-size: 0.7rem;
+      min-width: 140px;
+    }
+
+    #routeGenLegMap .radar-opacity-control label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      color: #1b1b1b;
+    }
+
+    #routeGenLegMap .radar-opacity-control input[type="range"] {
+      width: 100%;
+    }
+
+    #routeGenLegMap .radar-opacity-control.is-disabled {
+      opacity: 0.5;
+      pointer-events: none;
     }
 
     #fpwRouteGen .fpw-routegen__legoverlay {

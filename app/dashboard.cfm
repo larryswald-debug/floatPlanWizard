@@ -9,7 +9,7 @@
     <cfinclude template="../includes/header_styles.cfm">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260414a">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260423a">
 </head>
 <body class="dashboard-body" data-fpw-page="dashboard">
 
@@ -96,28 +96,6 @@
             </div>
         </section>
         
-        <section class="dashboard-card hero-panel active" id="floatPlansPanel">
-            <div class="card-header">
-                <div class="card-title">
-                    <h2>Float Plans</h2>
-                </div>
-                <div class="card-actions">
-                    <button class="btn-primary" type="button" id="addFloatPlanBtn">+ Add</button>
-                </div>
-            </div>
-            <div class="card-body" id="floatPlansBody">
-                <div class="d-flex flex-wrap align-items-center gap-2 mb-3" id="floatPlansFilterBar">
-                    <div class="flex-grow-1" id="floatPlansFilterInputWrap">
-                        <input type="text" id="floatPlansFilterInput" class="form-control" placeholder="Filter float plans…" autocomplete="off">
-                    </div>
-                    <small class="card-subtitle" id="floatPlansFilterCount">Showing 0 of 0</small>
-                    <button type="button" class="btn-secondary" id="floatPlansFilterClear">Clear</button>
-                </div>
-                <p id="floatPlansMessage" class="empty">Loading float plans…</p>
-                <div id="floatPlansList"></div>
-            </div>
-        </section>
-
         <section class="dashboard-card panel-floatlike quick-actions-panel" id="quickActionsPanel" aria-labelledby="quickActionsTitle">
             <div class="card-header">
                 <div class="card-title">
@@ -128,7 +106,6 @@
             <div class="card-body">
                 <div class="quick-actions-list">
                     <button type="button" class="btn-secondary quick-action-btn" data-quick-action="generate-route">Generate Route</button>
-                    <button type="button" class="btn-secondary quick-action-btn" data-quick-action="new-float-plan">New Float Plan</button>
                     <button type="button" class="btn-secondary quick-action-btn" data-quick-action="add-vessel">Add Vessel</button>
                     <button type="button" class="btn-secondary quick-action-btn" data-quick-action="add-contact">Add Contact</button>
                     <button type="button" class="btn-secondary quick-action-btn" data-quick-action="add-operator">Add Operator</button>
@@ -1029,23 +1006,23 @@
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260227c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260416a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js?v=20260227c"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260327a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260423a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260227c"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js?v=20260227c"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js?v=20260227c"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20260227c"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20260423a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/vessels.js?v=20260302a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/contacts.js?v=20260301b"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20260301b"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260301b"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260301a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=202603191500a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260331182708a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260422b"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=202604150035a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260423a"></script>
 
 
 

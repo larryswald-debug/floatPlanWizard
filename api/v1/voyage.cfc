@@ -303,6 +303,11 @@
             var followTimeline = {"summary"={}, "legs"=[], "meta"={}};
             var isOwner = false;
             var statusLabel = "Status Unavailable";
+            var monitorStateVal = "";
+            var monitoringCheckinStatusVal = "";
+            var monitoringSummary = "Monitoring unavailable";
+            var monitorStateTextHtml = "<strong>Monitoring unavailable</strong><br />No active monitoring state is available.";
+            var monitorStateLabel = "Unavailable";
             var lastCheckinLabel = "n/a";
             var lastCheckinUtc = "";
             var etaLabel = "n/a";
@@ -325,6 +330,7 @@
             var departureTimeZoneVal = "";
             var dailyStartLocalTimeVal = "";
             var storedOvernightPauseMinutes = 0;
+            var storedManualDelayMinutes = 0;
             var elapsedCheckInLabel = "-- since last check-in";
             var nextStopLabelVal = "";
             var nextStopEtaBaseDt = "";
@@ -442,6 +448,7 @@
             var milesTodayLegNm = 0.0;
             var routeMapActiveLegOrder = 0;
             var awaitingDepartureState = false;
+            var usingActiveLegEta = false;
 
 	            if (!structCount(streamRow)) {
 	                out.MESSAGE = "Stream not found";
@@ -509,6 +516,16 @@
                     ) AS expected_checkin_at,
                     (
                         SELECT
+                            NULLIF(UPPER(TRIM(m.monitor_state)), '')
+                        FROM floatplan_monitoring m
+                        WHERE m.float_plan_id = fp.floatplanId
+                          AND m.is_monitoring_enabled = 1
+                          AND UPPER(TRIM(m.monitor_state)) <> 'CLOSED'
+                        ORDER BY m.id DESC
+                        LIMIT 1
+                    ) AS monitor_state,
+                    (
+                        SELECT
                             m.last_checkin_status
                         FROM floatplan_monitoring m
                         WHERE m.float_plan_id = fp.floatplanId
@@ -518,6 +535,7 @@
                         LIMIT 1
                     ) AS last_checkin_status,
                     fp.overnight_pause_minutes_total,
+                    fp.manual_delay_minutes_total,
                     fp.vesselId,
                     v.vesselName
                  FROM floatplans fp
@@ -577,7 +595,9 @@
             }
 
             streamTitle = trim(toString(isNull(qPlan.floatPlanName[1]) ? "" : qPlan.floatPlanName[1]));
-            statusLabel = friendlyStatusLabel(isNull(qPlan.status[1]) ? "" : qPlan.status[1]);
+            if (!isNull(qPlan.monitor_state[1])) {
+                monitorStateVal = uCase(trim(toString(qPlan.monitor_state[1])));
+            }
             routeInstanceIdVal = (!isNull(qPlan.route_instance_id[1]) ? val(qPlan.route_instance_id[1]) : 0);
             checkInContextVal = normalizeCheckInContext(isNull(qPlan.checkin_context[1]) ? "" : qPlan.checkin_context[1]);
             isOvernightCheckIn = (checkInContextVal EQ "overnight");
@@ -588,6 +608,14 @@
             );
             if (storedOvernightPauseMinutes LT 0) {
                 storedOvernightPauseMinutes = 0;
+            }
+            storedManualDelayMinutes = (
+                !isNull(qPlan.manual_delay_minutes_total[1]) AND isNumeric(qPlan.manual_delay_minutes_total[1])
+                    ? val(qPlan.manual_delay_minutes_total[1])
+                    : 0
+            );
+            if (storedManualDelayMinutes LT 0) {
+                storedManualDelayMinutes = 0;
             }
             departureTimeZoneVal = (isNull(qPlan.departureTZ[1]) ? "" : trim(toString(qPlan.departureTZ[1])));
             if (!len(departureTimeZoneVal)) {
@@ -623,6 +651,23 @@
             isOvernightCheckIn = (hasOperationalCheckIn AND checkInContextVal EQ "overnight");
             if (!tripStarted) {
                 statusLabel = "Scheduled";
+            } else {
+                switch (monitorStateVal) {
+                    case "LATE":
+                        statusLabel = "Late";
+                        break;
+                    case "MISSED":
+                        statusLabel = "Missed Check-In";
+                        break;
+                    case "ESCALATED":
+                        statusLabel = "Escalated";
+                        break;
+                    case "ACTIVE":
+                        statusLabel = "All Good";
+                        break;
+                    default:
+                        statusLabel = "Status Unavailable";
+                }
             }
             if (!hasOperationalCheckIn) {
                 storedOvernightPauseMinutes = 0;
@@ -631,24 +676,86 @@
             voyageProgressStatusLabel = statusLabel;
             voyageProgressStatusVariant = "good";
             voyageProgressStatusCopy = "Monitoring is active and the trip is reporting normally.";
-            if (tripStarted AND hasOperationalCheckIn) {
-                switch (monitoringCheckinStatusVal) {
-                    case "DELAYED":
-                        voyageProgressStatusLabel = "Delayed";
+            monitoringSummary = "Monitoring unavailable";
+            monitorStateTextHtml = "<strong>Monitoring unavailable</strong><br />No active monitoring state is available.";
+            monitorStateLabel = "Unavailable";
+            if (!tripStarted) {
+                monitoringSummary = "Monitoring starts at scheduled departure";
+                monitorStateTextHtml = "<strong>Monitoring pending</strong><br />The trip begins at the scheduled departure time.";
+                monitorStateLabel = "Pending";
+            } else {
+                switch (monitorStateVal) {
+                    case "LATE":
                         voyageProgressStatusVariant = "warning";
-                        voyageProgressStatusCopy = "Latest check-in reported Delayed.";
+                        voyageProgressStatusCopy = "A check-in is due and the grace window is still open.";
+                        monitoringSummary = "A check-in is due and the grace window is open";
+                        monitorStateTextHtml = "<strong>Check-in late</strong><br />A new update is due and the grace window is still open.";
+                        monitorStateLabel = "Late";
                         break;
-                    case "CHANGED_PLAN":
-                        voyageProgressStatusLabel = "Changed Plan";
-                        voyageProgressStatusVariant = "warning";
-                        voyageProgressStatusCopy = "Latest check-in reported Changed Plan.";
-                        break;
-                    case "NEED_ATTENTION":
-                        voyageProgressStatusLabel = "Assistance Needed";
+                    case "MISSED":
                         voyageProgressStatusVariant = "danger";
-                        voyageProgressStatusCopy = "Latest check-in reported Assistance Needed.";
+                        voyageProgressStatusCopy = "A required check-in was missed and monitoring alerts are active.";
+                        monitoringSummary = "A required check-in was missed";
+                        monitorStateTextHtml = "<strong>Missed check-in</strong><br />The grace window expired without a new update.";
+                        monitorStateLabel = "Missed";
                         break;
+                    case "ESCALATED":
+                        voyageProgressStatusVariant = "danger";
+                        voyageProgressStatusCopy = "The missed check-in has escalated to selected contacts.";
+                        monitoringSummary = "Selected contacts have been alerted";
+                        monitorStateTextHtml = "<strong>Escalated</strong><br />The missed check-in has escalated to selected contacts.";
+                        monitorStateLabel = "Escalated";
+                        break;
+                    case "ACTIVE":
+                        monitoringSummary = "Active with missed check-in rules enabled";
+                        monitorStateTextHtml = "<strong>Monitoring active</strong><br />No missed check-ins on this voyage";
+                        monitorStateLabel = "Active";
+                        break;
+                    default:
+                        monitoringSummary = "Monitoring unavailable";
+                        monitorStateTextHtml = "<strong>Monitoring unavailable</strong><br />No active monitoring state is available.";
+                        monitorStateLabel = "Unavailable";
                 }
+
+                if (hasOperationalCheckIn) {
+                    switch (monitoringCheckinStatusVal) {
+                        case "DELAYED":
+                            voyageProgressStatusLabel = "Delayed";
+                            voyageProgressStatusVariant = "warning";
+                            voyageProgressStatusCopy = "Latest check-in reported Delayed.";
+                            monitoringSummary = "Latest check-in reported delayed progress";
+                            monitorStateTextHtml = "<strong>Delayed</strong><br />Latest check-in reported Delayed.";
+                            monitorStateLabel = "Delayed";
+                            break;
+                        case "CHANGED_PLAN":
+                            voyageProgressStatusLabel = "Changed Plan";
+                            voyageProgressStatusVariant = "warning";
+                            voyageProgressStatusCopy = "Latest check-in reported Changed Plan.";
+                            monitoringSummary = "Latest check-in reported a changed plan";
+                            monitorStateTextHtml = "<strong>Changed Plan</strong><br />Latest check-in reported Changed Plan.";
+                            monitorStateLabel = "Changed Plan";
+                            break;
+                        case "NEED_ATTENTION":
+                            voyageProgressStatusLabel = "Assistance Needed";
+                            voyageProgressStatusVariant = "danger";
+                            voyageProgressStatusCopy = "Latest check-in reported Assistance Needed.";
+                            monitoringSummary = "Latest check-in requested assistance";
+                            monitorStateTextHtml = "<strong>Assistance Needed</strong><br />Latest check-in reported Assistance Needed.";
+                            monitorStateLabel = "Assistance Needed";
+                            break;
+                        case "SECURE_FOR_NIGHT":
+                            voyageProgressStatusLabel = "Secure for the Night";
+                            voyageProgressStatusVariant = "good";
+                            voyageProgressStatusCopy = "The latest check-in secured the trip for the night until the next local morning check-in.";
+                            monitoringSummary = "Secure for the night until the next local morning check-in";
+                            monitorStateTextHtml = "<strong>Secure for the night</strong><br />Monitoring resumes at the next local morning check-in.";
+                            monitorStateLabel = "Secure for the Night";
+                            break;
+                    }
+                }
+            }
+            if (tripStarted) {
+                statusLabel = voyageProgressStatusLabel;
             }
 			if (routeInstanceIdVal LTE 0) {
 	                out.MESSAGE = "No active trip";
@@ -935,12 +1042,17 @@
                         activeLegEtaBaseDt = priorLegCompletedAtLocal;
                     }
 
+                    usingActiveLegEta = false;
                     if (activeLegEtaMinutes GT 0 AND isDate(activeLegEtaBaseDt)) {
+                        usingActiveLegEta = true;
                         nextStopEtaMinutes = activeLegEtaMinutes;
                         nextStopEtaDt = dateAdd("n", activeLegEtaMinutes, activeLegEtaBaseDt);
                     } else {
                         nextStopEtaMinutes = nextStopCumulativeMinutes;
                         nextStopEtaDt = plannedNextStopEtaDt;
+                    }
+                    if (usingActiveLegEta AND tripStarted AND storedManualDelayMinutes GT 0 AND isDate(nextStopEtaDt)) {
+                        nextStopEtaDt = dateAdd("n", storedManualDelayMinutes, nextStopEtaDt);
                     }
                     if (isDate(nextStopEtaDt)) {
                         etaLabel = dateTimeFormat(nextStopEtaDt, "mmm d, yyyy h:nn tt");
@@ -1402,7 +1514,7 @@
                 "journey_departed_meta_utc"=(isDate(journeyDepartedDt) ? formatUtcDate(journeyDepartedDt) : ""),
                 "journey_checkin_value"=(len(actualCheckInLabel) ? "Checked in at " & actualCheckInLabel : "Checked in at --"),
                 "journey_checkin_meta"=(isOvernightCheckIn ? "Arrived and secure for the night. Next update expected tomorrow morning." : elapsedCheckInLabel),
-                "card_status_copy"="Monitoring is active and the trip is reporting normally.",
+                "card_status_copy"=voyageProgressStatusCopy,
                 "voyage_progress_status_copy"=voyageProgressStatusCopy,
                 "card_location_copy"="Heading toward the current active route target.",
                 "card_destination_copy"="Next major stop and expected overnight destination.",
@@ -1434,9 +1546,9 @@
                 "last_checkin"=(len(actualCheckInLabel) ? actualCheckInLabel : ""),
                 "last_checkin_utc"=actualCheckInUtc,
                 "privacy_label"=privacyLabel,
-                "monitoring_summary"="Active with missed check-in rules enabled",
-                "monitor_state_text_html"="<strong>Monitoring active</strong><br />No missed check-ins on this voyage",
-                "monitor_state_label"="Healthy"
+                "monitoring_summary"=monitoringSummary,
+                "monitor_state_text_html"=monitorStateTextHtml,
+                "monitor_state_label"=monitorStateLabel
             };
             out.topCards = topCards;
             out.map = {
@@ -1521,7 +1633,8 @@
                 "heroTripStartUtc"="",
                 "legArrivalUtc"="",
                 "heroLastCheckIn"="--",
-                "heroLastCheckInUtc"=""
+                "heroLastCheckInUtc"="",
+                "manualDelayMinutesTotal"=0
             };
             var canonicalPlan = {};
             var ds = resolveDatasource();
@@ -1537,6 +1650,7 @@
             var checkInContextVal = "";
             var isOvernightCheckIn = false;
             var storedOvernightPauseMinutes = 0;
+            var storedManualDelayMinutes = 0;
             var departureTimeZoneVal = "";
             var dailyStartLocalTimeVal = "";
             var storedDepartureTimeZoneVal = "";
@@ -1573,7 +1687,9 @@
             var tripStarted = true;
             var routeMapActiveLegOrder = 0;
             var awaitingDepartureState = false;
+            var monitorStateVal = "";
             var lastCheckinStatusVal = "";
+            var usingActiveLegEta = false;
             var i = 0;
 
             if (arguments.currentUserId LTE 0 OR arguments.floatPlanId LTE 0) {
@@ -1612,6 +1728,15 @@
                     checkin_context,
                     dailyStartLocalTime,
                     (
+                        SELECT NULLIF(UPPER(TRIM(m.monitor_state)), '')
+                        FROM floatplan_monitoring m
+                        WHERE m.float_plan_id = floatplans.floatplanId
+                          AND m.is_monitoring_enabled = 1
+                          AND UPPER(TRIM(m.monitor_state)) <> 'CLOSED'
+                        ORDER BY m.id DESC
+                        LIMIT 1
+                    ) AS monitor_state,
+                    (
                         SELECT NULLIF(UPPER(TRIM(m.last_checkin_status)), '')
                         FROM floatplan_monitoring m
                         WHERE m.float_plan_id = floatplans.floatplanId
@@ -1637,7 +1762,8 @@
                         ORDER BY m.id DESC
                         LIMIT 1
                     ) AS expected_checkin_at,
-                    overnight_pause_minutes_total
+                    overnight_pause_minutes_total,
+                    manual_delay_minutes_total
                  FROM floatplans
                  WHERE floatplanId = :planId
                    AND userId = :userId
@@ -1657,21 +1783,50 @@
             if (!isNull(qPlan.departureTime[1]) AND isDate(qPlan.departureTime[1])) {
                 scheduledDepartureRawDt = qPlan.departureTime[1];
             }
-            statusLabel = friendlyStatusLabel(isNull(qPlan.status[1]) ? "" : qPlan.status[1]);
+            if (!isNull(qPlan.monitor_state[1])) {
+                monitorStateVal = uCase(trim(toString(qPlan.monitor_state[1])));
+            }
             if (!isNull(qPlan.last_checkin_status[1])) {
                 lastCheckinStatusVal = uCase(trim(toString(qPlan.last_checkin_status[1])));
             }
             if (!tripStarted) {
                 statusLabel = "Scheduled";
-            } else if (lastCheckinStatusVal EQ "DELAYED") {
-                statusLabel = "Delayed";
-                statusVariant = "warning";
-            } else if (lastCheckinStatusVal EQ "CHANGED_PLAN") {
-                statusLabel = "Changed Plan";
-                statusVariant = "warning";
-            } else if (lastCheckinStatusVal EQ "NEED_ATTENTION") {
-                statusLabel = "Assistance Needed";
-                statusVariant = "danger";
+            } else {
+                switch (monitorStateVal) {
+                    case "LATE":
+                        statusLabel = "Late";
+                        statusVariant = "warning";
+                        break;
+                    case "MISSED":
+                        statusLabel = "Missed Check-In";
+                        statusVariant = "danger";
+                        break;
+                    case "ESCALATED":
+                        statusLabel = "Escalated";
+                        statusVariant = "danger";
+                        break;
+                    case "ACTIVE":
+                        statusLabel = "All Good";
+                        statusVariant = "good";
+                        break;
+                    default:
+                        statusLabel = "Status Unavailable";
+                        statusVariant = "good";
+                }
+
+                if (lastCheckinStatusVal EQ "DELAYED") {
+                    statusLabel = "Delayed";
+                    statusVariant = "warning";
+                } else if (lastCheckinStatusVal EQ "CHANGED_PLAN") {
+                    statusLabel = "Changed Plan";
+                    statusVariant = "warning";
+                } else if (lastCheckinStatusVal EQ "NEED_ATTENTION") {
+                    statusLabel = "Assistance Needed";
+                    statusVariant = "danger";
+                } else if (lastCheckinStatusVal EQ "SECURE_FOR_NIGHT" OR normalizeCheckInContext(isNull(qPlan.checkin_context[1]) ? "" : qPlan.checkin_context[1]) EQ "overnight") {
+                    statusLabel = "Secure for the Night";
+                    statusVariant = "good";
+                }
             }
             out.heroVoyageStatus = statusLabel;
             out.heroVoyageStatusVariant = statusVariant;
@@ -1708,6 +1863,15 @@
             if (!hasOperationalCheckIn) {
                 storedOvernightPauseMinutes = 0;
             }
+            storedManualDelayMinutes = (
+                !isNull(qPlan.manual_delay_minutes_total[1]) AND isNumeric(qPlan.manual_delay_minutes_total[1])
+                    ? val(qPlan.manual_delay_minutes_total[1])
+                    : 0
+            );
+            if (storedManualDelayMinutes LT 0) {
+                storedManualDelayMinutes = 0;
+            }
+            out.manualDelayMinutesTotal = storedManualDelayMinutes;
 
             departureTimeZoneVal = (isNull(qPlan.departureTZ[1]) ? "" : trim(toString(qPlan.departureTZ[1])));
             if (!len(departureTimeZoneVal)) {
@@ -1970,10 +2134,15 @@
                         activeLegEtaBaseDt = priorLegCompletedAtLocal;
                     }
 
+                    usingActiveLegEta = false;
                     if (activeLegEtaMinutes GT 0 AND isDate(activeLegEtaBaseDt)) {
+                        usingActiveLegEta = true;
                         nextStopEtaDt = dateAdd("n", activeLegEtaMinutes, activeLegEtaBaseDt);
                     } else {
                         nextStopEtaDt = plannedNextStopEtaDt;
+                    }
+                    if (usingActiveLegEta AND tripStarted AND storedManualDelayMinutes GT 0 AND isDate(nextStopEtaDt)) {
+                        nextStopEtaDt = dateAdd("n", storedManualDelayMinutes, nextStopEtaDt);
                     }
 
                     if (isDate(nextStopEtaDt)) {
@@ -3527,8 +3696,8 @@
                 "success"=false,
                 "MESSAGE"="No active trip is available."
             };
-            var ds = resolveDatasource();
-            var qPlan = queryNew("");
+            var floatPlanComponent = "";
+            var currentGroup = {};
 
             if (arguments.userId LTE 0) {
                 result.ERROR = "UNAUTHORIZED";
@@ -3536,53 +3705,37 @@
                 return result;
             }
 
-            qPlan = queryExecute(
-                "SELECT
-                    floatplanId,
-                    userId,
-                    floatPlanName,
-                    route_instance_id,
-                    route_day_number,
-                    UPPER(TRIM(`status`)) AS statusValue
-                 FROM floatplans
-                 WHERE userId = :userId
-                   AND UPPER(TRIM(`status`)) IN (
-                        'ACTIVE',
-                        'DUE_NOW',
-                        'OVERDUE',
-                        'OVERDUE_1H',
-                        'OVERDUE_2H',
-                        'OVERDUE_3H',
-                        'OVERDUE_4H',
-                        'OVERDUE_12H',
-                        'OVERDUE_24H'
-                   )
-                 ORDER BY floatplanId DESC
-                 LIMIT 2",
-                {
-                    userId = { value=arguments.userId, cfsqltype="cf_sql_integer" }
-                },
-                { datasource=ds }
-            );
+            try {
+                floatPlanComponent = createObject("component", "fpw.api.v1.floatplan");
+            } catch (any floatPlanPathErr) {
+                floatPlanComponent = createObject("component", "api.v1.floatplan");
+            }
 
-            if (qPlan.recordCount EQ 0) {
+            currentGroup = floatPlanComponent.resolveCurrentRouteFloatPlanGroup(arguments.userId);
+            if (!isStruct(currentGroup)) {
                 result.ERROR = "NO_ACTIVE_PLAN";
                 result.MESSAGE = "No active trip is available.";
                 return result;
             }
 
-            if (qPlan.recordCount GT 1) {
+            if (structKeyExists(currentGroup, "ERROR") AND trim(toString(currentGroup.ERROR)) EQ "MULTIPLE_ACTIVE_GROUPS") {
                 result.ERROR = "MULTIPLE_ACTIVE_PLANS";
                 result.MESSAGE = "Multiple active trips were found. Trip Page is unavailable.";
                 return result;
             }
 
-            result.FLOATPLANID = val(qPlan.floatplanId[1]);
-            result.USERID = val(qPlan.userId[1]);
-            result.FLOATPLANNAME = trim(toString(isNull(qPlan.floatPlanName[1]) ? "" : qPlan.floatPlanName[1]));
-            result.ROUTE_INSTANCE_ID = (!isNull(qPlan.route_instance_id[1]) ? val(qPlan.route_instance_id[1]) : 0);
-            result.ROUTE_DAY_NUMBER = (!isNull(qPlan.route_day_number[1]) ? val(qPlan.route_day_number[1]) : 0);
-            result.STATUS = trim(toString(isNull(qPlan.statusValue[1]) ? "" : qPlan.statusValue[1]));
+            if (!currentGroup.SUCCESS OR !currentGroup.IS_ACTIVE) {
+                result.ERROR = "NO_ACTIVE_PLAN";
+                result.MESSAGE = "No active trip is available.";
+                return result;
+            }
+
+            result.FLOATPLANID = val(currentGroup.FLOATPLANID);
+            result.USERID = arguments.userId;
+            result.FLOATPLANNAME = trim(toString(structKeyExists(currentGroup, "FLOATPLAN_NAME") ? currentGroup.FLOATPLAN_NAME : ""));
+            result.ROUTE_INSTANCE_ID = val(structKeyExists(currentGroup, "ROUTE_INSTANCE_ID") ? currentGroup.ROUTE_INSTANCE_ID : 0);
+            result.ROUTE_DAY_NUMBER = val(structKeyExists(currentGroup, "ROUTE_DAY_NUMBER") ? currentGroup.ROUTE_DAY_NUMBER : 0);
+            result.STATUS = trim(toString(structKeyExists(currentGroup, "STATUS") ? currentGroup.STATUS : ""));
 
             if (arguments.expectedFloatPlanId GT 0 AND result.FLOATPLANID NEQ arguments.expectedFloatPlanId) {
                 result.ERROR = "ACTIVE_PLAN_MISMATCH";
@@ -3910,7 +4063,7 @@
         </cfscript>
     </cffunction>
 
-    <cffunction name="buildRouteMapData" access="private" returntype="struct" output="false">
+    <cffunction name="buildRouteMapData" access="public" returntype="struct" output="false">
         <cfargument name="routeInstanceId" type="numeric" required="true">
         <cfargument name="ownerUserId" type="numeric" required="true">
         <cfargument name="fallbackDays" type="numeric" required="false" default="0">
@@ -4565,6 +4718,13 @@
             var usedFloatplans = false;
             var planVesselId = 0;
             var legLockDetails = {};
+            var canonicalActivePlan = {};
+            var qActivePlanDelay = queryNew("");
+            var manualDelayMinutesTotal = 0;
+            var manualDelayHoursTotal = 0.0;
+            var adjustedCumulativeHours = 0.0;
+            var adjustedDayBucket = 0;
+            var adjustedTotalHours = 0.0;
 
             if (routeInstanceIdVal LTE 0 OR ownerUserIdVal LTE 0) {
                 return out;
@@ -4609,6 +4769,39 @@
             );
             storedInputs = loadRouteInstanceTimelineInputs(routeInstanceIdVal, ownerUserIdVal);
             lockDetailsByOrder = loadFollowLegLockDetailsMap(routeInstanceIdVal, ownerUserIdVal, qLegs);
+            canonicalActivePlan = resolveCanonicalActiveFloatPlan(ownerUserIdVal, 0);
+            if (
+                structKeyExists(canonicalActivePlan, "SUCCESS")
+                AND canonicalActivePlan.SUCCESS
+                AND structKeyExists(canonicalActivePlan, "ROUTE_INSTANCE_ID")
+                AND val(canonicalActivePlan.ROUTE_INSTANCE_ID) EQ routeInstanceIdVal
+            ) {
+                qActivePlanDelay = queryExecute(
+                    "SELECT manual_delay_minutes_total
+                     FROM floatplans
+                     WHERE floatplanId = :planId
+                       AND userId = :ownerUserId
+                     LIMIT 1",
+                    {
+                        planId = { value = val(canonicalActivePlan.FLOATPLANID), cfsqltype = "cf_sql_integer" },
+                        ownerUserId = { value = ownerUserIdVal, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = ds }
+                );
+                if (
+                    qActivePlanDelay.recordCount GT 0
+                    AND !isNull(qActivePlanDelay.manual_delay_minutes_total[1])
+                    AND isNumeric(qActivePlanDelay.manual_delay_minutes_total[1])
+                ) {
+                    manualDelayMinutesTotal = val(qActivePlanDelay.manual_delay_minutes_total[1]);
+                }
+            }
+            if (manualDelayMinutesTotal LT 0) {
+                manualDelayMinutesTotal = 0;
+            }
+            if (manualDelayMinutesTotal GT 0) {
+                manualDelayHoursTotal = roundTo2(manualDelayMinutesTotal / 60);
+            }
 
             qProgress = queryExecute(
                 "SELECT
@@ -4898,9 +5091,17 @@
                         }
                     }
                 }
+                adjustedCumulativeHours = cumulativeHours;
+                adjustedDayBucket = dayBucket;
+                if (manualDelayHoursTotal GT 0 AND statusVal NEQ "COMPLETED") {
+                    adjustedCumulativeHours = roundTo2(cumulativeHours + manualDelayHoursTotal);
+                    if (maxHoursPerDay GT 0 AND adjustedCumulativeHours GT 0) {
+                        adjustedDayBucket = int(ceiling(adjustedCumulativeHours / maxHoursPerDay));
+                    }
+                }
 
                 arrayAppend(out.legs, {
-                    "day_bucket"=dayBucket,
+                    "day_bucket"=adjustedDayBucket,
                     "leg_order"=orderVal,
                     "label"=startName & " -> " & endName,
                     "start_name"=startName,
@@ -4909,7 +5110,7 @@
                     "hours"=legHours,
                     "locks"=lockCount,
                     "lock_details"=legLockDetails,
-                    "cumulative_hours"=cumulativeHours,
+                    "cumulative_hours"=adjustedCumulativeHours,
                     "progress"={
                         "percent_complete"=progressPct,
                         "last_update_ts"=lastUpdateTs
@@ -4926,11 +5127,12 @@
                 }
             }
 
+            adjustedTotalHours = roundTo2(cumulativeHours + manualDelayHoursTotal);
             out.summary = {
                 "total_nm"=totalNm,
                 "total_locks"=totalLocks,
-                "total_hours"=roundTo2(cumulativeHours),
-                "total_days"=(maxHoursPerDay GT 0 AND cumulativeHours GT 0 ? int(ceiling(cumulativeHours / maxHoursPerDay)) : 0),
+                "total_hours"=adjustedTotalHours,
+                "total_days"=(maxHoursPerDay GT 0 AND adjustedTotalHours GT 0 ? int(ceiling(adjustedTotalHours / maxHoursPerDay)) : 0),
                 "fuel_est"=fuelEst,
                 "reserve_est"=reserveEst,
                 "required_fuel_est"=roundTo2(fuelEst + reserveEst),
@@ -6773,3 +6975,11 @@
     </cffunction>
 
 </cfcomponent>
+
+
+
+
+
+
+
+

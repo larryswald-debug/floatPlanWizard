@@ -393,9 +393,7 @@
       return;
     }
     if (action === "new-float-plan") {
-      if (!triggerExistingButton("addFloatPlanBtn")) {
-        scrollToPanel("#floatPlansPanel");
-      }
+      scrollToPanel("#expeditionTimelinePanel");
       return;
     }
     if (action === "add-vessel") {
@@ -427,7 +425,7 @@
       return;
     }
     if (action === "open-float-plans") {
-      scrollToPanel("#floatPlansPanel");
+      scrollToPanel("#expeditionTimelinePanel");
       return;
     }
     if (action === "open-expedition") {
@@ -595,10 +593,10 @@
 
     if ((dashboardSignals.floatPlans.total || 0) === 0) {
       steps.push({
-        title: "Create your first float plan",
-        meta: "No float plans are available for this account.",
-        action: "new-float-plan",
-        actionLabel: "Open Float Plan"
+        title: "Activate a route",
+        meta: "No current draft or active route/float-plan group exists.",
+        action: "open-expedition",
+        actionLabel: "Open Routes"
       });
     }
 
@@ -606,8 +604,8 @@
       steps.push({
         title: "Review overdue monitoring plans",
         meta: dashboardSignals.monitoring.overdue + " monitored plan(s) are currently overdue.",
-        action: "open-float-plans",
-        actionLabel: "Review Plans"
+        action: "open-expedition",
+        actionLabel: "Open Routes"
       });
     }
 
@@ -2632,10 +2630,61 @@
       setRouteSignals(tripName, summaryText, pct);
     }
 
-    function renderRouteList(routes, activeCode) {
+    function normalizeRouteCurrentGroup(route) {
+      var group = route && route.CURRENT_GROUP && typeof route.CURRENT_GROUP === "object"
+        ? route.CURRENT_GROUP
+        : null;
+      if (!group || !group.HAS_CURRENT_GROUP) {
+        return null;
+      }
+      var planId = normalizePlanId(group.FLOATPLAN_ID !== undefined ? group.FLOATPLAN_ID : group.FLOATPLANID);
+      if (planId <= 0) {
+        return null;
+      }
+      return {
+        floatPlanId: planId,
+        floatPlanName: String(group.FLOATPLAN_NAME || group.FLOATPLANNAME || "").trim(),
+        status: String(group.STATUS || "").trim().toUpperCase(),
+        currentState: String(group.CURRENT_STATE || "").trim().toUpperCase(),
+        isDraft: !!group.IS_DRAFT,
+        isActive: !!group.IS_ACTIVE
+      };
+    }
+
+    function buildCurrentGroupRow(route) {
+      var currentGroup = normalizeRouteCurrentGroup(route);
+      if (!currentGroup) {
+        return "";
+      }
+      var titlePrefix = currentGroup.currentState === "ACTIVE" ? "Active Float Plan" : "Draft Float Plan";
+      var title = currentGroup.floatPlanName
+        ? (titlePrefix + ": " + currentGroup.floatPlanName)
+        : titlePrefix;
+      var meta = currentGroup.currentState === "ACTIVE"
+        ? "This route is the one current active route/float-plan group."
+        : "Saved in draft state. Send this float plan to activate the route.";
+      return ""
+        + '<div class="expedition-route-current-group" data-plan-id="' + currentGroup.floatPlanId + '" data-plan-status="' + escapeHtml(currentGroup.status) + '" data-current-state="' + escapeHtml(currentGroup.currentState) + '">'
+        + '  <div class="expedition-route-current-group-main">'
+        + '    <div>'
+        + '      <div class="expedition-route-current-group-title">' + escapeHtml(title) + '</div>'
+        + '      <div class="expedition-route-current-group-meta">' + escapeHtml(meta) + '</div>'
+        + '    </div>'
+        + '    <div class="expedition-route-actions expedition-route-actions--child">'
+        + (currentGroup.currentState === "ACTIVE" ? '      <button type="button" class="btn-success js-expedition-plan-checkin" data-action="checkin" data-plan-id="' + currentGroup.floatPlanId + '">Check-In</button>' : '')
+        + (currentGroup.currentState === "ACTIVE" ? '      <button type="button" class="btn-secondary js-expedition-plan-cancel" data-action="cancel" data-plan-id="' + currentGroup.floatPlanId + '">Cancel</button>' : '')
+        + '      <button type="button" class="btn-secondary js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '">View &amp; Send</button>'
+        + '      <button type="button" class="btn-secondary js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '">Edit</button>'
+        + '    </div>'
+        + '  </div>'
+        + '</div>';
+    }
+
+    function renderRouteList(routes, activeCode, currentGroupPayload) {
       if (!routeListEl) return;
       var list = Array.isArray(routes) ? routes.slice() : [];
       var hasCanonicalActiveFloatPlan = normalizeActiveFloatPlanId(state.activeTripFloatPlanId) > 0;
+      var hasCurrentGroup = !!(currentGroupPayload && currentGroupPayload.HAS_CURRENT_GROUP);
       var activeTripRouteIndex = -1;
       if (activeCode) {
         activeTripRouteIndex = list.findIndex(function (route) {
@@ -2658,7 +2707,10 @@
       routeListEl.innerHTML = list.map(function (route) {
         var totals = route && route.TOTALS ? route.TOTALS : {};
         var isRouteForActiveTrip = route && route.SHORT_CODE && activeCode && route.SHORT_CODE === activeCode;
-        var showActivateRouteAction = !hasCanonicalActiveFloatPlan;
+        var currentRouteGroup = normalizeRouteCurrentGroup(route);
+        var currentState = currentRouteGroup ? currentRouteGroup.currentState : "";
+        var routeStateLabel = "";
+        var showActivateRouteAction = currentState !== "ACTIVE";
         var showActiveCruiseAction = hasCanonicalActiveFloatPlan && isRouteForActiveTrip && !activeCruiseLinkRendered;
         var showTripPageAction = hasCanonicalActiveFloatPlan && isRouteForActiveTrip && !tripPageLinkRendered;
         if (showActiveCruiseAction) {
@@ -2666,6 +2718,13 @@
         }
         if (showTripPageAction) {
           tripPageLinkRendered = true;
+        }
+        if (currentState === "ACTIVE") {
+          routeStateLabel = "Current active route/float-plan group";
+        } else if (currentState === "DRAFT") {
+          routeStateLabel = "Current draft route/float-plan group";
+        } else if (isRouteForActiveTrip) {
+          routeStateLabel = "Used by active trip";
         }
         var routeInstanceId = route && route.ROUTE_INSTANCE_ID !== undefined && route.ROUTE_INSTANCE_ID !== null
           ? parseInt(route.ROUTE_INSTANCE_ID, 10)
@@ -2678,20 +2737,29 @@
         var routeInstanceAttr = Number.isFinite(routeInstanceId) && routeInstanceId > 0
           ? ' data-route-instance-id="' + routeInstanceId + '"'
           : "";
+        var currentGroupStateAttr = currentState
+          ? ' data-current-group-state="' + escapeHtml(currentState) + '"'
+          : "";
+        var currentFloatPlanAttr = currentRouteGroup
+          ? ' data-current-floatplan-id="' + currentRouteGroup.floatPlanId + '"'
+          : "";
         return ''
-          + '<div class="expedition-route-card ' + (isRouteForActiveTrip ? 'is-active' : '') + '" data-route-code="' + escapeHtml(route.SHORT_CODE || "") + '"' + routeInstanceAttr + '>'
-          + '  <div>'
-          + '    <div class="expedition-route-name">' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</div>'
-          + (isRouteForActiveTrip ? '    <div class="small text-light opacity-75">Used by active trip</div>' : '')
-          + '    <div class="expedition-route-meta">' + pct + '% complete • ' + formatNumber(nm, 1) + ' NM • ' + formatNumber(locks, 0) + ' locks</div>'
+          + '<div class="expedition-route-card ' + (isRouteForActiveTrip ? 'is-active' : '') + '" data-route-code="' + escapeHtml(route.SHORT_CODE || "") + '"' + routeInstanceAttr + currentGroupStateAttr + currentFloatPlanAttr + '>'
+          + '  <div class="expedition-route-card-main">'
+          + '    <div>'
+          + '      <div class="expedition-route-name">' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</div>'
+          + (routeStateLabel ? '      <div class="small text-light opacity-75">' + escapeHtml(routeStateLabel) + '</div>' : '')
+          + '      <div class="expedition-route-meta">' + pct + '% complete • ' + formatNumber(nm, 1) + ' NM • ' + formatNumber(locks, 0) + ' locks</div>'
+          + '    </div>'
+          + '    <div class="expedition-route-actions">'
+          + (showActiveCruiseAction ? '      <button type="button" class="btn-secondary js-expedition-active-cruise">Active Cruise</button>' : '')
+          + (showTripPageAction ? '      <button type="button" class="btn-secondary js-expedition-trip-page">Trip Page</button>' : '')
+          + (showActivateRouteAction ? '      <button type="button" class="btn-secondary js-expedition-build-floatplans">Activate Route</button>' : '')
+          + '      <button type="button" class="btn-secondary js-expedition-view-edit">View / Edit</button>'
+          + '      <button type="button" class="btn-secondary js-expedition-delete">Delete</button>'
+          + '    </div>'
           + '  </div>'
-          + '  <div class="expedition-route-actions">'
-          + (showActiveCruiseAction ? '    <button type="button" class="btn-secondary js-expedition-active-cruise">Active Cruise</button>' : '')
-          + (showTripPageAction ? '    <button type="button" class="btn-secondary js-expedition-trip-page">Trip Page</button>' : '')
-          + (showActivateRouteAction ? '    <button type="button" class="btn-secondary js-expedition-build-floatplans">Activate Route</button>' : '')
-          + '    <button type="button" class="btn-secondary js-expedition-view-edit">View / Edit</button>'
-          + '    <button type="button" class="btn-secondary js-expedition-delete">Delete</button>'
-          + '  </div>'
+          + buildCurrentGroupRow(route)
           + '</div>';
       }).join("");
     }
@@ -2708,6 +2776,36 @@
       if (rb && typeof rb.openEditorForRoute === "function") {
         rb.openEditorForRoute(routeCode);
       }
+    }
+
+    function getFloatPlansModule() {
+      return window.FPW && window.FPW.DashboardModules ? window.FPW.DashboardModules.floatplans : null;
+    }
+
+    function openCurrentGroupWizard(planId, startStep) {
+      var floatPlansModule = getFloatPlansModule();
+      if (!floatPlansModule || typeof floatPlansModule.openWizardForPlan !== "function") {
+        return false;
+      }
+      return !!floatPlansModule.openWizardForPlan(planId, startStep);
+    }
+
+    function checkInCurrentGroup(planId, triggerButton) {
+      var floatPlansModule = getFloatPlansModule();
+      if (!floatPlansModule || typeof floatPlansModule.checkInFloatPlan !== "function") {
+        return false;
+      }
+      floatPlansModule.checkInFloatPlan(planId, triggerButton);
+      return true;
+    }
+
+    function cancelCurrentGroup(planId, triggerButton) {
+      var floatPlansModule = getFloatPlansModule();
+      if (!floatPlansModule || typeof floatPlansModule.cancelFloatPlan !== "function") {
+        return false;
+      }
+      floatPlansModule.cancelFloatPlan(planId, triggerButton);
+      return true;
     }
 
     function deleteRoute(routeCode) {
@@ -2763,6 +2861,10 @@
         return 0;
       }
       return planId;
+    }
+
+    function normalizePlanId(value) {
+      return normalizeFloatPlanId(value);
     }
 
     function extractPlanIdsFromArray(values) {
@@ -2904,8 +3006,11 @@
             throw new Error("Draft float plan was created, but the wizard could not be opened.");
           }
           if (utils && typeof utils.showDashboardAlert === "function") {
+            var successMessage = payload && payload.REUSED_EXISTING
+              ? "Opened the existing draft route/float-plan group."
+              : ("Created " + createdCount + " draft route/float-plan group" + (createdCount === 1 ? "" : "s") + " from route.");
             utils.showDashboardAlert(
-              "Created " + createdCount + " draft float plan" + (createdCount === 1 ? "" : "s") + " from route.",
+              successMessage,
               "success"
             );
           }
@@ -3029,6 +3134,9 @@
             throw new Error((routesPayload && routesPayload.MESSAGE) ? routesPayload.MESSAGE : "Unable to load routes.");
           }
           var routes = Array.isArray(routesPayload.ROUTES) ? routesPayload.ROUTES : [];
+          var currentGroup = (routesPayload.CURRENT_GROUP && typeof routesPayload.CURRENT_GROUP === "object")
+            ? routesPayload.CURRENT_GROUP
+            : { HAS_CURRENT_GROUP: false };
           var activeTrip = (routesPayload.ACTIVE_TRIP && typeof routesPayload.ACTIVE_TRIP === "object")
             ? routesPayload.ACTIVE_TRIP
             : {};
@@ -3040,6 +3148,16 @@
             : "";
 
           state.activeTripFloatPlanId = activeTripFloatPlanId;
+          state.currentRouteGroup = currentGroup;
+          state.routeState = state.routeState || {};
+          state.routeState.all = routes.slice();
+          state.floatPlanState = state.floatPlanState || { all: [], filtered: [], query: "" };
+          state.floatPlanState.all = currentGroup.HAS_CURRENT_GROUP ? [{
+            FLOATPLANID: normalizePlanId(currentGroup.FLOATPLAN_ID !== undefined ? currentGroup.FLOATPLAN_ID : currentGroup.FLOATPLANID),
+            PLANNAME: String(currentGroup.FLOATPLAN_NAME || ""),
+            STATUS: String(currentGroup.STATUS || "")
+          }] : [];
+          state.floatPlanState.filtered = state.floatPlanState.all.slice();
           if (document && typeof window.CustomEvent === "function") {
             document.dispatchEvent(new window.CustomEvent("fpw:active-trip-updated", {
               detail: {
@@ -3051,11 +3169,12 @@
           if (!routes.length) {
             renderEmptyRoutes();
           } else {
-            renderRouteList(routes, activeTripRouteCode);
+            renderRouteList(routes, activeTripRouteCode, currentGroup);
           }
 
           renderActiveTripSummary(activeTrip);
           renderTimeline();
+          refreshDerivedSignalsFromState();
           setState("ready");
           return null;
         })
@@ -3093,6 +3212,11 @@
           var target = event.target;
           if (!target) return;
           var card = target.closest(".expedition-route-card");
+          var currentGroupRow = target.closest(".expedition-route-current-group");
+          var currentGroupState = card ? String(card.getAttribute("data-current-group-state") || "").trim().toUpperCase() : "";
+          var currentFloatPlanId = card ? normalizePlanId(card.getAttribute("data-current-floatplan-id")) : 0;
+          var currentGroupPlanId = currentGroupRow ? normalizePlanId(currentGroupRow.getAttribute("data-plan-id")) : 0;
+          var deleteMessage = "Delete this route?";
           if (!card) return;
           var routeCode = card.getAttribute("data-route-code");
           var routeInstanceId = parseInt(card.getAttribute("data-route-instance-id") || "0", 10);
@@ -3114,18 +3238,63 @@
             buildFloatPlans(routeCode, target, routeInstanceId);
             return;
           }
+          if (target.classList.contains("js-expedition-plan-view")) {
+            openCurrentGroupWizard(currentGroupPlanId, 6);
+            return;
+          }
+          if (target.classList.contains("js-expedition-plan-edit")) {
+            openCurrentGroupWizard(currentGroupPlanId, 1);
+            return;
+          }
+          if (target.classList.contains("js-expedition-plan-checkin")) {
+            if (utils && typeof utils.showConfirmModal === "function") {
+              utils.showConfirmModal("Check in this active route/float-plan group?")
+                .then(function (confirmed) {
+                  if (!confirmed) return;
+                  checkInCurrentGroup(currentGroupPlanId, target);
+                });
+            } else if (window.confirm("Check in this active route/float-plan group?")) {
+              checkInCurrentGroup(currentGroupPlanId, target);
+            }
+            return;
+          }
+          if (target.classList.contains("js-expedition-plan-cancel")) {
+            if (utils && typeof utils.showConfirmModal === "function") {
+              utils.showConfirmModal("Cancel this active route/float-plan group? This ends the active trip without requiring all legs to be complete first.")
+                .then(function (confirmed) {
+                  if (!confirmed) return;
+                  cancelCurrentGroup(currentGroupPlanId, target);
+                });
+            } else if (window.confirm("Cancel this active route/float-plan group? This ends the active trip without requiring all legs to be complete first.")) {
+              cancelCurrentGroup(currentGroupPlanId, target);
+            }
+            return;
+          }
           if (target.classList.contains("js-expedition-delete")) {
             var confirmDelete = function () {
               deleteRoute(routeCode);
             };
+            if (currentGroupState === "ACTIVE" && currentFloatPlanId > 0) {
+              if (utils && typeof utils.showAlertModal === "function") {
+                utils.showAlertModal("This route has the current active route/float-plan group. Use Check-In or Cancel before deleting the route.");
+              } else {
+                window.alert("This route has the current active route/float-plan group. Use Check-In or Cancel before deleting the route.");
+              }
+              return;
+            }
+            if (currentGroupState === "DRAFT" && currentFloatPlanId > 0) {
+              deleteMessage = "Delete this draft route/float-plan group? This deletes both the route and its draft float plan.";
+            } else {
+              deleteMessage = "Delete this route? Any attached float plan history for this route will also be deleted.";
+            }
             if (utils && typeof utils.showConfirmModal === "function") {
-              utils.showConfirmModal("Delete this route?")
+              utils.showConfirmModal(deleteMessage)
                 .then(function (confirmed) {
                   if (!confirmed) return;
                   confirmDelete();
                 });
             } else {
-              if (!window.confirm("Delete this route?")) return;
+              if (!window.confirm(deleteMessage)) return;
               confirmDelete();
             }
             return;

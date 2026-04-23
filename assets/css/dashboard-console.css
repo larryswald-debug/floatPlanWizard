@@ -3794,13 +3794,20 @@ main.dashboard-main{
 
 .expedition-route-card {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 12px;
   border: 1px solid var(--panel-border);
   border-radius: 12px;
   padding: 10px 12px;
   background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+}
+
+.expedition-route-card-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
 }
 
 .expedition-route-card.is-active {
@@ -3823,6 +3830,44 @@ main.dashboard-main{
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.expedition-route-current-group {
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding-top: 10px;
+}
+
+.expedition-route-current-group-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.expedition-route-current-group-title {
+  font-weight: 600;
+  color: rgba(255,255,255,0.92);
+}
+
+.expedition-route-current-group-meta {
+  color: rgba(255,255,255,0.72);
+  font-size: 0.84rem;
+}
+
+.expedition-route-actions--child {
+  justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+  .expedition-route-card-main,
+  .expedition-route-current-group-main {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .expedition-route-actions--child {
+    justify-content: flex-start;
+  }
 }
 
 .expedition-accordion .accordion-item {

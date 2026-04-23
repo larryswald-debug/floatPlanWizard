@@ -505,16 +505,7 @@ if (isAuthorized AND len(appDsn)) {
 </head>
 <body>
   <div class="wrap">
-    <nav class="admin-nav" aria-label="Admin Tools">
-      <a href="/fpw/admin/floatplan-cleanup.cfm">FloatPlan Cleanup</a>
-      <a href="/fpw/admin/route-cleanup.cfm">Route Cleanup</a>
-      <a href="/fpw/admin/fuel-calculator.cfm">Fuel Calculator</a>
-      <a href="/fpw/admin/waypoint-manager.cfm">Waypoint Manager</a>
-      <a href="/fpw/admin/passenger-manager.cfm">Passenger Manager</a>
-      <a href="/fpw/admin/vessel-manager.cfm">Vessel Manager</a>
-      <a href="/fpw/admin/operator-manager.cfm">Operator Manager</a>
-      <a href="/fpw/admin/monitoring-dashboard.cfm" class="active">Monitoring Dashboard</a>
-    </nav>
+    <cfinclude template="includes/admin_reports_nav.cfm">
 
     <h1>Admin Monitoring Dashboard</h1>
     <p class="hint">Canonical monitoring view for all enabled monitoring rows. Follow is the primary support drill-in. Active Cruise link is conditional and may reject non-owner access.</p>
@@ -677,3 +668,4 @@ if (isAuthorized AND len(appDsn)) {
   </div>
 </body>
 </html>
+
