@@ -50,6 +50,9 @@
                     case "delete":
                         response = deleteOperator(body);
                         break;
+                    case "bulkdelete":
+                        response = bulkDeleteOperators(body);
+                        break;
                     case "listusers":
                         response = listUsers(body);
                         break;
@@ -59,7 +62,7 @@
                             true,
                             "Unknown action",
                             {},
-                            "Valid actions: list, get, save, delete, listUsers."
+                            "Valid actions: list, get, save, delete, bulkDelete, listUsers."
                         );
                 }
 
@@ -326,6 +329,50 @@
             }
 
             return buildResponse(true, true, "Operator deleted", result);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="bulkDeleteOperators" access="private" returntype="struct" output="false">
+        <cfargument name="body" type="struct" required="true">
+        <cfscript>
+            var operatorIds = parseOperatorIdList(arguments.body);
+            var deleted = [];
+            var skipped = [];
+            var i = 0;
+            var result = {};
+            var message = "";
+
+            if (!arrayLen(operatorIds)) {
+                return buildResponse(false, true, "Invalid selection", {}, "At least one operatorId is required.");
+            }
+
+            for (i = 1; i LTE arrayLen(operatorIds); i++) {
+                result = deleteOperatorById(operatorIds[i]);
+                if (result.success) {
+                    arrayAppend(deleted, {
+                        "operatorId" = result.operatorId,
+                        "operatorName" = result.operatorName
+                    });
+                } else {
+                    arrayAppend(skipped, {
+                        "operatorId" = result.operatorId,
+                        "operatorName" = result.operatorName,
+                        "errorCode" = result.errorCode,
+                        "message" = result.message,
+                        "usageCount" = result.usageCount
+                    });
+                }
+            }
+
+            message = buildBulkDeleteMessage(arrayLen(deleted), arrayLen(skipped));
+
+            return buildResponse(true, true, message, {
+                "requestedCount" = arrayLen(operatorIds),
+                "deletedCount" = arrayLen(deleted),
+                "skippedCount" = arrayLen(skipped),
+                "deleted" = deleted,
+                "skipped" = skipped
+            });
         </cfscript>
     </cffunction>
 
@@ -627,6 +674,61 @@
             if (listFindNoCase("0,false,no,n,off", txt)) return false;
             if (isNumeric(txt)) return (val(txt) NEQ 0);
             return arguments.defaultValue;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="parseOperatorIdList" access="private" returntype="array" output="false">
+        <cfargument name="body" type="struct" required="true">
+        <cfscript>
+            var rawIds = readValue(arguments.body, "operatorIds", readValue(arguments.body, "OPERATORIDS", readValue(url, "operatorIds", "")));
+            var parsed = [];
+            var seen = {};
+            var token = "";
+            var numericId = 0;
+            var i = 0;
+
+            if (isArray(rawIds)) {
+                for (i = 1; i LTE arrayLen(rawIds); i++) {
+                    numericId = toInt(rawIds[i]);
+                    if (numericId GT 0 AND !structKeyExists(seen, toString(numericId))) {
+                        seen[toString(numericId)] = true;
+                        arrayAppend(parsed, numericId);
+                    }
+                }
+                return parsed;
+            }
+
+            token = trim(toString(rawIds));
+            if (!len(token)) {
+                return parsed;
+            }
+
+            for (token in listToArray(token, ",")) {
+                numericId = toInt(token);
+                if (numericId GT 0 AND !structKeyExists(seen, toString(numericId))) {
+                    seen[toString(numericId)] = true;
+                    arrayAppend(parsed, numericId);
+                }
+            }
+
+            return parsed;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildBulkDeleteMessage" access="private" returntype="string" output="false">
+        <cfargument name="deletedCount" type="numeric" required="true">
+        <cfargument name="skippedCount" type="numeric" required="true">
+        <cfscript>
+            if (arguments.deletedCount GT 0 AND arguments.skippedCount GT 0) {
+                return "Deleted " & arguments.deletedCount & " operator(s). Skipped " & arguments.skippedCount & " operator(s).";
+            }
+            if (arguments.deletedCount GT 0) {
+                return "Deleted " & arguments.deletedCount & " operator(s).";
+            }
+            if (arguments.skippedCount GT 0) {
+                return "No operators were deleted. Skipped " & arguments.skippedCount & " operator(s).";
+            }
+            return "No operators were deleted.";
         </cfscript>
     </cffunction>
 

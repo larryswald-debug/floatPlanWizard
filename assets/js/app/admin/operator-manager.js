@@ -8,7 +8,8 @@
     total: 0,
     limit: 50,
     offset: 0,
-    requestSeq: 0
+    requestSeq: 0,
+    selectedOperatorIds: {}
   };
 
   var els = {};
@@ -95,19 +96,124 @@
     els.nextPageBtn.disabled = (state.offset + state.limit >= state.total);
   }
 
+  function clearSelection() {
+    state.selectedOperatorIds = {};
+  }
+
+  function getVisibleOperatorIds() {
+    return state.items.map(function (row) {
+      return toInt(row.OPERATORID);
+    }).filter(function (operatorId) {
+      return operatorId > 0;
+    });
+  }
+
+  function getSelectedOperatorIds() {
+    return getVisibleOperatorIds().filter(function (operatorId) {
+      return !!state.selectedOperatorIds[String(operatorId)];
+    });
+  }
+
+  function setSelectedOperator(operatorId, isSelected) {
+    var key = String(toInt(operatorId));
+    if (!key || key === "0") return;
+    if (isSelected) {
+      state.selectedOperatorIds[key] = true;
+    } else {
+      delete state.selectedOperatorIds[key];
+    }
+  }
+
+  function syncSelectAllCheckbox() {
+    if (!els.selectAllOperators) return;
+    var visibleIds = getVisibleOperatorIds();
+    var selectedIds = getSelectedOperatorIds();
+    els.selectAllOperators.disabled = !visibleIds.length;
+    if (!visibleIds.length) {
+      els.selectAllOperators.checked = false;
+      els.selectAllOperators.indeterminate = false;
+      return;
+    }
+    els.selectAllOperators.checked = (selectedIds.length === visibleIds.length);
+    els.selectAllOperators.indeterminate = (selectedIds.length > 0 && selectedIds.length < visibleIds.length);
+  }
+
+  function syncBulkDeleteButton() {
+    if (!els.bulkDeleteOperatorsBtn) return;
+    var selectedCount = getSelectedOperatorIds().length;
+    els.bulkDeleteOperatorsBtn.disabled = (selectedCount <= 0);
+    els.bulkDeleteOperatorsBtn.textContent = selectedCount > 0
+      ? ("Delete Checked (" + selectedCount + ")")
+      : "Delete Checked";
+  }
+
+  function syncSelectionUi() {
+    syncSelectAllCheckbox();
+    syncBulkDeleteButton();
+  }
+
+  function formatBulkDeleteItemLabel(item) {
+    var operatorId = toInt(item && item.operatorId);
+    var operatorName = String(item && item.operatorName ? item.operatorName : "").trim();
+    if (operatorId > 0 && operatorName) {
+      return "#" + operatorId + " " + operatorName;
+    }
+    if (operatorId > 0) {
+      return "#" + operatorId;
+    }
+    return operatorName || "selected operator";
+  }
+
+  function buildBulkDeleteMessage(result) {
+    var deletedCount = toInt(result && result.deletedCount);
+    var skippedCount = toInt(result && result.skippedCount);
+    var skipped = Array.isArray(result && result.skipped) ? result.skipped : [];
+    var parts = [];
+    var skippedLabels = "";
+
+    if (deletedCount > 0) {
+      parts.push("Deleted " + deletedCount + " checked operator(s).");
+    }
+
+    if (skippedCount > 0) {
+      skippedLabels = skipped.slice(0, 3).map(formatBulkDeleteItemLabel).filter(Boolean).join(", ");
+      parts.push(
+        "Skipped " + skippedCount + " operator(s)"
+        + (skippedLabels ? ": " + skippedLabels + (skipped.length > 3 ? ", ..." : "") : "")
+        + "."
+      );
+    }
+
+    if (!parts.length) {
+      parts.push("No checked operators were deleted.");
+    }
+
+    return parts.join(" ");
+  }
+
+  function resolveBulkDeleteMessageType(result) {
+    var deletedCount = toInt(result && result.deletedCount);
+    var skippedCount = toInt(result && result.skippedCount);
+    if (deletedCount > 0 && skippedCount === 0) return "success";
+    if (deletedCount > 0) return "info";
+    return "error";
+  }
+
   function renderTable() {
     if (!els.tableBody) return;
     if (!state.items.length) {
-      els.tableBody.innerHTML = '<tr><td colspan="9">No operators found.</td></tr>';
+      els.tableBody.innerHTML = '<tr><td colspan="10">No operators found.</td></tr>';
       return;
     }
 
     var html = state.items.map(function (row) {
       var operatorId = toInt(row.OPERATORID);
       var ownerName = [row.USER_FIRSTNAME || "", row.USER_LASTNAME || ""].join(" ").trim();
+      var isSelected = !!state.selectedOperatorIds[String(operatorId)];
       if (!ownerName) ownerName = "(blank)";
       return ""
         + "<tr>"
+        + "  <td class=\"num\"><input type=\"checkbox\" class=\"operator-select\" data-operator-id=\"" + operatorId + "\" aria-label=\"Select operator #" + operatorId + "\"" + (isSelected ? " checked" : "") + "></td>"
         + "  <td class=\"num\">" + operatorId + "</td>"
         + "  <td class=\"num\">" + escapeHtml(row.USERID || "") + "</td>"
         + "  <td>" + escapeHtml(row.USER_EMAIL || "") + "</td>"
@@ -133,7 +239,7 @@
     state.limit = toInt(els.filterLimit.value) || 50;
 
     var reqId = ++state.requestSeq;
-    els.tableBody.innerHTML = '<tr><td colspan="9">Loading...</td></tr>';
+    els.tableBody.innerHTML = '<tr><td colspan="10">Loading...</td></tr>';
 
     try {
       var data = await callApi("list", collectFilters());
@@ -146,16 +252,22 @@
       var payload = data.DATA || {};
       state.items = Array.isArray(payload.items) ? payload.items : [];
       state.total = toInt(payload.total) || 0;
+      clearSelection();
 
       renderTable();
       updateSummaryLine();
+      syncSelectionUi();
       showMessage("", "");
+      return true;
     } catch (error) {
       state.items = [];
       state.total = 0;
+      clearSelection();
       renderTable();
       updateSummaryLine();
+      syncSelectionUi();
       showMessage(error.message || "Unable to load operators.", "error");
+      return false;
     }
   }
 
@@ -304,6 +416,37 @@
     }
   }
 
+  async function deleteCheckedOperators() {
+    var operatorIds = getSelectedOperatorIds();
+    var data = null;
+    var result = {};
+    var reloaded = false;
+
+    if (!operatorIds.length) {
+      showMessage("Select at least one operator to delete.", "error");
+      return;
+    }
+
+    if (!window.confirm("Delete " + operatorIds.length + " checked operator(s)?")) {
+      return;
+    }
+
+    try {
+      data = await callApi("bulkdelete", { operatorIds: operatorIds });
+      if (!data || data.SUCCESS !== true) {
+        throw new Error((data && (data.MESSAGE || (data.ERROR && data.ERROR.MESSAGE))) || "Bulk delete failed.");
+      }
+
+      result = data.DATA || {};
+      reloaded = await loadOperators(false);
+      if (reloaded) {
+        showMessage(buildBulkDeleteMessage(result), resolveBulkDeleteMessageType(result));
+      }
+    } catch (error) {
+      showMessage(error.message || "Unable to delete checked operators.", "error");
+    }
+  }
+
   function bindEvents() {
     els.filterForm.addEventListener("submit", function (event) {
       event.preventDefault();
@@ -328,6 +471,12 @@
       openModal(null);
     });
 
+    if (els.bulkDeleteOperatorsBtn) {
+      els.bulkDeleteOperatorsBtn.addEventListener("click", function () {
+        deleteCheckedOperators();
+      });
+    }
+
     els.prevPageBtn.addEventListener("click", function () {
       if (state.offset <= 0) return;
       state.offset = Math.max(0, state.offset - state.limit);
@@ -340,6 +489,25 @@
       loadOperators(false);
     });
 
+    if (els.selectAllOperators) {
+      els.selectAllOperators.addEventListener("change", function () {
+        var shouldSelect = !!els.selectAllOperators.checked;
+        var visibleIds = getVisibleOperatorIds();
+        var rowCheckboxes = els.tableBody.querySelectorAll(".operator-select");
+        var i = 0;
+
+        for (i = 0; i < visibleIds.length; i++) {
+          setSelectedOperator(visibleIds[i], shouldSelect);
+        }
+
+        rowCheckboxes.forEach(function (checkbox) {
+          checkbox.checked = shouldSelect;
+        });
+
+        syncSelectionUi();
+      });
+    }
+
     els.tableBody.addEventListener("click", function (event) {
       var target = event.target;
       if (!target) return;
@@ -351,6 +519,16 @@
       } else if (action === "delete") {
         deleteOne(operatorId);
       }
+    });
+
+    els.tableBody.addEventListener("change", function (event) {
+      var target = event.target;
+      var operatorId = 0;
+      if (!target || !target.classList || !target.classList.contains("operator-select")) return;
+      operatorId = toInt(target.getAttribute("data-operator-id"));
+      if (operatorId <= 0) return;
+      setSelectedOperator(operatorId, !!target.checked);
+      syncSelectionUi();
     });
 
     els.saveOperatorBtn.addEventListener("click", function () {
@@ -378,7 +556,9 @@
     els.filterLimit = byId("filterLimit");
     els.resetFiltersBtn = byId("resetFiltersBtn");
     els.addOperatorBtn = byId("addOperatorBtn");
+    els.bulkDeleteOperatorsBtn = byId("bulkDeleteOperatorsBtn");
     els.summaryLine = byId("operatorSummaryLine");
+    els.selectAllOperators = byId("selectAllOperators");
     els.tableBody = byId("operatorTableBody");
     els.prevPageBtn = byId("prevPageBtn");
     els.nextPageBtn = byId("nextPageBtn");
