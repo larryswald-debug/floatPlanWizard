@@ -262,6 +262,7 @@ if (isAuthorized AND structKeyExists(form, "runBackfill")) {
 </head>
 <body>
 <cfinclude template="../includes/top_nav.cfm">
+<cfinclude template="includes/admin_reports_nav.cfm">
 
 <div class="psb-shell">
     <div class="psb-card">
@@ -482,3 +483,4 @@ if (isAuthorized AND structKeyExists(form, "runBackfill")) {
 <cfinclude template="../includes/footer_scripts.cfm">
 </body>
 </html>
+

@@ -294,6 +294,7 @@ request.fpwBase = "/fpw";
 <body>
 
 <cfinclude template="../includes/top_nav.cfm">
+<cfinclude template="includes/admin_reports_nav.cfm">
 
 <main class="sg-page">
     <div class="sg-shell">
@@ -381,3 +382,4 @@ request.fpwBase = "/fpw";
 
 </body>
 </html>
+
