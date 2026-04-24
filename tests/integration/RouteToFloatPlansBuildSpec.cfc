@@ -2,7 +2,8 @@ component extends="testbox.system.BaseSpec" output="false" {
 
   function beforeAll() {
     variables.ctx = {
-      createdPlanIds = []
+      createdPlanIds = [],
+      createdRouteCodes = []
     };
 
     if ( structKeyExists( CGI, "SCRIPT_NAME" ) && findNoCase( "/testbox/", CGI.SCRIPT_NAME ) ) {
@@ -39,8 +40,8 @@ component extends="testbox.system.BaseSpec" output="false" {
       return;
     }
     var i = 0;
-    for ( i = 1; i LTE arrayLen( variables.ctx.createdPlanIds ); i++ ) {
-      apiPostJson( variables.ctx.floatPlanDeleteUrl, { floatPlanId = variables.ctx.createdPlanIds[ i ] } );
+    for ( i = 1; i LTE arrayLen( variables.ctx.createdRouteCodes ); i++ ) {
+      apiPostJson( variables.ctx.routeBuilderActionBase & "deleteRoute", { routeCode = variables.ctx.createdRouteCodes[ i ] } );
     }
   }
 
@@ -105,6 +106,9 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( routeInstanceId ).toBeGT( 0, "Expected ROUTE_INSTANCE_ID in routegen_generate response: #serializeJSON(genRes)#" );
         var routeCode = trim( toString( pickFirst( genRes, [ "ROUTE_CODE", "route_code", "routeCode" ], "" ) ) );
         expect( len( routeCode ) ).toBeGT( 0, "Expected ROUTE_CODE in routegen_generate response: #serializeJSON(genRes)#" );
+        if ( arrayFind( variables.ctx.createdRouteCodes, routeCode ) EQ 0 ) {
+          arrayAppend( variables.ctx.createdRouteCodes, routeCode );
+        }
 
         var buildRes = apiPostJson( variables.ctx.buildFloatPlansUrl, {
           routeCode = routeCode,
@@ -131,8 +135,9 @@ component extends="testbox.system.BaseSpec" output="false" {
           mode = "DAILY",
           vesselId = vesselId
         } );
-        expect( pickBool( secondBuildRes, "SUCCESS" ) ).toBeFalse( "Expected duplicate build to fail: #serializeJSON(secondBuildRes)#" );
-        expect( uCase( toString( pickNested( secondBuildRes, [ "ERROR", "CODE" ], "" ) ) ) ).toBe( "FLOATPLANS_ALREADY_EXIST" );
+        expect( pickBool( secondBuildRes, "SUCCESS" ) ).toBeTrue( "Expected duplicate build to reuse existing draft: #serializeJSON(secondBuildRes)#" );
+        expect( !!pickFirst( secondBuildRes, [ "REUSED_EXISTING", "reused_existing" ], false ) ).toBeTrue( serializeJSON( secondBuildRes ) );
+        expect( extractFirstArrayId( secondBuildRes, [ "FLOATPLAN_IDS", "floatplan_ids" ] ) ).toBe( firstPlanId );
 
         var rebuildRes = apiPostJson( variables.ctx.buildFloatPlansUrl, {
           routeCode = routeCode,

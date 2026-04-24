@@ -6,7 +6,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Fuel Calculator</title>
+  <title>Boat Fuel Calculator | FloatPlanWizard</title>
+
+<meta name="description" content="Estimate your boat’s fuel burn, cruising range, fuel reserve, and approximate trip cost with the free boat fuel calculator from FloatPlanWizard.">
+
+<link rel="canonical" href="https://floatplanwizard.com/boat-fuel-calculator/boat-fuel-calculator.cfm">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
     :root {
@@ -409,14 +413,14 @@
         <a href="/preLaunch.cfm#great-loop">Great Loop</a>
         <a href="/preLaunch.cfm#followers">Share the Trip</a>
         <a href="/preLaunch.cfm#story">Why FPW</a>
-        <a href="/app/fuel-calculator.cfm" class="btn btn-secondary">Fuel Calculator</a>
+        <a href="/boat-fuel-calculator/boat-fuel-calculator.cfm" class="btn btn-secondary">Fuel Calculator</a>
         <a href="/preLaunch.cfm#notify" class="btn btn-secondary"><i class="bi bi-bell"></i>Get Notified</a>
       </nav>
     </div>
   </header>
   <main class="fuelcalc-main">
     <div class="wrap shell">
-      <h1>Fuel Calculator</h1>
+      <h1>Boat Fuel Calculator</h1>
      
 
      <!--- <div class="msg info">

@@ -10,6 +10,73 @@ function requireCredentials() {
   };
 }
 
+async function isLocatorVisible(locator) {
+  return locator.first().isVisible().catch(() => false);
+}
+
+async function isAuthenticatedShellVisible(page) {
+  const markers = [
+    page.locator("#missionSummaryTitle"),
+    page.locator("#openRouteBuilderBtn"),
+    page.locator("#logoutButton"),
+    page.locator('nav[aria-label="App Primary"]'),
+    page.locator('button:has-text("Generate Route")')
+  ];
+  for (const marker of markers) {
+    if (await isLocatorVisible(marker)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function waitForLoginSurface(page) {
+  await page.waitForFunction(() => {
+    function isVisible(node) {
+      return !!(node && node.getClientRects && node.getClientRects().length);
+    }
+    const emailInput = document.querySelector('input[name="email"], input[name="EMAIL"], #loginForm input[type="email"]');
+    const publicToggle = document.querySelector("#publicLoginToggle, #fpwMobilePublicLoginLink");
+    const authenticated = !!(
+      document.getElementById("missionSummaryTitle")
+      || document.getElementById("openRouteBuilderBtn")
+      || document.getElementById("logoutButton")
+      || document.querySelector('nav[aria-label="App Primary"]')
+      || document.querySelector('button[id="openRouteBuilderBtn"]')
+    );
+    return authenticated || isVisible(emailInput) || isVisible(publicToggle);
+  }, { timeout: 10000 }).catch(() => {});
+}
+
+async function exposeLoginForm(page, emailInput) {
+  if (await isLocatorVisible(emailInput)) {
+    return;
+  }
+  const toggleCandidates = [
+    page.locator("#publicLoginToggle"),
+    page.locator("#fpwMobilePublicLoginLink"),
+    page.getByRole("link", { name: /^Log in$/i }),
+    page.getByRole("button", { name: /^Log in$/i })
+  ];
+  for (const toggle of toggleCandidates) {
+    if (!(await isLocatorVisible(toggle))) {
+      continue;
+    }
+    await toggle.first().click();
+    if (await isAuthenticatedShellVisible(page)) {
+      return;
+    }
+    try {
+      await expect(emailInput).toBeVisible({ timeout: 10000 });
+      return;
+    } catch (error) {
+      if (await isAuthenticatedShellVisible(page)) {
+        return;
+      }
+    }
+  }
+}
+
 async function submitLoginForm(page, options) {
   const opts = options || {};
   const creds = requireCredentials();
@@ -19,17 +86,27 @@ async function submitLoginForm(page, options) {
   const waitUntil = typeof opts.waitUntil === "string" ? opts.waitUntil : "domcontentloaded";
 
   await page.goto(loginUrl, { waitUntil: waitUntil });
-  const publicLoginToggle = page.locator("#publicLoginToggle");
-  const loginStrip = page.locator("#login");
-  if (await publicLoginToggle.isVisible().catch(() => false)) {
-    const stripOpen = await loginStrip.evaluate((el) => el.classList.contains("is-open")).catch(() => false);
-    if (!stripOpen) {
-      await publicLoginToggle.click();
-      await expect(loginStrip).toHaveClass(/is-open/, { timeout: 10000 });
-    }
+  await waitForLoginSurface(page);
+
+  const emailInput = page.locator('input[name="email"], input[name="EMAIL"], #loginForm input[type="email"]').first();
+  const passwordInput = page.locator('input[type="password"], input[name="password"], input[name="PASSWORD"]').first();
+
+  if (await isAuthenticatedShellVisible(page)) {
+    return;
   }
-  await page.fill('input[name="email"], input[name="EMAIL"]', email);
-  await page.fill('input[type="password"], input[name="password"], input[name="PASSWORD"]', password);
+
+  if (!(await isLocatorVisible(emailInput))) {
+    await exposeLoginForm(page, emailInput);
+  }
+
+  if (await isAuthenticatedShellVisible(page)) {
+    return;
+  }
+
+  await expect(emailInput).toBeVisible({ timeout: 10000 });
+  await expect(passwordInput).toBeVisible({ timeout: 10000 });
+  await emailInput.fill(email);
+  await passwordInput.fill(password);
   await page.evaluate(() => {
     var form = document.getElementById("loginForm");
     if (!form) return;

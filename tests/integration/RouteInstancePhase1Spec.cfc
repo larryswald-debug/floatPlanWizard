@@ -1,7 +1,9 @@
 component extends="testbox.system.BaseSpec" output="false" {
 
   function beforeAll() {
-    variables.ctx = {};
+    variables.ctx = {
+      createdRouteCodes = []
+    };
 
     if ( structKeyExists( CGI, "SCRIPT_NAME" ) && findNoCase( "/testbox/", CGI.SCRIPT_NAME ) ) {
       variables.ctx.sessionReady = false;
@@ -29,6 +31,22 @@ component extends="testbox.system.BaseSpec" output="false" {
 
     ensureSessionUser();
     variables.ctx.sessionReady = !structKeyExists( variables.ctx, "sessionError" );
+    variables.ctx.cleanupApi = new fpw.tests.support.FpwApiSupport().init( baseUrl = variables.ctx.baseUrl & "/fpw" );
+    variables.ctx.cleanupSupport = new fpw.tests.support.FpwCleanupSupport().init( variables.ctx.cleanupApi );
+    if ( variables.ctx.sessionReady ) {
+      variables.ctx.cleanupSupport.cleanupCurrentRouteFloatPlanGroup( resolveCurrentUserId() );
+    }
+  }
+
+  function afterAll() {
+    if ( !structKeyExists( variables, "ctx" ) || !structKeyExists( variables.ctx, "sessionReady" ) || !variables.ctx.sessionReady ) {
+      return;
+    }
+    for ( var i = arrayLen( variables.ctx.createdRouteCodes ); i GTE 1; i-- ) {
+      apiPostJson( variables.ctx.routeBuilderActionBase & "deleteRoute", {
+        routeCode = variables.ctx.createdRouteCodes[ i ]
+      } );
+    }
   }
 
   function run() {
@@ -90,6 +108,10 @@ component extends="testbox.system.BaseSpec" output="false" {
 
         var routeInstanceId = val( pickFirst( genRes, [ "ROUTE_INSTANCE_ID", "route_instance_id", "routeInstanceId" ], 0 ) );
         expect( routeInstanceId ).toBeGT( 0, "Expected ROUTE_INSTANCE_ID in routegen_generate response: #serializeJSON(genRes)#" );
+        var routeCode = trim( toString( pickFirst( genRes, [ "ROUTE_CODE", "route_code", "routeCode" ], "" ) ) );
+        if ( len( routeCode ) && arrayFind( variables.ctx.createdRouteCodes, routeCode ) EQ 0 ) {
+          arrayAppend( variables.ctx.createdRouteCodes, routeCode );
+        }
 
         var departDt = dateAdd( "h", 2, now() );
         var returnDt = dateAdd( "h", 6, now() );
@@ -236,6 +258,27 @@ component extends="testbox.system.BaseSpec" output="false" {
       if ( isStruct( item ) && structKeyExists( item, arguments.idKey ) && isNumeric( item[ arguments.idKey ] ) ) {
         return val( item[ arguments.idKey ] );
       }
+    }
+    return 0;
+  }
+
+  private numeric function resolveCurrentUserId() {
+    if ( structKeyExists( session, "user" ) && isStruct( session.user ) ) {
+      if ( structKeyExists( session.user, "userId" ) && isNumeric( session.user.userId ) ) {
+        return val( session.user.userId );
+      }
+      if ( structKeyExists( session.user, "id" ) && isNumeric( session.user.id ) ) {
+        return val( session.user.id );
+      }
+      if ( structKeyExists( session.user, "USERID" ) && isNumeric( session.user.USERID ) ) {
+        return val( session.user.USERID );
+      }
+    }
+    if ( structKeyExists( url, "testUserId" ) && isNumeric( url.testUserId ) ) {
+      return val( url.testUserId );
+    }
+    if ( structKeyExists( variables, "ctx" ) && structKeyExists( variables.ctx, "forceUserId" ) && isNumeric( variables.ctx.forceUserId ) ) {
+      return val( variables.ctx.forceUserId );
     }
     return 0;
   }
