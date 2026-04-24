@@ -37,12 +37,22 @@ temp/
 *.pdf
 *.rollback-*
 *.bak*
+
+# ===== Tests =====
+test*/
+.playwright-mcp/
+playwright-report/
+
+# ===== Test Scripts =====
+test*/script/
+test*/scripts/
+
+# ===== Snapshots =====
+.codex-snapshots/
+.snapshots/
+snapshots/
+snapshot*/
+*snapshot*/
 *.snapshot*
-
-tests/*
-test_results/*
-
-test-results*
-*codex-snapshots*
 
 error-context*

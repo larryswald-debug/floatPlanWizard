@@ -3451,18 +3451,10 @@
     <cffunction name="buildFloatPlanPdfPath" access="private" returntype="string" output="false">
         <cfargument name="fileName" type="string" required="true">
         <cfscript>
-            var outputDir = "";
-            try {
-                outputDir = expandPath("/fpw/floatPlans/user_float_plans/");
-            } catch (any e) {
-                outputDir = "";
-            }
-            if (!len(trim(outputDir))) {
-                var baseDir = getDirectoryFromPath(getCurrentTemplatePath());
-                var apiDir = getDirectoryFromPath(baseDir);
-                var rootDir = getDirectoryFromPath(apiDir);
-                outputDir = rootDir & "floatPlans/user_float_plans/";
-            }
+            var baseDir = getDirectoryFromPath(getCurrentTemplatePath());
+            var apiDir = getDirectoryFromPath(baseDir);
+            var rootDir = getDirectoryFromPath(apiDir);
+            var outputDir = rootDir & "floatPlans/user_float_plans/";
             if (right(outputDir, 1) NEQ "/" AND right(outputDir, 1) NEQ "\") {
                 outputDir = outputDir & "/";
             }

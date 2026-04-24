@@ -7,6 +7,7 @@
   var utils = window.FPW.DashboardUtils || {};
   var state = window.FPW.DashboardState || {};
   var waypointState = state.waypointState || { all: [] };
+  var API_BASE = window.FPW_API_BASE || ((window.FPW_BASE || "") + "/api/v1");
 
   var waypointModalEl = null;
   var waypointModal = null;
@@ -340,7 +341,7 @@
   }
 
   function getMarineFeatureName(lat, lng) {
-    var url = "/fpw/api/v1/marineName.cfc?method=lookup&lat=" + encodeURIComponent(lat) +
+    var url = API_BASE + "/marineName.cfc?method=lookup&lat=" + encodeURIComponent(lat) +
       "&lng=" + encodeURIComponent(lng);
     return fetch(url, { credentials: "same-origin" })
       .then(function (res) { return res.json(); })
