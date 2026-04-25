@@ -33,6 +33,65 @@
     return "fpw";
   }
 
+  function fpwResolveActiveCruiseBasePath() {
+    var basePath = "";
+    var scriptPath = "";
+
+    if (structKeyExists(request, "fpwBase") AND NOT isNull(request.fpwBase)) {
+      basePath = trim(toString(request.fpwBase));
+    } else if (structKeyExists(cgi, "script_name")) {
+      scriptPath = trim(toString(cgi.script_name));
+      basePath = getDirectoryFromPath(scriptPath);
+      basePath = reReplace(basePath, "/app/?$", "");
+      basePath = reReplace(basePath, "/$", "");
+    }
+    if (basePath EQ "/") {
+      basePath = "";
+    }
+    if (len(basePath) AND left(basePath, 1) NEQ "/") {
+      basePath = "/" & basePath;
+    }
+    return basePath;
+  }
+
+  function fpwNormalizeContactPhone(any rawPhone="") {
+    var raw = "";
+    var digits = "";
+    var hasPlus = false;
+
+    if (!isNull(arguments.rawPhone)) {
+      raw = trim(toString(arguments.rawPhone));
+    }
+    if (!len(raw)) {
+      return "";
+    }
+    hasPlus = (left(raw, 1) EQ "+");
+    digits = reReplace(raw, "[^0-9]", "", "all");
+    if (!len(digits)) {
+      return "";
+    }
+    return (hasPlus ? "+" : "") & digits;
+  }
+
+  function fpwBuildContactPhoneHref(any rawPhone="", string scheme="tel") {
+    var normalizedPhone = fpwNormalizeContactPhone(arguments.rawPhone);
+    if (!len(normalizedPhone)) {
+      return "";
+    }
+    return lCase(trim(arguments.scheme)) & ":" & normalizedPhone;
+  }
+
+  function fpwBuildContactEmailHref(any rawEmail="") {
+    var email = "";
+    if (!isNull(arguments.rawEmail)) {
+      email = trim(toString(arguments.rawEmail));
+    }
+    if (!len(email)) {
+      return "";
+    }
+    return "mailto:" & email;
+  }
+
   function fpwPickStructValue(required struct source, required array keys, any defaultValue="") {
     var i = 0;
     var k = "";
@@ -441,6 +500,26 @@
     return result;
   }
 
+  function fpwFormatActiveCruiseRouteDuration(any hoursValue) {
+    var totalMinutes = 0;
+    var hoursPart = 0;
+    var minutesPart = 0;
+
+    if (!isNumeric(arguments.hoursValue) OR val(arguments.hoursValue) LTE 0) {
+      return "—";
+    }
+    totalMinutes = int(round(val(arguments.hoursValue) * 60));
+    hoursPart = int(totalMinutes / 60);
+    minutesPart = totalMinutes MOD 60;
+    if (hoursPart GT 0 AND minutesPart GT 0) {
+      return hoursPart & "h " & minutesPart & "m";
+    }
+    if (hoursPart GT 0) {
+      return hoursPart & "h";
+    }
+    return minutesPart & "m";
+  }
+
   activeCruiseHooks = {
     context = {
       floatPlanId = fpwActiveCruiseHookValue("floatPlanId")
@@ -472,6 +551,8 @@
   activeCruiseAccessTitle = "No Active Trip";
   activeCruiseAccessMessage = "Active Cruise is available only for your current active trip.";
   activeCruiseAccessDetail = "Open this page from the one active float plan tied to your trip.";
+  activeCruiseBasePath = fpwResolveActiveCruiseBasePath();
+  activeCruiseFloatPlanHref = activeCruiseBasePath & "/app/floatplan-wizard.cfm";
 
   activeCruiseView = {
     topRouteChip = "Route: Gulf Coast Run",
@@ -489,7 +570,7 @@
     heroEtaMeta = "Weather-adjusted arrival estimate",
     heroLastCheckIn = "--",
     heroNextExpectedCheckIn = "-- since last check-in",
-    heroTripStart = "Trip Start: --",
+    heroTripStart = "--",
     legRemainingDistance = "41 nm remaining",
     legPercentComplete = "56% complete",
     legPace = "Pace: 7.4 kt",
@@ -537,6 +618,36 @@
     routeStop4Detail = "Planned end of the active route.",
     routeStop4Stamp = "ETA"
   };
+  activeCruiseContacts = {
+    owner = {
+      name = "",
+      role = "Primary trip owner and operator",
+      phoneHref = "",
+      smsHref = "",
+      emailHref = ""
+    },
+    operator = {
+      name = "",
+      role = "Vessel operator for this trip",
+      phoneHref = "",
+      smsHref = "",
+      emailHref = "",
+      sameAsOwner = false
+    },
+    crew = {
+      count = 0,
+      countLabel = "No crew/passengers listed",
+      list = []
+    },
+    monitor = {
+      name = "",
+      role = "Primary monitoring contact",
+      phoneHref = "",
+      smsHref = "",
+      emailHref = ""
+    },
+    currentAsOf = ""
+  };
   activeCruiseExperimental = {
     available = false,
     departureTimeZone = "",
@@ -551,6 +662,29 @@
     isOvernight = false,
     assumptionLabel = "Assumes an 8:00 AM departure-timezone leg start for display only.",
     statusLabel = "Beta current-leg model unavailable"
+  };
+  activeCruiseRoutePlan = {
+    available = false,
+    scheduledDepartureLabel = "—",
+    scheduledDepartureIso = "",
+    finalDestinationLabel = "—",
+    currentLegOrder = 0,
+    nextLegOrder = 0,
+    baseSpeedKn = 0,
+    effectiveSpeedKn = 0,
+    fuelBurnGph = 0,
+    reservePct = 0,
+    weatherFactorPct = 0,
+    manualDelayMinutes = 0,
+    summary = {
+      totalNm = 0,
+      completedNm = 0,
+      remainingNm = 0,
+      progressPct = 0,
+      totalHours = 0,
+      finalArrivalLabel = "—"
+    },
+    legs = []
   };
 
   activeCruiseTimelineItems = [
@@ -589,6 +723,9 @@
   activeCruiseRouteStop1DotClass = "dot done";
   activeCruiseRouteStop2DotClass = "dot done";
   activeCruiseRouteStop3DotClass = "dot current";
+  pendingLegOrder = 0;
+  awaitingDepartureStop = false;
+  activeCruiseCanonicalHero = {};
 
   activeCruiseUserId = fpwResolveSessionUserId();
   activeCruiseDatasource = fpwResolveDatasource();
@@ -618,8 +755,20 @@
       paceKn = 0.0;
       streamLive = false;
       captainName = fpwResolveCaptainDisplayName();
+      ownerName = "";
+      ownerPhone = "";
+      ownerEmail = "";
+      operatorId = 0;
+      operatorName = "";
+      operatorPhone = "";
+      operatorSameAsOwner = false;
       emergencyName = "";
+      emergencyPhone = "";
+      emergencyEmail = "";
       crewName = "";
+      crewRowIndex = 0;
+      crewRowName = "";
+      crewRowPhone = "";
       lastCheckInDt = "";
       expectedCheckInDt = "";
       dailyStartLocalTimeVal = "08:00:00";
@@ -636,10 +785,12 @@
       currentLegEndName = "";
       nextLegEndName = "";
       qPlan = queryNew("");
+      qOperator = queryNew("");
       qRouteCtx = queryNew("");
       qRouteById = queryNew("");
       qLegs = queryNew("");
       qProgress = queryNew("");
+      qOwner = queryNew("");
       qCrew = queryNew("");
       qEmergency = queryNew("");
       qStream = queryNew("");
@@ -681,16 +832,44 @@
 	      currentLegStartedAt = "";
 	      currentLegStartedAtCandidate = "";
 	      priorLegCompletedAt = "";
-	      priorLegCompletedAtCandidate = "";
-	      activeLegRow = 0;
-	      pendingLegRow = 0;
-	      pendingLegOrder = 0;
-	      awaitingDepartureStop = false;
+      priorLegCompletedAtCandidate = "";
+      activeLegRow = 0;
+      pendingLegRow = 0;
+      pendingLegOrder = 0;
+      awaitingDepartureStop = false;
 	      activeCruiseCanCompleteLeg = false;
-	      activeCruiseCanStartNextLeg = false;
-	      displayLegRow = 0;
+      activeCruiseCanStartNextLeg = false;
+      displayLegRow = 0;
       timelineItems = [];
       timelinePostDt = "";
+      routePlanBaseSpeedKn = 0.0;
+      routePlanEffectiveSpeedKn = 0.0;
+      routePlanFuelBurnGph = 0.0;
+      routePlanReservePct = 0.0;
+      routePlanWeatherFactorPct = 0.0;
+      routePlanCumulativeHours = 0.0;
+      routePlanLegHours = 0.0;
+      routePlanLegFuelBaseGal = 0.0;
+      routePlanLegReserveGal = 0.0;
+      routePlanLegRequiredGal = 0.0;
+      routePlanLegOrder = 0;
+      routePlanLegKey = "";
+      routePlanLegStatusRaw = "";
+      routePlanLegState = "";
+      routePlanLegStatusLabel = "";
+      routePlanLegDistanceNm = 0.0;
+      routePlanLegStartName = "";
+      routePlanLegEndName = "";
+      routePlanLegDepartureLabel = "—";
+      routePlanLegArrivalLabel = "—";
+      routePlanLegDepartureOffsetHours = 0.0;
+      routePlanLegArrivalOffsetHours = 0.0;
+      routePlanLegDelayMinutes = 0;
+      routePlanLegStartedAtLabel = "";
+      routePlanLegCompletedAtLabel = "";
+      routePlanFinalArrivalLabel = "—";
+      routePlanFinalDestinationName = "";
+      routePlanTripStartIso = "";
 
       currentGroup = fpwResolveCurrentActiveCruiseGroup(activeCruiseUserId);
 
@@ -722,6 +901,7 @@
             "SELECT
                fp.floatplanId,
                fp.floatPlanName,
+               fp.operatorId,
                fp.status,
                UPPER(TRIM(COALESCE(NULLIF(m.monitor_state, ''), fp.status))) AS monitor_state,
                fp.route_instance_id,
@@ -1077,24 +1257,101 @@
 	      }
 
       if (activeCruiseContext.floatPlanId GT 0) {
+        activeCruiseFloatPlanHref = activeCruiseBasePath & "/app/floatplan-wizard.cfm?id=" & activeCruiseContext.floatPlanId;
+
+        qOwner = queryExecute(
+          "SELECT fName, lName, email, mobilePhone
+           FROM users
+           WHERE userId = :ownerUserId
+           LIMIT 1",
+          {
+            ownerUserId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" }
+          },
+          { datasource = activeCruiseDatasource }
+        );
+        if (qOwner.recordCount EQ 1) {
+          ownerName = trim(trim(toString(fpwQueryCell(qOwner, "fName", 1, ""))) & " " & trim(toString(fpwQueryCell(qOwner, "lName", 1, ""))));
+          ownerEmail = trim(toString(fpwQueryCell(qOwner, "email", 1, "")));
+          ownerPhone = trim(toString(fpwQueryCell(qOwner, "mobilePhone", 1, "")));
+          if (!len(ownerName) AND len(ownerEmail)) {
+            ownerName = ownerEmail;
+          }
+        }
+        if (len(ownerName)) {
+          captainName = ownerName;
+          activeCruiseContacts.owner.name = ownerName;
+        } else if (len(captainName) AND captainName NEQ "Captain") {
+          activeCruiseContacts.owner.name = captainName;
+        } else {
+          activeCruiseContacts.owner.name = "Owner not listed";
+        }
+        activeCruiseContacts.owner.phoneHref = fpwBuildContactPhoneHref(ownerPhone, "tel");
+        activeCruiseContacts.owner.smsHref = fpwBuildContactPhoneHref(ownerPhone, "sms");
+        activeCruiseContacts.owner.emailHref = fpwBuildContactEmailHref(ownerEmail);
+
+        operatorId = val(fpwQueryCell(qPlan, "operatorId", 1, 0));
+        if (operatorId GT 0) {
+          qOperator = queryExecute(
+            "SELECT name, homePhone
+             FROM operators
+             WHERE opId = :operatorId
+               AND CAST(userId AS CHAR) = :operatorUserId
+             LIMIT 1",
+            {
+              operatorId = { value = operatorId, cfsqltype = "cf_sql_integer" },
+              operatorUserId = { value = toString(activeCruiseUserId), cfsqltype = "cf_sql_varchar" }
+            },
+            { datasource = activeCruiseDatasource }
+          );
+          if (qOperator.recordCount EQ 1) {
+            operatorName = trim(toString(fpwQueryCell(qOperator, "name", 1, "")));
+            operatorPhone = trim(toString(fpwQueryCell(qOperator, "homePhone", 1, "")));
+            operatorSameAsOwner = (
+              len(operatorName)
+              AND len(activeCruiseContacts.owner.name)
+              AND compareNoCase(operatorName, activeCruiseContacts.owner.name) EQ 0
+            );
+            activeCruiseContacts.operator.sameAsOwner = operatorSameAsOwner;
+            if (operatorSameAsOwner) {
+              activeCruiseContacts.owner.role = "Primary trip owner and operator";
+            } else {
+              activeCruiseContacts.operator.name = len(operatorName) ? operatorName : "Operator not named";
+              activeCruiseContacts.operator.phoneHref = fpwBuildContactPhoneHref(operatorPhone, "tel");
+              activeCruiseContacts.operator.smsHref = fpwBuildContactPhoneHref(operatorPhone, "sms");
+            }
+          }
+        }
+
         qCrew = queryExecute(
-          "SELECT p.name
+          "SELECT p.name, p.phone
            FROM floatplan_passengers fpp
            INNER JOIN passengers p ON p.passId = fpp.passId
            WHERE fpp.floatplanId = :planId
-           ORDER BY fpp.recId ASC
-           LIMIT 1",
+           ORDER BY fpp.recId ASC",
           {
             planId = { value = activeCruiseContext.floatPlanId, cfsqltype = "cf_sql_integer" }
           },
           { datasource = activeCruiseDatasource }
         );
-        if (qCrew.recordCount EQ 1) {
+        if (qCrew.recordCount GT 0) {
           crewName = trim(toString(fpwQueryCell(qCrew, "name", 1, "")));
+          activeCruiseContacts.crew.count = qCrew.recordCount;
+          activeCruiseContacts.crew.countLabel = qCrew.recordCount & " onboard";
+          for (crewRowIndex = 1; crewRowIndex LTE qCrew.recordCount; crewRowIndex++) {
+            crewRowName = trim(toString(fpwQueryCell(qCrew, "name", crewRowIndex, "")));
+            crewRowPhone = trim(toString(fpwQueryCell(qCrew, "phone", crewRowIndex, "")));
+            if (len(crewRowName)) {
+              arrayAppend(activeCruiseContacts.crew.list, {
+                name = crewRowName,
+                role = "Passenger",
+                phoneHref = fpwBuildContactPhoneHref(crewRowPhone, "tel")
+              });
+            }
+          }
         }
 
         qEmergency = queryExecute(
-          "SELECT c.name
+          "SELECT c.name, c.phone, c.email
            FROM floatplan_contacts fpc
            INNER JOIN contacts c ON c.contactId = fpc.contactId
            WHERE fpc.floatplanId = :planId
@@ -1107,6 +1364,12 @@
         );
         if (qEmergency.recordCount EQ 1) {
           emergencyName = trim(toString(fpwQueryCell(qEmergency, "name", 1, "")));
+          emergencyPhone = trim(toString(fpwQueryCell(qEmergency, "phone", 1, "")));
+          emergencyEmail = trim(toString(fpwQueryCell(qEmergency, "email", 1, "")));
+          activeCruiseContacts.monitor.name = len(emergencyName) ? emergencyName : "Emergency monitor not named";
+          activeCruiseContacts.monitor.phoneHref = fpwBuildContactPhoneHref(emergencyPhone, "tel");
+          activeCruiseContacts.monitor.smsHref = fpwBuildContactPhoneHref(emergencyPhone, "sms");
+          activeCruiseContacts.monitor.emailHref = fpwBuildContactEmailHref(emergencyEmail);
         }
 
         qVoyageTables = queryExecute(
@@ -1266,7 +1529,7 @@
         }
       }
       activeCruiseView.heroNextExpectedCheckIn = elapsedCheckInLabel;
-      activeCruiseView.heroTripStart = "Trip Start: " & (isDate(canonicalTripStartDt) ? dateTimeFormat(canonicalTripStartDt, "mmm d, yyyy h:nn tt") : "--");
+      activeCruiseView.heroTripStart = (isDate(canonicalTripStartDt) ? dateTimeFormat(canonicalTripStartDt, "mmm d, yyyy h:nn tt") : "--");
       activeCruiseView.floatPlanNextExpected = elapsedCheckInLabel;
       activeCruiseView.monitorNextExpectedCheckIn = (isDate(expectedCheckInDt) ? dateTimeFormat(expectedCheckInDt, "mmm d, yyyy h:nn tt") : "--");
       activeCruiseView.monitorDailyStartLabel = fpwFormatLocalTimeLabel(dailyStartLocalTimeVal, "8:00 AM");
@@ -1675,6 +1938,147 @@
       }
       activeCruiseView.captainContact = captainName & " • Captain";
 
+      routePlanBaseSpeedKn = fpwGetNumericFromKeys(
+        routeInputs,
+        [
+          "cruising_speed",
+          "cruisingSpeed",
+          "effective_cruising_speed",
+          "effectiveCruisingSpeed",
+          "speed_kn",
+          "speedKn"
+        ],
+        true
+      );
+      routePlanEffectiveSpeedKn = (routeInputCardSpeedKn GT 0 ? routeInputCardSpeedKn : routeInputSpeedKn);
+      if (routePlanBaseSpeedKn LTE 0) {
+        routePlanBaseSpeedKn = routePlanEffectiveSpeedKn;
+      }
+      routePlanFuelBurnGph = routeInputFuelBurnGph;
+      routePlanReservePct = routeInputReservePct;
+      routePlanWeatherFactorPct = (len(routeWeatherFactorRaw) AND isNumeric(routeWeatherFactorRaw) ? val(routeWeatherFactorRaw) : 0);
+      if (qLegs.recordCount GT 0) {
+        routePlanTripStartIso = (
+          isStruct(activeCruiseCanonicalHero)
+          AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS")
+          AND activeCruiseCanonicalHero.SUCCESS
+          AND structKeyExists(activeCruiseCanonicalHero, "heroTripStartUtc")
+            ? trim(toString(activeCruiseCanonicalHero.heroTripStartUtc))
+            : ""
+        );
+        if (!len(routePlanTripStartIso) AND isDate(canonicalTripStartDt)) {
+          routePlanTripStartIso = fpwFormatUtcIso(canonicalTripStartDt);
+        }
+        activeCruiseRoutePlan.available = true;
+        activeCruiseRoutePlan.scheduledDepartureLabel = (isDate(canonicalTripStartDt) ? dateTimeFormat(canonicalTripStartDt, "mmm d, yyyy h:nn tt") : "—");
+        activeCruiseRoutePlan.scheduledDepartureIso = routePlanTripStartIso;
+        routePlanFinalDestinationName = trim(toString(fpwQueryCell(qLegs, "end_name", qLegs.recordCount, "")));
+        if (!len(routePlanFinalDestinationName)) {
+          routePlanFinalDestinationName = destinationName;
+        }
+        activeCruiseRoutePlan.finalDestinationLabel = (len(routePlanFinalDestinationName) ? routePlanFinalDestinationName : "—");
+        activeCruiseRoutePlan.currentLegOrder = currentLegOrder;
+        activeCruiseRoutePlan.nextLegOrder = pendingLegOrder;
+        activeCruiseRoutePlan.baseSpeedKn = fpwRoundTo2(routePlanBaseSpeedKn);
+        activeCruiseRoutePlan.effectiveSpeedKn = fpwRoundTo2(routePlanEffectiveSpeedKn);
+        activeCruiseRoutePlan.fuelBurnGph = fpwRoundTo2(routePlanFuelBurnGph);
+        activeCruiseRoutePlan.reservePct = fpwRoundTo2(routePlanReservePct);
+        activeCruiseRoutePlan.weatherFactorPct = fpwRoundTo2(routePlanWeatherFactorPct);
+        activeCruiseRoutePlan.manualDelayMinutes = activeCruiseView.manualDelayMinutesTotal;
+        activeCruiseRoutePlan.summary.totalNm = fpwRoundTo2(totalNm);
+        activeCruiseRoutePlan.summary.completedNm = fpwRoundTo2(completedNm);
+        activeCruiseRoutePlan.summary.remainingNm = fpwRoundTo2(remainingNm);
+        activeCruiseRoutePlan.summary.progressPct = percentComplete;
+
+        for (i = 1; i LTE qLegs.recordCount; i++) {
+          routePlanLegOrder = val(fpwQueryCell(qLegs, "leg_order", i, i));
+          if (routePlanLegOrder LTE 0) {
+            routePlanLegOrder = i;
+          }
+          routePlanLegKey = toString(routePlanLegOrder);
+          routePlanLegStatusRaw = (structKeyExists(progressByLeg, routePlanLegKey) ? progressByLeg[routePlanLegKey] : "NOT_STARTED");
+          routePlanLegState = "future";
+          routePlanLegStatusLabel = "Remaining";
+          if (routePlanLegStatusRaw EQ "COMPLETED") {
+            routePlanLegState = "completed";
+            routePlanLegStatusLabel = "Completed";
+          } else if (activeLegRow EQ i) {
+            routePlanLegState = "current";
+            routePlanLegStatusLabel = "Current";
+          } else if (pendingLegRow EQ i) {
+            routePlanLegState = "next";
+            routePlanLegStatusLabel = "Next";
+          }
+          routePlanLegStartName = trim(toString(fpwQueryCell(qLegs, "start_name", i, "")));
+          routePlanLegEndName = trim(toString(fpwQueryCell(qLegs, "end_name", i, "")));
+          routePlanLegDistanceNm = fpwRoundTo2(val(fpwQueryCell(qLegs, "dist_nm", i, 0)));
+          routePlanLegHours = 0;
+          if (routePlanEffectiveSpeedKn GT 0 AND routePlanLegDistanceNm GT 0) {
+            routePlanLegHours = fpwRoundTo2(routePlanLegDistanceNm / routePlanEffectiveSpeedKn);
+          }
+          routePlanLegDepartureOffsetHours = routePlanCumulativeHours;
+          routePlanCumulativeHours = fpwRoundTo2(routePlanCumulativeHours + routePlanLegHours);
+          routePlanLegArrivalOffsetHours = routePlanCumulativeHours;
+          routePlanLegDelayMinutes = (routePlanLegState NEQ "completed" ? activeCruiseView.manualDelayMinutesTotal : 0);
+          routePlanLegDepartureLabel = "—";
+          routePlanLegArrivalLabel = "—";
+          if (isDate(canonicalTripStartDt) AND routePlanEffectiveSpeedKn GT 0) {
+            routePlanLegDepartureLabel = dateTimeFormat(dateAdd("n", int(round(routePlanLegDepartureOffsetHours * 60)), canonicalTripStartDt), "mmm d h:nn tt");
+            routePlanLegArrivalLabel = dateTimeFormat(dateAdd("n", int(round(routePlanLegArrivalOffsetHours * 60)) + routePlanLegDelayMinutes, canonicalTripStartDt), "mmm d h:nn tt");
+          }
+          routePlanLegFuelBaseGal = 0;
+          routePlanLegReserveGal = 0;
+          routePlanLegRequiredGal = 0;
+          if (routePlanFuelBurnGph GT 0 AND routePlanLegHours GT 0) {
+            routePlanLegFuelBaseGal = fpwRoundTo2(routePlanLegHours * routePlanFuelBurnGph);
+            if (routePlanReservePct GT 0) {
+              routePlanLegReserveGal = fpwRoundTo2(routePlanLegFuelBaseGal * (routePlanReservePct / 100));
+            }
+            routePlanLegRequiredGal = fpwRoundTo2(routePlanLegFuelBaseGal + routePlanLegReserveGal);
+          }
+          routePlanLegStartedAtLabel = (
+            structKeyExists(progressStartedAtByLeg, routePlanLegKey)
+            AND isDate(progressStartedAtByLeg[routePlanLegKey])
+              ? dateTimeFormat(progressStartedAtByLeg[routePlanLegKey], "mmm d h:nn tt")
+              : ""
+          );
+          routePlanLegCompletedAtLabel = (
+            structKeyExists(progressCompletedAtByLeg, routePlanLegKey)
+            AND isDate(progressCompletedAtByLeg[routePlanLegKey])
+              ? dateTimeFormat(progressCompletedAtByLeg[routePlanLegKey], "mmm d h:nn tt")
+              : ""
+          );
+
+          arrayAppend(activeCruiseRoutePlan.legs, {
+            order = routePlanLegOrder,
+            state = routePlanLegState,
+            status = routePlanLegStatusLabel,
+            statusRaw = routePlanLegStatusRaw,
+            startName = routePlanLegStartName,
+            endName = routePlanLegEndName,
+            label = (len(routePlanLegStartName) AND len(routePlanLegEndName) ? routePlanLegStartName & " to " & routePlanLegEndName : "Leg " & routePlanLegOrder),
+            distanceNm = routePlanLegDistanceNm,
+            durationHours = routePlanLegHours,
+            durationLabel = fpwFormatActiveCruiseRouteDuration(routePlanLegHours),
+            departureLabel = routePlanLegDepartureLabel,
+            arrivalLabel = routePlanLegArrivalLabel,
+            departureOffsetHours = routePlanLegDepartureOffsetHours,
+            arrivalOffsetHours = routePlanLegArrivalOffsetHours,
+            speedKn = fpwRoundTo2(routePlanEffectiveSpeedKn),
+            fuelNeedGal = routePlanLegRequiredGal,
+            reserveGal = routePlanLegReserveGal,
+            delayMinutes = routePlanLegDelayMinutes,
+            startedAtLabel = routePlanLegStartedAtLabel,
+            completedAtLabel = routePlanLegCompletedAtLabel
+          });
+        }
+        activeCruiseRoutePlan.summary.totalHours = fpwRoundTo2(routePlanCumulativeHours + (activeCruiseView.manualDelayMinutesTotal / 60));
+        if (isDate(canonicalTripStartDt) AND routePlanEffectiveSpeedKn GT 0) {
+          routePlanFinalArrivalLabel = dateTimeFormat(dateAdd("n", int(round(routePlanCumulativeHours * 60)) + activeCruiseView.manualDelayMinutesTotal, canonicalTripStartDt), "mmm d, yyyy h:nn tt");
+        }
+        activeCruiseRoutePlan.summary.finalArrivalLabel = routePlanFinalArrivalLabel;
+      }
+
       if (!activeCruiseTripStarted) {
         activeCruiseEyebrowLabel = "Voyage Console • Scheduled Start";
         activeCruiseHeroSubline = "This trip is scheduled and has not started yet. Use this page to confirm the planned departure, first-leg ETA, float plan status, and monitoring state before getting underway.";
@@ -1755,6 +2159,7 @@
   activeCruiseHooks.context.awaitingDepartureStop = awaitingDepartureStop;
   activeCruiseHooks.context.pendingLegOrder = pendingLegOrder;
   activeCruiseHooks.experimentalLeg = activeCruiseExperimental;
+  activeCruiseHooks.routePlan = activeCruiseRoutePlan;
   activeCruiseHooks.fields = {
     topRouteChip = activeCruiseView.topRouteChip,
     topFloatPlanState = activeCruiseView.topFloatPlanState,
@@ -2269,7 +2674,7 @@
 
     .header-stats {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 14px;
       margin-top: 18px;
       margin-bottom: 18px;
@@ -2604,6 +3009,251 @@
     .route-stop span { display: block; color: var(--muted); font-size: 0.88rem; margin-top: 2px; }
     .route-stop small { color: var(--soft); font-size: 0.86rem; }
 
+    .route-plan-box {
+      display: flex;
+      flex-direction: column;
+      min-height: 560px;
+      max-height: 560px;
+    }
+
+    .route-plan-departure,
+    .route-plan-final,
+    .route-plan-leg {
+      border-radius: 16px;
+      border: 1px solid rgba(126,184,226,0.11);
+      background: rgba(255,255,255,0.025);
+    }
+
+    .route-plan-departure,
+    .route-plan-final {
+      padding: 14px;
+    }
+
+    .route-plan-kicker,
+    .route-plan-leg-kicker {
+      color: var(--soft);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .route-plan-departure strong,
+    .route-plan-final strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 1rem;
+      line-height: 1.25;
+    }
+
+    .route-plan-departure span,
+    .route-plan-final span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .route-plan-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 12px 0;
+    }
+
+    .route-plan-preview-note {
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.4;
+      margin: 0;
+    }
+
+    .route-plan-scroll {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1 1 auto;
+      overflow-y: auto;
+      min-height: 0;
+      padding-right: 4px;
+    }
+
+    .route-plan-scroll > * {
+      flex: 0 0 auto;
+    }
+
+    .route-plan-leg {
+      overflow: hidden;
+    }
+
+    .route-plan-leg--current {
+      border-color: rgba(67,199,255,0.38);
+      background: rgba(67,199,255,0.08);
+      box-shadow: 0 0 0 1px rgba(67,199,255,0.08);
+    }
+
+    .route-plan-leg--next {
+      border-color: rgba(125,242,183,0.26);
+      background: rgba(125,242,183,0.06);
+    }
+
+    .route-plan-leg--completed {
+      border-color: rgba(125,242,183,0.18);
+    }
+
+    .route-plan-leg-button {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      padding: 14px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 12px;
+      align-items: center;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .route-plan-leg-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      border: 2px solid rgba(126,184,226,0.4);
+      box-shadow: none;
+    }
+
+    .route-plan-leg--completed .route-plan-leg-dot {
+      border-color: var(--good);
+      box-shadow: 0 0 0 5px rgba(125,242,183,0.08);
+    }
+
+    .route-plan-leg--current .route-plan-leg-dot {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 5px rgba(67,199,255,0.1);
+    }
+
+    .route-plan-leg--next .route-plan-leg-dot {
+      border-color: var(--accent-3);
+      box-shadow: 0 0 0 5px rgba(125,242,183,0.08);
+    }
+
+    .route-plan-leg-title {
+      display: block;
+      font-size: 0.98rem;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    .route-plan-leg-meta {
+      display: block;
+      color: var(--muted);
+      font-size: 0.84rem;
+      margin-top: 3px;
+    }
+
+    .route-plan-leg-side {
+      display: grid;
+      justify-items: end;
+      gap: 4px;
+      color: var(--soft);
+      font-size: 0.82rem;
+      white-space: nowrap;
+    }
+
+    .route-plan-leg-chevron {
+      color: var(--accent);
+      font-weight: 900;
+    }
+
+    .route-plan-leg-button[aria-expanded="true"] .route-plan-leg-chevron {
+      transform: rotate(180deg);
+    }
+
+    .route-plan-leg-detail {
+      border-top: 1px solid rgba(126,184,226,0.1);
+      padding: 12px 14px 14px 42px;
+    }
+
+    .route-plan-leg-detail[hidden] {
+      display: none;
+    }
+
+    .route-plan-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .route-plan-detail-grid div {
+      border-radius: 12px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(126,184,226,0.08);
+      padding: 10px;
+    }
+
+    .route-plan-detail-grid span {
+      display: block;
+      color: var(--soft);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+
+    .route-plan-detail-grid strong {
+      display: block;
+      font-size: 0.92rem;
+      line-height: 1.25;
+    }
+
+    .route-plan-progress-footer {
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(126,184,226,0.12);
+      background: rgba(126,184,226,0.04);
+    }
+
+    .route-plan-progress-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .route-plan-progress-grid span {
+      display: block;
+      color: var(--soft);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+
+    .route-plan-progress-grid strong {
+      display: block;
+      font-size: 0.98rem;
+    }
+
+    .route-plan-progress-bar {
+      height: 9px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(126,184,226,0.12);
+    }
+
+    .route-plan-progress-bar span {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-3));
+    }
+
     .data-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2733,6 +3383,233 @@
       white-space: nowrap;
     }
 
+    .active-cruise-reference-card {
+      padding: 18px;
+    }
+
+    .reference-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .reference-card-header h2 {
+      margin: 0;
+      font-size: 1.12rem;
+      letter-spacing: -0.03em;
+    }
+
+    .reference-card-header p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    .reference-badge {
+      flex: 0 0 auto;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(67,199,255,0.18);
+      background: rgba(67,199,255,0.08);
+      color: var(--accent);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .contact-reference-stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .contact-reference-panel {
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(126,184,226,0.1);
+      background: rgba(126,184,226,0.045);
+    }
+
+    .contact-reference-panel--primary {
+      border-color: rgba(67,199,255,0.16);
+      background: rgba(67,199,255,0.055);
+    }
+
+    .contact-reference-panel--operator {
+      border-color: rgba(67,199,255,0.14);
+      background: rgba(67,199,255,0.045);
+    }
+
+    .contact-reference-panel--monitor {
+      border-color: rgba(125,242,183,0.14);
+      background: rgba(125,242,183,0.045);
+    }
+
+    .contact-reference-main {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .contact-reference-icon {
+      width: 34px;
+      height: 34px;
+      flex: 0 0 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      border: 1px solid rgba(126,184,226,0.18);
+      background: rgba(8,18,28,0.5);
+      color: var(--accent);
+    }
+
+    .contact-reference-content {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .contact-reference-kicker {
+      color: var(--soft);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+
+    .contact-reference-name {
+      color: var(--text);
+      font-size: 1rem;
+      font-weight: 800;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+
+    .contact-reference-subtext {
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.45;
+      margin-top: 4px;
+    }
+
+    .contact-reference-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .contact-reference-actions--empty {
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+
+    .contact-reference-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 34px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(126,184,226,0.16);
+      background: rgba(8,18,28,0.48);
+      color: var(--text);
+      font-size: 0.82rem;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .contact-reference-action:hover {
+      border-color: rgba(67,199,255,0.28);
+      color: var(--accent);
+    }
+
+    .contact-reference-crew-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .contact-reference-crew-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.86rem;
+      min-width: 0;
+    }
+
+    .contact-reference-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px rgba(67,199,255,0.08);
+    }
+
+    .contact-reference-crew-name {
+      color: var(--text);
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .contact-reference-crew-role {
+      color: var(--soft);
+      font-size: 0.78rem;
+      white-space: nowrap;
+    }
+
+    .contact-reference-empty {
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.45;
+      margin-top: 10px;
+    }
+
+    .contact-reference-link,
+    .contact-reference-floatplan-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 0.86rem;
+      text-decoration: none;
+      margin-top: 12px;
+    }
+
+    .contact-reference-floatplan-link {
+      margin-top: 0;
+      width: 100%;
+      min-height: 44px;
+      padding: 0 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(67,199,255,0.18);
+      background: rgba(67,199,255,0.08);
+      color: var(--text);
+    }
+
+    .contact-reference-footer {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.4;
+    }
+
     .footer-band {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
@@ -2768,6 +3645,11 @@
         grid-template-columns: 1fr;
       }
 
+      .route-plan-box {
+        max-height: 520px;
+        min-height: 520px;
+      }
+
       .header-stats {
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
@@ -2786,16 +3668,33 @@
       .top-actions { justify-content: flex-start; }
       .header-stats,
       .weather-grid,
-      .data-grid { grid-template-columns: 1fr 1fr; }
+      .data-grid,
+      .route-plan-progress-grid { grid-template-columns: 1fr 1fr; }
     }
 
     @media (max-width: 640px) {
       .header-stats,
       .weather-grid,
       .data-grid,
+      .route-plan-detail-grid,
+      .route-plan-progress-grid,
       .footer-band { grid-template-columns: 1fr; }
 
       .active-cruise-map-canvas { height: 340px; }
+
+      .route-plan-box {
+        max-height: 500px;
+        min-height: 500px;
+      }
+
+      .route-plan-leg-button {
+        grid-template-columns: auto 1fr;
+      }
+
+      .route-plan-leg-side {
+        grid-column: 2;
+        justify-items: start;
+      }
 
       .timeline-row {
         grid-template-columns: 72px 16px 1fr;
@@ -2864,6 +3763,11 @@
           </div>
 
 	          <div class="header-stats">
+	            <div class="metric">
+	              <span>Scheduled Departure</span>
+	              <strong data-fpw-field="hero.tripStart"><cfoutput>#encodeForHtml(activeCruiseView.heroTripStart)#</cfoutput></strong>
+	              <small>Planned trip start</small>
+	            </div>
 	            <div class="metric">
 	              <span>Current Leg</span>
 	              <strong data-fpw-field="hero.currentLegSummary"><cfoutput>#encodeForHtml(activeCruiseView.heroCurrentLegSummary)#</cfoutput></strong>
@@ -2940,50 +3844,113 @@
 	          <div class="panel section-card">
 	            <div class="section-top">
 	              <div>
-                <h2>Current Leg Overview</h2>
+                <h2>Route Plan &amp; Progress</h2>
+                <p>Complete active-route overview with display-only timing estimates from the current page data.</p>
               </div>
               <div class="badge badge-accent">Captain View</div>
             </div>
 
             <div class="leg-grid">
-              <div class="route-box">
-                <div class="mini-head" style="margin-bottom:16px;">
-                  <h3>Leg Route</h3>
-                  <span><cfoutput>#encodeForHtml(activeCruiseLegRouteWindowLabel)#</cfoutput></span>
+              <div class="route-box route-plan-box">
+                <div class="mini-head" style="margin-bottom:12px;">
+                  <h3>Route Timeline</h3>
+                  <span><cfoutput>#encodeForHtml(arrayLen(activeCruiseRoutePlan.legs) & " legs")#</cfoutput></span>
                 </div>
-                <div class="route-path">
-                  <div class="route-stop">
-                    <div class="<cfoutput>#encodeForHtmlAttribute(activeCruiseRouteStop1DotClass)#</cfoutput>"></div>
-                    <div>
-                      <b data-fpw-field="leg.routeStop1Title"><cfoutput>#encodeForHtml(activeCruiseView.routeStop1Title)#</cfoutput></b>
-                      <span data-fpw-field="leg.routeStop1Detail"><cfoutput>#encodeForHtml(activeCruiseView.routeStop1Detail)#</cfoutput></span>
+
+                <div class="route-plan-departure">
+                  <div class="route-plan-kicker">Scheduled Departure</div>
+                  <strong data-route-plan-summary="scheduledDeparture"><cfoutput>#encodeForHtml(activeCruiseRoutePlan.scheduledDepartureLabel)#</cfoutput></strong>
+                  <span>Timing is display-only until an existing route action persists changes.</span>
+                </div>
+
+                <div class="route-plan-toolbar">
+                  <p class="route-plan-preview-note" id="fpwRoutePlanPreviewNote">Uses active route data already available on this page.</p>
+                  <cfif arrayLen(activeCruiseRoutePlan.legs) GT 4>
+                    <button class="btn btn-secondary" type="button" id="fpwRoutePlanJumpCurrentBtn">Jump to Current Leg</button>
+                  </cfif>
+                </div>
+
+                <div class="route-plan-scroll" id="fpwRoutePlanTimeline">
+                  <cfif activeCruiseRoutePlan.available AND arrayLen(activeCruiseRoutePlan.legs)>
+                    <cfloop array="#activeCruiseRoutePlan.legs#" index="routePlanLeg">
+                      <cfset routePlanLegExpanded = (routePlanLeg.state EQ "current" OR (routePlanLeg.state EQ "next" AND activeCruiseRoutePlan.currentLegOrder LTE 0))>
+                      <article
+                        class="route-plan-leg route-plan-leg--<cfoutput>#encodeForHtmlAttribute(routePlanLeg.state)#</cfoutput><cfif routePlanLegExpanded> is-expanded</cfif>"
+                        data-route-plan-leg
+                        data-route-plan-leg-order="<cfoutput>#encodeForHtmlAttribute(routePlanLeg.order)#</cfoutput>"
+                        data-route-plan-state="<cfoutput>#encodeForHtmlAttribute(routePlanLeg.state)#</cfoutput>"
+                        <cfif routePlanLeg.state EQ "current" OR routePlanLeg.state EQ "next">data-route-plan-current="true"</cfif>
+                      >
+                        <button class="route-plan-leg-button" type="button" data-route-plan-toggle aria-expanded="<cfoutput>#encodeForHtmlAttribute(routePlanLegExpanded ? "true" : "false")#</cfoutput>">
+                          <span class="route-plan-leg-dot" aria-hidden="true"></span>
+                          <span>
+                            <span class="route-plan-leg-kicker"><cfoutput>#encodeForHtml(routePlanLeg.status)#</cfoutput></span>
+                            <span class="route-plan-leg-title"><cfoutput>#encodeForHtml(routePlanLeg.label)#</cfoutput></span>
+                            <span class="route-plan-leg-meta"><cfoutput>#encodeForHtml(routePlanLeg.distanceNm GT 0 ? fpwFormatNm(routePlanLeg.distanceNm) : "—")#</cfoutput></span>
+                          </span>
+                          <span class="route-plan-leg-side">
+                            <span data-route-plan-field="arrival"><cfoutput>#encodeForHtml(routePlanLeg.arrivalLabel)#</cfoutput></span>
+                            <span class="route-plan-leg-chevron" aria-hidden="true">⌄</span>
+                          </span>
+                        </button>
+                        <div class="route-plan-leg-detail"<cfif NOT routePlanLegExpanded> hidden</cfif>>
+                          <div class="route-plan-detail-grid">
+                            <div>
+                              <span>Planned Departure</span>
+                              <strong data-route-plan-field="departure"><cfoutput>#encodeForHtml(routePlanLeg.departureLabel)#</cfoutput></strong>
+                            </div>
+                            <div>
+                              <span>Planned Arrival / ETA</span>
+                              <strong data-route-plan-field="arrivalDetail"><cfoutput>#encodeForHtml(routePlanLeg.arrivalLabel)#</cfoutput></strong>
+                            </div>
+                            <div>
+                              <span>Duration</span>
+                              <strong data-route-plan-field="duration"><cfoutput>#encodeForHtml(routePlanLeg.durationLabel)#</cfoutput></strong>
+                            </div>
+                            <div>
+                              <span>Distance</span>
+                              <strong><cfoutput>#encodeForHtml(routePlanLeg.distanceNm GT 0 ? fpwFormatNm(routePlanLeg.distanceNm) : "—")#</cfoutput></strong>
+                            </div>
+                            <div>
+                              <span>Pace Used</span>
+                              <strong data-route-plan-field="speed"><cfoutput>#encodeForHtml(routePlanLeg.speedKn GT 0 ? numberFormat(routePlanLeg.speedKn, "0.0") & " kt" : "—")#</cfoutput></strong>
+                            </div>
+                            <div>
+                              <span>Weather Effect</span>
+                              <strong data-route-plan-field="weather"><cfoutput>#encodeForHtml(activeCruiseRoutePlan.weatherFactorPct GT 0 ? numberFormat(activeCruiseRoutePlan.weatherFactorPct, "0") & "% factor" : "—")#</cfoutput></strong>
+                            </div>
+                            <div>
+                              <span>Fuel Need</span>
+                              <strong data-route-plan-field="fuel"><cfoutput>#encodeForHtml(routePlanLeg.fuelNeedGal GT 0 ? numberFormat(routePlanLeg.fuelNeedGal, "0.0") & " gal" : "—")#</cfoutput></strong>
+                            </div>
+                            <div>
+                              <span>Reserve</span>
+                              <strong data-route-plan-field="reserve"><cfoutput>#encodeForHtml(routePlanLeg.reserveGal GT 0 ? numberFormat(routePlanLeg.reserveGal, "0.0") & " gal" : "—")#</cfoutput></strong>
+                            </div>
+                            <div>
+                              <span>Delay Adjustment</span>
+                              <strong data-route-plan-field="delay"><cfoutput>#encodeForHtml(routePlanLeg.delayMinutes GT 0 ? routePlanLeg.delayMinutes & " min" : "—")#</cfoutput></strong>
+                            </div>
+                            <div>
+                              <span>Status Times</span>
+                              <strong><cfoutput>#encodeForHtml(len(routePlanLeg.completedAtLabel) ? routePlanLeg.completedAtLabel : (len(routePlanLeg.startedAtLabel) ? routePlanLeg.startedAtLabel : "—"))#</cfoutput></strong>
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    </cfloop>
+                    <div class="route-plan-final">
+                      <div class="route-plan-kicker">Final Destination</div>
+                      <strong><cfoutput>#encodeForHtml(activeCruiseRoutePlan.finalDestinationLabel)#</cfoutput></strong>
+                      <span data-route-plan-summary="finalArrival"><cfoutput>#encodeForHtml(activeCruiseRoutePlan.summary.finalArrivalLabel)#</cfoutput></span>
                     </div>
-                    <small data-fpw-field="leg.routeStop1Stamp"><cfoutput>#encodeForHtml(activeCruiseView.routeStop1Stamp)#</cfoutput></small>
-                  </div>
-                  <div class="route-stop">
-                    <div class="<cfoutput>#encodeForHtmlAttribute(activeCruiseRouteStop2DotClass)#</cfoutput>"></div>
-                    <div>
-                      <b data-fpw-field="leg.routeStop2Title"><cfoutput>#encodeForHtml(activeCruiseView.routeStop2Title)#</cfoutput></b>
-                      <span data-fpw-field="leg.routeStop2Detail"><cfoutput>#encodeForHtml(activeCruiseView.routeStop2Detail)#</cfoutput></span>
+                  <cfelse>
+                    <div class="route-plan-final">
+                      <div class="route-plan-kicker">Route Plan</div>
+                      <strong>—</strong>
+                      <span>No active route legs are available to this page.</span>
                     </div>
-                    <small data-fpw-field="leg.routeStop2Stamp"><cfoutput>#encodeForHtml(activeCruiseView.routeStop2Stamp)#</cfoutput></small>
-                  </div>
-                  <div class="route-stop">
-                    <div class="<cfoutput>#encodeForHtmlAttribute(activeCruiseRouteStop3DotClass)#</cfoutput>"></div>
-                    <div>
-                      <b data-fpw-field="leg.routeStop3Title"><cfoutput>#encodeForHtml(activeCruiseView.routeStop3Title)#</cfoutput></b>
-                      <span data-fpw-field="leg.routeStop3Detail"><cfoutput>#encodeForHtml(activeCruiseView.routeStop3Detail)#</cfoutput></span>
-                    </div>
-                    <small data-fpw-field="leg.routeStop3Stamp"><cfoutput>#encodeForHtml(activeCruiseView.routeStop3Stamp)#</cfoutput></small>
-                  </div>
-                  <div class="route-stop">
-                    <div class="dot future"></div>
-                    <div>
-                      <b data-fpw-field="leg.routeStop4Title"><cfoutput>#encodeForHtml(activeCruiseView.routeStop4Title)#</cfoutput></b>
-                      <span data-fpw-field="leg.routeStop4Detail"><cfoutput>#encodeForHtml(activeCruiseView.routeStop4Detail)#</cfoutput></span>
-                    </div>
-                    <small data-fpw-field="leg.routeStop4Stamp"><cfoutput>#encodeForHtml(activeCruiseView.routeStop4Stamp)#</cfoutput></small>
-                  </div>
+                  </cfif>
                 </div>
               </div>
 
@@ -3024,6 +3991,29 @@
                     <small>Based on current conditions</small>
                   </div>
                 </div>
+              </div>
+            </div>
+            <div class="route-plan-progress-footer">
+              <div class="route-plan-progress-grid">
+                <div>
+                  <span>Complete</span>
+                  <strong><cfoutput>#encodeForHtml(fpwFormatPct(activeCruiseRoutePlan.summary.progressPct))#</cfoutput></strong>
+                </div>
+                <div>
+                  <span>Total Route</span>
+                  <strong><cfoutput>#encodeForHtml(activeCruiseRoutePlan.summary.totalNm GT 0 ? fpwFormatNm(activeCruiseRoutePlan.summary.totalNm) : "—")#</cfoutput></strong>
+                </div>
+                <div>
+                  <span>Remaining</span>
+                  <strong><cfoutput>#encodeForHtml(activeCruiseRoutePlan.summary.remainingNm GT 0 ? fpwFormatNm(activeCruiseRoutePlan.summary.remainingNm) : "—")#</cfoutput></strong>
+                </div>
+                <div>
+                  <span>Final Arrival</span>
+                  <strong data-route-plan-summary="finalArrivalFooter"><cfoutput>#encodeForHtml(activeCruiseRoutePlan.summary.finalArrivalLabel)#</cfoutput></strong>
+                </div>
+              </div>
+              <div class="route-plan-progress-bar" aria-hidden="true">
+                <span id="fpwRoutePlanProgressBar" style="width:<cfoutput>#encodeForHtmlAttribute(fpwFormatPct(activeCruiseRoutePlan.summary.progressPct))#</cfoutput>;"></span>
               </div>
             </div>
           </div>
@@ -3213,40 +4203,202 @@
             </div>
           </div>
 
-          <div class="panel section-card">
-            <div class="section-top">
+          <section class="panel active-cruise-reference-card fpw-contact-reference-card" aria-labelledby="crew-emergency-title">
+            <div class="reference-card-header">
               <div>
-                <h2>Crew & Emergency Contacts</h2>
-                <p>Quick-reference operational contacts without forcing the user back into edit screens.</p>
+                <h2 id="crew-emergency-title">Crew &amp; Emergency Contacts</h2>
+                <p>Quick access to trip contacts</p>
               </div>
-              <div class="badge badge-warn">Reference</div>
+              <span class="reference-badge">REFERENCE</span>
             </div>
-            <div class="contacts-box">
-              <div class="contact-list">
-                <div class="contact-row">
-                  <div>
-                    <b data-fpw-field="contacts.captain"><cfoutput>#encodeForHtml(activeCruiseView.captainContact)#</cfoutput></b>
-                    <span>Primary trip owner and operator</span>
+
+            <div class="contact-reference-stack">
+              <article class="contact-reference-panel contact-reference-panel--primary">
+                <div class="contact-reference-main">
+                  <div class="contact-reference-icon" aria-hidden="true">
+                    <span class="contact-reference-icon-symbol">&#9875;</span>
                   </div>
-                  <div class="action-mini">Owner</div>
-                </div>
-                <div class="contact-row">
-                  <div>
-                    <b data-fpw-field="contacts.crew1"><cfoutput>#encodeForHtml(activeCruiseView.crewContact)#</cfoutput></b>
-                    <span>Manifested on current trip</span>
+
+                  <div class="contact-reference-content">
+                    <div class="contact-reference-kicker">
+                      <cfif activeCruiseContacts.operator.sameAsOwner>
+                        CAPTAIN / OWNER / OPERATOR
+                      <cfelse>
+                        CAPTAIN / OWNER
+                      </cfif>
+                    </div>
+                    <div class="contact-reference-name" data-fpw-field="contacts.owner.name"><cfoutput>#encodeForHtml(activeCruiseContacts.owner.name)#</cfoutput></div>
+                    <div class="contact-reference-subtext" data-fpw-field="contacts.owner.role"><cfoutput>#encodeForHtml(activeCruiseContacts.owner.role)#</cfoutput></div>
                   </div>
-                  <div class="action-mini">Crew</div>
                 </div>
-                <div class="contact-row">
-                  <div>
-                    <b data-fpw-field="contacts.emergency"><cfoutput>#encodeForHtml(activeCruiseView.emergencyContact)#</cfoutput></b>
-                    <span>Primary monitoring contact for this float plan</span>
+
+                <cfif len(activeCruiseContacts.owner.phoneHref) OR len(activeCruiseContacts.owner.smsHref) OR len(activeCruiseContacts.owner.emailHref)>
+                  <div class="contact-reference-actions" aria-label="Captain contact actions">
+                    <cfif len(activeCruiseContacts.owner.phoneHref)>
+                      <a class="contact-reference-action" data-fpw-field="contacts.owner.phoneLink" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseContacts.owner.phoneHref)#</cfoutput>">
+                        <span aria-hidden="true">&#9742;</span>
+                        <span>Call</span>
+                      </a>
+                    </cfif>
+                    <cfif len(activeCruiseContacts.owner.smsHref)>
+                      <a class="contact-reference-action" data-fpw-field="contacts.owner.smsLink" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseContacts.owner.smsHref)#</cfoutput>">
+                        <span aria-hidden="true">&#128172;</span>
+                        <span>Text</span>
+                      </a>
+                    </cfif>
+                    <cfif len(activeCruiseContacts.owner.emailHref)>
+                      <a class="contact-reference-action" data-fpw-field="contacts.owner.emailLink" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseContacts.owner.emailHref)#</cfoutput>">
+                        <span aria-hidden="true">&#9993;</span>
+                        <span>Email</span>
+                      </a>
+                    </cfif>
                   </div>
-                  <div class="action-mini">Alert</div>
+                <cfelse>
+                  <div class="contact-reference-actions contact-reference-actions--empty">No direct contact actions listed</div>
+                </cfif>
+              </article>
+
+              <cfif NOT activeCruiseContacts.operator.sameAsOwner>
+                <article class="contact-reference-panel contact-reference-panel--operator">
+                  <div class="contact-reference-main">
+                    <div class="contact-reference-icon" aria-hidden="true">
+                      <span class="contact-reference-icon-symbol">&#9096;</span>
+                    </div>
+
+                    <div class="contact-reference-content">
+                      <div class="contact-reference-kicker">OPERATOR</div>
+                      <div class="contact-reference-name" data-fpw-field="contacts.operator.name">
+                        <cfif len(activeCruiseContacts.operator.name)>
+                          <cfoutput>#encodeForHtml(activeCruiseContacts.operator.name)#</cfoutput>
+                        <cfelse>
+                          No operator assigned
+                        </cfif>
+                      </div>
+                      <div class="contact-reference-subtext" data-fpw-field="contacts.operator.role"><cfoutput>#encodeForHtml(activeCruiseContacts.operator.role)#</cfoutput></div>
+                    </div>
+                  </div>
+
+                  <cfif len(activeCruiseContacts.operator.phoneHref) OR len(activeCruiseContacts.operator.smsHref) OR len(activeCruiseContacts.operator.emailHref)>
+                    <div class="contact-reference-actions" aria-label="Operator contact actions">
+                      <cfif len(activeCruiseContacts.operator.phoneHref)>
+                        <a class="contact-reference-action" data-fpw-field="contacts.operator.phoneLink" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseContacts.operator.phoneHref)#</cfoutput>">
+                          <span aria-hidden="true">&#9742;</span>
+                          <span>Call</span>
+                        </a>
+                      </cfif>
+                      <cfif len(activeCruiseContacts.operator.smsHref)>
+                        <a class="contact-reference-action" data-fpw-field="contacts.operator.smsLink" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseContacts.operator.smsHref)#</cfoutput>">
+                          <span aria-hidden="true">&#128172;</span>
+                          <span>Text</span>
+                        </a>
+                      </cfif>
+                      <cfif len(activeCruiseContacts.operator.emailHref)>
+                        <a class="contact-reference-action" data-fpw-field="contacts.operator.emailLink" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseContacts.operator.emailHref)#</cfoutput>">
+                          <span aria-hidden="true">&#9993;</span>
+                          <span>Email</span>
+                        </a>
+                      </cfif>
+                    </div>
+                  <cfelse>
+                    <div class="contact-reference-actions contact-reference-actions--empty">No direct contact actions listed</div>
+                  </cfif>
+                </article>
+              </cfif>
+
+              <article class="contact-reference-panel contact-reference-panel--crew">
+                <div class="contact-reference-main">
+                  <div class="contact-reference-icon" aria-hidden="true">
+                    <span class="contact-reference-icon-symbol">&#128101;</span>
+                  </div>
+
+                  <div class="contact-reference-content">
+                    <div class="contact-reference-kicker">CREW / PASSENGERS</div>
+                    <div class="contact-reference-name" data-fpw-field="contacts.crew.count"><cfoutput>#encodeForHtml(activeCruiseContacts.crew.countLabel)#</cfoutput></div>
+                  </div>
                 </div>
-              </div>
+
+                <cfif arrayLen(activeCruiseContacts.crew.list)>
+                  <div class="contact-reference-crew-list" data-fpw-field="contacts.crew.list">
+                    <cfloop from="1" to="#min(2, arrayLen(activeCruiseContacts.crew.list))#" index="crewDisplayIndex">
+                      <cfset crewDisplayItem = activeCruiseContacts.crew.list[crewDisplayIndex]>
+                      <div class="contact-reference-crew-row">
+                        <span class="contact-reference-dot" aria-hidden="true"></span>
+                        <span class="contact-reference-crew-name"><cfoutput>#encodeForHtml(crewDisplayItem.name)#</cfoutput></span>
+                        <span class="contact-reference-crew-role"><cfoutput>#encodeForHtml(crewDisplayItem.role)#</cfoutput></span>
+                      </div>
+                    </cfloop>
+                  </div>
+                <cfelse>
+                  <div class="contact-reference-empty" data-fpw-field="contacts.crew.list">No crew/passengers listed</div>
+                </cfif>
+
+                <cfif arrayLen(activeCruiseContacts.crew.list) GT 2>
+                  <a class="contact-reference-link" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseFloatPlanHref)#</cfoutput>" data-fpw-action="viewCrewList">
+                    View all crew
+                    <span aria-hidden="true">&rsaquo;</span>
+                  </a>
+                </cfif>
+              </article>
+
+              <article class="contact-reference-panel contact-reference-panel--monitor">
+                <div class="contact-reference-main">
+                  <div class="contact-reference-icon" aria-hidden="true">
+                    <span class="contact-reference-icon-symbol">&#10010;</span>
+                  </div>
+
+                  <div class="contact-reference-content">
+                    <div class="contact-reference-kicker">EMERGENCY MONITOR</div>
+                    <div class="contact-reference-name" data-fpw-field="contacts.monitor.name">
+                      <cfif len(activeCruiseContacts.monitor.name)>
+                        <cfoutput>#encodeForHtml(activeCruiseContacts.monitor.name)#</cfoutput>
+                      <cfelse>
+                        No emergency monitor assigned
+                      </cfif>
+                    </div>
+                    <div class="contact-reference-subtext" data-fpw-field="contacts.monitor.role"><cfoutput>#encodeForHtml(activeCruiseContacts.monitor.role)#</cfoutput></div>
+                  </div>
+                </div>
+
+                <cfif len(activeCruiseContacts.monitor.phoneHref) OR len(activeCruiseContacts.monitor.smsHref) OR len(activeCruiseContacts.monitor.emailHref)>
+                  <div class="contact-reference-actions" aria-label="Emergency monitor contact actions">
+                    <cfif len(activeCruiseContacts.monitor.phoneHref)>
+                      <a class="contact-reference-action" data-fpw-field="contacts.monitor.phoneLink" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseContacts.monitor.phoneHref)#</cfoutput>">
+                        <span aria-hidden="true">&#9742;</span>
+                        <span>Call</span>
+                      </a>
+                    </cfif>
+                    <cfif len(activeCruiseContacts.monitor.smsHref)>
+                      <a class="contact-reference-action" data-fpw-field="contacts.monitor.smsLink" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseContacts.monitor.smsHref)#</cfoutput>">
+                        <span aria-hidden="true">&#128172;</span>
+                        <span>Text</span>
+                      </a>
+                    </cfif>
+                    <cfif len(activeCruiseContacts.monitor.emailHref)>
+                      <a class="contact-reference-action" data-fpw-field="contacts.monitor.emailLink" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseContacts.monitor.emailHref)#</cfoutput>">
+                        <span aria-hidden="true">&#9993;</span>
+                        <span>Email</span>
+                      </a>
+                    </cfif>
+                  </div>
+                <cfelse>
+                  <div class="contact-reference-actions contact-reference-actions--empty">No direct contact actions listed</div>
+                </cfif>
+              </article>
+
+              <a class="contact-reference-floatplan-link" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseFloatPlanHref)#</cfoutput>" data-fpw-field="contacts.floatPlanLink">
+                <span aria-hidden="true">&#128203;</span>
+                <span>View full float plan</span>
+                <span aria-hidden="true">&rsaquo;</span>
+              </a>
+
+              <cfif len(activeCruiseContacts.currentAsOf)>
+                <div class="contact-reference-footer">
+                  <span aria-hidden="true">&#9719;</span>
+                  <span data-fpw-field="contacts.currentAsOf"><cfoutput>#encodeForHtml(activeCruiseContacts.currentAsOf)#</cfoutput></span>
+                </div>
+              </cfif>
             </div>
-          </div>
+          </section>
 
           <div class="panel section-card">
             <div class="section-top">
@@ -3388,6 +4540,7 @@
       var pageHooks = {};
       var pageContext = {};
       var experimentalLegModel = {};
+      var routePlanModel = {};
       var floatPlanId = 0;
       var weatherButton = document.getElementById("fpwMonitorWeatherBtn");
       var weatherMessageEl = document.getElementById("fpwMonitorWeatherMessage");
@@ -3426,6 +4579,9 @@
       var manualDelayClearBtn = document.getElementById("fpwManualDelayClearBtn");
       var legArrivalEl = document.querySelector('[data-fpw-field="leg.arrival"]');
       var routeStop4StampEl = document.querySelector('[data-fpw-field="leg.routeStop4Stamp"]');
+      var routePlanTimelineEl = document.getElementById("fpwRoutePlanTimeline");
+      var routePlanJumpCurrentBtn = document.getElementById("fpwRoutePlanJumpCurrentBtn");
+      var routePlanPreviewNoteEl = document.getElementById("fpwRoutePlanPreviewNote");
       var activeCruiseMapEl = document.getElementById("fpwActiveCruiseMap");
       var activeCruiseOpenFullMapBtn = document.getElementById("fpwActiveCruiseOpenFullMapBtn");
       var activeCruiseMapInstance = null;
@@ -3453,11 +4609,83 @@
         };
       }
 
+      function readRoutePlanValue(source, keys, fallbackValue) {
+        var obj = (source && typeof source === "object") ? source : {};
+        var idx = 0;
+        var key = "";
+
+        for (idx = 0; idx < keys.length; idx += 1) {
+          key = keys[idx];
+          if (Object.prototype.hasOwnProperty.call(obj, key) && obj[key] !== null && typeof obj[key] !== "undefined") {
+            return obj[key];
+          }
+        }
+        return fallbackValue;
+      }
+
+      function toRoutePlanNumber(value, fallbackValue) {
+        var parsed = Number(value);
+        if (!Number.isFinite(parsed)) {
+          return fallbackValue;
+        }
+        return parsed;
+      }
+
+      function normalizeRoutePlanModel(rawModel) {
+        var model = (rawModel && typeof rawModel === "object") ? rawModel : {};
+        var summary = readRoutePlanValue(model, ["summary", "SUMMARY"], {});
+        var rawLegs = readRoutePlanValue(model, ["legs", "LEGS"], []);
+        var legs = Array.isArray(rawLegs) ? rawLegs : [];
+
+        return {
+          available: readRoutePlanValue(model, ["available", "AVAILABLE"], false) === true,
+          scheduledDepartureLabel: String(readRoutePlanValue(model, ["scheduledDepartureLabel", "SCHEDULEDDEPARTURELABEL"], "—") || "—"),
+          scheduledDepartureIso: String(readRoutePlanValue(model, ["scheduledDepartureIso", "SCHEDULEDDEPARTUREISO"], "") || ""),
+          finalDestinationLabel: String(readRoutePlanValue(model, ["finalDestinationLabel", "FINALDESTINATIONLABEL"], "—") || "—"),
+          currentLegOrder: toRoutePlanNumber(readRoutePlanValue(model, ["currentLegOrder", "CURRENTLEGORDER"], 0), 0),
+          nextLegOrder: toRoutePlanNumber(readRoutePlanValue(model, ["nextLegOrder", "NEXTLEGORDER"], 0), 0),
+          baseSpeedKn: toRoutePlanNumber(readRoutePlanValue(model, ["baseSpeedKn", "BASESPEEDKN"], 0), 0),
+          effectiveSpeedKn: toRoutePlanNumber(readRoutePlanValue(model, ["effectiveSpeedKn", "EFFECTIVESPEEDKN"], 0), 0),
+          fuelBurnGph: toRoutePlanNumber(readRoutePlanValue(model, ["fuelBurnGph", "FUELBURNGPH"], 0), 0),
+          reservePct: toRoutePlanNumber(readRoutePlanValue(model, ["reservePct", "RESERVEPCT"], 0), 0),
+          weatherFactorPct: toRoutePlanNumber(readRoutePlanValue(model, ["weatherFactorPct", "WEATHERFACTORPCT"], 0), 0),
+          manualDelayMinutes: toRoutePlanNumber(readRoutePlanValue(model, ["manualDelayMinutes", "MANUALDELAYMINUTES"], 0), 0),
+          summary: {
+            totalNm: toRoutePlanNumber(readRoutePlanValue(summary, ["totalNm", "TOTALNM"], 0), 0),
+            completedNm: toRoutePlanNumber(readRoutePlanValue(summary, ["completedNm", "COMPLETEDNM"], 0), 0),
+            remainingNm: toRoutePlanNumber(readRoutePlanValue(summary, ["remainingNm", "REMAININGNM"], 0), 0),
+            progressPct: toRoutePlanNumber(readRoutePlanValue(summary, ["progressPct", "PROGRESSPCT"], 0), 0),
+            totalHours: toRoutePlanNumber(readRoutePlanValue(summary, ["totalHours", "TOTALHOURS"], 0), 0),
+            finalArrivalLabel: String(readRoutePlanValue(summary, ["finalArrivalLabel", "FINALARRIVALLABEL"], "—") || "—")
+          },
+          legs: legs.map(function (rawLeg) {
+            var leg = (rawLeg && typeof rawLeg === "object") ? rawLeg : {};
+            return {
+              order: toRoutePlanNumber(readRoutePlanValue(leg, ["order", "ORDER"], 0), 0),
+              state: String(readRoutePlanValue(leg, ["state", "STATE"], "future") || "future"),
+              status: String(readRoutePlanValue(leg, ["status", "STATUS"], "Remaining") || "Remaining"),
+              label: String(readRoutePlanValue(leg, ["label", "LABEL"], "Leg") || "Leg"),
+              distanceNm: toRoutePlanNumber(readRoutePlanValue(leg, ["distanceNm", "DISTANCENM"], 0), 0),
+              durationHours: toRoutePlanNumber(readRoutePlanValue(leg, ["durationHours", "DURATIONHOURS"], 0), 0),
+              departureOffsetHours: toRoutePlanNumber(readRoutePlanValue(leg, ["departureOffsetHours", "DEPARTUREOFFSETHOURS"], 0), 0),
+              arrivalOffsetHours: toRoutePlanNumber(readRoutePlanValue(leg, ["arrivalOffsetHours", "ARRIVALOFFSETHOURS"], 0), 0),
+              speedKn: toRoutePlanNumber(readRoutePlanValue(leg, ["speedKn", "SPEEDKN"], 0), 0),
+              fuelNeedGal: toRoutePlanNumber(readRoutePlanValue(leg, ["fuelNeedGal", "FUELNEEDGAL"], 0), 0),
+              reserveGal: toRoutePlanNumber(readRoutePlanValue(leg, ["reserveGal", "RESERVEGAL"], 0), 0),
+              delayMinutes: toRoutePlanNumber(readRoutePlanValue(leg, ["delayMinutes", "DELAYMINUTES"], 0), 0)
+            };
+          })
+        };
+      }
+
       function applyHookPayload(rawHooks) {
         pageHooks = (rawHooks && typeof rawHooks === "object") ? rawHooks : {};
         pageContext = (pageHooks && (pageHooks.context || pageHooks.CONTEXT)) || {};
         experimentalLegModel = normalizeExperimentalLegModel(
           (pageHooks && (pageHooks.experimentalLeg || pageHooks.EXPERIMENTALLEG)) || {}
+        );
+        routePlanModel = normalizeRoutePlanModel(
+          (pageHooks && (pageHooks.routePlan || pageHooks.ROUTEPLAN)) || {}
         );
         if (pageContext) {
           floatPlanId = parseInt(pageContext.floatPlanId || pageContext.FLOATPLANID, 10);
@@ -3546,7 +4774,7 @@
           return;
         }
 
-        heroTripStartEl.textContent = "Trip Start: " + label;
+        heroTripStartEl.textContent = label;
       }
 
       function hydrateLastCheckinLabels() {
@@ -3611,6 +4839,224 @@
         manualDelayCurrentTotalEl.textContent = formatManualDelayLabel(total);
       }
 
+      function formatRoutePlanDuration(hoursValue) {
+        var totalMinutes = Math.round(toRoutePlanNumber(hoursValue, 0) * 60);
+        var hoursPart = 0;
+        var minutesPart = 0;
+
+        if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) {
+          return "—";
+        }
+        hoursPart = Math.floor(totalMinutes / 60);
+        minutesPart = totalMinutes % 60;
+        if (hoursPart > 0 && minutesPart > 0) {
+          return String(hoursPart) + "h " + String(minutesPart) + "m";
+        }
+        if (hoursPart > 0) {
+          return String(hoursPart) + "h";
+        }
+        return String(minutesPart) + "m";
+      }
+
+      function formatRoutePlanDate(dateValue) {
+        var date = dateValue instanceof Date ? dateValue : null;
+        var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        var hour = 0;
+        var displayHour = 0;
+        var minutes = "";
+        var suffix = "";
+
+        if (!date || Number.isNaN(date.getTime())) {
+          return "—";
+        }
+        hour = date.getHours();
+        displayHour = hour % 12;
+        if (displayHour === 0) {
+          displayHour = 12;
+        }
+        minutes = String(date.getMinutes());
+        if (minutes.length < 2) {
+          minutes = "0" + minutes;
+        }
+        suffix = hour >= 12 ? "PM" : "AM";
+        return months[date.getMonth()] + " " + date.getDate() + " " + displayHour + ":" + minutes + " " + suffix;
+      }
+
+      function formatRoutePlanNm(nmValue) {
+        var nm = toRoutePlanNumber(nmValue, 0);
+        if (nm <= 0) {
+          return "—";
+        }
+        return nm.toFixed(1) + " nm";
+      }
+
+      function formatRoutePlanFuel(gallonsValue) {
+        var gallons = toRoutePlanNumber(gallonsValue, 0);
+        if (gallons <= 0) {
+          return "—";
+        }
+        return gallons.toFixed(1) + " gal";
+      }
+
+      function formatRoutePlanSpeed(speedValue) {
+        var speed = toRoutePlanNumber(speedValue, 0);
+        if (speed <= 0) {
+          return "—";
+        }
+        return speed.toFixed(1) + " kt";
+      }
+
+      function parseRoutePlanWeatherPct() {
+        var visibleValue = weatherFactorEl ? String(weatherFactorEl.textContent || "").trim() : "";
+        var parsed = parseFloat(visibleValue.replace("%", ""));
+
+        if (Number.isFinite(parsed)) {
+          return Math.max(0, parsed);
+        }
+        return Math.max(0, toRoutePlanNumber(routePlanModel.weatherFactorPct, 0));
+      }
+
+      function getRoutePlanPreviewDelayMinutes() {
+        var storedDelay = Math.max(0, toRoutePlanNumber(routePlanModel.manualDelayMinutes, 0));
+        var pendingRaw = manualDelayMinutesInputEl ? String(manualDelayMinutesInputEl.value || "").trim() : "";
+        var pendingValue = parseInt(pendingRaw, 10);
+
+        if (/^\d+$/.test(pendingRaw) && Number.isFinite(pendingValue) && pendingValue > 0) {
+          return storedDelay + pendingValue;
+        }
+        return storedDelay;
+      }
+
+      function setRoutePlanField(rootNode, fieldName, value) {
+        if (!rootNode) {
+          return;
+        }
+        rootNode.querySelectorAll('[data-route-plan-field="' + fieldName + '"]').forEach(function (fieldNode) {
+          fieldNode.textContent = value;
+        });
+      }
+
+      function renderRoutePlanPreview() {
+        var baseDateRaw = String(routePlanModel.scheduledDepartureIso || "").trim();
+        var baseDate = baseDateRaw ? new Date(baseDateRaw) : null;
+        var weatherPct = parseRoutePlanWeatherPct();
+        var delayMinutes = getRoutePlanPreviewDelayMinutes();
+        var baseSpeed = toRoutePlanNumber(routePlanModel.baseSpeedKn, 0);
+        var effectiveSpeed = toRoutePlanNumber(routePlanModel.effectiveSpeedKn, 0);
+        var fuelBurnGph = toRoutePlanNumber(routePlanModel.fuelBurnGph, 0);
+        var reservePct = toRoutePlanNumber(routePlanModel.reservePct, 0);
+        var totalHours = 0;
+        var legNodes = document.querySelectorAll("[data-route-plan-leg]");
+        var changedByVisibleInputs = false;
+
+        if (baseSpeed > 0) {
+          effectiveSpeed = baseSpeed * Math.max(0.05, (100 - weatherPct) / 100);
+        }
+        if (weatherPct > 0 && fuelBurnGph > 0) {
+          fuelBurnGph = fuelBurnGph * (1 + (weatherPct / 100));
+        }
+
+        document.querySelectorAll('[data-route-plan-summary="scheduledDeparture"]').forEach(function (summaryNode) {
+          summaryNode.textContent = formatRoutePlanDate(baseDate);
+        });
+
+        routePlanModel.legs.forEach(function (leg, idx) {
+          var legNode = legNodes[idx] || null;
+          var distanceNm = toRoutePlanNumber(leg.distanceNm, 0);
+          var durationHours = 0;
+          var departureDate = null;
+          var arrivalDate = null;
+          var baseFuel = 0;
+          var reserveFuel = 0;
+
+          if (effectiveSpeed > 0 && distanceNm > 0) {
+            durationHours = distanceNm / effectiveSpeed;
+          } else {
+            durationHours = toRoutePlanNumber(leg.durationHours, 0);
+          }
+          departureDate = baseDate && !Number.isNaN(baseDate.getTime())
+            ? new Date(baseDate.getTime() + Math.round(totalHours * 60) * 60000)
+            : null;
+          totalHours += durationHours;
+          arrivalDate = baseDate && !Number.isNaN(baseDate.getTime())
+            ? new Date(baseDate.getTime() + ((Math.round(totalHours * 60) + (leg.state === "completed" ? 0 : delayMinutes)) * 60000))
+            : null;
+          if (fuelBurnGph > 0 && durationHours > 0) {
+            baseFuel = durationHours * fuelBurnGph;
+            reserveFuel = reservePct > 0 ? baseFuel * (reservePct / 100) : 0;
+          }
+
+          setRoutePlanField(legNode, "departure", formatRoutePlanDate(departureDate));
+          setRoutePlanField(legNode, "arrival", formatRoutePlanDate(arrivalDate));
+          setRoutePlanField(legNode, "arrivalDetail", formatRoutePlanDate(arrivalDate));
+          setRoutePlanField(legNode, "duration", formatRoutePlanDuration(durationHours));
+          setRoutePlanField(legNode, "speed", formatRoutePlanSpeed(effectiveSpeed));
+          setRoutePlanField(legNode, "weather", weatherPct > 0 ? Math.round(weatherPct) + "% factor" : "—");
+          setRoutePlanField(legNode, "fuel", formatRoutePlanFuel(baseFuel + reserveFuel));
+          setRoutePlanField(legNode, "reserve", formatRoutePlanFuel(reserveFuel));
+          setRoutePlanField(legNode, "delay", leg.state === "completed" || delayMinutes <= 0 ? "—" : String(delayMinutes) + " min");
+        });
+
+        document.querySelectorAll('[data-route-plan-summary="finalArrival"], [data-route-plan-summary="finalArrivalFooter"]').forEach(function (summaryNode) {
+          var finalDate = baseDate && !Number.isNaN(baseDate.getTime())
+            ? new Date(baseDate.getTime() + ((Math.round(totalHours * 60) + delayMinutes) * 60000))
+            : null;
+          summaryNode.textContent = formatRoutePlanDate(finalDate);
+        });
+
+        changedByVisibleInputs = Math.round(weatherPct) !== Math.round(toRoutePlanNumber(routePlanModel.weatherFactorPct, 0))
+          || delayMinutes !== Math.max(0, toRoutePlanNumber(routePlanModel.manualDelayMinutes, 0));
+        if (routePlanPreviewNoteEl) {
+          routePlanPreviewNoteEl.textContent = changedByVisibleInputs
+            ? "Display-only preview includes visible weather/delay inputs. Nothing is saved from this timeline."
+            : "Uses active route data already available on this page.";
+        }
+      }
+
+      function initializeRoutePlanInteractions() {
+        if (routePlanTimelineEl) {
+          routePlanTimelineEl.querySelectorAll("[data-route-plan-toggle]").forEach(function (toggleButton) {
+            toggleButton.addEventListener("click", function () {
+              var legNode = toggleButton.closest("[data-route-plan-leg]");
+              var detailNode = legNode ? legNode.querySelector(".route-plan-leg-detail") : null;
+              var shouldExpand = toggleButton.getAttribute("aria-expanded") !== "true";
+
+              routePlanTimelineEl.querySelectorAll("[data-route-plan-toggle]").forEach(function (otherButton) {
+                var otherLegNode = otherButton.closest("[data-route-plan-leg]");
+                var otherDetailNode = otherLegNode ? otherLegNode.querySelector(".route-plan-leg-detail") : null;
+                otherButton.setAttribute("aria-expanded", "false");
+                if (otherLegNode) {
+                  otherLegNode.classList.remove("is-expanded");
+                }
+                if (otherDetailNode) {
+                  otherDetailNode.hidden = true;
+                }
+              });
+
+              toggleButton.setAttribute("aria-expanded", shouldExpand ? "true" : "false");
+              if (legNode) {
+                legNode.classList.toggle("is-expanded", shouldExpand);
+              }
+              if (detailNode) {
+                detailNode.hidden = !shouldExpand;
+              }
+            });
+          });
+        }
+        if (routePlanJumpCurrentBtn && routePlanTimelineEl) {
+          routePlanJumpCurrentBtn.addEventListener("click", function () {
+            var currentNode = routePlanTimelineEl.querySelector('[data-route-plan-current="true"]');
+            if (!currentNode) {
+              return;
+            }
+            routePlanTimelineEl.scrollTop = currentNode.offsetTop - routePlanTimelineEl.offsetTop - 12;
+          });
+        }
+        if (manualDelayMinutesInputEl) {
+          manualDelayMinutesInputEl.addEventListener("input", renderRoutePlanPreview);
+        }
+      }
+
       hydrateTimelineTimes();
       hydrateHeroEta();
       hydrateHeroTripStart();
@@ -3618,6 +5064,8 @@
       hydrateLegArrival();
       hydrateRouteStop4Stamp();
       hydrateManualDelayTotal();
+      initializeRoutePlanInteractions();
+      renderRoutePlanPreview();
       renderActiveCruiseMap();
       window.addEventListener("load", syncActiveCruiseMapSize);
       window.addEventListener("resize", syncActiveCruiseMapSize);
@@ -4096,6 +5544,8 @@
         hydrateLastCheckinLabels();
         hydrateLegArrival();
         hydrateRouteStop4Stamp();
+        hydrateManualDelayTotal();
+        renderRoutePlanPreview();
         renderExperimentalLegProgress();
       }
 
@@ -4247,6 +5697,7 @@
           visible: false,
           disabled: true
         });
+        renderRoutePlanPreview();
       }
 
       function setWeatherMessage(message) {
@@ -4607,12 +6058,14 @@
                   if (weatherFactorEl) {
                     weatherFactorEl.textContent = String(suggestionResult.suggestedPct) + "%";
                   }
+                  renderRoutePlanPreview();
                   return null;
                 })
                 .catch(function () {
                   if (weatherFactorEl) {
                     weatherFactorEl.textContent = "—";
                   }
+                  renderRoutePlanPreview();
                   return null;
                 });
             })
@@ -4650,6 +6103,7 @@
               if (weatherFactorEl) {
                 weatherFactorEl.textContent = String(appliedPct) + "%";
               }
+              renderRoutePlanPreview();
               return refreshActiveCruiseViewAfterWeatherApply();
             })
             .then(function () {
