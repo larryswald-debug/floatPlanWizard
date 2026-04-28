@@ -95,10 +95,10 @@
       var metaText = notes ? "Notes: " + notes : "Notes: N/A";
 
       return (
-        '<div class="list-item">' +
-          '<div class="list-main">' +
+        '<div class="list-item fpw-manage-item fpw-waypoint-item">' +
+          '<div class="list-main fpw-manage-item-copy">' +
             '<div class="list-title">' + utils.escapeHtml(nameText) + "</div>" +
-            "<small>" + utils.escapeHtml(metaText) + "</small>" +
+            '<small class="list-meta-line">' + utils.escapeHtml(metaText) + "</small>" +
           "</div>" +
           '<div class="list-actions">' +
             '<button class="btn-secondary" type="button" id="waypoint-edit-' + utils.escapeHtml(waypointId) + '" data-action="edit" data-waypoint-id="' + utils.escapeHtml(waypointId) + '">Edit</button>' +

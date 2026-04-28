@@ -9,74 +9,132 @@
     <cfinclude template="../includes/header_styles.cfm">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260423a">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260427j">
 </head>
 <body class="dashboard-body" data-fpw-page="dashboard">
 
 <cfinclude template="../includes/top_nav.cfm">
 
 
-<main class="dashboard-main">
-    <div id="dashboardAlert" class="alert d-none" role="alert"></div>
+<div class="fpw-dashboard-shell">
+    <aside class="fpw-dashboard-sidebar" aria-label="Dashboard navigation">
+        <a class="fpw-dashboard-brand" href="<cfoutput>#request.fpwBase#</cfoutput>/app/dashboard.cfm">
+            <span class="fpw-dashboard-brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 32 32" focusable="false">
+                    <circle cx="16" cy="16" r="12"></circle>
+                    <path d="M16 2v28M2 16h28"></path>
+                    <path d="M16 5l4 11-4 11-4-11z"></path>
+                    <path d="M5 16l11-4 11 4-11 4z"></path>
+                </svg>
+            </span>
+            <span class="fpw-dashboard-brand-text">
+                <span>FloatPlan</span>
+                <span>Wizard</span>
+            </span>
+        </a>
 
-    <div class="dashboard-grid dashboard-grid--reflow">
+        <nav class="fpw-dashboard-nav" aria-label="Mission Control sections">
+            <a class="fpw-dashboard-nav-item is-active" href="<cfoutput>#request.fpwBase#</cfoutput>/app/dashboard.cfm"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M4 13a8 8 0 0 1 16 0"></path><path d="M6 13v4a2 2 0 0 0 2 2h1v-8H8a2 2 0 0 0-2 2z"></path><path d="M18 13v4a2 2 0 0 1-2 2h-1v-8h1a2 2 0 0 1 2 2z"></path></svg></span><span>Dashboard</span></a>
+            <a class="fpw-dashboard-nav-item" href="#expeditionTimelinePanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="6" cy="7" r="2.5"></circle><circle cx="18" cy="5" r="2.5"></circle><circle cx="16" cy="18" r="2.5"></circle><path d="M8.4 6.5l7.2-1M7.9 8.7l6.3 7.1M6 9.5v5"></path><circle cx="6" cy="17" r="2.5"></circle></svg></span><span>Routes</span></a>
+            <a class="fpw-dashboard-nav-item" href="#expeditionTimelinePanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><rect x="7" y="4" width="10" height="16" rx="1.8"></rect><path d="M9.5 4a2.5 2.5 0 0 1 5 0M9.5 9h5M9.5 13h5M9.5 17h3"></path></svg></span><span>Float Plans</span></a>
+            <a class="fpw-dashboard-nav-item" href="#recommendedNextStepsPanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M6 17h12l-1.4-2V10a4.6 4.6 0 0 0-9.2 0v5z"></path><path d="M10 20h4M12 5V3"></path></svg></span><span>Monitoring</span></a>
+            <a class="fpw-dashboard-nav-item" href="<cfoutput>#request.fpwBase#</cfoutput>/app/weather.cfm"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M7 16.5H6a3 3 0 1 1 .8-5.9A4.8 4.8 0 0 1 16 12h1a2.5 2.5 0 0 1 0 5h-2"></path><path d="M12 16l-2 3h3l-2 3M4 6l1.5 1.5M12 2v3M20 6l-1.5 1.5"></path></svg></span><span>Weather</span></a>
+            <a class="fpw-dashboard-nav-item" href="#vesselsPanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M7 18h10l3-5H4z"></path><path d="M9 13V7h6v6M11 7l1-3 1 3M5 20c1.2 0 1.2-1 2.4-1s1.2 1 2.4 1 1.2-1 2.4-1 1.2 1 2.4 1 1.2-1 2.4-1 1.2 1 2.4 1"></path></svg></span><span>Vessels</span></a>
+            <a class="fpw-dashboard-nav-item" href="#contactsPanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="9" cy="8" r="3"></circle><path d="M3.5 19a5.5 5.5 0 0 1 11 0"></path><circle cx="17" cy="9" r="2.5"></circle><path d="M14.5 17.2a4.5 4.5 0 0 1 6 1.8"></path></svg></span><span>Contacts</span></a>
+            <a class="fpw-dashboard-nav-item" href="#waypointsPanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M12 21s7-6.1 7-12a7 7 0 0 0-14 0c0 5.9 7 12 7 12z"></path><circle cx="12" cy="9" r="2.4"></circle></svg></span><span>Waypoints</span></a>
+            <a class="fpw-dashboard-nav-item" href="#passengersPanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="8" cy="8" r="2.8"></circle><circle cx="16" cy="8" r="2.8"></circle><path d="M3 19a5 5 0 0 1 10 0M11 19a5 5 0 0 1 10 0"></path></svg></span><span>Crew</span></a>
+            <a class="fpw-dashboard-nav-item" href="#operatorsPanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="7" r="3"></circle><path d="M6 20a6 6 0 0 1 12 0"></path><path d="M4 14a4 4 0 0 1 4-4M20 14a4 4 0 0 0-4-4"></path></svg></span><span>Operators</span></a>
+            <a class="fpw-dashboard-nav-item" href="<cfoutput>#request.fpwBase#</cfoutput>/app/account.cfm"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="3"></circle><path d="M12 2.5v3M12 18.5v3M4.5 4.5l2.1 2.1M17.4 17.4l2.1 2.1M2.5 12h3M18.5 12h3M4.5 19.5l2.1-2.1M17.4 6.6l2.1-2.1"></path></svg></span><span>Settings</span></a>
+        </nav>
 
-        <section class="dashboard-card panel-floatlike full-width mission-summary-panel" id="missionSummaryPanel" aria-labelledby="missionSummaryTitle">
-            <div class="card-header">
-                <div class="card-title">
-                    <h2 id="missionSummaryTitle">Mission Summary</h2>
-                    
-                </div>
-                <div class="card-actions">
-                    <small id="missionSummaryUpdatedAt" class="card-subtitle">Updated just now</small>
+        <div class="fpw-dashboard-sidebar-footer">
+            <a class="fpw-dashboard-nav-item" href="#recommendedNextStepsPanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="9"></circle><path d="M9.8 9a2.3 2.3 0 1 1 3.8 1.8c-.9.6-1.6 1.2-1.6 2.4M12 17h.01"></path></svg></span><span>Help</span></a>
+        </div>
+    </aside>
+
+    <main class="fpw-dashboard-main dashboard-main">
+        <div id="dashboardAlert" class="alert d-none" role="alert"></div>
+
+        <header class="fpw-dashboard-header">
+            <div class="fpw-dashboard-header-title-wrap">
+                <h1 class="fpw-dashboard-title" id="missionSummaryTitle">MISSION CONTROL</h1>
+                <span class="fpw-dashboard-title-accent" aria-hidden="true"></span>
+            </div>
+            <small id="missionSummaryUpdatedAt" class="fpw-dashboard-updated">Updated just now</small>
+        </header>
+
+        <section class="dashboard-card panel-floatlike mission-summary-panel fpw-dashboard-hero" id="missionSummaryPanel" aria-labelledby="missionSummaryTitle">
+            <div class="fpw-dashboard-hero-visual" aria-hidden="true">
+                <div class="fpw-dashboard-radar">
+                    <span class="fpw-dashboard-radar-ring"></span>
+                    <span class="fpw-dashboard-radar-boat"></span>
                 </div>
             </div>
-            <div class="card-body">
-                <div class="mission-summary-grid">
-                    <article class="mission-summary-tile">
-                        <div class="mission-summary-label">Active Trip</div>
-                        <div class="mission-summary-value" id="missionRouteValue">No active trip</div>
-                        <div class="mission-summary-meta" id="missionRouteMeta">No active trip is available.</div>
-                    </article>
-                    <article class="mission-summary-tile">
-                        <div class="mission-summary-label">Trip Progress</div>
-                        <div class="mission-summary-value" id="missionProgressValue">No data</div>
-                        <div class="mission-summary-meta" id="missionProgressMeta">No active trip</div>
-                    </article>
-                    <article class="mission-summary-tile">
-                        <div class="mission-summary-label">Float Plans</div>
-                        <div class="mission-summary-value" id="missionFloatPlansValue">No plans</div>
-                        <div class="mission-summary-meta" id="missionFloatPlansMeta">0 total</div>
-                    </article>
-                    <article class="mission-summary-tile">
-                        <div class="mission-summary-label">Monitoring</div>
-                        <div class="mission-summary-value" id="missionMonitoringValue">Loading…</div>
-                        <div class="mission-summary-meta" id="missionMonitoringMeta">Waiting for monitored plans</div>
-                    </article>
-                    <article class="mission-summary-tile">
-                        <div class="mission-summary-label">Weather Risk</div>
-                        <div class="mission-summary-value" id="missionWeatherValue">—</div>
-                        <div class="mission-summary-meta" id="missionWeatherMeta">Alerts: None</div>
-                    </article>
-                    <article class="mission-summary-tile">
-                        <div class="mission-summary-label">Boat &amp; Trip Setup</div>
-                        <div class="mission-summary-value" id="missionSetupValue">0 vessels • 0 contacts</div>
-                        <div class="mission-summary-meta" id="missionSetupMeta">0 waypoints • 0 crew</div>
-                    </article>
+
+            <div class="fpw-dashboard-hero-copy">
+                <h2 id="missionRouteValue">No Active Trip</h2>
+                <p id="missionRouteMeta">Your routes, float plans, and trip setup are ready.</p>
+                <p id="missionHeroSupportText">Start a route or send your draft float plan when you're ready to get underway.</p>
+
+                <div class="fpw-dashboard-hero-actions">
+                    <button type="button" class="btn-primary" id="dashboardHeroStartRouteBtn" data-quick-action="generate-route">Start Route</button>
+                    <button type="button" class="btn-secondary d-none" id="dashboardHeroDraftPlanBtn" data-current-draft-action="view-send">View Draft Float Plan</button>
                 </div>
+            </div>
+
+            <div class="mission-summary-grid fpw-dashboard-hero-stats">
+                <article class="mission-summary-tile fpw-stat-card">
+                    <div class="mission-summary-label">Routes</div>
+                    <span class="fpw-stat-icon fpw-stat-icon-routes" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="6" cy="7" r="2.3"></circle><circle cx="18" cy="5" r="2.3"></circle><circle cx="16" cy="18" r="2.3"></circle><path d="M8.3 6.6l7.4-1M7.8 8.7l6.5 7.1M6 9.5v5"></path><circle cx="6" cy="17" r="2.3"></circle></svg></span>
+                    <div class="mission-summary-value" id="missionProgressValue">0</div>
+                    <div class="mission-summary-meta" id="missionProgressMeta">saved</div>
+                </article>
+                <article class="mission-summary-tile fpw-stat-card">
+                    <div class="mission-summary-label">Float Plans</div>
+                    <span class="fpw-stat-icon fpw-stat-icon-floatplans" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><rect x="7" y="4" width="10" height="16" rx="1.8"></rect><path d="M9.5 4a2.5 2.5 0 0 1 5 0M9.5 9h5M9.5 13h5M9.5 17h3"></path></svg></span>
+                    <div class="mission-summary-value" id="missionFloatPlansValue">No plans</div>
+                    <div class="mission-summary-meta" id="missionFloatPlansMeta">0 total</div>
+                </article>
+                <article class="mission-summary-tile fpw-stat-card">
+                    <div class="mission-summary-label">Monitoring</div>
+                    <span class="fpw-stat-icon fpw-stat-icon-monitoring" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M6 17h12l-1.4-2V10a4.6 4.6 0 0 0-9.2 0v5z"></path><path d="M10 20h4M12 5V3"></path></svg></span>
+                    <div class="mission-summary-value" id="missionMonitoringValue">Loading...</div>
+                    <div class="mission-summary-meta" id="missionMonitoringMeta">Waiting for monitored plans</div>
+                </article>
+                <article class="mission-summary-tile fpw-stat-card">
+                    <div class="mission-summary-label">Weather</div>
+                    <span class="fpw-stat-icon fpw-stat-icon-weather" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M7 16.5H6a3 3 0 1 1 .8-5.9A4.8 4.8 0 0 1 16 12h1a2.5 2.5 0 0 1 0 5h-2"></path><path d="M12 16l-2 3h3l-2 3"></path></svg></span>
+                    <div class="mission-summary-value" id="missionWeatherValue">Idle</div>
+                    <div class="mission-summary-meta" id="missionWeatherMeta">Alerts: None</div>
+                </article>
+                <article class="mission-summary-tile fpw-stat-card">
+                    <div class="mission-summary-label">Setup</div>
+                    <span class="fpw-stat-icon fpw-stat-icon-setup" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="8" cy="8" r="3"></circle><path d="M3.5 19a4.5 4.5 0 0 1 9 0"></path><circle cx="16" cy="9" r="2.5"></circle><path d="M13.5 18.5a4.2 4.2 0 0 1 6.5.5"></path></svg></span>
+                    <div class="mission-summary-value" id="missionSetupValue">0 vessels</div>
+                    <div class="mission-summary-meta" id="missionSetupMeta">0 contacts</div>
+                </article>
             </div>
         </section>
 
-        <section class="dashboard-card panel-floatlike full-width expedition-panel" id="expeditionTimelinePanel" aria-labelledby="expeditionTimelineTitle">
+        <section class="dashboard-card panel-floatlike next-steps-panel fpw-dashboard-next-step" id="recommendedNextStepsPanel" aria-labelledby="recommendedNextStepsTitle">
+            <div class="fpw-dashboard-next-step-mark" aria-hidden="true"></div>
+            <div class="card-body">
+                <h2 id="recommendedNextStepsTitle">NEXT STEP</h2>
+                <div id="nextStepsList" class="next-steps-list"></div>
+                <p id="nextStepsEmpty" class="empty d-none">No immediate action items. Your core dashboard setup is in place.</p>
+            </div>
+        </section>
+
+        <section class="dashboard-card panel-floatlike expedition-panel fpw-dashboard-section" id="expeditionTimelinePanel" aria-labelledby="expeditionTimelineTitle">
             <div class="card-header">
                 <div class="card-title">
-                    <h2 id="expeditionTimelineTitle">Routes</h2>
+                    <h2 id="expeditionTimelineTitle">Routes &amp; Float Plans</h2>
                 </div>
                 <div class="card-actions">
-                    <button type="button" class="btn-primary" id="openRouteBuilderBtn">+ Add</button>
+                    <button type="button" class="btn-primary" id="openRouteBuilderBtn">+ Add Route</button>
                 </div>
             </div>
-            <div class="card-body">
+            <div class="card-body fpw-dashboard-scroll-body">
                 <div id="expeditionTimelineLoading" class="expedition-state mb-3" role="status">Loading expedition timeline...</div>
 
                 <div id="expeditionTimelineUnauthorized" class="expedition-state d-none mb-3" role="alert">
@@ -90,17 +148,147 @@
 
                 <div id="expeditionTimelineBody" class="d-none">
                     <div id="expeditionRouteList" class="expedition-route-list mb-3"></div>
-                    <div id="expeditionRouteEmpty" class="expedition-state d-none mb-3">Click <strong>+ Add</strong> to create your first expedition route.</div>
+                    <div id="expeditionRouteEmpty" class="expedition-state d-none mb-3">Click <strong>+ Add Route</strong> to create your first expedition route.</div>
                     <div id="expeditionTimelineAccordion" class="expedition-route-overview"></div>
                 </div>
             </div>
         </section>
-        
-        <section class="dashboard-card panel-floatlike quick-actions-panel" id="quickActionsPanel" aria-labelledby="quickActionsTitle">
+
+        <section class="dashboard-card panel-floatlike setup-intro-panel fpw-dashboard-setup" id="boatTripSetupPanel" aria-labelledby="boatTripSetupTitle">
+            <div class="card-header">
+                <div class="card-title">
+                    <h2 id="boatTripSetupTitle">Boat &amp; Trip Setup</h2>
+                </div>
+            </div>
+            <div class="card-body">
+                <p class="setup-intro-copy" id="setupIntroCopy">Current setup totals reflect your existing vessels, contacts, crew, operators, and waypoints.</p>
+                <div class="setup-intro-stats fpw-setup-grid">
+                    <a class="fpw-setup-tile" href="#vesselsPanel">
+                        <span class="fpw-setup-icon fpw-setup-icon-vessels" aria-hidden="true"></span>
+                        <span class="fpw-setup-title">Vessels</span>
+                        <span class="fpw-setup-value-row"><span class="fpw-setup-value" id="setupMetricVessels">0</span><span class="fpw-setup-badge">saved</span></span>
+                        <span class="fpw-setup-copy">Manage your saved vessels</span>
+                    </a>
+                    <a class="fpw-setup-tile" href="#contactsPanel">
+                        <span class="fpw-setup-icon fpw-setup-icon-contacts" aria-hidden="true"></span>
+                        <span class="fpw-setup-title">Contacts</span>
+                        <span class="fpw-setup-value-row"><span class="fpw-setup-value" id="setupMetricContacts">0</span><span class="fpw-setup-badge">saved</span></span>
+                        <span class="fpw-setup-copy">Your trip contacts &amp; groups</span>
+                    </a>
+                    <a class="fpw-setup-tile" href="#passengersPanel">
+                        <span class="fpw-setup-icon fpw-setup-icon-crew" aria-hidden="true"></span>
+                        <span class="fpw-setup-title">Crew</span>
+                        <span class="fpw-setup-value-row"><span class="fpw-setup-value" id="setupMetricPassengers">0</span><span class="fpw-setup-badge">saved</span></span>
+                        <span class="fpw-setup-copy">Crew members on file</span>
+                    </a>
+                    <a class="fpw-setup-tile" href="#operatorsPanel">
+                        <span class="fpw-setup-icon fpw-setup-icon-operators" aria-hidden="true"></span>
+                        <span class="fpw-setup-title">Operators</span>
+                        <span class="fpw-setup-value-row"><span class="fpw-setup-value" id="setupMetricOperators">0</span><span class="fpw-setup-badge">saved</span></span>
+                        <span class="fpw-setup-copy">Designated boat operators</span>
+                    </a>
+                    <a class="fpw-setup-tile" href="#waypointsPanel">
+                        <span class="fpw-setup-icon fpw-setup-icon-waypoints" aria-hidden="true"></span>
+                        <span class="fpw-setup-title">Waypoints</span>
+                        <span class="fpw-setup-value-row"><span class="fpw-setup-value" id="setupMetricWaypoints">0</span><span class="fpw-setup-badge">saved</span></span>
+                        <span class="fpw-setup-copy">Saved locations &amp; markers</span>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <section class="fpw-dashboard-manage-heading" aria-labelledby="manageSavedItemsTitle">
+            <h2 id="manageSavedItemsTitle">Manage Saved Items</h2>
+        </section>
+
+        <div class="fpw-dashboard-manage-grid">
+            <section class="dashboard-card panel-floatlike fpw-manage-panel" id="vesselsPanel">
+                <div class="card-header">
+                    <div class="card-title">
+                        <h2>Saved Vessels</h2>
+                        <small class="card-subtitle" id="vesselsSummary">Loading...</small>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn-primary" type="button" id="addVesselBtn">+ Add</button>
+                    </div>
+                </div>
+                <div class="card-body fpw-dashboard-scroll-body">
+                    <p id="vesselsMessage" class="empty">Loading vessels...</p>
+                    <div id="vesselsList"></div>
+                </div>
+            </section>
+
+            <section class="dashboard-card panel-floatlike fpw-manage-panel" id="contactsPanel">
+                <div class="card-header">
+                    <div class="card-title">
+                        <h2>Trip Contacts</h2>
+                        <small class="card-subtitle" id="contactsSummary">Loading...</small>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn-primary" id="addContactBtn">+ Add</button>
+                    </div>
+                </div>
+                <div class="card-body fpw-dashboard-scroll-body">
+                    <p id="contactsMessage" class="empty">Loading contacts...</p>
+                    <div id="contactsList"></div>
+                </div>
+            </section>
+        </div>
+
+        <div class="fpw-dashboard-manage-grid fpw-dashboard-manage-grid-secondary">
+            <section class="dashboard-card panel-floatlike fpw-manage-panel" id="passengersPanel">
+                <div class="card-header">
+                    <div class="card-title">
+                        <h2>Passengers &amp; Crew</h2>
+                        <small class="card-subtitle" id="passengersSummary">Loading...</small>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn-primary" id="addPassengerBtn">+ Add</button>
+                    </div>
+                </div>
+                <div class="card-body fpw-dashboard-scroll-body">
+                    <p id="passengersMessage" class="empty">Loading passengers...</p>
+                    <div id="passengersList"></div>
+                </div>
+            </section>
+
+            <section class="dashboard-card panel-floatlike fpw-manage-panel" id="operatorsPanel">
+                <div class="card-header">
+                    <div class="card-title">
+                        <h2>Operators</h2>
+                        <small class="card-subtitle" id="operatorsSummary">Loading...</small>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn-primary" id="addOperatorBtn">+ Add</button>
+                    </div>
+                </div>
+                <div class="card-body fpw-dashboard-scroll-body">
+                    <p id="operatorsMessage" class="empty">Loading operators...</p>
+                    <div id="operatorsList"></div>
+                </div>
+            </section>
+        </div>
+
+        <section class="dashboard-card panel-floatlike fpw-manage-panel fpw-waypoints-panel" id="waypointsPanel">
+            <div class="card-header">
+                <div class="card-title">
+                    <h2>Waypoints</h2>
+                    <small class="card-subtitle" id="waypointsSummary">Loading...</small>
+                </div>
+                <div class="card-actions">
+                    <button class="btn-primary" id="addWaypointBtn">+ Add</button>
+                </div>
+            </div>
+            <div class="card-body fpw-dashboard-scroll-body">
+                <p id="waypointsMessage" class="empty">Loading waypoints...</p>
+                <div id="waypointsList"></div>
+            </div>
+        </section>
+
+        <section class="dashboard-card panel-floatlike quick-actions-panel fpw-dashboard-utility-hidden" id="quickActionsPanel" aria-labelledby="quickActionsTitle">
             <div class="card-header">
                 <div class="card-title">
                     <h2 id="quickActionsTitle">Quick Actions</h2>
-                    
                 </div>
             </div>
             <div class="card-body">
@@ -113,123 +301,8 @@
                 </div>
             </div>
         </section>
-
-        <section class="dashboard-card panel-floatlike full-width setup-intro-panel" id="boatTripSetupPanel" aria-labelledby="boatTripSetupTitle">
-            <div class="card-header">
-                <div class="card-title">
-                    <h2 id="boatTripSetupTitle">Boat &amp; Trip Setup</h2>
-                    <small class="card-subtitle">Support tools remain fully available, now grouped lower on the page.</small>
-                </div>
-            </div>
-            <div class="card-body">
-                <p class="setup-intro-copy" id="setupIntroCopy">Current setup totals reflect your existing vessels, contacts, crew, operators, and waypoints.</p>
-                <div class="setup-intro-stats">
-                    <span id="setupMetricVessels">Vessels: 0</span>
-                    <span id="setupMetricContacts">Contacts: 0</span>
-                    <span id="setupMetricPassengers">Crew: 0</span>
-                    <span id="setupMetricOperators">Operators: 0</span>
-                    <span id="setupMetricWaypoints">Waypoints: 0</span>
-                </div>
-            </div>
-        </section>
-
-        
-
-        <section class="dashboard-card panel-floatlike" id="vesselsPanel">
-            <div class="card-header">
-                <div class="card-title">
-                    <h2>Vessels</h2>
-                    <small class="card-subtitle" id="vesselsSummary">Loading…</small>
-                </div>
-                <div class="card-actions">
-                    <button class="btn-primary" type="button" id="addVesselBtn">+ Add</button>
-                </div>
-            </div>
-            <div class="card-body">
-                <p id="vesselsMessage" class="empty">Loading vessels…</p>
-                <div id="vesselsList"></div>
-            </div>
-        </section>
-
-        <section class="dashboard-card panel-floatlike" id="contactsPanel">
-            <div class="card-header">
-                <div class="card-title">
-                    <h2>Contacts</h2>
-                    <small class="card-subtitle" id="contactsSummary">Loading…</small>
-                </div>
-                <div class="card-actions">
-                    <button class="btn-primary" id="addContactBtn">+ Add</button>
-                </div>
-            </div>
-            <div class="card-body">
-                <p id="contactsMessage" class="empty">Loading contacts…</p>
-                <div id="contactsList"></div>
-            </div>
-        </section>
-
-        <section class="dashboard-card panel-floatlike" id="passengersPanel">
-            <div class="card-header">
-                <div class="card-title">
-                    <h2>Passengers &amp; Crew</h2>
-                    <small class="card-subtitle" id="passengersSummary">Loading…</small>
-                </div>
-                <div class="card-actions">
-                    <button class="btn-primary" id="addPassengerBtn">+ Add</button>
-                </div>
-            </div>
-            <div class="card-body">
-                <p id="passengersMessage" class="empty">Loading passengers…</p>
-                <div id="passengersList"></div>
-            </div>
-        </section>
-
-        <section class="dashboard-card panel-floatlike" id="operatorsPanel">
-            <div class="card-header">
-                <div class="card-title">
-                    <h2>Operators</h2>
-                    <small class="card-subtitle" id="operatorsSummary">Loading…</small>
-                </div>
-                <div class="card-actions">
-                    <button class="btn-primary" id="addOperatorBtn">+ Add</button>
-                </div>
-            </div>
-            <div class="card-body">
-                <p id="operatorsMessage" class="empty">Loading operators…</p>
-                <div id="operatorsList"></div>
-            </div>
-        </section>
-
-        <section class="dashboard-card panel-floatlike full-width" id="waypointsPanel">
-            <div class="card-header">
-                <div class="card-title">
-                    <h2>Waypoints</h2>
-                    <small class="card-subtitle" id="waypointsSummary">Loading…</small>
-                </div>
-                <div class="card-actions">
-                    <button class="btn-primary" id="addWaypointBtn">+ Add</button>
-                </div>
-            </div>
-            <div class="card-body">
-                <p id="waypointsMessage" class="empty">Loading waypoints…</p>
-                <div id="waypointsList"></div>
-            </div>
-        </section>
-
-        <section class="dashboard-card panel-floatlike full-width next-steps-panel" id="recommendedNextStepsPanel" aria-labelledby="recommendedNextStepsTitle">
-            <div class="card-header">
-                <div class="card-title">
-                    <h2 id="recommendedNextStepsTitle">Recommended Next Steps</h2>
-                    <small class="card-subtitle">Suggestions are generated from current route, float plan, monitoring, weather, and setup data only.</small>
-                </div>
-            </div>
-            <div class="card-body">
-                <div id="nextStepsList" class="next-steps-list"></div>
-                <p id="nextStepsEmpty" class="empty d-none">No immediate action items. Your core dashboard setup is in place.</p>
-            </div>
-        </section>
-
-    </div>
-</main>
+    </main>
+</div>
 
 <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-dialog-centered">
@@ -1013,18 +1086,38 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js?v=20260227c"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js?v=20260227c"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20260423a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/vessels.js?v=20260302a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/contacts.js?v=20260301b"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20260301b"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260301b"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260301a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/vessels.js?v=20260426a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/contacts.js?v=20260426a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20260426a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260426a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260426a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=202603191500a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260422b"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260423a"></script>
-
-
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260427e"></script>
 
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

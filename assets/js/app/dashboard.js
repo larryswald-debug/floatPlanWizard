@@ -35,11 +35,15 @@
   var monitoringPollTimer = 0;
   var derivedSignalsPollTimer = 0;
   var dashboardSignals = {
-    routeName: "No active trip",
-    routeSummary: "No active trip is available.",
+    routes: {
+      total: 0
+    },
+    routeName: "No Active Trip",
+    routeSummary: "Your routes, float plans, and trip setup are ready.",
     routeProgressPct: 0,
     floatPlans: {
       active: 0,
+      draft: 0,
       total: 0
     },
     monitoring: {
@@ -155,6 +159,9 @@
 
   function collectMissionSummaryData() {
     return {
+      routes: {
+        total: dashboardSignals.routes ? dashboardSignals.routes.total : 0
+      },
       route: {
         name: dashboardSignals.routeName,
         summary: dashboardSignals.routeSummary,
@@ -162,6 +169,7 @@
       },
       floatPlans: {
         active: dashboardSignals.floatPlans ? dashboardSignals.floatPlans.active : 0,
+        draft: dashboardSignals.floatPlans ? dashboardSignals.floatPlans.draft : 0,
         total: dashboardSignals.floatPlans ? dashboardSignals.floatPlans.total : 0
       },
       monitoring: {
@@ -187,17 +195,19 @@
 
   function buildMissionSummaryModel(source, recomputedAt) {
     var payload = source || {};
+    var routes = payload.routes || {};
     var route = payload.route || {};
     var floatPlans = payload.floatPlans || {};
     var monitoring = payload.monitoring || {};
     var weather = payload.weather || {};
     var setup = payload.setup || {};
+    var routeTotal = normalizeMissionCount(routes.total);
     var routeName = normalizeMissionText(route.name, "", 56);
     var routeSummary = normalizeMissionText(route.summary, "", 84);
     var hasActiveTripRoute = !isMissionRouteUnavailable(routeName);
     var routeProgress = parseFloat(route.progressPct);
-    var routePctLabel = Number.isFinite(routeProgress) ? (Math.round(clamp(routeProgress, 0, 100)) + "% complete") : "No data";
     var floatActive = normalizeMissionCount(floatPlans.active);
+    var floatDraft = normalizeMissionCount(floatPlans.draft);
     var floatTotal = normalizeMissionCount(floatPlans.total);
     var monitoringActive = normalizeMissionCount(monitoring.active);
     var monitoringOverdue = normalizeMissionCount(monitoring.overdue);
@@ -214,24 +224,49 @@
       ? recomputedAt
       : (missionSummaryState.lastRecomputedAt || new Date());
     var routeMeta = "No data";
-    var progressMeta = "No data";
+    var heroSupport = "Start a route or send your draft float plan when you are ready to get underway.";
+    var floatPlanValue = "0";
+    var floatPlanMeta = "draft";
+    var monitoringValue = "0";
+    var monitoringMeta = "overdue";
 
     if (hasActiveTripRoute && !isMissionSummaryPlaceholder(routeSummary)) {
       routeMeta = routeSummary;
-      progressMeta = routeSummary;
+      heroSupport = "Dashboard status is using the current active trip data.";
     } else if (hasActiveTripRoute) {
-      progressMeta = Number.isFinite(routeProgress) ? "No data" : "No progress data";
+      routeMeta = "Trip status is loaded from the current dashboard state.";
+      heroSupport = Number.isFinite(routeProgress) ? (Math.round(clamp(routeProgress, 0, 100)) + "% complete") : "No progress data.";
     } else {
-      routeMeta = routeSummary || "No active trip is available.";
-      progressMeta = "No active trip";
+      routeMeta = "Your routes, float plans, and trip setup are ready.";
+      heroSupport = "Start a route or send your draft float plan when you are ready to get underway.";
     }
 
     if (!weatherRisk || weatherRisk.toLowerCase() === "forecast unavailable.") {
-      weatherRisk = "Not available";
+      weatherRisk = "Idle";
     }
 
     if (!weatherAlerts || weatherAlerts.toLowerCase() === "not available") {
       weatherAlerts = "None";
+    }
+
+    if (floatDraft > 0) {
+      floatPlanValue = String(floatDraft);
+      floatPlanMeta = floatDraft === 1 ? "draft" : "drafts";
+    } else if (floatActive > 0) {
+      floatPlanValue = String(floatActive);
+      floatPlanMeta = floatActive === 1 ? "active" : "active";
+    } else if (floatTotal > 0) {
+      floatPlanValue = String(floatTotal);
+      floatPlanMeta = "total";
+    }
+
+    if (monitoringLoaded) {
+      monitoringValue = String(monitoringOverdue);
+      monitoringMeta = "overdue";
+      if (monitoringOverdue === 0 && monitoringActive > 0) {
+        monitoringValue = String(monitoringActive);
+        monitoringMeta = "active";
+      }
     }
 
     return {
@@ -239,51 +274,52 @@
       tiles: {
         activeTrip: {
           label: MISSION_SUMMARY_TILE_LABELS.activeTrip,
-          value: hasActiveTripRoute ? routeName : "No active trip",
-          meta: routeMeta
+          value: hasActiveTripRoute ? routeName : "No Active Trip",
+          meta: hasActiveTripRoute ? routeMeta : "Your routes, float plans, and trip setup are ready.",
+          support: hasActiveTripRoute ? heroSupport : "Start a route or send your draft float plan when you're ready to get underway."
         },
         routeProgress: {
-          label: MISSION_SUMMARY_TILE_LABELS.routeProgress,
-          value: hasActiveTripRoute ? routePctLabel : "No data",
-          meta: progressMeta
+          label: "Routes",
+          value: String(routeTotal),
+          meta: "saved"
         },
         floatPlans: {
           label: MISSION_SUMMARY_TILE_LABELS.floatPlans,
-          value: floatTotal > 0 ? (floatActive + " active") : "No plans",
-          meta: floatTotal + " total"
+          value: floatPlanValue,
+          meta: floatPlanMeta
         },
         monitoring: {
           label: MISSION_SUMMARY_TILE_LABELS.monitoring,
-          value: monitoringLoaded ? (monitoringActive + " active / " + monitoringOverdue + " overdue") : "No data",
-          meta: monitoringLoaded ? ("Escalated: " + monitoringEscalated) : monitoringMessage
+          value: monitoringLoaded ? monitoringValue : "0",
+          meta: monitoringLoaded ? monitoringMeta : normalizeMissionText(monitoringMessage, "overdue", 36)
         },
         weatherRisk: {
-          label: MISSION_SUMMARY_TILE_LABELS.weatherRisk,
+          label: "Weather",
           value: weatherRisk,
           meta: "Alerts: " + weatherAlerts
         },
         setup: {
-          label: MISSION_SUMMARY_TILE_LABELS.setup,
-          value: vessels + " vessels • " + contacts + " contacts",
-          meta: waypoints + " waypoints • " + crew + " crew"
+          label: "Setup",
+          value: vessels + " " + (vessels === 1 ? "vessel" : "vessels"),
+          meta: contacts + " " + (contacts === 1 ? "contact" : "contacts")
         }
       }
     };
   }
 
   function updateSetupIntroMetrics() {
-    setText("setupMetricVessels", "Vessels: " + dashboardSignals.setup.vessels);
-    setText("setupMetricContacts", "Contacts: " + dashboardSignals.setup.contacts);
-    setText("setupMetricPassengers", "Crew: " + dashboardSignals.setup.passengers);
-    setText("setupMetricOperators", "Operators: " + dashboardSignals.setup.operators);
-    setText("setupMetricWaypoints", "Waypoints: " + dashboardSignals.setup.waypoints);
+    setText("setupMetricVessels", dashboardSignals.setup.vessels);
+    setText("setupMetricContacts", dashboardSignals.setup.contacts);
+    setText("setupMetricPassengers", dashboardSignals.setup.passengers);
+    setText("setupMetricOperators", dashboardSignals.setup.operators);
+    setText("setupMetricWaypoints", dashboardSignals.setup.waypoints);
   }
 
   function renderRouteStatusPanel() {
     var pct = parseRouteProgressPct(dashboardSignals.routeProgressPct);
     var progressBar = document.getElementById("routeStatusProgressBar");
-    setText("routeStatusName", dashboardSignals.routeName || "No active trip");
-    setText("routeStatusMeta", dashboardSignals.routeSummary || "No active trip is available.");
+    setText("routeStatusName", dashboardSignals.routeName || "No Active Trip");
+    setText("routeStatusMeta", dashboardSignals.routeSummary || "Your routes, float plans, and trip setup are ready.");
     setText("routeStatusProgressLabel", Math.round(pct) + "% complete");
     if (progressBar) {
       progressBar.style.width = pct + "%";
@@ -312,6 +348,8 @@
       setText(mapItem.metaId, normalizeMissionText(tile.meta, "No data", 96));
     }
 
+    tile = tiles.activeTrip || {};
+    setText("missionHeroSupportText", normalizeMissionText(tile.support, "Start a route or send your draft float plan when you are ready to get underway.", 150));
     setText("missionSummaryUpdatedAt", normalizeMissionText(summaryModel.updatedAtLabel, "Updated just now", 42));
   }
 
@@ -438,6 +476,14 @@
     if (!panel || panel.dataset.bound === "true") return;
     panel.addEventListener("click", function (event) {
       var btn = event.target && event.target.closest ? event.target.closest("[data-quick-action]") : null;
+      var draftBtn = event.target && event.target.closest ? event.target.closest("[data-current-draft-action]") : null;
+      if (draftBtn) {
+        if (event && typeof event.preventDefault === "function") {
+          event.preventDefault();
+        }
+        triggerCurrentDraftViewSendAction();
+        return;
+      }
       if (!btn) return;
       if (event && typeof event.preventDefault === "function") {
         event.preventDefault();
@@ -449,6 +495,7 @@
 
   function bindQuickActions() {
     bindPanelQuickActions("quickActionsPanel");
+    bindPanelQuickActions("missionSummaryPanel");
   }
 
   function bindNextStepsActions() {
@@ -490,19 +537,49 @@
     return (value || "").toString().trim().toUpperCase();
   }
 
+  function getSetupCount(key) {
+    var value = dashboardSignals && dashboardSignals.setup ? parseInt(dashboardSignals.setup[key], 10) : 0;
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }
+
+  function refreshRouteReadinessSetupLabels() {
+    var vesselCount = getSetupCount("vessels");
+    var contactCount = getSetupCount("contacts");
+    Array.prototype.forEach.call(document.querySelectorAll('[data-fpw-route-setup-count="vessels"]'), function (el) {
+      el.textContent = vesselCount > 0 ? formatNumber(vesselCount, 0) + " saved" : "setup pending";
+      el.classList.toggle("fpw-text-success", vesselCount > 0);
+      el.classList.toggle("fpw-text-muted", vesselCount <= 0);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-fpw-route-setup-count="contacts"]'), function (el) {
+      el.textContent = formatNumber(contactCount, 0) + " saved";
+      el.classList.toggle("fpw-text-success", contactCount > 0);
+      el.classList.toggle("fpw-text-muted", contactCount <= 0);
+    });
+  }
+
   function refreshDerivedSignalsFromState() {
     var plans = (state.floatPlanState && Array.isArray(state.floatPlanState.all)) ? state.floatPlanState.all : [];
+    var routes = (state.routeState && Array.isArray(state.routeState.all)) ? state.routeState.all : [];
     var activePlans = 0;
+    var draftPlans = 0;
     var i = 0;
     var status = "";
 
+    dashboardSignals.routes.total = routes.length;
     for (i = 0; i < plans.length; i += 1) {
       status = normalizeStatusUpper(plans[i] && (plans[i].STATUS || plans[i].status));
       if (status === "ACTIVE" || status === "OPEN") {
         activePlans += 1;
       }
+      if (status === "DRAFT") {
+        draftPlans += 1;
+      }
+    }
+    if (draftPlans === 0 && getCurrentDraftGroupForDisplay()) {
+      draftPlans = 1;
     }
     dashboardSignals.floatPlans.active = activePlans;
+    dashboardSignals.floatPlans.draft = draftPlans;
     dashboardSignals.floatPlans.total = plans.length;
 
     dashboardSignals.setup.vessels = (state.vesselState && Array.isArray(state.vesselState.all)) ? state.vesselState.all.length : 0;
@@ -512,8 +589,10 @@
     dashboardSignals.setup.waypoints = (state.waypointState && Array.isArray(state.waypointState.all)) ? state.waypointState.all.length : 0;
 
     updateSetupIntroMetrics();
+    refreshRouteReadinessSetupLabels();
     refreshMissionSummary();
     renderRecommendedNextSteps();
+    updateCurrentDraftActionButtons();
   }
 
   function loadMonitoringSummary() {
@@ -575,23 +654,105 @@
   }
 
   function setRouteSignals(routeName, summaryText, progressPct) {
-    dashboardSignals.routeName = routeName || "No active trip";
-    dashboardSignals.routeSummary = summaryText || "No active trip is available.";
+    dashboardSignals.routeName = routeName || "No Active Trip";
+    dashboardSignals.routeSummary = summaryText || "Your routes, float plans, and trip setup are ready.";
     dashboardSignals.routeProgressPct = parseRouteProgressPct(progressPct);
     renderRouteStatusPanel();
     refreshMissionSummary();
     renderRecommendedNextSteps();
   }
 
+  function normalizeDashboardPlanId(value) {
+    var planId = parseInt(value, 10);
+    if (!Number.isFinite(planId) || planId <= 0) {
+      return 0;
+    }
+    return planId;
+  }
+
+  function getCurrentDraftGroupForDisplay() {
+    var group = state.currentRouteGroup && typeof state.currentRouteGroup === "object"
+      ? state.currentRouteGroup
+      : null;
+    var planId = 0;
+    var currentState = "";
+    var status = "";
+    var isDraft = false;
+    if (!group || !group.HAS_CURRENT_GROUP) {
+      return null;
+    }
+    planId = normalizeDashboardPlanId(group.FLOATPLAN_ID !== undefined ? group.FLOATPLAN_ID : group.FLOATPLANID);
+    if (planId <= 0) {
+      return null;
+    }
+    currentState = String(group.CURRENT_STATE || "").trim().toUpperCase();
+    status = String(group.STATUS || "").trim().toUpperCase();
+    isDraft = group.IS_DRAFT === true || currentState === "DRAFT" || status === "DRAFT";
+    if (!isDraft) {
+      return null;
+    }
+    return {
+      planId: planId,
+      routeName: normalizeMissionText(group.ROUTE_NAME || group.ROUTENAME || group.NAME, "this route", 72),
+      floatPlanName: normalizeMissionText(group.FLOATPLAN_NAME || group.FLOATPLANNAME, "Draft float plan", 96)
+    };
+  }
+
+  function findCurrentDraftViewSendButton() {
+    var draft = getCurrentDraftGroupForDisplay();
+    var selector = "";
+    var button = null;
+    if (!draft || draft.planId <= 0) {
+      return null;
+    }
+    selector = '.expedition-route-current-group[data-plan-id="' + draft.planId + '"] .js-expedition-plan-view';
+    button = document.querySelector(selector);
+    if (button) {
+      return button;
+    }
+    return document.querySelector('.expedition-route-card[data-current-group-state="DRAFT"] .js-expedition-plan-view');
+  }
+
+  function setDraftActionButtonState(button, hasAction) {
+    if (!button) return;
+    button.disabled = !hasAction;
+    button.classList.toggle("d-none", !hasAction);
+    button.setAttribute("aria-hidden", hasAction ? "false" : "true");
+  }
+
+  function updateCurrentDraftActionButtons() {
+    var hasDraftAction = !!findCurrentDraftViewSendButton();
+    setDraftActionButtonState(document.getElementById("dashboardHeroDraftPlanBtn"), hasDraftAction);
+    setDraftActionButtonState(document.getElementById("dashboardNextStepDraftPlanBtn"), hasDraftAction);
+  }
+
+  function triggerCurrentDraftViewSendAction() {
+    var existingButton = findCurrentDraftViewSendButton();
+    if (!existingButton || typeof existingButton.click !== "function") {
+      updateCurrentDraftActionButtons();
+      return false;
+    }
+    existingButton.click();
+    return true;
+  }
+
   function renderRecommendedNextSteps() {
     var listEl = document.getElementById("nextStepsList");
     var emptyEl = document.getElementById("nextStepsEmpty");
     var steps = [];
+    var draftGroup = getCurrentDraftGroupForDisplay();
     var markup = "";
 
     if (!listEl || !emptyEl) return;
 
-    if ((dashboardSignals.floatPlans.total || 0) === 0) {
+    if (draftGroup) {
+      steps.push({
+        title: "You have a draft float plan attached to " + draftGroup.routeName + ".",
+        meta: "Review and send it to activate monitoring for this route.",
+        action: "draft-view-send",
+        actionLabel: "View & Send Float Plan"
+      });
+    } else if ((dashboardSignals.floatPlans.total || 0) === 0) {
       steps.push({
         title: "Activate a route",
         meta: "No current draft or active route/float-plan group exists.",
@@ -639,23 +800,26 @@
     if (!steps.length) {
       listEl.innerHTML = "";
       toggleHidden(emptyEl, false);
+      updateCurrentDraftActionButtons();
       return;
     }
 
     toggleHidden(emptyEl, true);
-    markup = steps.slice(0, 5).map(function (step) {
+    markup = steps.slice(0, 1).map(function (step) {
+      var actionMarkup = step.action === "draft-view-send"
+        ? '<button type="button" class="btn-primary" id="dashboardNextStepDraftPlanBtn" data-current-draft-action="view-send">' + escapeHtml(step.actionLabel) + '</button>'
+        : '<button type="button" class="btn-primary" data-quick-action="' + escapeHtml(step.action) + '">' + escapeHtml(step.actionLabel) + '</button>';
       return ''
         + '<article class="next-step-item">'
         + '  <div class="next-step-main">'
         + '    <p class="next-step-title">' + escapeHtml(step.title) + '</p>'
         + '    <p class="next-step-meta">' + escapeHtml(step.meta) + '</p>'
         + '  </div>'
-        + '  <button type="button" class="btn-secondary" data-quick-action="' + escapeHtml(step.action) + '">'
-        + escapeHtml(step.actionLabel)
-        + '</button>'
+        + '  <div class="next-step-actions">' + actionMarkup + '</div>'
         + '</article>';
     }).join("");
     listEl.innerHTML = markup;
+    updateCurrentDraftActionButtons();
   }
 
   function getLoginUrl() {
@@ -2584,6 +2748,10 @@
         accordionEl.innerHTML = "";
         toggleHidden(accordionEl, true);
       }
+      dashboardSignals.routes.total = 0;
+      refreshMissionSummary();
+      renderRecommendedNextSteps();
+      updateCurrentDraftActionButtons();
     }
 
     function normalizeStatus(status) {
@@ -2599,8 +2767,133 @@
       return Math.round(pct) + "% complete • " + formatNumber(totalNm, 1) + " NM • " + formatNumber(totalLocks, 0) + " locks";
     }
 
+    function buildRouteSubtitle(route, currentGroup) {
+      var description = route && route.DESCRIPTION !== undefined && route.DESCRIPTION !== null
+        ? String(route.DESCRIPTION).trim()
+        : "";
+      if (description) return description;
+      if (currentGroup && currentGroup.floatPlanName) return currentGroup.floatPlanName;
+      if (route && route.SHORT_CODE) return String(route.SHORT_CODE);
+      return "Saved route";
+    }
+
+    /* Route readiness setup helpers live in the outer dashboard scope. */
+
+    function buildRouteStatusPills(currentState) {
+      if (currentState === "ACTIVE") {
+        return ""
+          + '<div class="fpw-status-pill-group">'
+          + '  <span class="fpw-status-pill fpw-status-pill-active">Active Route</span>'
+          + '  <span class="fpw-status-pill fpw-status-pill-monitoring">Monitoring Active</span>'
+          + '</div>';
+      }
+      if (currentState === "DRAFT") {
+        return '<span class="fpw-status-pill fpw-status-pill-draft">Draft Group</span>';
+      }
+      return '<span class="fpw-status-pill fpw-status-pill-saved">Saved Route</span>';
+    }
+
+    function firstFiniteRouteTotal(totals, keys) {
+      var source = totals && typeof totals === "object" ? totals : {};
+      var key = "";
+      var raw = "";
+      var value = 0;
+      for (var i = 0; i < keys.length; i += 1) {
+        key = keys[i];
+        if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
+        raw = source[key];
+        value = parseFloat(raw);
+        if (Number.isFinite(value)) return value;
+      }
+      return 0;
+    }
+
+    function buildRouteSummaryList(route, totals) {
+      var source = totals && typeof totals === "object" ? totals : {};
+      var routeSource = route && typeof route === "object" ? route : {};
+      var endpoints = routeSource.ROUTE_ENDPOINTS && typeof routeSource.ROUTE_ENDPOINTS === "object" ? routeSource.ROUTE_ENDPOINTS : {};
+      var distanceNm = firstFiniteRouteTotal(source, ["TOTAL_NM", "total_nm"]);
+      var estimatedHours = firstFiniteRouteTotal(source, ["ESTIMATED_HOURS", "ESTIMATED_TIME_HOURS", "TOTAL_HOURS", "total_hours"]);
+      var waypointCount = firstFiniteRouteTotal(source, ["WAYPOINT_COUNT", "TOTAL_WAYPOINTS", "waypoint_count", "waypointCount"]);
+      var locks = firstFiniteRouteTotal(source, ["TOTAL_LOCKS", "LOCK_COUNT", "lock_count"]);
+      var startLabel = endpoints.START_LABEL !== undefined && endpoints.START_LABEL !== null ? String(endpoints.START_LABEL).trim() : "";
+      var endLabel = endpoints.END_LABEL !== undefined && endpoints.END_LABEL !== null ? String(endpoints.END_LABEL).trim() : "";
+      var hasDefaultVessel = source.HAS_DEFAULT_VESSEL === true || source.HAS_DEFAULT_VESSEL === 1 || source.HAS_DEFAULT_VESSEL === "1";
+      var fuelLabel = source.FUEL_ESTIMATE_LABEL !== undefined && source.FUEL_ESTIMATE_LABEL !== null
+        ? String(source.FUEL_ESTIMATE_LABEL).trim()
+        : "";
+      if (!fuelLabel) {
+        fuelLabel = hasDefaultVessel ? "Fuel estimate unavailable" : "Requires default vessel";
+      }
+      if (!startLabel) startLabel = "Start unavailable";
+      if (!endLabel) endLabel = "End unavailable";
+      return ""
+        + '<div class="fpw-route-summary-list fpw-route-summary-compact" aria-label="Route summary">'
+        + '  <div class="fpw-route-summary-row fpw-route-summary-row--points">'
+        + '    <div class="fpw-route-summary-cell fpw-route-summary-cell--distance"><span class="fpw-route-summary-icon fpw-route-summary-icon--distance" aria-hidden="true"></span><div class="fpw-route-summary-copy"><span class="fpw-route-summary-label">Distance nautical mile</span><strong class="fpw-route-summary-value">' + formatNumber(distanceNm, 1) + ' NM</strong></div></div>'
+        + '    <div class="fpw-route-summary-cell fpw-route-summary-cell--endpoints"><span class="fpw-route-summary-icon fpw-route-summary-icon--endpoints" aria-hidden="true"></span><div class="fpw-route-summary-copy fpw-route-summary-copy--point"><span class="fpw-route-summary-label">Start point</span><strong class="fpw-route-summary-value">' + escapeHtml(startLabel) + '</strong></div><div class="fpw-route-summary-copy fpw-route-summary-copy--point"><span class="fpw-route-summary-label">End point</span><strong class="fpw-route-summary-value">' + escapeHtml(endLabel) + '</strong></div></div>'
+        + '  </div>'
+        + '  <div class="fpw-route-summary-row fpw-route-summary-row--time-locks">'
+        + '    <div class="fpw-route-summary-cell fpw-route-summary-cell--time"><span class="fpw-route-summary-icon fpw-route-summary-icon--time" aria-hidden="true"></span><div class="fpw-route-summary-copy"><span class="fpw-route-summary-label">Estimated time to complete</span><strong class="fpw-route-summary-value">' + (estimatedHours > 0 ? formatNumber(estimatedHours, 1) + ' hrs' : 'Unavailable') + '</strong></div></div>'
+        + '    <div class="fpw-route-summary-cell fpw-route-summary-cell--locks"><span class="fpw-route-summary-icon fpw-route-summary-icon--locks" aria-hidden="true"></span><div class="fpw-route-summary-copy"><span class="fpw-route-summary-label">Number of locks</span><strong class="fpw-route-summary-value">' + formatNumber(locks, 0) + '</strong></div></div>'
+        + '  </div>'
+        + '  <div class="fpw-route-summary-row fpw-route-summary-row--fuel-waypoints">'
+        + '    <div class="fpw-route-summary-cell fpw-route-summary-cell--fuel"><span class="fpw-route-summary-icon fpw-route-summary-icon--fuel" aria-hidden="true"></span><div class="fpw-route-summary-copy"><span class="fpw-route-summary-label">Estimated fuel needed</span><strong class="fpw-route-summary-value">' + escapeHtml(fuelLabel) + '</strong></div></div>'
+        + '    <div class="fpw-route-summary-cell fpw-route-summary-cell--waypoints"><span class="fpw-route-summary-icon fpw-route-summary-icon--waypoints" aria-hidden="true"></span><div class="fpw-route-summary-copy"><span class="fpw-route-summary-label">Number of waypoints</span><strong class="fpw-route-summary-value">' + formatNumber(waypointCount, 0) + '</strong></div></div>'
+        + '  </div>'
+        + '</div>';
+    }
+
+    function buildSavedRouteReadiness() {
+      var vesselCount = getSetupCount("vessels");
+      var contactCount = getSetupCount("contacts");
+      return ""
+        + '<div class="fpw-route-readiness">'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--plan" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Float Plan</span><strong class="fpw-text-warning">Not attached</strong></div></div>'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--vessel" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Vessel</span><strong data-fpw-route-setup-count="vessels" class="' + (vesselCount > 0 ? 'fpw-text-success' : 'fpw-text-muted') + '">' + (vesselCount > 0 ? formatNumber(vesselCount, 0) + ' saved' : 'setup pending') + '</strong></div></div>'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--contacts" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Contacts</span><strong data-fpw-route-setup-count="contacts" class="' + (contactCount > 0 ? 'fpw-text-success' : 'fpw-text-muted') + '">' + formatNumber(contactCount, 0) + ' saved</strong></div></div>'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--fuel" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Fuel estimate</span><strong class="fpw-text-muted">pending</strong></div></div>'
+        + '</div>';
+    }
+
+    function buildActiveRouteReadiness(route, currentGroup) {
+      var routeName = route && route.NAME ? String(route.NAME) : "Active route";
+      var weatherText = dashboardSignals && dashboardSignals.weather && dashboardSignals.weather.summary
+        ? dashboardSignals.weather.summary
+        : "Forecast unavailable";
+      return ""
+        + '<div class="fpw-route-readiness fpw-route-readiness--live">'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--current" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Current route</span><strong class="fpw-text-teal">' + escapeHtml(routeName) + '</strong></div></div>'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--checkin" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Last check-in</span><strong class="fpw-text-muted">unavailable</strong></div></div>'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--update" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Next expected update</span><strong class="fpw-text-muted">unavailable</strong></div></div>'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--weather" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Weather</span><strong class="fpw-text-warning">' + escapeHtml(weatherText) + '</strong></div></div>'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--fuel" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Fuel range</span><strong class="fpw-text-muted">pending</strong></div></div>'
+        + '</div>';
+    }
+
+    function buildRouteThumbnail(isActive, pct, nm) {
+      var safePct = Math.round(clamp(pct, 0, 100));
+      var safeNm = Number.isFinite(parseFloat(nm)) ? parseFloat(nm) : 0;
+      var modifier = isActive ? ' fpw-route-thumbnail--active' : '';
+      var label = isActive ? '<span class="fpw-route-thumbnail__label">Current leg</span>' : '';
+      return ""
+        + '<aside class="fpw-route-thumbnail' + modifier + '" aria-label="Route preview">'
+        + label
+        + '  <svg class="fpw-route-thumbnail__svg" viewBox="0 0 420 260" role="img" aria-label="Abstract route preview">'
+        + '    <rect x="0" y="0" width="420" height="260" class="fpw-thumb-grid"></rect>'
+        + '    <circle cx="210" cy="130" r="108" class="fpw-thumb-radar-ring"></circle>'
+        + '    <circle cx="210" cy="130" r="72" class="fpw-thumb-radar-ring"></circle>'
+        + '    <circle cx="210" cy="130" r="36" class="fpw-thumb-radar-ring"></circle>'
+        + (isActive
+          ? '    <path class="fpw-thumb-route fpw-thumb-route--complete" d="M 58 190 C 90 174, 112 166, 132 134 C 152 104, 164 94, 192 84 C 219 74, 240 70, 263 64"></path><path class="fpw-thumb-route fpw-thumb-route--remaining" d="M 263 64 C 306 62, 323 34, 360 28 C 374 26, 388 26, 402 28"></path><circle cx="263" cy="64" r="20" class="fpw-current-pulse"></circle><circle cx="263" cy="64" r="12" class="fpw-current-ring"></circle><circle cx="263" cy="64" r="6" class="fpw-current-dot"></circle><circle cx="58" cy="190" r="8" class="fpw-thumb-dot fpw-thumb-dot--start"></circle><circle cx="402" cy="28" r="8" class="fpw-thumb-dot fpw-thumb-dot--finish"></circle>'
+          : '    <path class="fpw-thumb-route fpw-thumb-route--complete" d="M 95 162 C 118 188, 148 198, 184 180 C 218 164, 232 170, 260 150 C 295 126, 328 126, 346 76 C 354 55, 365 42, 377 26"></path><path class="fpw-thumb-route fpw-thumb-route--remaining" d="M 95 162 C 126 152, 132 118, 154 102 C 184 78, 225 84, 248 42 C 278 34, 331 38, 377 26"></path><circle cx="95" cy="162" r="8" class="fpw-thumb-dot fpw-thumb-dot--start"></circle><circle cx="377" cy="26" r="8" class="fpw-thumb-dot fpw-thumb-dot--finish"></circle><g class="fpw-thumb-legend" transform="translate(28 194)"><circle cx="0" cy="0" r="5" class="fpw-thumb-dot--start"></circle><text x="14" y="5">Start</text><circle cx="0" cy="28" r="5" class="fpw-thumb-dot--finish"></circle><text x="14" y="33">Finish</text></g>')
+        + '  </svg>'
+        + (isActive ? '<div class="fpw-thumbnail-progress"><div class="fpw-thumbnail-progress__topline"><span class="fpw-thumbnail-progress__dial" aria-hidden="true" style="--fpw-progress:' + safePct + '%;"></span><span>' + safePct + '% complete • ' + formatNumber(safeNm, 1) + ' NM</span></div><div class="fpw-thumbnail-progress__bar" aria-hidden="true"><span style="width:' + safePct + '%;"></span></div></div>' : '')
+        + '</aside>';
+    }
+
     function renderNoActiveTrip(message) {
-      var text = "No active trip is available.";
+      var text = "Your routes, float plans, and trip setup are ready.";
       if (typeof message === "string" && message.trim()) {
         text = message.trim();
       } else if (message && typeof message === "object") {
@@ -2609,7 +2902,7 @@
       if (summaryEl) {
         summaryEl.textContent = text;
       }
-      setRouteSignals("No active trip", text, 0);
+      setRouteSignals("No Active Trip", text, 0);
     }
 
     function renderActiveTripSummary(activeTrip) {
@@ -2651,33 +2944,59 @@
       };
     }
 
-    function buildCurrentGroupRow(route) {
+    function buildCurrentGroupRow(route, pct) {
       var currentGroup = normalizeRouteCurrentGroup(route);
       if (!currentGroup) {
-        return "";
+        return buildSavedRouteReadiness();
       }
-      var titlePrefix = currentGroup.currentState === "ACTIVE" ? "Active Float Plan" : "Draft Float Plan";
-      var title = currentGroup.floatPlanName
-        ? (titlePrefix + ": " + currentGroup.floatPlanName)
-        : titlePrefix;
-      var meta = currentGroup.currentState === "ACTIVE"
-        ? "This route is the one current active route/float-plan group."
-        : "Saved in draft state. Send this float plan to activate the route.";
+      var title = currentGroup.floatPlanName || (currentGroup.currentState === "ACTIVE" ? "Active float plan" : "Draft float plan");
+      if (currentGroup.currentState === "ACTIVE") {
+        return buildActiveRouteReadiness(route, currentGroup, pct);
+      }
       return ""
-        + '<div class="expedition-route-current-group" data-plan-id="' + currentGroup.floatPlanId + '" data-plan-status="' + escapeHtml(currentGroup.status) + '" data-current-state="' + escapeHtml(currentGroup.currentState) + '">'
-        + '  <div class="expedition-route-current-group-main">'
-        + '    <div>'
-        + '      <div class="expedition-route-current-group-title">' + escapeHtml(title) + '</div>'
-        + '      <div class="expedition-route-current-group-meta">' + escapeHtml(meta) + '</div>'
-        + '    </div>'
-        + '    <div class="expedition-route-actions expedition-route-actions--child">'
-        + (currentGroup.currentState === "ACTIVE" ? '      <button type="button" class="btn-success js-expedition-plan-checkin" data-action="checkin" data-plan-id="' + currentGroup.floatPlanId + '">Check-In</button>' : '')
-        + (currentGroup.currentState === "ACTIVE" ? '      <button type="button" class="btn-secondary js-expedition-plan-cancel" data-action="cancel" data-plan-id="' + currentGroup.floatPlanId + '">Cancel</button>' : '')
-        + '      <button type="button" class="btn-secondary js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '">View &amp; Send</button>'
-        + '      <button type="button" class="btn-secondary js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '">Edit</button>'
-        + '    </div>'
-        + '  </div>'
+        + '<div class="fpw-route-floatplan-card" data-plan-id="' + currentGroup.floatPlanId + '" data-plan-status="' + escapeHtml(currentGroup.status) + '" data-current-state="' + escapeHtml(currentGroup.currentState) + '">'
+        + '  <div class="fpw-route-floatplan-label">Draft Float Plan Attached</div>'
+        + '  <h4>' + escapeHtml(title) + '</h4>'
+        + '  <p>Saved in draft state. Send this float plan to activate the route.</p>'
         + '</div>';
+    }
+
+    function buildRouteActions(currentGroup, currentState, showActiveCruiseAction, showTripPageAction, showActivateRouteAction) {
+      var actionContextOpen = "";
+      var actionContextClose = "";
+      var html = "";
+      if (currentGroup) {
+        actionContextOpen = '<div class="expedition-route-current-group fpw-route-action-context" data-plan-id="' + currentGroup.floatPlanId + '" data-plan-status="' + escapeHtml(currentGroup.status) + '" data-current-state="' + escapeHtml(currentGroup.currentState) + '">';
+        actionContextClose = '</div>';
+      }
+      html += '<div class="fpw-route-card__footer' + (currentState === "ACTIVE" ? ' fpw-route-card__footer--active' : '') + '">';
+      if (!currentGroup) {
+        html += '<p class="fpw-next-step"><span class="fpw-next-step__icon" aria-hidden="true">i</span><strong>Next step:</strong> <span>Activate this route to create and send a float plan.</span></p>';
+      }
+      html += actionContextOpen;
+      html += '<div class="expedition-route-actions fpw-route-actions' + (currentState === "ACTIVE" ? ' fpw-route-actions--active' : '') + '">';
+      if (currentState === "ACTIVE" && currentGroup) {
+        html += (showActiveCruiseAction ? '<button type="button" class="btn-primary js-expedition-active-cruise">Open Active Cruise</button>' : '');
+        html += '<button type="button" class="btn-secondary js-expedition-view-edit">View Route</button>';
+        html += (showTripPageAction ? '<button type="button" class="btn-secondary js-expedition-trip-page">Follow Page</button>' : '');
+        html += '<button type="button" class="btn-success js-expedition-plan-checkin" data-action="checkin" data-plan-id="' + currentGroup.floatPlanId + '">Check-In</button>';
+        html += '<button type="button" class="btn-danger js-expedition-plan-cancel" data-action="cancel" data-plan-id="' + currentGroup.floatPlanId + '">Cancel</button>';
+        html += '<button type="button" class="btn-secondary js-expedition-plan-edit fpw-route-action-resend" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '">Resend Float Plan</button>';
+      } else if (currentGroup) {
+        html += '<button type="button" class="btn-primary js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '">View &amp; Send</button>';
+        html += '<button type="button" class="btn-secondary js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '">Edit Float Plan</button>';
+        html += (showActivateRouteAction ? '<button type="button" class="btn-primary js-expedition-build-floatplans">Activate Route</button>' : '');
+        html += '<button type="button" class="btn-secondary js-expedition-view-edit">View / Edit Route</button>';
+        html += '<button type="button" class="btn-danger js-expedition-delete">Delete</button>';
+      } else {
+        html += (showActivateRouteAction ? '<button type="button" class="btn-primary js-expedition-build-floatplans">Activate Route</button>' : '');
+        html += '<button type="button" class="btn-secondary js-expedition-view-edit">View / Edit</button>';
+        html += '<button type="button" class="btn-danger js-expedition-delete">Delete</button>';
+      }
+      html += '</div>';
+      html += actionContextClose;
+      html += '</div>';
+      return html;
     }
 
     function renderRouteList(routes, activeCode, currentGroupPayload) {
@@ -2697,10 +3016,14 @@
         }
       }
       if (!list.length) {
+        dashboardSignals.routes.total = 0;
         routeListEl.innerHTML = "";
         if (routeEmptyEl) toggleHidden(routeEmptyEl, false);
+        refreshMissionSummary();
+        renderRecommendedNextSteps();
         return;
       }
+      dashboardSignals.routes.total = list.length;
       if (routeEmptyEl) toggleHidden(routeEmptyEl, true);
       var activeCruiseLinkRendered = false;
       var tripPageLinkRendered = false;
@@ -2722,9 +3045,11 @@
         if (currentState === "ACTIVE") {
           routeStateLabel = "Current active route/float-plan group";
         } else if (currentState === "DRAFT") {
-          routeStateLabel = "Current draft route/float-plan group";
+          routeStateLabel = "Draft Group";
         } else if (isRouteForActiveTrip) {
           routeStateLabel = "Used by active trip";
+        } else {
+          routeStateLabel = "Saved Route";
         }
         var routeInstanceId = route && route.ROUTE_INSTANCE_ID !== undefined && route.ROUTE_INSTANCE_ID !== null
           ? parseInt(route.ROUTE_INSTANCE_ID, 10)
@@ -2743,25 +3068,27 @@
         var currentFloatPlanAttr = currentRouteGroup
           ? ' data-current-floatplan-id="' + currentRouteGroup.floatPlanId + '"'
           : "";
+        var statusPillClass = currentState === "ACTIVE"
+          ? "fpw-status-pill-active"
+          : (currentState === "DRAFT" ? "fpw-status-pill-draft" : "fpw-status-pill-saved");
         return ''
-          + '<div class="expedition-route-card ' + (isRouteForActiveTrip ? 'is-active' : '') + '" data-route-code="' + escapeHtml(route.SHORT_CODE || "") + '"' + routeInstanceAttr + currentGroupStateAttr + currentFloatPlanAttr + '>'
-          + '  <div class="expedition-route-card-main">'
-          + '    <div>'
-          + '      <div class="expedition-route-name">' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</div>'
-          + (routeStateLabel ? '      <div class="small text-light opacity-75">' + escapeHtml(routeStateLabel) + '</div>' : '')
-          + '      <div class="expedition-route-meta">' + pct + '% complete • ' + formatNumber(nm, 1) + ' NM • ' + formatNumber(locks, 0) + ' locks</div>'
+          + '<div class="expedition-route-card fpw-route-card ' + (currentState === "ACTIVE" ? 'fpw-route-card--active ' : (currentState === "DRAFT" ? 'fpw-route-card--draft ' : 'fpw-route-card--saved ')) + (isRouteForActiveTrip ? 'is-active' : '') + '" data-route-code="' + escapeHtml(route.SHORT_CODE || "") + '"' + routeInstanceAttr + currentGroupStateAttr + currentFloatPlanAttr + '>'
+          + '  <div class="expedition-route-card-main fpw-route-card__main">'
+          + '    <div class="fpw-route-card__topline">'
+          + '      <div class="fpw-route-card__heading">'
+          + '        <h3 class="expedition-route-name fpw-route-card__name">' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</h3>'
+          + '        <p class="fpw-route-card__subtitle">' + escapeHtml(buildRouteSubtitle(route, currentRouteGroup)) + '</p>'
+          + '      </div>'
+          +        buildRouteStatusPills(currentState)
           + '    </div>'
-          + '    <div class="expedition-route-actions">'
-          + (showActiveCruiseAction ? '      <button type="button" class="btn-secondary js-expedition-active-cruise">Active Cruise</button>' : '')
-          + (showTripPageAction ? '      <button type="button" class="btn-secondary js-expedition-trip-page">Trip Page</button>' : '')
-          + (showActivateRouteAction ? '      <button type="button" class="btn-secondary js-expedition-build-floatplans">Activate Route</button>' : '')
-          + '      <button type="button" class="btn-secondary js-expedition-view-edit">View / Edit</button>'
-          + '      <button type="button" class="btn-secondary js-expedition-delete">Delete</button>'
-          + '    </div>'
+          +      buildRouteSummaryList(route, totals)
+          +      buildRouteActions(currentRouteGroup, currentState, showActiveCruiseAction, showTripPageAction, showActivateRouteAction)
           + '  </div>'
-          + buildCurrentGroupRow(route)
           + '</div>';
       }).join("");
+      refreshMissionSummary();
+      renderRecommendedNextSteps();
+      updateCurrentDraftActionButtons();
     }
 
     function renderTimeline(data) {

@@ -1000,6 +1000,7 @@
                     "DESCRIPTION"=(isNull(qRoutes.description[i]) ? "" : qRoutes.description[i]),
                     "ROUTE_INSTANCE_ID"=routeInstanceIdVal,
                     "TOTALS"=timeline.TOTALS,
+                    "ROUTE_ENDPOINTS"=(structKeyExists(timeline, "ROUTE_ENDPOINTS") AND isStruct(timeline.ROUTE_ENDPOINTS) ? timeline.ROUTE_ENDPOINTS : {"START_LABEL"="", "END_LABEL"=""}),
                     "HAS_CURRENT_GROUP"=(structCount(currentRouteGroup) GT 0),
                     "CURRENT_GROUP"=currentRouteGroup
                 });
@@ -3920,6 +3921,28 @@
         <cfset var totalLocks = 0 />
         <cfset var completedNm = 0.0 />
         <cfset var completedLocks = 0 />
+        <cfset var dashboardRouteSummaryLegs = [] />
+        <cfset var dashboardRouteSegmentCount = 0 />
+        <cfset var dashboardRouteWaypointCount = 0 />
+        <cfset var dashboardRouteInputs = {} />
+        <cfset var dashboardRouteInputJson = queryNew("") />
+        <cfset var dashboardRoutePace = "RELAXED" />
+        <cfset var dashboardRoutePaceDefaults = {} />
+        <cfset var dashboardRoutePerformance = {} />
+        <cfset var dashboardRouteTotals = {} />
+        <cfset var dashboardRouteUnderwayHours = 0 />
+        <cfset var dashboardRouteWeatherPct = 0 />
+        <cfset var dashboardRouteIdleBurnGph = 0 />
+        <cfset var dashboardRouteIdleHours = 0 />
+        <cfset var dashboardRouteReservePct = 0 />
+        <cfset var dashboardRouteFuelPrice = 0 />
+        <cfset var dashboardRouteVessels = [] />
+        <cfset var dashboardRouteVesselIndex = 0 />
+        <cfset var dashboardRouteHasDefaultVessel = false />
+        <cfset var dashboardRouteFuelLabel = "Requires default vessel" />
+        <cfset var dashboardRouteFuelGallons = 0 />
+        <cfset var dashboardRouteStartLabel = "" />
+        <cfset var dashboardRouteEndLabel = "" />
 
         <cfset var i = 0 />
         <cfloop query="qSections">
@@ -3974,6 +3997,19 @@
 
             <cfset totalNm = totalNm + val(qSegments.dist_nm) />
             <cfset totalLocks = totalLocks + val(qSegments.lock_count) />
+            <cfset dashboardRouteSegmentCount = dashboardRouteSegmentCount + 1 />
+            <cfif NOT len(dashboardRouteStartLabel) AND NOT isNull(qSegments.start_name) AND len(trim(toString(qSegments.start_name)))>
+                <cfset dashboardRouteStartLabel = trim(toString(qSegments.start_name)) />
+            </cfif>
+            <cfif NOT isNull(qSegments.end_name) AND len(trim(toString(qSegments.end_name)))>
+                <cfset dashboardRouteEndLabel = trim(toString(qSegments.end_name)) />
+            </cfif>
+            <cfset arrayAppend(dashboardRouteSummaryLegs, {
+                "DIST_NM"=val(qSegments.dist_nm),
+                "LOCK_COUNT"=val(qSegments.lock_count),
+                "LOCK_TIME_MIN_TOTAL"=0,
+                "IS_OFFSHORE"=false
+            }) />
             <cfset sections[idx].TOTALS.NM = sections[idx].TOTALS.NM + val(qSegments.dist_nm) />
             <cfset sections[idx].TOTALS.LOCKS = sections[idx].TOTALS.LOCKS + val(qSegments.lock_count) />
 
@@ -4010,12 +4046,97 @@
             </cfif>
         </cfif>
 
+        <cfset dashboardRouteWaypointCount = (dashboardRouteSegmentCount GT 0 ? dashboardRouteSegmentCount + 1 : 0) />
+        <cfif routeInstanceIdVal GT 0 AND routegenHasInputsJsonColumn()>
+            <cfset dashboardRouteInputJson = queryExecute(
+                "SELECT routegen_inputs_json
+                 FROM route_instances
+                 WHERE id = :routeInstanceId
+                   AND user_id = :uid
+                 LIMIT 1",
+                {
+                    routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" },
+                    uid = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
+                },
+                { datasource = application.dsn }
+            ) />
+            <cfif dashboardRouteInputJson.recordCount GT 0 AND NOT isNull(dashboardRouteInputJson.routegen_inputs_json[1])>
+                <cfset dashboardRouteInputs = routegenParseStoredInputs(dashboardRouteInputJson.routegen_inputs_json[1]) />
+            </cfif>
+        </cfif>
+        <cfset dashboardRouteInputs = routegenMergeVesselDefaults(arguments.userId, dashboardRouteInputs) />
+        <cfset dashboardRoutePace = routegenNormalizePace(structKeyExists(dashboardRouteInputs, "pace") ? dashboardRouteInputs.pace : "RELAXED") />
+        <cfset dashboardRoutePaceDefaults = routegenPaceDefaults(dashboardRoutePace) />
+        <cfset dashboardRoutePerformance = routegenResolvePerformanceModel(dashboardRouteInputs, dashboardRoutePace) />
+        <cfset dashboardRouteUnderwayHours = routegenNormalizeUnderwayHours(
+            structKeyExists(dashboardRouteInputs, "underway_hours_per_day") ? dashboardRouteInputs.underway_hours_per_day : ""
+        ) />
+        <cfset dashboardRouteWeatherPct = routegenNormalizeWeatherFactorPct(
+            structKeyExists(dashboardRouteInputs, "weather_factor_pct")
+                ? dashboardRouteInputs.weather_factor_pct
+                : (structKeyExists(dashboardRouteInputs, "weather_factor") ? dashboardRouteInputs.weather_factor : "")
+        ) />
+        <cfset dashboardRouteIdleBurnGph = routegenNormalizeFuelBurnGph(
+            structKeyExists(dashboardRouteInputs, "idle_burn_gph") ? dashboardRouteInputs.idle_burn_gph : ""
+        ) />
+        <cfset dashboardRouteIdleHours = routegenNormalizeIdleHoursTotal(
+            structKeyExists(dashboardRouteInputs, "idle_hours_total") ? dashboardRouteInputs.idle_hours_total : ""
+        ) />
+        <cfset dashboardRouteReservePct = routegenNormalizeReservePct(
+            structKeyExists(dashboardRouteInputs, "reserve_pct") ? dashboardRouteInputs.reserve_pct : "",
+            33
+        ) />
+        <cfset dashboardRouteFuelPrice = routegenNormalizeFuelPricePerGal(
+            structKeyExists(dashboardRouteInputs, "fuel_price_per_gal") ? dashboardRouteInputs.fuel_price_per_gal : ""
+        ) />
+        <cfset dashboardRouteTotals = routegenComputeTotals(
+            legs = dashboardRouteSummaryLegs,
+            cruisingSpeed = dashboardRoutePerformance.effective_speed_kn,
+            underwayHoursPerDay = dashboardRouteUnderwayHours,
+            fuelBurnGph = dashboardRoutePerformance.fuel_burn_gph,
+            maxBurnForEstimate = dashboardRoutePerformance.max_burn_for_estimate,
+            allowAnchoredBurn = routegenCanUseAnchoredBurn(dashboardRoutePerformance),
+            idleBurnGph = dashboardRouteIdleBurnGph,
+            idleHoursTotal = dashboardRouteIdleHours,
+            reservePct = dashboardRouteReservePct,
+            fuelPricePerGal = dashboardRouteFuelPrice,
+            maxSpeedKnots = dashboardRoutePerformance.max_speed_kn,
+            mostEfficientSpeedKn = dashboardRoutePerformance.most_efficient_speed_kn,
+            mostEfficientBurnGph = dashboardRoutePerformance.most_efficient_burn_gph,
+            pace = dashboardRoutePace,
+            weatherPct = dashboardRouteWeatherPct
+        ) />
+        <cfset dashboardRouteVessels = routegenLoadAvailableVessels(arguments.userId) />
+        <cfloop from="1" to="#arrayLen(dashboardRouteVessels)#" index="dashboardRouteVesselIndex">
+            <cfif val(dashboardRouteVessels[dashboardRouteVesselIndex].is_default) GT 0>
+                <cfset dashboardRouteHasDefaultVessel = true />
+                <cfbreak />
+            </cfif>
+        </cfloop>
+        <cfif dashboardRouteHasDefaultVessel AND structKeyExists(dashboardRouteTotals, "REQUIRED_FUEL_GALLONS") AND val(dashboardRouteTotals.REQUIRED_FUEL_GALLONS) GT 0>
+            <cfset dashboardRouteFuelGallons = roundTo2(dashboardRouteTotals.REQUIRED_FUEL_GALLONS) />
+            <cfset dashboardRouteFuelLabel = toString(dashboardRouteFuelGallons) & " gal" />
+        <cfelseif dashboardRouteHasDefaultVessel>
+            <cfset dashboardRouteFuelLabel = "Fuel estimate unavailable" />
+        </cfif>
+
         <cfset resp.TOTALS = {
             "TOTAL_NM"=roundTo2(totalNm),
             "TOTAL_LOCKS"=totalLocks,
             "COMPLETED_NM"=roundTo2(completedNm),
             "COMPLETED_LOCKS"=completedLocks,
-            "PCT_COMPLETE"=(totalNm GT 0 ? round((completedNm/totalNm)*100) : 0)
+            "PCT_COMPLETE"=(totalNm GT 0 ? round((completedNm/totalNm)*100) : 0),
+            "SEGMENT_COUNT"=dashboardRouteSegmentCount,
+            "WAYPOINT_COUNT"=dashboardRouteWaypointCount,
+            "ESTIMATED_HOURS"=(structKeyExists(dashboardRouteTotals, "TOTAL_HOURS") ? roundTo2(dashboardRouteTotals.TOTAL_HOURS) : 0),
+            "ESTIMATED_TIME_HOURS"=(structKeyExists(dashboardRouteTotals, "TOTAL_HOURS") ? roundTo2(dashboardRouteTotals.TOTAL_HOURS) : 0),
+            "HAS_DEFAULT_VESSEL"=dashboardRouteHasDefaultVessel,
+            "FUEL_ESTIMATE_GALLONS"=dashboardRouteFuelGallons,
+            "FUEL_ESTIMATE_LABEL"=dashboardRouteFuelLabel
+        } />
+        <cfset resp.ROUTE_ENDPOINTS = {
+            "START_LABEL"=dashboardRouteStartLabel,
+            "END_LABEL"=dashboardRouteEndLabel
         } />
         <cfset resp.SECTIONS = filteredSections />
         <cfreturn resp />
@@ -12330,3 +12451,11 @@
     </cffunction>
 
 </cfcomponent>
+
+
+
+
+
+
+
+

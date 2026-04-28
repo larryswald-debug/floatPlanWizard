@@ -75,12 +75,16 @@
       if (email) metaParts.push("Email: " + email);
       if (!metaParts.length) metaParts.push("Phone: N/A");
       var metaText = metaParts.join(" • ");
+      var initials = nameText.split(/\s+/).filter(Boolean).map(function (part) {
+        return part.charAt(0);
+      }).join("").slice(0, 2).toUpperCase() || "C";
 
       return (
-        '<div class="list-item">' +
-          '<div class="list-main">' +
+        '<div class="list-item fpw-manage-item fpw-contact-item">' +
+          '<div class="fpw-contact-avatar" aria-hidden="true">' + utils.escapeHtml(initials) + "</div>" +
+          '<div class="list-main fpw-manage-item-copy">' +
             '<div class="list-title">' + utils.escapeHtml(nameText) + "</div>" +
-            "<small>" + utils.escapeHtml(metaText) + "</small>" +
+            '<small class="list-meta-line">' + utils.escapeHtml(metaText) + "</small>" +
           "</div>" +
           '<div class="list-actions">' +
             '<button class="btn-secondary" type="button" id="contact-edit-' + utils.escapeHtml(contactId) + '" data-action="edit" data-contact-id="' + utils.escapeHtml(contactId) + '">Edit</button>' +
