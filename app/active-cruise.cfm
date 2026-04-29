@@ -3231,6 +3231,7 @@
 
     .stack { display: grid; gap: 18px; }
 
+    .hero > .stack:first-child,
     .hero > .stack:last-child {
       align-self: start;
     }
@@ -4139,6 +4140,7 @@
               <span>ETA</span>
               <strong data-fpw-field="hero.eta"><cfoutput>#encodeForHtml(activeCruiseView.heroEta)#</cfoutput></strong>
               <small data-fpw-field="hero.etaMeta"><cfoutput>#encodeForHtml(activeCruiseView.heroEtaMeta)#</cfoutput></small>
+              <small data-fpw-field="hero.etaScheduleMeta"></small>
             </div>
 	          </div>
 
@@ -4241,7 +4243,7 @@
                 <h2>Route Plan &amp; Progress</h2>
                 <p>Complete active-route overview with display-only timing estimates from the current page data.</p>
               </div>
-              <div class="badge badge-accent">Captain View</div>
+              <!--- Badge removed by approved scope. --->
             </div>
 
             <div class="leg-grid">
@@ -4384,77 +4386,14 @@
                   <div class="data-item">
                     <span>Arrival</span>
                     <strong data-fpw-field="leg.arrival"><cfoutput>#encodeForHtml(activeCruiseView.legArrival)#</cfoutput></strong>
-                    <small>Based on current conditions</small>
+                    <small data-fpw-field="leg.arrivalMeta">Based on current conditions</small>
+                    <small data-fpw-field="leg.arrivalScheduleMeta"></small>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="panel section-card">
-            <div class="section-top">
-              <div>
-                <h2>Route Timeline & Current Notes</h2>
-                <p>This section acts as the active voyage log. It gives the member a clean operational history for the current day and makes it easy to see what happened, what changed, and what needs attention next.</p>
-              </div>
-              <div class="badge badge-good">Operational Log</div>
-            </div>
-
-            <div class="leg-grid">
-              <div class="timeline-box">
-                <div class="mini-head" style="margin-bottom:16px;">
-                  <h3>Today’s Timeline</h3>
-                  <span>Chronological</span>
-                </div>
-                <div class="timeline">
-	                  <cfoutput>
-	                    <cfloop array="#activeCruiseTimelineItems#" index="timelineItem">
-	                      <div class="timeline-row">
-	                        <div class="timeline-time"<cfif structKeyExists(timelineItem, "timeUtc") AND len(trim(toString(timelineItem.timeUtc)))> data-time-utc="#encodeForHtmlAttribute(toString(timelineItem.timeUtc))#"</cfif>>#encodeForHtml(toString(timelineItem.time))#</div>
-	                        <div class="timeline-node"></div>
-	                        <div class="timeline-copy">
-	                          <b>#encodeForHtml(toString(timelineItem.title))#</b>
-	                          <cfif len(trim(toString(timelineItem.detail)))>
-	                            <span>#encodeForHtml(toString(timelineItem.detail))#</span>
-                          </cfif>
-                        </div>
-                      </div>
-                    </cfloop>
-                  </cfoutput>
-                </div>
-              </div>
-
-              <div class="log-box">
-                <div class="mini-head" style="margin-bottom:16px;">
-                  <h3>Quick Notes</h3>
-                  <span>Editable</span>
-                </div>
-                <div class="log-list">
-                  <div class="log-row">
-                    <div>
-                      <b>Approach marina before evening wind shift</b>
-                      <span>Best arrival window appears before 5 PM.</span>
-                    </div>
-                    <div class="action-mini">Priority</div>
-                  </div>
-                  <div class="log-row">
-                    <div>
-                      <b>Call marina on final approach</b>
-                      <span>Slip confirmation and dockside instructions.</span>
-                    </div>
-                    <div class="action-mini">Docking</div>
-                  </div>
-                  <div class="log-row">
-                    <div>
-                      <b>Fuel available after arrival</b>
-                      <span>Optional top-off for tomorrow’s departure leg.</span>
-                    </div>
-                    <div class="action-mini">Fuel</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
 	        </div>
 
 		        <div class="stack">
@@ -4568,6 +4507,71 @@
           </div>
 
           <!--- Attached Float Plan card removed by approved scope. --->
+
+          <div class="panel section-card">
+            <div class="section-top">
+              <div>
+                <h2>Route Timeline & Current Notes</h2>
+                <p>This section acts as the active voyage log. It gives the member a clean operational history for the current day and makes it easy to see what happened, what changed, and what needs attention next.</p>
+              </div>
+              <!--- Badge removed by approved scope. --->
+            </div>
+
+            <div class="stack">
+              <div class="timeline-box">
+                <div class="mini-head" style="margin-bottom:16px;">
+                  <h3>Today’s Timeline</h3>
+                  <span>Chronological</span>
+                </div>
+                <div class="timeline">
+	                  <cfoutput>
+	                    <cfloop array="#activeCruiseTimelineItems#" index="timelineItem">
+	                      <div class="timeline-row">
+	                        <div class="timeline-time"<cfif structKeyExists(timelineItem, "timeUtc") AND len(trim(toString(timelineItem.timeUtc)))> data-time-utc="#encodeForHtmlAttribute(toString(timelineItem.timeUtc))#"</cfif>>#encodeForHtml(toString(timelineItem.time))#</div>
+	                        <div class="timeline-node"></div>
+	                        <div class="timeline-copy">
+	                          <b>#encodeForHtml(toString(timelineItem.title))#</b>
+	                          <cfif len(trim(toString(timelineItem.detail)))>
+	                            <span>#encodeForHtml(toString(timelineItem.detail))#</span>
+                          </cfif>
+                        </div>
+                      </div>
+                    </cfloop>
+                  </cfoutput>
+                </div>
+              </div>
+
+              <div class="log-box">
+                <div class="mini-head" style="margin-bottom:16px;">
+                  <h3>Quick Notes</h3>
+                  <span>Editable</span>
+                </div>
+                <div class="log-list">
+                  <div class="log-row">
+                    <div>
+                      <b>Approach marina before evening wind shift</b>
+                      <span>Best arrival window appears before 5 PM.</span>
+                    </div>
+                    <div class="action-mini">Priority</div>
+                  </div>
+                  <div class="log-row">
+                    <div>
+                      <b>Call marina on final approach</b>
+                      <span>Slip confirmation and dockside instructions.</span>
+                    </div>
+                    <div class="action-mini">Docking</div>
+                  </div>
+                  <div class="log-row">
+                    <div>
+                      <b>Fuel available after arrival</b>
+                      <span>Optional top-off for tomorrow’s departure leg.</span>
+                    </div>
+                    <div class="action-mini">Fuel</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <section class="panel active-cruise-reference-card fpw-contact-reference-card" aria-labelledby="crew-emergency-title">
             <div class="reference-card-header">
@@ -4870,6 +4874,8 @@
       var experimentalLegHelperEl = document.getElementById("fpwExperimentalLegHelper");
       var experimentalLegDisclaimerEl = document.getElementById("fpwExperimentalLegDisclaimer");
       var heroEtaEl = document.querySelector('[data-fpw-field="hero.eta"]');
+      var heroEtaMetaEl = document.querySelector('[data-fpw-field="hero.etaMeta"]');
+      var heroEtaScheduleMetaEl = document.querySelector('[data-fpw-field="hero.etaScheduleMeta"]');
       var heroTripStartEl = document.querySelector('[data-fpw-field="hero.tripStart"]');
       var heroLastCheckInEl = document.querySelector('[data-fpw-field="hero.lastCheckIn"]');
       var floatPlanLastCheckInEl = document.querySelector('[data-fpw-field="floatPlan.lastCheckIn"]');
@@ -4880,6 +4886,8 @@
       var manualDelayAddBtn = document.getElementById("fpwManualDelayAddBtn");
       var manualDelayClearBtn = document.getElementById("fpwManualDelayClearBtn");
       var legArrivalEl = document.querySelector('[data-fpw-field="leg.arrival"]');
+      var legArrivalMetaEl = document.querySelector('[data-fpw-field="leg.arrivalMeta"]');
+      var legArrivalScheduleMetaEl = document.querySelector('[data-fpw-field="leg.arrivalScheduleMeta"]');
       var routeStop4StampEl = document.querySelector('[data-fpw-field="leg.routeStop4Stamp"]');
       var routePlanTimelineEl = document.getElementById("fpwRoutePlanTimeline");
       var routePlanJumpCurrentBtn = document.getElementById("fpwRoutePlanJumpCurrentBtn");
@@ -5265,6 +5273,93 @@
         });
       }
 
+      function getRoutePlanMinuteTime(dateValue) {
+        var copy = null;
+        if (!(dateValue instanceof Date) || Number.isNaN(dateValue.getTime())) {
+          return null;
+        }
+        copy = new Date(dateValue.getTime());
+        copy.setSeconds(0, 0);
+        return copy.getTime();
+      }
+
+      function formatRoutePlanEtaValue(dateValue) {
+        if (!(dateValue instanceof Date) || Number.isNaN(dateValue.getTime())) {
+          return "";
+        }
+        return formatHeroEtaLabel(dateValue.toISOString());
+      }
+
+      function formatRoutePlanArrivalValue(dateValue) {
+        if (!(dateValue instanceof Date) || Number.isNaN(dateValue.getTime())) {
+          return "";
+        }
+        return formatTimelineLocalTime(dateValue.toISOString());
+      }
+
+      function formatRoutePlanVarianceDuration(totalMinutes) {
+        var minutes = Math.max(0, Math.floor(Math.abs(Number(totalMinutes) || 0)));
+        var hours = Math.floor(minutes / 60);
+        var remainingMinutes = minutes % 60;
+        if (hours <= 0) {
+          return String(minutes) + " min";
+        }
+        if (remainingMinutes === 0) {
+          return String(hours) + "h";
+        }
+        return String(hours) + "h " + String(remainingMinutes) + "m";
+      }
+
+      function buildRoutePlanScheduleVariance(adjustedDate, plannedDate) {
+        var adjustedMinute = getRoutePlanMinuteTime(adjustedDate);
+        var plannedMinute = getRoutePlanMinuteTime(plannedDate);
+        var diffMinutes = 0;
+        var durationLabel = "";
+
+        if (adjustedMinute === null || plannedMinute === null) {
+          return { hero: "", leg: "" };
+        }
+
+        diffMinutes = Math.round((adjustedMinute - plannedMinute) / 60000);
+        if (Math.abs(diffMinutes) <= 5) {
+          return { hero: "Aligned with latest route plan", leg: "Aligned with latest route plan" };
+        }
+
+        durationLabel = formatRoutePlanVarianceDuration(diffMinutes);
+        if (diffMinutes > 0) {
+          return { hero: durationLabel + " later than latest route plan", leg: durationLabel + " later than latest route plan" };
+        }
+        return { hero: durationLabel + " earlier than latest route plan", leg: durationLabel + " earlier than latest route plan" };
+      }
+
+      function updateRoutePlanEtaCards(adjustedDate, plannedDate) {
+        var heroValue = formatRoutePlanEtaValue(adjustedDate);
+        var legValue = formatRoutePlanArrivalValue(adjustedDate);
+        var varianceLabels = buildRoutePlanScheduleVariance(adjustedDate, plannedDate);
+
+        if (!heroValue || !legValue) {
+          return;
+        }
+        if (heroEtaEl) {
+          heroEtaEl.textContent = heroValue;
+        }
+        if (heroEtaMetaEl) {
+          heroEtaMetaEl.textContent = "Adjusted active leg ETA";
+        }
+        if (heroEtaScheduleMetaEl) {
+          heroEtaScheduleMetaEl.textContent = varianceLabels.hero;
+        }
+        if (legArrivalEl) {
+          legArrivalEl.textContent = legValue;
+        }
+        if (legArrivalMetaEl) {
+          legArrivalMetaEl.textContent = "From route timeline";
+        }
+        if (legArrivalScheduleMetaEl) {
+          legArrivalScheduleMetaEl.textContent = varianceLabels.leg;
+        }
+      }
+
       function parseRoutePlanDate(value) {
         var raw = String(value || "").trim();
         var date = raw ? new Date(raw) : null;
@@ -5320,6 +5415,8 @@
         var hasActualAnchor = false;
         var delayApplied = false;
         var finalDate = parseRoutePlanDate(routePlanModel.summary && routePlanModel.summary.finalArrivalIso);
+        var currentLegAdjustedArrivalDate = null;
+        var currentLegPlannedArrivalDate = null;
 
         if (baseSpeed > 0 && (effectiveSpeed <= 0 || previewWeatherChanged)) {
           effectiveSpeed = baseSpeed * Math.max(0.05, (100 - weatherPct) / 100);
@@ -5399,6 +5496,8 @@
             arrivalLabel = "Adjusted ETA";
             adjustedAnchorDate = arrivalDate;
             hasActualAnchor = true;
+            currentLegAdjustedArrivalDate = arrivalDate;
+            currentLegPlannedArrivalDate = plannedArrivalDate;
           } else if (hasActualAnchor && adjustedAnchorDate) {
             departureDate = adjustedAnchorDate;
             departureSource = "adjusted_chain";
@@ -5443,6 +5542,8 @@
         document.querySelectorAll('[data-route-plan-summary="finalArrival"], [data-route-plan-summary="finalArrivalFooter"]').forEach(function (summaryNode) {
           summaryNode.textContent = formatRoutePlanDate(finalDate);
         });
+
+        updateRoutePlanEtaCards(currentLegAdjustedArrivalDate, currentLegPlannedArrivalDate);
 
         if (routePlanPreviewNoteEl) {
           routePlanPreviewNoteEl.textContent = changedByVisibleInputs
@@ -6909,28 +7010,3 @@
   </cfif>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

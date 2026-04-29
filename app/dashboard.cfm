@@ -135,31 +135,31 @@
                     <a class="fpw-setup-tile" href="#vesselsPanel">
                         <span class="fpw-setup-icon fpw-setup-icon-vessels" aria-hidden="true"></span>
                         <span class="fpw-setup-title">Vessels</span>
-                        <span class="fpw-setup-value-row"><span class="fpw-setup-value" id="setupMetricVessels">0</span><span class="fpw-setup-badge">saved</span></span>
+                        <span class="fpw-setup-value-row"><span class="fpw-setup-value" id="setupMetricVessels">0</span></span>
                         <span class="fpw-setup-copy">Manage your saved vessels</span>
                     </a>
                     <a class="fpw-setup-tile" href="#contactsPanel">
                         <span class="fpw-setup-icon fpw-setup-icon-contacts" aria-hidden="true"></span>
                         <span class="fpw-setup-title">Contacts</span>
-                        <span class="fpw-setup-value-row"><span class="fpw-setup-value" id="setupMetricContacts">0</span><span class="fpw-setup-badge">saved</span></span>
+                        <span class="fpw-setup-value-row"><span class="fpw-setup-value" id="setupMetricContacts">0</span></span>
                         <span class="fpw-setup-copy">Your trip contacts &amp; groups</span>
                     </a>
                     <a class="fpw-setup-tile" href="#passengersPanel">
                         <span class="fpw-setup-icon fpw-setup-icon-crew" aria-hidden="true"></span>
                         <span class="fpw-setup-title">Crew</span>
-                        <span class="fpw-setup-value-row"><span class="fpw-setup-value" id="setupMetricPassengers">0</span><span class="fpw-setup-badge">saved</span></span>
+                        <span class="fpw-setup-value-row"><span class="fpw-setup-value" id="setupMetricPassengers">0</span></span>
                         <span class="fpw-setup-copy">Crew members on file</span>
                     </a>
                     <a class="fpw-setup-tile" href="#operatorsPanel">
                         <span class="fpw-setup-icon fpw-setup-icon-operators" aria-hidden="true"></span>
                         <span class="fpw-setup-title">Operators</span>
-                        <span class="fpw-setup-value-row"><span class="fpw-setup-value" id="setupMetricOperators">0</span><span class="fpw-setup-badge">saved</span></span>
+                        <span class="fpw-setup-value-row"><span class="fpw-setup-value" id="setupMetricOperators">0</span></span>
                         <span class="fpw-setup-copy">Designated boat operators</span>
                     </a>
                     <a class="fpw-setup-tile" href="#waypointsPanel">
                         <span class="fpw-setup-icon fpw-setup-icon-waypoints" aria-hidden="true"></span>
                         <span class="fpw-setup-title">Waypoints</span>
-                        <span class="fpw-setup-value-row"><span class="fpw-setup-value" id="setupMetricWaypoints">0</span><span class="fpw-setup-badge">saved</span></span>
+                        <span class="fpw-setup-value-row"><span class="fpw-setup-value" id="setupMetricWaypoints">0</span></span>
                         <span class="fpw-setup-copy">Saved locations &amp; markers</span>
                     </a>
                 </div>
@@ -1068,12 +1068,3 @@
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
