@@ -9,7 +9,7 @@
     <cfinclude template="../includes/header_styles.cfm">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260427j">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260428-square-panels-a">
 </head>
 <body class="dashboard-body" data-fpw-page="dashboard">
 
@@ -55,65 +55,33 @@
     <main class="fpw-dashboard-main dashboard-main">
         <div id="dashboardAlert" class="alert d-none" role="alert"></div>
 
-        <header class="fpw-dashboard-header">
-            <div class="fpw-dashboard-header-title-wrap">
-                <h1 class="fpw-dashboard-title" id="missionSummaryTitle">MISSION CONTROL</h1>
-                <span class="fpw-dashboard-title-accent" aria-hidden="true"></span>
-            </div>
-            <small id="missionSummaryUpdatedAt" class="fpw-dashboard-updated">Updated just now</small>
-        </header>
-
-        <section class="dashboard-card panel-floatlike mission-summary-panel fpw-dashboard-hero" id="missionSummaryPanel" aria-labelledby="missionSummaryTitle">
-            <div class="fpw-dashboard-hero-visual" aria-hidden="true">
-                <div class="fpw-dashboard-radar">
-                    <span class="fpw-dashboard-radar-ring"></span>
-                    <span class="fpw-dashboard-radar-boat"></span>
+        <section class="dashboard-card panel-floatlike mission-summary-panel fpw-planning-context-panel" id="missionSummaryPanel" aria-label="Dashboard planning context">
+            <article class="fpw-planning-context-block fpw-planning-context-block--home">
+                <span class="fpw-planning-context-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M12 21s7-6.1 7-12a7 7 0 0 0-14 0c0 5.9 7 12 7 12z"></path><circle cx="12" cy="9" r="2.5"></circle></svg></span>
+                <div class="fpw-planning-context-copy">
+                    <div class="fpw-planning-context-label">HOME PORT</div>
+                    <div class="fpw-planning-context-value" id="planningHomePortValue">No Home Port</div>
+                    <div class="fpw-planning-context-meta d-none" id="planningHomePortMeta"></div>
                 </div>
-            </div>
+            </article>
 
-            <div class="fpw-dashboard-hero-copy">
-                <h2 id="missionRouteValue">No Active Trip</h2>
-                <p id="missionRouteMeta">Your routes, float plans, and trip setup are ready.</p>
-                <p id="missionHeroSupportText">Start a route or send your draft float plan when you're ready to get underway.</p>
-
-                <div class="fpw-dashboard-hero-actions">
-                    <button type="button" class="btn-primary" id="dashboardHeroStartRouteBtn" data-quick-action="generate-route">Start Route</button>
-                    <button type="button" class="btn-secondary d-none" id="dashboardHeroDraftPlanBtn" data-current-draft-action="view-send">View Draft Float Plan</button>
+            <article class="fpw-planning-context-block fpw-planning-context-block--vessel">
+                <span class="fpw-planning-context-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M3 16h18l-2.2 4H5.2L3 16z"></path><path d="M7 16V9h7l3 7"></path><path d="M9 12h4"></path></svg></span>
+                <div class="fpw-planning-context-copy">
+                    <div class="fpw-planning-context-label">DEFAULT VESSEL</div>
+                    <div class="fpw-planning-context-value" id="planningDefaultVesselValue">Not set</div>
+                    <div class="fpw-planning-context-meta d-none" id="planningDefaultVesselMeta"></div>
                 </div>
-            </div>
+            </article>
 
-            <div class="mission-summary-grid fpw-dashboard-hero-stats">
-                <article class="mission-summary-tile fpw-stat-card">
-                    <div class="mission-summary-label">Routes</div>
-                    <span class="fpw-stat-icon fpw-stat-icon-routes" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="6" cy="7" r="2.3"></circle><circle cx="18" cy="5" r="2.3"></circle><circle cx="16" cy="18" r="2.3"></circle><path d="M8.3 6.6l7.4-1M7.8 8.7l6.5 7.1M6 9.5v5"></path><circle cx="6" cy="17" r="2.3"></circle></svg></span>
-                    <div class="mission-summary-value" id="missionProgressValue">0</div>
-                    <div class="mission-summary-meta" id="missionProgressMeta">saved</div>
-                </article>
-                <article class="mission-summary-tile fpw-stat-card">
-                    <div class="mission-summary-label">Float Plans</div>
-                    <span class="fpw-stat-icon fpw-stat-icon-floatplans" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><rect x="7" y="4" width="10" height="16" rx="1.8"></rect><path d="M9.5 4a2.5 2.5 0 0 1 5 0M9.5 9h5M9.5 13h5M9.5 17h3"></path></svg></span>
-                    <div class="mission-summary-value" id="missionFloatPlansValue">No plans</div>
-                    <div class="mission-summary-meta" id="missionFloatPlansMeta">0 total</div>
-                </article>
-                <article class="mission-summary-tile fpw-stat-card">
-                    <div class="mission-summary-label">Monitoring</div>
-                    <span class="fpw-stat-icon fpw-stat-icon-monitoring" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M6 17h12l-1.4-2V10a4.6 4.6 0 0 0-9.2 0v5z"></path><path d="M10 20h4M12 5V3"></path></svg></span>
-                    <div class="mission-summary-value" id="missionMonitoringValue">Loading...</div>
-                    <div class="mission-summary-meta" id="missionMonitoringMeta">Waiting for monitored plans</div>
-                </article>
-                <article class="mission-summary-tile fpw-stat-card">
-                    <div class="mission-summary-label">Weather</div>
-                    <span class="fpw-stat-icon fpw-stat-icon-weather" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M7 16.5H6a3 3 0 1 1 .8-5.9A4.8 4.8 0 0 1 16 12h1a2.5 2.5 0 0 1 0 5h-2"></path><path d="M12 16l-2 3h3l-2 3"></path></svg></span>
-                    <div class="mission-summary-value" id="missionWeatherValue">Idle</div>
-                    <div class="mission-summary-meta" id="missionWeatherMeta">Alerts: None</div>
-                </article>
-                <article class="mission-summary-tile fpw-stat-card">
-                    <div class="mission-summary-label">Setup</div>
-                    <span class="fpw-stat-icon fpw-stat-icon-setup" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="8" cy="8" r="3"></circle><path d="M3.5 19a4.5 4.5 0 0 1 9 0"></path><circle cx="16" cy="9" r="2.5"></circle><path d="M13.5 18.5a4.2 4.2 0 0 1 6.5.5"></path></svg></span>
-                    <div class="mission-summary-value" id="missionSetupValue">0 vessels</div>
-                    <div class="mission-summary-meta" id="missionSetupMeta">0 contacts</div>
-                </article>
-            </div>
+            <article class="fpw-planning-context-block fpw-planning-context-block--active-route">
+                <span class="fpw-planning-context-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="6" cy="7" r="2.3"></circle><circle cx="18" cy="5" r="2.3"></circle><circle cx="16" cy="18" r="2.3"></circle><path d="M8.3 6.6l7.4-1M7.8 8.7l6.5 7.1M6 9.5v5"></path><circle cx="6" cy="17" r="2.3"></circle></svg></span>
+                <div class="fpw-planning-context-copy">
+                    <div class="fpw-planning-context-label">ACTIVE ROUTE</div>
+                    <div class="fpw-planning-context-value" id="planningActiveRouteValue">0</div>
+                    <div class="fpw-planning-context-meta fpw-planning-context-status d-none" id="planningActiveRouteMeta"><span class="fpw-planning-context-dot" aria-hidden="true"></span>Active</div>
+                </div>
+            </article>
         </section>
 
         <section class="dashboard-card panel-floatlike next-steps-panel fpw-dashboard-next-step" id="recommendedNextStepsPanel" aria-labelledby="recommendedNextStepsTitle">
@@ -128,10 +96,11 @@
         <section class="dashboard-card panel-floatlike expedition-panel fpw-dashboard-section" id="expeditionTimelinePanel" aria-labelledby="expeditionTimelineTitle">
             <div class="card-header">
                 <div class="card-title">
-                    <h2 id="expeditionTimelineTitle">Routes &amp; Float Plans</h2>
+                    <h2 id="expeditionTimelineTitle">Routes</h2>
+                    <p class="fpw-routes-workspace-subtitle">Create and manage your saved boating routes.</p>
                 </div>
                 <div class="card-actions">
-                    <button type="button" class="btn-primary" id="openRouteBuilderBtn">+ Add Route</button>
+                    <button type="button" class="btn-primary" id="openRouteBuilderBtn">+ Create Route</button>
                 </div>
             </div>
             <div class="card-body fpw-dashboard-scroll-body">
@@ -148,7 +117,7 @@
 
                 <div id="expeditionTimelineBody" class="d-none">
                     <div id="expeditionRouteList" class="expedition-route-list mb-3"></div>
-                    <div id="expeditionRouteEmpty" class="expedition-state d-none mb-3">Click <strong>+ Add Route</strong> to create your first expedition route.</div>
+                    <div id="expeditionRouteEmpty" class="expedition-state d-none mb-3">Click <strong>+ Create Route</strong> to create your first expedition route.</div>
                     <div id="expeditionTimelineAccordion" class="expedition-route-overview"></div>
                 </div>
             </div>
@@ -1095,23 +1064,10 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260422b"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260427e"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260428-planning-context-a"></script>
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

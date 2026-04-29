@@ -41,6 +41,10 @@
     routeName: "No Active Trip",
     routeSummary: "Your routes, float plans, and trip setup are ready.",
     routeProgressPct: 0,
+    activeRoute: {
+      name: "",
+      isActive: false
+    },
     floatPlans: {
       active: 0,
       draft: 0,
@@ -159,150 +163,131 @@
 
   function collectMissionSummaryData() {
     return {
-      routes: {
-        total: dashboardSignals.routes ? dashboardSignals.routes.total : 0
-      },
-      route: {
-        name: dashboardSignals.routeName,
-        summary: dashboardSignals.routeSummary,
-        progressPct: dashboardSignals.routeProgressPct
-      },
-      floatPlans: {
-        active: dashboardSignals.floatPlans ? dashboardSignals.floatPlans.active : 0,
-        draft: dashboardSignals.floatPlans ? dashboardSignals.floatPlans.draft : 0,
-        total: dashboardSignals.floatPlans ? dashboardSignals.floatPlans.total : 0
-      },
-      monitoring: {
-        active: dashboardSignals.monitoring ? dashboardSignals.monitoring.active : 0,
-        overdue: dashboardSignals.monitoring ? dashboardSignals.monitoring.overdue : 0,
-        escalated: dashboardSignals.monitoring ? dashboardSignals.monitoring.escalated : 0,
-        loaded: dashboardSignals.monitoring ? dashboardSignals.monitoring.loaded : false,
-        message: dashboardSignals.monitoring ? dashboardSignals.monitoring.message : ""
-      },
-      weather: {
-        risk: dashboardSignals.weather ? dashboardSignals.weather.risk : "",
-        alertLabel: dashboardSignals.weather ? dashboardSignals.weather.alertLabel : ""
-      },
-      setup: {
-        vessels: dashboardSignals.setup ? dashboardSignals.setup.vessels : 0,
-        contacts: dashboardSignals.setup ? dashboardSignals.setup.contacts : 0,
-        waypoints: dashboardSignals.setup ? dashboardSignals.setup.waypoints : 0,
-        passengers: dashboardSignals.setup ? dashboardSignals.setup.passengers : 0,
-        operators: dashboardSignals.setup ? dashboardSignals.setup.operators : 0
-      }
+      user: state.currentUser || null,
+      vessels: (state.vesselState && Array.isArray(state.vesselState.all)) ? state.vesselState.all : [],
+      activeRoute: dashboardSignals.activeRoute || { name: "", isActive: false }
     };
+  }
+
+  function getPlanningNested(obj, path, fallback) {
+    return utils.getNested ? utils.getNested(obj, path, fallback) : fallback;
+  }
+
+  function getPlanningHomePort(user) {
+    var profile = getPlanningNested(user, ["PROFILE"], null) || getPlanningNested(user, ["profile"], null) || {};
+    return getPlanningNested(profile, ["HOMEPORT"], null)
+      || getPlanningNested(profile, ["homePort"], null)
+      || getPlanningNested(user, ["HOMEPORT"], null)
+      || getPlanningNested(user, ["homePort"], null)
+      || {};
+  }
+
+  function pickPlanningValue(source, keys) {
+    return utils.pick ? utils.pick(source, keys, "") : "";
+  }
+
+  function normalizePlanningValue(value, maxLength) {
+    return normalizeMissionText(value, "", maxLength || 0);
+  }
+
+  function formatPlanningNumber(value) {
+    var parsed = parseFloat(value);
+    if (!Number.isFinite(parsed)) {
+      return "";
+    }
+    return parsed.toFixed(1).replace(/\.0$/, "");
+  }
+
+  function buildHomePortPlanningContext(user) {
+    var homePort = getPlanningHomePort(user);
+    var address = normalizePlanningValue(pickPlanningValue(homePort, ["address", "ADDRESS"]), 42);
+    var city = normalizePlanningValue(pickPlanningValue(homePort, ["city", "CITY"]), 28);
+    var stateValue = normalizePlanningValue(pickPlanningValue(homePort, ["state", "STATE"]), 12);
+    var cityState = "";
+    var value = "";
+
+    if (city && stateValue) {
+      cityState = city + ", " + stateValue;
+    } else {
+      cityState = city || stateValue;
+    }
+
+    value = address || cityState || "No Home Port";
+
+    return {
+      value: value,
+      meta: address && cityState ? cityState : "",
+      hasMeta: !!(address && cityState)
+    };
+  }
+
+  function isPlanningDefaultVessel(vessel) {
+    var raw = pickPlanningValue(vessel, ["ISDEFAULTVESSEL", "isDefaultVessel"]);
+    return String(raw) === "1" || String(raw).toLowerCase() === "true";
+  }
+
+  function buildDefaultVesselPlanningContext(vessels) {
+    var vesselList = Array.isArray(vessels) ? vessels : [];
+    var defaultVessel = null;
+    var i = 0;
+    var name = "";
+    var cruiseSpeed = "";
+    var fuelBurn = "";
+    var meta = [];
+
+    for (i = 0; i < vesselList.length; i += 1) {
+      if (isPlanningDefaultVessel(vesselList[i])) {
+        defaultVessel = vesselList[i];
+        break;
+      }
+    }
+
+    if (!defaultVessel) {
+      return { value: "Not set", meta: "", hasMeta: false };
+    }
+
+    name = normalizePlanningValue(pickPlanningValue(defaultVessel, ["VESSELNAME", "vesselName", "name", "NAME"]), 42) || "Not set";
+    cruiseSpeed = formatPlanningNumber(pickPlanningValue(defaultVessel, ["MOST_EFFICIENT_SPEED_KN", "MOST_EFFICIENT_SPEED", "mostEfficientSpeed"]));
+    fuelBurn = formatPlanningNumber(pickPlanningValue(defaultVessel, ["GPH_AT_MOST_EFFICIENT_SPEED", "GALLONS_PER_HOUR", "gallonsPerHour"]));
+
+    if (cruiseSpeed) {
+      meta.push("Cruise: " + cruiseSpeed + " kn");
+    }
+    if (fuelBurn) {
+      meta.push("Fuel Burn: " + fuelBurn + " GPH");
+    }
+
+    return {
+      value: name,
+      meta: meta.join("   "),
+      hasMeta: meta.length > 0
+    };
+  }
+
+  function buildActiveRoutePlanningContext(activeRoute) {
+    var route = activeRoute || {};
+    var isActive = route.isActive === true;
+    var routeName = normalizePlanningValue(route.name, 56);
+
+    if (!isActive || !routeName) {
+      return { value: "0", meta: "", isActive: false };
+    }
+
+    return { value: routeName, meta: "Active", isActive: true };
   }
 
   function buildMissionSummaryModel(source, recomputedAt) {
     var payload = source || {};
-    var routes = payload.routes || {};
-    var route = payload.route || {};
-    var floatPlans = payload.floatPlans || {};
-    var monitoring = payload.monitoring || {};
-    var weather = payload.weather || {};
-    var setup = payload.setup || {};
-    var routeTotal = normalizeMissionCount(routes.total);
-    var routeName = normalizeMissionText(route.name, "", 56);
-    var routeSummary = normalizeMissionText(route.summary, "", 84);
-    var hasActiveTripRoute = !isMissionRouteUnavailable(routeName);
-    var routeProgress = parseFloat(route.progressPct);
-    var floatActive = normalizeMissionCount(floatPlans.active);
-    var floatDraft = normalizeMissionCount(floatPlans.draft);
-    var floatTotal = normalizeMissionCount(floatPlans.total);
-    var monitoringActive = normalizeMissionCount(monitoring.active);
-    var monitoringOverdue = normalizeMissionCount(monitoring.overdue);
-    var monitoringEscalated = normalizeMissionCount(monitoring.escalated);
-    var monitoringLoaded = monitoring.loaded === true;
-    var monitoringMessage = normalizeMissionText(monitoring.message, "No data", 84);
-    var weatherRisk = normalizeMissionText(weather.risk, "", 30);
-    var weatherAlerts = normalizeMissionText(weather.alertLabel, "None", 34);
-    var vessels = normalizeMissionCount(setup.vessels);
-    var contacts = normalizeMissionCount(setup.contacts);
-    var waypoints = normalizeMissionCount(setup.waypoints);
-    var crew = normalizeMissionCount(setup.passengers) + normalizeMissionCount(setup.operators);
     var summaryDate = (recomputedAt && !Number.isNaN(recomputedAt.getTime()))
       ? recomputedAt
       : (missionSummaryState.lastRecomputedAt || new Date());
-    var routeMeta = "No data";
-    var heroSupport = "Start a route or send your draft float plan when you are ready to get underway.";
-    var floatPlanValue = "0";
-    var floatPlanMeta = "draft";
-    var monitoringValue = "0";
-    var monitoringMeta = "overdue";
-
-    if (hasActiveTripRoute && !isMissionSummaryPlaceholder(routeSummary)) {
-      routeMeta = routeSummary;
-      heroSupport = "Dashboard status is using the current active trip data.";
-    } else if (hasActiveTripRoute) {
-      routeMeta = "Trip status is loaded from the current dashboard state.";
-      heroSupport = Number.isFinite(routeProgress) ? (Math.round(clamp(routeProgress, 0, 100)) + "% complete") : "No progress data.";
-    } else {
-      routeMeta = "Your routes, float plans, and trip setup are ready.";
-      heroSupport = "Start a route or send your draft float plan when you are ready to get underway.";
-    }
-
-    if (!weatherRisk || weatherRisk.toLowerCase() === "forecast unavailable.") {
-      weatherRisk = "Idle";
-    }
-
-    if (!weatherAlerts || weatherAlerts.toLowerCase() === "not available") {
-      weatherAlerts = "None";
-    }
-
-    if (floatDraft > 0) {
-      floatPlanValue = String(floatDraft);
-      floatPlanMeta = floatDraft === 1 ? "draft" : "drafts";
-    } else if (floatActive > 0) {
-      floatPlanValue = String(floatActive);
-      floatPlanMeta = floatActive === 1 ? "active" : "active";
-    } else if (floatTotal > 0) {
-      floatPlanValue = String(floatTotal);
-      floatPlanMeta = "total";
-    }
-
-    if (monitoringLoaded) {
-      monitoringValue = String(monitoringOverdue);
-      monitoringMeta = "overdue";
-      if (monitoringOverdue === 0 && monitoringActive > 0) {
-        monitoringValue = String(monitoringActive);
-        monitoringMeta = "active";
-      }
-    }
 
     return {
       updatedAtLabel: formatMissionSummaryUpdatedAt(summaryDate),
-      tiles: {
-        activeTrip: {
-          label: MISSION_SUMMARY_TILE_LABELS.activeTrip,
-          value: hasActiveTripRoute ? routeName : "No Active Trip",
-          meta: hasActiveTripRoute ? routeMeta : "Your routes, float plans, and trip setup are ready.",
-          support: hasActiveTripRoute ? heroSupport : "Start a route or send your draft float plan when you're ready to get underway."
-        },
-        routeProgress: {
-          label: "Routes",
-          value: String(routeTotal),
-          meta: "saved"
-        },
-        floatPlans: {
-          label: MISSION_SUMMARY_TILE_LABELS.floatPlans,
-          value: floatPlanValue,
-          meta: floatPlanMeta
-        },
-        monitoring: {
-          label: MISSION_SUMMARY_TILE_LABELS.monitoring,
-          value: monitoringLoaded ? monitoringValue : "0",
-          meta: monitoringLoaded ? monitoringMeta : normalizeMissionText(monitoringMessage, "overdue", 36)
-        },
-        weatherRisk: {
-          label: "Weather",
-          value: weatherRisk,
-          meta: "Alerts: " + weatherAlerts
-        },
-        setup: {
-          label: "Setup",
-          value: vessels + " " + (vessels === 1 ? "vessel" : "vessels"),
-          meta: contacts + " " + (contacts === 1 ? "contact" : "contacts")
-        }
+      context: {
+        homePort: buildHomePortPlanningContext(payload.user),
+        defaultVessel: buildDefaultVesselPlanningContext(payload.vessels),
+        activeRoute: buildActiveRoutePlanningContext(payload.activeRoute)
       }
     };
   }
@@ -326,30 +311,22 @@
     }
   }
 
+  function renderPlanningContextText(valueId, metaId, data, valueFallback) {
+    var metaEl = document.getElementById(metaId);
+    var item = data || {};
+    setText(valueId, normalizeMissionText(item.value, valueFallback || "", 64));
+    if (!metaEl) return;
+    metaEl.textContent = normalizeMissionText(item.meta, "", 96);
+    metaEl.classList.toggle("d-none", !(item.hasMeta || item.isActive));
+  }
+
   function renderMissionSummary(model) {
-    var summaryModel = model && model.tiles ? model : buildMissionSummaryModel(collectMissionSummaryData(), missionSummaryState.lastRecomputedAt || new Date());
-    var tiles = summaryModel.tiles || {};
-    var mapping = [
-      { key: "activeTrip", valueId: "missionRouteValue", metaId: "missionRouteMeta" },
-      { key: "routeProgress", valueId: "missionProgressValue", metaId: "missionProgressMeta" },
-      { key: "floatPlans", valueId: "missionFloatPlansValue", metaId: "missionFloatPlansMeta" },
-      { key: "monitoring", valueId: "missionMonitoringValue", metaId: "missionMonitoringMeta" },
-      { key: "weatherRisk", valueId: "missionWeatherValue", metaId: "missionWeatherMeta" },
-      { key: "setup", valueId: "missionSetupValue", metaId: "missionSetupMeta" }
-    ];
-    var i = 0;
-    var mapItem = null;
-    var tile = null;
+    var summaryModel = model && model.context ? model : buildMissionSummaryModel(collectMissionSummaryData(), missionSummaryState.lastRecomputedAt || new Date());
+    var context = summaryModel.context || {};
 
-    for (i = 0; i < mapping.length; i += 1) {
-      mapItem = mapping[i];
-      tile = tiles[mapItem.key] || {};
-      setText(mapItem.valueId, normalizeMissionText(tile.value, "No data", 64));
-      setText(mapItem.metaId, normalizeMissionText(tile.meta, "No data", 96));
-    }
-
-    tile = tiles.activeTrip || {};
-    setText("missionHeroSupportText", normalizeMissionText(tile.support, "Start a route or send your draft float plan when you are ready to get underway.", 150));
+    renderPlanningContextText("planningHomePortValue", "planningHomePortMeta", context.homePort, "No Home Port");
+    renderPlanningContextText("planningDefaultVesselValue", "planningDefaultVesselMeta", context.defaultVessel, "Not set");
+    renderPlanningContextText("planningActiveRouteValue", "planningActiveRouteMeta", context.activeRoute, "0");
     setText("missionSummaryUpdatedAt", normalizeMissionText(summaryModel.updatedAtLabel, "Updated just now", 42));
   }
 
@@ -2694,6 +2671,7 @@
     var accordionEl = null;
     var retryBtn = null;
     var requestSeq = 0;
+    var selectedRouteCode = "";
 
     function routeUrl(routeCode) {
       return BASE_PATH + "/api/v1/route.cfc?method=handle&action=getTimeline&routeCode=" + encodeURIComponent(routeCode || "") + "&returnformat=json";
@@ -2902,6 +2880,7 @@
       if (summaryEl) {
         summaryEl.textContent = text;
       }
+      dashboardSignals.activeRoute = { name: "", isActive: false };
       setRouteSignals("No Active Trip", text, 0);
     }
 
@@ -2920,6 +2899,7 @@
       if (summaryEl) {
         summaryEl.textContent = summaryText;
       }
+      dashboardSignals.activeRoute = { name: routeName, isActive: true };
       setRouteSignals(tripName, summaryText, pct);
     }
 
@@ -2944,6 +2924,213 @@
       };
     }
 
+    function firstRouteString(source, keys) {
+      var obj = source && typeof source === "object" ? source : {};
+      var value = "";
+      for (var i = 0; i < keys.length; i += 1) {
+        if (!Object.prototype.hasOwnProperty.call(obj, keys[i])) continue;
+        if (obj[keys[i]] === undefined || obj[keys[i]] === null) continue;
+        value = String(obj[keys[i]]).trim();
+        if (value) return value;
+      }
+      return "";
+    }
+
+    function getRouteEndpoints(route) {
+      var source = route && typeof route === "object" ? route : {};
+      var endpoints = source.ROUTE_ENDPOINTS && typeof source.ROUTE_ENDPOINTS === "object" ? source.ROUTE_ENDPOINTS : {};
+      return {
+        start: firstRouteString(endpoints, ["START_LABEL", "startLabel", "start_label"]) || firstRouteString(source, ["START_LABEL", "START_POINT", "START_NAME", "START_WAYPOINT_NAME"]),
+        end: firstRouteString(endpoints, ["END_LABEL", "endLabel", "end_label"]) || firstRouteString(source, ["END_LABEL", "END_POINT", "END_NAME", "END_WAYPOINT_NAME"])
+      };
+    }
+
+    function getRouteTypeLabel(route) {
+      var explicit = firstRouteString(route, ["ROUTE_TYPE", "TYPE", "routeType", "type"]);
+      var description = firstRouteString(route, ["DESCRIPTION", "description"]);
+      if (explicit) return explicit.charAt(0).toUpperCase() + explicit.slice(1).toLowerCase();
+      if (firstRouteString(route, ["TEMPLATE_CODE", "ROUTE_TEMPLATE_CODE", "templateCode"])) return "Template";
+      if (description && description.toLowerCase().indexOf("template") !== -1) return "Template";
+      return "Custom";
+    }
+
+    function formatRouteUpdatedLabel(route) {
+      var raw = firstRouteString(route, ["UPDATED_AT", "UPDATEDAT", "UPDATED", "LAST_UPDATED", "MODIFIED_AT", "CREATED_AT", "CREATEDAT"]);
+      var parsed = null;
+      if (!raw) return "—";
+      parsed = new Date(raw);
+      if (Number.isNaN(parsed.getTime())) return raw;
+      return parsed.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric"
+      });
+    }
+
+    function getRouteStatusLabel(currentState, isRouteForActiveTrip) {
+      if (currentState === "ACTIVE" || isRouteForActiveTrip) return "Active";
+      if (currentState === "DRAFT") return "Draft";
+      return "Saved";
+    }
+
+    function getRouteSummaryValues(route, totals) {
+      var source = totals && typeof totals === "object" ? totals : {};
+      var endpoints = getRouteEndpoints(route);
+      var distanceNm = firstFiniteRouteTotal(source, ["TOTAL_NM", "total_nm"]);
+      var estimatedHours = firstFiniteRouteTotal(source, ["ESTIMATED_HOURS", "ESTIMATED_TIME_HOURS", "TOTAL_HOURS", "total_hours"]);
+      var waypointCount = firstFiniteRouteTotal(source, ["WAYPOINT_COUNT", "TOTAL_WAYPOINTS", "waypoint_count", "waypointCount"]);
+      var locks = firstFiniteRouteTotal(source, ["TOTAL_LOCKS", "LOCK_COUNT", "lock_count"]);
+      var hasDefaultVessel = source.HAS_DEFAULT_VESSEL === true || source.HAS_DEFAULT_VESSEL === 1 || source.HAS_DEFAULT_VESSEL === "1";
+      var fuelLabel = source.FUEL_ESTIMATE_LABEL !== undefined && source.FUEL_ESTIMATE_LABEL !== null
+        ? String(source.FUEL_ESTIMATE_LABEL).trim()
+        : "";
+      if (!fuelLabel) {
+        fuelLabel = hasDefaultVessel ? "Fuel estimate unavailable" : "Requires default vessel";
+      }
+      return {
+        distance: formatNumber(distanceNm, 1) + " NM",
+        estimatedHours: estimatedHours > 0 ? formatNumber(estimatedHours, 1) + " hrs" : "Unavailable",
+        waypoints: formatNumber(waypointCount, 0),
+        locks: formatNumber(locks, 0),
+        fuel: fuelLabel,
+        start: endpoints.start || "Start unavailable",
+        end: endpoints.end || "End unavailable"
+      };
+    }
+
+    function buildRouteDataAttributes(route, routeInstanceId, currentState, currentRouteGroup) {
+      var routeCode = route && route.SHORT_CODE ? String(route.SHORT_CODE) : "";
+      var html = ' data-route-code="' + escapeHtml(routeCode) + '"';
+      if (Number.isFinite(routeInstanceId) && routeInstanceId > 0) {
+        html += ' data-route-instance-id="' + routeInstanceId + '"';
+      }
+      if (currentState) {
+        html += ' data-current-group-state="' + escapeHtml(currentState) + '"';
+      }
+      if (currentRouteGroup) {
+        html += ' data-current-floatplan-id="' + currentRouteGroup.floatPlanId + '"';
+      }
+      return html;
+    }
+
+    function buildActionContextOpen(currentGroup, extraClass) {
+      if (!currentGroup) return "";
+      return '<div class="expedition-route-current-group ' + escapeHtml(extraClass || "") + '" data-plan-id="' + currentGroup.floatPlanId + '" data-plan-status="' + escapeHtml(currentGroup.status) + '" data-current-state="' + escapeHtml(currentGroup.currentState) + '">';
+    }
+
+    function buildRouteTableActions(currentGroup, currentState, showActiveCruiseAction, showTripPageAction, showActivateRouteAction) {
+      var html = buildActionContextOpen(currentGroup, "fpw-route-table-actions");
+      if (!currentGroup) html += '<div class="fpw-route-table-actions">';
+      if (currentState === "ACTIVE" && currentGroup) {
+        html += showActiveCruiseAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--cruise js-expedition-active-cruise" aria-label="Open Active Cruise" title="Open Active Cruise"></button>' : "";
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--view js-expedition-view-edit" aria-label="View Route" title="View Route"></button>';
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-route js-expedition-view-edit" aria-label="Edit Route" title="Edit Route"></button>';
+        html += showTripPageAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--follow js-expedition-trip-page" aria-label="Follow Page" title="Follow Page"></button>' : "";
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--cancel js-expedition-plan-cancel" data-action="cancel" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="Cancel" title="Cancel"></button>';
+      } else if (currentGroup) {
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--send js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="View and Send Float Plan" title="View & Send Float Plan"></button>';
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-plan js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="Edit Float Plan" title="Edit Float Plan"></button>';
+        html += showActivateRouteAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--activate js-expedition-build-floatplans" aria-label="Activate Route" title="Activate Route"></button>' : "";
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--view js-expedition-view-edit" aria-label="View Route" title="View Route"></button>';
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-route js-expedition-view-edit" aria-label="Edit Route" title="Edit Route"></button>';
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--delete js-expedition-delete" aria-label="Delete" title="Delete"></button>';
+      } else {
+        html += showActivateRouteAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--activate js-expedition-build-floatplans" aria-label="Activate Route" title="Activate Route"></button>' : "";
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--view js-expedition-view-edit" aria-label="View Route" title="View Route"></button>';
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-route js-expedition-view-edit" aria-label="Edit Route" title="Edit Route"></button>';
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--delete js-expedition-delete" aria-label="Delete" title="Delete"></button>';
+      }
+      html += '</div>';
+      return html;
+    }
+
+    function buildRouteDetailActions(currentGroup, currentState, showActiveCruiseAction, showTripPageAction, showActivateRouteAction) {
+      var html = buildActionContextOpen(currentGroup, "fpw-route-detail-actions");
+      if (!currentGroup) html += '<div class="fpw-route-detail-actions">';
+      if (currentState === "ACTIVE" && currentGroup) {
+        html += showActiveCruiseAction ? '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-active-cruise">Open Active Cruise</button>' : "";
+        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">View Route</button>';
+        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">Edit Route</button>';
+        html += showTripPageAction ? '<button type="button" class="fpw-route-workspace-btn js-expedition-trip-page">Follow Page</button>' : "";
+        html += '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--danger js-expedition-plan-cancel" data-action="cancel" data-plan-id="' + currentGroup.floatPlanId + '">Cancel</button>';
+      } else if (currentGroup) {
+        html += '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '">View &amp; Send Float Plan</button>';
+        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '">Edit Float Plan</button>';
+        html += showActivateRouteAction ? '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-build-floatplans">Activate Route</button>' : "";
+        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">View Route</button>';
+        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">Edit Route</button>';
+        html += '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--danger js-expedition-delete">Delete</button>';
+      } else {
+        html += showActivateRouteAction ? '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-build-floatplans">Activate Route</button>' : "";
+        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">View Route</button>';
+        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">Edit Route</button>';
+        html += '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--danger js-expedition-delete">Delete</button>';
+      }
+      html += '</div>';
+      return html;
+    }
+
+    function buildRouteDetailPreview(route, totals) {
+      var summary = getRouteSummaryValues(route, totals);
+      return ""
+        + '<div class="fpw-route-detail-preview" aria-label="Route preview">'
+        + '  <svg viewBox="0 0 420 210" role="img" aria-label="Display-only route preview">'
+        + '    <rect x="0" y="0" width="420" height="210" class="fpw-route-preview-sea"></rect>'
+        + '    <path d="M 45 150 C 110 190, 172 184, 220 158 C 278 126, 330 118, 382 56" class="fpw-route-preview-line"></path>'
+        + '    <circle cx="45" cy="150" r="8" class="fpw-route-preview-point fpw-route-preview-point--start"></circle>'
+        + '    <circle cx="382" cy="56" r="8" class="fpw-route-preview-point fpw-route-preview-point--end"></circle>'
+        + '    <text x="60" y="154" class="fpw-route-preview-label">' + escapeHtml(summary.start) + '</text>'
+        + '    <text x="255" y="52" class="fpw-route-preview-label">' + escapeHtml(summary.end) + '</text>'
+        + '  </svg>'
+        + '</div>';
+    }
+
+    function buildRouteStatusText(currentState, isRouteForActiveTrip) {
+      var label = getRouteStatusLabel(currentState, isRouteForActiveTrip);
+      var modifier = label.toLowerCase();
+      return '<span class="fpw-route-status-text fpw-route-status-text--' + escapeHtml(modifier) + '">' + escapeHtml(label) + '</span>';
+    }
+
+    function buildRouteRow(route, routeMeta) {
+      var totals = routeMeta.totals;
+      var summary = getRouteSummaryValues(route, totals);
+      var typeLabel = getRouteTypeLabel(route);
+      var subtitle = buildRouteSubtitle(route, routeMeta.currentRouteGroup);
+      return ""
+        + '<div class="expedition-route-card fpw-routes-table-row' + (routeMeta.isSelected ? ' is-selected' : '') + (routeMeta.isRouteForActiveTrip ? ' is-active' : '') + '"' + routeMeta.dataAttrs + ' role="button" tabindex="0">'
+        + '  <div class="fpw-route-cell fpw-route-cell--route"><span class="fpw-route-favorite" aria-hidden="true"></span><div><strong>' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</strong><span>' + escapeHtml(typeLabel) + '</span></div></div>'
+        + '  <div class="fpw-route-cell fpw-route-cell--points"><span>' + escapeHtml(summary.start) + '</span><span>' + escapeHtml(summary.end) + '</span></div>'
+        + '  <div class="fpw-route-cell">' + escapeHtml(summary.distance) + '</div>'
+        + '  <div class="fpw-route-cell">' + buildRouteStatusText(routeMeta.currentState, routeMeta.isRouteForActiveTrip) + '</div>'
+        + '  <div class="fpw-route-cell fpw-route-cell--actions">' + buildRouteTableActions(routeMeta.currentRouteGroup, routeMeta.currentState, routeMeta.showActiveCruiseAction, routeMeta.showTripPageAction, routeMeta.showActivateRouteAction) + '</div>'
+        + '</div>';
+    }
+
+    function buildSelectedRouteDetail(route, routeMeta) {
+      var totals = routeMeta.totals;
+      var summary = getRouteSummaryValues(route, totals);
+      var typeLabel = getRouteTypeLabel(route);
+      var subtitle = buildRouteSubtitle(route, routeMeta.currentRouteGroup);
+      return ""
+        + '<aside class="expedition-route-card fpw-route-detail-pane"' + routeMeta.dataAttrs + '>'
+        + '  <div class="fpw-route-detail-status-row">' + buildRouteStatusText(routeMeta.currentState, routeMeta.isRouteForActiveTrip) + '<span class="fpw-route-detail-star" aria-hidden="true"></span></div>'
+        + '  <h3>' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</h3>'
+        + '  <span class="fpw-route-detail-type">' + escapeHtml(typeLabel) + '</span>'
+        + '  <p>' + escapeHtml(subtitle) + '</p>'
+        + '  <dl class="fpw-route-detail-facts">'
+        + '    <div><dt>Start</dt><dd>' + escapeHtml(summary.start) + '</dd></div>'
+        + '    <div><dt>Distance</dt><dd>' + escapeHtml(summary.distance) + '</dd></div>'
+        + '    <div><dt>End</dt><dd>' + escapeHtml(summary.end) + '</dd></div>'
+        + '    <div><dt>Waypoints</dt><dd>' + escapeHtml(summary.waypoints) + '</dd></div>'
+        + '    <div><dt>Est. Duration</dt><dd>' + escapeHtml(summary.estimatedHours) + '</dd></div>'
+        + '    <div><dt>Est. Fuel Needed</dt><dd>' + escapeHtml(summary.fuel) + '</dd></div>'
+        + '  </dl>'
+        +      buildRouteDetailPreview(route, totals)
+        + '  <div class="fpw-route-detail-action-title">Route Actions</div>'
+        +      buildRouteDetailActions(routeMeta.currentRouteGroup, routeMeta.currentState, routeMeta.showActiveCruiseAction, routeMeta.showTripPageAction, routeMeta.showActivateRouteAction)
+        + '</aside>';
+    }
+
     function buildCurrentGroupRow(route, pct) {
       var currentGroup = normalizeRouteCurrentGroup(route);
       if (!currentGroup) {
@@ -2961,50 +3148,39 @@
         + '</div>';
     }
 
-    function buildRouteActions(currentGroup, currentState, showActiveCruiseAction, showTripPageAction, showActivateRouteAction) {
-      var actionContextOpen = "";
-      var actionContextClose = "";
-      var html = "";
-      if (currentGroup) {
-        actionContextOpen = '<div class="expedition-route-current-group fpw-route-action-context" data-plan-id="' + currentGroup.floatPlanId + '" data-plan-status="' + escapeHtml(currentGroup.status) + '" data-current-state="' + escapeHtml(currentGroup.currentState) + '">';
-        actionContextClose = '</div>';
-      }
-      html += '<div class="fpw-route-card__footer' + (currentState === "ACTIVE" ? ' fpw-route-card__footer--active' : '') + '">';
-      if (!currentGroup) {
-        html += '<p class="fpw-next-step"><span class="fpw-next-step__icon" aria-hidden="true">i</span><strong>Next step:</strong> <span>Activate this route to create and send a float plan.</span></p>';
-      }
-      html += actionContextOpen;
-      html += '<div class="expedition-route-actions fpw-route-actions' + (currentState === "ACTIVE" ? ' fpw-route-actions--active' : '') + '">';
-      if (currentState === "ACTIVE" && currentGroup) {
-        html += (showActiveCruiseAction ? '<button type="button" class="btn-primary js-expedition-active-cruise">Open Active Cruise</button>' : '');
-        html += '<button type="button" class="btn-secondary js-expedition-view-edit">View Route</button>';
-        html += (showTripPageAction ? '<button type="button" class="btn-secondary js-expedition-trip-page">Follow Page</button>' : '');
-        html += '<button type="button" class="btn-success js-expedition-plan-checkin" data-action="checkin" data-plan-id="' + currentGroup.floatPlanId + '">Check-In</button>';
-        html += '<button type="button" class="btn-danger js-expedition-plan-cancel" data-action="cancel" data-plan-id="' + currentGroup.floatPlanId + '">Cancel</button>';
-        html += '<button type="button" class="btn-secondary js-expedition-plan-edit fpw-route-action-resend" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '">Resend Float Plan</button>';
-      } else if (currentGroup) {
-        html += '<button type="button" class="btn-primary js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '">View &amp; Send</button>';
-        html += '<button type="button" class="btn-secondary js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '">Edit Float Plan</button>';
-        html += (showActivateRouteAction ? '<button type="button" class="btn-primary js-expedition-build-floatplans">Activate Route</button>' : '');
-        html += '<button type="button" class="btn-secondary js-expedition-view-edit">View / Edit Route</button>';
-        html += '<button type="button" class="btn-danger js-expedition-delete">Delete</button>';
-      } else {
-        html += (showActivateRouteAction ? '<button type="button" class="btn-primary js-expedition-build-floatplans">Activate Route</button>' : '');
-        html += '<button type="button" class="btn-secondary js-expedition-view-edit">View / Edit</button>';
-        html += '<button type="button" class="btn-danger js-expedition-delete">Delete</button>';
-      }
-      html += '</div>';
-      html += actionContextClose;
-      html += '</div>';
-      return html;
+    function getRouteRenderMeta(route, activeCode) {
+      var totals = route && route.TOTALS ? route.TOTALS : {};
+      var isRouteForActiveTrip = route && route.SHORT_CODE && activeCode && route.SHORT_CODE === activeCode;
+      var currentRouteGroup = normalizeRouteCurrentGroup(route);
+      var currentState = currentRouteGroup ? currentRouteGroup.currentState : "";
+      var showActivateRouteAction = currentState !== "ACTIVE";
+      var showActiveCruiseAction = normalizeActiveFloatPlanId(state.activeTripFloatPlanId) > 0 && !!isRouteForActiveTrip;
+      var showTripPageAction = normalizeActiveFloatPlanId(state.activeTripFloatPlanId) > 0 && !!isRouteForActiveTrip;
+      var routeInstanceId = route && route.ROUTE_INSTANCE_ID !== undefined && route.ROUTE_INSTANCE_ID !== null
+        ? parseInt(route.ROUTE_INSTANCE_ID, 10)
+        : (route && route.route_instance_id !== undefined && route.route_instance_id !== null
+          ? parseInt(route.route_instance_id, 10)
+          : 0);
+      if (!Number.isFinite(routeInstanceId)) routeInstanceId = 0;
+      return {
+        totals: totals,
+        isRouteForActiveTrip: !!isRouteForActiveTrip,
+        currentRouteGroup: currentRouteGroup,
+        currentState: currentState,
+        showActivateRouteAction: showActivateRouteAction,
+        showActiveCruiseAction: showActiveCruiseAction,
+        showTripPageAction: showTripPageAction,
+        dataAttrs: buildRouteDataAttributes(route, routeInstanceId, currentState, currentRouteGroup),
+        routeInstanceId: routeInstanceId,
+        isSelected: false
+      };
     }
 
     function renderRouteList(routes, activeCode, currentGroupPayload) {
       if (!routeListEl) return;
       var list = Array.isArray(routes) ? routes.slice() : [];
-      var hasCanonicalActiveFloatPlan = normalizeActiveFloatPlanId(state.activeTripFloatPlanId) > 0;
-      var hasCurrentGroup = !!(currentGroupPayload && currentGroupPayload.HAS_CURRENT_GROUP);
       var activeTripRouteIndex = -1;
+      var selectedRoute = null;
       if (activeCode) {
         activeTripRouteIndex = list.findIndex(function (route) {
           return route && route.SHORT_CODE && route.SHORT_CODE === activeCode;
@@ -3025,70 +3201,42 @@
       }
       dashboardSignals.routes.total = list.length;
       if (routeEmptyEl) toggleHidden(routeEmptyEl, true);
-      var activeCruiseLinkRendered = false;
-      var tripPageLinkRendered = false;
-      routeListEl.innerHTML = list.map(function (route) {
-        var totals = route && route.TOTALS ? route.TOTALS : {};
-        var isRouteForActiveTrip = route && route.SHORT_CODE && activeCode && route.SHORT_CODE === activeCode;
-        var currentRouteGroup = normalizeRouteCurrentGroup(route);
-        var currentState = currentRouteGroup ? currentRouteGroup.currentState : "";
-        var routeStateLabel = "";
-        var showActivateRouteAction = currentState !== "ACTIVE";
-        var showActiveCruiseAction = hasCanonicalActiveFloatPlan && isRouteForActiveTrip && !activeCruiseLinkRendered;
-        var showTripPageAction = hasCanonicalActiveFloatPlan && isRouteForActiveTrip && !tripPageLinkRendered;
-        if (showActiveCruiseAction) {
-          activeCruiseLinkRendered = true;
-        }
-        if (showTripPageAction) {
-          tripPageLinkRendered = true;
-        }
-        if (currentState === "ACTIVE") {
-          routeStateLabel = "Current active route/float-plan group";
-        } else if (currentState === "DRAFT") {
-          routeStateLabel = "Draft Group";
-        } else if (isRouteForActiveTrip) {
-          routeStateLabel = "Used by active trip";
-        } else {
-          routeStateLabel = "Saved Route";
-        }
-        var routeInstanceId = route && route.ROUTE_INSTANCE_ID !== undefined && route.ROUTE_INSTANCE_ID !== null
-          ? parseInt(route.ROUTE_INSTANCE_ID, 10)
-          : (route && route.route_instance_id !== undefined && route.route_instance_id !== null
-            ? parseInt(route.route_instance_id, 10)
-            : 0);
-        var pct = Number.isFinite(parseFloat(totals.PCT_COMPLETE)) ? Math.round(parseFloat(totals.PCT_COMPLETE)) : 0;
-        var nm = Number.isFinite(parseFloat(totals.TOTAL_NM)) ? parseFloat(totals.TOTAL_NM) : 0;
-        var locks = Number.isFinite(parseFloat(totals.TOTAL_LOCKS)) ? parseFloat(totals.TOTAL_LOCKS) : 0;
-        var routeInstanceAttr = Number.isFinite(routeInstanceId) && routeInstanceId > 0
-          ? ' data-route-instance-id="' + routeInstanceId + '"'
-          : "";
-        var currentGroupStateAttr = currentState
-          ? ' data-current-group-state="' + escapeHtml(currentState) + '"'
-          : "";
-        var currentFloatPlanAttr = currentRouteGroup
-          ? ' data-current-floatplan-id="' + currentRouteGroup.floatPlanId + '"'
-          : "";
-        var statusPillClass = currentState === "ACTIVE"
-          ? "fpw-status-pill-active"
-          : (currentState === "DRAFT" ? "fpw-status-pill-draft" : "fpw-status-pill-saved");
-        return ''
-          + '<div class="expedition-route-card fpw-route-card ' + (currentState === "ACTIVE" ? 'fpw-route-card--active ' : (currentState === "DRAFT" ? 'fpw-route-card--draft ' : 'fpw-route-card--saved ')) + (isRouteForActiveTrip ? 'is-active' : '') + '" data-route-code="' + escapeHtml(route.SHORT_CODE || "") + '"' + routeInstanceAttr + currentGroupStateAttr + currentFloatPlanAttr + '>'
-          + '  <div class="expedition-route-card-main fpw-route-card__main">'
-          + '    <div class="fpw-route-card__topline">'
-          + '      <div class="fpw-route-card__heading">'
-          + '        <h3 class="expedition-route-name fpw-route-card__name">' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</h3>'
-          + '        <p class="fpw-route-card__subtitle">' + escapeHtml(buildRouteSubtitle(route, currentRouteGroup)) + '</p>'
-          + '      </div>'
-          +        buildRouteStatusPills(currentState)
-          + '    </div>'
-          +      buildRouteSummaryList(route, totals)
-          +      buildRouteActions(currentRouteGroup, currentState, showActiveCruiseAction, showTripPageAction, showActivateRouteAction)
-          + '  </div>'
-          + '</div>';
-      }).join("");
+      selectedRoute = list.find(function (route) {
+        return route && route.SHORT_CODE && route.SHORT_CODE === selectedRouteCode;
+      });
+      if (!selectedRoute && activeCode) {
+        selectedRoute = list.find(function (route) {
+          return route && route.SHORT_CODE && route.SHORT_CODE === activeCode;
+        });
+      }
+      if (!selectedRoute) selectedRoute = list[0];
+      selectedRouteCode = selectedRoute && selectedRoute.SHORT_CODE ? String(selectedRoute.SHORT_CODE) : "";
+      routeListEl.innerHTML = ""
+        + '<div class="fpw-route-workspace">'
+        + '  <div class="fpw-routes-table-pane">'
+        + '    <div class="fpw-routes-table" role="table" aria-label="Saved routes">'
+        + '      <div class="fpw-routes-table-head" role="row">'
+        + '        <div>Route</div><div>Start / End</div><div>Distance</div><div>Status</div><div>Actions</div>'
+        + '      </div>'
+        + list.map(function (route) {
+          var meta = getRouteRenderMeta(route, activeCode);
+          meta.isSelected = !!(route && route.SHORT_CODE && route.SHORT_CODE === selectedRouteCode);
+          return buildRouteRow(route, meta);
+        }).join("")
+        + '    </div>'
+        + '    <div class="fpw-routes-count">1-' + formatNumber(list.length, 0) + ' of ' + formatNumber(list.length, 0) + ' routes</div>'
+        + '  </div>'
+        +      buildSelectedRouteDetail(selectedRoute, getRouteRenderMeta(selectedRoute, activeCode))
+        + '</div>';
       refreshMissionSummary();
       renderRecommendedNextSteps();
       updateCurrentDraftActionButtons();
+    }
+
+    function selectRoute(routeCode) {
+      var routes = (state.routeState && Array.isArray(state.routeState.all)) ? state.routeState.all : [];
+      selectedRouteCode = routeCode || "";
+      renderRouteList(routes, state.activeTripRouteCode || "", state.currentRouteGroup || {});
     }
 
     function renderTimeline(data) {
@@ -3475,6 +3623,7 @@
             : "";
 
           state.activeTripFloatPlanId = activeTripFloatPlanId;
+          state.activeTripRouteCode = activeTripRouteCode;
           state.currentRouteGroup = currentGroup;
           state.routeState = state.routeState || {};
           state.routeState.all = routes.slice();
@@ -3549,6 +3698,10 @@
           var routeInstanceId = parseInt(card.getAttribute("data-route-instance-id") || "0", 10);
           if (!Number.isFinite(routeInstanceId)) routeInstanceId = 0;
           if (!routeCode) return;
+          if (!target.closest("button") && card.classList.contains("fpw-routes-table-row")) {
+            selectRoute(routeCode);
+            return;
+          }
           if (target.classList.contains("js-expedition-active-cruise")) {
             window.open(BASE_PATH + "/app/active-cruise.cfm", "_blank", "noopener");
             return;
@@ -3709,6 +3862,7 @@
         }
 
         populateUserInfo(data.USER);
+        state.currentUser = data.USER;
         if (utils.resolveHomePortLatLng) {
           state.homePortLatLng = utils.resolveHomePortLatLng(data.USER);
         }
@@ -3797,3 +3951,9 @@
     initDashboard();
   });
 })(window, document);
+
+
+
+
+
+

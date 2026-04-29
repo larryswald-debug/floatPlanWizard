@@ -255,6 +255,8 @@
                 <cfcase value="completeleg">
                     <cfset var completeLegId = 0>
                     <cfset var expectedLegOrder = 0>
+                    <cfset var completeLegMonitoringService = {}>
+                    <cfset var completeLegMonitoringRefreshResult = {}>
                     <cfif structKeyExists(body, "floatPlanId")>
                         <cfset completeLegId = val(body.floatPlanId)>
                     <cfelseif structKeyExists(url, "floatPlanId")>
@@ -281,6 +283,27 @@
                             completionMode = "active_leg",
                             expectedLegOrder = expectedLegOrder
                         )>
+
+                        <cfif structKeyExists(completeLegResult, "SUCCESS") AND completeLegResult.SUCCESS EQ true AND structKeyExists(completeLegResult, "COMPLETED") AND completeLegResult.COMPLETED EQ true>
+                            <cftry>
+                                <cfset completeLegMonitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init()>
+                                <cfset completeLegMonitoringRefreshResult = completeLegMonitoringService.refreshActiveRouteCheckpointFromLegCompletion(
+                                    floatPlanId = completeLegId,
+                                    routeInstanceId = (structKeyExists(completeLegResult, "ROUTE_INSTANCE_ID") ? val(completeLegResult.ROUTE_INSTANCE_ID) : 0),
+                                    legOrder = (structKeyExists(completeLegResult, "LEG_ORDER") ? val(completeLegResult.LEG_ORDER) : 0)
+                                )>
+                                <cfcatch type="any">
+                                    <cfset completeLegMonitoringRefreshResult = {
+                                        SUCCESS = false,
+                                        UPDATED = false,
+                                        ERROR = "MONITORING_COMPLETION_REFRESH_FAILED",
+                                        MESSAGE = cfcatch.message
+                                    }>
+                                </cfcatch>
+                            </cftry>
+                            <cfset completeLegResult.MONITORING_REFRESH = completeLegMonitoringRefreshResult>
+                        </cfif>
+
                         <cfset completeLegResult.AUTH = true>
                         <cfoutput>#serializeJSON(completeLegResult)#</cfoutput>
                     </cfif>
@@ -290,7 +313,9 @@
                     <cfset var startNextLegId = 0>
                     <cfset var activeCruiseStartGuard = {}>
                     <cfset var startNextLegRouteProgressService = {}>
+                    <cfset var startNextLegMonitoringService = {}>
                     <cfset var startNextLegResult = {}>
+                    <cfset var startNextLegMonitoringRefreshResult = {}>
                     <cfset var qStartNextLegPlan = queryNew("")>
                     <cfset var startNextLegCheckInContext = "">
                     <cfif structKeyExists(body, "floatPlanId")>
@@ -343,6 +368,24 @@
                                 { datasource = "fpw" }
                             )>
                             <cfset startNextLegResult.CLEARED_CHECKIN_CONTEXT = (len(startNextLegCheckInContext) GT 0)>
+
+                            <cftry>
+                                <cfset startNextLegMonitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init()>
+                                <cfset startNextLegMonitoringRefreshResult = startNextLegMonitoringService.refreshActiveRouteCheckpointFromLegStart(
+                                    floatPlanId = startNextLegId,
+                                    routeInstanceId = (structKeyExists(startNextLegResult, "ROUTE_INSTANCE_ID") ? val(startNextLegResult.ROUTE_INSTANCE_ID) : 0),
+                                    legOrder = (structKeyExists(startNextLegResult, "LEG_ORDER") ? val(startNextLegResult.LEG_ORDER) : 0)
+                                )>
+                                <cfcatch type="any">
+                                    <cfset startNextLegMonitoringRefreshResult = {
+                                        SUCCESS = false,
+                                        UPDATED = false,
+                                        ERROR = "MONITORING_REFRESH_FAILED",
+                                        MESSAGE = cfcatch.message
+                                    }>
+                                </cfcatch>
+                            </cftry>
+                            <cfset startNextLegResult.MONITORING_REFRESH = startNextLegMonitoringRefreshResult>
                         </cfif>
 
                         <cfset startNextLegResult.AUTH = true>

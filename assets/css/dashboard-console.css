@@ -36,7 +36,6 @@
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
-
 /* ---------- Base ---------- */
 html{
   overflow-x: hidden;
@@ -4152,6 +4151,103 @@ body.dashboard-body[data-fpw-page="dashboard"]::before{
   white-space: nowrap;
 }
 
+.fpw-dashboard-main .dashboard-card.fpw-planning-context-panel{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin-bottom: 16px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.fpw-planning-context-block{
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 18px 24px;
+  border-right: 1px solid rgba(91, 184, 231, 0.24);
+}
+
+.fpw-planning-context-block:last-child{
+  border-right: 0;
+}
+
+.fpw-planning-context-icon{
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(237, 247, 255, 0.92);
+}
+
+.fpw-planning-context-icon svg{
+  width: 26px;
+  height: 26px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.fpw-planning-context-copy{
+  min-width: 0;
+}
+
+.fpw-planning-context-label{
+  margin-bottom: 8px;
+  color: rgba(226, 239, 249, 0.84);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.fpw-planning-context-value{
+  color: rgba(249, 253, 255, 0.98);
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.18;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fpw-planning-context-meta{
+  margin-top: 5px;
+  color: rgba(206, 224, 239, 0.82);
+  font-size: 0.85rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fpw-planning-context-status{
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #36d68b;
+}
+
+.fpw-planning-context-status.d-none{
+  display: none !important;
+}
+
+.fpw-planning-context-dot{
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #36d68b;
+  box-shadow: 0 0 8px rgba(54, 214, 139, 0.42);
+}
+
 .fpw-dashboard-main .dashboard-card{
   height: auto;
   min-height: 0;
@@ -4540,6 +4636,10 @@ body.dashboard-body[data-fpw-page="dashboard"] h3{
   align-items: center;
   margin-bottom: 16px;
   overflow: hidden;
+}
+
+.fpw-dashboard-next-step{
+  display: none;
 }
 
 .fpw-dashboard-next-step::before{
@@ -6066,6 +6166,21 @@ body.dashboard-body[data-fpw-page="dashboard"] h3{
   display: none !important;
 }
 
+@media (max-width: 900px){
+  .fpw-dashboard-main .dashboard-card.fpw-planning-context-panel{
+    grid-template-columns: 1fr;
+  }
+
+  .fpw-planning-context-block{
+    border-right: 0;
+    border-bottom: 1px solid rgba(91, 184, 231, 0.24);
+  }
+
+  .fpw-planning-context-block:last-child{
+    border-bottom: 0;
+  }
+}
+
 @media (max-width: 1080px){
   .fpw-dashboard-hero{
     grid-template-columns: 150px minmax(240px, 1fr);
@@ -6540,3 +6655,573 @@ body.dashboard-body[data-fpw-page="dashboard"] .list-item.fpw-manage-item{
 .fpw-waypoint-item{
   grid-template-columns: minmax(0, 1fr) auto;
 }
+
+/* Routes workspace display overrides: selected route table plus detail pane. */
+
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel{
+  border-radius: 3px;
+  background: #061a2f;
+  box-shadow: none;
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .card-header{
+  min-height: 86px;
+  padding: 20px 28px;
+  align-items: flex-start;
+  border-bottom: 1px solid rgba(83, 151, 213, 0.36);
+  background: linear-gradient(180deg, rgba(3, 22, 41, 0.94), rgba(5, 25, 45, 0.96));
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .card-title{
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 16px;
+  row-gap: 6px;
+  align-items: center;
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .card-title::before{
+  grid-column: 1;
+  grid-row: 1 / 3;
+  border-radius: 2px;
+  background:
+    linear-gradient(45deg, transparent 45%, rgba(207, 233, 255, 0.88) 46% 53%, transparent 54%),
+    linear-gradient(-45deg, transparent 45%, rgba(207, 233, 255, 0.88) 46% 53%, transparent 54%),
+    radial-gradient(circle at center, rgba(27, 191, 232, 0.14), rgba(2, 15, 28, 0.86));
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .card-title h2{
+  grid-column: 2;
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.fpw-routes-workspace-subtitle{
+  grid-column: 2;
+  margin: 0;
+  color: rgba(198, 219, 242, 0.86);
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 400;
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel #openRouteBuilderBtn{
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 2px;
+  border: 1px solid rgba(54, 174, 246, 0.72);
+  background: #09639f;
+  color: #f3fbff;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .card-body{
+  max-height: none;
+  padding: 0;
+  overflow: visible;
+  background: #05182c;
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .expedition-route-list{
+  display: block;
+  padding: 0;
+  margin: 0 !important;
+}
+
+.fpw-route-workspace{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 460px);
+  min-height: 640px;
+}
+
+.fpw-routes-table-pane{
+  min-width: 0;
+  padding: 20px;
+  border-right: 1px solid rgba(84, 147, 205, 0.35);
+}
+
+.fpw-routes-table{
+  min-width: 680px;
+  border: 1px solid rgba(81, 144, 203, 0.42);
+  border-radius: 3px;
+  background: rgba(3, 18, 34, 0.54);
+  overflow: hidden;
+}
+
+.fpw-routes-table-pane{
+  overflow-x: auto;
+}
+
+.fpw-routes-table-head,
+.fpw-routes-table-row{
+  display: grid !important;
+  grid-template-columns: minmax(180px, 1.75fr) minmax(130px, 1fr) 82px 70px 168px;
+  gap: 8px;
+  align-items: center;
+}
+
+.fpw-routes-table-head{
+  min-height: 42px;
+  padding: 0 14px;
+  color: rgba(223, 238, 255, 0.9);
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 600;
+  background: rgba(2, 14, 27, 0.78);
+  border-bottom: 1px solid rgba(80, 145, 205, 0.4);
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-route-workspace .fpw-routes-table-row{
+  min-height: 76px;
+  margin: 0;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 1px solid rgba(83, 143, 199, 0.24);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #eaf5ff;
+  cursor: pointer;
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-route-workspace .fpw-routes-table-row:last-child{
+  border-bottom: 0;
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-route-workspace .fpw-routes-table-row.is-selected{
+  outline: 1px solid rgba(0, 194, 255, 0.84);
+  outline-offset: -1px;
+  background: rgba(4, 43, 75, 0.34);
+}
+
+.fpw-route-cell{
+  min-width: 0;
+  color: rgba(229, 242, 255, 0.92);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.fpw-route-cell--route{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fpw-route-cell--route > div{
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.fpw-route-cell--route strong{
+  display: block;
+  overflow: hidden;
+  color: #f6fbff;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fpw-route-cell--route span:not(.fpw-route-favorite),
+.fpw-route-cell--points span,
+.fpw-route-updated-text,
+.fpw-route-type-text{
+  display: block;
+  overflow: hidden;
+  color: rgba(193, 215, 239, 0.78);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fpw-route-cell--points span + span{
+  margin-top: 5px;
+}
+
+.fpw-route-favorite{
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  color: #38d8ff;
+}
+
+.fpw-route-favorite::before,
+.fpw-route-detail-star::before{
+  content: "\2606";
+  font-size: 22px;
+  line-height: 1;
+}
+
+.fpw-route-status-text{
+  display: inline;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.fpw-route-status-text--active{
+  color: #57f289;
+}
+
+.fpw-route-status-text--saved{
+  color: #37c9ff;
+}
+
+.fpw-route-status-text--draft{
+  color: #ffb949;
+}
+
+.fpw-route-cell--actions{
+  display: flex;
+  justify-content: flex-end;
+}
+
+.fpw-route-table-actions{
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .fpw-route-icon-action{
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  color: rgba(211, 230, 249, 0.9);
+  box-shadow: none !important;
+  font-size: 0;
+  line-height: 1;
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .fpw-route-icon-action:hover,
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .fpw-route-icon-action:focus{
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .fpw-route-icon-action::before{
+  display: block;
+  font-size: 16px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.fpw-route-icon-action--cruise::before,
+.fpw-route-icon-action--view::before{
+  content: "\25CE";
+}
+
+.fpw-route-icon-action--follow::before{
+  content: "\25A1";
+}
+
+.fpw-route-icon-action--activate::before,
+.fpw-route-icon-action--send::before{
+  content: "\25B7";
+}
+
+.fpw-route-icon-action--edit-plan::before,
+.fpw-route-icon-action--edit-route::before{
+  content: "\270E";
+}
+
+.fpw-route-icon-action--cancel::before{
+  content: "\2297";
+}
+
+.fpw-route-icon-action--delete{
+  color: #ff5865;
+}
+
+.fpw-route-icon-action--delete::before{
+  content: "\232B";
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-route-workspace .fpw-route-detail-pane{
+  display: block;
+  min-width: 0;
+  margin: 0;
+  padding: 22px;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(180deg, rgba(5, 28, 51, 0.95), rgba(3, 18, 34, 0.98));
+  box-shadow: none;
+}
+
+.fpw-route-detail-status-row{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.fpw-route-detail-status-row .fpw-route-status-text{
+  position: relative;
+  padding-left: 16px;
+}
+
+.fpw-route-detail-status-row .fpw-route-status-text::before{
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  transform: translateY(-50%);
+}
+
+.fpw-route-detail-star{
+  color: #ffb52c;
+}
+
+.fpw-route-detail-pane h3{
+  margin: 0 0 8px;
+  color: #f6fbff;
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.fpw-route-detail-type{
+  display: inline-block;
+  margin-bottom: 16px;
+  color: #c9a8ff;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 500;
+}
+
+.fpw-route-detail-pane p{
+  margin: 0 0 16px;
+  color: rgba(216, 232, 248, 0.86);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.fpw-route-detail-facts{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 0 0 18px;
+  border-top: 1px solid rgba(84, 147, 205, 0.28);
+  border-bottom: 1px solid rgba(84, 147, 205, 0.28);
+}
+
+.fpw-route-detail-facts div{
+  min-width: 0;
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(84, 147, 205, 0.22);
+}
+
+.fpw-route-detail-facts div:nth-child(odd){
+  border-right: 1px solid rgba(84, 147, 205, 0.26);
+  padding-left: 0;
+}
+
+.fpw-route-detail-facts div:nth-last-child(-n+2){
+  border-bottom: 0;
+}
+
+.fpw-route-detail-facts dt{
+  margin: 0 0 5px;
+  color: rgba(195, 215, 238, 0.78);
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 500;
+}
+
+.fpw-route-detail-facts dd{
+  margin: 0;
+  overflow: hidden;
+  color: #f7fbff;
+  font-size: 13px;
+  line-height: 1.25;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fpw-route-detail-preview{
+  display: none;
+  height: 190px;
+  margin-bottom: 20px;
+  border: 1px solid rgba(75, 137, 199, 0.3);
+  border-radius: 2px;
+  overflow: hidden;
+  background: #071a2e;
+}
+
+.fpw-route-detail-preview svg{
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.fpw-route-preview-sea{
+  fill: #08213a;
+}
+
+.fpw-route-preview-line{
+  fill: none;
+  stroke: #25d9ff;
+  stroke-linecap: round;
+  stroke-width: 4;
+}
+
+.fpw-route-preview-point{
+  stroke: #dff8ff;
+  stroke-width: 3;
+}
+
+.fpw-route-preview-point--start{
+  fill: #19e0d4;
+}
+
+.fpw-route-preview-point--end{
+  fill: #29c2ff;
+}
+
+.fpw-route-preview-label{
+  fill: #f0f7ff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.fpw-route-detail-action-title{
+  display: none;
+  margin: 0 0 12px;
+  color: #f2f8ff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.fpw-route-detail-actions{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.fpw-route-workspace-btn{
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(95, 151, 207, 0.62);
+  border-radius: 2px;
+  background: rgba(4, 19, 36, 0.72);
+  color: #e7f3ff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: none;
+}
+
+.fpw-route-workspace-btn--primary{
+  border-color: rgba(0, 218, 192, 0.75);
+  color: #41f0df;
+  background: rgba(0, 92, 116, 0.32);
+}
+
+.fpw-route-workspace-btn--danger{
+  border-color: rgba(255, 72, 88, 0.78);
+  color: #ff737d;
+  background: rgba(72, 10, 20, 0.22);
+}
+
+.fpw-routes-count{
+  margin-top: 12px;
+  color: rgba(199, 219, 241, 0.74);
+  font-size: 13px;
+}
+
+@media (max-width: 1280px){
+  .fpw-route-workspace{
+    grid-template-columns: 1fr;
+  }
+
+  .fpw-routes-table-pane{
+    border-right: 0;
+    border-bottom: 1px solid rgba(84, 147, 205, 0.35);
+  }
+}
+
+@media (max-width: 760px){
+  body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .card-header{
+    gap: 16px;
+  }
+
+  body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .card-title{
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .card-title::before{
+    width: 34px;
+    height: 34px;
+  }
+
+  body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .card-title h2{
+    font-size: 24px;
+  }
+
+  .fpw-routes-table-pane{
+    padding: 14px;
+  }
+
+  .fpw-route-detail-facts,
+  .fpw-route-detail-actions{
+    grid-template-columns: 1fr;
+  }
+
+  .fpw-route-detail-facts div,
+  .fpw-route-detail-facts div:nth-child(odd){
+    border-right: 0;
+    padding-left: 0;
+  }
+}
+
+/* Dashboard panel/card square edge override. Keeps controls, badges, icons, avatars, and forms unchanged. */
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main .dashboard-card,
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main .dashboard-card::before,
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main .panel-floatlike,
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main #missionSummaryPanel,
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main #recommendedNextStepsPanel,
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main #expeditionTimelinePanel,
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main #boatTripSetupPanel,
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main #vesselsPanel,
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main #contactsPanel,
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main #passengersPanel,
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main #operatorsPanel,
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main #waypointsPanel,
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main #quickActionsPanel,
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main .fpw-planning-context-panel,
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main .fpw-routes-table,
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main .fpw-route-detail-pane,
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main .fpw-setup-tile{
+  border-radius: 0;
+}
+
+
+
+
+
+
+
+

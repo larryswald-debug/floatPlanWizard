@@ -1237,6 +1237,248 @@ Line: #cfcatch.line#<br>
         </cfscript>
     </cffunction>
 
+    <cffunction name="refreshActiveRouteCheckpointFromLegStart" access="public" returntype="struct" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="false" default="0">
+        <cfargument name="legOrder" type="numeric" required="false" default="0">
+        <cfscript>
+            var result = { SUCCESS = false, UPDATED = false };
+            var monitoringRow = {};
+            var qLegStart = queryNew("");
+            var expectedCheckinAt = "";
+            var graceExpiresAt = "";
+
+            if (arguments.floatPlanId LTE 0) {
+                result.ERROR = "INVALID_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            monitoringRow = getMonitoringRowByFloatPlanId(arguments.floatPlanId);
+            if (!monitoringRow.SUCCESS) {
+                result.SUCCESS = true;
+                result.UPDATED = false;
+                result.MESSAGE = "No monitoring row exists for this float plan.";
+                return result;
+            }
+            if (!booleanValue(monitoringRow.is_monitoring_enabled) OR uCase(trim(toString(monitoringRow.monitor_state))) EQ "CLOSED") {
+                result.SUCCESS = true;
+                result.UPDATED = false;
+                result.MESSAGE = "Monitoring is not active for this float plan.";
+                return result;
+            }
+            if (normalizeMonitoringMode(monitoringRow.monitoring_mode) NEQ "active_route") {
+                result.SUCCESS = true;
+                result.UPDATED = false;
+                result.MESSAGE = "Monitoring mode is not active_route.";
+                return result;
+            }
+
+            qLegStart = queryExecute(
+                "SELECT rilp.leg_order, rilp.leg_started_at
+                 FROM route_instance_leg_progress rilp
+                 INNER JOIN floatplans fp
+                    ON fp.route_instance_id = rilp.route_instance_id
+                   AND fp.userId = rilp.user_id
+                 WHERE fp.floatplanId = :floatPlanId
+                   AND fp.userId = :userId
+                   AND rilp.leg_started_at IS NOT NULL
+                   AND (:routeInstanceId <= 0 OR rilp.route_instance_id = :routeInstanceId)
+                   AND (:legOrder <= 0 OR rilp.leg_order = :legOrder)
+                 ORDER BY rilp.leg_order DESC, rilp.id DESC
+                 LIMIT 1",
+                {
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = monitoringRow.user_id, cfsqltype = "cf_sql_integer" },
+                    routeInstanceId = { value = val(arguments.routeInstanceId), cfsqltype = "cf_sql_integer" },
+                    legOrder = { value = val(arguments.legOrder), cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = variables.datasource }
+            );
+
+            if (qLegStart.recordCount EQ 0 OR isNull(qLegStart.leg_started_at[1]) OR !isDate(qLegStart.leg_started_at[1])) {
+                result.ERROR = "LEG_START_NOT_FOUND";
+                result.MESSAGE = "No actual started leg timestamp was available for monitoring refresh.";
+                return result;
+            }
+
+            expectedCheckinAt = computeNextExpectedCheckin(monitoringRow, "", { baseAt = qLegStart.leg_started_at[1] });
+            if (!isDate(expectedCheckinAt)) {
+                result.ERROR = "EXPECTED_CHECKIN_UNAVAILABLE";
+                result.MESSAGE = "Unable to compute the updated active-route checkpoint.";
+                return result;
+            }
+            graceExpiresAt = computeGraceExpiresAt(expectedCheckinAt, monitoringRow.grace_window_minutes);
+
+            queryExecute(
+                "UPDATE floatplan_monitoring
+                 SET expected_checkin_at = :expectedCheckinAt,
+                     grace_expires_at = :graceExpiresAt,
+                     secure_for_night = 0,
+                     secure_for_night_until = NULL,
+                     next_monitor_eval_at = :nextMonitorEvalAt
+                 WHERE id = :monitoringId",
+                {
+                    expectedCheckinAt = { value = expectedCheckinAt, cfsqltype = "cf_sql_timestamp" },
+                    graceExpiresAt = { value = graceExpiresAt, cfsqltype = "cf_sql_timestamp" },
+                    nextMonitorEvalAt = { value = expectedCheckinAt, cfsqltype = "cf_sql_timestamp" },
+                    monitoringId = { value = monitoringRow.id, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = variables.datasource }
+            );
+
+            result.SUCCESS = true;
+            result.UPDATED = true;
+            result.FLOAT_PLAN_ID = monitoringRow.float_plan_id;
+            result.MONITORING_ID = monitoringRow.id;
+            result.LEG_ORDER = val(qLegStart.leg_order[1]);
+            result.ANCHOR_LEG_STARTED_AT = qLegStart.leg_started_at[1];
+            result.EXPECTED_CHECKIN_AT = expectedCheckinAt;
+            result.GRACE_EXPIRES_AT = graceExpiresAt;
+            result.NEXT_MONITOR_EVAL_AT = expectedCheckinAt;
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="refreshActiveRouteCheckpointFromLegCompletion" access="public" returntype="struct" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="false" default="0">
+        <cfargument name="legOrder" type="numeric" required="false" default="0">
+        <cfscript>
+            var result = { SUCCESS = false, UPDATED = false };
+            var monitoringRow = {};
+            var qLegCompletion = queryNew("");
+            var qPendingLegs = queryNew("");
+            var completedAt = "";
+            var monitorStateVal = "";
+
+            if (arguments.floatPlanId LTE 0) {
+                result.ERROR = "INVALID_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            monitoringRow = getMonitoringRowByFloatPlanId(arguments.floatPlanId);
+            if (!monitoringRow.SUCCESS) {
+                result.SUCCESS = true;
+                result.UPDATED = false;
+                result.MESSAGE = "No monitoring row exists for this float plan.";
+                return result;
+            }
+            if (!booleanValue(monitoringRow.is_monitoring_enabled) OR uCase(trim(toString(monitoringRow.monitor_state))) EQ "CLOSED") {
+                result.SUCCESS = true;
+                result.UPDATED = false;
+                result.MESSAGE = "Monitoring is not active for this float plan.";
+                return result;
+            }
+            if (normalizeMonitoringMode(monitoringRow.monitoring_mode) NEQ "active_route") {
+                result.SUCCESS = true;
+                result.UPDATED = false;
+                result.MESSAGE = "Monitoring mode is not active_route.";
+                return result;
+            }
+
+            qLegCompletion = queryExecute(
+                "SELECT rilp.route_instance_id, rilp.leg_order, rilp.completed_at
+                 FROM route_instance_leg_progress rilp
+                 INNER JOIN floatplans fp
+                    ON fp.route_instance_id = rilp.route_instance_id
+                   AND fp.userId = rilp.user_id
+                 WHERE fp.floatplanId = :floatPlanId
+                   AND fp.userId = :userId
+                   AND rilp.completed_at IS NOT NULL
+                   AND (:routeInstanceId <= 0 OR rilp.route_instance_id = :routeInstanceId)
+                   AND (:legOrder <= 0 OR rilp.leg_order = :legOrder)
+                 ORDER BY rilp.leg_order DESC, rilp.id DESC
+                 LIMIT 1",
+                {
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = monitoringRow.user_id, cfsqltype = "cf_sql_integer" },
+                    routeInstanceId = { value = val(arguments.routeInstanceId), cfsqltype = "cf_sql_integer" },
+                    legOrder = { value = val(arguments.legOrder), cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = variables.datasource }
+            );
+
+            if (qLegCompletion.recordCount EQ 0 OR isNull(qLegCompletion.completed_at[1]) OR !isDate(qLegCompletion.completed_at[1])) {
+                result.ERROR = "LEG_COMPLETION_NOT_FOUND";
+                result.MESSAGE = "No actual completed leg timestamp was available for monitoring refresh.";
+                return result;
+            }
+
+            completedAt = qLegCompletion.completed_at[1];
+            qPendingLegs = queryExecute(
+                "SELECT COUNT(*) AS pending_count
+                 FROM route_instance_legs ril
+                 INNER JOIN floatplans fp
+                    ON fp.route_instance_id = ril.route_instance_id
+                 LEFT JOIN route_instance_leg_progress rilp
+                    ON rilp.route_instance_id = ril.route_instance_id
+                   AND rilp.user_id = fp.userId
+                   AND rilp.leg_order = ril.leg_order
+                 WHERE fp.floatplanId = :floatPlanId
+                   AND fp.userId = :userId
+                   AND ril.route_instance_id = :routeInstanceId
+                   AND ril.leg_order > :legOrder
+                   AND (rilp.status IS NULL OR UPPER(TRIM(rilp.status)) <> 'COMPLETED')",
+                {
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = monitoringRow.user_id, cfsqltype = "cf_sql_integer" },
+                    routeInstanceId = { value = val(qLegCompletion.route_instance_id[1]), cfsqltype = "cf_sql_integer" },
+                    legOrder = { value = val(qLegCompletion.leg_order[1]), cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = variables.datasource }
+            );
+
+            monitorStateVal = uCase(trim(toString(monitoringRow.monitor_state)));
+            transaction {
+                if (monitorStateVal NEQ "ACTIVE") {
+                    transitionMonitorState(monitoringRow.id, monitorStateVal, "ACTIVE", {
+                        actorType = "captain",
+                        eventAt = completedAt,
+                        checkinStatus = "",
+                        completed_leg_order = val(qLegCompletion.leg_order[1])
+                    });
+                }
+
+                queryExecute(
+                    "UPDATE floatplan_monitoring
+                     SET monitor_state = 'ACTIVE',
+                         expected_checkin_at = NULL,
+                         grace_expires_at = NULL,
+                         secure_for_night = 0,
+                         secure_for_night_until = NULL,
+                         next_monitor_eval_at = NULL,
+                         missed_at = NULL,
+                         escalated_at = NULL,
+                         last_captain_alert_at = NULL,
+                         last_contact_alert_at = NULL,
+                         last_monitor_eval_at = :lastMonitorEvalAt
+                     WHERE id = :monitoringId",
+                    {
+                        lastMonitorEvalAt = { value = completedAt, cfsqltype = "cf_sql_timestamp" },
+                        monitoringId = { value = monitoringRow.id, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = variables.datasource }
+                );
+            }
+
+            result.SUCCESS = true;
+            result.UPDATED = true;
+            result.FLOAT_PLAN_ID = monitoringRow.float_plan_id;
+            result.MONITORING_ID = monitoringRow.id;
+            result.LEG_ORDER = val(qLegCompletion.leg_order[1]);
+            result.ANCHOR_COMPLETED_AT = completedAt;
+            result.AWAITING_NEXT_LEG = (qPendingLegs.recordCount EQ 1 AND val(qPendingLegs.pending_count[1]) GT 0);
+            result.PENDING_LEG_COUNT = qPendingLegs.recordCount EQ 1 ? val(qPendingLegs.pending_count[1]) : 0;
+            result.MONITOR_STATE = "ACTIVE";
+            result.EXPECTED_CHECKIN_AT = "";
+            result.GRACE_EXPIRES_AT = "";
+            result.NEXT_MONITOR_EVAL_AT = "";
+            return result;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="refreshSecureForNightCheckpoint" access="public" returntype="struct" output="false">
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
@@ -1458,5 +1700,4 @@ Line: #cfcatch.line#<br>
     </cffunction>
 
 </cfcomponent>
-
 
