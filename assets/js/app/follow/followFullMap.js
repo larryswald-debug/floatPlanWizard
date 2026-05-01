@@ -142,6 +142,12 @@
       window.FPW.attachLeafletMarineLayers({
         map: state.mapInstance
       });
+      if (typeof window.FPW.attachLeafletWeatherOverlays === "function") {
+        window.FPW.attachLeafletWeatherOverlays({
+          map: state.mapInstance,
+          mode: "activeCruise"
+        });
+      }
     }
     api.renderRoute(routeGeo);
     api.renderPins(pins);

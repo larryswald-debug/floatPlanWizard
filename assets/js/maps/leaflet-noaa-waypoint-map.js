@@ -26,6 +26,29 @@
     return "/api/v1";
   }
 
+  function stopLeafletControlDragPropagation(element) {
+    var eventTypes = [
+      "pointerdown",
+      "pointermove",
+      "pointerup",
+      "mousedown",
+      "mousemove",
+      "mouseup",
+      "touchstart",
+      "touchmove",
+      "touchend",
+      "click",
+      "dblclick"
+    ];
+
+    if (!element) return;
+    eventTypes.forEach(function (eventType) {
+      element.addEventListener(eventType, function (event) {
+        event.stopPropagation();
+      });
+    });
+  }
+
   window.FPW.attachLeafletMarineLayers = function attachLeafletMarineLayers(options) {
     var settings = options || {};
     var map = settings.map || null;
@@ -72,6 +95,7 @@
         input = container.querySelector("input");
         window.L.DomEvent.disableClickPropagation(container);
         window.L.DomEvent.disableScrollPropagation(container);
+        stopLeafletControlDragPropagation(container);
         if (input) {
           input.addEventListener("input", function () {
             var value = parseInt(input.value, 10) / 100;
@@ -486,6 +510,7 @@
         input = container.querySelector("input");
         window.L.DomEvent.disableClickPropagation(container);
         window.L.DomEvent.disableScrollPropagation(container);
+        stopLeafletControlDragPropagation(container);
         if (input) {
           input.addEventListener("input", function () {
             var value = parseInt(input.value, 10) / 100;

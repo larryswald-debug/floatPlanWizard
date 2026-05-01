@@ -35,6 +35,7 @@ temp/
 
 
 *.pdf
+*.psd
 *.rollback-*
 *.bak*
 

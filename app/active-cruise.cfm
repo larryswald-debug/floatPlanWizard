@@ -760,6 +760,7 @@
       detail = "Wind forecast suggests tighter docking conditions later in the day."
     }
   ];
+  activeCruiseCaptainLogEntries = [];
   activeCruiseTripStartState = {};
   activeCruiseTripStarted = true;
   activeCruiseHasOperationalCheckIn = false;
@@ -822,6 +823,7 @@
       crewRowPhone = "";
       lastCheckInDt = "";
       expectedCheckInDt = "";
+      expectedCheckInUtcDt = "";
       dailyStartLocalTimeVal = "08:00:00";
       dailyStartHourVal = 8;
       dailyStartMinuteVal = 0;
@@ -847,6 +849,8 @@
       qStream = queryNew("");
       qLastPost = queryNew("");
       qTimelinePosts = queryNew("");
+      qCaptainLogTable = queryNew("");
+      qCaptainLogEntries = queryNew("");
       qVoyageTables = queryNew("");
       qInputsColumn = queryNew("");
       qInstInputs = queryNew("");
@@ -893,6 +897,8 @@
       displayLegRow = 0;
       timelineItems = [];
       timelinePostDt = "";
+      captainNoteCreatedDt = "";
+      captainNotePosted = false;
       routePlanBaseSpeedKn = 0.0;
       routePlanEffectiveSpeedKn = 0.0;
       routePlanFuelBurnGph = 0.0;
@@ -967,6 +973,7 @@
                fp.dailyStartLocalTime,
                fp.departing,
                fp.returning,
+               m.expected_checkin_at AS expected_checkin_at_utc,
                COALESCE(
                  CONVERT_TZ(
                    m.expected_checkin_at,
@@ -1094,6 +1101,9 @@
         checkInContextVal = fpwNormalizeCheckInContext(fpwQueryCell(qPlan, "checkin_context", 1, ""));
         if (isDate(fpwQueryCell(qPlan, "checkedInAt", 1, ""))) {
           lastCheckInDt = fpwQueryCell(qPlan, "checkedInAt", 1, "");
+        }
+        if (isDate(fpwQueryCell(qPlan, "expected_checkin_at_utc", 1, ""))) {
+          expectedCheckInUtcDt = fpwQueryCell(qPlan, "expected_checkin_at_utc", 1, "");
         }
         if (isDate(fpwQueryCell(qPlan, "expected_checkin_at", 1, ""))) {
           expectedCheckInDt = fpwQueryCell(qPlan, "expected_checkin_at", 1, "");
@@ -1489,6 +1499,54 @@
             }
           }
         }
+
+        qCaptainLogTable = queryExecute(
+          "SELECT COUNT(*) AS cnt
+           FROM information_schema.tables
+           WHERE table_schema = DATABASE()
+             AND table_name = 'floatplan_captain_log_entries'",
+          {},
+          { datasource = activeCruiseDatasource }
+        );
+        if (qCaptainLogTable.recordCount EQ 1 AND val(fpwQueryCell(qCaptainLogTable, "cnt", 1, 0)) EQ 1) {
+          qCaptainLogEntries = queryExecute(
+            "SELECT id,
+                    note_body,
+                    note_tag,
+                    posted_to_stream,
+                    voyage_post_id,
+                    created_utc
+             FROM floatplan_captain_log_entries
+             WHERE floatplan_id = :planId
+               AND user_id = :ownerUserId
+               AND deleted_utc IS NULL
+             ORDER BY created_utc DESC, id DESC
+             LIMIT 6",
+            {
+              planId = { value = activeCruiseContext.floatPlanId, cfsqltype = "cf_sql_integer" },
+              ownerUserId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" }
+            },
+            { datasource = activeCruiseDatasource }
+          );
+
+          if (qCaptainLogEntries.recordCount GT 0) {
+            activeCruiseCaptainLogEntries = [];
+            for (i = 1; i LTE qCaptainLogEntries.recordCount; i++) {
+              captainNoteCreatedDt = fpwQueryCell(qCaptainLogEntries, "created_utc", i, "");
+              captainNotePosted = (val(fpwQueryCell(qCaptainLogEntries, "posted_to_stream", i, 0)) EQ 1);
+              arrayAppend(activeCruiseCaptainLogEntries, {
+                id = val(fpwQueryCell(qCaptainLogEntries, "id", i, 0)),
+                body = trim(toString(fpwQueryCell(qCaptainLogEntries, "note_body", i, ""))),
+                tag = trim(toString(fpwQueryCell(qCaptainLogEntries, "note_tag", i, ""))),
+                posted = captainNotePosted,
+                badge = (captainNotePosted ? "POSTED" : "PRIVATE"),
+                voyagePostId = val(fpwQueryCell(qCaptainLogEntries, "voyage_post_id", i, 0)),
+                createdLabel = fpwFormatClock(captainNoteCreatedDt, "--"),
+                createdUtc = (isDate(captainNoteCreatedDt) ? dateTimeFormat(captainNoteCreatedDt, "yyyy-mm-dd'T'HH:nn:ss'Z'") : "")
+              });
+            }
+          }
+        }
       }
 
       if (NOT activeCruiseHasOperationalCheckIn AND NOT activeCruiseTripStarted) {
@@ -1855,7 +1913,9 @@
 	        }
 	        if (isOvernightCheckIn AND isDate(lastCheckInDt)) {
 	          experimentalPauseStartDt = lastCheckInDt;
-	          if (isDate(expectedCheckInDt)) {
+	          if (isDate(expectedCheckInUtcDt)) {
+	            experimentalPauseResumeDt = expectedCheckInUtcDt;
+	          } else if (isDate(expectedCheckInDt)) {
 	            experimentalPauseResumeDt = expectedCheckInDt;
 	          } else {
 	            experimentalPauseResumeDt = fpwBuildTripLocalTime(lastCheckInDt, experimentalDepartureTimeZone, dailyStartHourVal, dailyStartMinuteVal, dailyStartSecondVal, true);
@@ -1929,9 +1989,9 @@
           }
           activeCruiseView.experimentalLegMeta = experimentalAssumptionLabel;
           if (experimentalPauseActive AND isDate(experimentalPauseResumeDt)) {
-            activeCruiseView.experimentalLegMeta &= " Paused until " & fpwFormatClock(experimentalPauseResumeDt, "8:00 AM") & ".";
+            activeCruiseView.experimentalLegMeta &= " Paused until " & fpwFormatClock((isDate(expectedCheckInDt) ? expectedCheckInDt : experimentalPauseResumeDt), "8:00 AM") & ".";
           } else if (isDate(experimentalPauseStartDt) AND isDate(experimentalPauseResumeDt)) {
-            activeCruiseView.experimentalLegMeta &= " Overnight pause excluded until " & fpwFormatClock(experimentalPauseResumeDt, "8:00 AM") & ".";
+            activeCruiseView.experimentalLegMeta &= " Overnight pause excluded until " & fpwFormatClock((isDate(expectedCheckInDt) ? expectedCheckInDt : experimentalPauseResumeDt), "8:00 AM") & ".";
           }
 
           activeCruiseExperimental.available = true;
@@ -2063,7 +2123,9 @@
         routePlanOpenPauseResumeDt = "";
         if (isOvernightCheckIn AND isDate(lastCheckInDt)) {
           routePlanOpenPauseStartDt = lastCheckInDt;
-          if (isDate(expectedCheckInDt)) {
+          if (isDate(expectedCheckInUtcDt)) {
+            routePlanOpenPauseResumeDt = expectedCheckInUtcDt;
+          } else if (isDate(expectedCheckInDt)) {
             routePlanOpenPauseResumeDt = expectedCheckInDt;
           } else {
             routePlanOpenPauseResumeDt = fpwBuildTripLocalTime(lastCheckInDt, experimentalDepartureTimeZone, dailyStartHourVal, dailyStartMinuteVal, dailyStartSecondVal, true);
@@ -2192,6 +2254,9 @@
             }
           } else if (routePlanHasActualAnchor AND isDate(routePlanAdjustedAnchorDt)) {
             routePlanLegDisplayDepartureDt = routePlanAdjustedAnchorDt;
+            if (isDate(routePlanOpenPauseResumeDt) AND dateCompare(routePlanLegDisplayDepartureDt, routePlanOpenPauseResumeDt, "s") LT 0) {
+              routePlanLegDisplayDepartureDt = routePlanOpenPauseResumeDt;
+            }
             routePlanLegDepartureFieldLabel = "Adjusted Departure";
             routePlanLegDepartureSource = "adjusted_chain";
             if (!routePlanDelayApplied AND activeCruiseView.manualDelayMinutesTotal GT 0) {
@@ -2320,6 +2385,7 @@
         activeCruiseTimelineItems = [
           {
             time = (isDate(canonicalTripStartDt) ? fpwFormatClock(canonicalTripStartDt, "--") : "--"),
+            timeUtc = (isDate(canonicalTripStartDt) ? fpwFormatUtcIso(canonicalTripStartDt) : ""),
             title = "Scheduled departure",
             detail = "Trip start and monitoring begin at the scheduled departure time."
           }
@@ -3718,6 +3784,149 @@
       white-space: nowrap;
     }
 
+    .captain-note-form {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .captain-note-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--text);
+      font-weight: 800;
+      font-size: 0.95rem;
+    }
+
+    .captain-note-label span {
+      color: var(--soft);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .captain-note-textarea {
+      width: 100%;
+      min-height: 96px;
+      resize: vertical;
+      border-radius: 10px;
+      border: 1px solid rgba(126,184,226,0.16);
+      background: rgba(255,255,255,0.025);
+      color: var(--text);
+      padding: 12px 14px;
+      font: inherit;
+      line-height: 1.45;
+    }
+
+    .captain-note-textarea:focus {
+      outline: none;
+      border-color: rgba(67,199,255,0.55);
+      box-shadow: 0 0 0 2px rgba(67,199,255,0.1);
+    }
+
+    .captain-note-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .captain-note-tag {
+      border: 1px solid rgba(67,199,255,0.16);
+      border-radius: 8px;
+      background: rgba(67,199,255,0.06);
+      color: var(--accent);
+      padding: 8px 10px;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .captain-note-tag.is-selected {
+      border-color: rgba(67,199,255,0.5);
+      background: rgba(67,199,255,0.16);
+      color: var(--text);
+    }
+
+    .captain-note-post-option {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      align-items: start;
+      border: 1px solid rgba(126,184,226,0.12);
+      border-radius: 10px;
+      padding: 12px;
+      background: rgba(255,255,255,0.02);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .captain-note-post-option input {
+      margin-top: 4px;
+    }
+
+    .captain-note-post-option b,
+    .captain-note-post-option span {
+      display: block;
+    }
+
+    .captain-note-post-option span {
+      color: var(--muted);
+      font-size: 0.86rem;
+      margin-top: 4px;
+    }
+
+    .captain-note-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .captain-note-message {
+      color: var(--muted);
+      font-size: 0.86rem;
+      min-height: 1.2em;
+    }
+
+    .captain-note-message.is-error {
+      color: var(--alert);
+    }
+
+    .captain-note-save {
+      border: 1px solid rgba(67,199,255,0.28);
+      border-radius: 10px;
+      background: rgba(67,199,255,0.12);
+      color: var(--text);
+      padding: 10px 16px;
+      font: inherit;
+      font-weight: 900;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .captain-note-save:disabled {
+      cursor: wait;
+      opacity: 0.65;
+    }
+
+    .captain-note-entry small {
+      display: block;
+      margin-top: 6px;
+      color: var(--soft);
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .captain-note-empty {
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
     .active-cruise-reference-card {
       padding: 18px;
     }
@@ -4546,28 +4755,51 @@
                   <h3>Quick Notes</h3>
                   <span>Editable</span>
                 </div>
-                <div class="log-list">
-                  <div class="log-row">
-                    <div>
-                      <b>Approach marina before evening wind shift</b>
-                      <span>Best arrival window appears before 5 PM.</span>
-                    </div>
-                    <div class="action-mini">Priority</div>
+                <div class="captain-note-form" id="fpwCaptainQuickNoteForm">
+                  <label class="captain-note-label" for="fpwCaptainQuickNoteInput">
+                    Add captain note
+                    <span>Private by default</span>
+                  </label>
+                  <textarea class="captain-note-textarea" id="fpwCaptainQuickNoteInput" placeholder="Write a quick captain note… Example: Called marina, confirmed slip assignment, ETA still on track."></textarea>
+                  <div class="captain-note-tags" aria-label="Quick note tags">
+                    <button class="captain-note-tag" type="button" data-fpw-captain-note-tag="All good">All good</button>
+                    <button class="captain-note-tag" type="button" data-fpw-captain-note-tag="Underway">Underway</button>
+                    <button class="captain-note-tag" type="button" data-fpw-captain-note-tag="Weather delay">Weather delay</button>
+                    <button class="captain-note-tag" type="button" data-fpw-captain-note-tag="Anchored">Anchored</button>
+                    <button class="captain-note-tag" type="button" data-fpw-captain-note-tag="Docking">Docking</button>
+                    <button class="captain-note-tag" type="button" data-fpw-captain-note-tag="Fuel">Fuel</button>
+                    <button class="captain-note-tag" type="button" data-fpw-captain-note-tag="Mechanical">Mechanical</button>
+                    <button class="captain-note-tag" type="button" data-fpw-captain-note-tag="Marina call">Marina call</button>
                   </div>
-                  <div class="log-row">
-                    <div>
-                      <b>Call marina on final approach</b>
-                      <span>Slip confirmation and dockside instructions.</span>
-                    </div>
-                    <div class="action-mini">Docking</div>
+                  <label class="captain-note-post-option" for="fpwCaptainQuickNotePost">
+                    <input type="checkbox" id="fpwCaptainQuickNotePost" />
+                    <span>
+                      <b>Also post this note to the Follow page voyage stream.</b>
+                      <span>Leave unchecked for a private captain log entry only.</span>
+                    </span>
+                  </label>
+                  <div class="captain-note-actions">
+                    <span class="captain-note-message" id="fpwCaptainQuickNoteMessage" aria-live="polite"></span>
+                    <button class="captain-note-save" type="button" id="fpwCaptainQuickNoteSaveBtn">Save Note</button>
                   </div>
-                  <div class="log-row">
-                    <div>
-                      <b>Fuel available after arrival</b>
-                      <span>Optional top-off for tomorrow’s departure leg.</span>
-                    </div>
-                    <div class="action-mini">Fuel</div>
-                  </div>
+                </div>
+                <div class="log-list" id="fpwCaptainQuickNoteList">
+                  <cfoutput>
+                    <cfif arrayLen(activeCruiseCaptainLogEntries)>
+                      <cfloop array="#activeCruiseCaptainLogEntries#" index="noteEntry">
+                        <div class="log-row captain-note-entry" data-captain-note-id="#encodeForHtmlAttribute(toString(noteEntry.id))#">
+                          <div>
+                            <b>#encodeForHtml(len(trim(toString(noteEntry.tag))) ? toString(noteEntry.tag) : "Captain note")#</b>
+                            <span>#encodeForHtml(toString(noteEntry.body))#</span>
+                            <small<cfif structKeyExists(noteEntry, "createdUtc") AND len(trim(toString(noteEntry.createdUtc)))> data-time-utc="#encodeForHtmlAttribute(toString(noteEntry.createdUtc))#"</cfif>>#encodeForHtml(toString(noteEntry.createdLabel))#</small>
+                          </div>
+                          <div class="action-mini">#encodeForHtml(toString(noteEntry.badge))#</div>
+                        </div>
+                      </cfloop>
+                    <cfelse>
+                      <div class="captain-note-empty" data-fpw-captain-note-empty>Private captain notes will appear here after they are saved.</div>
+                    </cfif>
+                  </cfoutput>
                 </div>
               </div>
             </div>
@@ -4823,7 +5055,8 @@
   <script src="../assets/js/app/dashboard/routebuilder.js?v=20260422b"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="../assets/js/app/follow/followMap.js?v=202604131858a"></script>
-  <script src="../assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260416a"></script>
+  <script src="../assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260430-radar-opacity-a"></script>
+  <script src="../assets/js/maps/fpw-weather-overlays.js?v=20260430a"></script>
   <script id="fpw-active-cruise-hooks" type="application/json"><cfoutput>#activeCruiseHooksJson#</cfoutput></script>
   <script>
     (function (window, document) {
@@ -4892,6 +5125,13 @@
       var routePlanTimelineEl = document.getElementById("fpwRoutePlanTimeline");
       var routePlanJumpCurrentBtn = document.getElementById("fpwRoutePlanJumpCurrentBtn");
       var routePlanPreviewNoteEl = document.getElementById("fpwRoutePlanPreviewNote");
+      var captainNoteInputEl = document.getElementById("fpwCaptainQuickNoteInput");
+      var captainNotePostEl = document.getElementById("fpwCaptainQuickNotePost");
+      var captainNoteSaveBtn = document.getElementById("fpwCaptainQuickNoteSaveBtn");
+      var captainNoteMessageEl = document.getElementById("fpwCaptainQuickNoteMessage");
+      var captainNoteListEl = document.getElementById("fpwCaptainQuickNoteList");
+      var captainNoteTagButtons = document.querySelectorAll("[data-fpw-captain-note-tag]");
+      var selectedCaptainNoteTag = "";
       var activeCruiseMapEl = document.getElementById("fpwActiveCruiseMap");
       var activeCruiseOpenFullMapBtn = document.getElementById("fpwActiveCruiseOpenFullMapBtn");
       var activeCruiseMapInstance = null;
@@ -5397,6 +5637,15 @@
         return pauseMinutes > 0 ? pauseMinutes : 0;
       }
 
+      function applyRoutePlanResumeFloor(dateValue) {
+        var pauseResume = parseRoutePlanDate(routePlanModel.pauseResumeUtc);
+
+        if (!(dateValue instanceof Date) || Number.isNaN(dateValue.getTime()) || !pauseResume) {
+          return dateValue;
+        }
+        return dateValue.getTime() < pauseResume.getTime() ? pauseResume : dateValue;
+      }
+
       function renderRoutePlanPreview() {
         var baseDate = parseRoutePlanDate(routePlanModel.scheduledDepartureIso);
         var weatherPct = parseRoutePlanWeatherPct();
@@ -5499,14 +5748,14 @@
             currentLegAdjustedArrivalDate = arrivalDate;
             currentLegPlannedArrivalDate = plannedArrivalDate;
           } else if (hasActualAnchor && adjustedAnchorDate) {
-            departureDate = adjustedAnchorDate;
+            departureDate = applyRoutePlanResumeFloor(adjustedAnchorDate);
             departureSource = "adjusted_chain";
             departureLabel = "Adjusted Departure";
             if (!delayApplied && delayMinutes > 0) {
               appliedDelayMinutes = delayMinutes;
               delayApplied = true;
             }
-            arrivalDate = addRoutePlanMinutes(adjustedAnchorDate, Math.round(durationHours * 60) + appliedDelayMinutes);
+            arrivalDate = addRoutePlanMinutes(departureDate, Math.round(durationHours * 60) + appliedDelayMinutes);
             arrivalSource = "adjusted_chain";
             arrivalLabel = "Adjusted ETA";
             adjustedAnchorDate = arrivalDate;
@@ -5980,6 +6229,12 @@
             map: activeCruiseMapInstance
           });
         }
+        if (window.FPW && typeof window.FPW.attachLeafletWeatherOverlays === "function") {
+          window.FPW.attachLeafletWeatherOverlays({
+            map: activeCruiseMapInstance,
+            mode: "activeCruise"
+          });
+        }
         window.FPWFollowMap.renderRoute(mapPayload.routeGeo);
         window.FPWFollowMap.renderPins(mapPayload.pins);
         window.FPWFollowMap.fitBoundsToRoute(mapPayload.routeGeo, mapPayload.pins);
@@ -6374,6 +6629,157 @@
 
       function buildDailyStartApiUrl() {
         return new URL("../api/v1/floatplan.cfc?method=handle&action=updatedailystart&returnFormat=json", window.location.href).toString();
+      }
+
+      function buildCaptainLogApiUrl() {
+        return new URL("../api/v1/floatplan.cfc?method=handle&action=savecaptainlogentry&returnFormat=json", window.location.href).toString();
+      }
+
+      function setCaptainNoteMessage(message, isError) {
+        if (!captainNoteMessageEl) {
+          return;
+        }
+        captainNoteMessageEl.textContent = String(message || "");
+        captainNoteMessageEl.classList.toggle("is-error", !!isError);
+      }
+
+      function updateCaptainNoteSaveLabel() {
+        if (!captainNoteSaveBtn) {
+          return;
+        }
+        captainNoteSaveBtn.textContent = captainNotePostEl && captainNotePostEl.checked ? "Save & Post" : "Save Note";
+      }
+
+      function setSelectedCaptainNoteTag(tagValue) {
+        selectedCaptainNoteTag = String(tagValue || "").trim();
+        captainNoteTagButtons.forEach(function (button) {
+          button.classList.toggle("is-selected", String(button.getAttribute("data-fpw-captain-note-tag") || "").trim() === selectedCaptainNoteTag);
+        });
+      }
+
+      function normalizeCaptainLogNotePayload(rawNote) {
+        var note = (rawNote && typeof rawNote === "object") ? rawNote : {};
+        var posted = note.postedToStream === true || note.POSTEDTOSTREAM === true || note.posted_to_stream === true || note.posted === true;
+        return {
+          id: note.id || note.ID || 0,
+          noteBody: String(note.noteBody || note.NOTEBODY || note.note_body || note.body || note.BODY || ""),
+          noteTag: String(note.noteTag || note.NOTETAG || note.note_tag || note.tag || note.TAG || ""),
+          postedToStream: posted,
+          createdUtc: String(note.createdUtc || note.CREATEDUTC || note.created_utc || ""),
+          createdLabel: String(note.createdLabel || note.CREATEDLABEL || note.created_label || "--"),
+          badge: String(note.badge || note.BADGE || (posted ? "POSTED" : "PRIVATE"))
+        };
+      }
+
+      function createCaptainNoteElement(rawNote) {
+        var note = normalizeCaptainLogNotePayload(rawNote);
+        var row = document.createElement("div");
+        var copy = document.createElement("div");
+        var title = document.createElement("b");
+        var body = document.createElement("span");
+        var meta = document.createElement("small");
+        var badge = document.createElement("div");
+
+        row.className = "log-row captain-note-entry";
+        row.setAttribute("data-captain-note-id", String(note.id || ""));
+
+        title.textContent = note.noteTag || "Captain note";
+        body.textContent = note.noteBody;
+        meta.textContent = note.createdLabel || "--";
+        if (note.createdUtc) {
+          meta.setAttribute("data-time-utc", note.createdUtc);
+        }
+
+        badge.className = "action-mini";
+        badge.textContent = note.badge || (note.postedToStream ? "POSTED" : "PRIVATE");
+
+        copy.appendChild(title);
+        copy.appendChild(body);
+        copy.appendChild(meta);
+        row.appendChild(copy);
+        row.appendChild(badge);
+        return row;
+      }
+
+      function prependCaptainNoteEntry(rawNote) {
+        var emptyState = null;
+        var row = null;
+
+        if (!captainNoteListEl) {
+          return;
+        }
+
+        emptyState = captainNoteListEl.querySelector("[data-fpw-captain-note-empty]");
+        if (emptyState) {
+          emptyState.remove();
+        }
+
+        row = createCaptainNoteElement(rawNote);
+        captainNoteListEl.insertBefore(row, captainNoteListEl.firstChild);
+      }
+
+      function getCaptainNoteRouteInstanceId() {
+        var raw = pageContext && (pageContext.routeInstanceId || pageContext.ROUTEINSTANCEID);
+        var parsed = parseInt(raw, 10);
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+
+      function getCaptainNoteRouteLegOrder() {
+        var raw = (
+          (routePlanModel && routePlanModel.currentLegOrder)
+          || (pageContext && (pageContext.currentLegOrder || pageContext.CURRENTLEGORDER || pageContext.pendingLegOrder || pageContext.PENDINGLEGORDER))
+          || 0
+        );
+        var parsed = parseInt(raw, 10);
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+
+      function submitCaptainNote() {
+        var noteText = captainNoteInputEl ? String(captainNoteInputEl.value || "").trim() : "";
+        var shouldPost = captainNotePostEl ? !!captainNotePostEl.checked : false;
+        var originalButtonLabel = captainNoteSaveBtn ? captainNoteSaveBtn.textContent : "";
+
+        if (!captainNoteInputEl || !captainNoteSaveBtn) {
+          return;
+        }
+        if (!floatPlanId || floatPlanId <= 0) {
+          setCaptainNoteMessage("Active float plan context is unavailable.", true);
+          return;
+        }
+        if (!noteText) {
+          setCaptainNoteMessage("Add a captain note before saving.", true);
+          captainNoteInputEl.focus();
+          return;
+        }
+
+        captainNoteSaveBtn.disabled = true;
+        captainNoteSaveBtn.textContent = "Saving...";
+        setCaptainNoteMessage("", false);
+
+        postJson(buildCaptainLogApiUrl(), {
+          floatPlanId: floatPlanId,
+          routeInstanceId: getCaptainNoteRouteInstanceId(),
+          routeLegOrder: getCaptainNoteRouteLegOrder(),
+          noteBody: noteText,
+          noteTag: selectedCaptainNoteTag,
+          postToFollowStream: shouldPost
+        }, "Captain note could not be saved.").then(function (payload) {
+          var savedNote = payload.note || payload.NOTE || {};
+          prependCaptainNoteEntry(savedNote);
+          captainNoteInputEl.value = "";
+          if (captainNotePostEl) {
+            captainNotePostEl.checked = false;
+          }
+          setSelectedCaptainNoteTag("");
+          updateCaptainNoteSaveLabel();
+          setCaptainNoteMessage(shouldPost ? "Saved and posted to the Follow page." : "Private captain note saved.", false);
+        }).catch(function (err) {
+          setCaptainNoteMessage(String((err && (err.MESSAGE || err.message)) || "Captain note could not be saved."), true);
+        }).finally(function () {
+          captainNoteSaveBtn.disabled = false;
+          captainNoteSaveBtn.textContent = originalButtonLabel || "Save Note";
+          updateCaptainNoteSaveLabel();
+        });
       }
 
       function renderWeatherAlerts(alerts) {
@@ -6778,6 +7184,23 @@
             });
         });
       }
+
+      if (captainNotePostEl) {
+        captainNotePostEl.addEventListener("change", updateCaptainNoteSaveLabel);
+      }
+
+      captainNoteTagButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          var tagValue = String(button.getAttribute("data-fpw-captain-note-tag") || "").trim();
+          setSelectedCaptainNoteTag(selectedCaptainNoteTag === tagValue ? "" : tagValue);
+        });
+      });
+
+      if (captainNoteSaveBtn) {
+        captainNoteSaveBtn.addEventListener("click", submitCaptainNote);
+      }
+
+      updateCaptainNoteSaveLabel();
 
       closeBtn.addEventListener("click", function () {
         closeModal();

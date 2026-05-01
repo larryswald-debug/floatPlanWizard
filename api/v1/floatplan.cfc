@@ -186,6 +186,12 @@
                     </cfif>
                 </cfcase>
 
+                <cfcase value="savecaptainlogentry">
+                    <cfset var captainLogResult = saveCaptainLogEntry(userId, body)>
+                    <cfset captainLogResult.AUTH = true>
+                    <cfoutput>#serializeJSON(captainLogResult)#</cfoutput>
+                </cfcase>
+
                 <cfcase value="updatedailystart">
                     <cfset var dailyStartId = 0>
                     <cfset var dailyStartValue = trim(
@@ -2721,6 +2727,263 @@
             result.FLOATPLANID = arguments.floatPlanId;
             result.MANUAL_DELAY_MINUTES_TOTAL = totalDelayMinutes;
             return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="saveCaptainLogEntry" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="body" type="struct" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                success = false
+            };
+            var ds = "fpw";
+            var floatPlanId = val(pickValue(arguments.body, ["floatPlanId", "floatplanId", "floatplan_id"], 0));
+            var routeInstanceId = val(pickValue(arguments.body, ["routeInstanceId", "route_instance_id"], 0));
+            var routeLegOrder = val(pickValue(arguments.body, ["routeLegOrder", "route_leg_order", "currentLegOrder"], 0));
+            var noteBody = trim(toString(pickValue(arguments.body, ["noteBody", "note_body", "body", "note"], "")));
+            var noteTag = left(trim(toString(pickValue(arguments.body, ["noteTag", "note_tag", "tag"], ""))), 64);
+            var postToFollowStream = booleanValue(pickValue(arguments.body, ["postToFollowStream", "post_to_follow_stream", "postToFollow", "post_to_stream"], false));
+            var qPlan = queryNew("");
+            var qSaved = queryNew("");
+            var insertResult = {};
+            var postInsertResult = {};
+            var streamCtx = {};
+            var captainLogId = 0;
+            var voyagePostId = 0;
+            var titleVal = "";
+            var savedNote = {};
+
+            if (arguments.userId LTE 0) {
+                result.ERROR = "NOT_LOGGED_IN";
+                result.MESSAGE = "A logged-in captain is required.";
+                return result;
+            }
+            if (floatPlanId LTE 0) {
+                result.ERROR = "INVALID_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+            if (!len(noteBody)) {
+                result.ERROR = "NOTE_REQUIRED";
+                result.MESSAGE = "A captain note is required.";
+                return result;
+            }
+
+            qPlan = queryExecute(
+                "SELECT floatplanId, userId, route_instance_id
+                 FROM floatplans
+                 WHERE floatplanId = :planId
+                   AND userId = :userId
+                 LIMIT 1",
+                {
+                    planId = { value = floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = ds }
+            );
+            if (qPlan.recordCount EQ 0) {
+                result.ERROR = "NOT_FOUND";
+                result.MESSAGE = "Float plan not found.";
+                return result;
+            }
+            if (routeInstanceId LTE 0 AND !isNull(qPlan.route_instance_id[1])) {
+                routeInstanceId = val(qPlan.route_instance_id[1]);
+            }
+
+            titleVal = left(noteBody, 80);
+
+            transaction {
+                queryExecute(
+                    "INSERT INTO floatplan_captain_log_entries (
+                        floatplan_id,
+                        user_id,
+                        route_instance_id,
+                        route_leg_order,
+                        note_body,
+                        note_tag,
+                        posted_to_stream,
+                        voyage_post_id,
+                        created_utc,
+                        updated_utc
+                     ) VALUES (
+                        :floatPlanId,
+                        :userId,
+                        :routeInstanceId,
+                        :routeLegOrder,
+                        :noteBody,
+                        :noteTag,
+                        0,
+                        NULL,
+                        UTC_TIMESTAMP(),
+                        UTC_TIMESTAMP()
+                     )",
+                    {
+                        floatPlanId = { value = floatPlanId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                        routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer", null = (routeInstanceId LTE 0) },
+                        routeLegOrder = { value = routeLegOrder, cfsqltype = "cf_sql_integer", null = (routeLegOrder LTE 0) },
+                        noteBody = { value = noteBody, cfsqltype = "cf_sql_longvarchar" },
+                        noteTag = { value = noteTag, cfsqltype = "cf_sql_varchar", null = NOT len(noteTag) }
+                    },
+                    { datasource = ds, result = "insertResult" }
+                );
+
+                if (structKeyExists(insertResult, "generatedKey") AND isNumeric(insertResult.generatedKey)) {
+                    captainLogId = val(insertResult.generatedKey);
+                }
+
+                if (postToFollowStream) {
+                    streamCtx = ensureVoyageStreamForFloatPlan(arguments.userId, floatPlanId, ds);
+                    queryExecute(
+                        "INSERT INTO voyage_posts (
+                            stream_id,
+                            author_type,
+                            author_user_id,
+                            title,
+                            body,
+                            post_type,
+                            event_type,
+                            created_utc
+                         ) VALUES (
+                            :streamId,
+                            'owner',
+                            :userId,
+                            :title,
+                            :body,
+                            'text',
+                            'captain_log',
+                            UTC_TIMESTAMP()
+                         )",
+                        {
+                            streamId = { value = streamCtx.streamId, cfsqltype = "cf_sql_integer" },
+                            userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                            title = { value = titleVal, cfsqltype = "cf_sql_varchar" },
+                            body = { value = noteBody, cfsqltype = "cf_sql_longvarchar" }
+                        },
+                        { datasource = ds, result = "postInsertResult" }
+                    );
+                    if (structKeyExists(postInsertResult, "generatedKey") AND isNumeric(postInsertResult.generatedKey)) {
+                        voyagePostId = val(postInsertResult.generatedKey);
+                    }
+
+                    queryExecute(
+                        "UPDATE floatplan_captain_log_entries
+                         SET posted_to_stream = 1,
+                             voyage_post_id = :voyagePostId,
+                             updated_utc = UTC_TIMESTAMP()
+                         WHERE id = :captainLogId
+                           AND user_id = :userId",
+                        {
+                            voyagePostId = { value = voyagePostId, cfsqltype = "cf_sql_integer", null = (voyagePostId LTE 0) },
+                            captainLogId = { value = captainLogId, cfsqltype = "cf_sql_integer" },
+                            userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                        },
+                        { datasource = ds }
+                    );
+
+                    queryExecute(
+                        "UPDATE voyage_streams
+                         SET updated_utc = UTC_TIMESTAMP()
+                         WHERE id = :streamId",
+                        {
+                            streamId = { value = streamCtx.streamId, cfsqltype = "cf_sql_integer" }
+                        },
+                        { datasource = ds }
+                    );
+                }
+
+                qSaved = queryExecute(
+                    "SELECT id,
+                            floatplan_id,
+                            user_id,
+                            route_instance_id,
+                            route_leg_order,
+                            note_body,
+                            note_tag,
+                            posted_to_stream,
+                            voyage_post_id,
+                            created_utc,
+                            updated_utc
+                     FROM floatplan_captain_log_entries
+                     WHERE id = :captainLogId
+                       AND user_id = :userId
+                     LIMIT 1",
+                    {
+                        captainLogId = { value = captainLogId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = ds }
+                );
+            }
+
+            if (qSaved.recordCount EQ 1) {
+                savedNote = buildCaptainLogEntryPayload(qSaved, 1);
+            }
+
+            result.SUCCESS = true;
+            result.success = true;
+            result.NOTE = savedNote;
+            result.note = savedNote;
+            result.POSTED_TO_STREAM = postToFollowStream;
+            result.VOYAGE_POST_ID = voyagePostId;
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildCaptainLogEntryPayload" access="private" returntype="struct" output="false">
+        <cfargument name="qNote" type="query" required="true">
+        <cfargument name="rowIndex" type="numeric" required="true">
+        <cfscript>
+            var postedVal = (
+                listFindNoCase(arguments.qNote.columnList, "posted_to_stream")
+                AND arguments.qNote.recordCount GTE arguments.rowIndex
+                AND !isNull(arguments.qNote.posted_to_stream[arguments.rowIndex])
+                AND val(arguments.qNote.posted_to_stream[arguments.rowIndex]) EQ 1
+            );
+            var createdVal = (
+                listFindNoCase(arguments.qNote.columnList, "created_utc")
+                AND arguments.qNote.recordCount GTE arguments.rowIndex
+                AND !isNull(arguments.qNote.created_utc[arguments.rowIndex])
+                    ? arguments.qNote.created_utc[arguments.rowIndex]
+                    : ""
+            );
+
+            return {
+                id = val(arguments.qNote.id[arguments.rowIndex]),
+                floatPlanId = val(arguments.qNote.floatplan_id[arguments.rowIndex]),
+                userId = val(arguments.qNote.user_id[arguments.rowIndex]),
+                routeInstanceId = (
+                    listFindNoCase(arguments.qNote.columnList, "route_instance_id")
+                    AND !isNull(arguments.qNote.route_instance_id[arguments.rowIndex])
+                        ? val(arguments.qNote.route_instance_id[arguments.rowIndex])
+                        : 0
+                ),
+                routeLegOrder = (
+                    listFindNoCase(arguments.qNote.columnList, "route_leg_order")
+                    AND !isNull(arguments.qNote.route_leg_order[arguments.rowIndex])
+                        ? val(arguments.qNote.route_leg_order[arguments.rowIndex])
+                        : 0
+                ),
+                noteBody = trim(toString(arguments.qNote.note_body[arguments.rowIndex])),
+                noteTag = (
+                    listFindNoCase(arguments.qNote.columnList, "note_tag")
+                    AND !isNull(arguments.qNote.note_tag[arguments.rowIndex])
+                        ? trim(toString(arguments.qNote.note_tag[arguments.rowIndex]))
+                        : ""
+                ),
+                postedToStream = postedVal,
+                voyagePostId = (
+                    listFindNoCase(arguments.qNote.columnList, "voyage_post_id")
+                    AND !isNull(arguments.qNote.voyage_post_id[arguments.rowIndex])
+                        ? val(arguments.qNote.voyage_post_id[arguments.rowIndex])
+                        : 0
+                ),
+                createdUtc = (isDate(createdVal) ? dateTimeFormat(createdVal, "yyyy-mm-dd'T'HH:nn:ss'Z'") : ""),
+                createdLabel = (isDate(createdVal) ? timeFormat(createdVal, "h:nn tt") : "--"),
+                badge = (postedVal ? "POSTED" : "PRIVATE")
+            };
         </cfscript>
     </cffunction>
 
