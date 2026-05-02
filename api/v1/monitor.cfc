@@ -278,6 +278,209 @@ Line: #cfcatch.line#<br>
         </cfscript>
     </cffunction>
 
+    <cffunction name="startScheduledRouteMonitoringForFloatPlan" access="public" returntype="struct" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var result = { SUCCESS = false };
+            var context = {};
+            var existing = {};
+            var expectedCheckinAt = "";
+            var graceExpiresAt = "";
+            var nextMonitorEvalAt = "";
+            var monitorId = 0;
+            var canRefreshExistingScheduledRow = false;
+            var qStartedEvent = queryNew("");
+
+            if (arguments.floatPlanId LTE 0) {
+                result.ERROR = "INVALID_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            context = loadScheduledRouteMonitoringContext(arguments.floatPlanId);
+            if (!context.SUCCESS) {
+                return context;
+            }
+
+            expectedCheckinAt = context.departure_time;
+            if (!isDate(expectedCheckinAt)) {
+                result.ERROR = "SCHEDULED_DEPARTURE_REQUIRED";
+                result.MESSAGE = "A valid scheduled departure is required before scheduled monitoring can start.";
+                return result;
+            }
+            graceExpiresAt = computeGraceExpiresAt(expectedCheckinAt, variables.graceWindowMinutes);
+            nextMonitorEvalAt = expectedCheckinAt;
+
+            existing = getMonitoringRowByFloatPlanId(arguments.floatPlanId);
+            if (existing.SUCCESS) {
+                canRefreshExistingScheduledRow = (
+                    existing.monitor_state EQ "ACTIVE"
+                    AND booleanValue(existing.is_monitoring_enabled)
+                    AND !isDate(existing.last_checkin_at)
+                    AND !isDate(existing.missed_at)
+                    AND !isDate(existing.escalated_at)
+                    AND !isDate(existing.resolved_at)
+                    AND !isDate(existing.closed_at)
+                    AND !booleanValue(existing.secure_for_night)
+                    AND context.started_progress_count EQ 0
+                );
+
+                if (!canRefreshExistingScheduledRow) {
+                    result.SUCCESS = true;
+                    result.SKIPPED = true;
+                    result.REASON = "EXISTING_MONITORING_ROW_PRESERVED";
+                    result.MONITORING_ID = existing.id;
+                    result.FLOAT_PLAN_ID = arguments.floatPlanId;
+                    result.MONITOR_STATE = existing.monitor_state;
+                    result.EXPECTED_CHECKIN_AT = existing.expected_checkin_at;
+                    result.GRACE_EXPIRES_AT = existing.grace_expires_at;
+                    return result;
+                }
+            } else if (context.started_progress_count GT 0) {
+                result.ERROR = "OPERATIONAL_ROUTE_PROGRESS_ALREADY_STARTED";
+                result.MESSAGE = "Scheduled monitoring cannot be initialized after route progress has started.";
+                return result;
+            }
+
+            transaction {
+                if (existing.SUCCESS) {
+                    queryExecute(
+                        "UPDATE floatplan_monitoring
+                         SET user_id = :userId,
+                             monitoring_mode = 'active_route',
+                             monitor_state = 'ACTIVE',
+                             is_monitoring_enabled = 1,
+                             expected_checkin_at = :expectedCheckinAt,
+                             grace_expires_at = :graceExpiresAt,
+                             missed_at = NULL,
+                             escalated_at = NULL,
+                             resolved_at = NULL,
+                             closed_at = NULL,
+                             last_checkin_at = NULL,
+                             last_checkin_status = NULL,
+                             secure_for_night = 0,
+                             secure_for_night_until = NULL,
+                             escalation_delay_minutes = :escalationDelayMinutes,
+                             grace_window_minutes = :graceWindowMinutes,
+                             next_monitor_eval_at = :nextMonitorEvalAt,
+                             last_monitor_eval_at = NULL,
+                             last_captain_alert_at = NULL,
+                             last_contact_alert_at = NULL
+                         WHERE id = :monitoringId",
+                        {
+                            userId = { value = context.user_id, cfsqltype = "cf_sql_integer" },
+                            expectedCheckinAt = { value = expectedCheckinAt, cfsqltype = "cf_sql_timestamp" },
+                            graceExpiresAt = { value = graceExpiresAt, cfsqltype = "cf_sql_timestamp" },
+                            escalationDelayMinutes = { value = variables.escalationDelayMinutes, cfsqltype = "cf_sql_integer" },
+                            graceWindowMinutes = { value = variables.graceWindowMinutes, cfsqltype = "cf_sql_integer" },
+                            nextMonitorEvalAt = { value = nextMonitorEvalAt, cfsqltype = "cf_sql_timestamp" },
+                            monitoringId = { value = existing.id, cfsqltype = "cf_sql_integer" }
+                        },
+                        { datasource = variables.datasource }
+                    );
+                    monitorId = existing.id;
+                } else {
+                    queryExecute(
+                        "INSERT INTO floatplan_monitoring (
+                            float_plan_id,
+                            user_id,
+                            monitoring_mode,
+                            monitor_state,
+                            is_monitoring_enabled,
+                            expected_checkin_at,
+                            grace_expires_at,
+                            missed_at,
+                            escalated_at,
+                            resolved_at,
+                            closed_at,
+                            last_checkin_at,
+                            last_checkin_status,
+                            secure_for_night,
+                            secure_for_night_until,
+                            escalation_delay_minutes,
+                            grace_window_minutes,
+                            next_monitor_eval_at,
+                            last_monitor_eval_at,
+                            last_captain_alert_at,
+                            last_contact_alert_at,
+                            created_at,
+                            updated_at
+                        ) VALUES (
+                            :floatPlanId,
+                            :userId,
+                            'active_route',
+                            'ACTIVE',
+                            1,
+                            :expectedCheckinAt,
+                            :graceExpiresAt,
+                            NULL,
+                            NULL,
+                            NULL,
+                            NULL,
+                            NULL,
+                            NULL,
+                            0,
+                            NULL,
+                            :escalationDelayMinutes,
+                            :graceWindowMinutes,
+                            :nextMonitorEvalAt,
+                            NULL,
+                            NULL,
+                            NULL,
+                            UTC_TIMESTAMP(),
+                            UTC_TIMESTAMP()
+                        )",
+                        {
+                            floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                            userId = { value = context.user_id, cfsqltype = "cf_sql_integer" },
+                            expectedCheckinAt = { value = expectedCheckinAt, cfsqltype = "cf_sql_timestamp" },
+                            graceExpiresAt = { value = graceExpiresAt, cfsqltype = "cf_sql_timestamp" },
+                            escalationDelayMinutes = { value = variables.escalationDelayMinutes, cfsqltype = "cf_sql_integer" },
+                            graceWindowMinutes = { value = variables.graceWindowMinutes, cfsqltype = "cf_sql_integer" },
+                            nextMonitorEvalAt = { value = nextMonitorEvalAt, cfsqltype = "cf_sql_timestamp" }
+                        },
+                        { datasource = variables.datasource }
+                    );
+                    monitorId = val(queryExecute("SELECT LAST_INSERT_ID() AS newId", {}, { datasource = variables.datasource }).newId[1]);
+                }
+
+                qStartedEvent = queryExecute(
+                    "SELECT id
+                     FROM floatplan_monitor_events
+                     WHERE float_plan_id = :floatPlanId
+                       AND event_type = 'MONITORING_STARTED'
+                     LIMIT 1",
+                    {
+                        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = variables.datasource }
+                );
+                if (qStartedEvent.recordCount EQ 0) {
+                    appendMonitorEvent(monitorId, arguments.floatPlanId, context.user_id, "MONITORING_STARTED", {
+                        actorType = "system",
+                        eventAt = getCurrentUtcTimestamp(),
+                        monitoring_mode = "active_route",
+                        initialization_mode = "scheduled_predeparture",
+                        expected_checkin_at = expectedCheckinAt,
+                        grace_expires_at = graceExpiresAt,
+                        next_monitor_eval_at = nextMonitorEvalAt
+                    });
+                }
+            }
+
+            result.SUCCESS = true;
+            result.MONITORING_ID = monitorId;
+            result.FLOAT_PLAN_ID = arguments.floatPlanId;
+            result.MONITORING_MODE = "active_route";
+            result.MONITOR_STATE = "ACTIVE";
+            result.EXPECTED_CHECKIN_AT = expectedCheckinAt;
+            result.GRACE_EXPIRES_AT = graceExpiresAt;
+            result.NEXT_MONITOR_EVAL_AT = nextMonitorEvalAt;
+            result.SCHEDULED_MONITORING_STARTED = true;
+            return result;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="computeInitialNextMonitorEvalAt" access="private" returntype="any" output="false">
         <cfargument name="monitoringRow" type="struct" required="true">
         <cfargument name="expectedCheckinAt" required="true">
@@ -785,6 +988,81 @@ Line: #cfcatch.line#<br>
             result.total_legs = 0;
             result.route_progress_status = "";
             result.daily_start_local_time = isNull(qPlan.dailyStartLocalTime[1]) ? "" : trim(toString(qPlan.dailyStartLocalTime[1]));
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="loadScheduledRouteMonitoringContext" access="private" returntype="struct" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var result = { SUCCESS = false };
+            var qPlan = queryNew("");
+
+            qPlan = queryExecute(
+                "SELECT
+                    fp.floatplanId,
+                    fp.userId,
+                    fp.departureTime,
+                    fp.route_instance_id,
+                    UPPER(TRIM(fp.`status`)) AS status_value,
+                    (
+                        SELECT COUNT(*)
+                        FROM route_instance_legs ril
+                        WHERE ril.route_instance_id = fp.route_instance_id
+                    ) AS route_leg_count,
+                    (
+                        SELECT COUNT(*)
+                        FROM route_instance_leg_progress rilp
+                        WHERE rilp.route_instance_id = fp.route_instance_id
+                          AND rilp.user_id = fp.userId
+                          AND (
+                              rilp.leg_started_at IS NOT NULL
+                              OR rilp.completed_at IS NOT NULL
+                              OR UPPER(TRIM(rilp.status)) <> 'NOT_STARTED'
+                          )
+                    ) AS started_progress_count
+                 FROM floatplans fp
+                 WHERE fp.floatplanId = :floatPlanId
+                 LIMIT 1",
+                {
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = variables.datasource }
+            );
+
+            if (qPlan.recordCount EQ 0) {
+                result.ERROR = "FLOAT_PLAN_NOT_FOUND";
+                result.MESSAGE = "Float plan could not be found.";
+                return result;
+            }
+            if (uCase(trim(toString(qPlan.status_value[1]))) NEQ "ACTIVE") {
+                result.ERROR = "ACTIVE_ROUTE_FLOAT_PLAN_REQUIRED";
+                result.MESSAGE = "Scheduled monitoring can only be initialized for active route-backed float plans.";
+                return result;
+            }
+            if (isNull(qPlan.route_instance_id[1]) OR val(qPlan.route_instance_id[1]) LTE 0) {
+                result.ERROR = "ROUTE_INSTANCE_REQUIRED";
+                result.MESSAGE = "A route instance is required before scheduled monitoring can start.";
+                return result;
+            }
+            if (val(qPlan.route_leg_count[1]) LTE 0) {
+                result.ERROR = "ROUTE_LEGS_REQUIRED";
+                result.MESSAGE = "Route legs are required before scheduled monitoring can start.";
+                return result;
+            }
+            if (isNull(qPlan.departureTime[1]) OR !isDate(qPlan.departureTime[1])) {
+                result.ERROR = "SCHEDULED_DEPARTURE_REQUIRED";
+                result.MESSAGE = "A valid scheduled departure is required before scheduled monitoring can start.";
+                return result;
+            }
+
+            result.SUCCESS = true;
+            result.float_plan_id = val(qPlan.floatplanId[1]);
+            result.user_id = val(qPlan.userId[1]);
+            result.departure_time = qPlan.departureTime[1];
+            result.route_instance_id = val(qPlan.route_instance_id[1]);
+            result.route_leg_count = val(qPlan.route_leg_count[1]);
+            result.started_progress_count = val(qPlan.started_progress_count[1]);
             return result;
         </cfscript>
     </cffunction>
@@ -1700,4 +1978,3 @@ Line: #cfcatch.line#<br>
     </cffunction>
 
 </cfcomponent>
-

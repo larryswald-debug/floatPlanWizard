@@ -9,6 +9,8 @@
         <cfargument name="limit" type="numeric" required="false" default="20">
         <cfargument name="routeCode" type="string" required="false" default="">
         <cfargument name="routeInstanceId" type="string" required="false" default="">
+        <cfargument name="floatplan_id" type="numeric" required="false" default="0">
+        <cfargument name="as_of_utc" type="string" required="false" default="">
 
         <cfsetting enablecfoutputonly="true" showdebugoutput="false">
         <cfcontent type="application/json; charset=utf-8">
@@ -41,6 +43,7 @@
             <cfset var followerIdVal = 0>
             <cfset var floatPlanIdVal = 0>
             <cfset var pointVal = "">
+            <cfset var asOfUtcVal = "">
             <cfif act EQ "getstreambootstrap">
                 <cfset slugVal = trim(toString(pickArg(body, "slug", "route_slug", arguments.slug)))>
                 <cfset tokenVal = trim(toString(pickArg(body, "t", "token", arguments.t)))>
@@ -53,6 +56,14 @@
                 <cfset floatPlanIdVal = val(pickArg(body, "floatPlanId", "float_plan_id", 0))>
                 <cfset pointVal = lCase(trim(toString(pickArg(body, "point", "leg_point", ""))))>
                 <cfset payload = getActiveCruiseWeatherCanonical(currentUserId, floatPlanIdVal, pointVal)>
+                <cfoutput>#serializeJSON(payload)#</cfoutput>
+                <cfreturn>
+
+            <cfelseif act EQ "gettripprogressprojection">
+                <cfset streamIdVal = val(pickArg(body, "stream_id", "streamId", arguments.stream_id))>
+                <cfset floatPlanIdVal = val(pickArg(body, "floatplan_id", "floatPlanId", arguments.floatplan_id))>
+                <cfset asOfUtcVal = trim(toString(pickArg(body, "as_of_utc", "asOfUtc", arguments.as_of_utc)))>
+                <cfset payload = getTripProgressProjectionDiagnostic(streamIdVal, floatPlanIdVal, asOfUtcVal, currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
@@ -218,6 +229,90 @@
         <cfoutput>#serializeJSON(result)#</cfoutput>
     </cffunction>
 
+    <cffunction name="getTripProgressProjectionDiagnostic" access="private" returntype="struct" output="false">
+        <cfargument name="streamId" type="numeric" required="false" default="0">
+        <cfargument name="floatPlanId" type="numeric" required="false" default="0">
+        <cfargument name="asOfUtc" type="string" required="false" default="">
+        <cfargument name="currentUserId" type="numeric" required="false" default="0">
+        <cfscript>
+            var projectionService = "";
+            var projection = {};
+
+            if (!isLocalTripProjectionDiagnosticRequest()) {
+                return {
+                    "success" = false,
+                    "auth" = (arguments.currentUserId GT 0),
+                    "message" = "Trip progress projection diagnostics are available only from the local FPW runtime.",
+                    "error" = { "message" = "Local diagnostics only." }
+                };
+            }
+
+            if (arguments.streamId LTE 0 AND arguments.floatPlanId LTE 0) {
+                return {
+                    "success" = false,
+                    "auth" = (arguments.currentUserId GT 0),
+                    "message" = "stream_id or floatplan_id is required.",
+                    "error" = { "message" = "Missing stream_id or floatplan_id." }
+                };
+            }
+
+            try {
+                projectionService = createTripProgressProjectionService();
+                if (arguments.streamId GT 0) {
+                    projection = projectionService.getProjectionForStream(arguments.streamId, arguments.asOfUtc);
+                } else {
+                    projection = projectionService.getProjection(arguments.floatPlanId, arguments.asOfUtc);
+                }
+            } catch (any projectionErr) {
+                return {
+                    "success" = false,
+                    "auth" = (arguments.currentUserId GT 0),
+                    "message" = "Trip progress projection failed.",
+                    "error" = { "message" = projectionErr.message, "detail" = projectionErr.detail }
+                };
+            }
+
+            if (!isStruct(projection)) {
+                projection = {
+                    "success" = false,
+                    "message" = "Trip progress projection returned an invalid payload."
+                };
+            }
+
+            projection["auth"] = (arguments.currentUserId GT 0);
+            projection["diagnosticAccess"] = "local-read-only";
+            return projection;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="createTripProgressProjectionService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.TripProgressProjectionService").init("fpw");
+            } catch (any projectionPathErr) {
+                return createObject("component", "api.v1.TripProgressProjectionService").init("fpw");
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="isLocalTripProjectionDiagnosticRequest" access="private" returntype="boolean" output="false">
+        <cfscript>
+            var hostVal = structKeyExists(cgi, "http_host") ? lCase(toString(cgi.http_host)) : "";
+            var serverNameVal = structKeyExists(cgi, "server_name") ? lCase(toString(cgi.server_name)) : "";
+            var remoteAddrVal = structKeyExists(cgi, "remote_addr") ? lCase(toString(cgi.remote_addr)) : "";
+
+            return (
+                find("localhost", hostVal) GT 0
+                OR left(hostVal, 9) EQ "127.0.0.1"
+                OR left(hostVal, 5) EQ "[::1]"
+                OR find("localhost", serverNameVal) GT 0
+                OR serverNameVal EQ "127.0.0.1"
+                OR remoteAddrVal EQ "127.0.0.1"
+                OR remoteAddrVal EQ "::1"
+            );
+        </cfscript>
+    </cffunction>
+
     <cffunction name="ownerCreatePostWithMediaFromForm" access="public" returntype="struct" output="false">
         <cfargument name="streamId" type="numeric" required="false" default="0">
         <cfargument name="body" type="string" required="false" default="">
@@ -334,6 +429,17 @@
             var dailyStartLocalTimeVal = "";
             var storedOvernightPauseMinutes = 0;
             var storedManualDelayMinutes = 0;
+            var followProjection = {};
+            var useCanonicalFollowProjection = false;
+            var canonicalFollowProjectionBlocked = false;
+            var followProjectionWarningIndex = 0;
+            var followProjectionWarning = {};
+            var followProjectionWarningCode = "";
+            var followProjectionLegIndex = 0;
+            var followProjectionLegOrder = 0;
+            var followProjectionEtaUtc = "";
+            var followProjectionEtaLocalInput = "";
+            var qFollowProjectionEtaLocal = queryNew("");
             var elapsedCheckInLabel = "-- since last check-in";
             var nextStopLabelVal = "";
             var nextStopEtaBaseDt = "";
@@ -1312,6 +1418,127 @@
                 }
             }
 
+            // Canonical projection is used only for streams with real canonical segments; legacy diagnostics remain fallback-only.
+            try {
+                followProjection = createTripProgressProjectionService().getProjectionForStream(streamRow.id);
+            } catch (any followProjectionErr) {
+                followProjection = {};
+            }
+            if (
+                isStruct(followProjection)
+                AND structKeyExists(followProjection, "authorityWarnings")
+                AND isArray(followProjection.authorityWarnings)
+            ) {
+                for (followProjectionWarningIndex = 1; followProjectionWarningIndex LTE arrayLen(followProjection.authorityWarnings); followProjectionWarningIndex++) {
+                    followProjectionWarning = followProjection.authorityWarnings[followProjectionWarningIndex];
+                    if (!isStruct(followProjectionWarning) OR !structKeyExists(followProjectionWarning, "code")) {
+                        continue;
+                    }
+                    followProjectionWarningCode = trim(toString(followProjectionWarning.code));
+                    if (listFindNoCase("MULTIPLE_OPEN_SEGMENTS,CANONICAL_ACTIVITY_SEGMENT_TABLE_MISSING,CANONICAL_EVENT_TABLE_MISSING", followProjectionWarningCode)) {
+                        canonicalFollowProjectionBlocked = true;
+                        break;
+                    }
+                }
+            }
+            useCanonicalFollowProjection = (
+                isStruct(followProjection)
+                AND structKeyExists(followProjection, "success")
+                AND followProjection.success
+                AND structKeyExists(followProjection, "activitySegments")
+                AND isArray(followProjection.activitySegments)
+                AND arrayLen(followProjection.activitySegments) GT 0
+                AND structKeyExists(followProjection, "eventLedger")
+                AND isStruct(followProjection.eventLedger)
+                AND structKeyExists(followProjection.eventLedger, "count")
+                AND val(followProjection.eventLedger.count) GT 0
+                AND structKeyExists(followProjection, "todayProgress")
+                AND isStruct(followProjection.todayProgress)
+                AND structKeyExists(followProjection.todayProgress, "authority")
+                AND lCase(trim(toString(followProjection.todayProgress.authority))) EQ "canonical"
+                AND !canonicalFollowProjectionBlocked
+            );
+            if (useCanonicalFollowProjection) {
+                if (structKeyExists(followProjection.todayProgress, "milesTodayNm") AND isNumeric(followProjection.todayProgress.milesTodayNm)) {
+                    milesTodayNm = val(followProjection.todayProgress.milesTodayNm);
+                }
+                if (structKeyExists(followProjection.todayProgress, "hoursToday") AND isNumeric(followProjection.todayProgress.hoursToday)) {
+                    hoursTodayTotal = val(followProjection.todayProgress.hoursToday);
+                }
+                if (
+                    structKeyExists(followProjection, "etaProjection")
+                    AND isStruct(followProjection.etaProjection)
+                    AND structKeyExists(followProjection.etaProjection, "available")
+                    AND followProjection.etaProjection.available
+                    AND structKeyExists(followProjection.etaProjection, "etaUtc")
+                    AND len(trim(toString(followProjection.etaProjection.etaUtc)))
+                ) {
+                    followProjectionEtaUtc = trim(toString(followProjection.etaProjection.etaUtc));
+                    etaUtc = followProjectionEtaUtc;
+                    etaLabel = "";
+                    followProjectionEtaLocalInput = replace(replace(followProjectionEtaUtc, "T", " ", "one"), "Z", "", "one");
+                    if (len(departureTimeZoneVal) AND isDate(followProjectionEtaLocalInput)) {
+                        try {
+                            qFollowProjectionEtaLocal = queryExecute(
+                                "SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime",
+                                {
+                                    utcDateTime = { value = followProjectionEtaLocalInput, cfsqltype = "cf_sql_timestamp" },
+                                    targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
+                                },
+                                { datasource = ds }
+                            );
+                            if (
+                                qFollowProjectionEtaLocal.recordCount GT 0
+                                AND !isNull(qFollowProjectionEtaLocal.localDateTime[1])
+                                AND isDate(qFollowProjectionEtaLocal.localDateTime[1])
+                            ) {
+                                etaLabel = dateTimeFormat(qFollowProjectionEtaLocal.localDateTime[1], "mmm d, yyyy h:nn tt");
+                            }
+                        } catch (any followProjectionEtaErr) {
+                            etaLabel = "";
+                        }
+                    }
+                    if (!len(etaLabel) AND isDate(followProjectionEtaLocalInput)) {
+                        etaLabel = dateTimeFormat(followProjectionEtaLocalInput, "mmm d, yyyy h:nn tt");
+                    }
+                }
+                if (
+                    structKeyExists(followProjection, "currentLeg")
+                    AND isStruct(followProjection.currentLeg)
+                    AND structKeyExists(followProjection.currentLeg, "routeLegOrder")
+                    AND isNumeric(followProjection.currentLeg.routeLegOrder)
+                    AND structKeyExists(followProjection, "currentLegProgress")
+                    AND isStruct(followProjection.currentLegProgress)
+                    AND structKeyExists(followProjection.currentLegProgress, "percentComplete")
+                    AND isNumeric(followProjection.currentLegProgress.percentComplete)
+                    AND isStruct(followTimeline)
+                    AND structKeyExists(followTimeline, "legs")
+                    AND isArray(followTimeline.legs)
+                ) {
+                    followProjectionLegOrder = val(followProjection.currentLeg.routeLegOrder);
+                    for (followProjectionLegIndex = 1; followProjectionLegIndex LTE arrayLen(followTimeline.legs); followProjectionLegIndex++) {
+                        timelineLeg = followTimeline.legs[followProjectionLegIndex];
+                        if (
+                            !isStruct(timelineLeg)
+                            OR !structKeyExists(timelineLeg, "leg_order")
+                            OR !isNumeric(timelineLeg.leg_order)
+                            OR val(timelineLeg.leg_order) NEQ followProjectionLegOrder
+                        ) {
+                            continue;
+                        }
+                        if (!structKeyExists(timelineLeg, "progress") OR !isStruct(timelineLeg.progress)) {
+                            timelineLeg.progress = {};
+                        }
+                        timelineLeg.progress.percent_complete = val(followProjection.currentLegProgress.percentComplete);
+                        if (structKeyExists(followProjection.currentLeg, "startedAtUtc") AND len(trim(toString(followProjection.currentLeg.startedAtUtc)))) {
+                            timelineLeg.progress.last_update_ts = trim(toString(followProjection.currentLeg.startedAtUtc));
+                        }
+                        followTimeline.legs[followProjectionLegIndex] = timelineLeg;
+                        break;
+                    }
+                }
+            }
+
             if (isStruct(followTimeline) AND structKeyExists(followTimeline, "legs") AND isArray(followTimeline.legs)) {
                 for (i = 1; i LTE arrayLen(followTimeline.legs); i++) {
                     timelineLeg = followTimeline.legs[i];
@@ -1719,7 +1946,14 @@
                 "legArrivalUtc"="",
                 "heroLastCheckIn"="--",
                 "heroLastCheckInUtc"="",
-                "manualDelayMinutesTotal"=0
+                "manualDelayMinutesTotal"=0,
+                "canonicalProjectionAvailable"=false,
+                "projectionAuthority"="",
+                "projectionWarnings"=[],
+                "etaProjection"={},
+                "todayProgress"={},
+                "currentLegProgress"={},
+                "routeTimeline"={ "available"=false }
             };
             var canonicalPlan = {};
             var ds = resolveDatasource();
@@ -1779,6 +2013,17 @@
             var monitorStateVal = "";
             var lastCheckinStatusVal = "";
             var usingActiveLegEta = false;
+            var activeCruiseProjection = {};
+            var canonicalActiveCruiseProjectionBlocked = false;
+            var useCanonicalActiveCruiseProjection = false;
+            var useRouteTimelineActiveCruiseProjection = false;
+            var activeCruiseRouteTimelineAuthority = "";
+            var activeCruiseProjectionWarningIndex = 0;
+            var activeCruiseProjectionWarning = {};
+            var activeCruiseProjectionWarningCode = "";
+            var activeCruiseProjectionEtaUtc = "";
+            var activeCruiseProjectionEtaLocalInput = "";
+            var qActiveCruiseProjectionEtaLocal = queryNew("");
             var i = 0;
 
             if (arguments.currentUserId LTE 0 OR arguments.floatPlanId LTE 0) {
@@ -2289,6 +2534,130 @@
             }
             if (len(etaUtc)) {
                 out.heroEtaUtc = etaUtc;
+            }
+            // Canonical hooks expose real canonical segments or scheduled route timelines; legacy diagnostics remain fallback-only.
+            try {
+                activeCruiseProjection = createTripProgressProjectionService().getProjection(arguments.floatPlanId);
+            } catch (any activeCruiseProjectionErr) {
+                activeCruiseProjection = {};
+            }
+            if (
+                isStruct(activeCruiseProjection)
+                AND structKeyExists(activeCruiseProjection, "authorityWarnings")
+                AND isArray(activeCruiseProjection.authorityWarnings)
+            ) {
+                for (activeCruiseProjectionWarningIndex = 1; activeCruiseProjectionWarningIndex LTE arrayLen(activeCruiseProjection.authorityWarnings); activeCruiseProjectionWarningIndex++) {
+                    activeCruiseProjectionWarning = activeCruiseProjection.authorityWarnings[activeCruiseProjectionWarningIndex];
+                    if (!isStruct(activeCruiseProjectionWarning) OR !structKeyExists(activeCruiseProjectionWarning, "code")) {
+                        continue;
+                    }
+                    activeCruiseProjectionWarningCode = trim(toString(activeCruiseProjectionWarning.code));
+                    if (listFindNoCase("MULTIPLE_OPEN_SEGMENTS,CANONICAL_ACTIVITY_SEGMENT_TABLE_MISSING,CANONICAL_EVENT_TABLE_MISSING", activeCruiseProjectionWarningCode)) {
+                        canonicalActiveCruiseProjectionBlocked = true;
+                        break;
+                    }
+                }
+            }
+            useCanonicalActiveCruiseProjection = (
+                isStruct(activeCruiseProjection)
+                AND structKeyExists(activeCruiseProjection, "success")
+                AND activeCruiseProjection.success
+                AND structKeyExists(activeCruiseProjection, "activitySegments")
+                AND isArray(activeCruiseProjection.activitySegments)
+                AND arrayLen(activeCruiseProjection.activitySegments) GT 0
+                AND structKeyExists(activeCruiseProjection, "eventLedger")
+                AND isStruct(activeCruiseProjection.eventLedger)
+                AND structKeyExists(activeCruiseProjection.eventLedger, "count")
+                AND val(activeCruiseProjection.eventLedger.count) GT 0
+                AND structKeyExists(activeCruiseProjection, "todayProgress")
+                AND isStruct(activeCruiseProjection.todayProgress)
+                AND structKeyExists(activeCruiseProjection.todayProgress, "authority")
+                AND lCase(trim(toString(activeCruiseProjection.todayProgress.authority))) EQ "canonical"
+                AND !canonicalActiveCruiseProjectionBlocked
+            );
+            if (
+                isStruct(activeCruiseProjection)
+                AND structKeyExists(activeCruiseProjection, "routeTimeline")
+                AND isStruct(activeCruiseProjection.routeTimeline)
+                AND structKeyExists(activeCruiseProjection.routeTimeline, "available")
+                AND activeCruiseProjection.routeTimeline.available
+                AND structKeyExists(activeCruiseProjection.routeTimeline, "authority")
+            ) {
+                activeCruiseRouteTimelineAuthority = lCase(trim(toString(activeCruiseProjection.routeTimeline.authority)));
+            }
+            useRouteTimelineActiveCruiseProjection = (
+                isStruct(activeCruiseProjection)
+                AND structKeyExists(activeCruiseProjection, "success")
+                AND activeCruiseProjection.success
+                AND listFindNoCase("canonical_projection,scheduled_projection", activeCruiseRouteTimelineAuthority)
+                AND !canonicalActiveCruiseProjectionBlocked
+            );
+            if (
+                isStruct(activeCruiseProjection)
+                AND structKeyExists(activeCruiseProjection, "authorityWarnings")
+                AND isArray(activeCruiseProjection.authorityWarnings)
+            ) {
+                out.projectionWarnings = duplicate(activeCruiseProjection.authorityWarnings);
+            }
+            if (useCanonicalActiveCruiseProjection OR useRouteTimelineActiveCruiseProjection) {
+                out.canonicalProjectionAvailable = true;
+                out.projectionAuthority = (len(activeCruiseRouteTimelineAuthority) ? activeCruiseRouteTimelineAuthority : "canonical_projection");
+                if (structKeyExists(activeCruiseProjection, "etaProjection") AND isStruct(activeCruiseProjection.etaProjection)) {
+                    out.etaProjection = duplicate(activeCruiseProjection.etaProjection);
+                }
+                if (structKeyExists(activeCruiseProjection, "todayProgress") AND isStruct(activeCruiseProjection.todayProgress)) {
+                    out.todayProgress = duplicate(activeCruiseProjection.todayProgress);
+                }
+                if (structKeyExists(activeCruiseProjection, "currentLegProgress") AND isStruct(activeCruiseProjection.currentLegProgress)) {
+                    out.currentLegProgress = duplicate(activeCruiseProjection.currentLegProgress);
+                }
+                if (
+                    structKeyExists(activeCruiseProjection, "routeTimeline")
+                    AND isStruct(activeCruiseProjection.routeTimeline)
+                    AND structKeyExists(activeCruiseProjection.routeTimeline, "available")
+                    AND activeCruiseProjection.routeTimeline.available
+                ) {
+                    out.routeTimeline = duplicate(activeCruiseProjection.routeTimeline);
+                }
+            }
+            if (
+                useCanonicalActiveCruiseProjection
+                AND structKeyExists(activeCruiseProjection, "etaProjection")
+                AND isStruct(activeCruiseProjection.etaProjection)
+                AND structKeyExists(activeCruiseProjection.etaProjection, "available")
+                AND activeCruiseProjection.etaProjection.available
+                AND structKeyExists(activeCruiseProjection.etaProjection, "etaUtc")
+                AND len(trim(toString(activeCruiseProjection.etaProjection.etaUtc)))
+            ) {
+                activeCruiseProjectionEtaUtc = trim(toString(activeCruiseProjection.etaProjection.etaUtc));
+                out.heroEtaUtc = activeCruiseProjectionEtaUtc;
+                out.legArrivalUtc = activeCruiseProjectionEtaUtc;
+                out.heroEta = "";
+                activeCruiseProjectionEtaLocalInput = replace(replace(activeCruiseProjectionEtaUtc, "T", " ", "one"), "Z", "", "one");
+                if (len(departureTimeZoneVal) AND isDate(activeCruiseProjectionEtaLocalInput)) {
+                    try {
+                        qActiveCruiseProjectionEtaLocal = queryExecute(
+                            "SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime",
+                            {
+                                utcDateTime = { value = activeCruiseProjectionEtaLocalInput, cfsqltype = "cf_sql_timestamp" },
+                                targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
+                            },
+                            { datasource = ds }
+                        );
+                        if (
+                            qActiveCruiseProjectionEtaLocal.recordCount GT 0
+                            AND !isNull(qActiveCruiseProjectionEtaLocal.localDateTime[1])
+                            AND isDate(qActiveCruiseProjectionEtaLocal.localDateTime[1])
+                        ) {
+                            out.heroEta = dateTimeFormat(qActiveCruiseProjectionEtaLocal.localDateTime[1], "mmm d, yyyy h:nn tt");
+                        }
+                    } catch (any activeCruiseProjectionEtaErr) {
+                        out.heroEta = "";
+                    }
+                }
+                if (!len(out.heroEta) AND isDate(activeCruiseProjectionEtaLocalInput)) {
+                    out.heroEta = dateTimeFormat(activeCruiseProjectionEtaLocalInput, "mmm d, yyyy h:nn tt");
+                }
             }
             if (awaitingDepartureState) {
                 out.heroEta = "--";

@@ -3025,6 +3025,22 @@
             var planNameVal = "";
             var assistanceAlertService = {};
             var assistanceAlertResult = {};
+            var qVoyagePost = queryNew("");
+            var voyagePostId = 0;
+            var canonicalActivityService = {};
+            var canonicalActivityResult = {};
+            var canonicalPayload = {};
+            var planStatusVal = "";
+            var routeInstanceIdVal = 0;
+            var departureTimeVal = "";
+            var scheduledStartState = {};
+            var qRouteProgress = queryNew("");
+            var routeProgressStarted = false;
+            var isOperationallyUnstarted = false;
+            var isPreDepartureUnstarted = false;
+            var scheduledMonitoringResult = {};
+            var shouldStartOperationallyForCheckin = false;
+            var operationalStartResult = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.SUCCESS = false;
@@ -3055,6 +3071,9 @@
                     floatPlanName,
                     floatplanId,
                     checkedInAt,
+                    `status`,
+                    route_instance_id,
+                    departureTime,
                     departureTZ,
                     departTimezone,
                     dailyStartLocalTime,
@@ -3086,6 +3105,11 @@
                 return result;
             }
 
+            planStatusVal = (isNull(qPlan.status[1]) ? "" : uCase(trim(toString(qPlan.status[1]))));
+            routeInstanceIdVal = (isNull(qPlan.route_instance_id[1]) ? 0 : val(qPlan.route_instance_id[1]));
+            if (!isNull(qPlan.departureTime[1]) AND isDate(qPlan.departureTime[1])) {
+                departureTimeVal = qPlan.departureTime[1];
+            }
             currentContextVal = normalizeCheckInContext(isNull(qPlan.checkin_context[1]) ? "" : qPlan.checkin_context[1]);
             if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
                 storedCheckInDt = qPlan.checkedInAt[1];
@@ -3138,6 +3162,86 @@
                 result.MESSAGE = "Unable to map this check-in to a monitoring status.";
                 return result;
             }
+
+            if (
+                planStatusVal EQ "ACTIVE"
+                AND routeInstanceIdVal GT 0
+                AND isDate(departureTimeVal)
+            ) {
+                qRouteProgress = queryExecute(
+                    "SELECT COUNT(*) AS started_count
+                     FROM route_instance_leg_progress
+                     WHERE route_instance_id = :routeInstanceId
+                       AND user_id = :userId
+                       AND (
+                           leg_started_at IS NOT NULL
+                           OR completed_at IS NOT NULL
+                           OR UPPER(TRIM(status)) <> 'NOT_STARTED'
+                       )",
+                    {
+                        routeInstanceId = { value = routeInstanceIdVal, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = ds }
+                );
+                routeProgressStarted = (
+                    qRouteProgress.recordCount GT 0
+                    AND val(qRouteProgress.started_count[1]) GT 0
+                );
+                isOperationallyUnstarted = !routeProgressStarted;
+
+                scheduledStartState = getScheduledStartStateForFloatPlan(arguments.userId, arguments.floatPlanId);
+                if (scheduledStartState.SUCCESS) {
+                    isPreDepartureUnstarted = (
+                        !booleanValue(scheduledStartState.TRIP_STARTED)
+                        AND isOperationallyUnstarted
+                    );
+                }
+
+                monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
+                scheduledMonitoringResult = monitoringService.startScheduledRouteMonitoringForFloatPlan(arguments.floatPlanId);
+                if (
+                    !structKeyExists(scheduledMonitoringResult, "SUCCESS")
+                    OR scheduledMonitoringResult.SUCCESS NEQ true
+                ) {
+                    result.SUCCESS = false;
+                    result.ERROR = "MONITORING_INIT_REQUIRED_DATA_MISSING";
+                    result.MESSAGE = "Scheduled monitoring could not be initialized for this active route-backed float plan.";
+                    result.MONITORING_RESULT = scheduledMonitoringResult;
+                    return result;
+                }
+            }
+
+            if (isPreDepartureUnstarted) {
+                if (monitoringStatusVal EQ "DELAYED") {
+                    result.SUCCESS = false;
+                    result.ERROR = "PRE_DEPARTURE_DELAY_REQUIRES_NEW_TIME";
+                    result.MESSAGE = "Please provide a new expected departure time before marking the trip delayed.";
+                    return result;
+                }
+                if (monitoringStatusVal EQ "CHANGED_PLAN") {
+                    result.SUCCESS = false;
+                    result.ERROR = "PRE_DEPARTURE_PLAN_CHANGE_REQUIRES_UPDATE";
+                    result.MESSAGE = "Please update and resend the plan if the route or schedule changed.";
+                    return result;
+                }
+                if (monitoringStatusVal EQ "SECURE_FOR_NIGHT") {
+                    result.SUCCESS = false;
+                    result.ERROR = "PRE_DEPARTURE_SECURE_NOT_ALLOWED";
+                    result.MESSAGE = "Secure for the Night is available after the cruise has started.";
+                    return result;
+                }
+                if (monitoringStatusVal EQ "ON_TRACK") {
+                    shouldStartOperationallyForCheckin = true;
+                }
+            }
+            if (
+                isOperationallyUnstarted
+                AND monitoringStatusVal EQ "ON_TRACK"
+            ) {
+                shouldStartOperationallyForCheckin = true;
+            }
+
             if (isOvernightPauseActive) {
                 updateSql =
                     "UPDATE floatplans
@@ -3167,6 +3271,19 @@
             }
 
             transaction {
+                if (shouldStartOperationallyForCheckin) {
+                    operationalStartResult = startOperationalTripNow(arguments.userId, arguments.floatPlanId, routeInstanceIdVal);
+                    if (
+                        !structKeyExists(operationalStartResult, "SUCCESS")
+                        OR operationalStartResult.SUCCESS NEQ true
+                    ) {
+                        throw(
+                            message = "Operational trip start failed.",
+                            detail = serializeJSON(operationalStartResult)
+                        );
+                    }
+                }
+
                 queryExecute(
                     updateSql,
                     updateParams,
@@ -3236,6 +3353,14 @@
                     },
                     { datasource = ds }
                 );
+                qVoyagePost = queryExecute(
+                    "SELECT LAST_INSERT_ID() AS post_id",
+                    {},
+                    { datasource = ds }
+                );
+                if (qVoyagePost.recordCount GT 0) {
+                    voyagePostId = val(qVoyagePost.post_id[1]);
+                }
 
                 queryExecute(
                     "UPDATE voyage_streams
@@ -3256,6 +3381,71 @@
                     throw(
                         message = "Monitoring check-in failed.",
                         detail = serializeJSON(monitoringResult)
+                    );
+                }
+            }
+
+            qUpdatedPlan = queryExecute(
+                "SELECT checkedInAt
+                 FROM floatplans
+                 WHERE floatplanId = :planId
+                   AND userId = :userId
+                 LIMIT 1",
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = ds }
+            );
+            if (qUpdatedPlan.recordCount GT 0 AND !isNull(qUpdatedPlan.checkedInAt[1]) AND isDate(qUpdatedPlan.checkedInAt[1])) {
+                updatedCheckInDt = qUpdatedPlan.checkedInAt[1];
+            }
+
+            if (
+                isDate(updatedCheckInDt)
+                AND listFindNoCase("ON_TRACK,SECURE_FOR_NIGHT", monitoringStatusVal)
+            ) {
+                try {
+                    canonicalPayload = {
+                        "status_label" = statusVal,
+                        "monitoring_status" = monitoringStatusVal,
+                        "checkin_context" = contextVal,
+                        "note_body" = noteVal,
+                        "stream_id" = (structKeyExists(streamCtx, "streamId") ? val(streamCtx.streamId) : 0),
+                        "source_post_id" = voyagePostId,
+                        "is_overnight_transition" = isOvernightTransition,
+                        "legacy_history_not_backfilled" = true
+                    };
+                    canonicalActivityService = createObject("component", resolveApiV1ComponentPath("TripActivityWriterService")).init(ds);
+                    canonicalActivityResult = canonicalActivityService.recordActiveCruiseCheckin(
+                        floatPlanId = arguments.floatPlanId,
+                        userId = arguments.userId,
+                        status = monitoringStatusVal,
+                        checkinContext = contextVal,
+                        occurredAtUtc = updatedCheckInDt,
+                        monitoringId = (
+                            structKeyExists(monitoringResult, "MONITORING_ID")
+                            ? val(monitoringResult.MONITORING_ID)
+                            : 0
+                        ),
+                        sourcePostId = voyagePostId,
+                        payload = canonicalPayload
+                    );
+                    if (
+                        !structKeyExists(canonicalActivityResult, "SUCCESS")
+                        OR canonicalActivityResult.SUCCESS NEQ true
+                    ) {
+                        writeLog(
+                            file = "fpw-canonical-activity",
+                            type = "warning",
+                            text = "Canonical activity write skipped/failed for floatPlanId=" & arguments.floatPlanId & " status=" & monitoringStatusVal & " result=" & left(serializeJSON(canonicalActivityResult), 1000)
+                        );
+                    }
+                } catch (any canonicalActivityErr) {
+                    writeLog(
+                        file = "fpw-canonical-activity",
+                        type = "warning",
+                        text = "Canonical activity writer exception for floatPlanId=" & arguments.floatPlanId & " status=" & monitoringStatusVal & " message=" & left(trim(toString(canonicalActivityErr.message)), 500)
                     );
                 }
             }
@@ -3937,14 +4127,6 @@
                 return result;
             }
 
-            if (routeInstanceId GT 0) {
-                shouldStartOperationally = true;
-                startGateState = getScheduledStartStateForFloatPlan(arguments.userId, arguments.floatPlanId);
-                if (startGateState.SUCCESS AND structKeyExists(startGateState, "TRIP_STARTED")) {
-                    shouldStartOperationally = booleanValue(startGateState.TRIP_STARTED);
-                }
-            }
-
             var contacts = loadPlanContactEmails(arguments.userId, arguments.floatPlanId);
             if (!arrayLen(contacts)) {
                 result.ERROR = "NO_CONTACTS";
@@ -4040,18 +4222,18 @@
                     userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
                 }, { datasource = "fpw" });
 
-                if (shouldStartOperationally) {
-                    operationalStartResult = startOperationalTripNow(arguments.userId, arguments.floatPlanId, routeInstanceId);
-                    if (
-                        !structKeyExists(operationalStartResult, "SUCCESS")
-                        OR operationalStartResult.SUCCESS NEQ true
-                    ) {
-                        throw(
-                            message = "Monitoring start failed.",
-                            detail = serializeJSON(operationalStartResult)
-                        );
-                    }
-                }
+            }
+
+            monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
+            monitoringResult = monitoringService.startScheduledRouteMonitoringForFloatPlan(arguments.floatPlanId);
+            if (
+                !structKeyExists(monitoringResult, "SUCCESS")
+                OR monitoringResult.SUCCESS NEQ true
+            ) {
+                result.ERROR = "SCHEDULED_MONITORING_INITIALIZATION_FAILED";
+                result.MESSAGE = "Scheduled monitoring initialization failed.";
+                result.MONITORING_RESULT = monitoringResult;
+                return result;
             }
 
             result.SUCCESS = true;
@@ -4074,8 +4256,8 @@
                 MONITORING_STARTED = false
             };
             var startState = {};
-            var operationalStartResult = {};
-            var qMonitoring = queryNew("");
+            var monitoringService = {};
+            var monitoringResult = {};
 
             startState = getScheduledStartStateForFloatPlan(arguments.userId, arguments.floatPlanId);
             if (!startState.SUCCESS) {
@@ -4090,43 +4272,24 @@
                 return result;
             }
 
-            qMonitoring = queryExecute(
-                "SELECT id
-                 FROM floatplan_monitoring
-                 WHERE float_plan_id = :planId
-                   AND is_monitoring_enabled = 1
-                   AND UPPER(TRIM(monitor_state)) <> 'CLOSED'
-                 ORDER BY id DESC
-                 LIMIT 1",
-                {
-                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
-                },
-                { datasource = "fpw" }
-            );
-
-            if (qMonitoring.recordCount EQ 0 AND listFindNoCase("DRAFT,CLOSED", result.STATUS) GT 0) {
+            if (listFindNoCase("DRAFT,CLOSED", result.STATUS) GT 0) {
                 result.MESSAGE = "Float plan is not in an operational monitoring state.";
                 return result;
             }
 
-            transaction {
-                operationalStartResult = startOperationalTripNow(arguments.userId, arguments.floatPlanId, result.ROUTE_INSTANCE_ID);
-                if (
-                    !structKeyExists(operationalStartResult, "SUCCESS")
-                    OR operationalStartResult.SUCCESS NEQ true
-                ) {
-                    throw(
-                        message = "Operational trip start failed.",
-                        detail = serializeJSON(operationalStartResult)
-                    );
-                }
+            monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
+            monitoringResult = monitoringService.startScheduledRouteMonitoringForFloatPlan(arguments.floatPlanId);
+            if (
+                !structKeyExists(monitoringResult, "SUCCESS")
+                OR monitoringResult.SUCCESS NEQ true
+            ) {
+                return monitoringResult;
             }
-
             result.MONITORING_STARTED = (
-                structKeyExists(operationalStartResult, "MONITORING_STARTED")
-                AND booleanValue(operationalStartResult.MONITORING_STARTED)
+                structKeyExists(monitoringResult, "SCHEDULED_MONITORING_STARTED")
+                AND booleanValue(monitoringResult.SCHEDULED_MONITORING_STARTED)
             );
-            result.MESSAGE = "Operational trip start is ready.";
+            result.MESSAGE = "Scheduled departure is due; awaiting captain check-in.";
             return result;
         </cfscript>
     </cffunction>

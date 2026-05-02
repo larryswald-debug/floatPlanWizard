@@ -572,7 +572,16 @@
     context = {
       floatPlanId = fpwActiveCruiseHookValue("floatPlanId")
     },
-    fields = {}
+    fields = {},
+    canonicalProjection = {
+      available = false,
+      authority = "",
+      etaProjection = {},
+      todayProgress = {},
+      currentLegProgress = {},
+      routeTimeline = { available = false },
+      warnings = []
+    }
   };
 
   activeCruiseContext = {
@@ -2423,6 +2432,39 @@
   activeCruiseHooks.context.pendingLegOrder = pendingLegOrder;
   activeCruiseHooks.experimentalLeg = activeCruiseExperimental;
   activeCruiseHooks.routePlan = activeCruiseRoutePlan;
+  if (
+    isStruct(activeCruiseCanonicalHero)
+    AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS")
+    AND activeCruiseCanonicalHero.SUCCESS
+  ) {
+    if (structKeyExists(activeCruiseCanonicalHero, "projectionWarnings") AND isArray(activeCruiseCanonicalHero.projectionWarnings)) {
+      activeCruiseHooks.canonicalProjection.warnings = duplicate(activeCruiseCanonicalHero.projectionWarnings);
+    }
+    if (
+      structKeyExists(activeCruiseCanonicalHero, "canonicalProjectionAvailable")
+      AND activeCruiseCanonicalHero.canonicalProjectionAvailable
+    ) {
+      activeCruiseHooks.canonicalProjection.available = true;
+      activeCruiseHooks.canonicalProjection.authority = (
+        structKeyExists(activeCruiseCanonicalHero, "projectionAuthority")
+        AND len(trim(toString(activeCruiseCanonicalHero.projectionAuthority)))
+          ? trim(toString(activeCruiseCanonicalHero.projectionAuthority))
+          : "canonical_projection"
+      );
+      if (structKeyExists(activeCruiseCanonicalHero, "etaProjection") AND isStruct(activeCruiseCanonicalHero.etaProjection)) {
+        activeCruiseHooks.canonicalProjection.etaProjection = duplicate(activeCruiseCanonicalHero.etaProjection);
+      }
+      if (structKeyExists(activeCruiseCanonicalHero, "todayProgress") AND isStruct(activeCruiseCanonicalHero.todayProgress)) {
+        activeCruiseHooks.canonicalProjection.todayProgress = duplicate(activeCruiseCanonicalHero.todayProgress);
+      }
+      if (structKeyExists(activeCruiseCanonicalHero, "currentLegProgress") AND isStruct(activeCruiseCanonicalHero.currentLegProgress)) {
+        activeCruiseHooks.canonicalProjection.currentLegProgress = duplicate(activeCruiseCanonicalHero.currentLegProgress);
+      }
+      if (structKeyExists(activeCruiseCanonicalHero, "routeTimeline") AND isStruct(activeCruiseCanonicalHero.routeTimeline)) {
+        activeCruiseHooks.canonicalProjection.routeTimeline = duplicate(activeCruiseCanonicalHero.routeTimeline);
+      }
+    }
+  }
   activeCruiseHooks.fields = {
     topRouteChip = activeCruiseView.topRouteChip,
     topFloatPlanState = activeCruiseView.topFloatPlanState,
@@ -5076,7 +5118,10 @@
       var selectedStatus = "On Track";
       var pageHooks = {};
       var pageContext = {};
+      var pageFields = {};
       var experimentalLegModel = {};
+      var canonicalProjectionModel = {};
+      var canonicalRouteTimelineModel = {};
       var routePlanModel = {};
       var floatPlanId = 0;
       var weatherButton = document.getElementById("fpwMonitorWeatherBtn");
@@ -5181,6 +5226,88 @@
         return parsed;
       }
 
+      function normalizeCanonicalRouteTimelineModel(rawModel) {
+        var model = (rawModel && typeof rawModel === "object") ? rawModel : {};
+        var summary = readRoutePlanValue(model, ["summary", "SUMMARY"], {});
+        var rawLegs = readRoutePlanValue(model, ["legs", "LEGS"], []);
+        var legs = Array.isArray(rawLegs) ? rawLegs : [];
+
+        return {
+          available: readRoutePlanValue(model, ["available", "AVAILABLE"], false) === true,
+          authority: String(readRoutePlanValue(model, ["authority", "AUTHORITY"], "") || ""),
+          currentLegOrder: toRoutePlanNumber(readRoutePlanValue(model, ["currentLegOrder", "CURRENTLEGORDER"], 0), 0),
+          routeInstanceId: toRoutePlanNumber(readRoutePlanValue(model, ["routeInstanceId", "ROUTEINSTANCEID"], 0), 0),
+          effectiveSpeedKn: toRoutePlanNumber(readRoutePlanValue(model, ["effectiveSpeedKn", "EFFECTIVESPEEDKN"], 0), 0),
+          usesLatestCheckinAsAnchor: readRoutePlanValue(model, ["usesLatestCheckinAsAnchor", "USESLATESTCHECKINASANCHOR"], false) === true,
+          summary: {
+            totalNm: toRoutePlanNumber(readRoutePlanValue(summary, ["totalNm", "TOTALNM"], 0), 0),
+            completedNm: toRoutePlanNumber(readRoutePlanValue(summary, ["completedNm", "COMPLETEDNM"], 0), 0),
+            remainingNm: toRoutePlanNumber(readRoutePlanValue(summary, ["remainingNm", "REMAININGNM"], 0), 0),
+            percentComplete: toRoutePlanNumber(readRoutePlanValue(summary, ["percentComplete", "PERCENTCOMPLETE"], 0), 0),
+            finalArrivalUtc: String(readRoutePlanValue(summary, ["finalArrivalUtc", "FINALARRIVALUTC"], "") || "")
+          },
+          legs: legs.map(function (rawLeg) {
+            var leg = (rawLeg && typeof rawLeg === "object") ? rawLeg : {};
+            var state = String(readRoutePlanValue(leg, ["state", "STATE"], "") || "").toLowerCase();
+            var isCompleted = readRoutePlanValue(leg, ["isCompleted", "ISCOMPLETED"], false) === true;
+            var isCurrent = readRoutePlanValue(leg, ["isCurrent", "ISCURRENT"], false) === true;
+            var isFuture = readRoutePlanValue(leg, ["isFuture", "ISFUTURE"], false) === true;
+
+            if (!state) {
+              if (isCompleted) {
+                state = "completed";
+              } else if (isCurrent) {
+                state = "current";
+              } else if (isFuture) {
+                state = "future";
+              } else {
+                state = "future";
+              }
+            }
+
+            return {
+              routeLegOrder: toRoutePlanNumber(readRoutePlanValue(leg, ["routeLegOrder", "ROUTELEGORDER"], 0), 0),
+              state: state,
+              status: String(readRoutePlanValue(leg, ["status", "STATUS"], "") || ""),
+              fromName: String(readRoutePlanValue(leg, ["fromName", "FROMNAME"], "") || ""),
+              toName: String(readRoutePlanValue(leg, ["toName", "TONAME"], "") || ""),
+              distanceNm: toRoutePlanNumber(readRoutePlanValue(leg, ["distanceNm", "DISTANCENM"], 0), 0),
+              effectiveSpeedKn: toRoutePlanNumber(readRoutePlanValue(leg, ["effectiveSpeedKn", "EFFECTIVESPEEDKN", "speedKn", "SPEEDKN"], 0), 0),
+              departureUtc: String(readRoutePlanValue(leg, ["departureUtc", "DEPARTUREUTC"], "") || ""),
+              arrivalUtc: String(readRoutePlanValue(leg, ["arrivalUtc", "ARRIVALUTC"], "") || ""),
+              etaUtc: String(readRoutePlanValue(leg, ["etaUtc", "ETAUTC"], "") || ""),
+              startedAtUtc: String(readRoutePlanValue(leg, ["startedAtUtc", "STARTEDATUTC"], "") || ""),
+              completedAtUtc: String(readRoutePlanValue(leg, ["completedAtUtc", "COMPLETEDATUTC"], "") || ""),
+              completedNm: toRoutePlanNumber(readRoutePlanValue(leg, ["completedNm", "COMPLETEDNM"], 0), 0),
+              remainingNm: toRoutePlanNumber(readRoutePlanValue(leg, ["remainingNm", "REMAININGNM"], 0), 0),
+              percentComplete: toRoutePlanNumber(readRoutePlanValue(leg, ["percentComplete", "PERCENTCOMPLETE"], 0), 0),
+              departureSource: String(readRoutePlanValue(leg, ["departureSource", "DEPARTURESOURCE"], "") || ""),
+              arrivalSource: String(readRoutePlanValue(leg, ["arrivalSource", "ARRIVALSOURCE"], "") || ""),
+              authority: String(readRoutePlanValue(leg, ["authority", "AUTHORITY"], "") || ""),
+              warnings: readRoutePlanValue(leg, ["warnings", "WARNINGS"], []),
+              usesLatestCheckinAsAnchor: readRoutePlanValue(leg, ["usesLatestCheckinAsAnchor", "USESLATESTCHECKINASANCHOR"], false) === true
+            };
+          })
+        };
+      }
+
+      function normalizeCanonicalProjectionModel(rawModel) {
+        var model = (rawModel && typeof rawModel === "object") ? rawModel : {};
+        var routeTimeline = normalizeCanonicalRouteTimelineModel(
+          readRoutePlanValue(model, ["routeTimeline", "ROUTETIMELINE"], {})
+        );
+
+        return {
+          available: readRoutePlanValue(model, ["available", "AVAILABLE"], false) === true,
+          authority: String(readRoutePlanValue(model, ["authority", "AUTHORITY"], "") || ""),
+          warnings: readRoutePlanValue(model, ["warnings", "WARNINGS"], []),
+          etaProjection: readRoutePlanValue(model, ["etaProjection", "ETAPROJECTION"], {}),
+          todayProgress: readRoutePlanValue(model, ["todayProgress", "TODAYPROGRESS"], {}),
+          currentLegProgress: readRoutePlanValue(model, ["currentLegProgress", "CURRENTLEGPROGRESS"], {}),
+          routeTimeline: routeTimeline
+        };
+      }
+
       function normalizeRoutePlanModel(rawModel) {
         var model = (rawModel && typeof rawModel === "object") ? rawModel : {};
         var summary = readRoutePlanValue(model, ["summary", "SUMMARY"], {});
@@ -5249,12 +5376,17 @@
       function applyHookPayload(rawHooks) {
         pageHooks = (rawHooks && typeof rawHooks === "object") ? rawHooks : {};
         pageContext = (pageHooks && (pageHooks.context || pageHooks.CONTEXT)) || {};
+        pageFields = (pageHooks && (pageHooks.fields || pageHooks.FIELDS)) || {};
         experimentalLegModel = normalizeExperimentalLegModel(
           (pageHooks && (pageHooks.experimentalLeg || pageHooks.EXPERIMENTALLEG)) || {}
         );
-        routePlanModel = normalizeRoutePlanModel(
-          (pageHooks && (pageHooks.routePlan || pageHooks.ROUTEPLAN)) || {}
+        canonicalProjectionModel = normalizeCanonicalProjectionModel(
+          (pageHooks && (pageHooks.canonicalProjection || pageHooks.CANONICALPROJECTION)) || {}
         );
+        canonicalRouteTimelineModel = canonicalProjectionModel.routeTimeline || {};
+        routePlanModel = {
+          currentLegOrder: canonicalRouteTimelineModel.currentLegOrder || 0
+        };
         if (pageContext) {
           floatPlanId = parseInt(pageContext.floatPlanId || pageContext.FLOATPLANID, 10);
         }
@@ -5572,31 +5704,21 @@
         return { hero: durationLabel + " earlier than latest route plan", leg: durationLabel + " earlier than latest route plan" };
       }
 
-      function updateRoutePlanEtaCards(adjustedDate, plannedDate) {
-        var heroValue = formatRoutePlanEtaValue(adjustedDate);
-        var legValue = formatRoutePlanArrivalValue(adjustedDate);
-        var varianceLabels = buildRoutePlanScheduleVariance(adjustedDate, plannedDate);
+      function updateRoutePlanEtaCards() {
+        var etaProjection = (canonicalProjectionModel && canonicalProjectionModel.etaProjection && typeof canonicalProjectionModel.etaProjection === "object")
+          ? canonicalProjectionModel.etaProjection
+          : {};
+        var canonicalEtaUtc = String(readRoutePlanValue(etaProjection, ["etaUtc", "ETAUTC"], "") || "").trim();
+        var heroEtaUtc = String(pageFields.heroEtaUtc || pageFields.HEROETAUTC || canonicalEtaUtc || "").trim();
+        var legArrivalUtc = String(pageFields.legArrivalUtc || pageFields.LEGARRIVALUTC || canonicalEtaUtc || heroEtaUtc || "").trim();
+        var heroValue = formatHeroEtaLabel(heroEtaUtc);
+        var legValue = formatRoutePlanArrivalValue(parseRoutePlanDate(legArrivalUtc));
 
-        if (!heroValue || !legValue) {
-          return;
-        }
-        if (heroEtaEl) {
+        if (heroEtaEl && heroValue) {
           heroEtaEl.textContent = heroValue;
         }
-        if (heroEtaMetaEl) {
-          heroEtaMetaEl.textContent = "Adjusted active leg ETA";
-        }
-        if (heroEtaScheduleMetaEl) {
-          heroEtaScheduleMetaEl.textContent = varianceLabels.hero;
-        }
-        if (legArrivalEl) {
+        if (legArrivalEl && legValue) {
           legArrivalEl.textContent = legValue;
-        }
-        if (legArrivalMetaEl) {
-          legArrivalMetaEl.textContent = "From route timeline";
-        }
-        if (legArrivalScheduleMetaEl) {
-          legArrivalScheduleMetaEl.textContent = varianceLabels.leg;
         }
       }
 
@@ -5646,168 +5768,242 @@
         return dateValue.getTime() < pauseResume.getTime() ? pauseResume : dateValue;
       }
 
-      function renderRoutePlanPreview() {
-        var baseDate = parseRoutePlanDate(routePlanModel.scheduledDepartureIso);
-        var weatherPct = parseRoutePlanWeatherPct();
-        var storedDelayMinutes = Math.max(0, toRoutePlanNumber(routePlanModel.manualDelayMinutes, 0));
-        var delayMinutes = getRoutePlanPreviewDelayMinutes();
-        var baseSpeed = toRoutePlanNumber(routePlanModel.baseSpeedKn, 0);
-        var effectiveSpeed = toRoutePlanNumber(routePlanModel.effectiveSpeedKn, 0);
-        var storedWeatherPct = Math.max(0, toRoutePlanNumber(routePlanModel.weatherFactorPct, 0));
-        var previewWeatherChanged = Math.round(weatherPct) !== Math.round(storedWeatherPct);
-        var fuelBurnGph = toRoutePlanNumber(routePlanModel.fuelBurnGph, 0);
-        var reservePct = toRoutePlanNumber(routePlanModel.reservePct, 0);
-        var totalHours = 0;
-        var legNodes = document.querySelectorAll("[data-route-plan-leg]");
-        var changedByVisibleInputs = previewWeatherChanged || delayMinutes !== storedDelayMinutes;
-        var adjustedAnchorDate = baseDate;
-        var hasActualAnchor = false;
-        var delayApplied = false;
-        var finalDate = parseRoutePlanDate(routePlanModel.summary && routePlanModel.summary.finalArrivalIso);
-        var currentLegAdjustedArrivalDate = null;
-        var currentLegPlannedArrivalDate = null;
-
-        if (baseSpeed > 0 && (effectiveSpeed <= 0 || previewWeatherChanged)) {
-          effectiveSpeed = baseSpeed * Math.max(0.05, (100 - weatherPct) / 100);
+      function createRoutePlanElement(tagName, className, textValue) {
+        var node = document.createElement(tagName);
+        if (className) {
+          node.className = className;
         }
-        if (weatherPct > 0 && fuelBurnGph > 0) {
-          fuelBurnGph = fuelBurnGph * (1 + (weatherPct / 100));
+        if (typeof textValue !== "undefined") {
+          node.textContent = textValue;
+        }
+        return node;
+      }
+
+      function appendRoutePlanDetailItem(parentNode, labelText, valueText, fieldName, smallText, labelFieldName) {
+        var itemNode = createRoutePlanElement("div", "", "");
+        var labelNode = createRoutePlanElement("span", "", labelText);
+        var valueNode = createRoutePlanElement("strong", "", valueText);
+        var smallNode = null;
+
+        if (labelFieldName) {
+          labelNode.setAttribute("data-route-plan-label", labelFieldName);
+        }
+        if (fieldName) {
+          valueNode.setAttribute("data-route-plan-field", fieldName);
+        }
+        itemNode.appendChild(labelNode);
+        itemNode.appendChild(valueNode);
+        if (typeof smallText !== "undefined" && smallText !== null) {
+          smallNode = createRoutePlanElement("small", "", smallText);
+          if (fieldName === "departure") {
+            smallNode.setAttribute("data-route-plan-field", "plannedDeparture");
+          } else if (fieldName === "arrivalDetail") {
+            smallNode.setAttribute("data-route-plan-field", "plannedArrival");
+          }
+          itemNode.appendChild(smallNode);
+        }
+        parentNode.appendChild(itemNode);
+      }
+
+      function getCanonicalLegLabel(leg) {
+        var fromName = String((leg && leg.fromName) || "").trim();
+        var toName = String((leg && leg.toName) || "").trim();
+        var order = toRoutePlanNumber(leg && leg.routeLegOrder, 0);
+
+        if (fromName && toName) {
+          return fromName + " -> " + toName;
+        }
+        if (toName) {
+          return toName;
+        }
+        return order > 0 ? "Leg " + String(order) : "Leg";
+      }
+
+      function getCanonicalLegStatus(leg, isCurrent) {
+        var rawStatus = String((leg && leg.status) || "").trim();
+        var state = String((leg && leg.state) || "").trim();
+
+        if (rawStatus) {
+          return rawStatus.replace(/_/g, " ");
+        }
+        if (isCurrent) {
+          return "Current";
+        }
+        if (state) {
+          return state.charAt(0).toUpperCase() + state.slice(1);
+        }
+        return "Route Leg";
+      }
+
+      function getCanonicalLegClassState(leg, isCurrent) {
+        var state = String((leg && leg.state) || "").toLowerCase().replace(/[^a-z0-9_-]/g, "");
+        if (isCurrent) {
+          return "current";
+        }
+        return state || "future";
+      }
+
+      function getCanonicalDepartureUtc(leg) {
+        return String((leg && (leg.departureUtc || leg.startedAtUtc)) || "").trim();
+      }
+
+      function getCanonicalArrivalUtc(leg) {
+        return String((leg && (leg.completedAtUtc || leg.arrivalUtc || leg.etaUtc)) || "").trim();
+      }
+
+      function getCanonicalDepartureLabel(leg, isCurrent) {
+        if ((leg && leg.state) === "completed" || isCurrent) {
+          return "Actual Departure";
+        }
+        return "Projected Departure";
+      }
+
+      function getCanonicalArrivalLabel(leg, isCurrent) {
+        if ((leg && leg.state) === "completed") {
+          return "Actual Arrival";
+        }
+        if (isCurrent) {
+          return "Canonical ETA";
+        }
+        return "Projected ETA";
+      }
+
+      function createCanonicalRoutePlanLegNode(leg) {
+        var order = toRoutePlanNumber(leg && leg.routeLegOrder, 0);
+        var isCurrent = order > 0 && order === toRoutePlanNumber(canonicalRouteTimelineModel.currentLegOrder, 0);
+        var classState = getCanonicalLegClassState(leg, isCurrent);
+        var expanded = isCurrent;
+        var articleNode = createRoutePlanElement("article", "route-plan-leg route-plan-leg--" + classState + (expanded ? " is-expanded" : ""), "");
+        var buttonNode = createRoutePlanElement("button", "route-plan-leg-button", "");
+        var dotNode = createRoutePlanElement("span", "route-plan-leg-dot", "");
+        var bodyNode = createRoutePlanElement("span", "", "");
+        var sideNode = createRoutePlanElement("span", "route-plan-leg-side", "");
+        var arrivalSideNode = createRoutePlanElement("span", "", formatRoutePlanDate(parseRoutePlanDate(getCanonicalArrivalUtc(leg))));
+        var chevronNode = createRoutePlanElement("span", "route-plan-leg-chevron", "⌄");
+        var detailNode = createRoutePlanElement("div", "route-plan-leg-detail", "");
+        var detailGridNode = createRoutePlanElement("div", "route-plan-detail-grid", "");
+        var statusNode = createRoutePlanElement("span", "route-plan-leg-kicker", getCanonicalLegStatus(leg, isCurrent));
+        var titleNode = createRoutePlanElement("span", "route-plan-leg-title", getCanonicalLegLabel(leg));
+        var metaNode = createRoutePlanElement("span", "route-plan-leg-meta", formatRoutePlanNm(leg && leg.distanceNm));
+        var statusTime = String((leg && (leg.completedAtUtc || leg.startedAtUtc)) || "").trim();
+
+        articleNode.setAttribute("data-route-plan-leg", "");
+        articleNode.setAttribute("data-route-plan-leg-order", String(order));
+        articleNode.setAttribute("data-route-plan-state", classState);
+        articleNode.setAttribute("data-route-plan-authority", String((leg && leg.authority) || canonicalRouteTimelineModel.authority || ""));
+        if (isCurrent) {
+          articleNode.setAttribute("data-route-plan-current", "true");
+        }
+
+        buttonNode.type = "button";
+        buttonNode.setAttribute("data-route-plan-toggle", "");
+        buttonNode.setAttribute("aria-expanded", expanded ? "true" : "false");
+        dotNode.setAttribute("aria-hidden", "true");
+        chevronNode.setAttribute("aria-hidden", "true");
+        arrivalSideNode.setAttribute("data-route-plan-field", "arrival");
+
+        bodyNode.appendChild(statusNode);
+        bodyNode.appendChild(titleNode);
+        bodyNode.appendChild(metaNode);
+        sideNode.appendChild(arrivalSideNode);
+        sideNode.appendChild(chevronNode);
+        buttonNode.appendChild(dotNode);
+        buttonNode.appendChild(bodyNode);
+        buttonNode.appendChild(sideNode);
+
+        appendRoutePlanDetailItem(detailGridNode, getCanonicalDepartureLabel(leg, isCurrent), formatRoutePlanDate(parseRoutePlanDate(getCanonicalDepartureUtc(leg))), "departure", "", "departure");
+        appendRoutePlanDetailItem(detailGridNode, getCanonicalArrivalLabel(leg, isCurrent), formatRoutePlanDate(parseRoutePlanDate(getCanonicalArrivalUtc(leg))), "arrivalDetail", "", "arrivalDetail");
+        appendRoutePlanDetailItem(detailGridNode, "Duration", "—", "duration");
+        appendRoutePlanDetailItem(detailGridNode, "Distance", formatRoutePlanNm(leg && leg.distanceNm), "");
+        appendRoutePlanDetailItem(detailGridNode, "Pace Used", formatRoutePlanSpeed(leg && leg.effectiveSpeedKn), "speed");
+        appendRoutePlanDetailItem(detailGridNode, "Weather Effect", "—", "weather");
+        appendRoutePlanDetailItem(detailGridNode, "Fuel Need", "—", "fuel");
+        appendRoutePlanDetailItem(detailGridNode, "Reserve", "—", "reserve");
+        appendRoutePlanDetailItem(detailGridNode, "Delay Adjustment", "—", "delay");
+        appendRoutePlanDetailItem(detailGridNode, "Status Times", statusTime ? formatHeroEtaLabel(statusTime) : "—", "");
+
+        detailNode.hidden = !expanded;
+        detailNode.appendChild(detailGridNode);
+        articleNode.appendChild(buttonNode);
+        articleNode.appendChild(detailNode);
+        return articleNode;
+      }
+
+      function createRoutePlanFinalNode(labelValue, arrivalUtc) {
+        var finalNode = createRoutePlanElement("div", "route-plan-final", "");
+        var kickerNode = createRoutePlanElement("div", "route-plan-kicker", "Final Destination");
+        var strongNode = createRoutePlanElement("strong", "", labelValue || "—");
+        var spanNode = createRoutePlanElement("span", "", formatRoutePlanDate(parseRoutePlanDate(arrivalUtc)));
+
+        spanNode.setAttribute("data-route-plan-summary", "finalArrival");
+        finalNode.appendChild(kickerNode);
+        finalNode.appendChild(strongNode);
+        finalNode.appendChild(spanNode);
+        return finalNode;
+      }
+
+      function renderRoutePlanUnavailable() {
+        var unavailableNode = createRoutePlanElement("div", "route-plan-final", "");
+
+        if (routePlanTimelineEl) {
+          routePlanTimelineEl.textContent = "";
+          unavailableNode.appendChild(createRoutePlanElement("div", "route-plan-kicker", "Route Plan"));
+          unavailableNode.appendChild(createRoutePlanElement("strong", "", "—"));
+          unavailableNode.appendChild(createRoutePlanElement("span", "", "Canonical route timeline unavailable. Route preview cannot be rendered."));
+          routePlanTimelineEl.appendChild(unavailableNode);
+        }
+        document.querySelectorAll('[data-route-plan-summary="finalArrival"], [data-route-plan-summary="finalArrivalFooter"]').forEach(function (summaryNode) {
+          summaryNode.textContent = "—";
+        });
+        if (routePlanPreviewNoteEl) {
+          routePlanPreviewNoteEl.textContent = "Canonical route timeline unavailable. Route preview cannot be rendered.";
+        }
+      }
+
+      function renderRoutePlanPreview() {
+        var timeline = canonicalRouteTimelineModel || {};
+        var legs = Array.isArray(timeline.legs) ? timeline.legs : [];
+        var firstLeg = legs.length ? legs[0] : {};
+        var finalLeg = legs.length ? legs[legs.length - 1] : {};
+        var finalArrivalUtc = String((timeline.summary && timeline.summary.finalArrivalUtc) || getCanonicalArrivalUtc(finalLeg) || "").trim();
+
+        updateRoutePlanEtaCards();
+        if (!routePlanTimelineEl || canonicalProjectionModel.available !== true || timeline.available !== true || !legs.length) {
+          renderRoutePlanUnavailable();
+          return;
         }
 
         document.querySelectorAll('[data-route-plan-summary="scheduledDeparture"]').forEach(function (summaryNode) {
-          summaryNode.textContent = formatRoutePlanDate(baseDate);
+          summaryNode.textContent = formatRoutePlanDate(parseRoutePlanDate(getCanonicalDepartureUtc(firstLeg)));
         });
-
-        routePlanModel.legs.forEach(function (leg, idx) {
-          var legNode = legNodes[idx] || null;
-          var distanceNm = toRoutePlanNumber(leg.distanceNm, 0);
-          var durationHours = 0;
-          var plannedDepartureDate = null;
-          var plannedArrivalDate = null;
-          var departureDate = null;
-          var arrivalDate = null;
-          var startedDate = parseRoutePlanDate(leg.startedAtUtc);
-          var completedDate = parseRoutePlanDate(leg.completedAtUtc);
-          var baseFuel = 0;
-          var reserveFuel = 0;
-          var appliedDelayMinutes = 0;
-          var appliedPauseMinutes = 0;
-          var departureSource = "planned";
-          var arrivalSource = "planned";
-          var departureLabel = "Planned Departure";
-          var arrivalLabel = "Planned Arrival / ETA";
-
-          if (effectiveSpeed > 0 && distanceNm > 0) {
-            durationHours = distanceNm / effectiveSpeed;
-          } else {
-            durationHours = toRoutePlanNumber(leg.durationHours, 0);
-          }
-
-          plannedDepartureDate = baseDate && !Number.isNaN(baseDate.getTime())
-            ? addRoutePlanMinutes(baseDate, Math.round(totalHours * 60))
-            : parseRoutePlanDate(leg.plannedDepartureIso);
-          totalHours += durationHours;
-          plannedArrivalDate = baseDate && !Number.isNaN(baseDate.getTime())
-            ? addRoutePlanMinutes(baseDate, Math.round(totalHours * 60))
-            : parseRoutePlanDate(leg.plannedArrivalIso);
-          departureDate = plannedDepartureDate;
-          arrivalDate = plannedArrivalDate;
-
-          if (leg.state === "completed" && completedDate) {
-            if (startedDate) {
-              departureDate = startedDate;
-              departureSource = "actual_start";
-              departureLabel = "Actual Departure";
-            } else if (hasActualAnchor && adjustedAnchorDate) {
-              departureDate = adjustedAnchorDate;
-              departureSource = "adjusted_chain";
-              departureLabel = "Adjusted Departure";
-            }
-            arrivalDate = completedDate;
-            arrivalSource = "actual_completion";
-            arrivalLabel = "Actual Arrival";
-            adjustedAnchorDate = arrivalDate;
-            hasActualAnchor = true;
-          } else if (leg.state === "current" && startedDate) {
-            departureDate = startedDate;
-            departureSource = "actual_start";
-            departureLabel = "Actual Departure";
-            if (!delayApplied && delayMinutes > 0) {
-              appliedDelayMinutes = delayMinutes;
-              delayApplied = true;
-            }
-            arrivalDate = addRoutePlanMinutes(startedDate, Math.round(durationHours * 60) + appliedDelayMinutes);
-            appliedPauseMinutes = getRoutePlanPauseMinutes(startedDate, arrivalDate);
-            if (appliedPauseMinutes > 0) {
-              arrivalDate = addRoutePlanMinutes(arrivalDate, appliedPauseMinutes);
-            }
-            arrivalSource = "adjusted_from_actual_start";
-            arrivalLabel = "Adjusted ETA";
-            adjustedAnchorDate = arrivalDate;
-            hasActualAnchor = true;
-            currentLegAdjustedArrivalDate = arrivalDate;
-            currentLegPlannedArrivalDate = plannedArrivalDate;
-          } else if (hasActualAnchor && adjustedAnchorDate) {
-            departureDate = applyRoutePlanResumeFloor(adjustedAnchorDate);
-            departureSource = "adjusted_chain";
-            departureLabel = "Adjusted Departure";
-            if (!delayApplied && delayMinutes > 0) {
-              appliedDelayMinutes = delayMinutes;
-              delayApplied = true;
-            }
-            arrivalDate = addRoutePlanMinutes(departureDate, Math.round(durationHours * 60) + appliedDelayMinutes);
-            arrivalSource = "adjusted_chain";
-            arrivalLabel = "Adjusted ETA";
-            adjustedAnchorDate = arrivalDate;
-          } else if (leg.state !== "completed" && delayMinutes > 0) {
-            appliedDelayMinutes = delayMinutes;
-            arrivalDate = addRoutePlanMinutes(plannedArrivalDate, appliedDelayMinutes);
-            arrivalSource = "planned_with_delay";
-          }
-
-          if (fuelBurnGph > 0 && durationHours > 0) {
-            baseFuel = durationHours * fuelBurnGph;
-            reserveFuel = reservePct > 0 ? baseFuel * (reservePct / 100) : 0;
-          }
-          if (arrivalDate) {
-            finalDate = arrivalDate;
-          }
-
-          setRoutePlanLabel(legNode, "departure", departureLabel);
-          setRoutePlanLabel(legNode, "arrivalDetail", arrivalLabel);
-          setRoutePlanField(legNode, "departure", formatRoutePlanDate(departureDate));
-          setRoutePlanField(legNode, "arrival", formatRoutePlanDate(arrivalDate));
-          setRoutePlanField(legNode, "arrivalDetail", formatRoutePlanDate(arrivalDate));
-          setRoutePlanField(legNode, "plannedDeparture", departureSource === "planned" ? "" : "Plan: " + formatRoutePlanDate(plannedDepartureDate));
-          setRoutePlanField(legNode, "plannedArrival", arrivalSource === "planned" ? "" : "Plan: " + formatRoutePlanDate(plannedArrivalDate));
-          setRoutePlanField(legNode, "duration", formatRoutePlanDuration(durationHours));
-          setRoutePlanField(legNode, "speed", formatRoutePlanSpeed(effectiveSpeed));
-          setRoutePlanField(legNode, "weather", weatherPct > 0 ? Math.round(weatherPct) + "% factor" : "—");
-          setRoutePlanField(legNode, "fuel", formatRoutePlanFuel(baseFuel + reserveFuel));
-          setRoutePlanField(legNode, "reserve", formatRoutePlanFuel(reserveFuel));
-          setRoutePlanField(legNode, "delay", appliedDelayMinutes > 0 ? String(appliedDelayMinutes) + " min" : "—");
-        });
-
         document.querySelectorAll('[data-route-plan-summary="finalArrival"], [data-route-plan-summary="finalArrivalFooter"]').forEach(function (summaryNode) {
-          summaryNode.textContent = formatRoutePlanDate(finalDate);
+          summaryNode.textContent = formatRoutePlanDate(parseRoutePlanDate(finalArrivalUtc));
         });
 
-        updateRoutePlanEtaCards(currentLegAdjustedArrivalDate, currentLegPlannedArrivalDate);
+        routePlanTimelineEl.textContent = "";
+        legs.forEach(function (leg) {
+          routePlanTimelineEl.appendChild(createCanonicalRoutePlanLegNode(leg));
+        });
+        routePlanTimelineEl.appendChild(createRoutePlanFinalNode(String((finalLeg && finalLeg.toName) || "—"), finalArrivalUtc));
 
         if (routePlanPreviewNoteEl) {
-          routePlanPreviewNoteEl.textContent = changedByVisibleInputs
-            ? "Display-only preview includes visible weather/delay inputs. Nothing is saved from this timeline."
-            : "Uses active route data already available on this page.";
+          routePlanPreviewNoteEl.textContent = "Route preview uses canonical route timeline projection.";
         }
       }
 
       function initializeRoutePlanInteractions() {
         if (routePlanTimelineEl) {
-          routePlanTimelineEl.querySelectorAll("[data-route-plan-toggle]").forEach(function (toggleButton) {
-            toggleButton.addEventListener("click", function () {
-              var legNode = toggleButton.closest("[data-route-plan-leg]");
+          if (routePlanTimelineEl.getAttribute("data-route-plan-interactions-bound") !== "true") {
+            routePlanTimelineEl.setAttribute("data-route-plan-interactions-bound", "true");
+            routePlanTimelineEl.addEventListener("click", function (event) {
+              var toggleButton = event.target ? event.target.closest("[data-route-plan-toggle]") : null;
+              var legNode = toggleButton ? toggleButton.closest("[data-route-plan-leg]") : null;
               var detailNode = legNode ? legNode.querySelector(".route-plan-leg-detail") : null;
-              var shouldExpand = toggleButton.getAttribute("aria-expanded") !== "true";
+              var shouldExpand = toggleButton ? toggleButton.getAttribute("aria-expanded") !== "true" : false;
+
+              if (!toggleButton || !legNode) {
+                return;
+              }
 
               routePlanTimelineEl.querySelectorAll("[data-route-plan-toggle]").forEach(function (otherButton) {
                 var otherLegNode = otherButton.closest("[data-route-plan-leg]");
@@ -5822,14 +6018,12 @@
               });
 
               toggleButton.setAttribute("aria-expanded", shouldExpand ? "true" : "false");
-              if (legNode) {
-                legNode.classList.toggle("is-expanded", shouldExpand);
-              }
+              legNode.classList.toggle("is-expanded", shouldExpand);
               if (detailNode) {
                 detailNode.hidden = !shouldExpand;
               }
             });
-          });
+          }
         }
         if (routePlanJumpCurrentBtn && routePlanTimelineEl) {
           routePlanJumpCurrentBtn.addEventListener("click", function () {
@@ -5852,8 +6046,8 @@
       hydrateLegArrival();
       hydrateRouteStop4Stamp();
       hydrateManualDelayTotal();
-      initializeRoutePlanInteractions();
       renderRoutePlanPreview();
+      initializeRoutePlanInteractions();
       renderActiveCruiseMap();
       window.addEventListener("load", syncActiveCruiseMapSize);
       window.addEventListener("resize", syncActiveCruiseMapSize);
