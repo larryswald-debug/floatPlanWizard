@@ -178,7 +178,17 @@
                         <cfoutput>#serializeJSON(arrivedCheckinResult)#</cfoutput>
                     <cfelseif len(checkinStatus) OR structKeyExists(body, "note")>
                         <cfset var cruiseCheckinResult = submitActiveCruiseCheckIn(userId, checkinId, checkinStatus, checkinNote, checkinContext)>
-                        <cfoutput>#serializeJSON(cruiseCheckinResult)#</cfoutput>
+                        <cfif structKeyExists(cruiseCheckinResult, "success") AND NOT structKeyExists(cruiseCheckinResult, "SUCCESS")>
+                            <cfset cruiseCheckinResult.SUCCESS = cruiseCheckinResult.success>
+                        </cfif>
+                        <cfif structKeyExists(cruiseCheckinResult, "SUCCESS") AND NOT structKeyExists(cruiseCheckinResult, "success")>
+                            <cfset cruiseCheckinResult.success = cruiseCheckinResult.SUCCESS>
+                        </cfif>
+                        <cfset cruiseCheckinResult.AUTH = true>
+                        <cfset var cruiseCheckinJson = serializeJSON(cruiseCheckinResult)>
+                        <cfcontent type="application/json; charset=utf-8" reset="true"><cfoutput>#cruiseCheckinJson#</cfoutput>
+                        <cfsetting enablecfoutputonly="false">
+                        <cfreturn>
                     <cfelse>
                         <cfset var checkinResult = checkInFloatPlan(userId, checkinId)>
                         <cfset checkinResult.AUTH = true>
@@ -3450,7 +3460,10 @@
                 }
             }
 
-            result = { "success" = true };
+            result.success = true;
+            result.SUCCESS = true;
+            result.AUTH = true;
+            result.MESSAGE = "Check-in recorded.";
             if (monitoringStatusVal EQ "NEED_ATTENTION") {
                 qUpdatedPlan = queryExecute(
                     "SELECT checkedInAt
@@ -4526,24 +4539,43 @@
             var qActivationLeg = queryNew("");
             var qCompletedLeg = queryNew("");
             var qMonitoring = queryNew("");
+            var qStartClock = queryNew("");
             var activationLegOrder = 0;
             var hasCompletedLeg = false;
             var monitoringService = {};
             var monitoringResult = {};
+            var operationalStartAtUtc = "";
+
+            qStartClock = queryExecute(
+                "SELECT UTC_TIMESTAMP() AS operational_start_at_utc",
+                {},
+                { datasource = "fpw" }
+            );
+            if (
+                qStartClock.recordCount EQ 0
+                OR isNull(qStartClock.operational_start_at_utc[1])
+                OR !isDate(qStartClock.operational_start_at_utc[1])
+            ) {
+                result.ERROR = "OPERATIONAL_START_TIMESTAMP_UNAVAILABLE";
+                result.MESSAGE = "Operational trip start timestamp could not be established.";
+                return result;
+            }
+            operationalStartAtUtc = qStartClock.operational_start_at_utc[1];
 
             queryExecute(
                 "UPDATE floatplans
                  SET lastUpdateStatus = CASE
-                         WHEN activatedAt IS NULL THEN UTC_TIMESTAMP()
+                         WHEN activatedAt IS NULL THEN :operationalStartAtUtc
                          ELSE lastUpdateStatus
                      END,
-                     activatedAt = COALESCE(activatedAt, UTC_TIMESTAMP())
+                     activatedAt = COALESCE(activatedAt, :operationalStartAtUtc)
                  WHERE floatplanId = :planId
                    AND userId = :userId
                    AND UPPER(TRIM(`status`)) NOT IN ('DRAFT','CLOSED')",
                 {
                     planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
-                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                    operationalStartAtUtc = { value = operationalStartAtUtc, cfsqltype = "cf_sql_timestamp" }
                 },
                 { datasource = "fpw" }
             );
@@ -4586,15 +4618,38 @@
                         if (!hasCompletedLeg) {
                             queryExecute(
                                 "UPDATE route_instance_leg_progress
-                                 SET leg_started_at = NOW()
+                                 SET status = CASE
+                                         WHEN UPPER(TRIM(status)) = 'NOT_STARTED' THEN 'STARTED'
+                                         ELSE status
+                                     END,
+                                     leg_started_at = COALESCE(leg_started_at, :operationalStartAtUtc)
                                  WHERE route_instance_id = :routeInstanceId
                                    AND user_id = :userId
                                    AND leg_order = :legOrder
-                                   AND leg_started_at IS NULL",
+                                   AND UPPER(TRIM(status)) = 'NOT_STARTED'",
                                 {
                                     routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" },
                                     userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
-                                    legOrder = { value = activationLegOrder, cfsqltype = "cf_sql_integer" }
+                                    legOrder = { value = activationLegOrder, cfsqltype = "cf_sql_integer" },
+                                    operationalStartAtUtc = { value = operationalStartAtUtc, cfsqltype = "cf_sql_timestamp" }
+                                },
+                                { datasource = "fpw" }
+                            );
+
+                            queryExecute(
+                                "UPDATE route_instances
+                                 SET status = CASE
+                                         WHEN UPPER(TRIM(status)) = 'PLANNED' THEN 'ACTIVE'
+                                         ELSE status
+                                     END,
+                                     started_at = COALESCE(started_at, :operationalStartAtUtc)
+                                 WHERE id = :routeInstanceId
+                                   AND user_id = :userId
+                                   AND UPPER(TRIM(COALESCE(status, ''))) IN ('PLANNED','ACTIVE')",
+                                {
+                                    routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" },
+                                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                                    operationalStartAtUtc = { value = operationalStartAtUtc, cfsqltype = "cf_sql_timestamp" }
                                 },
                                 { datasource = "fpw" }
                             );
