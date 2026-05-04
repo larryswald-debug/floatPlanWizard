@@ -86,11 +86,13 @@
       result.monitoring = buildMonitoring(activeCruiseModel);
       result.checkIn = buildCheckIn(activeCruiseModel);
       result.actions = buildActions(activeCruiseModel);
+      result.refresh = buildRefreshHint();
       result.displayAuthority = duplicate(readStruct(activeCruiseModel, "displayAuthority"));
       result.storageAuthority = {
         "activePlanGuard" = "floatplan.resolveCurrentRouteFloatPlanGroup",
         "readModel" = "ActiveCruiseViewModelService",
-        "checkInWrite" = "floatplan.cfc?action=checkin"
+        "checkInWrite" = "companion.cfc?action=checkin",
+        "canonicalCheckInAuthority" = "floatplan.cfc?action=checkin"
       };
       result.warnings = readArray(activeCruiseModel, "warnings");
 
@@ -117,6 +119,7 @@
         "monitoring" = {},
         "checkIn" = {},
         "actions" = {},
+        "refresh" = {},
         "displayAuthority" = {},
         "storageAuthority" = {},
         "warnings" = []
@@ -226,12 +229,101 @@
     <cfscript>
       var actions = readStruct(arguments.model, "actions");
       var companionActions = {};
+      var checkInAction = readStruct(actions, "checkIn");
+      var startNextLegAction = readStruct(actions, "startNextLeg");
+      var checkInEnabled = readBoolean(checkInAction, "enabled");
+      var checkInDisabledReason = readString(checkInAction, "reason");
+      var floatPlanId = readNumber(readStruct(readStruct(actions, "checkIn"), "payload"), "floatPlanId");
 
-      if (structKeyExists(actions, "checkIn") AND isStruct(actions.checkIn)) {
-        companionActions.checkIn = duplicate(actions.checkIn);
-      }
+      companionActions.checkIn = {
+        "endpoint" = "/fpw/api/v1/companion.cfc?method=handle&action=checkin&returnFormat=json",
+        "method" = "POST",
+        "returnsRefreshedCompanionModel" = true,
+        "refreshEndpoint" = "/fpw/api/v1/companion.cfc?method=handle&action=current&returnFormat=json",
+        "actions" = {
+          "onTrack" = buildMobileCheckInAction("onTrack", "On Track", "On Track", "", checkInEnabled, checkInDisabledReason, false, "", floatPlanId),
+          "delayed" = buildMobileCheckInAction("delayed", "Delayed", "Delayed", "", checkInEnabled, checkInDisabledReason, false, "", floatPlanId),
+          "changedPlan" = buildMobileCheckInAction("changedPlan", "Changed Plan", "Changed Plan", "", checkInEnabled, checkInDisabledReason, false, "", floatPlanId),
+          "secureForNight" = buildMobileCheckInAction("secureForNight", "Secure for the Night", "Secure for the Night", "overnight", checkInEnabled, checkInDisabledReason, true, "Confirm this trip is secured for the night.", floatPlanId),
+          "assistanceNeeded" = buildMobileCheckInAction("assistanceNeeded", "Assistance Needed", "Assistance Needed", "", checkInEnabled, checkInDisabledReason, true, "Confirm Assistance Needed. Your emergency contacts may be notified.", floatPlanId)
+        }
+      };
+
+      companionActions.startNextLeg = buildStartNextLegAction(startNextLegAction);
+      companionActions.unavailableActions = {
+        "arrived" = {
+          "key" = "arrived",
+          "label" = "Arrived",
+          "enabled" = false,
+          "disabledReason" = "Final arrival/close flow is not part of companion MVP."
+        }
+      };
 
       return companionActions;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildMobileCheckInAction" access="private" returntype="struct" output="false">
+    <cfargument name="key" type="string" required="true">
+    <cfargument name="label" type="string" required="true">
+    <cfargument name="status" type="string" required="true">
+    <cfargument name="checkinContext" type="string" required="true">
+    <cfargument name="enabled" type="boolean" required="true">
+    <cfargument name="disabledReason" type="string" required="true">
+    <cfargument name="requiresConfirm" type="boolean" required="true">
+    <cfargument name="confirmMessage" type="string" required="true">
+    <cfargument name="floatPlanId" type="numeric" required="true">
+    <cfscript>
+      return {
+        "key" = arguments.key,
+        "label" = arguments.label,
+        "endpoint" = "/fpw/api/v1/companion.cfc?method=handle&action=checkin&returnFormat=json",
+        "method" = "POST",
+        "payload" = {
+          "mobileSubmissionId" = "",
+          "floatPlanId" = arguments.floatPlanId,
+          "status" = arguments.status,
+          "note" = "",
+          "checkinContext" = arguments.checkinContext,
+          "location" = javaCast("null", ""),
+          "device" = javaCast("null", ""),
+          "offlineCreatedAtUtc" = ""
+        },
+        "requiresMobileSubmissionId" = true,
+        "supportsLocation" = true,
+        "supportsDeviceMetadata" = true,
+        "supportsOfflineCreatedAt" = true,
+        "enabled" = arguments.enabled,
+        "disabledReason" = arguments.disabledReason,
+        "requiresConfirm" = arguments.requiresConfirm,
+        "confirmMessage" = arguments.confirmMessage
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildStartNextLegAction" access="private" returntype="struct" output="false">
+    <cfargument name="sourceAction" type="struct" required="true">
+    <cfscript>
+      return {
+        "key" = "startNextLeg",
+        "label" = "Start Next Leg",
+        "endpoint" = "/fpw/api/v1/floatplan.cfc?method=handle&action=startnextleg&returnFormat=json",
+        "method" = "POST",
+        "payload" = duplicate(readStruct(arguments.sourceAction, "payload")),
+        "enabled" = readBoolean(arguments.sourceAction, "enabled"),
+        "disabledReason" = readString(arguments.sourceAction, "reason"),
+        "requiresConfirm" = readBoolean(arguments.sourceAction, "confirmationRequired"),
+        "confirmMessage" = readString(arguments.sourceAction, "confirmationMessage")
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildRefreshHint" access="private" returntype="struct" output="false">
+    <cfscript>
+      return {
+        "endpoint" = "/fpw/api/v1/companion.cfc?method=handle&action=current&returnFormat=json",
+        "method" = "GET"
+      };
     </cfscript>
   </cffunction>
 

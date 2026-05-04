@@ -63,17 +63,63 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(structKeyExists(model.monitoring, "lastCheckinStatus")).toBeTrue(serializeJSON(model.monitoring));
           expect(arrayLen(model.checkIn.allowedStatusOptions)).toBe(5, serializeJSON(model.checkIn));
           expect(structKeyExists(model.actions, "checkIn")).toBeTrue(serializeJSON(model.actions));
-          expect(model.actions.checkIn.endpoint).toBe("/api/v1/floatplan.cfc?method=handle&action=checkin&returnFormat=json");
-          expect(model.actions.checkIn.payload.floatPlanId).toBe(asset.floatPlanId, serializeJSON(model.actions.checkIn));
+          expect(structKeyExists(model.actions.checkIn, "actions")).toBeTrue(serializeJSON(model.actions.checkIn));
+          expect(model.actions.checkIn.endpoint).toBe("/fpw/api/v1/companion.cfc?method=handle&action=checkin&returnFormat=json");
+          expect(model.actions.checkIn.returnsRefreshedCompanionModel).toBeTrue(serializeJSON(model.actions.checkIn));
+          expect(model.refresh.endpoint).toBe("/fpw/api/v1/companion.cfc?method=handle&action=current&returnFormat=json");
           expect(model.storageAuthority.activePlanGuard).toBe("floatplan.resolveCurrentRouteFloatPlanGroup", serializeJSON(model.storageAuthority));
           expect(model.storageAuthority.readModel).toBe("ActiveCruiseViewModelService", serializeJSON(model.storageAuthority));
-          expect(model.storageAuthority.checkInWrite).toBe("floatplan.cfc?action=checkin", serializeJSON(model.storageAuthority));
+          expect(model.storageAuthority.checkInWrite).toBe("companion.cfc?action=checkin", serializeJSON(model.storageAuthority));
+          expect(model.storageAuthority.canonicalCheckInAuthority).toBe("floatplan.cfc?action=checkin", serializeJSON(model.storageAuthority));
         } finally {
           cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
         }
       });
 
-        it("serves the same compact current active trip model through the companion endpoint", function() {
+      it("exposes mobile companion check-in action contracts and separate Start Next Leg metadata", function() {
+        var prefix = variables.naming.buildPrefix("companion", "action-contract");
+        var sessionApi = buildSessionApiSupport();
+        var localCreated = newCreatedTracker();
+        var asset = {};
+        var model = {};
+        var checkInActions = {};
+
+        try {
+          url.testUserId = variables.sessionApiUser.userId;
+          asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+          model = variables.companionService.getCurrentActiveCompanionModel(variables.sessionApiUser.userId);
+          checkInActions = model.actions.checkIn.actions;
+
+          expect(structKeyExists(checkInActions, "onTrack")).toBeTrue(serializeJSON(model.actions.checkIn));
+          expect(structKeyExists(checkInActions, "delayed")).toBeTrue(serializeJSON(model.actions.checkIn));
+          expect(structKeyExists(checkInActions, "changedPlan")).toBeTrue(serializeJSON(model.actions.checkIn));
+          expect(structKeyExists(checkInActions, "secureForNight")).toBeTrue(serializeJSON(model.actions.checkIn));
+          expect(structKeyExists(checkInActions, "assistanceNeeded")).toBeTrue(serializeJSON(model.actions.checkIn));
+
+          assertMobileCheckInAction(checkInActions.onTrack, "onTrack", "On Track", "", asset.floatPlanId);
+          assertMobileCheckInAction(checkInActions.delayed, "delayed", "Delayed", "", asset.floatPlanId);
+          assertMobileCheckInAction(checkInActions.changedPlan, "changedPlan", "Changed Plan", "", asset.floatPlanId);
+          assertMobileCheckInAction(checkInActions.secureForNight, "secureForNight", "Secure for the Night", "overnight", asset.floatPlanId);
+          assertMobileCheckInAction(checkInActions.assistanceNeeded, "assistanceNeeded", "Assistance Needed", "", asset.floatPlanId);
+
+          expect(checkInActions.assistanceNeeded.requiresConfirm).toBeTrue(serializeJSON(checkInActions.assistanceNeeded));
+          expect(findNoCase("contacts may be notified", checkInActions.assistanceNeeded.confirmMessage)).toBeGT(0, serializeJSON(checkInActions.assistanceNeeded));
+          expect(checkInActions.secureForNight.requiresConfirm).toBeTrue(serializeJSON(checkInActions.secureForNight));
+          expect(structKeyExists(checkInActions.delayed.payload, "manualDelayMinutes")).toBeFalse(serializeJSON(checkInActions.delayed.payload));
+          expect(structKeyExists(model.actions, "startNextLeg")).toBeTrue(serializeJSON(model.actions));
+          expect(model.actions.startNextLeg.endpoint).toBe("/fpw/api/v1/floatplan.cfc?method=handle&action=startnextleg&returnFormat=json", serializeJSON(model.actions.startNextLeg));
+          expect(model.actions.startNextLeg.payload.floatPlanId).toBe(asset.floatPlanId, serializeJSON(model.actions.startNextLeg));
+          expect(structKeyExists(model.actions, "unavailableActions")).toBeTrue(serializeJSON(model.actions));
+          expect(structKeyExists(model.actions.unavailableActions, "arrived")).toBeTrue(serializeJSON(model.actions.unavailableActions));
+          expect(model.actions.unavailableActions.arrived.enabled).toBeFalse(serializeJSON(model.actions.unavailableActions.arrived));
+          expect(model.actions.unavailableActions.arrived.disabledReason).toBe("Final arrival/close flow is not part of companion MVP.", serializeJSON(model.actions.unavailableActions.arrived));
+          expect(structKeyExists(checkInActions, "arrived")).toBeFalse(serializeJSON(checkInActions));
+        } finally {
+          cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+        }
+      });
+
+      it("serves the same compact current active trip model through the companion endpoint", function() {
         var prefix = variables.naming.buildPrefix("companion", "endpoint");
         var sessionApi = buildSessionApiSupport();
         var localCreated = newCreatedTracker();
@@ -91,7 +137,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(response.HAS_ACTIVE_PLAN).toBeTrue(serializeJSON(response));
           expect(response.activeFloatPlan.floatPlanId).toBe(asset.floatPlanId, serializeJSON(response.activeFloatPlan));
           expect(structKeyExists(response.actions, "checkIn")).toBeTrue(serializeJSON(response.actions));
-          expect(response.actions.checkIn.payload.floatPlanId).toBe(asset.floatPlanId, serializeJSON(response.actions.checkIn));
+          expect(response.actions.checkIn.actions.onTrack.payload.floatPlanId).toBe(asset.floatPlanId, serializeJSON(response.actions.checkIn));
           } finally {
             cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
           }
@@ -425,7 +471,36 @@ component extends="testbox.system.BaseSpec" output="false" {
           }
         });
       });
-    }
+  }
+
+  private void function assertMobileCheckInAction(
+    required struct action,
+    required string expectedKey,
+    required string expectedStatus,
+    required string expectedCheckinContext,
+    required numeric expectedFloatPlanId
+  ) {
+    expect(arguments.action.key).toBe(arguments.expectedKey, serializeJSON(arguments.action));
+    expect(arguments.action.label).toBe(arguments.expectedStatus, serializeJSON(arguments.action));
+    expect(arguments.action.endpoint).toBe("/fpw/api/v1/companion.cfc?method=handle&action=checkin&returnFormat=json", serializeJSON(arguments.action));
+    expect(arguments.action.method).toBe("POST", serializeJSON(arguments.action));
+    expect(arguments.action.requiresMobileSubmissionId).toBeTrue(serializeJSON(arguments.action));
+    expect(arguments.action.supportsLocation).toBeTrue(serializeJSON(arguments.action));
+    expect(arguments.action.supportsDeviceMetadata).toBeTrue(serializeJSON(arguments.action));
+    expect(arguments.action.supportsOfflineCreatedAt).toBeTrue(serializeJSON(arguments.action));
+    expect(structKeyExists(arguments.action, "enabled")).toBeTrue(serializeJSON(arguments.action));
+    expect(structKeyExists(arguments.action, "disabledReason")).toBeTrue(serializeJSON(arguments.action));
+    expect(structKeyExists(arguments.action, "requiresConfirm")).toBeTrue(serializeJSON(arguments.action));
+    expect(structKeyExists(arguments.action, "confirmMessage")).toBeTrue(serializeJSON(arguments.action));
+    expect(arguments.action.payload.mobileSubmissionId).toBe("", serializeJSON(arguments.action.payload));
+    expect(arguments.action.payload.floatPlanId).toBe(arguments.expectedFloatPlanId, serializeJSON(arguments.action.payload));
+    expect(arguments.action.payload.status).toBe(arguments.expectedStatus, serializeJSON(arguments.action.payload));
+    expect(arguments.action.payload.note).toBe("", serializeJSON(arguments.action.payload));
+    expect(arguments.action.payload.checkinContext).toBe(arguments.expectedCheckinContext, serializeJSON(arguments.action.payload));
+    expect(findNoCase('"location":null', serializeJSON(arguments.action.payload))).toBeGT(0, serializeJSON(arguments.action.payload));
+    expect(findNoCase('"device":null', serializeJSON(arguments.action.payload))).toBeGT(0, serializeJSON(arguments.action.payload));
+    expect(arguments.action.payload.offlineCreatedAtUtc).toBe("", serializeJSON(arguments.action.payload));
+  }
 
   private any function buildSessionApiSupport() {
     return new fpw.tests.support.FpwApiSupport().init(
