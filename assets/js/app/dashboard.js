@@ -4040,12 +4040,16 @@
       var summary = getRouteSummaryValues(route, totals);
       var typeLabel = getRouteTypeLabel(route);
       var subtitle = buildRouteSubtitle(route, routeMeta.currentRouteGroup);
+      var updatedLabel = formatRouteUpdatedLabel(route);
       return ""
         + '<div class="expedition-route-card fpw-routes-table-row' + (routeMeta.isSelected ? ' is-selected' : '') + (routeMeta.isRouteForActiveTrip ? ' is-active' : '') + '"' + routeMeta.dataAttrs + ' role="button" tabindex="0">'
-        + '  <div class="fpw-route-cell fpw-route-cell--route"><span class="fpw-route-favorite" aria-hidden="true"></span><div><strong>' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</strong><span>' + escapeHtml(typeLabel) + '</span></div></div>'
+        + '  <div class="fpw-route-cell fpw-route-cell--route"><span class="fpw-route-favorite" aria-hidden="true"></span><div><strong>' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</strong><span>' + escapeHtml(subtitle) + '</span></div></div>'
+        + '  <div class="fpw-route-cell fpw-route-cell--type"><span class="fpw-route-type-text">' + escapeHtml(typeLabel) + '</span></div>'
         + '  <div class="fpw-route-cell fpw-route-cell--points"><span>' + escapeHtml(summary.start) + '</span><span>' + escapeHtml(summary.end) + '</span></div>'
         + '  <div class="fpw-route-cell">' + escapeHtml(summary.distance) + '</div>'
+        + '  <div class="fpw-route-cell fpw-route-cell--duration">' + escapeHtml(summary.estimatedHours) + '</div>'
         + '  <div class="fpw-route-cell">' + buildRouteStatusText(routeMeta.currentState, routeMeta.isRouteForActiveTrip) + '</div>'
+        + '  <div class="fpw-route-cell fpw-route-cell--updated"><span class="fpw-route-updated-text">' + escapeHtml(updatedLabel) + '</span></div>'
         + '  <div class="fpw-route-cell fpw-route-cell--actions">' + buildRouteTableActions(routeMeta.currentRouteGroup, routeMeta.currentState, routeMeta.showActiveCruiseAction, routeMeta.showTripPageAction, routeMeta.showActivateRouteAction) + '</div>'
         + '</div>';
     }
@@ -4160,7 +4164,7 @@
         + '  <div class="fpw-routes-table-pane">'
         + '    <div class="fpw-routes-table" role="table" aria-label="Saved routes">'
         + '      <div class="fpw-routes-table-head" role="row">'
-        + '        <div>Route</div><div>Start / End</div><div>Distance</div><div>Status</div><div>Actions</div>'
+        + '        <div>Route Name</div><div>Type</div><div>Start / End</div><div>Distance</div><div>Est. Duration</div><div>Status</div><div>Updated</div><div>Actions</div>'
         + '      </div>'
         + list.map(function (route) {
           var meta = getRouteRenderMeta(route, activeCode);

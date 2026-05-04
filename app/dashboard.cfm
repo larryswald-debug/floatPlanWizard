@@ -9,7 +9,7 @@
     <cfinclude template="../includes/header_styles.cfm">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260428-square-panels-a">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260504-dashboard-port-a">
 </head>
 <body class="dashboard-body" data-fpw-page="dashboard">
 
@@ -80,6 +80,15 @@
                     <div class="fpw-planning-context-label">ACTIVE ROUTE</div>
                     <div class="fpw-planning-context-value" id="planningActiveRouteValue">0</div>
                     <div class="fpw-planning-context-meta fpw-planning-context-status d-none" id="planningActiveRouteMeta"><span class="fpw-planning-context-dot" aria-hidden="true"></span>Active</div>
+                </div>
+            </article>
+
+            <article class="fpw-planning-context-block fpw-planning-context-block--readiness">
+                <span class="fpw-planning-context-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M4 7h3l2 2 4-5"></path><path d="M4 14h3l2 2 4-5"></path><path d="M15 8h5"></path><path d="M15 15h5"></path></svg></span>
+                <div class="fpw-planning-context-copy">
+                    <div class="fpw-planning-context-label">TRIP SETUP READINESS</div>
+                    <div class="fpw-planning-context-value">Review Setup</div>
+                    <div class="fpw-planning-context-meta">Use the setup tiles below.</div>
                 </div>
             </article>
         </section>
@@ -1064,7 +1073,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260422b"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260428-planning-context-a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260504-dashboard-port-a"></script>
 
 </body>
 </html>
