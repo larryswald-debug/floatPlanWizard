@@ -295,6 +295,16 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="createRouteMapGeometryService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.RouteMapGeometryService").init("fpw");
+            } catch (any routeMapGeometryPathErr) {
+                return createObject("component", "api.v1.RouteMapGeometryService").init("fpw");
+            }
+        </cfscript>
+    </cffunction>
+
     <cffunction name="isLocalTripProjectionDiagnosticRequest" access="private" returntype="boolean" output="false">
         <cfscript>
             var hostVal = structKeyExists(cgi, "http_host") ? lCase(toString(cgi.http_host)) : "";
@@ -4568,6 +4578,13 @@
         <cfargument name="ownerUserId" type="numeric" required="true">
         <cfargument name="fallbackDays" type="numeric" required="false" default="0">
         <cfscript>
+            var routeMapGeometryService = createRouteMapGeometryService();
+            return routeMapGeometryService.buildRouteMapData(
+                routeInstanceId=arguments.routeInstanceId,
+                ownerUserId=arguments.ownerUserId,
+                fallbackDays=arguments.fallbackDays
+            );
+
             var out = {
                 "route_geo"={ "type"="MultiLineString", "coordinates"=[] },
                 "pins"=[],

@@ -28,6 +28,7 @@
             var stateEventId = 0;
             var cutoverEventId = 0;
             var expectedResumeAt = "";
+            var shouldWriteRouteState = false;
 
             if (arguments.floatPlanId LTE 0 OR arguments.userId LTE 0) {
                 out.ERROR = "INVALID_ID";
@@ -39,12 +40,12 @@
                 out.MESSAGE = "A valid occurredAtUtc timestamp is required.";
                 return out;
             }
-            if (!listFindNoCase("ON_TRACK,SECURE_FOR_NIGHT", statusVal)) {
-                out.SUCCESS = true;
-                out.SKIPPED = true;
-                out.MESSAGE = "Canonical Phase 2B only records ON_TRACK and SECURE_FOR_NIGHT check-ins.";
+            if (!listFindNoCase("ON_TRACK,DELAYED,CHANGED_PLAN,NEED_ATTENTION,SECURE_FOR_NIGHT", statusVal)) {
+                out.ERROR = "INVALID_STATUS";
+                out.MESSAGE = "Active Cruise check-in status is not supported for canonical activity write.";
                 return out;
             }
+            shouldWriteRouteState = (listFindNoCase("ON_TRACK,SECURE_FOR_NIGHT", statusVal) GT 0);
 
             planCtx = loadPlanContext(arguments.floatPlanId, arguments.userId);
             if (!planCtx.found) {
@@ -69,13 +70,15 @@
                         );
                     }
 
-                    cutoverEventId = ensureCanonicalTrackingStartedInternal(
-                        planCtx,
-                        routeCtx,
-                        arguments.occurredAtUtc
-                    );
-                    if (cutoverEventId GT 0) {
-                        arrayAppend(out.EVENTS, "CANONICAL_TRACKING_STARTED");
+                    if (shouldWriteRouteState) {
+                        cutoverEventId = ensureCanonicalTrackingStartedInternal(
+                            planCtx,
+                            routeCtx,
+                            arguments.occurredAtUtc
+                        );
+                        if (cutoverEventId GT 0) {
+                            arrayAppend(out.EVENTS, "CANONICAL_TRACKING_STARTED");
+                        }
                     }
 
                     checkinEventId = insertEvent(
@@ -147,6 +150,136 @@
             } catch (any writeErr) {
                 out.SUCCESS = false;
                 out.ERROR = "CANONICAL_ACTIVITY_WRITE_FAILED";
+                out.MESSAGE = left(trim(toString(writeErr.message)), 500);
+                out.DETAIL = left(trim(toString(writeErr.detail)), 500);
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="recordActiveCruiseRouteAction" access="public" returntype="struct" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="eventType" type="string" required="true">
+        <cfargument name="actionLabel" type="string" required="true">
+        <cfargument name="statusLabel" type="string" required="false" default="">
+        <cfargument name="occurredAtUtc" type="any" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="false" default="0">
+        <cfargument name="routeLegOrder" type="numeric" required="false" default="0">
+        <cfargument name="endpointResult" type="struct" required="false" default="#structNew()#">
+        <cfargument name="payload" type="struct" required="false" default="#structNew()#">
+        <cfscript>
+            var out = { SUCCESS = false, EVENTS = [], EVENT_ID = 0 };
+            var eventTypeVal = uCase(trim(arguments.eventType));
+            var planCtx = {};
+            var routeCtx = {
+                routeInstanceId = val(arguments.routeInstanceId),
+                routeLegOrder = val(arguments.routeLegOrder)
+            };
+            var legCtx = {};
+            var payloadVal = duplicate(arguments.payload);
+            var endpointResultVal = duplicate(arguments.endpointResult);
+            var eventStatusVal = "";
+            var eventId = 0;
+
+            if (arguments.floatPlanId LTE 0 OR arguments.userId LTE 0) {
+                out.ERROR = "INVALID_ID";
+                out.MESSAGE = "floatPlanId and userId are required.";
+                return out;
+            }
+            if (!isDate(arguments.occurredAtUtc)) {
+                out.ERROR = "INVALID_OCCURRED_AT";
+                out.MESSAGE = "A valid occurredAtUtc timestamp is required.";
+                return out;
+            }
+            if (!listFindNoCase("ROUTE_LEG_COMPLETED,ROUTE_LEG_STARTED,FLOATPLAN_CLOSED", eventTypeVal)) {
+                out.ERROR = "INVALID_EVENT_TYPE";
+                out.MESSAGE = "Active Cruise route action event type is not supported.";
+                return out;
+            }
+
+            planCtx = loadPlanContext(arguments.floatPlanId, arguments.userId);
+            if (!planCtx.found) {
+                out.ERROR = "PLAN_NOT_FOUND";
+                out.MESSAGE = "Float plan was not found for route action write.";
+                return out;
+            }
+            if (routeCtx.routeInstanceId LTE 0) {
+                routeCtx.routeInstanceId = planCtx.routeInstanceId;
+            }
+            if (listFindNoCase("ROUTE_LEG_COMPLETED,ROUTE_LEG_STARTED", eventTypeVal) AND (routeCtx.routeInstanceId LTE 0 OR routeCtx.routeLegOrder LTE 0)) {
+                out.ERROR = "INVALID_ROUTE_ACTION_CONTEXT";
+                out.MESSAGE = "Route action event writes require explicit acted-on route instance and leg order.";
+                return out;
+            }
+
+            legCtx = loadRouteLegContext(routeCtx.routeInstanceId, routeCtx.routeLegOrder);
+            eventStatusVal = routeActionStatusForEvent(eventTypeVal);
+            payloadVal.canonical_phase = "2B";
+            payloadVal.canonical_write_scope = "active_cruise_route_action";
+            payloadVal.floatplan_id = arguments.floatPlanId;
+            payloadVal.route_instance_id = routeCtx.routeInstanceId;
+            payloadVal.leg_order = routeCtx.routeLegOrder;
+            payloadVal.from_name = legCtx.fromName;
+            payloadVal.to_name = legCtx.toName;
+            payloadVal.status_label = (len(trim(arguments.statusLabel)) ? trim(arguments.statusLabel) : eventStatusVal);
+            payloadVal.action_label = trim(arguments.actionLabel);
+            payloadVal.occurred_at_utc = formatUtc(arguments.occurredAtUtc);
+
+            if (structKeyExists(endpointResultVal, "FLOATPLANID")) {
+                payloadVal.endpoint_floatplan_id = val(endpointResultVal.FLOATPLANID);
+            }
+            if (structKeyExists(endpointResultVal, "ROUTE_INSTANCE_ID")) {
+                payloadVal.endpoint_route_instance_id = val(endpointResultVal.ROUTE_INSTANCE_ID);
+            }
+            if (structKeyExists(endpointResultVal, "LEG_ORDER")) {
+                payloadVal.endpoint_leg_order = val(endpointResultVal.LEG_ORDER);
+            }
+            if (structKeyExists(endpointResultVal, "SUCCESS")) {
+                payloadVal.endpoint_success = booleanValue(endpointResultVal.SUCCESS);
+            }
+            if (structKeyExists(endpointResultVal, "COMPLETED")) {
+                payloadVal.endpoint_completed = booleanValue(endpointResultVal.COMPLETED);
+            }
+            if (structKeyExists(endpointResultVal, "STARTED")) {
+                payloadVal.endpoint_started = booleanValue(endpointResultVal.STARTED);
+            }
+            if (structKeyExists(endpointResultVal, "MATCHED")) {
+                payloadVal.endpoint_matched = booleanValue(endpointResultVal.MATCHED);
+            }
+            if (structKeyExists(endpointResultVal, "ALREADY_COMPLETE")) {
+                payloadVal.endpoint_already_complete = booleanValue(endpointResultVal.ALREADY_COMPLETE);
+            }
+            if (structKeyExists(endpointResultVal, "STATUS")) {
+                payloadVal.endpoint_status = safeString(endpointResultVal.STATUS);
+            }
+            if (structKeyExists(endpointResultVal, "ERROR")) {
+                payloadVal.endpoint_error = safeString(endpointResultVal.ERROR);
+            }
+            if (structKeyExists(endpointResultVal, "MESSAGE")) {
+                payloadVal.endpoint_message = safeString(endpointResultVal.MESSAGE);
+            }
+
+            try {
+                eventId = insertEvent(
+                    planCtx = planCtx,
+                    routeCtx = routeCtx,
+                    eventType = eventTypeVal,
+                    eventStatus = eventStatusVal,
+                    occurredAtUtc = arguments.occurredAtUtc,
+                    source = "active_cruise_route_action",
+                    actorUserId = arguments.userId,
+                    sourceMonitoringId = planCtx.monitoringId,
+                    sourcePostId = 0,
+                    idempotencyKey = buildIdempotencyKey("route_action", arguments.floatPlanId, eventTypeVal & ":" & routeCtx.routeLegOrder, arguments.occurredAtUtc),
+                    payload = payloadVal
+                );
+                out.SUCCESS = true;
+                out.EVENT_ID = eventId;
+                arrayAppend(out.EVENTS, eventTypeVal);
+            } catch (any writeErr) {
+                out.SUCCESS = false;
+                out.ERROR = "CANONICAL_ROUTE_ACTION_WRITE_FAILED";
                 out.MESSAGE = left(trim(toString(writeErr.message)), 500);
                 out.DETAIL = left(trim(toString(writeErr.detail)), 500);
             }
@@ -241,6 +374,33 @@
             }, { datasource = variables.datasource });
             if (qProgress.recordCount GT 0) {
                 out.routeLegOrder = val(qProgress.leg_order[1]);
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="loadRouteLegContext" access="private" returntype="struct" output="false">
+        <cfargument name="routeInstanceId" type="numeric" required="true">
+        <cfargument name="routeLegOrder" type="numeric" required="true">
+        <cfscript>
+            var out = { fromName = "", toName = "" };
+            var qLeg = queryNew("");
+            if (arguments.routeInstanceId LTE 0 OR arguments.routeLegOrder LTE 0) {
+                return out;
+            }
+            qLeg = queryExecute("
+                SELECT start_name, end_name
+                FROM route_instance_legs
+                WHERE route_instance_id = :routeInstanceId
+                  AND leg_order = :legOrder
+                LIMIT 1
+            ", {
+                routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" },
+                legOrder = { value = arguments.routeLegOrder, cfsqltype = "cf_sql_integer" }
+            }, { datasource = variables.datasource });
+            if (qLeg.recordCount GT 0) {
+                out.fromName = safeString(qLeg.start_name[1]);
+                out.toName = safeString(qLeg.end_name[1]);
             }
             return out;
         </cfscript>
@@ -502,6 +662,18 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="routeActionStatusForEvent" access="private" returntype="string" output="false">
+        <cfargument name="eventType" type="string" required="true">
+        <cfscript>
+            switch (uCase(trim(arguments.eventType))) {
+                case "ROUTE_LEG_COMPLETED": return "COMPLETED";
+                case "ROUTE_LEG_STARTED": return "STARTED";
+                case "FLOATPLAN_CLOSED": return "CLOSED";
+            }
+            return "";
+        </cfscript>
+    </cffunction>
+
     <cffunction name="normalizeMonitoringStatus" access="private" returntype="string" output="false">
         <cfargument name="rawStatus" type="string" required="true">
         <cfscript>
@@ -522,6 +694,31 @@
         <cfargument name="occurredAtUtc" type="any" required="true">
         <cfscript>
             return "fpw:" & arguments.scope & ":" & arguments.floatPlanId & ":" & normalizeMonitoringStatus(arguments.status) & ":" & formatUtc(arguments.occurredAtUtc);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="safeString" access="private" returntype="string" output="false">
+        <cfargument name="value" type="any" required="false" default="">
+        <cfscript>
+            if (isNull(arguments.value)) {
+                return "";
+            }
+            return trim(toString(arguments.value));
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="booleanValue" access="private" returntype="boolean" output="false">
+        <cfargument name="value" required="true">
+        <cfscript>
+            var strVal = "";
+            if (isBoolean(arguments.value)) {
+                return arguments.value;
+            }
+            if (isNumeric(arguments.value)) {
+                return val(arguments.value) NEQ 0;
+            }
+            strVal = lCase(trim(arguments.value & ""));
+            return listFindNoCase("true,yes,on,1", strVal) GT 0;
         </cfscript>
     </cffunction>
 

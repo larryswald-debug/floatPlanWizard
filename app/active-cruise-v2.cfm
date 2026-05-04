@@ -584,6 +584,27 @@
     .map-leaflet-canvas .leaflet-control-attribution {
       color: #1f2937;
     }
+    #fpwActiveCruiseV2Map .radar-opacity-control {
+      background: rgba(255, 255, 255, 0.92);
+      padding: 0.35rem 0.5rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      font-size: 0.7rem;
+      min-width: 140px;
+    }
+    #fpwActiveCruiseV2Map .radar-opacity-control label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      color: #1b1b1b;
+    }
+    #fpwActiveCruiseV2Map .radar-opacity-control input[type="range"] {
+      width: 100%;
+    }
+    #fpwActiveCruiseV2Map .radar-opacity-control.is-disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
     .map-load-state {
       position: absolute;
       inset: 12px;
@@ -616,11 +637,11 @@
       border-radius: 999px;
       box-shadow: 0 1px 4px rgba(0, 0, 0, .35);
     }
-    .follow-pin.start { background: var(--green); }
-    .follow-pin.end { background: var(--amber); }
-    .follow-pin.intermediate { background: var(--quiet); }
+    .follow-pin.start { background: #22c55e; }
+    .follow-pin.end { background: #2563eb; }
+    .follow-pin.intermediate { background: #64748b; }
     .follow-boat-marker {
-      background: var(--teal);
+      background: #0ea5e9;
       border-color: #ffffff;
     }
     .map-summary-grid {
@@ -804,6 +825,17 @@
       color: var(--quiet);
       font-size: .8rem;
     }
+    .checkin-note-input {
+      width: 100%;
+      min-height: 74px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #08161d;
+      color: var(--text);
+      padding: 8px 10px;
+      font: inherit;
+    }
     .action-feedback {
       border: 1px solid var(--line);
       border-radius: 4px;
@@ -821,6 +853,50 @@
       border-color: rgba(236, 127, 120, .55);
       color: var(--red);
     }
+    .timing-controls {
+      display: grid;
+      gap: 12px;
+    }
+    .timing-summary-grid,
+    .timing-form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .timing-form-grid {
+      align-items: stretch;
+    }
+    .timing-control {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: rgba(255, 255, 255, .03);
+      padding: 12px;
+    }
+    .timing-control.is-wide {
+      grid-column: 1 / -1;
+    }
+    .timing-inline {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: end;
+      margin-top: 10px;
+    }
+    .timing-input {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #08161d;
+      color: var(--text);
+      padding: 8px 10px;
+      font: inherit;
+    }
+    .timing-input:disabled {
+      color: var(--quiet);
+      background: rgba(255, 255, 255, .03);
+      cursor: not-allowed;
+    }
     pre {
       white-space: pre-wrap;
       overflow-wrap: anywhere;
@@ -837,654 +913,2639 @@
       background: #1c1a14;
       padding: 18px;
     }
+
+    /* AC-V2 visual parity: V1-derived presentation only. V2 model/actions remain the authority. */
+    :root {
+      --bg: #06111a;
+      --bg2: #0a1824;
+      --panel: rgba(11, 27, 39, 0.88);
+      --panel-2: rgba(9, 22, 32, 0.96);
+      --line: rgba(126, 184, 226, 0.14);
+      --line-strong: rgba(126, 184, 226, 0.26);
+      --text: #ebf6ff;
+      --muted: #9fb9cb;
+      --soft: #7e97aa;
+      --accent: #43c7ff;
+      --accent-2: #18f2d2;
+      --accent-3: #ffc661;
+      --good: #7df2b7;
+      --warn: #ffc661;
+      --alert: #ff7f7f;
+      --shadow: 0 20px 60px rgba(0,0,0,0.38);
+      --radius-xl: 28px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --max: 1480px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 10% 10%, rgba(24,242,210,0.06), transparent 0 22%),
+        radial-gradient(circle at 90% 0%, rgba(67,199,255,0.09), transparent 0 26%),
+        linear-gradient(180deg, #051018 0%, #07141e 40%, #091923 100%);
+      min-height: 100vh;
+    }
+    a { color: inherit; text-decoration: none; }
+    main.main {
+      width: auto;
+      margin: 0;
+      padding: 22px 0 34px;
+    }
+    .shell {
+      width: min(calc(100% - 28px), var(--max));
+      margin: 0 auto;
+    }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(16px);
+      background: rgba(5, 16, 24, 0.74);
+      border-bottom: 1px solid rgba(126,184,226,0.1);
+    }
+    .topbar-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 14px 0;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+    .brand-mark {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(145deg, rgba(67,199,255,0.18), rgba(24,242,210,0.14));
+      border: 1px solid rgba(126,184,226,0.22);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 24px rgba(0,0,0,0.26);
+      font-size: 1.2rem;
+    }
+    .brand-copy { min-width: 0; }
+    .brand-title { font-weight: 800; letter-spacing: 0.02em; }
+    .brand-sub { color: var(--muted); font-size: 0.86rem; margin-top: 2px; }
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .chip,
+    .btn,
+    .authority-pill,
+    .state-pill,
+    .leg-pill {
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+    .chip {
+      padding: 10px 14px;
+      background: rgba(126,184,226,0.07);
+      border: 1px solid rgba(126,184,226,0.14);
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+    .btn,
+    .action-button {
+      border: 0;
+      cursor: pointer;
+      font-weight: 800;
+      font-size: 0.94rem;
+      padding: 12px 18px;
+      transition: 0.18s ease;
+    }
+    .btn:hover,
+    .action-button:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+    .btn-primary {
+      color: #041019;
+      background: linear-gradient(135deg, var(--accent-2), var(--accent));
+      box-shadow: 0 16px 32px rgba(67,199,255,0.18);
+    }
+    .btn-secondary,
+    .action-button {
+      color: var(--text);
+      background: rgba(126,184,226,0.08);
+      border: 1px solid rgba(126,184,226,0.18);
+      border-radius: 999px;
+      min-height: auto;
+      text-align: center;
+    }
+    .action-button:disabled {
+      background: rgba(126,184,226,0.05);
+      color: var(--soft);
+      cursor: not-allowed;
+      opacity: .72;
+    }
+    .page-top { display: none; }
+    .layout,
+    .supporting-grid,
+    .content-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+    .left-stack,
+    .right-stack,
+    .supporting-stack,
+    .stack {
+      display: grid;
+      gap: 18px;
+    }
+    .identity-strip {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .identity-cell,
+    .metric,
+    .section,
+    .timeline,
+    .warning-panel,
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+    .identity-cell,
+    .metric {
+      background: rgba(126,184,226,0.05);
+      border: 1px solid rgba(126,184,226,0.12);
+      border-radius: 18px;
+      padding: 16px;
+      min-height: 96px;
+    }
+    .identity-label,
+    .metric-label,
+    .field-label,
+    .panel-subhead {
+      display: block;
+      color: var(--soft);
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 8px;
+      font-weight: 800;
+    }
+    .identity-value,
+    .metric-value,
+    .field-value {
+      color: var(--text);
+      font-weight: 800;
+      line-height: 1.12;
+      letter-spacing: -0.03em;
+    }
+    .identity-value,
+    .metric-value {
+      font-size: 1.35rem;
+      margin-top: 0;
+    }
+    .metric-note {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.45;
+      display: block;
+      margin-top: 6px;
+    }
+    .hero {
+      display: block;
+      padding: 26px 26px 24px;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 0;
+      background:
+        radial-gradient(circle at 0% 0%, rgba(67,199,255,0.08), transparent 0 24%),
+        linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01));
+    }
+    .hero-main {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 18px;
+    }
+    .status-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .state-pill {
+      min-width: 170px;
+      padding: 14px 18px;
+      border-radius: 18px;
+      background: rgba(125,242,183,0.08);
+      border: 1px solid rgba(125,242,183,0.18);
+      color: var(--good);
+      text-align: center;
+      font-size: 0.8rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .state-pill.is-scheduled,
+    .state-pill.is-paused {
+      background: rgba(255,198,97,0.08);
+      border-color: rgba(255,198,97,0.18);
+      color: var(--warn);
+    }
+    .state-pill.is-alert {
+      background: rgba(255,127,127,0.08);
+      border-color: rgba(255,127,127,0.18);
+      color: var(--alert);
+    }
+    .authority-pill,
+    .leg-pill {
+      padding: 9px 12px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 800;
+      white-space: nowrap;
+      background: rgba(67,199,255,0.1);
+      color: var(--accent);
+      border: 1px solid rgba(67,199,255,0.18);
+    }
+    .hero-title,
+    h1 {
+      margin: 14px 0 0;
+      font-size: clamp(2rem, 4vw, 3.5rem);
+      line-height: 0.96;
+      letter-spacing: -0.045em;
+    }
+    .hero-subtitle,
+    .subline,
+    .section-top p,
+    p {
+      color: var(--muted);
+      font-size: 1.05rem;
+      line-height: 1.65;
+      margin-top: 14px;
+    }
+    .hero-grid,
+    .header-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+      margin-bottom: 0;
+    }
+    .section,
+    .timeline,
+    .warning-panel,
+    .section-card {
+      padding: 22px;
+      border-radius: var(--radius-xl);
+    }
+    .section-header,
+    .section-top,
+    .timeline-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 18px;
+      padding: 0;
+      border-bottom: 0;
+    }
+    h2,
+    .section-header h2,
+    .section-top h2 {
+      margin: 0;
+      color: var(--text);
+      font-size: 1.28rem;
+      letter-spacing: -0.03em;
+      text-transform: none;
+    }
+    h3 {
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+    .field-grid,
+    .data-grid,
+    .timing-summary-grid,
+    .timing-form-grid,
+    .map-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .map-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .field,
+    .data-item,
+    .timing-control,
+    .contact-item,
+    .log-item,
+    .panel-note,
+    .action-row,
+    .detail-row {
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(126,184,226,0.08);
+    }
+    .field {
+      border-top: 1px solid rgba(126,184,226,0.08);
+    }
+    .detail-row {
+      display: grid;
+      grid-template-columns: minmax(140px, .38fr) minmax(0, 1fr);
+      gap: 12px;
+      border-top: 1px solid rgba(126,184,226,0.08);
+    }
+    .progress-track,
+    .bar-shell {
+      width: 100%;
+      height: 14px;
+      border-radius: 999px;
+      background: rgba(126,184,226,0.1);
+      overflow: hidden;
+      border: 1px solid rgba(126,184,226,0.12);
+      margin: 14px 0;
+    }
+    .progress-fill,
+    .bar-fill {
+      height: 100%;
+      width: var(--progress-width, 0%);
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent-2), var(--accent));
+      box-shadow: 0 0 18px rgba(67,199,255,0.22);
+    }
+    .map-canvas,
+    .active-cruise-map-canvas {
+      position: relative;
+      min-height: 420px;
+      height: clamp(360px, 42vw, 520px);
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(208, 221, 233, 0.24);
+      background: rgba(126,184,226,0.04);
+    }
+    .map-leaflet-canvas { height: clamp(360px, 42vw, 520px); }
+    .weather-lookup-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(240px, .55fr);
+      gap: 18px;
+      align-items: start;
+    }
+    .weather-lookup-form {
+      display: grid;
+      gap: 12px;
+      justify-items: end;
+    }
+    .weather-choice-row,
+    .timing-inline {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .weather-choice input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent-2);
+      margin: 0;
+    }
+    .timing-input,
+    .checkin-note-input {
+      border-radius: 10px;
+      border: 1px solid rgba(126,184,226,0.18);
+      background: rgba(8,18,28,0.82);
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+    }
+    .checkin-note-input {
+      min-height: 96px;
+      border-radius: var(--radius-md);
+      line-height: 1.5;
+      margin-top: 8px;
+    }
+    .captain-actions,
+    .contact-list,
+    .quick-actions,
+    .log-list,
+    .detail-list {
+      display: grid;
+      gap: 12px;
+    }
+    .action-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 8px;
+    }
+    .quick-actions .action-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .action-mini {
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: var(--accent);
+      background: rgba(67,199,255,0.08);
+      border: 1px solid rgba(67,199,255,0.16);
+      white-space: nowrap;
+    }
+    .timeline-body {
+      overflow-x: auto;
+      border-radius: 20px;
+      background: rgba(126,184,226,0.05);
+      border: 1px solid rgba(126,184,226,0.12);
+    }
+    th,
+    td {
+      border-bottom: 1px solid rgba(126,184,226,0.1);
+      padding: 12px 14px;
+    }
+    th {
+      color: var(--soft);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+    }
+    .timeline-row-current td {
+      background: rgba(67,199,255,0.08);
+      border-color: rgba(67,199,255,0.38);
+    }
+    .timeline-row-completed td {
+      color: var(--muted);
+    }
+    .warning-panel {
+      border-color: rgba(255,198,97,0.18);
+      background: rgba(255,198,97,0.06);
+    }
+    .warning-item {
+      border-color: rgba(255,198,97,0.18);
+      border-radius: 16px;
+      background: rgba(255,255,255,0.025);
+      padding: 14px;
+    }
+    .v2-placeholder-note {
+      display: none;
+    }
+    /* AC-V2 visual best fix: structural classes copied from V1 presentation only. */
+    .hero {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 18px;
+      margin-bottom: 18px;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      backdrop-filter: none;
+      overflow: visible;
+    }
+    .hero > .stack:first-child,
+    .hero > .stack:last-child {
+      align-self: start;
+    }
+    .hero-main {
+      display: block;
+      padding: 26px 26px 24px;
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 0% 0%, rgba(67,199,255,0.08), transparent 0 24%),
+        linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01));
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-weight: 800;
+      background: rgba(125,242,183,0.08);
+      color: var(--good);
+      border: 1px solid rgba(125,242,183,0.16);
+      margin-bottom: 18px;
+    }
+    .title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+    .status-pill {
+      padding: 14px 18px;
+      border-radius: 18px;
+      background: rgba(125,242,183,0.08);
+      border: 1px solid rgba(125,242,183,0.18);
+      min-width: 170px;
+      text-align: center;
+    }
+    .status-pill b {
+      display: block;
+      color: var(--good);
+      font-size: 0.8rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .status-pill strong {
+      display: block;
+      font-size: 1.22rem;
+      letter-spacing: -0.03em;
+    }
+    .status-pill.status-pill--warning {
+      background: rgba(255,198,97,0.08);
+      border-color: rgba(255,198,97,0.18);
+    }
+    .status-pill.status-pill--warning b,
+    .status-pill.status-pill--warning strong {
+      color: var(--warn);
+    }
+    .status-pill.status-pill--danger {
+      background: rgba(255,127,127,0.08);
+      border-color: rgba(255,127,127,0.18);
+    }
+    .status-pill.status-pill--danger b,
+    .status-pill.status-pill--danger strong {
+      color: var(--alert);
+    }
+    .header-stats {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+      margin-bottom: 18px;
+    }
+    .metric span,
+    .data-item span {
+      display: block;
+      color: var(--soft);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 10px;
+      font-weight: 800;
+    }
+    .metric strong {
+      display: block;
+      font-size: 1.5rem;
+      letter-spacing: -0.045em;
+      margin-bottom: 6px;
+      line-height: 1;
+    }
+    .metric small,
+    .data-item small {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.45;
+      display: block;
+      margin-top: 6px;
+    }
+    .mini-panel {
+      border-radius: 22px;
+      background: rgba(126,184,226,0.05);
+      border: 1px solid rgba(126,184,226,0.12);
+      padding: 18px;
+    }
+    .mini-panel--route-progress-flat {
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+    }
+    .mini-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .mini-head h3 {
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+    .mini-head span {
+      color: var(--soft);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 800;
+    }
+    .active-cruise-map-panel {
+      margin-bottom: 18px;
+      overflow: hidden;
+    }
+    .active-cruise-map-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+    .active-cruise-map-copy h3 {
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+    .active-cruise-map-copy p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+    .active-cruise-map-wrap {
+      position: relative;
+    }
+    .active-cruise-map-canvas,
+    .map-canvas {
+      position: relative;
+      height: 420px;
+      min-height: 420px;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(208, 221, 233, 0.24);
+      background: rgba(126,184,226,0.04);
+    }
+    .progress-block {
+      display: grid;
+      gap: 12px;
+    }
+    .route-leg-estimate {
+      margin-top: 12px;
+      padding: 16px;
+      border: 1px solid rgba(126,184,226,0.16);
+      border-radius: 8px;
+      background: rgba(7,24,36,0.36);
+      display: grid;
+      gap: 14px;
+    }
+    .route-leg-estimate-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .route-leg-estimate-title {
+      margin: 0;
+      font-size: 1.02rem;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+    .route-leg-estimate-state {
+      color: var(--accent);
+      font-size: 0.9rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .route-leg-estimate-copy {
+      margin: 0;
+      color: var(--soft);
+      line-height: 1.45;
+      font-size: 0.92rem;
+    }
+    .route-leg-estimate-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      border-top: 1px solid rgba(126,184,226,0.14);
+      border-bottom: 1px solid rgba(126,184,226,0.14);
+    }
+    .route-leg-estimate-metric {
+      min-width: 0;
+      padding: 12px 14px;
+    }
+    .route-leg-estimate-metric:first-child { padding-left: 0; }
+    .route-leg-estimate-metric + .route-leg-estimate-metric { border-left: 1px solid rgba(126,184,226,0.16); }
+    .route-leg-estimate-metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .route-leg-estimate-metric strong {
+      display: block;
+      color: var(--text);
+      font-size: clamp(1.28rem, 2vw, 1.72rem);
+      line-height: 1.1;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+    }
+    .route-leg-estimate-progress {
+      display: grid;
+      gap: 8px;
+    }
+    .route-leg-estimate-progress-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 0.86rem;
+      font-weight: 700;
+    }
+    .route-leg-estimate-foot {
+      border-top: 1px solid rgba(126,184,226,0.14);
+      padding-top: 12px;
+      color: var(--soft);
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+    .route-leg-estimate-foot small {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+    .split {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    .leg-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 16px;
+    }
+    .route-box,
+    .detail-box,
+    .list-box,
+    .action-box,
+    .log-box,
+    .timeline-box,
+    .contacts-box,
+    .floatplan-box {
+      border-radius: 20px;
+      background: rgba(126,184,226,0.05);
+      border: 1px solid rgba(126,184,226,0.12);
+      padding: 18px;
+    }
+    .route-plan-box {
+      display: flex;
+      flex-direction: column;
+      min-height: 560px;
+      max-height: 560px;
+    }
+    .route-plan-departure,
+    .route-plan-final,
+    .route-plan-leg {
+      border-radius: 16px;
+      border: 1px solid rgba(126,184,226,0.11);
+      background: rgba(255,255,255,0.025);
+    }
+    .route-plan-departure,
+    .route-plan-final {
+      padding: 14px;
+    }
+    .route-plan-kicker,
+    .route-plan-leg-kicker {
+      color: var(--soft);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .route-plan-departure strong,
+    .route-plan-final strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 1rem;
+      line-height: 1.25;
+    }
+    .route-plan-departure span,
+    .route-plan-final span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .route-plan-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 12px 0;
+    }
+    .route-plan-preview-note {
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.4;
+      margin: 0;
+    }
+    .route-plan-scroll {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1 1 auto;
+      overflow-y: auto;
+      min-height: 0;
+      padding-right: 4px;
+    }
+    .route-plan-leg {
+      overflow: hidden;
+      flex: 0 0 auto;
+      cursor: pointer;
+      transition: border-color .16s ease, background .16s ease, box-shadow .16s ease;
+    }
+    .route-plan-leg--current {
+      border-color: rgba(67,199,255,0.38);
+      background: rgba(67,199,255,0.08);
+      box-shadow: 0 0 0 1px rgba(67,199,255,0.08);
+    }
+    .route-plan-leg--completed {
+      border-color: rgba(125,242,183,0.18);
+    }
+    .route-plan-leg.is-selected {
+      border-color: rgba(67,199,255,0.58);
+      background: rgba(67,199,255,0.11);
+      box-shadow: 0 0 0 1px rgba(67,199,255,0.16), 0 18px 36px rgba(0,0,0,0.18);
+    }
+    .route-plan-leg:focus-visible {
+      outline: 2px solid rgba(67,199,255,0.82);
+      outline-offset: 3px;
+    }
+    .route-plan-leg-button {
+      width: 100%;
+      color: inherit;
+      padding: 14px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 12px;
+      align-items: center;
+      text-align: left;
+    }
+    .route-plan-leg-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      border: 2px solid rgba(126,184,226,0.4);
+      box-shadow: none;
+    }
+    .route-plan-leg--completed .route-plan-leg-dot {
+      border-color: var(--good);
+      box-shadow: 0 0 0 5px rgba(125,242,183,0.08);
+    }
+    .route-plan-leg--current .route-plan-leg-dot {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 5px rgba(67,199,255,0.1);
+    }
+    .route-plan-leg.is-selected .route-plan-leg-dot {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 5px rgba(67,199,255,0.16);
+    }
+    .route-plan-leg-title {
+      display: block;
+      font-size: 0.98rem;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+    .route-plan-leg-meta {
+      display: block;
+      color: var(--muted);
+      font-size: 0.84rem;
+      margin-top: 3px;
+    }
+    .route-plan-leg-side {
+      display: grid;
+      justify-items: end;
+      gap: 4px;
+      color: var(--soft);
+      font-size: 0.82rem;
+      white-space: nowrap;
+    }
+    .route-plan-leg-detail {
+      border-top: 1px solid rgba(126,184,226,0.1);
+      padding: 12px 14px 14px 42px;
+      display: none;
+    }
+    .route-plan-leg.is-selected .route-plan-leg-detail {
+      display: block;
+    }
+    .route-plan-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .route-plan-detail-grid div {
+      border-radius: 12px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(126,184,226,0.08);
+      padding: 10px;
+    }
+    .route-plan-detail-grid span {
+      display: block;
+      color: var(--soft);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    .route-plan-detail-grid strong {
+      display: block;
+      font-size: 0.92rem;
+      line-height: 1.25;
+    }
+    .route-plan-progress-footer {
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(126,184,226,0.12);
+      background: rgba(126,184,226,0.04);
+    }
+    .route-plan-progress-footer--flat {
+      margin-top: 14px;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+    }
+    .route-plan-progress-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .route-plan-progress-grid span {
+      display: block;
+      color: var(--soft);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    .route-plan-progress-grid strong {
+      display: block;
+      font-size: 0.98rem;
+    }
+    .route-plan-progress-bar {
+      height: 9px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(126,184,226,0.12);
+    }
+    .route-plan-progress-bar span {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-3));
+    }
+    .route-selected-leg-box {
+      min-height: 560px;
+    }
+    .timeline {
+      display: grid;
+      gap: 14px;
+    }
+    .today-checkin-history {
+      max-height: 360px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .timeline-row {
+      display: grid;
+      grid-template-columns: 84px 18px 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+    .timeline-time {
+      color: var(--soft);
+      font-size: 0.86rem;
+      font-weight: 700;
+      padding-top: 2px;
+    }
+    .timeline-node {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      position: relative;
+      margin-top: 1px;
+    }
+    .timeline-node::after {
+      content: "";
+      position: absolute;
+      left: 6px;
+      top: 18px;
+      width: 2px;
+      height: 34px;
+      background: rgba(126,184,226,0.18);
+    }
+    .timeline-row:last-child .timeline-node::after { display: none; }
+    .timeline-copy b {
+      display: block;
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+    }
+    .timeline-copy span {
+      display: block;
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 0.9rem;
+    }
+    .timeline-copy .timeline-source {
+      margin-top: 6px;
+      color: var(--soft);
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .contact-row,
+    .log-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(126,184,226,0.08);
+    }
+    .contact-row b,
+    .action-row b,
+    .log-row b { display: block; font-size: 0.95rem; }
+    .contact-row span,
+    .action-row span,
+    .log-row span { color: var(--muted); font-size: 0.88rem; display: block; margin-top: 4px; }
+    .captain-quick-note-form {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      margin-bottom: 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(126,184,226,0.1);
+      background: rgba(8,18,28,0.32);
+    }
+    .captain-note-label {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--text);
+      font-weight: 800;
+    }
+    .captain-note-label small,
+    .captain-note-help,
+    .captain-note-message,
+    .captain-note-meta span {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+    .captain-note-input {
+      width: 100%;
+      min-height: 92px;
+      resize: vertical;
+      border-radius: 12px;
+      border: 1px solid rgba(126,184,226,0.18);
+      background: rgba(8,18,28,0.82);
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+      line-height: 1.45;
+    }
+    .captain-note-input:focus {
+      outline: 2px solid rgba(24,242,210,0.28);
+      outline-offset: 2px;
+    }
+    .captain-note-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .captain-note-tag {
+      min-height: 32px;
+      border: 1px solid rgba(126,184,226,0.18);
+      border-radius: 999px;
+      background: rgba(126,184,226,0.05);
+      color: var(--text);
+      padding: 6px 10px;
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .captain-note-tag:hover:not(:disabled),
+    .captain-note-tag.is-selected {
+      border-color: rgba(24,242,210,0.48);
+      background: rgba(24,242,210,0.1);
+      color: var(--accent-2);
+    }
+    .captain-note-post-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      color: var(--text);
+      font-size: 0.88rem;
+      line-height: 1.4;
+    }
+    .captain-note-post-option input {
+      margin-top: 3px;
+    }
+    .captain-note-message {
+      min-height: 20px;
+      line-height: 1.4;
+    }
+    .captain-note-message.is-success {
+      color: var(--green);
+    }
+    .captain-note-message.is-error {
+      color: var(--red);
+    }
+    .captain-note-save {
+      min-height: 40px;
+      border: 1px solid rgba(24,242,210,0.38);
+      border-radius: 10px;
+      background: rgba(24,242,210,0.1);
+      color: var(--accent-2);
+      font: inherit;
+      font-weight: 900;
+      cursor: pointer;
+    }
+    .captain-note-save:disabled,
+    .captain-note-tag:disabled,
+    .captain-note-input:disabled {
+      cursor: not-allowed;
+      opacity: 0.58;
+    }
+    .captain-note-meta {
+      display: grid;
+      justify-items: end;
+      gap: 4px;
+      flex: 0 0 auto;
+    }
+    .active-cruise-reference-card {
+      padding: 18px;
+    }
+    .reference-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .reference-card-header h2 {
+      margin: 0;
+      font-size: 1.12rem;
+      letter-spacing: -0.03em;
+    }
+    .reference-card-header p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    .reference-badge {
+      flex: 0 0 auto;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(67,199,255,0.18);
+      background: rgba(67,199,255,0.08);
+      color: var(--accent);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .contact-reference-stack {
+      display: grid;
+      gap: 12px;
+    }
+    .contact-reference-panel {
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(126,184,226,0.1);
+      background: rgba(126,184,226,0.045);
+    }
+    .contact-reference-panel--primary {
+      border-color: rgba(67,199,255,0.16);
+      background: rgba(67,199,255,0.055);
+    }
+    .contact-reference-main {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      min-width: 0;
+    }
+    .contact-reference-icon {
+      width: 34px;
+      height: 34px;
+      flex: 0 0 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      border: 1px solid rgba(126,184,226,0.18);
+      background: rgba(8,18,28,0.5);
+      color: var(--accent);
+    }
+    .contact-reference-content {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+    .contact-reference-kicker {
+      color: var(--soft);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    .contact-reference-name {
+      color: var(--text);
+      font-size: 1rem;
+      font-weight: 800;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+    .contact-reference-subtext {
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.45;
+      margin-top: 4px;
+    }
+    .contact-reference-crew-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .contact-reference-crew-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.86rem;
+      min-width: 0;
+    }
+    .contact-reference-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px rgba(67,199,255,0.08);
+    }
+    .contact-reference-crew-name {
+      color: var(--text);
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .contact-reference-crew-role {
+      color: var(--soft);
+      font-size: 0.78rem;
+      white-space: nowrap;
+    }
+    .contact-reference-empty {
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.45;
+      margin-top: 10px;
+    }
+    .footer-band {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 18px;
+      margin-top: 18px;
+    }
+    .foot-card {
+      padding: 20px;
+      border-radius: 22px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+    .foot-card h3 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+    .foot-card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 0.92rem;
+    }
+    .ac-checkin-command-panel {
+      display: grid;
+      gap: 14px;
+      padding: 18px;
+      border-radius: 20px;
+      background: rgba(7, 24, 36, 0.34);
+      border: 1px solid rgba(126,184,226,0.12);
+    }
+    .ac-panel-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+    .ac-panel-header h2 {
+      color: var(--text);
+      font-size: 1.12rem;
+      letter-spacing: -0.03em;
+      text-transform: none;
+    }
+    .ac-panel-header p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .ac-info-button {
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      border: 1px solid rgba(126,184,226,0.26);
+      background: rgba(126,184,226,0.06);
+      color: var(--muted);
+      font: inherit;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .ac-command-section {
+      display: grid;
+      gap: 10px;
+      border-top: 1px solid rgba(126,184,226,0.12);
+      padding-top: 12px;
+    }
+    .ac-section-label {
+      color: var(--soft);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .ac-status-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .ac-status-cell,
+    .ac-route-action-cell {
+      display: grid;
+      gap: 6px;
+    }
+    .ac-command-btn {
+      width: 100%;
+      min-height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(67,199,255,0.45);
+      background: rgba(67,199,255,0.08);
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .ac-command-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      border-color: rgba(67,199,255,0.75);
+    }
+    .ac-command-btn:disabled {
+      cursor: not-allowed;
+      opacity: .62;
+      color: var(--soft);
+      background: rgba(126,184,226,0.045);
+      border-color: rgba(126,184,226,0.12);
+      transform: none;
+    }
+    .ac-command-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      flex: 0 0 24px;
+      border-radius: 999px;
+      color: currentColor;
+      font-weight: 900;
+    }
+    .ac-status-ontrack { border-color: rgba(34,149,255,0.72); color: #dff1ff; }
+    .ac-status-delayed { border-color: rgba(255,170,35,0.72); color: #fff0d1; }
+    .ac-status-changed { border-color: rgba(154,92,255,0.72); color: #efe6ff; }
+    .ac-status-secure { border-color: rgba(24,242,210,0.54); color: #d5fff8; }
+    .ac-assistance-btn {
+      border-color: rgba(255,91,58,0.76);
+      background: rgba(255,91,58,0.12);
+      color: #ffe0d8;
+    }
+    .ac-checkin-note {
+      width: 100%;
+      min-height: 74px;
+      max-height: 120px;
+      resize: vertical;
+      border-radius: 10px;
+      border: 1px solid rgba(126,184,226,0.18);
+      background: rgba(8,18,28,0.82);
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+      line-height: 1.45;
+    }
+    .ac-note-counter {
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-align: right;
+    }
+    .ac-route-action-btn {
+      justify-content: flex-start;
+      text-align: left;
+      border-color: rgba(34,149,255,0.72);
+      background: rgba(34,149,255,0.1);
+    }
+    .ac-route-action-btn span:last-child,
+    .ac-disabled-action-row span:last-child {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+    .ac-route-action-btn strong,
+    .ac-disabled-action-row strong {
+      color: inherit;
+      font-size: 0.95rem;
+      line-height: 1.2;
+    }
+    .ac-route-action-btn small,
+    .ac-disabled-action-row small {
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.35;
+    }
+    .ac-disabled-action-row {
+      min-height: 46px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(126,184,226,0.12);
+      background: rgba(126,184,226,0.04);
+      color: var(--soft);
+      padding: 9px 12px;
+    }
+    .ac-v2-compact-checkin-panel {
+      gap: 10px;
+      padding: 12px;
+      border-radius: 18px;
+    }
+    .ac-v2-compact-checkin-panel .ac-panel-header {
+      align-items: center;
+      gap: 10px;
+    }
+    .ac-v2-compact-checkin-panel .ac-panel-header h2 {
+      font-size: 1.02rem;
+    }
+    .ac-v2-compact-checkin-panel .ac-panel-header p {
+      margin-top: 2px;
+      font-size: 0.84rem;
+    }
+    .ac-v2-compact-checkin-panel .ac-command-section {
+      gap: 7px;
+      padding-top: 9px;
+    }
+    .ac-status-compact-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 7px;
+    }
+    .ac-v2-compact-checkin-panel .ac-status-cell,
+    .ac-v2-compact-checkin-panel .ac-route-action-cell {
+      gap: 4px;
+    }
+    .ac-v2-compact-checkin-panel .ac-command-btn {
+      min-height: 40px;
+      gap: 7px;
+      border-radius: 8px;
+      padding: 7px 9px;
+      font-size: 0.82rem;
+      line-height: 1.15;
+    }
+    .ac-v2-compact-checkin-panel .ac-command-icon {
+      width: 18px;
+      height: 18px;
+      flex-basis: 18px;
+      font-size: 0.86rem;
+    }
+    .ac-v2-compact-checkin-panel .action-reason {
+      font-size: 0.72rem;
+      line-height: 1.25;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .ac-assistance-compact-row .ac-assistance-btn {
+      min-height: 38px;
+    }
+    .ac-v2-note-compact {
+      gap: 7px;
+    }
+    .ac-v2-note-toggle {
+      width: 100%;
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border: 1px solid rgba(126,184,226,0.14);
+      border-radius: 8px;
+      background: rgba(126,184,226,0.045);
+      color: var(--text);
+      padding: 7px 10px;
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .ac-v2-note-toggle:hover {
+      border-color: rgba(67,199,255,0.45);
+    }
+    .ac-v2-note-toggle .ac-note-counter {
+      text-align: right;
+      font-weight: 700;
+    }
+    .ac-v2-note-collapsible[hidden] {
+      display: none;
+    }
+    .ac-v2-compact-checkin-panel .ac-checkin-note {
+      min-height: 64px;
+      max-height: 96px;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 0.86rem;
+    }
+    .ac-route-actions-compact {
+      gap: 7px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .ac-route-actions-compact .ac-section-label {
+      grid-column: 1 / -1;
+    }
+    .ac-v2-compact-checkin-panel .ac-route-action-btn {
+      min-height: 40px;
+      justify-content: center;
+      text-align: center;
+    }
+    .ac-v2-compact-checkin-panel .ac-route-action-btn span:last-child {
+      display: inline;
+    }
+    .ac-v2-compact-checkin-panel .ac-route-action-btn small {
+      display: none;
+    }
+    .ac-v2-compact-checkin-panel .ac-disabled-action-row {
+      min-height: 40px;
+      gap: 8px;
+      border-radius: 8px;
+      padding: 7px 10px;
+    }
+    .ac-v2-compact-checkin-panel .ac-disabled-action-row strong {
+      font-size: 0.82rem;
+    }
+    .ac-v2-compact-checkin-panel .ac-disabled-action-row small {
+      font-size: 0.74rem;
+      line-height: 1.25;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .ac-v2-compact-checkin-panel .ac-action-ready-message {
+      padding-top: 9px;
+      font-size: 0.8rem;
+      line-height: 1.35;
+    }
+    .ac-v2-compact-checkin-panel .ac-action-ready-message::before {
+      width: 18px;
+      height: 18px;
+      flex-basis: 18px;
+    }
+    .ac-action-ready-message {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      border-top: 1px solid rgba(126,184,226,0.12);
+      padding-top: 12px;
+    }
+    .ac-action-ready-message::before {
+      content: "";
+      width: 26px;
+      height: 26px;
+      flex: 0 0 26px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    }
+    .ac-monitor-command-panel {
+      display: grid;
+      gap: 16px;
+      padding: 18px;
+      border-radius: 20px;
+      background: rgba(7, 24, 36, 0.34);
+      border: 1px solid rgba(126,184,226,0.12);
+    }
+    .ac-monitor-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(190px, .72fr);
+      gap: 16px;
+      align-items: center;
+    }
+    .ac-monitor-title {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+    .ac-monitor-icon {
+      width: 42px;
+      height: 42px;
+      flex: 0 0 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      border: 1px solid rgba(24,242,210,0.34);
+      background: rgba(24,242,210,0.1);
+      color: var(--accent-2);
+      font-size: 1.15rem;
+      font-weight: 900;
+    }
+    .ac-monitor-title h2 {
+      color: var(--text);
+      font-size: 1.1rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .ac-monitor-summary {
+      display: grid;
+      gap: 6px;
+      border-radius: 14px;
+      border: 1px solid rgba(126,184,226,0.12);
+      background: rgba(8,18,28,0.44);
+      padding: 12px 14px;
+    }
+    .ac-summary-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-top: 1px solid rgba(126,184,226,0.1);
+      padding-top: 6px;
+    }
+    .ac-summary-row:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+    .ac-summary-row span {
+      color: var(--muted);
+      font-size: 0.82rem;
+      text-transform: uppercase;
+    }
+    .ac-summary-row strong {
+      color: var(--text);
+      font-size: 0.9rem;
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+    .ac-monitor-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      border-top: 1px solid rgba(126,184,226,0.12);
+      padding-top: 16px;
+    }
+    .ac-monitor-tile {
+      display: grid;
+      gap: 10px;
+      min-height: 150px;
+      border-radius: 14px;
+      border: 1px solid rgba(126,184,226,0.14);
+      background: rgba(126,184,226,0.045);
+      padding: 14px;
+    }
+    .ac-monitor-tile p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.86rem;
+    }
+    .ac-monitor-value {
+      display: block;
+      color: var(--text);
+      font-size: 1.32rem;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      overflow-wrap: anywhere;
+    }
+    .ac-delay-tile .ac-command-btn {
+      margin-top: 4px;
+    }
+    .ac-muted-note {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+    .ac-inline-control-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: end;
+      margin-top: 4px;
+    }
+    .ac-monitor-command-panel .timing-input {
+      min-height: 48px;
+      width: 100%;
+      border-radius: 10px;
+    }
+    .ac-monitor-command-panel .ac-command-section h3 {
+      margin: 0;
+      color: var(--text);
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+    .ac-monitor-command-panel .ac-command-section p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
     @media (max-width: 780px) {
-      main { width: min(100% - 20px, 1320px); }
+      main.main { width: auto; }
+      .shell { width: min(calc(100% - 20px), var(--max)); }
       .identity-strip,
       .layout,
       .supporting-grid,
+      .content-grid,
+      .footer-band,
       .hero-main,
       .hero-grid,
       .field-grid,
       .detail-row,
       .weather-lookup-layout,
+      .timing-summary-grid,
+      .timing-form-grid,
+      .timing-inline,
+      .ac-monitor-header,
+      .ac-inline-control-row,
       .timeline-head {
         grid-template-columns: 1fr;
       }
       table { font-size: .84rem; }
     }
+    @media (max-width: 1240px) {
+      .layout,
+      .supporting-grid,
+      .content-grid,
+      .footer-band {
+        grid-template-columns: 1fr;
+      }
+      .identity-strip {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 860px) {
+      .shell { width: min(calc(100% - 18px), var(--max)); }
+      .topbar-inner,
+      .hero-main,
+      .section-header,
+      .section-top,
+      .timeline-head {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .top-actions { justify-content: flex-start; }
+      .identity-strip,
+      .hero-grid,
+      .map-summary-grid,
+      .field-grid,
+      .data-grid,
+      .timing-summary-grid,
+      .timing-form-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+      .leg-grid {
+        grid-template-columns: 1fr;
+      }
+      .route-plan-box {
+        max-height: none;
+      }
+      .route-plan-scroll {
+        max-height: 420px;
+      }
+      .route-selected-leg-box {
+        min-height: auto;
+      }
+    }
+    @media (max-width: 640px) {
+      .identity-strip,
+      .hero-grid,
+      .map-summary-grid,
+      .field-grid,
+      .data-grid,
+      .ac-monitor-grid,
+      .ac-status-grid,
+      .ac-status-compact-grid,
+      .timing-summary-grid,
+      .timing-form-grid,
+      .ac-route-actions-compact,
+      .footer-band {
+        grid-template-columns: 1fr;
+      }
+      .map-canvas,
+      .active-cruise-map-canvas {
+        min-height: 340px;
+        height: 340px;
+      }
+    }
   </style>
 </head>
 <body>
 <cfoutput>
-  <main>
-    <header class="page-top">
-      <div>
-        <h1>Active Cruise V2</h1>
-        <p>Operations layout powered by <code>ActiveCruiseViewModelService</code>.</p>
+  <header class="topbar" aria-label="Active Cruise V2 visual shell">
+    <div class="shell topbar-inner">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">&##9875;</div>
+        <div class="brand-copy">
+          <div class="brand-title">FloatPlanWizard &bull; Active Cruise Console</div>
+          <div class="brand-sub">Private operational view for the captain and trip owner</div>
+        </div>
       </div>
-    </header>
+      <div class="top-actions" aria-label="Read-only Active Cruise V2 identity">
+        <span class="chip">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "routeName"), "No active route"))#</span>
+        <span class="chip">Float Plan #encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.floatPlan, "id"), "n/a"))#</span>
+        <span class="chip">#encodeForHTML(fpwV2Text(activeCruiseV2Model.tripState, "unknown"))#</span>
+      </div>
+    </div>
+  </header>
 
-    <cfif !activeCruiseV2AccessValid>
-      <section class="unavailable">
-        <h2>Unavailable</h2>
-        <h3>#encodeForHTML(activeCruiseV2AccessMessage)#</h3>
-        <p>#encodeForHTML(activeCruiseV2AccessDetail)#</p>
-      </section>
-    <cfelse>
-      <section class="identity-strip" aria-label="Active Cruise V2 identity">
-        <div class="identity-cell">
-          <div class="identity-label">Route</div>
-          <div class="identity-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "routeName"), "Not available"))#</div>
-        </div>
-        <div class="identity-cell">
-          <div class="identity-label">Route Code</div>
-          <div class="identity-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "routeCode"), "Not available"))#</div>
-        </div>
-        <div class="identity-cell">
-          <div class="identity-label">Float Plan</div>
-          <div class="identity-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.floatPlan, "id"), "Not available"))#</div>
-        </div>
-        <div class="identity-cell">
-          <div class="identity-label">Generated</div>
-          <div class="identity-value">#encodeForHTML(fpwV2Text(activeCruiseV2Model.generatedAtUtc, "Not available"))#</div>
-        </div>
-        <div class="identity-cell">
-          <div class="identity-label">View Model</div>
-          <div class="identity-value">#encodeForHTML(toString(activeCruiseV2Model.success))#</div>
-        </div>
-      </section>
+  <main class="main">
+    <div class="shell">
+      <cfif !activeCruiseV2AccessValid>
+        <section class="panel section-card">
+          <div class="section-top">
+            <div>
+              <h2>#encodeForHTML(activeCruiseV2AccessMessage)#</h2>
+              <p>#encodeForHTML(activeCruiseV2AccessDetail)#</p>
+            </div>
+            <div class="badge badge-warn">Active Cruise Unavailable</div>
+          </div>
+          <div class="floatplan-box">
+            <p style="margin:0; color:var(--muted); line-height:1.6;">The V2 page uses the authenticated session user as its access authority.</p>
+          </div>
+        </section>
+      <cfelse>
+        <cfset mapModel = (structKeyExists(activeCruiseV2Model, "map") AND isStruct(activeCruiseV2Model.map) ? activeCruiseV2Model.map : {})>
+        <cfset weatherModel = (structKeyExists(activeCruiseV2Model, "weather") AND isStruct(activeCruiseV2Model.weather) ? activeCruiseV2Model.weather : {})>
+        <cfset floatPlanInfoModel = (structKeyExists(activeCruiseV2Model, "floatPlanInfo") AND isStruct(activeCruiseV2Model.floatPlanInfo) ? activeCruiseV2Model.floatPlanInfo : {})>
+        <cfset vesselModel = (structKeyExists(floatPlanInfoModel, "vessel") AND isStruct(floatPlanInfoModel.vessel) ? floatPlanInfoModel.vessel : {})>
+        <cfset operatorModel = (structKeyExists(floatPlanInfoModel, "operator") AND isStruct(floatPlanInfoModel.operator) ? floatPlanInfoModel.operator : {})>
+        <cfset contactsModel = (structKeyExists(activeCruiseV2Model, "contacts") AND isStruct(activeCruiseV2Model.contacts) ? activeCruiseV2Model.contacts : { "items" = [], "passengers" = [] })>
+        <cfset captainLogModel = (structKeyExists(activeCruiseV2Model, "captainLog") AND isStruct(activeCruiseV2Model.captainLog) ? activeCruiseV2Model.captainLog : { "items" = [], "count" = 0 })>
+        <cfset captainLogActionsModel = (structKeyExists(activeCruiseV2Model, "actions") AND isStruct(activeCruiseV2Model.actions) AND structKeyExists(activeCruiseV2Model.actions, "captainLog") AND isStruct(activeCruiseV2Model.actions.captainLog) ? activeCruiseV2Model.actions.captainLog : {})>
+        <cfset captainLogSaveAction = (structKeyExists(captainLogActionsModel, "save") AND isStruct(captainLogActionsModel.save) ? captainLogActionsModel.save : {})>
+        <cfset checkInHistoryModel = (structKeyExists(activeCruiseV2Model, "checkInHistory") AND isStruct(activeCruiseV2Model.checkInHistory) ? activeCruiseV2Model.checkInHistory : { "items" = [], "count" = 0 })>
+        <cfset privateTimelineModel = (structKeyExists(activeCruiseV2Model, "privateTimeline") AND isStruct(activeCruiseV2Model.privateTimeline) ? activeCruiseV2Model.privateTimeline : { "items" = [], "count" = 0 })>
+        <cfset mapLegs = (structKeyExists(mapModel, "legs") AND isArray(mapModel.legs) ? mapModel.legs : [])>
+        <cfset mapBounds = (structKeyExists(mapModel, "bounds") AND isStruct(mapModel.bounds) ? mapModel.bounds : {})>
+        <cfset mapCenter = (structKeyExists(mapModel, "center") AND isStruct(mapModel.center) ? mapModel.center : {})>
+        <cfset mapWarnings = (structKeyExists(mapModel, "warnings") AND isArray(mapModel.warnings) ? mapModel.warnings : [])>
+        <cfset mapAvailable = (structKeyExists(mapModel, "available") AND isBoolean(mapModel.available) AND mapModel.available)>
+        <cfset mapGeometryAuthority = fpwV2Text(fpwV2Get(mapModel, "geometryAuthority"), "Not available")>
+        <cfset mapGeometryAuthorityLabel = replace(mapGeometryAuthority, "_", " ", "all")>
+        <cfset weatherPoints = (structKeyExists(weatherModel, "points") AND isStruct(weatherModel.points) ? weatherModel.points : {})>
+        <cfset weatherLookup = (structKeyExists(weatherModel, "lookup") AND isStruct(weatherModel.lookup) ? weatherModel.lookup : {})>
+        <cfset weatherWarnings = (structKeyExists(weatherModel, "warnings") AND isArray(weatherModel.warnings) ? weatherModel.warnings : [])>
+        <cfset weatherLookupAvailable = (structKeyExists(weatherLookup, "available") AND isBoolean(weatherLookup.available) AND weatherLookup.available)>
+        <cfset weatherStartPoint = (structKeyExists(weatherPoints, "start") AND isStruct(weatherPoints.start) ? weatherPoints.start : {})>
+        <cfset weatherEndPoint = (structKeyExists(weatherPoints, "end") AND isStruct(weatherPoints.end) ? weatherPoints.end : {})>
+        <cfset timingActionsModel = (structKeyExists(activeCruiseV2Model.actions, "timing") AND isStruct(activeCruiseV2Model.actions.timing) ? activeCruiseV2Model.actions.timing : {})>
+        <cfset timingAddDelayAction = (structKeyExists(timingActionsModel, "addDelay") AND isStruct(timingActionsModel.addDelay) ? timingActionsModel.addDelay : {})>
+        <cfset timingClearDelayAction = (structKeyExists(timingActionsModel, "clearDelay") AND isStruct(timingActionsModel.clearDelay) ? timingActionsModel.clearDelay : {})>
+        <cfset timingDailyStartAction = (structKeyExists(timingActionsModel, "updateDailyStart") AND isStruct(timingActionsModel.updateDailyStart) ? timingActionsModel.updateDailyStart : {})>
+        <cfset manualDelayMinutesTotal = fpwV2Get(activeCruiseV2Model.monitoring, "manualDelayMinutesTotal", 0)>
+        <cfif !isNumeric(manualDelayMinutesTotal)>
+          <cfset manualDelayMinutesTotal = 0>
+        </cfif>
+        <cfset manualDelayMinutesTotal = val(manualDelayMinutesTotal)>
+        <cfset addDelayEnabled = fpwV2ActionEnabled(timingAddDelayAction)>
+        <cfset clearDelayEnabled = fpwV2ActionEnabled(timingClearDelayAction) AND manualDelayMinutesTotal GT 0>
+        <cfset dailyStartEnabled = fpwV2ActionEnabled(timingDailyStartAction)>
+        <cfset addDelayReason = fpwV2Text(fpwV2Get(timingAddDelayAction, "disabledReason"), fpwV2Text(fpwV2Get(timingAddDelayAction, "reason"), ""))>
+        <cfset clearDelayReason = fpwV2Text(fpwV2Get(timingClearDelayAction, "disabledReason"), fpwV2Text(fpwV2Get(timingClearDelayAction, "reason"), ""))>
+        <cfset dailyStartReason = fpwV2Text(fpwV2Get(timingDailyStartAction, "disabledReason"), fpwV2Text(fpwV2Get(timingDailyStartAction, "reason"), ""))>
+        <cfif addDelayEnabled><cfset addDelayReason = ""></cfif>
+        <cfif fpwV2ActionEnabled(timingClearDelayAction) AND manualDelayMinutesTotal LTE 0>
+          <cfset clearDelayReason = "No manual delay is currently applied.">
+        <cfelseif clearDelayEnabled>
+          <cfset clearDelayReason = "">
+        </cfif>
+        <cfif dailyStartEnabled><cfset dailyStartReason = ""></cfif>
 
-      <div class="layout">
-        <div class="left-stack">
-          <section class="hero" aria-label="Hero and trip state">
-            <div class="hero-main">
-              <div>
-                <div class="status-line">
-                  <span class="state-pill #encodeForHTMLAttribute(fpwV2StateClass(activeCruiseV2Model.tripState))#">#encodeForHTML(fpwV2Text(activeCruiseV2Model.tripState, "unknown_error"))#</span>
-                  <span class="authority-pill">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.displayAuthority, "primary"), "unavailable"))#</span>
+        <section class="hero" aria-label="Active Cruise V2 operational console">
+          <div class="stack">
+            <div class="panel hero-main">
+              <div class="eyebrow">Voyage Console &bull; Live Trip View</div>
+              <div class="title-row">
+                <div>
+                  <h1 data-fpw-field="hero.routeTitle">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.hero, "title"), fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "routeName"), "Active Cruise")))#</h1>
+                  <div class="subline">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.hero, "statusDetail"), activeCruiseV2Model.message))#</div>
                 </div>
-                <h1 class="hero-title">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.hero, "title"), fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "routeName"), "Active Cruise")))#</h1>
-                <p class="hero-subtitle">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.hero, "statusDetail"), activeCruiseV2Model.message))#</p>
+                <div class="status-pill<cfif fpwV2StateClass(activeCruiseV2Model.tripState) EQ 'is-alert'> status-pill--danger<cfelseif fpwV2StateClass(activeCruiseV2Model.tripState) EQ 'is-scheduled' OR fpwV2StateClass(activeCruiseV2Model.tripState) EQ 'is-paused'> status-pill--warning</cfif>">
+                  <b>Voyage Status</b>
+                  <strong data-fpw-field="hero.voyageStatus">#encodeForHTML(fpwV2Text(activeCruiseV2Model.tripState, "unknown"))#</strong>
+                </div>
               </div>
-              <div class="status-line">
-                <span class="authority-pill">Timeline: #encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.displayAuthority, "routeTimeline"), "unavailable"))#</span>
-                <span class="authority-pill">Monitoring: #encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.displayAuthority, "monitoring"), "unavailable"))#</span>
-              </div>
-            </div>
-            <div class="hero-grid">
-              <div class="metric">
-                <div class="metric-label">Motion</div>
-                <div class="metric-value">#encodeForHTML(fpwV2Text(activeCruiseV2Model.motionState, "unknown"))#</div>
-                <div class="metric-note">Canonical motion authority</div>
-              </div>
-              <div class="metric">
-                <div class="metric-label">Safety</div>
-                <div class="metric-value">#encodeForHTML(fpwV2Text(activeCruiseV2Model.safetyState, "normal"))#</div>
-                <div class="metric-note">Monitoring overlay</div>
-              </div>
-              <div class="metric">
-                <div class="metric-label">Scheduled Departure</div>
-                <div class="metric-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureLocal"), "Not available"))#</div>
-                <div class="metric-note">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.floatPlan, "timezone"), "timezone unavailable"))#</div>
-              </div>
-            </div>
-          </section>
 
-          <section class="section" aria-label="Current leg">
-            <div class="section-header">
-              <h2>Current Leg</h2>
-              <span class="leg-pill">Leg #encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "order"), "Not available"))#</span>
-            </div>
-            <h3>#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "fromName"), "Not available"))# -- #encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "toName"), "Not available"))#</h3>
-            <p>#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "statusLabel"), "Not available"))#</p>
-            <div class="progress-track" aria-label="Current leg progress">
-              <div class="progress-fill" style="--progress-width: #encodeForHTMLAttribute(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))#;"></div>
-            </div>
-            <div class="field-grid">
-              <div class="field">
-                <div class="field-label">Distance</div>
-                <div class="field-value">#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2Model.currentLeg, "distanceNm"), " nm"))#</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Completed</div>
-                <div class="field-value">#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2Model.currentLeg, "completedNm"), " nm"))#</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Remaining</div>
-                <div class="field-value">#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2Model.currentLeg, "remainingNm"), " nm"))#</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Progress</div>
-                <div class="field-value">#encodeForHTML(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))#</div>
-              </div>
-              <div class="field">
-                <div class="field-label">ETA</div>
-                <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "etaUtc"), "Not available"))#</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Authority</div>
-                <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "authority"), "Not available"))#</div>
-              </div>
-            </div>
-          </section>
-
-          <section class="timeline" aria-label="Route timeline and progress">
-            <div class="timeline-head">
-              <div>
-                <h2>Route Timeline / Progress</h2>
-                <p>Authority: #encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.routeTimeline, "authority"), "unavailable"))#</p>
-              </div>
-              <div class="status-line">
-                <span class="authority-pill">Current leg #encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.routeTimeline, "currentLegOrder"), "Not available"))#</span>
-                <span class="authority-pill">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "totalLegs"), "0"))# legs</span>
-              </div>
-            </div>
-            <cfif structKeyExists(activeCruiseV2Model.routeTimeline, "available") AND activeCruiseV2Model.routeTimeline.available EQ true AND structKeyExists(activeCruiseV2Model.routeTimeline, "legs")>
-              <div class="timeline-body">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Leg</th>
-                      <th>Route</th>
-                      <th>Status</th>
-                      <th>Distance</th>
-                      <th>Progress</th>
-                      <th>Departure</th>
-                      <th>ETA / Arrival</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <cfloop array="#activeCruiseV2Model.routeTimeline.legs#" item="leg">
-                      <tr class="#encodeForHTMLAttribute(fpwV2LegClass(leg))#">
-                        <td>#encodeForHTML(fpwV2Text(fpwV2Get(leg, "routeLegOrder"), "Not available"))#</td>
-                        <td>
-                          <div class="route-pair">
-                            <strong>#encodeForHTML(fpwV2Text(fpwV2Get(leg, "fromName"), "Not available"))#</strong>
-                            <span>to #encodeForHTML(fpwV2Text(fpwV2Get(leg, "toName"), "Not available"))#</span>
-                          </div>
-                        </td>
-                        <td>
-                          <div>#encodeForHTML(fpwV2Text(fpwV2Get(leg, "state"), "Not available"))#</div>
-                          <p>#encodeForHTML(fpwV2Text(fpwV2Get(leg, "status"), "Not available"))#</p>
-                        </td>
-                        <td>#encodeForHTML(fpwV2Number(fpwV2Get(leg, "distanceNm"), " nm"))#</td>
-                        <td>#encodeForHTML(fpwV2Percent(fpwV2Get(leg, "percentComplete")))#</td>
-                        <td>#encodeForHTML(fpwV2Text(fpwV2Get(leg, "departureUtc"), "Not available"))#</td>
-                        <td>#encodeForHTML(fpwV2Text(fpwV2Get(leg, "etaUtc"), fpwV2Text(fpwV2Get(leg, "arrivalUtc"), "Not available")))#</td>
-                      </tr>
-                    </cfloop>
-                  </tbody>
-                </table>
-              </div>
-            <cfelse>
-              <div class="empty-state">
-                <h3>Route timeline unavailable</h3>
-                <p>The view model did not return an available canonical route timeline.</p>
-                <pre>#encodeForHTML(fpwV2Json(activeCruiseV2Model.routeTimeline))#</pre>
-              </div>
-            </cfif>
-          </section>
-        </div>
-
-        <aside class="right-stack">
-          <section class="section" aria-label="Captain actions">
-            <div class="section-header">
-              <h2>Captain Actions</h2>
-              <span class="authority-pill">View model controlled</span>
-            </div>
-            <div class="captain-actions" id="fpwV2ActionPanel" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#">
-              <cfset checkAction = {}>
-              <cfif structKeyExists(activeCruiseV2Model.actions, "checkIn") AND isStruct(activeCruiseV2Model.actions.checkIn)>
-                <cfset checkAction = activeCruiseV2Model.actions.checkIn>
-              </cfif>
-              <div class="action-group" aria-label="Check-in status actions">
-                <h3>Check-In</h3>
-                <cfif structKeyExists(activeCruiseV2Model.checkIn, "allowedStatusOptions") AND isArray(activeCruiseV2Model.checkIn.allowedStatusOptions) AND arrayLen(activeCruiseV2Model.checkIn.allowedStatusOptions)>
-                  <cfloop array="#activeCruiseV2Model.checkIn.allowedStatusOptions#" item="statusOption">
-                    <cfset checkPayload = {}>
-                    <cfif structKeyExists(checkAction, "payload") AND isStruct(checkAction.payload)>
-                      <cfset checkPayload = duplicate(checkAction.payload)>
-                    </cfif>
-                    <cfset checkPayload.status = fpwV2Text(fpwV2Get(statusOption, "status"), "")>
-                    <cfset checkEnabled = fpwV2ActionEnabled(checkAction) AND fpwV2Get(statusOption, "enabled", true) EQ true>
-                    <cfset checkReason = fpwV2Text(fpwV2Get(statusOption, "disabledReason"), fpwV2Text(fpwV2Get(checkAction, "reason"), ""))>
-                    <cfif checkEnabled>
-                      <cfset checkReason = "">
-                    </cfif>
-                    <div class="action-row">
-                      <button
-                        type="button"
-                        class="action-button"
-                        data-ac-v2-action="checkin"
-                        data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(checkAction, "endpoint"), ""))#"
-                        data-payload="#encodeForHTMLAttribute(fpwV2Json(checkPayload))#"
-                        <cfif !checkEnabled>disabled aria-disabled="true"</cfif>>
-                        #encodeForHTML(fpwV2Text(fpwV2Get(statusOption, "status"), "Status"))#
-                      </button>
-                      <cfif len(checkReason)>
-                        <div class="action-reason">#encodeForHTML(checkReason)#</div>
-                      </cfif>
+              <div class="mini-panel active-cruise-map-panel">
+                <div class="active-cruise-map-head">
+                  <div class="active-cruise-map-copy">
+                    <h3>Map Overview</h3>
+                    <p>Live route view with current position, completed track, and destination.</p>
+                  </div>
+                  <!-- AC-V2 visual placeholder: V1 full-map control is not wired in V2. -->
+                  <span class="btn btn-secondary" aria-disabled="true">Open Full Map</span>
+                </div>
+                <div class="active-cruise-map-wrap" data-ac-v2-map-authority="#encodeForHTMLAttribute(mapGeometryAuthority)#">
+                  <cfif mapAvailable AND structKeyExists(mapBounds, "available") AND mapBounds.available EQ true AND arrayLen(mapLegs)>
+                    <div class="active-cruise-map-canvas map-leaflet-canvas" aria-label="Read-only route map from Active Cruise V2 view model">
+                      <div id="fpwActiveCruiseV2Map" data-ac-v2-map-canvas="true"></div>
+                      <div id="fpwActiveCruiseV2MapStatus" class="map-load-state is-visible" aria-live="polite">
+                        <span>Loading route map...</span>
+                      </div>
                     </div>
-                  </cfloop>
-                <cfelse>
-                  <p>No check-in status options were returned by the view model.</p>
+                  <cfelse>
+                    <div class="panel-note is-warning">Map geometry is not available from the V2 view model for this trip.</div>
+                  </cfif>
+                </div>
+              </div>
+
+              <div class="header-stats">
+                <div class="metric">
+                  <span>Scheduled Departure</span>
+                  <strong data-fpw-field="hero.tripStart">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureLocal"), "Not available"))#</strong>
+                  <small>Planned trip start</small>
+                </div>
+                <div class="metric">
+                  <span>Current Leg</span>
+                  <strong data-fpw-field="hero.currentLegSummary">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "order"), "Not available"))# of #encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "totalLegs"), "0"))#</strong>
+                  <small data-fpw-field="hero.legMeta">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "statusLabel"), "Current route leg"))#</small>
+                </div>
+                <div class="metric">
+                  <span>Distance Complete</span>
+                  <strong data-fpw-field="hero.distanceComplete">#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2Model.currentLeg, "completedNm"), " nm"))#</strong>
+                  <small data-fpw-field="hero.percentComplete">#encodeForHTML(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))# complete</small>
+                </div>
+                <div class="metric">
+                  <span>Next Stop</span>
+                  <strong data-fpw-field="hero.nextStop">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "toName"), fpwV2Get(activeCruiseV2Model.route, "endLocation", "Not available")))#</strong>
+                  <small data-fpw-field="hero.nextStopMeta">Upcoming planned stop</small>
+                </div>
+                <div class="metric">
+                  <span>ETA</span>
+                  <strong data-fpw-field="hero.eta">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "etaUtc"), "Not available"))#</strong>
+                  <small data-fpw-field="hero.etaMeta">Active leg ETA</small>
+                </div>
+              </div>
+
+              <div class="mini-panel mini-panel--route-progress-flat">
+                <div class="mini-head">
+                  <h3>Route Progress</h3>
+                  <span>#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.routeTimeline, "authority"), "unavailable"))#</span>
+                </div>
+                <div class="progress-block">
+                  <div class="route-plan-progress-footer route-plan-progress-footer--flat">
+                    <div class="route-plan-progress-grid">
+                      <div>
+                        <span>Complete</span>
+                        <strong>#encodeForHTML(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))#</strong>
+                      </div>
+                      <div>
+                        <span>Total Route</span>
+                        <strong>#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "totalLegs"), "0"))# legs</strong>
+                      </div>
+                      <div>
+                        <span>Remaining</span>
+                        <strong>#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2Model.currentLeg, "remainingNm"), " nm"))#</strong>
+                      </div>
+                      <div>
+                        <span>Final Arrival</span>
+                        <strong data-route-plan-summary="finalArrivalFooter">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "endLocation"), "Not available"))#</strong>
+                      </div>
+                    </div>
+                    <div class="route-plan-progress-bar" aria-hidden="true">
+                      <span style="width:#encodeForHTMLAttribute(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))#;"></span>
+                    </div>
+                  </div>
+                  <div class="route-leg-estimate" aria-label="Route leg estimate">
+                    <div class="route-leg-estimate-head">
+                      <h4 class="route-leg-estimate-title">Current Leg Estimate</h4>
+                      <span class="route-leg-estimate-state">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "statusLabel"), "Not available"))#</span>
+                    </div>
+                    <p class="route-leg-estimate-copy">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "fromName"), "Not available"))# to #encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "toName"), "Not available"))#</p>
+                    <div class="route-leg-estimate-metrics">
+                      <div class="route-leg-estimate-metric">
+                        <span>Distance</span>
+                        <strong>#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2Model.currentLeg, "distanceNm"), " nm"))#</strong>
+                      </div>
+                      <div class="route-leg-estimate-metric">
+                        <span>Remaining</span>
+                        <strong>#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2Model.currentLeg, "remainingNm"), " nm"))#</strong>
+                      </div>
+                      <div class="route-leg-estimate-metric">
+                        <span>ETA</span>
+                        <strong>#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "etaUtc"), "Not available"))#</strong>
+                      </div>
+                    </div>
+                    <div class="route-leg-estimate-progress">
+                      <div class="route-leg-estimate-progress-head"><span>Leg Progress</span><span>#encodeForHTML(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))#</span></div>
+                      <div class="route-leg-estimate-progress-row"><div class="bar-shell"><div class="bar-fill" style="width:#encodeForHTMLAttribute(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))#;"></div></div></div>
+                    </div>
+                    <div class="route-leg-estimate-foot">
+                      <div>Start Next Leg and Complete Leg remain controlled by the V2 action contracts.</div>
+                      <small>Display values come from activeCruiseV2Model.currentLeg.</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mini-panel" style="margin-top:16px;" aria-label="Weather lookup">
+                <div class="mini-head">
+                  <h3>Weather Lookup</h3>
+                  <span>Current Leg</span>
+                </div>
+                <div id="fpwV2WeatherLookup" class="weather-lookup-layout" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#">
+                  <div>
+                    <div class="split" style="align-items:center; gap:10px; flex-wrap:wrap;">
+                      <span>Lookup Point</span>
+                      <span>#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "source"), "Not available"))#</span>
+                    </div>
+                    <cfif !weatherLookupAvailable>
+                      <div class="panel-note is-warning">#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "message"), "Weather lookup is not currently available."))#</div>
+                    <cfelse>
+                      <div id="fpwV2WeatherFeedback" class="panel-note">#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "message"), "Select a current-leg point and check conditions."))#</div>
+                    </cfif>
+                  </div>
+                  <form id="fpwV2WeatherForm" class="weather-lookup-form">
+                    <div class="weather-choice-row">
+                      <label class="weather-choice">
+                        <input type="radio" name="fpwV2WeatherPoint" value="start"<cfif structKeyExists(weatherStartPoint, "available") AND weatherStartPoint.available EQ true> checked</cfif><cfif !structKeyExists(weatherStartPoint, "available") OR weatherStartPoint.available NEQ true> disabled</cfif>>
+                        <span>#encodeForHTML(fpwV2Text(fpwV2Get(weatherStartPoint, "label"), "Start"))#</span>
+                      </label>
+                      <label class="weather-choice">
+                        <input type="radio" name="fpwV2WeatherPoint" value="end"<cfif (!structKeyExists(weatherStartPoint, "available") OR weatherStartPoint.available NEQ true) AND structKeyExists(weatherEndPoint, "available") AND weatherEndPoint.available EQ true> checked</cfif><cfif !structKeyExists(weatherEndPoint, "available") OR weatherEndPoint.available NEQ true> disabled</cfif>>
+                        <span>#encodeForHTML(fpwV2Text(fpwV2Get(weatherEndPoint, "label"), "End"))#</span>
+                      </label>
+                    </div>
+                    <button type="submit" class="btn btn-secondary"<cfif !weatherLookupAvailable> disabled</cfif>>Check Conditions</button>
+                  </form>
+                </div>
+                <div id="fpwV2WeatherResult" class="weather-result is-empty" aria-live="polite">
+                  <div class="split"><span>Point</span><strong data-weather-field="point">Not checked</strong></div>
+                  <div class="split" style="margin-top:10px;"><span>Summary</span><strong data-weather-field="summary">Not checked</strong></div>
+                  <div class="split" style="margin-top:10px;"><span>Temperature</span><strong data-weather-field="temperature">Not checked</strong></div>
+                  <div class="split" style="margin-top:10px;"><span>Wind</span><strong data-weather-field="wind">Not checked</strong></div>
+                  <div class="split" style="margin-top:10px;"><span>Gusts</span><strong data-weather-field="gusts">Not checked</strong></div>
+                  <div class="split" style="margin-top:10px;"><span>Waves</span><strong data-weather-field="waves">Not checked</strong></div>
+                  <div class="split" style="margin-top:10px;"><span>Visibility</span><strong data-weather-field="visibility">Not checked</strong></div>
+                  <div class="split" style="margin-top:10px;"><span>Alerts</span><strong data-weather-field="alerts">Not checked</strong></div>
+                </div>
+                <cfif arrayLen(weatherWarnings)>
+                  <div class="weather-warning-list">
+                    <cfloop array="#weatherWarnings#" item="weatherWarning">
+                      <cfif isStruct(weatherWarning)>
+                        <div class="panel-note is-warning">#encodeForHTML(fpwV2Text(fpwV2Get(weatherWarning, "message"), "Weather lookup warning."))#</div>
+                      </cfif>
+                    </cfloop>
+                  </div>
                 </cfif>
               </div>
+            </div>
 
-              <div class="action-group" aria-label="Route and float plan actions">
-                <h3>Route / Float Plan</h3>
-                <cfset routeActions = [
-                  { "key" = "completeLeg", "label" = "Complete Current Leg / Arrived" },
-                  { "key" = "startNextLeg", "label" = "Start Next Leg" },
-                  { "key" = "closeFloatPlan", "label" = "Close Float Plan" }
-                ]>
-                <cfloop array="#routeActions#" item="routeAction">
-                  <cfset routeActionModel = {}>
-                  <cfif structKeyExists(activeCruiseV2Model.actions, routeAction.key) AND isStruct(activeCruiseV2Model.actions[routeAction.key])>
-                    <cfset routeActionModel = activeCruiseV2Model.actions[routeAction.key]>
+            <div class="panel section-card" id="acV2RouteProgressPanel">
+              <div class="section-top">
+                <div>
+                  <h2>Route Plan &amp; Progress</h2>
+                  <p>Complete active-route overview rendered from the V2 route timeline.</p>
+                </div>
+              </div>
+              <cfset selectedRoutePlanLeg = {}>
+              <cfset selectedRoutePlanLegIndex = 1>
+              <cfif structKeyExists(activeCruiseV2Model.routeTimeline, "available") AND activeCruiseV2Model.routeTimeline.available EQ true AND structKeyExists(activeCruiseV2Model.routeTimeline, "legs") AND arrayLen(activeCruiseV2Model.routeTimeline.legs)>
+                <cfset routePlanSelectionIndex = 0>
+                <cfloop array="#activeCruiseV2Model.routeTimeline.legs#" item="routePlanSelectionLeg">
+                  <cfset routePlanSelectionIndex = routePlanSelectionIndex + 1>
+                  <cfset routePlanSelectionState = lCase(fpwV2Text(fpwV2Get(routePlanSelectionLeg, "state"), ""))>
+                  <cfif NOT structCount(selectedRoutePlanLeg) AND ((structKeyExists(routePlanSelectionLeg, "isCurrent") AND routePlanSelectionLeg.isCurrent EQ true) OR routePlanSelectionState EQ "current")>
+                    <cfset selectedRoutePlanLeg = routePlanSelectionLeg>
+                    <cfset selectedRoutePlanLegIndex = routePlanSelectionIndex>
                   </cfif>
-                  <cfset routeActionEnabled = fpwV2ActionEnabled(routeActionModel)>
-                  <cfset routeActionReason = fpwV2Text(fpwV2Get(routeActionModel, "reason"), "")>
-                  <div class="action-row">
-                    <button
-                      type="button"
-                      class="action-button"
-                      data-ac-v2-action="#encodeForHTMLAttribute(routeAction.key)#"
-                      data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(routeActionModel, "endpoint"), ""))#"
-                      data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(routeActionModel, "payload", {})))#"
-                      <cfif !routeActionEnabled>disabled aria-disabled="true"</cfif>>
-                      #encodeForHTML(routeAction.label)#
+                </cfloop>
+                <cfif NOT structCount(selectedRoutePlanLeg)>
+                  <cfset selectedRoutePlanLeg = activeCruiseV2Model.routeTimeline.legs[1]>
+                  <cfset selectedRoutePlanLegIndex = 1>
+                </cfif>
+              </cfif>
+              <cfset selectedRoutePlanDistanceLabel = fpwV2Number(fpwV2Get(selectedRoutePlanLeg, "distanceNm"), " nm")>
+              <cfset selectedRoutePlanRemainingLabel = fpwV2Number(fpwV2Get(selectedRoutePlanLeg, "remainingNm"), " nm")>
+              <cfset selectedRoutePlanCompletedLabel = fpwV2Number(fpwV2Get(selectedRoutePlanLeg, "completedNm"), " nm")>
+              <cfset selectedRoutePlanProgressLabel = fpwV2Percent(fpwV2Get(selectedRoutePlanLeg, "percentComplete"))>
+              <cfset selectedRoutePlanStatusLabel = fpwV2Text(fpwV2Get(selectedRoutePlanLeg, "status"), fpwV2Get(selectedRoutePlanLeg, "state", "Not available"))>
+              <cfset selectedRoutePlanArrivalLabel = fpwV2Text(fpwV2Get(selectedRoutePlanLeg, "etaUtc"), fpwV2Text(fpwV2Get(selectedRoutePlanLeg, "arrivalUtc"), "Not available"))>
+              <div class="leg-grid">
+                <div class="route-box route-plan-box">
+                  <div class="mini-head" style="margin-bottom:12px;">
+                    <h3>Route Timeline</h3>
+                    <span>#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "totalLegs"), "0"))# legs</span>
+                  </div>
+                  <div class="route-plan-departure">
+                    <div class="route-plan-kicker">Scheduled Departure</div>
+                    <strong>#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureLocal"), "Not available"))#</strong>
+                    <span>Timing comes from ActiveCruiseViewModelService.</span>
+                  </div>
+                  <div class="route-plan-toolbar">
+                    <p class="route-plan-preview-note">Uses activeCruiseV2Model.routeTimeline only.</p>
+                  </div>
+                  <div class="route-plan-scroll" id="acV2RouteLegList">
+                    <cfif structKeyExists(activeCruiseV2Model.routeTimeline, "available") AND activeCruiseV2Model.routeTimeline.available EQ true AND structKeyExists(activeCruiseV2Model.routeTimeline, "legs") AND arrayLen(activeCruiseV2Model.routeTimeline.legs)>
+                      <cfset routePlanLegIndex = 0>
+                      <cfloop array="#activeCruiseV2Model.routeTimeline.legs#" item="routePlanLeg">
+                        <cfset routePlanLegIndex = routePlanLegIndex + 1>
+                        <cfset routePlanState = lCase(fpwV2Text(fpwV2Get(routePlanLeg, "state"), "future"))>
+                        <cfset routePlanLegOrder = fpwV2Text(fpwV2Get(routePlanLeg, "routeLegOrder"), "")>
+                        <cfset routePlanStatusLabel = fpwV2Text(fpwV2Get(routePlanLeg, "status"), fpwV2Get(routePlanLeg, "state", "Not available"))>
+                        <cfset routePlanTitle = fpwV2Text(fpwV2Get(routePlanLeg, "fromName"), "Not available") & " to " & fpwV2Text(fpwV2Get(routePlanLeg, "toName"), "Not available")>
+                        <cfset routePlanDistanceLabel = fpwV2Number(fpwV2Get(routePlanLeg, "distanceNm"), " nm")>
+                        <cfset routePlanRemainingLabel = fpwV2Number(fpwV2Get(routePlanLeg, "remainingNm"), " nm")>
+                        <cfset routePlanCompletedLabel = fpwV2Number(fpwV2Get(routePlanLeg, "completedNm"), " nm")>
+                        <cfset routePlanProgressLabel = fpwV2Percent(fpwV2Get(routePlanLeg, "percentComplete"))>
+                        <cfset routePlanDepartureLabel = fpwV2Text(fpwV2Get(routePlanLeg, "departureUtc"), "Not available")>
+                        <cfset routePlanArrivalLabel = fpwV2Text(fpwV2Get(routePlanLeg, "etaUtc"), fpwV2Text(fpwV2Get(routePlanLeg, "arrivalUtc"), "Not available"))>
+                        <cfset routePlanSelectedClass = "">
+                        <cfset routePlanAriaExpanded = "false">
+                        <cfif routePlanLegIndex EQ selectedRoutePlanLegIndex>
+                          <cfset routePlanSelectedClass = " is-selected">
+                          <cfset routePlanAriaExpanded = "true">
+                        </cfif>
+                        <article class="route-plan-leg route-plan-leg--#encodeForHTMLAttribute(routePlanState)##routePlanSelectedClass#" data-route-plan-leg data-ac-v2-leg-row data-leg-index="#encodeForHTMLAttribute(routePlanLegIndex)#" data-leg-order="#encodeForHTMLAttribute(routePlanLegOrder)#" data-leg-state="#encodeForHTMLAttribute(routePlanState)#" data-leg-title="#encodeForHTMLAttribute(routePlanTitle)#" data-leg-distance="#encodeForHTMLAttribute(routePlanDistanceLabel)#" data-leg-remaining="#encodeForHTMLAttribute(routePlanRemainingLabel)#" data-leg-completed="#encodeForHTMLAttribute(routePlanCompletedLabel)#" data-leg-progress="#encodeForHTMLAttribute(routePlanProgressLabel)#" data-leg-status-label="#encodeForHTMLAttribute(routePlanStatusLabel)#" data-leg-departure="#encodeForHTMLAttribute(routePlanDepartureLabel)#" data-leg-arrival="#encodeForHTMLAttribute(routePlanArrivalLabel)#" data-leg-arrival-label="#encodeForHTMLAttribute(routePlanArrivalLabel)#" data-route-plan-leg-order="#encodeForHTMLAttribute(routePlanLegOrder)#" data-route-plan-state="#encodeForHTMLAttribute(routePlanState)#" role="button" tabindex="0" aria-expanded="#routePlanAriaExpanded#" aria-label="Select route leg #encodeForHTMLAttribute(routePlanTitle)#">
+                          <div class="route-plan-leg-button">
+                            <span class="route-plan-leg-dot" aria-hidden="true"></span>
+                            <span>
+                              <span class="route-plan-leg-kicker">#encodeForHTML(routePlanStatusLabel)#</span>
+                              <span class="route-plan-leg-title">#encodeForHTML(routePlanTitle)#</span>
+                              <span class="route-plan-leg-meta">#encodeForHTML(routePlanDistanceLabel)#</span>
+                            </span>
+                            <span class="route-plan-leg-side">
+                              <span>#encodeForHTML(routePlanArrivalLabel)#</span>
+                            </span>
+                          </div>
+                          <div class="route-plan-leg-detail">
+                            <div class="route-plan-detail-grid">
+                              <div><span>Departure</span><strong>#encodeForHTML(routePlanDepartureLabel)#</strong></div>
+                              <div><span>ETA / Arrival</span><strong>#encodeForHTML(routePlanArrivalLabel)#</strong></div>
+                              <div><span>Distance</span><strong>#encodeForHTML(routePlanDistanceLabel)#</strong></div>
+                              <div><span>Progress</span><strong>#encodeForHTML(routePlanProgressLabel)#</strong></div>
+                            </div>
+                          </div>
+                        </article>
+                      </cfloop>
+                      <div class="route-plan-final">
+                        <div class="route-plan-kicker">Final Destination</div>
+                        <strong>#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "endLocation"), "Not available"))#</strong>
+                        <span>#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "etaUtc"), "ETA unavailable"))#</span>
+                      </div>
+                    <cfelse>
+                      <div class="route-plan-final">
+                        <div class="route-plan-kicker">Route Plan</div>
+                        <strong>Not available</strong>
+                        <span>No canonical route timeline is available from the V2 model.</span>
+                      </div>
+                    </cfif>
+                  </div>
+                </div>
+
+                <div class="detail-box route-selected-leg-box" id="acV2SelectedLegPanel">
+                  <div class="mini-head" style="margin-bottom:16px;">
+                    <h3 id="acV2SelectedLegPanelTitle">Selected Leg Data</h3>
+                    <span>V2 Model</span>
+                  </div>
+                  <div class="data-grid">
+                    <div class="data-item"><span>Distance</span><strong data-selected-leg-field="distance">#encodeForHTML(selectedRoutePlanDistanceLabel)#</strong><small>Total leg length</small></div>
+                    <div class="data-item"><span>Remaining</span><strong data-selected-leg-field="remaining">#encodeForHTML(selectedRoutePlanRemainingLabel)#</strong><small>From selected leg model</small></div>
+                    <div class="data-item"><span>Completed</span><strong data-selected-leg-field="completed">#encodeForHTML(selectedRoutePlanCompletedLabel)#</strong><small>Selected leg completed distance</small></div>
+                    <div class="data-item"><span>Progress</span><strong data-selected-leg-field="progress">#encodeForHTML(selectedRoutePlanProgressLabel)#</strong><small>Selected leg progress</small></div>
+                    <div class="data-item"><span>Status</span><strong data-selected-leg-field="status">#encodeForHTML(selectedRoutePlanStatusLabel)#</strong><small>Selected leg status</small></div>
+                    <div class="data-item"><span>Arrival</span><strong data-selected-leg-field="arrival">#encodeForHTML(selectedRoutePlanArrivalLabel)#</strong><small>ETA / arrival</small></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="panel section-card">
+              <div class="action-box ac-checkin-command-panel ac-v2-compact-checkin-panel" id="acCheckInPanel">
+                <div class="captain-actions" id="fpwV2ActionPanel" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#">
+                  <div class="ac-panel-header">
+                    <div>
+                      <h2>Check-In &amp; Route Control</h2>
+                      <p>Update status and route actions.</p>
+                    </div>
+                  </div>
+
+                  <cfset checkAction = {}>
+                  <cfif structKeyExists(activeCruiseV2Model.actions, "checkIn") AND isStruct(activeCruiseV2Model.actions.checkIn)>
+                    <cfset checkAction = activeCruiseV2Model.actions.checkIn>
+                  </cfif>
+                  <cfset checkStatusOptions = []>
+                  <cfif structKeyExists(activeCruiseV2Model.checkIn, "allowedStatusOptions") AND isArray(activeCruiseV2Model.checkIn.allowedStatusOptions)>
+                    <cfset checkStatusOptions = activeCruiseV2Model.checkIn.allowedStatusOptions>
+                  </cfif>
+
+                  <div class="ac-command-section" aria-label="Check-in status actions">
+                    <div class="ac-section-label">Status</div>
+                    <cfif arrayLen(checkStatusOptions)>
+                      <cfset routineStatusNames = [ "On Track", "Delayed", "Changed Plan", "Secure for the Night" ]>
+                      <cfset renderedRoutineStatusCount = 0>
+                      <div class="ac-status-grid ac-status-compact-grid">
+                        <cfloop array="#routineStatusNames#" item="routineStatusName">
+                          <cfset statusOption = {}>
+                          <cfloop array="#checkStatusOptions#" item="candidateStatusOption">
+                            <cfif compareNoCase(fpwV2Text(fpwV2Get(candidateStatusOption, "status"), ""), routineStatusName) EQ 0>
+                              <cfset statusOption = candidateStatusOption>
+                              <cfbreak>
+                            </cfif>
+                          </cfloop>
+                          <cfif structCount(statusOption)>
+                            <cfset renderedRoutineStatusCount++>
+                            <cfset checkPayload = {}>
+                            <cfif structKeyExists(checkAction, "payload") AND isStruct(checkAction.payload)>
+                              <cfset checkPayload = duplicate(checkAction.payload)>
+                            </cfif>
+                            <cfset checkPayload.status = fpwV2Text(fpwV2Get(statusOption, "status"), "")>
+                            <cfset checkEnabled = fpwV2ActionEnabled(checkAction) AND fpwV2Get(statusOption, "enabled", true) EQ true>
+                            <cfset checkReason = fpwV2Text(fpwV2Get(statusOption, "disabledReason"), fpwV2Text(fpwV2Get(checkAction, "reason"), ""))>
+                            <cfif checkEnabled><cfset checkReason = ""></cfif>
+                            <cfset checkStatusText = fpwV2Text(fpwV2Get(statusOption, "status"), "Status")>
+                            <cfset checkDisplayText = checkStatusText>
+                            <cfset checkStatusClass = "ontrack">
+                            <cfset checkIcon = "&##10003;">
+                            <cfif compareNoCase(checkStatusText, "Delayed") EQ 0>
+                              <cfset checkStatusClass = "delayed">
+                              <cfset checkIcon = "&##9719;">
+                            <cfelseif compareNoCase(checkStatusText, "Changed Plan") EQ 0>
+                              <cfset checkStatusClass = "changed">
+                              <cfset checkIcon = "&##8605;">
+                            <cfelseif compareNoCase(checkStatusText, "Secure for the Night") EQ 0>
+                              <cfset checkStatusClass = "secure">
+                              <cfset checkIcon = "&##9790;">
+                              <cfset checkDisplayText = "Secure Night">
+                            </cfif>
+                            <div class="ac-status-cell">
+                              <button type="button" class="ac-command-btn ac-status-btn ac-status-#encodeForHTMLAttribute(checkStatusClass)#" data-ac-v2-action="checkin" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(checkAction, "endpoint"), ""))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(checkPayload))#" data-confirmation-required="#encodeForHTMLAttribute(toString(fpwV2Get(statusOption, "confirmationRequired", false)))#" data-confirmation-message="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(statusOption, "confirmationMessage"), ""))#"<cfif !checkEnabled> disabled aria-disabled="true"</cfif>><span class="ac-command-icon" aria-hidden="true">#checkIcon#</span><span>#encodeForHTML(checkDisplayText)#</span></button>
+                              <cfif len(checkReason)><div class="action-reason" title="#encodeForHTMLAttribute(checkReason)#">#encodeForHTML(checkReason)#</div></cfif>
+                            </div>
+                          </cfif>
+                        </cfloop>
+                      </div>
+                      <cfif renderedRoutineStatusCount EQ 0>
+                        <p>No routine check-in status options were returned by the view model.</p>
+                      </cfif>
+
+                      <cfset assistanceStatusOption = {}>
+                      <cfloop array="#checkStatusOptions#" item="candidateStatusOption">
+                        <cfif compareNoCase(fpwV2Text(fpwV2Get(candidateStatusOption, "status"), ""), "Assistance Needed") EQ 0>
+                          <cfset assistanceStatusOption = candidateStatusOption>
+                          <cfbreak>
+                        </cfif>
+                      </cfloop>
+                      <cfif structCount(assistanceStatusOption)>
+                        <cfset assistancePayload = {}>
+                        <cfif structKeyExists(checkAction, "payload") AND isStruct(checkAction.payload)>
+                          <cfset assistancePayload = duplicate(checkAction.payload)>
+                        </cfif>
+                        <cfset assistancePayload.status = fpwV2Text(fpwV2Get(assistanceStatusOption, "status"), "")>
+                        <cfset assistanceEnabled = fpwV2ActionEnabled(checkAction) AND fpwV2Get(assistanceStatusOption, "enabled", true) EQ true>
+                        <cfset assistanceReason = fpwV2Text(fpwV2Get(assistanceStatusOption, "disabledReason"), fpwV2Text(fpwV2Get(checkAction, "reason"), ""))>
+                        <cfif assistanceEnabled><cfset assistanceReason = ""></cfif>
+                        <div class="ac-status-cell ac-assistance-compact-row">
+                          <button type="button" class="ac-command-btn ac-assistance-btn" data-ac-v2-action="checkin" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(checkAction, "endpoint"), ""))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(assistancePayload))#" data-confirmation-required="#encodeForHTMLAttribute(toString(fpwV2Get(assistanceStatusOption, "confirmationRequired", false)))#" data-confirmation-message="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(assistanceStatusOption, "confirmationMessage"), ""))#"<cfif !assistanceEnabled> disabled aria-disabled="true"</cfif>><span class="ac-command-icon" aria-hidden="true">&##9888;</span><span>#encodeForHTML(fpwV2Text(fpwV2Get(assistanceStatusOption, "status"), "Assistance Needed"))#</span></button>
+                          <cfif len(assistanceReason)><div class="action-reason" title="#encodeForHTMLAttribute(assistanceReason)#">#encodeForHTML(assistanceReason)#</div></cfif>
+                        </div>
+                      </cfif>
+                    <cfelse>
+                      <p>No check-in status options were returned by the view model.</p>
+                    </cfif>
+                  </div>
+
+                  <div class="ac-command-section ac-v2-note-compact" aria-label="Check-in note" data-ac-v2-note-shell>
+                    <button type="button" class="ac-v2-note-toggle" data-ac-v2-note-toggle aria-expanded="false" aria-controls="fpwV2CheckInNoteShell">
+                      <span>+ Add optional note</span>
+                      <span class="ac-note-counter" id="fpwV2CheckInNoteCounter">0/500</span>
                     </button>
-                    <cfif len(routeActionReason)>
-                      <div class="action-reason">#encodeForHTML(routeActionReason)#</div>
-                    </cfif>
-                  </div>
-                </cfloop>
-              </div>
-
-              <div class="action-feedback" id="fpwV2ActionFeedback" role="status" aria-live="polite">Ready. Actions submit existing endpoint and payload contracts returned by the view model.</div>
-            </div>
-          </section>
-
-          <section class="section" aria-label="Monitoring and safety">
-            <div class="section-header">
-              <h2>Monitoring / Safety</h2>
-              <span class="state-pill #encodeForHTMLAttribute(fpwV2StateClass(activeCruiseV2Model.safetyState))#">#encodeForHTML(fpwV2Text(activeCruiseV2Model.safetyState, "normal"))#</span>
-            </div>
-            <div class="field-grid">
-              <div class="field">
-                <div class="field-label">Mode</div>
-                <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "mode"), "Not available"))#</div>
-              </div>
-              <div class="field">
-                <div class="field-label">State</div>
-                <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "state"), "Not available"))#</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Expected Check-In</div>
-                <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "expectedCheckinAtUtc"), "Not available"))#</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Grace Expires</div>
-                <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "graceExpiresAtUtc"), "Not available"))#</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Last Check-In</div>
-                <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "lastCheckinAtUtc"), "Not available"))#</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Last Status</div>
-                <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "lastCheckinStatus"), "Not available"))#</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Secure For Night</div>
-                <div class="field-value">#encodeForHTML(toString(fpwV2Get(activeCruiseV2Model.monitoring, "secureForNight", false)))#</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Secure Until</div>
-                <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "secureForNightUntilUtc"), "Not available"))#</div>
-              </div>
-            </div>
-          </section>
-
-          <section class="warning-panel" aria-label="Warnings and authority diagnostics">
-            <div class="section-header">
-              <h2>Warnings / Diagnostics</h2>
-              <span class="authority-pill">#fpwV2WarningCount(activeCruiseV2Model)# warnings</span>
-            </div>
-            <p>Projection, view-model consistency, missing-authority, and contradiction warnings are shown here during development.</p>
-            <cfif structKeyExists(activeCruiseV2Model, "warnings") AND arrayLen(activeCruiseV2Model.warnings)>
-              <div class="warning-list">
-                <cfloop array="#activeCruiseV2Model.warnings#" item="warningItem">
-                  <div class="warning-item">
-                    <h3>#encodeForHTML(fpwV2Text(fpwV2Get(warningItem, "code"), "Warning"))#</h3>
-                    <p>#encodeForHTML(fpwV2Text(fpwV2Get(warningItem, "message"), "No message returned."))#</p>
-                    <div class="warning-source">Source: #encodeForHTML(fpwV2Text(fpwV2Get(warningItem, "source"), "Not available"))#</div>
-                  </div>
-                </cfloop>
-              </div>
-            <cfelse>
-              <p>No warnings returned by the view model.</p>
-            </cfif>
-          </section>
-        </aside>
-      </div>
-
-      <cfset mapModel = (structKeyExists(activeCruiseV2Model, "map") AND isStruct(activeCruiseV2Model.map) ? activeCruiseV2Model.map : {})>
-      <cfset weatherModel = (structKeyExists(activeCruiseV2Model, "weather") AND isStruct(activeCruiseV2Model.weather) ? activeCruiseV2Model.weather : {})>
-      <cfset floatPlanInfoModel = (structKeyExists(activeCruiseV2Model, "floatPlanInfo") AND isStruct(activeCruiseV2Model.floatPlanInfo) ? activeCruiseV2Model.floatPlanInfo : {})>
-      <cfset vesselModel = (structKeyExists(floatPlanInfoModel, "vessel") AND isStruct(floatPlanInfoModel.vessel) ? floatPlanInfoModel.vessel : {})>
-      <cfset operatorModel = (structKeyExists(floatPlanInfoModel, "operator") AND isStruct(floatPlanInfoModel.operator) ? floatPlanInfoModel.operator : {})>
-      <cfset contactsModel = (structKeyExists(activeCruiseV2Model, "contacts") AND isStruct(activeCruiseV2Model.contacts) ? activeCruiseV2Model.contacts : { "items" = [], "passengers" = [] })>
-      <cfset captainLogModel = (structKeyExists(activeCruiseV2Model, "captainLog") AND isStruct(activeCruiseV2Model.captainLog) ? activeCruiseV2Model.captainLog : { "items" = [], "count" = 0 })>
-      <cfset mapLegs = (structKeyExists(mapModel, "legs") AND isArray(mapModel.legs) ? mapModel.legs : [])>
-      <cfset mapBounds = (structKeyExists(mapModel, "bounds") AND isStruct(mapModel.bounds) ? mapModel.bounds : {})>
-      <cfset mapCenter = (structKeyExists(mapModel, "center") AND isStruct(mapModel.center) ? mapModel.center : {})>
-      <cfset mapWarnings = (structKeyExists(mapModel, "warnings") AND isArray(mapModel.warnings) ? mapModel.warnings : [])>
-      <cfset mapAvailable = (structKeyExists(mapModel, "available") AND isBoolean(mapModel.available) AND mapModel.available)>
-      <cfset mapGeometryAuthority = fpwV2Text(fpwV2Get(mapModel, "geometryAuthority"), "Not available")>
-      <cfset mapGeometryAuthorityLabel = replace(mapGeometryAuthority, "_", " ", "all")>
-      <cfset weatherPoints = (structKeyExists(weatherModel, "points") AND isStruct(weatherModel.points) ? weatherModel.points : {})>
-      <cfset weatherLookup = (structKeyExists(weatherModel, "lookup") AND isStruct(weatherModel.lookup) ? weatherModel.lookup : {})>
-      <cfset weatherWarnings = (structKeyExists(weatherModel, "warnings") AND isArray(weatherModel.warnings) ? weatherModel.warnings : [])>
-      <cfset weatherLookupAvailable = (structKeyExists(weatherLookup, "available") AND isBoolean(weatherLookup.available) AND weatherLookup.available)>
-      <cfset weatherStartPoint = (structKeyExists(weatherPoints, "start") AND isStruct(weatherPoints.start) ? weatherPoints.start : {})>
-      <cfset weatherEndPoint = (structKeyExists(weatherPoints, "end") AND isStruct(weatherPoints.end) ? weatherPoints.end : {})>
-
-      <section class="supporting-grid" aria-label="Active Cruise V2 supporting panels">
-        <div class="supporting-stack">
-          <section class="section" aria-label="Map and route overview">
-            <div class="section-header">
-              <h2>Map / Route Overview</h2>
-              <span class="authority-pill">#encodeForHTML(fpwV2Text(fpwV2Get(mapModel, "authority"), "unavailable"))#</span>
-            </div>
-            <div class="map-overview" data-ac-v2-map-authority="#encodeForHTMLAttribute(mapGeometryAuthority)#">
-              <div class="map-summary-grid">
-                <div class="metric">
-                  <div class="metric-label">Geometry</div>
-                  <div class="metric-value">#encodeForHTML(mapGeometryAuthorityLabel)#</div>
-                  <div class="metric-note">Returned by the view model</div>
-                </div>
-                <div class="metric">
-                  <div class="metric-label">Legs</div>
-                  <div class="metric-value">#arrayLen(mapLegs)#</div>
-                  <div class="metric-note">Route-instance map legs</div>
-                </div>
-                <div class="metric">
-                  <div class="metric-label">Center</div>
-                  <div class="metric-value">
-                    <cfif structKeyExists(mapCenter, "available") AND mapCenter.available EQ true>
-                      #encodeForHTML(numberFormat(val(fpwV2Get(mapCenter, "lat", 0)), "0.000"))#, #encodeForHTML(numberFormat(val(fpwV2Get(mapCenter, "lon", 0)), "0.000"))#
-                    <cfelse>
-                      Not available
-                    </cfif>
-                  </div>
-                  <div class="metric-note">From view-model bounds</div>
-                </div>
-              </div>
-
-              <cfif mapAvailable AND structKeyExists(mapBounds, "available") AND mapBounds.available EQ true AND arrayLen(mapLegs)>
-                <div class="map-canvas map-leaflet-canvas" aria-label="Read-only route map from Active Cruise V2 view model">
-                  <div id="fpwActiveCruiseV2Map" data-ac-v2-map-canvas="true"></div>
-                  <div id="fpwActiveCruiseV2MapStatus" class="map-load-state is-visible" aria-live="polite">
-                    <span>Loading route map...</span>
-                  </div>
-                </div>
-              <cfelse>
-                <div class="panel-note is-warning">
-                  Map geometry is not available from the V2 view model for this trip.
-                </div>
-              </cfif>
-
-              <div class="detail-list">
-                <div class="detail-row">
-                  <div class="field-label">Route Instance</div>
-                  <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(mapModel, "routeInstanceId"), "Not available"))#</div>
-                </div>
-                <div class="detail-row">
-                  <div class="field-label">Stream</div>
-                  <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(mapModel, "streamId"), "Not available"))#</div>
-                </div>
-                <div class="detail-row">
-                  <div class="field-label">Timeline</div>
-                  <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.routeTimeline, "authority"), "unavailable"))#</div>
-                </div>
-                <div class="detail-row">
-                  <div class="field-label">Bounds</div>
-                  <div class="field-value">
-                    <cfif structKeyExists(mapBounds, "available") AND mapBounds.available EQ true>
-                      S #encodeForHTML(numberFormat(val(fpwV2Get(mapBounds, "south", 0)), "0.000"))# / W #encodeForHTML(numberFormat(val(fpwV2Get(mapBounds, "west", 0)), "0.000"))# / N #encodeForHTML(numberFormat(val(fpwV2Get(mapBounds, "north", 0)), "0.000"))# / E #encodeForHTML(numberFormat(val(fpwV2Get(mapBounds, "east", 0)), "0.000"))#
-                    <cfelse>
-                      Not available
-                    </cfif>
-                  </div>
-                </div>
-              </div>
-
-              <cfif arrayLen(mapLegs)>
-                <div class="panel-subhead">Route Legs</div>
-                <div class="map-leg-list">
-                  <cfloop array="#mapLegs#" item="mapLeg">
-                    <div class="map-leg-row">
-                      <div class="map-leg-order">#encodeForHTML(fpwV2Text(fpwV2Get(mapLeg, "order"), "--"))#</div>
-                      <div class="map-leg-route">#encodeForHTML(fpwV2Text(fpwV2Get(mapLeg, "fromName"), "Start"))# to #encodeForHTML(fpwV2Text(fpwV2Get(mapLeg, "toName"), "End"))#</div>
-                      <div class="map-leg-meta">#encodeForHTML(fpwV2Number(fpwV2Get(mapLeg, "distanceNm"), " nm"))#</div>
+                    <div class="ac-v2-note-collapsible" id="fpwV2CheckInNoteShell" data-ac-v2-note-collapsible hidden>
+                      <textarea id="fpwV2CheckInNote" class="ac-checkin-note checkin-note-input" maxlength="500" placeholder="Optional note for this check-in"></textarea>
                     </div>
-                  </cfloop>
-                </div>
-              </cfif>
+                  </div>
 
-              <cfif arrayLen(mapWarnings)>
-                <div class="warning-list">
-                  <cfloop array="#mapWarnings#" item="mapWarning">
-                    <div class="warning-item">
-                      <h3>#encodeForHTML(fpwV2Text(fpwV2Get(mapWarning, "code"), "Map warning"))#</h3>
-                      <p>#encodeForHTML(fpwV2Text(fpwV2Get(mapWarning, "message"), "No map warning message returned."))#</p>
+                  <div class="ac-command-section ac-route-actions-compact" aria-label="Route and float plan actions">
+                    <div class="ac-section-label">Route Actions</div>
+                    <cfset routeActions = [
+                      { "key" = "completeLeg", "label" = "Complete Current Leg / Arrived", "icon" = "&##9873;", "description" = "Mark this leg complete." },
+                      { "key" = "startNextLeg", "label" = "Start Next Leg", "icon" = "&##10140;", "description" = "Start the next pending route leg." },
+                      { "key" = "closeFloatPlan", "label" = "Close Float Plan", "icon" = "&##9633;", "description" = "Close this active float plan." }
+                    ]>
+                    <cfloop array="#routeActions#" item="routeAction">
+                      <cfset routeActionModel = {}>
+                      <cfif structKeyExists(activeCruiseV2Model.actions, routeAction.key) AND isStruct(activeCruiseV2Model.actions[routeAction.key])>
+                        <cfset routeActionModel = activeCruiseV2Model.actions[routeAction.key]>
+                      </cfif>
+                      <cfset routeActionEnabled = fpwV2ActionEnabled(routeActionModel)>
+                      <cfset routeActionReason = fpwV2Text(fpwV2Get(routeActionModel, "reason"), "")>
+                      <cfif routeActionEnabled>
+                        <div class="ac-route-action-cell">
+                          <button type="button" class="ac-command-btn ac-route-action-btn" data-ac-v2-action="#encodeForHTMLAttribute(routeAction.key)#" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(routeActionModel, "endpoint"), ""))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(routeActionModel, "payload", {})))#" data-confirmation-required="#encodeForHTMLAttribute(toString(fpwV2Get(routeActionModel, "confirmationRequired", false)))#" data-confirmation-message="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(routeActionModel, "confirmationMessage"), ""))#"><span class="ac-command-icon" aria-hidden="true">#routeAction.icon#</span><span><strong>#encodeForHTML(routeAction.label)#</strong><small>#encodeForHTML(routeAction.description)#</small></span></button>
+                        </div>
+                      <cfelse>
+                        <div class="ac-disabled-action-row" aria-disabled="true">
+                          <span class="ac-command-icon" aria-hidden="true">#routeAction.icon#</span>
+                          <span>
+                            <strong>#encodeForHTML(routeAction.label)# unavailable</strong>
+                            <small title="#encodeForHTMLAttribute(fpwV2Text(routeActionReason, "Unavailable from the current view model state."))#">#encodeForHTML(fpwV2Text(routeActionReason, "Unavailable from the current view model state."))#</small>
+                          </span>
+                        </div>
+                      </cfif>
+                    </cfloop>
+                  </div>
+                  <div class="action-feedback ac-action-ready-message" id="fpwV2ActionFeedback" role="status" aria-live="polite">Ready. Actions submit existing endpoint and payload contracts returned by the view model.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel section-card">
+              <section class="ac-v2-panel ac-monitor-command-panel" id="fpwV2TimingPanel" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#" aria-label="Timing controls">
+                <div class="ac-monitor-header">
+                  <div class="ac-monitor-title">
+                    <span class="ac-monitor-icon" aria-hidden="true">&##8779;</span>
+                    <div>
+                      <h2>Float Plan Monitor</h2>
                     </div>
-                  </cfloop>
-                </div>
-              </cfif>
-            </div>
-          </section>
-
-          <section class="section" aria-label="Weather lookup">
-            <div class="section-header">
-              <h2>Weather Lookup</h2>
-              <span class="authority-pill">#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "authority"), "unavailable"))#</span>
-            </div>
-            <div id="fpwV2WeatherLookup" class="weather-lookup-layout" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#">
-              <div>
-                <div class="panel-subhead">Lookup Point</div>
-                <p class="metric-note">Select a current-leg point, then check conditions. Weather is not loaded until this lookup is submitted.</p>
-                <div class="detail-list">
-                  <div class="detail-row">
-                    <div class="field-label">Route Instance</div>
-                    <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "routeInstanceId"), "Not available"))#</div>
                   </div>
-                  <div class="detail-row">
-                    <div class="field-label">Current Leg</div>
-                    <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "currentLegOrder"), "Not available"))#</div>
-                  </div>
-                  <div class="detail-row">
-                    <div class="field-label">Source</div>
-                    <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "source"), "Not available"))#</div>
+                  <div class="ac-monitor-summary" aria-label="Monitoring status summary">
+                    <div class="ac-summary-row"><span>Status</span><strong data-fpw-field="monitor.status">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "state"), "Not available"))#</strong></div>
+                    <div class="ac-summary-row"><span>Mode</span><strong data-fpw-field="monitor.mode">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "mode"), "Not available"))#</strong></div>
+                    <div class="ac-summary-row"><span>Last Status</span><strong data-fpw-field="monitor.lastStatus">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "lastCheckinStatus"), "Not available"))#</strong></div>
                   </div>
                 </div>
-              </div>
-              <form id="fpwV2WeatherForm" class="weather-lookup-form">
-                <div class="panel-subhead">Current Leg</div>
-                <div class="weather-choice-row">
-                  <label class="weather-choice">
-                    <input type="radio" name="fpwV2WeatherPoint" value="start"<cfif structKeyExists(weatherStartPoint, "available") AND weatherStartPoint.available EQ true> checked</cfif><cfif !structKeyExists(weatherStartPoint, "available") OR weatherStartPoint.available NEQ true> disabled</cfif>>
-                    <span>#encodeForHTML(fpwV2Text(fpwV2Get(weatherStartPoint, "label"), "Start"))#</span>
-                  </label>
-                  <label class="weather-choice">
-                    <input type="radio" name="fpwV2WeatherPoint" value="end"<cfif (!structKeyExists(weatherStartPoint, "available") OR weatherStartPoint.available NEQ true) AND structKeyExists(weatherEndPoint, "available") AND weatherEndPoint.available EQ true> checked</cfif><cfif !structKeyExists(weatherEndPoint, "available") OR weatherEndPoint.available NEQ true> disabled</cfif>>
-                    <span>#encodeForHTML(fpwV2Text(fpwV2Get(weatherEndPoint, "label"), "End"))#</span>
-                  </label>
+
+                <div class="ac-monitor-grid">
+                  <article class="ac-monitor-tile">
+                    <div class="ac-section-label">Last Check-In</div>
+                    <strong class="ac-monitor-value" data-fpw-field="floatPlan.lastCheckIn">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "lastCheckinAtUtc"), "Not available"))#</strong>
+                    <p>Captain confirmed status</p>
+                  </article>
+                  <article class="ac-monitor-tile">
+                    <div class="ac-section-label">Secure for Night</div>
+                    <strong class="ac-monitor-value" data-fpw-field="monitor.secureForNight"><cfif fpwV2Get(activeCruiseV2Model.monitoring, "secureForNight", false) EQ true>YES<cfelse>NO</cfif></strong>
+                    <p>#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "secureForNightUntilUtc"), "Secure-until unavailable"))#</p>
+                  </article>
+                  <article class="ac-monitor-tile">
+                    <div class="ac-section-label">Next Expected Check-In</div>
+                    <strong class="ac-monitor-value" data-fpw-field="monitor.nextExpectedCheckIn">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "expectedCheckinLocalLabel"), "Not available"))#</strong>
+                    <p>Canonical monitoring checkpoint</p>
+                  </article>
+                  <article class="ac-monitor-tile ac-delay-tile">
+                    <div class="ac-section-label">Current Delay</div>
+                    <strong class="ac-monitor-value" data-fpw-field="delay.currentTotal">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "manualDelayLabel"), "0 minutes"))#</strong>
+                    <p>Current manual delay total applied to canonical trip timing.</p>
+                    <button type="button" class="ac-command-btn ac-clear-delay-btn" data-ac-v2-timing-action="clearDelay" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingClearDelayAction, "endpoint"), ""))#" data-method="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingClearDelayAction, "method"), "POST"))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(timingClearDelayAction, "payload", {})))#" data-confirmation-required="#encodeForHTMLAttribute(toString(fpwV2Get(timingClearDelayAction, "confirmationRequired", false)))#" data-confirmation-message="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingClearDelayAction, "confirmationMessage"), ""))#"<cfif !clearDelayEnabled> disabled aria-disabled="true"</cfif>>#encodeForHTML(fpwV2Text(fpwV2Get(timingClearDelayAction, "label"), "Clear Delay"))#</button>
+                    <cfif len(clearDelayReason)><p class="ac-muted-note">#encodeForHTML(clearDelayReason)#</p></cfif>
+                  </article>
                 </div>
-                <button type="submit" class="action-button"<cfif !weatherLookupAvailable> disabled</cfif>>Check Conditions</button>
-              </form>
+
+                <div class="ac-command-section ac-delay-section">
+                  <div class="ac-section-label">Add Delay Time</div>
+                  <h3>Manual timing adjustment</h3>
+                  <p>Add positive minutes to the active trip timeline without changing monitoring cadence.</p>
+                  <div class="ac-inline-control-row">
+                    <input id="fpwV2AddDelayMinutes" class="timing-input" type="number" min="1" step="1" inputmode="numeric" placeholder="0"<cfif !addDelayEnabled> disabled</cfif>>
+                    <button type="button" class="ac-command-btn" data-ac-v2-timing-action="addDelay" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingAddDelayAction, "endpoint"), ""))#" data-method="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingAddDelayAction, "method"), "POST"))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(timingAddDelayAction, "payload", {})))#" data-confirmation-required="#encodeForHTMLAttribute(toString(fpwV2Get(timingAddDelayAction, "confirmationRequired", false)))#" data-confirmation-message="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingAddDelayAction, "confirmationMessage"), ""))#"<cfif !addDelayEnabled> disabled aria-disabled="true"</cfif>>#encodeForHTML(fpwV2Text(fpwV2Get(timingAddDelayAction, "label"), "Add Delay Time"))#</button>
+                  </div>
+                  <cfif len(addDelayReason)><p class="ac-muted-note">#encodeForHTML(addDelayReason)#</p></cfif>
+                </div>
+
+                <div class="ac-command-section ac-daily-start-section">
+                  <div class="ac-section-label">Daily Start Time</div>
+                  <strong class="ac-monitor-value" data-fpw-field="monitor.dailyStartLabel">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "dailyStartLabel"), "8:00 AM"))#</strong>
+                  <p>Applied to overnight resume and next-day monitoring.</p>
+                  <div class="ac-inline-control-row">
+                    <input id="fpwV2DailyStartLocalTime" class="timing-input" type="time" step="60" value="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "dailyStartLocalTime"), ""))#"<cfif !dailyStartEnabled> disabled</cfif>>
+                    <button type="button" class="ac-command-btn" data-ac-v2-timing-action="updateDailyStart" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingDailyStartAction, "endpoint"), ""))#" data-method="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingDailyStartAction, "method"), "POST"))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(timingDailyStartAction, "payload", {})))#" data-confirmation-required="#encodeForHTMLAttribute(toString(fpwV2Get(timingDailyStartAction, "confirmationRequired", false)))#" data-confirmation-message="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingDailyStartAction, "confirmationMessage"), ""))#"<cfif !dailyStartEnabled> disabled aria-disabled="true"</cfif>>#encodeForHTML(fpwV2Text(fpwV2Get(timingDailyStartAction, "label"), "Save Daily Start Time"))#</button>
+                  </div>
+                  <cfif len(dailyStartReason)><p class="ac-muted-note">#encodeForHTML(dailyStartReason)#</p></cfif>
+                </div>
+
+                <div class="action-feedback ac-action-ready-message" id="fpwV2TimingFeedback" role="status" aria-live="polite">Ready. Timing controls submit endpoint and payload contracts returned by the view model.</div>
+              </section>
             </div>
 
-            <cfif !weatherLookupAvailable>
-              <div class="panel-note is-warning">
-                #encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "message"), "Weather lookup is not currently available."))#
-              </div>
-            <cfelse>
-              <div id="fpwV2WeatherFeedback" class="panel-note">
-                #encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "message"), "Select a current-leg point and check conditions."))#
-              </div>
-            </cfif>
-
-            <div id="fpwV2WeatherResult" class="weather-result is-empty" aria-live="polite">
-              <div class="detail-list">
-                <div class="detail-row">
-                  <div class="field-label">Point</div>
-                  <div class="field-value" data-weather-field="point">Not checked</div>
-                </div>
-                <div class="detail-row">
-                  <div class="field-label">Summary</div>
-                  <div class="field-value" data-weather-field="summary">Not checked</div>
-                </div>
-                <div class="detail-row">
-                  <div class="field-label">Temperature</div>
-                  <div class="field-value" data-weather-field="temperature">Not checked</div>
-                </div>
-                <div class="detail-row">
-                  <div class="field-label">Wind</div>
-                  <div class="field-value" data-weather-field="wind">Not checked</div>
-                </div>
-                <div class="detail-row">
-                  <div class="field-label">Gusts</div>
-                  <div class="field-value" data-weather-field="gusts">Not checked</div>
-                </div>
-                <div class="detail-row">
-                  <div class="field-label">Waves</div>
-                  <div class="field-value" data-weather-field="waves">Not checked</div>
-                </div>
-                <div class="detail-row">
-                  <div class="field-label">Visibility</div>
-                  <div class="field-value" data-weather-field="visibility">Not checked</div>
-                </div>
-                <div class="detail-row">
-                  <div class="field-label">Alerts</div>
-                  <div class="field-value" data-weather-field="alerts">Not checked</div>
+            <div class="panel section-card">
+              <div class="section-top">
+                <div>
+                  <h2>Route Timeline &amp; Current Notes</h2>
                 </div>
               </div>
-            </div>
-
-            <cfif arrayLen(weatherWarnings)>
-              <div class="weather-warning-list">
-                <cfloop array="#weatherWarnings#" item="weatherWarning">
-                  <cfif isStruct(weatherWarning)>
-                    <div class="panel-note is-warning">#encodeForHTML(fpwV2Text(fpwV2Get(weatherWarning, "message"), "Weather lookup warning."))#</div>
+              <div class="stack">
+                <div class="timeline-box">
+                  <div class="mini-head" style="margin-bottom:16px;">
+                    <h3>Today's Timeline</h3>
+                    <span>Newest First</span>
+                  </div>
+                  <cfif structKeyExists(privateTimelineModel, "items") AND isArray(privateTimelineModel.items) AND arrayLen(privateTimelineModel.items)>
+                    <div class="timeline today-checkin-history">
+                      <cfloop array="#privateTimelineModel.items#" item="historyItem">
+                        <cfset historyDetail = fpwV2Text(fpwV2Get(historyItem, "detail"), "")>
+                        <cfset historyNote = fpwV2Text(fpwV2Get(historyItem, "note"), "")>
+                        <div class="timeline-row">
+                          <div class="timeline-time">#encodeForHTML(fpwV2Text(fpwV2Get(historyItem, "occurredLocalLabel"), fpwV2Text(fpwV2Get(historyItem, "occurredAtUtc"), "time unavailable")))#</div>
+                          <div class="timeline-node"></div>
+                          <div class="timeline-copy">
+                            <b>#encodeForHTML(fpwV2Text(fpwV2Get(historyItem, "title"), "Operational event"))#</b>
+                            <span>#encodeForHTML(len(historyDetail) ? historyDetail : "Private operational event recorded.")#</span>
+                            <cfif len(historyNote)>
+                              <span>#encodeForHTML(historyNote)#</span>
+                            </cfif>
+                            <span class="timeline-source">Private operational timeline</span>
+                          </div>
+                        </div>
+                      </cfloop>
+                    </div>
+                  <cfelse>
+                    <div class="captain-note-empty">Private timeline events will appear here after the next Active Cruise V2 action.</div>
                   </cfif>
-                </cfloop>
-              </div>
-            </cfif>
-          </section>
-        </div>
-
-        <div class="supporting-stack">
-          <section class="section" aria-label="Float plan information">
-            <div class="section-header">
-              <h2>Float Plan Info</h2>
-              <span class="authority-pill">View model</span>
-            </div>
-            <div class="detail-list">
-              <div class="detail-row">
-                <div class="field-label">Name</div>
-                <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.floatPlan, "name"), "Not available"))#</div>
-              </div>
-              <div class="detail-row">
-                <div class="field-label">Status</div>
-                <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.floatPlan, "status"), "Not available"))#</div>
-              </div>
-              <div class="detail-row">
-                <div class="field-label">Activated</div>
-                <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.floatPlan, "activatedAtUtc"), "Not available"))#</div>
-              </div>
-              <div class="detail-row">
-                <div class="field-label">Checked In</div>
-                <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.floatPlan, "checkedInAtUtc"), "Not available"))#</div>
-              </div>
-              <div class="detail-row">
-                <div class="field-label">Vessel</div>
-                <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(vesselModel, "name"), "Not available"))#</div>
-              </div>
-              <div class="detail-row">
-                <div class="field-label">Vessel Details</div>
-                <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(vesselModel, "type"), "Not available"))# / #encodeForHTML(fpwV2Number(fpwV2Get(vesselModel, "length"), " ft"))#</div>
-              </div>
-              <div class="detail-row">
-                <div class="field-label">Operator</div>
-                <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(operatorModel, "name"), "Not available"))#</div>
-              </div>
-              <div class="detail-row">
-                <div class="field-label">Notes</div>
-                <div class="field-value">#encodeForHTML(fpwV2Text(fpwV2Get(floatPlanInfoModel, "notes"), "Not available"))#</div>
-              </div>
-            </div>
-          </section>
-
-          <section class="section" aria-label="Contacts and notification contacts">
-            <div class="section-header">
-              <h2>Contacts / Notifications</h2>
-              <span class="authority-pill">#encodeForHTML(fpwV2Text(fpwV2Get(contactsModel, "count"), "0"))# contacts</span>
-            </div>
-            <div class="panel-subhead">Notification Contacts</div>
-            <cfif structKeyExists(contactsModel, "items") AND isArray(contactsModel.items) AND arrayLen(contactsModel.items)>
-              <div class="contact-list">
-                <cfloop array="#contactsModel.items#" item="contactItem">
-                  <div class="contact-item">
-                    <h3>#encodeForHTML(fpwV2Text(fpwV2Get(contactItem, "name"), "Unnamed contact"))#</h3>
-                    <p>#encodeForHTML(fpwV2Text(fpwV2Get(contactItem, "phone"), "Phone not available"))#</p>
-                    <p>#encodeForHTML(fpwV2Text(fpwV2Get(contactItem, "email"), "Email not available"))#</p>
+                </div>
+                <div class="log-box">
+                  <div class="mini-head" style="margin-bottom:16px;">
+                    <h3>Quick Notes</h3>
+                    <span>Private by Default</span>
                   </div>
-                </cfloop>
-              </div>
-            <cfelse>
-              <div class="panel-note">No notification contacts were returned by the view model.</div>
-            </cfif>
-
-            <div class="panel-subhead">Passengers</div>
-            <cfif structKeyExists(contactsModel, "passengers") AND isArray(contactsModel.passengers) AND arrayLen(contactsModel.passengers)>
-              <div class="contact-list">
-                <cfloop array="#contactsModel.passengers#" item="passengerItem">
-                  <div class="contact-item">
-                    <h3>#encodeForHTML(fpwV2Text(fpwV2Get(passengerItem, "name"), "Unnamed passenger"))#</h3>
-                    <p>#encodeForHTML(fpwV2Text(fpwV2Get(passengerItem, "phone"), "Phone not available"))#</p>
+                  <cfset captainLogSaveEnabled = fpwV2ActionEnabled(captainLogSaveAction)>
+                  <cfset captainLogSaveReason = fpwV2Text(fpwV2Get(captainLogSaveAction, "reason"), fpwV2Text(fpwV2Get(captainLogSaveAction, "disabledReason"), ""))>
+                  <cfset captainLogTags = [ "All good", "Underway", "Weather delay", "Anchored", "Docking", "Fuel", "Mechanical", "Marina call" ]>
+                  <div class="captain-quick-note-form" id="fpwV2CaptainQuickNoteForm" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(captainLogSaveAction, "endpoint"), ""))#" data-method="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(captainLogSaveAction, "method"), "POST"))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(captainLogSaveAction, "payload", {})))#" data-enabled="#encodeForHTMLAttribute(captainLogSaveEnabled ? "true" : "false")#">
+                    <label class="captain-note-label" for="fpwV2CaptainQuickNoteInput">
+                      <span>Add captain note</span>
+                      <small>Private by default</small>
+                    </label>
+                    <textarea id="fpwV2CaptainQuickNoteInput" class="captain-note-input" rows="3" maxlength="1200" placeholder="Write a quick captain note for this trip."<cfif !captainLogSaveEnabled> disabled</cfif>></textarea>
+                    <div class="captain-note-tags" aria-label="Captain note presets">
+                      <cfloop array="#captainLogTags#" item="captainLogTag">
+                        <button type="button" class="captain-note-tag" data-fpw-v2-captain-note-tag="#encodeForHTMLAttribute(captainLogTag)#"<cfif !captainLogSaveEnabled> disabled</cfif>>#encodeForHTML(captainLogTag)#</button>
+                      </cfloop>
+                    </div>
+                    <label class="captain-note-post-option">
+                      <input type="checkbox" id="fpwV2CaptainQuickNotePost"<cfif !captainLogSaveEnabled> disabled</cfif>>
+                      <span>Also post this note to the Follow page voyage stream.</span>
+                    </label>
+                    <div class="captain-note-help">Leave unchecked for a private captain log entry only.</div>
+                    <div class="captain-note-message" id="fpwV2CaptainQuickNoteMessage" role="status" aria-live="polite"><cfif captainLogSaveEnabled>Ready to save a private captain note.<cfelse>#encodeForHTML(fpwV2Text(captainLogSaveReason, "Captain note writing is not available from the current view model."))#</cfif></div>
+                    <button type="button" class="captain-note-save" id="fpwV2CaptainQuickNoteSaveBtn"<cfif !captainLogSaveEnabled> disabled</cfif>>Save Note</button>
                   </div>
-                </cfloop>
+                  <cfif structKeyExists(captainLogModel, "items") AND isArray(captainLogModel.items) AND arrayLen(captainLogModel.items)>
+                    <div class="log-list" id="fpwV2CaptainQuickNoteList">
+                      <cfloop array="#captainLogModel.items#" item="logItem">
+                        <cfset logPostedBadge = (val(fpwV2Get(logItem, "posted_to_stream", 0)) EQ 1 ? "POSTED" : "PRIVATE")>
+                        <div class="log-row">
+                          <div>
+                            <b>#encodeForHTML(fpwV2Text(fpwV2Get(logItem, "note_tag"), "Captain note"))#</b>
+                            <span>#encodeForHTML(fpwV2Text(fpwV2Get(logItem, "note_body"), "No note text returned."))#</span>
+                          </div>
+                          <div class="captain-note-meta">
+                            <div class="action-mini">#encodeForHTML(logPostedBadge)#</div>
+                            <span>#encodeForHTML(fpwV2Text(fpwV2Get(logItem, "created_utc"), "time unavailable"))#</span>
+                          </div>
+                        </div>
+                      </cfloop>
+                    </div>
+                  <cfelse>
+                    <div class="log-list" id="fpwV2CaptainQuickNoteList"></div>
+                    <div class="captain-note-empty" id="fpwV2CaptainQuickNoteEmpty">Private captain notes will appear here after they are saved.</div>
+                  </cfif>
+                </div>
               </div>
-            <cfelse>
-              <div class="panel-note">No passengers were returned by the view model.</div>
-            </cfif>
-          </section>
-
-          <section class="section" aria-label="Captain log">
-            <div class="section-header">
-              <h2>Captain Log</h2>
-              <span class="authority-pill">Read only</span>
             </div>
-            <cfif structKeyExists(captainLogModel, "items") AND isArray(captainLogModel.items) AND arrayLen(captainLogModel.items)>
-              <div class="log-list">
-                <cfloop array="#captainLogModel.items#" item="logItem">
-                  <div class="log-item">
-                    <h3>#encodeForHTML(fpwV2Text(fpwV2Get(logItem, "note_tag"), "Captain note"))#</h3>
-                    <p>#encodeForHTML(fpwV2Text(fpwV2Get(logItem, "note_body"), "No note text returned."))#</p>
-                    <div class="warning-source">Leg #encodeForHTML(fpwV2Text(fpwV2Get(logItem, "route_leg_order"), "n/a"))# / #encodeForHTML(fpwV2Text(fpwV2Get(logItem, "created_utc"), "time unavailable"))#</div>
-                  </div>
-                </cfloop>
+
+            <section class="panel active-cruise-reference-card fpw-contact-reference-card" aria-labelledby="crew-emergency-title">
+              <div class="reference-card-header">
+                <div>
+                  <h2 id="crew-emergency-title">Crew &amp; Passengers</h2>
+                  <p>Quick access to trip contacts</p>
+                </div>
+                <span class="reference-badge">Reference</span>
               </div>
-            <cfelse>
-              <div class="panel-note">No private captain log entries were returned by the view model. Write controls are not wired in this phase.</div>
-            </cfif>
-          </section>
-        </div>
-      </section>
-    </cfif>
+              <div class="contact-reference-stack">
+                <article class="contact-reference-panel contact-reference-panel--primary">
+                  <div class="contact-reference-main">
+                    <div class="contact-reference-icon" aria-hidden="true"><span class="contact-reference-icon-symbol">&##9875;</span></div>
+                    <div class="contact-reference-content">
+                      <div class="contact-reference-kicker">Captain / Operator</div>
+                      <div class="contact-reference-name">#encodeForHTML(fpwV2Text(fpwV2Get(operatorModel, "name"), "Not available"))#</div>
+                      <div class="contact-reference-subtext">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.floatPlan, "name"), "Float plan name unavailable"))#</div>
+                    </div>
+                  </div>
+                </article>
+                <article class="contact-reference-panel contact-reference-panel--crew">
+                  <div class="contact-reference-main">
+                    <div class="contact-reference-icon" aria-hidden="true"><span class="contact-reference-icon-symbol">&##128101;</span></div>
+                    <div class="contact-reference-content">
+                      <div class="contact-reference-kicker">Crew / Passengers</div>
+                      <div class="contact-reference-name">#encodeForHTML(fpwV2Text(fpwV2Get(contactsModel, "passengerCount"), fpwV2Text(fpwV2Get(contactsModel, "count"), "0")))# listed</div>
+                    </div>
+                  </div>
+                  <cfif structKeyExists(contactsModel, "passengers") AND isArray(contactsModel.passengers) AND arrayLen(contactsModel.passengers)>
+                    <div class="contact-reference-crew-list">
+                      <cfloop from="1" to="#min(2, arrayLen(contactsModel.passengers))#" index="passengerIndex">
+                        <cfset passengerItem = contactsModel.passengers[passengerIndex]>
+                        <div class="contact-reference-crew-row">
+                          <span class="contact-reference-dot" aria-hidden="true"></span>
+                          <span class="contact-reference-crew-name">#encodeForHTML(fpwV2Text(fpwV2Get(passengerItem, "name"), "Unnamed passenger"))#</span>
+                          <span class="contact-reference-crew-role">Passenger</span>
+                        </div>
+                      </cfloop>
+                    </div>
+                  <cfelse>
+                    <div class="contact-reference-empty">No crew/passengers listed</div>
+                  </cfif>
+                </article>
+                <article class="contact-reference-panel">
+                  <div class="contact-reference-main">
+                    <div class="contact-reference-icon" aria-hidden="true"><span class="contact-reference-icon-symbol">&##9993;</span></div>
+                    <div class="contact-reference-content">
+                      <div class="contact-reference-kicker">Notification Contacts</div>
+                      <div class="contact-reference-name">#encodeForHTML(fpwV2Text(fpwV2Get(contactsModel, "count"), "0"))# contacts</div>
+                      <div class="contact-reference-subtext">Read-only from activeCruiseV2Model.contacts.</div>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+          </div>
+        </section>
+
+        <section class="footer-band" aria-label="V1 visual footer placeholder">
+          <!-- AC-V2 visual placeholder: footer band copied as visual content only. -->
+          <div class="foot-card"><h3>Why this screen matters</h3><p>This is not just another dashboard. It is the private, active-trip view that gives the member the immediate operational context they need while underway or preparing for the next stop.</p></div>
+          <div class="foot-card"><h3>Best use case</h3><p>Ideal on a tablet in the cabin, at the helm before departure, or during long-distance cruising where route progress, float plan monitoring, and next actions all need to stay visible.</p></div>
+          <div class="foot-card"><h3>FPW fit</h3><p>This bridges the gap between route planning and follower sharing. It turns FPW into an actual in-trip companion, not just a pre-departure planning tool.</p></div>
+        </section>
+
+        <section class="warning-panel" aria-label="Warnings and authority diagnostics">
+          <div class="section-header">
+            <h2>Warnings / Diagnostics</h2>
+            <span class="authority-pill">#fpwV2WarningCount(activeCruiseV2Model)# warnings</span>
+          </div>
+          <p>Projection, view-model consistency, missing-authority, and contradiction warnings remain visible during development.</p>
+          <cfif structKeyExists(activeCruiseV2Model, "warnings") AND arrayLen(activeCruiseV2Model.warnings)>
+            <div class="warning-list">
+              <cfloop array="#activeCruiseV2Model.warnings#" item="warningItem">
+                <div class="warning-item">
+                  <h3>#encodeForHTML(fpwV2Text(fpwV2Get(warningItem, "code"), "Warning"))#</h3>
+                  <p>#encodeForHTML(fpwV2Text(fpwV2Get(warningItem, "message"), "No message returned."))#</p>
+                  <div class="warning-source">Source: #encodeForHTML(fpwV2Text(fpwV2Get(warningItem, "source"), "Not available"))#</div>
+                </div>
+              </cfloop>
+            </div>
+          <cfelse>
+            <p>No warnings returned by the view model.</p>
+          </cfif>
+        </section>
+      </cfif>
+    </div>
   </main>
   <cfif activeCruiseV2AccessValid>
     <script id="fpwActiveCruiseV2MapPayload" type="application/json">#fpwV2JsonForScript(mapModel)#</script>
@@ -1492,6 +3553,8 @@
   </cfif>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/app/follow/followMap.js?v=20260423a"></script>
+  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260430-radar-opacity-a"></script>
+  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/maps/fpw-weather-overlays.js?v=20260430a"></script>
 </cfoutput>
 <script>
 (function() {
@@ -1551,33 +3614,65 @@
     };
   }
 
+  function normalizeRouteGeo(rawRouteGeo) {
+    if (!rawRouteGeo || typeof rawRouteGeo !== 'object') {
+      return null;
+    }
+    if (!Array.isArray(rawRouteGeo.coordinates)) {
+      return null;
+    }
+    return rawRouteGeo;
+  }
+
+  function hasRouteCoordinates(routeGeo) {
+    return !!(
+      routeGeo &&
+      typeof routeGeo === 'object' &&
+      Array.isArray(routeGeo.coordinates) &&
+      routeGeo.coordinates.length
+    );
+  }
+
   function buildPins(mapModel) {
     const legs = Array.isArray(mapModel.legs) ? mapModel.legs : [];
     const pins = [];
-    let firstPoint = null;
-    let lastPoint = null;
+
+    function pointsMatch(left, right) {
+      if (!left || !right) {
+        return false;
+      }
+      return Math.abs(left.lat - right.lat) < 0.000001 && Math.abs(left.lng - right.lng) < 0.000001;
+    }
+
+    function pushPin(point, type) {
+      const prior = pins.length ? pins[pins.length - 1] : null;
+      if (!point) {
+        return;
+      }
+      if (prior && pointsMatch(prior, point)) {
+        if (type === 'end') {
+          prior.type = 'end';
+          prior.label = point.name || prior.label || 'End';
+        }
+        return;
+      }
+      pins.push({
+        type: type,
+        label: point.name || (type === 'start' ? 'Start' : (type === 'end' ? 'End' : 'Waypoint')),
+        lat: point.lat,
+        lng: point.lng,
+        sequence: pins.length + 1
+      });
+    }
 
     if (legs.length) {
-      firstPoint = normalizePoint(legs[0] && legs[0].from);
-      lastPoint = normalizePoint(legs[legs.length - 1] && legs[legs.length - 1].to);
+      pushPin(normalizePoint(legs[0] && legs[0].from), 'start');
     }
-    if (firstPoint) {
-      pins.push({
-        type: 'start',
-        label: firstPoint.name || 'Start',
-        lat: firstPoint.lat,
-        lng: firstPoint.lng,
-        sequence: 1
-      });
-    }
-    if (lastPoint) {
-      pins.push({
-        type: 'end',
-        label: lastPoint.name || 'End',
-        lat: lastPoint.lat,
-        lng: lastPoint.lng,
-        sequence: legs.length || 2
-      });
+    legs.forEach(function(leg, index) {
+      pushPin(normalizePoint(leg && leg.to), index === legs.length - 1 ? 'end' : 'intermediate');
+    });
+    if (pins.length === 1) {
+      pins[0].type = 'end';
     }
     return pins;
   }
@@ -1595,8 +3690,8 @@
 
   function renderMap() {
     const mapModel = readMapPayload();
-    const routeGeo = buildRouteGeo(mapModel);
-    const pins = buildPins(mapModel);
+    const routeGeo = normalizeRouteGeo(mapModel.routeGeo) || buildRouteGeo(mapModel);
+    const pins = (Array.isArray(mapModel.pins) && mapModel.pins.length) ? mapModel.pins : buildPins(mapModel);
     const currentPosition = normalizePoint(mapModel.currentPosition);
     let mapInstance = null;
 
@@ -1607,12 +3702,23 @@
       setMapStatus('Leaflet map renderer is not available.', true);
       return;
     }
-    if (!mapModel.available || !routeGeo.coordinates.length) {
+    if (!mapModel.available || !hasRouteCoordinates(routeGeo)) {
       setMapStatus('Map geometry is not available from the V2 view model.', true);
       return;
     }
 
     mapInstance = window.FPWFollowMap.initFollowMap('fpwActiveCruiseV2Map', {});
+    if (window.FPW && typeof window.FPW.attachLeafletMarineLayers === 'function') {
+      window.FPW.attachLeafletMarineLayers({
+        map: mapInstance
+      });
+    }
+    if (window.FPW && typeof window.FPW.attachLeafletWeatherOverlays === 'function') {
+      window.FPW.attachLeafletWeatherOverlays({
+        map: mapInstance,
+        mode: 'activeCruise'
+      });
+    }
     window.FPWFollowMap.renderRoute(routeGeo);
     window.FPWFollowMap.renderPins(pins);
     window.FPWFollowMap.fitBoundsToRoute(routeGeo, pins);
@@ -1628,7 +3734,7 @@
     }
 
     mapEl.setAttribute('data-ac-v2-map-rendered', 'true');
-    mapEl.setAttribute('data-ac-v2-map-point-count', String(routeGeo.coordinates.length * 2));
+    mapEl.setAttribute('data-ac-v2-map-point-count', String(pins.length));
     setMapStatus('Route map loaded.', false);
   }
 
@@ -1637,6 +3743,68 @@
   } else {
     renderMap();
   }
+})();
+
+(function() {
+  const panel = document.getElementById('acV2RouteProgressPanel');
+  if (!panel) {
+    return;
+  }
+
+  const rows = Array.from(panel.querySelectorAll('[data-ac-v2-leg-row]'));
+  if (!rows.length) {
+    return;
+  }
+
+  const fields = {
+    distance: panel.querySelector('[data-selected-leg-field="distance"]'),
+    remaining: panel.querySelector('[data-selected-leg-field="remaining"]'),
+    completed: panel.querySelector('[data-selected-leg-field="completed"]'),
+    progress: panel.querySelector('[data-selected-leg-field="progress"]'),
+    status: panel.querySelector('[data-selected-leg-field="status"]'),
+    arrival: panel.querySelector('[data-selected-leg-field="arrival"]')
+  };
+
+  function valueFrom(row, key, fallback) {
+    const value = row && row.dataset ? row.dataset[key] : '';
+    return value || fallback || 'Not available';
+  }
+
+  function selectRow(row) {
+    if (!row) {
+      return;
+    }
+
+    rows.forEach(function(candidate) {
+      const isSelected = candidate === row;
+      candidate.classList.toggle('is-selected', isSelected);
+      candidate.setAttribute('aria-expanded', isSelected ? 'true' : 'false');
+    });
+
+    if (fields.distance) fields.distance.textContent = valueFrom(row, 'legDistance');
+    if (fields.remaining) fields.remaining.textContent = valueFrom(row, 'legRemaining');
+    if (fields.completed) fields.completed.textContent = valueFrom(row, 'legCompleted');
+    if (fields.progress) fields.progress.textContent = valueFrom(row, 'legProgress');
+    if (fields.status) fields.status.textContent = valueFrom(row, 'legStatusLabel');
+    if (fields.arrival) fields.arrival.textContent = valueFrom(row, 'legArrivalLabel', valueFrom(row, 'legArrival'));
+  }
+
+  rows.forEach(function(row) {
+    row.addEventListener('click', function() {
+      selectRow(row);
+    });
+
+    row.addEventListener('keydown', function(event) {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        selectRow(row);
+      }
+    });
+  });
+
+  selectRow(rows.find(function(row) {
+    return row.classList.contains('is-selected') || row.getAttribute('aria-expanded') === 'true';
+  }) || rows[0]);
 })();
 
 (function() {
@@ -1818,6 +3986,431 @@
 })();
 
 (function() {
+  const form = document.getElementById('fpwV2CaptainQuickNoteForm');
+  if (!form) {
+    return;
+  }
+
+  const noteInput = document.getElementById('fpwV2CaptainQuickNoteInput');
+  const postCheckbox = document.getElementById('fpwV2CaptainQuickNotePost');
+  const saveButton = document.getElementById('fpwV2CaptainQuickNoteSaveBtn');
+  const message = document.getElementById('fpwV2CaptainQuickNoteMessage');
+  const noteList = document.getElementById('fpwV2CaptainQuickNoteList');
+  const emptyState = document.getElementById('fpwV2CaptainQuickNoteEmpty');
+  const tagButtons = Array.from(form.querySelectorAll('[data-fpw-v2-captain-note-tag]'));
+  let selectedTag = '';
+
+  function setMessage(text, state) {
+    if (!message) {
+      return;
+    }
+    message.textContent = text || '';
+    message.classList.remove('is-success', 'is-error');
+    if (state) {
+      message.classList.add(state);
+    }
+  }
+
+  function resolveEndpoint(endpoint) {
+    if (!endpoint) {
+      return '';
+    }
+    const basePath = form.getAttribute('data-fpw-base') || '';
+    if (endpoint.indexOf('/api/') === 0 && basePath) {
+      return basePath + endpoint;
+    }
+    return endpoint;
+  }
+
+  function readPayload() {
+    try {
+      return JSON.parse(form.getAttribute('data-payload') || '{}');
+    } catch (payloadError) {
+      return {};
+    }
+  }
+
+  function responseMessage(payload, fallback) {
+    if (payload && typeof payload === 'object') {
+      return payload.MESSAGE || payload.message || payload.ERROR || payload.error || fallback;
+    }
+    return fallback;
+  }
+
+  function updateSaveLabel() {
+    if (!saveButton) {
+      return;
+    }
+    saveButton.textContent = postCheckbox && postCheckbox.checked ? 'Save & Post' : 'Save Note';
+  }
+
+  function setSelectedTag(tagValue) {
+    selectedTag = tagValue || '';
+    tagButtons.forEach(function(button) {
+      button.classList.toggle('is-selected', (button.getAttribute('data-fpw-v2-captain-note-tag') || '') === selectedTag);
+    });
+  }
+
+  function appendTagToNote(tagValue) {
+    if (!noteInput || !tagValue) {
+      return;
+    }
+    const currentValue = String(noteInput.value || '').trim();
+    const appendedValue = '[' + tagValue + ']';
+    if (!currentValue) {
+      noteInput.value = tagValue;
+      return;
+    }
+    if (currentValue === tagValue || currentValue.indexOf(appendedValue) !== -1) {
+      return;
+    }
+    noteInput.value = currentValue + ' ' + appendedValue;
+  }
+
+  function buildNoteRow(notePayload, fallbackNoteBody, fallbackTag, postedToStream) {
+    const row = document.createElement('div');
+    const bodyWrap = document.createElement('div');
+    const title = document.createElement('b');
+    const body = document.createElement('span');
+    const meta = document.createElement('div');
+    const badge = document.createElement('div');
+    const time = document.createElement('span');
+    const noteBody = (notePayload && (notePayload.noteBody || notePayload.NOTEBODY || notePayload.note_body || notePayload.NOTE_BODY)) || fallbackNoteBody || 'No note text returned.';
+    const noteTag = (notePayload && (notePayload.noteTag || notePayload.NOTETAG || notePayload.note_tag || notePayload.NOTE_TAG)) || fallbackTag || 'Captain note';
+    const noteBadge = (notePayload && (notePayload.badge || notePayload.BADGE)) || (postedToStream ? 'POSTED' : 'PRIVATE');
+    const noteTime = (notePayload && (notePayload.createdLabel || notePayload.CREATEDLABEL || notePayload.createdUtc || notePayload.CREATEDUTC || notePayload.created_utc || notePayload.CREATED_UTC)) || 'time unavailable';
+
+    row.className = 'log-row';
+    meta.className = 'captain-note-meta';
+    badge.className = 'action-mini';
+
+    title.textContent = noteTag;
+    body.textContent = noteBody;
+    badge.textContent = noteBadge;
+    time.textContent = noteTime;
+
+    bodyWrap.appendChild(title);
+    bodyWrap.appendChild(body);
+    meta.appendChild(badge);
+    meta.appendChild(time);
+    row.appendChild(bodyWrap);
+    row.appendChild(meta);
+    return row;
+  }
+
+  function prependNote(notePayload, fallbackNoteBody, fallbackTag, postedToStream) {
+    if (!noteList) {
+      return;
+    }
+    noteList.insertBefore(buildNoteRow(notePayload, fallbackNoteBody, fallbackTag, postedToStream), noteList.firstChild);
+    if (emptyState) {
+      emptyState.hidden = true;
+    }
+  }
+
+  function setSaving(saving) {
+    if (saveButton) {
+      saveButton.disabled = saving;
+      saveButton.textContent = saving ? 'Saving...' : (postCheckbox && postCheckbox.checked ? 'Save & Post' : 'Save Note');
+    }
+    tagButtons.forEach(function(button) {
+      button.disabled = saving || form.getAttribute('data-enabled') !== 'true';
+    });
+    if (postCheckbox) {
+      postCheckbox.disabled = saving || form.getAttribute('data-enabled') !== 'true';
+    }
+  }
+
+  tagButtons.forEach(function(button) {
+    button.addEventListener('click', function() {
+      const tagValue = button.getAttribute('data-fpw-v2-captain-note-tag') || '';
+      if (selectedTag === tagValue) {
+        setSelectedTag('');
+        return;
+      }
+      setSelectedTag(tagValue);
+      appendTagToNote(tagValue);
+      if (noteInput) {
+        noteInput.focus();
+      }
+    });
+  });
+
+  if (postCheckbox) {
+    postCheckbox.addEventListener('change', updateSaveLabel);
+  }
+
+  if (saveButton) {
+    saveButton.addEventListener('click', function() {
+      const enabled = form.getAttribute('data-enabled') === 'true';
+      const endpoint = resolveEndpoint(form.getAttribute('data-endpoint') || '');
+      const method = form.getAttribute('data-method') || 'POST';
+      const noteBody = noteInput ? String(noteInput.value || '').trim() : '';
+      const postToFollowStream = postCheckbox ? postCheckbox.checked : false;
+      const payload = readPayload();
+
+      if (!enabled || !endpoint) {
+        setMessage('The view model did not return an executable captain note contract.', 'is-error');
+        return;
+      }
+      if (!noteBody) {
+        setMessage('A captain note is required.', 'is-error');
+        if (noteInput) {
+          noteInput.focus();
+        }
+        return;
+      }
+
+      payload.noteBody = noteBody;
+      payload.noteTag = selectedTag;
+      payload.postToFollowStream = postToFollowStream;
+
+      setSaving(true);
+      setMessage('Saving captain note...', '');
+
+      fetch(endpoint, {
+        method: method,
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+        .then(function(response) {
+          return response.text().then(function(text) {
+            let responsePayload = {};
+            if (text) {
+              try {
+                responsePayload = JSON.parse(text);
+              } catch (parseError) {
+                responsePayload = { success: false, message: text };
+              }
+            }
+            return { ok: response.ok, payload: responsePayload };
+          });
+        })
+        .then(function(result) {
+          const responsePayload = result.payload || {};
+          const success = result.ok && (responsePayload.success === true || responsePayload.SUCCESS === true);
+          const savedNote = responsePayload.note || responsePayload.NOTE || {};
+          if (!success) {
+            setMessage(responseMessage(responsePayload, 'Captain note save failed.'), 'is-error');
+            return;
+          }
+          prependNote(savedNote, noteBody, selectedTag, postToFollowStream);
+          if (noteInput) {
+            noteInput.value = '';
+          }
+          if (postCheckbox) {
+            postCheckbox.checked = false;
+          }
+          setSelectedTag('');
+          updateSaveLabel();
+          setMessage(postToFollowStream ? 'Saved and posted to the Follow page.' : 'Private captain note saved.', 'is-success');
+        })
+        .catch(function(error) {
+          setMessage(error && error.message ? error.message : 'Captain note request failed.', 'is-error');
+        })
+        .finally(function() {
+          setSaving(false);
+        });
+    });
+  }
+
+  updateSaveLabel();
+})();
+
+(function() {
+  const panel = document.getElementById('fpwV2TimingPanel');
+  const feedback = document.getElementById('fpwV2TimingFeedback');
+  if (!panel || !feedback) {
+    return;
+  }
+
+  function setFeedback(message, state) {
+    feedback.textContent = message;
+    feedback.classList.remove('is-success', 'is-error');
+    if (state) {
+      feedback.classList.add(state);
+    }
+  }
+
+  function resolveEndpoint(endpoint) {
+    if (!endpoint) {
+      return '';
+    }
+    const basePath = panel.getAttribute('data-fpw-base') || '';
+    if (endpoint.indexOf('/api/') === 0 && basePath) {
+      return basePath + endpoint;
+    }
+    return endpoint;
+  }
+
+  function readPayload(button) {
+    try {
+      return JSON.parse(button.getAttribute('data-payload') || '{}');
+    } catch (payloadError) {
+      return {};
+    }
+  }
+
+  function responseMessage(payload, fallback) {
+    if (payload && typeof payload === 'object') {
+      return payload.MESSAGE || payload.message || payload.ERROR || payload.error || fallback;
+    }
+    return fallback;
+  }
+
+  function confirmationRequired(button) {
+    return String(button.getAttribute('data-confirmation-required') || '').toLowerCase() === 'true';
+  }
+
+  function restoreButtons(buttons, states) {
+    buttons.forEach(function(actionButton, index) {
+      actionButton.disabled = states[index] === true;
+    });
+  }
+
+  panel.addEventListener('click', function(event) {
+    const button = event.target.closest('[data-ac-v2-timing-action]');
+    if (!button || button.disabled) {
+      return;
+    }
+
+    const actionName = button.getAttribute('data-ac-v2-timing-action') || '';
+    const endpoint = resolveEndpoint(button.getAttribute('data-endpoint') || '');
+    const payload = readPayload(button);
+    const method = button.getAttribute('data-method') || 'POST';
+    const confirmationRequired = String(button.getAttribute('data-confirmation-required') || '').toLowerCase() === 'true';
+    const confirmationMessage = button.getAttribute('data-confirmation-message') || 'Confirm this timing update.';
+    const buttons = Array.from(panel.querySelectorAll('[data-ac-v2-timing-action]'));
+    const buttonStates = buttons.map(function(actionButton) { return actionButton.disabled; });
+
+    if (!endpoint) {
+      setFeedback('The view model did not return an executable endpoint for this timing action.', 'is-error');
+      return;
+    }
+
+    if (actionName === 'addDelay') {
+      const minutesInput = document.getElementById('fpwV2AddDelayMinutes');
+      const minutesRaw = minutesInput ? String(minutesInput.value || '').trim() : '';
+      const minutesValue = parseInt(minutesRaw, 10);
+      if (!minutesRaw) {
+        setFeedback('Delay minutes are required.', 'is-error');
+        return;
+      }
+      if (!/^\d+$/.test(minutesRaw) || !Number.isFinite(minutesValue) || minutesValue <= 0) {
+        setFeedback('Delay minutes must be a positive whole number.', 'is-error');
+        return;
+      }
+      payload.minutes = minutesValue;
+    }
+
+    if (actionName === 'updateDailyStart') {
+      const dailyStartInput = document.getElementById('fpwV2DailyStartLocalTime');
+      const dailyStartLocalTime = dailyStartInput ? String(dailyStartInput.value || '').trim() : '';
+      if (!dailyStartLocalTime) {
+        setFeedback('Daily start time is required.', 'is-error');
+        return;
+      }
+      payload.dailyStartLocalTime = dailyStartLocalTime;
+    }
+
+    if (confirmationRequired && !window.confirm(confirmationMessage)) {
+      return;
+    }
+
+    buttons.forEach(function(actionButton) {
+      actionButton.disabled = true;
+    });
+    setFeedback('Submitting timing update...', '');
+
+    fetch(endpoint, {
+      method: method,
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+      .then(function(response) {
+        return response.text().then(function(text) {
+          let responsePayload = {};
+          if (text) {
+            try {
+              responsePayload = JSON.parse(text);
+            } catch (parseError) {
+              responsePayload = { success: false, message: text };
+            }
+          }
+          return { ok: response.ok, payload: responsePayload };
+        });
+      })
+      .then(function(result) {
+        const payloadResult = result.payload || {};
+        const success = result.ok && (payloadResult.success === true || payloadResult.SUCCESS === true);
+        const message = responseMessage(payloadResult, success ? 'Timing update completed.' : 'Timing update failed.');
+        if (success) {
+          setFeedback(message + ' Refreshing view model...', 'is-success');
+          window.location.reload();
+          return;
+        }
+        setFeedback(message, 'is-error');
+        restoreButtons(buttons, buttonStates);
+      })
+      .catch(function(error) {
+        setFeedback(error && error.message ? error.message : 'Timing update request failed.', 'is-error');
+        restoreButtons(buttons, buttonStates);
+      });
+  });
+})();
+
+(function() {
+  const noteInput = document.getElementById('fpwV2CheckInNote');
+  const noteCounter = document.getElementById('fpwV2CheckInNoteCounter');
+  if (!noteInput || !noteCounter) {
+    return;
+  }
+
+  const noteShell = document.querySelector('[data-ac-v2-note-shell]');
+  const noteToggle = noteShell ? noteShell.querySelector('[data-ac-v2-note-toggle]') : null;
+  const noteCollapsible = noteShell ? noteShell.querySelector('[data-ac-v2-note-collapsible]') : null;
+  const maxLength = parseInt(noteInput.getAttribute('maxlength') || '500', 10) || 500;
+
+  function setNoteExpanded(expanded, focusTextarea) {
+    if (!noteToggle || !noteCollapsible) {
+      return;
+    }
+    noteToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    noteCollapsible.hidden = !expanded;
+    if (noteShell) {
+      noteShell.classList.toggle('is-expanded', expanded);
+    }
+    if (expanded && focusTextarea) {
+      noteInput.focus();
+    }
+  }
+
+  function updateNoteCounter() {
+    noteCounter.textContent = String((noteInput.value || '').length) + '/' + String(maxLength);
+    if ((noteInput.value || '').trim().length > 0) {
+      setNoteExpanded(true, false);
+    }
+  }
+
+  if (noteToggle && noteCollapsible) {
+    noteToggle.addEventListener('click', function() {
+      const isExpanded = noteToggle.getAttribute('aria-expanded') === 'true';
+      setNoteExpanded(!isExpanded, !isExpanded);
+    });
+  }
+  noteInput.addEventListener('input', updateNoteCounter);
+  updateNoteCounter();
+})();
+
+(function() {
   const panel = document.getElementById('fpwV2ActionPanel');
   const feedback = document.getElementById('fpwV2ActionFeedback');
   if (!panel || !feedback) {
@@ -1858,6 +4451,10 @@
     return fallback;
   }
 
+  function actionConfirmationRequired(button) {
+    return String(button.getAttribute('data-confirmation-required') || '').toLowerCase() === 'true';
+  }
+
   panel.addEventListener('click', function(event) {
     const button = event.target.closest('[data-ac-v2-action]');
     if (!button || button.disabled) {
@@ -1868,6 +4465,25 @@
     if (!endpoint) {
       setFeedback('The view model did not return an executable endpoint for this action.', 'is-error');
       return;
+    }
+
+    const actionName = button.getAttribute('data-ac-v2-action') || '';
+    const payload = readPayload(button);
+    if (actionName === 'checkin') {
+      const noteInput = document.getElementById('fpwV2CheckInNote');
+      const noteValue = noteInput ? String(noteInput.value || '') : '';
+      if (noteValue.trim()) {
+        payload.note = noteValue;
+      } else if (Object.prototype.hasOwnProperty.call(payload, 'note')) {
+        delete payload.note;
+      }
+    }
+
+    if (actionConfirmationRequired(button)) {
+      const confirmationMessage = button.getAttribute('data-confirmation-message') || 'Confirm this action?';
+      if (!window.confirm(confirmationMessage || 'Confirm this action?')) {
+        return;
+      }
     }
 
     const buttons = panel.querySelectorAll('[data-ac-v2-action]');
@@ -1883,7 +4499,7 @@
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      body: JSON.stringify(readPayload(button))
+      body: JSON.stringify(payload)
     })
       .then(function(response) {
         return response.text().then(function(text) {

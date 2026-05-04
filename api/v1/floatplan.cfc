@@ -273,6 +273,8 @@
                     <cfset var expectedLegOrder = 0>
                     <cfset var completeLegMonitoringService = {}>
                     <cfset var completeLegMonitoringRefreshResult = {}>
+                    <cfset var completeLegCanonicalActivityService = {}>
+                    <cfset var completeLegCanonicalActivityResult = {}>
                     <cfif structKeyExists(body, "floatPlanId")>
                         <cfset completeLegId = val(body.floatPlanId)>
                     <cfelseif structKeyExists(url, "floatPlanId")>
@@ -318,6 +320,37 @@
                                 </cfcatch>
                             </cftry>
                             <cfset completeLegResult.MONITORING_REFRESH = completeLegMonitoringRefreshResult>
+                            <cftry>
+                                <cfset completeLegCanonicalActivityService = createObject("component", resolveApiV1ComponentPath("TripActivityWriterService")).init("fpw")>
+                                <cfset completeLegCanonicalActivityResult = completeLegCanonicalActivityService.recordActiveCruiseRouteAction(
+                                    floatPlanId = completeLegId,
+                                    userId = userId,
+                                    eventType = "ROUTE_LEG_COMPLETED",
+                                    actionLabel = "Complete Current Leg / Arrived",
+                                    statusLabel = "Leg completed",
+                                    occurredAtUtc = now(),
+                                    routeInstanceId = (structKeyExists(completeLegResult, "ROUTE_INSTANCE_ID") ? val(completeLegResult.ROUTE_INSTANCE_ID) : 0),
+                                    routeLegOrder = (structKeyExists(completeLegResult, "LEG_ORDER") ? val(completeLegResult.LEG_ORDER) : 0),
+                                    endpointResult = completeLegResult,
+                                    payload = {
+                                        "completion_mode" = "active_leg"
+                                    }
+                                )>
+                                <cfif NOT structKeyExists(completeLegCanonicalActivityResult, "SUCCESS") OR completeLegCanonicalActivityResult.SUCCESS NEQ true>
+                                    <cfset writeLog(
+                                        file = "fpw-canonical-activity",
+                                        type = "warning",
+                                        text = "Route action event write failed for completeleg floatPlanId=" & completeLegId & " result=" & left(serializeJSON(completeLegCanonicalActivityResult), 1000)
+                                    )>
+                                </cfif>
+                                <cfcatch type="any">
+                                    <cfset writeLog(
+                                        file = "fpw-canonical-activity",
+                                        type = "warning",
+                                        text = "Route action event writer exception for completeleg floatPlanId=" & completeLegId & " message=" & left(trim(toString(cfcatch.message)), 500)
+                                    )>
+                                </cfcatch>
+                            </cftry>
                         </cfif>
 
                         <cfset completeLegResult.AUTH = true>
@@ -334,6 +367,8 @@
                     <cfset var startNextLegMonitoringRefreshResult = {}>
                     <cfset var qStartNextLegPlan = queryNew("")>
                     <cfset var startNextLegCheckInContext = "">
+                    <cfset var startNextLegCanonicalActivityService = {}>
+                    <cfset var startNextLegCanonicalActivityResult = {}>
                     <cfif structKeyExists(body, "floatPlanId")>
                         <cfset startNextLegId = val(body.floatPlanId)>
                     <cfelseif structKeyExists(url, "floatPlanId")>
@@ -402,6 +437,39 @@
                                 </cfcatch>
                             </cftry>
                             <cfset startNextLegResult.MONITORING_REFRESH = startNextLegMonitoringRefreshResult>
+                            <cfif structKeyExists(startNextLegResult, "STARTED") AND startNextLegResult.STARTED EQ true>
+                                <cftry>
+                                    <cfset startNextLegCanonicalActivityService = createObject("component", resolveApiV1ComponentPath("TripActivityWriterService")).init("fpw")>
+                                    <cfset startNextLegCanonicalActivityResult = startNextLegCanonicalActivityService.recordActiveCruiseRouteAction(
+                                        floatPlanId = startNextLegId,
+                                        userId = userId,
+                                        eventType = "ROUTE_LEG_STARTED",
+                                        actionLabel = "Start Next Leg",
+                                        statusLabel = "Leg started",
+                                        occurredAtUtc = now(),
+                                        routeInstanceId = (structKeyExists(startNextLegResult, "ROUTE_INSTANCE_ID") ? val(startNextLegResult.ROUTE_INSTANCE_ID) : 0),
+                                        routeLegOrder = (structKeyExists(startNextLegResult, "LEG_ORDER") ? val(startNextLegResult.LEG_ORDER) : 0),
+                                        endpointResult = startNextLegResult,
+                                        payload = {
+                                            "cleared_checkin_context" = (structKeyExists(startNextLegResult, "CLEARED_CHECKIN_CONTEXT") ? startNextLegResult.CLEARED_CHECKIN_CONTEXT : false)
+                                        }
+                                    )>
+                                    <cfif NOT structKeyExists(startNextLegCanonicalActivityResult, "SUCCESS") OR startNextLegCanonicalActivityResult.SUCCESS NEQ true>
+                                        <cfset writeLog(
+                                            file = "fpw-canonical-activity",
+                                            type = "warning",
+                                            text = "Route action event write failed for startnextleg floatPlanId=" & startNextLegId & " result=" & left(serializeJSON(startNextLegCanonicalActivityResult), 1000)
+                                        )>
+                                    </cfif>
+                                    <cfcatch type="any">
+                                        <cfset writeLog(
+                                            file = "fpw-canonical-activity",
+                                            type = "warning",
+                                            text = "Route action event writer exception for startnextleg floatPlanId=" & startNextLegId & " message=" & left(trim(toString(cfcatch.message)), 500)
+                                        )>
+                                    </cfcatch>
+                                </cftry>
+                            </cfif>
                         </cfif>
 
                         <cfset startNextLegResult.AUTH = true>
@@ -2316,6 +2384,8 @@
             var scheduledStartState = {};
             var allowMissingMonitoringClose = false;
             var hasOpenMonitoring = false;
+            var closeCanonicalActivityService = {};
+            var closeCanonicalActivityResult = {};
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
                 result.MESSAGE = "Float plan id is required.";
@@ -2471,6 +2541,47 @@
             result.SUCCESS = true;
             result.FLOATPLANID = arguments.floatPlanId;
             result.STATUS = "CLOSED";
+            try {
+                closeCanonicalActivityService = createObject("component", resolveApiV1ComponentPath("TripActivityWriterService")).init("fpw");
+                closeCanonicalActivityResult = closeCanonicalActivityService.recordActiveCruiseRouteAction(
+                    floatPlanId = arguments.floatPlanId,
+                    userId = arguments.userId,
+                    eventType = "FLOATPLAN_CLOSED",
+                    actionLabel = "Close Float Plan",
+                    statusLabel = "Float plan closed",
+                    occurredAtUtc = now(),
+                    routeInstanceId = routeInstanceId,
+                    routeLegOrder = (
+                        structKeyExists(result, "ROUTE_PROGRESS")
+                        AND isStruct(result.ROUTE_PROGRESS)
+                        AND structKeyExists(result.ROUTE_PROGRESS, "LEG_ORDER")
+                            ? val(result.ROUTE_PROGRESS.LEG_ORDER)
+                            : 0
+                    ),
+                    endpointResult = (
+                        structKeyExists(result, "ROUTE_PROGRESS")
+                        AND isStruct(result.ROUTE_PROGRESS)
+                            ? result.ROUTE_PROGRESS
+                            : result
+                    ),
+                    payload = {
+                        "close_reason" = "final_arrival"
+                    }
+                );
+                if (NOT structKeyExists(closeCanonicalActivityResult, "SUCCESS") OR closeCanonicalActivityResult.SUCCESS NEQ true) {
+                    writeLog(
+                        file = "fpw-canonical-activity",
+                        type = "warning",
+                        text = "Route action event write failed for close floatPlanId=" & arguments.floatPlanId & " result=" & left(serializeJSON(closeCanonicalActivityResult), 1000)
+                    );
+                }
+            } catch (any closeCanonicalActivityErr) {
+                writeLog(
+                    file = "fpw-canonical-activity",
+                    type = "warning",
+                    text = "Route action event writer exception for close floatPlanId=" & arguments.floatPlanId & " message=" & left(trim(toString(closeCanonicalActivityErr.message)), 500)
+                );
+            }
             return result;
         </cfscript>
     </cffunction>
@@ -3413,7 +3524,7 @@
 
             if (
                 isDate(updatedCheckInDt)
-                AND listFindNoCase("ON_TRACK,SECURE_FOR_NIGHT", monitoringStatusVal)
+                AND listFindNoCase("ON_TRACK,DELAYED,CHANGED_PLAN,NEED_ATTENTION,SECURE_FOR_NIGHT", monitoringStatusVal)
             ) {
                 try {
                     canonicalPayload = {

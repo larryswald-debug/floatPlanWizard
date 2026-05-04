@@ -49,6 +49,8 @@
       model.floatPlanInfo = buildFloatPlanInfoSection(qPlan);
       model.contacts = loadContacts(arguments.floatPlanId);
       model.captainLog = loadCaptainLog(arguments.userId, arguments.floatPlanId);
+      model.checkInHistory = loadCheckInHistory(arguments.userId, arguments.floatPlanId, qPlan);
+      model.privateTimeline = loadPrivateTimeline(arguments.userId, arguments.floatPlanId, qPlan);
 
       if (safeNumber(qPlan.route_instance_id[1]) LTE 0) {
         model.message = "Active Cruise V2 requires a route-backed active float plan.";
@@ -58,7 +60,7 @@
       }
 
       qMonitoring = loadMonitoring(arguments.userId, arguments.floatPlanId);
-      model.monitoring = buildMonitoringSection(qMonitoring);
+      model.monitoring = buildMonitoringSection(qMonitoring, qPlan);
       qProgress = loadRouteProgress(safeNumber(qPlan.route_instance_id[1]), arguments.userId);
       progressSummary = summarizeRouteProgress(qProgress);
 
@@ -76,7 +78,7 @@
       safetyState = deriveSafetyState(qMonitoring);
       tripState = deriveTripState(motionState, safetyState);
       model.checkIn = buildCheckInSection(qPlan, model.monitoring, tripState, motionState);
-      model.actions = buildActionsSection(model.monitoring, model.currentLeg, routeTimeline, qPlan, tripState, motionState);
+      model.actions = buildActionsSection(model.monitoring, model.currentLeg, routeTimeline, qPlan, tripState, motionState, progressSummary);
 
       if (routeTimelineAvailable) {
         model.displayAuthority.routeTimeline = routeTimelineAuthority;
@@ -149,6 +151,8 @@
         "floatPlanInfo" = {},
         "contacts" = { "items" = [], "count" = 0 },
         "captainLog" = { "items" = [], "count" = 0 },
+        "checkInHistory" = { "items" = [], "count" = 0, "available" = false },
+        "privateTimeline" = { "items" = [], "count" = 0, "available" = false },
         "warnings" = [],
         "actions" = {}
       };
@@ -181,6 +185,8 @@
           fp.returnTimeUTC,
           fp.returnTZ,
           fp.returnTimezone,
+          fp.dailyStartLocalTime,
+          fp.manual_delay_minutes_total,
           fp.activatedAt,
           fp.checkedInAt,
           fp.checkin_context,
@@ -415,6 +421,16 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="createRouteMapGeometryService" access="private" returntype="any" output="false">
+    <cfscript>
+      try {
+        return createObject("component", "fpw.api.v1.RouteMapGeometryService").init(variables.datasource);
+      } catch (any primaryPathErr) {
+        return createObject("component", "api.v1.RouteMapGeometryService").init(variables.datasource);
+      }
+    </cfscript>
+  </cffunction>
+
   <cffunction name="extractRouteTimeline" access="private" returntype="struct" output="false">
     <cfargument name="projection" type="struct" required="true">
     <cfscript>
@@ -486,10 +502,16 @@
 
   <cffunction name="buildMonitoringSection" access="private" returntype="struct" output="false">
     <cfargument name="qMonitoring" type="query" required="true">
+    <cfargument name="qPlan" type="query" required="true">
     <cfscript>
+      var timingFields = buildTimingFields(arguments.qPlan);
+      var expectedCheckinLocalLabel = "";
       if (arguments.qMonitoring.recordCount EQ 0) {
-        return { "available" = false };
+        timingFields.available = false;
+        timingFields.expectedCheckinLocalLabel = "";
+        return timingFields;
       }
+      expectedCheckinLocalLabel = formatLocalDisplay(arguments.qMonitoring.expected_checkin_at[1], resolveTimezone(arguments.qPlan));
       return {
         "available" = true,
         "id" = safeNumber(arguments.qMonitoring.id[1]),
@@ -497,6 +519,7 @@
         "state" = safeString(arguments.qMonitoring.monitor_state[1]),
         "isEnabled" = (safeNumber(arguments.qMonitoring.is_monitoring_enabled[1]) EQ 1),
         "expectedCheckinAtUtc" = formatUtc(arguments.qMonitoring.expected_checkin_at[1]),
+        "expectedCheckinLocalLabel" = expectedCheckinLocalLabel,
         "graceExpiresAtUtc" = formatUtc(arguments.qMonitoring.grace_expires_at[1]),
         "nextMonitorEvalAtUtc" = formatUtc(arguments.qMonitoring.next_monitor_eval_at[1]),
         "lastMonitorEvalAtUtc" = formatUtc(arguments.qMonitoring.last_monitor_eval_at[1]),
@@ -511,7 +534,25 @@
         "graceWindowMinutes" = safeNumber(arguments.qMonitoring.grace_window_minutes[1]),
         "escalationDelayMinutes" = safeNumber(arguments.qMonitoring.escalation_delay_minutes[1]),
         "lastCaptainAlertAtUtc" = formatUtc(arguments.qMonitoring.last_captain_alert_at[1]),
-        "lastContactAlertAtUtc" = formatUtc(arguments.qMonitoring.last_contact_alert_at[1])
+        "lastContactAlertAtUtc" = formatUtc(arguments.qMonitoring.last_contact_alert_at[1]),
+        "manualDelayMinutesTotal" = timingFields.manualDelayMinutesTotal,
+        "manualDelayLabel" = timingFields.manualDelayLabel,
+        "dailyStartLocalTime" = timingFields.dailyStartLocalTime,
+        "dailyStartLabel" = timingFields.dailyStartLabel
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildTimingFields" access="private" returntype="struct" output="false">
+    <cfargument name="qPlan" type="query" required="true">
+    <cfscript>
+      var manualDelayMinutes = safeNumber(arguments.qPlan.manual_delay_minutes_total[1]);
+      var dailyStartRaw = safeString(arguments.qPlan.dailyStartLocalTime[1]);
+      return {
+        "manualDelayMinutesTotal" = manualDelayMinutes,
+        "manualDelayLabel" = formatMinutesLabel(manualDelayMinutes),
+        "dailyStartLocalTime" = dailyStartRaw,
+        "dailyStartLabel" = formatLocalTimeLabel(dailyStartRaw, "8:00 AM")
       };
     </cfscript>
   </cffunction>
@@ -601,11 +642,13 @@
     <cfargument name="qPlan" type="query" required="true">
     <cfargument name="tripState" type="string" required="true">
     <cfargument name="motionState" type="string" required="true">
+    <cfargument name="progressSummary" type="struct" required="true">
     <cfscript>
       var isClosed = isDate(arguments.qPlan.closedAt[1]) OR compareNoCase(safeString(arguments.qPlan.status[1]), "CLOSED") EQ 0 OR compareNoCase(arguments.tripState, "closed") EQ 0;
       var isUnderway = compareNoCase(arguments.motionState, "underway") EQ 0;
       var hasCurrentLeg = structKeyExists(arguments.currentLeg, "order") AND safeNumber(arguments.currentLeg.order) GT 0;
       var completeLegReason = "";
+      var startNextLegAvailability = buildStartNextLegAvailability(arguments.routeTimeline, arguments.progressSummary, isClosed);
 
       if (isClosed) {
         completeLegReason = "Float plan is closed.";
@@ -629,6 +672,8 @@
           "confirmationRequired" = false,
           "confirmationMessage" = ""
         },
+        "timing" = buildTimingActionsSection(arguments.monitoring, arguments.qPlan, isClosed),
+        "captainLog" = buildCaptainLogActionsSection(arguments.qPlan, arguments.currentLeg),
         "completeLeg" = {
           "enabled" = (!isClosed AND hasCurrentLeg AND isUnderway),
           "endpoint" = "/api/v1/floatplan.cfc?method=handle&action=completeleg&returnFormat=json",
@@ -641,10 +686,10 @@
           "confirmationMessage" = "Confirm the current leg is complete."
         },
         "startNextLeg" = {
-          "enabled" = false,
+          "enabled" = startNextLegAvailability.enabled,
           "endpoint" = "/api/v1/floatplan.cfc?method=handle&action=startnextleg&returnFormat=json",
           "payload" = { "floatPlanId" = safeNumber(arguments.qPlan.floatPlanId[1]) },
-          "reason" = "Start Next Leg availability must be proven by the current route-progress action contract.",
+          "reason" = startNextLegAvailability.reason,
           "inputRequirements" = {},
           "confirmationRequired" = false,
           "confirmationMessage" = ""
@@ -657,6 +702,175 @@
           "inputRequirements" = {},
           "confirmationRequired" = true,
           "confirmationMessage" = "Confirm the float plan can be closed."
+        }
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildStartNextLegAvailability" access="private" returntype="struct" output="false">
+    <cfargument name="routeTimeline" type="struct" required="true">
+    <cfargument name="progressSummary" type="struct" required="true">
+    <cfargument name="isClosed" type="boolean" required="true">
+    <cfscript>
+      var availability = { "enabled" = false, "reason" = "" };
+      var routeTimelineAvailable = structKeyExists(arguments.routeTimeline, "available") AND arguments.routeTimeline.available EQ true;
+      var legs = [];
+      var completedRows = (structKeyExists(arguments.progressSummary, "completedRows") ? safeNumber(arguments.progressSummary.completedRows) : 0);
+      var activeLegOrder = (structKeyExists(arguments.progressSummary, "firstOpenStartedLegOrder") ? safeNumber(arguments.progressSummary.firstOpenStartedLegOrder) : 0);
+      var hasPendingLeg = false;
+      var i = 0;
+      var leg = {};
+      var statusVal = "";
+      var isCompleted = false;
+
+      if (arguments.isClosed) {
+        availability.reason = "Float plan is closed.";
+        return availability;
+      }
+      if (!routeTimelineAvailable) {
+        availability.reason = "Canonical route timeline is unavailable.";
+        return availability;
+      }
+      if (!structKeyExists(arguments.routeTimeline, "legs") OR !isArray(arguments.routeTimeline.legs) OR arrayLen(arguments.routeTimeline.legs) EQ 0) {
+        availability.reason = "Route timeline legs are unavailable.";
+        return availability;
+      }
+      if (activeLegOrder GT 0) {
+        availability.reason = "A route leg is already underway.";
+        return availability;
+      }
+      if (completedRows LTE 0) {
+        availability.reason = "Start Next Leg is available after the current leg is completed.";
+        return availability;
+      }
+
+      legs = arguments.routeTimeline.legs;
+      for (i = 1; i LTE arrayLen(legs); i++) {
+        if (!isStruct(legs[i])) {
+          continue;
+        }
+        leg = legs[i];
+        statusVal = (structKeyExists(leg, "status") ? uCase(safeString(leg.status)) : "");
+        isCompleted = (
+          (structKeyExists(leg, "isCompleted") AND leg.isCompleted EQ true)
+          OR statusVal EQ "COMPLETED"
+          OR (structKeyExists(leg, "completedAtUtc") AND len(safeString(leg.completedAtUtc)))
+        );
+        if (!isCompleted) {
+          hasPendingLeg = true;
+          break;
+        }
+      }
+
+      if (!hasPendingLeg) {
+        availability.reason = "No pending route leg is available to start.";
+        return availability;
+      }
+
+      availability.enabled = true;
+      return availability;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildCaptainLogActionsSection" access="private" returntype="struct" output="false">
+    <cfargument name="qPlan" type="query" required="true">
+    <cfargument name="currentLeg" type="struct" required="true">
+    <cfscript>
+      var floatPlanId = safeNumber(arguments.qPlan.floatPlanId[1]);
+      var routeInstanceId = safeNumber(arguments.qPlan.route_instance_id[1]);
+      var routeLegOrder = (structKeyExists(arguments.currentLeg, "order") ? safeNumber(arguments.currentLeg.order) : 0);
+      var enabled = floatPlanId GT 0;
+      var disabledReason = (enabled ? "" : "An active float plan is required for captain notes.");
+
+      return {
+        "save" = {
+          "enabled" = enabled,
+          "label" = "Save Note",
+          "endpoint" = "/api/v1/floatplan.cfc?method=handle&action=savecaptainlogentry&returnFormat=json",
+          "method" = "POST",
+          "payload" = {
+            "floatPlanId" = floatPlanId,
+            "routeInstanceId" = routeInstanceId,
+            "routeLegOrder" = routeLegOrder,
+            "noteBody" = "",
+            "noteTag" = "",
+            "postToFollowStream" = false
+          },
+          "reason" = disabledReason,
+          "disabledReason" = disabledReason,
+          "inputRequirements" = {
+            "noteBody" = { "required" = true },
+            "noteTag" = { "required" = false },
+            "postToFollowStream" = { "required" = false }
+          },
+          "confirmationRequired" = false,
+          "confirmationMessage" = ""
+        }
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildTimingActionsSection" access="private" returntype="struct" output="false">
+    <cfargument name="monitoring" type="struct" required="true">
+    <cfargument name="qPlan" type="query" required="true">
+    <cfargument name="isClosed" type="boolean" required="true">
+    <cfscript>
+      var floatPlanId = safeNumber(arguments.qPlan.floatPlanId[1]);
+      var dailyStartLocalTime = safeString(arguments.qPlan.dailyStartLocalTime[1]);
+      var hasFloatPlan = floatPlanId GT 0;
+      var hasMonitoring = structKeyExists(arguments.monitoring, "available") AND arguments.monitoring.available EQ true;
+      var disabledReason = "";
+      var enabled = false;
+
+      if (!hasFloatPlan) {
+        disabledReason = "An active float plan is required for timing controls.";
+      } else if (arguments.isClosed) {
+        disabledReason = "Float plan is closed.";
+      } else if (!hasMonitoring) {
+        disabledReason = "Active monitoring is not available for this trip.";
+      }
+      enabled = hasFloatPlan AND !arguments.isClosed AND hasMonitoring;
+
+      return {
+        "addDelay" = {
+          "enabled" = enabled,
+          "label" = "Add Delay Time",
+          "endpoint" = "/api/v1/floatplan.cfc?method=handle&action=adddelay&returnFormat=json",
+          "method" = "POST",
+          "payload" = { "floatPlanId" = floatPlanId, "minutes" = "" },
+          "reason" = disabledReason,
+          "disabledReason" = disabledReason,
+          "inputRequirements" = {
+            "minutes" = { "required" = true }
+          },
+          "confirmationRequired" = false,
+          "confirmationMessage" = ""
+        },
+        "clearDelay" = {
+          "enabled" = enabled,
+          "label" = "Clear Delay",
+          "endpoint" = "/api/v1/floatplan.cfc?method=handle&action=cleardelay&returnFormat=json",
+          "method" = "POST",
+          "payload" = { "floatPlanId" = floatPlanId },
+          "reason" = disabledReason,
+          "disabledReason" = disabledReason,
+          "inputRequirements" = {},
+          "confirmationRequired" = false,
+          "confirmationMessage" = ""
+        },
+        "updateDailyStart" = {
+          "enabled" = enabled,
+          "label" = "Save Daily Start Time",
+          "endpoint" = "/api/v1/floatplan.cfc?method=handle&action=updatedailystart&returnFormat=json",
+          "method" = "POST",
+          "payload" = { "floatPlanId" = floatPlanId, "dailyStartLocalTime" = dailyStartLocalTime },
+          "reason" = disabledReason,
+          "disabledReason" = disabledReason,
+          "inputRequirements" = {
+            "dailyStartLocalTime" = { "required" = true }
+          },
+          "confirmationRequired" = false,
+          "confirmationMessage" = ""
         }
       };
     </cfscript>
@@ -785,16 +999,40 @@
     <cfargument name="qPlan" type="query" required="true">
     <cfscript>
       var routeInstanceId = safeNumber(arguments.qPlan.route_instance_id[1]);
+      var ownerUserId = safeNumber(arguments.qPlan.userId[1]);
       var mapLegs = loadRouteMapLegs(routeInstanceId);
+      var routeMapService = createRouteMapGeometryService();
+      var routeMap = routeMapService.buildRouteMapData(routeInstanceId, ownerUserId, 0);
+      var routeGeo = (
+        structKeyExists(routeMap, "route_geo") AND isStruct(routeMap.route_geo)
+          ? routeMap.route_geo
+          : { "type" = "MultiLineString", "coordinates" = [] }
+      );
+      var routePins = (
+        structKeyExists(routeMap, "pins") AND isArray(routeMap.pins)
+          ? routeMap.pins
+          : []
+      );
+      var sharedGeometryAvailable = (
+        structKeyExists(routeGeo, "coordinates")
+        AND isArray(routeGeo.coordinates)
+        AND arrayLen(routeGeo.coordinates) GT 0
+      );
       var bounds = buildMapBounds(mapLegs);
       var warnings = [];
-      if (arrayLen(mapLegs) EQ 0) {
+      var currentPosition = {
+        "available" = false,
+        "authority" = "",
+        "message" = "No canonical current-position source is exposed to the Active Cruise V2 view model."
+      };
+
+      if (arrayLen(mapLegs) EQ 0 AND !sharedGeometryAvailable) {
         arrayAppend(warnings, {
           "code" = "ACTIVE_CRUISE_MAP_LEGS_MISSING",
           "message" = "Route instance legs are not available for Active Cruise V2 map rendering.",
           "source" = "route_instance_legs"
         });
-      } else if (!bounds.available) {
+      } else if (!bounds.available AND !sharedGeometryAvailable) {
         arrayAppend(warnings, {
           "code" = "ACTIVE_CRUISE_MAP_GEOMETRY_MISSING",
           "message" = "Route instance legs exist, but usable leg coordinates are not available for map rendering.",
@@ -803,19 +1041,19 @@
       }
 
       return {
-        "available" = (arrayLen(mapLegs) GT 0 AND bounds.available),
+        "available" = ((arrayLen(mapLegs) GT 0 AND bounds.available) OR sharedGeometryAvailable),
         "routeInstanceId" = routeInstanceId,
         "streamId" = safeNumber(arguments.qPlan.stream_id[1]),
         "authority" = "route_instance",
-        "geometryAuthority" = "route_instance_legs",
+        "geometryAuthority" = "route_map_geometry_service",
+        "overrideAuthority" = "route_leg_user_overrides",
+        "fallbackGeometryAuthority" = "segment_geometries",
         "bounds" = bounds,
         "center" = buildMapCenter(bounds),
         "legs" = mapLegs,
-        "currentPosition" = {
-          "available" = false,
-          "authority" = "",
-          "message" = "No canonical current-position source is exposed to the Active Cruise V2 view model."
-        },
+        "routeGeo" = routeGeo,
+        "pins" = routePins,
+        "currentPosition" = currentPosition,
         "warnings" = warnings
       };
     </cfscript>
@@ -981,11 +1219,218 @@
       return {
         "available" = true,
         "storageAuthority" = "floatplan_captain_log_entries",
-        "writeAvailable" = false,
-        "writeReason" = "Captain Log write UX is not approved in this phase.",
+        "writeAvailable" = true,
+        "writeReason" = "",
+        "writeAction" = "actions.captainLog.save",
         "items" = queryRows(qLog, [ "id", "route_leg_order", "note_body", "note_tag", "posted_to_stream", "voyage_post_id", "created_utc" ]),
         "count" = qLog.recordCount
       };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="loadCheckInHistory" access="private" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="floatPlanId" type="numeric" required="true">
+    <cfargument name="qPlan" type="query" required="true">
+    <cfscript>
+      var qHistory = queryNew("");
+      var items = [];
+      var i = 0;
+      var payload = {};
+      var statusVal = "";
+      var statusLabel = "";
+      var noteBody = "";
+      var occurredUtc = "";
+      var occurredLocal = "";
+
+      qHistory = queryExecute("
+        SELECT id, event_status, occurred_at_utc, source, payload_json
+        FROM floatplan_events
+        WHERE floatplan_id = :floatPlanId
+          AND user_id = :userId
+          AND event_type = 'CHECKIN_RECEIVED'
+          AND source = 'active_cruise_checkin'
+          AND voided_at_utc IS NULL
+        ORDER BY occurred_at_utc DESC, id DESC
+        LIMIT 20
+      ", {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+      }, { datasource = variables.datasource });
+
+      for (i = 1; i LTE qHistory.recordCount; i++) {
+        payload = parseJsonStruct(qHistory.payload_json[i]);
+        statusVal = safeString(qHistory.event_status[i]);
+        statusLabel = formatCheckInHistoryStatusLabel(statusVal, payload);
+        noteBody = (structKeyExists(payload, "note_body") ? safeString(payload.note_body) : "");
+        occurredUtc = formatUtc(qHistory.occurred_at_utc[i]);
+        occurredLocal = formatLocalDisplay(qHistory.occurred_at_utc[i], resolveTimezone(arguments.qPlan));
+
+        arrayAppend(items, {
+          "id" = safeNumber(qHistory.id[i]),
+          "status" = statusVal,
+          "statusLabel" = statusLabel,
+          "title" = "Check-in: " & statusLabel,
+          "note" = noteBody,
+          "occurredAtUtc" = occurredUtc,
+          "occurredLocalLabel" = occurredLocal,
+          "checkinContext" = (structKeyExists(payload, "checkin_context") ? safeString(payload.checkin_context) : ""),
+          "source" = safeString(qHistory.source[i]),
+          "storageAuthority" = "floatplan_events"
+        });
+      }
+
+      return {
+        "available" = true,
+        "storageAuthority" = "floatplan_events",
+        "items" = items,
+        "count" = qHistory.recordCount
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="loadPrivateTimeline" access="private" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="floatPlanId" type="numeric" required="true">
+    <cfargument name="qPlan" type="query" required="true">
+    <cfscript>
+      var qTimeline = queryNew("");
+      var items = [];
+      var i = 0;
+      var payload = {};
+      var eventTypeVal = "";
+      var sourceVal = "";
+      var statusVal = "";
+      var statusLabel = "";
+      var noteBody = "";
+      var titleVal = "";
+      var detailVal = "";
+      var legOrder = 0;
+      var fromName = "";
+      var toName = "";
+
+      qTimeline = queryExecute("
+        SELECT id, event_type, event_status, occurred_at_utc, source, payload_json
+        FROM floatplan_events
+        WHERE floatplan_id = :floatPlanId
+          AND user_id = :userId
+          AND voided_at_utc IS NULL
+          AND (
+            (event_type = 'CHECKIN_RECEIVED' AND source = 'active_cruise_checkin')
+            OR (
+              event_type IN ('ROUTE_LEG_COMPLETED', 'ROUTE_LEG_STARTED', 'FLOATPLAN_CLOSED')
+              AND source = 'active_cruise_route_action'
+            )
+          )
+        ORDER BY occurred_at_utc DESC, id DESC
+        LIMIT 20
+      ", {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+      }, { datasource = variables.datasource });
+
+      for (i = 1; i LTE qTimeline.recordCount; i++) {
+        payload = parseJsonStruct(qTimeline.payload_json[i]);
+        eventTypeVal = safeString(qTimeline.event_type[i]);
+        sourceVal = safeString(qTimeline.source[i]);
+        statusVal = safeString(qTimeline.event_status[i]);
+        statusLabel = "";
+        noteBody = "";
+        titleVal = "";
+        detailVal = "";
+        legOrder = 0;
+        fromName = "";
+        toName = "";
+
+        if (eventTypeVal EQ "CHECKIN_RECEIVED") {
+          statusLabel = formatCheckInHistoryStatusLabel(statusVal, payload);
+          noteBody = (structKeyExists(payload, "note_body") ? safeString(payload.note_body) : "");
+          titleVal = "Check-in: " & statusLabel;
+          detailVal = "Captain check-in recorded.";
+        } else {
+          titleVal = (structKeyExists(payload, "action_label") ? safeString(payload.action_label) : formatRouteActionTitle(eventTypeVal));
+          legOrder = (structKeyExists(payload, "leg_order") ? safeNumber(payload.leg_order) : 0);
+          fromName = (structKeyExists(payload, "from_name") ? safeString(payload.from_name) : "");
+          toName = (structKeyExists(payload, "to_name") ? safeString(payload.to_name) : "");
+          if (len(fromName) AND len(toName)) {
+            detailVal = fromName & " to " & toName;
+          } else if (legOrder GT 0) {
+            detailVal = "Route leg " & legOrder;
+          } else {
+            detailVal = (structKeyExists(payload, "status_label") ? safeString(payload.status_label) : formatRouteActionTitle(eventTypeVal));
+          }
+        }
+
+        arrayAppend(items, {
+          "id" = safeNumber(qTimeline.id[i]),
+          "eventType" = eventTypeVal,
+          "source" = sourceVal,
+          "title" = (len(titleVal) ? titleVal : "Operational event"),
+          "detail" = detailVal,
+          "note" = noteBody,
+          "occurredAtUtc" = formatUtc(qTimeline.occurred_at_utc[i]),
+          "occurredLocalLabel" = formatLocalDisplay(qTimeline.occurred_at_utc[i], resolveTimezone(arguments.qPlan)),
+          "storageAuthority" = "floatplan_events"
+        });
+      }
+
+      return {
+        "available" = true,
+        "storageAuthority" = "floatplan_events",
+        "items" = items,
+        "count" = qTimeline.recordCount
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatRouteActionTitle" access="private" returntype="string" output="false">
+    <cfargument name="eventType" type="string" required="true">
+    <cfscript>
+      switch (uCase(safeString(arguments.eventType))) {
+        case "ROUTE_LEG_COMPLETED": return "Complete Current Leg / Arrived";
+        case "ROUTE_LEG_STARTED": return "Start Next Leg";
+        case "FLOATPLAN_CLOSED": return "Close Float Plan";
+      }
+      return "Route action";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatCheckInHistoryStatusLabel" access="private" returntype="string" output="false">
+    <cfargument name="status" type="string" required="true">
+    <cfargument name="payload" type="struct" required="true">
+    <cfscript>
+      var statusVal = uCase(safeString(arguments.status));
+      var payloadLabel = (structKeyExists(arguments.payload, "status_label") ? safeString(arguments.payload.status_label) : "");
+      if (len(payloadLabel)) {
+        return payloadLabel;
+      }
+      switch (statusVal) {
+        case "ON_TRACK": return "On Track";
+        case "DELAYED": return "Delayed";
+        case "CHANGED_PLAN": return "Changed Plan";
+        case "NEED_ATTENTION": return "Assistance Needed";
+        case "ASSISTANCE_NEEDED": return "Assistance Needed";
+        case "SECURE_FOR_NIGHT": return "Secure for the Night";
+      }
+      return (len(statusVal) ? replace(statusVal, "_", " ", "all") : "Check-in");
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="parseJsonStruct" access="private" returntype="struct" output="false">
+    <cfargument name="value" type="any" required="false" default="">
+    <cfscript>
+      var raw = safeString(arguments.value);
+      var parsed = {};
+      if (!len(raw)) {
+        return {};
+      }
+      try {
+        parsed = deserializeJSON(raw);
+        if (isStruct(parsed)) {
+          return parsed;
+        }
+      } catch (any parseErr) {}
+      return {};
     </cfscript>
   </cffunction>
 
@@ -1440,6 +1885,81 @@
         return dateTimeFormat(qLocal.local_value[1], "yyyy-mm-dd HH:nn:ss");
       }
       return dateTimeFormat(arguments.value, "yyyy-mm-dd HH:nn:ss");
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatLocalDisplay" access="private" returntype="string" output="false">
+    <cfargument name="value" type="any" required="true">
+    <cfargument name="timezone" type="string" required="true">
+    <cfscript>
+      var qLocal = queryNew("");
+      if (!isDate(arguments.value)) {
+        return "";
+      }
+      qLocal = queryExecute("
+        SELECT CONVERT_TZ(:utcValue, 'UTC', :tz) AS local_value
+      ", {
+        utcValue = { value = arguments.value, cfsqltype = "cf_sql_timestamp" },
+        tz = { value = arguments.timezone, cfsqltype = "cf_sql_varchar" }
+      }, { datasource = variables.datasource });
+      if (qLocal.recordCount AND isDate(qLocal.local_value[1])) {
+        return dateTimeFormat(qLocal.local_value[1], "mmm d, yyyy h:nn tt");
+      }
+      return dateTimeFormat(arguments.value, "mmm d, yyyy h:nn tt");
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatMinutesLabel" access="private" returntype="string" output="false">
+    <cfargument name="minutes" type="numeric" required="true">
+    <cfscript>
+      var minuteValue = int(arguments.minutes);
+      return minuteValue & " minute" & (minuteValue EQ 1 ? "" : "s");
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="normalizeLocalTimeValue" access="private" returntype="string" output="false">
+    <cfargument name="rawValue" type="any" required="true">
+    <cfargument name="defaultValue" type="string" required="false" default="">
+    <cfscript>
+      var normalized = safeString(arguments.rawValue);
+      var parts = [];
+      var hourValue = 0;
+      var minuteValue = 0;
+      var secondValue = 0;
+      if (isDate(arguments.rawValue)) {
+        return timeFormat(arguments.rawValue, "HH:nn:ss");
+      }
+      if (!len(normalized)) {
+        return arguments.defaultValue;
+      }
+      normalized = listFirst(normalized, " ");
+      if (!reFind("^[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?$", normalized)) {
+        return arguments.defaultValue;
+      }
+      parts = listToArray(normalized, ":");
+      hourValue = val(parts[1]);
+      minuteValue = val(parts[2]);
+      secondValue = (arrayLen(parts) GTE 3 ? val(parts[3]) : 0);
+      if (hourValue LT 0 OR hourValue GT 23 OR minuteValue LT 0 OR minuteValue GT 59 OR secondValue LT 0 OR secondValue GT 59) {
+        return arguments.defaultValue;
+      }
+      return numberFormat(hourValue, "00") & ":" & numberFormat(minuteValue, "00") & ":" & numberFormat(secondValue, "00");
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatLocalTimeLabel" access="private" returntype="string" output="false">
+    <cfargument name="rawValue" type="any" required="true">
+    <cfargument name="fallback" type="string" required="false" default="8:00 AM">
+    <cfscript>
+      var normalized = normalizeLocalTimeValue(arguments.rawValue, "");
+      var parts = [];
+      var displayDt = "";
+      if (!len(normalized)) {
+        return arguments.fallback;
+      }
+      parts = listToArray(normalized, ":");
+      displayDt = createDateTime(2000, 1, 1, val(parts[1]), val(parts[2]), (arrayLen(parts) GTE 3 ? val(parts[3]) : 0));
+      return timeFormat(displayDt, "h:nn tt");
     </cfscript>
   </cffunction>
 

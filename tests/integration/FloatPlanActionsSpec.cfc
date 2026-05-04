@@ -256,12 +256,26 @@ component extends="testbox.system.BaseSpec" output="false" {
         var routeLegSignatureAfterStart = routeLegSignature( planState.route_instance_id );
         var expectedCheckinLocal = expectedActiveRouteCheckpointLocal( qStartedNextLeg.leg_started_at[ 1 ], "US/Eastern", "08:00:00" );
         var actualCheckinLocal = toLocalStamp( monitoringAfterStart.expected_checkin_at, "US/Eastern" );
+        var startedNextLegStartedAt = qStartedNextLeg.leg_started_at[ 1 ];
+        var qCompletedLegAfterStart = loadLegProgress( planState.user_id, planState.route_instance_id, firstLegOrder );
+        var startedModel = new fpw.api.v1.ActiveCruiseViewModelService().init( "fpw" ).getActiveCruiseViewModel( planState.user_id, plan.planId );
+        var repeatStartRes = floatPlanPost( "startnextleg", { floatPlanId = plan.planId } );
+        var qStartedNextLegAfterRepeat = loadLegProgress( planState.user_id, planState.route_instance_id, nextLegOrder );
 
         expect( pickBool( startRes, "SUCCESS" ) ).toBeTrue( "startnextleg failed after completeleg: #serializeJSON(startRes)#" );
         expect( pickBool( startRes, "STARTED" ) ).toBeTrue( "startnextleg did not report STARTED: #serializeJSON(startRes)#" );
         expect( val( pickFirst( startRes, [ "LEG_ORDER", "leg_order" ], 0 ) ) ).toBe( nextLegOrder );
         expect( qStartedNextLeg.recordCount ).toBe( 1 );
+        expect( uCase( trim( toString( qStartedNextLeg.status[ 1 ] ) ) ) ).toBe( "STARTED" );
         expect( isDate( qStartedNextLeg.leg_started_at[ 1 ] ) ).toBeTrue();
+        expect( countStartedNotStartedContradictions( planState.user_id, planState.route_instance_id ) ).toBe( 0 );
+        expect( hasModelWarning( startedModel, "LEG_STARTED_STATUS_NOT_STARTED" ) ).toBeFalse( serializeJSON( structKeyExists( startedModel, "warnings" ) ? startedModel.warnings : [] ) );
+        expect( qCompletedLegAfterStart.recordCount ).toBe( 1 );
+        expect( uCase( trim( toString( qCompletedLegAfterStart.status[ 1 ] ) ) ) ).toBe( "COMPLETED" );
+        expect( qStartedNextLegAfterRepeat.recordCount ).toBe( 1 );
+        expect( uCase( trim( toString( qStartedNextLegAfterRepeat.status[ 1 ] ) ) ) ).toBe( "STARTED" );
+        expect( normalizeDbDateTime( qStartedNextLegAfterRepeat.leg_started_at[ 1 ] ) ).toBe( normalizeDbDateTime( startedNextLegStartedAt ) );
+        expect( pickBool( repeatStartRes, "SUCCESS" ) ).toBeFalse( "repeat startnextleg should not start another leg while one is active: #serializeJSON(repeatStartRes)#" );
         expect( isDate( monitoringAfterStart.expected_checkin_at ) ).toBeTrue();
         expect( actualCheckinLocal ).toBe( expectedCheckinLocal );
         expect( dateDiff( "n", monitoringAfterStart.expected_checkin_at, monitoringAfterStart.grace_expires_at ) ).toBe( 60 );
@@ -309,6 +323,11 @@ component extends="testbox.system.BaseSpec" output="false" {
 
         clearRouteProgress( planState.user_id, planState.route_instance_id );
         seedCompletedLeg( planState.user_id, planState.route_instance_id, firstLegOrder );
+        seedNotStartedLeg( planState.user_id, planState.route_instance_id, nextLegOrder );
+        var qPendingLegBeforeStart = loadLegProgress( planState.user_id, planState.route_instance_id, nextLegOrder );
+        expect( qPendingLegBeforeStart.recordCount ).toBe( 1 );
+        expect( uCase( trim( toString( qPendingLegBeforeStart.status[ 1 ] ) ) ) ).toBe( "NOT_STARTED" );
+        expect( isDate( qPendingLegBeforeStart.leg_started_at[ 1 ] ) ).toBeFalse();
 
         var startRes = floatPlanPost( "startnextleg", { floatPlanId = plan.planId } );
         var monitoringRefresh = {};
@@ -330,7 +349,9 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( val( monitoringRefresh.LEG_ORDER ?: 0 ) ).toBe( nextLegOrder );
 
         expect( qStartedLeg.recordCount ).toBe( 1 );
+        expect( uCase( trim( toString( qStartedLeg.status[ 1 ] ) ) ) ).toBe( "STARTED" );
         expect( isDate( qStartedLeg.leg_started_at[ 1 ] ) ).toBeTrue();
+        expect( countStartedNotStartedContradictions( planState.user_id, planState.route_instance_id ) ).toBe( 0 );
         expect( normalizeDbDateTime( monitoringAfter.expected_checkin_at ) NEQ normalizeDbDateTime( monitoringBefore.expected_checkin_at ) ).toBeTrue();
         expect( actualCheckinLocal ).toBe( expectedCheckinLocal );
         expect( dateDiff( "n", monitoringAfter.expected_checkin_at, monitoringAfter.grace_expires_at ) ).toBe( 60 );
@@ -722,6 +743,23 @@ component extends="testbox.system.BaseSpec" output="false" {
     );
   }
 
+  private void function seedNotStartedLeg( required numeric userId, required numeric routeInstanceId, required numeric legOrder ) {
+    queryExecute(
+      "INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, status, leg_started_at, completed_at)
+       VALUES (:userId, :routeInstanceId, :legOrder, 'NOT_STARTED', NULL, NULL)
+       ON DUPLICATE KEY UPDATE
+         status = 'NOT_STARTED',
+         leg_started_at = NULL,
+         completed_at = NULL",
+      {
+        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" },
+        legOrder = { value = arguments.legOrder, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
   private query function loadLegProgress( required numeric userId, required numeric routeInstanceId, required numeric legOrder ) {
     return queryExecute(
       "SELECT status, leg_started_at, completed_at
@@ -738,6 +776,35 @@ component extends="testbox.system.BaseSpec" output="false" {
       },
       { datasource = "fpw" }
     );
+  }
+
+  private numeric function countStartedNotStartedContradictions( required numeric userId, required numeric routeInstanceId ) {
+    var qRows = queryExecute(
+      "SELECT COUNT(*) AS row_count
+       FROM route_instance_leg_progress
+       WHERE user_id = :userId
+         AND route_instance_id = :routeInstanceId
+         AND leg_started_at IS NOT NULL
+         AND UPPER(TRIM(COALESCE(status, ''))) = 'NOT_STARTED'",
+      {
+        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    return val( qRows.row_count[ 1 ] );
+  }
+
+  private boolean function hasModelWarning( required struct model, required string code ) {
+    if ( !structKeyExists( arguments.model, "warnings" ) || !isArray( arguments.model.warnings ) ) {
+      return false;
+    }
+    for ( var warning in arguments.model.warnings ) {
+      if ( isStruct( warning ) && compareNoCase( structKeyExists( warning, "code" ) ? warning.code : "", arguments.code ) == 0 ) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private void function setMonitoringSentinelTimes( required numeric planId ) {
