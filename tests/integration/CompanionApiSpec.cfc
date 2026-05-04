@@ -1,13 +1,14 @@
 component extends="testbox.system.BaseSpec" output="false" {
 
   function beforeAll() {
-    variables.api = new fpw.tests.support.FpwApiSupport().init(
-      authEmail = "detroit@email.com",
-      authPassword = "changeIt"
-    );
-    variables.naming = new fpw.tests.support.FpwNamingSupport();
-    variables.companionService = new fpw.api.v1.CompanionViewModelService().init("fpw");
-    variables.hadOriginalTestUserId = structKeyExists(url, "testUserId");
+      variables.api = new fpw.tests.support.FpwApiSupport().init(
+        authEmail = "detroit@email.com",
+        authPassword = "changeIt"
+      );
+      variables.naming = new fpw.tests.support.FpwNamingSupport();
+      variables.companionService = new fpw.api.v1.CompanionViewModelService().init("fpw");
+      variables.monitorService = new fpw.api.v1.monitor().init();
+      variables.hadOriginalTestUserId = structKeyExists(url, "testUserId");
     variables.originalTestUserId = variables.hadOriginalTestUserId ? url.testUserId : "";
     variables.sessionApiUser = createSessionApiUser();
     url.testUserId = variables.sessionApiUser.userId;
@@ -72,7 +73,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         }
       });
 
-      it("serves the same compact current active trip model through the companion endpoint", function() {
+        it("serves the same compact current active trip model through the companion endpoint", function() {
         var prefix = variables.naming.buildPrefix("companion", "endpoint");
         var sessionApi = buildSessionApiSupport();
         var localCreated = newCreatedTracker();
@@ -91,12 +92,340 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(response.activeFloatPlan.floatPlanId).toBe(asset.floatPlanId, serializeJSON(response.activeFloatPlan));
           expect(structKeyExists(response.actions, "checkIn")).toBeTrue(serializeJSON(response.actions));
           expect(response.actions.checkIn.payload.floatPlanId).toBe(asset.floatPlanId, serializeJSON(response.actions.checkIn));
-        } finally {
-          cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
-        }
+          } finally {
+            cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+          }
+        });
+
+        it("rejects companion check-in when there is no active route-backed trip", function() {
+          var sessionApi = buildSessionApiSupport();
+          var cleanupSupport = new fpw.tests.support.FpwCleanupSupport().init(sessionApi);
+          var mobileId = buildMobileSubmissionId("no-active");
+          var response = {};
+
+          try {
+            cleanupSupport.cleanupCurrentRouteFloatPlanGroup(variables.sessionApiUser.userId);
+            response = postCompanionCheckinWithApi(sessionApi, {
+              mobileSubmissionId = mobileId,
+              floatPlanId = 99999999,
+              status = "On Track",
+              note = "No active trip should reject this check-in."
+            });
+
+            expect(response.SUCCESS).toBeFalse(serializeJSON(response));
+            expect(response.success).toBeFalse(serializeJSON(response));
+            expect(response.AUTH).toBeTrue(serializeJSON(response));
+            expect(response.ERROR).toBe("NO_ACTIVE_PLAN", serializeJSON(response));
+            expect(countCompanionEventsByMobileId(mobileId)).toBe(0);
+          } finally {
+            deleteCompanionEventsByMobileId(mobileId);
+          }
+        });
+
+        it("records an On Track companion check-in with GPS and returns duplicate retries without duplicate canonical side effects", function() {
+          var prefix = variables.naming.buildPrefix("companion", "checkin-gps");
+          var sessionApi = buildSessionApiSupport();
+          var localCreated = newCreatedTracker();
+          var asset = {};
+          var mobileId = buildMobileSubmissionId("gps");
+          var payload = {};
+          var beforeCanonicalCount = 0;
+          var response = {};
+          var duplicateResponse = {};
+          var eventRow = {};
+
+          try {
+            url.testUserId = variables.sessionApiUser.userId;
+            asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+            payload = {
+              mobileSubmissionId = mobileId,
+              floatPlanId = asset.floatPlanId,
+              status = "On Track",
+              note = "Companion GPS check-in",
+              checkinContext = "",
+              location = {
+                latitude = 29.1234567,
+                longitude = -83.1234567,
+                accuracyMeters = 12.5,
+                altitudeMeters = 1.2,
+                speedKnots = 7.4,
+                headingDegrees = 145,
+                capturedAtUtc = "2026-05-04T16:30:00Z"
+              },
+              device = {
+                deviceUuid = "device-" & mobileId,
+                platform = "ios",
+                appVersion = "1.0.0"
+              },
+              offlineCreatedAtUtc = "2026-05-04T16:29:30Z"
+            };
+            beforeCanonicalCount = countCanonicalCheckinEvents(asset.floatPlanId);
+
+            response = postCompanionCheckinWithApi(sessionApi, payload);
+
+            expect(response.SUCCESS).toBeTrue(serializeJSON(response));
+            expect(response.success).toBeTrue(serializeJSON(response));
+            expect(response.AUTH).toBeTrue(serializeJSON(response));
+            expect(response.duplicate).toBeFalse(serializeJSON(response));
+            expect(val(response.eventId ?: 0)).toBeGT(0, serializeJSON(response));
+            expect(structKeyExists(response, "companion")).toBeTrue(serializeJSON(response));
+            expect(response.companion.SUCCESS).toBeTrue(serializeJSON(response.companion));
+
+            eventRow = loadCompanionEventByMobileId(mobileId);
+            expect(eventRow.process_status).toBe("PROCESSED", serializeJSON(eventRow));
+            expect(eventRow.event_type).toBe("CHECKIN", serializeJSON(eventRow));
+            expect(eventRow.canonical_status).toBe("On Track", serializeJSON(eventRow));
+            expect(val(eventRow.floatplan_id)).toBe(asset.floatPlanId, serializeJSON(eventRow));
+            expect(val(eventRow.route_instance_id)).toBeGT(0, serializeJSON(eventRow));
+            expect(val(eventRow.leg_order)).toBeGT(0, serializeJSON(eventRow));
+            expect(numberFormat(val(eventRow.latitude), "0.0000000")).toBe("29.1234567", serializeJSON(eventRow));
+            expect(numberFormat(val(eventRow.longitude), "0.0000000")).toBe("-83.1234567", serializeJSON(eventRow));
+            expect(numberFormat(val(eventRow.gps_accuracy_meters), "0.0")).toBe("12.5", serializeJSON(eventRow));
+            expect(eventRow.device_platform).toBe("ios", serializeJSON(eventRow));
+            expect(countCanonicalCheckinEvents(asset.floatPlanId)).toBe(beforeCanonicalCount + 1);
+
+            duplicateResponse = postCompanionCheckinWithApi(sessionApi, payload);
+            expect(duplicateResponse.SUCCESS).toBeTrue(serializeJSON(duplicateResponse));
+            expect(duplicateResponse.duplicate).toBeTrue(serializeJSON(duplicateResponse));
+            expect(val(duplicateResponse.eventId ?: 0)).toBe(val(response.eventId ?: 0), serializeJSON(duplicateResponse));
+            expect(countCompanionEventsByMobileId(mobileId)).toBe(1);
+            expect(countCanonicalCheckinEvents(asset.floatPlanId)).toBe(beforeCanonicalCount + 1);
+          } finally {
+            cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+            deleteCompanionEventsByMobileId(mobileId);
+          }
+        });
+
+        it("rejects invalid GPS before creating a companion event or canonical check-in", function() {
+          var sessionApi = buildSessionApiSupport();
+          var mobileId = buildMobileSubmissionId("invalid-gps");
+          var response = {};
+
+          try {
+            response = postCompanionCheckinWithApi(sessionApi, {
+              mobileSubmissionId = mobileId,
+              floatPlanId = 1,
+              status = "On Track",
+              location = {
+                latitude = 120,
+                longitude = -83.1234567
+              }
+            });
+
+            expect(response.SUCCESS).toBeFalse(serializeJSON(response));
+            expect(response.ERROR).toBe("INVALID_LOCATION", serializeJSON(response));
+            expect(countCompanionEventsByMobileId(mobileId)).toBe(0);
+          } finally {
+            deleteCompanionEventsByMobileId(mobileId);
+          }
+        });
+
+        it("rejects a float plan id that is not the authenticated user's active plan", function() {
+          var prefix = variables.naming.buildPrefix("companion", "wrong-plan");
+          var sessionApi = buildSessionApiSupport();
+          var localCreated = newCreatedTracker();
+          var asset = {};
+          var mobileId = buildMobileSubmissionId("wrong-plan");
+          var response = {};
+
+          try {
+            url.testUserId = variables.sessionApiUser.userId;
+            asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+            response = postCompanionCheckinWithApi(sessionApi, {
+              mobileSubmissionId = mobileId,
+              floatPlanId = asset.floatPlanId + 999999,
+              status = "On Track"
+            });
+
+            expect(response.SUCCESS).toBeFalse(serializeJSON(response));
+            expect(response.ERROR).toBe("ACTIVE_PLAN_MISMATCH", serializeJSON(response));
+            expect(countCompanionEventsByMobileId(mobileId)).toBe(0);
+          } finally {
+            cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+            deleteCompanionEventsByMobileId(mobileId);
+          }
+        });
+
+        it("submits Secure for the Night through the canonical check-in path and refreshes the secure state", function() {
+          var prefix = variables.naming.buildPrefix("companion", "secure-night");
+          var sessionApi = buildSessionApiSupport();
+          var localCreated = newCreatedTracker();
+          var asset = {};
+          var onTrackId = buildMobileSubmissionId("secure-start");
+          var secureId = buildMobileSubmissionId("secure");
+          var startResponse = {};
+          var secureResponse = {};
+          var secureEvent = {};
+
+          try {
+            url.testUserId = variables.sessionApiUser.userId;
+            asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+            startResponse = postCompanionCheckinWithApi(sessionApi, {
+              mobileSubmissionId = onTrackId,
+              floatPlanId = asset.floatPlanId,
+              status = "On Track"
+            });
+            expect(startResponse.SUCCESS).toBeTrue(serializeJSON(startResponse));
+
+            secureResponse = postCompanionCheckinWithApi(sessionApi, {
+              mobileSubmissionId = secureId,
+              floatPlanId = asset.floatPlanId,
+              status = "Secure for the Night"
+            });
+
+            expect(secureResponse.SUCCESS).toBeTrue(serializeJSON(secureResponse));
+            expect(secureResponse.duplicate).toBeFalse(serializeJSON(secureResponse));
+            expect(secureResponse.companion.monitoring.secureForNight).toBeTrue(serializeJSON(secureResponse.companion.monitoring));
+            secureEvent = loadCompanionEventByMobileId(secureId);
+            expect(secureEvent.process_status).toBe("PROCESSED", serializeJSON(secureEvent));
+            expect(secureEvent.canonical_status).toBe("Secure for the Night", serializeJSON(secureEvent));
+            expect(secureEvent.checkin_context).toBe("overnight", serializeJSON(secureEvent));
+          } finally {
+            cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+            deleteCompanionEventsByMobileId(onTrackId);
+            deleteCompanionEventsByMobileId(secureId);
+          }
+        });
+
+        it("submits Delayed through canonical check-in behavior without mutating manual delay minutes", function() {
+          var prefix = variables.naming.buildPrefix("companion", "delayed");
+          var sessionApi = buildSessionApiSupport();
+          var localCreated = newCreatedTracker();
+          var asset = {};
+          var onTrackId = buildMobileSubmissionId("delayed-start");
+          var delayedId = buildMobileSubmissionId("delayed");
+          var startResponse = {};
+          var beforeDelayMinutes = 0;
+          var delayedResponse = {};
+          var delayedEvent = {};
+
+          try {
+            url.testUserId = variables.sessionApiUser.userId;
+            asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+            startResponse = postCompanionCheckinWithApi(sessionApi, {
+              mobileSubmissionId = onTrackId,
+              floatPlanId = asset.floatPlanId,
+              status = "On Track"
+            });
+            expect(startResponse.SUCCESS).toBeTrue(serializeJSON(startResponse));
+            beforeDelayMinutes = getManualDelayMinutesTotal(asset.floatPlanId);
+
+            delayedResponse = postCompanionCheckinWithApi(sessionApi, {
+              mobileSubmissionId = delayedId,
+              floatPlanId = asset.floatPlanId,
+              status = "Delayed",
+              note = "Traffic delay"
+            });
+
+            expect(delayedResponse.SUCCESS).toBeTrue(serializeJSON(delayedResponse));
+            expect(getManualDelayMinutesTotal(asset.floatPlanId)).toBe(beforeDelayMinutes);
+            delayedEvent = loadCompanionEventByMobileId(delayedId);
+            expect(delayedEvent.process_status).toBe("PROCESSED", serializeJSON(delayedEvent));
+            expect(delayedEvent.canonical_status).toBe("Delayed", serializeJSON(delayedEvent));
+          } finally {
+            cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+            deleteCompanionEventsByMobileId(onTrackId);
+            deleteCompanionEventsByMobileId(delayedId);
+          }
+        });
+
+        it("submits Changed Plan only through the canonical check-in behavior", function() {
+          var prefix = variables.naming.buildPrefix("companion", "changed-plan");
+          var sessionApi = buildSessionApiSupport();
+          var localCreated = newCreatedTracker();
+          var asset = {};
+          var onTrackId = buildMobileSubmissionId("changed-start");
+          var changedId = buildMobileSubmissionId("changed");
+          var startResponse = {};
+          var response = {};
+          var eventRow = {};
+
+          try {
+            url.testUserId = variables.sessionApiUser.userId;
+            asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+            startResponse = postCompanionCheckinWithApi(sessionApi, {
+              mobileSubmissionId = onTrackId,
+              floatPlanId = asset.floatPlanId,
+              status = "On Track"
+            });
+            expect(startResponse.SUCCESS).toBeTrue(serializeJSON(startResponse));
+
+            response = postCompanionCheckinWithApi(sessionApi, {
+              mobileSubmissionId = changedId,
+              floatPlanId = asset.floatPlanId,
+              status = "Changed Plan",
+              note = "Captain reports plan changed"
+            });
+
+            expect(response.SUCCESS).toBeTrue(serializeJSON(response));
+            eventRow = loadCompanionEventByMobileId(changedId);
+            expect(eventRow.process_status).toBe("PROCESSED", serializeJSON(eventRow));
+            expect(eventRow.canonical_status).toBe("Changed Plan", serializeJSON(eventRow));
+          } finally {
+            cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+            deleteCompanionEventsByMobileId(onTrackId);
+            deleteCompanionEventsByMobileId(changedId);
+          }
+        });
+
+        it("submits Assistance Needed through the canonical path without requiring a real recipient in this notification-safe setup", function() {
+          var prefix = variables.naming.buildPrefix("companion", "assistance");
+          var sessionApi = buildSessionApiSupport();
+          var localCreated = newCreatedTracker();
+          var asset = {};
+          var assistanceId = buildMobileSubmissionId("assistance");
+          var response = {};
+          var eventRow = {};
+
+          try {
+            url.testUserId = variables.sessionApiUser.userId;
+            asset = createActiveMonitoredTripWithoutContacts(sessionApi, prefix, localCreated);
+            response = postCompanionCheckinWithApi(sessionApi, {
+              mobileSubmissionId = assistanceId,
+              floatPlanId = asset.floatPlanId,
+              status = "Assistance Needed",
+              note = "Notification-safe test check-in with no attached contacts"
+            });
+
+            expect(response.SUCCESS).toBeTrue(serializeJSON(response));
+            eventRow = loadCompanionEventByMobileId(assistanceId);
+            expect(eventRow.process_status).toBe("PROCESSED", serializeJSON(eventRow));
+            expect(eventRow.canonical_status).toBe("Assistance Needed", serializeJSON(eventRow));
+            expect(loadMonitoringRow(asset.floatPlanId).last_checkin_status).toBe("NEED_ATTENTION");
+          } finally {
+            cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+            deleteCompanionEventsByMobileId(assistanceId);
+          }
+        });
+
+        it("rejects Arrived without invoking the final close flow", function() {
+          var prefix = variables.naming.buildPrefix("companion", "arrived");
+          var sessionApi = buildSessionApiSupport();
+          var localCreated = newCreatedTracker();
+          var asset = {};
+          var mobileId = buildMobileSubmissionId("arrived");
+          var response = {};
+
+          try {
+            url.testUserId = variables.sessionApiUser.userId;
+            asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+            response = postCompanionCheckinWithApi(sessionApi, {
+              mobileSubmissionId = mobileId,
+              floatPlanId = asset.floatPlanId,
+              status = "Arrived"
+            });
+
+            expect(response.SUCCESS).toBeFalse(serializeJSON(response));
+            expect(response.ERROR).toBe("UNSUPPORTED_STATUS", serializeJSON(response));
+            expect(countCompanionEventsByMobileId(mobileId)).toBe(0);
+            expect(loadPlanStatus(asset.floatPlanId)).toBe("ACTIVE");
+          } finally {
+            cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+            deleteCompanionEventsByMobileId(mobileId);
+          }
+        });
       });
-    });
-  }
+    }
 
   private any function buildSessionApiSupport() {
     return new fpw.tests.support.FpwApiSupport().init(
@@ -160,7 +489,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     );
   }
 
-  private struct function createActivatedScheduledTrip(required any apiSupport, required string prefix, required struct created) {
+    private struct function createActivatedScheduledTrip(required any apiSupport, required string prefix, required struct created) {
     var asset = createRouteLinkedDraftForApi(arguments.apiSupport, arguments.prefix, arguments.created);
     var futureDeparture = dateTimeFormat(dateAdd("h", 3, now()), "yyyy-mm-dd HH:nn:ss");
     var futureReturn = dateTimeFormat(dateAdd("h", 9, now()), "yyyy-mm-dd HH:nn:ss");
@@ -171,8 +500,22 @@ component extends="testbox.system.BaseSpec" output="false" {
     sendResult = sendFloatPlanWithApi(arguments.apiSupport, asset.floatPlanId);
     expect(isSuccessPayload(sendResult)).toBeTrue(serializeJSON(sendResult));
     expect(countMonitoringRows(asset.floatPlanId)).toBe(1);
-    return asset;
-  }
+      return asset;
+    }
+
+    private struct function createActiveMonitoredTripWithoutContacts(required any apiSupport, required string prefix, required struct created) {
+      var asset = createRouteLinkedDraftForApi(arguments.apiSupport, arguments.prefix, arguments.created);
+      var futureDeparture = dateTimeFormat(dateAdd("h", 3, now()), "yyyy-mm-dd HH:nn:ss");
+      var futureReturn = dateTimeFormat(dateAdd("h", 9, now()), "yyyy-mm-dd HH:nn:ss");
+      var monitoringResult = {};
+
+      setPlanSchedule(asset.floatPlanId, futureDeparture, futureReturn, "UTC");
+      markPlanActive(asset.floatPlanId);
+      monitoringResult = variables.monitorService.startMonitoringForFloatPlan(asset.floatPlanId, "active_route");
+      ensureSuccess(monitoringResult, "start active route monitoring without contacts");
+      expect(countMonitoringRows(asset.floatPlanId)).toBe(1);
+      return asset;
+    }
 
   private struct function createRouteLinkedDraftForApi(required any apiSupport, required string prefix, required struct created) {
     var cleanupSupport = new fpw.tests.support.FpwCleanupSupport().init(arguments.apiSupport);
@@ -288,11 +631,15 @@ component extends="testbox.system.BaseSpec" output="false" {
     deleteMonitoringRows(arguments.floatPlanId);
   }
 
-  private struct function sendFloatPlanWithApi(required any apiSupport, required numeric floatPlanId) {
-    return arguments.apiSupport.postJson("/api/v1/floatplan.cfc?method=handle&action=send", {
-      floatPlanId = arguments.floatPlanId
-    });
-  }
+    private struct function sendFloatPlanWithApi(required any apiSupport, required numeric floatPlanId) {
+      return arguments.apiSupport.postJson("/api/v1/floatplan.cfc?method=handle&action=send", {
+        floatPlanId = arguments.floatPlanId
+      });
+    }
+
+    private struct function postCompanionCheckinWithApi(required any apiSupport, required struct payload) {
+      return arguments.apiSupport.postJson("/api/v1/companion.cfc?method=handle&action=checkin&returnFormat=json", arguments.payload);
+    }
 
   private void function cleanupRouteLinkedAssetsForApi(required any apiSupport, required struct created) {
     var cleanupSupport = new fpw.tests.support.FpwCleanupSupport().init(arguments.apiSupport);
@@ -331,9 +678,16 @@ component extends="testbox.system.BaseSpec" output="false" {
     }
   }
 
-  private void function forceDeleteFloatPlanRecords(required numeric floatPlanId) {
-    deleteMonitoringRows(arguments.floatPlanId);
-    queryExecute(
+    private void function forceDeleteFloatPlanRecords(required numeric floatPlanId) {
+      queryExecute(
+        "DELETE FROM floatplan_companion_events WHERE floatplan_id = :floatPlanId",
+        {
+          floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
+      deleteMonitoringRows(arguments.floatPlanId);
+      queryExecute(
       "DELETE FROM floatplan_activity_segments WHERE floatplan_id = :floatPlanId",
       {
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
@@ -374,8 +728,148 @@ component extends="testbox.system.BaseSpec" output="false" {
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
       },
       { datasource = "fpw" }
-    );
-  }
+      );
+    }
+
+    private void function markPlanActive(required numeric floatPlanId) {
+      queryExecute(
+        "UPDATE floatplans
+         SET `status` = 'ACTIVE',
+             activatedAt = UTC_TIMESTAMP(),
+             checkedInAt = NULL,
+             checkin_context = NULL,
+             closedAt = NULL,
+             lastUpdateStatus = UTC_TIMESTAMP()
+         WHERE floatplanId = :floatPlanId",
+        {
+          floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
+    }
+
+    private string function buildMobileSubmissionId(required string label) {
+      return lCase(left("test-" & arguments.label & "-" & replace(createUUID(), "-", "", "all"), 128));
+    }
+
+    private numeric function countCompanionEventsByMobileId(required string mobileSubmissionId) {
+      var qCount = queryExecute(
+        "SELECT COUNT(*) AS row_count
+         FROM floatplan_companion_events
+         WHERE mobile_submission_id = :mobileSubmissionId",
+        {
+          mobileSubmissionId = { value = arguments.mobileSubmissionId, cfsqltype = "cf_sql_varchar" }
+        },
+        { datasource = "fpw" }
+      );
+      return val(qCount.row_count[1]);
+    }
+
+    private void function deleteCompanionEventsByMobileId(required string mobileSubmissionId) {
+      queryExecute(
+        "DELETE FROM floatplan_companion_events
+         WHERE mobile_submission_id = :mobileSubmissionId",
+        {
+          mobileSubmissionId = { value = arguments.mobileSubmissionId, cfsqltype = "cf_sql_varchar" }
+        },
+        { datasource = "fpw" }
+      );
+    }
+
+    private struct function loadCompanionEventByMobileId(required string mobileSubmissionId) {
+      var qRow = queryExecute(
+        "SELECT *
+         FROM floatplan_companion_events
+         WHERE mobile_submission_id = :mobileSubmissionId
+         LIMIT 1",
+        {
+          mobileSubmissionId = { value = arguments.mobileSubmissionId, cfsqltype = "cf_sql_varchar" }
+        },
+        { datasource = "fpw" }
+      );
+
+      if (qRow.recordCount EQ 0) {
+        return {};
+      }
+
+      return queryRowToStruct(qRow);
+    }
+
+    private numeric function countCanonicalCheckinEvents(required numeric floatPlanId) {
+      var qCount = queryExecute(
+        "SELECT COUNT(*) AS row_count
+         FROM floatplan_events
+         WHERE floatplan_id = :floatPlanId
+           AND event_type = 'CHECKIN_RECEIVED'
+           AND source = 'active_cruise_checkin'
+           AND voided_at_utc IS NULL",
+        {
+          floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
+      return val(qCount.row_count[1]);
+    }
+
+    private numeric function getManualDelayMinutesTotal(required numeric floatPlanId) {
+      var qRow = queryExecute(
+        "SELECT COALESCE(manual_delay_minutes_total, 0) AS manual_delay_minutes_total
+         FROM floatplans
+         WHERE floatplanId = :floatPlanId
+         LIMIT 1",
+        {
+          floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
+      if (qRow.recordCount EQ 0) {
+        return 0;
+      }
+      return val(qRow.manual_delay_minutes_total[1]);
+    }
+
+    private string function loadPlanStatus(required numeric floatPlanId) {
+      var qRow = queryExecute(
+        "SELECT `status`
+         FROM floatplans
+         WHERE floatplanId = :floatPlanId
+         LIMIT 1",
+        {
+          floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
+      if (qRow.recordCount EQ 0) {
+        return "";
+      }
+      return trim(toString(qRow.status[1]));
+    }
+
+    private struct function loadMonitoringRow(required numeric floatPlanId) {
+      var qRow = queryExecute(
+        "SELECT *
+         FROM floatplan_monitoring
+         WHERE float_plan_id = :floatPlanId
+         LIMIT 1",
+        {
+          floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
+      if (qRow.recordCount EQ 0) {
+        return {};
+      }
+      return queryRowToStruct(qRow);
+    }
+
+    private struct function queryRowToStruct(required query qRow) {
+      var row = {};
+      var columnName = "";
+      for (columnName in listToArray(arguments.qRow.columnList)) {
+        row[columnName] = isNull(arguments.qRow[columnName][1]) ? "" : arguments.qRow[columnName][1];
+      }
+      return row;
+    }
 
   private void function forceDeleteRouteInstanceRecords(required string routeCode) {
     queryExecute(

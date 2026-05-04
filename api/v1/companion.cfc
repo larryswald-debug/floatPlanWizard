@@ -33,6 +33,12 @@
           <cfoutput>#serializeJSON(response)#</cfoutput>
         </cfcase>
 
+        <cfcase value="checkin">
+          <cfset response = createApiComponent("CompanionCheckinService").init("fpw")
+            .submitCheckin(userId, body, buildRequestContext())>
+          <cfoutput>#serializeJSON(response)#</cfoutput>
+        </cfcase>
+
         <cfdefaultcase>
           <cfset response = {
             SUCCESS = false,
@@ -118,6 +124,43 @@
       } catch (any primaryError) {
         return createObject("component", "api.v1." & arguments.componentName);
       }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildRequestContext" access="private" returntype="struct" output="false">
+    <cfscript>
+      var httpData = getHttpRequestData();
+      var headers = structKeyExists(httpData, "headers") AND isStruct(httpData.headers) ? httpData.headers : {};
+      return {
+        "baseUrl" = buildAppBaseUrl(),
+        "cookieHeader" = readHeader(headers, "Cookie"),
+        "testUserIdHeader" = readHeader(headers, "X-FPW-Test-UserId")
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildAppBaseUrl" access="private" returntype="string" output="false">
+    <cfscript>
+      var scheme = (structKeyExists(cgi, "HTTPS") AND cgi.HTTPS EQ "on") ? "https" : "http";
+      var host = structKeyExists(cgi, "HTTP_HOST") ? cgi.HTTP_HOST : "localhost:8500";
+      var scriptName = structKeyExists(cgi, "SCRIPT_NAME") ? cgi.SCRIPT_NAME : "/fpw/api/v1/companion.cfc";
+      var marker = findNoCase("/api/v1/companion.cfc", scriptName);
+      var appPath = marker GT 0 ? left(scriptName, marker - 1) : "";
+      return scheme & "://" & host & appPath;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="readHeader" access="private" returntype="string" output="false">
+    <cfargument name="headers" type="struct" required="true">
+    <cfargument name="headerName" type="string" required="true">
+    <cfscript>
+      var key = "";
+      for (key in arguments.headers) {
+        if (compareNoCase(key, arguments.headerName) EQ 0) {
+          return trim(toString(arguments.headers[key]));
+        }
+      }
+      return "";
     </cfscript>
   </cffunction>
 
