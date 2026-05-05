@@ -7,6 +7,7 @@ component extends="testbox.system.BaseSpec" output="false" {
       );
       variables.naming = new fpw.tests.support.FpwNamingSupport();
       variables.companionService = new fpw.api.v1.CompanionViewModelService().init("fpw");
+      variables.companionAuthService = new fpw.api.v1.CompanionAuthService().init("fpw");
       variables.monitorService = new fpw.api.v1.monitor().init();
       variables.hadOriginalTestUserId = structKeyExists(url, "testUserId");
     variables.originalTestUserId = variables.hadOriginalTestUserId ? url.testUserId : "";
@@ -15,6 +16,7 @@ component extends="testbox.system.BaseSpec" output="false" {
   }
 
   function afterAll() {
+    cleanupCompanionAuthRows(variables.sessionApiUser.userId);
     cleanupSessionApiUser();
     if (variables.hadOriginalTestUserId) {
       url.testUserId = variables.originalTestUserId;
@@ -140,6 +142,110 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(response.actions.checkIn.actions.onTrack.payload.floatPlanId).toBe(asset.floatPlanId, serializeJSON(response.actions.checkIn));
           } finally {
             cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+          }
+        });
+
+        it("pairs one companion device with a hashed scoped token and revokes it per device", function() {
+          var sessionApi = buildSessionApiSupport();
+          var pairingResponse = {};
+          var exchangeResponse = {};
+          var duplicateResponse = {};
+          var resolved = {};
+          var listResponse = {};
+          var revokeResponse = {};
+          var revokedResolve = {};
+          var deviceRow = {};
+
+          try {
+            pairingResponse = sessionApi.postJson("/api/v1/companionAuth.cfc?method=handle&action=createPairingCode&returnFormat=json", {});
+
+            expect(pairingResponse.SUCCESS).toBeTrue(serializeJSON(pairingResponse));
+            expect(pairingResponse.AUTH).toBeTrue(serializeJSON(pairingResponse));
+            expect(len(trim(pairingResponse.PAIRING_CODE))).toBeGT(0, serializeJSON(pairingResponse));
+
+            exchangeResponse = postJsonNoSession("/api/v1/companionAuth.cfc?method=handle&action=exchangePairingCode&returnFormat=json", {
+              pairingCode = pairingResponse.PAIRING_CODE,
+              device = {
+                deviceUuid = "test-device-" & variables.sessionApiUser.userId,
+                deviceName = "Companion Test Phone",
+                platform = "ios",
+                appVersion = "1.0.0"
+              }
+            });
+
+            expect(exchangeResponse.SUCCESS).toBeTrue(serializeJSON(exchangeResponse));
+            expect(exchangeResponse.AUTH).toBeTrue(serializeJSON(exchangeResponse));
+            expect(len(trim(exchangeResponse.TOKEN))).toBeGT(40, serializeJSON(exchangeResponse));
+            expect(exchangeResponse.SCOPES).toBe("companion:current,companion:checkin", serializeJSON(exchangeResponse));
+            expect(val(exchangeResponse.DEVICE.id ?: 0)).toBeGT(0, serializeJSON(exchangeResponse));
+
+            duplicateResponse = postJsonNoSession("/api/v1/companionAuth.cfc?method=handle&action=exchangePairingCode&returnFormat=json", {
+              pairingCode = pairingResponse.PAIRING_CODE,
+              device = {
+                deviceUuid = "duplicate-device-" & variables.sessionApiUser.userId,
+                platform = "ios",
+                appVersion = "1.0.0"
+              }
+            });
+            expect(duplicateResponse.SUCCESS).toBeFalse(serializeJSON(duplicateResponse));
+            expect(duplicateResponse.ERROR).toBe("PAIRING_CODE_USED", serializeJSON(duplicateResponse));
+
+            deviceRow = loadCompanionDevice(val(exchangeResponse.DEVICE.id));
+            expect(deviceRow.token_prefix).toBe(exchangeResponse.DEVICE.tokenPrefix, serializeJSON(deviceRow));
+            expect(deviceRow.token_hash).notToBe(exchangeResponse.TOKEN, serializeJSON(deviceRow));
+            expect(len(trim(deviceRow.token_hash))).toBe(64, serializeJSON(deviceRow));
+            expect(deviceRow.device_uuid).toBe("test-device-" & variables.sessionApiUser.userId, serializeJSON(deviceRow));
+
+            resolved = variables.companionAuthService.resolveBearerToken("Bearer " & exchangeResponse.TOKEN, "companion:current");
+            expect(resolved.SUCCESS).toBeTrue(serializeJSON(resolved));
+            expect(resolved.userId).toBe(variables.sessionApiUser.userId, serializeJSON(resolved));
+            expect(resolved.companionDeviceId).toBe(val(exchangeResponse.DEVICE.id), serializeJSON(resolved));
+
+            listResponse = sessionApi.getJson("/api/v1/companionAuth.cfc?method=handle&action=listDevices&returnFormat=json");
+            expect(listResponse.SUCCESS).toBeTrue(serializeJSON(listResponse));
+            expect(arrayLen(listResponse.DEVICES)).toBe(1, serializeJSON(listResponse));
+            expect(structKeyExists(listResponse.DEVICES[1], "tokenHash")).toBeFalse(serializeJSON(listResponse.DEVICES[1]));
+
+            revokeResponse = sessionApi.postJson("/api/v1/companionAuth.cfc?method=handle&action=revokeDevice&returnFormat=json", {
+              deviceId = val(exchangeResponse.DEVICE.id),
+              reason = "test revoke"
+            });
+            expect(revokeResponse.SUCCESS).toBeTrue(serializeJSON(revokeResponse));
+
+            revokedResolve = variables.companionAuthService.resolveBearerToken("Bearer " & exchangeResponse.TOKEN, "companion:current");
+            expect(revokedResolve.SUCCESS).toBeFalse(serializeJSON(revokedResolve));
+            expect(revokedResolve.ERROR).toBe("TOKEN_REVOKED", serializeJSON(revokedResolve));
+          } finally {
+            cleanupCompanionAuthRows(variables.sessionApiUser.userId);
+          }
+        });
+
+        it("revokes the current companion token through bearer auth", function() {
+          var pairingResponse = variables.companionAuthService.createPairingCode(variables.sessionApiUser.userId);
+          var exchangeResponse = {};
+          var revokeCurrentResponse = {};
+          var resolved = {};
+
+          try {
+            exchangeResponse = variables.companionAuthService.exchangePairingCode(pairingResponse.PAIRING_CODE, {
+              deviceUuid = "logout-device-" & variables.sessionApiUser.userId,
+              platform = "android",
+              appVersion = "1.0.0"
+            });
+            expect(exchangeResponse.SUCCESS).toBeTrue(serializeJSON(exchangeResponse));
+
+            revokeCurrentResponse = postJsonNoSession(
+              "/api/v1/companionAuth.cfc?method=handle&action=revokeCurrent&returnFormat=json",
+              { reason = "test app logout" },
+              "Bearer " & exchangeResponse.TOKEN
+            );
+            expect(revokeCurrentResponse.SUCCESS).toBeTrue(serializeJSON(revokeCurrentResponse));
+
+            resolved = variables.companionAuthService.resolveBearerToken("Bearer " & exchangeResponse.TOKEN, "companion:current");
+            expect(resolved.SUCCESS).toBeFalse(serializeJSON(resolved));
+            expect(resolved.ERROR).toBe("TOKEN_REVOKED", serializeJSON(resolved));
+          } finally {
+            cleanupCompanionAuthRows(variables.sessionApiUser.userId);
           }
         });
 
@@ -595,6 +701,8 @@ component extends="testbox.system.BaseSpec" output="false" {
       return;
     }
 
+    cleanupCompanionAuthRows(userId);
+
     queryExecute(
       "DELETE FROM users_address WHERE userId = :userId",
       {
@@ -610,6 +718,23 @@ component extends="testbox.system.BaseSpec" output="false" {
       { datasource = "fpw" }
     );
   }
+
+    private void function cleanupCompanionAuthRows(required numeric userId) {
+      queryExecute(
+        "DELETE FROM companion_pairing_codes WHERE user_id = :userId",
+        {
+          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
+      queryExecute(
+        "DELETE FROM companion_devices WHERE user_id = :userId",
+        {
+          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
+    }
 
     private struct function createActivatedScheduledTrip(required any apiSupport, required string prefix, required struct created) {
     var asset = createRouteLinkedDraftForApi(arguments.apiSupport, arguments.prefix, arguments.created);
@@ -763,6 +888,42 @@ component extends="testbox.system.BaseSpec" output="false" {
       return arguments.apiSupport.postJson("/api/v1/companion.cfc?method=handle&action=checkin&returnFormat=json", arguments.payload);
     }
 
+    private struct function postJsonNoSession(required string path, struct payload={}, string authorizationHeader="") {
+      var httpResult = {};
+      var fullUrl = buildUrl(arguments.path);
+      cfhttp(url = fullUrl, method = "post", result = "httpResult", charset = "utf-8") {
+        cfhttpparam(type = "header", name = "Content-Type", value = "application/json");
+        if (len(arguments.authorizationHeader)) {
+          cfhttpparam(type = "header", name = "Authorization", value = arguments.authorizationHeader);
+        }
+        cfhttpparam(type = "body", value = serializeJSON(arguments.payload));
+      }
+      return parseJsonResponse(httpResult);
+    }
+
+    private string function buildUrl(required string path) {
+      if (left(arguments.path, 1) EQ "/") {
+        return variables.api.getBaseUrl() & arguments.path;
+      }
+      return variables.api.getBaseUrl() & "/" & arguments.path;
+    }
+
+    private struct function parseJsonResponse(required struct httpResult) {
+      var raw = structKeyExists(arguments.httpResult, "fileContent") ? trim(arguments.httpResult.fileContent) : "";
+      if (!len(raw)) {
+        return {};
+      }
+      try {
+        return deserializeJSON(raw, false);
+      } catch (any parseError) {
+        return {
+          SUCCESS = false,
+          ERROR = "NON_JSON",
+          RAW = raw
+        };
+      }
+    }
+
   private void function cleanupRouteLinkedAssetsForApi(required any apiSupport, required struct created) {
     var cleanupSupport = new fpw.tests.support.FpwCleanupSupport().init(arguments.apiSupport);
     for (var i = arrayLen(arguments.created.floatPlanIds); i GTE 1; i--) {
@@ -906,6 +1067,25 @@ component extends="testbox.system.BaseSpec" output="false" {
          LIMIT 1",
         {
           mobileSubmissionId = { value = arguments.mobileSubmissionId, cfsqltype = "cf_sql_varchar" }
+        },
+        { datasource = "fpw" }
+      );
+
+      if (qRow.recordCount EQ 0) {
+        return {};
+      }
+
+      return queryRowToStruct(qRow);
+    }
+
+    private struct function loadCompanionDevice(required numeric deviceId) {
+      var qRow = queryExecute(
+        "SELECT *
+         FROM companion_devices
+         WHERE id = :deviceId
+         LIMIT 1",
+        {
+          deviceId = { value = arguments.deviceId, cfsqltype = "cf_sql_bigint" }
         },
         { datasource = "fpw" }
       );
