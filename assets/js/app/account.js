@@ -19,6 +19,49 @@
     return val ? String(val) : "—";
   }
 
+  function setText(id, value) {
+    var el = $(id);
+    if (el) el.textContent = value;
+  }
+
+  function setHidden(id, hidden) {
+    var el = $(id);
+    if (!el) return;
+    if (hidden) {
+      el.classList.add("d-none");
+    } else {
+      el.classList.remove("d-none");
+    }
+  }
+
+  function companionAuthUrl(action) {
+    return API_BASE + "/companionAuth.cfc?method=handle&action=" + encodeURIComponent(action);
+  }
+
+  function formatDisplayDate(value, fallback) {
+    if (!value) return fallback || "—";
+    var parsed = new Date(value);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toLocaleString();
+    }
+    return String(value);
+  }
+
+  function isPastDate(value) {
+    if (!value) return false;
+    var parsed = new Date(value);
+    return !isNaN(parsed.getTime()) && parsed.getTime() <= Date.now();
+  }
+
+  function escapeHtml(value) {
+    return String(value === undefined || value === null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   function ensureAuth(payload) {
     return window.AppAuth ? window.AppAuth.ensureAuthenticated(payload) : true;
   }
@@ -268,6 +311,225 @@
     }
   }
 
+  function getCompanionDevices(payload) {
+    var devices = (payload && (payload.DEVICES || payload.devices)) || [];
+    return Array.isArray(devices) ? devices : [];
+  }
+
+  function getCompanionDeviceStatus(device) {
+    var revokedAt = pick(device, ["revokedAtUtc", "REVOKED_AT_UTC", "revoked_at_utc"], "");
+    var expiresAt = pick(device, ["expiresAtUtc", "EXPIRES_AT_UTC", "expires_at_utc"], "");
+
+    if (revokedAt) {
+      return { label: "Revoked", key: "revoked" };
+    }
+    if (isPastDate(expiresAt)) {
+      return { label: "Expired", key: "expired" };
+    }
+    return { label: "Active", key: "active" };
+  }
+
+  function showCompanionStatus(message, tone) {
+    var status = $("companionDevicesStatus");
+    if (!status) return;
+    status.textContent = message || "";
+    status.classList.remove("companion-status-error", "companion-status-success");
+    if (tone === "error") status.classList.add("companion-status-error");
+    if (tone === "success") status.classList.add("companion-status-success");
+  }
+
+  function renderCompanionDevices(devices) {
+    var list = $("companionDevicesList");
+    if (!list) return;
+
+    list.innerHTML = "";
+    setHidden("companionDevicesEmpty", devices.length > 0);
+
+    devices.forEach(function (device) {
+      var status = getCompanionDeviceStatus(device);
+      var deviceId = parseInt(pick(device, ["id", "ID", "deviceId", "DEVICE_ID"], 0), 10) || 0;
+      var name = pick(device, ["deviceName", "DEVICE_NAME", "device_name", "name"], "") || "Unnamed device";
+      var platform = pick(device, ["platform", "PLATFORM", "devicePlatform"], "") || "Unknown platform";
+      var appVersion = pick(device, ["appVersion", "APP_VERSION", "app_version"], "");
+      var createdAt = pick(device, ["createdUtc", "CREATED_UTC", "created_utc"], "");
+      var lastUsedAt = pick(device, ["lastUsedAtUtc", "LAST_USED_AT_UTC", "last_used_at_utc"], "");
+      var expiresAt = pick(device, ["expiresAtUtc", "EXPIRES_AT_UTC", "expires_at_utc"], "");
+      var revokedAt = pick(device, ["revokedAtUtc", "REVOKED_AT_UTC", "revoked_at_utc"], "");
+      var platformLine = appVersion ? platform + " / " + appVersion : platform;
+
+      var row = document.createElement("div");
+      row.className = "companion-device-row";
+      row.innerHTML =
+        '<div class="companion-device-main">' +
+          '<div class="d-flex flex-wrap align-items-center gap-2 mb-1">' +
+            '<div class="companion-device-name">' + escapeHtml(name) + '</div>' +
+            '<span class="companion-status-badge companion-status-' + escapeHtml(status.key) + '">' + escapeHtml(status.label) + '</span>' +
+          '</div>' +
+          '<div class="companion-device-meta">' + escapeHtml(platformLine) + '</div>' +
+          '<dl class="companion-device-details mb-0">' +
+            '<div><dt>Created</dt><dd>' + escapeHtml(formatDisplayDate(createdAt, "Unknown")) + '</dd></div>' +
+            '<div><dt>Last Used</dt><dd>' + escapeHtml(formatDisplayDate(lastUsedAt, "Never")) + '</dd></div>' +
+            '<div><dt>Expires</dt><dd>' + escapeHtml(formatDisplayDate(expiresAt, "Unknown")) + '</dd></div>' +
+            (revokedAt ? '<div><dt>Revoked</dt><dd>' + escapeHtml(formatDisplayDate(revokedAt, "Revoked")) + '</dd></div>' : '') +
+          '</dl>' +
+        '</div>';
+
+      if (status.key === "active" && deviceId > 0) {
+        var actions = document.createElement("div");
+        actions.className = "companion-device-actions";
+        actions.innerHTML = '<button class="btn btn-outline-primary btn-sm" type="button" data-companion-revoke-device="' + String(deviceId) + '">Revoke</button>';
+        row.appendChild(actions);
+      }
+
+      list.appendChild(row);
+    });
+
+    var revokeButtons = list.querySelectorAll("[data-companion-revoke-device]");
+    Array.prototype.forEach.call(revokeButtons, function (button) {
+      button.addEventListener("click", function () {
+        revokeCompanionDevice(parseInt(button.getAttribute("data-companion-revoke-device"), 10) || 0, button);
+      });
+    });
+  }
+
+  async function loadCompanionDevices() {
+    if (!$("companionDevicesCard")) return;
+    showCompanionStatus("Loading companion devices...");
+
+    try {
+      var data = await fetchJson(companionAuthUrl("listDevices"), { method: "GET" });
+      if (!ensureAuth(data)) {
+        return;
+      }
+      if (!data || data.SUCCESS !== true) {
+        showCompanionStatus((data && data.MESSAGE) ? data.MESSAGE : "Unable to load companion devices.", "error");
+        return;
+      }
+
+      var devices = getCompanionDevices(data);
+      renderCompanionDevices(devices);
+      showCompanionStatus(devices.length ? "Companion devices loaded." : "No companion devices are paired yet.");
+    } catch (err) {
+      console.error("loadCompanionDevices error:", err);
+      if (handleAuthError(err)) {
+        return;
+      }
+      showCompanionStatus((err && err.MESSAGE) ? err.MESSAGE : "Unable to load companion devices.", "error");
+    }
+  }
+
+  async function createCompanionPairingCode() {
+    var btn = $("companionPairBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Creating..."; }
+
+    try {
+      var data = await fetchJson(companionAuthUrl("createPairingCode"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({})
+      });
+
+      if (!ensureAuth(data)) {
+        return;
+      }
+      if (!data || data.SUCCESS !== true) {
+        alert((data && data.MESSAGE) ? data.MESSAGE : "Unable to create pairing code.");
+        return;
+      }
+
+      var code = pick(data, ["PAIRING_CODE", "pairingCode"], "");
+      var expiresAt = pick(data, ["EXPIRES_AT_UTC", "expiresAtUtc"], "");
+      if (!code) {
+        alert("Pairing code was not returned.");
+        return;
+      }
+
+      setText("companionPairingCode", code);
+      setText("companionPairingExpires", "Expires at " + formatDisplayDate(expiresAt, "the scheduled expiry time"));
+      setText(
+        "companionPairingMessage",
+        "Enter this code in the Companion App. If you create another code, this page will show the newest code; older unused codes expire on their original schedule."
+      );
+      setHidden("companionPairingPanel", false);
+      showCompanionStatus("Pairing code created.", "success");
+    } catch (err) {
+      console.error("createCompanionPairingCode error:", err);
+      if (handleAuthError(err)) {
+        return;
+      }
+      alert((err && err.MESSAGE) ? err.MESSAGE : "Unable to create pairing code.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Pair Companion App"; }
+    }
+  }
+
+  async function copyCompanionPairingCode() {
+    var codeEl = $("companionPairingCode");
+    var code = codeEl ? (codeEl.textContent || "").trim() : "";
+    if (!code || code === "----") {
+      alert("No pairing code is available to copy.");
+      return;
+    }
+    if (!navigator.clipboard || typeof navigator.clipboard.writeText !== "function") {
+      alert("Copy is not available in this browser.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(code);
+      showCompanionStatus("Pairing code copied.", "success");
+    } catch (err) {
+      console.error("copyCompanionPairingCode error:", err);
+      alert("Copy failed.");
+    }
+  }
+
+  async function revokeCompanionDevice(deviceId, button) {
+    if (!(deviceId > 0)) {
+      alert("Companion device id is missing.");
+      return;
+    }
+
+    var confirmed = window.confirm(
+      "Revoke this companion device? It will stop being able to submit trip check-ins immediately. Pair the companion app again if you want to reconnect this device."
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    if (button) { button.disabled = true; button.textContent = "Revoking..."; }
+
+    try {
+      var data = await fetchJson(companionAuthUrl("revokeDevice"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deviceId: deviceId,
+          reason: "account settings revoke"
+        })
+      });
+
+      if (!ensureAuth(data)) {
+        return;
+      }
+      if (!data || data.SUCCESS !== true) {
+        alert((data && data.MESSAGE) ? data.MESSAGE : "Unable to revoke companion device.");
+        return;
+      }
+
+      showCompanionStatus("Companion device revoked.", "success");
+      await loadCompanionDevices();
+    } catch (err) {
+      console.error("revokeCompanionDevice error:", err);
+      if (handleAuthError(err)) {
+        return;
+      }
+      alert((err && err.MESSAGE) ? err.MESSAGE : "Unable to revoke companion device.");
+    } finally {
+      if (button) { button.disabled = false; button.textContent = "Revoke"; }
+    }
+  }
+
   async function logout() {
     try {
       await fetchJson(API_BASE + "/auth.cfc?method=handle", {
@@ -292,10 +554,20 @@
     var homePortForm = $("homePortForm");
     if (homePortForm) homePortForm.addEventListener("submit", saveHomePort);
 
+    var companionPairBtn = $("companionPairBtn");
+    if (companionPairBtn) companionPairBtn.addEventListener("click", createCompanionPairingCode);
+
+    var companionRefreshBtn = $("refreshCompanionDevicesBtn");
+    if (companionRefreshBtn) companionRefreshBtn.addEventListener("click", loadCompanionDevices);
+
+    var companionCopyBtn = $("copyCompanionPairingCodeBtn");
+    if (companionCopyBtn) companionCopyBtn.addEventListener("click", copyCompanionPairingCode);
+
     var logoutBtn = $("logoutButton");
     if (logoutBtn) logoutBtn.addEventListener("click", logout);
 
     loadProfile();
+    loadCompanionDevices();
   });
 
 })(window, document);

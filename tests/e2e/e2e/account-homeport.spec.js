@@ -61,6 +61,164 @@ async function saveHomePortAndAcceptAlert(page, expectedMessageRegex) {
   await expect(page.locator("#saveHomePortBtn")).toHaveText("Save Home Port", { timeout: 10000 });
 }
 
+function jsonResponse(payload, status = 200) {
+  return {
+    status,
+    contentType: "application/json",
+    body: JSON.stringify(payload)
+  };
+}
+
+function parsePostBody(request) {
+  try {
+    return JSON.parse(request.postData() || "{}");
+  } catch (err) {
+    return {};
+  }
+}
+
+async function mockAccountProfile(page) {
+  await page.route("**/api/v1/profile.cfc?*", async (route) => {
+    await route.fulfill(jsonResponse({
+      SUCCESS: true,
+      AUTH: true,
+      PROFILE: {
+        userId: 10001,
+        fName: "Companion",
+        lName: "Tester",
+        email: "companion-ui-test@example.com",
+        mobilePhone: "5555550101",
+        lastLogin: "2026-05-05T12:00:00Z",
+        lastUpdate: "2026-05-05T12:05:00Z",
+        homePort: {
+          address: "1 Test Pier",
+          city: "Test Harbor",
+          state: "TS",
+          zip: "02110",
+          phone: "5555550101",
+          lat: "42.3601",
+          lng: "-71.0589"
+        }
+      }
+    }));
+  });
+}
+
+async function mockCompanionAuth(page, state) {
+  await page.route("**/api/v1/companionAuth.cfc?*", async (route) => {
+    const url = new URL(route.request().url());
+    const action = String(url.searchParams.get("action") || "").toLowerCase();
+
+    if (action === "listdevices") {
+      await route.fulfill(jsonResponse({
+        SUCCESS: true,
+        AUTH: true,
+        DEVICES: state.devices
+      }));
+      return;
+    }
+
+    if (action === "createpairingcode") {
+      state.createCalls += 1;
+      await route.fulfill(jsonResponse({
+        SUCCESS: true,
+        AUTH: true,
+        PAIRING_CODE: "ABCD-2345",
+        EXPIRES_AT_UTC: "2026-05-05T18:10:00Z",
+        PAIRING_URI: "fpwcompanion://pair?code=ABCD-2345"
+      }));
+      return;
+    }
+
+    if (action === "revokedevice") {
+      const body = parsePostBody(route.request());
+      state.revokeCalls.push(body);
+      state.devices = state.devices.map((device) => {
+        if (Number(device.id) === Number(body.deviceId)) {
+          return { ...device, revokedAtUtc: "2026-05-05T18:05:00Z" };
+        }
+        return device;
+      });
+      await route.fulfill(jsonResponse({
+        SUCCESS: true,
+        AUTH: true,
+        DEVICE_ID: body.deviceId
+      }));
+      return;
+    }
+
+    await route.fulfill(jsonResponse({
+      SUCCESS: false,
+      AUTH: true,
+      ERROR: "UNEXPECTED_TEST_ACTION",
+      MESSAGE: `Unexpected companion auth action: ${action}`
+    }, 400));
+  });
+}
+
+test("Account Companion Devices shows empty state and manual pairing code with mocked API", async ({ page }) => {
+  const state = {
+    devices: [],
+    createCalls: 0,
+    revokeCalls: []
+  };
+
+  await mockAccountProfile(page);
+  await mockCompanionAuth(page, state);
+
+  await openAccount(page);
+
+  await expect(page.locator("#companionDevicesCard")).toBeVisible();
+  await expect(page.locator("#companionDevicesEmpty")).toBeVisible();
+  await expect(page.locator("#companionPairBtn")).toBeVisible();
+
+  await page.locator("#companionPairBtn").click();
+
+  await expect(page.locator("#companionPairingPanel")).toBeVisible();
+  await expect(page.locator("#companionPairingCode")).toHaveText("ABCD-2345");
+  await expect(page.locator("#companionPairingExpires")).toContainText("Expires at");
+  await expect(page.locator("#companionDevicesCard")).not.toContainText("fpwc_");
+  expect(state.createCalls).toBe(1);
+});
+
+test("Account Companion Devices revokes an active mocked device and keeps it visible", async ({ page }) => {
+  const state = {
+    devices: [{
+      id: 777,
+      deviceName: "Companion Test Phone",
+      platform: "ios",
+      appVersion: "1.0.0",
+      createdUtc: "2026-05-01T12:00:00Z",
+      lastUsedAtUtc: "2026-05-02T12:00:00Z",
+      expiresAtUtc: "2099-01-01T00:00:00Z",
+      revokedAtUtc: ""
+    }],
+    createCalls: 0,
+    revokeCalls: []
+  };
+
+  await mockAccountProfile(page);
+  await mockCompanionAuth(page, state);
+
+  page.on("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("Revoke this companion device?");
+    await dialog.accept();
+  });
+
+  await openAccount(page);
+
+  const row = page.locator(".companion-device-row").first();
+  await expect(row).toContainText("Companion Test Phone");
+  await expect(row).toContainText("Active");
+
+  await page.locator('[data-companion-revoke-device="777"]').click();
+
+  await expect(row).toContainText("Revoked");
+  await expect(page.locator('[data-companion-revoke-device="777"]')).toHaveCount(0);
+  expect(state.revokeCalls).toHaveLength(1);
+  expect(Number(state.revokeCalls[0].deviceId)).toBe(777);
+});
+
 test("Account Home Port saves and persists after reload", async ({ page, browserName }) => {
   test.skip(browserName !== "chromium", "Home Port persistence writes shared account state.");
 
