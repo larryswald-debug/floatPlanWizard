@@ -495,11 +495,35 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="resolveCanonicalBaseUrl" access="private" returntype="string" output="false">
+    <cfargument name="baseUrl" type="string" required="true">
+    <cfscript>
+      var normalizedBaseUrl = reReplace(trim(arguments.baseUrl), "/+$", "", "all");
+      var proxyOrigins = [ "http://localhost:4200", "http://127.0.0.1:4200" ];
+      var proxyOrigin = "";
+      var suffix = "";
+
+      for (proxyOrigin in proxyOrigins) {
+        if (compareNoCase(left(normalizedBaseUrl, len(proxyOrigin)), proxyOrigin) EQ 0) {
+          suffix = "";
+          if (len(normalizedBaseUrl) GT len(proxyOrigin)) {
+            suffix = right(normalizedBaseUrl, len(normalizedBaseUrl) - len(proxyOrigin));
+          }
+          if (!len(suffix) OR left(suffix, 1) EQ "/") {
+            return "http://localhost:8500" & suffix;
+          }
+        }
+      }
+
+      return normalizedBaseUrl;
+    </cfscript>
+  </cffunction>
+
   <cffunction name="callCanonicalCheckin" access="private" returntype="struct" output="false">
     <cfargument name="payload" type="struct" required="true">
     <cfargument name="requestContext" type="struct" required="true">
     <cfset var httpResult = {}>
-    <cfset var endpoint = reReplace(readString(arguments.requestContext, "baseUrl"), "/+$", "", "all") & "/api/v1/floatplan.cfc?method=handle&action=checkin&returnFormat=json">
+    <cfset var endpoint = resolveCanonicalBaseUrl(readString(arguments.requestContext, "baseUrl")) & "/api/v1/floatplan.cfc?method=handle&action=checkin&returnFormat=json">
     <cfset var cookieHeader = readString(arguments.requestContext, "cookieHeader")>
     <cfset var testUserIdHeader = readString(arguments.requestContext, "testUserIdHeader")>
     <cfhttp url="#endpoint#" method="post" result="httpResult" charset="utf-8" timeout="30">

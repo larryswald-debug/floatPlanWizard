@@ -242,6 +242,53 @@ component extends="testbox.system.BaseSpec" output="false" {
           }
         });
 
+        it("normalizes the local Angular proxy base URL before canonical check-in handoff", function() {
+          var prefix = variables.naming.buildPrefix("companion", "proxy-base");
+          var sessionApi = buildSessionApiSupport();
+          var localCreated = newCreatedTracker();
+          var asset = {};
+          var mobileId = buildMobileSubmissionId("proxy-base");
+          var payload = {};
+          var beforeCanonicalCount = 0;
+          var response = {};
+          var eventRow = {};
+          var checkinService = new fpw.api.v1.CompanionCheckinService().init("fpw");
+
+          try {
+            url.testUserId = variables.sessionApiUser.userId;
+            asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+            payload = {
+              mobileSubmissionId = mobileId,
+              floatPlanId = asset.floatPlanId,
+              status = "On Track",
+              note = "Companion local proxy base URL check-in"
+            };
+            beforeCanonicalCount = countCanonicalCheckinEvents(asset.floatPlanId);
+
+            response = checkinService.submitCheckin(variables.sessionApiUser.userId, payload, {
+              baseUrl = "http://localhost:4200/fpw",
+              cookieHeader = "",
+              testUserIdHeader = toString(variables.sessionApiUser.userId)
+            });
+
+            expect(response.SUCCESS).toBeTrue(serializeJSON(response));
+            expect(response.success).toBeTrue(serializeJSON(response));
+            expect(response.AUTH).toBeTrue(serializeJSON(response));
+            expect(response.duplicate).toBeFalse(serializeJSON(response));
+            expect(val(response.eventId ?: 0)).toBeGT(0, serializeJSON(response));
+            expect(structKeyExists(response, "companion")).toBeTrue(serializeJSON(response));
+
+            eventRow = loadCompanionEventByMobileId(mobileId);
+            expect(eventRow.process_status).toBe("PROCESSED", serializeJSON(eventRow));
+            expect(eventRow.canonical_status).toBe("On Track", serializeJSON(eventRow));
+            expect(val(eventRow.floatplan_id)).toBe(asset.floatPlanId, serializeJSON(eventRow));
+            expect(countCanonicalCheckinEvents(asset.floatPlanId)).toBe(beforeCanonicalCount + 1);
+          } finally {
+            cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+            deleteCompanionEventsByMobileId(mobileId);
+          }
+        });
+
         it("rejects invalid GPS before creating a companion event or canonical check-in", function() {
           var sessionApi = buildSessionApiSupport();
           var mobileId = buildMobileSubmissionId("invalid-gps");
