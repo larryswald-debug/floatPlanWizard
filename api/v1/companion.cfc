@@ -7,20 +7,15 @@
     <cfheader name="Cache-Control" value="no-store, no-cache, must-revalidate">
 
     <cftry>
-      <cfset var userId = resolveSessionUserId()>
+      <cfset var authContext = { SUCCESS = false }>
       <cfset var body = readJsonBody()>
       <cfset var actionName = resolveActionName(arguments, body)>
+      <cfset authContext = resolveCompanionAuthContext(actionName)>
+      <cfset var userId = authContext.SUCCESS ? val(authContext.userId) : 0>
       <cfset var response = {}>
 
-      <cfif userId LTE 0>
-        <cfset response = {
-          SUCCESS = false,
-          success = false,
-          AUTH = false,
-          ERROR = "NOT_LOGGED_IN",
-          MESSAGE = "Not logged in."
-        }>
-        <cfoutput>#serializeJSON(response)#</cfoutput>
+      <cfif NOT authContext.SUCCESS>
+        <cfoutput>#serializeJSON(authContext)#</cfoutput>
         <cfsetting enablecfoutputonly="false">
         <cfreturn>
       </cfif>
@@ -35,7 +30,7 @@
 
         <cfcase value="checkin">
           <cfset response = createApiComponent("CompanionCheckinService").init("fpw")
-            .submitCheckin(userId, body, buildRequestContext())>
+            .submitCheckin(userId, body, buildRequestContext(authContext))>
           <cfoutput>#serializeJSON(response)#</cfoutput>
         </cfcase>
 
@@ -55,7 +50,7 @@
         <cfset response = {
           SUCCESS = false,
           success = false,
-          AUTH = (resolveSessionUserId() GT 0),
+          AUTH = (isStruct(authContext) AND structKeyExists(authContext, "SUCCESS") AND authContext.SUCCESS),
           ERROR = "SERVER_ERROR",
           MESSAGE = "Companion API error.",
           DETAIL = cfcatch.message
@@ -81,6 +76,116 @@
         }
       }
       return 0;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="resolveCompanionAuthContext" access="private" returntype="struct" output="false">
+    <cfargument name="actionName" type="string" required="true">
+    <cfscript>
+      var sessionUserId = resolveSessionUserId();
+      var requiredScope = resolveRequiredCompanionScope(arguments.actionName);
+      var authorizationHeader = "";
+      var tokenResult = {};
+
+      if (sessionUserId GT 0) {
+        return {
+          SUCCESS = true,
+          success = true,
+          AUTH = true,
+          authMode = "session",
+          userId = sessionUserId,
+          USERID = sessionUserId,
+          scopes = ""
+        };
+      }
+
+      authorizationHeader = readAuthorizationHeader();
+
+      if (!len(requiredScope)) {
+        if (len(authorizationHeader)) {
+          return authErrorResponse("COMPANION_SCOPE_DENIED", "Companion token is not allowed for this action.");
+        }
+        return notLoggedInResponse();
+      }
+
+      if (!len(authorizationHeader)) {
+        return notLoggedInResponse();
+      }
+
+      tokenResult = createApiComponent("CompanionAuthService").init("fpw")
+        .resolveBearerToken(authorizationHeader, requiredScope);
+
+      if (!structKeyExists(tokenResult, "SUCCESS") OR tokenResult.SUCCESS NEQ true) {
+        return tokenResult;
+      }
+
+      return {
+        SUCCESS = true,
+        success = true,
+        AUTH = true,
+        authMode = "companion_token",
+        userId = val(tokenResult.userId),
+        USERID = val(tokenResult.userId),
+        companionDeviceId = val(tokenResult.companionDeviceId),
+        DEVICE_ID = val(tokenResult.companionDeviceId),
+        tokenIdentifier = structKeyExists(tokenResult, "tokenPrefix") ? toString(tokenResult.tokenPrefix) : "",
+        tokenPrefix = structKeyExists(tokenResult, "tokenPrefix") ? toString(tokenResult.tokenPrefix) : "",
+        deviceUuid = structKeyExists(tokenResult, "deviceUuid") ? toString(tokenResult.deviceUuid) : "",
+        devicePlatform = structKeyExists(tokenResult, "devicePlatform") ? toString(tokenResult.devicePlatform) : "",
+        appVersion = structKeyExists(tokenResult, "appVersion") ? toString(tokenResult.appVersion) : "",
+        scopes = structKeyExists(tokenResult, "scopes") ? toString(tokenResult.scopes) : ""
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="resolveRequiredCompanionScope" access="private" returntype="string" output="false">
+    <cfargument name="actionName" type="string" required="true">
+    <cfscript>
+      switch (lCase(trim(arguments.actionName))) {
+        case "current":
+        case "active":
+        case "getcurrent":
+        case "getactive":
+          return "companion:current";
+        case "checkin":
+          return "companion:checkin";
+        default:
+          return "";
+      }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="readAuthorizationHeader" access="private" returntype="string" output="false">
+    <cfscript>
+      var httpData = getHttpRequestData();
+      var headers = structKeyExists(httpData, "headers") AND isStruct(httpData.headers) ? httpData.headers : {};
+      return readHeader(headers, "Authorization");
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="notLoggedInResponse" access="private" returntype="struct" output="false">
+    <cfscript>
+      return {
+        SUCCESS = false,
+        success = false,
+        AUTH = false,
+        ERROR = "NOT_LOGGED_IN",
+        MESSAGE = "Not logged in."
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="authErrorResponse" access="private" returntype="struct" output="false">
+    <cfargument name="errorCode" type="string" required="true">
+    <cfargument name="message" type="string" required="true">
+    <cfscript>
+      return {
+        SUCCESS = false,
+        success = false,
+        AUTH = false,
+        ERROR = arguments.errorCode,
+        MESSAGE = arguments.message
+      };
     </cfscript>
   </cffunction>
 
@@ -128,13 +233,16 @@
   </cffunction>
 
   <cffunction name="buildRequestContext" access="private" returntype="struct" output="false">
+    <cfargument name="authContext" type="struct" required="false" default="#structNew()#">
     <cfscript>
       var httpData = getHttpRequestData();
       var headers = structKeyExists(httpData, "headers") AND isStruct(httpData.headers) ? httpData.headers : {};
       return {
         "baseUrl" = buildAppBaseUrl(),
         "cookieHeader" = readHeader(headers, "Cookie"),
-        "testUserIdHeader" = readHeader(headers, "X-FPW-Test-UserId")
+        "testUserIdHeader" = readHeader(headers, "X-FPW-Test-UserId"),
+        "authMode" = structKeyExists(arguments.authContext, "authMode") ? toString(arguments.authContext.authMode) : "",
+        "companionDeviceId" = structKeyExists(arguments.authContext, "companionDeviceId") ? val(arguments.authContext.companionDeviceId) : 0
       };
     </cfscript>
   </cffunction>

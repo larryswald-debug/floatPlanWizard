@@ -249,6 +249,237 @@ component extends="testbox.system.BaseSpec" output="false" {
           }
         });
 
+        it("serves current through bearer token auth without returning token secrets", function() {
+          var prefix = variables.naming.buildPrefix("companion", "bearer-current");
+          var sessionApi = buildSessionApiSupport();
+          var localCreated = newCreatedTracker();
+          var asset = {};
+          var exchangeResponse = {};
+          var response = {};
+          var responseJson = "";
+
+          try {
+            url.testUserId = variables.sessionApiUser.userId;
+            asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+            exchangeResponse = issueCompanionToken("bearer-current");
+
+            response = getJsonNoSession(
+              "/api/v1/companion.cfc?method=handle&action=current&returnFormat=json",
+              "Bearer " & exchangeResponse.TOKEN
+            );
+            responseJson = serializeJSON(response);
+
+            expect(response.SUCCESS).toBeTrue(responseJson);
+            expect(response.success).toBeTrue(responseJson);
+            expect(response.AUTH).toBeTrue(responseJson);
+            expect(response.HAS_ACTIVE_PLAN).toBeTrue(responseJson);
+            expect(response.activeFloatPlan.floatPlanId).toBe(asset.floatPlanId, serializeJSON(response.activeFloatPlan));
+            expect(find(exchangeResponse.TOKEN, responseJson)).toBe(0, responseJson);
+            expect(findNoCase("token_hash", responseJson)).toBe(0, responseJson);
+          } finally {
+            cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+            cleanupCompanionAuthRows(variables.sessionApiUser.userId);
+          }
+        });
+
+        it("records and deduplicates bearer-token companion check-ins through the canonical path", function() {
+          var prefix = variables.naming.buildPrefix("companion", "bearer-checkin");
+          var sessionApi = buildSessionApiSupport();
+          var localCreated = newCreatedTracker();
+          var asset = {};
+          var exchangeResponse = {};
+          var mobileId = buildMobileSubmissionId("bearer-checkin");
+          var payload = {};
+          var beforeCanonicalCount = 0;
+          var response = {};
+          var duplicateResponse = {};
+          var eventRow = {};
+          var responseJson = "";
+
+          try {
+            url.testUserId = variables.sessionApiUser.userId;
+            asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+            exchangeResponse = issueCompanionToken("bearer-checkin");
+            payload = {
+              mobileSubmissionId = mobileId,
+              floatPlanId = asset.floatPlanId,
+              status = "On Track",
+              note = "Bearer companion check-in"
+            };
+            beforeCanonicalCount = countCanonicalCheckinEvents(asset.floatPlanId);
+
+            response = postJsonNoSession(
+              "/api/v1/companion.cfc?method=handle&action=checkin&returnFormat=json",
+              payload,
+              "Bearer " & exchangeResponse.TOKEN
+            );
+            responseJson = serializeJSON(response);
+
+            expect(response.SUCCESS).toBeTrue(responseJson);
+            expect(response.success).toBeTrue(responseJson);
+            expect(response.AUTH).toBeTrue(responseJson);
+            expect(response.duplicate).toBeFalse(responseJson);
+            expect(find(exchangeResponse.TOKEN, responseJson)).toBe(0, responseJson);
+            eventRow = loadCompanionEventByMobileId(mobileId);
+            expect(eventRow.process_status).toBe("PROCESSED", serializeJSON(eventRow));
+            expect(eventRow.canonical_status).toBe("On Track", serializeJSON(eventRow));
+            expect(val(eventRow.companion_device_id ?: 0)).toBe(val(exchangeResponse.DEVICE.id), serializeJSON(eventRow));
+            expect(countCanonicalCheckinEvents(asset.floatPlanId)).toBe(beforeCanonicalCount + 1);
+
+            duplicateResponse = postJsonNoSession(
+              "/api/v1/companion.cfc?method=handle&action=checkin&returnFormat=json",
+              payload,
+              "Bearer " & exchangeResponse.TOKEN
+            );
+            expect(duplicateResponse.SUCCESS).toBeTrue(serializeJSON(duplicateResponse));
+            expect(duplicateResponse.duplicate).toBeTrue(serializeJSON(duplicateResponse));
+            expect(countCompanionEventsByMobileId(mobileId)).toBe(1);
+            expect(countCanonicalCheckinEvents(asset.floatPlanId)).toBe(beforeCanonicalCount + 1);
+          } finally {
+            cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+            deleteCompanionEventsByMobileId(mobileId);
+            cleanupCompanionAuthRows(variables.sessionApiUser.userId);
+          }
+        });
+
+        it("returns focused bearer auth errors for missing, malformed, invalid, revoked, and expired tokens", function() {
+          var missingResponse = {};
+          var malformedResponse = {};
+          var invalidResponse = {};
+          var revokedExchange = {};
+          var revokedResponse = {};
+          var expiredExchange = {};
+          var expiredResponse = {};
+
+          try {
+            missingResponse = getJsonNoSession("/api/v1/companion.cfc?method=handle&action=current&returnFormat=json");
+            expect(missingResponse.SUCCESS).toBeFalse(serializeJSON(missingResponse));
+            expect(missingResponse.AUTH).toBeFalse(serializeJSON(missingResponse));
+            expect(missingResponse.ERROR).toBe("NOT_LOGGED_IN", serializeJSON(missingResponse));
+
+            malformedResponse = getJsonNoSession(
+              "/api/v1/companion.cfc?method=handle&action=current&returnFormat=json",
+              "Bearer"
+            );
+            expect(malformedResponse.SUCCESS).toBeFalse(serializeJSON(malformedResponse));
+            expect(malformedResponse.ERROR).toBe("TOKEN_INVALID", serializeJSON(malformedResponse));
+
+            invalidResponse = getJsonNoSession(
+              "/api/v1/companion.cfc?method=handle&action=current&returnFormat=json",
+              "Bearer fpwc_invalid.notavalidtoken"
+            );
+            expect(invalidResponse.SUCCESS).toBeFalse(serializeJSON(invalidResponse));
+            expect(invalidResponse.ERROR).toBe("TOKEN_INVALID", serializeJSON(invalidResponse));
+
+            revokedExchange = issueCompanionToken("bearer-revoked");
+            variables.companionAuthService.revokeDevice(variables.sessionApiUser.userId, val(revokedExchange.DEVICE.id), "test revoked token");
+            revokedResponse = getJsonNoSession(
+              "/api/v1/companion.cfc?method=handle&action=current&returnFormat=json",
+              "Bearer " & revokedExchange.TOKEN
+            );
+            expect(revokedResponse.SUCCESS).toBeFalse(serializeJSON(revokedResponse));
+            expect(revokedResponse.ERROR).toBe("TOKEN_REVOKED", serializeJSON(revokedResponse));
+
+            expiredExchange = issueCompanionToken("bearer-expired");
+            expireCompanionDevice(val(expiredExchange.DEVICE.id));
+            expiredResponse = getJsonNoSession(
+              "/api/v1/companion.cfc?method=handle&action=current&returnFormat=json",
+              "Bearer " & expiredExchange.TOKEN
+            );
+            expect(expiredResponse.SUCCESS).toBeFalse(serializeJSON(expiredResponse));
+            expect(expiredResponse.ERROR).toBe("TOKEN_EXPIRED", serializeJSON(expiredResponse));
+          } finally {
+            cleanupCompanionAuthRows(variables.sessionApiUser.userId);
+          }
+        });
+
+        it("denies bearer scope mismatch and non-approved companion actions", function() {
+          var currentOnlyExchange = {};
+          var scopeDeniedResponse = {};
+          var invalidActionResponse = {};
+
+          try {
+            currentOnlyExchange = issueCompanionToken("scope-current-only", variables.sessionApiUser.userId, "companion:current");
+
+            scopeDeniedResponse = postJsonNoSession(
+              "/api/v1/companion.cfc?method=handle&action=checkin&returnFormat=json",
+              {
+                mobileSubmissionId = buildMobileSubmissionId("scope-denied"),
+                floatPlanId = 1,
+                status = "On Track"
+              },
+              "Bearer " & currentOnlyExchange.TOKEN
+            );
+            expect(scopeDeniedResponse.SUCCESS).toBeFalse(serializeJSON(scopeDeniedResponse));
+            expect(scopeDeniedResponse.AUTH).toBeFalse(serializeJSON(scopeDeniedResponse));
+            expect(scopeDeniedResponse.ERROR).toBe("COMPANION_SCOPE_DENIED", serializeJSON(scopeDeniedResponse));
+
+            invalidActionResponse = getJsonNoSession(
+              "/api/v1/companion.cfc?method=handle&action=listDevices&returnFormat=json",
+              "Bearer " & currentOnlyExchange.TOKEN
+            );
+            expect(invalidActionResponse.SUCCESS).toBeFalse(serializeJSON(invalidActionResponse));
+            expect(invalidActionResponse.AUTH).toBeFalse(serializeJSON(invalidActionResponse));
+            expect(invalidActionResponse.ERROR).toBe("COMPANION_SCOPE_DENIED", serializeJSON(invalidActionResponse));
+          } finally {
+            cleanupCompanionAuthRows(variables.sessionApiUser.userId);
+          }
+        });
+
+        it("rejects bearer-token check-in for another user's active float plan", function() {
+          var prefix = variables.naming.buildPrefix("companion", "bearer-cross-user");
+          var sessionApi = buildSessionApiSupport();
+          var tokenUserCreated = newCreatedTracker();
+          var otherUser = {};
+          var otherApi = {};
+          var otherCreated = newCreatedTracker();
+          var tokenUserAsset = {};
+          var otherAsset = {};
+          var exchangeResponse = {};
+          var mobileId = buildMobileSubmissionId("bearer-cross-user");
+          var response = {};
+
+          try {
+            url.testUserId = variables.sessionApiUser.userId;
+            tokenUserAsset = createActivatedScheduledTrip(sessionApi, prefix & "-token-user", tokenUserCreated);
+            exchangeResponse = issueCompanionToken("bearer-cross-user");
+
+            otherUser = createDisposableApiUser("other");
+            otherApi = buildApiSupportForUser(otherUser);
+            url.testUserId = otherUser.userId;
+            otherAsset = createActivatedScheduledTrip(otherApi, prefix & "-other-user", otherCreated);
+            url.testUserId = variables.sessionApiUser.userId;
+
+            response = postJsonNoSession(
+              "/api/v1/companion.cfc?method=handle&action=checkin&returnFormat=json",
+              {
+                mobileSubmissionId = mobileId,
+                floatPlanId = otherAsset.floatPlanId,
+                status = "On Track"
+              },
+              "Bearer " & exchangeResponse.TOKEN
+            );
+
+            expect(response.SUCCESS).toBeFalse(serializeJSON(response));
+            expect(response.ERROR).toBe("ACTIVE_PLAN_MISMATCH", serializeJSON(response));
+            expect(countCompanionEventsByMobileId(mobileId)).toBe(0);
+            expect(loadPlanStatus(tokenUserAsset.floatPlanId)).toBe("ACTIVE");
+          } finally {
+            url.testUserId = variables.sessionApiUser.userId;
+            cleanupRouteLinkedAssetsForApi(sessionApi, tokenUserCreated);
+            if (isObject(otherApi)) {
+              if (isStruct(otherUser) AND structKeyExists(otherUser, "userId") AND val(otherUser.userId) GT 0) {
+                url.testUserId = otherUser.userId;
+              }
+              cleanupRouteLinkedAssetsForApi(otherApi, otherCreated);
+            }
+            url.testUserId = variables.sessionApiUser.userId;
+            deleteCompanionEventsByMobileId(mobileId);
+            cleanupCompanionAuthRows(variables.sessionApiUser.userId);
+            cleanupDisposableApiUser(otherUser);
+          }
+        });
+
         it("rejects companion check-in when there is no active route-backed trip", function() {
           var sessionApi = buildSessionApiSupport();
           var cleanupSupport = new fpw.tests.support.FpwCleanupSupport().init(sessionApi);
@@ -333,6 +564,7 @@ component extends="testbox.system.BaseSpec" output="false" {
             expect(numberFormat(val(eventRow.latitude), "0.0000000")).toBe("29.1234567", serializeJSON(eventRow));
             expect(numberFormat(val(eventRow.longitude), "0.0000000")).toBe("-83.1234567", serializeJSON(eventRow));
             expect(numberFormat(val(eventRow.gps_accuracy_meters), "0.0")).toBe("12.5", serializeJSON(eventRow));
+            expect(val(eventRow.companion_device_id ?: 0)).toBe(0, serializeJSON(eventRow));
             expect(eventRow.device_platform).toBe("ios", serializeJSON(eventRow));
             expect(countCanonicalCheckinEvents(asset.floatPlanId)).toBe(beforeCanonicalCount + 1);
 
@@ -663,8 +895,38 @@ component extends="testbox.system.BaseSpec" output="false" {
     );
   }
 
+  private any function buildApiSupportForUser(required struct apiUser) {
+    return new fpw.tests.support.FpwApiSupport().init(
+      baseUrl = variables.api.getBaseUrl(),
+      authEmail = arguments.apiUser.email,
+      authPassword = arguments.apiUser.password
+    );
+  }
+
   private struct function newCreatedTracker() {
     return { vesselIds = [], routeCodes = [], floatPlanIds = [], contactIds = [] };
+  }
+
+  private struct function createDisposableApiUser(required string label) {
+    var signupApi = new fpw.tests.support.FpwApiSupport().init(
+      baseUrl = variables.api.getBaseUrl()
+    );
+    var uniqueEmail = "fpw-companion-" & arguments.label & "-" & replace(createUUID(), "-", "", "all") & "@example.com";
+    var payload = signupApi.postJson("/api/v1/join.cfc?method=handle", {
+      firstName = "FPW",
+      lastName = "Companion",
+      email = uniqueEmail,
+      password = "changeIt"
+    }, false);
+
+    expect(payload.SUCCESS).toBeTrue(serializeJSON(payload));
+    expect(val(payload.USERID ?: 0)).toBeGT(0, serializeJSON(payload));
+
+    return {
+      userId = val(payload.USERID),
+      email = uniqueEmail,
+      password = "changeIt"
+    };
   }
 
   private struct function createSessionApiUser() {
@@ -687,6 +949,36 @@ component extends="testbox.system.BaseSpec" output="false" {
       email = uniqueEmail,
       password = "changeIt"
     };
+  }
+
+  private void function cleanupDisposableApiUser(required any apiUser) {
+    var userId = 0;
+
+    if (!isStruct(arguments.apiUser)) {
+      return;
+    }
+
+    userId = val(arguments.apiUser.userId ?: 0);
+    if (userId LTE 0) {
+      return;
+    }
+
+    cleanupCompanionAuthRows(userId);
+
+    queryExecute(
+      "DELETE FROM users_address WHERE userId = :userId",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "DELETE FROM users WHERE userId = :userId",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
   }
 
   private void function cleanupSessionApiUser() {
@@ -731,6 +1023,55 @@ component extends="testbox.system.BaseSpec" output="false" {
         "DELETE FROM companion_devices WHERE user_id = :userId",
         {
           userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
+    }
+
+    private struct function issueCompanionToken(required string label, numeric userId=0, string scopes="companion:current,companion:checkin") {
+      var targetUserId = arguments.userId GT 0 ? arguments.userId : variables.sessionApiUser.userId;
+      var pairingResponse = variables.companionAuthService.createPairingCode(targetUserId);
+      var exchangeResponse = {};
+
+      expect(pairingResponse.SUCCESS).toBeTrue(serializeJSON(pairingResponse));
+      exchangeResponse = variables.companionAuthService.exchangePairingCode(pairingResponse.PAIRING_CODE, {
+        deviceUuid = left("bearer-" & arguments.label & "-" & targetUserId, 128),
+        deviceName = "Bearer Test Device",
+        platform = "ios",
+        appVersion = "1.0.0"
+      });
+      expect(exchangeResponse.SUCCESS).toBeTrue(serializeJSON(exchangeResponse));
+      expect(len(trim(exchangeResponse.TOKEN))).toBeGT(40, serializeJSON(exchangeResponse));
+
+      if (arguments.scopes NEQ "companion:current,companion:checkin") {
+        updateCompanionDeviceScopes(val(exchangeResponse.DEVICE.id), arguments.scopes);
+      }
+
+      return exchangeResponse;
+    }
+
+    private void function updateCompanionDeviceScopes(required numeric deviceId, required string scopes) {
+      queryExecute(
+        "UPDATE companion_devices
+         SET scopes = :scopes,
+             updated_utc = UTC_TIMESTAMP()
+         WHERE id = :deviceId",
+        {
+          deviceId = { value = arguments.deviceId, cfsqltype = "cf_sql_bigint" },
+          scopes = { value = arguments.scopes, cfsqltype = "cf_sql_varchar" }
+        },
+        { datasource = "fpw" }
+      );
+    }
+
+    private void function expireCompanionDevice(required numeric deviceId) {
+      queryExecute(
+        "UPDATE companion_devices
+         SET expires_at_utc = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 MINUTE),
+             updated_utc = UTC_TIMESTAMP()
+         WHERE id = :deviceId",
+        {
+          deviceId = { value = arguments.deviceId, cfsqltype = "cf_sql_bigint" }
         },
         { datasource = "fpw" }
       );
@@ -897,6 +1238,17 @@ component extends="testbox.system.BaseSpec" output="false" {
           cfhttpparam(type = "header", name = "Authorization", value = arguments.authorizationHeader);
         }
         cfhttpparam(type = "body", value = serializeJSON(arguments.payload));
+      }
+      return parseJsonResponse(httpResult);
+    }
+
+    private struct function getJsonNoSession(required string path, string authorizationHeader="") {
+      var httpResult = {};
+      var fullUrl = buildUrl(arguments.path);
+      cfhttp(url = fullUrl, method = "get", result = "httpResult", charset = "utf-8") {
+        if (len(arguments.authorizationHeader)) {
+          cfhttpparam(type = "header", name = "Authorization", value = arguments.authorizationHeader);
+        }
       }
       return parseJsonResponse(httpResult);
     }

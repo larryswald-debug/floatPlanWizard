@@ -36,6 +36,7 @@
 
       validation.routeInstanceId = readNumber(activePlan, "routeInstanceId");
       validation.legOrder = readNumber(activePlan, "legOrder");
+      validation.companionDeviceId = readNumber(arguments.requestContext, "companionDeviceId");
 
       existingEvent = getCompanionEvent(arguments.userId, validation.mobileSubmissionId);
       if (readNumber(existingEvent, "id") GT 0) {
@@ -348,6 +349,7 @@
              speed_knots,
              heading_degrees,
              location_captured_at_utc,
+             companion_device_id,
              device_uuid,
              device_platform,
              app_version,
@@ -373,6 +375,7 @@
              :speedKnots,
              :headingDegrees,
              :locationCapturedAtUtc,
+             :companionDeviceId,
              :deviceUuid,
              :devicePlatform,
              :appVersion,
@@ -426,6 +429,7 @@
         speedKnots = { value = optionalNumber(arguments.eventData.speedKnots), cfsqltype = "cf_sql_double", null = !isNumeric(arguments.eventData.speedKnots) },
         headingDegrees = { value = optionalNumber(arguments.eventData.headingDegrees), cfsqltype = "cf_sql_double", null = !isNumeric(arguments.eventData.headingDegrees) },
         locationCapturedAtUtc = { value = arguments.eventData.locationCapturedAtUtc, cfsqltype = "cf_sql_timestamp", null = !isDate(arguments.eventData.locationCapturedAtUtc) },
+        companionDeviceId = { value = readNumber(arguments.eventData, "companionDeviceId"), cfsqltype = "cf_sql_bigint", null = (readNumber(arguments.eventData, "companionDeviceId") LTE 0) },
         deviceUuid = { value = arguments.eventData.deviceUuid, cfsqltype = "cf_sql_varchar", null = !len(arguments.eventData.deviceUuid) },
         devicePlatform = { value = arguments.eventData.devicePlatform, cfsqltype = "cf_sql_varchar", null = !len(arguments.eventData.devicePlatform) },
         appVersion = { value = arguments.eventData.appVersion, cfsqltype = "cf_sql_varchar", null = !len(arguments.eventData.appVersion) },
