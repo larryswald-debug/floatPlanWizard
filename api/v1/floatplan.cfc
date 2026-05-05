@@ -889,6 +889,45 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="submitCanonicalCompanionCheckin" access="public" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="payload" type="struct" required="true">
+        <cfscript>
+            var checkinId = 0;
+            var checkinStatus = trim(structKeyExists(arguments.payload, "status") ? toString(arguments.payload.status) : "");
+            var checkinNote = (structKeyExists(arguments.payload, "note") ? toString(arguments.payload.note) : "");
+            var checkinContext = trim(
+                structKeyExists(arguments.payload, "checkinContext")
+                    ? toString(arguments.payload.checkinContext)
+                    : (structKeyExists(arguments.payload, "checkin_context") ? toString(arguments.payload.checkin_context) : "")
+            );
+            var activeCruiseCheckinGuard = {};
+            var cruiseCheckinResult = {};
+
+            if (structKeyExists(arguments.payload, "floatPlanId")) {
+                checkinId = val(arguments.payload.floatPlanId);
+            } else if (structKeyExists(arguments.payload, "id")) {
+                checkinId = val(arguments.payload.id);
+            }
+
+            activeCruiseCheckinGuard = resolveCanonicalActiveFloatPlan(arguments.userId, checkinId);
+            if (!activeCruiseCheckinGuard.SUCCESS) {
+                activeCruiseCheckinGuard.AUTH = true;
+                return activeCruiseCheckinGuard;
+            }
+
+            cruiseCheckinResult = submitActiveCruiseCheckIn(arguments.userId, checkinId, checkinStatus, checkinNote, checkinContext);
+            if (structKeyExists(cruiseCheckinResult, "success") AND !structKeyExists(cruiseCheckinResult, "SUCCESS")) {
+                cruiseCheckinResult.SUCCESS = cruiseCheckinResult.success;
+            }
+            if (structKeyExists(cruiseCheckinResult, "SUCCESS") AND !structKeyExists(cruiseCheckinResult, "success")) {
+                cruiseCheckinResult.success = cruiseCheckinResult.SUCCESS;
+            }
+            cruiseCheckinResult.AUTH = true;
+            return cruiseCheckinResult;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="prependUserToSetContact" access="private" returntype="array" output="false">
         <cfargument name="contacts" type="array" required="true">
         <cfscript>

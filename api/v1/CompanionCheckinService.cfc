@@ -61,7 +61,7 @@
         "checkinContext" = validation.checkinContext
       };
 
-      canonicalResponse = callCanonicalCheckin(canonicalPayload, arguments.requestContext);
+      canonicalResponse = callCanonicalCheckin(arguments.userId, canonicalPayload, arguments.requestContext);
       if (isSuccessPayload(canonicalResponse)) {
         markEventProcessed(insertedEvent.id);
         refreshedModel = createApiComponent("CompanionViewModelService").init(variables.datasource)
@@ -520,23 +520,22 @@
   </cffunction>
 
   <cffunction name="callCanonicalCheckin" access="private" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
     <cfargument name="payload" type="struct" required="true">
     <cfargument name="requestContext" type="struct" required="true">
-    <cfset var httpResult = {}>
-    <cfset var endpoint = resolveCanonicalBaseUrl(readString(arguments.requestContext, "baseUrl")) & "/api/v1/floatplan.cfc?method=handle&action=checkin&returnFormat=json">
-    <cfset var cookieHeader = readString(arguments.requestContext, "cookieHeader")>
-    <cfset var testUserIdHeader = readString(arguments.requestContext, "testUserIdHeader")>
-    <cfhttp url="#endpoint#" method="post" result="httpResult" charset="utf-8" timeout="30">
-      <cfhttpparam type="header" name="Content-Type" value="application/json">
-      <cfif len(cookieHeader)>
-        <cfhttpparam type="header" name="Cookie" value="#cookieHeader#">
-      </cfif>
-      <cfif len(testUserIdHeader)>
-        <cfhttpparam type="header" name="X-FPW-Test-UserId" value="#testUserIdHeader#">
-      </cfif>
-      <cfhttpparam type="body" value="#serializeJSON(arguments.payload)#">
-    </cfhttp>
-    <cfreturn parseCanonicalResponse(httpResult)>
+    <cfscript>
+      try {
+        return createApiComponent("floatplan").submitCanonicalCompanionCheckin(arguments.userId, arguments.payload);
+      } catch (any canonicalError) {
+        return {
+          "SUCCESS" = false,
+          "success" = false,
+          "AUTH" = true,
+          "ERROR" = "CANONICAL_CHECKIN_EXCEPTION",
+          "MESSAGE" = "Canonical check-in could not be completed."
+        };
+      }
+    </cfscript>
   </cffunction>
 
   <cffunction name="parseCanonicalResponse" access="private" returntype="struct" output="false">

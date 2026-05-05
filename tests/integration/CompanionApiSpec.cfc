@@ -348,12 +348,12 @@ component extends="testbox.system.BaseSpec" output="false" {
           }
         });
 
-        it("normalizes the local Angular proxy base URL before canonical check-in handoff", function() {
-          var prefix = variables.naming.buildPrefix("companion", "proxy-base");
+        it("submits companion check-in through the internal canonical handoff without session headers", function() {
+          var prefix = variables.naming.buildPrefix("companion", "internal-handoff");
           var sessionApi = buildSessionApiSupport();
           var localCreated = newCreatedTracker();
           var asset = {};
-          var mobileId = buildMobileSubmissionId("proxy-base");
+          var mobileId = buildMobileSubmissionId("internal-handoff");
           var payload = {};
           var beforeCanonicalCount = 0;
           var response = {};
@@ -367,14 +367,14 @@ component extends="testbox.system.BaseSpec" output="false" {
               mobileSubmissionId = mobileId,
               floatPlanId = asset.floatPlanId,
               status = "On Track",
-              note = "Companion local proxy base URL check-in"
+              note = "Companion internal canonical handoff check-in"
             };
             beforeCanonicalCount = countCanonicalCheckinEvents(asset.floatPlanId);
 
             response = checkinService.submitCheckin(variables.sessionApiUser.userId, payload, {
               baseUrl = "http://localhost:4200/fpw",
               cookieHeader = "",
-              testUserIdHeader = toString(variables.sessionApiUser.userId)
+              testUserIdHeader = ""
             });
 
             expect(response.SUCCESS).toBeTrue(serializeJSON(response));
