@@ -300,10 +300,30 @@
                 return queryNew("");
             }
             return queryExecute("
-                SELECT leg_order, start_name, end_name, base_dist_nm
-                FROM route_instance_legs
-                WHERE route_instance_id = :routeInstanceId
-                ORDER BY leg_order ASC, id ASC
+                SELECT
+                    ril.id,
+                    ril.leg_order,
+                    ril.segment_id,
+                    ril.source_loop_segment_id,
+                    ril.start_name,
+                    ril.end_name,
+                    ril.base_dist_nm,
+                    COALESCE(ril.lock_count, 0) AS lock_count,
+                    ril.notes AS leg_notes,
+                    ri.template_route_code,
+                    lr.short_code AS lock_route_code,
+                    lr.code AS template_route_full_code,
+                    rts.order_index AS lock_leg_order
+                FROM route_instance_legs ril
+                INNER JOIN route_instances ri
+                    ON ri.id = ril.route_instance_id
+                LEFT JOIN route_template_segments rts
+                    ON rts.segment_id = ril.segment_id
+                LEFT JOIN loop_routes lr
+                    ON lr.id = rts.route_id
+                   AND (lr.short_code = ri.template_route_code OR lr.code = ri.template_route_code)
+                WHERE ril.route_instance_id = :routeInstanceId
+                ORDER BY ril.leg_order ASC, ril.id ASC
             ", {
                 routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
             }, { datasource = variables.datasource });
@@ -747,6 +767,7 @@
             var departureSource = "";
             var arrivalSource = "";
             var legWarnings = [];
+            var legLockModel = {};
 
             timeline = {
                 "available" = false,
@@ -899,6 +920,11 @@
                     arrivalSource = (len(arrivalUtc) ? "projected_from_previous_leg" : "");
                 }
 
+                legLockModel = buildLegLockModel(
+                    safeString(arguments.qLegs.lock_route_code[i]),
+                    safeNumber(arguments.qLegs.lock_leg_order[i]),
+                    safeNumber(arguments.qLegs.lock_count[i])
+                );
                 completedTotalNm += legCompletedNm;
                 arrayAppend(timeline.legs, {
                     "routeLegOrder" = legOrder,
@@ -925,6 +951,8 @@
                     "arrivalSource" = arrivalSource,
                     "authority" = "canonical_projection",
                     "usesLatestCheckinAsAnchor" = false,
+                    "lockSummary" = legLockModel.lockSummary,
+                    "locks" = legLockModel.locks,
                     "warnings" = legWarnings
                 });
             }
@@ -1026,6 +1054,7 @@
             var statusVal = "";
             var isCurrent = false;
             var finalArrivalUtc = "";
+            var legLockModel = {};
 
             scheduledTimeline.authority = "scheduled_projection";
             scheduledTimeline.available = false;
@@ -1093,6 +1122,11 @@
                 departureSource = (i EQ 1 ? scheduledDepartureSource : "previous_leg_arrival_projection");
                 priorArrivalDt = arrivalDt;
                 finalArrivalUtc = arrivalUtc;
+                legLockModel = buildLegLockModel(
+                    safeString(arguments.qLegs.lock_route_code[i]),
+                    safeNumber(arguments.qLegs.lock_leg_order[i]),
+                    safeNumber(arguments.qLegs.lock_count[i])
+                );
 
                 arrayAppend(scheduledTimeline.legs, {
                     "routeLegOrder" = legOrder,
@@ -1119,6 +1153,8 @@
                     "arrivalSource" = "scheduled_projection",
                     "authority" = "scheduled_projection",
                     "usesLatestCheckinAsAnchor" = false,
+                    "lockSummary" = legLockModel.lockSummary,
+                    "locks" = legLockModel.locks,
                     "warnings" = []
                 });
             }
@@ -1364,6 +1400,151 @@
                 "message" = arguments.message
             });
             addWarning(arguments.out, arguments.code, arguments.message);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildLegLockModel" access="private" returntype="struct" output="false">
+        <cfargument name="lockRouteCode" type="string" required="true">
+        <cfargument name="lockLegOrder" type="numeric" required="true">
+        <cfargument name="storedLockCount" type="numeric" required="true">
+        <cfscript>
+            var out = buildEmptyLegLockModel(arguments.storedLockCount, "route_instance_legs.lock_count");
+            var qLocks = queryNew("");
+            var hasDelayModel = false;
+            var i = 0;
+            var lockRow = {};
+            var totalBestDelay = 0;
+            var totalTypicalDelay = 0;
+            var totalWorstDelay = 0;
+
+            if (arguments.storedLockCount LTE 0) {
+                out.lockSummary.source = "route_instance_legs.lock_count";
+                return out;
+            }
+            if (!len(trim(arguments.lockRouteCode)) OR arguments.lockLegOrder LTE 0) {
+                out.lockSummary.source = "route_instance_legs.lock_count";
+                out.lockSummary.delayLabel = "Lock detail mapping unavailable";
+                return out;
+            }
+            if (!tableExists("route_leg_locks") OR !tableExists("canonical_locks")) {
+                out.lockSummary.source = "lock_tables_unavailable";
+                out.lockSummary.delayLabel = "Lock detail tables unavailable";
+                return out;
+            }
+
+            hasDelayModel = tableExists("lock_delay_model");
+            qLocks = queryExecute(
+                "SELECT
+                    rll.seq,
+                    rll.lock_code,
+                    COALESCE(cl.name, rll.lock_code) AS lock_name,
+                    COALESCE(cl.waterway, '') AS waterway,
+                    COALESCE(cl.state, '') AS state_code,
+                    COALESCE(cl.country, '') AS country_code,
+                    cl.lat,
+                    cl.lng,
+                    COALESCE(cl.lock_type, '') AS lock_type,
+                    cl.chamber_length_ft,
+                    cl.chamber_width_ft,
+                    COALESCE(cl.agency, '') AS agency,
+                    COALESCE(cl.source, '') AS source_url,
+                    COALESCE(cl.notes, '') AS lock_notes,"
+                    & (hasDelayModel ? "
+                    ldm.best_wait_min,
+                    ldm.typical_wait_min,
+                    ldm.worst_wait_min,
+                    COALESCE(ldm.notes, '') AS delay_notes" : "
+                    NULL AS best_wait_min,
+                    NULL AS typical_wait_min,
+                    NULL AS worst_wait_min,
+                    '' AS delay_notes")
+                    & "
+                 FROM route_leg_locks rll
+                 LEFT JOIN canonical_locks cl
+                    ON cl.lock_code = rll.lock_code"
+                    & (hasDelayModel ? "
+                 LEFT JOIN lock_delay_model ldm
+                    ON ldm.lock_code = rll.lock_code" : "")
+                    & "
+                 WHERE rll.route_code COLLATE utf8mb4_unicode_ci = :routeCode
+                   AND rll.leg = :legOrder
+                 ORDER BY rll.seq ASC, rll.lock_code ASC",
+                {
+                    routeCode = { value = trim(arguments.lockRouteCode), cfsqltype = "cf_sql_varchar" },
+                    legOrder = { value = arguments.lockLegOrder, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = variables.datasource }
+            );
+
+            for (i = 1; i LTE qLocks.recordCount; i++) {
+                lockRow = {
+                    "sequence" = (isNull(qLocks.seq[i]) ? i : val(qLocks.seq[i])),
+                    "lockCode" = safeString(qLocks.lock_code[i]),
+                    "name" = safeString(qLocks.lock_name[i]),
+                    "waterway" = safeString(qLocks.waterway[i]),
+                    "state" = safeString(qLocks.state_code[i]),
+                    "country" = safeString(qLocks.country_code[i]),
+                    "lockType" = safeString(qLocks.lock_type[i]),
+                    "chamberLengthFt" = (isNull(qLocks.chamber_length_ft[i]) ? 0 : val(qLocks.chamber_length_ft[i])),
+                    "chamberWidthFt" = (isNull(qLocks.chamber_width_ft[i]) ? 0 : val(qLocks.chamber_width_ft[i])),
+                    "latitude" = (isNull(qLocks.lat[i]) ? javacast("null", "") : val(qLocks.lat[i])),
+                    "longitude" = (isNull(qLocks.lng[i]) ? javacast("null", "") : val(qLocks.lng[i])),
+                    "agency" = safeString(qLocks.agency[i]),
+                    "bestDelayMinutes" = (isNull(qLocks.best_wait_min[i]) ? 0 : val(qLocks.best_wait_min[i])),
+                    "typicalDelayMinutes" = (isNull(qLocks.typical_wait_min[i]) ? 0 : val(qLocks.typical_wait_min[i])),
+                    "worstDelayMinutes" = (isNull(qLocks.worst_wait_min[i]) ? 0 : val(qLocks.worst_wait_min[i])),
+                    "delayNotes" = safeString(qLocks.delay_notes[i]),
+                    "notes" = safeString(qLocks.lock_notes[i]),
+                    "source" = safeString(qLocks.source_url[i])
+                };
+                arrayAppend(out.locks, lockRow);
+                totalBestDelay += val(lockRow.bestDelayMinutes);
+                totalTypicalDelay += val(lockRow.typicalDelayMinutes);
+                totalWorstDelay += val(lockRow.worstDelayMinutes);
+            }
+
+            if (arrayLen(out.locks) GT 0) {
+                out.lockSummary.hasLocks = true;
+                out.lockSummary.lockCount = arrayLen(out.locks);
+                out.lockSummary.bestDelayMinutes = totalBestDelay;
+                out.lockSummary.typicalDelayMinutes = totalTypicalDelay;
+                out.lockSummary.worstDelayMinutes = totalWorstDelay;
+                out.lockSummary.delayLabel = buildLockDelayLabel(totalBestDelay, totalTypicalDelay, totalWorstDelay);
+                out.lockSummary.source = "route_leg_locks";
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildEmptyLegLockModel" access="private" returntype="struct" output="false">
+        <cfargument name="storedLockCount" type="numeric" required="false" default="0">
+        <cfargument name="source" type="string" required="false" default="route_leg_locks">
+        <cfscript>
+            var lockCount = max(0, val(arguments.storedLockCount));
+            return {
+                "lockSummary" = {
+                    "hasLocks" = (lockCount GT 0),
+                    "lockCount" = lockCount,
+                    "bestDelayMinutes" = 0,
+                    "typicalDelayMinutes" = 0,
+                    "worstDelayMinutes" = 0,
+                    "delayLabel" = (lockCount GT 0 ? "Delay estimate unavailable" : "No locks mapped"),
+                    "source" = arguments.source
+                },
+                "locks" = []
+            };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildLockDelayLabel" access="private" returntype="string" output="false">
+        <cfargument name="bestDelayMinutes" type="numeric" required="true">
+        <cfargument name="typicalDelayMinutes" type="numeric" required="true">
+        <cfargument name="worstDelayMinutes" type="numeric" required="true">
+        <cfscript>
+            if (arguments.bestDelayMinutes LTE 0 AND arguments.typicalDelayMinutes LTE 0 AND arguments.worstDelayMinutes LTE 0) {
+                return "Delay estimate unavailable";
+            }
+            return "Best " & numberFormat(arguments.bestDelayMinutes, "0") & " min / Typical " & numberFormat(arguments.typicalDelayMinutes, "0") & " min / Worst " & numberFormat(arguments.worstDelayMinutes, "0") & " min";
         </cfscript>
     </cffunction>
 

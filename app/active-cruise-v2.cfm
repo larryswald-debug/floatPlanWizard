@@ -113,6 +113,13 @@
     return numberFormat(val(arguments.value), "0.0") & arguments.suffix;
   }
 
+  function fpwV2Minutes(any value="") {
+    if (!isNumeric(arguments.value)) {
+      return "--";
+    }
+    return numberFormat(val(arguments.value), "0") & " min";
+  }
+
   function fpwV2Percent(any value="") {
     if (!isNumeric(arguments.value)) {
       return "--";
@@ -1868,6 +1875,45 @@
       font-size: 0.92rem;
       line-height: 1.25;
     }
+    .route-plan-lock-detail {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .route-plan-lock-list {
+      display: grid;
+      gap: 10px;
+    }
+    .route-plan-lock-item {
+      border-radius: 12px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(126,184,226,0.08);
+      padding: 12px;
+    }
+    .route-plan-lock-item h4 {
+      margin: 0 0 8px;
+      color: var(--text);
+      font-size: 0.94rem;
+      line-height: 1.3;
+    }
+    .route-plan-lock-meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px 14px;
+      color: var(--soft);
+      font-size: 0.8rem;
+      line-height: 1.35;
+    }
+    .route-plan-lock-meta strong {
+      color: var(--text);
+      font-weight: 800;
+    }
+    .route-plan-lock-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
     .route-plan-progress-footer {
       margin-top: 16px;
       padding: 16px;
@@ -3105,6 +3151,14 @@
                         <cfset routePlanProgressLabel = fpwV2Percent(fpwV2Get(routePlanLeg, "percentComplete"))>
                         <cfset routePlanDepartureLabel = fpwV2Text(fpwV2Get(routePlanLeg, "departureUtc"), "Not available")>
                         <cfset routePlanArrivalLabel = fpwV2Text(fpwV2Get(routePlanLeg, "etaUtc"), fpwV2Text(fpwV2Get(routePlanLeg, "arrivalUtc"), "Not available"))>
+                        <cfset routePlanLockSummary = fpwV2Get(routePlanLeg, "lockSummary", {})>
+                        <cfset routePlanLocks = (structKeyExists(routePlanLeg, "locks") AND isArray(routePlanLeg.locks) ? routePlanLeg.locks : [])>
+                        <cfset routePlanHasLocks = (structKeyExists(routePlanLockSummary, "hasLocks") AND routePlanLockSummary.hasLocks EQ true)>
+                        <cfset routePlanLockCountLabel = fpwV2Text(fpwV2Get(routePlanLockSummary, "lockCount"), "0")>
+                        <cfset routePlanBestDelayLabel = fpwV2Minutes(fpwV2Get(routePlanLockSummary, "bestDelayMinutes"))>
+                        <cfset routePlanTypicalDelayLabel = fpwV2Minutes(fpwV2Get(routePlanLockSummary, "typicalDelayMinutes"))>
+                        <cfset routePlanWorstDelayLabel = fpwV2Minutes(fpwV2Get(routePlanLockSummary, "worstDelayMinutes"))>
+                        <cfset routePlanDelayLabel = fpwV2Text(fpwV2Get(routePlanLockSummary, "delayLabel"), "Delay estimate unavailable")>
                         <cfset routePlanSelectedClass = "">
                         <cfset routePlanAriaExpanded = "false">
                         <cfif routePlanLegIndex EQ selectedRoutePlanLegIndex>
@@ -3129,6 +3183,58 @@
                               <div><span>ETA / Arrival</span><strong>#encodeForHTML(routePlanArrivalLabel)#</strong></div>
                               <div><span>Distance</span><strong>#encodeForHTML(routePlanDistanceLabel)#</strong></div>
                               <div><span>Progress</span><strong>#encodeForHTML(routePlanProgressLabel)#</strong></div>
+                            </div>
+                            <div class="route-plan-lock-detail">
+                              <div class="route-plan-kicker">Lock Navigation Details</div>
+                              <div class="route-plan-detail-grid">
+                                <div><span>Locks</span><strong>#encodeForHTML(routePlanLockCountLabel)#</strong></div>
+                                <div><span>Best Delay</span><strong>#encodeForHTML(routePlanBestDelayLabel)#</strong></div>
+                                <div><span>Typical Delay</span><strong>#encodeForHTML(routePlanTypicalDelayLabel)#</strong></div>
+                                <div><span>Worst Delay</span><strong>#encodeForHTML(routePlanWorstDelayLabel)#</strong></div>
+                              </div>
+                              <cfif routePlanHasLocks AND arrayLen(routePlanLocks)>
+                                <div class="route-plan-lock-list">
+                                  <cfloop array="#routePlanLocks#" item="routePlanLock">
+                                    <cfset routePlanLockTitle = fpwV2Text(fpwV2Get(routePlanLock, "name"), fpwV2Text(fpwV2Get(routePlanLock, "lockCode"), "Lock"))>
+                                    <cfset routePlanLockCode = fpwV2Text(fpwV2Get(routePlanLock, "lockCode"), "")>
+                                    <cfset routePlanLockWaterway = fpwV2Text(fpwV2Get(routePlanLock, "waterway"), "Waterway unavailable")>
+                                    <cfset routePlanLockState = fpwV2Text(fpwV2Get(routePlanLock, "state"), "")>
+                                    <cfset routePlanLockCountry = fpwV2Text(fpwV2Get(routePlanLock, "country"), "")>
+                                    <cfset routePlanLockPlace = trim(routePlanLockState & (len(routePlanLockState) AND len(routePlanLockCountry) ? ", " : "") & routePlanLockCountry)>
+                                    <cfset routePlanLockType = fpwV2Text(fpwV2Get(routePlanLock, "lockType"), "type unavailable")>
+                                    <cfset routePlanLockChamber = "--">
+                                    <cfif isNumeric(fpwV2Get(routePlanLock, "chamberLengthFt")) AND val(fpwV2Get(routePlanLock, "chamberLengthFt")) GT 0 AND isNumeric(fpwV2Get(routePlanLock, "chamberWidthFt")) AND val(fpwV2Get(routePlanLock, "chamberWidthFt")) GT 0>
+                                      <cfset routePlanLockChamber = numberFormat(val(fpwV2Get(routePlanLock, "chamberLengthFt")), "0") & " x " & numberFormat(val(fpwV2Get(routePlanLock, "chamberWidthFt")), "0") & " ft">
+                                    </cfif>
+                                    <cfset routePlanLockLocation = "--">
+                                    <cfif isNumeric(fpwV2Get(routePlanLock, "latitude")) AND isNumeric(fpwV2Get(routePlanLock, "longitude"))>
+                                      <cfset routePlanLockLocation = numberFormat(val(fpwV2Get(routePlanLock, "latitude")), "0.00000") & ", " & numberFormat(val(fpwV2Get(routePlanLock, "longitude")), "0.00000")>
+                                    </cfif>
+                                    <cfset routePlanLockDelay = "Best/Typical/Worst: " & fpwV2Minutes(fpwV2Get(routePlanLock, "bestDelayMinutes")) & " / " & fpwV2Minutes(fpwV2Get(routePlanLock, "typicalDelayMinutes")) & " / " & fpwV2Minutes(fpwV2Get(routePlanLock, "worstDelayMinutes"))>
+                                    <article class="route-plan-lock-item">
+                                      <h4>###encodeForHTML(fpwV2Text(fpwV2Get(routePlanLock, "sequence"), ""))# #encodeForHTML(routePlanLockTitle)#<cfif len(routePlanLockCode)> <small>#encodeForHTML(routePlanLockCode)#</small></cfif></h4>
+                                      <div class="route-plan-lock-meta">
+                                        <div><strong>Waterway</strong><br>#encodeForHTML(routePlanLockWaterway)#</div>
+                                        <div><strong>Place</strong><br>#encodeForHTML(fpwV2Text(routePlanLockPlace, "--"))#</div>
+                                        <div><strong>Type</strong><br>#encodeForHTML(routePlanLockType)#</div>
+                                        <div><strong>Chamber</strong><br>#encodeForHTML(routePlanLockChamber)#</div>
+                                        <div><strong>Agency</strong><br>#encodeForHTML(fpwV2Text(fpwV2Get(routePlanLock, "agency"), "--"))#</div>
+                                        <div><strong>Delay</strong><br>#encodeForHTML(routePlanLockDelay)#</div>
+                                        <div><strong>Lat/Lng</strong><br>#encodeForHTML(routePlanLockLocation)#</div>
+                                        <div><strong>Source</strong><br>#encodeForHTML(fpwV2Text(fpwV2Get(routePlanLock, "source"), "--"))#</div>
+                                      </div>
+                                      <cfif len(fpwV2Text(fpwV2Get(routePlanLock, "delayNotes"), ""))>
+                                        <p class="route-plan-lock-note">Delay notes: #encodeForHTML(fpwV2Text(fpwV2Get(routePlanLock, "delayNotes"), ""))#</p>
+                                      </cfif>
+                                      <cfif len(fpwV2Text(fpwV2Get(routePlanLock, "notes"), ""))>
+                                        <p class="route-plan-lock-note">Notes: #encodeForHTML(fpwV2Text(fpwV2Get(routePlanLock, "notes"), ""))#</p>
+                                      </cfif>
+                                    </article>
+                                  </cfloop>
+                                </div>
+                              <cfelse>
+                                <p class="route-plan-lock-note">#encodeForHTML(routePlanDelayLabel)#.</p>
+                              </cfif>
                             </div>
                           </div>
                         </article>
