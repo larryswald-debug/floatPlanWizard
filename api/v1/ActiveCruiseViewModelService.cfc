@@ -884,10 +884,15 @@
       var generatedAt = formatUtc(now());
       var currentLegOrder = (structKeyExists(arguments.currentLeg, "order") ? safeNumber(arguments.currentLeg.order) : 0);
       var routeLeg = findMapLegByOrder(arguments.map, currentLegOrder);
+      var routeCode = safeString(arguments.qPlan.generated_route_code[1]);
       var startPoint = {};
       var endPoint = {};
       var warnings = [];
       var lookupAvailable = false;
+      var applyAvailable = false;
+      if (!len(routeCode)) {
+        routeCode = safeString(arguments.qPlan.template_route_code[1]);
+      }
       var out = {
         "available" = false,
         "authority" = "ActiveCruiseViewModelService.weather_lookup_contract",
@@ -905,6 +910,20 @@
             "point" = ""
           },
           "allowedPoints" = [ "start", "end" ]
+        },
+        "apply" = {
+          "available" = false,
+          "method" = "POST",
+          "routeCode" = routeCode,
+          "endpoints" = {
+            "editContext" = "/api/v1/routeBuilder.cfc?method=handle&action=routegen_geteditcontext&returnFormat=json",
+            "generatedPreview" = "/api/v1/routeBuilder.cfc?method=handle&action=routegen_preview&returnFormat=json",
+            "myRoutePreview" = "/api/v1/routeBuilder.cfc?method=handle&action=previewuserroute&returnFormat=json",
+            "update" = "/api/v1/routeBuilder.cfc?method=handle&action=routegen_update&returnFormat=json"
+          },
+          "payload" = {
+            "routeCode" = routeCode
+          }
         },
         "points" = {
           "start" = buildWeatherLookupPoint("start", {}, "Current-leg start"),
@@ -946,6 +965,15 @@
           "code" = "ACTIVE_CRUISE_WEATHER_LOOKUP_POINTS_UNAVAILABLE",
           "message" = "Current leg start and end coordinates are unavailable for weather lookup.",
           "source" = "activeCruiseV2Model.map.legs"
+        });
+      }
+      applyAvailable = (lookupAvailable AND len(routeCode) GT 0);
+      out.apply.available = applyAvailable;
+      if (lookupAvailable AND !applyAvailable) {
+        arrayAppend(warnings, {
+          "code" = "ACTIVE_CRUISE_WEATHER_APPLY_ROUTE_CODE_MISSING",
+          "message" = "Route code is unavailable, so weather factor cannot be applied to this route.",
+          "source" = "activeCruiseV2Model.route.routeCode"
         });
       }
       out.warnings = warnings;

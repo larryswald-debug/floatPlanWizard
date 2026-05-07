@@ -193,6 +193,7 @@
   activeCruiseV2AccessDetail = "";
   activeCruiseV2CurrentGroup = {};
   activeCruiseV2Model = {};
+  activeCruiseV2RouteProgressSummary = {};
 
   if (isNumeric(fpwV2HookValue("floatPlanId"))) {
     activeCruiseV2RequestedFloatPlanId = val(fpwV2HookValue("floatPlanId"));
@@ -263,6 +264,15 @@
       contacts = { items = [], passengers = [] },
       warnings = []
     };
+  }
+
+  if (
+    structKeyExists(activeCruiseV2Model, "routeTimeline")
+    AND isStruct(activeCruiseV2Model.routeTimeline)
+    AND structKeyExists(activeCruiseV2Model.routeTimeline, "summary")
+    AND isStruct(activeCruiseV2Model.routeTimeline.summary)
+  ) {
+    activeCruiseV2RouteProgressSummary = activeCruiseV2Model.routeTimeline.summary;
   }
 </cfscript>
 <!doctype html>
@@ -519,24 +529,66 @@
       border-color: rgba(236, 127, 120, .55);
       color: var(--red);
     }
-    .weather-lookup-layout {
+    .ac-weather-command-panel {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(240px, .55fr);
       gap: 14px;
-      align-items: start;
+      margin-top: 16px;
+      padding: 16px;
     }
-    .weather-lookup-form {
-      display: grid;
-      gap: 12px;
-      justify-items: end;
-    }
+    .weather-lookup-layout,
+    .ac-weather-command-header,
+    .ac-weather-command-controls,
+    .ac-weather-command-footer,
     .weather-choice-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .weather-lookup-layout {
+      gap: 14px;
+      justify-content: space-between;
+    }
+    .ac-weather-command-header {
+      gap: 14px;
+      justify-content: space-between;
+      inline-size: 100%;
+    }
+    .ac-weather-command-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-inline-size: 160px;
+    }
+    .ac-weather-command-title h3 {
+      margin: 0;
+    }
+    .ac-weather-command-icon {
+      color: var(--blue);
+      font-size: 1.35rem;
+      line-height: 1;
+    }
+    .weather-lookup-form,
+    .ac-weather-command-controls {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
       align-items: center;
+      justify-content: flex-end;
     }
-    .weather-choice {
+    .ac-weather-control-label {
+      color: var(--muted);
+      font-size: .75rem;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .weather-choice-row {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 10px;
+    }
+    .weather-choice,
+    .ac-weather-status-chip {
       display: inline-flex;
       gap: 8px;
       align-items: center;
@@ -547,19 +599,98 @@
       inline-size: 16px;
       block-size: 16px;
     }
+    .ac-weather-command-btn {
+      min-height: 40px;
+      padding: 9px 14px;
+    }
+    .ac-weather-status-chip {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .03);
+      min-height: 40px;
+      padding: 8px 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .ac-weather-summary-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      color: var(--muted);
+      font-size: .9rem;
+    }
+    .ac-weather-summary-row strong {
+      color: var(--text);
+      font-weight: 700;
+    }
     .weather-result {
       display: grid;
-      gap: 8px;
-      margin-top: 12px;
+      gap: 10px;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
     }
+    .weather-result.is-empty .ac-weather-metric-value,
     .weather-result.is-empty .field-value {
       color: var(--muted);
+    }
+    .ac-weather-metric-tile {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, .03);
+      min-block-size: 92px;
+      padding: 14px;
+    }
+    .ac-weather-metric-label {
+      color: var(--muted);
+      font-size: .75rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .ac-weather-metric-value {
+      display: block;
+      margin-top: 12px;
+      color: var(--text);
+      font-size: clamp(1.15rem, 2vw, 1.65rem);
+      line-height: 1.15;
+    }
+    .ac-weather-command-footer {
+      border-top: 1px solid var(--line);
+      gap: 12px;
+      justify-content: space-between;
+      padding-top: 12px;
+    }
+    .ac-weather-applied-note {
+      color: var(--muted);
+      margin: 0;
     }
     .weather-alert-list,
     .weather-warning-list {
       display: grid;
       gap: 8px;
       margin-top: 10px;
+    }
+    @media (max-width: 1100px) {
+      .weather-result {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 680px) {
+      .ac-weather-command-controls,
+      .weather-lookup-form,
+      .ac-weather-command-footer {
+        align-items: stretch;
+        flex-direction: column;
+        inline-size: 100%;
+      }
+      .weather-choice-row,
+      .ac-weather-command-btn,
+      .ac-weather-status-chip {
+        justify-content: center;
+        inline-size: 100%;
+      }
+      .weather-result {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
     }
     .map-overview {
       display: grid;
@@ -1308,15 +1439,18 @@
     }
     .map-leaflet-canvas { height: clamp(360px, 42vw, 520px); }
     .weather-lookup-layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(240px, .55fr);
-      gap: 18px;
-      align-items: start;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 14px;
+      justify-content: space-between;
     }
     .weather-lookup-form {
-      display: grid;
-      gap: 12px;
-      justify-items: end;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
     }
     .weather-choice-row,
     .timing-inline {
@@ -2887,6 +3021,47 @@
         <cfset weatherLookup = (structKeyExists(weatherModel, "lookup") AND isStruct(weatherModel.lookup) ? weatherModel.lookup : {})>
         <cfset weatherWarnings = (structKeyExists(weatherModel, "warnings") AND isArray(weatherModel.warnings) ? weatherModel.warnings : [])>
         <cfset weatherLookupAvailable = (structKeyExists(weatherLookup, "available") AND isBoolean(weatherLookup.available) AND weatherLookup.available)>
+        <cfset weatherApplyRouteCode = "">
+        <cfif structKeyExists(activeCruiseV2Model, "route") AND isStruct(activeCruiseV2Model.route)>
+          <cfset weatherApplyRouteCode = fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "routeCode"), "")>
+        </cfif>
+        <cfif (
+          len(weatherApplyRouteCode)
+          AND (
+            NOT structKeyExists(weatherModel, "apply")
+            OR NOT isStruct(weatherModel.apply)
+            OR NOT (
+              structKeyExists(weatherModel.apply, "available")
+              AND isBoolean(weatherModel.apply.available)
+              AND weatherModel.apply.available
+            )
+          )
+        )>
+          <cfset weatherModel.apply = {
+            "available" = weatherLookup.available,
+            "method" = "POST",
+            "routeCode" = weatherApplyRouteCode,
+            "endpoints" = {
+              "editContext" = "/api/v1/routeBuilder.cfc?method=handle&action=routegen_geteditcontext&returnFormat=json",
+              "generatedPreview" = "/api/v1/routeBuilder.cfc?method=handle&action=routegen_preview&returnFormat=json",
+              "myRoutePreview" = "/api/v1/routeBuilder.cfc?method=handle&action=previewuserroute&returnFormat=json",
+              "update" = "/api/v1/routeBuilder.cfc?method=handle&action=routegen_update&returnFormat=json"
+            },
+            "payload" = {
+              "routeCode" = weatherApplyRouteCode
+            }
+          }>
+        </cfif>
+        <cfset weatherApply = (structKeyExists(weatherModel, "apply") AND isStruct(weatherModel.apply) ? weatherModel.apply : {})>
+        <cfif structCount(weatherApply) AND structKeyExists(weatherApply, "available")>
+          <cfif weatherApply.available>
+            <cfset weatherModel.apply.available = true>
+          <cfelse>
+            <cfset weatherModel.apply.available = false>
+          </cfif>
+          <cfset weatherApply = weatherModel.apply>
+        </cfif>
+        <cfset weatherApplyAvailable = (structKeyExists(weatherApply, "available") AND isBoolean(weatherApply.available) AND weatherApply.available)>
         <cfset weatherStartPoint = (structKeyExists(weatherPoints, "start") AND isStruct(weatherPoints.start) ? weatherPoints.start : {})>
         <cfset weatherEndPoint = (structKeyExists(weatherPoints, "end") AND isStruct(weatherPoints.end) ? weatherPoints.end : {})>
         <cfset timingActionsModel = (structKeyExists(activeCruiseV2Model.actions, "timing") AND isStruct(activeCruiseV2Model.actions.timing) ? activeCruiseV2Model.actions.timing : {})>
@@ -2981,55 +3156,55 @@
               <div class="mini-panel mini-panel--route-progress-flat">
                 <div class="mini-head">
                   <h3>Route Progress</h3>
-                  <span>#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.routeTimeline, "authority"), "unavailable"))#</span>
+                  <span data-fpw-field="routeProgress.authority">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.routeTimeline, "authority"), "unavailable"))#</span>
                 </div>
                 <div class="progress-block">
                   <div class="route-plan-progress-footer route-plan-progress-footer--flat">
                     <div class="route-plan-progress-grid">
                       <div>
                         <span>Complete</span>
-                        <strong>#encodeForHTML(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))#</strong>
+                        <strong data-fpw-field="routeProgress.percentComplete">#encodeForHTML(fpwV2Percent(fpwV2Get(activeCruiseV2RouteProgressSummary, "percentComplete")))#</strong>
                       </div>
                       <div>
                         <span>Total Route</span>
-                        <strong>#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "totalLegs"), "0"))# legs</strong>
+                        <strong data-fpw-field="routeProgress.totalLegs">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "totalLegs"), "0"))# legs</strong>
                       </div>
                       <div>
                         <span>Remaining</span>
-                        <strong>#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2Model.currentLeg, "remainingNm"), " nm"))#</strong>
+                        <strong data-fpw-field="routeProgress.remainingNm">#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2RouteProgressSummary, "remainingNm"), " nm"))#</strong>
                       </div>
                       <div>
                         <span>Final Arrival</span>
-                        <strong data-route-plan-summary="finalArrivalFooter">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "endLocation"), "Not available"))#</strong>
+                        <strong data-fpw-field="routeProgress.finalArrival" data-route-plan-summary="finalArrivalFooter">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2RouteProgressSummary, "finalArrivalUtc"), fpwV2Get(activeCruiseV2Model.route, "endLocation", "Not available")))#</strong>
                       </div>
                     </div>
                     <div class="route-plan-progress-bar" aria-hidden="true">
-                      <span style="width:#encodeForHTMLAttribute(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))#;"></span>
+                      <span data-fpw-field="routeProgress.progressBar" style="width:#encodeForHTMLAttribute(fpwV2Percent(fpwV2Get(activeCruiseV2RouteProgressSummary, "percentComplete")))#;"></span>
                     </div>
                   </div>
                   <div class="route-leg-estimate" aria-label="Route leg estimate">
                     <div class="route-leg-estimate-head">
                       <h4 class="route-leg-estimate-title">Current Leg Estimate</h4>
-                      <span class="route-leg-estimate-state">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "statusLabel"), "Not available"))#</span>
+                      <span class="route-leg-estimate-state" data-fpw-field="currentLeg.statusLabel">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "statusLabel"), "Not available"))#</span>
                     </div>
-                    <p class="route-leg-estimate-copy">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "fromName"), "Not available"))# to #encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "toName"), "Not available"))#</p>
+                    <p class="route-leg-estimate-copy" data-fpw-field="currentLeg.summary">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "fromName"), "Not available"))# to #encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "toName"), "Not available"))#</p>
                     <div class="route-leg-estimate-metrics">
                       <div class="route-leg-estimate-metric">
                         <span>Distance</span>
-                        <strong>#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2Model.currentLeg, "distanceNm"), " nm"))#</strong>
+                        <strong data-fpw-field="currentLeg.distanceNm">#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2Model.currentLeg, "distanceNm"), " nm"))#</strong>
                       </div>
                       <div class="route-leg-estimate-metric">
                         <span>Remaining</span>
-                        <strong>#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2Model.currentLeg, "remainingNm"), " nm"))#</strong>
+                        <strong data-fpw-field="currentLeg.remainingNm">#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2Model.currentLeg, "remainingNm"), " nm"))#</strong>
                       </div>
                       <div class="route-leg-estimate-metric">
                         <span>ETA</span>
-                        <strong>#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "etaUtc"), "Not available"))#</strong>
+                        <strong data-fpw-field="currentLeg.etaUtc">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "etaUtc"), "Not available"))#</strong>
                       </div>
                     </div>
                     <div class="route-leg-estimate-progress">
-                      <div class="route-leg-estimate-progress-head"><span>Leg Progress</span><span>#encodeForHTML(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))#</span></div>
-                      <div class="route-leg-estimate-progress-row"><div class="bar-shell"><div class="bar-fill" style="width:#encodeForHTMLAttribute(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))#;"></div></div></div>
+                      <div class="route-leg-estimate-progress-head"><span>Leg Progress</span><span data-fpw-field="currentLeg.percentComplete">#encodeForHTML(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))#</span></div>
+                      <div class="route-leg-estimate-progress-row"><div class="bar-shell"><div class="bar-fill" data-fpw-field="currentLeg.progressBar" style="width:#encodeForHTMLAttribute(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))#;"></div></div></div>
                     </div>
                     <div class="route-leg-estimate-foot">
                       <div>Start Next Leg and Complete Leg remain controlled by the V2 action contracts.</div>
@@ -3039,46 +3214,71 @@
                 </div>
               </div>
 
-              <div class="mini-panel" style="margin-top:16px;" aria-label="Weather lookup">
-                <div class="mini-head">
-                  <h3>Weather Lookup</h3>
-                  <span>Current Leg</span>
-                </div>
+              <section class="mini-panel ac-weather-command-panel" id="acV2WeatherPanel" aria-label="Weather lookup">
                 <div id="fpwV2WeatherLookup" class="weather-lookup-layout" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#">
-                  <div>
-                    <div class="split" style="align-items:center; gap:10px; flex-wrap:wrap;">
-                      <span>Lookup Point</span>
-                      <span>#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "source"), "Not available"))#</span>
+                  <div class="ac-weather-command-header">
+                    <div class="ac-weather-command-title">
+                      <span class="ac-weather-command-icon" aria-hidden="true">WX</span>
+                      <h3>Weather</h3>
                     </div>
-                    <cfif !weatherLookupAvailable>
-                      <div class="panel-note is-warning">#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "message"), "Weather lookup is not currently available."))#</div>
-                    <cfelse>
-                      <div id="fpwV2WeatherFeedback" class="panel-note">#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "message"), "Select a current-leg point and check conditions."))#</div>
-                    </cfif>
+                    <form id="fpwV2WeatherForm" class="weather-lookup-form">
+                      <div class="weather-choice-row" role="group" aria-label="Current leg weather lookup point">
+                        <span class="ac-weather-control-label">Current Leg</span>
+                        <label class="weather-choice">
+                          <input type="radio" name="fpwV2WeatherPoint" value="start"<cfif structKeyExists(weatherStartPoint, "available") AND weatherStartPoint.available EQ true> checked</cfif><cfif !structKeyExists(weatherStartPoint, "available") OR weatherStartPoint.available NEQ true> disabled</cfif>>
+                          <span>#encodeForHTML(fpwV2Text(fpwV2Get(weatherStartPoint, "label"), "Start"))#</span>
+                        </label>
+                        <label class="weather-choice">
+                          <input type="radio" name="fpwV2WeatherPoint" value="end"<cfif (!structKeyExists(weatherStartPoint, "available") OR weatherStartPoint.available NEQ true) AND structKeyExists(weatherEndPoint, "available") AND weatherEndPoint.available EQ true> checked</cfif><cfif !structKeyExists(weatherEndPoint, "available") OR weatherEndPoint.available NEQ true> disabled</cfif>>
+                          <span>#encodeForHTML(fpwV2Text(fpwV2Get(weatherEndPoint, "label"), "End"))#</span>
+                        </label>
+                      </div>
+                      <button type="submit" class="btn btn-secondary ac-weather-command-btn"<cfif !weatherLookupAvailable> disabled</cfif>>Check Conditions</button>
+                      <span class="ac-weather-status-chip" data-weather-chip="alerts">No alerts</span>
+                      <span class="ac-weather-status-chip" data-weather-chip="factor">0% factor</span>
+                    </form>
                   </div>
-                  <form id="fpwV2WeatherForm" class="weather-lookup-form">
-                    <div class="weather-choice-row">
-                      <label class="weather-choice">
-                        <input type="radio" name="fpwV2WeatherPoint" value="start"<cfif structKeyExists(weatherStartPoint, "available") AND weatherStartPoint.available EQ true> checked</cfif><cfif !structKeyExists(weatherStartPoint, "available") OR weatherStartPoint.available NEQ true> disabled</cfif>>
-                        <span>#encodeForHTML(fpwV2Text(fpwV2Get(weatherStartPoint, "label"), "Start"))#</span>
-                      </label>
-                      <label class="weather-choice">
-                        <input type="radio" name="fpwV2WeatherPoint" value="end"<cfif (!structKeyExists(weatherStartPoint, "available") OR weatherStartPoint.available NEQ true) AND structKeyExists(weatherEndPoint, "available") AND weatherEndPoint.available EQ true> checked</cfif><cfif !structKeyExists(weatherEndPoint, "available") OR weatherEndPoint.available NEQ true> disabled</cfif>>
-                        <span>#encodeForHTML(fpwV2Text(fpwV2Get(weatherEndPoint, "label"), "End"))#</span>
-                      </label>
-                    </div>
-                    <button type="submit" class="btn btn-secondary"<cfif !weatherLookupAvailable> disabled</cfif>>Check Conditions</button>
-                  </form>
+                </div>
+                <cfif !weatherLookupAvailable>
+                  <div id="fpwV2WeatherFeedback" class="panel-note is-warning">#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "message"), "Weather lookup is not currently available."))#</div>
+                <cfelse>
+                  <div id="fpwV2WeatherFeedback" class="panel-note">#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "message"), "Select a current-leg point and check conditions."))#</div>
+                </cfif>
+                <div class="ac-weather-summary-row" aria-live="polite">
+                  <span>Point: <strong data-weather-field="point">Not checked</strong></span>
+                  <span>Summary: <strong data-weather-field="summary">Not checked</strong></span>
+                  <span>Temperature: <strong data-weather-field="temperature">Not checked</strong></span>
+                  <span>Source: <strong>#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "source"), "Not available"))#</strong></span>
                 </div>
                 <div id="fpwV2WeatherResult" class="weather-result is-empty" aria-live="polite">
-                  <div class="split"><span>Point</span><strong data-weather-field="point">Not checked</strong></div>
-                  <div class="split" style="margin-top:10px;"><span>Summary</span><strong data-weather-field="summary">Not checked</strong></div>
-                  <div class="split" style="margin-top:10px;"><span>Temperature</span><strong data-weather-field="temperature">Not checked</strong></div>
-                  <div class="split" style="margin-top:10px;"><span>Wind</span><strong data-weather-field="wind">Not checked</strong></div>
-                  <div class="split" style="margin-top:10px;"><span>Gusts</span><strong data-weather-field="gusts">Not checked</strong></div>
-                  <div class="split" style="margin-top:10px;"><span>Waves</span><strong data-weather-field="waves">Not checked</strong></div>
-                  <div class="split" style="margin-top:10px;"><span>Visibility</span><strong data-weather-field="visibility">Not checked</strong></div>
-                  <div class="split" style="margin-top:10px;"><span>Alerts</span><strong data-weather-field="alerts">Not checked</strong></div>
+                  <article class="ac-weather-metric-tile">
+                    <div class="ac-weather-metric-label">Wind</div>
+                    <strong class="ac-weather-metric-value" data-weather-field="wind">Not checked</strong>
+                  </article>
+                  <article class="ac-weather-metric-tile">
+                    <div class="ac-weather-metric-label">Gusts</div>
+                    <strong class="ac-weather-metric-value" data-weather-field="gusts">Not checked</strong>
+                  </article>
+                  <article class="ac-weather-metric-tile">
+                    <div class="ac-weather-metric-label">Waves</div>
+                    <strong class="ac-weather-metric-value" data-weather-field="waves">Not checked</strong>
+                  </article>
+                  <article class="ac-weather-metric-tile">
+                    <div class="ac-weather-metric-label">Visibility</div>
+                    <strong class="ac-weather-metric-value" data-weather-field="visibility">Not checked</strong>
+                  </article>
+                  <article class="ac-weather-metric-tile">
+                    <div class="ac-weather-metric-label">Weather Factor</div>
+                    <strong class="ac-weather-metric-value" data-weather-field="weatherFactor">0%</strong>
+                  </article>
+                  <article class="ac-weather-metric-tile">
+                    <div class="ac-weather-metric-label">Alerts</div>
+                    <strong class="ac-weather-metric-value" data-weather-field="alerts">Not checked</strong>
+                  </article>
+                </div>
+                <div class="ac-weather-command-footer">
+                  <p class="ac-weather-applied-note" data-weather-field="weatherFactorNote"><cfif weatherApplyAvailable>Check conditions to calculate a route weather factor.<cfelse>Weather factor apply is not available in AC-V2.</cfif></p>
+                  <button type="button" class="btn btn-secondary ac-weather-command-btn ac-weather-apply-btn" id="fpwV2WeatherApplyBtn" disabled aria-disabled="true">Apply Weather to Route</button>
                 </div>
                 <cfif arrayLen(weatherWarnings)>
                   <div class="weather-warning-list">
@@ -3089,7 +3289,7 @@
                     </cfloop>
                   </div>
                 </cfif>
-              </div>
+              </section>
             </div>
 
             <div class="panel section-card" id="acV2RouteProgressPanel">
@@ -3659,6 +3859,7 @@
   </cfif>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/app/follow/followMap.js?v=20260423a"></script>
+  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/app/shared/route-weather-assist.js?v=20260507b"></script>
   <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260430-radar-opacity-a"></script>
   <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/maps/fpw-weather-overlays.js?v=20260430a"></script>
 </cfoutput>
@@ -3919,6 +4120,15 @@
   const feedback = document.getElementById('fpwV2WeatherFeedback');
   const result = document.getElementById('fpwV2WeatherResult');
   const payloadEl = document.getElementById('fpwActiveCruiseV2WeatherPayload');
+  const weatherPanel = document.getElementById('acV2WeatherPanel') || root;
+  const applyButton = document.getElementById('fpwV2WeatherApplyBtn');
+  const routeWeatherAssist = (window.FPW && window.FPW.RouteWeatherAssist) ? window.FPW.RouteWeatherAssist : null;
+  const weatherLookupState = {
+    point: '',
+    data: null,
+    suggestedPct: null,
+    requestSeq: 0
+  };
 
   if (!root || !form || !result || !payloadEl) {
     return;
@@ -3956,6 +4166,20 @@
     return text ? text : fallback;
   }
 
+  function isTrueValue(value) {
+    if (value === true) {
+      return true;
+    }
+    if (typeof value === 'number') {
+      return value > 0;
+    }
+    if (typeof value === 'string') {
+      const text = value.trim().toLowerCase();
+      return text === 'true' || text === '1' || text === 'yes';
+    }
+    return false;
+  }
+
   function joinParts(parts, fallback) {
     const value = parts.map(function(part) {
       return textValue(part, '');
@@ -3983,10 +4207,295 @@
   }
 
   function setField(name, value) {
-    const field = result.querySelector('[data-weather-field="' + name + '"]');
+    const field = weatherPanel.querySelector('[data-weather-field="' + name + '"]');
     if (field) {
       field.textContent = textValue(value, 'Not available');
     }
+  }
+
+  function setChip(name, value) {
+    const chip = weatherPanel.querySelector('[data-weather-chip="' + name + '"]');
+    if (chip) {
+      chip.textContent = textValue(value, 'Not available');
+    }
+  }
+
+  function formatPercent(value, fallback) {
+    if (value === null || value === undefined || value === '') {
+      return fallback;
+    }
+    if (Number.isFinite(Number(value))) {
+      return String(Math.round(Number(value))) + '%';
+    }
+    return textValue(value, fallback);
+  }
+
+  function cloneData(value) {
+    if (value === null || value === undefined) {
+      return value;
+    }
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (error) {
+      return value;
+    }
+  }
+
+  function extractPayloadData(payload) {
+    return payload && typeof payload === 'object'
+      ? getAny(payload, ['DATA', 'data'], {})
+      : {};
+  }
+
+  function extractApiMessage(payload, fallback) {
+    const errorData = payload && typeof payload === 'object' ? getAny(payload, ['ERROR', 'error'], {}) : {};
+    return textValue(
+      getAny(payload, ['MESSAGE', 'message'], getAny(errorData, ['MESSAGE', 'message'], fallback)),
+      fallback
+    );
+  }
+
+  function postJson(endpoint, payload, fallbackMessage) {
+    return fetch(endpoint, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(payload || {})
+    })
+      .then(function(response) {
+        return response.text().then(function(text) {
+          let parsed = {};
+          if (text) {
+            try {
+              parsed = JSON.parse(text);
+            } catch (parseError) {
+              parsed = { SUCCESS: false, MESSAGE: text };
+            }
+          }
+          if (!response.ok || !(parsed.SUCCESS === true || parsed.success === true)) {
+            throw new Error(extractApiMessage(parsed, fallbackMessage));
+          }
+          return parsed;
+        });
+      });
+  }
+
+  function fieldSelectorValue(value) {
+    return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  }
+
+  function refreshActiveCruiseV2FieldsFromDocument(sourceDoc) {
+    const sourcePayloadEl = sourceDoc ? sourceDoc.getElementById('fpwActiveCruiseV2WeatherPayload') : null;
+
+    if (!sourceDoc) {
+      throw new Error('Active Cruise V2 refresh data unavailable.');
+    }
+
+    Array.from(sourceDoc.querySelectorAll('[data-fpw-field]')).forEach(function(sourceFieldNode) {
+      const fieldName = String(sourceFieldNode.getAttribute('data-fpw-field') || '').trim();
+      if (!fieldName) {
+        return;
+      }
+      document.querySelectorAll('[data-fpw-field="' + fieldSelectorValue(fieldName) + '"]').forEach(function(targetNode) {
+        targetNode.textContent = sourceFieldNode.textContent;
+        if (sourceFieldNode.hasAttribute('style')) {
+          targetNode.setAttribute('style', sourceFieldNode.getAttribute('style'));
+        } else {
+          targetNode.removeAttribute('style');
+        }
+      });
+    });
+
+    if (payloadEl && sourcePayloadEl) {
+      payloadEl.textContent = sourcePayloadEl.textContent || '{}';
+    }
+  }
+
+  function refreshActiveCruiseV2ViewAfterWeatherApply() {
+    return fetch(window.location.href, {
+      method: 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: {
+        'Accept': 'text/html'
+      }
+    })
+      .then(function(response) {
+        if (!response.ok) {
+          throw new Error('Active Cruise V2 refresh failed.');
+        }
+        return response.text();
+      })
+      .then(function(html) {
+        const parser = new window.DOMParser();
+        const refreshedDoc = parser.parseFromString(html, 'text/html');
+        refreshActiveCruiseV2FieldsFromDocument(refreshedDoc);
+      });
+  }
+
+  function getApplyContract() {
+    const weatherModel = readWeatherModel();
+    return weatherModel && typeof weatherModel === 'object' && weatherModel.apply && typeof weatherModel.apply === 'object'
+      ? weatherModel.apply
+      : {};
+  }
+
+  function getApplyEndpoint(name) {
+    const apply = getApplyContract();
+    const endpoints = apply && typeof apply === 'object' && apply.endpoints && typeof apply.endpoints === 'object'
+      ? apply.endpoints
+      : {};
+    return resolveEndpoint(endpoints[name] || '');
+  }
+
+  function getApplyRouteCode() {
+    const apply = getApplyContract();
+    const payload = apply && typeof apply === 'object' && apply.payload && typeof apply.payload === 'object'
+      ? apply.payload
+      : {};
+    return textValue(getAny(apply, ['routeCode', 'route_code'], getAny(payload, ['routeCode', 'route_code'], '')), '');
+  }
+
+  function isApplyAvailable() {
+    const apply = getApplyContract();
+    return isTrueValue(getAny(apply, ['available', 'AVAILABLE'], false));
+  }
+
+  function setWeatherApplyButtonState(options) {
+    const state = options && typeof options === 'object' ? options : {};
+    const disabled = state.disabled !== false;
+    const label = textValue(state.label, 'Apply Weather to Route');
+    if (applyButton) {
+      applyButton.disabled = disabled || !isApplyAvailable();
+      applyButton.setAttribute('aria-disabled', applyButton.disabled ? 'true' : 'false');
+      applyButton.textContent = label;
+    }
+  }
+
+  function isMyRouteType(routeType) {
+    const value = String(routeType || '').trim().toLowerCase();
+    return value === 'my_route' || value === 'my_routes' || value === 'custom';
+  }
+
+  function requestRouteEditContext(routeCode) {
+    const endpoint = getApplyEndpoint('editContext');
+    if (!endpoint) {
+      return Promise.reject(new Error('The view model did not return a route edit-context endpoint.'));
+    }
+    return postJson(endpoint, { route_code: routeCode }, 'Unable to load route edit context.');
+  }
+
+  function requestRoutePreview(inputs) {
+    const previewInputs = cloneData(inputs || {});
+    const endpoint = getApplyEndpoint(isMyRouteType(previewInputs.route_type) ? 'myRoutePreview' : 'generatedPreview');
+    if (!endpoint) {
+      return Promise.reject(new Error('The view model did not return a route preview endpoint.'));
+    }
+    return postJson(endpoint, previewInputs, 'Unable to preview weather-adjusted route.');
+  }
+
+  function requestRouteUpdate(payload) {
+    const endpoint = getApplyEndpoint('update');
+    if (!endpoint) {
+      return Promise.reject(new Error('The view model did not return a route update endpoint.'));
+    }
+    return postJson(endpoint, payload, 'Unable to apply weather to this route.');
+  }
+
+  function resolveWeatherSuggestionForLookup() {
+    let routeCode = getApplyRouteCode();
+    let editInputs = {};
+    let routeName = '';
+
+    if (!isApplyAvailable()) {
+      return Promise.reject(new Error('Weather factor apply is not available for this active route.'));
+    }
+    if (!routeWeatherAssist) {
+      return Promise.reject(new Error('Route weather helper unavailable.'));
+    }
+    if (!routeCode) {
+      return Promise.reject(new Error('Unable to resolve the active route code.'));
+    }
+    if (!weatherLookupState.data || !weatherLookupState.data.available || !weatherLookupState.data.weather) {
+      return Promise.reject(new Error('Check current-leg conditions before applying weather to the route.'));
+    }
+
+    return requestRouteEditContext(routeCode)
+      .then(function(editContextPayload) {
+        const editContextData = extractPayloadData(editContextPayload);
+        editInputs = cloneData((editContextData && (editContextData.inputs || editContextData.INPUTS)) || {});
+        routeName = String(
+          editInputs.route_name ||
+          ((editContextData.route || {}).route_name) ||
+          ((editContextData.route || {}).ROUTE_NAME) ||
+          ''
+        ).trim();
+        if (!routeName) {
+          throw new Error('Route name unavailable for route update.');
+        }
+        editInputs.route_name = routeName;
+        if (!String(editInputs.route_code || '').trim()) {
+          editInputs.route_code = routeCode;
+        }
+        return requestRoutePreview(editInputs);
+      })
+      .then(function(previewPayload) {
+        const previewData = extractPayloadData(previewPayload);
+        const previewLegs = Array.isArray(previewData.legs) ? previewData.legs : (Array.isArray(previewData.LEGS) ? previewData.LEGS : []);
+        const routeContext = routeWeatherAssist.buildRouteWeatherContextFromLegs(previewLegs);
+        const weatherEnvelope = routeWeatherAssist.normalizeWeatherEnvelope(weatherLookupState.data.weather || {}, '');
+        const suggestion = routeWeatherAssist.computeLiveWeatherFactorPct(weatherEnvelope, routeContext);
+        const suggestedPct = parseInt(suggestion.suggestedPct, 10);
+        if (!previewLegs.length) {
+          throw new Error('Route preview returned no legs.');
+        }
+        if (!suggestion.available || !Number.isFinite(suggestedPct)) {
+          throw new Error('Weather factor suggestion unavailable for this route.');
+        }
+        return {
+          routeCode: routeCode,
+          routeName: routeName,
+          editInputs: editInputs,
+          suggestedPct: suggestedPct,
+          suggestion: suggestion
+        };
+      });
+  }
+
+  function renderWeatherSuggestion(resultData) {
+    const pct = parseInt(resultData && resultData.suggestedPct, 10);
+    if (!Number.isFinite(pct)) {
+      weatherLookupState.suggestedPct = null;
+      setField('weatherFactor', '0%');
+      setChip('factor', '0% factor');
+      setField('weatherFactorNote', 'Weather factor suggestion unavailable.');
+      setWeatherApplyButtonState({ disabled: true });
+      return;
+    }
+    weatherLookupState.suggestedPct = pct;
+    setField('weatherFactor', formatPercent(pct, '0%'));
+    setChip('factor', formatPercent(pct, '0%') + ' factor');
+    setField('weatherFactorNote', 'Suggested ' + pct + '% weather factor. Apply to update the route.');
+    setWeatherApplyButtonState({ disabled: false });
+  }
+
+  function applyWeatherToRouteFromLookup() {
+    return resolveWeatherSuggestionForLookup()
+      .then(function(suggestionResult) {
+        const updatedPayload = cloneData(suggestionResult.editInputs);
+        updatedPayload.weather_factor_pct = suggestionResult.suggestedPct;
+        updatedPayload.route_code = suggestionResult.routeCode;
+        updatedPayload.route_name = suggestionResult.routeName;
+        return requestRouteUpdate(updatedPayload).then(function(updatePayload) {
+          return {
+            updatePayload: updatePayload,
+            suggestedPct: suggestionResult.suggestedPct
+          };
+        });
+      });
   }
 
   function renderWeatherPayload(payload) {
@@ -4014,6 +4523,10 @@
           return textValue(getAny(alertItem, ['headline', 'HEADLINE', 'event', 'EVENT'], 'Alert'), 'Alert');
         }).join('; ')
       : 'No alerts';
+    const weatherFactor = formatPercent(getAny(data, ['weather_factor_pct', 'WEATHER_FACTOR_PCT', 'weatherFactorPct', 'weatherFactor'], getAny(weather, ['weather_factor_pct', 'WEATHER_FACTOR_PCT', 'weatherFactorPct', 'weatherFactor'], 0)), '0%');
+    const alertChip = Array.isArray(alerts) && alerts.length
+      ? String(alerts.length) + ' alert' + (alerts.length === 1 ? '' : 's')
+      : 'No alerts';
 
     result.classList.remove('is-empty');
     setField('point', pointLabel);
@@ -4023,8 +4536,17 @@
     setField('gusts', gusts);
     setField('waves', waves);
     setField('visibility', visibility);
+    setField('weatherFactor', weatherFactor);
     setField('alerts', alertText);
+    setChip('alerts', alertChip);
+    setChip('factor', weatherFactor + ' factor');
+    return {
+      data: data,
+      weatherFactor: weatherFactor
+    };
   }
+
+  setWeatherApplyButtonState({ disabled: true });
 
   form.addEventListener('submit', function(event) {
     event.preventDefault();
@@ -4072,13 +4594,36 @@
       })
       .then(function(resultPayload) {
         const responsePayload = resultPayload.payload || {};
-        const success = resultPayload.ok && (responsePayload.success === true || responsePayload.SUCCESS === true);
+        const success = resultPayload.ok && isTrueValue(getAny(responsePayload, ['success', 'SUCCESS'], false));
         const data = getAny(responsePayload, ['data', 'DATA'], {});
-        const available = getAny(data, ['available', 'AVAILABLE'], false) === true;
+        const available = isTrueValue(getAny(data, ['available', 'AVAILABLE'], false));
         const message = textValue(getAny(responsePayload, ['MESSAGE', 'message'], getAny(data, ['message', 'MESSAGE'], 'Weather lookup completed.')), 'Weather lookup completed.');
+        const seq = weatherLookupState.requestSeq + 1;
 
+        weatherLookupState.requestSeq = seq;
+        weatherLookupState.point = requestPayload.point;
+        weatherLookupState.data = available ? data : null;
+        weatherLookupState.suggestedPct = null;
+        setWeatherApplyButtonState({ disabled: true });
         renderWeatherPayload(responsePayload);
         setFeedback(message, success && available ? 'is-success' : 'is-warning');
+
+        if (success && available && isApplyAvailable()) {
+          setField('weatherFactorNote', 'Calculating route weather factor...');
+          resolveWeatherSuggestionForLookup()
+            .then(function(suggestionResult) {
+              if (seq === weatherLookupState.requestSeq) {
+                renderWeatherSuggestion(suggestionResult);
+              }
+            })
+            .catch(function(error) {
+              if (seq === weatherLookupState.requestSeq) {
+                weatherLookupState.suggestedPct = null;
+                setWeatherApplyButtonState({ disabled: true });
+                setField('weatherFactorNote', error && error.message ? error.message : 'Weather factor suggestion unavailable.');
+              }
+            });
+        }
       })
       .catch(function(error) {
         setFeedback(error && error.message ? error.message : 'Weather lookup failed.', 'is-error');
@@ -4089,6 +4634,70 @@
         }
       });
   });
+
+  Array.from(form.querySelectorAll('input[name="fpwV2WeatherPoint"]')).forEach(function(input) {
+    input.addEventListener('change', function() {
+      weatherLookupState.point = '';
+      weatherLookupState.data = null;
+      weatherLookupState.suggestedPct = null;
+      weatherLookupState.requestSeq += 1;
+      result.classList.add('is-empty');
+      setField('point', 'Not checked');
+      setField('summary', 'Not checked');
+      setField('temperature', 'Not checked');
+      setField('wind', 'Not checked');
+      setField('gusts', 'Not checked');
+      setField('waves', 'Not checked');
+      setField('visibility', 'Not checked');
+      setField('weatherFactor', '0%');
+      setField('alerts', 'Not checked');
+      setField('weatherFactorNote', isApplyAvailable() ? 'Check conditions to calculate a route weather factor.' : 'Weather factor apply is not available in AC-V2.');
+      setChip('alerts', 'No alerts');
+      setChip('factor', '0% factor');
+      setWeatherApplyButtonState({ disabled: true });
+    });
+  });
+
+  if (applyButton) {
+    applyButton.addEventListener('click', function() {
+      let appliedPctText = '';
+      if (applyButton.disabled) {
+        return;
+      }
+      setWeatherApplyButtonState({ disabled: true, label: 'Applying...' });
+      setFeedback('Applying weather factor to route...', '');
+      applyWeatherToRouteFromLookup()
+        .then(function(resultData) {
+          const pct = parseInt(resultData && resultData.suggestedPct, 10);
+          const pctText = Number.isFinite(pct) ? String(pct) + '%' : 'selected';
+          appliedPctText = pctText;
+          setField('weatherFactor', Number.isFinite(pct) ? pctText : '0%');
+          setChip('factor', Number.isFinite(pct) ? pctText + ' factor' : '0% factor');
+          setField('weatherFactorNote', 'Applied ' + pctText + ' weather factor to route. Refreshing route view...');
+          setFeedback('Applied ' + pctText + ' weather factor to route.', 'is-success');
+          return refreshActiveCruiseV2ViewAfterWeatherApply();
+        })
+        .then(function() {
+          if (appliedPctText) {
+            setField('weatherFactorNote', 'Applied ' + appliedPctText + ' weather factor to route.');
+            setFeedback('Applied ' + appliedPctText + ' weather factor to route.', 'is-success');
+          }
+        })
+        .catch(function(error) {
+          setWeatherApplyButtonState({ disabled: weatherLookupState.suggestedPct === null });
+          if (appliedPctText) {
+            const refreshMessage = 'Applied ' + appliedPctText + ' weather factor to route, but Active Cruise V2 refresh did not complete.';
+            setField('weatherFactorNote', refreshMessage);
+            setFeedback(refreshMessage, 'is-warning');
+            return;
+          }
+          setFeedback(error && error.message ? error.message : 'Unable to apply weather to this route.', 'is-error');
+        })
+        .finally(function() {
+          setWeatherApplyButtonState({ disabled: weatherLookupState.suggestedPct === null });
+        });
+    });
+  }
 })();
 
 (function() {
