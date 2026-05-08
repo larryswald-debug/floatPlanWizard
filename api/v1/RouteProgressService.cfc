@@ -485,9 +485,13 @@
             }
 
             queryExecute("
-                INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, leg_started_at)
-                VALUES (:userId, :routeInstanceId, :legOrder, NOW())
+                INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, status, leg_started_at)
+                VALUES (:userId, :routeInstanceId, :legOrder, 'STARTED', NOW())
                 ON DUPLICATE KEY UPDATE
+                    status = CASE
+                        WHEN UPPER(TRIM(COALESCE(route_instance_leg_progress.status, ''))) IN ('', 'NOT_STARTED') THEN 'STARTED'
+                        ELSE route_instance_leg_progress.status
+                    END,
                     leg_started_at = COALESCE(route_instance_leg_progress.leg_started_at, VALUES(leg_started_at))
             ", {
                 userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
@@ -548,4 +552,3 @@
     </cffunction>
 
 </cfcomponent>
-

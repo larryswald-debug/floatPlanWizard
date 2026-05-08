@@ -98,13 +98,18 @@
       if (gphAtMaxSpeed) metaParts.push("Max burn: " + gphAtMaxSpeed + " gph");
       if (color) metaParts.push("Color: " + color);
       if (!metaParts.length) metaParts.push("Registration: N/A");
-      var metaText = metaParts.join(" • ");
+      var metaLineOne = metaParts.slice(0, 4).join(" • ");
+      var metaLineTwo = metaParts.slice(4, 7).join(" • ");
+      var metaLineThree = metaParts.slice(7).join(" • ");
 
       return (
-        '<div class="list-item">' +
-          '<div class="list-main">' +
+        '<div class="list-item fpw-manage-item fpw-vessel-item">' +
+          '<div class="fpw-manage-thumb fpw-vessel-thumb" aria-hidden="true"></div>' +
+          '<div class="list-main fpw-manage-item-copy">' +
             '<div class="list-title">' + utils.escapeHtml(nameText) + "</div>" +
-            "<small>" + utils.escapeHtml(metaText) + "</small>" +
+            (metaLineOne ? '<small class="list-meta-line">' + utils.escapeHtml(metaLineOne) + "</small>" : "") +
+            (metaLineTwo ? '<small class="list-meta-line">' + utils.escapeHtml(metaLineTwo) + "</small>" : "") +
+            (metaLineThree ? '<small class="list-meta-line">' + utils.escapeHtml(metaLineThree) + "</small>" : "") +
           "</div>" +
           '<div class="list-actions">' +
             '<button class="btn-secondary" type="button" id="vessel-edit-' + utils.escapeHtml(vesselId) + '" data-action="edit" data-vessel-id="' + utils.escapeHtml(vesselId) + '">Edit</button>' +

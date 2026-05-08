@@ -3,6 +3,52 @@
 
   window.FPW = window.FPW || {};
 
+  function getFpwApiBase() {
+    var path = "";
+    var marker = -1;
+
+    if (window.FPW_API_BASE) {
+      return String(window.FPW_API_BASE).replace(/\/+$/, "");
+    }
+    if (typeof window.FPW_BASE !== "undefined") {
+      return String(window.FPW_BASE || "").replace(/\/+$/, "") + "/api/v1";
+    }
+    if (window.location && window.location.pathname) {
+      path = String(window.location.pathname || "");
+      marker = path.toLowerCase().indexOf("/app/");
+      if (marker < 0) {
+        marker = path.toLowerCase().indexOf("/admin/");
+      }
+      if (marker > 0) {
+        return path.slice(0, marker).replace(/\/+$/, "") + "/api/v1";
+      }
+    }
+    return "/api/v1";
+  }
+
+  function stopLeafletControlDragPropagation(element) {
+    var eventTypes = [
+      "pointerdown",
+      "pointermove",
+      "pointerup",
+      "mousedown",
+      "mousemove",
+      "mouseup",
+      "touchstart",
+      "touchmove",
+      "touchend",
+      "click",
+      "dblclick"
+    ];
+
+    if (!element) return;
+    eventTypes.forEach(function (eventType) {
+      element.addEventListener(eventType, function (event) {
+        event.stopPropagation();
+      });
+    });
+  }
+
   window.FPW.attachLeafletMarineLayers = function attachLeafletMarineLayers(options) {
     var settings = options || {};
     var map = settings.map || null;
@@ -26,7 +72,7 @@
 
     var chartWmsUrl = "https://gis.charttools.noaa.gov/arcgis/rest/services/MCS/NOAAChartDisplay/MapServer/exts/MaritimeChartService/WMSServer";
     var chartLayerNames = "0,1,2,3,4,5,6,7,8,9,10,11,12";
-    var radarWmsUrl = "/fpw/api/v1/wmsProxy.cfc?method=tile&target=nws-radar";
+    var radarWmsUrl = getFpwApiBase() + "/wmsProxy.cfc?method=tile&target=nws-radar";
     var radarLayerName = "radar_base_reflectivity_time";
     var radarCoverageBbox3857 = {
       minx: -19592230.379600,
@@ -49,6 +95,7 @@
         input = container.querySelector("input");
         window.L.DomEvent.disableClickPropagation(container);
         window.L.DomEvent.disableScrollPropagation(container);
+        stopLeafletControlDragPropagation(container);
         if (input) {
           input.addEventListener("input", function () {
             var value = parseInt(input.value, 10) / 100;
@@ -426,7 +473,7 @@
     // NWS eventdriven radar GetCapabilities URL (via proxy):
     // /fpw/api/v1/wmsProxy.cfc?method=tile&target=nws-radar&SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0
     // Selected layer name: "radar_base_reflectivity_time".
-    var radarWmsUrl = "/fpw/api/v1/wmsProxy.cfc?method=tile&target=nws-radar";
+    var radarWmsUrl = getFpwApiBase() + "/wmsProxy.cfc?method=tile&target=nws-radar";
     var radarLayerName = "radar_base_reflectivity_time";
     var radarCoverageBbox3857 = {
       minx: -19592230.379600,
@@ -463,6 +510,7 @@
         input = container.querySelector("input");
         window.L.DomEvent.disableClickPropagation(container);
         window.L.DomEvent.disableScrollPropagation(container);
+        stopLeafletControlDragPropagation(container);
         if (input) {
           input.addEventListener("input", function () {
             var value = parseInt(input.value, 10) / 100;

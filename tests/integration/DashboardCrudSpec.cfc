@@ -51,7 +51,9 @@ component extends="testbox.system.BaseSpec" output="false" {
       homeportSave = variables.ctx.baseUrl & "/fpw/api/v1/homeport.cfc?method=handle",
 
       floatplanSave = variables.ctx.baseUrl & "/fpw/api/v1/floatplan.cfc?method=handle",
-      floatplanDelete = variables.ctx.baseUrl & "/fpw/api/v1/floatplan.cfc?method=handle"
+      floatplanDelete = variables.ctx.baseUrl & "/fpw/api/v1/floatplan.cfc?method=handle",
+      floatplanBootstrap = variables.ctx.baseUrl & "/fpw/api/v1/floatplan.cfc?method=handle&action=bootstrap",
+      routeBuilderActionBase = variables.ctx.baseUrl & "/fpw/api/v1/routeBuilder.cfc?method=handle&action="
     };
 
     ensureSessionUser();
@@ -136,12 +138,12 @@ component extends="testbox.system.BaseSpec" output="false" {
         var suffix = uniqueSuffix();
         var vesselId = 0;
         var operatorId = 0;
-        var floatPlanId = 0;
+        var linkedPlan = { floatPlanId = 0, routeCode = "" };
 
         try {
           vesselId = createTestVessel( suffix );
           operatorId = createTestOperator( suffix );
-          floatPlanId = createTestDraftFloatPlan( vesselId, operatorId, suffix );
+          linkedPlan = createTestDraftFloatPlan( vesselId, operatorId, suffix );
 
           var canDelRes = apiPostJson( variables.ctx.urls.vesselCanDel, { action = "candelete", vesselId = vesselId } );
           expect( pickBool( canDelRes, "SUCCESS" ) ).toBeTrue( "Vessel candelete failed: #serializeJSON(canDelRes)#" );
@@ -152,8 +154,10 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect( pickBool( deleteRes, "SUCCESS" ) ).toBeFalse( "Delete should fail while in use: #serializeJSON(deleteRes)#" );
           expect( toString( deleteRes.ERROR ?: "" ) ).toBe( "IN_USE" );
         } finally {
-          if ( floatPlanId GT 0 ) {
-            safeDeleteFloatPlan( floatPlanId );
+          if ( len( linkedPlan.routeCode ) ) {
+            safeDeleteRoute( linkedPlan.routeCode );
+          } else if ( linkedPlan.floatPlanId GT 0 ) {
+            safeDeleteFloatPlan( linkedPlan.floatPlanId );
           }
           if ( vesselId GT 0 ) {
             safeDeleteVessel( vesselId );
@@ -393,12 +397,12 @@ component extends="testbox.system.BaseSpec" output="false" {
         var suffix = uniqueSuffix();
         var vesselId = 0;
         var operatorId = 0;
-        var floatPlanId = 0;
+        var linkedPlan = { floatPlanId = 0, routeCode = "" };
 
         try {
           vesselId = createTestVessel( suffix );
           operatorId = createTestOperator( suffix );
-          floatPlanId = createTestDraftFloatPlan( vesselId, operatorId, suffix );
+          linkedPlan = createTestDraftFloatPlan( vesselId, operatorId, suffix );
 
           var canDelRes = apiPostJson( variables.ctx.urls.operatorCanDel, { action = "candelete", operatorId = operatorId } );
           expect( pickBool( canDelRes, "SUCCESS" ) ).toBeTrue( "Operator candelete failed: #serializeJSON(canDelRes)#" );
@@ -409,8 +413,10 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect( pickBool( deleteRes, "SUCCESS" ) ).toBeFalse( "Delete should fail while in use: #serializeJSON(deleteRes)#" );
           expect( toString( deleteRes.ERROR ?: "" ) ).toBe( "IN_USE" );
         } finally {
-          if ( floatPlanId GT 0 ) {
-            safeDeleteFloatPlan( floatPlanId );
+          if ( len( linkedPlan.routeCode ) ) {
+            safeDeleteRoute( linkedPlan.routeCode );
+          } else if ( linkedPlan.floatPlanId GT 0 ) {
+            safeDeleteFloatPlan( linkedPlan.floatPlanId );
           }
           if ( operatorId GT 0 ) {
             safeDeleteOperator( operatorId );
@@ -737,29 +743,117 @@ component extends="testbox.system.BaseSpec" output="false" {
     return val( res.OPERATORID ?: 0 );
   }
 
-  private numeric function createTestDraftFloatPlan( required numeric vesselId, required numeric operatorId, required string suffix ) {
-    var payload = {
+  private struct function createTestDraftFloatPlan( required numeric vesselId, required numeric operatorId, required string suffix ) {
+    var options = apiPostJson( variables.ctx.urls.routeBuilderActionBase & "routegen_getoptions", {
+      template_code = "GULF-WEST",
+      direction = "CCW"
+    } );
+    var optionsData = {};
+    var startOptions = [];
+    var endOptions = [];
+    var generate = {};
+    var routeCode = "";
+    var buildPayload = {};
+    var planId = 0;
+    var bootstrap = {};
+    var plan = {};
+    var routeInstanceId = 0;
+    var routeDayNumber = 0;
+    var savePayload = {};
+
+    if ( !pickBool( options, "SUCCESS" ) ) {
+      throw( type = "DashboardCrudSpec.Helper", message = "Unable to load route options", detail = serializeJSON( options ) );
+    }
+
+    optionsData = ( structKeyExists( options, "DATA" ) && isStruct( options.DATA ) ) ? options.DATA : {};
+    startOptions = ( structKeyExists( optionsData, "startOptions" ) && isArray( optionsData.startOptions ) ) ? optionsData.startOptions : [];
+    endOptions = ( structKeyExists( optionsData, "endOptions" ) && isArray( optionsData.endOptions ) ) ? optionsData.endOptions : [];
+    if ( !arrayLen( startOptions ) || !arrayLen( endOptions ) ) {
+      throw( type = "DashboardCrudSpec.Helper", message = "Route options missing start or end choices", detail = serializeJSON( options ) );
+    }
+
+    generate = apiPostJson( variables.ctx.urls.routeBuilderActionBase & "routegen_generate", {
+      route_name = "Dashboard CRUD InUse Route " & arguments.suffix,
+      template_code = "GULF-WEST",
+      direction = "CCW",
+      start_segment_id = startOptions[ 1 ].segment_id,
+      end_segment_id = endOptions[ arrayLen( endOptions ) ].segment_id,
+      start_location_label = startOptions[ 1 ].label,
+      end_location_label = endOptions[ arrayLen( endOptions ) ].label,
+      start_date = dateFormat( now(), "yyyy-mm-dd" ),
+      optional_stop_flags = [ "ship_island_out_and_back" ]
+    } );
+    if ( !pickBool( generate, "SUCCESS" ) ) {
+      throw( type = "DashboardCrudSpec.Helper", message = "Unable to generate route for float plan", detail = serializeJSON( generate ) );
+    }
+
+    routeCode = trim( toString(
+      structKeyExists( generate, "ROUTE_CODE" )
+        ? generate.ROUTE_CODE
+        : ( structKeyExists( generate, "DATA" ) && isStruct( generate.DATA ) && structKeyExists( generate.DATA, "route_code" ) ? generate.DATA.route_code : "" )
+    ) );
+    if ( !len( routeCode ) ) {
+      throw( type = "DashboardCrudSpec.Helper", message = "Missing route code from generated route", detail = serializeJSON( generate ) );
+    }
+
+    buildPayload = apiPostJson( variables.ctx.urls.routeBuilderActionBase & "buildFloatPlansFromRoute", {
+      routeCode = routeCode,
+      mode = "DAILY",
+      vesselId = arguments.vesselId,
+      rebuild = 0
+    } );
+    if ( !pickBool( buildPayload, "SUCCESS" ) ) {
+      throw( type = "DashboardCrudSpec.Helper", message = "Unable to build float plan from route", detail = serializeJSON( buildPayload ) );
+    }
+
+    if ( structKeyExists( buildPayload, "FLOATPLAN_IDS" ) && isArray( buildPayload.FLOATPLAN_IDS ) && arrayLen( buildPayload.FLOATPLAN_IDS ) ) {
+      planId = val( buildPayload.FLOATPLAN_IDS[ 1 ] );
+    } else if ( structKeyExists( buildPayload, "floatplan_ids" ) && isArray( buildPayload.floatplan_ids ) && arrayLen( buildPayload.floatplan_ids ) ) {
+      planId = val( buildPayload.floatplan_ids[ 1 ] );
+    }
+    if ( planId LTE 0 ) {
+      throw( type = "DashboardCrudSpec.Helper", message = "Float plan id missing from route build response", detail = serializeJSON( buildPayload ) );
+    }
+
+    bootstrap = apiGetJson( variables.ctx.urls.floatplanBootstrap & "&id=" & planId );
+    plan = structKeyExists( bootstrap, "FLOATPLAN" ) && isStruct( bootstrap.FLOATPLAN ) ? bootstrap.FLOATPLAN : {};
+    routeInstanceId = val( plan.ROUTE_INSTANCE_ID ?: 0 );
+    routeDayNumber = val( plan.ROUTE_DAY_NUMBER ?: 0 );
+    if ( routeInstanceId LTE 0 ) {
+      throw( type = "DashboardCrudSpec.Helper", message = "Route-linked float plan missing route instance", detail = serializeJSON( bootstrap ) );
+    }
+
+    savePayload = apiPostJson( variables.ctx.urls.floatplanSave, {
       action = "save",
       FLOATPLAN = {
-        floatPlanName = "Dashboard CRUD InUse " & arguments.suffix,
-        vesselId = arguments.vesselId,
-        operatorId = arguments.operatorId
+        FLOATPLANID = planId,
+        floatPlanId = planId,
+        ROUTE_INSTANCE_ID = routeInstanceId,
+        routeInstanceId = routeInstanceId,
+        ROUTE_DAY_NUMBER = routeDayNumber,
+        routeDayNumber = routeDayNumber,
+        NAME = "Dashboard CRUD InUse " & arguments.suffix,
+        VESSELID = arguments.vesselId,
+        OPERATORID = arguments.operatorId,
+        DEPARTING_FROM = "Linked Dock",
+        DEPARTURE_TIME = "2026-04-05T09:00",
+        DEPARTURE_TIMEZONE = "US/Eastern",
+        RETURNING_TO = "Linked Dock",
+        RETURN_TIME = "2026-04-05T18:00",
+        RETURN_TIMEZONE = "US/Eastern",
+        EMAIL = "linked@example.com",
+        RESCUE_AUTHORITY = "USCG",
+        RESCUE_AUTHORITY_PHONE = "5555551212"
       }
+    } );
+    if ( !pickBool( savePayload, "SUCCESS" ) ) {
+      throw( type = "DashboardCrudSpec.Helper", message = "Unable to save route-linked float plan", detail = serializeJSON( savePayload ) );
+    }
+
+    return {
+      floatPlanId = planId,
+      routeCode = routeCode
     };
-    var res = apiPostJson( variables.ctx.urls.floatplanSave, payload );
-    if ( !pickBool( res, "SUCCESS" ) ) {
-      throw( type = "DashboardCrudSpec.Helper", message = "Unable to create float plan", detail = serializeJSON( res ) );
-    }
-    if ( structKeyExists( res, "FLOATPLANID" ) && isNumeric( res.FLOATPLANID ) ) {
-      return val( res.FLOATPLANID );
-    }
-    if ( structKeyExists( res, "floatPlanId" ) && isNumeric( res.floatPlanId ) ) {
-      return val( res.floatPlanId );
-    }
-    if ( structKeyExists( res, "id" ) && isNumeric( res.id ) ) {
-      return val( res.id );
-    }
-    throw( type = "DashboardCrudSpec.Helper", message = "Float plan id missing from save response", detail = serializeJSON( res ) );
   }
 
   private void function safeDeleteFloatPlan( required numeric floatPlanId ) {
@@ -783,6 +877,13 @@ component extends="testbox.system.BaseSpec" output="false" {
     apiPostJson( variables.ctx.urls.operatorDelete, {
       action = "delete",
       operatorId = arguments.operatorId
+    } );
+  }
+
+  private void function safeDeleteRoute( required string routeCode ) {
+    if ( !len( trim( arguments.routeCode ) ) ) return;
+    apiPostJson( variables.ctx.urls.routeBuilderActionBase & "deleteRoute", {
+      routeCode = arguments.routeCode
     } );
   }
 

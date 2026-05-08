@@ -7,6 +7,7 @@
   var utils = window.FPW.DashboardUtils || {};
   var state = window.FPW.DashboardState || {};
   var waypointState = state.waypointState || { all: [] };
+  var API_BASE = window.FPW_API_BASE || ((window.FPW_BASE || "") + "/api/v1");
 
   var waypointModalEl = null;
   var waypointModal = null;
@@ -94,10 +95,10 @@
       var metaText = notes ? "Notes: " + notes : "Notes: N/A";
 
       return (
-        '<div class="list-item">' +
-          '<div class="list-main">' +
+        '<div class="list-item fpw-manage-item fpw-waypoint-item">' +
+          '<div class="list-main fpw-manage-item-copy">' +
             '<div class="list-title">' + utils.escapeHtml(nameText) + "</div>" +
-            "<small>" + utils.escapeHtml(metaText) + "</small>" +
+            '<small class="list-meta-line">' + utils.escapeHtml(metaText) + "</small>" +
           "</div>" +
           '<div class="list-actions">' +
             '<button class="btn-secondary" type="button" id="waypoint-edit-' + utils.escapeHtml(waypointId) + '" data-action="edit" data-waypoint-id="' + utils.escapeHtml(waypointId) + '">Edit</button>' +
@@ -340,7 +341,7 @@
   }
 
   function getMarineFeatureName(lat, lng) {
-    var url = "/fpw/api/v1/marineName.cfc?method=lookup&lat=" + encodeURIComponent(lat) +
+    var url = API_BASE + "/marineName.cfc?method=lookup&lat=" + encodeURIComponent(lat) +
       "&lng=" + encodeURIComponent(lng);
     return fetch(url, { credentials: "same-origin" })
       .then(function (res) { return res.json(); })

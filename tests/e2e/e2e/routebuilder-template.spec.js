@@ -1,4 +1,5 @@
 const { submitLoginForm } = require("./test-hooks");
+const { createRouteBuilderCleanup } = require("../support/routebuilderCleanup");
 
 if (!process.env.FPW_EMAIL || !process.env.FPW_PASSWORD) {
   throw new Error("Missing FPW_EMAIL / FPW_PASSWORD env vars");
@@ -7,6 +8,21 @@ if (!process.env.FPW_EMAIL || !process.env.FPW_PASSWORD) {
 const { test, expect } = require("@playwright/test");
 
 test.describe.configure({ timeout: 120000 });
+
+/** @type {ReturnType<typeof createRouteBuilderCleanup> | null} */
+let cleanup = null;
+
+test.beforeEach(async ({ page }) => {
+  cleanup = createRouteBuilderCleanup(page);
+  await cleanup.resetRouteBuilderUserState({ logout: true });
+});
+
+test.afterEach(async () => {
+  if (cleanup) {
+    await cleanup.resetRouteBuilderUserState({ logout: true });
+    cleanup = null;
+  }
+});
 
 async function gotoWithRetry(page, url, retries = 1) {
   let lastError;
@@ -1051,8 +1067,6 @@ test("Route Builder keeps manual weather factor payload while weather assist sta
   await page.click("#routeGenCancelBtn");
   await expect(page.locator("#routeBuilderModal")).toBeHidden({ timeout: 15000 });
 });
-
-
 
 
 

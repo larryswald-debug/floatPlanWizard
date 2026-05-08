@@ -188,6 +188,178 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( monitoringRow.is_monitoring_enabled ).toBeFalse();
       } );
 
+      it( "clears active-route monitoring after Complete Leg until Start Next Leg", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var plan = createRouteLinkedPlan( "complete-leg-monitoring" );
+        expect( plan.planId ).toBeGT( 0, "Unable to create route-backed plan: #serializeJSON(plan)#" );
+
+        setPlanSchedule( plan.planId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
+        markPlanActive( plan.planId );
+        var startMonitoringRes = variables.ctx.monitorService.startMonitoringForFloatPlan( plan.planId, "active_route" );
+        expect( pickBool( startMonitoringRes, "SUCCESS" ) ).toBeTrue( "start monitoring failed: #serializeJSON(startMonitoringRes)#" );
+
+        var planState = loadRoutePlanState( plan.planId );
+        var qLegs = loadRouteLegOrders( planState.route_instance_id );
+        expect( qLegs.recordCount ).toBeGT( 2 );
+
+        var firstLegOrder = val( qLegs.leg_order[ 1 ] );
+        var nextLegOrder = val( qLegs.leg_order[ 2 ] );
+        setMonitoringSentinelTimes( plan.planId );
+        var monitoringBefore = loadMonitoringRow( plan.planId );
+        var routeLegSignatureBefore = routeLegSignature( planState.route_instance_id );
+
+        clearRouteProgress( planState.user_id, planState.route_instance_id );
+        seedStartedLeg( planState.user_id, planState.route_instance_id, firstLegOrder );
+
+        var completeRes = floatPlanPost( "completeleg", {
+          floatPlanId = plan.planId,
+          expectedLegOrder = firstLegOrder
+        } );
+        var monitoringRefresh = {};
+        if ( structKeyExists( completeRes, "MONITORING_REFRESH" ) && isStruct( completeRes.MONITORING_REFRESH ) ) {
+          monitoringRefresh = completeRes.MONITORING_REFRESH;
+        }
+        var qCompletedLeg = loadLegProgress( planState.user_id, planState.route_instance_id, firstLegOrder );
+        var qNextLegBeforeStart = loadLegProgress( planState.user_id, planState.route_instance_id, nextLegOrder );
+        var monitoringAfterComplete = loadMonitoringRow( plan.planId );
+        var routeLegSignatureAfterComplete = routeLegSignature( planState.route_instance_id );
+
+        expect( pickBool( completeRes, "SUCCESS" ) ).toBeTrue( "completeleg failed: #serializeJSON(completeRes)#" );
+        expect( pickBool( completeRes, "COMPLETED" ) ).toBeTrue( "completeleg did not report COMPLETED: #serializeJSON(completeRes)#" );
+        expect( val( pickFirst( completeRes, [ "LEG_ORDER", "leg_order" ], 0 ) ) ).toBe( firstLegOrder );
+        expect( structKeyExists( completeRes, "MONITORING_REFRESH" ) ).toBeTrue( serializeJSON( completeRes ) );
+        expect( monitoringRefresh.SUCCESS ?: false ).toBeTrue( serializeJSON( monitoringRefresh ) );
+        expect( monitoringRefresh.UPDATED ?: false ).toBeTrue( serializeJSON( monitoringRefresh ) );
+        expect( val( monitoringRefresh.LEG_ORDER ?: 0 ) ).toBe( firstLegOrder );
+        expect( monitoringRefresh.AWAITING_NEXT_LEG ?: false ).toBeTrue( serializeJSON( monitoringRefresh ) );
+        expect( isDate( monitoringRefresh.ANCHOR_COMPLETED_AT ?: "" ) ).toBeTrue( serializeJSON( monitoringRefresh ) );
+
+        expect( qCompletedLeg.recordCount ).toBe( 1 );
+        expect( uCase( trim( toString( qCompletedLeg.status[ 1 ] ) ) ) ).toBe( "COMPLETED" );
+        expect( isDate( qCompletedLeg.completed_at[ 1 ] ) ).toBeTrue();
+        expect( qNextLegBeforeStart.recordCount ).toBe( 0 );
+        expect( monitoringAfterComplete.monitor_state ).toBe( "ACTIVE" );
+        expect( monitoringAfterComplete.is_monitoring_enabled ).toBeTrue();
+        expect( monitoringAfterComplete.expected_checkin_at ).toBe( "" );
+        expect( monitoringAfterComplete.grace_expires_at ).toBe( "" );
+        expect( monitoringAfterComplete.next_monitor_eval_at ).toBe( "" );
+        expect( monitoringAfterComplete.secure_for_night ).toBeFalse();
+        expect( monitoringBefore.expected_checkin_at ).notToBe( monitoringAfterComplete.expected_checkin_at );
+        expect( routeLegSignatureAfterComplete ).toBe( routeLegSignatureBefore );
+
+        var startRes = floatPlanPost( "startnextleg", { floatPlanId = plan.planId } );
+        var qStartedNextLeg = loadLegProgress( planState.user_id, planState.route_instance_id, nextLegOrder );
+        var monitoringAfterStart = loadMonitoringRow( plan.planId );
+        var routeLegSignatureAfterStart = routeLegSignature( planState.route_instance_id );
+        var expectedCheckinLocal = expectedActiveRouteCheckpointLocal( qStartedNextLeg.leg_started_at[ 1 ], "US/Eastern", "08:00:00" );
+        var actualCheckinLocal = toLocalStamp( monitoringAfterStart.expected_checkin_at, "US/Eastern" );
+        var startedNextLegStartedAt = qStartedNextLeg.leg_started_at[ 1 ];
+        var qCompletedLegAfterStart = loadLegProgress( planState.user_id, planState.route_instance_id, firstLegOrder );
+        var startedModel = new fpw.api.v1.ActiveCruiseViewModelService().init( "fpw" ).getActiveCruiseViewModel( planState.user_id, plan.planId );
+        var repeatStartRes = floatPlanPost( "startnextleg", { floatPlanId = plan.planId } );
+        var qStartedNextLegAfterRepeat = loadLegProgress( planState.user_id, planState.route_instance_id, nextLegOrder );
+
+        expect( pickBool( startRes, "SUCCESS" ) ).toBeTrue( "startnextleg failed after completeleg: #serializeJSON(startRes)#" );
+        expect( pickBool( startRes, "STARTED" ) ).toBeTrue( "startnextleg did not report STARTED: #serializeJSON(startRes)#" );
+        expect( val( pickFirst( startRes, [ "LEG_ORDER", "leg_order" ], 0 ) ) ).toBe( nextLegOrder );
+        expect( qStartedNextLeg.recordCount ).toBe( 1 );
+        expect( uCase( trim( toString( qStartedNextLeg.status[ 1 ] ) ) ) ).toBe( "STARTED" );
+        expect( isDate( qStartedNextLeg.leg_started_at[ 1 ] ) ).toBeTrue();
+        expect( countStartedNotStartedContradictions( planState.user_id, planState.route_instance_id ) ).toBe( 0 );
+        expect( hasModelWarning( startedModel, "LEG_STARTED_STATUS_NOT_STARTED" ) ).toBeFalse( serializeJSON( structKeyExists( startedModel, "warnings" ) ? startedModel.warnings : [] ) );
+        expect( qCompletedLegAfterStart.recordCount ).toBe( 1 );
+        expect( uCase( trim( toString( qCompletedLegAfterStart.status[ 1 ] ) ) ) ).toBe( "COMPLETED" );
+        expect( qStartedNextLegAfterRepeat.recordCount ).toBe( 1 );
+        expect( uCase( trim( toString( qStartedNextLegAfterRepeat.status[ 1 ] ) ) ) ).toBe( "STARTED" );
+        expect( normalizeDbDateTime( qStartedNextLegAfterRepeat.leg_started_at[ 1 ] ) ).toBe( normalizeDbDateTime( startedNextLegStartedAt ) );
+        expect( pickBool( repeatStartRes, "SUCCESS" ) ).toBeFalse( "repeat startnextleg should not start another leg while one is active: #serializeJSON(repeatStartRes)#" );
+        expect( isDate( monitoringAfterStart.expected_checkin_at ) ).toBeTrue();
+        expect( actualCheckinLocal ).toBe( expectedCheckinLocal );
+        expect( dateDiff( "n", monitoringAfterStart.expected_checkin_at, monitoringAfterStart.grace_expires_at ) ).toBe( 60 );
+        expect( normalizeDbDateTime( monitoringAfterStart.next_monitor_eval_at ) ).toBe( normalizeDbDateTime( monitoringAfterStart.expected_checkin_at ) );
+        expect( routeLegSignatureAfterStart ).toBe( routeLegSignatureBefore );
+
+        queryExecute(
+          "UPDATE floatplans
+           SET `status` = 'CLOSED',
+               checkedInAt = UTC_TIMESTAMP(),
+               checkin_context = NULL,
+               closedAt = UTC_TIMESTAMP(),
+               lastUpdateStatus = UTC_TIMESTAMP()
+           WHERE floatplanId = :floatPlanId",
+          {
+            floatPlanId = { value = plan.planId, cfsqltype = "cf_sql_integer" }
+          },
+          { datasource = "fpw" }
+        );
+        deleteMonitoringRows( plan.planId );
+      } );
+
+      it( "refreshes active-route monitoring from actual Start Next Leg timestamp", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var plan = createRouteLinkedPlan( "start-next-monitoring" );
+        expect( plan.planId ).toBeGT( 0, "Unable to create route-backed plan: #serializeJSON(plan)#" );
+
+        setPlanSchedule( plan.planId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
+        markPlanActive( plan.planId );
+        var startMonitoringRes = variables.ctx.monitorService.startMonitoringForFloatPlan( plan.planId, "active_route" );
+        expect( pickBool( startMonitoringRes, "SUCCESS" ) ).toBeTrue( "start monitoring failed: #serializeJSON(startMonitoringRes)#" );
+
+        var planState = loadRoutePlanState( plan.planId );
+        var qLegs = loadRouteLegOrders( planState.route_instance_id );
+        expect( qLegs.recordCount ).toBeGT( 2 );
+
+        var firstLegOrder = val( qLegs.leg_order[ 1 ] );
+        var nextLegOrder = val( qLegs.leg_order[ 2 ] );
+        setMonitoringSentinelTimes( plan.planId );
+        var monitoringBefore = loadMonitoringRow( plan.planId );
+        var routeLegSignatureBefore = routeLegSignature( planState.route_instance_id );
+
+        clearRouteProgress( planState.user_id, planState.route_instance_id );
+        seedCompletedLeg( planState.user_id, planState.route_instance_id, firstLegOrder );
+        seedNotStartedLeg( planState.user_id, planState.route_instance_id, nextLegOrder );
+        var qPendingLegBeforeStart = loadLegProgress( planState.user_id, planState.route_instance_id, nextLegOrder );
+        expect( qPendingLegBeforeStart.recordCount ).toBe( 1 );
+        expect( uCase( trim( toString( qPendingLegBeforeStart.status[ 1 ] ) ) ) ).toBe( "NOT_STARTED" );
+        expect( isDate( qPendingLegBeforeStart.leg_started_at[ 1 ] ) ).toBeFalse();
+
+        var startRes = floatPlanPost( "startnextleg", { floatPlanId = plan.planId } );
+        var monitoringRefresh = {};
+        if ( structKeyExists( startRes, "MONITORING_REFRESH" ) && isStruct( startRes.MONITORING_REFRESH ) ) {
+          monitoringRefresh = startRes.MONITORING_REFRESH;
+        }
+        var qStartedLeg = loadLegProgress( planState.user_id, planState.route_instance_id, nextLegOrder );
+        var monitoringAfter = loadMonitoringRow( plan.planId );
+        var routeLegSignatureAfter = routeLegSignature( planState.route_instance_id );
+        var expectedCheckinLocal = expectedActiveRouteCheckpointLocal( qStartedLeg.leg_started_at[ 1 ], "US/Eastern", "08:00:00" );
+        var actualCheckinLocal = toLocalStamp( monitoringAfter.expected_checkin_at, "US/Eastern" );
+
+        expect( pickBool( startRes, "SUCCESS" ) ).toBeTrue( "startnextleg failed: #serializeJSON(startRes)#" );
+        expect( pickBool( startRes, "STARTED" ) ).toBeTrue( "startnextleg did not report STARTED: #serializeJSON(startRes)#" );
+        expect( val( pickFirst( startRes, [ "LEG_ORDER", "leg_order" ], 0 ) ) ).toBe( nextLegOrder );
+        expect( structKeyExists( startRes, "MONITORING_REFRESH" ) ).toBeTrue( serializeJSON( startRes ) );
+        expect( monitoringRefresh.SUCCESS ?: false ).toBeTrue( serializeJSON( monitoringRefresh ) );
+        expect( monitoringRefresh.UPDATED ?: false ).toBeTrue( serializeJSON( monitoringRefresh ) );
+        expect( val( monitoringRefresh.LEG_ORDER ?: 0 ) ).toBe( nextLegOrder );
+
+        expect( qStartedLeg.recordCount ).toBe( 1 );
+        expect( uCase( trim( toString( qStartedLeg.status[ 1 ] ) ) ) ).toBe( "STARTED" );
+        expect( isDate( qStartedLeg.leg_started_at[ 1 ] ) ).toBeTrue();
+        expect( countStartedNotStartedContradictions( planState.user_id, planState.route_instance_id ) ).toBe( 0 );
+        expect( normalizeDbDateTime( monitoringAfter.expected_checkin_at ) NEQ normalizeDbDateTime( monitoringBefore.expected_checkin_at ) ).toBeTrue();
+        expect( actualCheckinLocal ).toBe( expectedCheckinLocal );
+        expect( dateDiff( "n", monitoringAfter.expected_checkin_at, monitoringAfter.grace_expires_at ) ).toBe( 60 );
+        expect( normalizeDbDateTime( monitoringAfter.next_monitor_eval_at ) ).toBe( normalizeDbDateTime( monitoringAfter.expected_checkin_at ) );
+        expect( monitoringAfter.secure_for_night ).toBeFalse();
+        expect( routeLegSignatureAfter ).toBe( routeLegSignatureBefore );
+      } );
+
       it( "covers bulk-delete guardrails", function() {
         if ( !variables.ctx.sessionReady ) {
           skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
@@ -472,7 +644,14 @@ component extends="testbox.system.BaseSpec" output="false" {
 
   private struct function loadMonitoringRow( required numeric planId ) {
     var qRow = queryExecute(
-      "SELECT monitor_state, is_monitoring_enabled
+      "SELECT
+          monitor_state,
+          is_monitoring_enabled,
+          expected_checkin_at,
+          grace_expires_at,
+          secure_for_night,
+          secure_for_night_until,
+          next_monitor_eval_at
        FROM floatplan_monitoring
        WHERE float_plan_id = :floatPlanId
        LIMIT 1",
@@ -484,7 +663,12 @@ component extends="testbox.system.BaseSpec" output="false" {
     expect( qRow.recordCount ).toBe( 1 );
     return {
       monitor_state = trim( toString( qRow.monitor_state[ 1 ] ) ),
-      is_monitoring_enabled = val( qRow.is_monitoring_enabled[ 1 ] ) NEQ 0
+      is_monitoring_enabled = val( qRow.is_monitoring_enabled[ 1 ] ) NEQ 0,
+      expected_checkin_at = isNull( qRow.expected_checkin_at[ 1 ] ) ? "" : qRow.expected_checkin_at[ 1 ],
+      grace_expires_at = isNull( qRow.grace_expires_at[ 1 ] ) ? "" : qRow.grace_expires_at[ 1 ],
+      secure_for_night = val( qRow.secure_for_night[ 1 ] ) NEQ 0,
+      secure_for_night_until = isNull( qRow.secure_for_night_until[ 1 ] ) ? "" : qRow.secure_for_night_until[ 1 ],
+      next_monitor_eval_at = isNull( qRow.next_monitor_eval_at[ 1 ] ) ? "" : qRow.next_monitor_eval_at[ 1 ]
     };
   }
 
@@ -544,6 +728,207 @@ component extends="testbox.system.BaseSpec" output="false" {
       },
       { datasource = "fpw" }
     );
+  }
+
+  private void function seedCompletedLeg( required numeric userId, required numeric routeInstanceId, required numeric legOrder ) {
+    queryExecute(
+      "INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, status, leg_started_at, completed_at)
+       VALUES (:userId, :routeInstanceId, :legOrder, 'COMPLETED', UTC_TIMESTAMP(), UTC_TIMESTAMP())",
+      {
+        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" },
+        legOrder = { value = arguments.legOrder, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
+  private void function seedNotStartedLeg( required numeric userId, required numeric routeInstanceId, required numeric legOrder ) {
+    queryExecute(
+      "INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, status, leg_started_at, completed_at)
+       VALUES (:userId, :routeInstanceId, :legOrder, 'NOT_STARTED', NULL, NULL)
+       ON DUPLICATE KEY UPDATE
+         status = 'NOT_STARTED',
+         leg_started_at = NULL,
+         completed_at = NULL",
+      {
+        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" },
+        legOrder = { value = arguments.legOrder, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
+  private query function loadLegProgress( required numeric userId, required numeric routeInstanceId, required numeric legOrder ) {
+    return queryExecute(
+      "SELECT status, leg_started_at, completed_at
+       FROM route_instance_leg_progress
+       WHERE user_id = :userId
+         AND route_instance_id = :routeInstanceId
+         AND leg_order = :legOrder
+       ORDER BY id DESC
+       LIMIT 1",
+      {
+        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" },
+        legOrder = { value = arguments.legOrder, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
+  private numeric function countStartedNotStartedContradictions( required numeric userId, required numeric routeInstanceId ) {
+    var qRows = queryExecute(
+      "SELECT COUNT(*) AS row_count
+       FROM route_instance_leg_progress
+       WHERE user_id = :userId
+         AND route_instance_id = :routeInstanceId
+         AND leg_started_at IS NOT NULL
+         AND UPPER(TRIM(COALESCE(status, ''))) = 'NOT_STARTED'",
+      {
+        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    return val( qRows.row_count[ 1 ] );
+  }
+
+  private boolean function hasModelWarning( required struct model, required string code ) {
+    if ( !structKeyExists( arguments.model, "warnings" ) || !isArray( arguments.model.warnings ) ) {
+      return false;
+    }
+    for ( var warning in arguments.model.warnings ) {
+      if ( isStruct( warning ) && compareNoCase( structKeyExists( warning, "code" ) ? warning.code : "", arguments.code ) == 0 ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private void function setMonitoringSentinelTimes( required numeric planId ) {
+    queryExecute(
+      "UPDATE floatplan_monitoring
+       SET monitoring_mode = 'active_route',
+           monitor_state = 'ACTIVE',
+           is_monitoring_enabled = 1,
+           expected_checkin_at = '2026-04-09 22:00:00',
+           grace_expires_at = '2026-04-09 23:00:00',
+           secure_for_night = 1,
+           secure_for_night_until = '2026-04-10 12:00:00',
+           grace_window_minutes = 60,
+           next_monitor_eval_at = '2026-04-09 22:00:00',
+           missed_at = NULL,
+           escalated_at = NULL,
+           resolved_at = NULL,
+           closed_at = NULL
+       WHERE float_plan_id = :floatPlanId",
+      {
+        floatPlanId = { value = arguments.planId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
+  private string function toLocalStamp( required any utcDateTime, required string timeZoneId ) {
+    if ( !isDate( arguments.utcDateTime ) ) {
+      return "";
+    }
+    var qLocal = queryExecute(
+      "SELECT CONVERT_TZ(:utcDateTime, 'UTC', :timeZoneId) AS localDateTime",
+      {
+        utcDateTime = { value = arguments.utcDateTime, cfsqltype = "cf_sql_timestamp" },
+        timeZoneId = { value = arguments.timeZoneId, cfsqltype = "cf_sql_varchar" }
+      },
+      { datasource = "fpw" }
+    );
+    if ( qLocal.recordCount EQ 0 OR isNull( qLocal.localDateTime[ 1 ] ) ) {
+      return "";
+    }
+    return dateTimeFormat( qLocal.localDateTime[ 1 ], "yyyy-mm-dd HH:nn:ss" );
+  }
+
+  private string function normalizeDbDateTime( required any value ) {
+    if ( !isDate( arguments.value ) ) {
+      return trim( toString( arguments.value ) );
+    }
+    return dateTimeFormat( arguments.value, "yyyy-mm-dd HH:nn:ss" );
+  }
+
+  private string function expectedActiveRouteCheckpointLocal(
+    required any legStartedAt,
+    required string timeZoneId,
+    required string dailyStartLocalTime
+  ) {
+    var qLocal = queryExecute(
+      "SELECT CONVERT_TZ(:utcDateTime, 'UTC', :timeZoneId) AS localDateTime",
+      {
+        utcDateTime = { value = arguments.legStartedAt, cfsqltype = "cf_sql_timestamp" },
+        timeZoneId = { value = arguments.timeZoneId, cfsqltype = "cf_sql_varchar" }
+      },
+      { datasource = "fpw" }
+    );
+    var localStart = qLocal.localDateTime[ 1 ];
+    var dayStartParts = listToArray( arguments.dailyStartLocalTime, ":" );
+    var dayStartHour = arrayLen( dayStartParts ) GTE 1 ? val( dayStartParts[ 1 ] ) : 8;
+    var dayStartMinute = arrayLen( dayStartParts ) GTE 2 ? val( dayStartParts[ 2 ] ) : 0;
+    var dayStartSecond = arrayLen( dayStartParts ) GTE 3 ? val( dayStartParts[ 3 ] ) : 0;
+    var targetLocal = "";
+    var nextDay = "";
+
+    expect( qLocal.recordCount ).toBe( 1 );
+    expect( isDate( localStart ) ).toBeTrue();
+
+    if ( hour( localStart ) LT 18 ) {
+      targetLocal = createDateTime( year( localStart ), month( localStart ), day( localStart ), 18, 0, 0 );
+    } else {
+      nextDay = dateAdd( "d", 1, localStart );
+      targetLocal = createDateTime( year( nextDay ), month( nextDay ), day( nextDay ), dayStartHour, dayStartMinute, dayStartSecond );
+    }
+
+    return dateTimeFormat( targetLocal, "yyyy-mm-dd HH:nn:ss" );
+  }
+
+  private string function routeLegSignature( required numeric routeInstanceId ) {
+    var qSignature = queryExecute(
+      "SELECT COALESCE(
+          GROUP_CONCAT(
+            CONCAT_WS('|',
+              id,
+              route_instance_id,
+              COALESCE(route_instance_section_id, ''),
+              leg_order,
+              COALESCE(segment_id, ''),
+              COALESCE(source_loop_segment_id, ''),
+              COALESCE(is_reversed, ''),
+              COALESCE(is_optional, ''),
+              COALESCE(detour_code, ''),
+              COALESCE(start_name, ''),
+              COALESCE(end_name, ''),
+              COALESCE(CAST(start_lat AS CHAR), ''),
+              COALESCE(CAST(start_lng AS CHAR), ''),
+              COALESCE(CAST(end_lat AS CHAR), ''),
+              COALESCE(CAST(end_lng AS CHAR), ''),
+              COALESCE(CAST(base_dist_nm AS CHAR), ''),
+              COALESCE(lock_count, ''),
+              COALESCE(notes, ''),
+              COALESCE(CAST(created_at AS CHAR), ''),
+              COALESCE(CAST(updated_at AS CHAR), '')
+            )
+            ORDER BY leg_order ASC, id ASC
+            SEPARATOR '||'
+          ),
+          ''
+       ) AS signature
+       FROM route_instance_legs
+       WHERE route_instance_id = :routeInstanceId",
+      {
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    return qSignature.recordCount EQ 1 && !isNull( qSignature.signature[ 1 ] ) ? trim( toString( qSignature.signature[ 1 ] ) ) : "";
   }
 
   private void function deleteMonitoringRows( required numeric planId ) {

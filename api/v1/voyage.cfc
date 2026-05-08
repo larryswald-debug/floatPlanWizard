@@ -9,6 +9,8 @@
         <cfargument name="limit" type="numeric" required="false" default="20">
         <cfargument name="routeCode" type="string" required="false" default="">
         <cfargument name="routeInstanceId" type="string" required="false" default="">
+        <cfargument name="floatplan_id" type="numeric" required="false" default="0">
+        <cfargument name="as_of_utc" type="string" required="false" default="">
 
         <cfsetting enablecfoutputonly="true" showdebugoutput="false">
         <cfcontent type="application/json; charset=utf-8">
@@ -41,6 +43,7 @@
             <cfset var followerIdVal = 0>
             <cfset var floatPlanIdVal = 0>
             <cfset var pointVal = "">
+            <cfset var asOfUtcVal = "">
             <cfif act EQ "getstreambootstrap">
                 <cfset slugVal = trim(toString(pickArg(body, "slug", "route_slug", arguments.slug)))>
                 <cfset tokenVal = trim(toString(pickArg(body, "t", "token", arguments.t)))>
@@ -53,6 +56,14 @@
                 <cfset floatPlanIdVal = val(pickArg(body, "floatPlanId", "float_plan_id", 0))>
                 <cfset pointVal = lCase(trim(toString(pickArg(body, "point", "leg_point", ""))))>
                 <cfset payload = getActiveCruiseWeatherCanonical(currentUserId, floatPlanIdVal, pointVal)>
+                <cfoutput>#serializeJSON(payload)#</cfoutput>
+                <cfreturn>
+
+            <cfelseif act EQ "gettripprogressprojection">
+                <cfset streamIdVal = val(pickArg(body, "stream_id", "streamId", arguments.stream_id))>
+                <cfset floatPlanIdVal = val(pickArg(body, "floatplan_id", "floatPlanId", arguments.floatplan_id))>
+                <cfset asOfUtcVal = trim(toString(pickArg(body, "as_of_utc", "asOfUtc", arguments.as_of_utc)))>
+                <cfset payload = getTripProgressProjectionDiagnostic(streamIdVal, floatPlanIdVal, asOfUtcVal, currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
@@ -218,6 +229,100 @@
         <cfoutput>#serializeJSON(result)#</cfoutput>
     </cffunction>
 
+    <cffunction name="getTripProgressProjectionDiagnostic" access="private" returntype="struct" output="false">
+        <cfargument name="streamId" type="numeric" required="false" default="0">
+        <cfargument name="floatPlanId" type="numeric" required="false" default="0">
+        <cfargument name="asOfUtc" type="string" required="false" default="">
+        <cfargument name="currentUserId" type="numeric" required="false" default="0">
+        <cfscript>
+            var projectionService = "";
+            var projection = {};
+
+            if (!isLocalTripProjectionDiagnosticRequest()) {
+                return {
+                    "success" = false,
+                    "auth" = (arguments.currentUserId GT 0),
+                    "message" = "Trip progress projection diagnostics are available only from the local FPW runtime.",
+                    "error" = { "message" = "Local diagnostics only." }
+                };
+            }
+
+            if (arguments.streamId LTE 0 AND arguments.floatPlanId LTE 0) {
+                return {
+                    "success" = false,
+                    "auth" = (arguments.currentUserId GT 0),
+                    "message" = "stream_id or floatplan_id is required.",
+                    "error" = { "message" = "Missing stream_id or floatplan_id." }
+                };
+            }
+
+            try {
+                projectionService = createTripProgressProjectionService();
+                if (arguments.streamId GT 0) {
+                    projection = projectionService.getProjectionForStream(arguments.streamId, arguments.asOfUtc);
+                } else {
+                    projection = projectionService.getProjection(arguments.floatPlanId, arguments.asOfUtc);
+                }
+            } catch (any projectionErr) {
+                return {
+                    "success" = false,
+                    "auth" = (arguments.currentUserId GT 0),
+                    "message" = "Trip progress projection failed.",
+                    "error" = { "message" = projectionErr.message, "detail" = projectionErr.detail }
+                };
+            }
+
+            if (!isStruct(projection)) {
+                projection = {
+                    "success" = false,
+                    "message" = "Trip progress projection returned an invalid payload."
+                };
+            }
+
+            projection["auth"] = (arguments.currentUserId GT 0);
+            projection["diagnosticAccess"] = "local-read-only";
+            return projection;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="createTripProgressProjectionService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.TripProgressProjectionService").init("fpw");
+            } catch (any projectionPathErr) {
+                return createObject("component", "api.v1.TripProgressProjectionService").init("fpw");
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="createRouteMapGeometryService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.RouteMapGeometryService").init("fpw");
+            } catch (any routeMapGeometryPathErr) {
+                return createObject("component", "api.v1.RouteMapGeometryService").init("fpw");
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="isLocalTripProjectionDiagnosticRequest" access="private" returntype="boolean" output="false">
+        <cfscript>
+            var hostVal = structKeyExists(cgi, "http_host") ? lCase(toString(cgi.http_host)) : "";
+            var serverNameVal = structKeyExists(cgi, "server_name") ? lCase(toString(cgi.server_name)) : "";
+            var remoteAddrVal = structKeyExists(cgi, "remote_addr") ? lCase(toString(cgi.remote_addr)) : "";
+
+            return (
+                find("localhost", hostVal) GT 0
+                OR left(hostVal, 9) EQ "127.0.0.1"
+                OR left(hostVal, 5) EQ "[::1]"
+                OR find("localhost", serverNameVal) GT 0
+                OR serverNameVal EQ "127.0.0.1"
+                OR remoteAddrVal EQ "127.0.0.1"
+                OR remoteAddrVal EQ "::1"
+            );
+        </cfscript>
+    </cffunction>
+
     <cffunction name="ownerCreatePostWithMediaFromForm" access="public" returntype="struct" output="false">
         <cfargument name="streamId" type="numeric" required="false" default="0">
         <cfargument name="body" type="string" required="false" default="">
@@ -327,10 +432,24 @@
             var expectedCheckInDt = "";
             var checkInContextVal = "";
             var isOvernightCheckIn = false;
+            var actualResumeAt = "";
+            var actualResumeAtLocal = "";
+            var hasActualResumeAt = false;
             var departureTimeZoneVal = "";
             var dailyStartLocalTimeVal = "";
             var storedOvernightPauseMinutes = 0;
             var storedManualDelayMinutes = 0;
+            var followProjection = {};
+            var useCanonicalFollowProjection = false;
+            var canonicalFollowProjectionBlocked = false;
+            var followProjectionWarningIndex = 0;
+            var followProjectionWarning = {};
+            var followProjectionWarningCode = "";
+            var followProjectionLegIndex = 0;
+            var followProjectionLegOrder = 0;
+            var followProjectionEtaUtc = "";
+            var followProjectionEtaLocalInput = "";
+            var qFollowProjectionEtaLocal = queryNew("");
             var elapsedCheckInLabel = "-- since last check-in";
             var nextStopLabelVal = "";
             var nextStopEtaBaseDt = "";
@@ -350,6 +469,7 @@
             var journeyDepartedDt = "";
             var qLegTiming = queryNew("");
             var qMilesTodayTiming = queryNew("");
+            var qActualResumeLocal = queryNew("");
             var currentLegStartedAt = "";
             var priorLegCompletedAt = "";
             var scheduledDepartureRawDt = "";
@@ -432,6 +552,7 @@
             var milesTodayWindowStartDt = "";
             var milesTodayWindowEndDt = "";
             var milesTodayNm = "";
+            var hoursTodayTotal = "";
             var milesTodayTimingByOrder = {};
             var milesTodayTiming = {};
             var milesTodayLegOrder = 0;
@@ -446,7 +567,9 @@
             var milesTodayActualLegMinutes = 0;
             var milesTodayPlannedLegMinutes = 0;
             var milesTodayLegNm = 0.0;
+            var hoursTodayLegHours = 0.0;
             var routeMapActiveLegOrder = 0;
+            var actualResumeLegOrder = 0;
             var awaitingDepartureState = false;
             var usingActiveLegEta = false;
 
@@ -598,6 +721,9 @@
             if (!isNull(qPlan.monitor_state[1])) {
                 monitorStateVal = uCase(trim(toString(qPlan.monitor_state[1])));
             }
+            if (!isNull(qPlan.last_checkin_status[1])) {
+                monitoringCheckinStatusVal = uCase(trim(toString(qPlan.last_checkin_status[1])));
+            }
             routeInstanceIdVal = (!isNull(qPlan.route_instance_id[1]) ? val(qPlan.route_instance_id[1]) : 0);
             checkInContextVal = normalizeCheckInContext(isNull(qPlan.checkin_context[1]) ? "" : qPlan.checkin_context[1]);
             isOvernightCheckIn = (checkInContextVal EQ "overnight");
@@ -649,6 +775,19 @@
                 elapsedCheckInLabel = "Monitoring begins at scheduled departure.";
             }
             isOvernightCheckIn = (hasOperationalCheckIn AND checkInContextVal EQ "overnight");
+            // Follow display authority only: a non-secure check-in after overnight pause is the actual resume time.
+            if (
+                tripStarted
+                AND storedOvernightPauseMinutes GT 0
+                AND hasOperationalCheckIn
+                AND !isOvernightCheckIn
+                AND len(monitoringCheckinStatusVal)
+                AND ucase(monitoringCheckinStatusVal) NEQ "SECURE_FOR_NIGHT"
+                AND isDate(checkedInAtVal)
+            ) {
+                actualResumeAt = checkedInAtVal;
+                hasActualResumeAt = true;
+            }
             if (!tripStarted) {
                 statusLabel = "Scheduled";
             } else {
@@ -786,6 +925,9 @@
 		            );
                     routeMapActiveLegOrder = (structKeyExists(routeMap, "active_leg_order") ? val(routeMap.active_leg_order) : 0);
                     awaitingDepartureState = (tripStarted AND structKeyExists(routeMap, "awaiting_departure") AND routeMap.awaiting_departure EQ true);
+                    if (awaitingDepartureState AND hasActualResumeAt) {
+                        awaitingDepartureState = false;
+                    }
 		            tTimeline = getTickCount() - tSectionStart;
 
             routeTotalMiles = roundTo1(routeMap.total_nm * 1.15078);
@@ -847,7 +989,7 @@
                 AND !isNull(qPlan.departureTime[1])
                 AND isDate(qPlan.departureTime[1])
                 AND len(nextStopLabelVal)
-                AND (!tripStarted OR routeMapActiveLegOrder GT 0)
+                AND (!tripStarted OR routeMapActiveLegOrder GT 0 OR hasActualResumeAt)
                 AND isStruct(followTimeline)
                 AND structKeyExists(followTimeline, "legs")
                 AND isArray(followTimeline.legs)
@@ -868,6 +1010,25 @@
                     }, { datasource = ds });
                     if (qLocalDeparture.recordCount GT 0 AND !isNull(qLocalDeparture.localDateTime[1])) {
                         nextStopEtaBaseDt = qLocalDeparture.localDateTime[1];
+                    }
+                }
+                actualResumeAtLocal = "";
+                if (hasActualResumeAt AND isDate(actualResumeAt)) {
+                    actualResumeAtLocal = actualResumeAt;
+                    if (
+                        ucase(storedDepartureTimeZoneVal) EQ "UTC"
+                        AND len(departureTimeZoneVal)
+                        AND ucase(departureTimeZoneVal) NEQ "UTC"
+                    ) {
+                        qActualResumeLocal = queryExecute("
+                            SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
+                        ", {
+                            utcDateTime = { value = actualResumeAt, cfsqltype = "cf_sql_timestamp" },
+                            targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
+                        }, { datasource = ds });
+                        if (qActualResumeLocal.recordCount GT 0 AND !isNull(qActualResumeLocal.localDateTime[1]) AND isDate(qActualResumeLocal.localDateTime[1])) {
+                            actualResumeAtLocal = qActualResumeLocal.localDateTime[1];
+                        }
                     }
                 }
                 for (i = 1; i LTE arrayLen(followTimeline.legs); i++) {
@@ -980,7 +1141,7 @@
                     resumeDayStartDt = "";
                     resumeAnchorDt = "";
                     useResumedDayStartEtaBase = false;
-                    if (tripStarted AND storedOvernightPauseMinutes GT 0 AND hasOperationalCheckIn AND isDate(checkedInAtVal)) {
+                    if (tripStarted AND storedOvernightPauseMinutes GT 0 AND hasOperationalCheckIn AND !hasActualResumeAt AND isDate(checkedInAtVal)) {
                         resumeDayStartDt = createDateTime(
                             year(checkedInAtVal),
                             month(checkedInAtVal),
@@ -1036,6 +1197,18 @@
                                 activeLegEtaBaseDt = priorLegCompletedAtLocal;
                             }
                         }
+                    } else if (
+                        !useResumedDayStartEtaBase
+                        AND hasActualResumeAt
+                        AND isDate(actualResumeAt)
+                        AND isDate(actualResumeAtLocal)
+                        AND (
+                            !hasValidCurrentLegStart
+                            OR !isDate(currentLegStartedAt)
+                            OR dateCompare(currentLegStartedAt, actualResumeAt, "s") LT 0
+                        )
+                    ) {
+                        activeLegEtaBaseDt = actualResumeAtLocal;
                     } else if (!useResumedDayStartEtaBase AND hasValidCurrentLegStart) {
                         activeLegEtaBaseDt = currentLegStartedAtLocal;
                     } else if (!useResumedDayStartEtaBase AND hasValidPriorLegCompletion) {
@@ -1082,6 +1255,10 @@
                     ? val(timelineSummary.effective_speed_kn)
                     : 0
             );
+            actualResumeLegOrder = routeMapActiveLegOrder;
+            if (hasActualResumeAt AND actualResumeLegOrder LTE 0 AND structKeyExists(timelineSummary, "completed_legs") AND isNumeric(timelineSummary.completed_legs)) {
+                actualResumeLegOrder = val(timelineSummary.completed_legs) + 1;
+            }
 
             if (tripStarted AND routeInstanceIdVal GT 0 AND len(departureTimeZoneVal) AND isStruct(followTimeline) AND structKeyExists(followTimeline, "legs") AND isArray(followTimeline.legs)) {
                 localNowQuery = queryExecute(
@@ -1107,6 +1284,9 @@
                 }
                 if (localNowQuery.recordCount GT 0 AND !isNull(localNowQuery.utcNow[1]) AND isDate(localNowQuery.utcNow[1])) {
                     utcNowDt = localNowQuery.utcNow[1];
+                }
+                if (hasActualResumeAt AND isDate(actualResumeAt)) {
+                    milesTodayWindowStartDt = actualResumeAt;
                 }
                 if (isDate(milesTodayWindowStartDt)) {
                     if (isOvernightCheckIn AND isDate(checkedInAtVal)) {
@@ -1149,6 +1329,7 @@
                     }
 
                     milesTodayNm = 0;
+                    hoursTodayTotal = 0;
                     for (i = 1; i LTE arrayLen(followTimeline.legs); i++) {
                         timelineLeg = followTimeline.legs[i];
                         if (!isStruct(timelineLeg)) {
@@ -1165,6 +1346,14 @@
 
                         milesTodayTiming = milesTodayTimingByOrder[milesTodayLegKey];
                         milesTodayLegStartDt = (structKeyExists(milesTodayTiming, "leg_started_at") AND isDate(milesTodayTiming.leg_started_at) ? milesTodayTiming.leg_started_at : "");
+                        if (
+                            hasActualResumeAt
+                            AND milesTodayLegOrder EQ actualResumeLegOrder
+                            AND isDate(actualResumeAt)
+                            AND (!isDate(milesTodayLegStartDt) OR dateCompare(milesTodayLegStartDt, actualResumeAt, "s") LT 0)
+                        ) {
+                            milesTodayLegStartDt = actualResumeAt;
+                        }
                         if (!isDate(milesTodayLegStartDt)) {
                             continue;
                         }
@@ -1179,36 +1368,43 @@
                         }
 
                         milesTodayLegNm = 0;
+                        hoursTodayLegHours = 0;
+                        milesTodayLegEndDt = "";
+                        milesTodayOverlapStartDt = "";
+                        milesTodayOverlapEndDt = "";
+                        milesTodayOverlapMinutes = 0;
                         if (structKeyExists(milesTodayTiming, "completed_at") AND isDate(milesTodayTiming.completed_at)) {
                             if (
                                 dateCompare(milesTodayTiming.completed_at, milesTodayWindowStartDt, "s") GTE 0
                                 AND dateCompare(milesTodayTiming.completed_at, milesTodayWindowEndDt, "s") LTE 0
                             ) {
                                 milesTodayLegNm = milesTodayLegDistanceNm;
+                                milesTodayLegEndDt = milesTodayTiming.completed_at;
                             }
                         } else {
                             milesTodayLegEndDt = milesTodayWindowEndDt;
-                            if (!isDate(milesTodayLegEndDt)) {
-                                continue;
-                            }
+                        }
+
+                        if (isDate(milesTodayLegEndDt)) {
                             milesTodayOverlapStartDt = (dateCompare(milesTodayLegStartDt, milesTodayWindowStartDt, "s") GTE 0 ? milesTodayLegStartDt : milesTodayWindowStartDt);
                             milesTodayOverlapEndDt = (dateCompare(milesTodayLegEndDt, milesTodayWindowEndDt, "s") LTE 0 ? milesTodayLegEndDt : milesTodayWindowEndDt);
-                            if (dateCompare(milesTodayOverlapEndDt, milesTodayOverlapStartDt, "s") LTE 0) {
-                                continue;
-                            }
-                            milesTodayOverlapMinutes = dateDiff("n", milesTodayOverlapStartDt, milesTodayOverlapEndDt);
-                            if (milesTodayOverlapMinutes LTE 0) {
-                                continue;
-                            }
-                            milesTodayLegHours = (
-                                structKeyExists(timelineLeg, "hours") AND isNumeric(timelineLeg.hours)
-                                    ? val(timelineLeg.hours)
-                                    : 0
-                            );
-                            if (milesTodayLegHours GT 0) {
-                                milesTodayPlannedLegMinutes = int(round(milesTodayLegHours * 60));
-                                if (milesTodayPlannedLegMinutes GT 0) {
-                                    milesTodayLegNm = milesTodayLegDistanceNm * (milesTodayOverlapMinutes / milesTodayPlannedLegMinutes);
+                            if (dateCompare(milesTodayOverlapEndDt, milesTodayOverlapStartDt, "s") GT 0) {
+                                milesTodayOverlapMinutes = dateDiff("n", milesTodayOverlapStartDt, milesTodayOverlapEndDt);
+                                if (milesTodayOverlapMinutes GT 0) {
+                                    hoursTodayLegHours = milesTodayOverlapMinutes / 60;
+                                    if (!(structKeyExists(milesTodayTiming, "completed_at") AND isDate(milesTodayTiming.completed_at))) {
+                                        milesTodayLegHours = (
+                                            structKeyExists(timelineLeg, "hours") AND isNumeric(timelineLeg.hours)
+                                                ? val(timelineLeg.hours)
+                                                : 0
+                                        );
+                                        if (milesTodayLegHours GT 0) {
+                                            milesTodayPlannedLegMinutes = int(round(milesTodayLegHours * 60));
+                                            if (milesTodayPlannedLegMinutes GT 0) {
+                                                milesTodayLegNm = milesTodayLegDistanceNm * (milesTodayOverlapMinutes / milesTodayPlannedLegMinutes);
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1220,10 +1416,135 @@
                             milesTodayLegNm = milesTodayLegDistanceNm;
                         }
                         milesTodayNm += milesTodayLegNm;
+                        hoursTodayTotal += hoursTodayLegHours;
                     }
 
                     if (isNumeric(milesTodayNm)) {
                         milesTodayNm = roundTo1(milesTodayNm);
+                    }
+                    if (isNumeric(hoursTodayTotal)) {
+                        hoursTodayTotal = roundTo1(hoursTodayTotal);
+                    }
+                }
+            }
+
+            // Canonical projection is used only for streams with real canonical segments; legacy diagnostics remain fallback-only.
+            try {
+                followProjection = createTripProgressProjectionService().getProjectionForStream(streamRow.id);
+            } catch (any followProjectionErr) {
+                followProjection = {};
+            }
+            if (
+                isStruct(followProjection)
+                AND structKeyExists(followProjection, "authorityWarnings")
+                AND isArray(followProjection.authorityWarnings)
+            ) {
+                for (followProjectionWarningIndex = 1; followProjectionWarningIndex LTE arrayLen(followProjection.authorityWarnings); followProjectionWarningIndex++) {
+                    followProjectionWarning = followProjection.authorityWarnings[followProjectionWarningIndex];
+                    if (!isStruct(followProjectionWarning) OR !structKeyExists(followProjectionWarning, "code")) {
+                        continue;
+                    }
+                    followProjectionWarningCode = trim(toString(followProjectionWarning.code));
+                    if (listFindNoCase("MULTIPLE_OPEN_SEGMENTS,CANONICAL_ACTIVITY_SEGMENT_TABLE_MISSING,CANONICAL_EVENT_TABLE_MISSING", followProjectionWarningCode)) {
+                        canonicalFollowProjectionBlocked = true;
+                        break;
+                    }
+                }
+            }
+            useCanonicalFollowProjection = (
+                isStruct(followProjection)
+                AND structKeyExists(followProjection, "success")
+                AND followProjection.success
+                AND structKeyExists(followProjection, "activitySegments")
+                AND isArray(followProjection.activitySegments)
+                AND arrayLen(followProjection.activitySegments) GT 0
+                AND structKeyExists(followProjection, "eventLedger")
+                AND isStruct(followProjection.eventLedger)
+                AND structKeyExists(followProjection.eventLedger, "count")
+                AND val(followProjection.eventLedger.count) GT 0
+                AND structKeyExists(followProjection, "todayProgress")
+                AND isStruct(followProjection.todayProgress)
+                AND structKeyExists(followProjection.todayProgress, "authority")
+                AND lCase(trim(toString(followProjection.todayProgress.authority))) EQ "canonical"
+                AND !canonicalFollowProjectionBlocked
+            );
+            if (useCanonicalFollowProjection) {
+                if (structKeyExists(followProjection.todayProgress, "milesTodayNm") AND isNumeric(followProjection.todayProgress.milesTodayNm)) {
+                    milesTodayNm = val(followProjection.todayProgress.milesTodayNm);
+                }
+                if (structKeyExists(followProjection.todayProgress, "hoursToday") AND isNumeric(followProjection.todayProgress.hoursToday)) {
+                    hoursTodayTotal = val(followProjection.todayProgress.hoursToday);
+                }
+                if (
+                    structKeyExists(followProjection, "etaProjection")
+                    AND isStruct(followProjection.etaProjection)
+                    AND structKeyExists(followProjection.etaProjection, "available")
+                    AND followProjection.etaProjection.available
+                    AND structKeyExists(followProjection.etaProjection, "etaUtc")
+                    AND len(trim(toString(followProjection.etaProjection.etaUtc)))
+                ) {
+                    followProjectionEtaUtc = trim(toString(followProjection.etaProjection.etaUtc));
+                    etaUtc = followProjectionEtaUtc;
+                    etaLabel = "";
+                    followProjectionEtaLocalInput = replace(replace(followProjectionEtaUtc, "T", " ", "one"), "Z", "", "one");
+                    if (len(departureTimeZoneVal) AND isDate(followProjectionEtaLocalInput)) {
+                        try {
+                            qFollowProjectionEtaLocal = queryExecute(
+                                "SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime",
+                                {
+                                    utcDateTime = { value = followProjectionEtaLocalInput, cfsqltype = "cf_sql_timestamp" },
+                                    targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
+                                },
+                                { datasource = ds }
+                            );
+                            if (
+                                qFollowProjectionEtaLocal.recordCount GT 0
+                                AND !isNull(qFollowProjectionEtaLocal.localDateTime[1])
+                                AND isDate(qFollowProjectionEtaLocal.localDateTime[1])
+                            ) {
+                                etaLabel = dateTimeFormat(qFollowProjectionEtaLocal.localDateTime[1], "mmm d, yyyy h:nn tt");
+                            }
+                        } catch (any followProjectionEtaErr) {
+                            etaLabel = "";
+                        }
+                    }
+                    if (!len(etaLabel) AND isDate(followProjectionEtaLocalInput)) {
+                        etaLabel = dateTimeFormat(followProjectionEtaLocalInput, "mmm d, yyyy h:nn tt");
+                    }
+                }
+                if (
+                    structKeyExists(followProjection, "currentLeg")
+                    AND isStruct(followProjection.currentLeg)
+                    AND structKeyExists(followProjection.currentLeg, "routeLegOrder")
+                    AND isNumeric(followProjection.currentLeg.routeLegOrder)
+                    AND structKeyExists(followProjection, "currentLegProgress")
+                    AND isStruct(followProjection.currentLegProgress)
+                    AND structKeyExists(followProjection.currentLegProgress, "percentComplete")
+                    AND isNumeric(followProjection.currentLegProgress.percentComplete)
+                    AND isStruct(followTimeline)
+                    AND structKeyExists(followTimeline, "legs")
+                    AND isArray(followTimeline.legs)
+                ) {
+                    followProjectionLegOrder = val(followProjection.currentLeg.routeLegOrder);
+                    for (followProjectionLegIndex = 1; followProjectionLegIndex LTE arrayLen(followTimeline.legs); followProjectionLegIndex++) {
+                        timelineLeg = followTimeline.legs[followProjectionLegIndex];
+                        if (
+                            !isStruct(timelineLeg)
+                            OR !structKeyExists(timelineLeg, "leg_order")
+                            OR !isNumeric(timelineLeg.leg_order)
+                            OR val(timelineLeg.leg_order) NEQ followProjectionLegOrder
+                        ) {
+                            continue;
+                        }
+                        if (!structKeyExists(timelineLeg, "progress") OR !isStruct(timelineLeg.progress)) {
+                            timelineLeg.progress = {};
+                        }
+                        timelineLeg.progress.percent_complete = val(followProjection.currentLegProgress.percentComplete);
+                        if (structKeyExists(followProjection.currentLeg, "startedAtUtc") AND len(trim(toString(followProjection.currentLeg.startedAtUtc)))) {
+                            timelineLeg.progress.last_update_ts = trim(toString(followProjection.currentLeg.startedAtUtc));
+                        }
+                        followTimeline.legs[followProjectionLegIndex] = timelineLeg;
+                        break;
                     }
                 }
             }
@@ -1500,6 +1821,7 @@
             pinned = {
                 "miles"=routeTotalMiles,
                 "miles_today_nm"=(isNumeric(milesTodayNm) ? milesTodayNm : ""),
+                "hours_today"=(isNumeric(hoursTodayTotal) ? hoursTodayTotal : ""),
                 "days"=routeTotalDays,
                 "locks"=routeTotalLocks,
                 "wildlife"=wildlifeCount,
@@ -1634,7 +1956,14 @@
                 "legArrivalUtc"="",
                 "heroLastCheckIn"="--",
                 "heroLastCheckInUtc"="",
-                "manualDelayMinutesTotal"=0
+                "manualDelayMinutesTotal"=0,
+                "canonicalProjectionAvailable"=false,
+                "projectionAuthority"="",
+                "projectionWarnings"=[],
+                "etaProjection"={},
+                "todayProgress"={},
+                "currentLegProgress"={},
+                "routeTimeline"={ "available"=false }
             };
             var canonicalPlan = {};
             var ds = resolveDatasource();
@@ -1649,6 +1978,9 @@
             var actualCheckInUtc = "";
             var checkInContextVal = "";
             var isOvernightCheckIn = false;
+            var actualResumeAt = "";
+            var actualResumeAtLocal = "";
+            var hasActualResumeAt = false;
             var storedOvernightPauseMinutes = 0;
             var storedManualDelayMinutes = 0;
             var departureTimeZoneVal = "";
@@ -1679,6 +2011,7 @@
             var qLocalDeparture = queryNew("");
             var qLocalTripStart = queryNew("");
             var qLocalLegArrival = queryNew("");
+            var qActualResumeLocal = queryNew("");
             var scheduledDepartureRawDt = "";
             var hasOperationalCheckIn = false;
             var hasValidCurrentLegStart = false;
@@ -1690,6 +2023,17 @@
             var monitorStateVal = "";
             var lastCheckinStatusVal = "";
             var usingActiveLegEta = false;
+            var activeCruiseProjection = {};
+            var canonicalActiveCruiseProjectionBlocked = false;
+            var useCanonicalActiveCruiseProjection = false;
+            var useRouteTimelineActiveCruiseProjection = false;
+            var activeCruiseRouteTimelineAuthority = "";
+            var activeCruiseProjectionWarningIndex = 0;
+            var activeCruiseProjectionWarning = {};
+            var activeCruiseProjectionWarningCode = "";
+            var activeCruiseProjectionEtaUtc = "";
+            var activeCruiseProjectionEtaLocalInput = "";
+            var qActiveCruiseProjectionEtaLocal = queryNew("");
             var i = 0;
 
             if (arguments.currentUserId LTE 0 OR arguments.floatPlanId LTE 0) {
@@ -1863,6 +2207,18 @@
             if (!hasOperationalCheckIn) {
                 storedOvernightPauseMinutes = 0;
             }
+            if (
+                tripStarted
+                AND storedOvernightPauseMinutes GT 0
+                AND hasOperationalCheckIn
+                AND !isOvernightCheckIn
+                AND len(lastCheckinStatusVal)
+                AND lastCheckinStatusVal NEQ "SECURE_FOR_NIGHT"
+                AND isDate(checkedInAtVal)
+            ) {
+                actualResumeAt = checkedInAtVal;
+                hasActualResumeAt = true;
+            }
             storedManualDelayMinutes = (
                 !isNull(qPlan.manual_delay_minutes_total[1]) AND isNumeric(qPlan.manual_delay_minutes_total[1])
                     ? val(qPlan.manual_delay_minutes_total[1])
@@ -1966,6 +2322,24 @@
                     }, { datasource = ds });
                     if (qLocalDeparture.recordCount GT 0 AND !isNull(qLocalDeparture.localDateTime[1])) {
                         nextStopEtaBaseDt = qLocalDeparture.localDateTime[1];
+                    }
+                }
+                actualResumeAtLocal = actualResumeAt;
+                if (
+                    hasActualResumeAt
+                    AND isDate(actualResumeAtLocal)
+                    AND ucase(storedDepartureTimeZoneVal) EQ "UTC"
+                    AND len(departureTimeZoneVal)
+                    AND ucase(departureTimeZoneVal) NEQ "UTC"
+                ) {
+                    qActualResumeLocal = queryExecute("
+                        SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
+                    ", {
+                        utcDateTime = { value = actualResumeAtLocal, cfsqltype = "cf_sql_timestamp" },
+                        targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
+                    }, { datasource = ds });
+                    if (qActualResumeLocal.recordCount GT 0 AND !isNull(qActualResumeLocal.localDateTime[1]) AND isDate(qActualResumeLocal.localDateTime[1])) {
+                        actualResumeAtLocal = qActualResumeLocal.localDateTime[1];
                     }
                 }
 
@@ -2078,7 +2452,7 @@
                     resumeDayStartDt = "";
                     resumeAnchorDt = "";
                     useResumedDayStartEtaBase = false;
-                    if (tripStarted AND storedOvernightPauseMinutes GT 0 AND hasOperationalCheckIn AND isDate(checkedInAtVal)) {
+                    if (tripStarted AND storedOvernightPauseMinutes GT 0 AND hasOperationalCheckIn AND !hasActualResumeAt AND isDate(checkedInAtVal)) {
                         resumeDayStartDt = createDateTime(
                             year(checkedInAtVal),
                             month(checkedInAtVal),
@@ -2128,6 +2502,18 @@
                         } catch (any overnightEtaErr) {
                             // Preserve additive behavior if overnight resume derivation fails.
                         }
+                    } else if (
+                        !useResumedDayStartEtaBase
+                        AND hasActualResumeAt
+                        AND isDate(actualResumeAt)
+                        AND isDate(actualResumeAtLocal)
+                        AND (
+                            !hasValidCurrentLegStart
+                            OR !isDate(currentLegStartedAt)
+                            OR dateCompare(currentLegStartedAt, actualResumeAt, "s") LT 0
+                        )
+                    ) {
+                        activeLegEtaBaseDt = actualResumeAtLocal;
                     } else if (!useResumedDayStartEtaBase AND hasValidCurrentLegStart) {
                         activeLegEtaBaseDt = currentLegStartedAtLocal;
                     } else if (!useResumedDayStartEtaBase AND hasValidPriorLegCompletion) {
@@ -2158,6 +2544,130 @@
             }
             if (len(etaUtc)) {
                 out.heroEtaUtc = etaUtc;
+            }
+            // Canonical hooks expose real canonical segments or scheduled route timelines; legacy diagnostics remain fallback-only.
+            try {
+                activeCruiseProjection = createTripProgressProjectionService().getProjection(arguments.floatPlanId);
+            } catch (any activeCruiseProjectionErr) {
+                activeCruiseProjection = {};
+            }
+            if (
+                isStruct(activeCruiseProjection)
+                AND structKeyExists(activeCruiseProjection, "authorityWarnings")
+                AND isArray(activeCruiseProjection.authorityWarnings)
+            ) {
+                for (activeCruiseProjectionWarningIndex = 1; activeCruiseProjectionWarningIndex LTE arrayLen(activeCruiseProjection.authorityWarnings); activeCruiseProjectionWarningIndex++) {
+                    activeCruiseProjectionWarning = activeCruiseProjection.authorityWarnings[activeCruiseProjectionWarningIndex];
+                    if (!isStruct(activeCruiseProjectionWarning) OR !structKeyExists(activeCruiseProjectionWarning, "code")) {
+                        continue;
+                    }
+                    activeCruiseProjectionWarningCode = trim(toString(activeCruiseProjectionWarning.code));
+                    if (listFindNoCase("MULTIPLE_OPEN_SEGMENTS,CANONICAL_ACTIVITY_SEGMENT_TABLE_MISSING,CANONICAL_EVENT_TABLE_MISSING", activeCruiseProjectionWarningCode)) {
+                        canonicalActiveCruiseProjectionBlocked = true;
+                        break;
+                    }
+                }
+            }
+            useCanonicalActiveCruiseProjection = (
+                isStruct(activeCruiseProjection)
+                AND structKeyExists(activeCruiseProjection, "success")
+                AND activeCruiseProjection.success
+                AND structKeyExists(activeCruiseProjection, "activitySegments")
+                AND isArray(activeCruiseProjection.activitySegments)
+                AND arrayLen(activeCruiseProjection.activitySegments) GT 0
+                AND structKeyExists(activeCruiseProjection, "eventLedger")
+                AND isStruct(activeCruiseProjection.eventLedger)
+                AND structKeyExists(activeCruiseProjection.eventLedger, "count")
+                AND val(activeCruiseProjection.eventLedger.count) GT 0
+                AND structKeyExists(activeCruiseProjection, "todayProgress")
+                AND isStruct(activeCruiseProjection.todayProgress)
+                AND structKeyExists(activeCruiseProjection.todayProgress, "authority")
+                AND lCase(trim(toString(activeCruiseProjection.todayProgress.authority))) EQ "canonical"
+                AND !canonicalActiveCruiseProjectionBlocked
+            );
+            if (
+                isStruct(activeCruiseProjection)
+                AND structKeyExists(activeCruiseProjection, "routeTimeline")
+                AND isStruct(activeCruiseProjection.routeTimeline)
+                AND structKeyExists(activeCruiseProjection.routeTimeline, "available")
+                AND activeCruiseProjection.routeTimeline.available
+                AND structKeyExists(activeCruiseProjection.routeTimeline, "authority")
+            ) {
+                activeCruiseRouteTimelineAuthority = lCase(trim(toString(activeCruiseProjection.routeTimeline.authority)));
+            }
+            useRouteTimelineActiveCruiseProjection = (
+                isStruct(activeCruiseProjection)
+                AND structKeyExists(activeCruiseProjection, "success")
+                AND activeCruiseProjection.success
+                AND listFindNoCase("canonical_projection,scheduled_projection", activeCruiseRouteTimelineAuthority)
+                AND !canonicalActiveCruiseProjectionBlocked
+            );
+            if (
+                isStruct(activeCruiseProjection)
+                AND structKeyExists(activeCruiseProjection, "authorityWarnings")
+                AND isArray(activeCruiseProjection.authorityWarnings)
+            ) {
+                out.projectionWarnings = duplicate(activeCruiseProjection.authorityWarnings);
+            }
+            if (useCanonicalActiveCruiseProjection OR useRouteTimelineActiveCruiseProjection) {
+                out.canonicalProjectionAvailable = true;
+                out.projectionAuthority = (len(activeCruiseRouteTimelineAuthority) ? activeCruiseRouteTimelineAuthority : "canonical_projection");
+                if (structKeyExists(activeCruiseProjection, "etaProjection") AND isStruct(activeCruiseProjection.etaProjection)) {
+                    out.etaProjection = duplicate(activeCruiseProjection.etaProjection);
+                }
+                if (structKeyExists(activeCruiseProjection, "todayProgress") AND isStruct(activeCruiseProjection.todayProgress)) {
+                    out.todayProgress = duplicate(activeCruiseProjection.todayProgress);
+                }
+                if (structKeyExists(activeCruiseProjection, "currentLegProgress") AND isStruct(activeCruiseProjection.currentLegProgress)) {
+                    out.currentLegProgress = duplicate(activeCruiseProjection.currentLegProgress);
+                }
+                if (
+                    structKeyExists(activeCruiseProjection, "routeTimeline")
+                    AND isStruct(activeCruiseProjection.routeTimeline)
+                    AND structKeyExists(activeCruiseProjection.routeTimeline, "available")
+                    AND activeCruiseProjection.routeTimeline.available
+                ) {
+                    out.routeTimeline = duplicate(activeCruiseProjection.routeTimeline);
+                }
+            }
+            if (
+                useCanonicalActiveCruiseProjection
+                AND structKeyExists(activeCruiseProjection, "etaProjection")
+                AND isStruct(activeCruiseProjection.etaProjection)
+                AND structKeyExists(activeCruiseProjection.etaProjection, "available")
+                AND activeCruiseProjection.etaProjection.available
+                AND structKeyExists(activeCruiseProjection.etaProjection, "etaUtc")
+                AND len(trim(toString(activeCruiseProjection.etaProjection.etaUtc)))
+            ) {
+                activeCruiseProjectionEtaUtc = trim(toString(activeCruiseProjection.etaProjection.etaUtc));
+                out.heroEtaUtc = activeCruiseProjectionEtaUtc;
+                out.legArrivalUtc = activeCruiseProjectionEtaUtc;
+                out.heroEta = "";
+                activeCruiseProjectionEtaLocalInput = replace(replace(activeCruiseProjectionEtaUtc, "T", " ", "one"), "Z", "", "one");
+                if (len(departureTimeZoneVal) AND isDate(activeCruiseProjectionEtaLocalInput)) {
+                    try {
+                        qActiveCruiseProjectionEtaLocal = queryExecute(
+                            "SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime",
+                            {
+                                utcDateTime = { value = activeCruiseProjectionEtaLocalInput, cfsqltype = "cf_sql_timestamp" },
+                                targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
+                            },
+                            { datasource = ds }
+                        );
+                        if (
+                            qActiveCruiseProjectionEtaLocal.recordCount GT 0
+                            AND !isNull(qActiveCruiseProjectionEtaLocal.localDateTime[1])
+                            AND isDate(qActiveCruiseProjectionEtaLocal.localDateTime[1])
+                        ) {
+                            out.heroEta = dateTimeFormat(qActiveCruiseProjectionEtaLocal.localDateTime[1], "mmm d, yyyy h:nn tt");
+                        }
+                    } catch (any activeCruiseProjectionEtaErr) {
+                        out.heroEta = "";
+                    }
+                }
+                if (!len(out.heroEta) AND isDate(activeCruiseProjectionEtaLocalInput)) {
+                    out.heroEta = dateTimeFormat(activeCruiseProjectionEtaLocalInput, "mmm d, yyyy h:nn tt");
+                }
             }
             if (awaitingDepartureState) {
                 out.heroEta = "--";
@@ -4068,6 +4578,13 @@
         <cfargument name="ownerUserId" type="numeric" required="true">
         <cfargument name="fallbackDays" type="numeric" required="false" default="0">
         <cfscript>
+            var routeMapGeometryService = createRouteMapGeometryService();
+            return routeMapGeometryService.buildRouteMapData(
+                routeInstanceId=arguments.routeInstanceId,
+                ownerUserId=arguments.ownerUserId,
+                fallbackDays=arguments.fallbackDays
+            );
+
             var out = {
                 "route_geo"={ "type"="MultiLineString", "coordinates"=[] },
                 "pins"=[],
@@ -6975,11 +7492,3 @@
     </cffunction>
 
 </cfcomponent>
-
-
-
-
-
-
-
-

@@ -417,6 +417,7 @@
     var activeLegDistanceNm = safeNum(activeLeg && activeLeg.dist_nm);
     var activeLegProgressPct = safeNum(activeLeg && activeLeg.progress ? activeLeg.progress.percent_complete : null);
     var pinnedMilesTodayNm = safeNum(pinned.miles_today_nm);
+    var pinnedHoursToday = safeNum(pinned.hours_today);
     var milesTodayLabel = "—";
     var hoursUnderwayLabel = "—";
     var hoursUnderwayTotal = 0;
@@ -425,15 +426,19 @@
     } else if (activeLegDistanceNm !== null && activeLegProgressPct !== null) {
       milesTodayLabel = (activeLegDistanceNm * Math.max(0, activeLegProgressPct) / 100).toFixed(1);
     }
-    legs.forEach(function (leg) {
-      var legHours = safeNum(leg && leg.hours);
-      var legProgressPct = safeNum(leg && leg.progress ? leg.progress.percent_complete : null);
-      var clampedProgressPct = 0;
-      if (legHours === null || legProgressPct === null || legProgressPct <= 0) return;
-      clampedProgressPct = Math.max(0, Math.min(100, legProgressPct));
-      hoursUnderwayTotal += legHours * clampedProgressPct / 100;
-    });
-    hoursUnderwayLabel = hoursUnderwayTotal.toFixed(1);
+    if (pinnedHoursToday !== null) {
+      hoursUnderwayLabel = pinnedHoursToday.toFixed(1);
+    } else {
+      legs.forEach(function (leg) {
+        var legHours = safeNum(leg && leg.hours);
+        var legProgressPct = safeNum(leg && leg.progress ? leg.progress.percent_complete : null);
+        var clampedProgressPct = 0;
+        if (legHours === null || legProgressPct === null || legProgressPct <= 0) return;
+        clampedProgressPct = Math.max(0, Math.min(100, legProgressPct));
+        hoursUnderwayTotal += legHours * clampedProgressPct / 100;
+      });
+      hoursUnderwayLabel = hoursUnderwayTotal.toFixed(1);
+    }
     nextStopEtaLabel = formatSidebarLastCheckinLabel(etaUtc) || "—";
 
     setHookText("stream-glance-updated", updatedLabel);

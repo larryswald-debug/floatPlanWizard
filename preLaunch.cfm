@@ -1,4 +1,6 @@
+<cfprocessingdirective pageencoding="utf-8">
 <cfsetting showdebugoutput="false" requesttimeout="30">
+
 <cfscript>
 function fpwJsonResponse(required struct payload, numeric statusCode = 200) {
   cfheader(statuscode = arguments.statusCode);
@@ -104,6 +106,73 @@ function fpwClientIp() {
   return structKeyExists(cgi, "remote_addr") ? fpwSafeString(cgi.remote_addr, 45) : "";
 }
 
+function fpwBuildUnsubscribeLink(required string email, required string baseUrl) {
+  var safeBaseUrl = trim(arguments.baseUrl);
+  var separator = find("?", safeBaseUrl) ? "&" : "?";
+  return safeBaseUrl & separator & "email=" & urlEncodedFormat(arguments.email);
+}
+
+function fpwSendPrelaunchWelcomeEmail(required string recipientEmail, required struct mailConfig) {
+  var unsubscribeLink = fpwBuildUnsubscribeLink(arguments.recipientEmail, arguments.mailConfig.unsubscribeBaseUrl);
+  var fromAddress = trim(arguments.mailConfig.fromAddress);
+  var fromDisplayName = trim(arguments.mailConfig.fromDisplayName);
+  var fromValue = len(fromDisplayName) ? fromDisplayName & " <" & fromAddress & ">" : fromAddress;
+  var replyTo = structKeyExists(arguments.mailConfig, "replyTo") ? trim(arguments.mailConfig.replyTo) : "";
+  var mailAttrs = {
+    to = arguments.recipientEmail,
+    from = fromValue,
+    subject = "Thanks for joining the FloatPlanWizard launch list",
+    type = "text",
+    charset = "utf-8"
+  };
+  var mailBody = arrayToList(
+    [
+      "Hello,",
+      "",
+      "Thank you for signing up to be notified about the upcoming launch of FloatPlanWizard.",
+      "",
+      "FloatPlanWizard was originally launched in 2018 and is now being completely rebuilt as a modern platform for recreational boaters who want a better way to organize trips, create detailed float plans, and keep family or friends informed while on the water.",
+      "",
+      "The new version is scheduled to launch in Spring 2026.",
+      "",
+      "Between now and launch you may receive a few brief updates about the progress of the platform and when it becomes available. These messages are limited to launch-related updates only, and your email address will never be sold or shared.",
+      "",
+      "If you were a member of the earlier version of FloatPlanWizard, you will receive instructions after launch explaining how to access the new platform.",
+      "",
+      "If you would prefer not to receive these updates, you can unsubscribe at any time using the link below:",
+      "",
+      "Unsubscribe:",
+      unsubscribeLink,
+      "",
+      "Thank you again for your interest in FloatPlanWizard.",
+      "",
+      "- FloatPlanWizard",
+      "https://FloatPlanWizard.com",
+      "",
+      "FloatPlanWizard",
+      "United States"
+    ],
+    chr(10)
+  );
+
+  if (len(replyTo)) {
+    mailAttrs.replyto = replyTo;
+  }
+
+  cfmail(attributeCollection = mailAttrs) {
+    writeOutput(mailBody);
+  }
+}
+
+// Welcome / Thank-you email configuration (prelaunch self-contained).
+// Replace unsubscribeBaseUrl with the live unsubscribe endpoint when ready.
+prelaunchWelcomeEmailConfig = {
+  fromAddress = "no-reply@floatplanwizard.com",
+  fromDisplayName = "FloatPlanWizard",
+  replyTo = "",
+  unsubscribeBaseUrl = "https://FloatPlanWizard.com/unsubscribe.cfm"
+};
+
 isEarlyAccessPost = structKeyExists(cgi, "request_method")
   AND ucase(cgi.request_method) EQ "POST"
   AND (
@@ -193,6 +262,24 @@ if (isEarlyAccessPost) {
       { datasource = dsn }
     );
 
+    if (NOT alreadyOnList) {
+      try {
+        fpwSendPrelaunchWelcomeEmail(email, prelaunchWelcomeEmailConfig);
+      } catch (any mailErr) {
+        try {
+          mailErrMsg = structKeyExists(mailErr, "message") ? fpwSafeString(mailErr.message, 500) : "";
+          mailErrDetail = structKeyExists(mailErr, "detail") ? fpwSafeString(mailErr.detail, 1000) : "";
+          writeLog(
+            file = "fpw_prelaunch_mail",
+            type = "error",
+            text = "Prelaunch welcome email send failed for " & email
+              & (len(mailErrMsg) ? " | message: " & mailErrMsg : "")
+              & (len(mailErrDetail) ? " | detail: " & mailErrDetail : "")
+          );
+        } catch (any logErr) {}
+      }
+    }
+
     fpwJsonResponse(
       {
         "SUCCESS" = true,
@@ -205,6 +292,18 @@ if (isEarlyAccessPost) {
       }
     );
   } catch (any e) {
+    try {
+      errMsg = structKeyExists(e, "message") ? fpwSafeString(e.message, 500) : "";
+      errDetail = structKeyExists(e, "detail") ? fpwSafeString(e.detail, 1000) : "";
+      writeLog(
+        file = "fpw_prelaunch_mail",
+        type = "error",
+        text = "Prelaunch signup request failed"
+          & (len(errMsg) ? " | message: " & errMsg : "")
+          & (len(errDetail) ? " | detail: " & errDetail : "")
+      );
+    } catch (any logErr) {}
+
     fpwJsonResponse(
       {
         "SUCCESS" = false,
@@ -222,8 +321,14 @@ if (isEarlyAccessPost) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FloatPlanWizard — Goes Live Spring 2026</title>
-  <meta name="description" content="FloatPlanWizard helps serious recreational boaters plan voyages, organize routes, and keep family and friends informed. Join the grand opening waitlist." />
+  <title>FloatPlanWizard | Boat Trip Planner, Float Plans & Shared Trip Updates</title>
+
+<meta name="description" content="Plan safer boat trips with FloatPlanWizard. Create float plans, organize route details, estimate fuel needs, and share trip updates with family and friends. Join the prelaunch list.">
+
+<link rel="canonical" href="https://floatplanwizard.com/">
+  
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
     :root {
       --bg: #07131c;
@@ -245,6 +350,7 @@ if (isEarlyAccessPost) {
       --radius-lg: 20px;
       --radius-md: 14px;
       --max: 1200px;
+      --promo-strip-offset: 36px;
     }
 
     * { box-sizing: border-box; }
@@ -278,6 +384,36 @@ if (isEarlyAccessPost) {
       border-bottom: 1px solid rgba(130, 186, 226, 0.12);
     }
 
+    .promo-strip {
+      border-bottom: 1px solid rgba(130, 186, 226, 0.1);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015));
+      box-shadow: inset 0 -1px 0 rgba(255,255,255,0.02);
+    }
+
+    .promo-strip-inner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 0 7px;
+      text-align: center;
+    }
+
+    .promo-strip-copy {
+      margin: 0;
+      color: rgba(234, 245, 255, 0.84);
+      font-size: clamp(0.76rem, 1.4vw, 0.84rem);
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      line-height: 1.25;
+      white-space: nowrap;
+    }
+
+    .promo-strip-copy strong {
+      color: #f4fbff;
+      font-weight: 700;
+    }
+
     .topbar-inner {
       display: flex;
       align-items: center;
@@ -308,8 +444,20 @@ if (isEarlyAccessPost) {
     }
 
     .brand-mark::before {
-      content: "⚓";
-      font-size: 20px;
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(255,255,255,0.08), transparent 0 38%),
+        linear-gradient(180deg, transparent, rgba(255,255,255,0.02));
+      pointer-events: none;
+    }
+
+    .brand-mark i {
+      position: relative;
+      z-index: 1;
+      font-size: 1.2rem;
+      color: #bceaff;
       filter: drop-shadow(0 0 12px rgba(71,199,255,0.45));
     }
 
@@ -356,7 +504,7 @@ if (isEarlyAccessPost) {
       cursor: pointer;
       font-weight: 700;
       font-size: 0.98rem;
-      padding: 14px 22px;
+      padding: 7px 11px;
       transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
       white-space: nowrap;
     }
@@ -374,8 +522,13 @@ if (isEarlyAccessPost) {
       border: 1px solid rgba(130,186,226,0.16);
     }
 
+    .btn i {
+      font-size: 1rem;
+      line-height: 1;
+    }
+
     .hero {
-      padding: 25px 0 20px;
+      padding: 25px 0 0;
       position: relative;
       overflow: hidden;
     }
@@ -432,8 +585,13 @@ if (isEarlyAccessPost) {
       font-size: 0.82rem;
       font-weight: 700;
       letter-spacing: 0.04em;
-      text-transform: camel-case;
+      text-transform: none;
       margin-bottom: 22px;
+    }
+
+    .eyebrow i {
+      font-size: 0.95rem;
+      color: #aef7d0;
     }
 
     h1 {
@@ -499,11 +657,17 @@ if (isEarlyAccessPost) {
       line-height: 1.45;
     }
 
+    .hero-point b i {
+      margin-right: 8px;
+      color: #afe8ff;
+    }
+
     .hero-cta {
       display: flex;
       flex-wrap: wrap;
       gap: 14px;
-      margin-top: 30px;
+      margin-top: 15px;
+      margin-bottom: 15px;
       align-items: center;
     }
 
@@ -787,6 +951,7 @@ if (isEarlyAccessPost) {
     .waitlist-proof-icon {
       font-size: 1.02em;
       line-height: 1;
+      color: #9be8ff;
     }
 
     .waitlist-signup-panel {
@@ -929,6 +1094,26 @@ if (isEarlyAccessPost) {
       padding: 10px 0;
     }
 
+    #great-loop {
+      scroll-margin-top: calc(73px + var(--promo-strip-offset));
+    }
+
+    #features {
+      scroll-margin-top: calc(74px + var(--promo-strip-offset));
+    }
+
+    #followers {
+      scroll-margin-top: calc(74px + var(--promo-strip-offset));
+    }
+
+    #story {
+      scroll-margin-top: calc(74px + var(--promo-strip-offset));
+    }
+
+    #notify {
+      scroll-margin-top: calc(86px + var(--promo-strip-offset));
+    }
+
     .section-head {
       max-width: 760px;
       margin-bottom: 28px;
@@ -981,6 +1166,8 @@ if (isEarlyAccessPost) {
       border: 1px solid rgba(130,186,226,0.18);
       margin-bottom: 16px;
       font-size: 1.2rem;
+      color: #c6eeff;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
     }
 
     .feature h3 {
@@ -1062,7 +1249,7 @@ if (isEarlyAccessPost) {
       min-height: 420px;
       border-radius: 24px;
       border: 1px solid rgba(130,186,226,0.18);
-      background-image: url("assets/images/prelaunch-great-loop-map-20260311-v2.png");
+      background-image: url("prelaunch-great-loop-map-20260311-v2.png");
       background-size: cover;
       background-position: center center;
       overflow: hidden;
@@ -1178,7 +1365,7 @@ if (isEarlyAccessPost) {
     .loop-feature-item {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       color: var(--muted);
       font-weight: 400;
       line-height: 1.6;
@@ -1193,11 +1380,19 @@ if (isEarlyAccessPost) {
 
     .loop-feature-item-icon {
       flex: 0 0 auto;
-      font-size: 2.0rem;
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 14px;
+      background: linear-gradient(145deg, rgba(71,199,255,0.14), rgba(24,242,210,0.10));
+      border: 1px solid rgba(130,186,226,0.16);
+      color: #bdeeff;
+      font-size: 1.1rem;
       line-height: 1;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
     }
 
-    /* Tighter, conversion-focused Follower View callout treatment */
     .follower-view-card {
       padding: 20px 18px 18px;
     }
@@ -1507,12 +1702,20 @@ if (isEarlyAccessPost) {
       line-height: 1.6;
     }
 
+    .footer-card .footer-copyright {
+      display: block;
+      margin-top: 6px;
+      color: var(--soft);
+      font-size: 0.84rem;
+    }
+
     .footer-links {
       display: flex;
-      gap: 16px;
+      gap: 12px;
       flex-wrap: wrap;
       color: var(--soft);
-      font-size: 0.92rem;
+      font-size: 0.9rem;
+      letter-spacing: 0.01em;
     }
 
     @media (max-width: 1120px) {
@@ -1545,10 +1748,15 @@ if (isEarlyAccessPost) {
       .topbar-inner { align-items: flex-start; flex-direction: column; }
       .nav { width: 100%; justify-content: flex-start; }
       .hero { padding-top: 26px; }
+      #great-loop { scroll-margin-top: calc(125px + var(--promo-strip-offset)); }
+      #features { scroll-margin-top: calc(126px + var(--promo-strip-offset)); }
+      #followers { scroll-margin-top: calc(126px + var(--promo-strip-offset)); }
+      #story { scroll-margin-top: calc(126px + var(--promo-strip-offset)); }
+      #notify { scroll-margin-top: calc(138px + var(--promo-strip-offset)); }
       .hero-copy, .hero-visual, .loop-card, .follower-card, .story-card, .cta-card { padding: 22px; }
       .waitlist-grid { padding: 22px 18px; gap: 18px; }
       .waitlist-signup-panel { padding: 16px; border-radius: 20px; }
-      .waitlist-proof { margin-top: 14px; }
+      .waitlist-proof { margin-top: 14px; flex-wrap: wrap; white-space: normal; justify-content: flex-start; }
       .hero-points,
       .stats-row,
       .features { grid-template-columns: 1fr; }
@@ -1560,60 +1768,83 @@ if (isEarlyAccessPost) {
       .route-label { font-size: 0.74rem; }
     }
 
+    @media (max-width: 560px) {
+      :root {
+        --promo-strip-offset: 52px;
+      }
+
+      .promo-strip-copy {
+        white-space: normal;
+      }
+    }
   </style>
+  <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-JJCH1QE0LH"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-JJCH1QE0LH');
+</script>
 </head>
-<body>
+<body id="top">
   <header class="topbar">
+    <div class="promo-strip">
+      <div class="shell promo-strip-inner">
+        <p class="promo-strip-copy">Join prelaunch &mdash; get <strong>2 months of Premium free</strong></p>
+      </div>
+    </div>
     <div class="shell topbar-inner">
       <a href="#top" class="brand" aria-label="FloatPlanWizard home">
-        <div class="brand-mark"></div>
+        <div class="brand-mark"><i class="bi bi-compass-fill" aria-hidden="true"></i></div>
         <div class="brand-copy">
           <div class="brand-name">FloatPlanWizard</div>
-          <div class="brand-tag">Pre-launch waitlist for serious recreational boaters</div>
+          <div class="brand-tag">Built for serious recreational boaters</div>
         </div>
       </a>
       <nav class="nav" aria-label="Primary">
-        <a href="#features">Features</a>
-        <a href="#great-loop">Great Loop</a>
-        <a href="#followers">Follower Pages</a>
+        <a href="/#features">Features</a>
+        <a href="/#great-loop">Great Loop</a>
+        <a href="/#followers">Share the Trip</a>
         <a href="#story">Why FPW</a>
-        <a href="#notify" class="btn btn-secondary">Get Notified</a>
+        <a href="/boat-fuel-calculator/boat-fuel-calculator.cfm" class="btn btn-secondary">Fuel Calculator</a>
+        <a href="/#notify" class="btn btn-secondary"><i class="bi bi-bell"></i>Get Notified</a>
       </nav>
     </div>
   </header>
 
-  <main id="top">
+  <main>
     <section class="hero">
       <div class="shell hero-grid">
         <div class="panel hero-copy">
-          <div class="eyebrow">Set Sail with FloatPlanWizard – Launching this spring</div>
+          <div class="eyebrow"><i class="bi bi-stars" aria-hidden="true"></i>Set Sail with FloatPlanWizard - Launching this spring</div>
           <h1><span class="gradient-text">Plan smarter.</span><br />Cruise prepared.<br />Keep everyone informed.</h1>
           <ul class="lead lead-bullets">
-            <li>Build USCG-style float plans with key trip and emergency details.</li>
-            <li>Plan route legs, pace, timing, fuel stops, and contingencies.</li>
-            <li>Keep family and friends informed with private follower updates.</li>
-   
-            <li>Automatically sends overdue notices to your contacts if late.</li>
+            <li>Create clear float plans with key trip and emergency details.</li>
+            <li>Plan route legs, timing, fuel stops, and contingencies confidently.</li>
+            <li>Keep family and friends informed with private trip updates.</li>
+            <li>Automatic overdue alerts help contacts act quickly if needed.</li>
           </ul>
 
           <div class="hero-points">
             <div class="hero-point">
-              <b>Float Plans</b>
+              <b><i class="bi bi-life-preserver"></i>Float Plans</b>
               <span>USCG-style float plans with automated monitoring. Critical information for emergencies.</span>
             </div>
             <div class="hero-point">
-              <b>Route Builder</b>
+              <b><i class="bi bi-diagram-3"></i>Route Builder</b>
               <span>Plan legs, pace, stops, timing, and fuel with tools built for real cruising.</span>
             </div>
             <div class="hero-point">
-              <b>Follower Pages</b>
+              <b><i class="bi bi-broadcast-pin"></i>Share the Trip</b>
               <span>Let family and friends stay connected during day trips, weekends, or longer voyages.</span>
             </div>
           </div>
 
           <div class="hero-cta">
-            <a href="#notify" class="btn btn-primary">Join the Early Notification List</a>
-            <a href="#great-loop" class="btn btn-secondary">See Great Loop Focus</a>
+            <a href="#notify" class="btn btn-primary"><i class="bi bi-envelope-paper"></i>Join the Early Notification List</a>
+            <a href="#great-loop" class="btn btn-secondary"><i class="bi bi-signpost-2"></i>Explore Great Loop Features</a>
           </div>
           <div class="micro">Built for Great Loopers and all serious recreational boaters.</div>
         </div>
@@ -1622,13 +1853,13 @@ if (isEarlyAccessPost) {
           <div class="mockup">
             <div class="mockup-top">
               <div class="dots"><span></span><span></span><span></span></div>
-              <div>Mission-ready Boating Dashboard</div>
+              <div>Voyage Command Center</div>
             </div>
             <div class="mockup-body">
               <div class="stack">
                 <div class="card">
                   <h3>Upcoming Voyage</h3>
-                  <p>Organize the trip, route, departure timing, monitoring, and follower access before leaving the dock.</p>
+                  <p>Organize the trip, route, departure timing, monitoring, and shared trip page access before leaving the dock.</p>
                   <div class="route-lines">
                     <div class="route-line"><i></i><div>Tarpon Springs Departure</div><small>08:00</small></div>
                     <div class="route-line"><i></i><div>Fuel / Weather Check</div><small>10:30</small></div>
@@ -1637,12 +1868,12 @@ if (isEarlyAccessPost) {
                   </div>
                 </div>
                 <div class="card follower-view-card">
-                  <h3>Follower View</h3>
-                  <p>Private trip page for family and friends to see planned route, key stops, and progress updates.</p>
+                  <h3>Share the Trip</h3>
+                  <p>Private shared trip page for family and friends to see planned route, key stops, and progress updates.</p>
                   <div class="follower-view-stats">
                     <div class="stat"><strong>24/7</strong><span>peace of mind</span></div>
                     <div class="stat"><strong>Loop</strong><span>friendly tools</span></div>
-                    <div class="stat"><strong>1</strong><span>shareable trip link</span></div>
+                    <div class="stat"><strong>1 link</strong><span>easy to share</span></div>
                   </div>
                 </div>
               </div>
@@ -1675,10 +1906,10 @@ if (isEarlyAccessPost) {
           <div class="waitlist-grid">
             <div class="waitlist-copy">
               <div class="waitlist-copy-body">
-                <div class="waitlist-eyebrow"><span class="waitlist-eyebrow-dot" aria-hidden="true"></span>Grand Opening Spring 2026</div>
+                <div class="waitlist-eyebrow"><span class="waitlist-eyebrow-dot" aria-hidden="true"></span>Going Live Spring 2026</div>
                 <h2>Be first to know when FloatPlanWizard goes live.</h2>
                 <p class="waitlist-primary">
-                  Join the pre-launch list for grand opening updates, early access news, and launch announcements built for serious recreational boaters and Great Loop cruisers.
+                  Join the pre-launch list for going-live updates, early access news, and launch announcements built for serious recreational boaters and Great Loop cruisers.
                 </p>
                 <p class="waitlist-secondary">
                   From marina Wi-Fi and cellular to increasingly common Starlink-connected cruising, FloatPlanWizard is designed for modern boaters who want family and friends better informed while underway.
@@ -1688,20 +1919,20 @@ if (isEarlyAccessPost) {
                 </p>
               </div>
               <div class="waitlist-proof" aria-label="Launch benefits">
-                <span class="waitlist-proof-pill"><span class="waitlist-proof-icon" aria-hidden="true">🛟</span><span>Better float-plan visibility</span></span>
-                <span class="waitlist-proof-pill"><span class="waitlist-proof-icon" aria-hidden="true">📍</span><span>Live follower updates</span></span>
-                <span class="waitlist-proof-pill"><span class="waitlist-proof-icon" aria-hidden="true">📡</span><span>Built for connected cruisers</span></span>
+                <span class="waitlist-proof-pill"><i class="bi bi-eye waitlist-proof-icon" aria-hidden="true"></i><span>Better float-plan visibility</span></span>
+                <span class="waitlist-proof-pill"><i class="bi bi-geo-alt waitlist-proof-icon" aria-hidden="true"></i><span>Live trip updates</span></span>
+                <span class="waitlist-proof-pill"><i class="bi bi-router waitlist-proof-icon" aria-hidden="true"></i><span>Built for connected cruisers</span></span>
               </div>
             </div>
             <aside class="waitlist-signup-panel signup-panel" aria-label="Launch signup panel">
               <div class="signup-form-state">
-                <div class="waitlist-panel-badge">Launch Notification</div>
+                <div class="section-kicker">Launch Notification</div>
                 <h3>Get notified the moment FPW opens.</h3>
                 <p>Designed for modern cruisers, including Great Loop boaters who rely on cellular and increasingly satellite connectivity like Starlink to stay connected underway.</p>
                 <form class="signup" id="waitlistForm" novalidate>
                   <label class="sr-only" for="emailInput" style="position:absolute;left:-9999px;">Email address</label>
                   <input id="emailInput" name="email" type="email" placeholder="Enter your email address" autocomplete="email" required />
-                  <button class="btn btn-primary" type="submit">Notify Me of Launch</button>
+                  <button class="btn btn-primary" type="submit"><i class="bi bi-bell"></i>Notify Me of Launch</button>
                 </form>
                 <div class="status">No spam. Just launch updates and early access news.</div>
                 <div class="signup-feedback" id="signupStatus"></div>
@@ -1724,29 +1955,26 @@ if (isEarlyAccessPost) {
 
     <section id="features" class="section">
       <div class="shell">
-        <div class="section-head">
-          <div class="section-kicker">Built for real-world boating</div>
-          
-        </div>
+        <div class="section-head"></div>
 
         <div class="features">
           <article class="feature">
-            <div class="feature-icon">⚓</div>
+            <div class="feature-icon"><i class="bi bi-life-preserver" aria-hidden="true"></i></div>
             <h3>Smart Float Plans</h3>
             <p>Create organized float plans with vessel details, route info, timing, contacts, and trip structure in one place.</p>
           </article>
           <article class="feature">
-            <div class="feature-icon">🧭</div>
+            <div class="feature-icon"><i class="bi bi-diagram-3" aria-hidden="true"></i></div>
             <h3>Route Builder</h3>
             <p>Build trip legs, organize stops, map out the journey, and prepare for longer cruising days with more clarity.</p>
           </article>
           <article class="feature">
-            <div class="feature-icon">👨‍👩‍👧</div>
-            <h3>Follower Pages</h3>
-            <p>Give family and friends a simple private page where they can understand the trip and feel more connected.</p>
+            <div class="feature-icon"><i class="bi bi-people" aria-hidden="true"></i></div>
+            <h3>Share the Trip</h3>
+            <p>Give family and friends a private shared trip page where they can understand the trip and feel more connected.</p>
           </article>
           <article class="feature">
-            <div class="feature-icon">🌊</div>
+            <div class="feature-icon"><i class="bi bi-water" aria-hidden="true"></i></div>
             <h3>Voyage Organization</h3>
             <p>Built for day trips, overnights, weekend cruising, and ambitious journeys where planning and communication matter.</p>
           </article>
@@ -1757,7 +1985,6 @@ if (isEarlyAccessPost) {
     <section id="great-loop" class="section">
       <div class="shell grid-2">
         <div class="panel loop-card">
-          
           <h2 style="margin:0;font-size:clamp(1.9rem,3vw,3rem);letter-spacing:-0.045em;line-height:1.04;">Designed with Great Loop cruisers in mind.</h2>
           <p style="margin:16px 0 0;color:var(--muted);line-height:1.75;font-size:1.02rem;">
             FloatPlanWizard is for all recreational boaters, but Great Loopers are a perfect fit. Long-distance cruising demands more preparation, better trip organization, and an easier way to keep family and friends informed throughout the voyage.
@@ -1765,7 +1992,7 @@ if (isEarlyAccessPost) {
           <div class="list">
             <div class="list-item">
               <div class="num">1</div>
-              <div><strong>Great Loop route templates</strong><span>Start faster with planning tools geared toward one of boating’s most iconic journeys.</span></div>
+              <div><strong>Great Loop route templates</strong><span>Start faster with planning tools geared toward one of boating's most iconic journeys.</span></div>
             </div>
             <div class="list-item">
               <div class="num">2</div>
@@ -1773,7 +2000,7 @@ if (isEarlyAccessPost) {
             </div>
             <div class="list-item">
               <div class="num">3</div>
-              <div><strong>Family peace of mind</strong><span>Follower tools make it easier for loved ones to stay connected over a multi-stop trip.</span></div>
+              <div><strong>Family peace of mind</strong><span>A shared trip page makes it easier for loved ones to stay connected over a multi-stop trip.</span></div>
             </div>
             <div class="list-item">
               <div class="num">4</div>
@@ -1783,14 +2010,28 @@ if (isEarlyAccessPost) {
         </div>
 
         <div class="panel map-card">
-          <div class="map-frame">
-          </div>
+          <div class="map-frame"></div>
           <ul class="loop-feature-list" aria-label="Great Loop feature highlights">
-            <li class="loop-feature-item"><span class="loop-feature-item-icon" aria-hidden="true">🧭</span><span><strong>Route Leg Clarity:</strong> Keep each segment organized from ICW to inland rivers.</span></li>
-            <li class="loop-feature-item"><span class="loop-feature-item-icon" aria-hidden="true">🛟</span><span><strong>Lock Readiness:</strong> Plan lock sequences and wait windows.</span></li>
-            <li class="loop-feature-item"><span class="loop-feature-item-icon" aria-hidden="true">⛽</span><span><strong>Fuel Range Confidence:</strong> Track distance-to-fuel and refill timing by leg.</span></li>
-            <li class="loop-feature-item"><span class="loop-feature-item-icon" aria-hidden="true">🌦️</span><span><strong>Weather-Aware Timing:</strong> Adjust departure around fronts, wind, and seas.</span></li>
-            <li class="loop-feature-item"><span class="loop-feature-item-icon" aria-hidden="true">📍</span><span><strong>Shared Live Progress:</strong> Give family clear trip status with follower updates.</span></li>
+            <li class="loop-feature-item">
+              <span class="loop-feature-item-icon" aria-hidden="true"><i class="bi bi-signpost-2"></i></span>
+              <span><strong>Route Leg Clarity:</strong> Keep each segment organized from ICW to inland rivers.</span>
+            </li>
+            <li class="loop-feature-item">
+              <span class="loop-feature-item-icon" aria-hidden="true"><i class="bi bi-door-open"></i></span>
+              <span><strong>Lock Readiness:</strong> Plan lock sequences and wait windows.</span>
+            </li>
+            <li class="loop-feature-item">
+              <span class="loop-feature-item-icon" aria-hidden="true"><i class="bi bi-fuel-pump"></i></span>
+              <span><strong>Fuel Range Confidence:</strong> Track distance-to-fuel and refill timing by leg.</span>
+            </li>
+            <li class="loop-feature-item">
+              <span class="loop-feature-item-icon" aria-hidden="true"><i class="bi bi-cloud-sun"></i></span>
+              <span><strong>Weather-Aware Timing:</strong> Adjust departure around fronts, wind, and seas.</span>
+            </li>
+            <li class="loop-feature-item">
+              <span class="loop-feature-item-icon" aria-hidden="true"><i class="bi bi-broadcast-pin"></i></span>
+              <span><strong>Shared Live Progress:</strong> Give family clear trip status with private trip updates.</span>
+            </li>
           </ul>
         </div>
       </div>
@@ -1800,14 +2041,14 @@ if (isEarlyAccessPost) {
       <div class="shell grid-2">
         <div class="panel follower-card">
           <div class="section-kicker">Keep Your Family Informed</div>
-          <h2 style="margin:0;font-size:clamp(1.9rem,3vw,3rem);letter-spacing:-0.045em;line-height:1.05;">A better way for family and friends to follow the trip.</h2>
+          <h2 style="margin:0;font-size:clamp(1.9rem,3vw,3rem);letter-spacing:-0.045em;line-height:1.05;">A better way to share the trip with family and friends.</h2>
           <p style="margin:16px 0 0;color:var(--muted);line-height:1.75;font-size:1.02rem;">
-            One of FloatPlanWizard’s strongest selling points is simple: it helps the people back home feel informed. That matters whether you are on a day cruise, a weekend run, or a long-distance Great Loop segment.
+            One of FloatPlanWizard's strongest selling points is simple: it helps the people back home feel informed. That matters whether you are on a day cruise, a weekend run, or a long-distance Great Loop segment.
           </p>
           <div class="quotes">
-            <div class="quote">“I just want an easy way to see where the trip is headed and what the plan is.”<strong>Family perspective</strong></div>
-            <div class="quote">“The route makes sense, the stops are clear, and I’m not guessing what’s happening.”<strong>Follower page benefit</strong></div>
-            <div class="quote">“This feels more organized than texting updates one at a time.”<strong>What the product promises</strong></div>
+            <div class="quote">"I just want an easy way to see where the trip is headed and what the plan is."<strong>Family perspective</strong></div>
+            <div class="quote">"The route makes sense, the stops are clear, and I'm not guessing what's happening."<strong>Shared trip page benefit</strong></div>
+            <div class="quote">"This feels more organized than texting updates one at a time."<strong>What the product promises</strong></div>
           </div>
         </div>
 
@@ -1832,7 +2073,7 @@ if (isEarlyAccessPost) {
             </div>
           </div>
           <div class="hero-cta" style="margin-top:22px;">
-            <a href="#notify" class="btn btn-primary">Join the Pre-Launch List</a>
+            <a href="#notify" class="btn btn-primary"><i class="bi bi-envelope-paper"></i>Join the Pre-Launch List</a>
           </div>
         </div>
       </div>
@@ -1853,10 +2094,10 @@ if (isEarlyAccessPost) {
             </div>
             <div class="story-signup signup-panel">
               <div class="signup-form-state">
-                <div class="story-launch-callout">Grand Opening - Spring 2026</div>
+                <div class="story-launch-callout">Going Live - Spring 2026</div>
                 <form class="signup story-signup-form" id="waitlistFormBottom" novalidate>
-                  <input id="emailInputBottom" name="email" type="email" placeholder="Email for grand opening updates" autocomplete="email" required />
-                  <button class="btn btn-primary" type="submit">Notify Me of Launch</button>
+                  <input id="emailInputBottom" name="email" type="email" placeholder="Email for going-live updates" autocomplete="email" required />
+                  <button class="btn btn-primary" type="submit"><i class="bi bi-bell"></i>Notify Me of Launch</button>
                 </form>
                 <div class="story-trust-line">No credit card required. Free version available at launch.</div>
                 <div class="status story-signup-status">No spam. Just launch updates and early access news.</div>
@@ -1878,11 +2119,10 @@ if (isEarlyAccessPost) {
   <footer>
     <div class="shell">
       <div class="panel footer-card">
-        <p><strong>FloatPlanWizard</strong><br />Plan the voyage. Share the journey. Keep everyone informed.</p>
+        <p><strong>FloatPlanWizard</strong><br />Plan the voyage. Share the journey. Keep everyone informed.<br /><span class="footer-copyright">&copy; 2026 FloatPlanWizard. All rights reserved.</span></p>
         <div class="footer-links">
-          <span>Going Live: Spring, 2026</span>
-          <span>Built for Great Loopers</span>
-          <span>Made for recreational boaters</span>
+          <span>Launching Spring 2026</span>
+          <span>Built for Great Loopers and serious recreational boaters</span>
         </div>
       </div>
     </div>
@@ -1965,7 +2205,7 @@ if (isEarlyAccessPost) {
         if (!button) return;
 
         if (!button.dataset.defaultLabel) {
-          button.dataset.defaultLabel = button.textContent.trim();
+          button.dataset.defaultLabel = button.innerHTML;
         }
 
         if (isLoading) {
@@ -2123,3 +2363,4 @@ if (isEarlyAccessPost) {
   </script>
 </body>
 </html>
+

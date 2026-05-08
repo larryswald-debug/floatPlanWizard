@@ -88,6 +88,11 @@ component output=false {
     if (t == "nwsradar") return "nws-radar";
     if (t == "nowcoastradar") return "nowcoast-radar";
     if (t == "noaacharts") return "noaa-charts";
+    if (t == "windforecast") return "fpw-wind-forecast";
+    if (t == "observedwind") return "fpw-observed-wind";
+    if (t == "cloudsatellite" || t == "satellite") return "fpw-satellite";
+    if (t == "surfacefronts") return "fpw-surface-fronts";
+    if (t == "marinewarnings" || t == "wwa") return "fpw-wwa";
     return lcase(trim(rawTarget));
   }
 
@@ -98,6 +103,7 @@ component output=false {
       && findNoCase("/geoserver/wms", upstreamBase) == 0
       && findNoCase("/geoserver/ows", upstreamBase) == 0
       && findNoCase("/eventdriven/services/", upstreamBase) == 0
+      && findNoCase("/vector/services/", upstreamBase) == 0
     ) return false;
 
     // Require known endings
@@ -170,9 +176,21 @@ component output=false {
 
     // Upstream targets allow-list
     var targets = {
-      "nowcoast-radar" = "https://nowcoast.noaa.gov/arcgis/services/nowcoast/radar_meteo_imagery_nexrad_time/MapServer/WmsServer",
-      "noaa-charts"    = "https://gis.charttools.noaa.gov/arcgis/rest/services/MCS/NOAAChartDisplay/MapServer/exts/MaritimeChartService/WMSServer",
-      "nws-radar"      = "https://mapservices.weather.noaa.gov/eventdriven/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer"
+      "nowcoast-radar"      = "https://nowcoast.noaa.gov/arcgis/services/nowcoast/radar_meteo_imagery_nexrad_time/MapServer/WmsServer",
+      "noaa-charts"         = "https://gis.charttools.noaa.gov/arcgis/rest/services/MCS/NOAAChartDisplay/MapServer/exts/MaritimeChartService/WMSServer",
+      "nws-radar"           = "https://mapservices.weather.noaa.gov/eventdriven/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer",
+      "fpw-wind-forecast"   = "https://nowcoast.noaa.gov/geoserver/ows",
+      "fpw-satellite"       = "https://nowcoast.noaa.gov/geoserver/ows",
+      "fpw-observed-wind"   = "https://mapservices.weather.noaa.gov/vector/services/obs/surface_obs/MapServer/WMSServer",
+      "fpw-surface-fronts"  = "https://mapservices.weather.noaa.gov/vector/services/outlooks/natl_fcst_wx_chart/MapServer/WMSServer",
+      "fpw-wwa"             = "https://mapservices.weather.noaa.gov/eventdriven/services/WWA/watch_warn_adv/MapServer/WMSServer"
+    };
+    var allowedLayerRequests = {
+      "fpw-wind-forecast"  = "ndfd_wind:wind_velocity",
+      "fpw-satellite"      = "satellite:goes_visible_imagery",
+      "fpw-observed-wind"  = "1,2,3,4,5,6",
+      "fpw-surface-fronts" = "34",
+      "fpw-wwa"            = "0,1"
     };
 
     // Local helper: always return image/png for GetMap failures
@@ -245,6 +263,15 @@ component output=false {
       var requestedLayers = len(arguments.layers) ? trim(arguments.layers) : getUrlParam("layers");
       if (requestedLayers != "radar_base_reflectivity_time") {
         sendJson(400, { success=false, error="INVALID_LAYERS", message="LAYERS must be radar_base_reflectivity_time." });
+        return;
+      }
+    }
+
+    // Extra restriction: FPW weather overlays must only request their approved NOAA layer set.
+    if (requestType == "GETMAP" && structKeyExists(allowedLayerRequests, targetKey)) {
+      var requestedWeatherLayers = len(arguments.layers) ? trim(arguments.layers) : getUrlParam("layers");
+      if (requestedWeatherLayers != allowedLayerRequests[targetKey]) {
+        sendJson(400, { success=false, error="INVALID_LAYERS", message="LAYERS not allowed for this weather overlay target." });
         return;
       }
     }

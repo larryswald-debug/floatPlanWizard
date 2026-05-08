@@ -330,6 +330,66 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="getMarineCacheMeta" access="public" returntype="struct" output="false">
+        <cfargument name="key" type="string" required="true">
+        <cfargument name="ttlSeconds" type="numeric" required="true">
+        <cfscript>
+            var ttl = normalizeTtl(arguments.ttlSeconds, variables.defaultTtl.marine);
+            var out = {
+                "hit"=false,
+                "status"="unknown",
+                "cached_at_utc"="",
+                "expires_at_utc"="",
+                "key"=arguments.key,
+                "ttl_seconds"=ttl
+            };
+            var item = {};
+            var expiresAt = "";
+            lock name="fpw.weatherCache.marineLegacy" type="exclusive" timeout="5" {
+                ensureMarineLegacyStore();
+                if (structKeyExists(application.marineCache, arguments.key)) {
+                    item = application.marineCache[arguments.key];
+                    if (
+                        isStruct(item)
+                        AND structKeyExists(item, "ts")
+                        AND dateDiff("s", item.ts, now()) LT ttl
+                    ) {
+                        expiresAt = dateAdd("s", ttl, item.ts);
+                        out.hit = true;
+                        out.status = "cache_hit";
+                        out.cached_at_utc = dateToUtcIso(item.ts);
+                        out.expires_at_utc = dateToUtcIso(expiresAt);
+                    } else {
+                        out.status = "expired_not_used";
+                    }
+                }
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildMarineCacheMeta" access="public" returntype="struct" output="false">
+        <cfargument name="key" type="string" required="true">
+        <cfargument name="ttlSeconds" type="numeric" required="true">
+        <cfargument name="hit" type="boolean" required="false" default="false">
+        <cfargument name="bypass" type="boolean" required="false" default="false">
+        <cfscript>
+            var ttl = normalizeTtl(arguments.ttlSeconds, variables.defaultTtl.marine);
+            var cachedAt = now();
+            var expiresAt = dateAdd("s", ttl, cachedAt);
+            var status = arguments.bypass ? "bypass" : (arguments.hit ? "cache_hit" : "fresh_fetch");
+            return {
+                "hit"=arguments.hit,
+                "status"=status,
+                "cached_at_utc"=dateToUtcIso(cachedAt),
+                "expires_at_utc"=dateToUtcIso(expiresAt),
+                "key"=arguments.key,
+                "ttl_seconds"=ttl,
+                "bypass"=arguments.bypass
+            };
+        </cfscript>
+    </cffunction>
+
     <cffunction name="setMarineCacheValue" access="public" returntype="void" output="false">
         <cfargument name="key" type="string" required="true">
         <cfargument name="val" type="any" required="true">
@@ -485,7 +545,11 @@
                 "station"="",
                 "altim"="",
                 "visib"="",
-                "observation_time"=""
+                "observation_time"="",
+                "temp_c"="",
+                "dewpoint_c"="",
+                "dewpoint_f"="",
+                "humidity"=""
             };
             var res = {};
             var parsed = {};
@@ -514,6 +578,10 @@
                     if (structKeyExists(parsed, "altim")) out.altim = toString(parsed.altim);
                     if (structKeyExists(parsed, "visib")) out.visib = toString(parsed.visib);
                     if (structKeyExists(parsed, "observation_time")) out.observation_time = toString(parsed.observation_time);
+                    if (structKeyExists(parsed, "temp_c")) out.temp_c = toString(parsed.temp_c);
+                    if (structKeyExists(parsed, "dewpoint_c")) out.dewpoint_c = toString(parsed.dewpoint_c);
+                    if (structKeyExists(parsed, "dewpoint_f")) out.dewpoint_f = toString(parsed.dewpoint_f);
+                    if (structKeyExists(parsed, "humidity")) out.humidity = toString(parsed.humidity);
                 }
             }
             return out;
@@ -529,7 +597,11 @@
                 "station"="",
                 "altim"="",
                 "visib"="",
-                "observation_time"=""
+                "observation_time"="",
+                "temp_c"="",
+                "dewpoint_c"="",
+                "dewpoint_f"="",
+                "humidity"=""
             };
             var obj = javacast("null", "");
             var row = {};
@@ -581,6 +653,22 @@
                 out.visib = trim(toString(row.visibility));
             }
 
+            if (structKeyExists(row, "temp") AND isNumeric(row.temp)) {
+                out.temp_c = round(val(row.temp) * 10) / 10;
+            }
+            if (structKeyExists(row, "dewp") AND isNumeric(row.dewp)) {
+                out.dewpoint_c = round(val(row.dewp) * 10) / 10;
+                out.dewpoint_f = round(((val(row.dewp) * 9 / 5) + 32) * 10) / 10;
+            }
+            if (isNumeric(out.temp_c) AND isNumeric(out.dewpoint_c) AND val(out.temp_c) GT -243 AND val(out.dewpoint_c) GT -243) {
+                var rh = 100 * exp((17.625 * val(out.dewpoint_c)) / (243.04 + val(out.dewpoint_c))) / exp((17.625 * val(out.temp_c)) / (243.04 + val(out.temp_c)));
+                if (isNumeric(rh)) {
+                    if (rh LT 0) rh = 0;
+                    if (rh GT 100) rh = 100;
+                    out.humidity = round(rh);
+                }
+            }
+
             if (structKeyExists(row, "observation_time") AND len(trim(toString(row.observation_time)))) {
                 out.observation_time = trim(toString(row.observation_time));
             } else if (structKeyExists(row, "observationTime") AND len(trim(toString(row.observationTime)))) {
@@ -618,6 +706,10 @@
             if (structKeyExists(currentSrc, "altim")) rec.altim = trim(toString(currentSrc.altim));
             if (structKeyExists(currentSrc, "visib")) rec.visib = trim(toString(currentSrc.visib));
             if (structKeyExists(currentSrc, "observation_time")) rec.observation_time = trim(toString(currentSrc.observation_time));
+            if (structKeyExists(currentSrc, "temp_c")) rec.temp_c = trim(toString(currentSrc.temp_c));
+            if (structKeyExists(currentSrc, "dewpoint_c")) rec.dewpoint_c = trim(toString(currentSrc.dewpoint_c));
+            if (structKeyExists(currentSrc, "dewpoint_f")) rec.dewpoint_f = trim(toString(currentSrc.dewpoint_f));
+            if (structKeyExists(currentSrc, "humidity")) rec.humidity = trim(toString(currentSrc.humidity));
 
             if (
                 !structKeyExists(rec, "station")
@@ -669,6 +761,10 @@
                     if (structKeyExists(currentRec, "altim")) out.altim = currentRec.altim;
                     if (structKeyExists(currentRec, "visib")) out.visib = currentRec.visib;
                     if (structKeyExists(currentRec, "observation_time")) out.observation_time = currentRec.observation_time;
+                    if (structKeyExists(currentRec, "temp_c")) out.temp_c = currentRec.temp_c;
+                    if (structKeyExists(currentRec, "dewpoint_c")) out.dewpoint_c = currentRec.dewpoint_c;
+                    if (structKeyExists(currentRec, "dewpoint_f")) out.dewpoint_f = currentRec.dewpoint_f;
+                    if (structKeyExists(currentRec, "humidity")) out.humidity = currentRec.humidity;
                     if (!out.success) out.success = true;
                 }
 
@@ -1309,8 +1405,10 @@
             var out = (isStruct(arguments.payload) ? cloneAny(arguments.payload) : {});
             var cachedAtUtc = (isStruct(arguments.envelope) AND structKeyExists(arguments.envelope, "cached_at_utc") ? toString(arguments.envelope.cached_at_utc) : "");
             var expiresAtUtc = (isStruct(arguments.envelope) AND structKeyExists(arguments.envelope, "expires_at_utc") ? toString(arguments.envelope.expires_at_utc) : "");
+            var status = arguments.bypass ? "bypass" : (arguments.hit ? "cache_hit" : (len(cachedAtUtc) ? "fresh_fetch" : "unavailable"));
             out.cache_meta = {
                 "hit"=arguments.hit,
+                "status"=status,
                 "cached_at_utc"=cachedAtUtc,
                 "expires_at_utc"=expiresAtUtc,
                 "key"=arguments.cacheKey,

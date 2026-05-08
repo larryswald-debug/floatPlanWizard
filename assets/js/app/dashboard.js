@@ -31,15 +31,29 @@
   var tideLastWrapWidth = 0;
   var weatherRequestSeq = 0;
   var AUTO_LOAD_HOME_PORT_WEATHER = true;
+  var weatherBriefingState = { data: {}, payload: null, location: null };
+  var weatherMapInstance = null;
+  var weatherMapHasCentered = false;
+  var weatherMapOverlayController = null;
+  var weatherMapModalControlsBound = false;
+  var weatherMapModalPreviousFocus = null;
   var seaStateLastWaveHeight = null;
   var monitoringPollTimer = 0;
   var derivedSignalsPollTimer = 0;
   var dashboardSignals = {
-    routeName: "No active trip",
-    routeSummary: "No active trip is available.",
+    routes: {
+      total: 0
+    },
+    routeName: "No Active Trip",
+    routeSummary: "Your routes, float plans, and trip setup are ready.",
     routeProgressPct: 0,
+    activeRoute: {
+      name: "",
+      isActive: false
+    },
     floatPlans: {
       active: 0,
+      draft: 0,
       total: 0
     },
     monitoring: {
@@ -155,163 +169,170 @@
 
   function collectMissionSummaryData() {
     return {
-      route: {
-        name: dashboardSignals.routeName,
-        summary: dashboardSignals.routeSummary,
-        progressPct: dashboardSignals.routeProgressPct
-      },
-      floatPlans: {
-        active: dashboardSignals.floatPlans ? dashboardSignals.floatPlans.active : 0,
-        total: dashboardSignals.floatPlans ? dashboardSignals.floatPlans.total : 0
-      },
-      monitoring: {
-        active: dashboardSignals.monitoring ? dashboardSignals.monitoring.active : 0,
-        overdue: dashboardSignals.monitoring ? dashboardSignals.monitoring.overdue : 0,
-        escalated: dashboardSignals.monitoring ? dashboardSignals.monitoring.escalated : 0,
-        loaded: dashboardSignals.monitoring ? dashboardSignals.monitoring.loaded : false,
-        message: dashboardSignals.monitoring ? dashboardSignals.monitoring.message : ""
-      },
-      weather: {
-        risk: dashboardSignals.weather ? dashboardSignals.weather.risk : "",
-        alertLabel: dashboardSignals.weather ? dashboardSignals.weather.alertLabel : ""
-      },
-      setup: {
-        vessels: dashboardSignals.setup ? dashboardSignals.setup.vessels : 0,
-        contacts: dashboardSignals.setup ? dashboardSignals.setup.contacts : 0,
-        waypoints: dashboardSignals.setup ? dashboardSignals.setup.waypoints : 0,
-        passengers: dashboardSignals.setup ? dashboardSignals.setup.passengers : 0,
-        operators: dashboardSignals.setup ? dashboardSignals.setup.operators : 0
-      }
+      user: state.currentUser || null,
+      vessels: (state.vesselState && Array.isArray(state.vesselState.all)) ? state.vesselState.all : [],
+      activeRoute: dashboardSignals.activeRoute || { name: "", isActive: false }
     };
+  }
+
+  function getPlanningNested(obj, path, fallback) {
+    return utils.getNested ? utils.getNested(obj, path, fallback) : fallback;
+  }
+
+  function getPlanningHomePort(user) {
+    var profile = getPlanningNested(user, ["PROFILE"], null) || getPlanningNested(user, ["profile"], null) || {};
+    return getPlanningNested(profile, ["HOMEPORT"], null)
+      || getPlanningNested(profile, ["homePort"], null)
+      || getPlanningNested(user, ["HOMEPORT"], null)
+      || getPlanningNested(user, ["homePort"], null)
+      || {};
+  }
+
+  function pickPlanningValue(source, keys) {
+    return utils.pick ? utils.pick(source, keys, "") : "";
+  }
+
+  function normalizePlanningValue(value, maxLength) {
+    return normalizeMissionText(value, "", maxLength || 0);
+  }
+
+  function formatPlanningNumber(value) {
+    var parsed = parseFloat(value);
+    if (!Number.isFinite(parsed)) {
+      return "";
+    }
+    return parsed.toFixed(1).replace(/\.0$/, "");
+  }
+
+  function buildHomePortPlanningContext(user) {
+    var homePort = getPlanningHomePort(user);
+    var address = normalizePlanningValue(pickPlanningValue(homePort, ["address", "ADDRESS"]), 42);
+    var city = normalizePlanningValue(pickPlanningValue(homePort, ["city", "CITY"]), 28);
+    var stateValue = normalizePlanningValue(pickPlanningValue(homePort, ["state", "STATE"]), 12);
+    var cityState = "";
+    var value = "";
+
+    if (city && stateValue) {
+      cityState = city + ", " + stateValue;
+    } else {
+      cityState = city || stateValue;
+    }
+
+    value = address || cityState || "No Home Port";
+
+    return {
+      value: value,
+      meta: address && cityState ? cityState : "",
+      hasMeta: !!(address && cityState)
+    };
+  }
+
+  function isPlanningDefaultVessel(vessel) {
+    var raw = pickPlanningValue(vessel, ["ISDEFAULTVESSEL", "isDefaultVessel"]);
+    return String(raw) === "1" || String(raw).toLowerCase() === "true";
+  }
+
+  function buildDefaultVesselPlanningContext(vessels) {
+    var vesselList = Array.isArray(vessels) ? vessels : [];
+    var defaultVessel = null;
+    var i = 0;
+    var name = "";
+    var cruiseSpeed = "";
+    var fuelBurn = "";
+    var meta = [];
+
+    for (i = 0; i < vesselList.length; i += 1) {
+      if (isPlanningDefaultVessel(vesselList[i])) {
+        defaultVessel = vesselList[i];
+        break;
+      }
+    }
+
+    if (!defaultVessel) {
+      return { value: "Not set", meta: "", hasMeta: false };
+    }
+
+    name = normalizePlanningValue(pickPlanningValue(defaultVessel, ["VESSELNAME", "vesselName", "name", "NAME"]), 42) || "Not set";
+    cruiseSpeed = formatPlanningNumber(pickPlanningValue(defaultVessel, ["MOST_EFFICIENT_SPEED_KN", "MOST_EFFICIENT_SPEED", "mostEfficientSpeed"]));
+    fuelBurn = formatPlanningNumber(pickPlanningValue(defaultVessel, ["GPH_AT_MOST_EFFICIENT_SPEED", "GALLONS_PER_HOUR", "gallonsPerHour"]));
+
+    if (cruiseSpeed) {
+      meta.push("Cruise: " + cruiseSpeed + " kn");
+    }
+    if (fuelBurn) {
+      meta.push("Fuel Burn: " + fuelBurn + " GPH");
+    }
+
+    return {
+      value: name,
+      meta: meta.join("   "),
+      hasMeta: meta.length > 0
+    };
+  }
+
+  function buildActiveRoutePlanningContext(activeRoute) {
+    var route = activeRoute || {};
+    var isActive = route.isActive === true;
+    var routeName = normalizePlanningValue(route.name, 56);
+
+    if (!isActive || !routeName) {
+      return { value: "0", meta: "", isActive: false };
+    }
+
+    return { value: routeName, meta: "Active", isActive: true };
   }
 
   function buildMissionSummaryModel(source, recomputedAt) {
     var payload = source || {};
-    var route = payload.route || {};
-    var floatPlans = payload.floatPlans || {};
-    var monitoring = payload.monitoring || {};
-    var weather = payload.weather || {};
-    var setup = payload.setup || {};
-    var routeName = normalizeMissionText(route.name, "", 56);
-    var routeSummary = normalizeMissionText(route.summary, "", 84);
-    var hasActiveTripRoute = !isMissionRouteUnavailable(routeName);
-    var routeProgress = parseFloat(route.progressPct);
-    var routePctLabel = Number.isFinite(routeProgress) ? (Math.round(clamp(routeProgress, 0, 100)) + "% complete") : "No data";
-    var floatActive = normalizeMissionCount(floatPlans.active);
-    var floatTotal = normalizeMissionCount(floatPlans.total);
-    var monitoringActive = normalizeMissionCount(monitoring.active);
-    var monitoringOverdue = normalizeMissionCount(monitoring.overdue);
-    var monitoringEscalated = normalizeMissionCount(monitoring.escalated);
-    var monitoringLoaded = monitoring.loaded === true;
-    var monitoringMessage = normalizeMissionText(monitoring.message, "No data", 84);
-    var weatherRisk = normalizeMissionText(weather.risk, "", 30);
-    var weatherAlerts = normalizeMissionText(weather.alertLabel, "None", 34);
-    var vessels = normalizeMissionCount(setup.vessels);
-    var contacts = normalizeMissionCount(setup.contacts);
-    var waypoints = normalizeMissionCount(setup.waypoints);
-    var crew = normalizeMissionCount(setup.passengers) + normalizeMissionCount(setup.operators);
     var summaryDate = (recomputedAt && !Number.isNaN(recomputedAt.getTime()))
       ? recomputedAt
       : (missionSummaryState.lastRecomputedAt || new Date());
-    var routeMeta = "No data";
-    var progressMeta = "No data";
-
-    if (hasActiveTripRoute && !isMissionSummaryPlaceholder(routeSummary)) {
-      routeMeta = routeSummary;
-      progressMeta = routeSummary;
-    } else if (hasActiveTripRoute) {
-      progressMeta = Number.isFinite(routeProgress) ? "No data" : "No progress data";
-    } else {
-      routeMeta = routeSummary || "No active trip is available.";
-      progressMeta = "No active trip";
-    }
-
-    if (!weatherRisk || weatherRisk.toLowerCase() === "forecast unavailable.") {
-      weatherRisk = "Not available";
-    }
-
-    if (!weatherAlerts || weatherAlerts.toLowerCase() === "not available") {
-      weatherAlerts = "None";
-    }
 
     return {
       updatedAtLabel: formatMissionSummaryUpdatedAt(summaryDate),
-      tiles: {
-        activeTrip: {
-          label: MISSION_SUMMARY_TILE_LABELS.activeTrip,
-          value: hasActiveTripRoute ? routeName : "No active trip",
-          meta: routeMeta
-        },
-        routeProgress: {
-          label: MISSION_SUMMARY_TILE_LABELS.routeProgress,
-          value: hasActiveTripRoute ? routePctLabel : "No data",
-          meta: progressMeta
-        },
-        floatPlans: {
-          label: MISSION_SUMMARY_TILE_LABELS.floatPlans,
-          value: floatTotal > 0 ? (floatActive + " active") : "No plans",
-          meta: floatTotal + " total"
-        },
-        monitoring: {
-          label: MISSION_SUMMARY_TILE_LABELS.monitoring,
-          value: monitoringLoaded ? (monitoringActive + " active / " + monitoringOverdue + " overdue") : "No data",
-          meta: monitoringLoaded ? ("Escalated: " + monitoringEscalated) : monitoringMessage
-        },
-        weatherRisk: {
-          label: MISSION_SUMMARY_TILE_LABELS.weatherRisk,
-          value: weatherRisk,
-          meta: "Alerts: " + weatherAlerts
-        },
-        setup: {
-          label: MISSION_SUMMARY_TILE_LABELS.setup,
-          value: vessels + " vessels • " + contacts + " contacts",
-          meta: waypoints + " waypoints • " + crew + " crew"
-        }
+      context: {
+        homePort: buildHomePortPlanningContext(payload.user),
+        defaultVessel: buildDefaultVesselPlanningContext(payload.vessels),
+        activeRoute: buildActiveRoutePlanningContext(payload.activeRoute)
       }
     };
   }
 
   function updateSetupIntroMetrics() {
-    setText("setupMetricVessels", "Vessels: " + dashboardSignals.setup.vessels);
-    setText("setupMetricContacts", "Contacts: " + dashboardSignals.setup.contacts);
-    setText("setupMetricPassengers", "Crew: " + dashboardSignals.setup.passengers);
-    setText("setupMetricOperators", "Operators: " + dashboardSignals.setup.operators);
-    setText("setupMetricWaypoints", "Waypoints: " + dashboardSignals.setup.waypoints);
+    setText("setupMetricVessels", dashboardSignals.setup.vessels);
+    setText("setupMetricContacts", dashboardSignals.setup.contacts);
+    setText("setupMetricPassengers", dashboardSignals.setup.passengers);
+    setText("setupMetricOperators", dashboardSignals.setup.operators);
+    setText("setupMetricWaypoints", dashboardSignals.setup.waypoints);
   }
 
   function renderRouteStatusPanel() {
     var pct = parseRouteProgressPct(dashboardSignals.routeProgressPct);
     var progressBar = document.getElementById("routeStatusProgressBar");
-    setText("routeStatusName", dashboardSignals.routeName || "No active trip");
-    setText("routeStatusMeta", dashboardSignals.routeSummary || "No active trip is available.");
+    setText("routeStatusName", dashboardSignals.routeName || "No Active Trip");
+    setText("routeStatusMeta", dashboardSignals.routeSummary || "Your routes, float plans, and trip setup are ready.");
     setText("routeStatusProgressLabel", Math.round(pct) + "% complete");
     if (progressBar) {
       progressBar.style.width = pct + "%";
     }
   }
 
+  function renderPlanningContextText(valueId, metaId, data, valueFallback) {
+    var metaEl = document.getElementById(metaId);
+    var item = data || {};
+    setText(valueId, normalizeMissionText(item.value, valueFallback || "", 64));
+    if (!metaEl) return;
+    metaEl.textContent = normalizeMissionText(item.meta, "", 96);
+    metaEl.classList.toggle("d-none", !(item.hasMeta || item.isActive));
+  }
+
   function renderMissionSummary(model) {
-    var summaryModel = model && model.tiles ? model : buildMissionSummaryModel(collectMissionSummaryData(), missionSummaryState.lastRecomputedAt || new Date());
-    var tiles = summaryModel.tiles || {};
-    var mapping = [
-      { key: "activeTrip", valueId: "missionRouteValue", metaId: "missionRouteMeta" },
-      { key: "routeProgress", valueId: "missionProgressValue", metaId: "missionProgressMeta" },
-      { key: "floatPlans", valueId: "missionFloatPlansValue", metaId: "missionFloatPlansMeta" },
-      { key: "monitoring", valueId: "missionMonitoringValue", metaId: "missionMonitoringMeta" },
-      { key: "weatherRisk", valueId: "missionWeatherValue", metaId: "missionWeatherMeta" },
-      { key: "setup", valueId: "missionSetupValue", metaId: "missionSetupMeta" }
-    ];
-    var i = 0;
-    var mapItem = null;
-    var tile = null;
+    var summaryModel = model && model.context ? model : buildMissionSummaryModel(collectMissionSummaryData(), missionSummaryState.lastRecomputedAt || new Date());
+    var context = summaryModel.context || {};
 
-    for (i = 0; i < mapping.length; i += 1) {
-      mapItem = mapping[i];
-      tile = tiles[mapItem.key] || {};
-      setText(mapItem.valueId, normalizeMissionText(tile.value, "No data", 64));
-      setText(mapItem.metaId, normalizeMissionText(tile.meta, "No data", 96));
-    }
-
+    renderPlanningContextText("planningHomePortValue", "planningHomePortMeta", context.homePort, "No Home Port");
+    renderPlanningContextText("planningDefaultVesselValue", "planningDefaultVesselMeta", context.defaultVessel, "Not set");
+    renderPlanningContextText("planningActiveRouteValue", "planningActiveRouteMeta", context.activeRoute, "0");
     setText("missionSummaryUpdatedAt", normalizeMissionText(summaryModel.updatedAtLabel, "Updated just now", 42));
   }
 
@@ -438,6 +459,14 @@
     if (!panel || panel.dataset.bound === "true") return;
     panel.addEventListener("click", function (event) {
       var btn = event.target && event.target.closest ? event.target.closest("[data-quick-action]") : null;
+      var draftBtn = event.target && event.target.closest ? event.target.closest("[data-current-draft-action]") : null;
+      if (draftBtn) {
+        if (event && typeof event.preventDefault === "function") {
+          event.preventDefault();
+        }
+        triggerCurrentDraftViewSendAction();
+        return;
+      }
       if (!btn) return;
       if (event && typeof event.preventDefault === "function") {
         event.preventDefault();
@@ -449,6 +478,7 @@
 
   function bindQuickActions() {
     bindPanelQuickActions("quickActionsPanel");
+    bindPanelQuickActions("missionSummaryPanel");
   }
 
   function bindNextStepsActions() {
@@ -490,19 +520,49 @@
     return (value || "").toString().trim().toUpperCase();
   }
 
+  function getSetupCount(key) {
+    var value = dashboardSignals && dashboardSignals.setup ? parseInt(dashboardSignals.setup[key], 10) : 0;
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }
+
+  function refreshRouteReadinessSetupLabels() {
+    var vesselCount = getSetupCount("vessels");
+    var contactCount = getSetupCount("contacts");
+    Array.prototype.forEach.call(document.querySelectorAll('[data-fpw-route-setup-count="vessels"]'), function (el) {
+      el.textContent = vesselCount > 0 ? formatNumber(vesselCount, 0) + " saved" : "setup pending";
+      el.classList.toggle("fpw-text-success", vesselCount > 0);
+      el.classList.toggle("fpw-text-muted", vesselCount <= 0);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-fpw-route-setup-count="contacts"]'), function (el) {
+      el.textContent = formatNumber(contactCount, 0) + " saved";
+      el.classList.toggle("fpw-text-success", contactCount > 0);
+      el.classList.toggle("fpw-text-muted", contactCount <= 0);
+    });
+  }
+
   function refreshDerivedSignalsFromState() {
     var plans = (state.floatPlanState && Array.isArray(state.floatPlanState.all)) ? state.floatPlanState.all : [];
+    var routes = (state.routeState && Array.isArray(state.routeState.all)) ? state.routeState.all : [];
     var activePlans = 0;
+    var draftPlans = 0;
     var i = 0;
     var status = "";
 
+    dashboardSignals.routes.total = routes.length;
     for (i = 0; i < plans.length; i += 1) {
       status = normalizeStatusUpper(plans[i] && (plans[i].STATUS || plans[i].status));
       if (status === "ACTIVE" || status === "OPEN") {
         activePlans += 1;
       }
+      if (status === "DRAFT") {
+        draftPlans += 1;
+      }
+    }
+    if (draftPlans === 0 && getCurrentDraftGroupForDisplay()) {
+      draftPlans = 1;
     }
     dashboardSignals.floatPlans.active = activePlans;
+    dashboardSignals.floatPlans.draft = draftPlans;
     dashboardSignals.floatPlans.total = plans.length;
 
     dashboardSignals.setup.vessels = (state.vesselState && Array.isArray(state.vesselState.all)) ? state.vesselState.all.length : 0;
@@ -512,8 +572,10 @@
     dashboardSignals.setup.waypoints = (state.waypointState && Array.isArray(state.waypointState.all)) ? state.waypointState.all.length : 0;
 
     updateSetupIntroMetrics();
+    refreshRouteReadinessSetupLabels();
     refreshMissionSummary();
     renderRecommendedNextSteps();
+    updateCurrentDraftActionButtons();
   }
 
   function loadMonitoringSummary() {
@@ -575,23 +637,105 @@
   }
 
   function setRouteSignals(routeName, summaryText, progressPct) {
-    dashboardSignals.routeName = routeName || "No active trip";
-    dashboardSignals.routeSummary = summaryText || "No active trip is available.";
+    dashboardSignals.routeName = routeName || "No Active Trip";
+    dashboardSignals.routeSummary = summaryText || "Your routes, float plans, and trip setup are ready.";
     dashboardSignals.routeProgressPct = parseRouteProgressPct(progressPct);
     renderRouteStatusPanel();
     refreshMissionSummary();
     renderRecommendedNextSteps();
   }
 
+  function normalizeDashboardPlanId(value) {
+    var planId = parseInt(value, 10);
+    if (!Number.isFinite(planId) || planId <= 0) {
+      return 0;
+    }
+    return planId;
+  }
+
+  function getCurrentDraftGroupForDisplay() {
+    var group = state.currentRouteGroup && typeof state.currentRouteGroup === "object"
+      ? state.currentRouteGroup
+      : null;
+    var planId = 0;
+    var currentState = "";
+    var status = "";
+    var isDraft = false;
+    if (!group || !group.HAS_CURRENT_GROUP) {
+      return null;
+    }
+    planId = normalizeDashboardPlanId(group.FLOATPLAN_ID !== undefined ? group.FLOATPLAN_ID : group.FLOATPLANID);
+    if (planId <= 0) {
+      return null;
+    }
+    currentState = String(group.CURRENT_STATE || "").trim().toUpperCase();
+    status = String(group.STATUS || "").trim().toUpperCase();
+    isDraft = group.IS_DRAFT === true || currentState === "DRAFT" || status === "DRAFT";
+    if (!isDraft) {
+      return null;
+    }
+    return {
+      planId: planId,
+      routeName: normalizeMissionText(group.ROUTE_NAME || group.ROUTENAME || group.NAME, "this route", 72),
+      floatPlanName: normalizeMissionText(group.FLOATPLAN_NAME || group.FLOATPLANNAME, "Draft float plan", 96)
+    };
+  }
+
+  function findCurrentDraftViewSendButton() {
+    var draft = getCurrentDraftGroupForDisplay();
+    var selector = "";
+    var button = null;
+    if (!draft || draft.planId <= 0) {
+      return null;
+    }
+    selector = '.expedition-route-current-group[data-plan-id="' + draft.planId + '"] .js-expedition-plan-view';
+    button = document.querySelector(selector);
+    if (button) {
+      return button;
+    }
+    return document.querySelector('.expedition-route-card[data-current-group-state="DRAFT"] .js-expedition-plan-view');
+  }
+
+  function setDraftActionButtonState(button, hasAction) {
+    if (!button) return;
+    button.disabled = !hasAction;
+    button.classList.toggle("d-none", !hasAction);
+    button.setAttribute("aria-hidden", hasAction ? "false" : "true");
+  }
+
+  function updateCurrentDraftActionButtons() {
+    var hasDraftAction = !!findCurrentDraftViewSendButton();
+    setDraftActionButtonState(document.getElementById("dashboardHeroDraftPlanBtn"), hasDraftAction);
+    setDraftActionButtonState(document.getElementById("dashboardNextStepDraftPlanBtn"), hasDraftAction);
+  }
+
+  function triggerCurrentDraftViewSendAction() {
+    var existingButton = findCurrentDraftViewSendButton();
+    if (!existingButton || typeof existingButton.click !== "function") {
+      updateCurrentDraftActionButtons();
+      return false;
+    }
+    existingButton.click();
+    return true;
+  }
+
   function renderRecommendedNextSteps() {
     var listEl = document.getElementById("nextStepsList");
     var emptyEl = document.getElementById("nextStepsEmpty");
     var steps = [];
+    var draftGroup = getCurrentDraftGroupForDisplay();
     var markup = "";
 
     if (!listEl || !emptyEl) return;
 
-    if ((dashboardSignals.floatPlans.total || 0) === 0) {
+    if (draftGroup) {
+      steps.push({
+        title: "You have a draft float plan attached to " + draftGroup.routeName + ".",
+        meta: "Review and send it to activate monitoring for this route.",
+        action: "draft-view-send",
+        actionLabel: "View & Send Float Plan"
+      });
+    } else if ((dashboardSignals.floatPlans.total || 0) === 0) {
       steps.push({
         title: "Activate a route",
         meta: "No current draft or active route/float-plan group exists.",
@@ -639,23 +783,26 @@
     if (!steps.length) {
       listEl.innerHTML = "";
       toggleHidden(emptyEl, false);
+      updateCurrentDraftActionButtons();
       return;
     }
 
     toggleHidden(emptyEl, true);
-    markup = steps.slice(0, 5).map(function (step) {
+    markup = steps.slice(0, 1).map(function (step) {
+      var actionMarkup = step.action === "draft-view-send"
+        ? '<button type="button" class="btn-primary" id="dashboardNextStepDraftPlanBtn" data-current-draft-action="view-send">' + escapeHtml(step.actionLabel) + '</button>'
+        : '<button type="button" class="btn-primary" data-quick-action="' + escapeHtml(step.action) + '">' + escapeHtml(step.actionLabel) + '</button>';
       return ''
         + '<article class="next-step-item">'
         + '  <div class="next-step-main">'
         + '    <p class="next-step-title">' + escapeHtml(step.title) + '</p>'
         + '    <p class="next-step-meta">' + escapeHtml(step.meta) + '</p>'
         + '  </div>'
-        + '  <button type="button" class="btn-secondary" data-quick-action="' + escapeHtml(step.action) + '">'
-        + escapeHtml(step.actionLabel)
-        + '</button>'
+        + '  <div class="next-step-actions">' + actionMarkup + '</div>'
         + '</article>';
     }).join("");
     listEl.innerHTML = markup;
+    updateCurrentDraftActionButtons();
   }
 
   function getLoginUrl() {
@@ -916,6 +1063,952 @@
     if (v >= 15) return { level: 3, label: "High", haloColor: "250,204,21", haloOpacity: 0.45 };
     if (v >= 10) return { level: 2, label: "Caution", haloColor: "59,130,246", haloOpacity: 0.35 };
     return { level: 1, label: "Low", haloColor: "45,212,191", haloOpacity: 0.28 };
+  }
+
+  function mergeWeatherBriefingData(nextData) {
+    var next = nextData || {};
+    var key = "";
+    var meta = getWeatherMeta(next);
+    var request = meta && (meta.REQUEST || meta.request) ? (meta.REQUEST || meta.request) : {};
+    var isMarineOnly = String(request.marineOnly || request.MARINEONLY || "") === "1";
+    weatherBriefingState.data = weatherBriefingState.data || {};
+
+    function isEmptyWeatherValue(value) {
+      if (value === undefined || value === null) return true;
+      if (typeof value === "string") return value.trim() === "";
+      if (Array.isArray(value)) return value.length === 0;
+      if (typeof value === "object") {
+        return Object.keys(value).every(function (childKey) {
+          return isEmptyWeatherValue(value[childKey]);
+        });
+      }
+      return false;
+    }
+
+    Object.keys(next).forEach(function (rawKey) {
+      key = rawKey;
+      if (next[key] === undefined || next[key] === null) return;
+      if (isMarineOnly && /^(SUMMARY|FORECAST|ALERTS|MAP_LAYERS|surface|SURFACE)$/.test(key) && isEmptyWeatherValue(next[key])) return;
+      weatherBriefingState.data[key] = next[key];
+    });
+    return weatherBriefingState.data;
+  }
+
+  function weatherValue(value, fallback) {
+    var text = "";
+    if (value !== undefined && value !== null) {
+      text = String(value).replace(/\s+/g, " ").trim();
+    }
+    if (!text || text === "--" || text.toLowerCase() === "null" || text.toLowerCase() === "undefined") {
+      return fallback !== undefined ? fallback : "—";
+    }
+    return text;
+  }
+
+  function weatherPick(obj, keys, fallback) {
+    var source = obj || {};
+    var i = 0;
+    var key = "";
+    for (i = 0; i < keys.length; i++) {
+      key = keys[i];
+      if (source[key] !== undefined && source[key] !== null && String(source[key]).trim() !== "") {
+        return source[key];
+      }
+    }
+    return fallback;
+  }
+
+  function weatherNumber(value) {
+    var parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : NaN;
+  }
+
+  function formatWeatherNumber(value, decimals, fallback) {
+    var n = weatherNumber(value);
+    if (!Number.isFinite(n)) return fallback || "—";
+    return n.toFixed(decimals);
+  }
+
+  function formatWeatherTime(value, fallback, options) {
+    var raw = weatherValue(value, "");
+    var parsed = null;
+    if (!raw) return fallback || "—";
+    parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime()) && /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(raw)) {
+      parsed = new Date(raw.replace(" ", "T"));
+    }
+    if (Number.isNaN(parsed.getTime())) return raw;
+    try {
+      return parsed.toLocaleString(undefined, options || { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+    } catch (e) {
+      return parsed.toLocaleString();
+    }
+  }
+
+  function formatWeatherHour(value) {
+    return formatWeatherTime(value, "—", { hour: "numeric" });
+  }
+
+  function setWeatherText(id, value, fallback) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = weatherValue(value, fallback || "—");
+  }
+
+  function setWeatherHtml(id, html) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = html || "";
+  }
+
+  function setWeatherLink(id, href, label) {
+    var el = document.getElementById(id);
+    var hasHref = weatherValue(href, "");
+    if (!el) return;
+    el.textContent = label || "View all NOAA marine alerts";
+    if (hasHref) {
+      el.setAttribute("href", hasHref);
+      el.setAttribute("target", "_blank");
+      el.setAttribute("rel", "noopener");
+      el.classList.remove("d-none");
+    } else {
+      el.removeAttribute("target");
+      el.removeAttribute("rel");
+      el.setAttribute("href", "#");
+      el.classList.remove("d-none");
+    }
+  }
+
+  function getWeatherMeta(data) {
+    return (data && (data.META || data.meta)) ? (data.META || data.meta) : {};
+  }
+
+  function getWeatherSurface(data) {
+    return (data && (data.surface || data.SURFACE)) ? (data.surface || data.SURFACE) : {};
+  }
+
+  function getWeatherMarine(data) {
+    return (data && (data.MARINE || data.marine)) ? (data.MARINE || data.marine) : {};
+  }
+
+  function getWeatherForecast(data) {
+    var forecast = data && (data.FORECAST || data.forecast);
+    return Array.isArray(forecast) ? forecast : [];
+  }
+
+  function getWeatherAlerts(data) {
+    var alerts = data && (data.ALERTS || data.alerts);
+    return Array.isArray(alerts) ? alerts : [];
+  }
+
+  function getWeatherWaves(marine) {
+    return (marine && (marine.waves || marine.WAVES)) ? (marine.waves || marine.WAVES) : {};
+  }
+
+  function getWeatherTide(marine) {
+    var tide = marine && (marine.tide || marine.TIDE);
+    if (!tide && marine) tide = marine.waterLevel || marine.WATERLEVEL;
+    return tide || {};
+  }
+
+  function getWeatherTideSeries(tide) {
+    var series = tide && (tide.series || tide.SERIES);
+    return Array.isArray(series) ? series : [];
+  }
+
+  function getWeatherWaterLevelCurrent(marine) {
+    return (marine && (marine.waterLevelCurrent || marine.WATERLEVELCURRENT)) ? (marine.waterLevelCurrent || marine.WATERLEVELCURRENT) : {};
+  }
+
+  function formatWeatherLocation(data, location) {
+    var meta = getWeatherMeta(data);
+    var request = meta && (meta.REQUEST || meta.request) ? (meta.REQUEST || meta.request) : {};
+    var requestZip = weatherPick(meta, ["resolved_zip", "RESOLVED_ZIP"], weatherPick(request, ["zip", "ZIP"], location && location.zip ? location.zip : ""));
+    var resolved = weatherPick(meta, ["resolved_display", "RESOLVED_DISPLAY", "resolvedDisplay", "RESOLVEDDISPLAY", "resolvedLocation", "RESOLVEDLOCATION", "resolved_location", "RESOLVED_LOCATION", "location", "LOCATION", "name", "NAME"], "");
+    var city = weatherPick(meta, ["resolved_city", "RESOLVED_CITY", "city", "CITY"], "");
+    var stateVal = weatherPick(meta, ["resolved_state", "RESOLVED_STATE", "state", "STATE", "stateCode", "STATECODE"], "");
+    var place = weatherPick(meta, ["resolved_place", "RESOLVED_PLACE", "place", "PLACE"], "");
+    var locationType = String(weatherPick(meta, ["resolved_location_type", "RESOLVED_LOCATION_TYPE"], "")).toLowerCase();
+    var isZipRequest = locationType === "zip" || !!requestZip || !!(location && location.zip);
+    var homePort = state.currentUser ? getPlanningHomePort(state.currentUser) : {};
+    var homeZip = weatherPick(homePort, ["zip", "ZIP", "postalCode", "POSTALCODE"], "");
+    var allowHomePortFallback = !!(requestZip && homeZip && String(requestZip) === String(homeZip));
+
+    if (!resolved && place) {
+      resolved = place + (stateVal ? ", " + stateVal : "");
+    }
+    if (!resolved && city) {
+      resolved = city + (stateVal ? ", " + stateVal : "");
+    }
+    if (!resolved && isZipRequest && !allowHomePortFallback) {
+      resolved = requestZip ? "ZIP " + requestZip : "";
+    }
+    if (!resolved && allowHomePortFallback) {
+      city = weatherPick(homePort, ["city", "CITY"], "");
+      stateVal = weatherPick(homePort, ["state", "STATE"], "");
+      resolved = city ? city + (stateVal ? ", " + stateVal : "") : "";
+    }
+    return weatherValue(resolved, "—");
+  }
+
+  function getWeatherZip(data, location) {
+    var meta = getWeatherMeta(data);
+    var request = meta && (meta.REQUEST || meta.request) ? (meta.REQUEST || meta.request) : {};
+    var zip = weatherPick(meta, ["resolved_zip", "RESOLVED_ZIP", "zip", "ZIP", "postalCode", "POSTALCODE"], weatherPick(request, ["zip", "ZIP"], ""));
+    if (!zip && location && location.zip) zip = location.zip;
+    return weatherValue(zip, "—");
+  }
+
+  function getWeatherAnchor(meta) {
+    var anchor = meta && (meta.anchor || meta.ANCHOR) ? (meta.anchor || meta.ANCHOR) : {};
+    var lat = weatherPick(anchor, ["lat", "LAT", "latitude", "LATITUDE"], weatherPick(meta, ["anchorLat", "ANCHORLAT", "anchor_lat", "ANCHOR_LAT", "lat", "LAT"], ""));
+    var lon = weatherPick(anchor, ["lon", "LON", "lng", "LNG", "longitude", "LONGITUDE"], weatherPick(meta, ["anchorLon", "ANCHORLON", "anchor_lon", "ANCHOR_LON", "lon", "LON", "lng", "LNG"], ""));
+    var latNum = weatherNumber(lat);
+    var lonNum = weatherNumber(lon);
+    if (Number.isFinite(latNum) && Number.isFinite(lonNum)) {
+      return { label: latNum.toFixed(4) + ", " + lonNum.toFixed(4), lat: latNum, lon: lonNum };
+    }
+    return { label: "—", lat: NaN, lon: NaN };
+  }
+
+  function weatherRiskClass(label) {
+    var value = String(label || "").toLowerCase();
+    if (value === "extreme" || value === "high") return "risk-high";
+    if (value === "caution" || value === "moderate") return "risk-caution";
+    if (value === "good" || value === "low") return "risk-good";
+    return "risk-low";
+  }
+
+  function weatherRiskDisplay(label) {
+    return String(label || "").toLowerCase() === "low" ? "Good" : weatherValue(label, "—");
+  }
+
+  function weatherSkyIcon(summary) {
+    var text = String(summary || "").toLowerCase();
+    if (text.indexOf("rain") >= 0 || text.indexOf("shower") >= 0 || text.indexOf("storm") >= 0) return "☔";
+    if (text.indexOf("cloud") >= 0 || text.indexOf("overcast") >= 0) return "☁";
+    if (text.indexOf("night") >= 0 || text.indexOf("clear") >= 0 && text.indexOf("sun") < 0) return "☾";
+    return "☀";
+  }
+
+  function formatWeatherWind(period) {
+    var wind = parseWindSpeed(period && period.windSpeed ? period.windSpeed : "");
+    var dir = period && period.windDirection ? period.windDirection : "";
+    return (dir ? dir + " " : "") + (wind.speed ? wind.speed + " mph" : "—");
+  }
+
+  function renderMarineWeatherHeader(data, location) {
+    var meta = getWeatherMeta(data);
+    var surface = getWeatherSurface(data);
+    var marine = getWeatherMarine(data);
+    var tide = getWeatherTide(marine);
+    var updated = weatherPick(meta, ["updatedAt", "UPDATEDAT", "updated_at", "UPDATED_AT", "dataUpdated", "DATAUPDATED", "generatedAt", "GENERATEDAT"], "");
+    var obsTime = weatherPick(surface, ["observation_time", "OBSERVATION_TIME", "observed_at", "OBSERVED_AT"], "");
+    var station = weatherPick(surface, ["station_id", "STATION_ID", "station", "STATION"], "");
+    var tideStation = weatherPick(tide, ["stationName", "STATIONNAME", "station", "STATION"], weatherPick(getWeatherWaterLevelCurrent(marine), ["stationName", "STATIONNAME"], ""));
+    var anchor = getWeatherAnchor(meta);
+    var zip = getWeatherZip(data, location);
+
+    setWeatherText("weatherResolvedLocation", formatWeatherLocation(data, location));
+    setWeatherText("weatherZipDisplay", zip);
+    setWeatherText("weatherMetarStation", station);
+    setWeatherText("weatherTideStationShort", tideStation);
+    setWeatherText("weatherUpdatedAt", updated || obsTime ? "Updated " + formatWeatherTime(updated || obsTime) : "Updated —");
+    setWeatherText("weatherAnchorMeta", "Anchor: " + anchor.label);
+    setWeatherText("weatherTimezoneLabel", (new Date()).toLocaleTimeString(undefined, { timeZoneName: "short" }).split(" ").pop() || "—");
+  }
+
+  function renderMarineRisk(data) {
+    var forecast = getWeatherForecast(data);
+    var marine = getWeatherMarine(data);
+    var waves = getWeatherWaves(marine);
+    var surface = getWeatherSurface(data);
+    var alerts = getWeatherAlerts(data);
+    var now = forecast[0] || {};
+    var wind = parseWindSpeed(now.windSpeed || "");
+    var gust = resolveGustMph(now, wind);
+    var risk = classifyWindRisk(gust || wind.speed || 0);
+    var riskLabel = weatherRiskDisplay(risk.label);
+    var waveHeight = weatherPick(marine, ["wave_height_ft", "WAVE_HEIGHT_FT"], weatherPick(waves, ["height", "HEIGHT"], ""));
+    var visibility = weatherPick(surface, ["visibility_mi", "VISIBILITY_MI"], "");
+
+    setWeatherText("weatherRiskValue", riskLabel);
+    setWeatherText("weatherRiskSubtext", risk.level >= 2 ? "Use caution for small craft" : "Favorable for nearshore boating");
+    setWeatherText("weatherRiskWind", "Wind " + formatWeatherWind(now));
+    setWeatherText("weatherRiskGusts", gust ? "Gusts up to " + Math.round(gust) + " mph" : "Gusts —");
+    setWeatherText("weatherRiskSeas", Number.isFinite(weatherNumber(waveHeight)) ? "Seas " + weatherNumber(waveHeight).toFixed(1) + " ft" : "Seas —");
+    setWeatherText("weatherRiskSeasNote", "Short-period chop");
+    setWeatherText("weatherRiskVisibility", Number.isFinite(weatherNumber(visibility)) ? "Visibility " + (weatherNumber(visibility) >= 10 ? "10+" : weatherNumber(visibility).toFixed(1)) + " mi" : "Visibility —");
+    setWeatherText("weatherRiskVisibilityNote", Number.isFinite(weatherNumber(visibility)) && weatherNumber(visibility) >= 7 ? "Clear" : "—");
+    setWeatherText("weatherRiskAlerts", alerts.length ? alerts.length + " active" : "None active");
+    setWeatherText("weatherAlertStatus", alerts.length ? alerts.length + " Active" : "None");
+    setWeatherText("weatherAlertSummary", alerts.length ? "Review active NOAA marine alerts" : "No active marine alerts");
+    setWeatherText("weatherRiskRecommendation", risk.level >= 2 ? "Conditions are manageable near shore but may be uncomfortable for smaller boats or exposed water." : "Conditions look favorable, but review the hourly table before departure.");
+  }
+
+  function renderConditionsNow(data) {
+    var forecast = getWeatherForecast(data);
+    var surface = getWeatherSurface(data);
+    var now = forecast[0] || {};
+    var wind = parseWindSpeed(now.windSpeed || "");
+    var gust = resolveGustMph(now, wind);
+    var temp = weatherNumber(now.temperature);
+    var summary = weatherValue(now.shortForecast || data.SUMMARY || data.summary, "—");
+    var pressure = weatherPick(surface, ["pressure_inhg", "PRESSURE_INHG"], "");
+    var visibility = weatherPick(surface, ["visibility_mi", "VISIBILITY_MI"], "");
+    var humidity = weatherPick(surface, ["humidity", "HUMIDITY", "relative_humidity", "RELATIVE_HUMIDITY"], "");
+    var dewPoint = weatherPick(surface, ["dewpoint_f", "DEWPOINT_F", "dewPointF", "DEWPOINTF"], "");
+    var station = weatherPick(surface, ["station_id", "STATION_ID", "station", "STATION"], "");
+    var obsTime = weatherPick(surface, ["observation_time", "OBSERVATION_TIME", "observed_at", "OBSERVED_AT"], now.startTime || "");
+
+    setWeatherText("weatherConditionIcon", weatherSkyIcon(summary));
+    setWeatherText("weatherConditionText", summary);
+    setWeatherText("weatherCurrentTemp", Number.isFinite(temp) ? Math.round(temp) + "°F" : "—");
+    setWeatherText("weatherFeelsLike", Number.isFinite(temp) ? Math.round(temp) + "°" : "—");
+    setWeatherText("weatherCurrentWind", formatWeatherWind(now));
+    setWeatherText("weatherCurrentGusts", gust ? Math.round(gust) + " mph" : "—");
+    setWeatherText("weatherPressure", Number.isFinite(weatherNumber(pressure)) ? weatherNumber(pressure).toFixed(2) + " inHg" : "—");
+    setWeatherText("weatherVisibility", Number.isFinite(weatherNumber(visibility)) ? (weatherNumber(visibility) >= 10 ? "10+ mi" : weatherNumber(visibility).toFixed(1) + " mi") : "—");
+    setWeatherText("weatherHumidity", Number.isFinite(weatherNumber(humidity)) ? Math.round(weatherNumber(humidity)) + "%" : "—");
+    setWeatherText("weatherDewPoint", Number.isFinite(weatherNumber(dewPoint)) ? Math.round(weatherNumber(dewPoint)) + "°F" : "—");
+    setWeatherText("weatherObservedAt", obsTime ? formatWeatherTime(obsTime, "—", { hour: "numeric", minute: "2-digit", timeZoneName: "short" }) : "—");
+    setWeatherText("weatherObservedStation", station);
+  }
+
+  function renderWavesPanel(data) {
+    var marine = getWeatherMarine(data);
+    var waves = getWeatherWaves(marine);
+    var waveHeight = weatherPick(marine, ["wave_height_ft", "WAVE_HEIGHT_FT"], weatherPick(waves, ["height", "HEIGHT"], ""));
+    var period = weatherPick(waves, ["period", "PERIOD"], "");
+    var direction = weatherPick(waves, ["directionDeg", "DIRECTIONDEG", "direction_deg", "DIRECTION_DEG"], "");
+    var heightNum = weatherNumber(waveHeight);
+    var level = Number.isFinite(heightNum) ? Math.max(0, Math.min(12, Math.round(heightNum / 0.8))) : NaN;
+
+    setWeatherText("weatherWaveHeight", Number.isFinite(heightNum) ? heightNum.toFixed(1) : "—");
+    setWeatherText("weatherWaveTrendTop", "Steady");
+    setWeatherText("weatherWavePeriod", Number.isFinite(weatherNumber(period)) ? weatherNumber(period).toFixed(weatherNumber(period) < 10 ? 1 : 0) + " sec" : "—");
+    setWeatherText("weatherWaveDirection", Number.isFinite(weatherNumber(direction)) ? formatWaveDirection(weatherNumber(direction)) : "—");
+    setWeatherText("weatherWaveLevel", Number.isFinite(level) ? "Level " + level : "—");
+    setWeatherText("weatherWaveTrend", "Steady");
+    setWeatherText("weatherWaveNote", Number.isFinite(heightNum) && heightNum < 2 ? "Short-period light chop. Manageable nearshore." : "Review seas and period before departure.");
+  }
+
+  function getWeatherTideTimezone(tide) {
+    return String(weatherPick(tide, ["tz", "TZ", "timezone", "TIMEZONE"], "")).toLowerCase();
+  }
+
+  function parseWeatherTideDate(raw, tideTz) {
+    if (!raw) return null;
+    var s = String(raw).trim();
+    var normalized = s.replace(" ", "T");
+    var useUtc = tideTz === "gmt" || tideTz === "utc";
+    var hasZone = /(?:z|[+-]\d{2}:?\d{2})$/i.test(normalized);
+    var d = null;
+    if (useUtc && !hasZone && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(normalized)) {
+      d = new Date(normalized + "Z");
+      if (!Number.isNaN(d.getTime())) return d;
+    }
+    d = new Date(s);
+    if (!Number.isNaN(d.getTime())) return d;
+    if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(s)) {
+      d = new Date(normalized + "Z");
+      if (!Number.isNaN(d.getTime())) return d;
+      d = new Date(normalized);
+      if (!Number.isNaN(d.getTime())) return d;
+    }
+    return null;
+  }
+
+  function formatWeatherTideTime(value, tideTz, fallback, options) {
+    var raw = weatherValue(value, "");
+    var parsed = raw ? parseWeatherTideDate(raw, tideTz) : null;
+    if (!raw) return fallback || "—";
+    if (!parsed) return raw;
+    try {
+      return parsed.toLocaleString(undefined, options || { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+    } catch (e) {
+      return parsed.toLocaleString();
+    }
+  }
+
+  function parseWeatherTidePoint(point, tideTz) {
+    var h = weatherNumber(point && (point.h !== undefined ? point.h : point.H));
+    var rawTime = point && (point.t || point.T || point.time || point.TIME);
+    var type = point && (point.type || point.TYPE || point.ty || point.TY);
+    var dt = parseWeatherTideDate(rawTime, tideTz);
+    return { h: h, rawTime: rawTime || "", type: weatherValue(type, ""), dt: dt };
+  }
+
+  function interpolateWeatherTideCurrent(series, tideTz, nowMs) {
+    var points = series.map(function (p) { return parseWeatherTidePoint(p, tideTz); }).filter(function (p) { return Number.isFinite(p.h); });
+    var currentH = null;
+    var i;
+    var nowVal = Number.isFinite(nowMs) ? nowMs : Date.now();
+    for (i = 0; i < points.length - 1; i++) {
+      var a = points[i];
+      var b = points[i + 1];
+      if (!a.dt || !b.dt) continue;
+      var ams = a.dt.getTime();
+      var bms = b.dt.getTime();
+      if (bms <= ams) continue;
+      if (nowVal >= ams && nowVal <= bms) {
+        var r = (nowVal - ams) / (bms - ams);
+        currentH = a.h + ((b.h - a.h) * r);
+        break;
+      }
+    }
+    if (currentH === null) {
+      var nearest = null;
+      points.forEach(function (pnt) {
+        if (!pnt.dt) return;
+        var diff = Math.abs(nowVal - pnt.dt.getTime());
+        if (!nearest || diff < nearest.diff) {
+          nearest = { diff: diff, p: pnt };
+        }
+      });
+      if (nearest && nearest.p) {
+        currentH = nearest.p.h;
+      }
+    }
+    return currentH;
+  }
+
+  function deriveWeatherTideTrend(series, tideTz, nowMs) {
+    var points = series.map(function (p) { return parseWeatherTidePoint(p, tideTz); }).filter(function (p) { return Number.isFinite(p.h) && p.dt; });
+    var nowVal = Number.isFinite(nowMs) ? nowMs : Date.now();
+    var i;
+    if (points.length < 2) return "";
+    for (i = 0; i < points.length - 1; i++) {
+      var a = points[i];
+      var b = points[i + 1];
+      var aType = String(a.type || "").toUpperCase().charAt(0);
+      var bType = String(b.type || "").toUpperCase().charAt(0);
+      var ams = a.dt.getTime();
+      var bms = b.dt.getTime();
+      if (bms <= ams) continue;
+      if (nowVal >= ams && nowVal < bms) {
+        if (aType === "L" && bType === "H") {
+          return "Rising until " + formatWeatherTideTime(b.rawTime, tideTz, "—", { hour: "numeric", minute: "2-digit" });
+        }
+        if (aType === "H" && bType === "L") {
+          return "Falling until " + formatWeatherTideTime(b.rawTime, tideTz, "—", { hour: "numeric", minute: "2-digit" });
+        }
+        return "";
+      }
+    }
+    return "";
+  }
+
+  function findTideExtrema(series, targetType, fallbackMax, tideTz) {
+    var points = series.map(function (p) { return parseWeatherTidePoint(p, tideTz); }).filter(function (p) { return Number.isFinite(p.h); });
+    var typed = points.filter(function (p) { return String(p.type || "").toUpperCase().charAt(0) === targetType; });
+    var pool = typed.length ? typed : points;
+    var best = null;
+    pool.forEach(function (p) {
+      if (!best) { best = p; return; }
+      if (fallbackMax && p.h > best.h) best = p;
+      if (!fallbackMax && p.h < best.h) best = p;
+    });
+    return best;
+  }
+
+  function renderTidePanel(data) {
+    var marine = getWeatherMarine(data);
+    var tide = getWeatherTide(marine);
+    var waterLevel = getWeatherWaterLevelCurrent(marine);
+    var series = getWeatherTideSeries(tide);
+    var tideTz = getWeatherTideTimezone(tide);
+    var current = weatherPick(waterLevel, ["h", "H", "height", "HEIGHT"], "");
+    var currentNum = weatherNumber(current);
+    var high = findTideExtrema(series, "H", true, tideTz);
+    var low = findTideExtrema(series, "L", false, tideTz);
+    var station = weatherPick(tide, ["stationName", "STATIONNAME", "station", "STATION"], weatherPick(waterLevel, ["stationName", "STATIONNAME"], ""));
+
+    if (!Number.isFinite(currentNum) && series.length) {
+      currentNum = interpolateWeatherTideCurrent(series, tideTz, Date.now());
+    }
+    var tideTrendLabel = weatherPick(waterLevel, ["trend", "TREND", "direction", "DIRECTION"], weatherPick(tide, ["trend", "TREND"], ""));
+    if (!tideTrendLabel) {
+      tideTrendLabel = deriveWeatherTideTrend(series, tideTz, Date.now());
+    }
+    setWeatherText("weatherCurrentTide", Number.isFinite(currentNum) ? currentNum.toFixed(1) : "—");
+    setWeatherText("weatherTideDirection", tideTrendLabel);
+    setWeatherText("weatherNextHighTideHeight", high ? high.h.toFixed(1) + " ft" : "—");
+    setWeatherText("weatherNextHighTideTime", high ? formatWeatherTideTime(high.rawTime, tideTz, "—", { hour: "numeric", minute: "2-digit" }) : "—");
+    setWeatherText("weatherNextLowTideHeight", low ? low.h.toFixed(1) + " ft" : "—");
+    setWeatherText("weatherNextLowTideTime", low ? formatWeatherTideTime(low.rawTime, tideTz, "—", { hour: "numeric", minute: "2-digit" }) : "—");
+    setWeatherText("weatherTideTrend", tideTrendLabel);
+    setWeatherText("weatherTideStation", station);
+    setWeatherText("weatherTideChartStation", station);
+    setWeatherText("weatherTideSummaryCurrent", Number.isFinite(currentNum) ? currentNum.toFixed(1) + " ft" : "—");
+    setWeatherText("weatherTideSummaryCurrentTrend", tideTrendLabel);
+    setWeatherText("weatherTideSummaryHighTime", high ? formatWeatherTideTime(high.rawTime, tideTz, "—", { hour: "numeric", minute: "2-digit" }) : "—");
+    setWeatherText("weatherTideSummaryHighHeight", high ? high.h.toFixed(1) + " ft" : "—");
+    setWeatherText("weatherTideSummaryLowTime", low ? formatWeatherTideTime(low.rawTime, tideTz, "—", { hour: "numeric", minute: "2-digit" }) : "—");
+    setWeatherText("weatherTideSummaryLowHeight", low ? low.h.toFixed(1) + " ft" : "—");
+    setWeatherText("weatherTideSummaryNextHighTime", high ? formatWeatherTideTime(high.rawTime, tideTz, "—", { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—");
+    setWeatherText("weatherTideSummaryNextHighHeight", high ? high.h.toFixed(1) + " ft" : "—");
+  }
+
+  function renderHourlyBriefingTable(data) {
+    var rows = getWeatherForecast(data).slice(0, 12);
+    var tbody = document.getElementById("weatherHourlyRows");
+    var marine = getWeatherMarine(data);
+    var waves = getWeatherWaves(marine);
+    var waveHeight = weatherPick(marine, ["wave_height_ft", "WAVE_HEIGHT_FT"], weatherPick(waves, ["height", "HEIGHT"], ""));
+    var maxGust = 0;
+    var rainMax = 0;
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    if (!rows.length) {
+      tbody.innerHTML = "<tr><td colspan=\"8\">Weather forecast unavailable.</td></tr>";
+      setWeatherText("weatherHourlySummary", "—");
+      return;
+    }
+    rows.forEach(function (p) {
+      var wind = parseWindSpeed(p && p.windSpeed ? p.windSpeed : "");
+      var gust = resolveGustMph(p, wind);
+      var rain = inferRainPct(p);
+      if (gust > maxGust) maxGust = gust;
+      if (rain > rainMax) rainMax = rain;
+    });
+    rows.forEach(function (p) {
+      var wind = parseWindSpeed(p && p.windSpeed ? p.windSpeed : "");
+      var gust = resolveGustMph(p, wind);
+      var rain = inferRainPct(p);
+      var temp = weatherNumber(p && p.temperature);
+      var risk = weatherRiskDisplay(classifyWindRisk(gust || wind.speed || 0).label);
+      var tr = document.createElement("tr");
+      tr.innerHTML = ""
+        + "<td>" + escapeHtml(formatWeatherHour(p && p.startTime ? p.startTime : "") || weatherValue(p && p.name, "—")) + "</td>"
+        + "<td>" + escapeHtml(formatWeatherWind(p)) + "</td>"
+        + "<td>" + escapeHtml(gust ? Math.round(gust) + " mph" : "—") + "</td>"
+        + "<td>" + escapeHtml(Number.isFinite(weatherNumber(waveHeight)) ? weatherNumber(waveHeight).toFixed(1) : "—") + "</td>"
+        + "<td>" + escapeHtml(rain !== null && rain !== undefined ? rain + "%" : "—") + "</td>"
+        + "<td>" + escapeHtml(Number.isFinite(temp) ? Math.round(temp) + "°" : "—") + "</td>"
+        + "<td>" + escapeHtml(weatherSkyIcon(p && p.shortForecast)) + "</td>"
+        + "<td><span class=\"risk-badge " + weatherRiskClass(risk) + "\">" + escapeHtml(risk) + "</span></td>";
+      tbody.appendChild(tr);
+    });
+    setWeatherText("weatherHourlySummary", "Wind easing this evening • Gusts peak near " + (maxGust ? Math.round(maxGust) + " mph" : "—") + " • " + (rainMax ? "Rain risk up to " + rainMax + "%" : "No rain expected"));
+  }
+
+  function renderSourceDetails(data, location) {
+    var meta = getWeatherMeta(data);
+    var surface = getWeatherSurface(data);
+    var marine = getWeatherMarine(data);
+    var tide = getWeatherTide(marine);
+    var waterLevel = getWeatherWaterLevelCurrent(marine);
+    var anchor = getWeatherAnchor(meta);
+    var station = weatherPick(surface, ["station_id", "STATION_ID", "station", "STATION"], "");
+    var tideStation = weatherPick(tide, ["stationName", "STATIONNAME", "station", "STATION"], weatherPick(waterLevel, ["stationName", "STATIONNAME"], ""));
+    var updated = weatherPick(meta, ["updatedAt", "UPDATEDAT", "updated_at", "UPDATED_AT", "dataUpdated", "DATAUPDATED", "generatedAt", "GENERATEDAT"], weatherPick(surface, ["observation_time", "OBSERVATION_TIME"], ""));
+
+    setWeatherText("weatherSourceName", weatherPick(meta, ["source", "SOURCE", "weatherSource", "WEATHER_SOURCE"], "NOAA / NWS"));
+    setWeatherText("weatherForecastType", weatherPick(meta, ["forecastType", "FORECASTTYPE", "forecast_type", "FORECAST_TYPE"], "Marine"));
+    setWeatherText("weatherSourceResolvedLocation", formatWeatherLocation(data, location));
+    setWeatherText("weatherSourceAnchor", anchor.label);
+    setWeatherText("weatherSourceZip", getWeatherZip(data, location));
+    setWeatherText("weatherSourceObservationStation", station);
+    setWeatherText("weatherSourceTideStation", tideStation);
+    setWeatherText("weatherSourceDataUpdated", updated ? formatWeatherTime(updated) : "—");
+    var cacheReport = getWeatherCacheReport(data);
+    var primaryCache = pickPrimaryWeatherCache(cacheReport);
+    setWeatherText("weatherSourceCacheStatus", primaryCache ? weatherCacheStatusLabel(weatherPick(primaryCache, ["status", "STATUS"], "")) : "—");
+    setWeatherText("weatherSourceCachedAt", primaryCache ? formatWeatherCacheTime(weatherPick(primaryCache, ["cached_at_utc", "CACHED_AT_UTC"], "")) : "—");
+    setWeatherText("weatherSourceCacheExpires", primaryCache ? formatWeatherCacheTime(weatherPick(primaryCache, ["expires_at_utc", "EXPIRES_AT_UTC"], "")) : "—");
+    setWeatherText("weatherSourceDataAge", primaryCache ? formatWeatherDuration(weatherPick(primaryCache, ["age_seconds", "AGE_SECONDS"], "")) : "—");
+    setWeatherText("weatherSourceRefreshWindow", primaryCache ? formatWeatherRefreshWindow(primaryCache) : "—");
+    setWeatherText("weatherSourceProvider", weatherPick(meta, ["provider", "PROVIDER"], "NOAA"));
+    renderSourceCacheRows(cacheReport);
+  }
+
+  function getWeatherCacheReport(data) {
+    var meta = getWeatherMeta(data || {});
+    return (meta && (meta.CACHE || meta.cache)) || {};
+  }
+
+  function weatherCacheStatusLabel(status) {
+    var value = String(status || "").toLowerCase();
+    if (value === "fresh_fetch") return "Live fetch";
+    if (value === "cache_hit") return "Cached";
+    if (value === "bypass") return "Cache bypassed";
+    if (value === "unavailable") return "Unavailable";
+    if (value === "error") return "Error";
+    if (value === "expired_not_used") return "Expired, not used";
+    if (value === "not_reported" || value === "unknown") return "Unknown";
+    return status ? weatherValue(status, "Unknown") : "Unknown";
+  }
+
+  function formatWeatherDuration(rawSeconds) {
+    var seconds = weatherNumber(rawSeconds);
+    var minutes = 0;
+    var hours = 0;
+    if (!Number.isFinite(seconds)) return "—";
+    minutes = Math.max(0, Math.round(seconds / 60));
+    if (minutes < 1) return "<1 min";
+    if (minutes < 60) return minutes + " min";
+    hours = Math.floor(minutes / 60);
+    minutes = minutes % 60;
+    return hours + "h" + (minutes ? " " + minutes + "m" : "");
+  }
+
+  function formatWeatherCacheTime(rawValue) {
+    var value = weatherValue(rawValue, "");
+    return value ? formatWeatherTime(value, "—") : "—";
+  }
+
+  function formatWeatherRefreshWindow(cacheBlock) {
+    var ttl = weatherPick(cacheBlock, ["ttl_seconds", "TTL_SECONDS"], "");
+    var expiresIn = weatherPick(cacheBlock, ["expires_in_seconds", "EXPIRES_IN_SECONDS"], "");
+    var ttlText = formatWeatherDuration(ttl);
+    var expiresText = formatWeatherDuration(expiresIn);
+    if (ttlText === "—" && expiresText === "—") return "—";
+    if (expiresText === "—") return ttlText;
+    if (ttlText === "—") return expiresText + " remaining";
+    return ttlText + " window; " + expiresText + " remaining";
+  }
+
+  function pickPrimaryWeatherCache(cacheReport) {
+    var order = ["surface", "forecast", "marine", "tide", "zone_forecast", "alerts"];
+    var i = 0;
+    var key = "";
+    for (i = 0; i < order.length; i += 1) {
+      key = order[i];
+      if (cacheReport && (cacheReport[key] || cacheReport[key.toUpperCase()])) {
+        return cacheReport[key] || cacheReport[key.toUpperCase()];
+      }
+    }
+    return null;
+  }
+
+  function renderSourceCacheRows(cacheReport) {
+    var tbody = document.getElementById("weatherSourceCacheRows");
+    var order = ["forecast", "alerts", "surface", "marine", "tide", "zone_forecast"];
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    if (!cacheReport || !Object.keys(cacheReport).length) {
+      tbody.innerHTML = "<tr><td colspan=\"5\">Cache details unavailable.</td></tr>";
+      return;
+    }
+    order.forEach(function (key) {
+      var block = cacheReport[key] || cacheReport[key.toUpperCase()];
+      var label = "";
+      var provider = "";
+      var status = "";
+      var providerTime = "";
+      var expires = "";
+      var tr = null;
+      if (!block) return;
+      label = weatherPick(block, ["label", "LABEL"], key.replace(/_/g, " "));
+      provider = weatherPick(block, ["source", "SOURCE"], "—");
+      status = weatherCacheStatusLabel(weatherPick(block, ["status", "STATUS"], ""));
+      providerTime = weatherPick(block, ["provider_time_display", "PROVIDER_TIME_DISPLAY", "provider_time_utc", "PROVIDER_TIME_UTC"], "");
+      expires = weatherPick(block, ["expires_at_utc", "EXPIRES_AT_UTC"], "");
+      tr = document.createElement("tr");
+      tr.innerHTML = ""
+        + "<td>" + escapeHtml(label) + "</td>"
+        + "<td>" + escapeHtml(provider) + "</td>"
+        + "<td>" + escapeHtml(status) + "</td>"
+        + "<td>" + escapeHtml(providerTime ? formatWeatherCacheTime(providerTime) : "—") + "</td>"
+        + "<td>" + escapeHtml(expires ? formatWeatherCacheTime(expires) : "—") + "</td>";
+      tbody.appendChild(tr);
+    });
+    if (!tbody.children.length) {
+      tbody.innerHTML = "<tr><td colspan=\"5\">Cache details unavailable.</td></tr>";
+    }
+  }
+
+  function normalizeWeatherMapLayers(rawLayers) {
+    var layers = [];
+    if (Array.isArray(rawLayers)) {
+      rawLayers.forEach(function (layer) {
+        if (typeof layer === "string") layers.push(layer);
+        else if (layer && typeof layer === "object") layers.push(weatherValue(layer.label || layer.LABEL || layer.name || layer.NAME || layer.title || layer.TITLE || layer.key || layer.KEY, ""));
+      });
+    } else if (rawLayers && typeof rawLayers === "object") {
+      Object.keys(rawLayers).forEach(function (key) {
+        var layer = rawLayers[key];
+        if (typeof layer === "string") layers.push(layer);
+        else if (layer && typeof layer === "object") layers.push(weatherValue(layer.name || layer.NAME || layer.title || layer.TITLE || key, ""));
+        else layers.push(key);
+      });
+    }
+    return layers.filter(function (layerName) { return !!weatherValue(layerName, ""); });
+  }
+
+  function renderMapLayersPanel(data) {
+    var layers = normalizeWeatherMapLayers(data && (data.MAP_LAYERS || data.map_layers || data.mapLayers));
+    var listEl = document.getElementById("weatherMapLayerList");
+    setWeatherText("weatherMapLayerCount", layers.length);
+    if (!listEl) return;
+    listEl.innerHTML = "";
+    if (!layers.length) {
+      listEl.innerHTML = "<li>No map layers delivered for this location.</li>";
+      return;
+    }
+    layers.forEach(function (name) {
+      var li = document.createElement("li");
+      li.textContent = name;
+      listEl.appendChild(li);
+    });
+  }
+
+  function resolveWeatherMapAnchor(data, location) {
+    var anchor = getWeatherAnchor(getWeatherMeta(data));
+    var loc = location || {};
+    var lat = NaN;
+    var lon = NaN;
+
+    if (Number.isFinite(anchor.lat) && Number.isFinite(anchor.lon)) {
+      return anchor;
+    }
+    if (String(loc.mode || "").toLowerCase() === "coords") {
+      lat = weatherNumber(loc.lat);
+      lon = weatherNumber(loc.lon);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        return { label: lat.toFixed(4) + ", " + lon.toFixed(4), lat: lat, lon: lon };
+      }
+    }
+    return { label: "—", lat: NaN, lon: NaN };
+  }
+
+  function initWeatherLeafletMap() {
+    var mapEl = document.getElementById("weatherLeafletMap");
+    if (!mapEl || !window.L) return null;
+    if (weatherMapInstance) return weatherMapInstance;
+
+    weatherMapInstance = window.L.map(mapEl, {
+      zoomControl: true,
+      attributionControl: true
+    }).setView([28.2326, -82.7327], 7);
+
+    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap"
+    }).addTo(weatherMapInstance);
+
+    if (window.FPW && typeof window.FPW.attachLeafletWeatherOverlays === "function") {
+      weatherMapOverlayController = window.FPW.attachLeafletWeatherOverlays({
+        map: weatherMapInstance,
+        mode: "weather"
+      });
+    }
+
+    mapEl.__fpwWeatherMap = weatherMapInstance;
+    mapEl.__fpwWeatherOverlayController = weatherMapOverlayController;
+    setTimeout(function () {
+      if (weatherMapInstance) weatherMapInstance.invalidateSize();
+    }, 0);
+
+    return weatherMapInstance;
+  }
+
+  function renderWeatherLeafletMap(data, location) {
+    var map = initWeatherLeafletMap();
+    var anchor = resolveWeatherMapAnchor(data, location);
+    var zoom = 9;
+    if (!map || !Number.isFinite(anchor.lat) || !Number.isFinite(anchor.lon)) return;
+
+    if (weatherMapHasCentered && typeof map.getZoom === "function") {
+      zoom = map.getZoom();
+    }
+    map.setView([anchor.lat, anchor.lon], zoom);
+    weatherMapHasCentered = true;
+    setTimeout(function () {
+      if (map) map.invalidateSize();
+    }, 0);
+  }
+
+  function invalidateWeatherMapAfterModalOpen() {
+    var map = weatherMapInstance || initWeatherLeafletMap();
+    if (!map) return;
+    setTimeout(function () {
+      if (map && typeof map.invalidateSize === "function") {
+        map.invalidateSize();
+      }
+    }, 80);
+  }
+
+  function openWeatherMapModal() {
+    var modal = document.getElementById("weatherMapModal");
+    var closeButton = document.getElementById("weatherMapModalClose");
+    if (!modal) return;
+
+    weatherMapModalPreviousFocus = document.activeElement;
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    if (document.body) {
+      document.body.classList.add("weather-map-modal-open");
+    }
+    renderWeatherLeafletMap(weatherBriefingState.data || {}, weatherBriefingState.location || {});
+    invalidateWeatherMapAfterModalOpen();
+    if (closeButton && typeof closeButton.focus === "function") {
+      closeButton.focus();
+    }
+  }
+
+  function closeWeatherMapModal() {
+    var modal = document.getElementById("weatherMapModal");
+    if (!modal || modal.hidden) return;
+
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+    if (document.body) {
+      document.body.classList.remove("weather-map-modal-open");
+    }
+    if (
+      weatherMapModalPreviousFocus
+      && typeof weatherMapModalPreviousFocus.focus === "function"
+      && document.contains(weatherMapModalPreviousFocus)
+    ) {
+      weatherMapModalPreviousFocus.focus();
+    }
+    weatherMapModalPreviousFocus = null;
+  }
+
+  function bindWeatherMapModalControls() {
+    var openButton = document.getElementById("weatherMapLayersButton");
+    var closeButton = document.getElementById("weatherMapModalClose");
+    var modal = document.getElementById("weatherMapModal");
+    if (weatherMapModalControlsBound || !modal) return;
+
+    if (openButton) {
+      openButton.addEventListener("click", openWeatherMapModal);
+    }
+    if (closeButton) {
+      closeButton.addEventListener("click", closeWeatherMapModal);
+    }
+    modal.addEventListener("click", function (event) {
+      if (event.target && event.target.getAttribute("data-weather-map-close") !== null) {
+        closeWeatherMapModal();
+      }
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && !modal.hidden) {
+        closeWeatherMapModal();
+      }
+    });
+    weatherMapModalControlsBound = true;
+  }
+
+  function getWeatherZoneForecast(data) {
+    return (data && (data.ZONE_FORECAST || data.zone_forecast || data.zoneForecast)) || {};
+  }
+
+  function renderZoneForecastPanel(data) {
+    var zone = getWeatherZoneForecast(data);
+    var unavailableEl = document.getElementById("weatherZoneForecastUnavailable");
+    var contentEl = document.getElementById("weatherZoneForecastContent");
+    var periodsEl = document.getElementById("weatherZoneForecastPeriods");
+    var synopsisBlock = document.getElementById("weatherZoneForecastSynopsisBlock");
+    var rawAvailable = zone && weatherPick(zone, ["available", "AVAILABLE"], false);
+    var available = rawAvailable === true || String(rawAvailable).toLowerCase() === "true";
+    var zoneId = weatherValue(weatherPick(zone, ["zone_id", "ZONE_ID", "zoneId", "ZONEID"], ""), "");
+    var zoneName = weatherValue(weatherPick(zone, ["zone_name", "ZONE_NAME", "zoneName", "ZONENAME"], ""), "");
+    var office = weatherValue(weatherPick(zone, ["office", "OFFICE", "wfo", "WFO"], ""), "");
+    var source = weatherValue(weatherPick(zone, ["source", "SOURCE"], "NOAA/NWS Coastal Waters Forecast"), "NOAA/NWS Coastal Waters Forecast");
+    var sourceUrl = weatherValue(weatherPick(zone, ["source_url", "SOURCE_URL", "sourceUrl", "SOURCEURL"], ""), "");
+    var synopsis = weatherValue(weatherPick(zone, ["synopsis", "SYNOPSIS"], ""), "");
+    var periods = weatherPick(zone, ["periods", "PERIODS"], []);
+    var cacheReport = getWeatherCacheReport(data);
+    var cacheBlock = (cacheReport && (cacheReport.zone_forecast || cacheReport.ZONE_FORECAST)) || {};
+    var unavailableMessage = "NOAA coastal marine zone forecast is not available for this location.";
+
+    setWeatherText("weatherZoneForecastMeta", available && zoneId ? zoneId + (zoneName ? " · " + zoneName : "") : "—");
+    setWeatherText("weatherZoneForecastOffice", available && office ? "Issued by NWS " + office : "Source: " + source);
+    setWeatherText("weatherZoneForecastCacheMeta", "Provider updated: " + formatWeatherCacheTime(weatherPick(cacheBlock, ["provider_time_display", "PROVIDER_TIME_DISPLAY", "provider_time_utc", "PROVIDER_TIME_UTC"], "")) + " • Cache: " + weatherCacheStatusLabel(weatherPick(cacheBlock, ["status", "STATUS"], "")) + " • Expires: " + formatWeatherCacheTime(weatherPick(cacheBlock, ["expires_at_utc", "EXPIRES_AT_UTC"], "")));
+
+    if (!available) {
+      if (unavailableEl) {
+        unavailableEl.textContent = unavailableMessage;
+        unavailableEl.classList.remove("d-none");
+      }
+      if (contentEl) contentEl.classList.add("d-none");
+      return;
+    }
+
+    if (unavailableEl) unavailableEl.classList.add("d-none");
+    if (contentEl) contentEl.classList.remove("d-none");
+
+    setWeatherText("weatherZoneForecastSynopsis", synopsis || "—");
+    if (synopsisBlock) synopsisBlock.classList.toggle("d-none", !synopsis);
+
+    if (periodsEl) {
+      periodsEl.innerHTML = "";
+      if (Array.isArray(periods) && periods.length) {
+        periods.forEach(function (period) {
+          var name = weatherValue(weatherPick(period, ["name", "NAME"], ""), "—");
+          var forecast = weatherValue(weatherPick(period, ["forecast", "FORECAST"], ""), "—");
+          var article = document.createElement("article");
+          article.className = "zone-forecast-period";
+          article.innerHTML = "<h3>" + escapeHtml(name) + "</h3><p>" + escapeHtml(forecast) + "</p>";
+          periodsEl.appendChild(article);
+        });
+      } else {
+        periodsEl.innerHTML = "<article class=\"zone-forecast-period\"><p>NOAA coastal marine zone forecast periods are not available for this location.</p></article>";
+      }
+    }
+
+    if (sourceUrl) {
+      setWeatherHtml("weatherZoneForecastSource", "Source: <a href=\"" + escapeHtml(sourceUrl) + "\" target=\"_blank\" rel=\"noopener\">" + escapeHtml(source) + "</a>");
+    } else {
+      setWeatherText("weatherZoneForecastSource", "Source: " + source);
+    }
+  }
+
+  function renderBestWindowPanel() {
+    setWeatherText("weatherBestWindowTime", "Based on current marine forecast");
+    setWeatherText("weatherBestWindowSummary", "Review the next 12 hours table before departure.");
+    setWeatherText("weatherWatchAfterTime", "—");
+    setWeatherText("weatherWatchAfterSummary", "Use the hourly forecast table for changing wind, rain, visibility, and marine risk.");
+  }
+
+  function renderActiveCruiseWeatherAddOn(data) {
+    var forecast = getWeatherForecast(data);
+    var marine = getWeatherMarine(data);
+    var waves = getWeatherWaves(marine);
+    var surface = getWeatherSurface(data);
+    var now = forecast[0] || {};
+    var wind = parseWindSpeed(now.windSpeed || "");
+    var gust = resolveGustMph(now, wind);
+    var waveHeight = weatherPick(marine, ["wave_height_ft", "WAVE_HEIGHT_FT"], weatherPick(waves, ["height", "HEIGHT"], ""));
+    var visibility = weatherPick(surface, ["visibility_mi", "VISIBILITY_MI"], "");
+    var emptyEl = document.getElementById("weatherActiveCruiseEmpty");
+    var routeName = dashboardSignals.activeRoute && dashboardSignals.activeRoute.name ? dashboardSignals.activeRoute.name : "—";
+
+    setWeatherText("weatherActiveRouteName", routeName);
+    setWeatherText("weatherActiveWind", formatWeatherWind(now));
+    setWeatherText("weatherActiveGusts", gust ? Math.round(gust) + " mph" : "—");
+    setWeatherText("weatherActiveSeas", Number.isFinite(weatherNumber(waveHeight)) ? weatherNumber(waveHeight).toFixed(1) + " ft" : "—");
+    setWeatherText("weatherActiveVisibility", Number.isFinite(weatherNumber(visibility)) ? (weatherNumber(visibility) >= 10 ? "10+ mi" : weatherNumber(visibility).toFixed(1) + " mi") : "—");
+    setWeatherText("weatherActiveUpdatedAt", weatherPick(getWeatherMeta(data), ["updatedAt", "UPDATEDAT", "updated_at", "UPDATED_AT"], "") ? formatWeatherTime(weatherPick(getWeatherMeta(data), ["updatedAt", "UPDATEDAT", "updated_at", "UPDATED_AT"], ""), "—", { hour: "numeric", minute: "2-digit" }) : "—");
+    setWeatherHtml("weatherActiveNextSix", "<li>Weather context is loaded from this page only.</li><li>Review the next 12 hours table before departure.</li>");
+    setWeatherText("weatherActiveCruiseImpact", "No active cruise weather context available on this page yet.");
+    if (emptyEl) emptyEl.hidden = false;
+  }
+
+  function renderMarineWeatherBriefing(data, payload, location) {
+    var merged = mergeWeatherBriefingData(data || {});
+    var meta = getWeatherMeta(merged);
+    var detailsUrl = weatherPick(meta, ["detailsUrl", "DETAILSURL", "providerUrl", "PROVIDERURL", "sourceUrl", "SOURCEURL", "url", "URL"], "");
+    weatherBriefingState.payload = payload || weatherBriefingState.payload;
+    weatherBriefingState.location = location || weatherBriefingState.location;
+
+    renderMarineWeatherHeader(merged, weatherBriefingState.location || location || {});
+    renderMarineRisk(merged);
+    bindWeatherMapModalControls();
+    renderWeatherLeafletMap(merged, weatherBriefingState.location || location || {});
+    renderConditionsNow(merged);
+    renderWavesPanel(merged);
+    renderTidePanel(merged);
+    renderHourlyBriefingTable(merged);
+    renderSourceDetails(merged, weatherBriefingState.location || location || {});
+    renderMapLayersPanel(merged);
+    renderZoneForecastPanel(merged);
+    renderBestWindowPanel(merged);
+    renderActiveCruiseWeatherAddOn(merged);
+    setWeatherLink("weatherDetailsLink", detailsUrl, "View all NOAA marine alerts");
   }
 
 
@@ -1485,29 +2578,15 @@
     var minH = Number.POSITIVE_INFINITY;
     var maxH = Number.NEGATIVE_INFINITY;
     var points = [];
-
-    function parseTideDate(raw) {
-      if (!raw) return null;
-      var s = String(raw).trim();
-      var d = new Date(s);
-      if (!isNaN(d.getTime())) return d;
-      if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(s)) {
-        d = new Date(s.replace(" ", "T") + "Z");
-        if (!isNaN(d.getTime())) return d;
-        d = new Date(s.replace(" ", "T"));
-        if (!isNaN(d.getTime())) return d;
-      }
-      return null;
-    }
+    var tideTz = getWeatherTideTimezone(tide);
 
     series.forEach(function (p) {
-      var h = parseFloat((p && p.h !== undefined) ? p.h : (p ? p.H : NaN));
+      var parsed = parseWeatherTidePoint(p, tideTz);
+      var h = parsed.h;
       if (!Number.isFinite(h)) return;
       if (h < minH) minH = h;
       if (h > maxH) maxH = h;
-      var tRaw = p && (p.t || p.T) ? (p.t || p.T) : "";
-      var dt = parseTideDate(tRaw);
-      points.push({ h: h, tRaw: tRaw, dt: dt });
+      points.push(parsed);
     });
     if (!Number.isFinite(minH) || !Number.isFinite(maxH) || minH === maxH) {
       minH = (Number.isFinite(minH) ? minH - 1 : 0);
@@ -1548,7 +2627,7 @@
       + " L " + padLeft.toFixed(2) + " " + (hgt - padBottom).toFixed(2) + " Z";
 
     function formatAxisHour(raw) {
-      var dt = parseTideDate(raw);
+      var dt = parseWeatherTideDate(raw, tideTz);
       if (!dt) return "";
       var h = dt.getHours() % 12;
       return String(h === 0 ? 12 : h);
@@ -2311,6 +3390,7 @@
         if (data.MARINE) {
           renderTideGraph(data.MARINE);
           renderWaveHeight(data.MARINE);
+          renderMarineWeatherBriefing(data, payload, location);
         }
       })
       .catch(function () {
@@ -2345,6 +3425,7 @@
         renderWeatherSurface(data.surface || data.SURFACE || null);
         renderTideGraph(data.MARINE);
         renderWaveHeight(data.MARINE);
+        renderMarineWeatherBriefing(data, payload, location);
         hydrateMarineTrend(location, requestSeq);
       })
       .catch(function (err) {
@@ -2356,6 +3437,8 @@
         renderWeatherSurface(null);
         renderTideGraph(null);
         renderWaveHeight(null);
+        weatherBriefingState.data = {};
+        renderMarineWeatherBriefing({}, null, location);
         setWeatherError((err && err.message) ? err.message : null);
       })
       .finally(function () {
@@ -2400,6 +3483,8 @@
       renderWeatherSurface(null);
       renderTideGraph(null);
       renderWaveHeight(null);
+      weatherBriefingState.data = {};
+      renderMarineWeatherBriefing({}, null, null);
     }
 
     function activeLocationMode() {
@@ -2530,6 +3615,7 @@
     var accordionEl = null;
     var retryBtn = null;
     var requestSeq = 0;
+    var selectedRouteCode = "";
 
     function routeUrl(routeCode) {
       return BASE_PATH + "/api/v1/route.cfc?method=handle&action=getTimeline&routeCode=" + encodeURIComponent(routeCode || "") + "&returnformat=json";
@@ -2584,6 +3670,10 @@
         accordionEl.innerHTML = "";
         toggleHidden(accordionEl, true);
       }
+      dashboardSignals.routes.total = 0;
+      refreshMissionSummary();
+      renderRecommendedNextSteps();
+      updateCurrentDraftActionButtons();
     }
 
     function normalizeStatus(status) {
@@ -2599,8 +3689,133 @@
       return Math.round(pct) + "% complete • " + formatNumber(totalNm, 1) + " NM • " + formatNumber(totalLocks, 0) + " locks";
     }
 
+    function buildRouteSubtitle(route, currentGroup) {
+      var description = route && route.DESCRIPTION !== undefined && route.DESCRIPTION !== null
+        ? String(route.DESCRIPTION).trim()
+        : "";
+      if (description) return description;
+      if (currentGroup && currentGroup.floatPlanName) return currentGroup.floatPlanName;
+      if (route && route.SHORT_CODE) return String(route.SHORT_CODE);
+      return "Saved route";
+    }
+
+    /* Route readiness setup helpers live in the outer dashboard scope. */
+
+    function buildRouteStatusPills(currentState) {
+      if (currentState === "ACTIVE") {
+        return ""
+          + '<div class="fpw-status-pill-group">'
+          + '  <span class="fpw-status-pill fpw-status-pill-active">Active Route</span>'
+          + '  <span class="fpw-status-pill fpw-status-pill-monitoring">Monitoring Active</span>'
+          + '</div>';
+      }
+      if (currentState === "DRAFT") {
+        return '<span class="fpw-status-pill fpw-status-pill-draft">Draft Group</span>';
+      }
+      return '<span class="fpw-status-pill fpw-status-pill-saved">Saved Route</span>';
+    }
+
+    function firstFiniteRouteTotal(totals, keys) {
+      var source = totals && typeof totals === "object" ? totals : {};
+      var key = "";
+      var raw = "";
+      var value = 0;
+      for (var i = 0; i < keys.length; i += 1) {
+        key = keys[i];
+        if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
+        raw = source[key];
+        value = parseFloat(raw);
+        if (Number.isFinite(value)) return value;
+      }
+      return 0;
+    }
+
+    function buildRouteSummaryList(route, totals) {
+      var source = totals && typeof totals === "object" ? totals : {};
+      var routeSource = route && typeof route === "object" ? route : {};
+      var endpoints = routeSource.ROUTE_ENDPOINTS && typeof routeSource.ROUTE_ENDPOINTS === "object" ? routeSource.ROUTE_ENDPOINTS : {};
+      var distanceNm = firstFiniteRouteTotal(source, ["TOTAL_NM", "total_nm"]);
+      var estimatedHours = firstFiniteRouteTotal(source, ["ESTIMATED_HOURS", "ESTIMATED_TIME_HOURS", "TOTAL_HOURS", "total_hours"]);
+      var waypointCount = firstFiniteRouteTotal(source, ["WAYPOINT_COUNT", "TOTAL_WAYPOINTS", "waypoint_count", "waypointCount"]);
+      var locks = firstFiniteRouteTotal(source, ["TOTAL_LOCKS", "LOCK_COUNT", "lock_count"]);
+      var startLabel = endpoints.START_LABEL !== undefined && endpoints.START_LABEL !== null ? String(endpoints.START_LABEL).trim() : "";
+      var endLabel = endpoints.END_LABEL !== undefined && endpoints.END_LABEL !== null ? String(endpoints.END_LABEL).trim() : "";
+      var hasDefaultVessel = source.HAS_DEFAULT_VESSEL === true || source.HAS_DEFAULT_VESSEL === 1 || source.HAS_DEFAULT_VESSEL === "1";
+      var fuelLabel = source.FUEL_ESTIMATE_LABEL !== undefined && source.FUEL_ESTIMATE_LABEL !== null
+        ? String(source.FUEL_ESTIMATE_LABEL).trim()
+        : "";
+      if (!fuelLabel) {
+        fuelLabel = hasDefaultVessel ? "Fuel estimate unavailable" : "Requires default vessel";
+      }
+      if (!startLabel) startLabel = "Start unavailable";
+      if (!endLabel) endLabel = "End unavailable";
+      return ""
+        + '<div class="fpw-route-summary-list fpw-route-summary-compact" aria-label="Route summary">'
+        + '  <div class="fpw-route-summary-row fpw-route-summary-row--points">'
+        + '    <div class="fpw-route-summary-cell fpw-route-summary-cell--distance"><span class="fpw-route-summary-icon fpw-route-summary-icon--distance" aria-hidden="true"></span><div class="fpw-route-summary-copy"><span class="fpw-route-summary-label">Distance nautical mile</span><strong class="fpw-route-summary-value">' + formatNumber(distanceNm, 1) + ' NM</strong></div></div>'
+        + '    <div class="fpw-route-summary-cell fpw-route-summary-cell--endpoints"><span class="fpw-route-summary-icon fpw-route-summary-icon--endpoints" aria-hidden="true"></span><div class="fpw-route-summary-copy fpw-route-summary-copy--point"><span class="fpw-route-summary-label">Start point</span><strong class="fpw-route-summary-value">' + escapeHtml(startLabel) + '</strong></div><div class="fpw-route-summary-copy fpw-route-summary-copy--point"><span class="fpw-route-summary-label">End point</span><strong class="fpw-route-summary-value">' + escapeHtml(endLabel) + '</strong></div></div>'
+        + '  </div>'
+        + '  <div class="fpw-route-summary-row fpw-route-summary-row--time-locks">'
+        + '    <div class="fpw-route-summary-cell fpw-route-summary-cell--time"><span class="fpw-route-summary-icon fpw-route-summary-icon--time" aria-hidden="true"></span><div class="fpw-route-summary-copy"><span class="fpw-route-summary-label">Estimated time to complete</span><strong class="fpw-route-summary-value">' + (estimatedHours > 0 ? formatNumber(estimatedHours, 1) + ' hrs' : 'Unavailable') + '</strong></div></div>'
+        + '    <div class="fpw-route-summary-cell fpw-route-summary-cell--locks"><span class="fpw-route-summary-icon fpw-route-summary-icon--locks" aria-hidden="true"></span><div class="fpw-route-summary-copy"><span class="fpw-route-summary-label">Number of locks</span><strong class="fpw-route-summary-value">' + formatNumber(locks, 0) + '</strong></div></div>'
+        + '  </div>'
+        + '  <div class="fpw-route-summary-row fpw-route-summary-row--fuel-waypoints">'
+        + '    <div class="fpw-route-summary-cell fpw-route-summary-cell--fuel"><span class="fpw-route-summary-icon fpw-route-summary-icon--fuel" aria-hidden="true"></span><div class="fpw-route-summary-copy"><span class="fpw-route-summary-label">Estimated fuel needed</span><strong class="fpw-route-summary-value">' + escapeHtml(fuelLabel) + '</strong></div></div>'
+        + '    <div class="fpw-route-summary-cell fpw-route-summary-cell--waypoints"><span class="fpw-route-summary-icon fpw-route-summary-icon--waypoints" aria-hidden="true"></span><div class="fpw-route-summary-copy"><span class="fpw-route-summary-label">Number of waypoints</span><strong class="fpw-route-summary-value">' + formatNumber(waypointCount, 0) + '</strong></div></div>'
+        + '  </div>'
+        + '</div>';
+    }
+
+    function buildSavedRouteReadiness() {
+      var vesselCount = getSetupCount("vessels");
+      var contactCount = getSetupCount("contacts");
+      return ""
+        + '<div class="fpw-route-readiness">'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--plan" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Float Plan</span><strong class="fpw-text-warning">Not attached</strong></div></div>'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--vessel" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Vessel</span><strong data-fpw-route-setup-count="vessels" class="' + (vesselCount > 0 ? 'fpw-text-success' : 'fpw-text-muted') + '">' + (vesselCount > 0 ? formatNumber(vesselCount, 0) + ' saved' : 'setup pending') + '</strong></div></div>'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--contacts" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Contacts</span><strong data-fpw-route-setup-count="contacts" class="' + (contactCount > 0 ? 'fpw-text-success' : 'fpw-text-muted') + '">' + formatNumber(contactCount, 0) + ' saved</strong></div></div>'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--fuel" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Fuel estimate</span><strong class="fpw-text-muted">pending</strong></div></div>'
+        + '</div>';
+    }
+
+    function buildActiveRouteReadiness(route, currentGroup) {
+      var routeName = route && route.NAME ? String(route.NAME) : "Active route";
+      var weatherText = dashboardSignals && dashboardSignals.weather && dashboardSignals.weather.summary
+        ? dashboardSignals.weather.summary
+        : "Forecast unavailable";
+      return ""
+        + '<div class="fpw-route-readiness fpw-route-readiness--live">'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--current" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Current route</span><strong class="fpw-text-teal">' + escapeHtml(routeName) + '</strong></div></div>'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--checkin" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Last check-in</span><strong class="fpw-text-muted">unavailable</strong></div></div>'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--update" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Next expected update</span><strong class="fpw-text-muted">unavailable</strong></div></div>'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--weather" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Weather</span><strong class="fpw-text-warning">' + escapeHtml(weatherText) + '</strong></div></div>'
+        + '  <div class="fpw-route-readiness__item"><span class="fpw-route-readiness__icon fpw-route-readiness__icon--fuel" aria-hidden="true"></span><div><span class="fpw-route-readiness__label">Fuel range</span><strong class="fpw-text-muted">pending</strong></div></div>'
+        + '</div>';
+    }
+
+    function buildRouteThumbnail(isActive, pct, nm) {
+      var safePct = Math.round(clamp(pct, 0, 100));
+      var safeNm = Number.isFinite(parseFloat(nm)) ? parseFloat(nm) : 0;
+      var modifier = isActive ? ' fpw-route-thumbnail--active' : '';
+      var label = isActive ? '<span class="fpw-route-thumbnail__label">Current leg</span>' : '';
+      return ""
+        + '<aside class="fpw-route-thumbnail' + modifier + '" aria-label="Route preview">'
+        + label
+        + '  <svg class="fpw-route-thumbnail__svg" viewBox="0 0 420 260" role="img" aria-label="Abstract route preview">'
+        + '    <rect x="0" y="0" width="420" height="260" class="fpw-thumb-grid"></rect>'
+        + '    <circle cx="210" cy="130" r="108" class="fpw-thumb-radar-ring"></circle>'
+        + '    <circle cx="210" cy="130" r="72" class="fpw-thumb-radar-ring"></circle>'
+        + '    <circle cx="210" cy="130" r="36" class="fpw-thumb-radar-ring"></circle>'
+        + (isActive
+          ? '    <path class="fpw-thumb-route fpw-thumb-route--complete" d="M 58 190 C 90 174, 112 166, 132 134 C 152 104, 164 94, 192 84 C 219 74, 240 70, 263 64"></path><path class="fpw-thumb-route fpw-thumb-route--remaining" d="M 263 64 C 306 62, 323 34, 360 28 C 374 26, 388 26, 402 28"></path><circle cx="263" cy="64" r="20" class="fpw-current-pulse"></circle><circle cx="263" cy="64" r="12" class="fpw-current-ring"></circle><circle cx="263" cy="64" r="6" class="fpw-current-dot"></circle><circle cx="58" cy="190" r="8" class="fpw-thumb-dot fpw-thumb-dot--start"></circle><circle cx="402" cy="28" r="8" class="fpw-thumb-dot fpw-thumb-dot--finish"></circle>'
+          : '    <path class="fpw-thumb-route fpw-thumb-route--complete" d="M 95 162 C 118 188, 148 198, 184 180 C 218 164, 232 170, 260 150 C 295 126, 328 126, 346 76 C 354 55, 365 42, 377 26"></path><path class="fpw-thumb-route fpw-thumb-route--remaining" d="M 95 162 C 126 152, 132 118, 154 102 C 184 78, 225 84, 248 42 C 278 34, 331 38, 377 26"></path><circle cx="95" cy="162" r="8" class="fpw-thumb-dot fpw-thumb-dot--start"></circle><circle cx="377" cy="26" r="8" class="fpw-thumb-dot fpw-thumb-dot--finish"></circle><g class="fpw-thumb-legend" transform="translate(28 194)"><circle cx="0" cy="0" r="5" class="fpw-thumb-dot--start"></circle><text x="14" y="5">Start</text><circle cx="0" cy="28" r="5" class="fpw-thumb-dot--finish"></circle><text x="14" y="33">Finish</text></g>')
+        + '  </svg>'
+        + (isActive ? '<div class="fpw-thumbnail-progress"><div class="fpw-thumbnail-progress__topline"><span class="fpw-thumbnail-progress__dial" aria-hidden="true" style="--fpw-progress:' + safePct + '%;"></span><span>' + safePct + '% complete • ' + formatNumber(safeNm, 1) + ' NM</span></div><div class="fpw-thumbnail-progress__bar" aria-hidden="true"><span style="width:' + safePct + '%;"></span></div></div>' : '')
+        + '</aside>';
+    }
+
     function renderNoActiveTrip(message) {
-      var text = "No active trip is available.";
+      var text = "Your routes, float plans, and trip setup are ready.";
       if (typeof message === "string" && message.trim()) {
         text = message.trim();
       } else if (message && typeof message === "object") {
@@ -2609,7 +3824,8 @@
       if (summaryEl) {
         summaryEl.textContent = text;
       }
-      setRouteSignals("No active trip", text, 0);
+      dashboardSignals.activeRoute = { name: "", isActive: false };
+      setRouteSignals("No Active Trip", text, 0);
     }
 
     function renderActiveTripSummary(activeTrip) {
@@ -2627,6 +3843,7 @@
       if (summaryEl) {
         summaryEl.textContent = summaryText;
       }
+      dashboardSignals.activeRoute = { name: routeName, isActive: true };
       setRouteSignals(tripName, summaryText, pct);
     }
 
@@ -2651,41 +3868,267 @@
       };
     }
 
-    function buildCurrentGroupRow(route) {
+    function firstRouteString(source, keys) {
+      var obj = source && typeof source === "object" ? source : {};
+      var value = "";
+      for (var i = 0; i < keys.length; i += 1) {
+        if (!Object.prototype.hasOwnProperty.call(obj, keys[i])) continue;
+        if (obj[keys[i]] === undefined || obj[keys[i]] === null) continue;
+        value = String(obj[keys[i]]).trim();
+        if (value) return value;
+      }
+      return "";
+    }
+
+    function getRouteEndpoints(route) {
+      var source = route && typeof route === "object" ? route : {};
+      var endpoints = source.ROUTE_ENDPOINTS && typeof source.ROUTE_ENDPOINTS === "object" ? source.ROUTE_ENDPOINTS : {};
+      return {
+        start: firstRouteString(endpoints, ["START_LABEL", "startLabel", "start_label"]) || firstRouteString(source, ["START_LABEL", "START_POINT", "START_NAME", "START_WAYPOINT_NAME"]),
+        end: firstRouteString(endpoints, ["END_LABEL", "endLabel", "end_label"]) || firstRouteString(source, ["END_LABEL", "END_POINT", "END_NAME", "END_WAYPOINT_NAME"])
+      };
+    }
+
+    function getRouteTypeLabel(route) {
+      var explicit = firstRouteString(route, ["ROUTE_TYPE", "TYPE", "routeType", "type"]);
+      var description = firstRouteString(route, ["DESCRIPTION", "description"]);
+      if (explicit) return explicit.charAt(0).toUpperCase() + explicit.slice(1).toLowerCase();
+      if (firstRouteString(route, ["TEMPLATE_CODE", "ROUTE_TEMPLATE_CODE", "templateCode"])) return "Template";
+      if (description && description.toLowerCase().indexOf("template") !== -1) return "Template";
+      return "Custom";
+    }
+
+    function formatRouteUpdatedLabel(route) {
+      var raw = firstRouteString(route, ["UPDATED_AT", "UPDATEDAT", "UPDATED", "LAST_UPDATED", "MODIFIED_AT", "CREATED_AT", "CREATEDAT"]);
+      var parsed = null;
+      if (!raw) return "—";
+      parsed = new Date(raw);
+      if (Number.isNaN(parsed.getTime())) return raw;
+      return parsed.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric"
+      });
+    }
+
+    function getRouteStatusLabel(currentState, isRouteForActiveTrip) {
+      if (currentState === "ACTIVE" || isRouteForActiveTrip) return "Active";
+      if (currentState === "DRAFT") return "Draft";
+      return "Saved";
+    }
+
+    function getRouteSummaryValues(route, totals) {
+      var source = totals && typeof totals === "object" ? totals : {};
+      var endpoints = getRouteEndpoints(route);
+      var distanceNm = firstFiniteRouteTotal(source, ["TOTAL_NM", "total_nm"]);
+      var estimatedHours = firstFiniteRouteTotal(source, ["ESTIMATED_HOURS", "ESTIMATED_TIME_HOURS", "TOTAL_HOURS", "total_hours"]);
+      var waypointCount = firstFiniteRouteTotal(source, ["WAYPOINT_COUNT", "TOTAL_WAYPOINTS", "waypoint_count", "waypointCount"]);
+      var locks = firstFiniteRouteTotal(source, ["TOTAL_LOCKS", "LOCK_COUNT", "lock_count"]);
+      var hasDefaultVessel = source.HAS_DEFAULT_VESSEL === true || source.HAS_DEFAULT_VESSEL === 1 || source.HAS_DEFAULT_VESSEL === "1";
+      var fuelLabel = source.FUEL_ESTIMATE_LABEL !== undefined && source.FUEL_ESTIMATE_LABEL !== null
+        ? String(source.FUEL_ESTIMATE_LABEL).trim()
+        : "";
+      if (!fuelLabel) {
+        fuelLabel = hasDefaultVessel ? "Fuel estimate unavailable" : "Requires default vessel";
+      }
+      return {
+        distance: formatNumber(distanceNm, 1) + " NM",
+        estimatedHours: estimatedHours > 0 ? formatNumber(estimatedHours, 1) + " hrs" : "Unavailable",
+        waypoints: formatNumber(waypointCount, 0),
+        locks: formatNumber(locks, 0),
+        fuel: fuelLabel,
+        start: endpoints.start || "Start unavailable",
+        end: endpoints.end || "End unavailable"
+      };
+    }
+
+    function buildRouteDataAttributes(route, routeInstanceId, currentState, currentRouteGroup) {
+      var routeCode = route && route.SHORT_CODE ? String(route.SHORT_CODE) : "";
+      var html = ' data-route-code="' + escapeHtml(routeCode) + '"';
+      if (Number.isFinite(routeInstanceId) && routeInstanceId > 0) {
+        html += ' data-route-instance-id="' + routeInstanceId + '"';
+      }
+      if (currentState) {
+        html += ' data-current-group-state="' + escapeHtml(currentState) + '"';
+      }
+      if (currentRouteGroup) {
+        html += ' data-current-floatplan-id="' + currentRouteGroup.floatPlanId + '"';
+      }
+      return html;
+    }
+
+    function buildActionContextOpen(currentGroup, extraClass) {
+      if (!currentGroup) return "";
+      return '<div class="expedition-route-current-group ' + escapeHtml(extraClass || "") + '" data-plan-id="' + currentGroup.floatPlanId + '" data-plan-status="' + escapeHtml(currentGroup.status) + '" data-current-state="' + escapeHtml(currentGroup.currentState) + '">';
+    }
+
+    function buildRouteTableActions(currentGroup, currentState, showActiveCruiseAction, showTripPageAction, showActivateRouteAction) {
+      var html = buildActionContextOpen(currentGroup, "fpw-route-table-actions");
+      if (!currentGroup) html += '<div class="fpw-route-table-actions">';
+      if (currentState === "ACTIVE" && currentGroup) {
+        html += showActiveCruiseAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--cruise js-expedition-active-cruise" aria-label="Open Active Cruise" title="Open Active Cruise"></button>' : "";
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--view js-expedition-view-edit" aria-label="View Route" title="View Route"></button>';
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-route js-expedition-view-edit" aria-label="Edit Route" title="Edit Route"></button>';
+        html += showTripPageAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--follow js-expedition-trip-page" aria-label="Follow Page" title="Follow Page"></button>' : "";
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--cancel js-expedition-plan-cancel" data-action="cancel" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="Cancel" title="Cancel"></button>';
+      } else if (currentGroup) {
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--send js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="View and Send Float Plan" title="View & Send Float Plan"></button>';
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-plan js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="Edit Float Plan" title="Edit Float Plan"></button>';
+        html += showActivateRouteAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--activate js-expedition-build-floatplans" aria-label="Activate Route" title="Activate Route"></button>' : "";
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--view js-expedition-view-edit" aria-label="View Route" title="View Route"></button>';
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-route js-expedition-view-edit" aria-label="Edit Route" title="Edit Route"></button>';
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--delete js-expedition-delete" aria-label="Delete" title="Delete"></button>';
+      } else {
+        html += showActivateRouteAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--activate js-expedition-build-floatplans" aria-label="Activate Route" title="Activate Route"></button>' : "";
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--view js-expedition-view-edit" aria-label="View Route" title="View Route"></button>';
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-route js-expedition-view-edit" aria-label="Edit Route" title="Edit Route"></button>';
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--delete js-expedition-delete" aria-label="Delete" title="Delete"></button>';
+      }
+      html += '</div>';
+      return html;
+    }
+
+    function buildRouteDetailActions(currentGroup, currentState, showActiveCruiseAction, showTripPageAction, showActivateRouteAction) {
+      var html = buildActionContextOpen(currentGroup, "fpw-route-detail-actions");
+      if (!currentGroup) html += '<div class="fpw-route-detail-actions">';
+      if (currentState === "ACTIVE" && currentGroup) {
+        html += showActiveCruiseAction ? '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-active-cruise">Open Active Cruise</button>' : "";
+        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">View Route</button>';
+        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">Edit Route</button>';
+        html += showTripPageAction ? '<button type="button" class="fpw-route-workspace-btn js-expedition-trip-page">Follow Page</button>' : "";
+        html += '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--danger js-expedition-plan-cancel" data-action="cancel" data-plan-id="' + currentGroup.floatPlanId + '">Cancel</button>';
+      } else if (currentGroup) {
+        html += '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '">View &amp; Send Float Plan</button>';
+        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '">Edit Float Plan</button>';
+        html += showActivateRouteAction ? '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-build-floatplans">Activate Route</button>' : "";
+        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">View Route</button>';
+        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">Edit Route</button>';
+        html += '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--danger js-expedition-delete">Delete</button>';
+      } else {
+        html += showActivateRouteAction ? '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-build-floatplans">Activate Route</button>' : "";
+        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">View Route</button>';
+        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">Edit Route</button>';
+        html += '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--danger js-expedition-delete">Delete</button>';
+      }
+      html += '</div>';
+      return html;
+    }
+
+    function buildRouteDetailPreview(route, totals) {
+      var summary = getRouteSummaryValues(route, totals);
+      return ""
+        + '<div class="fpw-route-detail-preview" aria-label="Route preview">'
+        + '  <svg viewBox="0 0 420 210" role="img" aria-label="Display-only route preview">'
+        + '    <rect x="0" y="0" width="420" height="210" class="fpw-route-preview-sea"></rect>'
+        + '    <path d="M 45 150 C 110 190, 172 184, 220 158 C 278 126, 330 118, 382 56" class="fpw-route-preview-line"></path>'
+        + '    <circle cx="45" cy="150" r="8" class="fpw-route-preview-point fpw-route-preview-point--start"></circle>'
+        + '    <circle cx="382" cy="56" r="8" class="fpw-route-preview-point fpw-route-preview-point--end"></circle>'
+        + '    <text x="60" y="154" class="fpw-route-preview-label">' + escapeHtml(summary.start) + '</text>'
+        + '    <text x="255" y="52" class="fpw-route-preview-label">' + escapeHtml(summary.end) + '</text>'
+        + '  </svg>'
+        + '</div>';
+    }
+
+    function buildRouteStatusText(currentState, isRouteForActiveTrip) {
+      var label = getRouteStatusLabel(currentState, isRouteForActiveTrip);
+      var modifier = label.toLowerCase();
+      return '<span class="fpw-route-status-text fpw-route-status-text--' + escapeHtml(modifier) + '">' + escapeHtml(label) + '</span>';
+    }
+
+    function buildRouteRow(route, routeMeta) {
+      var totals = routeMeta.totals;
+      var summary = getRouteSummaryValues(route, totals);
+      var typeLabel = getRouteTypeLabel(route);
+      var subtitle = buildRouteSubtitle(route, routeMeta.currentRouteGroup);
+      var updatedLabel = formatRouteUpdatedLabel(route);
+      return ""
+        + '<div class="expedition-route-card fpw-routes-table-row' + (routeMeta.isSelected ? ' is-selected' : '') + (routeMeta.isRouteForActiveTrip ? ' is-active' : '') + '"' + routeMeta.dataAttrs + ' role="button" tabindex="0">'
+        + '  <div class="fpw-route-cell fpw-route-cell--route"><span class="fpw-route-favorite" aria-hidden="true"></span><div><strong>' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</strong><span>' + escapeHtml(subtitle) + '</span></div></div>'
+        + '  <div class="fpw-route-cell fpw-route-cell--type"><span class="fpw-route-type-text">' + escapeHtml(typeLabel) + '</span></div>'
+        + '  <div class="fpw-route-cell fpw-route-cell--points"><span>' + escapeHtml(summary.start) + '</span><span>' + escapeHtml(summary.end) + '</span></div>'
+        + '  <div class="fpw-route-cell">' + escapeHtml(summary.distance) + '</div>'
+        + '  <div class="fpw-route-cell fpw-route-cell--duration">' + escapeHtml(summary.estimatedHours) + '</div>'
+        + '  <div class="fpw-route-cell">' + buildRouteStatusText(routeMeta.currentState, routeMeta.isRouteForActiveTrip) + '</div>'
+        + '  <div class="fpw-route-cell fpw-route-cell--updated"><span class="fpw-route-updated-text">' + escapeHtml(updatedLabel) + '</span></div>'
+        + '  <div class="fpw-route-cell fpw-route-cell--actions">' + buildRouteTableActions(routeMeta.currentRouteGroup, routeMeta.currentState, routeMeta.showActiveCruiseAction, routeMeta.showTripPageAction, routeMeta.showActivateRouteAction) + '</div>'
+        + '</div>';
+    }
+
+    function buildSelectedRouteDetail(route, routeMeta) {
+      var totals = routeMeta.totals;
+      var summary = getRouteSummaryValues(route, totals);
+      var typeLabel = getRouteTypeLabel(route);
+      var subtitle = buildRouteSubtitle(route, routeMeta.currentRouteGroup);
+      return ""
+        + '<aside class="expedition-route-card fpw-route-detail-pane"' + routeMeta.dataAttrs + '>'
+        + '  <div class="fpw-route-detail-status-row">' + buildRouteStatusText(routeMeta.currentState, routeMeta.isRouteForActiveTrip) + '<span class="fpw-route-detail-star" aria-hidden="true"></span></div>'
+        + '  <h3>' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</h3>'
+        + '  <span class="fpw-route-detail-type">' + escapeHtml(typeLabel) + '</span>'
+        + '  <p>' + escapeHtml(subtitle) + '</p>'
+        + '  <dl class="fpw-route-detail-facts">'
+        + '    <div><dt>Start</dt><dd>' + escapeHtml(summary.start) + '</dd></div>'
+        + '    <div><dt>Distance</dt><dd>' + escapeHtml(summary.distance) + '</dd></div>'
+        + '    <div><dt>End</dt><dd>' + escapeHtml(summary.end) + '</dd></div>'
+        + '    <div><dt>Waypoints</dt><dd>' + escapeHtml(summary.waypoints) + '</dd></div>'
+        + '    <div><dt>Est. Duration</dt><dd>' + escapeHtml(summary.estimatedHours) + '</dd></div>'
+        + '    <div><dt>Est. Fuel Needed</dt><dd>' + escapeHtml(summary.fuel) + '</dd></div>'
+        + '  </dl>'
+        +      buildRouteDetailPreview(route, totals)
+        + '  <div class="fpw-route-detail-action-title">Route Actions</div>'
+        +      buildRouteDetailActions(routeMeta.currentRouteGroup, routeMeta.currentState, routeMeta.showActiveCruiseAction, routeMeta.showTripPageAction, routeMeta.showActivateRouteAction)
+        + '</aside>';
+    }
+
+    function buildCurrentGroupRow(route, pct) {
       var currentGroup = normalizeRouteCurrentGroup(route);
       if (!currentGroup) {
-        return "";
+        return buildSavedRouteReadiness();
       }
-      var titlePrefix = currentGroup.currentState === "ACTIVE" ? "Active Float Plan" : "Draft Float Plan";
-      var title = currentGroup.floatPlanName
-        ? (titlePrefix + ": " + currentGroup.floatPlanName)
-        : titlePrefix;
-      var meta = currentGroup.currentState === "ACTIVE"
-        ? "This route is the one current active route/float-plan group."
-        : "Saved in draft state. Send this float plan to activate the route.";
+      var title = currentGroup.floatPlanName || (currentGroup.currentState === "ACTIVE" ? "Active float plan" : "Draft float plan");
+      if (currentGroup.currentState === "ACTIVE") {
+        return buildActiveRouteReadiness(route, currentGroup, pct);
+      }
       return ""
-        + '<div class="expedition-route-current-group" data-plan-id="' + currentGroup.floatPlanId + '" data-plan-status="' + escapeHtml(currentGroup.status) + '" data-current-state="' + escapeHtml(currentGroup.currentState) + '">'
-        + '  <div class="expedition-route-current-group-main">'
-        + '    <div>'
-        + '      <div class="expedition-route-current-group-title">' + escapeHtml(title) + '</div>'
-        + '      <div class="expedition-route-current-group-meta">' + escapeHtml(meta) + '</div>'
-        + '    </div>'
-        + '    <div class="expedition-route-actions expedition-route-actions--child">'
-        + (currentGroup.currentState === "ACTIVE" ? '      <button type="button" class="btn-success js-expedition-plan-checkin" data-action="checkin" data-plan-id="' + currentGroup.floatPlanId + '">Check-In</button>' : '')
-        + (currentGroup.currentState === "ACTIVE" ? '      <button type="button" class="btn-secondary js-expedition-plan-cancel" data-action="cancel" data-plan-id="' + currentGroup.floatPlanId + '">Cancel</button>' : '')
-        + '      <button type="button" class="btn-secondary js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '">View &amp; Send</button>'
-        + '      <button type="button" class="btn-secondary js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '">Edit</button>'
-        + '    </div>'
-        + '  </div>'
+        + '<div class="fpw-route-floatplan-card" data-plan-id="' + currentGroup.floatPlanId + '" data-plan-status="' + escapeHtml(currentGroup.status) + '" data-current-state="' + escapeHtml(currentGroup.currentState) + '">'
+        + '  <div class="fpw-route-floatplan-label">Draft Float Plan Attached</div>'
+        + '  <h4>' + escapeHtml(title) + '</h4>'
+        + '  <p>Saved in draft state. Send this float plan to activate the route.</p>'
         + '</div>';
+    }
+
+    function getRouteRenderMeta(route, activeCode) {
+      var totals = route && route.TOTALS ? route.TOTALS : {};
+      var isRouteForActiveTrip = route && route.SHORT_CODE && activeCode && route.SHORT_CODE === activeCode;
+      var currentRouteGroup = normalizeRouteCurrentGroup(route);
+      var currentState = currentRouteGroup ? currentRouteGroup.currentState : "";
+      var showActivateRouteAction = currentState !== "ACTIVE";
+      var showActiveCruiseAction = normalizeActiveFloatPlanId(state.activeTripFloatPlanId) > 0 && !!isRouteForActiveTrip;
+      var showTripPageAction = normalizeActiveFloatPlanId(state.activeTripFloatPlanId) > 0 && !!isRouteForActiveTrip;
+      var routeInstanceId = route && route.ROUTE_INSTANCE_ID !== undefined && route.ROUTE_INSTANCE_ID !== null
+        ? parseInt(route.ROUTE_INSTANCE_ID, 10)
+        : (route && route.route_instance_id !== undefined && route.route_instance_id !== null
+          ? parseInt(route.route_instance_id, 10)
+          : 0);
+      if (!Number.isFinite(routeInstanceId)) routeInstanceId = 0;
+      return {
+        totals: totals,
+        isRouteForActiveTrip: !!isRouteForActiveTrip,
+        currentRouteGroup: currentRouteGroup,
+        currentState: currentState,
+        showActivateRouteAction: showActivateRouteAction,
+        showActiveCruiseAction: showActiveCruiseAction,
+        showTripPageAction: showTripPageAction,
+        dataAttrs: buildRouteDataAttributes(route, routeInstanceId, currentState, currentRouteGroup),
+        routeInstanceId: routeInstanceId,
+        isSelected: false
+      };
     }
 
     function renderRouteList(routes, activeCode, currentGroupPayload) {
       if (!routeListEl) return;
       var list = Array.isArray(routes) ? routes.slice() : [];
-      var hasCanonicalActiveFloatPlan = normalizeActiveFloatPlanId(state.activeTripFloatPlanId) > 0;
-      var hasCurrentGroup = !!(currentGroupPayload && currentGroupPayload.HAS_CURRENT_GROUP);
       var activeTripRouteIndex = -1;
+      var selectedRoute = null;
       if (activeCode) {
         activeTripRouteIndex = list.findIndex(function (route) {
           return route && route.SHORT_CODE && route.SHORT_CODE === activeCode;
@@ -2697,71 +4140,51 @@
         }
       }
       if (!list.length) {
+        dashboardSignals.routes.total = 0;
         routeListEl.innerHTML = "";
         if (routeEmptyEl) toggleHidden(routeEmptyEl, false);
+        refreshMissionSummary();
+        renderRecommendedNextSteps();
         return;
       }
+      dashboardSignals.routes.total = list.length;
       if (routeEmptyEl) toggleHidden(routeEmptyEl, true);
-      var activeCruiseLinkRendered = false;
-      var tripPageLinkRendered = false;
-      routeListEl.innerHTML = list.map(function (route) {
-        var totals = route && route.TOTALS ? route.TOTALS : {};
-        var isRouteForActiveTrip = route && route.SHORT_CODE && activeCode && route.SHORT_CODE === activeCode;
-        var currentRouteGroup = normalizeRouteCurrentGroup(route);
-        var currentState = currentRouteGroup ? currentRouteGroup.currentState : "";
-        var routeStateLabel = "";
-        var showActivateRouteAction = currentState !== "ACTIVE";
-        var showActiveCruiseAction = hasCanonicalActiveFloatPlan && isRouteForActiveTrip && !activeCruiseLinkRendered;
-        var showTripPageAction = hasCanonicalActiveFloatPlan && isRouteForActiveTrip && !tripPageLinkRendered;
-        if (showActiveCruiseAction) {
-          activeCruiseLinkRendered = true;
-        }
-        if (showTripPageAction) {
-          tripPageLinkRendered = true;
-        }
-        if (currentState === "ACTIVE") {
-          routeStateLabel = "Current active route/float-plan group";
-        } else if (currentState === "DRAFT") {
-          routeStateLabel = "Current draft route/float-plan group";
-        } else if (isRouteForActiveTrip) {
-          routeStateLabel = "Used by active trip";
-        }
-        var routeInstanceId = route && route.ROUTE_INSTANCE_ID !== undefined && route.ROUTE_INSTANCE_ID !== null
-          ? parseInt(route.ROUTE_INSTANCE_ID, 10)
-          : (route && route.route_instance_id !== undefined && route.route_instance_id !== null
-            ? parseInt(route.route_instance_id, 10)
-            : 0);
-        var pct = Number.isFinite(parseFloat(totals.PCT_COMPLETE)) ? Math.round(parseFloat(totals.PCT_COMPLETE)) : 0;
-        var nm = Number.isFinite(parseFloat(totals.TOTAL_NM)) ? parseFloat(totals.TOTAL_NM) : 0;
-        var locks = Number.isFinite(parseFloat(totals.TOTAL_LOCKS)) ? parseFloat(totals.TOTAL_LOCKS) : 0;
-        var routeInstanceAttr = Number.isFinite(routeInstanceId) && routeInstanceId > 0
-          ? ' data-route-instance-id="' + routeInstanceId + '"'
-          : "";
-        var currentGroupStateAttr = currentState
-          ? ' data-current-group-state="' + escapeHtml(currentState) + '"'
-          : "";
-        var currentFloatPlanAttr = currentRouteGroup
-          ? ' data-current-floatplan-id="' + currentRouteGroup.floatPlanId + '"'
-          : "";
-        return ''
-          + '<div class="expedition-route-card ' + (isRouteForActiveTrip ? 'is-active' : '') + '" data-route-code="' + escapeHtml(route.SHORT_CODE || "") + '"' + routeInstanceAttr + currentGroupStateAttr + currentFloatPlanAttr + '>'
-          + '  <div class="expedition-route-card-main">'
-          + '    <div>'
-          + '      <div class="expedition-route-name">' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</div>'
-          + (routeStateLabel ? '      <div class="small text-light opacity-75">' + escapeHtml(routeStateLabel) + '</div>' : '')
-          + '      <div class="expedition-route-meta">' + pct + '% complete • ' + formatNumber(nm, 1) + ' NM • ' + formatNumber(locks, 0) + ' locks</div>'
-          + '    </div>'
-          + '    <div class="expedition-route-actions">'
-          + (showActiveCruiseAction ? '      <button type="button" class="btn-secondary js-expedition-active-cruise">Active Cruise</button>' : '')
-          + (showTripPageAction ? '      <button type="button" class="btn-secondary js-expedition-trip-page">Trip Page</button>' : '')
-          + (showActivateRouteAction ? '      <button type="button" class="btn-secondary js-expedition-build-floatplans">Activate Route</button>' : '')
-          + '      <button type="button" class="btn-secondary js-expedition-view-edit">View / Edit</button>'
-          + '      <button type="button" class="btn-secondary js-expedition-delete">Delete</button>'
-          + '    </div>'
-          + '  </div>'
-          + buildCurrentGroupRow(route)
-          + '</div>';
-      }).join("");
+      selectedRoute = list.find(function (route) {
+        return route && route.SHORT_CODE && route.SHORT_CODE === selectedRouteCode;
+      });
+      if (!selectedRoute && activeCode) {
+        selectedRoute = list.find(function (route) {
+          return route && route.SHORT_CODE && route.SHORT_CODE === activeCode;
+        });
+      }
+      if (!selectedRoute) selectedRoute = list[0];
+      selectedRouteCode = selectedRoute && selectedRoute.SHORT_CODE ? String(selectedRoute.SHORT_CODE) : "";
+      routeListEl.innerHTML = ""
+        + '<div class="fpw-route-workspace">'
+        + '  <div class="fpw-routes-table-pane">'
+        + '    <div class="fpw-routes-table" role="table" aria-label="Saved routes">'
+        + '      <div class="fpw-routes-table-head" role="row">'
+        + '        <div>Route Name</div><div>Type</div><div>Start / End</div><div>Distance</div><div>Est. Duration</div><div>Status</div><div>Updated</div><div>Actions</div>'
+        + '      </div>'
+        + list.map(function (route) {
+          var meta = getRouteRenderMeta(route, activeCode);
+          meta.isSelected = !!(route && route.SHORT_CODE && route.SHORT_CODE === selectedRouteCode);
+          return buildRouteRow(route, meta);
+        }).join("")
+        + '    </div>'
+        + '    <div class="fpw-routes-count">1-' + formatNumber(list.length, 0) + ' of ' + formatNumber(list.length, 0) + ' routes</div>'
+        + '  </div>'
+        +      buildSelectedRouteDetail(selectedRoute, getRouteRenderMeta(selectedRoute, activeCode))
+        + '</div>';
+      refreshMissionSummary();
+      renderRecommendedNextSteps();
+      updateCurrentDraftActionButtons();
+    }
+
+    function selectRoute(routeCode) {
+      var routes = (state.routeState && Array.isArray(state.routeState.all)) ? state.routeState.all : [];
+      selectedRouteCode = routeCode || "";
+      renderRouteList(routes, state.activeTripRouteCode || "", state.currentRouteGroup || {});
     }
 
     function renderTimeline(data) {
@@ -3148,6 +4571,7 @@
             : "";
 
           state.activeTripFloatPlanId = activeTripFloatPlanId;
+          state.activeTripRouteCode = activeTripRouteCode;
           state.currentRouteGroup = currentGroup;
           state.routeState = state.routeState || {};
           state.routeState.all = routes.slice();
@@ -3222,6 +4646,10 @@
           var routeInstanceId = parseInt(card.getAttribute("data-route-instance-id") || "0", 10);
           if (!Number.isFinite(routeInstanceId)) routeInstanceId = 0;
           if (!routeCode) return;
+          if (!target.closest("button") && card.classList.contains("fpw-routes-table-row")) {
+            selectRoute(routeCode);
+            return;
+          }
           if (target.classList.contains("js-expedition-active-cruise")) {
             window.open(BASE_PATH + "/app/active-cruise.cfm", "_blank", "noopener");
             return;
@@ -3382,6 +4810,7 @@
         }
 
         populateUserInfo(data.USER);
+        state.currentUser = data.USER;
         if (utils.resolveHomePortLatLng) {
           state.homePortLatLng = utils.resolveHomePortLatLng(data.USER);
         }
@@ -3443,6 +4872,7 @@
         }
 
         populateUserInfo(data.USER);
+        state.currentUser = data.USER;
         if (utils.resolveHomePortLatLng) {
           state.homePortLatLng = utils.resolveHomePortLatLng(data.USER);
         }

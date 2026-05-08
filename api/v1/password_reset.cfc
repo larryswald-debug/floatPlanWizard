@@ -106,7 +106,15 @@
                     <cfset token = randRange(100000000, 999999999)>
                 </cfif>
 
-                <cfset resetUrl = "/fpw/app/reset-password.cfm?token=" & token>
+                <cfif NOT structKeyExists(request, "fpwBase")>
+                    <cfset request.fpwBase = getDirectoryFromPath(cgi.script_name)>
+                    <cfset request.fpwBase = reReplace(request.fpwBase, "/api/v1/?$", "")>
+                    <cfset request.fpwBase = reReplace(request.fpwBase, "/$", "")>
+                    <cfif request.fpwBase EQ "/">
+                        <cfset request.fpwBase = "">
+                    </cfif>
+                </cfif>
+                <cfset resetUrl = request.fpwBase & "/app/reset-password.cfm?token=" & token>
 
                 <cfset sendResponse({
                     SUCCESS   = true,
