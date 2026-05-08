@@ -6,11 +6,6 @@
         <cfargument name="send" type="numeric" required="false" default="0">
 
         <cfset var expected = "">
-        <cfset var svc = "">
-        <cfset var plans = []>
-        <cfset var jobs  = []>
-        <cfset var j     = {}>
-        <cfset var allowedStatuses = "ACTIVE,DUE_NOW,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H">
 
         <cftry>
 
@@ -23,172 +18,7 @@
                 <cfreturn>
             </cfif>
 
-            <cfset var qClock = queryExecute("
-                SELECT
-                  UTC_TIMESTAMP() AS utcNow,
-                  NOW() AS mysqlNow,
-                  @@global.time_zone AS globalTZ,
-                  @@session.time_zone AS sessionTZ
-            ", {}, { datasource="fpw" })>
-
-            <cfoutput>
-==============================
-FPW OVERDUE ALERT RUN (UTC)
-CF now(): #now()#
-send: #arguments.send#
-==============================<br><br>
-
-DB UTC_TIMESTAMP(): #qClock.utcNow#<br>
-DB NOW(): #qClock.mysqlNow#<br>
-DB global time_zone: #qClock.globalTZ#<br>
-DB session time_zone: #qClock.sessionTZ#<br><br>
-            </cfoutput>
-
-            <!-- Summary counts -->
-            <cfset var qCounts = queryExecute("
-                SELECT
-                    SUM(UPPER(TRIM(status)) IN ('ACTIVE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H')) AS activeTotal,
-                    SUM(
-                        UPPER(TRIM(status)) IN ('ACTIVE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H')
-                        AND returnTime IS NOT NULL
-                        AND COALESCE(CONVERT_TZ(returnTime, NULLIF(returnTimezone, ''), 'UTC'), returnTime) <= UTC_TIMESTAMP()
-                    ) AS activeOverdue,
-                    SUM(
-                        UPPER(TRIM(status)) IN ('ACTIVE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H')
-                        AND returnTime IS NOT NULL
-                        AND COALESCE(CONVERT_TZ(returnTime, NULLIF(returnTimezone, ''), 'UTC'), returnTime) > UTC_TIMESTAMP()
-                    ) AS activeNotOverdue
-                FROM floatplans
-            ", {}, { datasource="fpw" })>
-
-            <cfoutput>
-ACTIVE total: #qCounts.activeTotal#<br>
-ACTIVE overdue: #qCounts.activeOverdue#<br>
-ACTIVE NOT overdue: #qCounts.activeNotOverdue#<br><br>
-            </cfoutput>
-
-            <!-- Show NOT overdue plans -->
-            <cfset var qNot = queryExecute("
-                SELECT
-                    floatplanId,
-                    returnTime,
-                    returnTimezone,
-                    COALESCE(CONVERT_TZ(returnTime, NULLIF(returnTimezone, ''), 'UTC'), returnTime) AS returnUtc,
-                    TIMESTAMPDIFF(
-                        SECOND,
-                        UTC_TIMESTAMP(),
-                        COALESCE(CONVERT_TZ(returnTime, NULLIF(returnTimezone, ''), 'UTC'), returnTime)
-                    ) AS secondsUntilDue
-                FROM floatplans
-                WHERE UPPER(TRIM(status)) IN ('ACTIVE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H')
-                  AND returnTime IS NOT NULL
-                  AND COALESCE(CONVERT_TZ(returnTime, NULLIF(returnTimezone, ''), 'UTC'), returnTime) > UTC_TIMESTAMP()
-                ORDER BY returnUtc ASC
-                LIMIT 50
-            ", {}, { datasource="fpw" })>
-
-            <cfoutput>
-<b>ACTIVE NOT overdue (future)</b><br>
-Rows: #qNot.recordCount#<br>
-            </cfoutput>
-
-            <cfif qNot.recordCount GT 0>
-                <cfoutput>
-<table border="1" cellpadding="4" cellspacing="0">
-<tr><th>floatplanId</th><th>returnTime</th><th>secondsUntilDue</th></tr>
-                </cfoutput>
-                <cfloop query="qNot">
-                    <cfoutput>
-<tr>
-  <td>#qNot.floatplanId#</td>
-  <td>#qNot.returnTime#</td>
-  <td>#qNot.secondsUntilDue#</td>
-</tr>
-                    </cfoutput>
-                </cfloop>
-                <cfoutput></table><br><br></cfoutput>
-            <cfelse>
-                <cfoutput><i>None found.</i><br><br></cfoutput>
-            </cfif>
-
-            <!-- Overdue plans used for job building -->
-            <cfset var qOver = queryExecute("
-                SELECT
-                    floatplanId,
-                    returnTime,
-                    returnTimezone,
-                    COALESCE(CONVERT_TZ(returnTime, NULLIF(returnTimezone, ''), 'UTC'), returnTime) AS returnUtc,
-                    TIMESTAMPDIFF(
-                        SECOND,
-                        COALESCE(CONVERT_TZ(returnTime, NULLIF(returnTimezone, ''), 'UTC'), returnTime),
-                        UTC_TIMESTAMP()
-                    ) AS overdueSeconds
-                FROM floatplans
-                WHERE UPPER(TRIM(status)) IN ('ACTIVE','DUE_NOW','OVERDUE_1H','OVERDUE_2H','OVERDUE_3H','OVERDUE_4H','OVERDUE_12H','OVERDUE_24H')
-                  AND returnTime IS NOT NULL
-                  AND COALESCE(CONVERT_TZ(returnTime, NULLIF(returnTimezone, ''), 'UTC'), returnTime) <= UTC_TIMESTAMP()
-                ORDER BY overdueSeconds DESC
-                LIMIT 200
-            ", {}, { datasource="fpw" })>
-
-            <cfoutput>
-<b>ACTIVE overdue (will be monitored)</b><br>
-Rows (showing up to 200): #qOver.recordCount#<br><br>
-            </cfoutput>
-
-            <!-- Build plans array -->
-            <cfloop query="qOver">
-                <cfset arrayAppend(plans,{
-                    "FLOATPLANID" = int(val(qOver.floatplanId)),
-                    "OVERDUE_SECONDS" = int(val(qOver.overdueSeconds))
-                })>
-            </cfloop>
-
-            <cfset svc  = createObject("component","fpw.api.v1.OverdueAlertService").init()>
-            <cfset jobs = svc.buildOverdueAlertJobs(plans)>
-
-            <cfoutput>
-Jobs built: #arrayLen(jobs)#<br><br>
-            </cfoutput>
-
-            <cfloop array="#jobs#" index="j">
-                <cfoutput>
-JOB → plan=#j.FLOATPLANID# type=#j.ALERTTYPE# overdueSeconds=#j.OVERDUE_SECONDS#
-                </cfoutput>
-
-                <cfif listFindNoCase(allowedStatuses, toString(j.ALERTTYPE)) GT 0>
-                    <cfset queryExecute("
-                        UPDATE floatplans
-                        SET
-                            status = :statusValue,
-                            lastUpdateStatus = UTC_TIMESTAMP(),
-                            lastUpdate = NOW()
-                        WHERE floatplanId = :floatPlanId
-                    ", {
-                        statusValue = { value = left(toString(j.ALERTTYPE), 50), cfsqltype = "cf_sql_varchar" },
-                        floatPlanId = { value = int(val(j.FLOATPLANID)), cfsqltype = "cf_sql_integer" }
-                    }, { datasource = "fpw" })>
-                    <cfoutput> → STATUS UPDATED (#j.ALERTTYPE#)</cfoutput>
-                <cfelse>
-                    <cfoutput> → STATUS SKIPPED (ALERTTYPE NOT ALLOWED)</cfoutput>
-                </cfif>
-
-                <cfif arguments.send EQ 1>
-                    <cftry>
-                        <cfset svc.sendOverdueEmail(j)>
-                        <cfset svc.markSent(j.FLOATPLANID, j.ALERTTYPE)>
-                        <cfoutput> → EMAIL SENT + DB UPDATED</cfoutput>
-                        <cfcatch>
-                            <cfset svc.markFailed(j.FLOATPLANID, j.ALERTTYPE, cfcatch.message)>
-                            <cfoutput> → FAILED: #htmlEditFormat(cfcatch.message)#</cfoutput>
-                        </cfcatch>
-                    </cftry>
-                <cfelse>
-                    <cfoutput> → DRY RUN</cfoutput>
-                </cfif>
-
-                <cfoutput><br></cfoutput>
-            </cfloop>
+            <cfoutput>FPW legacy overdue alert runner is retired. Use runMonitoringEvaluator for canonical monitoring transitions and alerts.</cfoutput>
 
             <cfcatch>
                 <cfoutput>
@@ -290,6 +120,7 @@ Line: #cfcatch.line#<br>
             var nextMonitorEvalAt = "";
             var monitorId = 0;
             var monitoringStartAt = getCurrentUtcTimestamp();
+            var expectedCheckinOptions = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
@@ -308,7 +139,12 @@ Line: #cfcatch.line#<br>
             }
             context.monitoring_mode = modeVal;
 
-            expectedCheckinAt = computeNextExpectedCheckin(context, "", arguments.options);
+            expectedCheckinOptions = duplicate(arguments.options);
+            if (modeVal EQ "active_route") {
+                expectedCheckinOptions.baseAt = context.departure_time;
+            }
+
+            expectedCheckinAt = computeNextExpectedCheckin(context, "", expectedCheckinOptions);
             if (!isDate(expectedCheckinAt)) {
                 result.ERROR = "EXPECTED_CHECKIN_UNAVAILABLE";
                 result.MESSAGE = "Unable to compute the first expected monitoring checkpoint.";
@@ -442,6 +278,209 @@ Line: #cfcatch.line#<br>
         </cfscript>
     </cffunction>
 
+    <cffunction name="startScheduledRouteMonitoringForFloatPlan" access="public" returntype="struct" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var result = { SUCCESS = false };
+            var context = {};
+            var existing = {};
+            var expectedCheckinAt = "";
+            var graceExpiresAt = "";
+            var nextMonitorEvalAt = "";
+            var monitorId = 0;
+            var canRefreshExistingScheduledRow = false;
+            var qStartedEvent = queryNew("");
+
+            if (arguments.floatPlanId LTE 0) {
+                result.ERROR = "INVALID_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            context = loadScheduledRouteMonitoringContext(arguments.floatPlanId);
+            if (!context.SUCCESS) {
+                return context;
+            }
+
+            expectedCheckinAt = context.departure_time;
+            if (!isDate(expectedCheckinAt)) {
+                result.ERROR = "SCHEDULED_DEPARTURE_REQUIRED";
+                result.MESSAGE = "A valid scheduled departure is required before scheduled monitoring can start.";
+                return result;
+            }
+            graceExpiresAt = computeGraceExpiresAt(expectedCheckinAt, variables.graceWindowMinutes);
+            nextMonitorEvalAt = expectedCheckinAt;
+
+            existing = getMonitoringRowByFloatPlanId(arguments.floatPlanId);
+            if (existing.SUCCESS) {
+                canRefreshExistingScheduledRow = (
+                    existing.monitor_state EQ "ACTIVE"
+                    AND booleanValue(existing.is_monitoring_enabled)
+                    AND !isDate(existing.last_checkin_at)
+                    AND !isDate(existing.missed_at)
+                    AND !isDate(existing.escalated_at)
+                    AND !isDate(existing.resolved_at)
+                    AND !isDate(existing.closed_at)
+                    AND !booleanValue(existing.secure_for_night)
+                    AND context.started_progress_count EQ 0
+                );
+
+                if (!canRefreshExistingScheduledRow) {
+                    result.SUCCESS = true;
+                    result.SKIPPED = true;
+                    result.REASON = "EXISTING_MONITORING_ROW_PRESERVED";
+                    result.MONITORING_ID = existing.id;
+                    result.FLOAT_PLAN_ID = arguments.floatPlanId;
+                    result.MONITOR_STATE = existing.monitor_state;
+                    result.EXPECTED_CHECKIN_AT = existing.expected_checkin_at;
+                    result.GRACE_EXPIRES_AT = existing.grace_expires_at;
+                    return result;
+                }
+            } else if (context.started_progress_count GT 0) {
+                result.ERROR = "OPERATIONAL_ROUTE_PROGRESS_ALREADY_STARTED";
+                result.MESSAGE = "Scheduled monitoring cannot be initialized after route progress has started.";
+                return result;
+            }
+
+            transaction {
+                if (existing.SUCCESS) {
+                    queryExecute(
+                        "UPDATE floatplan_monitoring
+                         SET user_id = :userId,
+                             monitoring_mode = 'active_route',
+                             monitor_state = 'ACTIVE',
+                             is_monitoring_enabled = 1,
+                             expected_checkin_at = :expectedCheckinAt,
+                             grace_expires_at = :graceExpiresAt,
+                             missed_at = NULL,
+                             escalated_at = NULL,
+                             resolved_at = NULL,
+                             closed_at = NULL,
+                             last_checkin_at = NULL,
+                             last_checkin_status = NULL,
+                             secure_for_night = 0,
+                             secure_for_night_until = NULL,
+                             escalation_delay_minutes = :escalationDelayMinutes,
+                             grace_window_minutes = :graceWindowMinutes,
+                             next_monitor_eval_at = :nextMonitorEvalAt,
+                             last_monitor_eval_at = NULL,
+                             last_captain_alert_at = NULL,
+                             last_contact_alert_at = NULL
+                         WHERE id = :monitoringId",
+                        {
+                            userId = { value = context.user_id, cfsqltype = "cf_sql_integer" },
+                            expectedCheckinAt = { value = expectedCheckinAt, cfsqltype = "cf_sql_timestamp" },
+                            graceExpiresAt = { value = graceExpiresAt, cfsqltype = "cf_sql_timestamp" },
+                            escalationDelayMinutes = { value = variables.escalationDelayMinutes, cfsqltype = "cf_sql_integer" },
+                            graceWindowMinutes = { value = variables.graceWindowMinutes, cfsqltype = "cf_sql_integer" },
+                            nextMonitorEvalAt = { value = nextMonitorEvalAt, cfsqltype = "cf_sql_timestamp" },
+                            monitoringId = { value = existing.id, cfsqltype = "cf_sql_integer" }
+                        },
+                        { datasource = variables.datasource }
+                    );
+                    monitorId = existing.id;
+                } else {
+                    queryExecute(
+                        "INSERT INTO floatplan_monitoring (
+                            float_plan_id,
+                            user_id,
+                            monitoring_mode,
+                            monitor_state,
+                            is_monitoring_enabled,
+                            expected_checkin_at,
+                            grace_expires_at,
+                            missed_at,
+                            escalated_at,
+                            resolved_at,
+                            closed_at,
+                            last_checkin_at,
+                            last_checkin_status,
+                            secure_for_night,
+                            secure_for_night_until,
+                            escalation_delay_minutes,
+                            grace_window_minutes,
+                            next_monitor_eval_at,
+                            last_monitor_eval_at,
+                            last_captain_alert_at,
+                            last_contact_alert_at,
+                            created_at,
+                            updated_at
+                        ) VALUES (
+                            :floatPlanId,
+                            :userId,
+                            'active_route',
+                            'ACTIVE',
+                            1,
+                            :expectedCheckinAt,
+                            :graceExpiresAt,
+                            NULL,
+                            NULL,
+                            NULL,
+                            NULL,
+                            NULL,
+                            NULL,
+                            0,
+                            NULL,
+                            :escalationDelayMinutes,
+                            :graceWindowMinutes,
+                            :nextMonitorEvalAt,
+                            NULL,
+                            NULL,
+                            NULL,
+                            UTC_TIMESTAMP(),
+                            UTC_TIMESTAMP()
+                        )",
+                        {
+                            floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                            userId = { value = context.user_id, cfsqltype = "cf_sql_integer" },
+                            expectedCheckinAt = { value = expectedCheckinAt, cfsqltype = "cf_sql_timestamp" },
+                            graceExpiresAt = { value = graceExpiresAt, cfsqltype = "cf_sql_timestamp" },
+                            escalationDelayMinutes = { value = variables.escalationDelayMinutes, cfsqltype = "cf_sql_integer" },
+                            graceWindowMinutes = { value = variables.graceWindowMinutes, cfsqltype = "cf_sql_integer" },
+                            nextMonitorEvalAt = { value = nextMonitorEvalAt, cfsqltype = "cf_sql_timestamp" }
+                        },
+                        { datasource = variables.datasource }
+                    );
+                    monitorId = val(queryExecute("SELECT LAST_INSERT_ID() AS newId", {}, { datasource = variables.datasource }).newId[1]);
+                }
+
+                qStartedEvent = queryExecute(
+                    "SELECT id
+                     FROM floatplan_monitor_events
+                     WHERE float_plan_id = :floatPlanId
+                       AND event_type = 'MONITORING_STARTED'
+                     LIMIT 1",
+                    {
+                        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = variables.datasource }
+                );
+                if (qStartedEvent.recordCount EQ 0) {
+                    appendMonitorEvent(monitorId, arguments.floatPlanId, context.user_id, "MONITORING_STARTED", {
+                        actorType = "system",
+                        eventAt = getCurrentUtcTimestamp(),
+                        monitoring_mode = "active_route",
+                        initialization_mode = "scheduled_predeparture",
+                        expected_checkin_at = expectedCheckinAt,
+                        grace_expires_at = graceExpiresAt,
+                        next_monitor_eval_at = nextMonitorEvalAt
+                    });
+                }
+            }
+
+            result.SUCCESS = true;
+            result.MONITORING_ID = monitorId;
+            result.FLOAT_PLAN_ID = arguments.floatPlanId;
+            result.MONITORING_MODE = "active_route";
+            result.MONITOR_STATE = "ACTIVE";
+            result.EXPECTED_CHECKIN_AT = expectedCheckinAt;
+            result.GRACE_EXPIRES_AT = graceExpiresAt;
+            result.NEXT_MONITOR_EVAL_AT = nextMonitorEvalAt;
+            result.SCHEDULED_MONITORING_STARTED = true;
+            return result;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="computeInitialNextMonitorEvalAt" access="private" returntype="any" output="false">
         <cfargument name="monitoringRow" type="struct" required="true">
         <cfargument name="expectedCheckinAt" required="true">
@@ -490,7 +529,6 @@ Line: #cfcatch.line#<br>
             var nextExpectedCheckin = "";
             var graceExpiresAt = "";
             var secureUntil = "";
-            var shouldClearSecure = false;
             var rowBeforeTransition = {};
             var activeState = "";
 
@@ -501,39 +539,26 @@ Line: #cfcatch.line#<br>
             }
             if (!len(statusVal)) {
                 result.ERROR = "INVALID_CHECKIN_STATUS";
-                result.MESSAGE = "Check-in status is invalid.";
+                result.MESSAGE = "Monitoring check-in status is invalid.";
                 return result;
             }
-
-            if (structKeyExists(arguments.options, "nowTs") AND isDate(arguments.options.nowTs)) {
-                nowTs = arguments.options.nowTs;
+            if (statusVal EQ "ARRIVED") {
+                result.ERROR = "FINAL_CLOSE_REQUIRED";
+                result.MESSAGE = "Arrival closes monitoring through the final float plan close path.";
+                return result;
             }
 
             monitoringRow = getMonitoringRowByFloatPlanId(arguments.floatPlanId);
             if (!monitoringRow.SUCCESS) {
                 return monitoringRow;
             }
-            if (!booleanValue(monitoringRow.is_monitoring_enabled)) {
-                result.ERROR = "MONITORING_DISABLED";
-                result.MESSAGE = "Monitoring is not enabled for this float plan.";
-                return result;
-            }
-            if (monitoringRow.monitor_state EQ "CLOSED") {
-                result.ERROR = "MONITORING_CLOSED";
-                result.MESSAGE = "Monitoring is already closed for this float plan.";
-                return result;
-            }
-            if (statusVal EQ "ARRIVED") {
-                result.ERROR = "FINAL_CLOSE_REQUIRED";
-                result.MESSAGE = "ARRIVED is only handled through the explicit trip-close path in this phase.";
+            if (!booleanValue(monitoringRow.is_monitoring_enabled) OR monitoringRow.monitor_state EQ "CLOSED") {
+                result.ERROR = "MONITORING_INACTIVE";
+                result.MESSAGE = "Monitoring is not active for this float plan.";
                 return result;
             }
 
-            shouldClearSecure = (
-                monitoringRow.monitoring_mode EQ "active_route"
-                AND booleanValue(monitoringRow.secure_for_night)
-                AND statusVal NEQ "SECURE_FOR_NIGHT"
-            );
+            rowBeforeTransition = duplicate(monitoringRow);
 
             transaction {
                 appendMonitorEvent(monitoringRow.id, monitoringRow.float_plan_id, monitoringRow.user_id, "CHECKIN_RECEIVED", {
@@ -542,81 +567,25 @@ Line: #cfcatch.line#<br>
                     checkinStatus = statusVal
                 });
 
-                if (shouldClearSecure) {
-                    queryExecute(
-                        "UPDATE floatplan_monitoring
-                         SET secure_for_night = 0,
-                             secure_for_night_until = NULL
-                         WHERE id = :monitoringId",
-                        {
-                            monitoringId = { value = monitoringRow.id, cfsqltype = "cf_sql_integer" }
-                        },
-                        { datasource = variables.datasource }
-                    );
-                    appendMonitorEvent(monitoringRow.id, monitoringRow.float_plan_id, monitoringRow.user_id, "SECURE_FOR_NIGHT_CLEARED", {
-                        actorType = "captain",
-                        eventAt = nowTs
-                    });
-                    monitoringRow.secure_for_night = 0;
-                    monitoringRow.secure_for_night_until = "";
-                }
-
                 if (listFindNoCase("MISSED,ESCALATED", monitoringRow.monitor_state)) {
                     transitionMonitorState(monitoringRow.id, monitoringRow.monitor_state, "RESOLVED", {
                         actorType = "captain",
                         eventAt = nowTs,
-                        resolution_reason = "valid_checkin",
                         checkinStatus = statusVal
                     });
-                    queryExecute(
-                        "UPDATE floatplan_monitoring
-                         SET resolved_at = :resolvedAt,
-                             last_checkin_at = :lastCheckinAt,
-                             last_checkin_status = :lastCheckinStatus,
-                             last_monitor_eval_at = :lastMonitorEvalAt
-                         WHERE id = :monitoringId",
-                        {
-                            resolvedAt = { value = nowTs, cfsqltype = "cf_sql_timestamp" },
-                            lastCheckinAt = { value = nowTs, cfsqltype = "cf_sql_timestamp" },
-                            lastCheckinStatus = { value = statusVal, cfsqltype = "cf_sql_varchar" },
-                            lastMonitorEvalAt = { value = nowTs, cfsqltype = "cf_sql_timestamp" },
-                            monitoringId = { value = monitoringRow.id, cfsqltype = "cf_sql_integer" }
-                        },
-                        { datasource = variables.datasource }
-                    );
                     appendMonitorEvent(monitoringRow.id, monitoringRow.float_plan_id, monitoringRow.user_id, "RESOLVED", {
                         actorType = "captain",
                         eventAt = nowTs,
                         checkinStatus = statusVal
                     });
-                    rowBeforeTransition = duplicate(monitoringRow);
-                    rowBeforeTransition.monitor_state = "RESOLVED";
-                } else {
-                    rowBeforeTransition = duplicate(monitoringRow);
-                    queryExecute(
-                        "UPDATE floatplan_monitoring
-                         SET last_checkin_at = :lastCheckinAt,
-                             last_checkin_status = :lastCheckinStatus,
-                             last_monitor_eval_at = :lastMonitorEvalAt
-                         WHERE id = :monitoringId",
-                        {
-                            lastCheckinAt = { value = nowTs, cfsqltype = "cf_sql_timestamp" },
-                            lastCheckinStatus = { value = statusVal, cfsqltype = "cf_sql_varchar" },
-                            lastMonitorEvalAt = { value = nowTs, cfsqltype = "cf_sql_timestamp" },
-                            monitoringId = { value = monitoringRow.id, cfsqltype = "cf_sql_integer" }
-                        },
-                        { datasource = variables.datasource }
-                    );
                 }
 
-                if (monitoringRow.monitoring_mode EQ "active_route" AND statusVal EQ "SECURE_FOR_NIGHT") {
-                    secureUntil = computeSecureForNightUntil(monitoringRow, { baseAt = nowTs });
+                if (statusVal EQ "SECURE_FOR_NIGHT") {
+                    secureUntil = computeSecureForNightUntil(rowBeforeTransition, arguments.options);
                     if (!isDate(secureUntil)) {
-                        throw(message = "Unable to compute secure-for-night checkpoint.", detail = "SECURE_FOR_NIGHT checkpoint calculation failed.");
+                        throw(message = "Unable to compute the secure-for-night checkpoint.", detail = "Expected monitoring checkpoint calculation failed.");
                     }
-                    nextExpectedCheckin = secureUntil;
-                    graceExpiresAt = computeGraceExpiresAt(nextExpectedCheckin, monitoringRow.grace_window_minutes);
-
+                    graceExpiresAt = computeGraceExpiresAt(secureUntil, rowBeforeTransition.grace_window_minutes);
                     queryExecute(
                         "UPDATE floatplan_monitoring
                          SET monitor_state = 'ACTIVE',
@@ -634,10 +603,10 @@ Line: #cfcatch.line#<br>
                              last_monitor_eval_at = :lastMonitorEvalAt
                          WHERE id = :monitoringId",
                         {
-                            expectedCheckinAt = { value = nextExpectedCheckin, cfsqltype = "cf_sql_timestamp" },
+                            expectedCheckinAt = { value = secureUntil, cfsqltype = "cf_sql_timestamp" },
                             graceExpiresAt = { value = graceExpiresAt, cfsqltype = "cf_sql_timestamp" },
                             secureForNightUntil = { value = secureUntil, cfsqltype = "cf_sql_timestamp" },
-                            nextMonitorEvalAt = { value = nextExpectedCheckin, cfsqltype = "cf_sql_timestamp" },
+                            nextMonitorEvalAt = { value = secureUntil, cfsqltype = "cf_sql_timestamp" },
                             lastCheckinAt = { value = nowTs, cfsqltype = "cf_sql_timestamp" },
                             lastCheckinStatus = { value = statusVal, cfsqltype = "cf_sql_varchar" },
                             lastMonitorEvalAt = { value = nowTs, cfsqltype = "cf_sql_timestamp" },
@@ -863,8 +832,6 @@ Line: #cfcatch.line#<br>
             }
 
             result.SUCCESS = true;
-            result.SKIPPED = true;
-            result.REASON = "NO_STATE_CHANGE";
             result.MONITOR_STATE = monitoringRow.monitor_state;
             return result;
         </cfscript>
@@ -873,53 +840,45 @@ Line: #cfcatch.line#<br>
     <cffunction name="evaluateDueMonitoringRows" access="public" returntype="struct" output="false">
         <cfargument name="limit" type="numeric" required="false" default="100">
         <cfscript>
-            var result = {
-                SUCCESS = true,
-                PROCESSED_COUNT = 0,
-                FLOAT_PLAN_IDS = [],
-                RESULTS = []
-            };
+            var result = { SUCCESS = true, PROCESSED_COUNT = 0, FLOAT_PLAN_IDS = [] };
             var qDue = queryNew("");
-            var rowResult = {};
-            var maxRows = arguments.limit;
-            var i = 0;
-
-            if (maxRows LTE 0) {
-                maxRows = 100;
-            }
+            var rowIndex = 0;
+            var evalResult = {};
+            var limitVal = max(1, int(arguments.limit));
 
             qDue = queryExecute(
-                "SELECT float_plan_id
+                "SELECT id, float_plan_id
                  FROM floatplan_monitoring
                  WHERE is_monitoring_enabled = 1
                    AND monitor_state <> 'CLOSED'
                    AND next_monitor_eval_at IS NOT NULL
                    AND next_monitor_eval_at <= UTC_TIMESTAMP()
                  ORDER BY next_monitor_eval_at ASC, id ASC
-                 LIMIT #maxRows#",
+                 LIMIT #limitVal#",
                 {},
                 { datasource = variables.datasource }
             );
 
-            for (i = 1; i LTE qDue.recordCount; i++) {
-                rowResult = evaluateMonitoringCycle(val(qDue.float_plan_id[i]));
-                arrayAppend(result.FLOAT_PLAN_IDS, val(qDue.float_plan_id[i]));
-                arrayAppend(result.RESULTS, rowResult);
+            for (rowIndex = 1; rowIndex LTE qDue.recordCount; rowIndex++) {
+                evalResult = evaluateMonitoringCycle(qDue.float_plan_id[rowIndex]);
+                if (structKeyExists(evalResult, "SUCCESS") AND evalResult.SUCCESS) {
+                    result.PROCESSED_COUNT++;
+                    arrayAppend(result.FLOAT_PLAN_IDS, val(qDue.float_plan_id[rowIndex]));
+                }
             }
 
-            result.PROCESSED_COUNT = arrayLen(result.FLOAT_PLAN_IDS);
             return result;
         </cfscript>
     </cffunction>
 
     <cffunction name="closeMonitoringForFloatPlan" access="public" returntype="struct" output="false">
         <cfargument name="floatPlanId" type="numeric" required="true">
-        <cfargument name="reason" type="string" required="false" default="normal">
+        <cfargument name="closeReason" type="string" required="false" default="">
         <cfscript>
             var result = { SUCCESS = false };
             var monitoringRow = {};
-            var nowTs = getCurrentUtcTimestamp();
-            var actorType = "system";
+            var closeAt = getCurrentUtcTimestamp();
+            var closeReasonVal = trim(arguments.closeReason);
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
@@ -929,47 +888,51 @@ Line: #cfcatch.line#<br>
 
             monitoringRow = getMonitoringRowByFloatPlanId(arguments.floatPlanId);
             if (!monitoringRow.SUCCESS) {
-                return monitoringRow;
+                result.SUCCESS = true;
+                result.CLOSED = false;
+                result.MESSAGE = "No monitoring row exists for this float plan.";
+                return result;
             }
 
-            if (lCase(trim(arguments.reason)) EQ "final_arrival") {
-                actorType = "captain";
+            if (monitoringRow.monitor_state EQ "CLOSED") {
+                result.SUCCESS = true;
+                result.CLOSED = true;
+                result.MESSAGE = "Monitoring is already closed.";
+                return result;
             }
 
             transaction {
-                if (monitoringRow.monitor_state NEQ "CLOSED") {
-                    transitionMonitorState(monitoringRow.id, monitoringRow.monitor_state, "CLOSED", {
-                        actorType = actorType,
-                        eventAt = nowTs,
-                        close_reason = trim(arguments.reason)
-                    });
-                }
+                transitionMonitorState(monitoringRow.id, monitoringRow.monitor_state, "CLOSED", {
+                    actorType = "system",
+                    eventAt = closeAt,
+                    close_reason = closeReasonVal
+                });
                 queryExecute(
                     "UPDATE floatplan_monitoring
-                     SET monitor_state = 'CLOSED',
-                         is_monitoring_enabled = 0,
-                         closed_at = :closedAt,
+                     SET is_monitoring_enabled = 0,
                          next_monitor_eval_at = NULL,
                          secure_for_night = 0,
                          secure_for_night_until = NULL,
-                         last_monitor_eval_at = :lastMonitorEvalAt
+                         closed_at = COALESCE(closed_at, :closedAt),
+                         updated_at = UTC_TIMESTAMP()
                      WHERE id = :monitoringId",
                     {
-                        closedAt = { value = nowTs, cfsqltype = "cf_sql_timestamp" },
-                        lastMonitorEvalAt = { value = nowTs, cfsqltype = "cf_sql_timestamp" },
+                        closedAt = { value = closeAt, cfsqltype = "cf_sql_timestamp" },
                         monitoringId = { value = monitoringRow.id, cfsqltype = "cf_sql_integer" }
                     },
                     { datasource = variables.datasource }
                 );
                 appendMonitorEvent(monitoringRow.id, monitoringRow.float_plan_id, monitoringRow.user_id, "MONITORING_CLOSED", {
-                    actorType = actorType,
-                    eventAt = nowTs,
-                    close_reason = trim(arguments.reason)
+                    actorType = "system",
+                    eventAt = closeAt,
+                    close_reason = closeReasonVal,
+                    fromState = monitoringRow.monitor_state,
+                    toState = "CLOSED"
                 });
             }
 
             result.SUCCESS = true;
-            result.MONITORING_ID = monitoringRow.id;
+            result.CLOSED = true;
             result.FLOAT_PLAN_ID = monitoringRow.float_plan_id;
             result.MONITOR_STATE = "CLOSED";
             return result;
@@ -980,70 +943,126 @@ Line: #cfcatch.line#<br>
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
             var result = { SUCCESS = false };
-            var qPlan = queryExecute(
+            var qPlan = queryNew("");
+            var activeRouteTimeZoneId = "";
+
+            qPlan = queryExecute(
                 "SELECT
-                    floatplanId,
-                    userId,
-                    route_instance_id,
-                    departureTime,
-                    departTimezone,
-                    departureTZ,
-                    returnTime,
-                    returnTimezone,
-                    returnTZ,
-                    dailyStartLocalTime,
-                    activatedAt,
-                    UPPER(TRIM(`status`)) AS statusValue
-                 FROM floatplans
-                 WHERE floatplanId = :planId
+                    fp.floatplanId,
+                    fp.userId,
+                    fp.floatPlanName,
+                    fp.departureTime,
+                    fp.returnTime,
+                    fp.returnTimezone,
+                    fp.departTimezone,
+                    fp.departureTZ,
+                    fp.route_instance_id,
+                    fp.dailyStartLocalTime
+                 FROM floatplans fp
+                 WHERE fp.floatplanId = :floatPlanId
                  LIMIT 1",
                 {
-                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
                 },
                 { datasource = variables.datasource }
             );
+
             if (qPlan.recordCount EQ 0) {
-                result.ERROR = "NOT_FOUND";
-                result.MESSAGE = "Float plan not found.";
+                result.ERROR = "FLOAT_PLAN_NOT_FOUND";
+                result.MESSAGE = "Float plan could not be found.";
+                return result;
+            }
+
+            activeRouteTimeZoneId = trim(toString(qPlan.departureTZ[1] ?: qPlan.departTimezone[1] ?: ""));
+
+            result.SUCCESS = true;
+            result.float_plan_id = val(qPlan.floatplanId[1]);
+            result.user_id = val(qPlan.userId[1]);
+            result.float_plan_name = isNull(qPlan.floatPlanName[1]) ? "" : trim(toString(qPlan.floatPlanName[1]));
+            result.departure_time = isNull(qPlan.departureTime[1]) ? "" : qPlan.departureTime[1];
+            result.return_time = isNull(qPlan.returnTime[1]) ? "" : qPlan.returnTime[1];
+            result.return_timezone = isNull(qPlan.returnTimezone[1]) ? "" : trim(toString(qPlan.returnTimezone[1]));
+            result.departure_timezone = activeRouteTimeZoneId;
+            result.route_instance_id = isNull(qPlan.route_instance_id[1]) ? 0 : val(qPlan.route_instance_id[1]);
+            result.current_leg_number = 0;
+            result.total_legs = 0;
+            result.route_progress_status = "";
+            result.daily_start_local_time = isNull(qPlan.dailyStartLocalTime[1]) ? "" : trim(toString(qPlan.dailyStartLocalTime[1]));
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="loadScheduledRouteMonitoringContext" access="private" returntype="struct" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var result = { SUCCESS = false };
+            var qPlan = queryNew("");
+
+            qPlan = queryExecute(
+                "SELECT
+                    fp.floatplanId,
+                    fp.userId,
+                    fp.departureTime,
+                    fp.route_instance_id,
+                    UPPER(TRIM(fp.`status`)) AS status_value,
+                    (
+                        SELECT COUNT(*)
+                        FROM route_instance_legs ril
+                        WHERE ril.route_instance_id = fp.route_instance_id
+                    ) AS route_leg_count,
+                    (
+                        SELECT COUNT(*)
+                        FROM route_instance_leg_progress rilp
+                        WHERE rilp.route_instance_id = fp.route_instance_id
+                          AND rilp.user_id = fp.userId
+                          AND (
+                              rilp.leg_started_at IS NOT NULL
+                              OR rilp.completed_at IS NOT NULL
+                              OR UPPER(TRIM(rilp.status)) <> 'NOT_STARTED'
+                          )
+                    ) AS started_progress_count
+                 FROM floatplans fp
+                 WHERE fp.floatplanId = :floatPlanId
+                 LIMIT 1",
+                {
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = variables.datasource }
+            );
+
+            if (qPlan.recordCount EQ 0) {
+                result.ERROR = "FLOAT_PLAN_NOT_FOUND";
+                result.MESSAGE = "Float plan could not be found.";
+                return result;
+            }
+            if (uCase(trim(toString(qPlan.status_value[1]))) NEQ "ACTIVE") {
+                result.ERROR = "ACTIVE_ROUTE_FLOAT_PLAN_REQUIRED";
+                result.MESSAGE = "Scheduled monitoring can only be initialized for active route-backed float plans.";
+                return result;
+            }
+            if (isNull(qPlan.route_instance_id[1]) OR val(qPlan.route_instance_id[1]) LTE 0) {
+                result.ERROR = "ROUTE_INSTANCE_REQUIRED";
+                result.MESSAGE = "A route instance is required before scheduled monitoring can start.";
+                return result;
+            }
+            if (val(qPlan.route_leg_count[1]) LTE 0) {
+                result.ERROR = "ROUTE_LEGS_REQUIRED";
+                result.MESSAGE = "Route legs are required before scheduled monitoring can start.";
+                return result;
+            }
+            if (isNull(qPlan.departureTime[1]) OR !isDate(qPlan.departureTime[1])) {
+                result.ERROR = "SCHEDULED_DEPARTURE_REQUIRED";
+                result.MESSAGE = "A valid scheduled departure is required before scheduled monitoring can start.";
                 return result;
             }
 
             result.SUCCESS = true;
-            result.id = 0;
             result.float_plan_id = val(qPlan.floatplanId[1]);
             result.user_id = val(qPlan.userId[1]);
-            result.monitoring_mode = "";
-            result.monitor_state = "";
-            result.is_monitoring_enabled = 0;
-            result.expected_checkin_at = "";
-            result.grace_expires_at = "";
-            result.missed_at = "";
-            result.escalated_at = "";
-            result.resolved_at = "";
-            result.closed_at = "";
-            result.last_checkin_at = "";
-            result.last_checkin_status = "";
-            result.secure_for_night = 0;
-            result.secure_for_night_until = "";
-            result.escalation_delay_minutes = variables.escalationDelayMinutes;
-            result.grace_window_minutes = variables.graceWindowMinutes;
-            result.next_monitor_eval_at = "";
-            result.last_monitor_eval_at = "";
-            result.trip_start_at = (!isNull(qPlan.departureTime[1]) AND isDate(qPlan.departureTime[1])) ? qPlan.departureTime[1] : "";
-            result.departure_time = result.trip_start_at;
-            result.departure_timezone = (isNull(qPlan.departureTZ[1]) ? "" : trim(toString(qPlan.departureTZ[1])));
-            if (!len(result.departure_timezone)) {
-                result.departure_timezone = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
-            }
-            result.return_time = (!isNull(qPlan.returnTime[1]) AND isDate(qPlan.returnTime[1])) ? qPlan.returnTime[1] : "";
-            result.return_timezone = (isNull(qPlan.returnTZ[1]) ? "" : trim(toString(qPlan.returnTZ[1])));
-            if (!len(result.return_timezone)) {
-                result.return_timezone = (isNull(qPlan.returnTimezone[1]) ? "" : trim(toString(qPlan.returnTimezone[1])));
-            }
-            result.daily_start_local_time = (isNull(qPlan.dailyStartLocalTime[1]) ? "" : trim(toString(qPlan.dailyStartLocalTime[1])));
-            result.route_instance_id = (isNull(qPlan.route_instance_id[1]) ? 0 : val(qPlan.route_instance_id[1]));
-            result.plan_status = (isNull(qPlan.statusValue[1]) ? "" : trim(toString(qPlan.statusValue[1])));
-            result.activated_at = (!isNull(qPlan.activatedAt[1]) AND isDate(qPlan.activatedAt[1])) ? qPlan.activatedAt[1] : "";
+            result.departure_time = qPlan.departureTime[1];
+            result.route_instance_id = val(qPlan.route_instance_id[1]);
+            result.route_leg_count = val(qPlan.route_leg_count[1]);
+            result.started_progress_count = val(qPlan.started_progress_count[1]);
             return result;
         </cfscript>
     </cffunction>
@@ -1052,51 +1071,53 @@ Line: #cfcatch.line#<br>
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
             var result = { SUCCESS = false };
-            var qRow = queryExecute(
+            var qRow = queryNew("");
+
+            qRow = queryExecute(
                 "SELECT
-                    m.id,
-                    m.float_plan_id,
-                    m.user_id,
-                    m.monitoring_mode,
-                    m.monitor_state,
-                    m.is_monitoring_enabled,
-                    m.expected_checkin_at,
-                    m.grace_expires_at,
-                    m.missed_at,
-                    m.escalated_at,
-                    m.resolved_at,
-                    m.closed_at,
-                    m.last_checkin_at,
-                    m.last_checkin_status,
-                    m.secure_for_night,
-                    m.secure_for_night_until,
-                    m.escalation_delay_minutes,
-                    m.grace_window_minutes,
-                    m.next_monitor_eval_at,
-                    m.last_monitor_eval_at,
-                    m.last_captain_alert_at,
-                    m.last_contact_alert_at,
-                    fp.departureTime,
-                    fp.departTimezone,
-                    fp.departureTZ,
-                    fp.returnTime,
-                    fp.returnTimezone,
-                    fp.returnTZ,
-                    fp.dailyStartLocalTime,
-                    fp.activatedAt
-                 FROM floatplan_monitoring m
-                 INNER JOIN floatplans fp
-                    ON fp.floatplanId = m.float_plan_id
-                 WHERE m.float_plan_id = :floatPlanId
+                    fm.id,
+                    fm.float_plan_id,
+                    fm.user_id,
+                    fm.monitoring_mode,
+                    fm.monitor_state,
+                    fm.is_monitoring_enabled,
+                    fm.expected_checkin_at,
+                    fm.grace_expires_at,
+                    fm.missed_at,
+                    fm.escalated_at,
+                    fm.resolved_at,
+                    fm.closed_at,
+                    fm.last_checkin_at,
+                    fm.last_checkin_status,
+                    fm.secure_for_night,
+                    fm.secure_for_night_until,
+                    fm.escalation_delay_minutes,
+                    fm.grace_window_minutes,
+                    fm.next_monitor_eval_at,
+                    fm.last_monitor_eval_at,
+                    fm.last_captain_alert_at,
+                    fm.last_contact_alert_at,
+                    fm.created_at,
+                    fm.updated_at,
+                    fp.dailyStartLocalTime AS daily_start_local_time,
+                    CASE
+                        WHEN fp.departureTZ IS NOT NULL AND LENGTH(TRIM(fp.departureTZ)) > 0 THEN TRIM(fp.departureTZ)
+                        WHEN fp.departTimezone IS NOT NULL AND LENGTH(TRIM(fp.departTimezone)) > 0 THEN TRIM(fp.departTimezone)
+                        ELSE ''
+                    END AS departure_timezone
+                 FROM floatplan_monitoring fm
+                 LEFT JOIN floatplans fp ON fp.floatplanId = fm.float_plan_id
+                 WHERE fm.float_plan_id = :floatPlanId
                  LIMIT 1",
                 {
                     floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
                 },
                 { datasource = variables.datasource }
             );
+
             if (qRow.recordCount EQ 0) {
                 result.ERROR = "MONITORING_NOT_FOUND";
-                result.MESSAGE = "No monitoring row exists for this float plan.";
+                result.MESSAGE = "Monitoring row could not be found.";
                 return result;
             }
 
@@ -1107,35 +1128,26 @@ Line: #cfcatch.line#<br>
             result.monitoring_mode = trim(toString(qRow.monitoring_mode[1]));
             result.monitor_state = trim(toString(qRow.monitor_state[1]));
             result.is_monitoring_enabled = booleanValue(qRow.is_monitoring_enabled[1]);
-            result.expected_checkin_at = (!isNull(qRow.expected_checkin_at[1]) AND isDate(qRow.expected_checkin_at[1])) ? qRow.expected_checkin_at[1] : "";
-            result.grace_expires_at = (!isNull(qRow.grace_expires_at[1]) AND isDate(qRow.grace_expires_at[1])) ? qRow.grace_expires_at[1] : "";
-            result.missed_at = (!isNull(qRow.missed_at[1]) AND isDate(qRow.missed_at[1])) ? qRow.missed_at[1] : "";
-            result.escalated_at = (!isNull(qRow.escalated_at[1]) AND isDate(qRow.escalated_at[1])) ? qRow.escalated_at[1] : "";
-            result.resolved_at = (!isNull(qRow.resolved_at[1]) AND isDate(qRow.resolved_at[1])) ? qRow.resolved_at[1] : "";
-            result.closed_at = (!isNull(qRow.closed_at[1]) AND isDate(qRow.closed_at[1])) ? qRow.closed_at[1] : "";
-            result.last_checkin_at = (!isNull(qRow.last_checkin_at[1]) AND isDate(qRow.last_checkin_at[1])) ? qRow.last_checkin_at[1] : "";
-            result.last_checkin_status = (isNull(qRow.last_checkin_status[1]) ? "" : trim(toString(qRow.last_checkin_status[1])));
+            result.expected_checkin_at = isNull(qRow.expected_checkin_at[1]) ? "" : qRow.expected_checkin_at[1];
+            result.grace_expires_at = isNull(qRow.grace_expires_at[1]) ? "" : qRow.grace_expires_at[1];
+            result.missed_at = isNull(qRow.missed_at[1]) ? "" : qRow.missed_at[1];
+            result.escalated_at = isNull(qRow.escalated_at[1]) ? "" : qRow.escalated_at[1];
+            result.resolved_at = isNull(qRow.resolved_at[1]) ? "" : qRow.resolved_at[1];
+            result.closed_at = isNull(qRow.closed_at[1]) ? "" : qRow.closed_at[1];
+            result.last_checkin_at = isNull(qRow.last_checkin_at[1]) ? "" : qRow.last_checkin_at[1];
+            result.last_checkin_status = isNull(qRow.last_checkin_status[1]) ? "" : trim(toString(qRow.last_checkin_status[1]));
             result.secure_for_night = booleanValue(qRow.secure_for_night[1]);
-            result.secure_for_night_until = (!isNull(qRow.secure_for_night_until[1]) AND isDate(qRow.secure_for_night_until[1])) ? qRow.secure_for_night_until[1] : "";
-            result.escalation_delay_minutes = isNull(qRow.escalation_delay_minutes[1]) ? variables.escalationDelayMinutes : val(qRow.escalation_delay_minutes[1]);
-            result.grace_window_minutes = isNull(qRow.grace_window_minutes[1]) ? variables.graceWindowMinutes : val(qRow.grace_window_minutes[1]);
-            result.next_monitor_eval_at = (!isNull(qRow.next_monitor_eval_at[1]) AND isDate(qRow.next_monitor_eval_at[1])) ? qRow.next_monitor_eval_at[1] : "";
-            result.last_monitor_eval_at = (!isNull(qRow.last_monitor_eval_at[1]) AND isDate(qRow.last_monitor_eval_at[1])) ? qRow.last_monitor_eval_at[1] : "";
-            result.last_captain_alert_at = (!isNull(qRow.last_captain_alert_at[1]) AND isDate(qRow.last_captain_alert_at[1])) ? qRow.last_captain_alert_at[1] : "";
-            result.last_contact_alert_at = (!isNull(qRow.last_contact_alert_at[1]) AND isDate(qRow.last_contact_alert_at[1])) ? qRow.last_contact_alert_at[1] : "";
-            result.trip_start_at = (!isNull(qRow.departureTime[1]) AND isDate(qRow.departureTime[1])) ? qRow.departureTime[1] : "";
-            result.departure_time = result.trip_start_at;
-            result.departure_timezone = (isNull(qRow.departureTZ[1]) ? "" : trim(toString(qRow.departureTZ[1])));
-            if (!len(result.departure_timezone)) {
-                result.departure_timezone = (isNull(qRow.departTimezone[1]) ? "" : trim(toString(qRow.departTimezone[1])));
-            }
-            result.return_time = (!isNull(qRow.returnTime[1]) AND isDate(qRow.returnTime[1])) ? qRow.returnTime[1] : "";
-            result.return_timezone = (isNull(qRow.returnTZ[1]) ? "" : trim(toString(qRow.returnTZ[1])));
-            if (!len(result.return_timezone)) {
-                result.return_timezone = (isNull(qRow.returnTimezone[1]) ? "" : trim(toString(qRow.returnTimezone[1])));
-            }
-            result.daily_start_local_time = (isNull(qRow.dailyStartLocalTime[1]) ? "" : trim(toString(qRow.dailyStartLocalTime[1])));
-            result.activated_at = (!isNull(qRow.activatedAt[1]) AND isDate(qRow.activatedAt[1])) ? qRow.activatedAt[1] : "";
+            result.secure_for_night_until = isNull(qRow.secure_for_night_until[1]) ? "" : qRow.secure_for_night_until[1];
+            result.escalation_delay_minutes = val(qRow.escalation_delay_minutes[1]);
+            result.grace_window_minutes = val(qRow.grace_window_minutes[1]);
+            result.next_monitor_eval_at = isNull(qRow.next_monitor_eval_at[1]) ? "" : qRow.next_monitor_eval_at[1];
+            result.last_monitor_eval_at = isNull(qRow.last_monitor_eval_at[1]) ? "" : qRow.last_monitor_eval_at[1];
+            result.last_captain_alert_at = isNull(qRow.last_captain_alert_at[1]) ? "" : qRow.last_captain_alert_at[1];
+            result.last_contact_alert_at = isNull(qRow.last_contact_alert_at[1]) ? "" : qRow.last_contact_alert_at[1];
+            result.created_at = isNull(qRow.created_at[1]) ? "" : qRow.created_at[1];
+            result.updated_at = isNull(qRow.updated_at[1]) ? "" : qRow.updated_at[1];
+            result.daily_start_local_time = isNull(qRow.daily_start_local_time[1]) ? "" : trim(toString(qRow.daily_start_local_time[1]));
+            result.departure_timezone = isNull(qRow.departure_timezone[1]) ? "" : trim(toString(qRow.departure_timezone[1]));
             return result;
         </cfscript>
     </cffunction>
@@ -1147,51 +1159,35 @@ Line: #cfcatch.line#<br>
         <cfscript>
             var modeVal = normalizeMonitoringMode(structKeyExists(arguments.monitoringRow, "monitoring_mode") ? arguments.monitoringRow.monitoring_mode : "");
             var statusVal = normalizeCheckinStatus(arguments.checkinStatus);
-            var baseAt = "";
-            var timeZoneId = "";
-            if (modeVal EQ "basic") {
-                if (structKeyExists(arguments.monitoringRow, "return_time") AND isDate(arguments.monitoringRow.return_time)) {
-                    return arguments.monitoringRow.return_time;
-                }
-                return "";
-            }
-            if (modeVal NEQ "active_route") {
-                return "";
-            }
-
-            timeZoneId = getActiveRouteTimeZoneId(arguments.monitoringRow);
-            if (!len(timeZoneId)) {
-                return "";
-            }
-
-            if (structKeyExists(arguments.options, "baseAt") AND isDate(arguments.options.baseAt)) {
-                baseAt = arguments.options.baseAt;
-            } else if (len(statusVal) AND structKeyExists(arguments.monitoringRow, "last_checkin_at") AND isDate(arguments.monitoringRow.last_checkin_at)) {
-                baseAt = arguments.monitoringRow.last_checkin_at;
-            } else if (structKeyExists(arguments.monitoringRow, "trip_start_at") AND isDate(arguments.monitoringRow.trip_start_at)) {
-                baseAt = arguments.monitoringRow.trip_start_at;
-            }
-
-            if (!isDate(baseAt)) {
-                return "";
-            }
+            var returnTime = structKeyExists(arguments.monitoringRow, "return_time") ? arguments.monitoringRow.return_time : "";
+            var activeRouteTimeZoneId = getActiveRouteTimeZoneId(arguments.monitoringRow);
+            var baseAt = structKeyExists(arguments.options, "baseAt") AND isDate(arguments.options.baseAt) ? arguments.options.baseAt : getCurrentUtcTimestamp();
+            var referenceAt = baseAt;
 
             if (statusVal EQ "SECURE_FOR_NIGHT") {
-                return computeSecureForNightUntil(arguments.monitoringRow, { baseAt = baseAt });
+                return computeSecureForNightUntil(arguments.monitoringRow, arguments.options);
             }
-
-            return computeActiveRouteCheckpoint(baseAt, timeZoneId, false, arguments.monitoringRow);
+            if (modeVal EQ "basic") {
+                return isDate(returnTime) ? returnTime : "";
+            }
+            if (modeVal EQ "active_route" AND len(activeRouteTimeZoneId)) {
+                if (structKeyExists(arguments.options, "forceNextMorning") AND arguments.options.forceNextMorning) {
+                    return computeActiveRouteCheckpoint(referenceAt, activeRouteTimeZoneId, true, arguments.monitoringRow);
+                }
+                return computeActiveRouteCheckpoint(referenceAt, activeRouteTimeZoneId, false, arguments.monitoringRow);
+            }
+            return "";
         </cfscript>
     </cffunction>
 
     <cffunction name="computeGraceExpiresAt" access="private" returntype="any" output="false">
         <cfargument name="expectedCheckinAt" required="true">
-        <cfargument name="graceMinutes" type="numeric" required="true">
+        <cfargument name="graceWindowMinutes" type="numeric" required="true">
         <cfscript>
             if (!isDate(arguments.expectedCheckinAt)) {
                 return "";
             }
-            return dateAdd("n", arguments.graceMinutes, arguments.expectedCheckinAt);
+            return dateAdd("n", arguments.graceWindowMinutes, arguments.expectedCheckinAt);
         </cfscript>
     </cffunction>
 
@@ -1199,41 +1195,36 @@ Line: #cfcatch.line#<br>
         <cfargument name="monitoringRow" type="struct" required="true">
         <cfargument name="options" type="struct" required="false" default="#structNew()#">
         <cfscript>
-            var timeZoneId = getActiveRouteTimeZoneId(arguments.monitoringRow);
-            var baseAt = "";
+            var activeRouteTimeZoneId = getActiveRouteTimeZoneId(arguments.monitoringRow);
+            var referenceAt = structKeyExists(arguments.options, "baseAt") AND isDate(arguments.options.baseAt) ? arguments.options.baseAt : getCurrentUtcTimestamp();
+            var allowSameDayFuture = structKeyExists(arguments.options, "allowSameDayFuture") AND booleanValue(arguments.options.allowSameDayFuture);
             var localReference = "";
             var targetLocal = "";
             var localDayStartRule = resolveMonitoringRowLocalDayStartRule(arguments.monitoringRow);
-            if (!len(timeZoneId)) {
+            var todayTarget = "";
+
+            if (!len(activeRouteTimeZoneId)) {
                 return "";
             }
-            if (structKeyExists(arguments.options, "baseAt") AND isDate(arguments.options.baseAt)) {
-                baseAt = arguments.options.baseAt;
-            } else if (structKeyExists(arguments.monitoringRow, "last_checkin_at") AND isDate(arguments.monitoringRow.last_checkin_at)) {
-                baseAt = arguments.monitoringRow.last_checkin_at;
-            } else {
-                baseAt = getCurrentUtcTimestamp();
-            }
-            localReference = convertUtcToLocal(baseAt, timeZoneId);
+
+            localReference = convertUtcToLocal(referenceAt, activeRouteTimeZoneId);
             if (!isDate(localReference)) {
                 return "";
             }
-            if (structKeyExists(arguments.options, "allowSameDayFuture") AND arguments.options.allowSameDayFuture EQ true) {
-                targetLocal = buildLocalDateTime(
+
+            if (allowSameDayFuture) {
+                todayTarget = buildLocalDateTime(
                     localReference,
                     localDayStartRule.local_day_start_hour,
                     localDayStartRule.local_day_start_minute,
                     localDayStartRule.local_day_start_second
                 );
-                if (!isDate(targetLocal) OR dateCompare(targetLocal, localReference, "s") LTE 0) {
-                    targetLocal = buildLocalDateTime(
-                        dateAdd("d", 1, localReference),
-                        localDayStartRule.local_day_start_hour,
-                        localDayStartRule.local_day_start_minute,
-                        localDayStartRule.local_day_start_second
-                    );
+                if (isDate(todayTarget) AND dateCompare(todayTarget, localReference, "s") GT 0) {
+                    targetLocal = todayTarget;
                 }
-            } else {
+            }
+
+            if (!isDate(targetLocal)) {
                 targetLocal = buildLocalDateTime(
                     dateAdd("d", 1, localReference),
                     localDayStartRule.local_day_start_hour,
@@ -1241,7 +1232,7 @@ Line: #cfcatch.line#<br>
                     localDayStartRule.local_day_start_second
                 );
             }
-            return convertLocalToUtc(targetLocal, timeZoneId);
+            return convertLocalToUtc(targetLocal, activeRouteTimeZoneId);
         </cfscript>
     </cffunction>
 
@@ -1432,6 +1423,7 @@ Line: #cfcatch.line#<br>
         <cfargument name="monitoringRow" type="struct" required="true">
         <cfargument name="nowTs" required="true">
         <cfscript>
+            var alertService = createObject("component", "fpw.api.v1.OverdueAlertService").init();
             queryExecute(
                 "UPDATE floatplan_monitoring
                  SET last_captain_alert_at = :alertAt
@@ -1446,6 +1438,13 @@ Line: #cfcatch.line#<br>
                 actorType = "system",
                 eventAt = arguments.nowTs
             });
+            try {
+                alertService.sendMonitoringMissedOwnerEmail(
+                    arguments.monitoringRow.float_plan_id,
+                    arguments.monitoringRow.id,
+                    arguments.nowTs
+                );
+            } catch (any ignoredAlertError) {}
         </cfscript>
     </cffunction>
 
@@ -1453,6 +1452,7 @@ Line: #cfcatch.line#<br>
         <cfargument name="monitoringRow" type="struct" required="true">
         <cfargument name="nowTs" required="true">
         <cfscript>
+            var alertService = createObject("component", "fpw.api.v1.OverdueAlertService").init();
             queryExecute(
                 "UPDATE floatplan_monitoring
                  SET last_contact_alert_at = :alertAt
@@ -1467,6 +1467,13 @@ Line: #cfcatch.line#<br>
                 actorType = "system",
                 eventAt = arguments.nowTs
             });
+            try {
+                alertService.sendMonitoringEscalatedContactEmail(
+                    arguments.monitoringRow.float_plan_id,
+                    arguments.monitoringRow.id,
+                    arguments.nowTs
+                );
+            } catch (any ignoredAlertError) {}
         </cfscript>
     </cffunction>
 
@@ -1505,6 +1512,248 @@ Line: #cfcatch.line#<br>
                 );
             }
             return convertLocalToUtc(targetLocal, arguments.timeZoneId);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="refreshActiveRouteCheckpointFromLegStart" access="public" returntype="struct" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="false" default="0">
+        <cfargument name="legOrder" type="numeric" required="false" default="0">
+        <cfscript>
+            var result = { SUCCESS = false, UPDATED = false };
+            var monitoringRow = {};
+            var qLegStart = queryNew("");
+            var expectedCheckinAt = "";
+            var graceExpiresAt = "";
+
+            if (arguments.floatPlanId LTE 0) {
+                result.ERROR = "INVALID_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            monitoringRow = getMonitoringRowByFloatPlanId(arguments.floatPlanId);
+            if (!monitoringRow.SUCCESS) {
+                result.SUCCESS = true;
+                result.UPDATED = false;
+                result.MESSAGE = "No monitoring row exists for this float plan.";
+                return result;
+            }
+            if (!booleanValue(monitoringRow.is_monitoring_enabled) OR uCase(trim(toString(monitoringRow.monitor_state))) EQ "CLOSED") {
+                result.SUCCESS = true;
+                result.UPDATED = false;
+                result.MESSAGE = "Monitoring is not active for this float plan.";
+                return result;
+            }
+            if (normalizeMonitoringMode(monitoringRow.monitoring_mode) NEQ "active_route") {
+                result.SUCCESS = true;
+                result.UPDATED = false;
+                result.MESSAGE = "Monitoring mode is not active_route.";
+                return result;
+            }
+
+            qLegStart = queryExecute(
+                "SELECT rilp.leg_order, rilp.leg_started_at
+                 FROM route_instance_leg_progress rilp
+                 INNER JOIN floatplans fp
+                    ON fp.route_instance_id = rilp.route_instance_id
+                   AND fp.userId = rilp.user_id
+                 WHERE fp.floatplanId = :floatPlanId
+                   AND fp.userId = :userId
+                   AND rilp.leg_started_at IS NOT NULL
+                   AND (:routeInstanceId <= 0 OR rilp.route_instance_id = :routeInstanceId)
+                   AND (:legOrder <= 0 OR rilp.leg_order = :legOrder)
+                 ORDER BY rilp.leg_order DESC, rilp.id DESC
+                 LIMIT 1",
+                {
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = monitoringRow.user_id, cfsqltype = "cf_sql_integer" },
+                    routeInstanceId = { value = val(arguments.routeInstanceId), cfsqltype = "cf_sql_integer" },
+                    legOrder = { value = val(arguments.legOrder), cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = variables.datasource }
+            );
+
+            if (qLegStart.recordCount EQ 0 OR isNull(qLegStart.leg_started_at[1]) OR !isDate(qLegStart.leg_started_at[1])) {
+                result.ERROR = "LEG_START_NOT_FOUND";
+                result.MESSAGE = "No actual started leg timestamp was available for monitoring refresh.";
+                return result;
+            }
+
+            expectedCheckinAt = computeNextExpectedCheckin(monitoringRow, "", { baseAt = qLegStart.leg_started_at[1] });
+            if (!isDate(expectedCheckinAt)) {
+                result.ERROR = "EXPECTED_CHECKIN_UNAVAILABLE";
+                result.MESSAGE = "Unable to compute the updated active-route checkpoint.";
+                return result;
+            }
+            graceExpiresAt = computeGraceExpiresAt(expectedCheckinAt, monitoringRow.grace_window_minutes);
+
+            queryExecute(
+                "UPDATE floatplan_monitoring
+                 SET expected_checkin_at = :expectedCheckinAt,
+                     grace_expires_at = :graceExpiresAt,
+                     secure_for_night = 0,
+                     secure_for_night_until = NULL,
+                     next_monitor_eval_at = :nextMonitorEvalAt
+                 WHERE id = :monitoringId",
+                {
+                    expectedCheckinAt = { value = expectedCheckinAt, cfsqltype = "cf_sql_timestamp" },
+                    graceExpiresAt = { value = graceExpiresAt, cfsqltype = "cf_sql_timestamp" },
+                    nextMonitorEvalAt = { value = expectedCheckinAt, cfsqltype = "cf_sql_timestamp" },
+                    monitoringId = { value = monitoringRow.id, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = variables.datasource }
+            );
+
+            result.SUCCESS = true;
+            result.UPDATED = true;
+            result.FLOAT_PLAN_ID = monitoringRow.float_plan_id;
+            result.MONITORING_ID = monitoringRow.id;
+            result.LEG_ORDER = val(qLegStart.leg_order[1]);
+            result.ANCHOR_LEG_STARTED_AT = qLegStart.leg_started_at[1];
+            result.EXPECTED_CHECKIN_AT = expectedCheckinAt;
+            result.GRACE_EXPIRES_AT = graceExpiresAt;
+            result.NEXT_MONITOR_EVAL_AT = expectedCheckinAt;
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="refreshActiveRouteCheckpointFromLegCompletion" access="public" returntype="struct" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="false" default="0">
+        <cfargument name="legOrder" type="numeric" required="false" default="0">
+        <cfscript>
+            var result = { SUCCESS = false, UPDATED = false };
+            var monitoringRow = {};
+            var qLegCompletion = queryNew("");
+            var qPendingLegs = queryNew("");
+            var completedAt = "";
+            var monitorStateVal = "";
+
+            if (arguments.floatPlanId LTE 0) {
+                result.ERROR = "INVALID_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            monitoringRow = getMonitoringRowByFloatPlanId(arguments.floatPlanId);
+            if (!monitoringRow.SUCCESS) {
+                result.SUCCESS = true;
+                result.UPDATED = false;
+                result.MESSAGE = "No monitoring row exists for this float plan.";
+                return result;
+            }
+            if (!booleanValue(monitoringRow.is_monitoring_enabled) OR uCase(trim(toString(monitoringRow.monitor_state))) EQ "CLOSED") {
+                result.SUCCESS = true;
+                result.UPDATED = false;
+                result.MESSAGE = "Monitoring is not active for this float plan.";
+                return result;
+            }
+            if (normalizeMonitoringMode(monitoringRow.monitoring_mode) NEQ "active_route") {
+                result.SUCCESS = true;
+                result.UPDATED = false;
+                result.MESSAGE = "Monitoring mode is not active_route.";
+                return result;
+            }
+
+            qLegCompletion = queryExecute(
+                "SELECT rilp.route_instance_id, rilp.leg_order, rilp.completed_at
+                 FROM route_instance_leg_progress rilp
+                 INNER JOIN floatplans fp
+                    ON fp.route_instance_id = rilp.route_instance_id
+                   AND fp.userId = rilp.user_id
+                 WHERE fp.floatplanId = :floatPlanId
+                   AND fp.userId = :userId
+                   AND rilp.completed_at IS NOT NULL
+                   AND (:routeInstanceId <= 0 OR rilp.route_instance_id = :routeInstanceId)
+                   AND (:legOrder <= 0 OR rilp.leg_order = :legOrder)
+                 ORDER BY rilp.leg_order DESC, rilp.id DESC
+                 LIMIT 1",
+                {
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = monitoringRow.user_id, cfsqltype = "cf_sql_integer" },
+                    routeInstanceId = { value = val(arguments.routeInstanceId), cfsqltype = "cf_sql_integer" },
+                    legOrder = { value = val(arguments.legOrder), cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = variables.datasource }
+            );
+
+            if (qLegCompletion.recordCount EQ 0 OR isNull(qLegCompletion.completed_at[1]) OR !isDate(qLegCompletion.completed_at[1])) {
+                result.ERROR = "LEG_COMPLETION_NOT_FOUND";
+                result.MESSAGE = "No actual completed leg timestamp was available for monitoring refresh.";
+                return result;
+            }
+
+            completedAt = qLegCompletion.completed_at[1];
+            qPendingLegs = queryExecute(
+                "SELECT COUNT(*) AS pending_count
+                 FROM route_instance_legs ril
+                 INNER JOIN floatplans fp
+                    ON fp.route_instance_id = ril.route_instance_id
+                 LEFT JOIN route_instance_leg_progress rilp
+                    ON rilp.route_instance_id = ril.route_instance_id
+                   AND rilp.user_id = fp.userId
+                   AND rilp.leg_order = ril.leg_order
+                 WHERE fp.floatplanId = :floatPlanId
+                   AND fp.userId = :userId
+                   AND ril.route_instance_id = :routeInstanceId
+                   AND ril.leg_order > :legOrder
+                   AND (rilp.status IS NULL OR UPPER(TRIM(rilp.status)) <> 'COMPLETED')",
+                {
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = monitoringRow.user_id, cfsqltype = "cf_sql_integer" },
+                    routeInstanceId = { value = val(qLegCompletion.route_instance_id[1]), cfsqltype = "cf_sql_integer" },
+                    legOrder = { value = val(qLegCompletion.leg_order[1]), cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = variables.datasource }
+            );
+
+            monitorStateVal = uCase(trim(toString(monitoringRow.monitor_state)));
+            transaction {
+                if (monitorStateVal NEQ "ACTIVE") {
+                    transitionMonitorState(monitoringRow.id, monitorStateVal, "ACTIVE", {
+                        actorType = "captain",
+                        eventAt = completedAt,
+                        checkinStatus = "",
+                        completed_leg_order = val(qLegCompletion.leg_order[1])
+                    });
+                }
+
+                queryExecute(
+                    "UPDATE floatplan_monitoring
+                     SET monitor_state = 'ACTIVE',
+                         expected_checkin_at = NULL,
+                         grace_expires_at = NULL,
+                         secure_for_night = 0,
+                         secure_for_night_until = NULL,
+                         next_monitor_eval_at = NULL,
+                         missed_at = NULL,
+                         escalated_at = NULL,
+                         last_captain_alert_at = NULL,
+                         last_contact_alert_at = NULL,
+                         last_monitor_eval_at = :lastMonitorEvalAt
+                     WHERE id = :monitoringId",
+                    {
+                        lastMonitorEvalAt = { value = completedAt, cfsqltype = "cf_sql_timestamp" },
+                        monitoringId = { value = monitoringRow.id, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = variables.datasource }
+                );
+            }
+
+            result.SUCCESS = true;
+            result.UPDATED = true;
+            result.FLOAT_PLAN_ID = monitoringRow.float_plan_id;
+            result.MONITORING_ID = monitoringRow.id;
+            result.LEG_ORDER = val(qLegCompletion.leg_order[1]);
+            result.ANCHOR_COMPLETED_AT = completedAt;
+            result.AWAITING_NEXT_LEG = (qPendingLegs.recordCount EQ 1 AND val(qPendingLegs.pending_count[1]) GT 0);
+            result.PENDING_LEG_COUNT = qPendingLegs.recordCount EQ 1 ? val(qPendingLegs.pending_count[1]) : 0;
+            result.MONITOR_STATE = "ACTIVE";
+            result.EXPECTED_CHECKIN_AT = "";
+            result.GRACE_EXPIRES_AT = "";
+            result.NEXT_MONITOR_EVAL_AT = "";
+            return result;
         </cfscript>
     </cffunction>
 

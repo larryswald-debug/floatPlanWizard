@@ -124,6 +124,48 @@
         </div>
       </div>
     </div>
+
+    <div class="col-12">
+      <div class="card shadow-sm" id="companionDevicesCard">
+        <div class="card-body">
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+            <div>
+              <h2 class="h5 mb-1">Companion Devices</h2>
+              <p class="small text-muted mb-0">Pair and manage devices that can use the FPW Companion App.</p>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+              <button class="btn btn-outline-primary btn-sm" id="refreshCompanionDevicesBtn" type="button">Refresh</button>
+              <button class="btn btn-primary btn-sm" id="companionPairBtn" type="button">Pair Companion App</button>
+            </div>
+          </div>
+
+          <div class="companion-safety-note mb-4" role="note">
+            <p class="mb-1">Only pair devices you control. The Companion App can submit trip check-ins for your active float plan.</p>
+            <p class="mb-1">Pairing codes are single-use and expire in 10 minutes. Do not share a pairing code with anyone.</p>
+            <p class="mb-1">If a phone is lost, stolen, replaced, or no longer yours, revoke it immediately.</p>
+            <p class="mb-0">Bearer tokens are never shown here.</p>
+          </div>
+
+          <div id="companionPairingPanel" class="companion-pairing-panel d-none mb-4" aria-live="polite">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+              <div>
+                <div class="small text-muted mb-1">Manual pairing code</div>
+                <div class="companion-pairing-code" id="companionPairingCode">----</div>
+              </div>
+              <button class="btn btn-outline-primary btn-sm" id="copyCompanionPairingCodeBtn" type="button">Copy Code</button>
+            </div>
+            <div class="small text-muted mt-3" id="companionPairingExpires">Expires at --</div>
+            <p class="small text-muted mb-0 mt-2" id="companionPairingMessage">
+              Enter this code in the Companion App. QR pairing can be added later, but is not enabled in this phase.
+            </p>
+          </div>
+
+          <div id="companionDevicesStatus" class="small text-muted mb-3" aria-live="polite">Loading companion devices...</div>
+          <div id="companionDevicesEmpty" class="companion-empty-state d-none">No companion devices are paired yet.</div>
+          <div id="companionDevicesList" class="companion-device-list"></div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 

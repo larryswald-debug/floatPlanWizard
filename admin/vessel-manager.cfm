@@ -97,15 +97,7 @@ isAuthorized = isLoggedIn AND isAdmin;
 </head>
 <body>
   <div class="wrap">
-    <nav class="admin-nav" aria-label="Admin Tools">
-      <a href="/fpw/admin/floatplan-cleanup.cfm">FloatPlan Cleanup</a>
-      <a href="/fpw/admin/route-cleanup.cfm">Route Cleanup</a>
-      <a href="/fpw/admin/fuel-calculator.cfm">Fuel Calculator</a>
-      <a href="/fpw/admin/waypoint-manager.cfm">Waypoint Manager</a>
-      <a href="/fpw/admin/passenger-manager.cfm">Passenger Manager</a>
-      <a href="/fpw/admin/vessel-manager.cfm" class="active">Vessel Manager</a>
-      <a href="/fpw/admin/operator-manager.cfm">Operator Manager</a>
-    </nav>
+    <cfinclude template="includes/admin_reports_nav.cfm">
 
     <h1>Admin Vessel Manager</h1>
     <p class="hint">Manage vessels with full CRUD, owner selection on create, float-plan usage visibility, and selected-row batch delete.</p>
@@ -310,3 +302,4 @@ isAuthorized = isLoggedIn AND isAdmin;
   </cfif>
 </body>
 </html>
+

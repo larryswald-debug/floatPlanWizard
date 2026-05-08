@@ -50,7 +50,16 @@ component output=false {
   private string function buildProxyBaseUrl() {
     if (!structKeyExists(cgi, "http_host")) return "";
     var scheme = (structKeyExists(cgi, "https") && lcase(cgi.https) == "on") ? "https" : "http";
-    return scheme & "://" & cgi.http_host & "/fpw/api/v1/wmsProxy.cfc";
+    var basePath = structKeyExists(request, "fpwBase") ? trim(toString(request.fpwBase)) : "";
+    if (!len(basePath) && structKeyExists(cgi, "script_name")) {
+      basePath = getDirectoryFromPath(cgi.script_name);
+      basePath = reReplace(basePath, "/api/v1/?$", "");
+      basePath = reReplace(basePath, "/$", "");
+      if (basePath == "/") {
+        basePath = "";
+      }
+    }
+    return scheme & "://" & cgi.http_host & basePath & "/api/v1/wmsProxy.cfc";
   }
 
   private struct function buildBbox3857(required numeric lat, required numeric lng, required numeric radiusMeters) {

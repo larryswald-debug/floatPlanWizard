@@ -10,6 +10,7 @@ const {
 } = require("../support/fpwCleanup");
 const {
   buildFloatPlansFromFirstRoute,
+  currentGroupActionSelector,
   loginApprovedUser
 } = require("../support/fpwSession");
 
@@ -35,7 +36,7 @@ test("Route-derived Float Plan Wizard completes happy path", async ({ page }) =>
     }
     expect(built.floatPlanIds.length).toBeGreaterThan(0);
 
-    await page.locator(`#floatPlansList [data-action="edit"][data-plan-id="${built.floatPlanIds[0]}"]`).click();
+    await page.locator(currentGroupActionSelector(built.floatPlanIds[0], "edit")).click();
   const modal = page.locator("#floatPlanWizardModal");
   await expect(modal).toBeVisible({ timeout: 20000 });
 

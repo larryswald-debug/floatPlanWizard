@@ -278,28 +278,25 @@
                 return out;
             }
 
-            if (qProgressClose.recordCount EQ 0) {
-                activeLegOrderClose = finalLegOrder;
-            } else {
-                for (i = 1; i LTE qLegsClose.recordCount; i++) {
-                    closeLegOrder = val(qLegsClose.leg_order[i]);
-                    closeLegStatus = (structKeyExists(progressStatusByLegClose, toString(closeLegOrder)) ? progressStatusByLegClose[toString(closeLegOrder)] : "NOT_STARTED");
-                    if (
-                        closeLegOrder GT highestCompletedLegOrderClose
-                        AND (
-                            structKeyExists(progressStartedByLegClose, toString(closeLegOrder))
-                            OR closeLegStatus EQ "STARTED"
-                            OR closeLegStatus EQ "IN_PROGRESS"
-                        )
-                    ) {
-                        activeLegOrderClose = closeLegOrder;
-                        break;
-                    }
+            for (i = 1; i LTE qLegsClose.recordCount; i++) {
+                closeLegOrder = val(qLegsClose.leg_order[i]);
+                closeLegStatus = (structKeyExists(progressStatusByLegClose, toString(closeLegOrder)) ? progressStatusByLegClose[toString(closeLegOrder)] : "NOT_STARTED");
+                if (
+                    closeLegOrder GT highestCompletedLegOrderClose
+                    AND (
+                        structKeyExists(progressStartedByLegClose, toString(closeLegOrder))
+                        OR closeLegStatus EQ "STARTED"
+                        OR closeLegStatus EQ "IN_PROGRESS"
+                    )
+                ) {
+                    activeLegOrderClose = closeLegOrder;
+                    break;
                 }
             }
 
             if (activeLegOrderClose LTE 0) {
-                out.MESSAGE = "All legs are already completed.";
+                out.SUCCESS = false;
+                out.MESSAGE = "Close Trip is only available once the final leg is active.";
                 return out;
             }
 
@@ -488,9 +485,13 @@
             }
 
             queryExecute("
-                INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, leg_started_at)
-                VALUES (:userId, :routeInstanceId, :legOrder, NOW())
+                INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, status, leg_started_at)
+                VALUES (:userId, :routeInstanceId, :legOrder, 'STARTED', NOW())
                 ON DUPLICATE KEY UPDATE
+                    status = CASE
+                        WHEN UPPER(TRIM(COALESCE(route_instance_leg_progress.status, ''))) IN ('', 'NOT_STARTED') THEN 'STARTED'
+                        ELSE route_instance_leg_progress.status
+                    END,
                     leg_started_at = COALESCE(route_instance_leg_progress.leg_started_at, VALUES(leg_started_at))
             ", {
                 userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },

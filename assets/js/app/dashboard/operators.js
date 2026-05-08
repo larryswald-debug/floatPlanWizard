@@ -74,10 +74,10 @@
       var metaText = metaParts.join(" • ");
 
       return (
-        '<div class="list-item">' +
-          '<div class="list-main">' +
+        '<div class="list-item fpw-manage-item fpw-operator-item">' +
+          '<div class="list-main fpw-manage-item-copy">' +
             '<div class="list-title">' + utils.escapeHtml(nameText) + "</div>" +
-            "<small>" + utils.escapeHtml(metaText) + "</small>" +
+            '<small class="list-meta-line">' + utils.escapeHtml(metaText) + "</small>" +
           "</div>" +
           '<div class="list-actions">' +
             '<button class="btn-secondary" type="button" id="operator-edit-' + utils.escapeHtml(operatorId) + '" data-action="edit" data-operator-id="' + utils.escapeHtml(operatorId) + '">Edit</button>' +

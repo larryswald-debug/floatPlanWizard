@@ -1,0 +1,44 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - paragraph [ref=e5]:
+      - text: Join prelaunch — get
+      - strong [ref=e6]: 2 months of Premium free
+    - generic [ref=e7]:
+      - link "FloatPlanWizard home" [ref=e8] [cursor=pointer]:
+        - /url: /fpw/preLaunch.cfm#top
+        - generic [ref=e10]: 
+        - generic [ref=e11]
+      - navigation "Primary" [ref=e14]:
+        - link "Features" [ref=e15] [cursor=pointer]:
+          - /url: /fpw/preLaunch.cfm#features
+        - link "Great Loop" [ref=e16] [cursor=pointer]:
+          - /url: /fpw/preLaunch.cfm#great-loop
+        - link "Share the Trip" [ref=e17] [cursor=pointer]:
+          - /url: /fpw/preLaunch.cfm#followers
+        - link "Why FPW" [ref=e18] [cursor=pointer]:
+          - /url: /fpw/preLaunch.cfm#story
+        - link "Fuel Calculator" [ref=e19] [cursor=pointer]:
+          - /url: /fpw/app/fuel-calculator.cfm
+        - link " Get Notified" [ref=e20] [cursor=pointer]:
+          - /url: /fpw/preLaunch.cfm#notify
+  - main [ref=e22]:
+    - generic [ref=e23]:
+      - heading "Fuel Calculator" [level=1] [ref=e24]
+      - paragraph [ref=e25]: Standalone manual-input calculator that mirrors the Route Generator fuel model without any FPW include or shared-script dependency.
+      - generic [ref=e26]:
+        - strong [ref=e27]: Notes
+        - list [ref=e28]
+      - generic [ref=e36]:
+        - generic [ref=e37]
+        - generic [ref=e75]
+      - generic [ref=e79]:
+        - generic [ref=e80]
+        - generic [ref=e84]
+        - generic [ref=e88]
+        - generic [ref=e92]
+        - generic [ref=e96]
+        - generic [ref=e100]
+      - table [ref=e104]:
+        - rowgroup [ref=e105]
+        - rowgroup [ref=e110]
+      - generic [ref=e183]: "{ \"route_generator_source_of_truth\": { \"pace_formula\": \"routegenNormalizePace + routegenPaceDefaults + routegenComputeEffectiveCruisingSpeed\", \"burn_formula\": \"calculateFuelEstimate + routegenAnchoredBurnGph\", \"reserve_default_pct\": 33 }, \"standalone_inputs\": { \"distanceNm\": null, \"pace\": \"RELAXED\", \"maxSpeedKn\": 20, \"mostEfficientSpeedKn\": 0, \"fuelBurnEfficientGph\": 0, \"fuelBurnGph\": 0, \"idleBurnGph\": 0, \"idleHoursTotal\": 0, \"weatherPct\": 0, \"reservePct\": 33, \"underwayHoursPerDay\": 6.5, \"fuelPricePerGal\": 0 }, \"derived\": { \"paceLabel\": \"Relaxed\", \"paceRatio\": 0.25, \"effectiveSpeedKn\": 5, \"weatherAdjustedSpeedKn\": 5, \"paceAdjustedBurnGph\": 0, \"weatherAdjustedBurnGph\": 0, \"cruiseHours\": 0, \"cruiseFuelGallons\": 0, \"idleFuelGallons\": 0, \"baseFuelGallons\": 0, \"reserveGallons\": 0, \"requiredFuelGallons\": 0, \"totalFuelCost\": 0, \"totalTravelHours\": 0, \"estimatedDays\": 0, \"usesAnchoredBurn\": false, \"fuelMode\": \"unavailable\", \"canEstimateFuel\": false }, \"cards\": { \"total_distance_nm\": null, \"total_travel_hours\": 0, \"estimated_fuel_gallons\": 0, \"adjusted_speed_kn\": 5, \"expected_avg_gph\": 0, \"fuel_cost_usd\": 0 } }"

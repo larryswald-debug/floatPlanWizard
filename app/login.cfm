@@ -61,7 +61,7 @@
 
             <div class="mt-3 small">
   <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/forgot-password.cfm">Forgot password?</a> |
-  <a href="/fpw/app/contact.cfm">Contact Us</a>
+  <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/contact.cfm">Contact Us</a>
 </div>
 
             <p class="text-center text-muted small mt-3">

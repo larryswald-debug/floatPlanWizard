@@ -8,7 +8,15 @@
         <cfargument name="website" type="any" required="false">
         <cfsetting enablecfoutputonly="true" showdebugoutput="false">
 
-        <cfset contactPageUrl = "/fpw/app/contact.cfm">
+        <cfif NOT structKeyExists(request, "fpwBase")>
+            <cfset request.fpwBase = getDirectoryFromPath(cgi.script_name)>
+            <cfset request.fpwBase = reReplace(request.fpwBase, "/api/v1/?$", "")>
+            <cfset request.fpwBase = reReplace(request.fpwBase, "/$", "")>
+            <cfif request.fpwBase EQ "/">
+                <cfset request.fpwBase = "">
+            </cfif>
+        </cfif>
+        <cfset contactPageUrl = request.fpwBase & "/app/contact.cfm">
         <cfset firstName = structKeyExists(arguments, "firstName") ? trim(arguments.firstName) : "">
         <cfset lastName = structKeyExists(arguments, "lastName") ? trim(arguments.lastName) : "">
         <cfset email = structKeyExists(arguments, "email") ? trim(arguments.email) : "">

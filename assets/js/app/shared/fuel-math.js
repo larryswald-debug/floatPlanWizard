@@ -103,6 +103,12 @@
     var summaryFuelBurnGph = fuelBurnGph;
     var fuelSource = String(meta.fuelSource || "").trim();
     var fuelPricePerGal = safeVal(ui.fuelPricePerGal);
+    var timelineCruiseOnly = (ui.timelineCruiseOnly === true);
+    var idleBurnGph = safeVal(ui.idleBurnGph);
+    var idleHoursTotal = safeVal(ui.idleHoursTotal);
+    var idleFuelGallons = 0;
+    var idleReserveGallons = 0;
+    var summaryTotalHours = null;
     var hoursExpr = "";
     var dayExpr = "";
     var fuelExpr = "";
@@ -248,13 +254,48 @@
       if (!Number.isFinite(reserveFuelForSummary) || reserveFuelForSummary < 0) reserveFuelForSummary = 0;
     }
 
+    summaryTotalHours = totalHours;
+    if (timelineCruiseOnly) {
+      if (idleBurnGph !== null) {
+        idleBurnGph = roundTo2(clamp(idleBurnGph, 0, 1000));
+      }
+      if (idleHoursTotal !== null) {
+        idleHoursTotal = roundTo2(Math.max(0, idleHoursTotal));
+      }
+      if (idleHoursTotal !== null && idleHoursTotal > 0 && totalHours !== null) {
+        summaryTotalHours = roundTo2(totalHours + idleHoursTotal);
+      }
+      if (idleBurnGph !== null && idleBurnGph > 0 && idleHoursTotal !== null && idleHoursTotal > 0) {
+        // Timeline payload remains cruise-only in this phase; add only the idle delta here.
+        idleFuelGallons = roundTo1(idleBurnGph * idleHoursTotal);
+        if (baseFuelForSummary !== null) {
+          baseFuelForSummary = roundTo2(baseFuelForSummary + idleFuelGallons);
+        } else if (requiredFuelForSummary !== null && reserveFuelForSummary !== null) {
+          baseFuelForSummary = roundTo2(requiredFuelForSummary - reserveFuelForSummary + idleFuelGallons);
+        }
+        if (reservePct !== null) {
+          idleReserveGallons = roundTo2(idleFuelGallons * (reservePct / 100));
+          reserveFuelForSummary = roundTo2((reserveFuelForSummary !== null ? reserveFuelForSummary : 0) + idleReserveGallons);
+        }
+        if (baseFuelForSummary !== null && reserveFuelForSummary !== null) {
+          requiredFuelForSummary = roundTo2(baseFuelForSummary + reserveFuelForSummary);
+        } else if (requiredFuelForSummary !== null) {
+          requiredFuelForSummary = roundTo2(requiredFuelForSummary + idleFuelGallons + idleReserveGallons);
+        } else {
+          requiredFuelForSummary = roundTo2(idleFuelGallons + idleReserveGallons);
+        }
+      }
+    }
+
     locksExpr = "Locks " + (totalLocks !== null ? formatNum(totalLocks, 0) : "n/a");
 
     if (requiredFuelForSummary !== null && fuelPricePerGal !== null && fuelPricePerGal > 0) {
       fuelCostEstimate = roundTo2(requiredFuelForSummary * fuelPricePerGal);
     }
 
-    if (totalHours !== null && maxHoursPerDay !== null && maxHoursPerDay > 0) {
+    if (timelineCruiseOnly && idleHoursTotal !== null && idleHoursTotal > 0 && totalHours !== null && summaryTotalHours !== null) {
+      estimatedDaysSubText = "Cruise " + formatNum(totalHours, 1, "0.0") + "h + Idle " + formatNum(idleHoursTotal, 1, "0.0") + "h = " + formatNum(summaryTotalHours, 1, "0.0") + "h";
+    } else if (totalHours !== null && maxHoursPerDay !== null && maxHoursPerDay > 0) {
       estimatedDaysSubText = "ceil(" + formatNum(totalHours, 2, "0.00") + "/" + formatNum(maxHoursPerDay, 1, "0.0") + ") from Cruise Timeline";
     } else {
       estimatedDaysSubText = "Cruise Timeline estimate";
@@ -280,6 +321,7 @@
       calcLine: "Calc: " + hoursExpr + " • " + dayExpr + " • " + fuelExpr + " • " + locksExpr,
       totalNm: totalNm,
       totalHours: totalHours,
+      summaryTotalHours: summaryTotalHours,
       totalDays: totalDays,
       displayedDays: displayedDays,
       maxHoursPerDay: maxHoursPerDay,

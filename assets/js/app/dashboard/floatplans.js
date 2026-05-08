@@ -18,6 +18,10 @@
   var cloneMessageEl = null;
   var cloneOkButton = null;
 
+  function hasStandaloneFloatPlansPanel() {
+    return !!document.getElementById("floatPlansList");
+  }
+
   function setFloatPlansFilterCount(filteredCount, totalCount) {
     var countEl = document.getElementById("floatPlansFilterCount");
     if (!countEl) return;
@@ -169,9 +173,7 @@
       if (isNaN(waypointCount)) waypointCount = 0;
       var statusText = getStatusLabel(status);
       var normalizedStatus = String(status || "").trim().toUpperCase();
-      var isOverdueStatus = ["OVERDUE", "DUE_NOW", "OVERDUE_1H", "OVERDUE_2H", "OVERDUE_3H", "OVERDUE_4H", "OVERDUE_12H", "OVERDUE_24H"]
-        .indexOf(normalizedStatus) !== -1;
-      var checkInButton = (normalizedStatus === "ACTIVE" || isOverdueStatus)
+      var checkInButton = (normalizedStatus === "ACTIVE")
         ? '<button class="btn-success" type="button" data-action="checkin" data-plan-id="' + utils.escapeHtml(id) + '">Check-In</button>'
         : "";
 
@@ -406,7 +408,9 @@
       startStep: startStep,
       contactStep: 4,
       onSaved: function () {
-        loadFloatPlans(FLOAT_PLAN_LIMIT);
+        if (hasStandaloneFloatPlansPanel()) {
+          loadFloatPlans(FLOAT_PLAN_LIMIT);
+        }
         if (
           window.FPW
           && window.FPW.DashboardModules
@@ -421,7 +425,17 @@
       },
       onDeleted: function () {
         wizardModal.hide();
-        loadFloatPlans(FLOAT_PLAN_LIMIT);
+        if (hasStandaloneFloatPlansPanel()) {
+          loadFloatPlans(FLOAT_PLAN_LIMIT);
+        }
+        if (
+          window.FPW
+          && window.FPW.DashboardModules
+          && window.FPW.DashboardModules.expeditionTimeline
+          && typeof window.FPW.DashboardModules.expeditionTimeline.load === "function"
+        ) {
+          window.FPW.DashboardModules.expeditionTimeline.load();
+        }
       }
     });
 
@@ -457,10 +471,8 @@
     } else if (action === "delete") {
       var planStatus = button.getAttribute("data-plan-status") || "";
       var normalizedStatus = String(planStatus).trim().toUpperCase();
-      var isOverdueStatus = ["OVERDUE", "DUE_NOW", "OVERDUE_1H", "OVERDUE_2H", "OVERDUE_3H", "OVERDUE_4H", "OVERDUE_12H", "OVERDUE_24H"]
-        .indexOf(normalizedStatus) !== -1;
-      if (normalizedStatus === "ACTIVE" || isOverdueStatus) {
-        utils.showAlertModal("Active or overdue float plans cannot be deleted.");
+      if (normalizedStatus && normalizedStatus !== "DRAFT" && normalizedStatus !== "CLOSED") {
+        utils.showAlertModal("Only draft or closed float plans can be deleted.");
         return;
       }
       utils.showConfirmModal("Delete this float plan?")
@@ -506,7 +518,9 @@
         if (!data.SUCCESS) {
           throw data;
         }
-        loadFloatPlans(FLOAT_PLAN_LIMIT);
+        if (hasStandaloneFloatPlansPanel()) {
+          loadFloatPlans(FLOAT_PLAN_LIMIT);
+        }
         if (
           window.FPW
           && window.FPW.DashboardModules
@@ -524,6 +538,47 @@
         if (triggerButton) {
           triggerButton.disabled = false;
           triggerButton.textContent = originalText || "Check-In";
+        }
+      });
+  }
+
+  function cancelFloatPlan(planId, triggerButton) {
+    if (!window.Api || typeof window.Api.cancelFloatPlan !== "function") {
+      return;
+    }
+
+    var originalText = "";
+    if (triggerButton) {
+      originalText = triggerButton.textContent;
+      triggerButton.disabled = true;
+      triggerButton.textContent = "Canceling...";
+    }
+
+    Api.cancelFloatPlan(planId)
+      .then(function (data) {
+        if (!data.SUCCESS) {
+          throw data;
+        }
+        if (hasStandaloneFloatPlansPanel()) {
+          loadFloatPlans(FLOAT_PLAN_LIMIT);
+        }
+        if (
+          window.FPW
+          && window.FPW.DashboardModules
+          && window.FPW.DashboardModules.expeditionTimeline
+          && typeof window.FPW.DashboardModules.expeditionTimeline.load === "function"
+        ) {
+          window.FPW.DashboardModules.expeditionTimeline.load();
+        }
+      })
+      .catch(function (err) {
+        console.error("Failed to cancel float plan:", err);
+        utils.showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Cancel failed.");
+      })
+      .finally(function () {
+        if (triggerButton) {
+          triggerButton.disabled = false;
+          triggerButton.textContent = originalText || "Cancel";
         }
       });
   }
@@ -562,32 +617,39 @@
   function initFloatPlans() {
     var listEl = document.getElementById("floatPlansList");
     var addPlanBtn = document.getElementById("addFloatPlanBtn");
-    if (!listEl && !addPlanBtn) return;
-
     ensureWizardModal();
     disableInvalidCreationEntryPoints();
-    initFloatPlansFilter();
 
     if (listEl) {
+      initFloatPlansFilter();
       listEl.addEventListener("click", handleFloatPlansListClick);
     }
 
     document.addEventListener("fpw:dashboard:user-ready", function () {
-      loadFloatPlans(FLOAT_PLAN_LIMIT);
+      if (hasStandaloneFloatPlansPanel()) {
+        loadFloatPlans(FLOAT_PLAN_LIMIT);
+      }
     });
     document.addEventListener("fpw:active-trip-updated", function () {
       if (!floatPlanState.all || !floatPlanState.all.length) return;
       floatPlanState.all = buildFloatPlanDisplayOrder(floatPlanState.all);
-      var inputEl = document.getElementById("floatPlansFilterInput");
-      applyFloatPlanFilter(inputEl ? inputEl.value : "");
+      if (hasStandaloneFloatPlansPanel()) {
+        var inputEl = document.getElementById("floatPlansFilterInput");
+        applyFloatPlanFilter(inputEl ? inputEl.value : "");
+      }
     });
     document.addEventListener("fpw:floatplans-updated", function () {
-      loadFloatPlans(FLOAT_PLAN_LIMIT);
+      if (hasStandaloneFloatPlansPanel()) {
+        loadFloatPlans(FLOAT_PLAN_LIMIT);
+      }
     });
   }
 
   window.FPW.DashboardModules.floatplans = {
     init: initFloatPlans,
-    openWizardForPlan: openWizardForPlan
+    openWizardForPlan: openWizardForPlan,
+    checkInFloatPlan: checkInFloatPlan,
+    cancelFloatPlan: cancelFloatPlan
   };
 })(window, document);
+

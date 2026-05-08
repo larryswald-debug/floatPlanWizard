@@ -636,6 +636,7 @@ if (isAuthorized) {
 </head>
 <body>
 <cfinclude template="../includes/top_nav.cfm">
+<cfinclude template="includes/admin_reports_nav.cfm">
 
 <div class="wpi-shell">
     <div class="wpi-card">
@@ -1562,3 +1563,4 @@ if (isAuthorized) {
 </script>
 </body>
 </html>
+

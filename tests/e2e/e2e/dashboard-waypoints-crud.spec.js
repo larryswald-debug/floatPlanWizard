@@ -18,13 +18,48 @@ async function loginToDashboard(page) {
   await expect(page.locator("#addWaypointBtn")).toBeVisible({ timeout: 30000 });
 }
 
-async function waitForPanelReady(page, summarySelector) {
-  await page.waitForFunction((selector) => {
-    const el = document.querySelector(selector);
-    if (!el) return false;
-    const text = String(el.textContent || "").trim().toLowerCase();
-    return !!text && !text.includes("loading");
-  }, summarySelector, { timeout: 30000 });
+async function waitForWaypointsPanelReady(page) {
+  try {
+    await page.waitForFunction(() => {
+      const summaryEl = document.querySelector("#waypointsSummary");
+      const messageEl = document.querySelector("#waypointsMessage");
+      const listEl = document.querySelector("#waypointsList");
+      const summaryText = summaryEl ? String(summaryEl.textContent || "").trim() : "";
+      const messageText = messageEl ? String(messageEl.textContent || "").trim() : "";
+      const listCount = listEl ? listEl.querySelectorAll(".list-item").length : 0;
+
+      if (!summaryText || /loading/i.test(summaryText)) {
+        return false;
+      }
+
+      if (/^\d+\s+total$/i.test(summaryText)) {
+        return true;
+      }
+
+      if (/^(no waypoints yet|error|unavailable)$/i.test(summaryText)) {
+        return true;
+      }
+
+      return listCount > 0 || (!!messageText && !/loading/i.test(messageText));
+    }, { timeout: 30000 });
+  } catch (error) {
+    const panelState = await page.evaluate(() => {
+      const summaryEl = document.querySelector("#waypointsSummary");
+      const messageEl = document.querySelector("#waypointsMessage");
+      const listEl = document.querySelector("#waypointsList");
+      return {
+        summaryText: summaryEl ? String(summaryEl.textContent || "").trim() : "",
+        messageText: messageEl ? String(messageEl.textContent || "").trim() : "",
+        listCount: listEl ? listEl.querySelectorAll(".list-item").length : 0
+      };
+    });
+    throw new Error(
+      "Timed out waiting for waypoint panel readiness: " +
+      JSON.stringify(panelState) +
+      ". Original error: " +
+      ((error && error.message) ? error.message : String(error))
+    );
+  }
 }
 
 async function confirmDelete(page) {
@@ -43,7 +78,7 @@ async function waitForWaypointMapInit(page) {
 
 test("Dashboard Waypoints CRUD flow works end-to-end", async ({ page }) => {
   await loginToDashboard(page);
-  await waitForPanelReady(page, "#waypointsSummary");
+  await waitForWaypointsPanelReady(page);
 
   const suffix = uniqueSuffix();
   const waypointName = `PW Waypoint ${suffix}`;
@@ -92,7 +127,7 @@ test("Dashboard Waypoint map click writes coordinates (chromium)", async ({ page
   test.skip(browserName !== "chromium", "Map click smoke is chromium-only.");
 
   await loginToDashboard(page);
-  await waitForPanelReady(page, "#waypointsSummary");
+  await waitForWaypointsPanelReady(page);
 
   const suffix = uniqueSuffix();
   const waypointName = `PW Waypoint Click ${suffix}`;

@@ -65,3 +65,144 @@
       border-color: var(--panel-border-strong);
     }
 
+    .account-body .companion-safety-note,
+    .account-body .companion-pairing-panel,
+    .account-body .companion-empty-state,
+    .account-body .companion-device-row {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-md);
+    }
+
+    .account-body .companion-safety-note {
+      padding: 0.9rem 1rem;
+      color: var(--text);
+    }
+
+    .account-body .companion-pairing-panel {
+      padding: 1rem;
+    }
+
+    .account-body .companion-pairing-code {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 0.35rem 0.65rem;
+      border: 1px solid var(--panel-border-strong);
+      border-radius: var(--radius-md);
+      background: rgba(0,0,0,0.22);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 1.35rem;
+      font-weight: 800;
+    }
+
+    .account-body .companion-empty-state {
+      padding: 1rem;
+      color: var(--muted);
+    }
+
+    .account-body .companion-device-list {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    .account-body .companion-device-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem;
+    }
+
+    .account-body .companion-device-main {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .account-body .companion-device-name {
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    .account-body .companion-device-meta {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 0.7rem;
+    }
+
+    .account-body .companion-device-details {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.75rem;
+    }
+
+    .account-body .companion-device-details div {
+      min-width: 0;
+    }
+
+    .account-body .companion-device-details dt {
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .account-body .companion-device-details dd {
+      color: var(--text);
+      font-size: 0.88rem;
+      margin: 0.15rem 0 0;
+      overflow-wrap: anywhere;
+    }
+
+    .account-body .companion-device-actions {
+      display: flex;
+      align-items: flex-start;
+      flex: 0 0 auto;
+    }
+
+    .account-body .companion-status-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid var(--panel-border);
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .account-body .companion-status-active {
+      color: var(--success);
+      border-color: rgba(40, 209, 124, 0.45);
+      background: rgba(40, 209, 124, 0.12);
+    }
+
+    .account-body .companion-status-revoked,
+    .account-body .companion-status-expired {
+      color: var(--warning);
+      border-color: rgba(255, 176, 32, 0.42);
+      background: rgba(255, 176, 32, 0.12);
+    }
+
+    .account-body .companion-status-error {
+      color: var(--danger) !important;
+    }
+
+    .account-body .companion-status-success {
+      color: var(--success) !important;
+    }
+
+    @media (max-width: 760px) {
+      .account-body .companion-device-row {
+        flex-direction: column;
+      }
+
+      .account-body .companion-device-details {
+        grid-template-columns: 1fr;
+      }
+
+      .account-body .companion-device-actions .btn {
+        width: 100%;
+      }
+    }

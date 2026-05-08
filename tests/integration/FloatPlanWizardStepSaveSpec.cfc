@@ -19,6 +19,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.ctx.baseUrl = scheme & "://" & host & portPart;
     variables.ctx.saveUrl = variables.ctx.baseUrl & "/fpw/api/v1/floatplan.cfc?method=handle";
     variables.ctx.bootstrapUrl = variables.ctx.baseUrl & "/fpw/api/v1/floatplan.cfc?method=handle&action=bootstrap";
+    variables.ctx.routeBuilderActionBase = variables.ctx.baseUrl & "/fpw/api/v1/routeBuilder.cfc?method=handle&action=";
 
     variables.ctx.contactUrl = variables.ctx.baseUrl & "/fpw/api/v1/contact.cfc?method=handle";
     variables.ctx.passengerUrl = variables.ctx.baseUrl & "/fpw/api/v1/passenger.cfc?method=handle";
@@ -43,13 +44,17 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.ctx.operatorId = variables.ctx.forceOperatorId > 0 ? variables.ctx.forceOperatorId : extractIdFromList( variables.ctx.bootstrap, "OPERATORS", "OPERATORID" );
     variables.ctx.rescueCenterId = extractIdFromList( variables.ctx.bootstrap, "RESCUE_CENTERS", "RESCUE_CENTERID" );
 
-    variables.ctx.created = { contactId = 0, passengerId = 0, waypointId = 0 };
+    variables.ctx.created = { contactId = 0, passengerId = 0, waypointId = 0, routeCodes = [] };
+    variables.ctx.cleanupApi = new fpw.tests.support.FpwApiSupport().init( baseUrl = variables.ctx.baseUrl & "/fpw" );
+    variables.ctx.cleanupSupport = new fpw.tests.support.FpwCleanupSupport().init( variables.ctx.cleanupApi );
+    cleanupCurrentRouteGroup();
   }
 
   function afterAll() {
     if ( !structKeyExists( variables, "ctx" ) || !variables.ctx.sessionReady ) {
       return;
     }
+    cleanupCurrentRouteGroup();
     if ( val( variables.ctx.created.contactId ) ) {
       apiPostJson( variables.ctx.contactUrl, { action = "delete", contactId = variables.ctx.created.contactId } );
     }
@@ -59,6 +64,9 @@ component extends="testbox.system.BaseSpec" output="false" {
     if ( val( variables.ctx.created.waypointId ) ) {
       apiPostJson( variables.ctx.waypointUrl, { action = "delete", waypointId = variables.ctx.created.waypointId } );
     }
+    for ( var i = arrayLen( variables.ctx.created.routeCodes ); i GTE 1; i-- ) {
+      apiPostJson( variables.ctx.routeBuilderActionBase & "deleteRoute", { routeCode = variables.ctx.created.routeCodes[ i ] } );
+    }
   }
 
   function run() {
@@ -66,41 +74,66 @@ component extends="testbox.system.BaseSpec" output="false" {
     describe( "Float Plan Wizard save across all steps", function() {
 
       it( "rejects missing name", function() {
+        cleanupCurrentRouteGroup();
         if ( !variables.ctx.sessionReady ) {
           skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
         }
         if ( variables.ctx.vesselId LTE 0 ) {
           skip( "No vessel available for test user. Provide testVesselId." );
         }
+        var routeDraft = createRouteLinkedDraftPlan( "Missing Name" );
+        try {
+          var res = apiPostJson( variables.ctx.saveUrl, {
+            action = "save",
+            FLOATPLAN = {
+              floatPlanId = routeDraft.planId,
+              FLOATPLANID = routeDraft.planId,
+              floatPlanName = "",
+              vesselId = variables.ctx.vesselId,
+              routeInstanceId = routeDraft.routeInstanceId,
+              ROUTE_INSTANCE_ID = routeDraft.routeInstanceId,
+              routeDayNumber = routeDraft.routeDayNumber,
+              ROUTE_DAY_NUMBER = routeDraft.routeDayNumber
+            }
+          } );
 
-        var res = apiPostJson( variables.ctx.saveUrl, {
-          action = "save",
-          FLOATPLAN = {
-            vesselId = variables.ctx.vesselId
-          }
-        } );
-
-        expect( pickBool( res, "SUCCESS" ) ).toBeFalse();
-        expect( findNoCase( "Float plan name is required", toString( res.MESSAGE ?: "" ) ) ).toBeGT( 0 );
+          expect( pickBool( res, "SUCCESS" ) ).toBeFalse();
+          expect( trim( toString( res.MESSAGE ?: "" ) ) ).toBe( "Float plan name is required." );
+        } finally {
+          cleanupCurrentRouteGroup();
+        }
       } );
 
       it( "rejects missing vessel", function() {
+        cleanupCurrentRouteGroup();
         if ( !variables.ctx.sessionReady ) {
           skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
         }
+        var routeDraft = createRouteLinkedDraftPlan( "Missing Vessel" );
+        try {
+          var res = apiPostJson( variables.ctx.saveUrl, {
+            action = "save",
+            FLOATPLAN = {
+              floatPlanId = routeDraft.planId,
+              FLOATPLANID = routeDraft.planId,
+              floatPlanName = "Missing Vessel",
+              vesselId = 0,
+              routeInstanceId = routeDraft.routeInstanceId,
+              ROUTE_INSTANCE_ID = routeDraft.routeInstanceId,
+              routeDayNumber = routeDraft.routeDayNumber,
+              ROUTE_DAY_NUMBER = routeDraft.routeDayNumber
+            }
+          } );
 
-        var res = apiPostJson( variables.ctx.saveUrl, {
-          action = "save",
-          FLOATPLAN = {
-            floatPlanName = "Missing Vessel"
-          }
-        } );
-
-        expect( pickBool( res, "SUCCESS" ) ).toBeFalse();
-        expect( findNoCase( "Please select a vessel", toString( res.MESSAGE ?: "" ) ) ).toBeGT( 0 );
+          expect( pickBool( res, "SUCCESS" ) ).toBeFalse();
+          expect( trim( toString( res.MESSAGE ?: "" ) ) ).toBe( "Please select a vessel." );
+        } finally {
+          cleanupCurrentRouteGroup();
+        }
       } );
 
       it( "saves at each step payload", function() {
+        cleanupCurrentRouteGroup();
         if ( !variables.ctx.sessionReady ) {
           skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
         }
@@ -111,68 +144,74 @@ component extends="testbox.system.BaseSpec" output="false" {
           variables.ctx.operatorId = ensureOperator();
         }
 
-        var suffix = uniqueSuffix();
-        var nowDt = now();
-        var departDt = dateAdd( "h", 1, nowDt );
-        var returnDt = dateAdd( "h", 4, nowDt );
+        try {
+          var suffix = uniqueSuffix();
+          var nowDt = now();
+          var departDt = dateAdd( "h", 1, nowDt );
+          var returnDt = dateAdd( "h", 4, nowDt );
+          var routeDraft = createRouteLinkedDraftPlan( "Wizard Step Test " & suffix );
 
-        // Step 1 payload
-        var step1 = {
-          action = "save",
-          FLOATPLAN = {
-            floatPlanName = "Wizard Step Test " & suffix,
-            vesselId = variables.ctx.vesselId,
-            operatorId = variables.ctx.operatorId
-          }
-        };
-        var res1 = apiPostJson( variables.ctx.saveUrl, step1 );
-        expect( pickBool( res1, "SUCCESS" ) ).toBeTrue( "Step 1 save failed: #serializeJSON(res1)#" );
-        var planId = extractId( res1 );
-        expect( len( planId ) ).toBeGT( 0 );
+          var step1 = {
+            action = "save",
+            FLOATPLAN = {
+              floatPlanId = routeDraft.planId,
+              FLOATPLANID = routeDraft.planId,
+              floatPlanName = "Wizard Step Test " & suffix,
+              vesselId = variables.ctx.vesselId,
+              operatorId = variables.ctx.operatorId,
+              routeInstanceId = routeDraft.routeInstanceId,
+              ROUTE_INSTANCE_ID = routeDraft.routeInstanceId,
+              routeDayNumber = routeDraft.routeDayNumber,
+              ROUTE_DAY_NUMBER = routeDraft.routeDayNumber
+            }
+          };
+          var res1 = apiPostJson( variables.ctx.saveUrl, step1 );
+          expect( pickBool( res1, "SUCCESS" ) ).toBeTrue( "Step 1 save failed: #serializeJSON(res1)#" );
+          var planId = extractId( res1 );
+          expect( len( planId ) ).toBeGT( 0 );
 
-        // Step 2 payload (add depart/return)
-        var step2 = duplicate( step1 );
-        step2.FLOATPLAN.floatPlanId = planId;
-        step2.FLOATPLAN.departingFrom = "Test Dock";
-        step2.FLOATPLAN.departureTime = dtString( departDt );
-        step2.FLOATPLAN.departureTimezone = "America/New_York";
-        step2.FLOATPLAN.returningTo = "Test Dock";
-        step2.FLOATPLAN.returnTime = dtString( returnDt );
-        step2.FLOATPLAN.returnTimezone = "America/New_York";
-        var res2 = apiPostJson( variables.ctx.saveUrl, step2 );
-        expect( pickBool( res2, "SUCCESS" ) ).toBeTrue( "Step 2 save failed: #serializeJSON(res2)#" );
-        expect( extractId( res2 ) ).toBe( planId );
+          var step2 = duplicate( step1 );
+          step2.FLOATPLAN.floatPlanId = planId;
+          step2.FLOATPLAN.FLOATPLANID = planId;
+          step2.FLOATPLAN.departingFrom = "Test Dock";
+          step2.FLOATPLAN.departureTime = dtString( departDt );
+          step2.FLOATPLAN.departureTimezone = "America/New_York";
+          step2.FLOATPLAN.returningTo = "Test Dock";
+          step2.FLOATPLAN.returnTime = dtString( returnDt );
+          step2.FLOATPLAN.returnTimezone = "America/New_York";
+          var res2 = apiPostJson( variables.ctx.saveUrl, step2 );
+          expect( pickBool( res2, "SUCCESS" ) ).toBeTrue( "Step 2 save failed: #serializeJSON(res2)#" );
+          expect( extractId( res2 ) ).toBe( planId );
 
-        // Step 3 payload (rescue authority)
-        var step3 = duplicate( step2 );
-        step3.FLOATPLAN.rescueAuthority = "USCG";
-        step3.FLOATPLAN.rescueAuthorityPhone = "555-555-1212";
-        step3.FLOATPLAN.rescueCenterId = variables.ctx.rescueCenterId;
-        var res3 = apiPostJson( variables.ctx.saveUrl, step3 );
-        expect( pickBool( res3, "SUCCESS" ) ).toBeTrue( "Step 3 save failed: #serializeJSON(res3)#" );
-        expect( extractId( res3 ) ).toBe( planId );
+          var step3 = duplicate( step2 );
+          step3.FLOATPLAN.rescueAuthority = "USCG";
+          step3.FLOATPLAN.rescueAuthorityPhone = "555-555-1212";
+          step3.FLOATPLAN.rescueCenterId = variables.ctx.rescueCenterId;
+          var res3 = apiPostJson( variables.ctx.saveUrl, step3 );
+          expect( pickBool( res3, "SUCCESS" ) ).toBeTrue( "Step 3 save failed: #serializeJSON(res3)#" );
+          expect( extractId( res3 ) ).toBe( planId );
 
-        // Step 4 payload (passengers + contacts)
-        ensureSelections();
-        var step4 = duplicate( step3 );
-        step4.PASSENGERS = [ { PASSENGERID = variables.ctx.created.passengerId } ];
-        step4.CONTACTS = [ { CONTACTID = variables.ctx.created.contactId } ];
-        var res4 = apiPostJson( variables.ctx.saveUrl, step4 );
-        expect( pickBool( res4, "SUCCESS" ) ).toBeTrue( "Step 4 save failed: #serializeJSON(res4)#" );
-        expect( extractId( res4 ) ).toBe( planId );
+          ensureSelections();
+          var step4 = duplicate( step3 );
+          step4.PASSENGERS = [ { PASSENGERID = variables.ctx.created.passengerId } ];
+          step4.CONTACTS = [ { CONTACTID = variables.ctx.created.contactId } ];
+          var res4 = apiPostJson( variables.ctx.saveUrl, step4 );
+          expect( pickBool( res4, "SUCCESS" ) ).toBeTrue( "Step 4 save failed: #serializeJSON(res4)#" );
+          expect( extractId( res4 ) ).toBe( planId );
 
-        // Step 5 payload (waypoints)
-        var step5 = duplicate( step4 );
-        step5.WAYPOINTS = [ { WAYPOINTID = variables.ctx.created.waypointId } ];
-        var res5 = apiPostJson( variables.ctx.saveUrl, step5 );
-        expect( pickBool( res5, "SUCCESS" ) ).toBeTrue( "Step 5 save failed: #serializeJSON(res5)#" );
-        expect( extractId( res5 ) ).toBe( planId );
+          var step5 = duplicate( step4 );
+          step5.WAYPOINTS = [ { WAYPOINTID = variables.ctx.created.waypointId } ];
+          var res5 = apiPostJson( variables.ctx.saveUrl, step5 );
+          expect( pickBool( res5, "SUCCESS" ) ).toBeTrue( "Step 5 save failed: #serializeJSON(res5)#" );
+          expect( extractId( res5 ) ).toBe( planId );
 
-        // Step 6 payload (full review save)
-        var step6 = duplicate( step5 );
-        var res6 = apiPostJson( variables.ctx.saveUrl, step6 );
-        expect( pickBool( res6, "SUCCESS" ) ).toBeTrue( "Step 6 save failed: #serializeJSON(res6)#" );
-        expect( extractId( res6 ) ).toBe( planId );
+          var step6 = duplicate( step5 );
+          var res6 = apiPostJson( variables.ctx.saveUrl, step6 );
+          expect( pickBool( res6, "SUCCESS" ) ).toBeTrue( "Step 6 save failed: #serializeJSON(res6)#" );
+          expect( extractId( res6 ) ).toBe( planId );
+        } finally {
+          cleanupCurrentRouteGroup();
+        }
       } );
 
     } );
@@ -233,6 +272,65 @@ component extends="testbox.system.BaseSpec" output="false" {
     } );
     variables.ctx.operatorId = val( operatorRes.OPERATORID ?: 0 );
     return variables.ctx.operatorId;
+  }
+
+  private struct function createRouteLinkedDraftPlan( required string planName ) {
+    var optionsRes = apiPostJson( variables.ctx.routeBuilderActionBase & "routegen_getoptions", {
+      direction = "CCW"
+    } );
+    expect( pickBool( optionsRes, "SUCCESS" ) ).toBeTrue( serializeJSON( optionsRes ) );
+
+    var optionsData = ( structKeyExists( optionsRes, "DATA" ) && isStruct( optionsRes.DATA ) )
+      ? optionsRes.DATA
+      : {};
+    var templateRow = ( structKeyExists( optionsData, "template" ) && isStruct( optionsData.template ) )
+      ? optionsData.template
+      : {};
+    var templateCode = trim( toString( pickFirst( templateRow, [ "code", "CODE", "short_code", "SHORT_CODE" ], "" ) ) );
+    var startOptions = ( structKeyExists( optionsData, "startOptions" ) && isArray( optionsData.startOptions ) )
+      ? optionsData.startOptions
+      : [];
+    var endOptions = ( structKeyExists( optionsData, "endOptions" ) && isArray( optionsData.endOptions ) )
+      ? optionsData.endOptions
+      : [];
+
+    expect( len( templateCode ) ).toBeGT( 0, serializeJSON( optionsRes ) );
+    expect( arrayLen( startOptions ) ).toBeGT( 0, serializeJSON( optionsRes ) );
+    expect( arrayLen( endOptions ) ).toBeGT( 0, serializeJSON( optionsRes ) );
+
+    var generateRes = apiPostJson( variables.ctx.routeBuilderActionBase & "routegen_generate", {
+      route_name = arguments.planName & " Route",
+      template_code = templateCode,
+      start_segment_id = startOptions[ 1 ].segment_id,
+      end_segment_id = endOptions[ arrayLen( endOptions ) ].segment_id,
+      start_date = dateFormat( now(), "yyyy-mm-dd" ),
+      direction = "CCW"
+    } );
+    expect( pickBool( generateRes, "SUCCESS" ) ).toBeTrue( serializeJSON( generateRes ) );
+
+    var routeCode = trim( toString( pickFirst( generateRes, [ "ROUTE_CODE", "route_code", "routeCode" ], "" ) ) );
+    expect( len( routeCode ) ).toBeGT( 0, serializeJSON( generateRes ) );
+    if ( arrayFind( variables.ctx.created.routeCodes, routeCode ) EQ 0 ) {
+      arrayAppend( variables.ctx.created.routeCodes, routeCode );
+    }
+
+    var buildRes = apiPostJson( variables.ctx.routeBuilderActionBase & "buildFloatPlansFromRoute", {
+      routeCode = routeCode,
+      mode = "DAILY",
+      vesselId = variables.ctx.vesselId,
+      rebuild = false
+    } );
+    expect( pickBool( buildRes, "SUCCESS" ) ).toBeTrue( serializeJSON( buildRes ) );
+
+    var planId = val( buildRes.FLOATPLAN_IDS[ 1 ] ?: 0 );
+    var bootstrap = apiGetJson( variables.ctx.bootstrapUrl & "&id=" & planId );
+    var plan = structKeyExists( bootstrap, "FLOATPLAN" ) && isStruct( bootstrap.FLOATPLAN ) ? bootstrap.FLOATPLAN : {};
+
+    return {
+      planId = planId,
+      routeInstanceId = val( plan.ROUTE_INSTANCE_ID ?: 0 ),
+      routeDayNumber = val( plan.ROUTE_DAY_NUMBER ?: 0 )
+    };
   }
 
   private void function ensureSessionUser() {
@@ -342,6 +440,15 @@ component extends="testbox.system.BaseSpec" output="false" {
     return structKeyExists( arguments.payload, arguments.key ) ? !!arguments.payload[ arguments.key ] : false;
   }
 
+  private any function pickFirst( required struct source, required array keys, any defaultValue = "" ) {
+    for ( var key in arguments.keys ) {
+      if ( structKeyExists( arguments.source, key ) ) {
+        return arguments.source[ key ];
+      }
+    }
+    return arguments.defaultValue;
+  }
+
   private string function extractId( required struct saveRes ) {
     if ( structKeyExists( arguments.saveRes, "floatPlanId" ) ) return toString( arguments.saveRes.floatPlanId );
     if ( structKeyExists( arguments.saveRes, "FLOATPLANID" ) ) return toString( arguments.saveRes.FLOATPLANID );
@@ -370,6 +477,16 @@ component extends="testbox.system.BaseSpec" output="false" {
 
   private string function uniqueSuffix() {
     return dateTimeFormat( now(), "yyyymmddHHnnss" ) & "-" & right( createUUID(), 6 );
+  }
+
+  private void function cleanupCurrentRouteGroup() {
+    if ( !structKeyExists( variables, "ctx" ) || !variables.ctx.sessionReady ) {
+      return;
+    }
+    if ( structKeyExists( variables.ctx, "cleanupSupport" ) ) {
+      variables.ctx.cleanupSupport.cleanupCurrentRouteFloatPlanGroup( resolveTestHeaderUserId() );
+    }
+    variables.ctx.created.routeCodes = [];
   }
 
 }

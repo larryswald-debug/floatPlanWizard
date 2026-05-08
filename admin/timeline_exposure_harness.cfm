@@ -472,6 +472,7 @@ if (didRun AND !len(runError)) {
     </style>
 </head>
 <body>
+<cfinclude template="includes/admin_reports_nav.cfm">
 <div class="teh-shell">
     <div class="teh-card">
         <h2 style="margin:0 0 6px;">Cruise Timeline Exposure Harness</h2>
@@ -633,3 +634,4 @@ if (didRun AND !len(runError)) {
 </div>
 </body>
 </html>
+

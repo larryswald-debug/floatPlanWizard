@@ -166,7 +166,7 @@ test("Route Builder map remains stable across open/reopen and deterministic save
     await page.click("#routeGenLegClearBtn");
     await page.click("#routeGenLegSaveBtn");
     await expect(page.locator("#routeGenLegMapSource")).toContainText(/default/i, { timeout: 20000 });
-    await expect(page.locator("#routeGenLegMapStatus")).toContainText(/reverted|default|no saved geometry/i, { timeout: 20000 });
+    await expect(page.locator("#routeGenLegMapStatus")).toContainText(/draft override cleared/i, { timeout: 20000 });
 
     await page.click("#routeGenLegOverlayCloseBtn");
     await expect(page.locator("#routeGenLegOverlay")).not.toHaveClass(/is-open/, { timeout: 10000 });
