@@ -43,6 +43,7 @@
             <cfset var followerIdVal = 0>
             <cfset var floatPlanIdVal = 0>
             <cfset var pointVal = "">
+            <cfset var routeLegOrderVal = "">
             <cfset var asOfUtcVal = "">
             <cfif act EQ "getstreambootstrap">
                 <cfset slugVal = trim(toString(pickArg(body, "slug", "route_slug", arguments.slug)))>
@@ -55,7 +56,8 @@
             <cfelseif act EQ "getactivecruiseweather">
                 <cfset floatPlanIdVal = val(pickArg(body, "floatPlanId", "float_plan_id", 0))>
                 <cfset pointVal = lCase(trim(toString(pickArg(body, "point", "leg_point", ""))))>
-                <cfset payload = getActiveCruiseWeatherCanonical(currentUserId, floatPlanIdVal, pointVal)>
+                <cfset routeLegOrderVal = trim(toString(pickArg(body, "routeLegOrder", "route_leg_order", "")))>
+                <cfset payload = getActiveCruiseWeatherCanonical(currentUserId, floatPlanIdVal, pointVal, routeLegOrderVal)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
@@ -2684,10 +2686,16 @@
         <cfargument name="currentUserId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfargument name="point" type="string" required="true">
+        <cfargument name="routeLegOrder" type="string" required="false" default="">
         <cfscript>
             var canonicalPlan = {};
             var routeMap = {};
             var pointKey = lCase(trim(arguments.point));
+            var routeLegOrderRaw = trim(toString(arguments.routeLegOrder));
+            var routeLegOrderProvided = len(routeLegOrderRaw) GT 0;
+            var routeLegOrderVal = val(routeLegOrderRaw);
+            var ds = resolveDatasource();
+            var qRouteLeg = queryNew("");
             var pointLabel = "";
             var pointLat = "";
             var pointLng = "";
@@ -2752,15 +2760,44 @@
                 );
             }
 
-            routeMap = buildRouteMapData(canonicalPlan.ROUTE_INSTANCE_ID, arguments.currentUserId);
-            if (pointKey EQ "start") {
-                pointLabel = (structKeyExists(routeMap, "active_leg_start_name") ? trim(toString(routeMap.active_leg_start_name)) : "");
-                pointLat = (structKeyExists(routeMap, "active_leg_start_lat") ? routeMap.active_leg_start_lat : "");
-                pointLng = (structKeyExists(routeMap, "active_leg_start_lng") ? routeMap.active_leg_start_lng : "");
+            if (routeLegOrderProvided) {
+                if (routeLegOrderVal GT 0) {
+                    qRouteLeg = queryExecute(
+                        "SELECT start_name, end_name, start_lat, start_lng, end_lat, end_lng
+                         FROM route_instance_legs
+                         WHERE route_instance_id = :routeInstanceId
+                           AND leg_order = :legOrder
+                         ORDER BY id ASC
+                         LIMIT 1",
+                        {
+                            routeInstanceId = { value=canonicalPlan.ROUTE_INSTANCE_ID, cfsqltype="cf_sql_integer" },
+                            legOrder = { value=routeLegOrderVal, cfsqltype="cf_sql_integer" }
+                        },
+                        { datasource=ds }
+                    );
+                }
+                if (qRouteLeg.recordCount GT 0) {
+                    if (pointKey EQ "start") {
+                        pointLabel = (isNull(qRouteLeg.start_name[1]) ? "" : trim(toString(qRouteLeg.start_name[1])));
+                        pointLat = (isNull(qRouteLeg.start_lat[1]) ? "" : qRouteLeg.start_lat[1]);
+                        pointLng = (isNull(qRouteLeg.start_lng[1]) ? "" : qRouteLeg.start_lng[1]);
+                    } else {
+                        pointLabel = (isNull(qRouteLeg.end_name[1]) ? "" : trim(toString(qRouteLeg.end_name[1])));
+                        pointLat = (isNull(qRouteLeg.end_lat[1]) ? "" : qRouteLeg.end_lat[1]);
+                        pointLng = (isNull(qRouteLeg.end_lng[1]) ? "" : qRouteLeg.end_lng[1]);
+                    }
+                }
             } else {
-                pointLabel = (structKeyExists(routeMap, "active_leg_end_name") ? trim(toString(routeMap.active_leg_end_name)) : "");
-                pointLat = (structKeyExists(routeMap, "active_leg_end_lat") ? routeMap.active_leg_end_lat : "");
-                pointLng = (structKeyExists(routeMap, "active_leg_end_lng") ? routeMap.active_leg_end_lng : "");
+                routeMap = buildRouteMapData(canonicalPlan.ROUTE_INSTANCE_ID, arguments.currentUserId);
+                if (pointKey EQ "start") {
+                    pointLabel = (structKeyExists(routeMap, "active_leg_start_name") ? trim(toString(routeMap.active_leg_start_name)) : "");
+                    pointLat = (structKeyExists(routeMap, "active_leg_start_lat") ? routeMap.active_leg_start_lat : "");
+                    pointLng = (structKeyExists(routeMap, "active_leg_start_lng") ? routeMap.active_leg_start_lng : "");
+                } else {
+                    pointLabel = (structKeyExists(routeMap, "active_leg_end_name") ? trim(toString(routeMap.active_leg_end_name)) : "");
+                    pointLat = (structKeyExists(routeMap, "active_leg_end_lat") ? routeMap.active_leg_end_lat : "");
+                    pointLng = (structKeyExists(routeMap, "active_leg_end_lng") ? routeMap.active_leg_end_lng : "");
+                }
             }
 
             if (!isNumeric(pointLat) OR !isNumeric(pointLng)) {

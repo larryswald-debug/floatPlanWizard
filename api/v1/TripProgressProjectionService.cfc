@@ -11,6 +11,7 @@
     <cffunction name="getProjectionForStream" access="public" returntype="struct" output="false">
         <cfargument name="streamId" type="numeric" required="true">
         <cfargument name="asOfUtc" type="any" required="false" default="">
+        <cfargument name="options" type="any" required="false" default="">
         <cfscript>
             var out = baseProjection();
             var qStream = queryNew("");
@@ -36,15 +37,17 @@
                 return out;
             }
 
-            return getProjection(safeNumber(qStream.floatplan_id[1]), arguments.asOfUtc);
+            return getProjection(safeNumber(qStream.floatplan_id[1]), arguments.asOfUtc, arguments.options);
         </cfscript>
     </cffunction>
 
     <cffunction name="getProjection" access="public" returntype="struct" output="false">
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfargument name="asOfUtc" type="any" required="false" default="">
+        <cfargument name="options" type="any" required="false" default="">
         <cfscript>
             var out = baseProjection();
+            var projectionOptions = normalizeProjectionOptions(arguments.options);
             var qPlan = queryNew("");
             var qCanonicalEvents = queryNew("");
             var qCanonicalSegments = queryNew("");
@@ -195,7 +198,7 @@
             todayProgress = buildTodayProgress(segmentsForProjection, dayBounds, asOfDt, speedKn, out);
             currentLegProgress = buildCurrentLegProgress(currentLeg, segmentsForProjection, asOfDt, speedKn, out);
             etaProjection = buildEtaProjection(currentLeg, currentLegProgress, diagnosticOpenSegments, canonicalOpenSegments, asOfDt, speedKn);
-            routeTimeline = buildRouteTimeline(qPlan, qLegs, qProgress, currentLeg, currentLegProgress, etaProjection, canonicalSegments, asOfDt, speedKn, out);
+            routeTimeline = buildRouteTimeline(qPlan, qLegs, qProgress, currentLeg, currentLegProgress, etaProjection, canonicalSegments, asOfDt, speedKn, out, projectionOptions);
 
             out.dailyWindow.localDate = dayBounds.localDate;
             out.dailyWindow.dayStartUtc = formatUtc(dayBounds.startUtc);
@@ -236,6 +239,21 @@
                 "diagnostics" = {},
                 "authorityWarnings" = []
             };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeProjectionOptions" access="private" returntype="struct" output="false">
+        <cfargument name="options" type="any" required="false" default="">
+        <cfscript>
+            var out = {
+                "includeOperationalLockTime" = false
+            };
+
+            if (isStruct(arguments.options) AND structKeyExists(arguments.options, "includeOperationalLockTime")) {
+                out.includeOperationalLockTime = (listFindNoCase("true,1,yes,y", trim(toString(arguments.options.includeOperationalLockTime))) GT 0);
+            }
+
+            return out;
         </cfscript>
     </cffunction>
 
@@ -735,6 +753,7 @@
         <cfargument name="asOfUtc" type="date" required="true">
         <cfargument name="speedKn" type="numeric" required="true">
         <cfargument name="out" type="struct" required="true">
+        <cfargument name="projectionOptions" type="struct" required="true">
         <cfscript>
             var timeline = {};
             var i = 0;
@@ -768,6 +787,8 @@
             var arrivalSource = "";
             var legWarnings = [];
             var legLockModel = {};
+            var lockTimeMinutes = 0;
+            var legDurationSeconds = 0;
 
             timeline = {
                 "available" = false,
@@ -800,7 +821,7 @@
                 )
                 AND canAttemptScheduledRouteTimeline(arguments.qPlan, arguments.qProgress, arguments.currentLeg, arguments.canonicalSegments, arguments.out)
             ) {
-                return buildScheduledRouteTimelineProjection(arguments.qPlan, arguments.qLegs, arguments.qProgress, arguments.currentLeg, arguments.asOfUtc, arguments.speedKn, timeline, arguments.out);
+                return buildScheduledRouteTimelineProjection(arguments.qPlan, arguments.qLegs, arguments.qProgress, arguments.currentLeg, arguments.asOfUtc, arguments.speedKn, timeline, arguments.out, arguments.projectionOptions);
             }
 
             if (!structKeyExists(arguments.out, "eventLedger") OR !structKeyExists(arguments.out.eventLedger, "count") OR safeNumber(arguments.out.eventLedger.count) LTE 0) {
@@ -873,6 +894,13 @@
                 departureSource = "";
                 arrivalSource = "";
                 legWarnings = [];
+                legLockModel = buildLegLockModel(
+                    safeString(arguments.qLegs.lock_route_code[i]),
+                    safeNumber(arguments.qLegs.lock_leg_order[i]),
+                    safeNumber(arguments.qLegs.lock_count[i])
+                );
+                lockTimeMinutes = (arguments.projectionOptions.includeOperationalLockTime ? getOperationalLockTimeMinutes(legLockModel) : 0);
+                legDurationSeconds = round((distanceNm / arguments.speedKn) * 3600) + round(lockTimeMinutes * 60);
 
                 if (isCompleted) {
                     legCompletedNm = distanceNm;
@@ -893,12 +921,21 @@
                     legPct = safeNumber(arguments.currentLegProgress.percentComplete);
                     departureUtc = arguments.currentLeg.startedAtUtc;
                     etaUtc = (structKeyExists(arguments.etaProjection, "etaUtc") ? arguments.etaProjection.etaUtc : "");
+                    if (len(etaUtc) AND lockTimeMinutes GT 0) {
+                        etaUtc = formatUtc(dateAdd("s", round(lockTimeMinutes * 60), parseIsoUtc(etaUtc)));
+                    }
                     arrivalUtc = etaUtc;
                     departureSource = "route_instance_leg_progress.leg_started_at";
-                    arrivalSource = "etaProjection.etaUtc";
+                    arrivalSource = (lockTimeMinutes GT 0 ? "etaProjection.etaUtc_plus_operational_lock_time" : "etaProjection.etaUtc");
                     if (len(etaUtc)) {
                         priorArrivalDt = parseIsoUtc(etaUtc);
                         finalArrivalUtc = etaUtc;
+                    }
+                    if (lockTimeMinutes GT 0) {
+                        arrayAppend(legWarnings, {
+                            "code" = "LOCK_TIME_NOT_POSITION_AWARE",
+                            "message" = "Operational lock time is applied in full to the current leg ETA; remaining-lock position awareness is not included in this phase."
+                        });
                     }
                     if (safeString(arguments.currentLeg.status) EQ "NOT_STARTED" AND len(safeString(arguments.currentLeg.startedAtUtc))) {
                         arrayAppend(legWarnings, {
@@ -909,7 +946,7 @@
                 } else {
                     departureDt = (isDate(priorArrivalDt) ? priorArrivalDt : "");
                     if (isDate(departureDt)) {
-                        arrivalDt = dateAdd("s", round((distanceNm / arguments.speedKn) * 3600), departureDt);
+                        arrivalDt = dateAdd("s", legDurationSeconds, departureDt);
                         departureUtc = formatUtc(departureDt);
                         arrivalUtc = formatUtc(arrivalDt);
                         etaUtc = arrivalUtc;
@@ -917,14 +954,8 @@
                         finalArrivalUtc = arrivalUtc;
                     }
                     departureSource = (len(departureUtc) ? "previous_leg_arrival_projection" : "");
-                    arrivalSource = (len(arrivalUtc) ? "projected_from_previous_leg" : "");
+                    arrivalSource = (len(arrivalUtc) ? (lockTimeMinutes GT 0 ? "projected_from_previous_leg_plus_operational_lock_time" : "projected_from_previous_leg") : "");
                 }
-
-                legLockModel = buildLegLockModel(
-                    safeString(arguments.qLegs.lock_route_code[i]),
-                    safeNumber(arguments.qLegs.lock_leg_order[i]),
-                    safeNumber(arguments.qLegs.lock_count[i])
-                );
                 completedTotalNm += legCompletedNm;
                 arrayAppend(timeline.legs, {
                     "routeLegOrder" = legOrder,
@@ -1034,6 +1065,7 @@
         <cfargument name="speedKn" type="numeric" required="true">
         <cfargument name="timeline" type="struct" required="true">
         <cfargument name="out" type="struct" required="true">
+        <cfargument name="projectionOptions" type="struct" required="true">
         <cfscript>
             var scheduledTimeline = duplicate(arguments.timeline);
             var scheduledDepartureDt = getScheduledDepartureUtc(arguments.qPlan);
@@ -1055,6 +1087,8 @@
             var isCurrent = false;
             var finalArrivalUtc = "";
             var legLockModel = {};
+            var lockTimeMinutes = 0;
+            var legDurationSeconds = 0;
 
             scheduledTimeline.authority = "scheduled_projection";
             scheduledTimeline.available = false;
@@ -1116,17 +1150,19 @@
                 statusVal = safeString(progressRow.status);
                 isCurrent = (legOrder EQ currentLegOrder);
                 departureDt = priorArrivalDt;
-                arrivalDt = dateAdd("s", round((distanceNm / arguments.speedKn) * 3600), departureDt);
-                departureUtc = formatUtc(departureDt);
-                arrivalUtc = formatUtc(arrivalDt);
-                departureSource = (i EQ 1 ? scheduledDepartureSource : "previous_leg_arrival_projection");
-                priorArrivalDt = arrivalDt;
-                finalArrivalUtc = arrivalUtc;
                 legLockModel = buildLegLockModel(
                     safeString(arguments.qLegs.lock_route_code[i]),
                     safeNumber(arguments.qLegs.lock_leg_order[i]),
                     safeNumber(arguments.qLegs.lock_count[i])
                 );
+                lockTimeMinutes = (arguments.projectionOptions.includeOperationalLockTime ? getOperationalLockTimeMinutes(legLockModel) : 0);
+                legDurationSeconds = round((distanceNm / arguments.speedKn) * 3600) + round(lockTimeMinutes * 60);
+                arrivalDt = dateAdd("s", legDurationSeconds, departureDt);
+                departureUtc = formatUtc(departureDt);
+                arrivalUtc = formatUtc(arrivalDt);
+                departureSource = (i EQ 1 ? scheduledDepartureSource : "previous_leg_arrival_projection");
+                priorArrivalDt = arrivalDt;
+                finalArrivalUtc = arrivalUtc;
 
                 arrayAppend(scheduledTimeline.legs, {
                     "routeLegOrder" = legOrder,
@@ -1150,7 +1186,7 @@
                     "paused" = false,
                     "expectedResumeAtUtc" = "",
                     "departureSource" = departureSource,
-                    "arrivalSource" = "scheduled_projection",
+                    "arrivalSource" = (lockTimeMinutes GT 0 ? "scheduled_projection_plus_operational_lock_time" : "scheduled_projection"),
                     "authority" = "scheduled_projection",
                     "usesLatestCheckinAsAnchor" = false,
                     "lockSummary" = legLockModel.lockSummary,
@@ -1413,6 +1449,7 @@
             var hasDelayModel = false;
             var i = 0;
             var lockRow = {};
+            var totalBaseCycle = 0;
             var totalBestDelay = 0;
             var totalTypicalDelay = 0;
             var totalWorstDelay = 0;
@@ -1450,10 +1487,12 @@
                     COALESCE(cl.source, '') AS source_url,
                     COALESCE(cl.notes, '') AS lock_notes,"
                     & (hasDelayModel ? "
+                    ldm.base_cycle_min,
                     ldm.best_wait_min,
                     ldm.typical_wait_min,
                     ldm.worst_wait_min,
                     COALESCE(ldm.notes, '') AS delay_notes" : "
+                    NULL AS base_cycle_min,
                     NULL AS best_wait_min,
                     NULL AS typical_wait_min,
                     NULL AS worst_wait_min,
@@ -1490,6 +1529,7 @@
                     "latitude" = (isNull(qLocks.lat[i]) ? javacast("null", "") : val(qLocks.lat[i])),
                     "longitude" = (isNull(qLocks.lng[i]) ? javacast("null", "") : val(qLocks.lng[i])),
                     "agency" = safeString(qLocks.agency[i]),
+                    "baseCycleMinutes" = (isNull(qLocks.base_cycle_min[i]) ? 0 : val(qLocks.base_cycle_min[i])),
                     "bestDelayMinutes" = (isNull(qLocks.best_wait_min[i]) ? 0 : val(qLocks.best_wait_min[i])),
                     "typicalDelayMinutes" = (isNull(qLocks.typical_wait_min[i]) ? 0 : val(qLocks.typical_wait_min[i])),
                     "worstDelayMinutes" = (isNull(qLocks.worst_wait_min[i]) ? 0 : val(qLocks.worst_wait_min[i])),
@@ -1498,6 +1538,7 @@
                     "source" = safeString(qLocks.source_url[i])
                 };
                 arrayAppend(out.locks, lockRow);
+                totalBaseCycle += val(lockRow.baseCycleMinutes);
                 totalBestDelay += val(lockRow.bestDelayMinutes);
                 totalTypicalDelay += val(lockRow.typicalDelayMinutes);
                 totalWorstDelay += val(lockRow.worstDelayMinutes);
@@ -1506,9 +1547,11 @@
             if (arrayLen(out.locks) GT 0) {
                 out.lockSummary.hasLocks = true;
                 out.lockSummary.lockCount = arrayLen(out.locks);
+                out.lockSummary.baseCycleMinutes = totalBaseCycle;
                 out.lockSummary.bestDelayMinutes = totalBestDelay;
                 out.lockSummary.typicalDelayMinutes = totalTypicalDelay;
                 out.lockSummary.worstDelayMinutes = totalWorstDelay;
+                out.lockSummary.operationalLockTimeMinutes = totalBaseCycle + totalTypicalDelay;
                 out.lockSummary.delayLabel = buildLockDelayLabel(totalBestDelay, totalTypicalDelay, totalWorstDelay);
                 out.lockSummary.source = "route_leg_locks";
             }
@@ -1525,9 +1568,11 @@
                 "lockSummary" = {
                     "hasLocks" = (lockCount GT 0),
                     "lockCount" = lockCount,
+                    "baseCycleMinutes" = 0,
                     "bestDelayMinutes" = 0,
                     "typicalDelayMinutes" = 0,
                     "worstDelayMinutes" = 0,
+                    "operationalLockTimeMinutes" = 0,
                     "delayLabel" = (lockCount GT 0 ? "Delay estimate unavailable" : "No locks mapped"),
                     "source" = arguments.source
                 },
@@ -1545,6 +1590,20 @@
                 return "Delay estimate unavailable";
             }
             return "Best " & numberFormat(arguments.bestDelayMinutes, "0") & " min / Typical " & numberFormat(arguments.typicalDelayMinutes, "0") & " min / Worst " & numberFormat(arguments.worstDelayMinutes, "0") & " min";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getOperationalLockTimeMinutes" access="private" returntype="numeric" output="false">
+        <cfargument name="legLockModel" type="struct" required="true">
+        <cfscript>
+            if (
+                !structKeyExists(arguments.legLockModel, "lockSummary")
+                OR !isStruct(arguments.legLockModel.lockSummary)
+                OR !structKeyExists(arguments.legLockModel.lockSummary, "operationalLockTimeMinutes")
+            ) {
+                return 0;
+            }
+            return max(0, safeNumber(arguments.legLockModel.lockSummary.operationalLockTimeMinutes));
         </cfscript>
     </cffunction>
 

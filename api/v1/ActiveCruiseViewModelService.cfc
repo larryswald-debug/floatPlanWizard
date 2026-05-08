@@ -61,6 +61,7 @@
 
       qMonitoring = loadMonitoring(arguments.userId, arguments.floatPlanId);
       model.monitoring = buildMonitoringSection(qMonitoring, qPlan);
+      model.floatPlanMonitor = buildFloatPlanMonitorSection(qPlan, qMonitoring);
       qProgress = loadRouteProgress(safeNumber(qPlan.route_instance_id[1]), arguments.userId);
       progressSummary = summarizeRouteProgress(qProgress);
 
@@ -70,7 +71,7 @@
       routeTimelineAuthority = (structKeyExists(routeTimeline, "authority") ? safeString(routeTimeline.authority) : "unavailable");
 
       model.routeTimeline = routeTimeline;
-      model.currentLeg = buildCurrentLegSection(projection, routeTimeline);
+      model.currentLeg = buildCurrentLegSection(qPlan, projection, routeTimeline);
       model.weather = buildWeatherSection(qPlan, model.map, model.currentLeg);
 
       explicitStartProof = hasExplicitStartProof(projection, progressSummary);
@@ -144,6 +145,7 @@
         "currentLeg" = {},
         "routeTimeline" = unavailableRouteTimeline(),
         "monitoring" = { "available" = false },
+        "floatPlanMonitor" = { "available" = false },
         "checkIn" = {},
         "hero" = {},
         "weather" = {},
@@ -205,6 +207,7 @@
           ri.completed_at AS route_completed_at,
           ri.generated_route_code,
           ri.template_route_code,
+          ri.routegen_inputs_json,
           ri.start_location,
           ri.end_location,
           lr.name AS template_route_name,
@@ -403,7 +406,7 @@
         service = createObject("component", "api.v1.TripProgressProjectionService").init(variables.datasource);
       }
       try {
-        return service.getProjection(arguments.floatPlanId);
+        return service.getProjection(arguments.floatPlanId, "", { "includeOperationalLockTime" = true });
       } catch (any projectionErr) {
         addWarning(arguments.model, "ACTIVE_CRUISE_PROJECTION_ERROR", projectionErr.message, "TripProgressProjectionService");
         return {
@@ -543,6 +546,52 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="buildFloatPlanMonitorSection" access="private" returntype="struct" output="false">
+    <cfargument name="qPlan" type="query" required="true">
+    <cfargument name="qMonitoring" type="query" required="true">
+    <cfscript>
+      var monitorContact = loadFloatPlanMonitorContact(safeNumber(arguments.qPlan.floatPlanId[1]));
+      var rawState = "";
+      var statusLabel = "";
+      var statusColor = "var(--muted)";
+      var streamLive = false;
+
+      if (arguments.qMonitoring.recordCount GT 0) {
+        rawState = safeString(arguments.qMonitoring.monitor_state[1]);
+      }
+      statusLabel = formatMonitorStatusLabel(rawState, "Normal");
+      if (!len(statusLabel)) {
+        statusLabel = "Unknown";
+      }
+
+      if (uCase(statusLabel) EQ "OVERDUE") {
+        statusColor = "var(--warn)";
+      } else if (uCase(statusLabel) EQ "UNKNOWN") {
+        statusColor = "var(--muted)";
+      } else {
+        statusColor = "var(--good)";
+      }
+
+      streamLive = (
+        safeNumber(arguments.qPlan.stream_id[1]) GT 0
+        OR len(safeString(arguments.qPlan.stream_slug[1])) GT 0
+      );
+
+      return {
+        "available" = true,
+        "authority" = "ActiveCruiseViewModelService.floatPlanMonitor",
+        "attachmentLabel" = "Attached",
+        "statusLabel" = statusLabel,
+        "statusColor" = statusColor,
+        "tripPageLabel" = (streamLive ? "Live" : "Not linked"),
+        "tripPageAvailable" = streamLive,
+        "streamId" = safeNumber(arguments.qPlan.stream_id[1]),
+        "streamSlug" = safeString(arguments.qPlan.stream_slug[1]),
+        "monitorContact" = monitorContact
+      };
+    </cfscript>
+  </cffunction>
+
   <cffunction name="buildTimingFields" access="private" returntype="struct" output="false">
     <cfargument name="qPlan" type="query" required="true">
     <cfscript>
@@ -558,6 +607,7 @@
   </cffunction>
 
   <cffunction name="buildCurrentLegSection" access="private" returntype="struct" output="false">
+    <cfargument name="qPlan" type="query" required="true">
     <cfargument name="projection" type="struct" required="true">
     <cfargument name="routeTimeline" type="struct" required="true">
     <cfscript>
@@ -565,6 +615,19 @@
       var currentProgress = (structKeyExists(arguments.projection, "currentLegProgress") AND isStruct(arguments.projection.currentLegProgress) ? arguments.projection.currentLegProgress : {});
       var timelineLeg = findCurrentTimelineLeg(arguments.routeTimeline);
       var orderVal = (structKeyExists(timelineLeg, "routeLegOrder") ? safeNumber(timelineLeg.routeLegOrder) : (structKeyExists(currentLeg, "routeLegOrder") ? safeNumber(currentLeg.routeLegOrder) : 0));
+      var routeInputs = parseRouteInputsFromPlan(arguments.qPlan);
+      var adjustedSpeedKn = firstNumber([
+        (structKeyExists(arguments.routeTimeline, "effectiveSpeedKn") ? arguments.routeTimeline.effectiveSpeedKn : 0),
+        (structKeyExists(currentProgress, "speedKn") ? currentProgress.speedKn : 0),
+        (structKeyExists(arguments.projection, "etaProjection") AND isStruct(arguments.projection.etaProjection) AND structKeyExists(arguments.projection.etaProjection, "speedKn") ? arguments.projection.etaProjection.speedKn : 0)
+      ]);
+      var weatherFactorPct = (
+        structKeyExists(routeInputs, "weather_factor_pct")
+        AND !isNull(routeInputs.weather_factor_pct)
+        AND isNumeric(routeInputs.weather_factor_pct)
+        ? safeNumber(routeInputs.weather_factor_pct)
+        : 0
+      );
 
       return {
         "order" = orderVal,
@@ -587,6 +650,10 @@
           (structKeyExists(timelineLeg, "etaUtc") ? timelineLeg.etaUtc : ""),
           (structKeyExists(arguments.projection, "etaProjection") AND isStruct(arguments.projection.etaProjection) AND structKeyExists(arguments.projection.etaProjection, "etaUtc") ? arguments.projection.etaProjection.etaUtc : "")
         ]),
+        "adjustedSpeedKn" = adjustedSpeedKn,
+        "adjustedSpeedLabel" = formatSpeedKnLabel(adjustedSpeedKn),
+        "weatherFactorPct" = weatherFactorPct,
+        "weatherFactorLabel" = formatWeatherFactorLabel(weatherFactorPct),
         "status" = (structKeyExists(currentLeg, "status") ? safeString(currentLeg.status) : (structKeyExists(timelineLeg, "status") ? safeString(timelineLeg.status) : "")),
         "statusLabel" = (structKeyExists(currentProgress, "statusLabel") ? safeString(currentProgress.statusLabel) : deriveLegStatusLabel(timelineLeg, currentLeg)),
         "authority" = "TripProgressProjectionService"
@@ -943,6 +1010,7 @@
         out.warnings = warnings;
         return out;
       }
+      out.lookup.payload.routeLegOrder = currentLegOrder;
 
       if (!isStruct(routeLeg) OR !structCount(routeLeg)) {
         arrayAppend(warnings, {
@@ -1228,6 +1296,49 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="loadFloatPlanMonitorContact" access="private" returntype="struct" output="false">
+    <cfargument name="floatPlanId" type="numeric" required="true">
+    <cfscript>
+      var qContact = queryExecute("
+        SELECT
+          c.contactId,
+          c.name,
+          c.phone,
+          c.email
+        FROM floatplan_contacts fpc
+        INNER JOIN contacts c
+          ON c.contactId = fpc.contactId
+        WHERE fpc.floatPlanId = :floatPlanId
+        ORDER BY fpc.recId ASC
+        LIMIT 1
+      ", {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      }, { datasource = variables.datasource });
+      var contactName = "Emergency monitor not named";
+      var contactPhone = "";
+      var contactEmail = "";
+
+      if (qContact.recordCount GT 0) {
+        contactName = safeString(qContact.name[1]);
+        if (!len(contactName)) {
+          contactName = "Emergency monitor not named";
+        }
+        contactPhone = safeString(qContact.phone[1]);
+        contactEmail = safeString(qContact.email[1]);
+      }
+
+      return {
+        "available" = (qContact.recordCount GT 0),
+        "authority" = "floatplan_contacts.recId",
+        "contactId" = (qContact.recordCount GT 0 ? safeNumber(qContact.contactId[1]) : 0),
+        "name" = contactName,
+        "phoneHref" = buildContactPhoneHref(contactPhone, "tel"),
+        "smsHref" = buildContactPhoneHref(contactPhone, "sms"),
+        "emailHref" = buildContactEmailHref(contactEmail)
+      };
+    </cfscript>
+  </cffunction>
+
   <cffunction name="loadCaptainLog" access="private" returntype="struct" output="false">
     <cfargument name="userId" type="numeric" required="true">
     <cfargument name="floatPlanId" type="numeric" required="true">
@@ -1459,6 +1570,40 @@
         }
       } catch (any parseErr) {}
       return {};
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="parseRouteInputsFromPlan" access="private" returntype="struct" output="false">
+    <cfargument name="qPlan" type="query" required="true">
+    <cfscript>
+      if (
+        arguments.qPlan.recordCount LTE 0
+        OR !listFindNoCase(arguments.qPlan.columnList, "routegen_inputs_json")
+        OR isNull(arguments.qPlan.routegen_inputs_json[1])
+      ) {
+        return {};
+      }
+      return parseJsonStruct(arguments.qPlan.routegen_inputs_json[1]);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatSpeedKnLabel" access="private" returntype="string" output="false">
+    <cfargument name="value" type="any" required="true">
+    <cfscript>
+      if (!isNumeric(arguments.value) OR safeNumber(arguments.value) LTE 0) {
+        return "--";
+      }
+      return numberFormat(safeNumber(arguments.value), "0.0") & " kn";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatWeatherFactorLabel" access="private" returntype="string" output="false">
+    <cfargument name="value" type="any" required="true">
+    <cfscript>
+      if (!isNumeric(arguments.value)) {
+        return "0%";
+      }
+      return numberFormat(safeNumber(arguments.value), "0") & "%";
     </cfscript>
   </cffunction>
 
@@ -2031,6 +2176,96 @@
         }
       }
       return 0;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatMonitorStatusLabel" access="private" returntype="string" output="false">
+    <cfargument name="rawStatus" type="string" required="true">
+    <cfargument name="activeLabel" type="string" required="false" default="Active">
+    <cfscript>
+      var status = uCase(trim(arguments.rawStatus));
+      if (!len(status)) {
+        return "";
+      }
+      if (status EQ "ACTIVE") {
+        return arguments.activeLabel;
+      }
+      if (listFindNoCase("OVERDUE,DUE_NOW,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H", status)) {
+        return "Overdue";
+      }
+      return startCaseWords(replace(status, "_", " ", "all"));
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="startCaseWords" access="private" returntype="string" output="false">
+    <cfargument name="inputText" type="string" required="true">
+    <cfscript>
+      var normalized = lCase(trim(arguments.inputText));
+      var parts = listToArray(normalized, " ");
+      var outputParts = [];
+      var i = 0;
+      var part = "";
+
+      for (i = 1; i LTE arrayLen(parts); i++) {
+        part = trim(parts[i]);
+        if (!len(part)) {
+          continue;
+        }
+        arrayAppend(outputParts, uCase(left(part, 1)) & mid(part, 2, len(part)));
+      }
+
+      if (!arrayLen(outputParts)) {
+        return "";
+      }
+      return arrayToList(outputParts, " ");
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="normalizeContactPhone" access="private" returntype="string" output="false">
+    <cfargument name="rawPhone" type="any" required="false" default="">
+    <cfscript>
+      var raw = "";
+      var digits = "";
+      var hasPlus = false;
+
+      if (!isNull(arguments.rawPhone)) {
+        raw = trim(toString(arguments.rawPhone));
+      }
+      if (!len(raw)) {
+        return "";
+      }
+      hasPlus = (left(raw, 1) EQ "+");
+      digits = reReplace(raw, "[^0-9]", "", "all");
+      if (!len(digits)) {
+        return "";
+      }
+      return (hasPlus ? "+" : "") & digits;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildContactPhoneHref" access="private" returntype="string" output="false">
+    <cfargument name="rawPhone" type="any" required="false" default="">
+    <cfargument name="scheme" type="string" required="false" default="tel">
+    <cfscript>
+      var normalizedPhone = normalizeContactPhone(arguments.rawPhone);
+      if (!len(normalizedPhone)) {
+        return "";
+      }
+      return lCase(trim(arguments.scheme)) & ":" & normalizedPhone;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildContactEmailHref" access="private" returntype="string" output="false">
+    <cfargument name="rawEmail" type="any" required="false" default="">
+    <cfscript>
+      var email = "";
+      if (!isNull(arguments.rawEmail)) {
+        email = trim(toString(arguments.rawEmail));
+      }
+      if (!len(email)) {
+        return "";
+      }
+      return "mailto:" & email;
     </cfscript>
   </cffunction>
 
