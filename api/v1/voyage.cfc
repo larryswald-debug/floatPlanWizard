@@ -297,6 +297,16 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="createActiveTripPaceService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.ActiveTripPaceService").init(resolveDatasource());
+            } catch (any pacePathErr) {
+                return createObject("component", "api.v1.ActiveTripPaceService").init(resolveDatasource());
+            }
+        </cfscript>
+    </cffunction>
+
     <cffunction name="createRouteMapGeometryService" access="private" returntype="any" output="false">
         <cfscript>
             try {
@@ -5273,6 +5283,7 @@
             var planVesselId = 0;
             var legLockDetails = {};
             var canonicalActivePlan = {};
+            var activePaceFloatPlanId = 0;
             var qActivePlanDelay = queryNew("");
             var manualDelayMinutesTotal = 0;
             var manualDelayHoursTotal = 0.0;
@@ -5330,6 +5341,7 @@
                 AND structKeyExists(canonicalActivePlan, "ROUTE_INSTANCE_ID")
                 AND val(canonicalActivePlan.ROUTE_INSTANCE_ID) EQ routeInstanceIdVal
             ) {
+                activePaceFloatPlanId = val(canonicalActivePlan.FLOATPLANID);
                 qActivePlanDelay = queryExecute(
                     "SELECT manual_delay_minutes_total
                      FROM floatplans
@@ -5413,7 +5425,7 @@
                 }
             }
             if (effectiveSpeedKn LTE 0) {
-                routeInputSpeedKn = deriveEffectiveSpeedFromInputs(storedInputs);
+                routeInputSpeedKn = deriveEffectiveSpeedFromInputs(storedInputs, activePaceFloatPlanId);
                 if (routeInputSpeedKn GT 0) {
                     effectiveSpeedKn = roundTo2(routeInputSpeedKn);
                     usedRouteInputs = true;
@@ -5858,17 +5870,28 @@
 
     <cffunction name="deriveEffectiveSpeedFromInputs" access="private" returntype="numeric" output="false">
         <cfargument name="routeInputs" type="any" required="false" default="#{}#">
+        <cfargument name="floatPlanId" type="numeric" required="false" default="0">
         <cfscript>
             var src = (isStruct(arguments.routeInputs) ? arguments.routeInputs : {});
+            var activePaceSpeed = 0;
             var directSpeed = getNumericFromKeys(
                 src,
                 [ "weather_adjusted_speed_kn", "weatherAdjustedSpeedKn", "effective_speed_kn", "effectiveSpeedKn", "effective_cruising_speed", "effectiveCruisingSpeed" ],
                 true
             );
             var maxSpeed = 0;
+            var mostEfficientSpeed = 0;
             var paceFactor = 0.25;
+            var paceVal = "";
             var weatherPct = 0;
             var out = 0;
+
+            if (arguments.floatPlanId GT 0) {
+                activePaceSpeed = createActiveTripPaceService().resolveEffectiveSpeedKn(src, arguments.floatPlanId);
+                if (activePaceSpeed GT 0) {
+                    return roundTo2(activePaceSpeed);
+                }
+            }
             if (directSpeed GT 0) return roundTo2(directSpeed);
 
             maxSpeed = getNumericFromKeys(
@@ -5887,8 +5910,18 @@
             );
             if (maxSpeed LTE 0) return 0;
 
-            paceFactor = resolvePaceFactor(structKeyExists(src, "pace") ? src.pace : "RELAXED");
-            out = roundTo2(maxSpeed * paceFactor);
+            paceVal = (structKeyExists(src, "pace") ? uCase(trim(toString(src.pace))) : "RELAXED");
+            mostEfficientSpeed = getNumericFromKeys(
+                src,
+                [ "vessel_most_efficient_speed_kn", "vesselMostEfficientSpeedKn", "most_efficient_speed_kn", "mostEfficientSpeedKn", "MOST_EFFICIENT_SPEED_KN", "MOST_EFFICIENT_SPEED" ],
+                true
+            );
+            if (paceVal EQ "BALANCED" AND mostEfficientSpeed GTE 1) {
+                out = roundTo2(min(60, mostEfficientSpeed));
+            } else {
+                paceFactor = resolvePaceFactor(paceVal);
+                out = roundTo2(maxSpeed * paceFactor);
+            }
             if (out LT 0.5) out = 0.5;
 
             weatherPct = getNumericFromKeys(

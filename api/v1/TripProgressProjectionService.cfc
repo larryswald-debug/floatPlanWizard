@@ -66,7 +66,10 @@
             var segmentsForProjection = [];
             var currentLeg = {};
             var routeInputs = {};
+            var paceMeta = {};
             var speedKn = 0;
+            var progressSpeedKn = 0;
+            var manualDelayMinutes = 0;
             var dayBounds = {};
             var todayProgress = {};
             var currentLegProgress = {};
@@ -187,7 +190,11 @@
 
             qRouteInstance = loadRouteInstance(routeInstanceId);
             routeInputs = parseRouteInputs(qRouteInstance);
-            speedKn = resolveEffectiveSpeed(routeInputs);
+            paceMeta = buildPaceMeta(routeInputs, arguments.floatPlanId);
+            speedKn = resolveEffectiveSpeed(routeInputs, arguments.floatPlanId);
+            progressSpeedKn = resolveProgressSpeed(routeInputs);
+            manualDelayMinutes = max(0, safeNumber(qPlan.manual_delay_minutes_total[1]));
+            out.pace = paceMeta;
 
             segmentsForProjection = (arrayLen(canonicalSegments) GT 0 ? canonicalSegments : diagnosticSegments);
             if (arrayLen(canonicalSegments) EQ 0 AND arrayLen(diagnosticSegments) GT 0) {
@@ -195,10 +202,10 @@
             }
 
             dayBounds = getLocalDayBounds(asOfDt, departureTz);
-            todayProgress = buildTodayProgress(segmentsForProjection, dayBounds, asOfDt, speedKn, out);
-            currentLegProgress = buildCurrentLegProgress(currentLeg, segmentsForProjection, asOfDt, speedKn, out);
-            etaProjection = buildEtaProjection(currentLeg, currentLegProgress, diagnosticOpenSegments, canonicalOpenSegments, asOfDt, speedKn);
-            routeTimeline = buildRouteTimeline(qPlan, qLegs, qProgress, currentLeg, currentLegProgress, etaProjection, canonicalSegments, asOfDt, speedKn, out, projectionOptions);
+            todayProgress = buildTodayProgress(segmentsForProjection, dayBounds, asOfDt, progressSpeedKn, out);
+            currentLegProgress = buildCurrentLegProgress(currentLeg, segmentsForProjection, asOfDt, progressSpeedKn, out);
+            etaProjection = buildEtaProjection(currentLeg, currentLegProgress, diagnosticOpenSegments, canonicalOpenSegments, asOfDt, speedKn, manualDelayMinutes);
+            routeTimeline = buildRouteTimeline(qPlan, qLegs, qProgress, currentLeg, currentLegProgress, etaProjection, canonicalSegments, asOfDt, speedKn, out, projectionOptions, paceMeta);
 
             out.dailyWindow.localDate = dayBounds.localDate;
             out.dailyWindow.dayStartUtc = formatUtc(dayBounds.startUtc);
@@ -232,6 +239,7 @@
                 "dailyWindow" = {},
                 "activitySegments" = [],
                 "currentLeg" = {},
+                "pace" = {},
                 "todayProgress" = {},
                 "currentLegProgress" = {},
                 "etaProjection" = {},
@@ -629,7 +637,7 @@
         <cfargument name="currentLeg" type="struct" required="true">
         <cfargument name="segments" type="array" required="true">
         <cfargument name="asOfUtc" type="date" required="true">
-        <cfargument name="speedKn" type="numeric" required="true">
+        <cfargument name="progressSpeedKn" type="numeric" required="true">
         <cfargument name="out" type="struct" required="true">
         <cfscript>
             var legStart = "";
@@ -673,7 +681,9 @@
                     "underwaySeconds" = 0,
                     "paused" = isPaused,
                     "expectedResumeAtUtc" = expectedResumeAtUtc,
-                    "speedKn" = arguments.speedKn,
+                    "speedKn" = arguments.progressSpeedKn,
+                    "progressSpeedKn" = arguments.progressSpeedKn,
+                    "completedNmAuthority" = "elapsed_underway_time_x_stable_progress_speed",
                     "statusLabel" = "Unavailable",
                     "statusDetail" = "Current leg progress cannot be projected without leg_started_at."
                 };
@@ -681,8 +691,8 @@
             legStart = parseIsoUtc(arguments.currentLeg.startedAtUtc);
             seconds = sumUnderwayOverlapSeconds(arguments.segments, legStart, arguments.asOfUtc);
             hours = seconds / 3600;
-            if (arguments.speedKn GT 0) {
-                completedNm = min(safeNumber(arguments.currentLeg.distanceNm), hours * arguments.speedKn);
+            if (arguments.progressSpeedKn GT 0) {
+                completedNm = min(safeNumber(arguments.currentLeg.distanceNm), hours * arguments.progressSpeedKn);
             }
             remainingNm = max(0, safeNumber(arguments.currentLeg.distanceNm) - completedNm);
             if (safeNumber(arguments.currentLeg.distanceNm) GT 0) {
@@ -698,7 +708,9 @@
                 "percentComplete" = roundTo1(pct),
                 "paused" = isPaused,
                 "expectedResumeAtUtc" = expectedResumeAtUtc,
-                "speedKn" = arguments.speedKn,
+                "speedKn" = arguments.progressSpeedKn,
+                "progressSpeedKn" = arguments.progressSpeedKn,
+                "completedNmAuthority" = "elapsed_underway_time_x_stable_progress_speed",
                 "statusLabel" = statusLabel,
                 "statusDetail" = statusDetail,
                 "usesLatestCheckinAsAnchor" = false
@@ -713,6 +725,7 @@
         <cfargument name="canonicalOpenSegments" type="array" required="true">
         <cfargument name="asOfUtc" type="date" required="true">
         <cfargument name="speedKn" type="numeric" required="true">
+        <cfargument name="manualDelayMinutes" type="numeric" required="false" default="0">
         <cfscript>
             var openSegments = (arrayLen(arguments.canonicalOpenSegments) ? arguments.canonicalOpenSegments : arguments.diagnosticOpenSegments);
             var isPaused = false;
@@ -720,6 +733,7 @@
             var remainingHours = 0;
             var etaDt = "";
             var openType = "";
+            var manualDelayMinutesVal = max(0, safeNumber(arguments.manualDelayMinutes));
 
             if (!structKeyExists(arguments.currentLegProgress, "available") OR !arguments.currentLegProgress.available OR arguments.speedKn LTE 0) {
                 return {
@@ -746,6 +760,10 @@
                 etaDt = dateAdd("s", round(remainingHours * 3600), arguments.asOfUtc);
             }
 
+            if (isDate(etaDt) AND manualDelayMinutesVal GT 0) {
+                etaDt = dateAdd("n", manualDelayMinutesVal, etaDt);
+            }
+
             return {
                 "available" = isDate(etaDt),
                 "authority" = "current_leg_projection",
@@ -754,6 +772,9 @@
                 "expectedResumeAtUtc" = expectedResumeAtUtc,
                 "remainingNm" = safeNumber(arguments.currentLegProgress.remainingNm),
                 "speedKn" = arguments.speedKn,
+                "etaSpeedKn" = arguments.speedKn,
+                "etaSpeedAuthority" = "active_trip_pace_adjusted_projection_speed",
+                "manualDelayMinutesTotal" = manualDelayMinutesVal,
                 "usesLatestCheckinAsAnchor" = false
             };
         </cfscript>
@@ -771,6 +792,7 @@
         <cfargument name="speedKn" type="numeric" required="true">
         <cfargument name="out" type="struct" required="true">
         <cfargument name="projectionOptions" type="struct" required="true">
+        <cfargument name="paceMeta" type="struct" required="false" default="#{}#">
         <cfscript>
             var timeline = {};
             var i = 0;
@@ -806,6 +828,8 @@
             var legLockModel = {};
             var lockTimeMinutes = 0;
             var legDurationSeconds = 0;
+            var manualDelayMinutes = max(0, safeNumber(arguments.qPlan.manual_delay_minutes_total[1]));
+            var manualDelayAppliedToFuture = false;
 
             timeline = {
                 "available" = false,
@@ -816,6 +840,8 @@
                 "paused" = (structKeyExists(arguments.etaProjection, "paused") ? arguments.etaProjection.paused : false),
                 "expectedResumeAtUtc" = (structKeyExists(arguments.etaProjection, "expectedResumeAtUtc") ? arguments.etaProjection.expectedResumeAtUtc : ""),
                 "effectiveSpeedKn" = arguments.speedKn,
+                "pace" = duplicate(arguments.paceMeta),
+                "manualDelayMinutesTotal" = manualDelayMinutes,
                 "usesLatestCheckinAsAnchor" = false,
                 "summary" = {
                     "totalNm" = 0,
@@ -948,6 +974,7 @@
                         priorArrivalDt = parseIsoUtc(etaUtc);
                         finalArrivalUtc = etaUtc;
                     }
+                    manualDelayAppliedToFuture = (manualDelayMinutes GT 0);
                     if (lockTimeMinutes GT 0) {
                         arrayAppend(legWarnings, {
                             "code" = "LOCK_TIME_NOT_POSITION_AWARE",
@@ -963,6 +990,10 @@
                 } else {
                     departureDt = (isDate(priorArrivalDt) ? priorArrivalDt : "");
                     if (isDate(departureDt)) {
+                        if (manualDelayMinutes GT 0 AND !manualDelayAppliedToFuture) {
+                            departureDt = dateAdd("n", manualDelayMinutes, departureDt);
+                            manualDelayAppliedToFuture = true;
+                        }
                         arrivalDt = dateAdd("s", legDurationSeconds, departureDt);
                         departureUtc = formatUtc(departureDt);
                         arrivalUtc = formatUtc(arrivalDt);
@@ -1016,7 +1047,9 @@
                 "completedNm" = roundTo1(completedTotalNm),
                 "remainingNm" = roundTo1(remainingTotalNm),
                 "percentComplete" = roundTo1(percentTotal),
-                "finalArrivalUtc" = finalArrivalUtc
+                "finalArrivalUtc" = finalArrivalUtc,
+                "effectiveSpeedKn" = arguments.speedKn,
+                "manualDelayMinutesTotal" = manualDelayMinutes
             };
             return timeline;
         </cfscript>
@@ -1106,6 +1139,7 @@
             var legLockModel = {};
             var lockTimeMinutes = 0;
             var legDurationSeconds = 0;
+            var manualDelayMinutes = max(0, safeNumber(arguments.qPlan.manual_delay_minutes_total[1]));
 
             scheduledTimeline.authority = "scheduled_projection";
             scheduledTimeline.available = false;
@@ -1114,6 +1148,7 @@
             scheduledTimeline.paused = false;
             scheduledTimeline.expectedResumeAtUtc = "";
             scheduledTimeline.effectiveSpeedKn = arguments.speedKn;
+            scheduledTimeline.manualDelayMinutesTotal = manualDelayMinutes;
             scheduledTimeline.usesLatestCheckinAsAnchor = false;
             scheduledTimeline.summary = {
                 "totalNm" = 0,
@@ -1160,6 +1195,9 @@
             }
 
             priorArrivalDt = scheduledDepartureDt;
+            if (manualDelayMinutes GT 0) {
+                priorArrivalDt = dateAdd("n", manualDelayMinutes, priorArrivalDt);
+            }
             for (i = 1; i LTE arguments.qLegs.recordCount; i++) {
                 legOrder = safeNumber(arguments.qLegs.leg_order[i]);
                 distanceNm = safeNumber(arguments.qLegs.base_dist_nm[i]);
@@ -1218,7 +1256,9 @@
                 "completedNm" = 0,
                 "remainingNm" = roundTo1(totalNm),
                 "percentComplete" = 0,
-                "finalArrivalUtc" = finalArrivalUtc
+                "finalArrivalUtc" = finalArrivalUtc,
+                "effectiveSpeedKn" = arguments.speedKn,
+                "manualDelayMinutesTotal" = manualDelayMinutes
             };
             return scheduledTimeline;
         </cfscript>
@@ -1659,19 +1699,36 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="buildPaceMeta" access="private" returntype="struct" output="false">
+        <cfargument name="inputs" type="struct" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="false" default="0">
+        <cfscript>
+            return createActiveTripPaceService().buildPaceMeta(arguments.inputs, arguments.floatPlanId);
+        </cfscript>
+    </cffunction>
+
     <cffunction name="resolveEffectiveSpeed" access="private" returntype="numeric" output="false">
         <cfargument name="inputs" type="struct" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="false" default="0">
         <cfscript>
-            var keys = [ "weather_adjusted_speed_kn", "effective_speed_kn", "effectiveSpeedKn", "effective_cruising_speed", "cruising_speed", "vessel_most_efficient_speed_kn" ];
-            var i = 0;
-            var key = "";
-            for (i = 1; i LTE arrayLen(keys); i++) {
-                key = keys[i];
-                if (structKeyExists(arguments.inputs, key) AND isNumeric(arguments.inputs[key]) AND safeNumber(arguments.inputs[key]) GT 0) {
-                    return safeNumber(arguments.inputs[key]);
-                }
+            return createActiveTripPaceService().resolveEffectiveSpeedKn(arguments.inputs, arguments.floatPlanId);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveProgressSpeed" access="private" returntype="numeric" output="false">
+        <cfargument name="inputs" type="struct" required="true">
+        <cfscript>
+            return createActiveTripPaceService().resolveEffectiveSpeedKn(arguments.inputs, 0);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="createActiveTripPaceService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.ActiveTripPaceService").init(variables.datasource);
+            } catch (any pacePathErr) {
+                return createObject("component", "api.v1.ActiveTripPaceService").init(variables.datasource);
             }
-            return 0;
         </cfscript>
     </cffunction>
 

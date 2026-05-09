@@ -73,6 +73,7 @@
       model.routeTimeline = routeTimeline;
       model.currentLeg = buildCurrentLegSection(qPlan, projection, routeTimeline);
       model.weather = buildWeatherSection(qPlan, model.map, model.currentLeg);
+      model.pace = buildPaceSection(qPlan, projection, routeTimeline);
 
       explicitStartProof = hasExplicitStartProof(projection, progressSummary);
       motionState = deriveMotionState(qPlan, qMonitoring, projection, routeTimeline, progressSummary, explicitStartProof);
@@ -149,6 +150,7 @@
         "checkIn" = {},
         "hero" = {},
         "weather" = {},
+        "pace" = {},
         "map" = {},
         "floatPlanInfo" = {},
         "contacts" = { "items" = [], "count" = 0 },
@@ -703,6 +705,62 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="buildPaceSection" access="private" returntype="struct" output="false">
+    <cfargument name="qPlan" type="query" required="true">
+    <cfargument name="projection" type="struct" required="true">
+    <cfargument name="routeTimeline" type="struct" required="true">
+    <cfscript>
+      var routeInputs = parseRouteInputsFromPlan(arguments.qPlan);
+      var paceMeta = {};
+      var paceService = createActiveTripPaceService();
+      var currentValue = "RELAXED";
+      var actionDisabledReason = "";
+      var isClosed = isDate(arguments.qPlan.closedAt[1]) OR compareNoCase(safeString(arguments.qPlan.status[1]), "CLOSED") EQ 0;
+
+      if (structKeyExists(arguments.projection, "pace") AND isStruct(arguments.projection.pace)) {
+        paceMeta = duplicate(arguments.projection.pace);
+      } else {
+        paceMeta = paceService.buildPaceMeta(routeInputs, safeNumber(arguments.qPlan.floatPlanId[1]));
+      }
+      currentValue = paceService.normalizePace(structKeyExists(paceMeta, "currentValue") ? paceMeta.currentValue : "RELAXED");
+
+      if (safeNumber(arguments.qPlan.floatPlanId[1]) LTE 0) {
+        actionDisabledReason = "An active float plan is required for pace controls.";
+      } else if (safeNumber(arguments.qPlan.route_instance_id[1]) LTE 0) {
+        actionDisabledReason = "A route-backed active float plan is required for pace controls.";
+      } else if (isClosed) {
+        actionDisabledReason = "Float plan is closed.";
+      }
+
+      return {
+        "available" = true,
+        "authority" = "route_instances.routegen_inputs_json.active_trip_pace",
+        "currentValue" = currentValue,
+        "currentLabel" = paceService.paceLabel(currentValue),
+        "currentIndex" = paceService.paceIndex(currentValue),
+        "plannedValue" = (structKeyExists(paceMeta, "plannedValue") ? safeString(paceMeta.plannedValue) : "RELAXED"),
+        "plannedLabel" = paceService.paceLabel(structKeyExists(paceMeta, "plannedValue") ? paceMeta.plannedValue : "RELAXED"),
+        "options" = paceService.paceOptions(),
+        "effectiveSpeedKn" = (structKeyExists(paceMeta, "effectiveSpeedKn") ? safeNumber(paceMeta.effectiveSpeedKn) : 0),
+        "weatherAdjustedSpeedKn" = firstNumber([
+          (structKeyExists(paceMeta, "weatherAdjustedSpeedKn") ? paceMeta.weatherAdjustedSpeedKn : 0),
+          (structKeyExists(arguments.routeTimeline, "effectiveSpeedKn") ? arguments.routeTimeline.effectiveSpeedKn : 0)
+        ]),
+        "effectiveSpeedLabel" = formatSpeedKnLabel(structKeyExists(paceMeta, "effectiveSpeedKn") ? paceMeta.effectiveSpeedKn : 0),
+        "weatherAdjustedSpeedLabel" = formatSpeedKnLabel(firstNumber([
+          (structKeyExists(paceMeta, "weatherAdjustedSpeedKn") ? paceMeta.weatherAdjustedSpeedKn : 0),
+          (structKeyExists(arguments.routeTimeline, "effectiveSpeedKn") ? arguments.routeTimeline.effectiveSpeedKn : 0)
+        ])),
+        "weatherFactorPct" = (structKeyExists(paceMeta, "weatherFactorPct") ? safeNumber(paceMeta.weatherFactorPct) : 0),
+        "weatherFactorLabel" = formatWeatherFactorLabel(structKeyExists(paceMeta, "weatherFactorPct") ? paceMeta.weatherFactorPct : 0),
+        "speedSource" = (structKeyExists(paceMeta, "speedSource") ? safeString(paceMeta.speedSource) : ""),
+        "updatedAtUtc" = (structKeyExists(paceMeta, "updatedAtUtc") ? safeString(paceMeta.updatedAtUtc) : ""),
+        "isActiveTripOverride" = (structKeyExists(paceMeta, "isActiveTripOverride") AND paceMeta.isActiveTripOverride EQ true),
+        "disabledReason" = actionDisabledReason
+      };
+    </cfscript>
+  </cffunction>
+
   <cffunction name="buildActionsSection" access="private" returntype="struct" output="false">
     <cfargument name="monitoring" type="struct" required="true">
     <cfargument name="currentLeg" type="struct" required="true">
@@ -741,6 +799,7 @@
           "confirmationMessage" = ""
         },
         "timing" = buildTimingActionsSection(arguments.monitoring, arguments.qPlan, isClosed),
+        "pace" = buildPaceActionsSection(arguments.qPlan, isClosed),
         "captainLog" = buildCaptainLogActionsSection(arguments.qPlan, arguments.currentLeg),
         "completeLeg" = {
           "enabled" = (!isClosed AND hasCurrentLeg AND isUnderway),
@@ -936,6 +995,44 @@
           "disabledReason" = disabledReason,
           "inputRequirements" = {
             "dailyStartLocalTime" = { "required" = true }
+          },
+          "confirmationRequired" = false,
+          "confirmationMessage" = ""
+        }
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildPaceActionsSection" access="private" returntype="struct" output="false">
+    <cfargument name="qPlan" type="query" required="true">
+    <cfargument name="isClosed" type="boolean" required="true">
+    <cfscript>
+      var floatPlanId = safeNumber(arguments.qPlan.floatPlanId[1]);
+      var routeInstanceId = safeNumber(arguments.qPlan.route_instance_id[1]);
+      var disabledReason = "";
+      var enabled = false;
+
+      if (floatPlanId LTE 0) {
+        disabledReason = "An active float plan is required for pace controls.";
+      } else if (routeInstanceId LTE 0) {
+        disabledReason = "A route-backed active float plan is required for pace controls.";
+      } else if (arguments.isClosed) {
+        disabledReason = "Float plan is closed.";
+      }
+      enabled = floatPlanId GT 0 AND routeInstanceId GT 0 AND !arguments.isClosed;
+
+      return {
+        "updatePace" = {
+          "enabled" = enabled,
+          "label" = "Update Pace",
+          "endpoint" = "/api/v1/floatplan.cfc?method=handle&action=updateactivepace&returnFormat=json",
+          "method" = "POST",
+          "payload" = { "floatPlanId" = floatPlanId, "pace" = "" },
+          "allowedValues" = [ "RELAXED", "BALANCED", "AGGRESSIVE" ],
+          "reason" = disabledReason,
+          "disabledReason" = disabledReason,
+          "inputRequirements" = {
+            "pace" = { "required" = true }
           },
           "confirmationRequired" = false,
           "confirmationMessage" = ""
@@ -1585,6 +1682,16 @@
         return {};
       }
       return parseJsonStruct(arguments.qPlan.routegen_inputs_json[1]);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="createActiveTripPaceService" access="private" returntype="any" output="false">
+    <cfscript>
+      try {
+        return createObject("component", "fpw.api.v1.ActiveTripPaceService").init(variables.datasource);
+      } catch (any pacePathErr) {
+        return createObject("component", "api.v1.ActiveTripPaceService").init(variables.datasource);
+      }
     </cfscript>
   </cffunction>
 

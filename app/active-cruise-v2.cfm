@@ -2391,6 +2391,12 @@
     .route-selected-leg-box {
       min-height: 560px;
     }
+    @media (min-width: 861px) {
+      #acV2RouteProgressPanel .route-plan-box {
+        min-height: 899.21875px;
+        max-height: 899.21875px;
+      }
+    }
     .timeline {
       display: grid;
       gap: 14px;
@@ -3138,6 +3144,66 @@
       color: var(--muted);
       line-height: 1.45;
     }
+    .ac-pace-command-panel {
+      display: grid;
+      gap: 14px;
+      padding: 18px;
+      border-radius: 20px;
+      background: rgba(7, 24, 36, 0.34);
+      border: 1px solid rgba(126,184,226,0.12);
+    }
+    .route-leg-estimate + .ac-pace-command-panel {
+      margin-top: 16px;
+    }
+    .ac-pace-meter {
+      display: grid;
+      gap: 7px;
+      border-radius: 14px;
+      border: 1px solid rgba(126,184,226,0.14);
+      background: rgba(126,184,226,0.045);
+      padding: 10px 12px;
+    }
+    .ac-pace-meter p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.86rem;
+    }
+    .ac-pace-slider {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+    .ac-pace-label-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      color: var(--soft);
+      font-size: 0.78rem;
+      font-weight: 800;
+      text-align: center;
+    }
+    .ac-pace-selected {
+      display: grid;
+      gap: 4px;
+      min-height: 48px;
+      align-content: center;
+      border-radius: 10px;
+      border: 1px solid rgba(126,184,226,0.14);
+      background: rgba(8,18,28,0.52);
+      padding: 8px 10px;
+    }
+    .ac-pace-selected span {
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .ac-pace-selected strong {
+      color: var(--text);
+      font-size: 0.94rem;
+      line-height: 1.15;
+    }
     @media (max-width: 780px) {
       main.main { width: auto; }
       .shell { width: min(calc(100% - 20px), var(--max)); }
@@ -3358,6 +3424,29 @@
         <cfset timingAddDelayAction = (structKeyExists(timingActionsModel, "addDelay") AND isStruct(timingActionsModel.addDelay) ? timingActionsModel.addDelay : {})>
         <cfset timingClearDelayAction = (structKeyExists(timingActionsModel, "clearDelay") AND isStruct(timingActionsModel.clearDelay) ? timingActionsModel.clearDelay : {})>
         <cfset timingDailyStartAction = (structKeyExists(timingActionsModel, "updateDailyStart") AND isStruct(timingActionsModel.updateDailyStart) ? timingActionsModel.updateDailyStart : {})>
+        <cfset paceModel = (structKeyExists(activeCruiseV2Model, "pace") AND isStruct(activeCruiseV2Model.pace) ? activeCruiseV2Model.pace : {})>
+        <cfset paceActionsModel = (structKeyExists(activeCruiseV2Model.actions, "pace") AND isStruct(activeCruiseV2Model.actions.pace) ? activeCruiseV2Model.actions.pace : {})>
+        <cfset paceUpdateAction = (structKeyExists(paceActionsModel, "updatePace") AND isStruct(paceActionsModel.updatePace) ? paceActionsModel.updatePace : {})>
+        <cfset paceOptions = (structKeyExists(paceModel, "options") AND isArray(paceModel.options) ? paceModel.options : [
+          { "value" = "RELAXED", "label" = "Relaxed", "index" = 0 },
+          { "value" = "BALANCED", "label" = "Efficient Speed", "index" = 1 },
+          { "value" = "AGGRESSIVE", "label" = "Max Speed", "index" = 2 }
+        ])>
+        <cfset paceCurrentValue = uCase(fpwV2Text(fpwV2Get(paceModel, "currentValue"), "RELAXED"))>
+        <cfif paceCurrentValue NEQ "BALANCED" AND paceCurrentValue NEQ "AGGRESSIVE">
+          <cfset paceCurrentValue = "RELAXED">
+        </cfif>
+        <cfset paceCurrentIndex = fpwV2Get(paceModel, "currentIndex", 0)>
+        <cfif !isNumeric(paceCurrentIndex)>
+          <cfset paceCurrentIndex = 0>
+        </cfif>
+        <cfset paceCurrentIndex = val(paceCurrentIndex)>
+        <cfif paceCurrentIndex LT 0 OR paceCurrentIndex GT 2>
+          <cfset paceCurrentIndex = 0>
+        </cfif>
+        <cfset paceUpdateEnabled = fpwV2ActionEnabled(paceUpdateAction)>
+        <cfset paceUpdateReason = fpwV2Text(fpwV2Get(paceUpdateAction, "disabledReason"), fpwV2Text(fpwV2Get(paceUpdateAction, "reason"), ""))>
+        <cfif paceUpdateEnabled><cfset paceUpdateReason = ""></cfif>
         <cfset manualDelayMinutesTotal = fpwV2Get(activeCruiseV2Model.monitoring, "manualDelayMinutesTotal", 0)>
         <cfif !isNumeric(manualDelayMinutesTotal)>
           <cfset manualDelayMinutesTotal = 0>
@@ -3502,6 +3591,37 @@
                       <small>Display values come from activeCruiseV2Model.currentLeg.</small>
                     </div>
                   </div>
+                  <section class="ac-v2-panel ac-pace-command-panel" id="fpwV2PacePanel" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(paceUpdateAction, "endpoint"), ""))#" data-method="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(paceUpdateAction, "method"), "POST"))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(paceUpdateAction, "payload", {})))#" data-enabled="#encodeForHTMLAttribute(paceUpdateEnabled ? "true" : "false")#" aria-label="Pace controls">
+                    <div class="ac-panel-header">
+                      <div>
+                        <h2>Pace / Speed</h2>
+                        <p>Operational pace for the active trip projection.</p>
+                      </div>
+                      <span class="authority-pill">#encodeForHTML(fpwV2Text(fpwV2Get(paceModel, "currentLabel"), "Relaxed"))#</span>
+                    </div>
+                    <div class="ac-pace-meter">
+                      <div class="ac-section-label">Current Pace</div>
+                      <strong class="ac-monitor-value" data-fpw-field="pace.currentLabel">#encodeForHTML(fpwV2Text(fpwV2Get(paceModel, "currentLabel"), "Relaxed"))#</strong>
+                      <p><span data-fpw-field="pace.weatherAdjustedSpeedLabel">#encodeForHTML(fpwV2Text(fpwV2Get(paceModel, "weatherAdjustedSpeedLabel"), "--"))#</span> after #encodeForHTML(fpwV2Text(fpwV2Get(paceModel, "weatherFactorLabel"), "0%"))# weather factor.</p>
+                    </div>
+                    <div class="ac-command-section ac-pace-section">
+                      <label class="ac-section-label" for="fpwV2PaceSlider">Set Active-Trip Pace</label>
+                      <input id="fpwV2PaceSlider" class="ac-pace-slider" type="range" min="0" max="2" step="1" value="#encodeForHTMLAttribute(paceCurrentIndex)#"<cfif !paceUpdateEnabled> disabled</cfif> data-current-value="#encodeForHTMLAttribute(paceCurrentValue)#">
+                      <div class="ac-pace-label-row" aria-hidden="true">
+                        <cfloop array="#paceOptions#" item="paceOption">
+                          <span>#encodeForHTML(fpwV2Text(fpwV2Get(paceOption, "label"), "Pace"))#</span>
+                        </cfloop>
+                      </div>
+                      <div class="ac-inline-control-row">
+                        <div class="ac-pace-selected" aria-live="polite">
+                          <span>Selected</span>
+                          <strong id="fpwV2PaceSelectedLabel">#encodeForHTML(fpwV2Text(fpwV2Get(paceModel, "currentLabel"), "Relaxed"))#</strong>
+                        </div>
+                      </div>
+                      <cfif len(paceUpdateReason)><p class="ac-muted-note">#encodeForHTML(paceUpdateReason)#</p></cfif>
+                    </div>
+                    <div class="action-feedback ac-action-ready-message" id="fpwV2PaceFeedback" role="status" aria-live="polite">Change pace to update the active trip projection.</div>
+                  </section>
                 </div>
               </div>
 
@@ -4620,9 +4740,82 @@
   }
 })();
 
-(function() {
+window.FPWActiveCruiseV2 = window.FPWActiveCruiseV2 || {};
+window.FPWActiveCruiseV2.fieldSelectorValue = function(value) {
+  return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+};
+window.FPWActiveCruiseV2.refreshFromDocument = function(sourceDoc, options) {
+  const settings = options || {};
+  const replaceSelectors = Array.isArray(settings.replaceSelectors) ? settings.replaceSelectors : [];
+  const sourcePayloadEl = sourceDoc ? sourceDoc.getElementById('fpwActiveCruiseV2WeatherPayload') : null;
+  const targetPayloadEl = document.getElementById('fpwActiveCruiseV2WeatherPayload');
+
+  if (!sourceDoc) {
+    throw new Error('Active Cruise V2 refresh data unavailable.');
+  }
+
+  Array.from(sourceDoc.querySelectorAll('[data-fpw-field]')).forEach(function(sourceFieldNode) {
+    const fieldName = String(sourceFieldNode.getAttribute('data-fpw-field') || '').trim();
+    if (!fieldName) {
+      return;
+    }
+    document.querySelectorAll('[data-fpw-field="' + window.FPWActiveCruiseV2.fieldSelectorValue(fieldName) + '"]').forEach(function(targetNode) {
+      targetNode.textContent = sourceFieldNode.textContent;
+      if (sourceFieldNode.hasAttribute('style')) {
+        targetNode.setAttribute('style', sourceFieldNode.getAttribute('style'));
+      } else {
+        targetNode.removeAttribute('style');
+      }
+    });
+  });
+
+  replaceSelectors.forEach(function(selector) {
+    const sourceNode = sourceDoc.querySelector(selector);
+    const targetNode = document.querySelector(selector);
+    if (sourceNode && targetNode) {
+      targetNode.replaceWith(sourceNode.cloneNode(true));
+    }
+  });
+
+  if (targetPayloadEl && sourcePayloadEl) {
+    targetPayloadEl.textContent = sourcePayloadEl.textContent || '{}';
+  }
+
+  if (typeof window.FPWActiveCruiseV2.bindRouteProgressPanel === 'function') {
+    window.FPWActiveCruiseV2.bindRouteProgressPanel();
+  }
+  if (typeof window.FPWActiveCruiseV2.bindPacePanel === 'function') {
+    window.FPWActiveCruiseV2.bindPacePanel();
+  }
+};
+window.FPWActiveCruiseV2.fetchAndRefresh = function(options) {
+  return fetch(window.location.href, {
+    method: 'GET',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: {
+      'Accept': 'text/html'
+    }
+  })
+    .then(function(response) {
+      if (!response.ok) {
+        throw new Error('Active Cruise V2 refresh failed.');
+      }
+      return response.text();
+    })
+    .then(function(html) {
+      const parser = new window.DOMParser();
+      const refreshedDoc = parser.parseFromString(html, 'text/html');
+      window.FPWActiveCruiseV2.refreshFromDocument(refreshedDoc, options || {});
+    });
+};
+
+window.FPWActiveCruiseV2.bindRouteProgressPanel = function() {
   const panel = document.getElementById('acV2RouteProgressPanel');
   if (!panel) {
+    return;
+  }
+  if (panel.getAttribute('data-ac-v2-route-progress-bound') === 'true') {
     return;
   }
 
@@ -4630,6 +4823,7 @@
   if (!rows.length) {
     return;
   }
+  panel.setAttribute('data-ac-v2-route-progress-bound', 'true');
 
   const fields = {
     distance: panel.querySelector('[data-selected-leg-field="distance"]'),
@@ -4746,7 +4940,8 @@
     rows.find(isCurrentLeg) ||
     rows[0]
   );
-})();
+};
+window.FPWActiveCruiseV2.bindRouteProgressPanel();
 
 (function() {
   const root = document.getElementById('fpwV2WeatherLookup');
@@ -5616,6 +5811,175 @@
 
   updateSaveLabel();
 })();
+
+window.FPWActiveCruiseV2.bindPacePanel = function() {
+  const panel = document.getElementById('fpwV2PacePanel');
+  const slider = document.getElementById('fpwV2PaceSlider');
+  const selectedLabel = document.getElementById('fpwV2PaceSelectedLabel');
+  const feedback = document.getElementById('fpwV2PaceFeedback');
+  const initiallyDisabled = slider ? slider.disabled : true;
+  let lastCommittedPaceValue = slider ? String(slider.getAttribute('data-current-value') || '').toUpperCase() : '';
+  const paceByIndex = [
+    { value: 'RELAXED', label: 'Relaxed' },
+    { value: 'BALANCED', label: 'Efficient Speed' },
+    { value: 'AGGRESSIVE', label: 'Max Speed' }
+  ];
+
+  if (!panel || !slider || !selectedLabel || !feedback) {
+    return;
+  }
+  if (panel.getAttribute('data-ac-v2-pace-bound') === 'true') {
+    return;
+  }
+  panel.setAttribute('data-ac-v2-pace-bound', 'true');
+
+  function setFeedback(message, state) {
+    feedback.textContent = message;
+    feedback.classList.remove('is-success', 'is-error');
+    if (state) {
+      feedback.classList.add(state);
+    }
+    feedback.hidden = false;
+    feedback.setAttribute('aria-hidden', 'false');
+  }
+
+  function resolveEndpoint(endpoint) {
+    const basePath = panel.getAttribute('data-fpw-base') || '';
+    if (endpoint && endpoint.indexOf('/api/') === 0 && basePath) {
+      return basePath + endpoint;
+    }
+    return endpoint || '';
+  }
+
+  function readPayload() {
+    const raw = panel.getAttribute('data-payload') || '{}';
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function responseMessage(payload, fallback) {
+    if (payload && typeof payload === 'object') {
+      return payload.MESSAGE || payload.message || payload.ERROR || payload.error || fallback;
+    }
+    return fallback;
+  }
+
+  function selectedPace() {
+    const index = Math.max(0, Math.min(2, parseInt(slider.value || '0', 10) || 0));
+    return paceByIndex[index] || paceByIndex[0];
+  }
+
+  function paceIndexFromValue(value) {
+    const paceValue = String(value || '').toUpperCase();
+    for (let index = 0; index < paceByIndex.length; index += 1) {
+      if (paceByIndex[index].value === paceValue) {
+        return index;
+      }
+    }
+    return 0;
+  }
+
+  function syncSelectedLabel() {
+    selectedLabel.textContent = selectedPace().label;
+  }
+
+  function restoreCommittedPace() {
+    slider.value = String(paceIndexFromValue(lastCommittedPaceValue));
+    syncSelectedLabel();
+  }
+
+  function saveSelectedPace() {
+    const endpoint = resolveEndpoint(panel.getAttribute('data-endpoint') || '');
+    const method = panel.getAttribute('data-method') || 'POST';
+    const payload = readPayload();
+    const pace = selectedPace();
+    const isEnabled = panel.getAttribute('data-enabled') === 'true';
+
+    if (!isEnabled || slider.disabled) {
+      return;
+    }
+    if (pace.value === lastCommittedPaceValue) {
+      setFeedback('Change pace to update the active trip projection.', '');
+      return;
+    }
+    if (!endpoint) {
+      setFeedback('The view model did not return an executable pace endpoint.', 'is-error');
+      restoreCommittedPace();
+      return;
+    }
+
+    payload.pace = pace.value;
+    slider.disabled = true;
+    setFeedback('Saving active-trip pace...', '');
+
+    fetch(endpoint, {
+      method: method,
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+      .then(function(response) {
+        return response.text().then(function(text) {
+          let responsePayload = {};
+          if (text) {
+            try {
+              responsePayload = JSON.parse(text);
+            } catch (parseError) {
+              responsePayload = { success: false, message: text };
+            }
+          }
+          return { ok: response.ok, payload: responsePayload };
+        });
+      })
+      .then(function(result) {
+        const responsePayload = result.payload || {};
+        const success = result.ok && (responsePayload.success === true || responsePayload.SUCCESS === true);
+        if (!success) {
+          throw new Error(responseMessage(responsePayload, 'Pace update failed.'));
+        }
+        lastCommittedPaceValue = pace.value;
+        slider.setAttribute('data-current-value', lastCommittedPaceValue);
+        setFeedback('Pace updated. Refreshing view model...', 'is-success');
+        return window.FPWActiveCruiseV2.fetchAndRefresh({
+          replaceSelectors: [
+            '#fpwV2PacePanel',
+            '#acV2RouteProgressPanel'
+          ]
+        }).then(function() {
+          const refreshedFeedback = document.getElementById('fpwV2PaceFeedback');
+          if (refreshedFeedback) {
+            refreshedFeedback.textContent = 'Pace updated from latest view model.';
+            refreshedFeedback.classList.remove('is-error');
+            refreshedFeedback.classList.add('is-success');
+            refreshedFeedback.hidden = false;
+            refreshedFeedback.setAttribute('aria-hidden', 'false');
+          }
+        });
+      })
+      .catch(function(error) {
+        setFeedback(error && error.message ? error.message : 'Pace update request failed.', 'is-error');
+        restoreCommittedPace();
+        slider.disabled = initiallyDisabled;
+      });
+  }
+
+  if (!lastCommittedPaceValue) {
+    lastCommittedPaceValue = selectedPace().value;
+    slider.setAttribute('data-current-value', lastCommittedPaceValue);
+  }
+
+  slider.addEventListener('input', syncSelectedLabel);
+  slider.addEventListener('change', saveSelectedPace);
+
+  syncSelectedLabel();
+};
+window.FPWActiveCruiseV2.bindPacePanel();
 
 (function() {
   const panel = document.getElementById('fpwV2TimingPanel');

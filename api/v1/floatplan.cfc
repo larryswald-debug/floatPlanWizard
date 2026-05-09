@@ -268,6 +268,32 @@
                     </cfif>
                 </cfcase>
 
+                <cfcase value="updateactivepace,updatepace">
+                    <cfset var paceFloatPlanId = 0>
+                    <cfset var paceValue = trim(
+                        structKeyExists(body, "pace")
+                            ? toString(body.pace)
+                            : (structKeyExists(url, "pace") ? toString(url.pace) : "")
+                    )>
+                    <cfif structKeyExists(body, "floatPlanId")>
+                        <cfset paceFloatPlanId = val(body.floatPlanId)>
+                    <cfelseif structKeyExists(url, "floatPlanId")>
+                        <cfset paceFloatPlanId = val(url.floatPlanId)>
+                    <cfelseif structKeyExists(url, "id")>
+                        <cfset paceFloatPlanId = val(url.id)>
+                    </cfif>
+                    <cfset var activeCruisePaceGuard = resolveCanonicalActiveFloatPlan(userId, paceFloatPlanId)>
+                    <cfif NOT activeCruisePaceGuard.SUCCESS>
+                        <cfset activeCruisePaceGuard.AUTH = true>
+                        <cfoutput>#serializeJSON(activeCruisePaceGuard)#</cfoutput>
+                    <cfelse>
+                        <cfset var activeTripPaceService = createObject("component", resolveApiV1ComponentPath("ActiveTripPaceService")).init("fpw")>
+                        <cfset var paceUpdateResult = activeTripPaceService.persistActiveTripPace(userId, paceFloatPlanId, paceValue)>
+                        <cfset paceUpdateResult.AUTH = true>
+                        <cfoutput>#serializeJSON(paceUpdateResult)#</cfoutput>
+                    </cfif>
+                </cfcase>
+
                 <cfcase value="completeleg">
                     <cfset var completeLegId = 0>
                     <cfset var expectedLegOrder = 0>
