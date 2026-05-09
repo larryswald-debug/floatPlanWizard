@@ -1453,6 +1453,14 @@
       color: var(--accent);
       border: 1px solid rgba(67,199,255,0.18);
     }
+    .pace-header-label {
+      color: var(--accent);
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
     .hero-title,
     h1 {
       margin: 14px 0 0;
@@ -2578,6 +2586,19 @@
       gap: 4px;
       flex: 0 0 auto;
     }
+    .captain-note-meta .action-mini {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      font-size: 0.8rem;
+    }
+    .captain-note-log-list {
+      max-height: 408px;
+      overflow-y: auto;
+      padding-right: 4px;
+      scrollbar-gutter: stable;
+    }
     .active-cruise-reference-card {
       padding: 18px;
     }
@@ -3458,6 +3479,10 @@
         <cfset addDelayReason = fpwV2Text(fpwV2Get(timingAddDelayAction, "disabledReason"), fpwV2Text(fpwV2Get(timingAddDelayAction, "reason"), ""))>
         <cfset clearDelayReason = fpwV2Text(fpwV2Get(timingClearDelayAction, "disabledReason"), fpwV2Text(fpwV2Get(timingClearDelayAction, "reason"), ""))>
         <cfset dailyStartReason = fpwV2Text(fpwV2Get(timingDailyStartAction, "disabledReason"), fpwV2Text(fpwV2Get(timingDailyStartAction, "reason"), ""))>
+        <cfset dailyStartInputValue = fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "dailyStartLocalTime"), "")>
+        <cfif len(dailyStartInputValue) GTE 5>
+          <cfset dailyStartInputValue = left(dailyStartInputValue, 5)>
+        </cfif>
         <cfif addDelayEnabled><cfset addDelayReason = ""></cfif>
         <cfif fpwV2ActionEnabled(timingClearDelayAction) AND manualDelayMinutesTotal LTE 0>
           <cfset clearDelayReason = "No manual delay is currently applied.">
@@ -3597,7 +3622,7 @@
                         <h2>Pace / Speed</h2>
                         <p>Operational pace for the active trip projection.</p>
                       </div>
-                      <span class="authority-pill">#encodeForHTML(fpwV2Text(fpwV2Get(paceModel, "currentLabel"), "Relaxed"))#</span>
+                      <span class="pace-header-label">#encodeForHTML(fpwV2Text(fpwV2Get(paceModel, "currentLabel"), "Relaxed"))#</span>
                     </div>
                     <div class="ac-pace-meter">
                       <div class="ac-section-label">Current Pace</div>
@@ -3743,6 +3768,8 @@
               <cfset selectedRoutePlanProgressLabel = fpwV2Percent(fpwV2Get(selectedRoutePlanLeg, "percentComplete"))>
               <cfset selectedRoutePlanStatusLabel = fpwV2Text(fpwV2Get(selectedRoutePlanLeg, "status"), fpwV2Get(selectedRoutePlanLeg, "state", "Not available"))>
               <cfset selectedRoutePlanArrivalLabel = fpwV2TripDateTimeLabel(fpwV2Text(fpwV2Get(selectedRoutePlanLeg, "etaUtc"), fpwV2Get(selectedRoutePlanLeg, "arrivalUtc")), activeCruiseV2TripTimezone, "Not available")>
+              <cfset selectedRoutePlanEstimatedDurationLabel = fpwV2Text(fpwV2Get(selectedRoutePlanLeg, "estimatedDurationLabel"), "Not available")>
+              <cfset selectedRoutePlanRemainingDurationLabel = fpwV2Text(fpwV2Get(selectedRoutePlanLeg, "remainingDurationLabel"), "Not available")>
               <div class="leg-grid">
                 <div class="route-box route-plan-box">
                   <div class="mini-head" style="margin-bottom:12px;">
@@ -3768,6 +3795,8 @@
                         <cfset routePlanProgressLabel = fpwV2Percent(fpwV2Get(routePlanLeg, "percentComplete"))>
                         <cfset routePlanDepartureLabel = fpwV2TripDateTimeLabel(fpwV2Get(routePlanLeg, "departureUtc"), activeCruiseV2TripTimezone, "Not available")>
                         <cfset routePlanArrivalLabel = fpwV2TripDateTimeLabel(fpwV2Text(fpwV2Get(routePlanLeg, "etaUtc"), fpwV2Get(routePlanLeg, "arrivalUtc")), activeCruiseV2TripTimezone, "Not available")>
+                        <cfset routePlanEstimatedDurationLabel = fpwV2Text(fpwV2Get(routePlanLeg, "estimatedDurationLabel"), "Not available")>
+                        <cfset routePlanRemainingDurationLabel = fpwV2Text(fpwV2Get(routePlanLeg, "remainingDurationLabel"), "Not available")>
                         <cfset routePlanLockSummary = fpwV2Get(routePlanLeg, "lockSummary", {})>
                         <cfset routePlanLocks = (structKeyExists(routePlanLeg, "locks") AND isArray(routePlanLeg.locks) ? routePlanLeg.locks : [])>
                         <cfset routePlanHasLocks = (structKeyExists(routePlanLockSummary, "hasLocks") AND routePlanLockSummary.hasLocks EQ true)>
@@ -3782,7 +3811,30 @@
                           <cfset routePlanSelectedClass = " is-selected">
                           <cfset routePlanAriaExpanded = "true">
                         </cfif>
-                        <article class="route-plan-leg route-plan-leg--#encodeForHTMLAttribute(routePlanState)##routePlanSelectedClass#" data-route-plan-leg data-ac-v2-leg-row data-leg-index="#encodeForHTMLAttribute(routePlanLegIndex)#" data-leg-order="#encodeForHTMLAttribute(routePlanLegOrder)#" data-leg-state="#encodeForHTMLAttribute(routePlanState)#" data-leg-title="#encodeForHTMLAttribute(routePlanTitle)#" data-leg-distance="#encodeForHTMLAttribute(routePlanDistanceLabel)#" data-leg-remaining="#encodeForHTMLAttribute(routePlanRemainingLabel)#" data-leg-completed="#encodeForHTMLAttribute(routePlanCompletedLabel)#" data-leg-progress="#encodeForHTMLAttribute(routePlanProgressLabel)#" data-leg-status="#encodeForHTMLAttribute(routePlanStatusLabel)#" data-leg-status-label="#encodeForHTMLAttribute(routePlanStatusLabel)#" data-leg-departure="#encodeForHTMLAttribute(routePlanDepartureLabel)#" data-leg-arrival="#encodeForHTMLAttribute(routePlanArrivalLabel)#" data-leg-arrival-label="#encodeForHTMLAttribute(routePlanArrivalLabel)#" data-route-plan-leg-order="#encodeForHTMLAttribute(routePlanLegOrder)#" data-route-plan-state="#encodeForHTMLAttribute(routePlanState)#" role="button" tabindex="0" aria-expanded="#routePlanAriaExpanded#" aria-label="Select route leg #encodeForHTMLAttribute(routePlanTitle)#">
+                        <article class="route-plan-leg route-plan-leg--#encodeForHTMLAttribute(routePlanState)##routePlanSelectedClass#"
+                          data-route-plan-leg
+                          data-ac-v2-leg-row
+                          data-leg-index="#encodeForHTMLAttribute(routePlanLegIndex)#"
+                          data-leg-order="#encodeForHTMLAttribute(routePlanLegOrder)#"
+                          data-leg-state="#encodeForHTMLAttribute(routePlanState)#"
+                          data-leg-title="#encodeForHTMLAttribute(routePlanTitle)#"
+                          data-leg-distance="#encodeForHTMLAttribute(routePlanDistanceLabel)#"
+                          data-leg-remaining="#encodeForHTMLAttribute(routePlanRemainingLabel)#"
+                          data-leg-completed="#encodeForHTMLAttribute(routePlanCompletedLabel)#"
+                          data-leg-progress="#encodeForHTMLAttribute(routePlanProgressLabel)#"
+                          data-leg-estimated-duration="#encodeForHTMLAttribute(routePlanEstimatedDurationLabel)#"
+                          data-leg-remaining-duration="#encodeForHTMLAttribute(routePlanRemainingDurationLabel)#"
+                          data-leg-status="#encodeForHTMLAttribute(routePlanStatusLabel)#"
+                          data-leg-status-label="#encodeForHTMLAttribute(routePlanStatusLabel)#"
+                          data-leg-departure="#encodeForHTMLAttribute(routePlanDepartureLabel)#"
+                          data-leg-arrival="#encodeForHTMLAttribute(routePlanArrivalLabel)#"
+                          data-leg-arrival-label="#encodeForHTMLAttribute(routePlanArrivalLabel)#"
+                          data-route-plan-leg-order="#encodeForHTMLAttribute(routePlanLegOrder)#"
+                          data-route-plan-state="#encodeForHTMLAttribute(routePlanState)#"
+                          role="button"
+                          tabindex="0"
+                          aria-expanded="#routePlanAriaExpanded#"
+                          aria-label="Select route leg #encodeForHTMLAttribute(routePlanTitle)#">
                           <div class="route-plan-leg-button">
                             <span class="route-plan-leg-dot" aria-hidden="true"></span>
                             <span>
@@ -3879,6 +3931,8 @@
                   <div class="data-grid">
                     <div class="data-item"><span>Distance</span><strong data-selected-leg-field="distance">#encodeForHTML(selectedRoutePlanDistanceLabel)#</strong><small>Total leg length</small></div>
                     <div class="data-item"><span>Remaining</span><strong data-selected-leg-field="remaining">#encodeForHTML(selectedRoutePlanRemainingLabel)#</strong><small>From selected leg model</small></div>
+                    <div class="data-item"><span>Est. Leg Time</span><strong data-selected-leg-field="estimatedDuration">#encodeForHTML(selectedRoutePlanEstimatedDurationLabel)#</strong><small>Projected full duration</small></div>
+                    <div class="data-item"><span>Time Left</span><strong data-selected-leg-field="remainingDuration">#encodeForHTML(selectedRoutePlanRemainingDurationLabel)#</strong><small>Projected remaining duration</small></div>
                     <div class="data-item"><span>Completed</span><strong data-selected-leg-field="completed">#encodeForHTML(selectedRoutePlanCompletedLabel)#</strong><small>Selected leg completed distance</small></div>
                     <div class="data-item"><span>Progress</span><strong data-selected-leg-field="progress">#encodeForHTML(selectedRoutePlanProgressLabel)#</strong><small>Selected leg progress</small></div>
                     <div class="data-item"><span>Status</span><strong data-selected-leg-field="status">#encodeForHTML(selectedRoutePlanStatusLabel)#</strong><small>Selected leg status</small></div>
@@ -4087,7 +4141,7 @@
                   <strong class="ac-monitor-value" data-fpw-field="monitor.dailyStartLabel">#encodeForHTML(fpwV2TripLocalTimeLabel(fpwV2Get(activeCruiseV2Model.monitoring, "dailyStartLocalTime"), activeCruiseV2TripTimezone, fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureUtc"), "08:00 " & fpwV2TripTimezoneLabel(activeCruiseV2TripTimezone, fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureUtc"))))#</strong>
                   <p>Applied to overnight resume and next-day monitoring.</p>
                   <div class="ac-inline-control-row">
-                    <input id="fpwV2DailyStartLocalTime" class="timing-input" type="time" step="60" value="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "dailyStartLocalTime"), ""))#"<cfif !dailyStartEnabled> disabled</cfif>>
+                    <input id="fpwV2DailyStartLocalTime" class="timing-input" type="time" step="60" value="#encodeForHTMLAttribute(dailyStartInputValue)#"<cfif !dailyStartEnabled> disabled</cfif>>
                     <button type="button" class="ac-command-btn" data-ac-v2-timing-action="updateDailyStart" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingDailyStartAction, "endpoint"), ""))#" data-method="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingDailyStartAction, "method"), "POST"))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(timingDailyStartAction, "payload", {})))#" data-confirmation-required="#encodeForHTMLAttribute(toString(fpwV2Get(timingDailyStartAction, "confirmationRequired", false)))#" data-confirmation-message="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingDailyStartAction, "confirmationMessage"), ""))#"<cfif !dailyStartEnabled> disabled aria-disabled="true"</cfif>>#encodeForHTML(fpwV2Text(fpwV2Get(timingDailyStartAction, "label"), "Save Daily Start Time"))#</button>
                   </div>
                   <cfif len(dailyStartReason)><p class="ac-muted-note">#encodeForHTML(dailyStartReason)#</p></cfif>
@@ -4155,7 +4209,7 @@
                     <button type="button" class="captain-note-save" id="fpwV2CaptainQuickNoteSaveBtn"<cfif !captainLogSaveEnabled> disabled</cfif>>Save Note</button>
                   </div>
                   <cfif structKeyExists(captainLogModel, "items") AND isArray(captainLogModel.items) AND arrayLen(captainLogModel.items)>
-                    <div class="log-list" id="fpwV2CaptainQuickNoteList">
+                    <div class="log-list captain-note-log-list" id="fpwV2CaptainQuickNoteList">
                       <cfloop array="#captainLogModel.items#" item="logItem">
                         <cfset logPostedBadge = (val(fpwV2Get(logItem, "posted_to_stream", 0)) EQ 1 ? "POSTED" : "PRIVATE")>
                         <div class="log-row">
@@ -4171,7 +4225,7 @@
                       </cfloop>
                     </div>
                   <cfelse>
-                    <div class="log-list" id="fpwV2CaptainQuickNoteList"></div>
+                    <div class="log-list captain-note-log-list" id="fpwV2CaptainQuickNoteList"></div>
                     <div class="captain-note-empty" id="fpwV2CaptainQuickNoteEmpty">Private captain notes will appear here after they are saved.</div>
                   </cfif>
                 </div>
@@ -4182,9 +4236,7 @@
               <div class="reference-card-header">
                 <div>
                   <h2 id="crew-emergency-title">Crew &amp; Passengers</h2>
-                  <p>Quick access to trip contacts</p>
                 </div>
-                <span class="reference-badge">Reference</span>
               </div>
               <div class="contact-reference-stack">
                 <article class="contact-reference-panel contact-reference-panel--primary">
@@ -4787,6 +4839,9 @@ window.FPWActiveCruiseV2.refreshFromDocument = function(sourceDoc, options) {
   if (typeof window.FPWActiveCruiseV2.bindPacePanel === 'function') {
     window.FPWActiveCruiseV2.bindPacePanel();
   }
+  if (typeof window.FPWActiveCruiseV2.bindTimingPanel === 'function') {
+    window.FPWActiveCruiseV2.bindTimingPanel();
+  }
 };
 window.FPWActiveCruiseV2.fetchAndRefresh = function(options) {
   return fetch(window.location.href, {
@@ -4828,6 +4883,8 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel = function() {
   const fields = {
     distance: panel.querySelector('[data-selected-leg-field="distance"]'),
     remaining: panel.querySelector('[data-selected-leg-field="remaining"]'),
+    estimatedDuration: panel.querySelector('[data-selected-leg-field="estimatedDuration"]'),
+    remainingDuration: panel.querySelector('[data-selected-leg-field="remainingDuration"]'),
     completed: panel.querySelector('[data-selected-leg-field="completed"]'),
     progress: panel.querySelector('[data-selected-leg-field="progress"]'),
     status: panel.querySelector('[data-selected-leg-field="status"]'),
@@ -4890,6 +4947,8 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel = function() {
 
     if (fields.distance) fields.distance.textContent = valueFrom(row, 'legDistance');
     if (fields.remaining) fields.remaining.textContent = valueFrom(row, 'legRemaining');
+    if (fields.estimatedDuration) fields.estimatedDuration.textContent = valueFrom(row, 'legEstimatedDuration');
+    if (fields.remainingDuration) fields.remainingDuration.textContent = valueFrom(row, 'legRemainingDuration');
     if (fields.completed) fields.completed.textContent = valueFrom(row, 'legCompleted');
     if (fields.progress) fields.progress.textContent = valueFrom(row, 'legProgress');
     if (fields.status) fields.status.textContent = valueFrom(row, 'legStatusLabel');
@@ -5981,12 +6040,16 @@ window.FPWActiveCruiseV2.bindPacePanel = function() {
 };
 window.FPWActiveCruiseV2.bindPacePanel();
 
-(function() {
+window.FPWActiveCruiseV2.bindTimingPanel = function() {
   const panel = document.getElementById('fpwV2TimingPanel');
   const feedback = document.getElementById('fpwV2TimingFeedback');
   if (!panel || !feedback) {
     return;
   }
+  if (panel.getAttribute('data-ac-v2-timing-bound') === 'true') {
+    return;
+  }
+  panel.setAttribute('data-ac-v2-timing-bound', 'true');
 
   function setFeedback(message, state) {
     feedback.textContent = message;
@@ -5994,6 +6057,8 @@ window.FPWActiveCruiseV2.bindPacePanel();
     if (state) {
       feedback.classList.add(state);
     }
+    feedback.hidden = false;
+    feedback.setAttribute('aria-hidden', 'false');
   }
 
   function resolveEndpoint(endpoint) {
@@ -6030,6 +6095,34 @@ window.FPWActiveCruiseV2.bindPacePanel();
     buttons.forEach(function(actionButton, index) {
       actionButton.disabled = states[index] === true;
     });
+  }
+
+  function refreshSelectorsForAction(actionName) {
+    const refreshMap = {
+      addDelay: [
+        '#fpwV2TimingPanel',
+        '#acV2RouteProgressPanel'
+      ],
+      clearDelay: [
+        '#fpwV2TimingPanel',
+        '#acV2RouteProgressPanel'
+      ],
+      updateDailyStart: [
+        '#fpwV2TimingPanel'
+      ]
+    };
+    return refreshMap[actionName] || [];
+  }
+
+  function showRefreshedFeedback(message) {
+    const refreshedFeedback = document.getElementById('fpwV2TimingFeedback');
+    if (refreshedFeedback) {
+      refreshedFeedback.textContent = message;
+      refreshedFeedback.classList.remove('is-error');
+      refreshedFeedback.classList.add('is-success');
+      refreshedFeedback.hidden = false;
+      refreshedFeedback.setAttribute('aria-hidden', 'false');
+    }
   }
 
   panel.addEventListener('click', function(event) {
@@ -6074,7 +6167,12 @@ window.FPWActiveCruiseV2.bindPacePanel();
         setFeedback('Daily start time is required.', 'is-error');
         return;
       }
-      payload.dailyStartLocalTime = dailyStartLocalTime;
+      const dailyStartMatch = dailyStartLocalTime.match(/^(\d{2}:\d{2})(?::\d{2})?$/);
+      if (!dailyStartMatch) {
+        setFeedback('Daily start time must use HH:mm format.', 'is-error');
+        return;
+      }
+      payload.dailyStartLocalTime = dailyStartMatch[1];
     }
 
     if (confirmationRequired && !window.confirm(confirmationMessage)) {
@@ -6114,6 +6212,12 @@ window.FPWActiveCruiseV2.bindPacePanel();
         const message = responseMessage(payloadResult, success ? 'Timing update completed.' : 'Timing update failed.');
         if (success) {
           setFeedback(message + ' Refreshing view model...', 'is-success');
+          const refreshSelectors = refreshSelectorsForAction(actionName);
+          if (refreshSelectors.length) {
+            return window.FPWActiveCruiseV2.fetchAndRefresh({
+              replaceSelectors: refreshSelectors
+            }).then(function() { showRefreshedFeedback(message); });
+          }
           window.location.reload();
           return;
         }
@@ -6125,7 +6229,8 @@ window.FPWActiveCruiseV2.bindPacePanel();
         restoreButtons(buttons, buttonStates);
       });
   });
-})();
+};
+window.FPWActiveCruiseV2.bindTimingPanel();
 
 (function() {
   const noteInput = document.getElementById('fpwV2CheckInNote');

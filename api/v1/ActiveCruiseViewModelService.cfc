@@ -652,6 +652,17 @@
           (structKeyExists(timelineLeg, "etaUtc") ? timelineLeg.etaUtc : ""),
           (structKeyExists(arguments.projection, "etaProjection") AND isStruct(arguments.projection.etaProjection) AND structKeyExists(arguments.projection.etaProjection, "etaUtc") ? arguments.projection.etaProjection.etaUtc : "")
         ]),
+        "estimatedDurationSeconds" = (structKeyExists(timelineLeg, "estimatedDurationSeconds") ? safeNumber(timelineLeg.estimatedDurationSeconds) : 0),
+        "estimatedDurationLabel" = (structKeyExists(timelineLeg, "estimatedDurationLabel") ? safeString(timelineLeg.estimatedDurationLabel) : ""),
+        "remainingDurationSeconds" = firstNumber([
+          (structKeyExists(timelineLeg, "remainingDurationSeconds") ? timelineLeg.remainingDurationSeconds : 0),
+          (structKeyExists(arguments.projection, "etaProjection") AND isStruct(arguments.projection.etaProjection) AND structKeyExists(arguments.projection.etaProjection, "remainingDurationSeconds") ? arguments.projection.etaProjection.remainingDurationSeconds : 0)
+        ]),
+        "remainingDurationLabel" = firstNonEmpty([
+          (structKeyExists(timelineLeg, "remainingDurationLabel") ? timelineLeg.remainingDurationLabel : ""),
+          (structKeyExists(arguments.projection, "etaProjection") AND isStruct(arguments.projection.etaProjection) AND structKeyExists(arguments.projection.etaProjection, "remainingDurationLabel") ? arguments.projection.etaProjection.remainingDurationLabel : "")
+        ]),
+        "durationAuthority" = (structKeyExists(timelineLeg, "durationAuthority") ? safeString(timelineLeg.durationAuthority) : ""),
         "adjustedSpeedKn" = adjustedSpeedKn,
         "adjustedSpeedLabel" = formatSpeedKnLabel(adjustedSpeedKn),
         "weatherFactorPct" = weatherFactorPct,

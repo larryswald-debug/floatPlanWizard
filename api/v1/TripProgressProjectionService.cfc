@@ -734,6 +734,7 @@
             var etaDt = "";
             var openType = "";
             var manualDelayMinutesVal = max(0, safeNumber(arguments.manualDelayMinutes));
+            var remainingDurationSeconds = 0;
 
             if (!structKeyExists(arguments.currentLegProgress, "available") OR !arguments.currentLegProgress.available OR arguments.speedKn LTE 0) {
                 return {
@@ -741,7 +742,9 @@
                     "authority" = "projection",
                     "reason" = "Missing current leg progress or effective speed.",
                     "etaUtc" = "",
-                    "paused" = false
+                    "paused" = false,
+                    "remainingDurationSeconds" = 0,
+                    "remainingDurationLabel" = formatDurationSecondsLabel(0)
                 };
             }
 
@@ -763,6 +766,9 @@
             if (isDate(etaDt) AND manualDelayMinutesVal GT 0) {
                 etaDt = dateAdd("n", manualDelayMinutesVal, etaDt);
             }
+            if (isDate(etaDt)) {
+                remainingDurationSeconds = max(0, dateDiff("s", arguments.asOfUtc, etaDt));
+            }
 
             return {
                 "available" = isDate(etaDt),
@@ -774,6 +780,8 @@
                 "speedKn" = arguments.speedKn,
                 "etaSpeedKn" = arguments.speedKn,
                 "etaSpeedAuthority" = "active_trip_pace_adjusted_projection_speed",
+                "remainingDurationSeconds" = remainingDurationSeconds,
+                "remainingDurationLabel" = formatDurationSecondsLabel(remainingDurationSeconds),
                 "manualDelayMinutesTotal" = manualDelayMinutesVal,
                 "usesLatestCheckinAsAnchor" = false
             };
@@ -828,6 +836,9 @@
             var legLockModel = {};
             var lockTimeMinutes = 0;
             var legDurationSeconds = 0;
+            var legEstimatedDurationSeconds = 0;
+            var legRemainingDurationSeconds = 0;
+            var durationAuthority = "";
             var manualDelayMinutes = max(0, safeNumber(arguments.qPlan.manual_delay_minutes_total[1]));
             var manualDelayAppliedToFuture = false;
 
@@ -944,11 +955,16 @@
                 );
                 lockTimeMinutes = (arguments.projectionOptions.includeOperationalLockTime ? getOperationalLockTimeMinutes(legLockModel) : 0);
                 legDurationSeconds = round((distanceNm / arguments.speedKn) * 3600) + round(lockTimeMinutes * 60);
+                legEstimatedDurationSeconds = legDurationSeconds;
+                legRemainingDurationSeconds = legDurationSeconds;
+                durationAuthority = (lockTimeMinutes GT 0 ? "pace_weather_speed_plus_operational_lock_time" : "pace_weather_speed");
 
                 if (isCompleted) {
                     legCompletedNm = distanceNm;
                     legRemainingNm = 0;
                     legPct = 100;
+                    legRemainingDurationSeconds = 0;
+                    durationAuthority = "projected_duration_completed_leg_actuals_preserved";
                     departureUtc = startedAtUtc;
                     arrivalUtc = completedAtUtc;
                     etaUtc = completedAtUtc;
@@ -964,6 +980,8 @@
                     legPct = safeNumber(arguments.currentLegProgress.percentComplete);
                     departureUtc = arguments.currentLeg.startedAtUtc;
                     etaUtc = (structKeyExists(arguments.etaProjection, "etaUtc") ? arguments.etaProjection.etaUtc : "");
+                    legRemainingDurationSeconds = (structKeyExists(arguments.etaProjection, "remainingDurationSeconds") ? safeNumber(arguments.etaProjection.remainingDurationSeconds) : round((legRemainingNm / arguments.speedKn) * 3600)) + round(lockTimeMinutes * 60);
+                    durationAuthority = (lockTimeMinutes GT 0 ? "current_leg_eta_projection_plus_operational_lock_time" : "current_leg_eta_projection");
                     if (len(etaUtc) AND lockTimeMinutes GT 0) {
                         etaUtc = formatUtc(dateAdd("s", round(lockTimeMinutes * 60), parseIsoUtc(etaUtc)));
                     }
@@ -1024,6 +1042,11 @@
                     "completedNm" = roundTo1(legCompletedNm),
                     "remainingNm" = roundTo1(legRemainingNm),
                     "percentComplete" = roundTo1(legPct),
+                    "estimatedDurationSeconds" = legEstimatedDurationSeconds,
+                    "estimatedDurationLabel" = formatDurationSecondsLabel(legEstimatedDurationSeconds),
+                    "remainingDurationSeconds" = legRemainingDurationSeconds,
+                    "remainingDurationLabel" = formatDurationSecondsLabel(legRemainingDurationSeconds),
+                    "durationAuthority" = durationAuthority,
                     "paused" = (isCurrent AND timeline.paused),
                     "expectedResumeAtUtc" = (isCurrent ? timeline.expectedResumeAtUtc : ""),
                     "departureSource" = departureSource,
@@ -1139,6 +1162,7 @@
             var legLockModel = {};
             var lockTimeMinutes = 0;
             var legDurationSeconds = 0;
+            var durationAuthority = "";
             var manualDelayMinutes = max(0, safeNumber(arguments.qPlan.manual_delay_minutes_total[1]));
 
             scheduledTimeline.authority = "scheduled_projection";
@@ -1212,6 +1236,7 @@
                 );
                 lockTimeMinutes = (arguments.projectionOptions.includeOperationalLockTime ? getOperationalLockTimeMinutes(legLockModel) : 0);
                 legDurationSeconds = round((distanceNm / arguments.speedKn) * 3600) + round(lockTimeMinutes * 60);
+                durationAuthority = (lockTimeMinutes GT 0 ? "scheduled_projection_plus_operational_lock_time" : "scheduled_projection");
                 arrivalDt = dateAdd("s", legDurationSeconds, departureDt);
                 departureUtc = formatUtc(departureDt);
                 arrivalUtc = formatUtc(arrivalDt);
@@ -1238,6 +1263,11 @@
                     "completedNm" = 0,
                     "remainingNm" = roundTo1(distanceNm),
                     "percentComplete" = 0,
+                    "estimatedDurationSeconds" = legDurationSeconds,
+                    "estimatedDurationLabel" = formatDurationSecondsLabel(legDurationSeconds),
+                    "remainingDurationSeconds" = legDurationSeconds,
+                    "remainingDurationLabel" = formatDurationSecondsLabel(legDurationSeconds),
+                    "durationAuthority" = durationAuthority,
                     "paused" = false,
                     "expectedResumeAtUtc" = "",
                     "departureSource" = departureSource,
@@ -1834,6 +1864,23 @@
                 return 0;
             }
             return val(arguments.value);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="formatDurationSecondsLabel" access="private" returntype="string" output="false">
+        <cfargument name="seconds" type="numeric" required="true">
+        <cfscript>
+            var totalMinutes = max(0, round(arguments.seconds / 60));
+            var hours = int(totalMinutes / 60);
+            var minutes = totalMinutes - (hours * 60);
+
+            if (hours LTE 0) {
+                return numberFormat(minutes, "0") & " min";
+            }
+            if (minutes LTE 0) {
+                return numberFormat(hours, "0") & " hr";
+            }
+            return numberFormat(hours, "0") & " hr " & numberFormat(minutes, "0") & " min";
         </cfscript>
     </cffunction>
 

@@ -107,6 +107,10 @@ component extends="testbox.system.BaseSpec" output="false" {
           lockSeconds = round(firstLeg.lockSummary.operationalLockTimeMinutes * 60);
           projectedSeconds = dateDiff("s", parseUtcForTest(firstLeg.departureUtc), parseUtcForTest(firstLeg.etaUtc));
           expect(projectedSeconds).toBe(cruiseSeconds + lockSeconds, serializeJSON(firstLeg));
+          expect(firstLeg.estimatedDurationSeconds).toBe(cruiseSeconds + lockSeconds, serializeJSON(firstLeg));
+          expect(firstLeg.remainingDurationSeconds).toBe(firstLeg.estimatedDurationSeconds, serializeJSON(firstLeg));
+          expect(len(firstLeg.estimatedDurationLabel)).toBeGT(0, serializeJSON(firstLeg));
+          expect(len(firstLeg.remainingDurationLabel)).toBeGT(0, serializeJSON(firstLeg));
           expect(firstLeg.arrivalSource).toBe("scheduled_projection_plus_operational_lock_time", serializeJSON(firstLeg));
         } finally {
           cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
@@ -177,8 +181,10 @@ component extends="testbox.system.BaseSpec" output="false" {
         var baselineCompletedNm = 0;
         var baselineCurrentLeg = {};
         var baselineCurrentEtaUtc = "";
+        var baselineCurrentRemainingDurationSeconds = 0;
         var baselineFutureLeg = {};
         var baselineFutureArrivalUtc = "";
+        var baselineFutureEstimatedDurationSeconds = 0;
         var relaxedResult = {};
         var relaxedModel = {};
         var relaxedInputs = {};
@@ -219,10 +225,14 @@ component extends="testbox.system.BaseSpec" output="false" {
           baselineCurrentLeg = findCurrentTimelineLegForTest(baselineProjection.routeTimeline);
           baselineFutureLeg = findFirstFutureTimelineLegForTest(baselineProjection.routeTimeline);
           baselineCurrentEtaUtc = baselineCurrentLeg.etaUtc ?: "";
+          baselineCurrentRemainingDurationSeconds = baselineCurrentLeg.remainingDurationSeconds ?: 0;
           baselineFutureArrivalUtc = baselineFutureLeg.etaUtc ?: "";
+          baselineFutureEstimatedDurationSeconds = baselineFutureLeg.estimatedDurationSeconds ?: 0;
           expect(baselineCompletedNm).toBeGT(0, serializeJSON(baselineProjection.currentLegProgress));
           expect(len(baselineCurrentEtaUtc)).toBeGT(0, serializeJSON(baselineCurrentLeg));
+          expect(baselineCurrentRemainingDurationSeconds).toBeGT(0, serializeJSON(baselineCurrentLeg));
           expect(len(baselineFutureArrivalUtc)).toBeGT(0, serializeJSON(baselineProjection.routeTimeline));
+          expect(baselineFutureEstimatedDurationSeconds).toBeGT(0, serializeJSON(baselineFutureLeg));
 
           invalidResult = postActiveCruisePaceWithApi(sessionApi, asset.floatPlanId, "FAST");
           expect(isSuccessPayload(invalidResult)).toBeFalse(serializeJSON(invalidResult));
@@ -247,6 +257,12 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(abs(roundTo2Numeric(relaxedModel.currentLeg.completedNm) - baselineCompletedNm)).toBeLTE(0.2, serializeJSON(relaxedModel.currentLeg));
           expect(roundTo2Numeric(relaxedModel.currentLeg.completedNm)).toBe(roundTo2Numeric(relaxedCurrentLeg.completedNm), serializeJSON(relaxedCurrentLeg));
           expect(relaxedModel.currentLeg.etaUtc).toBe(relaxedCurrentLeg.etaUtc, serializeJSON(relaxedCurrentLeg));
+          expect(relaxedModel.currentLeg.remainingDurationLabel).toBe(relaxedCurrentLeg.remainingDurationLabel, serializeJSON(relaxedCurrentLeg));
+          expect(roundTo2Numeric(relaxedCurrentLeg.remainingDurationSeconds)).notToBe(roundTo2Numeric(baselineCurrentRemainingDurationSeconds), serializeJSON(relaxedCurrentLeg));
+          expect(roundTo2Numeric(relaxedFutureLeg.estimatedDurationSeconds)).notToBe(roundTo2Numeric(baselineFutureEstimatedDurationSeconds), serializeJSON(relaxedFutureLeg));
+          expect(relaxedFutureLeg.remainingDurationSeconds).toBe(relaxedFutureLeg.estimatedDurationSeconds, serializeJSON(relaxedFutureLeg));
+          expect(len(relaxedCurrentLeg.remainingDurationLabel)).toBeGT(0, serializeJSON(relaxedCurrentLeg));
+          expect(len(relaxedFutureLeg.estimatedDurationLabel)).toBeGT(0, serializeJSON(relaxedFutureLeg));
           expect(relaxedModel.currentLeg.etaUtc).notToBe(baselineCurrentEtaUtc, serializeJSON(relaxedModel.currentLeg));
           expect(relaxedFutureLeg.etaUtc ?: "").notToBe(baselineFutureArrivalUtc, serializeJSON(relaxedFutureLeg));
           expect(dateDiff("n", parseUtcForTest(baselineProjection.routeTimeline.summary.finalArrivalUtc), parseUtcForTest(relaxedModel.routeTimeline.summary.finalArrivalUtc))).toBeGT(0);
@@ -270,11 +286,13 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(isSuccessPayload(completedResult)).toBeTrue(serializeJSON(completedResult));
           completedBefore = variables.projectionService.getProjection(asset.floatPlanId, now(), { "includeOperationalLockTime" = true }).routeTimeline.legs[1];
           expect(completedBefore.isCompleted).toBeTrue(serializeJSON(completedBefore));
+          expect(completedBefore.remainingDurationSeconds).toBe(0, serializeJSON(completedBefore));
           relaxedResult = postActiveCruisePaceWithApi(sessionApi, asset.floatPlanId, "RELAXED");
           expect(isSuccessPayload(relaxedResult)).toBeTrue(serializeJSON(relaxedResult));
           completedAfter = variables.projectionService.getProjection(asset.floatPlanId, now(), { "includeOperationalLockTime" = true }).routeTimeline.legs[1];
           expect(completedAfter.isCompleted).toBeTrue(serializeJSON(completedAfter));
           expect(completedAfter.etaUtc).toBe(completedBefore.etaUtc, serializeJSON(completedAfter));
+          expect(completedAfter.remainingDurationSeconds).toBe(0, serializeJSON(completedAfter));
 
           forceStaleActiveTripPaceOverride(asset.floatPlanId, "RELAXED", asset.floatPlanId + 999);
           staleProjection = variables.projectionService.getProjection(asset.floatPlanId, now(), { "includeOperationalLockTime" = true });
@@ -696,6 +714,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var weatherStart = {};
         var weatherEnd = {};
         var weatherLookup = {};
+        var dailyStartAction = {};
 
         try {
           url.testUserId = variables.sessionApiUser.userId;
@@ -800,7 +819,55 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(structKeyExists(model.actions.completeLeg, "confirmationRequired")).toBeTrue(serializeJSON(model.actions.completeLeg));
           expect(findStatusOption(model, "Delayed").inputRequirements.newExpectedDepartureTime.required).toBeTrue(serializeJSON(model.checkIn.allowedStatusOptions));
           expect(findStatusOption(model, "Assistance Needed").confirmationRequired).toBeTrue(serializeJSON(model.checkIn.allowedStatusOptions));
+          expect(structKeyExists(model.actions, "timing")).toBeTrue(serializeJSON(model.actions));
+          expect(model.actions.timing.addDelay.endpoint).toBe("/api/v1/floatplan.cfc?method=handle&action=adddelay&returnFormat=json", serializeJSON(model.actions.timing.addDelay));
+          expect(model.actions.timing.clearDelay.endpoint).toBe("/api/v1/floatplan.cfc?method=handle&action=cleardelay&returnFormat=json", serializeJSON(model.actions.timing.clearDelay));
+          dailyStartAction = model.actions.timing.updateDailyStart;
+          expect(dailyStartAction.enabled).toBeTrue(serializeJSON(dailyStartAction));
+          expect(dailyStartAction.method).toBe("POST", serializeJSON(dailyStartAction));
+          expect(dailyStartAction.endpoint).toBe("/api/v1/floatplan.cfc?method=handle&action=updatedailystart&returnFormat=json", serializeJSON(dailyStartAction));
+          expect(dailyStartAction.payload.floatPlanId).toBe(asset.floatPlanId, serializeJSON(dailyStartAction.payload));
+          expect(structKeyExists(dailyStartAction.payload, "dailyStartLocalTime")).toBeTrue(serializeJSON(dailyStartAction.payload));
+          expect(dailyStartAction.inputRequirements.dailyStartLocalTime.required).toBeTrue(serializeJSON(dailyStartAction.inputRequirements));
           expect(hasLegacyRoutePlanAuthority(model)).toBeFalse(serializeJSON(model.displayAuthority));
+        } finally {
+          cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+        }
+      });
+
+      it("updates daily start override through the AC-V2 timing action contract", function() {
+        var prefix = variables.naming.buildPrefix("active-cruise-v2", "daily-start");
+        var sessionApi = buildSessionApiSupport();
+        var localCreated = newCreatedTracker();
+        var asset = {};
+        var modelBefore = {};
+        var modelAfter = {};
+        var invalidResult = {};
+        var validResult = {};
+
+        try {
+          url.testUserId = variables.sessionApiUser.userId;
+          asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+          modelBefore = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          expect(modelBefore.success).toBeTrue(serializeJSON(modelBefore));
+          expect(normalizeDailyStartForTest(modelBefore.monitoring.dailyStartLocalTime)).toBe("08:00", serializeJSON(modelBefore.monitoring));
+
+          invalidResult = postActiveCruiseDailyStartWithApi(sessionApi, asset.floatPlanId, "25:99");
+          expect(isSuccessPayload(invalidResult)).toBeFalse(serializeJSON(invalidResult));
+          expect(invalidResult.ERROR ?: "").toBe("INVALID_DAILY_START", serializeJSON(invalidResult));
+          expect(normalizeDailyStartForTest(loadDailyStartLocalTimeForFloatPlan(asset.floatPlanId))).toBe("08:00");
+
+          validResult = postActiveCruiseDailyStartWithApi(sessionApi, asset.floatPlanId, "09:30");
+          expect(isSuccessPayload(validResult)).toBeTrue(serializeJSON(validResult));
+          expect(normalizeDailyStartForTest(validResult.DAILYSTARTLOCALTIME ?: "")).toBe("09:30", serializeJSON(validResult));
+          expect(normalizeDailyStartForTest(loadDailyStartLocalTimeForFloatPlan(asset.floatPlanId))).toBe("09:30");
+
+          modelAfter = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          expect(modelAfter.success).toBeTrue(serializeJSON(modelAfter));
+          expect(normalizeDailyStartForTest(modelAfter.monitoring.dailyStartLocalTime)).toBe("09:30", serializeJSON(modelAfter.monitoring));
+          expect(normalizeDailyStartForTest(modelAfter.actions.timing.updateDailyStart.payload.dailyStartLocalTime)).toBe("09:30", serializeJSON(modelAfter.actions.timing.updateDailyStart));
+          expect(modelAfter.actions.timing.addDelay.endpoint).toBe(modelBefore.actions.timing.addDelay.endpoint, serializeJSON(modelAfter.actions.timing.addDelay));
+          expect(modelAfter.actions.timing.clearDelay.endpoint).toBe(modelBefore.actions.timing.clearDelay.endpoint, serializeJSON(modelAfter.actions.timing.clearDelay));
         } finally {
           cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
         }
@@ -1390,6 +1457,45 @@ component extends="testbox.system.BaseSpec" output="false" {
       floatPlanId = arguments.floatPlanId,
       pace = arguments.paceValue
     });
+  }
+
+  private struct function postActiveCruiseDailyStartWithApi(required any apiSupport, required numeric floatPlanId, required string dailyStartLocalTime) {
+    return arguments.apiSupport.postJson("/api/v1/floatplan.cfc?method=handle&action=updatedailystart", {
+      floatPlanId = arguments.floatPlanId,
+      dailyStartLocalTime = arguments.dailyStartLocalTime
+    });
+  }
+
+  private string function loadDailyStartLocalTimeForFloatPlan(required numeric floatPlanId) {
+    var qDailyStart = queryExecute(
+      "SELECT dailyStartLocalTime
+       FROM floatplans
+       WHERE floatPlanId = :floatPlanId
+       LIMIT 1",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    if (qDailyStart.recordCount EQ 0) {
+      return "";
+    }
+    return normalizeDailyStartForTest(qDailyStart.dailyStartLocalTime[1]);
+  }
+
+  private string function normalizeDailyStartForTest(required any value) {
+    var raw = "";
+    if (isNull(arguments.value)) {
+      return "";
+    }
+    if (isDate(arguments.value)) {
+      return timeFormat(arguments.value, "HH:mm");
+    }
+    raw = trim(toString(arguments.value));
+    if (len(raw) GTE 5) {
+      return left(raw, 5);
+    }
+    return raw;
   }
 
   private void function seedRouteInputsForPaceTest(required numeric floatPlanId, required struct routeInputs) {
