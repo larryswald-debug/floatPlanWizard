@@ -275,7 +275,7 @@
     if (listFindNoCase("late,missed,escalated,assistance_needed,unknown_error", stateValue)) {
       return "is-alert";
     }
-    if (stateValue EQ "paused_overnight") {
+    if (listFindNoCase("paused_overnight,paused_delayed", stateValue)) {
       return "is-paused";
     }
     if (listFindNoCase("underway,arrived,closed", stateValue)) {
@@ -1838,6 +1838,8 @@
       border: 0;
       border-radius: 0;
       background: transparent;
+      padding-top: 5px;
+      padding-bottom: 5px;
     }
     .mini-panel--route-progress-flat .mini-head h3,
     .mini-panel--route-progress-flat .mini-head span {
@@ -2146,6 +2148,9 @@
     .route-plan-departure,
     .route-plan-final {
       padding: 14px;
+    }
+    .route-plan-departure {
+      margin-bottom: 12px;
     }
     .route-plan-kicker,
     .route-plan-leg-kicker {
@@ -3381,7 +3386,7 @@
                   <div class="subline">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.hero, "statusDetail"), activeCruiseV2Model.message))#</div>
                 </div>
                 <div class="status-pill<cfif fpwV2StateClass(activeCruiseV2Model.tripState) EQ 'is-alert'> status-pill--danger<cfelseif fpwV2StateClass(activeCruiseV2Model.tripState) EQ 'is-scheduled' OR fpwV2StateClass(activeCruiseV2Model.tripState) EQ 'is-paused'> status-pill--warning</cfif>">
-                  <strong data-fpw-field="hero.voyageStatus">#encodeForHTML(fpwV2Text(activeCruiseV2Model.tripState, "unknown"))#</strong>
+                  <strong data-fpw-field="hero.voyageStatus">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.hero, "status"), fpwV2Text(activeCruiseV2Model.tripState, "unknown")))#</strong>
                 </div>
               </div>
 
@@ -3436,10 +3441,6 @@
               </div>
 
               <div class="mini-panel mini-panel--route-progress-flat">
-                <div class="mini-head">
-                  <h3>Route Progress</h3>
-                  <span data-fpw-field="routeProgress.authority">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.routeTimeline, "authority"), "unavailable"))#</span>
-                </div>
                 <div class="progress-block">
                   <div class="route-plan-progress-footer route-plan-progress-footer--flat">
                     <div class="route-plan-progress-grid">
@@ -3583,12 +3584,6 @@
             </div>
 
             <div class="panel section-card" id="acV2RouteProgressPanel">
-              <div class="section-top">
-                <div>
-                  <h2>Route Plan &amp; Progress</h2>
-                  <p>Complete active-route overview rendered from the V2 route timeline.</p>
-                </div>
-              </div>
               <cfset selectedRoutePlanLeg = {}>
               <cfset selectedRoutePlanLegIndex = 1>
               <cfif structKeyExists(activeCruiseV2Model.routeTimeline, "available") AND activeCruiseV2Model.routeTimeline.available EQ true AND structKeyExists(activeCruiseV2Model.routeTimeline, "legs") AND arrayLen(activeCruiseV2Model.routeTimeline.legs)>
@@ -3637,10 +3632,6 @@
                   <div class="route-plan-departure">
                     <div class="route-plan-kicker">Scheduled Departure</div>
                     <strong>#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureUtc"), activeCruiseV2TripTimezone, "Not available"))#</strong>
-                    <span>Timing comes from ActiveCruiseViewModelService.</span>
-                  </div>
-                  <div class="route-plan-toolbar">
-                    <p class="route-plan-preview-note">Uses activeCruiseV2Model.routeTimeline only.</p>
                   </div>
                   <div class="route-plan-scroll" id="acV2RouteLegList">
                     <cfif structKeyExists(activeCruiseV2Model.routeTimeline, "available") AND activeCruiseV2Model.routeTimeline.available EQ true AND structKeyExists(activeCruiseV2Model.routeTimeline, "legs") AND arrayLen(activeCruiseV2Model.routeTimeline.legs)>
@@ -3987,11 +3978,6 @@
             </div>
 
             <div class="panel section-card">
-              <div class="section-top">
-                <div>
-                  <h2>Route Timeline &amp; Current Notes</h2>
-                </div>
-              </div>
               <div class="stack">
                 <div class="timeline-box">
                   <div class="mini-head" style="margin-bottom:16px;">

@@ -8,6 +8,7 @@ component extends="testbox.system.BaseSpec" output="false" {
       variables.naming = new fpw.tests.support.FpwNamingSupport();
       variables.companionService = new fpw.api.v1.CompanionViewModelService().init("fpw");
       variables.companionAuthService = new fpw.api.v1.CompanionAuthService().init("fpw");
+      variables.activeCruiseViewModelService = new fpw.api.v1.ActiveCruiseViewModelService().init("fpw");
       variables.monitorService = new fpw.api.v1.monitor().init();
       variables.hadOriginalTestUserId = structKeyExists(url, "testUserId");
     variables.originalTestUserId = variables.hadOriginalTestUserId ? url.testUserId : "";
@@ -729,6 +730,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           var beforeDelayMinutes = 0;
           var delayedResponse = {};
           var delayedEvent = {};
+          var activeCruiseModel = {};
 
           try {
             url.testUserId = variables.sessionApiUser.userId;
@@ -750,6 +752,12 @@ component extends="testbox.system.BaseSpec" output="false" {
 
             expect(delayedResponse.SUCCESS).toBeTrue(serializeJSON(delayedResponse));
             expect(getManualDelayMinutesTotal(asset.floatPlanId)).toBe(beforeDelayMinutes);
+            expect(findOpenActivitySegmentType(asset.floatPlanId)).toBe("PAUSED_DELAYED");
+            activeCruiseModel = variables.activeCruiseViewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+            expect(activeCruiseModel.success).toBeTrue(serializeJSON(activeCruiseModel));
+            expect(activeCruiseModel.motionState).toBe("paused_delayed", serializeJSON(activeCruiseModel));
+            expect(activeCruiseModel.tripState).toBe("paused_delayed", serializeJSON(activeCruiseModel));
+            expect(activeCruiseModel.hero.status).toBe("Delayed", serializeJSON(activeCruiseModel.hero));
             delayedEvent = loadCompanionEventByMobileId(delayedId);
             expect(delayedEvent.process_status).toBe("PROCESSED", serializeJSON(delayedEvent));
             expect(delayedEvent.canonical_status).toBe("Delayed", serializeJSON(delayedEvent));
@@ -757,6 +765,102 @@ component extends="testbox.system.BaseSpec" output="false" {
             cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
             deleteCompanionEventsByMobileId(onTrackId);
             deleteCompanionEventsByMobileId(delayedId);
+          }
+        });
+
+        it("resumes underway when On Track follows a companion Delayed pause", function() {
+          var prefix = variables.naming.buildPrefix("companion", "delayed-resume");
+          var sessionApi = buildSessionApiSupport();
+          var localCreated = newCreatedTracker();
+          var asset = {};
+          var onTrackId = buildMobileSubmissionId("resume-start");
+          var delayedId = buildMobileSubmissionId("resume-delayed");
+          var resumeId = buildMobileSubmissionId("resume-on-track");
+          var startResponse = {};
+          var delayedResponse = {};
+          var resumeResponse = {};
+          var activeCruiseModel = {};
+
+          try {
+            url.testUserId = variables.sessionApiUser.userId;
+            asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+            startResponse = postCompanionCheckinWithApi(sessionApi, {
+              mobileSubmissionId = onTrackId,
+              floatPlanId = asset.floatPlanId,
+              status = "On Track"
+            });
+            delayedResponse = postCompanionCheckinWithApi(sessionApi, {
+              mobileSubmissionId = delayedId,
+              floatPlanId = asset.floatPlanId,
+              status = "Delayed"
+            });
+            resumeResponse = postCompanionCheckinWithApi(sessionApi, {
+              mobileSubmissionId = resumeId,
+              floatPlanId = asset.floatPlanId,
+              status = "On Track"
+            });
+            activeCruiseModel = variables.activeCruiseViewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+
+            expect(startResponse.SUCCESS).toBeTrue(serializeJSON(startResponse));
+            expect(delayedResponse.SUCCESS).toBeTrue(serializeJSON(delayedResponse));
+            expect(resumeResponse.SUCCESS).toBeTrue(serializeJSON(resumeResponse));
+            expect(findOpenActivitySegmentType(asset.floatPlanId)).toBe("UNDERWAY");
+            expect(activeCruiseModel.success).toBeTrue(serializeJSON(activeCruiseModel));
+            expect(activeCruiseModel.motionState).toBe("underway", serializeJSON(activeCruiseModel));
+            expect(activeCruiseModel.tripState).toBe("underway", serializeJSON(activeCruiseModel));
+          } finally {
+            cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+            deleteCompanionEventsByMobileId(onTrackId);
+            deleteCompanionEventsByMobileId(delayedId);
+            deleteCompanionEventsByMobileId(resumeId);
+          }
+        });
+
+        it("moves from companion Delayed pause to Secure for the Night without preserving delayed as the open segment", function() {
+          var prefix = variables.naming.buildPrefix("companion", "delayed-secure");
+          var sessionApi = buildSessionApiSupport();
+          var localCreated = newCreatedTracker();
+          var asset = {};
+          var onTrackId = buildMobileSubmissionId("secure-start");
+          var delayedId = buildMobileSubmissionId("secure-delayed");
+          var secureId = buildMobileSubmissionId("secure-after-delayed");
+          var startResponse = {};
+          var delayedResponse = {};
+          var secureResponse = {};
+          var activeCruiseModel = {};
+
+          try {
+            url.testUserId = variables.sessionApiUser.userId;
+            asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+            startResponse = postCompanionCheckinWithApi(sessionApi, {
+              mobileSubmissionId = onTrackId,
+              floatPlanId = asset.floatPlanId,
+              status = "On Track"
+            });
+            delayedResponse = postCompanionCheckinWithApi(sessionApi, {
+              mobileSubmissionId = delayedId,
+              floatPlanId = asset.floatPlanId,
+              status = "Delayed"
+            });
+            secureResponse = postCompanionCheckinWithApi(sessionApi, {
+              mobileSubmissionId = secureId,
+              floatPlanId = asset.floatPlanId,
+              status = "Secure for the Night"
+            });
+            activeCruiseModel = variables.activeCruiseViewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+
+            expect(startResponse.SUCCESS).toBeTrue(serializeJSON(startResponse));
+            expect(delayedResponse.SUCCESS).toBeTrue(serializeJSON(delayedResponse));
+            expect(secureResponse.SUCCESS).toBeTrue(serializeJSON(secureResponse));
+            expect(findOpenActivitySegmentType(asset.floatPlanId)).toBe("PAUSED_SECURE_FOR_NIGHT");
+            expect(activeCruiseModel.success).toBeTrue(serializeJSON(activeCruiseModel));
+            expect(activeCruiseModel.motionState).toBe("paused_overnight", serializeJSON(activeCruiseModel));
+            expect(activeCruiseModel.tripState).toBe("paused_overnight", serializeJSON(activeCruiseModel));
+          } finally {
+            cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+            deleteCompanionEventsByMobileId(onTrackId);
+            deleteCompanionEventsByMobileId(delayedId);
+            deleteCompanionEventsByMobileId(secureId);
           }
         });
 
@@ -1480,6 +1584,25 @@ component extends="testbox.system.BaseSpec" output="false" {
         return 0;
       }
       return val(qRow.manual_delay_minutes_total[1]);
+    }
+
+    private string function findOpenActivitySegmentType(required numeric floatPlanId) {
+      var qSegment = queryExecute(
+        "SELECT segment_type
+         FROM floatplan_activity_segments
+         WHERE floatplan_id = :floatPlanId
+           AND ended_at_utc IS NULL
+         ORDER BY started_at_utc DESC, id DESC
+         LIMIT 1",
+        {
+          floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
+      if (qSegment.recordCount EQ 0) {
+        return "";
+      }
+      return uCase(trim(toString(qSegment.segment_type[1])));
     }
 
     private string function loadPlanStatus(required numeric floatPlanId) {

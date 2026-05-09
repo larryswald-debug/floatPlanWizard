@@ -456,8 +456,18 @@
                     continue;
                 }
 
-                if (listFindNoCase("ON_TRACK,DELAYED,CHANGED_PLAN,ASSISTANCE_NEEDED", statusVal)) {
-                    if (currentIndex GT 0 AND segments[currentIndex].segmentType EQ "PAUSED_SECURE_FOR_NIGHT" AND !isDate(segments[currentIndex].endedAtUtc)) {
+                if (statusVal EQ "DELAYED") {
+                    if (currentIndex GT 0 AND segments[currentIndex].segmentType EQ "UNDERWAY" AND !isDate(segments[currentIndex].endedAtUtc)) {
+                        segments[currentIndex].endedAtUtc = formatUtc(eventAt);
+                        segments[currentIndex].sourceEndEventId = safeNumber(arguments.qEvents.id[i]);
+                        arrayAppend(segments, newSegment("PAUSED_DELAYED", eventAt, "", "", "", arguments.timezone, arguments.routeInstanceId, arguments.userId, "legacy_diagnostic", arguments.qEvents.id[i], 0));
+                        currentIndex = arrayLen(segments);
+                    }
+                    continue;
+                }
+
+                if (statusVal EQ "ON_TRACK") {
+                    if (currentIndex GT 0 AND isResumeEligiblePauseSegment(segments[currentIndex].segmentType) AND !isDate(segments[currentIndex].endedAtUtc)) {
                         segments[currentIndex].endedAtUtc = formatUtc(eventAt);
                         segments[currentIndex].actualResumeAtUtc = formatUtc(eventAt);
                         segments[currentIndex].sourceEndEventId = safeNumber(arguments.qEvents.id[i]);
@@ -642,6 +652,13 @@
                 if (isPaused) {
                     statusLabel = "Paused";
                     statusDetail = "Current leg progress is paused until resume.";
+                    if (openType EQ "PAUSED_DELAYED") {
+                        statusLabel = "Delayed";
+                        statusDetail = "Current leg progress is paused by the latest Delayed check-in.";
+                    } else if (openType EQ "PAUSED_SECURE_FOR_NIGHT") {
+                        statusLabel = "Secure for the Night";
+                        statusDetail = "Current leg progress is paused for secure overnight.";
+                    }
                 }
             }
 
@@ -1306,6 +1323,13 @@
                 return safeString(openSegments[arrayLen(openSegments)].segmentType);
             }
             return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="isResumeEligiblePauseSegment" access="private" returntype="boolean" output="false">
+        <cfargument name="segmentType" type="string" required="true">
+        <cfscript>
+            return listFindNoCase("PAUSED_SECURE_FOR_NIGHT,PAUSED_DELAYED", uCase(trim(arguments.segmentType))) GT 0;
         </cfscript>
     </cffunction>
 

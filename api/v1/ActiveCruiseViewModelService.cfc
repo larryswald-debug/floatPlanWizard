@@ -670,6 +670,7 @@
       var isClosed = isDate(arguments.qPlan.closedAt[1]) OR compareNoCase(safeString(arguments.qPlan.status[1]), "CLOSED") EQ 0 OR compareNoCase(arguments.tripState, "closed") EQ 0;
       var isScheduled = compareNoCase(arguments.motionState, "scheduled") EQ 0;
       var isUnderway = compareNoCase(arguments.motionState, "underway") EQ 0;
+      var isDelayedPause = compareNoCase(arguments.motionState, "paused_delayed") EQ 0;
       var closedReason = "Float plan is closed.";
       var delayedReason = "Please provide a new expected departure time before marking the trip delayed.";
       var changedPlanReason = "Please update and resend the plan if the route or schedule changed.";
@@ -691,7 +692,7 @@
           { "status" = "Delayed", "enabled" = (!isClosed AND !isScheduled), "disabledReason" = (isClosed ? closedReason : (isScheduled ? delayedReason : "")), "startsTripPreDeparture" = false, "validationError" = "PRE_DEPARTURE_DELAY_REQUIRES_NEW_TIME", "inputRequirements" = delayInputs, "confirmationRequired" = false, "confirmationMessage" = "" },
           { "status" = "Changed Plan", "enabled" = (!isClosed AND !isScheduled), "disabledReason" = (isClosed ? closedReason : (isScheduled ? changedPlanReason : "")), "startsTripPreDeparture" = false, "validationError" = "PRE_DEPARTURE_PLAN_CHANGE_REQUIRES_UPDATE", "inputRequirements" = baseInputs, "confirmationRequired" = true, "confirmationMessage" = changedPlanReason },
           { "status" = "Assistance Needed", "enabled" = !isClosed, "disabledReason" = (isClosed ? closedReason : ""), "startsTripPreDeparture" = false, "validationError" = "", "inputRequirements" = baseInputs, "confirmationRequired" = true, "confirmationMessage" = "Assistance Needed may notify approved monitoring contacts." },
-          { "status" = "Secure for the Night", "enabled" = (!isClosed AND isUnderway), "disabledReason" = (isClosed ? closedReason : (isUnderway ? "" : secureReason)), "startsTripPreDeparture" = false, "validationError" = "PRE_DEPARTURE_SECURE_NOT_ALLOWED", "inputRequirements" = baseInputs, "confirmationRequired" = true, "confirmationMessage" = "Confirm the vessel is secure for the night." }
+          { "status" = "Secure for the Night", "enabled" = (!isClosed AND (isUnderway OR isDelayedPause)), "disabledReason" = (isClosed ? closedReason : ((isUnderway OR isDelayedPause) ? "" : secureReason)), "startsTripPreDeparture" = false, "validationError" = "PRE_DEPARTURE_SECURE_NOT_ALLOWED", "inputRequirements" = baseInputs, "confirmationRequired" = true, "confirmationMessage" = "Confirm the vessel is secure for the night." }
         ],
         "validationMessages" = {
           "PRE_DEPARTURE_DELAY_REQUIRES_NEW_TIME" = delayedReason,
@@ -1691,6 +1692,9 @@
       if (currentSegmentType EQ "PAUSED_SECURE_FOR_NIGHT") {
         return "paused_overnight";
       }
+      if (currentSegmentType EQ "PAUSED_DELAYED") {
+        return "paused_delayed";
+      }
       if (structKeyExists(arguments.projection, "currentLegProgress") AND isStruct(arguments.projection.currentLegProgress) AND structKeyExists(arguments.projection.currentLegProgress, "paused") AND arguments.projection.currentLegProgress.paused EQ true) {
         return "paused_overnight";
       }
@@ -1743,7 +1747,7 @@
       if (listFindNoCase("assistance_needed,escalated,missed,late", arguments.safetyState)) {
         return arguments.safetyState;
       }
-      if (listFindNoCase("scheduled,underway,paused_overnight,arrived,closed", arguments.motionState)) {
+      if (listFindNoCase("scheduled,underway,paused_overnight,paused_delayed,arrived,closed", arguments.motionState)) {
         return arguments.motionState;
       }
       return "unknown_error";
@@ -1961,6 +1965,7 @@
         case "scheduled": return "Scheduled";
         case "underway": return "Underway";
         case "paused_overnight": return "Secure for the Night";
+        case "paused_delayed": return "Delayed";
         case "late": return "Late";
         case "missed": return "Missed";
         case "escalated": return "Escalated";
@@ -1991,6 +1996,9 @@
       }
       if (arguments.motionState EQ "paused_overnight") {
         return "Trip progress is paused for secure overnight.";
+      }
+      if (arguments.motionState EQ "paused_delayed") {
+        return "Trip progress is paused by the latest Delayed check-in. Monitoring remains active.";
       }
       return "Active Cruise state could not be fully resolved from canonical authorities.";
     </cfscript>
