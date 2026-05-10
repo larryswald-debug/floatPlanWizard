@@ -404,7 +404,8 @@
                 "legWeather"={},
                 "pinned"={},
                 "timeline"={"summary"={}, "legs"=[], "meta"={}},
-                "body"={}
+                "body"={},
+                "publicAuthority"={}
             };
             var streamRow = readStream(arguments.slug, arguments.streamId);
             var canRead = {};
@@ -452,6 +453,8 @@
             var storedOvernightPauseMinutes = 0;
             var storedManualDelayMinutes = 0;
             var followProjection = {};
+            var publicAuthority = {};
+            var publicAuthorityService = "";
             var useCanonicalFollowProjection = false;
             var canonicalFollowProjectionBlocked = false;
             var followProjectionWarningIndex = 0;
@@ -737,6 +740,16 @@
                 monitoringCheckinStatusVal = uCase(trim(toString(qPlan.last_checkin_status[1])));
             }
             routeInstanceIdVal = (!isNull(qPlan.route_instance_id[1]) ? val(qPlan.route_instance_id[1]) : 0);
+            try {
+                try {
+                    publicAuthorityService = createObject("component", "fpw.api.v1.ActiveCruiseViewModelService").init(ds);
+                } catch (any publicAuthorityPathErr) {
+                    publicAuthorityService = createObject("component", "api.v1.ActiveCruiseViewModelService").init(ds);
+                }
+                publicAuthority = publicAuthorityService.getPublicFollowAuthority(streamRow.owner_user_id, streamRow.floatplan_id);
+            } catch (any publicAuthorityErr) {
+                publicAuthority = {};
+            }
             checkInContextVal = normalizeCheckInContext(isNull(qPlan.checkin_context[1]) ? "" : qPlan.checkin_context[1]);
             isOvernightCheckIn = (checkInContextVal EQ "overnight");
             storedOvernightPauseMinutes = (
@@ -1892,8 +1905,9 @@
             };
 	            out.legWeather = legWeather;
 	            out.pinned = pinned;
-	            out.timeline = followTimeline;
-	            out.body = body;
+            out.timeline = followTimeline;
+            out.body = body;
+            out.publicAuthority = publicAuthority;
             if (!tripStarted) {
                 out.stream.status = "Scheduled";
                 out.topCards.status = "Scheduled";

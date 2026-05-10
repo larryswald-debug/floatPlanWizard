@@ -126,6 +126,169 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="getPublicFollowAuthority" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="floatPlanId" type="numeric" required="true">
+    <cfscript>
+      var out = basePublicFollowAuthority();
+      var authorityModel = baseModel();
+      var qPlan = queryNew("");
+      var qMonitoring = queryNew("");
+      var qProgress = queryNew("");
+      var projection = {};
+      var routeTimeline = {};
+      var routeSummary = {};
+      var floatPlan = {};
+      var route = {};
+      var monitoring = {};
+      var currentLeg = {};
+      var todayProgress = {};
+      var motionState = "unknown";
+      var safetyState = "normal";
+      var tripState = "unknown_error";
+      var progressSummary = {};
+      var explicitStartProof = false;
+      var timezone = "UTC";
+      var publicHealth = {};
+      var currentLegLabel = "";
+
+      if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
+        return out;
+      }
+
+      qPlan = loadPlanContext(arguments.userId, arguments.floatPlanId);
+      if (qPlan.recordCount EQ 0 OR safeNumber(qPlan.route_instance_id[1]) LTE 0) {
+        return out;
+      }
+
+      authorityModel.generatedAtUtc = formatUtc(now());
+      floatPlan = buildFloatPlanSection(qPlan);
+      route = buildRouteSection(qPlan);
+      timezone = safeString(floatPlan.timezone);
+      if (!len(timezone)) {
+        timezone = resolveTimezone(qPlan);
+      }
+
+      qMonitoring = loadMonitoring(arguments.userId, arguments.floatPlanId);
+      monitoring = buildMonitoringSection(qMonitoring, qPlan);
+      qProgress = loadRouteProgress(safeNumber(qPlan.route_instance_id[1]), arguments.userId);
+      progressSummary = summarizeRouteProgress(qProgress);
+      projection = loadProjection(arguments.floatPlanId, authorityModel);
+      routeTimeline = extractRouteTimeline(projection);
+      routeSummary = (
+        structKeyExists(routeTimeline, "summary")
+        AND isStruct(routeTimeline.summary)
+        ? routeTimeline.summary
+        : {}
+      );
+      currentLeg = buildCurrentLegSection(qPlan, projection, routeTimeline);
+      todayProgress = (
+        structKeyExists(projection, "todayProgress")
+        AND isStruct(projection.todayProgress)
+        ? projection.todayProgress
+        : {}
+      );
+
+      explicitStartProof = hasExplicitStartProof(projection, progressSummary);
+      motionState = deriveMotionState(qPlan, qMonitoring, projection, routeTimeline, progressSummary, explicitStartProof);
+      safetyState = deriveSafetyState(qMonitoring);
+      tripState = deriveTripState(motionState, safetyState);
+      publicHealth = buildPublicFollowHealth(monitoring);
+
+      currentLegLabel = firstNonEmpty([
+        safeString(currentLeg.fromName) & (len(safeString(currentLeg.fromName)) AND len(safeString(currentLeg.toName)) ? " to " : "") & safeString(currentLeg.toName),
+        safeString(currentLeg.statusLabel)
+      ]);
+
+      out.identity = {
+        "floatPlanId" = safeNumber(floatPlan.id),
+        "routeInstanceId" = safeNumber(route.routeInstanceId),
+        "routeCode" = safeString(route.routeCode),
+        "routeName" = safeString(route.routeName),
+        "streamId" = safeNumber(route.streamId),
+        "streamSlug" = safeString(route.streamSlug),
+        "vesselName" = safeString(qPlan.vesselName[1]),
+        "departureName" = firstNonEmpty([ safeString(qPlan.departing[1]), safeString(route.startLocation) ]),
+        "destinationName" = firstNonEmpty([ safeString(qPlan.returning[1]), safeString(route.endLocation) ])
+      };
+
+      out.progress = {
+        "routeProgressPercent" = (structKeyExists(routeSummary, "percentComplete") ? safeNumber(routeSummary.percentComplete) : 0),
+        "legProgressPercent" = (structKeyExists(currentLeg, "percentComplete") ? safeNumber(currentLeg.percentComplete) : 0),
+        "completedNm" = (structKeyExists(routeSummary, "completedNm") ? safeNumber(routeSummary.completedNm) : 0),
+        "remainingNm" = (structKeyExists(routeSummary, "remainingNm") ? safeNumber(routeSummary.remainingNm) : 0),
+        "totalNm" = (structKeyExists(routeSummary, "totalNm") ? safeNumber(routeSummary.totalNm) : 0),
+        "currentLegOrder" = (structKeyExists(currentLeg, "order") ? safeNumber(currentLeg.order) : 0),
+        "completedLegs" = countPublicFollowCompletedLegs(routeTimeline),
+        "totalLegs" = safeNumber(route.totalLegs)
+      };
+
+      out.currentLeg = {
+        "order" = (structKeyExists(currentLeg, "order") ? safeNumber(currentLeg.order) : 0),
+        "fromName" = (structKeyExists(currentLeg, "fromName") ? safeString(currentLeg.fromName) : ""),
+        "toName" = (structKeyExists(currentLeg, "toName") ? safeString(currentLeg.toName) : ""),
+        "label" = currentLegLabel,
+        "statusLabel" = (structKeyExists(currentLeg, "statusLabel") ? safeString(currentLeg.statusLabel) : ""),
+        "distanceNm" = (structKeyExists(currentLeg, "distanceNm") ? safeNumber(currentLeg.distanceNm) : 0),
+        "completedNm" = (structKeyExists(currentLeg, "completedNm") ? safeNumber(currentLeg.completedNm) : 0),
+        "remainingNm" = (structKeyExists(currentLeg, "remainingNm") ? safeNumber(currentLeg.remainingNm) : 0),
+        "etaUtc" = (structKeyExists(currentLeg, "etaUtc") ? safeString(currentLeg.etaUtc) : ""),
+        "etaLocalLabel" = formatPublicFollowLocalLabel((structKeyExists(currentLeg, "etaUtc") ? currentLeg.etaUtc : ""), timezone)
+      };
+
+      out.timing = {
+        "etaUtc" = out.currentLeg.etaUtc,
+        "etaLocalLabel" = out.currentLeg.etaLocalLabel,
+        "finalArrivalUtc" = (structKeyExists(routeSummary, "finalArrivalUtc") ? safeString(routeSummary.finalArrivalUtc) : ""),
+        "finalArrivalLocalLabel" = formatPublicFollowLocalLabel((structKeyExists(routeSummary, "finalArrivalUtc") ? routeSummary.finalArrivalUtc : ""), timezone),
+        "milesTodayNm" = (structKeyExists(todayProgress, "milesTodayNm") ? safeNumber(todayProgress.milesTodayNm) : 0),
+        "hoursToday" = (structKeyExists(todayProgress, "hoursToday") ? safeNumber(todayProgress.hoursToday) : 0),
+        "dailyStartLocalLabel" = (structKeyExists(monitoring, "dailyStartLabel") ? safeString(monitoring.dailyStartLabel) : ""),
+        "manualDelayLabel" = (structKeyExists(monitoring, "manualDelayLabel") ? safeString(monitoring.manualDelayLabel) : "")
+      };
+
+      out.monitoring = {
+        "state" = (structKeyExists(monitoring, "state") ? safeString(monitoring.state) : ""),
+        "mode" = (structKeyExists(monitoring, "mode") ? safeString(monitoring.mode) : ""),
+        "publicHealthLabel" = safeString(publicHealth.label),
+        "publicHealthVariant" = safeString(publicHealth.variant),
+        "lastCheckinStatus" = (structKeyExists(monitoring, "lastCheckinStatus") ? safeString(monitoring.lastCheckinStatus) : ""),
+        "lastCheckinUtc" = (structKeyExists(monitoring, "lastCheckinAtUtc") ? safeString(monitoring.lastCheckinAtUtc) : ""),
+        "lastCheckinLocalLabel" = formatPublicFollowLocalLabel((structKeyExists(monitoring, "lastCheckinAtUtc") ? monitoring.lastCheckinAtUtc : ""), timezone),
+        "nextExpectedCheckinUtc" = (structKeyExists(monitoring, "expectedCheckinAtUtc") ? safeString(monitoring.expectedCheckinAtUtc) : ""),
+        "nextExpectedCheckinLocalLabel" = formatPublicFollowLocalLabel((structKeyExists(monitoring, "expectedCheckinAtUtc") ? monitoring.expectedCheckinAtUtc : ""), timezone),
+        "secureForNight" = (structKeyExists(monitoring, "secureForNight") AND monitoring.secureForNight EQ true),
+        "secureUntilUtc" = (structKeyExists(monitoring, "secureForNightUntilUtc") ? safeString(monitoring.secureForNightUntilUtc) : ""),
+        "secureUntilLocalLabel" = formatPublicFollowLocalLabel((structKeyExists(monitoring, "secureForNightUntilUtc") ? monitoring.secureForNightUntilUtc : ""), timezone)
+      };
+
+      out.tripState = {
+        "code" = tripState,
+        "motionState" = motionState,
+        "safetyState" = safetyState,
+        "label" = stateLabel(tripState),
+        "helperText" = publicFollowTripStateHelperText(tripState, motionState, safetyState)
+      };
+
+      return out;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="basePublicFollowAuthority" access="private" returntype="struct" output="false">
+    <cfscript>
+      return {
+        "version" = 1,
+        "source" = "ActiveCruiseViewModelService.publicFollowAuthority",
+        "identity" = {},
+        "progress" = {},
+        "currentLeg" = {},
+        "timing" = {},
+        "monitoring" = {},
+        "tripState" = {}
+      };
+    </cfscript>
+  </cffunction>
+
   <cffunction name="baseModel" access="private" returntype="struct" output="false">
     <cfscript>
       return {
@@ -2122,6 +2285,129 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="buildPublicFollowHealth" access="private" returntype="struct" output="false">
+    <cfargument name="monitoring" type="struct" required="true">
+    <cfscript>
+      var stateVal = (structKeyExists(arguments.monitoring, "state") ? uCase(safeString(arguments.monitoring.state)) : "");
+      var lastStatusVal = (structKeyExists(arguments.monitoring, "lastCheckinStatus") ? uCase(safeString(arguments.monitoring.lastCheckinStatus)) : "");
+      var out = { "label" = "Monitoring unavailable", "variant" = "muted" };
+
+      switch (stateVal) {
+        case "LATE":
+          out.label = "Late";
+          out.variant = "warning";
+          break;
+        case "MISSED":
+          out.label = "Missed Check-In";
+          out.variant = "danger";
+          break;
+        case "ESCALATED":
+          out.label = "Escalated";
+          out.variant = "danger";
+          break;
+        case "ACTIVE":
+          out.label = "All Good";
+          out.variant = "good";
+          break;
+        default:
+          if (len(stateVal)) {
+            out.label = formatMonitorStatusLabel(stateVal, "All Good");
+            out.variant = "muted";
+          }
+      }
+
+      switch (lastStatusVal) {
+        case "DELAYED":
+          out.label = "Delayed";
+          out.variant = "warning";
+          break;
+        case "CHANGED_PLAN":
+          out.label = "Changed Plan";
+          out.variant = "warning";
+          break;
+        case "NEED_ATTENTION":
+        case "ASSISTANCE_NEEDED":
+          out.label = "Assistance Needed";
+          out.variant = "danger";
+          break;
+        case "SECURE_FOR_NIGHT":
+          out.label = "Secure for the Night";
+          out.variant = "good";
+          break;
+      }
+
+      return out;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="publicFollowTripStateHelperText" access="private" returntype="string" output="false">
+    <cfargument name="tripState" type="string" required="true">
+    <cfargument name="motionState" type="string" required="true">
+    <cfargument name="safetyState" type="string" required="true">
+    <cfscript>
+      switch (safeString(arguments.safetyState)) {
+        case "needs_attention":
+          return "The latest public check-in reported assistance needed.";
+        case "escalated":
+          return "Monitoring status requires attention.";
+      }
+
+      switch (safeString(arguments.tripState)) {
+        case "paused_secure_for_night":
+          return "The trip is secure for the night.";
+        case "paused_delayed":
+          return "The trip is delayed and monitoring remains active.";
+        case "arrived":
+          return "The route is marked arrived.";
+        case "closed":
+          return "The float plan is closed.";
+        case "scheduled":
+          return "The trip is scheduled and has not started yet.";
+        case "underway":
+          return "The trip is underway on the active route.";
+      }
+
+      switch (safeString(arguments.motionState)) {
+        case "underway":
+          return "The trip is underway on the active route.";
+        case "scheduled":
+          return "The trip is scheduled and has not started yet.";
+      }
+
+      return "Trip status is unavailable.";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="countPublicFollowCompletedLegs" access="private" returntype="numeric" output="false">
+    <cfargument name="routeTimeline" type="struct" required="true">
+    <cfscript>
+      var legs = (
+        structKeyExists(arguments.routeTimeline, "legs")
+        AND isArray(arguments.routeTimeline.legs)
+        ? arguments.routeTimeline.legs
+        : []
+      );
+      var i = 0;
+      var completed = 0;
+      var leg = {};
+
+      for (i = 1; i LTE arrayLen(legs); i++) {
+        leg = legs[i];
+        if (
+          isStruct(leg)
+          AND (
+            (structKeyExists(leg, "isCompleted") AND leg.isCompleted EQ true)
+            OR (structKeyExists(leg, "state") AND safeString(leg.state) EQ "completed")
+          )
+        ) {
+          completed += 1;
+        }
+      }
+
+      return completed;
+    </cfscript>
+  </cffunction>
+
   <cffunction name="deriveLegStatusLabel" access="private" returntype="string" output="false">
     <cfargument name="timelineLeg" type="struct" required="true">
     <cfargument name="currentLeg" type="struct" required="true">
@@ -2205,6 +2491,85 @@
         return dateTimeFormat(qLocal.local_value[1], "mmm d, yyyy h:nn tt");
       }
       return dateTimeFormat(arguments.value, "mmm d, yyyy h:nn tt");
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatPublicFollowLocalLabel" access="private" returntype="string" output="false">
+    <cfargument name="utcValue" type="any" required="true">
+    <cfargument name="timezone" type="string" required="true">
+    <cfscript>
+      var raw = safeString(arguments.utcValue);
+      var normalized = "";
+      var tzId = safeString(arguments.timezone);
+      var qLocal = queryNew("");
+      var utcDt = "";
+      var localValue = "";
+      var tzLabel = "";
+
+      if (!len(raw)) {
+        return "";
+      }
+      if (!len(tzId)) {
+        tzId = "UTC";
+      }
+
+      normalized = replace(raw, "T", " ", "one");
+      normalized = reReplace(normalized, "Z$", "", "one");
+      normalized = reReplace(normalized, "([+-][0-9]{2}:?[0-9]{2})$", "", "one");
+      normalized = reReplace(normalized, "\.[0-9]+$", "", "one");
+      if (reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$", normalized)) {
+        normalized &= ":00";
+      }
+      if (!isDate(normalized)) {
+        return "";
+      }
+
+      utcDt = parseDateTime(normalized);
+      try {
+        qLocal = queryExecute("
+          SELECT CONVERT_TZ(:utcValue, 'UTC', :tz) AS local_value
+        ", {
+          utcValue = { value = utcDt, cfsqltype = "cf_sql_timestamp" },
+          tz = { value = tzId, cfsqltype = "cf_sql_varchar" }
+        }, { datasource = variables.datasource });
+        if (qLocal.recordCount AND isDate(qLocal.local_value[1])) {
+          localValue = qLocal.local_value[1];
+        }
+      } catch (any localLabelErr) {
+        localValue = "";
+      }
+      if (!isDate(localValue)) {
+        localValue = utcDt;
+      }
+
+      tzLabel = publicFollowTimezoneLabel(tzId, utcDt);
+      return dateTimeFormat(localValue, "mmm d, yyyy h:nn tt") & (len(tzLabel) ? " " & tzLabel : "");
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="publicFollowTimezoneLabel" access="private" returntype="string" output="false">
+    <cfargument name="timezone" type="string" required="true">
+    <cfargument name="referenceValue" type="any" required="true">
+    <cfscript>
+      var tzId = safeString(arguments.timezone);
+      var localTimeZone = "";
+      var out = "";
+      if (!len(tzId)) {
+        tzId = "UTC";
+      }
+      if (!isDate(arguments.referenceValue)) {
+        return tzId;
+      }
+      try {
+        localTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(tzId);
+        out = localTimeZone.getDisplayName(localTimeZone.inDaylightTime(arguments.referenceValue), 0);
+        if (localTimeZone.getID() EQ "GMT" AND NOT listFindNoCase("GMT,UTC,Etc/UTC", tzId)) {
+          return tzId;
+        }
+        return (len(out) ? out : tzId);
+      } catch (any timezoneLabelErr) {
+        return tzId;
+      }
     </cfscript>
   </cffunction>
 
