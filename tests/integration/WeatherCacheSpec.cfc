@@ -169,6 +169,7 @@ component extends="testbox.system.BaseSpec" output="false" {
 
         try {
           ensureMarineCache();
+          clearUnifiedWeatherCacheStore();
 
           application.marineCache[ stationsKey ] = {
             "ts" = now(),
@@ -280,6 +281,65 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( structKeyExists( bypassRes, "cache_meta" ) ).toBeTrue( "Bypass result missing cache_meta: #serializeJSON(bypassRes)#" );
         expect( !!bypassRes.cache_meta.hit ).toBeFalse( "Bypass call should not be cache hit: #serializeJSON(bypassRes)#" );
         expect( structKeyExists( bypassRes.cache_meta, "bypass" ) && !!bypassRes.cache_meta.bypass ).toBeTrue( "Bypass call should flag cache_meta.bypass=true: #serializeJSON(bypassRes)#" );
+      } );
+
+      it( "separates quick and full marine cache entries for the same lat/lng", function() {
+        clearUnifiedWeatherCacheStore();
+        var weatherCache = newWeatherCacheService();
+        var quickFetchCalls = 0;
+        var fullFetchCalls = 0;
+        var quickFetcher = function( required numeric lat, required numeric lng ) {
+          quickFetchCalls = quickFetchCalls + 1;
+          return {
+            "wave_height_ft" = 1.2,
+            "META" = { "mode" = "quick" }
+          };
+        };
+        var fullFetcher = function( required numeric lat, required numeric lng ) {
+          fullFetchCalls = fullFetchCalls + 1;
+          return {
+            "wave_height_ft" = 2.4,
+            "waterLevel" = { "series" = [ { "t" = "2026-05-09T00:00:00Z", "v" = 1.1 } ] },
+            "META" = { "mode" = "full" }
+          };
+        };
+
+        var firstQuick = weatherCache.getMarineCached( 28.2326, -82.7327, 900, false, quickFetcher, "quick" );
+        var secondQuick = weatherCache.getMarineCached( 28.2326, -82.7327, 900, false, quickFetcher, "quick" );
+        var firstFull = weatherCache.getMarineCached( 28.2326, -82.7327, 900, false, fullFetcher, "full" );
+        var secondFull = weatherCache.getMarineCached( 28.2326, -82.7327, 900, false, fullFetcher, "full" );
+
+        expect( quickFetchCalls ).toBe( 1 );
+        expect( fullFetchCalls ).toBe( 1 );
+        expect( structKeyExists( secondQuick, "cache_meta" ) ).toBeTrue( "Second quick result missing cache_meta: #serializeJSON(secondQuick)#" );
+        expect( structKeyExists( secondFull, "cache_meta" ) ).toBeTrue( "Second full result missing cache_meta: #serializeJSON(secondFull)#" );
+        expect( !!secondQuick.cache_meta.hit ).toBeTrue( "Second quick call should be cache hit: #serializeJSON(secondQuick)#" );
+        expect( !!secondFull.cache_meta.hit ).toBeTrue( "Second full call should be cache hit: #serializeJSON(secondFull)#" );
+        expect( findNoCase( "marine:quick:", toString( firstQuick.cache_meta.key ) ) ).toBeGTE( 1 );
+        expect( findNoCase( "marine:full:", toString( firstFull.cache_meta.key ) ) ).toBeGTE( 1 );
+        expect( toString( firstQuick.cache_meta.key ) ).notToBe( toString( firstFull.cache_meta.key ) );
+      } );
+
+      it( "bypassCache skips marine cache and preserves the mode-aware key", function() {
+        clearUnifiedWeatherCacheStore();
+        var weatherCache = newWeatherCacheService();
+        var fetchCalls = 0;
+        var fetcher = function( required numeric lat, required numeric lng ) {
+          fetchCalls = fetchCalls + 1;
+          return {
+            "wave_height_ft" = fetchCalls,
+            "META" = { "mode" = "quick" }
+          };
+        };
+
+        weatherCache.getMarineCached( 28.2326, -82.7327, 900, false, fetcher, "quick" );
+        var bypassRes = weatherCache.getMarineCached( 28.2326, -82.7327, 900, true, fetcher, "quick" );
+
+        expect( fetchCalls ).toBe( 2 );
+        expect( structKeyExists( bypassRes, "cache_meta" ) ).toBeTrue( "Bypass marine result missing cache_meta: #serializeJSON(bypassRes)#" );
+        expect( !!bypassRes.cache_meta.hit ).toBeFalse( "Bypass marine call should not be cache hit: #serializeJSON(bypassRes)#" );
+        expect( structKeyExists( bypassRes.cache_meta, "bypass" ) && !!bypassRes.cache_meta.bypass ).toBeTrue( "Bypass marine call should flag cache_meta.bypass=true: #serializeJSON(bypassRes)#" );
+        expect( findNoCase( "marine:quick:", toString( bypassRes.cache_meta.key ) ) ).toBeGTE( 1 );
       } );
 
       it( "normalizes forecast cache key by rounding lat/lng to three decimals", function() {
