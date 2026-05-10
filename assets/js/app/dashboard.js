@@ -30,6 +30,31 @@
   var tideLastMarine = null;
   var tideLastWrapWidth = 0;
   var weatherRequestSeq = 0;
+  var weatherScanConsoleState = {
+    active: false,
+    failed: false,
+    startTime: 0,
+    elapsedTimer: 0,
+    stepTimer: 0,
+    slowTimer: 0,
+    extendedTimer: 0,
+    stepIndex: 0,
+    lastAnnouncedStep: -1
+  };
+  var WEATHER_SCAN_STEP_LABELS = [
+    "Resolving weather location…",
+    "Checking cached marine conditions…",
+    "Requesting latest forecast…",
+    "Reading coastal forecast and marine conditions…",
+    "Checking advisories…",
+    "Loading wind, wave, and tide context…",
+    "Preparing your boating weather briefing…"
+  ];
+  var WEATHER_SCAN_SLOW_MESSAGE = "Fresh NOAA/NWS marine data can take a few seconds.";
+  var WEATHER_SCAN_EXTENDED_MESSAGE = "Still working. Your briefing will appear automatically when the weather data returns.";
+  var WEATHER_SCAN_READY_MESSAGE = "Weather briefing ready.";
+  var WEATHER_SCAN_ERROR_MESSAGE = "Weather data did not respond. Please try again, and always check official weather sources before departure.";
+  var WEATHER_SCAN_HYDRATION_MESSAGE = "Updating detailed marine context…";
   var AUTO_LOAD_HOME_PORT_WEATHER = true;
   var weatherBriefingState = { data: {}, payload: null, location: null };
   var weatherMapInstance = null;
@@ -854,6 +879,202 @@
     if (!errorEl) return;
     errorEl.textContent = "";
     toggleHidden(errorEl, true);
+  }
+
+  function getWeatherScanConsoleEls() {
+    return {
+      root: document.getElementById("weatherLoading"),
+      location: document.getElementById("weatherScanLocation"),
+      elapsed: document.getElementById("weatherScanElapsed"),
+      step: document.getElementById("weatherScanStep"),
+      liveStatus: document.getElementById("weatherScanLiveStatus"),
+      slowMessage: document.getElementById("weatherScanSlowMessage"),
+      extendedMessage: document.getElementById("weatherScanExtendedMessage"),
+      hydrationBadge: document.getElementById("weatherMarineHydrationBadge"),
+      checklistItems: document.querySelectorAll("[data-weather-scan-step]")
+    };
+  }
+
+  function clearWeatherScanConsoleTimers() {
+    if (weatherScanConsoleState.elapsedTimer) {
+      window.clearInterval(weatherScanConsoleState.elapsedTimer);
+      weatherScanConsoleState.elapsedTimer = 0;
+    }
+    if (weatherScanConsoleState.stepTimer) {
+      window.clearInterval(weatherScanConsoleState.stepTimer);
+      weatherScanConsoleState.stepTimer = 0;
+    }
+    if (weatherScanConsoleState.slowTimer) {
+      window.clearTimeout(weatherScanConsoleState.slowTimer);
+      weatherScanConsoleState.slowTimer = 0;
+    }
+    if (weatherScanConsoleState.extendedTimer) {
+      window.clearTimeout(weatherScanConsoleState.extendedTimer);
+      weatherScanConsoleState.extendedTimer = 0;
+    }
+  }
+
+  function formatWeatherScanElapsed() {
+    if (!weatherScanConsoleState.startTime) return "0s";
+    return Math.max(0, Math.floor((Date.now() - weatherScanConsoleState.startTime) / 1000)) + "s";
+  }
+
+  function updateWeatherScanConsoleElapsed() {
+    var els = getWeatherScanConsoleEls();
+    if (els.elapsed) {
+      els.elapsed.textContent = formatWeatherScanElapsed();
+    }
+  }
+
+  function weatherScanLocationLabel(location) {
+    if (location && String(location.mode || "zip").toLowerCase() === "zip" && location.zip) {
+      return "Checking ZIP " + location.zip;
+    }
+    if (location && String(location.mode || "").toLowerCase() === "coords") {
+      return "Checking selected coordinates";
+    }
+    return "Checking your selected weather location";
+  }
+
+  function setWeatherScanConsoleStep(stepIndex, announce) {
+    var els = getWeatherScanConsoleEls();
+    var maxIndex = WEATHER_SCAN_STEP_LABELS.length - 1;
+    var boundedIndex = Math.max(0, Math.min(maxIndex, parseInt(stepIndex, 10) || 0));
+    var label = WEATHER_SCAN_STEP_LABELS[boundedIndex] || WEATHER_SCAN_STEP_LABELS[0];
+
+    weatherScanConsoleState.stepIndex = boundedIndex;
+    if (els.step) {
+      els.step.textContent = label;
+    }
+    if (els.liveStatus && announce && weatherScanConsoleState.lastAnnouncedStep !== boundedIndex) {
+      els.liveStatus.textContent = label;
+      weatherScanConsoleState.lastAnnouncedStep = boundedIndex;
+    }
+    Array.prototype.forEach.call(els.checklistItems || [], function (item) {
+      var itemIndex = parseInt(item.getAttribute("data-weather-scan-step"), 10);
+      item.classList.toggle("is-done", Number.isFinite(itemIndex) && itemIndex < boundedIndex);
+      item.classList.toggle("is-active", Number.isFinite(itemIndex) && itemIndex === boundedIndex);
+    });
+  }
+
+  function showWeatherScanConsoleMessage(el, message) {
+    if (!el) return;
+    el.textContent = message;
+    toggleHidden(el, false);
+  }
+
+  function markWeatherScanConsoleSlow() {
+    if (!weatherScanConsoleState.active) return;
+    var els = getWeatherScanConsoleEls();
+    showWeatherScanConsoleMessage(els.slowMessage, WEATHER_SCAN_SLOW_MESSAGE);
+    if (els.liveStatus) {
+      els.liveStatus.textContent = WEATHER_SCAN_SLOW_MESSAGE;
+    }
+  }
+
+  function markWeatherScanConsoleExtendedWait() {
+    if (!weatherScanConsoleState.active) return;
+    var els = getWeatherScanConsoleEls();
+    showWeatherScanConsoleMessage(els.extendedMessage, WEATHER_SCAN_EXTENDED_MESSAGE);
+    if (els.liveStatus) {
+      els.liveStatus.textContent = WEATHER_SCAN_EXTENDED_MESSAGE;
+    }
+  }
+
+  function resetWeatherScanConsole() {
+    var els = getWeatherScanConsoleEls();
+    clearWeatherScanConsoleTimers();
+    weatherScanConsoleState.active = false;
+    weatherScanConsoleState.failed = false;
+    weatherScanConsoleState.startTime = 0;
+    weatherScanConsoleState.stepIndex = 0;
+    weatherScanConsoleState.lastAnnouncedStep = -1;
+    if (els.root) {
+      els.root.classList.remove("is-error");
+      toggleHidden(els.root, true);
+    }
+    if (els.slowMessage) toggleHidden(els.slowMessage, true);
+    if (els.extendedMessage) toggleHidden(els.extendedMessage, true);
+    setWeatherScanConsoleStep(0, false);
+    updateWeatherScanConsoleElapsed();
+  }
+
+  function startWeatherScanConsole(location) {
+    var els = getWeatherScanConsoleEls();
+    if (!els.root) return;
+
+    clearWeatherScanConsoleTimers();
+    weatherScanConsoleState.active = true;
+    weatherScanConsoleState.failed = false;
+    weatherScanConsoleState.startTime = Date.now();
+    weatherScanConsoleState.stepIndex = 0;
+    weatherScanConsoleState.lastAnnouncedStep = -1;
+
+    els.root.classList.remove("is-error");
+    if (els.location) {
+      els.location.textContent = weatherScanLocationLabel(location);
+    }
+    if (els.slowMessage) toggleHidden(els.slowMessage, true);
+    if (els.extendedMessage) toggleHidden(els.extendedMessage, true);
+    hideMarineHydrationBadge();
+    toggleHidden(els.root, false);
+    updateWeatherScanConsoleElapsed();
+    setWeatherScanConsoleStep(0, true);
+
+    weatherScanConsoleState.elapsedTimer = window.setInterval(updateWeatherScanConsoleElapsed, 1000);
+    weatherScanConsoleState.stepTimer = window.setInterval(function () {
+      if (!weatherScanConsoleState.active) return;
+      setWeatherScanConsoleStep(weatherScanConsoleState.stepIndex + 1, true);
+    }, 1800);
+    weatherScanConsoleState.slowTimer = window.setTimeout(markWeatherScanConsoleSlow, 5000);
+    weatherScanConsoleState.extendedTimer = window.setTimeout(markWeatherScanConsoleExtendedWait, 10000);
+  }
+
+  function completeWeatherScanConsole() {
+    var els = getWeatherScanConsoleEls();
+    clearWeatherScanConsoleTimers();
+    weatherScanConsoleState.active = false;
+    weatherScanConsoleState.failed = false;
+    if (els.step) {
+      els.step.textContent = WEATHER_SCAN_READY_MESSAGE;
+    }
+    if (els.liveStatus) {
+      els.liveStatus.textContent = WEATHER_SCAN_READY_MESSAGE;
+    }
+    if (els.root) {
+      els.root.classList.remove("is-error");
+      toggleHidden(els.root, true);
+    }
+  }
+
+  function failWeatherScanConsole(message) {
+    var els = getWeatherScanConsoleEls();
+    clearWeatherScanConsoleTimers();
+    weatherScanConsoleState.active = false;
+    weatherScanConsoleState.failed = true;
+    if (els.step) {
+      els.step.textContent = message || WEATHER_SCAN_ERROR_MESSAGE;
+    }
+    if (els.liveStatus) {
+      els.liveStatus.textContent = message || WEATHER_SCAN_ERROR_MESSAGE;
+    }
+    if (els.root) {
+      els.root.classList.add("is-error");
+      toggleHidden(els.root, false);
+    }
+  }
+
+  function showMarineHydrationBadge() {
+    var els = getWeatherScanConsoleEls();
+    if (!els.hydrationBadge) return;
+    els.hydrationBadge.textContent = WEATHER_SCAN_HYDRATION_MESSAGE;
+    toggleHidden(els.hydrationBadge, false);
+  }
+
+  function hideMarineHydrationBadge() {
+    var els = getWeatherScanConsoleEls();
+    if (!els.hydrationBadge) return;
+    toggleHidden(els.hydrationBadge, true);
   }
 
   function mapAlertSeverity(severity) {
@@ -3382,6 +3603,9 @@
   }
 
   function hydrateMarineTrend(location, requestSeq) {
+    if (requestSeq === weatherRequestSeq) {
+      showMarineHydrationBadge();
+    }
     return fetchWeatherJson(weatherUrl(location, "&marineOnly=1&marineMode=full"))
       .then(function (payload) {
         if (requestSeq !== weatherRequestSeq) return;
@@ -3395,6 +3619,11 @@
       })
       .catch(function () {
         // Keep initial quick render if trend hydration fails.
+      })
+      .finally(function () {
+        if (requestSeq === weatherRequestSeq) {
+          hideMarineHydrationBadge();
+        }
       });
   }
 
@@ -3406,8 +3635,8 @@
     weatherRequestSeq += 1;
     var requestSeq = weatherRequestSeq;
 
-    toggleHidden(loadingEl, false);
     clearWeatherError();
+    startWeatherScanConsole(location);
 
     return fetchWeatherJson(weatherUrl(location, "&marineMode=quick"))
       .then(function (payload) {
@@ -3426,6 +3655,7 @@
         renderTideGraph(data.MARINE);
         renderWaveHeight(data.MARINE);
         renderMarineWeatherBriefing(data, payload, location);
+        completeWeatherScanConsole();
         hydrateMarineTrend(location, requestSeq);
       })
       .catch(function (err) {
@@ -3439,10 +3669,8 @@
         renderWaveHeight(null);
         weatherBriefingState.data = {};
         renderMarineWeatherBriefing({}, null, location);
+        failWeatherScanConsole(WEATHER_SCAN_ERROR_MESSAGE);
         setWeatherError((err && err.message) ? err.message : null);
-      })
-      .finally(function () {
-        toggleHidden(loadingEl, true);
       });
   }
 

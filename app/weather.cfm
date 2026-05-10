@@ -208,7 +208,174 @@
       .panel-subtitle { margin-top: 8px; color: var(--wx-muted); font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 500; }
       .panel-footnote { padding: 13px 18px 16px; color: var(--wx-muted); font-size: 12px; }
 
-      .weather-loading-pill { display: inline-flex; align-items: center; min-height: 28px; margin-bottom: 12px; padding: 4px 10px; border: 1px solid var(--wx-line); border-radius: var(--wx-radius-sm); color: #dff8ff; background: rgba(52, 210, 200, .12); font-weight: 800; }
+      .weather-scan-console {
+        margin-bottom: 16px;
+        padding: 16px 18px;
+        border: 1px solid rgba(52, 210, 200, .34);
+        border-radius: var(--wx-radius);
+        background: linear-gradient(135deg, rgba(52, 210, 200, .1), rgba(86, 168, 255, .07)), var(--wx-panel);
+        color: var(--wx-text);
+      }
+      .weather-scan-console__head { display: flex; align-items: center; gap: 14px; }
+      .weather-scan-console__pulse {
+        position: relative;
+        width: 38px;
+        height: 38px;
+        flex: 0 0 auto;
+        border: 1px solid rgba(52, 210, 200, .58);
+        border-radius: 50%;
+        background: rgba(52, 210, 200, .08);
+      }
+      .weather-scan-console__pulse::before,
+      .weather-scan-console__pulse::after {
+        content: "";
+        position: absolute;
+        inset: 9px;
+        border-radius: 50%;
+        border: 1px solid rgba(86, 168, 255, .5);
+      }
+      .weather-scan-console__pulse::after {
+        inset: 5px;
+        animation: weatherScanPulse 1.8s ease-in-out infinite;
+      }
+      .weather-scan-console__title { font-size: 16px; font-weight: 900; color: #fff; }
+      .weather-scan-console__subtitle { margin-top: 4px; color: var(--wx-muted); font-size: 13px; }
+      .weather-scan-console__timer {
+        margin-left: auto;
+        min-width: 84px;
+        padding: 8px 10px;
+        border: 1px solid rgba(126, 178, 220, .18);
+        border-radius: var(--wx-radius-sm);
+        background: rgba(2, 10, 18, .24);
+        text-align: right;
+      }
+      .weather-scan-console__timer span { display: block; color: var(--wx-muted); font-size: 12px; }
+      .weather-scan-console__timer strong { display: block; margin-top: 2px; color: #dff8ff; font-size: 18px; line-height: 1; }
+      .weather-scan-console__status {
+        margin-top: 14px;
+        padding: 11px 12px;
+        border: 1px solid rgba(126, 178, 220, .14);
+        border-radius: var(--wx-radius-sm);
+        background: rgba(255, 255, 255, .04);
+      }
+      .weather-scan-console__label { display: block; color: var(--wx-muted); font-size: 12px; font-weight: 800; }
+      .weather-scan-console__status strong { display: block; margin-top: 3px; color: #fff; font-size: 14px; }
+      .weather-scan-console__checklist {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 14px;
+        padding: 0;
+        list-style: none;
+      }
+      .weather-scan-console__checklist li {
+        min-height: 34px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        padding: 7px 9px;
+        border: 1px solid rgba(126, 178, 220, .14);
+        border-radius: var(--wx-radius-sm);
+        background: rgba(2, 10, 18, .2);
+        color: var(--wx-muted);
+        font-size: 12px;
+        line-height: 1.25;
+      }
+      .weather-scan-console__checklist li::before {
+        content: "";
+        width: 14px;
+        height: 14px;
+        flex: 0 0 auto;
+        border: 1px solid rgba(126, 178, 220, .45);
+        border-radius: 50%;
+      }
+      .weather-scan-console__checklist li.is-active { border-color: rgba(52, 210, 200, .55); color: #fff; }
+      .weather-scan-console__checklist li.is-active::before { border-color: rgba(52, 210, 200, .9); background: rgba(52, 210, 200, .2); }
+      .weather-scan-console__checklist li.is-done { color: #dff8ff; }
+      .weather-scan-console__checklist li.is-done::before { content: "✓"; display: grid; place-items: center; border-color: rgba(54, 208, 127, .8); background: rgba(54, 208, 127, .18); color: #bfffdc; font-size: 10px; font-weight: 900; }
+      .weather-scan-console__message {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border: 1px solid rgba(244, 197, 66, .3);
+        border-radius: var(--wx-radius-sm);
+        background: rgba(244, 197, 66, .08);
+        color: #ffe9a6;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      .weather-scan-console__message--extended { border-color: rgba(86, 168, 255, .28); background: rgba(86, 168, 255, .08); color: #d7e9fb; }
+      .weather-scan-console__skeletons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+      .weather-scan-console__skeleton-card {
+        position: relative;
+        min-height: 56px;
+        overflow: hidden;
+        border: 1px solid rgba(126, 178, 220, .12);
+        border-radius: var(--wx-radius-sm);
+        background: rgba(255, 255, 255, .035);
+      }
+      .weather-scan-console__skeleton-card::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 45%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .09), transparent);
+        animation: weatherScanSweep 1.6s linear infinite;
+      }
+      .weather-scan-console.is-error { border-color: rgba(244, 197, 66, .55); background: linear-gradient(135deg, rgba(244, 197, 66, .1), rgba(86, 168, 255, .05)), var(--wx-panel); }
+      .weather-scan-console__sr {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      .weather-marine-hydration-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 28px;
+        margin: -2px 0 14px;
+        padding: 4px 10px;
+        border: 1px solid rgba(52, 210, 200, .36);
+        border-radius: var(--wx-radius-sm);
+        color: #dff8ff;
+        background: rgba(52, 210, 200, .1);
+        font-size: 13px;
+        font-weight: 800;
+      }
+      .weather-marine-hydration-badge::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--wx-teal);
+        animation: weatherScanPulse 1.8s ease-in-out infinite;
+      }
+      @keyframes weatherScanPulse {
+        0%, 100% { opacity: .45; transform: scale(.9); }
+        50% { opacity: 1; transform: scale(1.08); }
+      }
+      @keyframes weatherScanSweep {
+        0% { left: -55%; }
+        100% { left: 110%; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .weather-scan-console__pulse::after,
+        .weather-scan-console__skeleton-card::after,
+        .weather-marine-hydration-badge::before { animation: none; }
+      }
+      @media (max-width: 760px) {
+        .weather-scan-console__head { align-items: flex-start; flex-direction: column; }
+        .weather-scan-console__timer { width: 100%; margin-left: 0; text-align: left; }
+        .weather-scan-console__checklist { grid-template-columns: 1fr; }
+        .weather-scan-console__skeletons { display: none; }
+      }
       .weather-error-box { margin-bottom: 14px; padding: 12px 14px; border: 1px solid rgba(244, 197, 66, .55); border-radius: var(--wx-radius-sm); color: #ffe9a6; background: rgba(244, 197, 66, .12); }
 
       .marine-risk-panel {
@@ -549,7 +716,41 @@
 <cfinclude template="../includes/top_nav.cfm">
 
 <main class="fpw-weather-page" id="fpwWeatherPage">
-  <div id="weatherLoading" class="weather-loading-pill d-none">Loading weather...</div>
+  <div id="weatherLoading" class="weather-scan-console d-none" aria-labelledby="weatherScanTitle">
+    <div class="weather-scan-console__head">
+      <div class="weather-scan-console__pulse" aria-hidden="true"></div>
+      <div>
+        <div class="weather-scan-console__title" id="weatherScanTitle">Building your boating weather briefing</div>
+        <div class="weather-scan-console__subtitle" id="weatherScanLocation">Checking your selected weather location</div>
+      </div>
+      <div class="weather-scan-console__timer" aria-hidden="true">
+        <span>Elapsed</span>
+        <strong id="weatherScanElapsed">0s</strong>
+      </div>
+    </div>
+    <div class="weather-scan-console__status">
+      <span class="weather-scan-console__label">Current scan</span>
+      <strong id="weatherScanStep">Resolving weather location…</strong>
+    </div>
+    <div id="weatherScanLiveStatus" class="weather-scan-console__sr" role="status" aria-live="polite" aria-atomic="true">Resolving weather location…</div>
+    <ol class="weather-scan-console__checklist" aria-label="Weather briefing progress">
+      <li data-weather-scan-step="0" class="is-active">Resolving weather location…</li>
+      <li data-weather-scan-step="1">Checking cached marine conditions…</li>
+      <li data-weather-scan-step="2">Requesting latest forecast…</li>
+      <li data-weather-scan-step="3">Reading coastal forecast and marine conditions…</li>
+      <li data-weather-scan-step="4">Checking advisories…</li>
+      <li data-weather-scan-step="5">Loading wind, wave, and tide context…</li>
+      <li data-weather-scan-step="6">Preparing your boating weather briefing…</li>
+    </ol>
+    <div id="weatherScanSlowMessage" class="weather-scan-console__message d-none">Fresh NOAA/NWS marine data can take a few seconds.</div>
+    <div id="weatherScanExtendedMessage" class="weather-scan-console__message weather-scan-console__message--extended d-none">Still working. Your briefing will appear automatically when the weather data returns.</div>
+    <div class="weather-scan-console__skeletons" aria-hidden="true">
+      <div class="weather-scan-console__skeleton-card"></div>
+      <div class="weather-scan-console__skeleton-card"></div>
+      <div class="weather-scan-console__skeleton-card"></div>
+    </div>
+  </div>
+  <div id="weatherMarineHydrationBadge" class="weather-marine-hydration-badge d-none" role="status" aria-live="polite">Updating detailed marine context…</div>
   <div id="weatherError" class="weather-error-box d-none" role="alert"></div>
 
   <section class="weather-briefing-header">
@@ -823,7 +1024,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/fpw-weather-overlays.js?v=20260430a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260227c"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260501-map-card-center-a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260510-weather-scan-a"></script>
 
 </body>
 </html>

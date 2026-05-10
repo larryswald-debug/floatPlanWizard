@@ -147,6 +147,44 @@ async function clickWeatherRefresh(page) {
   });
 }
 
+test("Standalone weather page shows scan console during delayed quick weather load", async ({ page }) => {
+  const weatherRequests = [];
+  await page.route("**/api/v1/weather.cfc?*", async (route) => {
+    const reqUrl = new URL(route.request().url());
+    const mode = (reqUrl.searchParams.get("marineMode") || "").trim().toLowerCase();
+    const zip = (reqUrl.searchParams.get("zip") || "").trim();
+    weatherRequests.push({ mode, zip });
+    if (mode === "quick") {
+      await page.waitForTimeout(4000);
+    }
+    if (mode === "full") {
+      await page.waitForTimeout(600);
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(successPayload(zip))
+    });
+  });
+
+  await loginToWeatherPage(page);
+  const scanConsole = page.locator("#weatherLoading");
+  await expect(scanConsole).not.toHaveClass(/d-none/, { timeout: 10000 });
+  await expect(page.locator("#weatherScanTitle")).toContainText("Building your boating weather briefing", { timeout: 10000 });
+  await expect(page.locator("#weatherScanStep")).toContainText("Resolving weather location", { timeout: 10000 });
+
+  await page.waitForTimeout(1300);
+  await expect(page.locator("#weatherScanElapsed")).not.toHaveText("0s");
+
+  await expect(page.locator("#weatherSummary")).toContainText("Fresh advisory winds", { timeout: 20000 });
+  await expect(scanConsole).toHaveClass(/d-none/, { timeout: 10000 });
+  await expect(page.locator("#weatherMarineHydrationBadge")).not.toHaveClass(/d-none/, { timeout: 10000 });
+  await expect(page.locator("#weatherMarineHydrationBadge")).toContainText("Updating detailed marine context", { timeout: 10000 });
+  await expect(page.locator("#weatherMarineHydrationBadge")).toHaveClass(/d-none/, { timeout: 10000 });
+
+  expect(weatherRequests.filter((request) => request.mode === "quick")).toHaveLength(1);
+  expect(weatherRequests.filter((request) => request.mode === "full")).toHaveLength(1);
+});
 test("Standalone weather page renders weather/tide/alerts success and error states", async ({ page }) => {
   let searchZipRequests = 0;
   await page.route("**/api/v1/weather.cfc?*", async (route) => {
