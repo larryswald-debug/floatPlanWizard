@@ -1,5 +1,5 @@
 <cfscript>
-  function fpwActiveCruiseHookValue(required string key) {
+  function fpwV2HookValue(required string key) {
     var raw = "";
     if (structKeyExists(url, key) AND isSimpleValue(url[key])) {
       raw = trim(url[key] & "");
@@ -7,7 +7,7 @@
     return reReplace(raw, "[\r\n]+", " ", "all");
   }
 
-  function fpwResolveSessionUserId() {
+  function fpwV2ResolveSessionUserId() {
     if (NOT structKeyExists(session, "user") OR NOT isStruct(session.user)) {
       return 0;
     }
@@ -23,7 +23,7 @@
     return 0;
   }
 
-  function fpwResolveDatasource() {
+  function fpwV2ResolveDatasource() {
     if (structKeyExists(application, "dsn")) {
       var appDsn = trim(toString(application.dsn));
       if (len(appDsn)) {
@@ -33,7 +33,7 @@
     return "fpw";
   }
 
-  function fpwResolveActiveCruiseBasePath() {
+  function fpwV2ResolveBasePath() {
     var basePath = "";
     var scriptPath = "";
 
@@ -54,426 +54,7 @@
     return basePath;
   }
 
-  function fpwNormalizeContactPhone(any rawPhone="") {
-    var raw = "";
-    var digits = "";
-    var hasPlus = false;
-
-    if (!isNull(arguments.rawPhone)) {
-      raw = trim(toString(arguments.rawPhone));
-    }
-    if (!len(raw)) {
-      return "";
-    }
-    hasPlus = (left(raw, 1) EQ "+");
-    digits = reReplace(raw, "[^0-9]", "", "all");
-    if (!len(digits)) {
-      return "";
-    }
-    return (hasPlus ? "+" : "") & digits;
-  }
-
-  function fpwBuildContactPhoneHref(any rawPhone="", string scheme="tel") {
-    var normalizedPhone = fpwNormalizeContactPhone(arguments.rawPhone);
-    if (!len(normalizedPhone)) {
-      return "";
-    }
-    return lCase(trim(arguments.scheme)) & ":" & normalizedPhone;
-  }
-
-  function fpwBuildContactEmailHref(any rawEmail="") {
-    var email = "";
-    if (!isNull(arguments.rawEmail)) {
-      email = trim(toString(arguments.rawEmail));
-    }
-    if (!len(email)) {
-      return "";
-    }
-    return "mailto:" & email;
-  }
-
-  function fpwPickStructValue(required struct source, required array keys, any defaultValue="") {
-    var i = 0;
-    var k = "";
-    for (i = 1; i LTE arrayLen(arguments.keys); i++) {
-      k = toString(arguments.keys[i]);
-      if (structKeyExists(arguments.source, k) AND NOT isNull(arguments.source[k])) {
-        return arguments.source[k];
-      }
-    }
-    return arguments.defaultValue;
-  }
-
-  function fpwQueryCell(required query q, required string col, numeric row=1, any defaultValue="") {
-    if (NOT listFindNoCase(arguments.q.columnList, arguments.col)) {
-      return arguments.defaultValue;
-    }
-    if (arguments.q.recordCount LT arguments.row) {
-      return arguments.defaultValue;
-    }
-    var value = arguments.q[arguments.col][arguments.row];
-    if (isNull(value)) {
-      return arguments.defaultValue;
-    }
-    return value;
-  }
-
-  function fpwStartCase(required string inputText) {
-    var normalized = lCase(trim(arguments.inputText));
-    var words = listToArray(normalized, " ");
-    var out = [];
-    var i = 0;
-    var w = "";
-    for (i = 1; i LTE arrayLen(words); i++) {
-      w = trim(words[i]);
-      if (NOT len(w)) {
-        continue;
-      }
-      arrayAppend(out, uCase(left(w, 1)) & mid(w, 2, len(w)));
-    }
-    if (NOT arrayLen(out)) {
-      return "";
-    }
-    return arrayToList(out, " ");
-  }
-
-  function fpwStatusLabel(required string rawStatus, string activeLabel="Active") {
-    var s = uCase(trim(arguments.rawStatus));
-    if (NOT len(s)) {
-      return "";
-    }
-    if (s EQ "ACTIVE") {
-      return arguments.activeLabel;
-    }
-    if (listFindNoCase("OVERDUE,DUE_NOW,OVERDUE_1H,OVERDUE_2H,OVERDUE_3H,OVERDUE_4H,OVERDUE_12H,OVERDUE_24H", s)) {
-      return "Overdue";
-    }
-    return fpwStartCase(replace(s, "_", " ", "all"));
-  }
-
-  function fpwFormatNm(any nmValue) {
-    var nm = val(nmValue);
-    if (nm LT 0) {
-      nm = 0;
-    }
-    return numberFormat(nm, "0.0") & " nm";
-  }
-
-  function fpwFormatPct(any pctValue) {
-    var pct = int(val(pctValue));
-    if (pct LT 0) {
-      pct = 0;
-    }
-    if (pct GT 100) {
-      pct = 100;
-    }
-    return pct & "%";
-  }
-
-  function fpwFormatClock(any dtValue, string fallback="--") {
-    if (isDate(dtValue)) {
-      return timeFormat(dtValue, "h:nn tt");
-    }
-    return arguments.fallback;
-  }
-
-  function fpwNormalizeCheckInContext(any rawValue) {
-    var contextVal = lCase(trim(toString(arguments.rawValue)));
-    if (contextVal EQ "overnight") {
-      return "overnight";
-    }
-    return "";
-  }
-
-  function fpwFormatElapsedCheckIn(any dtValue, string fallback="-- since last check-in") {
-    var elapsedMinutes = 0;
-    var hours = 0;
-    var minutes = 0;
-
-    if (!isDate(arguments.dtValue)) {
-      return arguments.fallback;
-    }
-
-    elapsedMinutes = dateDiff("n", arguments.dtValue, now());
-    if (elapsedMinutes LT 0) {
-      elapsedMinutes = 0;
-    }
-    if (elapsedMinutes LT 60) {
-      return elapsedMinutes & " min since last check-in";
-    }
-
-    hours = int(elapsedMinutes / 60);
-    minutes = elapsedMinutes MOD 60;
-    if (minutes LTE 0) {
-      return hours & "h since last check-in";
-    }
-    return hours & "h " & minutes & "m since last check-in";
-  }
-
-  function fpwRoundTo2(any numericValue) {
-    if (NOT isNumeric(arguments.numericValue)) {
-      return 0;
-    }
-    return round(val(arguments.numericValue) * 100) / 100;
-  }
-
-  function fpwGetNumericFromKeys(any sourceData, required array keys, boolean positiveOnly=true) {
-    var source = (isStruct(arguments.sourceData) ? arguments.sourceData : {});
-    var i = 0;
-    var key = "";
-    var raw = "";
-    var n = 0;
-    if (NOT structCount(source)) {
-      return 0;
-    }
-    for (i = 1; i LTE arrayLen(arguments.keys); i++) {
-      key = toString(arguments.keys[i]);
-      if (NOT len(key) OR NOT structKeyExists(source, key) OR isNull(source[key])) {
-        continue;
-      }
-      raw = source[key];
-      if (isSimpleValue(raw)) {
-        raw = trim(toString(raw));
-        if (NOT len(raw) OR NOT isNumeric(raw)) {
-          continue;
-        }
-        n = val(raw);
-      } else if (isNumeric(raw)) {
-        n = val(raw);
-      } else {
-        continue;
-      }
-      if (arguments.positiveOnly AND n LTE 0) {
-        continue;
-      }
-      return n;
-    }
-    return 0;
-  }
-
-  function fpwFormatUtcIso(any dtValue) {
-    if (!isDate(arguments.dtValue)) {
-      return "";
-    }
-    return dateTimeFormat(dateConvert("local2Utc", arguments.dtValue), "yyyy-mm-dd'T'HH:nn:ss'Z'");
-  }
-
-  function fpwBuildTripLocalTime(any referenceDt, string timeZoneId, numeric hourValue=8, numeric minuteValue=0, numeric secondValue=0, boolean advanceDay=false) {
-    var tzId = trim(arguments.timeZoneId);
-    var localCalendar = "";
-    var localTimeZone = "";
-    if (!isDate(arguments.referenceDt) OR !len(tzId)) {
-      return "";
-    }
-    try {
-      localTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(tzId);
-      localCalendar = createObject("java", "java.util.GregorianCalendar").init(localTimeZone);
-      localCalendar.setTime(arguments.referenceDt);
-      if (arguments.advanceDay) {
-        localCalendar.add(5, 1);
-      }
-      localCalendar.set(11, int(arguments.hourValue));
-      localCalendar.set(12, int(arguments.minuteValue));
-      localCalendar.set(13, int(arguments.secondValue));
-      localCalendar.set(14, 0);
-      return localCalendar.getTime();
-    } catch (any tripLocalHourErr) {
-      return "";
-    }
-  }
-
-  function fpwNormalizeLocalTimeValue(any rawValue, string defaultValue="08:00:00") {
-    var normalized = trim(toString(arguments.rawValue));
-    var parts = [];
-    var hh = 0;
-    var mm = 0;
-    var ss = 0;
-    if (!len(normalized)) {
-      return arguments.defaultValue;
-    }
-    parts = listToArray(normalized, ":");
-    if (arrayLen(parts) LT 2 OR arrayLen(parts) GT 3) {
-      return arguments.defaultValue;
-    }
-    if (!isNumeric(parts[1]) OR !isNumeric(parts[2]) OR (arrayLen(parts) EQ 3 AND !isNumeric(parts[3]))) {
-      return arguments.defaultValue;
-    }
-    hh = val(parts[1]);
-    mm = val(parts[2]);
-    ss = (arrayLen(parts) EQ 3 ? val(parts[3]) : 0);
-    if (hh LT 0 OR hh GT 23 OR mm LT 0 OR mm GT 59 OR ss LT 0 OR ss GT 59) {
-      return arguments.defaultValue;
-    }
-    return numberFormat(hh, "00") & ":" & numberFormat(mm, "00") & ":" & numberFormat(ss, "00");
-  }
-
-  function fpwLocalTimePart(string timeValue, numeric indexValue=1, numeric defaultValue=0) {
-    var normalized = fpwNormalizeLocalTimeValue(arguments.timeValue, "");
-    var parts = [];
-    if (!len(normalized)) {
-      return int(arguments.defaultValue);
-    }
-    parts = listToArray(normalized, ":");
-    if (arguments.indexValue LT 1 OR arguments.indexValue GT arrayLen(parts)) {
-      return int(arguments.defaultValue);
-    }
-    return int(val(parts[arguments.indexValue]));
-  }
-
-  function fpwFormatLocalTimeLabel(any rawValue, string fallback="8:00 AM") {
-    var normalized = fpwNormalizeLocalTimeValue(arguments.rawValue, "");
-    var displayDt = "";
-    if (!len(normalized)) {
-      return arguments.fallback;
-    }
-    displayDt = createDateTime(
-      2000,
-      1,
-      1,
-      fpwLocalTimePart(normalized, 1, 8),
-      fpwLocalTimePart(normalized, 2, 0),
-      fpwLocalTimePart(normalized, 3, 0)
-    );
-    return timeFormat(displayDt, "h:nn tt");
-  }
-
-  function fpwFormatStartAssumptionLabel(any rawValue, string timeZoneId) {
-    var timeLabel = fpwFormatLocalTimeLabel(arguments.rawValue, "8:00 AM");
-    var timeZoneLabel = trim(arguments.timeZoneId);
-    var article = "a";
-    if (left(timeLabel, 1) EQ "8" OR left(timeLabel, 2) EQ "11") {
-      article = "an";
-    }
-    if (len(timeZoneLabel)) {
-      return "Assumes " & article & " " & timeLabel & " start in " & timeZoneLabel & " for display only.";
-    }
-    return "Assumes " & article & " " & timeLabel & " departure-timezone leg start for display only.";
-  }
-
-  function fpwFormatZonedDateTimeLabel(any dtValue, string timeZoneId, string fallback="") {
-    var tzId = trim(arguments.timeZoneId);
-    var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    var localTimeZone = "";
-    var localCalendar = "";
-    var hour24 = 0;
-    var hour12 = 0;
-    var minuteVal = 0;
-    var amPm = "AM";
-    if (!isDate(arguments.dtValue) OR !len(tzId)) {
-      return arguments.fallback;
-    }
-    try {
-      localTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(tzId);
-      localCalendar = createObject("java", "java.util.GregorianCalendar").init(localTimeZone);
-      localCalendar.setTime(arguments.dtValue);
-      hour24 = int(localCalendar.get(11));
-      hour12 = hour24 MOD 12;
-      if (hour12 EQ 0) {
-        hour12 = 12;
-      }
-      minuteVal = int(localCalendar.get(12));
-      amPm = (hour24 GTE 12 ? "PM" : "AM");
-      return monthNames[int(localCalendar.get(2)) + 1]
-        & " " & int(localCalendar.get(5))
-        & ", " & int(localCalendar.get(1))
-        & " " & hour12
-        & ":" & numberFormat(minuteVal, "00")
-        & " " & amPm
-        & " " & tzId;
-    } catch (any zonedLabelErr) {
-      return arguments.fallback;
-    }
-  }
-
-  function fpwFormatLocalTimeInput(any rawValue, string fallback="08:00") {
-    var normalized = fpwNormalizeLocalTimeValue(arguments.rawValue, "");
-    if (!len(normalized)) {
-      return arguments.fallback;
-    }
-    return left(normalized, 5);
-  }
-
-  function fpwComputeExperimentalElapsedHours(any nowDt, any startDt, any pauseStartDt="", any resumeDt="") {
-    var elapsedMinutes = 0;
-    var pauseMinutes = 0;
-    var pauseEndDt = "";
-    if (!isDate(arguments.nowDt) OR !isDate(arguments.startDt)) {
-      return 0;
-    }
-    elapsedMinutes = dateDiff("n", arguments.startDt, arguments.nowDt);
-    if (elapsedMinutes LT 0) {
-      elapsedMinutes = 0;
-    }
-    if (isDate(arguments.pauseStartDt) AND dateCompare(arguments.nowDt, arguments.pauseStartDt, "s") GT 0) {
-      pauseEndDt = arguments.nowDt;
-      if (isDate(arguments.resumeDt) AND dateCompare(arguments.nowDt, arguments.resumeDt, "s") GT 0) {
-        pauseEndDt = arguments.resumeDt;
-      }
-      pauseMinutes = dateDiff("n", arguments.pauseStartDt, pauseEndDt);
-      if (pauseMinutes GT 0) {
-        elapsedMinutes -= pauseMinutes;
-      }
-    }
-    if (elapsedMinutes LT 0) {
-      elapsedMinutes = 0;
-    }
-    return fpwRoundTo2(elapsedMinutes / 60);
-  }
-
-  function fpwResolveCaptainDisplayName() {
-    if (NOT structKeyExists(session, "user") OR NOT isStruct(session.user)) {
-      return "Captain";
-    }
-    var firstName = trim(toString(fpwPickStructValue(session.user, ["firstName", "firstname", "FIRSTNAME", "first_name"], "")));
-    var lastName = trim(toString(fpwPickStructValue(session.user, ["lastName", "lastname", "LASTNAME", "last_name"], "")));
-    var fullName = trim(toString(fpwPickStructValue(session.user, ["name", "fullName", "displayName", "NAME"], "")));
-    var email = trim(toString(fpwPickStructValue(session.user, ["email", "EMAIL"], "")));
-
-    if (len(fullName)) {
-      return fullName;
-    }
-    if (len(firstName) OR len(lastName)) {
-      return trim(firstName & " " & lastName);
-    }
-    if (len(email)) {
-      return email;
-    }
-    return "Captain";
-  }
-
-  function fpwEnsureScheduledTripStart(required numeric userId, required numeric floatPlanId) {
-    var result = {
-      SUCCESS = false,
-      TRIP_STARTED = true,
-      PENDING_START = false,
-      MESSAGE = "Unable to evaluate the scheduled departure gate."
-    };
-    var floatPlanComponent = "";
-
-    if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
-      result.MESSAGE = "A valid owner and float plan are required.";
-      return result;
-    }
-
-    try {
-      floatPlanComponent = createObject("component", "fpw.api.v1.floatplan");
-    } catch (any floatPlanPathErr) {
-      floatPlanComponent = createObject("component", "api.v1.floatplan");
-    }
-
-    result = floatPlanComponent.ensureOperationalStartForScheduledPlan(arguments.userId, arguments.floatPlanId);
-    if (!isStruct(result)) {
-      result = {
-        SUCCESS = false,
-        TRIP_STARTED = true,
-        PENDING_START = false,
-        MESSAGE = "Unable to evaluate the scheduled departure gate."
-      };
-    }
-    return result;
-  }
-
-  function fpwResolveCurrentActiveCruiseGroup(required numeric userId) {
+  function fpwV2ResolveCurrentActiveCruiseGroup(required numeric userId) {
     var result = {
       SUCCESS = false,
       HAS_CURRENT_GROUP = false,
@@ -505,2090 +86,1104 @@
     return result;
   }
 
-  function fpwGetCanonicalFuelEstimate(required struct routeInputs, required numeric distanceNm, any idleFuelGallons=0) {
-    var result = {
-      SUCCESS = false,
-      MESSAGE = "Unable to calculate canonical fuel estimate.",
-      FUEL_ESTIMATE = {}
-    };
-    var routeBuilderComponent = "";
-
-    if (!isStruct(arguments.routeInputs) OR !structCount(arguments.routeInputs)) {
-      result.MESSAGE = "Route inputs are required.";
-      return result;
+  function fpwV2Get(required struct source, required string key, any defaultValue="") {
+    if (structKeyExists(arguments.source, arguments.key) AND !isNull(arguments.source[arguments.key])) {
+      return arguments.source[arguments.key];
     }
+    return arguments.defaultValue;
+  }
 
+  function fpwV2Text(any value="", string fallback="--") {
+    if (isNull(arguments.value)) {
+      return arguments.fallback;
+    }
+    if (isSimpleValue(arguments.value)) {
+      var textValue = trim(toString(arguments.value));
+      if (len(textValue)) {
+        return textValue;
+      }
+    }
+    return arguments.fallback;
+  }
+
+  function fpwV2Number(any value="", string suffix="") {
+    if (!isNumeric(arguments.value)) {
+      return "--";
+    }
+    return numberFormat(val(arguments.value), "0.0") & arguments.suffix;
+  }
+
+  function fpwV2Minutes(any value="") {
+    if (!isNumeric(arguments.value)) {
+      return "--";
+    }
+    return numberFormat(val(arguments.value), "0") & " min";
+  }
+
+  function fpwV2Percent(any value="") {
+    if (!isNumeric(arguments.value)) {
+      return "--";
+    }
+    return numberFormat(val(arguments.value), "0.0") & "%";
+  }
+
+  function fpwV2ParseTripDateTime(any value="") {
+    var raw = "";
+    var normalized = "";
+    var utcParser = "";
+    if (isDate(arguments.value)) {
+      raw = dateTimeFormat(arguments.value, "yyyy-mm-dd HH:nn:ss");
+    } else if (!isSimpleValue(arguments.value)) {
+      return "";
+    } else {
+      raw = trim(toString(arguments.value));
+    }
+    if (!len(raw)) {
+      return "";
+    }
+    normalized = replace(raw, "T", " ", "one");
+    normalized = reReplace(normalized, "Z$", "", "one");
+    normalized = reReplace(normalized, "([+-][0-9]{2}:?[0-9]{2})$", "", "one");
+    normalized = reReplace(normalized, "\.[0-9]+$", "", "one");
+    if (reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$", normalized)) {
+      normalized &= ":00";
+    }
+    if (!reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$", normalized)) {
+      return "";
+    }
     try {
-      routeBuilderComponent = createObject("component", "fpw.api.v1.routeBuilder");
-    } catch (any routeBuilderPathErr) {
-      routeBuilderComponent = createObject("component", "api.v1.routeBuilder");
+      utcParser = createObject("java", "java.text.SimpleDateFormat").init("yyyy-MM-dd HH:mm:ss");
+      utcParser.setTimeZone(createObject("java", "java.util.TimeZone").getTimeZone("UTC"));
+      return utcParser.parse(normalized);
+    } catch (any parseErr) {
+      return "";
     }
+  }
 
+  function fpwV2TripDateTimeLabel(any value="", string timezone="UTC", string fallback="Not available", boolean compact=false) {
+    var tripTime = fpwV2ParseTripDateTime(arguments.value);
+    var tzId = trim(arguments.timezone);
+    var monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    var localTimeZone = "";
+    var localCalendar = "";
+    var timeZoneLabel = "";
+    var hour24 = 0;
+    var minuteVal = 0;
+    if (!isDate(tripTime)) {
+      return arguments.fallback;
+    }
+    if (!len(tzId)) {
+      tzId = "UTC";
+    }
     try {
-      result = routeBuilderComponent.routegenEstimateFuelForDistance(
-        routeInputs = duplicate(arguments.routeInputs),
-        distanceNm = arguments.distanceNm,
-        idleFuelGallons = arguments.idleFuelGallons
-      );
-    } catch (any routeBuilderFuelErr) {
-      result = {
-        SUCCESS = false,
-        MESSAGE = "Unable to calculate canonical fuel estimate.",
-        FUEL_ESTIMATE = {}
-      };
+      localTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(tzId);
+      localCalendar = createObject("java", "java.util.GregorianCalendar").init(localTimeZone);
+      localCalendar.setTime(tripTime);
+      timeZoneLabel = localTimeZone.getDisplayName(localTimeZone.inDaylightTime(localCalendar.getTime()), 0);
+      if (!len(timeZoneLabel)) {
+        timeZoneLabel = tzId;
+      }
+      if (localTimeZone.getID() EQ "GMT" AND NOT listFindNoCase("GMT,UTC,Etc/UTC", tzId)) {
+        timeZoneLabel = tzId;
+      }
+      hour24 = int(localCalendar.get(11));
+      minuteVal = int(localCalendar.get(12));
+      if (arguments.compact) {
+        return numberFormat(hour24, "00") & ":" & numberFormat(minuteVal, "00") & " " & timeZoneLabel;
+      }
+      return monthNames[int(localCalendar.get(2)) + 1]
+        & " " & int(localCalendar.get(5))
+        & ", " & int(localCalendar.get(1))
+        & " " & chr(183) & " "
+        & numberFormat(hour24, "00")
+        & ":" & numberFormat(minuteVal, "00")
+        & " " & timeZoneLabel;
+    } catch (any zonedLabelErr) {
+      return arguments.fallback;
     }
-
-    if (!isStruct(result)) {
-      result = {
-        SUCCESS = false,
-        MESSAGE = "Unable to calculate canonical fuel estimate.",
-        FUEL_ESTIMATE = {}
-      };
-    }
-    return result;
   }
 
-  function fpwFormatActiveCruiseRouteDuration(any hoursValue) {
-    var totalMinutes = 0;
-    var hoursPart = 0;
-    var minutesPart = 0;
-
-    if (!isNumeric(arguments.hoursValue) OR val(arguments.hoursValue) LTE 0) {
-      return "—";
+  function fpwV2TripTimezoneLabel(string timezone="UTC", any referenceValue="") {
+    var tzId = trim(arguments.timezone);
+    var referenceTime = fpwV2ParseTripDateTime(arguments.referenceValue);
+    var localTimeZone = "";
+    if (!len(tzId)) {
+      tzId = "UTC";
     }
-    totalMinutes = int(round(val(arguments.hoursValue) * 60));
-    hoursPart = int(totalMinutes / 60);
-    minutesPart = totalMinutes MOD 60;
-    if (hoursPart GT 0 AND minutesPart GT 0) {
-      return hoursPart & "h " & minutesPart & "m";
+    if (!isDate(referenceTime)) {
+      referenceTime = now();
     }
-    if (hoursPart GT 0) {
-      return hoursPart & "h";
-    }
-    return minutesPart & "m";
-  }
-
-  activeCruiseHooks = {
-    context = {
-      floatPlanId = fpwActiveCruiseHookValue("floatPlanId")
-    },
-    fields = {},
-    canonicalProjection = {
-      available = false,
-      authority = "",
-      etaProjection = {},
-      todayProgress = {},
-      currentLegProgress = {},
-      routeTimeline = { available = false },
-      warnings = []
-    }
-  };
-
-  activeCruiseContext = {
-    routeCode = "",
-    routeId = 0,
-    routeInstanceId = 0,
-    floatPlanId = 0,
-    requestedFloatPlanId = 0,
-    activeRouteCode = ""
-  };
-  activeCruiseMapPayload = {
-    routeGeo = { type = "MultiLineString", coordinates = [] },
-    pins = [],
-    current = {},
-    streamId = 0,
-    slug = "",
-    shareToken = ""
-  };
-  if (isNumeric(activeCruiseHooks.context.floatPlanId)) {
-    activeCruiseContext.requestedFloatPlanId = val(activeCruiseHooks.context.floatPlanId);
-  }
-
-  activeCruiseAccessValid = false;
-  activeCruiseAccessTitle = "No Active Trip";
-  activeCruiseAccessMessage = "Active Cruise is available only for your current active trip.";
-  activeCruiseAccessDetail = "Open this page from the one active float plan tied to your trip.";
-  activeCruiseBasePath = fpwResolveActiveCruiseBasePath();
-  activeCruiseFloatPlanHref = activeCruiseBasePath & "/app/floatplan-wizard.cfm";
-
-  activeCruiseView = {
-    topRouteChip = "Route: Gulf Coast Run",
-    topFloatPlanState = "Float Plan: Active",
-    heroRouteTitle = "Active Cruise Route",
-    heroVoyageStatus = "Underway",
-    heroVoyageStatusVariant = "good",
-    heroCurrentLegSummary = "4 of 12",
-    heroLegMeta = "Day 3 of 9 - Long-range coastal cruise",
-    heroDistanceComplete = "142 nm",
-    heroPercentComplete = "56% of active route completed",
-    heroNextStop = "TBD",
-    heroNextStopMeta = "Next planned stop",
-    heroEta = "4:40 PM",
-    heroEtaMeta = "Weather-adjusted arrival estimate",
-    heroLastCheckIn = "--",
-    heroNextExpectedCheckIn = "-- since last check-in",
-    heroTripStart = "--",
-    legRemainingDistance = "41 nm remaining",
-    legPercentComplete = "56% complete",
-    legPace = "Pace: 7.4 kt",
-    legRemainingFuel = "Fuel est: 6.2 gal remaining",
-    experimentalLegStatus = "Route estimate unavailable",
-    experimentalLegRemainingDistance = "—",
-    experimentalLegPercentComplete = "—",
-    experimentalLegPace = "Speed unavailable",
-    experimentalLegRemainingFuel = "Fuel unavailable",
-    experimentalLegMeta = "Route leg estimate will appear when trip data is available.",
-    experimentalProgressBarWidth = "0%",
-    monitorStatus = "Normal",
-    monitorStatusColor = "var(--good)",
-    monitorFollowerState = "Live",
-    monitorEmergencyContact = "Abbe",
-    monitorWeatherFactor = "—",
-    monitorDailyStartLabel = "8:00 AM",
-    monitorDailyStartInput = "08:00",
-    manualDelayMinutesTotal = 0,
-    manualDelayMinutesLabel = "0 minutes",
-    legDistance = "82 nm",
-    legRemaining = "41 nm",
-    legDataPace = "7.4 kt",
-    legFuelNeed = "6.2 gal",
-    legReserveFuel = "18 gal",
-    legArrival = "4:40 PM",
-    floatPlanStatus = "Active",
-    floatPlanIdLabel = "FP-240318",
-    floatPlanLastCheckIn = "--",
-    floatPlanNextExpected = "-- since last check-in",
-    captainContact = "Larry Wald • Captain",
-    crewContact = "Callie • Onboard Companion",
-    emergencyContact = "Abbe • Emergency Contact",
-    progressBarWidth = "56%",
-    routeStop1Title = "Departure Segment",
-    routeStop1Detail = "Route origin for the active cruise.",
-    routeStop1Stamp = "Start",
-    routeStop2Title = "Current Leg Segment",
-    routeStop2Detail = "Current leg in progress.",
-    routeStop2Stamp = "Leg",
-    routeStop3Title = "Approach Segment",
-    routeStop3Detail = "Current leg destination and approach.",
-    routeStop3Stamp = "Current",
-    routeStop4Title = "Final Destination",
-    routeStop4Detail = "Planned end of the active route.",
-    routeStop4Stamp = "ETA"
-  };
-  activeCruiseContacts = {
-    owner = {
-      name = "",
-      role = "Primary trip owner and operator",
-      phoneHref = "",
-      smsHref = "",
-      emailHref = ""
-    },
-    operator = {
-      name = "",
-      role = "Vessel operator for this trip",
-      phoneHref = "",
-      smsHref = "",
-      emailHref = "",
-      sameAsOwner = false
-    },
-    crew = {
-      count = 0,
-      countLabel = "No crew/passengers listed",
-      list = []
-    },
-    monitor = {
-      name = "",
-      role = "Primary monitoring contact",
-      phoneHref = "",
-      smsHref = "",
-      emailHref = ""
-    },
-    currentAsOf = ""
-  };
-  activeCruiseExperimental = {
-    available = false,
-    departureTimeZone = "",
-    generatedAtUtc = "",
-    baseStartUtc = "",
-    pauseStartUtc = "",
-    pauseResumeUtc = "",
-    currentLegDistanceNm = 0,
-    speedKn = 0,
-    fuelBurnGph = 0,
-    reservePct = 0,
-    isOvernight = false,
-    assumptionLabel = "Route leg estimate will appear when trip data is available.",
-    statusLabel = "Route estimate unavailable"
-  };
-  activeCruiseRoutePlan = {
-    available = false,
-    scheduledDepartureLabel = "—",
-    scheduledDepartureIso = "",
-    finalDestinationLabel = "—",
-    currentLegOrder = 0,
-    nextLegOrder = 0,
-    baseSpeedKn = 0,
-    effectiveSpeedKn = 0,
-    fuelBurnGph = 0,
-    reservePct = 0,
-    weatherFactorPct = 0,
-    manualDelayMinutes = 0,
-    pauseStartUtc = "",
-    pauseResumeUtc = "",
-    summary = {
-      totalNm = 0,
-      completedNm = 0,
-      remainingNm = 0,
-      progressPct = 0,
-      totalHours = 0,
-      finalArrivalLabel = "—",
-      finalArrivalIso = ""
-    },
-    legs = []
-  };
-
-  activeCruiseTimelineItems = [
-    {
-      time = "7:15 AM",
-      title = "Departed current route origin",
-      detail = "Trip started on schedule based on the active route instance."
-    },
-    {
-      time = "10:50 AM",
-      title = "Fuel / systems check logged",
-      detail = "Burn rate aligned with route estimate. No issues noted."
-    },
-    {
-      time = "1:12 PM",
-      title = "Captain check-in submitted",
-      detail = "Float plan monitoring updated. Follower page remains active."
-    },
-    {
-      time = "2:05 PM",
-      title = "Weather note added",
-      detail = "Wind forecast suggests tighter docking conditions later in the day."
-    }
-  ];
-  activeCruiseCaptainLogEntries = [];
-  activeCruiseTripStartState = {};
-  activeCruiseTripStarted = true;
-  activeCruiseHasOperationalCheckIn = false;
-  activeCruiseEyebrowLabel = "Voyage Console • Live Trip View";
-  activeCruiseHeroSubline = "A focused operational page for the active trip.";
-  activeCruiseProgressWindowLabel = "Live";
-  activeCruiseLegRouteWindowLabel = "Today";
-  activeCruiseCurrentLegCopy = "This area gives the captain the immediate operational picture: departure point, current destination, remaining distance, pace, fuel outlook, and upcoming timing for the leg in progress.";
-  activeCruiseFloatPlanBadgeLabel = "Monitoring Active";
-  activeCruiseFloatPlanStatusNote = "Monitoring engaged";
-  activeCruiseFloatPlanNextExpectedNote = "Current check-in state";
-  activeCruiseRouteStop1DotClass = "dot done";
-  activeCruiseRouteStop2DotClass = "dot done";
-  activeCruiseRouteStop3DotClass = "dot current";
-  pendingLegOrder = 0;
-  awaitingDepartureStop = false;
-  activeCruiseCanonicalHero = {};
-
-  activeCruiseUserId = fpwResolveSessionUserId();
-  activeCruiseDatasource = fpwResolveDatasource();
-
-  if (activeCruiseUserId GT 0) {
     try {
-      userIdText = toString(activeCruiseUserId);
-      routePrefix = "USER_ROUTE_" & int(activeCruiseUserId) & "_%";
-      routeName = "";
-      departureName = "";
-      destinationName = "";
-      totalLegs = 0;
-      completedLegs = 0;
-      currentLeg = 0;
-      totalNm = 0.0;
-      completedNm = 0.0;
-      remainingNm = 0.0;
-      currentLegRemainingNm = 0.0;
-      percentComplete = 0;
-      tripProgressPercentComplete = 0;
-      nextStop = "";
-      currentLegDistNm = 0.0;
-      planStatusRaw = "";
-      monitorStatusRaw = "";
-      planStatusLabel = "";
-      monitorStatus = "";
-      paceKn = 0.0;
-      streamLive = false;
-      captainName = fpwResolveCaptainDisplayName();
-      ownerName = "";
-      ownerPhone = "";
-      ownerEmail = "";
-      operatorId = 0;
-      operatorName = "";
-      operatorPhone = "";
-      operatorSameAsOwner = false;
-      emergencyName = "";
-      emergencyPhone = "";
-      emergencyEmail = "";
-      crewName = "";
-      crewRowIndex = 0;
-      crewRowName = "";
-      crewRowPhone = "";
-      lastCheckInDt = "";
-      expectedCheckInDt = "";
-      expectedCheckInUtcDt = "";
-      dailyStartLocalTimeVal = "08:00:00";
-      dailyStartHourVal = 8;
-      dailyStartMinuteVal = 0;
-      dailyStartSecondVal = 0;
-      checkInContextVal = "";
-      elapsedCheckInLabel = "-- since last check-in";
-      isOvernightCheckIn = false;
-      etaLabel = "";
-      etaMeta = "Weather-adjusted arrival estimate";
-      routeCodeDisplay = activeCruiseContext.routeCode;
-      currentLegStartName = "";
-      currentLegEndName = "";
-      nextLegEndName = "";
-      qPlan = queryNew("");
-      qOperator = queryNew("");
-      qRouteCtx = queryNew("");
-      qRouteById = queryNew("");
-      qLegs = queryNew("");
-      qProgress = queryNew("");
-      qOwner = queryNew("");
-      qCrew = queryNew("");
-      qEmergency = queryNew("");
-      qStream = queryNew("");
-      qLastPost = queryNew("");
-      qTimelinePosts = queryNew("");
-      qCaptainLogTable = queryNew("");
-      qCaptainLogEntries = queryNew("");
-      qVoyageTables = queryNew("");
-      qInputsColumn = queryNew("");
-      qInstInputs = queryNew("");
-      qTripStart = queryNew("");
-      qPlanSql = "";
-      currentGroup = {};
-      qCanonicalPlan = queryNew("");
-      requestedFloatPlanId = activeCruiseContext.requestedFloatPlanId;
-      hasVoyageTables = false;
-      hasRoutegenInputsCol = false;
-      routeInputJsonRaw = "";
-      routeInputs = {};
-      routeInputCardSpeedKn = 0.0;
-      routeInputSpeedKn = 0.0;
-      routeInputFuelBurnGph = 0.0;
-      routeInputReservePct = 0.0;
-      routeWeatherFactorRaw = "";
-      speedForFuelKn = 0.0;
-      canonicalTripStartDt = "";
-      currentLegHours = 0.0;
-      baseFuelNeedGal = 0.0;
-      reserveFuelNeedGal = 0.0;
-      requiredFuelNeedGal = 0.0;
-      fuelCalcReady = false;
-	      progressByLeg = {};
-	      progressStartedAtByLeg = {};
-	      progressCompletedAtByLeg = {};
-	      i = 0;
-	      legOrder = 0;
-	      legStatus = "";
-	      isCompletedLeg = false;
-	      highestCompletedLegOrder = 0;
-	      currentLegOrder = 0;
-	      currentLegStartedAt = "";
-	      currentLegStartedAtCandidate = "";
-	      priorLegCompletedAt = "";
-      priorLegCompletedAtCandidate = "";
-      activeLegRow = 0;
-      pendingLegRow = 0;
-      pendingLegOrder = 0;
-      awaitingDepartureStop = false;
-	      activeCruiseCanCompleteLeg = false;
-      activeCruiseCanStartNextLeg = false;
-      displayLegRow = 0;
-      timelineItems = [];
-      timelinePostDt = "";
-      captainNoteCreatedDt = "";
-      captainNotePosted = false;
-      routePlanBaseSpeedKn = 0.0;
-      routePlanEffectiveSpeedKn = 0.0;
-      routePlanFuelBurnGph = 0.0;
-      routePlanReservePct = 0.0;
-      routePlanWeatherFactorPct = 0.0;
-      routePlanCumulativeHours = 0.0;
-      routePlanLegHours = 0.0;
-      routePlanLegFuelBaseGal = 0.0;
-      routePlanLegReserveGal = 0.0;
-      routePlanLegRequiredGal = 0.0;
-      routePlanLegOrder = 0;
-      routePlanLegKey = "";
-      routePlanLegStatusRaw = "";
-      routePlanLegState = "";
-      routePlanLegStatusLabel = "";
-      routePlanLegDistanceNm = 0.0;
-      routePlanLegStartName = "";
-      routePlanLegEndName = "";
-      routePlanLegDepartureLabel = "—";
-      routePlanLegArrivalLabel = "—";
-      routePlanLegDepartureOffsetHours = 0.0;
-      routePlanLegArrivalOffsetHours = 0.0;
-      routePlanLegDelayMinutes = 0;
-      routePlanLegStartedAtLabel = "";
-      routePlanLegCompletedAtLabel = "";
-      routePlanFinalArrivalLabel = "—";
-      routePlanFinalDestinationName = "";
-      routePlanTripStartIso = "";
-
-      currentGroup = fpwResolveCurrentActiveCruiseGroup(activeCruiseUserId);
-
-      if (
-        isStruct(currentGroup)
-        AND structKeyExists(currentGroup, "ERROR")
-        AND trim(toString(currentGroup.ERROR)) EQ "MULTIPLE_ACTIVE_GROUPS"
-      ) {
-        activeCruiseAccessMessage = "Active Cruise is unavailable because more than one active route/float-plan group exists.";
-        activeCruiseAccessDetail = "Resolve the extra active group before using this page.";
-      } else if (!currentGroup.SUCCESS OR !currentGroup.IS_ACTIVE) {
-        activeCruiseAccessMessage = "No active trip is available for this account.";
-        activeCruiseAccessDetail = "Active Cruise only loads the current active float plan.";
-      } else {
-        activeCruiseContext.floatPlanId = val(structKeyExists(currentGroup, "FLOATPLANID") ? currentGroup.FLOATPLANID : 0);
-        activeCruiseContext.routeInstanceId = val(structKeyExists(currentGroup, "ROUTE_INSTANCE_ID") ? currentGroup.ROUTE_INSTANCE_ID : 0);
-
-        if (requestedFloatPlanId GT 0 AND requestedFloatPlanId NEQ activeCruiseContext.floatPlanId) {
-          activeCruiseAccessMessage = "This Active Cruise link does not match your current active trip.";
-          activeCruiseAccessDetail = "Open Active Cruise from the canonical active float plan only.";
-          activeCruiseContext.floatPlanId = 0;
-          activeCruiseContext.routeInstanceId = 0;
-        } else if (activeCruiseContext.routeInstanceId LTE 0) {
-          activeCruiseAccessMessage = "The current active float plan is missing its route link.";
-          activeCruiseAccessDetail = "Active Cruise requires a route-linked active float plan.";
-          activeCruiseContext.floatPlanId = 0;
-        } else {
-          qPlanSql =
-            "SELECT
-               fp.floatplanId,
-               fp.floatPlanName,
-               fp.operatorId,
-               fp.status,
-               UPPER(TRIM(COALESCE(NULLIF(m.monitor_state, ''), fp.status))) AS monitor_state,
-               fp.route_instance_id,
-               fp.route_day_number,
-               fp.checkedInAt,"
-               & "
-               fp.checkin_context,
-               fp.returnTime,
-               fp.returnTimezone,
-               fp.departureTime,
-               fp.departureTZ,
-               fp.dailyStartLocalTime,
-               fp.departing,
-               fp.returning,
-               m.expected_checkin_at AS expected_checkin_at_utc,
-               COALESCE(
-                 CONVERT_TZ(
-                   m.expected_checkin_at,
-                   'UTC',
-                   NULLIF(COALESCE(NULLIF(fp.departureTZ, ''), NULLIF(fp.departTimezone, ''), 'UTC'), '')
-                 ),
-                 m.expected_checkin_at
-               ) AS expected_checkin_at
-             FROM floatplans fp
-             LEFT JOIN (
-               SELECT
-                 m1.float_plan_id,
-                 m1.monitor_state,
-                 m1.expected_checkin_at
-               FROM floatplan_monitoring m1
-               INNER JOIN (
-                 SELECT MAX(id) AS id
-                 FROM floatplan_monitoring
-                 WHERE user_id = :monitorUserId
-                   AND is_monitoring_enabled = 1
-                   AND UPPER(TRIM(monitor_state)) <> 'CLOSED'
-                 GROUP BY float_plan_id
-               ) latest ON latest.id = m1.id
-             ) m ON m.float_plan_id = fp.floatplanId
-             WHERE fp.floatplanId = :floatPlanId
-               AND fp.userId = :planUserId
-             LIMIT 1";
-          qPlan = queryExecute(
-            qPlanSql,
-            {
-              monitorUserId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" },
-              floatPlanId = { value = activeCruiseContext.floatPlanId, cfsqltype = "cf_sql_integer" },
-              planUserId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" }
-            },
-            { datasource = activeCruiseDatasource }
-          );
-          if (qPlan.recordCount NEQ 1) {
-            activeCruiseAccessMessage = "The current active float plan could not be loaded.";
-            activeCruiseAccessDetail = "Active Cruise requires the canonical active float plan record.";
-            activeCruiseContext.floatPlanId = 0;
-            activeCruiseContext.routeInstanceId = 0;
-          } else {
-          activeCruiseAccessValid = true;
-          activeCruiseTripStartState = fpwEnsureScheduledTripStart(activeCruiseUserId, activeCruiseContext.floatPlanId);
-          if (
-            isStruct(activeCruiseTripStartState)
-            AND structKeyExists(activeCruiseTripStartState, "SUCCESS")
-            AND activeCruiseTripStartState.SUCCESS
-            AND structKeyExists(activeCruiseTripStartState, "TRIP_STARTED")
-          ) {
-            activeCruiseTripStarted = (activeCruiseTripStartState.TRIP_STARTED EQ true);
-          }
-          }
-        }
+      localTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(tzId);
+      if (localTimeZone.getID() EQ "GMT" AND NOT listFindNoCase("GMT,UTC,Etc/UTC", tzId)) {
+        return tzId;
       }
-
-      if (activeCruiseAccessValid AND activeCruiseContext.routeInstanceId GT 0) {
-        qRouteCtx = queryExecute(
-          "SELECT
-             ri.id AS route_instance_id,
-             COALESCE(NULLIF(TRIM(ri.generated_route_code), ''), lr.short_code, '') AS route_code,
-             COALESCE(NULLIF(TRIM(lr.name), ''), '') AS route_name
-           FROM route_instances ri
-           LEFT JOIN loop_routes lr ON lr.id = ri.generated_route_id
-           WHERE ri.id = :routeInstanceId
-             AND ri.user_id = :userIdText
-           LIMIT 1",
-          {
-            routeInstanceId = { value = activeCruiseContext.routeInstanceId, cfsqltype = "cf_sql_integer" },
-            userIdText = { value = userIdText, cfsqltype = "cf_sql_varchar" }
-          },
-          { datasource = activeCruiseDatasource }
-        );
-      }
-
-      if (activeCruiseAccessValid AND qRouteCtx.recordCount EQ 1) {
-        activeCruiseContext.routeInstanceId = val(fpwQueryCell(qRouteCtx, "route_instance_id", 1, 0));
-        routeCodeDisplay = trim(toString(fpwQueryCell(qRouteCtx, "route_code", 1, activeCruiseContext.routeCode)));
-        routeName = trim(toString(fpwQueryCell(qRouteCtx, "route_name", 1, "")));
-      } else if (activeCruiseAccessValid) {
-        activeCruiseAccessValid = false;
-        activeCruiseAccessMessage = "The active trip could not load its route instance.";
-        activeCruiseAccessDetail = "Active Cruise requires route data derived from the canonical active float plan.";
-        activeCruiseContext.floatPlanId = 0;
-        activeCruiseContext.routeInstanceId = 0;
-      }
-
-      if (activeCruiseAccessValid AND NOT len(routeName) AND len(routeCodeDisplay)) {
-        qRouteName = queryExecute(
-          "SELECT name
-           FROM loop_routes
-           WHERE short_code = :routeCode
-             AND short_code LIKE :routePrefix
-           LIMIT 1",
-          {
-            routeCode = { value = routeCodeDisplay, cfsqltype = "cf_sql_varchar" },
-            routePrefix = { value = routePrefix, cfsqltype = "cf_sql_varchar" }
-          },
-          { datasource = activeCruiseDatasource }
-        );
-        if (qRouteName.recordCount EQ 1) {
-          routeName = trim(toString(fpwQueryCell(qRouteName, "name", 1, "")));
-        }
-      }
-
-      if (qPlan.recordCount EQ 1) {
-        activeCruiseContext.floatPlanId = val(fpwQueryCell(qPlan, "floatplanId", 1, 0));
-        if (isDate(fpwQueryCell(qPlan, "departureTime", 1, ""))) {
-          canonicalTripStartDt = fpwQueryCell(qPlan, "departureTime", 1, "");
-        }
-        planStatusRaw = trim(toString(fpwQueryCell(qPlan, "status", 1, "")));
-        monitorStatusRaw = trim(toString(fpwQueryCell(qPlan, "monitor_state", 1, "")));
-        planStatusLabel = fpwStatusLabel(planStatusRaw, "Active");
-        if (NOT len(planStatusLabel)) {
-          planStatusLabel = "Unknown";
-        }
-        monitorStatus = fpwStatusLabel(monitorStatusRaw, "Normal");
-        if (NOT len(monitorStatus)) {
-          monitorStatus = "Unknown";
-        }
-        if (!activeCruiseTripStarted) {
-          planStatusLabel = "Scheduled";
-          monitorStatus = "Scheduled";
-        }
-        checkInContextVal = fpwNormalizeCheckInContext(fpwQueryCell(qPlan, "checkin_context", 1, ""));
-        if (isDate(fpwQueryCell(qPlan, "checkedInAt", 1, ""))) {
-          lastCheckInDt = fpwQueryCell(qPlan, "checkedInAt", 1, "");
-        }
-        if (isDate(fpwQueryCell(qPlan, "expected_checkin_at_utc", 1, ""))) {
-          expectedCheckInUtcDt = fpwQueryCell(qPlan, "expected_checkin_at_utc", 1, "");
-        }
-        if (isDate(fpwQueryCell(qPlan, "expected_checkin_at", 1, ""))) {
-          expectedCheckInDt = fpwQueryCell(qPlan, "expected_checkin_at", 1, "");
-        }
-        dailyStartLocalTimeVal = fpwNormalizeLocalTimeValue(fpwQueryCell(qPlan, "dailyStartLocalTime", 1, ""), "08:00:00");
-        dailyStartHourVal = fpwLocalTimePart(dailyStartLocalTimeVal, 1, 8);
-        dailyStartMinuteVal = fpwLocalTimePart(dailyStartLocalTimeVal, 2, 0);
-        dailyStartSecondVal = fpwLocalTimePart(dailyStartLocalTimeVal, 3, 0);
-        activeCruiseHasOperationalCheckIn = (activeCruiseTripStarted AND isDate(lastCheckInDt));
-        if (activeCruiseHasOperationalCheckIn AND isDate(canonicalTripStartDt)) {
-          activeCruiseHasOperationalCheckIn = (dateCompare(lastCheckInDt, canonicalTripStartDt, "s") GTE 0);
-        }
-        if (!activeCruiseHasOperationalCheckIn) {
-          lastCheckInDt = "";
-        }
-        isOvernightCheckIn = (activeCruiseHasOperationalCheckIn AND checkInContextVal EQ "overnight");
-        if (isDate(fpwQueryCell(qPlan, "returnTime", 1, ""))) {
-          etaLabel = fpwFormatClock(fpwQueryCell(qPlan, "returnTime", 1, ""), "--");
-          etaMeta = "Float plan return target";
-        }
-      }
-
-      if (activeCruiseContext.routeInstanceId GT 0) {
-        qInputsColumn = queryExecute(
-          "SELECT COUNT(*) AS cnt
-           FROM information_schema.columns
-           WHERE table_schema = DATABASE()
-             AND table_name = 'route_instances'
-             AND column_name = 'routegen_inputs_json'",
-          {},
-          { datasource = activeCruiseDatasource }
-        );
-        hasRoutegenInputsCol = (qInputsColumn.recordCount EQ 1 AND val(fpwQueryCell(qInputsColumn, "cnt", 1, 0)) GT 0);
-        if (hasRoutegenInputsCol) {
-          qInstInputs = queryExecute(
-            "SELECT routegen_inputs_json
-             FROM route_instances
-             WHERE id = :routeInstanceId
-               AND user_id = :userIdText
-             LIMIT 1",
-            {
-              routeInstanceId = { value = activeCruiseContext.routeInstanceId, cfsqltype = "cf_sql_integer" },
-              userIdText = { value = userIdText, cfsqltype = "cf_sql_varchar" }
-            },
-            { datasource = activeCruiseDatasource }
-          );
-          if (qInstInputs.recordCount EQ 1 AND NOT isNull(qInstInputs.routegen_inputs_json[1])) {
-            routeInputJsonRaw = trim(toString(qInstInputs.routegen_inputs_json[1]));
-            if (len(routeInputJsonRaw)) {
-              try {
-                routeInputs = deserializeJSON(routeInputJsonRaw, false);
-                if (NOT isStruct(routeInputs)) {
-                  routeInputs = {};
-                }
-              } catch (any parseInputsErr) {
-                routeInputs = {};
-              }
-            }
-          }
-        }
-      }
-
-      if (activeCruiseContext.routeInstanceId GT 0) {
-        qLegs = queryExecute(
-          "SELECT
-             leg_order,
-             start_name,
-             end_name,
-             COALESCE(base_dist_nm, 0) AS dist_nm
-           FROM route_instance_legs
-           WHERE route_instance_id = :routeInstanceId
-           ORDER BY leg_order ASC, id ASC",
-          {
-            routeInstanceId = { value = activeCruiseContext.routeInstanceId, cfsqltype = "cf_sql_integer" }
-          },
-          { datasource = activeCruiseDatasource }
-        );
-
-        qProgress = queryExecute(
-          "SELECT
-             leg_order,
-             status,
-             completed_at,
-             leg_started_at
-           FROM route_instance_leg_progress
-           WHERE route_instance_id = :routeInstanceId
-             AND user_id = :userId
-           ORDER BY leg_order ASC",
-          {
-            routeInstanceId = { value = activeCruiseContext.routeInstanceId, cfsqltype = "cf_sql_integer" },
-            userId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" }
-          },
-          { datasource = activeCruiseDatasource }
-        );
-
-        for (i = 1; i LTE qProgress.recordCount; i++) {
-          legOrder = val(fpwQueryCell(qProgress, "leg_order", i, 0));
-          progressByLeg[toString(legOrder)] = uCase(trim(toString(fpwQueryCell(qProgress, "status", i, ""))));
-          if (isDate(fpwQueryCell(qProgress, "leg_started_at", i, ""))) {
-            progressStartedAtByLeg[toString(legOrder)] = fpwQueryCell(qProgress, "leg_started_at", i, "");
-          }
-          if (isDate(fpwQueryCell(qProgress, "completed_at", i, ""))) {
-            progressCompletedAtByLeg[toString(legOrder)] = fpwQueryCell(qProgress, "completed_at", i, "");
-          }
-        }
-
-        totalLegs = qLegs.recordCount;
-        if (totalLegs GT 0) {
-          departureName = trim(toString(fpwQueryCell(qLegs, "start_name", 1, "")));
-          destinationName = trim(toString(fpwQueryCell(qLegs, "end_name", totalLegs, "")));
-        }
-
-	        for (i = 1; i LTE qLegs.recordCount; i++) {
-	          legOrder = val(fpwQueryCell(qLegs, "leg_order", i, i));
-	          legStatus = "NOT_STARTED";
-	          if (structKeyExists(progressByLeg, toString(legOrder))) {
-	            legStatus = progressByLeg[toString(legOrder)];
-          }
-          isCompletedLeg = (legStatus EQ "COMPLETED");
-          totalNm += val(fpwQueryCell(qLegs, "dist_nm", i, 0));
-	          if (isCompletedLeg) {
-	            completedNm += val(fpwQueryCell(qLegs, "dist_nm", i, 0));
-	            completedLegs++;
-	            if (legOrder GT highestCompletedLegOrder) {
-	              highestCompletedLegOrder = legOrder;
-	            }
-	          }
-	        }
-
-	        for (i = 1; i LTE qLegs.recordCount; i++) {
-	          legOrder = val(fpwQueryCell(qLegs, "leg_order", i, i));
-	          if (legOrder LTE highestCompletedLegOrder) {
-	            continue;
-	          }
-	          if (pendingLegRow LTE 0) {
-	            pendingLegRow = i;
-	          }
-	          legStatus = (structKeyExists(progressByLeg, toString(legOrder)) ? progressByLeg[toString(legOrder)] : "NOT_STARTED");
-	          if (
-	            structKeyExists(progressStartedAtByLeg, toString(legOrder))
-	            OR legStatus EQ "STARTED"
-	            OR legStatus EQ "IN_PROGRESS"
-	          ) {
-	            activeLegRow = i;
-	            break;
-	          }
-	        }
-	        if (activeCruiseTripStarted AND activeLegRow LTE 0 AND pendingLegRow GT 0 AND highestCompletedLegOrder GT 0 AND highestCompletedLegOrder LT totalLegs) {
-	          awaitingDepartureStop = true;
-	        }
-	        if (pendingLegRow GT 0) {
-	          pendingLegOrder = val(fpwQueryCell(qLegs, "leg_order", pendingLegRow, 0));
-	        }
-	        if (activeLegRow GT 0) {
-	          nextStop = trim(toString(fpwQueryCell(qLegs, "end_name", activeLegRow, "")));
-	        } else if (pendingLegRow GT 0) {
-	          nextStop = trim(toString(fpwQueryCell(qLegs, "end_name", pendingLegRow, "")));
-	        }
-
-	        remainingNm = totalNm - completedNm;
-	        if (remainingNm LT 0) {
-	          remainingNm = 0;
-        }
-        if (totalNm GT 0) {
-          percentComplete = int((completedNm / totalNm) * 100);
-        } else {
-          percentComplete = 0;
-        }
-        if (percentComplete LT 0) {
-          percentComplete = 0;
-        }
-        if (percentComplete GT 100) {
-          percentComplete = 100;
-        }
-        if (totalLegs GT 0) {
-          tripProgressPercentComplete = round((completedLegs / totalLegs) * 100);
-        } else {
-          tripProgressPercentComplete = 0;
-        }
-        if (tripProgressPercentComplete LT 0) {
-          tripProgressPercentComplete = 0;
-        }
-        if (tripProgressPercentComplete GT 100) {
-          tripProgressPercentComplete = 100;
-        }
-
-	        if (totalLegs GT 0) {
-	          displayLegRow = (activeLegRow GT 0 ? activeLegRow : (pendingLegRow GT 0 ? pendingLegRow : totalLegs));
-	          currentLeg = displayLegRow;
-	          currentLegOrder = val(fpwQueryCell(qLegs, "leg_order", displayLegRow, displayLegRow));
-	          currentLegStartName = trim(toString(fpwQueryCell(qLegs, "start_name", displayLegRow, "")));
-	          currentLegEndName = trim(toString(fpwQueryCell(qLegs, "end_name", displayLegRow, "")));
-	          if (displayLegRow LT totalLegs) {
-	            nextLegEndName = trim(toString(fpwQueryCell(qLegs, "end_name", displayLegRow + 1, "")));
-	          }
-          currentLegDistNm = val(fpwQueryCell(qLegs, "dist_nm", displayLegRow, 0));
-          if (structKeyExists(progressStartedAtByLeg, toString(currentLegOrder)) AND isDate(progressStartedAtByLeg[toString(currentLegOrder)])) {
-            currentLegStartedAtCandidate = progressStartedAtByLeg[toString(currentLegOrder)];
-            if (!isDate(canonicalTripStartDt) OR dateCompare(currentLegStartedAtCandidate, canonicalTripStartDt, "s") GTE 0) {
-              currentLegStartedAt = currentLegStartedAtCandidate;
-            }
-          }
-	          if (highestCompletedLegOrder GT 0 AND structKeyExists(progressCompletedAtByLeg, toString(highestCompletedLegOrder)) AND isDate(progressCompletedAtByLeg[toString(highestCompletedLegOrder)])) {
-	            priorLegCompletedAtCandidate = progressCompletedAtByLeg[toString(highestCompletedLegOrder)];
-	            if (!isDate(canonicalTripStartDt) OR dateCompare(priorLegCompletedAtCandidate, canonicalTripStartDt, "s") GTE 0) {
-	              priorLegCompletedAt = priorLegCompletedAtCandidate;
-	            }
-	          }
-	        }
-	        activeCruiseCanCompleteLeg = (activeLegRow GT 0);
-	        activeCruiseCanStartNextLeg = (awaitingDepartureStop AND activeLegRow LTE 0 AND pendingLegOrder GT 0);
-	      }
-
-      if (activeCruiseContext.floatPlanId GT 0) {
-        activeCruiseFloatPlanHref = activeCruiseBasePath & "/app/floatplan-wizard.cfm?id=" & activeCruiseContext.floatPlanId;
-
-        qOwner = queryExecute(
-          "SELECT fName, lName, email, mobilePhone
-           FROM users
-           WHERE userId = :ownerUserId
-           LIMIT 1",
-          {
-            ownerUserId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" }
-          },
-          { datasource = activeCruiseDatasource }
-        );
-        if (qOwner.recordCount EQ 1) {
-          ownerName = trim(trim(toString(fpwQueryCell(qOwner, "fName", 1, ""))) & " " & trim(toString(fpwQueryCell(qOwner, "lName", 1, ""))));
-          ownerEmail = trim(toString(fpwQueryCell(qOwner, "email", 1, "")));
-          ownerPhone = trim(toString(fpwQueryCell(qOwner, "mobilePhone", 1, "")));
-          if (!len(ownerName) AND len(ownerEmail)) {
-            ownerName = ownerEmail;
-          }
-        }
-        if (len(ownerName)) {
-          captainName = ownerName;
-          activeCruiseContacts.owner.name = ownerName;
-        } else if (len(captainName) AND captainName NEQ "Captain") {
-          activeCruiseContacts.owner.name = captainName;
-        } else {
-          activeCruiseContacts.owner.name = "Owner not listed";
-        }
-        activeCruiseContacts.owner.phoneHref = fpwBuildContactPhoneHref(ownerPhone, "tel");
-        activeCruiseContacts.owner.smsHref = fpwBuildContactPhoneHref(ownerPhone, "sms");
-        activeCruiseContacts.owner.emailHref = fpwBuildContactEmailHref(ownerEmail);
-
-        operatorId = val(fpwQueryCell(qPlan, "operatorId", 1, 0));
-        if (operatorId GT 0) {
-          qOperator = queryExecute(
-            "SELECT name, homePhone
-             FROM operators
-             WHERE opId = :operatorId
-               AND CAST(userId AS CHAR) = :operatorUserId
-             LIMIT 1",
-            {
-              operatorId = { value = operatorId, cfsqltype = "cf_sql_integer" },
-              operatorUserId = { value = toString(activeCruiseUserId), cfsqltype = "cf_sql_varchar" }
-            },
-            { datasource = activeCruiseDatasource }
-          );
-          if (qOperator.recordCount EQ 1) {
-            operatorName = trim(toString(fpwQueryCell(qOperator, "name", 1, "")));
-            operatorPhone = trim(toString(fpwQueryCell(qOperator, "homePhone", 1, "")));
-            operatorSameAsOwner = (
-              len(operatorName)
-              AND len(activeCruiseContacts.owner.name)
-              AND compareNoCase(operatorName, activeCruiseContacts.owner.name) EQ 0
-            );
-            activeCruiseContacts.operator.sameAsOwner = operatorSameAsOwner;
-            if (operatorSameAsOwner) {
-              activeCruiseContacts.owner.role = "Primary trip owner and operator";
-            } else {
-              activeCruiseContacts.operator.name = len(operatorName) ? operatorName : "Operator not named";
-              activeCruiseContacts.operator.phoneHref = fpwBuildContactPhoneHref(operatorPhone, "tel");
-              activeCruiseContacts.operator.smsHref = fpwBuildContactPhoneHref(operatorPhone, "sms");
-            }
-          }
-        }
-
-        qCrew = queryExecute(
-          "SELECT p.name, p.phone
-           FROM floatplan_passengers fpp
-           INNER JOIN passengers p ON p.passId = fpp.passId
-           WHERE fpp.floatplanId = :planId
-           ORDER BY fpp.recId ASC",
-          {
-            planId = { value = activeCruiseContext.floatPlanId, cfsqltype = "cf_sql_integer" }
-          },
-          { datasource = activeCruiseDatasource }
-        );
-        if (qCrew.recordCount GT 0) {
-          crewName = trim(toString(fpwQueryCell(qCrew, "name", 1, "")));
-          activeCruiseContacts.crew.count = qCrew.recordCount;
-          activeCruiseContacts.crew.countLabel = qCrew.recordCount & " onboard";
-          for (crewRowIndex = 1; crewRowIndex LTE qCrew.recordCount; crewRowIndex++) {
-            crewRowName = trim(toString(fpwQueryCell(qCrew, "name", crewRowIndex, "")));
-            crewRowPhone = trim(toString(fpwQueryCell(qCrew, "phone", crewRowIndex, "")));
-            if (len(crewRowName)) {
-              arrayAppend(activeCruiseContacts.crew.list, {
-                name = crewRowName,
-                role = "Passenger",
-                phoneHref = fpwBuildContactPhoneHref(crewRowPhone, "tel")
-              });
-            }
-          }
-        }
-
-        qEmergency = queryExecute(
-          "SELECT c.name, c.phone, c.email
-           FROM floatplan_contacts fpc
-           INNER JOIN contacts c ON c.contactId = fpc.contactId
-           WHERE fpc.floatplanId = :planId
-           ORDER BY fpc.recId ASC
-           LIMIT 1",
-          {
-            planId = { value = activeCruiseContext.floatPlanId, cfsqltype = "cf_sql_integer" }
-          },
-          { datasource = activeCruiseDatasource }
-        );
-        if (qEmergency.recordCount EQ 1) {
-          emergencyName = trim(toString(fpwQueryCell(qEmergency, "name", 1, "")));
-          emergencyPhone = trim(toString(fpwQueryCell(qEmergency, "phone", 1, "")));
-          emergencyEmail = trim(toString(fpwQueryCell(qEmergency, "email", 1, "")));
-          activeCruiseContacts.monitor.name = len(emergencyName) ? emergencyName : "Emergency monitor not named";
-          activeCruiseContacts.monitor.phoneHref = fpwBuildContactPhoneHref(emergencyPhone, "tel");
-          activeCruiseContacts.monitor.smsHref = fpwBuildContactPhoneHref(emergencyPhone, "sms");
-          activeCruiseContacts.monitor.emailHref = fpwBuildContactEmailHref(emergencyEmail);
-        }
-
-        qVoyageTables = queryExecute(
-          "SELECT COUNT(*) AS cnt
-           FROM information_schema.tables
-           WHERE table_schema = DATABASE()
-             AND table_name IN ('voyage_streams', 'voyage_posts')",
-          {},
-          { datasource = activeCruiseDatasource }
-        );
-        hasVoyageTables = (qVoyageTables.recordCount EQ 1 AND val(fpwQueryCell(qVoyageTables, "cnt", 1, 0)) GTE 2);
-
-        if (hasVoyageTables) {
-          qStream = queryExecute(
-            "SELECT id, slug, share_token
-             FROM voyage_streams
-             WHERE floatplan_id = :planId
-               AND owner_user_id = :ownerUserId
-             ORDER BY id DESC
-             LIMIT 1",
-            {
-              planId = { value = activeCruiseContext.floatPlanId, cfsqltype = "cf_sql_integer" },
-              ownerUserId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" }
-            },
-            { datasource = activeCruiseDatasource }
-          );
-          streamLive = (qStream.recordCount EQ 1);
-
-          if (streamLive) {
-            activeCruiseMapPayload.streamId = val(fpwQueryCell(qStream, "id", 1, 0));
-            activeCruiseMapPayload.slug = trim(toString(fpwQueryCell(qStream, "slug", 1, "")));
-            activeCruiseMapPayload.shareToken = trim(toString(fpwQueryCell(qStream, "share_token", 1, "")));
-            qTimelinePosts = queryExecute(
-              "SELECT recent.title, recent.body, recent.created_utc
-               FROM (
-                 SELECT id, title, body, created_utc
-                 FROM voyage_posts
-                 WHERE stream_id = :streamId
-                 ORDER BY created_utc DESC, id DESC
-                 LIMIT 4
-               ) recent
-               ORDER BY recent.created_utc ASC, recent.id ASC",
-              {
-                streamId = { value = val(fpwQueryCell(qStream, "id", 1, 0)), cfsqltype = "cf_sql_integer" }
-              },
-              { datasource = activeCruiseDatasource }
-            );
-
-	            if (qTimelinePosts.recordCount GT 0) {
-	              timelineItems = [];
-	              for (i = 1; i LTE qTimelinePosts.recordCount; i++) {
-	                timelinePostDt = fpwQueryCell(qTimelinePosts, "created_utc", i, "");
-                  if (isDate(canonicalTripStartDt) AND isDate(timelinePostDt) AND dateCompare(timelinePostDt, canonicalTripStartDt, "s") LT 0) {
-                    continue;
-                  }
-	                arrayAppend(timelineItems, {
-	                  time = fpwFormatClock(timelinePostDt, "--"),
-	                  timeUtc = (isDate(timelinePostDt) ? dateTimeFormat(timelinePostDt, "yyyy-mm-dd'T'HH:nn:ss'Z'") : ""),
-	                  title = trim(toString(fpwQueryCell(qTimelinePosts, "title", i, "Update"))),
-	                  detail = trim(toString(fpwQueryCell(qTimelinePosts, "body", i, "")))
-	                });
-	              }
-                if (arrayLen(timelineItems)) {
-                  activeCruiseTimelineItems = timelineItems;
-                }
-            }
-          }
-        }
-
-        qCaptainLogTable = queryExecute(
-          "SELECT COUNT(*) AS cnt
-           FROM information_schema.tables
-           WHERE table_schema = DATABASE()
-             AND table_name = 'floatplan_captain_log_entries'",
-          {},
-          { datasource = activeCruiseDatasource }
-        );
-        if (qCaptainLogTable.recordCount EQ 1 AND val(fpwQueryCell(qCaptainLogTable, "cnt", 1, 0)) EQ 1) {
-          qCaptainLogEntries = queryExecute(
-            "SELECT id,
-                    note_body,
-                    note_tag,
-                    posted_to_stream,
-                    voyage_post_id,
-                    created_utc
-             FROM floatplan_captain_log_entries
-             WHERE floatplan_id = :planId
-               AND user_id = :ownerUserId
-               AND deleted_utc IS NULL
-             ORDER BY created_utc DESC, id DESC
-             LIMIT 6",
-            {
-              planId = { value = activeCruiseContext.floatPlanId, cfsqltype = "cf_sql_integer" },
-              ownerUserId = { value = activeCruiseUserId, cfsqltype = "cf_sql_integer" }
-            },
-            { datasource = activeCruiseDatasource }
-          );
-
-          if (qCaptainLogEntries.recordCount GT 0) {
-            activeCruiseCaptainLogEntries = [];
-            for (i = 1; i LTE qCaptainLogEntries.recordCount; i++) {
-              captainNoteCreatedDt = fpwQueryCell(qCaptainLogEntries, "created_utc", i, "");
-              captainNotePosted = (val(fpwQueryCell(qCaptainLogEntries, "posted_to_stream", i, 0)) EQ 1);
-              arrayAppend(activeCruiseCaptainLogEntries, {
-                id = val(fpwQueryCell(qCaptainLogEntries, "id", i, 0)),
-                body = trim(toString(fpwQueryCell(qCaptainLogEntries, "note_body", i, ""))),
-                tag = trim(toString(fpwQueryCell(qCaptainLogEntries, "note_tag", i, ""))),
-                posted = captainNotePosted,
-                badge = (captainNotePosted ? "POSTED" : "PRIVATE"),
-                voyagePostId = val(fpwQueryCell(qCaptainLogEntries, "voyage_post_id", i, 0)),
-                createdLabel = fpwFormatClock(captainNoteCreatedDt, "--"),
-                createdUtc = (isDate(captainNoteCreatedDt) ? dateTimeFormat(captainNoteCreatedDt, "yyyy-mm-dd'T'HH:nn:ss'Z'") : "")
-              });
-            }
-          }
-        }
-      }
-
-      if (NOT activeCruiseHasOperationalCheckIn AND NOT activeCruiseTripStarted) {
-        lastCheckInDt = "";
-      } else if (NOT isDate(lastCheckInDt) AND isDate(fpwQueryCell(qPlan, "checkedInAt", 1, ""))) {
-        lastCheckInDt = fpwQueryCell(qPlan, "checkedInAt", 1, "");
-      }
-      if (activeCruiseHasOperationalCheckIn AND isDate(lastCheckInDt)) {
-        elapsedCheckInLabel = fpwFormatElapsedCheckIn(lastCheckInDt);
-      } else if (activeCruiseTripStarted) {
-        elapsedCheckInLabel = "Awaiting first check-in after departure.";
-      } else {
-        elapsedCheckInLabel = "Monitoring begins at scheduled departure.";
-      }
-      if (isOvernightCheckIn) {
-        elapsedCheckInLabel = "Arrived and secure for the night. Next update expected tomorrow morning.";
-      }
-
-      if (NOT len(routeName)) {
-        routeName = routeCodeDisplay;
-      }
-      if (NOT len(routeName)) {
-        routeName = "Active Route";
-      }
-
-      if (len(departureName) AND len(destinationName)) {
-        activeCruiseView.heroRouteTitle = departureName & " → " & destinationName;
-      } else {
-        activeCruiseView.heroRouteTitle = routeName;
-      }
-
-      activeCruiseView.topRouteChip = "Route: " & routeName;
-      activeCruiseCanonicalHero = {};
-      if (activeCruiseAccessValid AND activeCruiseUserId GT 0 AND activeCruiseContext.floatPlanId GT 0) {
-        try {
-          activeCruiseCanonicalHero = createObject("component", "fpw.api.v1.voyage").getActiveCruiseHeroCanonical(activeCruiseUserId, activeCruiseContext.floatPlanId);
-        } catch (any activeCruiseCanonicalErr) {
-          activeCruiseCanonicalHero = {};
-        }
-      }
-      if (isStruct(activeCruiseCanonicalHero) AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS") AND activeCruiseCanonicalHero.SUCCESS AND len(trim(toString(activeCruiseCanonicalHero.heroVoyageStatus)))) {
-        activeCruiseView.heroVoyageStatus = trim(toString(activeCruiseCanonicalHero.heroVoyageStatus));
-        if (structKeyExists(activeCruiseCanonicalHero, "heroVoyageStatusVariant") AND len(trim(toString(activeCruiseCanonicalHero.heroVoyageStatusVariant)))) {
-          activeCruiseView.heroVoyageStatusVariant = trim(toString(activeCruiseCanonicalHero.heroVoyageStatusVariant));
-        }
-      } else {
-        activeCruiseView.heroVoyageStatus = "Status Unavailable";
-      }
-
-      if (totalLegs GT 0) {
-        activeCruiseView.heroCurrentLegSummary = currentLeg & " of " & totalLegs;
-      }
-      if (val(fpwQueryCell(qPlan, "route_day_number", 1, 0)) GT 0) {
-        activeCruiseView.heroLegMeta = "Day " & val(fpwQueryCell(qPlan, "route_day_number", 1, 0)) & " of active cruise";
-      } else if (totalLegs GT 0) {
-        activeCruiseView.heroLegMeta = "Leg progress from active route instance";
-      }
-
-      activeCruiseView.heroDistanceComplete = fpwFormatNm(completedNm);
-      activeCruiseView.heroPercentComplete = fpwFormatPct(percentComplete) & " of active route completed";
-
-	      activeCruiseView.heroNextStop = (
-	        isStruct(activeCruiseCanonicalHero) AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS") AND activeCruiseCanonicalHero.SUCCESS AND len(trim(toString(activeCruiseCanonicalHero.heroNextStop)))
-	          ? trim(toString(activeCruiseCanonicalHero.heroNextStop))
-	          : nextStop
-	      );
-	      activeCruiseView.heroNextStopMeta = (len(activeCruiseView.heroNextStop) AND activeCruiseView.heroNextStop NEQ "n/a" ? "Upcoming planned stop" : "");
-
-      if (len(etaLabel)) {
-        activeCruiseView.legArrival = etaLabel;
-      }
-      if (isStruct(activeCruiseCanonicalHero) AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS") AND activeCruiseCanonicalHero.SUCCESS AND len(trim(toString(activeCruiseCanonicalHero.heroEta))) AND trim(toString(activeCruiseCanonicalHero.heroEta)) NEQ "--") {
-        activeCruiseView.heroEta = trim(toString(activeCruiseCanonicalHero.heroEta));
-        activeCruiseView.legArrival = activeCruiseView.heroEta;
-        activeCruiseView.heroEtaMeta = (activeCruiseTripStarted ? "Active leg ETA" : "Scheduled arrival from departure time");
-      } else {
-        activeCruiseView.heroEta = "--";
-        activeCruiseView.heroEtaMeta = (activeCruiseTripStarted ? "Active leg ETA unavailable" : "Scheduled arrival unavailable");
-      }
-
-      if (activeCruiseTripStarted AND isStruct(activeCruiseCanonicalHero) AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS") AND activeCruiseCanonicalHero.SUCCESS AND len(trim(toString(activeCruiseCanonicalHero.heroLastCheckIn))) AND trim(toString(activeCruiseCanonicalHero.heroLastCheckIn)) NEQ "--") {
-        activeCruiseView.heroLastCheckIn = trim(toString(activeCruiseCanonicalHero.heroLastCheckIn));
-        activeCruiseView.floatPlanLastCheckIn = activeCruiseView.heroLastCheckIn;
-      } else {
-        activeCruiseView.heroLastCheckIn = "--";
-        if (activeCruiseHasOperationalCheckIn AND isDate(lastCheckInDt)) {
-          activeCruiseView.floatPlanLastCheckIn = fpwFormatClock(lastCheckInDt, "--");
-        } else {
-          activeCruiseView.floatPlanLastCheckIn = "--";
-        }
-      }
-      activeCruiseView.heroNextExpectedCheckIn = elapsedCheckInLabel;
-      activeCruiseView.heroTripStart = (isDate(canonicalTripStartDt) ? dateTimeFormat(canonicalTripStartDt, "mmm d, yyyy h:nn tt") : "--");
-      activeCruiseView.floatPlanNextExpected = elapsedCheckInLabel;
-      activeCruiseView.monitorNextExpectedCheckIn = (isDate(expectedCheckInDt) ? dateTimeFormat(expectedCheckInDt, "mmm d, yyyy h:nn tt") : "--");
-      activeCruiseView.monitorDailyStartLabel = fpwFormatLocalTimeLabel(dailyStartLocalTimeVal, "8:00 AM");
-      activeCruiseView.monitorDailyStartInput = fpwFormatLocalTimeInput(dailyStartLocalTimeVal, "08:00");
-      activeCruiseView.manualDelayMinutesTotal = (
-        isStruct(activeCruiseCanonicalHero)
-        AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS")
-        AND activeCruiseCanonicalHero.SUCCESS
-        AND structKeyExists(activeCruiseCanonicalHero, "manualDelayMinutesTotal")
-        AND isNumeric(activeCruiseCanonicalHero.manualDelayMinutesTotal)
-          ? val(activeCruiseCanonicalHero.manualDelayMinutesTotal)
-          : 0
-      );
-      if (activeCruiseView.manualDelayMinutesTotal LT 0) {
-        activeCruiseView.manualDelayMinutesTotal = 0;
-      }
-      activeCruiseView.manualDelayMinutesLabel = activeCruiseView.manualDelayMinutesTotal & " minute" & (activeCruiseView.manualDelayMinutesTotal EQ 1 ? "" : "s");
-      if (isStruct(routeInputs) AND structCount(routeInputs) AND structKeyExists(routeInputs, "weather_factor_pct") AND !isNull(routeInputs.weather_factor_pct)) {
-        routeWeatherFactorRaw = trim(toString(routeInputs.weather_factor_pct));
-        if (len(routeWeatherFactorRaw)) {
-          activeCruiseView.monitorWeatherFactor = numberFormat(val(routeWeatherFactorRaw), "0") & "%";
-        }
-      }
-
-      activeCruiseView.legRemainingDistance = replace(fpwFormatNm(remainingNm), " nm", " NM") & " route remaining";
-      activeCruiseView.legPercentComplete = fpwFormatPct(tripProgressPercentComplete) & " route complete";
-      activeCruiseView.progressBarWidth = fpwFormatPct(tripProgressPercentComplete);
-
-      if (currentLegDistNm GT 0) {
-        activeCruiseView.legDistance = fpwFormatNm(currentLegDistNm);
-      }
-      currentLegRemainingNm = remainingNm;
-      if (currentLegDistNm GT 0) {
-        currentLegRemainingNm = currentLegDistNm;
-        if (remainingNm GTE 0 AND remainingNm LT currentLegRemainingNm) {
-          currentLegRemainingNm = remainingNm;
-        }
-      }
-      if (currentLegRemainingNm LT 0) {
-        currentLegRemainingNm = 0;
-      }
-      activeCruiseView.legRemaining = fpwFormatNm(currentLegRemainingNm);
-
-      if (len(departureName)) {
-        activeCruiseView.routeStop1Title = departureName & " Departure";
-        activeCruiseView.routeStop1Detail = "Route origin for the active cruise.";
-        if (currentLeg GT 1) {
-          activeCruiseView.routeStop1Stamp = "Done";
-        } else {
-          activeCruiseView.routeStop1Stamp = "Current";
-        }
-      }
-      if (len(currentLegStartName) AND len(currentLegEndName)) {
-        activeCruiseView.routeStop2Title = currentLegStartName & " -> " & currentLegEndName;
-        activeCruiseView.routeStop2Detail = "Current leg in progress.";
-        activeCruiseView.routeStop2Stamp = "Leg " & currentLeg;
-        activeCruiseView.routeStop3Title = "Approach Segment: " & currentLegEndName;
-        activeCruiseView.routeStop3Detail = "Current leg destination and approach.";
-        activeCruiseView.routeStop3Stamp = "Current";
-      }
-      if (len(nextLegEndName)) {
-        activeCruiseView.routeStop3Title = "Next Segment: " & currentLegEndName & " -> " & nextLegEndName;
-        activeCruiseView.routeStop3Detail = "Upcoming leg after the current destination.";
-        activeCruiseView.routeStop3Stamp = "Next";
-      }
-      if (len(destinationName)) {
-        activeCruiseView.routeStop4Title = "Final Destination: " & destinationName;
-        activeCruiseView.routeStop4Detail = "Planned end of the active route.";
-      } else if (len(currentLegEndName)) {
-        activeCruiseView.routeStop4Title = "Final Destination: " & currentLegEndName;
-        activeCruiseView.routeStop4Detail = "Planned end of the active route.";
-      }
-      if (len(activeCruiseView.heroEta)) {
-        activeCruiseView.routeStop4Stamp = activeCruiseView.heroEta & " ETA";
-      } else {
-        activeCruiseView.routeStop4Stamp = "ETA";
-      }
-      if (awaitingDepartureStop) {
-        activeCruiseView.heroCurrentLegSummary = "Awaiting Departure";
-        activeCruiseView.heroLegMeta = "Arrived at current stop. Next leg has not started.";
-        activeCruiseView.heroNextStopMeta = (len(activeCruiseView.heroNextStop) AND activeCruiseView.heroNextStop NEQ "n/a" ? "Next planned stop after departure" : "Awaiting departure");
-        activeCruiseView.heroEta = "--";
-        activeCruiseView.heroEtaMeta = "ETA available after departure";
-        activeCruiseView.legArrival = "--";
-        activeCruiseView.routeStop2Detail = "Awaiting departure for this leg.";
-        activeCruiseView.routeStop2Stamp = "Pending";
-        if (len(currentLegStartName)) {
-          activeCruiseView.routeStop3Title = "Current Stop: " & currentLegStartName;
-          activeCruiseView.routeStop3Detail = "Arrived at the current destination. Awaiting departure.";
-          activeCruiseView.routeStop3Stamp = "Stopped";
-        }
-        activeCruiseRouteStop1DotClass = "dot done";
-        activeCruiseRouteStop2DotClass = "dot future";
-        activeCruiseRouteStop3DotClass = "dot current";
-      }
-
-      if (isDate(fpwQueryCell(qPlan, "departureTime", 1, "")) AND isDate(fpwQueryCell(qPlan, "returnTime", 1, "")) AND totalNm GT 0) {
-        cruiseMinutes = dateDiff("n", fpwQueryCell(qPlan, "departureTime", 1, ""), fpwQueryCell(qPlan, "returnTime", 1, ""));
-        if (cruiseMinutes GT 0) {
-          paceKn = totalNm / (cruiseMinutes / 60);
-          if (paceKn GT 0) {
-            activeCruiseView.legPace = "Planned pace: " & numberFormat(paceKn, "0.0") & " kt";
-            activeCruiseView.legDataPace = numberFormat(paceKn, "0.0") & " kt";
-          }
-        }
-      }
-
-      routeInputCardSpeedKn = fpwGetNumericFromKeys(
-        routeInputs,
-        [
-          "weather_adjusted_speed_kn",
-          "weatherAdjustedSpeedKn",
-          "effective_speed_kn",
-          "effectiveSpeedKn",
-          "effective_cruising_speed",
-          "effectiveCruisingSpeed"
-        ],
-        true
-      );
-      if (routeInputCardSpeedKn GT 0) {
-        activeCruiseView.legPace = "Planned pace: " & numberFormat(routeInputCardSpeedKn, "0.0") & " kt";
-        activeCruiseView.legDataPace = numberFormat(routeInputCardSpeedKn, "0.0") & " kt";
-      }
-
-      routeInputSpeedKn = fpwGetNumericFromKeys(
-        routeInputs,
-        [
-          "effective_speed_kn",
-          "effectiveSpeedKn",
-          "weather_adjusted_speed_kn",
-          "weatherAdjustedSpeedKn",
-          "cruising_speed",
-          "cruisingSpeed",
-          "max_speed_kn",
-          "maxSpeedKn"
-        ],
-        true
-      );
-      if (paceKn LTE 0 AND routeInputSpeedKn GT 0) {
-        paceKn = routeInputSpeedKn;
-        activeCruiseView.legPace = "Planned pace: " & numberFormat(paceKn, "0.0") & " kt";
-        activeCruiseView.legDataPace = numberFormat(paceKn, "0.0") & " kt";
-      }
-
-      routeInputFuelBurnGph = fpwGetNumericFromKeys(
-        routeInputs,
-        [
-          "fuel_burn_gph",
-          "fuelBurnGph",
-          "fuel_burn_gph_input",
-          "fuelBurnGphInput",
-          "max_burn_gph",
-          "maxBurnGph",
-          "burn_gph",
-          "burnGph",
-          "vessel_gph_at_most_efficient_speed",
-          "vesselGphAtMostEfficientSpeed",
-          "gph_at_most_efficient_speed",
-          "gphAtMostEfficientSpeed",
-          "GALLONS_PER_HOUR"
-        ],
-        true
-      );
-      routeInputReservePct = fpwGetNumericFromKeys(
-        routeInputs,
-        [ "reserve_pct", "reservePct", "RESERVE_PCT" ],
-        false
-      );
-      if (routeInputReservePct LT 0) {
-        routeInputReservePct = 0;
-      }
-      if (routeInputReservePct GT 100) {
-        routeInputReservePct = 100;
-      }
-
-      experimentalDisplaySpeedKn = fpwRoundTo2(
-        routeInputCardSpeedKn GT 0 ? routeInputCardSpeedKn : routeInputSpeedKn
-      );
-      experimentalDisplayFuelBurnGph = 0;
-      experimentalDisplayReservePct = fpwRoundTo2(routeInputReservePct);
-
-      canonicalFuelEstimateResult = {};
-      canonicalFuelEstimate = {};
-      if (currentLegRemainingNm GT 0 AND isStruct(routeInputs) AND structCount(routeInputs)) {
-        canonicalFuelEstimateResult = fpwGetCanonicalFuelEstimate(routeInputs, currentLegRemainingNm, 0);
-      }
-      if (
-        isStruct(canonicalFuelEstimateResult)
-        AND structKeyExists(canonicalFuelEstimateResult, "SUCCESS")
-        AND canonicalFuelEstimateResult.SUCCESS
-        AND structKeyExists(canonicalFuelEstimateResult, "FUEL_ESTIMATE")
-        AND isStruct(canonicalFuelEstimateResult.FUEL_ESTIMATE)
-      ) {
-        canonicalFuelEstimate = canonicalFuelEstimateResult.FUEL_ESTIMATE;
-        reserveFuelNeedGal = fpwRoundTo2(
-          structKeyExists(canonicalFuelEstimate, "reserveGallons")
-            ? canonicalFuelEstimate.reserveGallons
-            : 0
-        );
-        requiredFuelNeedGal = fpwRoundTo2(
-          structKeyExists(canonicalFuelEstimate, "requiredFuelGallons")
-            ? canonicalFuelEstimate.requiredFuelGallons
-            : 0
-        );
-        activeCruiseView.legFuelNeed = numberFormat(requiredFuelNeedGal, "0.0") & " gal";
-        activeCruiseView.legReserveFuel = numberFormat(reserveFuelNeedGal, "0.0") & " gal";
-        activeCruiseView.legRemainingFuel = "Fuel est: " & numberFormat(requiredFuelNeedGal, "0.0") & " gal remaining";
-        fuelCalcReady = true;
-        if (structKeyExists(canonicalFuelEstimate, "weatherAdjustedSpeedKnots")) {
-          experimentalDisplaySpeedKn = fpwRoundTo2(canonicalFuelEstimate.weatherAdjustedSpeedKnots);
-        }
-        if (structKeyExists(canonicalFuelEstimate, "weatherAdjustedBurnGph")) {
-          experimentalDisplayFuelBurnGph = fpwRoundTo2(canonicalFuelEstimate.weatherAdjustedBurnGph);
-        }
-        if (structKeyExists(canonicalFuelEstimateResult, "RESERVE_PCT")) {
-          experimentalDisplayReservePct = fpwRoundTo2(canonicalFuelEstimateResult.RESERVE_PCT);
-        }
-      }
-      if (NOT fuelCalcReady) {
-        activeCruiseView.legFuelNeed = "-- gal";
-        activeCruiseView.legReserveFuel = "-- gal";
-        activeCruiseView.legRemainingFuel = "Fuel est unavailable";
-      }
-
-      experimentalDepartureTimeZone = trim(toString(fpwQueryCell(qPlan, "departureTZ", 1, "")));
-      experimentalRenderDt = now();
-      experimentalReferenceDt = experimentalRenderDt;
-      experimentalStartDt = "";
-      experimentalPauseStartDt = "";
-      experimentalPauseResumeDt = "";
-      experimentalElapsedHours = 0;
-      experimentalDistanceTraveledNm = 0;
-      experimentalRemainingNm = 0;
-      experimentalPercentComplete = 0;
-      experimentalFuelBaseGal = 0;
-      experimentalFuelReserveGal = 0;
-      experimentalFuelRequiredGal = 0;
-      experimentalPauseActive = false;
-      experimentalStatusLabel = "Route estimate unavailable";
-      experimentalAssumptionLabel = "Route leg estimate will appear when trip data is available.";
-      experimentalStartSource = "";
-      experimentalStartDisplayLabel = "";
-
-      activeCruiseExperimental.departureTimeZone = experimentalDepartureTimeZone;
-      activeCruiseExperimental.generatedAtUtc = fpwFormatUtcIso(experimentalRenderDt);
-      activeCruiseExperimental.currentLegDistanceNm = fpwRoundTo2(currentLegDistNm);
-      activeCruiseExperimental.speedKn = fpwRoundTo2(experimentalDisplaySpeedKn);
-      activeCruiseExperimental.fuelBurnGph = fpwRoundTo2(experimentalDisplayFuelBurnGph);
-      activeCruiseExperimental.reservePct = fpwRoundTo2(experimentalDisplayReservePct);
-      activeCruiseExperimental.isOvernight = isOvernightCheckIn;
-
-	      if (!len(experimentalDepartureTimeZone)) {
-	        experimentalStatusLabel = "Waiting on departure timezone";
-	      } else if (currentLegDistNm LTE 0) {
-	        experimentalStatusLabel = "Waiting on current leg distance";
-	      } else if (experimentalDisplaySpeedKn LTE 0) {
-	        experimentalStatusLabel = "Waiting on route-input speed";
-	      } else {
-	        if (isDate(currentLegStartedAt)) {
-	          experimentalStartDt = currentLegStartedAt;
-	          experimentalStartSource = "current_leg_started_at";
-	        } else if (isDate(priorLegCompletedAt)) {
-	          experimentalStartDt = priorLegCompletedAt;
-	          experimentalStartSource = "prior_leg_completed_at";
-	        } else {
-	          if (isOvernightCheckIn AND isDate(lastCheckInDt)) {
-	            experimentalReferenceDt = lastCheckInDt;
-	          }
-	          experimentalStartDt = fpwBuildTripLocalTime(experimentalReferenceDt, experimentalDepartureTimeZone, dailyStartHourVal, dailyStartMinuteVal, dailyStartSecondVal, false);
-	          experimentalStartSource = "daily_start_fallback";
-	        }
-	        if (isOvernightCheckIn AND isDate(lastCheckInDt)) {
-	          experimentalPauseStartDt = lastCheckInDt;
-	          if (isDate(expectedCheckInUtcDt)) {
-	            experimentalPauseResumeDt = expectedCheckInUtcDt;
-	          } else if (isDate(expectedCheckInDt)) {
-	            experimentalPauseResumeDt = expectedCheckInDt;
-	          } else {
-	            experimentalPauseResumeDt = fpwBuildTripLocalTime(lastCheckInDt, experimentalDepartureTimeZone, dailyStartHourVal, dailyStartMinuteVal, dailyStartSecondVal, true);
-	          }
-	        }
-        if (isDate(experimentalStartDt)) {
-          experimentalElapsedHours = fpwComputeExperimentalElapsedHours(
-            experimentalRenderDt,
-            experimentalStartDt,
-            experimentalPauseStartDt,
-            experimentalPauseResumeDt
-          );
-          experimentalDistanceTraveledNm = fpwRoundTo2(experimentalElapsedHours * experimentalDisplaySpeedKn);
-          if (experimentalDistanceTraveledNm GT currentLegDistNm) {
-            experimentalDistanceTraveledNm = fpwRoundTo2(currentLegDistNm);
-          }
-          if (experimentalDistanceTraveledNm LT 0) {
-            experimentalDistanceTraveledNm = 0;
-          }
-          experimentalRemainingNm = fpwRoundTo2(currentLegDistNm - experimentalDistanceTraveledNm);
-          if (experimentalRemainingNm LT 0) {
-            experimentalRemainingNm = 0;
-          }
-          if (currentLegDistNm GT 0) {
-            experimentalPercentComplete = int((experimentalDistanceTraveledNm / currentLegDistNm) * 100);
-          }
-          if (experimentalPercentComplete LT 0) {
-            experimentalPercentComplete = 0;
-          }
-          if (experimentalPercentComplete GT 100) {
-            experimentalPercentComplete = 100;
-          }
-
-          experimentalPauseActive = (
-            isDate(experimentalPauseStartDt)
-            AND (
-              NOT isDate(experimentalPauseResumeDt)
-              OR dateCompare(experimentalRenderDt, experimentalPauseResumeDt, "s") LT 0
-            )
-          );
-          if (experimentalPauseActive) {
-            experimentalStatusLabel = "Paused overnight";
-          } else if (isDate(experimentalPauseStartDt) AND isDate(experimentalPauseResumeDt)) {
-            experimentalStatusLabel = "Resumed after overnight pause";
-          } else {
-            experimentalStatusLabel = "Browser-time display";
-          }
-          experimentalStartDisplayLabel = fpwFormatZonedDateTimeLabel(experimentalStartDt, experimentalDepartureTimeZone, fpwFormatUtcIso(experimentalStartDt));
-          if (experimentalStartSource EQ "current_leg_started_at") {
-            experimentalAssumptionLabel = "Estimate started " & experimentalStartDisplayLabel & ".";
-          } else if (experimentalStartSource EQ "prior_leg_completed_at") {
-            experimentalAssumptionLabel = "Estimate based on prior leg completion at " & experimentalStartDisplayLabel & ".";
-          } else {
-            experimentalAssumptionLabel = fpwFormatStartAssumptionLabel(dailyStartLocalTimeVal, experimentalDepartureTimeZone);
-          }
-
-          activeCruiseView.experimentalLegStatus = experimentalStatusLabel;
-          activeCruiseView.experimentalLegRemainingDistance = fpwFormatNm(experimentalRemainingNm) & " remaining";
-          activeCruiseView.experimentalLegPercentComplete = fpwFormatPct(experimentalPercentComplete);
-          activeCruiseView.experimentalLegPace = numberFormat(experimentalDisplaySpeedKn, "0.00") & " kt";
-          activeCruiseView.experimentalProgressBarWidth = fpwFormatPct(experimentalPercentComplete);
-          if (experimentalDisplayFuelBurnGph GT 0 AND experimentalDisplaySpeedKn GT 0 AND experimentalRemainingNm GT 0) {
-            experimentalFuelBaseGal = fpwRoundTo2((experimentalRemainingNm / experimentalDisplaySpeedKn) * experimentalDisplayFuelBurnGph);
-            if (experimentalDisplayReservePct GT 0) {
-              experimentalFuelReserveGal = fpwRoundTo2(experimentalFuelBaseGal * (experimentalDisplayReservePct / 100));
-            }
-            experimentalFuelRequiredGal = fpwRoundTo2(experimentalFuelBaseGal + experimentalFuelReserveGal);
-            activeCruiseView.experimentalLegRemainingFuel = numberFormat(experimentalFuelRequiredGal, "0.0") & " gal";
-          } else {
-            activeCruiseView.experimentalLegRemainingFuel = "Fuel unavailable";
-          }
-          activeCruiseView.experimentalLegMeta = experimentalAssumptionLabel;
-          if (experimentalPauseActive AND isDate(experimentalPauseResumeDt)) {
-            activeCruiseView.experimentalLegMeta &= " Paused until " & fpwFormatClock((isDate(expectedCheckInDt) ? expectedCheckInDt : experimentalPauseResumeDt), "8:00 AM") & ".";
-          } else if (isDate(experimentalPauseStartDt) AND isDate(experimentalPauseResumeDt)) {
-            activeCruiseView.experimentalLegMeta &= " Overnight pause excluded until " & fpwFormatClock((isDate(expectedCheckInDt) ? expectedCheckInDt : experimentalPauseResumeDt), "8:00 AM") & ".";
-          }
-
-          activeCruiseExperimental.available = true;
-          activeCruiseExperimental.baseStartUtc = fpwFormatUtcIso(experimentalStartDt);
-          activeCruiseExperimental.pauseStartUtc = fpwFormatUtcIso(experimentalPauseStartDt);
-          activeCruiseExperimental.pauseResumeUtc = fpwFormatUtcIso(experimentalPauseResumeDt);
-          activeCruiseExperimental.assumptionLabel = activeCruiseView.experimentalLegMeta;
-          activeCruiseExperimental.statusLabel = experimentalStatusLabel;
-        } else {
-          experimentalStatusLabel = "Unable to build 8:00 AM leg basis";
-        }
-      }
-
-      if (NOT activeCruiseExperimental.available) {
-        activeCruiseView.experimentalLegStatus = experimentalStatusLabel;
-        activeCruiseView.experimentalLegMeta = experimentalAssumptionLabel;
-        activeCruiseExperimental.statusLabel = experimentalStatusLabel;
-        activeCruiseExperimental.assumptionLabel = experimentalAssumptionLabel;
-      }
-      if (awaitingDepartureStop) {
-        activeCruiseView.experimentalLegStatus = "Next Leg Ready";
-        activeCruiseView.experimentalLegRemainingDistance = (currentLegDistNm GT 0 ? numberFormat(currentLegDistNm, "0.0") & " NM" : "Distance unavailable");
-        activeCruiseView.experimentalLegPercentComplete = "0%";
-        activeCruiseView.experimentalLegPace = (experimentalDisplaySpeedKn GT 0 ? numberFormat(experimentalDisplaySpeedKn, "0.00") & " kt" : "Speed unavailable");
-        if (experimentalDisplayFuelBurnGph GT 0 AND experimentalDisplaySpeedKn GT 0 AND currentLegDistNm GT 0) {
-          experimentalFuelBaseGal = fpwRoundTo2((currentLegDistNm / experimentalDisplaySpeedKn) * experimentalDisplayFuelBurnGph);
-          experimentalFuelReserveGal = 0;
-          if (experimentalDisplayReservePct GT 0) {
-            experimentalFuelReserveGal = fpwRoundTo2(experimentalFuelBaseGal * (experimentalDisplayReservePct / 100));
-          }
-          experimentalFuelRequiredGal = fpwRoundTo2(experimentalFuelBaseGal + experimentalFuelReserveGal);
-          activeCruiseView.experimentalLegRemainingFuel = numberFormat(experimentalFuelRequiredGal, "0.0") & " gal";
-        } else {
-          activeCruiseView.experimentalLegRemainingFuel = "Fuel unavailable";
-        }
-        activeCruiseView.experimentalLegMeta = (pendingLegOrder GT 0 ? "Leg " & pendingLegOrder & " is ready to start. FPW will begin estimating progress after you tap Start Next Leg." : "The next leg is ready to start. FPW will begin estimating progress after you tap Start Next Leg.");
-        activeCruiseView.experimentalProgressBarWidth = "0%";
-        activeCruiseExperimental.available = false;
-        activeCruiseExperimental.baseStartUtc = "";
-        activeCruiseExperimental.pauseStartUtc = "";
-        activeCruiseExperimental.pauseResumeUtc = "";
-        activeCruiseExperimental.statusLabel = activeCruiseView.experimentalLegStatus;
-        activeCruiseExperimental.assumptionLabel = activeCruiseView.experimentalLegMeta;
-      }
-
-      if (len(planStatusLabel)) {
-        activeCruiseView.floatPlanStatus = planStatusLabel;
-      } else {
-        activeCruiseView.floatPlanStatus = "Unknown";
-      }
-      if (activeCruiseContext.floatPlanId GT 0) {
-        activeCruiseView.floatPlanIdLabel = "FP-" & activeCruiseContext.floatPlanId;
-      }
-      activeCruiseView.topFloatPlanState = "Float Plan: " & activeCruiseView.floatPlanStatus;
-
-      if (len(monitorStatus)) {
-        activeCruiseView.monitorStatus = monitorStatus;
-      } else {
-        activeCruiseView.monitorStatus = "Unknown";
-      }
-      if (uCase(activeCruiseView.monitorStatus) EQ "OVERDUE") {
-        activeCruiseView.monitorStatusColor = "var(--warn)";
-      } else if (uCase(activeCruiseView.monitorStatus) EQ "UNKNOWN") {
-        activeCruiseView.monitorStatusColor = "var(--muted)";
-      }
-      if (streamLive) {
-        activeCruiseView.monitorFollowerState = "Live";
-      } else {
-        activeCruiseView.monitorFollowerState = "Not linked";
-      }
-
-      if (len(emergencyName)) {
-        activeCruiseView.monitorEmergencyContact = emergencyName;
-        activeCruiseView.emergencyContact = emergencyName & " • Emergency Contact";
-      }
-      if (len(crewName)) {
-        activeCruiseView.crewContact = crewName & " • Crew";
-      }
-      activeCruiseView.captainContact = captainName & " • Captain";
-
-      routePlanBaseSpeedKn = fpwGetNumericFromKeys(
-        routeInputs,
-        [
-          "cruising_speed",
-          "cruisingSpeed",
-          "effective_cruising_speed",
-          "effectiveCruisingSpeed",
-          "speed_kn",
-          "speedKn"
-        ],
-        true
-      );
-      routePlanEffectiveSpeedKn = (routeInputCardSpeedKn GT 0 ? routeInputCardSpeedKn : routeInputSpeedKn);
-      if (routePlanBaseSpeedKn LTE 0) {
-        routePlanBaseSpeedKn = routePlanEffectiveSpeedKn;
-      }
-      routePlanFuelBurnGph = routeInputFuelBurnGph;
-      routePlanReservePct = routeInputReservePct;
-      routePlanWeatherFactorPct = (len(routeWeatherFactorRaw) AND isNumeric(routeWeatherFactorRaw) ? val(routeWeatherFactorRaw) : 0);
-      if (qLegs.recordCount GT 0) {
-        routePlanTripStartIso = (
-          isStruct(activeCruiseCanonicalHero)
-          AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS")
-          AND activeCruiseCanonicalHero.SUCCESS
-          AND structKeyExists(activeCruiseCanonicalHero, "heroTripStartUtc")
-            ? trim(toString(activeCruiseCanonicalHero.heroTripStartUtc))
-            : ""
-        );
-        if (!len(routePlanTripStartIso) AND isDate(canonicalTripStartDt)) {
-          routePlanTripStartIso = fpwFormatUtcIso(canonicalTripStartDt);
-        }
-        activeCruiseRoutePlan.available = true;
-        activeCruiseRoutePlan.scheduledDepartureLabel = (isDate(canonicalTripStartDt) ? dateTimeFormat(canonicalTripStartDt, "mmm d, yyyy h:nn tt") : "—");
-        activeCruiseRoutePlan.scheduledDepartureIso = routePlanTripStartIso;
-        routePlanFinalDestinationName = trim(toString(fpwQueryCell(qLegs, "end_name", qLegs.recordCount, "")));
-        if (!len(routePlanFinalDestinationName)) {
-          routePlanFinalDestinationName = destinationName;
-        }
-        activeCruiseRoutePlan.finalDestinationLabel = (len(routePlanFinalDestinationName) ? routePlanFinalDestinationName : "—");
-        activeCruiseRoutePlan.currentLegOrder = currentLegOrder;
-        activeCruiseRoutePlan.nextLegOrder = pendingLegOrder;
-        activeCruiseRoutePlan.baseSpeedKn = fpwRoundTo2(routePlanBaseSpeedKn);
-        activeCruiseRoutePlan.effectiveSpeedKn = fpwRoundTo2(routePlanEffectiveSpeedKn);
-        activeCruiseRoutePlan.fuelBurnGph = fpwRoundTo2(routePlanFuelBurnGph);
-        activeCruiseRoutePlan.reservePct = fpwRoundTo2(routePlanReservePct);
-        activeCruiseRoutePlan.weatherFactorPct = fpwRoundTo2(routePlanWeatherFactorPct);
-        activeCruiseRoutePlan.manualDelayMinutes = activeCruiseView.manualDelayMinutesTotal;
-        routePlanOpenPauseStartDt = "";
-        routePlanOpenPauseResumeDt = "";
-        if (isOvernightCheckIn AND isDate(lastCheckInDt)) {
-          routePlanOpenPauseStartDt = lastCheckInDt;
-          if (isDate(expectedCheckInUtcDt)) {
-            routePlanOpenPauseResumeDt = expectedCheckInUtcDt;
-          } else if (isDate(expectedCheckInDt)) {
-            routePlanOpenPauseResumeDt = expectedCheckInDt;
-          } else {
-            routePlanOpenPauseResumeDt = fpwBuildTripLocalTime(lastCheckInDt, experimentalDepartureTimeZone, dailyStartHourVal, dailyStartMinuteVal, dailyStartSecondVal, true);
-          }
-        }
-        activeCruiseRoutePlan.pauseStartUtc = fpwFormatUtcIso(routePlanOpenPauseStartDt);
-        activeCruiseRoutePlan.pauseResumeUtc = fpwFormatUtcIso(routePlanOpenPauseResumeDt);
-        activeCruiseRoutePlan.summary.totalNm = fpwRoundTo2(totalNm);
-        activeCruiseRoutePlan.summary.completedNm = fpwRoundTo2(completedNm);
-        activeCruiseRoutePlan.summary.remainingNm = fpwRoundTo2(remainingNm);
-        activeCruiseRoutePlan.summary.progressPct = percentComplete;
-        routePlanAdjustedAnchorDt = (isDate(canonicalTripStartDt) ? canonicalTripStartDt : "");
-        routePlanHasActualAnchor = false;
-        routePlanDelayApplied = false;
-        routePlanFinalDisplayDt = "";
-
-        for (i = 1; i LTE qLegs.recordCount; i++) {
-          routePlanLegOrder = val(fpwQueryCell(qLegs, "leg_order", i, i));
-          if (routePlanLegOrder LTE 0) {
-            routePlanLegOrder = i;
-          }
-          routePlanLegKey = toString(routePlanLegOrder);
-          routePlanLegStatusRaw = (structKeyExists(progressByLeg, routePlanLegKey) ? progressByLeg[routePlanLegKey] : "NOT_STARTED");
-          routePlanLegState = "future";
-          routePlanLegStatusLabel = "Remaining";
-          if (routePlanLegStatusRaw EQ "COMPLETED") {
-            routePlanLegState = "completed";
-            routePlanLegStatusLabel = "Completed";
-          } else if (activeLegRow EQ i) {
-            routePlanLegState = "current";
-            routePlanLegStatusLabel = "Current";
-          } else if (pendingLegRow EQ i) {
-            routePlanLegState = "next";
-            routePlanLegStatusLabel = "Next";
-          }
-          routePlanLegStartName = trim(toString(fpwQueryCell(qLegs, "start_name", i, "")));
-          routePlanLegEndName = trim(toString(fpwQueryCell(qLegs, "end_name", i, "")));
-          routePlanLegDistanceNm = fpwRoundTo2(val(fpwQueryCell(qLegs, "dist_nm", i, 0)));
-          routePlanLegHours = 0;
-          if (routePlanEffectiveSpeedKn GT 0 AND routePlanLegDistanceNm GT 0) {
-            routePlanLegHours = fpwRoundTo2(routePlanLegDistanceNm / routePlanEffectiveSpeedKn);
-          }
-          routePlanLegDepartureOffsetHours = routePlanCumulativeHours;
-          routePlanCumulativeHours = fpwRoundTo2(routePlanCumulativeHours + routePlanLegHours);
-          routePlanLegArrivalOffsetHours = routePlanCumulativeHours;
-          routePlanLegPlannedDepartureDt = "";
-          routePlanLegPlannedArrivalDt = "";
-          routePlanLegPlannedDepartureLabel = "—";
-          routePlanLegPlannedArrivalLabel = "—";
-          routePlanLegDisplayDepartureDt = "";
-          routePlanLegDisplayArrivalDt = "";
-          routePlanLegDepartureLabel = "—";
-          routePlanLegArrivalLabel = "—";
-          routePlanLegDepartureFieldLabel = "Planned Departure";
-          routePlanLegArrivalFieldLabel = "Planned Arrival / ETA";
-          routePlanLegDepartureSource = "planned";
-          routePlanLegArrivalSource = "planned";
-          routePlanLegDelayMinutes = 0;
-          routePlanLegPauseMinutes = 0;
-          routePlanLegStartedAtDt = "";
-          routePlanLegCompletedAtDt = "";
-          routePlanLegStartedAtLabel = "";
-          routePlanLegCompletedAtLabel = "";
-          if (isDate(canonicalTripStartDt) AND routePlanEffectiveSpeedKn GT 0) {
-            routePlanLegPlannedDepartureDt = dateAdd("n", int(round(routePlanLegDepartureOffsetHours * 60)), canonicalTripStartDt);
-            routePlanLegPlannedArrivalDt = dateAdd("n", int(round(routePlanLegArrivalOffsetHours * 60)), canonicalTripStartDt);
-            routePlanLegPlannedDepartureLabel = dateTimeFormat(routePlanLegPlannedDepartureDt, "mmm d h:nn tt");
-            routePlanLegPlannedArrivalLabel = dateTimeFormat(routePlanLegPlannedArrivalDt, "mmm d h:nn tt");
-            routePlanLegDisplayDepartureDt = routePlanLegPlannedDepartureDt;
-            routePlanLegDisplayArrivalDt = routePlanLegPlannedArrivalDt;
-          }
-          if (structKeyExists(progressStartedAtByLeg, routePlanLegKey) AND isDate(progressStartedAtByLeg[routePlanLegKey])) {
-            routePlanLegStartedAtDt = progressStartedAtByLeg[routePlanLegKey];
-            if (!isDate(canonicalTripStartDt) OR dateCompare(routePlanLegStartedAtDt, canonicalTripStartDt, "s") GTE 0) {
-              routePlanLegStartedAtLabel = dateTimeFormat(routePlanLegStartedAtDt, "mmm d h:nn tt");
-            } else {
-              routePlanLegStartedAtDt = "";
-            }
-          }
-          if (structKeyExists(progressCompletedAtByLeg, routePlanLegKey) AND isDate(progressCompletedAtByLeg[routePlanLegKey])) {
-            routePlanLegCompletedAtDt = progressCompletedAtByLeg[routePlanLegKey];
-            if (!isDate(canonicalTripStartDt) OR dateCompare(routePlanLegCompletedAtDt, canonicalTripStartDt, "s") GTE 0) {
-              routePlanLegCompletedAtLabel = dateTimeFormat(routePlanLegCompletedAtDt, "mmm d h:nn tt");
-            } else {
-              routePlanLegCompletedAtDt = "";
-            }
-          }
-
-          if (routePlanLegState EQ "completed" AND isDate(routePlanLegCompletedAtDt)) {
-            if (isDate(routePlanLegStartedAtDt)) {
-              routePlanLegDisplayDepartureDt = routePlanLegStartedAtDt;
-              routePlanLegDepartureFieldLabel = "Actual Departure";
-              routePlanLegDepartureSource = "actual_start";
-            } else if (routePlanHasActualAnchor AND isDate(routePlanAdjustedAnchorDt)) {
-              routePlanLegDisplayDepartureDt = routePlanAdjustedAnchorDt;
-              routePlanLegDepartureFieldLabel = "Adjusted Departure";
-              routePlanLegDepartureSource = "adjusted_chain";
-            }
-            routePlanLegDisplayArrivalDt = routePlanLegCompletedAtDt;
-            routePlanLegArrivalFieldLabel = "Actual Arrival";
-            routePlanLegArrivalSource = "actual_completion";
-            routePlanAdjustedAnchorDt = routePlanLegDisplayArrivalDt;
-            routePlanHasActualAnchor = true;
-          } else if (routePlanLegState EQ "current" AND isDate(routePlanLegStartedAtDt)) {
-            routePlanLegDisplayDepartureDt = routePlanLegStartedAtDt;
-            routePlanLegDepartureFieldLabel = "Actual Departure";
-            routePlanLegDepartureSource = "actual_start";
-            if (!routePlanDelayApplied AND activeCruiseView.manualDelayMinutesTotal GT 0) {
-              routePlanLegDelayMinutes = activeCruiseView.manualDelayMinutesTotal;
-              routePlanDelayApplied = true;
-            }
-            if (routePlanLegHours GT 0) {
-              routePlanCandidateArrivalDt = dateAdd("n", int(round(routePlanLegHours * 60)) + routePlanLegDelayMinutes, routePlanLegDisplayDepartureDt);
-              if (isDate(routePlanOpenPauseStartDt) AND isDate(routePlanOpenPauseResumeDt) AND dateCompare(routePlanOpenPauseResumeDt, routePlanOpenPauseStartDt, "s") GT 0 AND dateCompare(routePlanOpenPauseResumeDt, routePlanLegDisplayDepartureDt, "s") GT 0 AND dateCompare(routePlanOpenPauseStartDt, routePlanCandidateArrivalDt, "s") LT 0) {
-                routePlanPauseCountStartDt = (dateCompare(routePlanOpenPauseStartDt, routePlanLegDisplayDepartureDt, "s") GT 0 ? routePlanOpenPauseStartDt : routePlanLegDisplayDepartureDt);
-                routePlanLegPauseMinutes = dateDiff("n", routePlanPauseCountStartDt, routePlanOpenPauseResumeDt);
-                if (routePlanLegPauseMinutes LT 0) {
-                  routePlanLegPauseMinutes = 0;
-                }
-              }
-              routePlanLegDisplayArrivalDt = dateAdd("n", int(round(routePlanLegHours * 60)) + routePlanLegDelayMinutes + routePlanLegPauseMinutes, routePlanLegDisplayDepartureDt);
-              routePlanLegArrivalFieldLabel = "Adjusted ETA";
-              routePlanLegArrivalSource = "adjusted_from_actual_start";
-              routePlanAdjustedAnchorDt = routePlanLegDisplayArrivalDt;
-              routePlanHasActualAnchor = true;
-            }
-          } else if (routePlanHasActualAnchor AND isDate(routePlanAdjustedAnchorDt)) {
-            routePlanLegDisplayDepartureDt = routePlanAdjustedAnchorDt;
-            if (isDate(routePlanOpenPauseResumeDt) AND dateCompare(routePlanLegDisplayDepartureDt, routePlanOpenPauseResumeDt, "s") LT 0) {
-              routePlanLegDisplayDepartureDt = routePlanOpenPauseResumeDt;
-            }
-            routePlanLegDepartureFieldLabel = "Adjusted Departure";
-            routePlanLegDepartureSource = "adjusted_chain";
-            if (!routePlanDelayApplied AND activeCruiseView.manualDelayMinutesTotal GT 0) {
-              routePlanLegDelayMinutes = activeCruiseView.manualDelayMinutesTotal;
-              routePlanDelayApplied = true;
-            }
-            if (routePlanLegHours GT 0) {
-              routePlanLegDisplayArrivalDt = dateAdd("n", int(round(routePlanLegHours * 60)) + routePlanLegDelayMinutes, routePlanLegDisplayDepartureDt);
-              routePlanLegArrivalFieldLabel = "Adjusted ETA";
-              routePlanLegArrivalSource = "adjusted_chain";
-              routePlanAdjustedAnchorDt = routePlanLegDisplayArrivalDt;
-            }
-          } else if (routePlanLegState NEQ "completed" AND activeCruiseView.manualDelayMinutesTotal GT 0) {
-            routePlanLegDelayMinutes = activeCruiseView.manualDelayMinutesTotal;
-            if (isDate(routePlanLegPlannedArrivalDt)) {
-              routePlanLegDisplayArrivalDt = dateAdd("n", routePlanLegDelayMinutes, routePlanLegPlannedArrivalDt);
-              routePlanLegArrivalSource = "planned_with_delay";
-            }
-          }
-
-          if (isDate(routePlanLegDisplayDepartureDt)) {
-            routePlanLegDepartureLabel = dateTimeFormat(routePlanLegDisplayDepartureDt, "mmm d h:nn tt");
-          }
-          if (isDate(routePlanLegDisplayArrivalDt)) {
-            routePlanLegArrivalLabel = dateTimeFormat(routePlanLegDisplayArrivalDt, "mmm d h:nn tt");
-            routePlanFinalDisplayDt = routePlanLegDisplayArrivalDt;
-          }
-          routePlanLegFuelBaseGal = 0;
-          routePlanLegReserveGal = 0;
-          routePlanLegRequiredGal = 0;
-          if (routePlanFuelBurnGph GT 0 AND routePlanLegHours GT 0) {
-            routePlanLegFuelBaseGal = fpwRoundTo2(routePlanLegHours * routePlanFuelBurnGph);
-            if (routePlanReservePct GT 0) {
-              routePlanLegReserveGal = fpwRoundTo2(routePlanLegFuelBaseGal * (routePlanReservePct / 100));
-            }
-            routePlanLegRequiredGal = fpwRoundTo2(routePlanLegFuelBaseGal + routePlanLegReserveGal);
-          }
-
-          arrayAppend(activeCruiseRoutePlan.legs, {
-            order = routePlanLegOrder,
-            state = routePlanLegState,
-            status = routePlanLegStatusLabel,
-            statusRaw = routePlanLegStatusRaw,
-            startName = routePlanLegStartName,
-            endName = routePlanLegEndName,
-            label = (len(routePlanLegStartName) AND len(routePlanLegEndName) ? routePlanLegStartName & " to " & routePlanLegEndName : "Leg " & routePlanLegOrder),
-            distanceNm = routePlanLegDistanceNm,
-            durationHours = routePlanLegHours,
-            durationLabel = fpwFormatActiveCruiseRouteDuration(routePlanLegHours),
-            departureLabel = routePlanLegDepartureLabel,
-            arrivalLabel = routePlanLegArrivalLabel,
-            plannedDepartureLabel = routePlanLegPlannedDepartureLabel,
-            plannedArrivalLabel = routePlanLegPlannedArrivalLabel,
-            departureFieldLabel = routePlanLegDepartureFieldLabel,
-            arrivalFieldLabel = routePlanLegArrivalFieldLabel,
-            departureSource = routePlanLegDepartureSource,
-            arrivalSource = routePlanLegArrivalSource,
-            departureIso = fpwFormatUtcIso(routePlanLegDisplayDepartureDt),
-            arrivalIso = fpwFormatUtcIso(routePlanLegDisplayArrivalDt),
-            plannedDepartureIso = fpwFormatUtcIso(routePlanLegPlannedDepartureDt),
-            plannedArrivalIso = fpwFormatUtcIso(routePlanLegPlannedArrivalDt),
-            startedAtUtc = fpwFormatUtcIso(routePlanLegStartedAtDt),
-            completedAtUtc = fpwFormatUtcIso(routePlanLegCompletedAtDt),
-            departureOffsetHours = routePlanLegDepartureOffsetHours,
-            arrivalOffsetHours = routePlanLegArrivalOffsetHours,
-            speedKn = fpwRoundTo2(routePlanEffectiveSpeedKn),
-            fuelNeedGal = routePlanLegRequiredGal,
-            reserveGal = routePlanLegReserveGal,
-            delayMinutes = routePlanLegDelayMinutes,
-            pauseMinutes = routePlanLegPauseMinutes,
-            startedAtLabel = routePlanLegStartedAtLabel,
-            completedAtLabel = routePlanLegCompletedAtLabel
-          });
-        }
-        activeCruiseRoutePlan.summary.totalHours = fpwRoundTo2(routePlanCumulativeHours + (activeCruiseView.manualDelayMinutesTotal / 60));
-        if (isDate(routePlanFinalDisplayDt)) {
-          routePlanFinalArrivalLabel = dateTimeFormat(routePlanFinalDisplayDt, "mmm d, yyyy h:nn tt");
-        } else if (isDate(canonicalTripStartDt) AND routePlanEffectiveSpeedKn GT 0) {
-          routePlanFinalArrivalLabel = dateTimeFormat(dateAdd("n", int(round(routePlanCumulativeHours * 60)) + activeCruiseView.manualDelayMinutesTotal, canonicalTripStartDt), "mmm d, yyyy h:nn tt");
-        }
-        activeCruiseRoutePlan.summary.finalArrivalLabel = routePlanFinalArrivalLabel;
-        activeCruiseRoutePlan.summary.finalArrivalIso = fpwFormatUtcIso(routePlanFinalDisplayDt);
-      }
-
-      if (!activeCruiseTripStarted) {
-        activeCruiseEyebrowLabel = "Voyage Console • Scheduled Start";
-        activeCruiseHeroSubline = "This trip is scheduled and has not started yet. Use this page to confirm the planned departure, first-leg ETA, float plan status, and monitoring state before getting underway.";
-        activeCruiseProgressWindowLabel = "Scheduled";
-        activeCruiseLegRouteWindowLabel = "Scheduled";
-        activeCruiseCurrentLegCopy = "This area shows the planned departure point, first leg, scheduled ETA, and monitoring state before the trip begins.";
-        activeCruiseFloatPlanBadgeLabel = "Monitoring Scheduled";
-        activeCruiseFloatPlanStatusNote = "Monitoring begins at scheduled departure";
-        activeCruiseFloatPlanNextExpectedNote = "Scheduled departure pending";
-        activeCruiseRouteStop1DotClass = "dot current";
-        activeCruiseRouteStop2DotClass = "dot future";
-        activeCruiseRouteStop3DotClass = "dot future";
-        activeCruiseView.heroLegMeta = "Scheduled departure pending";
-        activeCruiseView.heroNextStopMeta = (len(activeCruiseView.heroNextStop) AND activeCruiseView.heroNextStop NEQ "n/a" ? "First planned stop after departure" : "");
-        activeCruiseView.heroLastCheckIn = "--";
-        activeCruiseView.floatPlanLastCheckIn = "--";
-        activeCruiseView.routeStop1Detail = "Scheduled departure point.";
-        activeCruiseView.routeStop1Stamp = "Scheduled";
-        activeCruiseView.routeStop2Detail = "First leg begins at scheduled departure.";
-        activeCruiseView.routeStop2Stamp = "Leg 1";
-        activeCruiseView.routeStop3Detail = "First planned destination after departure.";
-        activeCruiseView.routeStop3Stamp = "Planned";
-        activeCruiseView.monitorStatus = "Scheduled";
-        activeCruiseView.monitorStatusColor = "var(--muted)";
-        activeCruiseView.monitorFollowerState = "Pending Start";
-        activeCruiseView.experimentalLegStatus = "Scheduled departure pending";
-        activeCruiseView.experimentalLegRemainingDistance = "—";
-        activeCruiseView.experimentalLegPercentComplete = "—";
-        activeCruiseView.experimentalLegPace = "Speed unavailable";
-        activeCruiseView.experimentalLegRemainingFuel = "Fuel unavailable";
-        activeCruiseView.experimentalLegMeta = "The trip has not started yet. Operational timing begins at scheduled departure.";
-        activeCruiseView.experimentalProgressBarWidth = "0%";
-        if (len(activeCruiseView.heroEta) AND activeCruiseView.heroEta NEQ "--") {
-          activeCruiseView.legArrival = activeCruiseView.heroEta;
-        }
-        activeCruiseExperimental.available = false;
-        activeCruiseExperimental.baseStartUtc = "";
-        activeCruiseExperimental.pauseStartUtc = "";
-        activeCruiseExperimental.pauseResumeUtc = "";
-        activeCruiseExperimental.assumptionLabel = activeCruiseView.experimentalLegMeta;
-        activeCruiseExperimental.statusLabel = activeCruiseView.experimentalLegStatus;
-        activeCruiseTimelineItems = [
-          {
-            time = (isDate(canonicalTripStartDt) ? fpwFormatClock(canonicalTripStartDt, "--") : "--"),
-            timeUtc = (isDate(canonicalTripStartDt) ? fpwFormatUtcIso(canonicalTripStartDt) : ""),
-            title = "Scheduled departure",
-            detail = "Trip start and monitoring begin at the scheduled departure time."
-          }
-        ];
-        if (len(activeCruiseView.heroEta) AND activeCruiseView.heroEta NEQ "--") {
-          arrayAppend(activeCruiseTimelineItems, {
-            time = activeCruiseView.heroEta,
-            title = "Planned first-leg arrival",
-            detail = "Based on scheduled departure time plus planned leg duration."
-          });
-        }
-      }
-
-      activeCruiseContext.routeCode = routeCodeDisplay;
-      activeCruiseContext.activeRouteCode = routeCodeDisplay;
-    } catch (any activeCruiseError) {
-      cflog(
-        file = "application",
-        type = "warning",
-        text = "FPW Active Cruise server hydration fallback: " & activeCruiseError.message
-      );
-      activeCruiseHooks.error = {
-        message = activeCruiseError.message
-      };
+      return localTimeZone.getDisplayName(localTimeZone.inDaylightTime(referenceTime), 0);
+    } catch (any timezoneLabelErr) {
+      return tzId;
     }
   }
 
-  activeCruiseHooks.context.routeCode = activeCruiseContext.routeCode;
-  activeCruiseHooks.context.routeId = activeCruiseContext.routeId;
-  activeCruiseHooks.context.routeInstanceId = activeCruiseContext.routeInstanceId;
-  activeCruiseHooks.context.floatPlanId = activeCruiseContext.floatPlanId;
-  activeCruiseHooks.context.activeRouteCode = activeCruiseContext.activeRouteCode;
-  activeCruiseHooks.context.userId = activeCruiseUserId;
-  activeCruiseHooks.context.awaitingDepartureStop = awaitingDepartureStop;
-  activeCruiseHooks.context.pendingLegOrder = pendingLegOrder;
-  activeCruiseHooks.experimentalLeg = activeCruiseExperimental;
-  activeCruiseHooks.routePlan = activeCruiseRoutePlan;
-  if (
-    isStruct(activeCruiseCanonicalHero)
-    AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS")
-    AND activeCruiseCanonicalHero.SUCCESS
-  ) {
-    if (structKeyExists(activeCruiseCanonicalHero, "projectionWarnings") AND isArray(activeCruiseCanonicalHero.projectionWarnings)) {
-      activeCruiseHooks.canonicalProjection.warnings = duplicate(activeCruiseCanonicalHero.projectionWarnings);
+  function fpwV2TripLocalTimeLabel(any value="", string timezone="UTC", any referenceValue="", string fallback="Not available") {
+    var raw = "";
+    var normalized = "";
+    var parts = [];
+    var hourValue = 0;
+    var minuteValue = 0;
+    if (isDate(arguments.value)) {
+      normalized = timeFormat(arguments.value, "HH:nn:ss");
+    } else if (isSimpleValue(arguments.value)) {
+      raw = trim(toString(arguments.value));
+      normalized = listFirst(raw, " ");
     }
+    if (!len(normalized)) {
+      normalized = "08:00:00";
+    }
+    if (!reFind("^[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?$", normalized)) {
+      return arguments.fallback;
+    }
+    parts = listToArray(normalized, ":");
+    hourValue = val(parts[1]);
+    minuteValue = val(parts[2]);
+    if (hourValue LT 0 OR hourValue GT 23 OR minuteValue LT 0 OR minuteValue GT 59) {
+      return arguments.fallback;
+    }
+    return numberFormat(hourValue, "00") & ":" & numberFormat(minuteValue, "00") & " " & fpwV2TripTimezoneLabel(arguments.timezone, arguments.referenceValue);
+  }
+
+  function fpwV2Json(any value={}) {
+    try {
+      return serializeJSON(arguments.value);
+    } catch (any jsonErr) {
+      return "{}";
+    }
+  }
+
+  function fpwV2JsonForScript(any value={}) {
+    return replace(fpwV2Json(arguments.value), "</", "<\/", "all");
+  }
+
+  function fpwV2BoolLabel(any value=false) {
+    if (isBoolean(arguments.value) AND arguments.value) {
+      return "enabled";
+    }
+    return "disabled";
+  }
+
+  function fpwV2StateClass(any value="") {
+    var stateValue = lCase(trim(toString(arguments.value)));
+    if (listFindNoCase("late,missed,escalated,assistance_needed,unknown_error", stateValue)) {
+      return "is-alert";
+    }
+    if (listFindNoCase("paused_overnight,paused_delayed", stateValue)) {
+      return "is-paused";
+    }
+    if (listFindNoCase("underway,arrived,closed", stateValue)) {
+      return "is-active";
+    }
+    return "is-scheduled";
+  }
+
+  function fpwV2LegClass(required struct leg) {
+    var stateValue = lCase(trim(toString(fpwV2Get(arguments.leg, "state"))));
+    if (stateValue EQ "current") {
+      return "timeline-row-current";
+    }
+    if (stateValue EQ "completed") {
+      return "timeline-row-completed";
+    }
+    return "timeline-row-future";
+  }
+
+  function fpwV2WarningCount(required struct model) {
+    if (structKeyExists(arguments.model, "warnings") AND isArray(arguments.model.warnings)) {
+      return arrayLen(arguments.model.warnings);
+    }
+    return 0;
+  }
+
+  function fpwV2ActionEnabled(required struct actionModel) {
+    return structKeyExists(arguments.actionModel, "enabled") AND isBoolean(arguments.actionModel.enabled) AND arguments.actionModel.enabled;
+  }
+
+  activeCruiseV2UserId = fpwV2ResolveSessionUserId();
+  activeCruiseV2Datasource = fpwV2ResolveDatasource();
+  activeCruiseV2BasePath = fpwV2ResolveBasePath();
+  activeCruiseV2RequestedFloatPlanId = 0;
+  activeCruiseV2FloatPlanId = 0;
+  activeCruiseV2RouteInstanceId = 0;
+  activeCruiseV2AccessValid = false;
+  activeCruiseV2AccessMessage = "Active Cruise V2 is available only for your current active route-backed float plan.";
+  activeCruiseV2AccessDetail = "";
+  activeCruiseV2CurrentGroup = {};
+  activeCruiseV2Model = {};
+  activeCruiseV2RouteProgressSummary = {};
+
+  if (isNumeric(fpwV2HookValue("floatPlanId"))) {
+    activeCruiseV2RequestedFloatPlanId = val(fpwV2HookValue("floatPlanId"));
+  }
+
+  if (activeCruiseV2UserId LTE 0) {
+    activeCruiseV2AccessMessage = "Sign in to view Active Cruise V2.";
+    activeCruiseV2AccessDetail = "The V2 shell uses the authenticated session user as its access authority.";
+  } else {
+    activeCruiseV2CurrentGroup = fpwV2ResolveCurrentActiveCruiseGroup(activeCruiseV2UserId);
     if (
-      structKeyExists(activeCruiseCanonicalHero, "canonicalProjectionAvailable")
-      AND activeCruiseCanonicalHero.canonicalProjectionAvailable
+      isStruct(activeCruiseV2CurrentGroup)
+      AND structKeyExists(activeCruiseV2CurrentGroup, "ERROR")
+      AND trim(toString(activeCruiseV2CurrentGroup.ERROR)) EQ "MULTIPLE_ACTIVE_GROUPS"
     ) {
-      activeCruiseHooks.canonicalProjection.available = true;
-      activeCruiseHooks.canonicalProjection.authority = (
-        structKeyExists(activeCruiseCanonicalHero, "projectionAuthority")
-        AND len(trim(toString(activeCruiseCanonicalHero.projectionAuthority)))
-          ? trim(toString(activeCruiseCanonicalHero.projectionAuthority))
-          : "canonical_projection"
-      );
-      if (structKeyExists(activeCruiseCanonicalHero, "etaProjection") AND isStruct(activeCruiseCanonicalHero.etaProjection)) {
-        activeCruiseHooks.canonicalProjection.etaProjection = duplicate(activeCruiseCanonicalHero.etaProjection);
-      }
-      if (structKeyExists(activeCruiseCanonicalHero, "todayProgress") AND isStruct(activeCruiseCanonicalHero.todayProgress)) {
-        activeCruiseHooks.canonicalProjection.todayProgress = duplicate(activeCruiseCanonicalHero.todayProgress);
-      }
-      if (structKeyExists(activeCruiseCanonicalHero, "currentLegProgress") AND isStruct(activeCruiseCanonicalHero.currentLegProgress)) {
-        activeCruiseHooks.canonicalProjection.currentLegProgress = duplicate(activeCruiseCanonicalHero.currentLegProgress);
-      }
-      if (structKeyExists(activeCruiseCanonicalHero, "routeTimeline") AND isStruct(activeCruiseCanonicalHero.routeTimeline)) {
-        activeCruiseHooks.canonicalProjection.routeTimeline = duplicate(activeCruiseCanonicalHero.routeTimeline);
+      activeCruiseV2AccessMessage = "Active Cruise V2 is unavailable because more than one active route/float-plan group exists.";
+      activeCruiseV2AccessDetail = "Resolve the extra active group before using this page.";
+    } else if (!structKeyExists(activeCruiseV2CurrentGroup, "SUCCESS") OR !activeCruiseV2CurrentGroup.SUCCESS OR !activeCruiseV2CurrentGroup.IS_ACTIVE) {
+      activeCruiseV2AccessMessage = "No active trip is available for this account.";
+      activeCruiseV2AccessDetail = "Active Cruise V2 only loads the current active route-backed float plan.";
+    } else {
+      activeCruiseV2FloatPlanId = val(structKeyExists(activeCruiseV2CurrentGroup, "FLOATPLANID") ? activeCruiseV2CurrentGroup.FLOATPLANID : 0);
+      activeCruiseV2RouteInstanceId = val(structKeyExists(activeCruiseV2CurrentGroup, "ROUTE_INSTANCE_ID") ? activeCruiseV2CurrentGroup.ROUTE_INSTANCE_ID : 0);
+
+      if (activeCruiseV2RequestedFloatPlanId GT 0 AND activeCruiseV2RequestedFloatPlanId NEQ activeCruiseV2FloatPlanId) {
+        activeCruiseV2AccessMessage = "This Active Cruise V2 link does not match your current active trip.";
+        activeCruiseV2AccessDetail = "Open Active Cruise V2 from the canonical active float plan only.";
+      } else if (activeCruiseV2RouteInstanceId LTE 0) {
+        activeCruiseV2AccessMessage = "The current active float plan is missing its route link.";
+        activeCruiseV2AccessDetail = "Active Cruise V2 requires a route-linked active float plan.";
+      } else {
+        try {
+          activeCruiseV2Model = createObject("component", "fpw.api.v1.ActiveCruiseViewModelService")
+            .init(activeCruiseV2Datasource)
+            .getActiveCruiseViewModel(activeCruiseV2UserId, activeCruiseV2FloatPlanId);
+        } catch (any viewModelPathErr) {
+          activeCruiseV2Model = createObject("component", "api.v1.ActiveCruiseViewModelService")
+            .init(activeCruiseV2Datasource)
+            .getActiveCruiseViewModel(activeCruiseV2UserId, activeCruiseV2FloatPlanId);
+        }
+        activeCruiseV2AccessValid = true;
       }
     }
   }
-  activeCruiseHooks.fields = {
-    topRouteChip = activeCruiseView.topRouteChip,
-    topFloatPlanState = activeCruiseView.topFloatPlanState,
-    heroRouteTitle = activeCruiseView.heroRouteTitle,
-    heroVoyageStatus = activeCruiseView.heroVoyageStatus,
-    heroCurrentLegSummary = activeCruiseView.heroCurrentLegSummary,
-    heroLegMeta = activeCruiseView.heroLegMeta,
-    heroDistanceComplete = activeCruiseView.heroDistanceComplete,
-    heroPercentComplete = activeCruiseView.heroPercentComplete,
-    heroNextStop = activeCruiseView.heroNextStop,
-    heroEta = activeCruiseView.heroEta,
-    heroEtaUtc = (
-      isStruct(activeCruiseCanonicalHero)
-      AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS")
-      AND activeCruiseCanonicalHero.SUCCESS
-      AND structKeyExists(activeCruiseCanonicalHero, "heroEtaUtc")
-        ? trim(toString(activeCruiseCanonicalHero.heroEtaUtc))
-        : ""
-    ),
-    heroTripStartUtc = (
-      isStruct(activeCruiseCanonicalHero)
-      AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS")
-      AND activeCruiseCanonicalHero.SUCCESS
-      AND structKeyExists(activeCruiseCanonicalHero, "heroTripStartUtc")
-        ? trim(toString(activeCruiseCanonicalHero.heroTripStartUtc))
-        : ""
-    ),
-    heroLastCheckIn = activeCruiseView.heroLastCheckIn,
-    heroLastCheckInUtc = (
-      isStruct(activeCruiseCanonicalHero)
-      AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS")
-      AND activeCruiseCanonicalHero.SUCCESS
-      AND structKeyExists(activeCruiseCanonicalHero, "heroLastCheckInUtc")
-        ? trim(toString(activeCruiseCanonicalHero.heroLastCheckInUtc))
-        : ""
-    ),
-    heroNextExpectedCheckIn = activeCruiseView.heroNextExpectedCheckIn,
-    manualDelayMinutesTotal = activeCruiseView.manualDelayMinutesTotal,
-    legRemainingDistance = activeCruiseView.legRemainingDistance,
-    legPercentComplete = activeCruiseView.legPercentComplete,
-    monitorStatus = activeCruiseView.monitorStatus,
-    monitorFollowerState = activeCruiseView.monitorFollowerState,
-    monitorEmergencyContact = activeCruiseView.monitorEmergencyContact,
-    floatPlanStatus = activeCruiseView.floatPlanStatus,
-    floatPlanId = activeCruiseView.floatPlanIdLabel,
-    floatPlanLastCheckIn = activeCruiseView.floatPlanLastCheckIn,
-    floatPlanNextExpected = activeCruiseView.floatPlanNextExpected,
-    legArrivalUtc = (
-      isStruct(activeCruiseCanonicalHero)
-      AND structKeyExists(activeCruiseCanonicalHero, "SUCCESS")
-      AND activeCruiseCanonicalHero.SUCCESS
-      AND structKeyExists(activeCruiseCanonicalHero, "legArrivalUtc")
-        ? trim(toString(activeCruiseCanonicalHero.legArrivalUtc))
-        : ""
-    ),
-    captainContact = activeCruiseView.captainContact,
-    crewContact = activeCruiseView.crewContact,
-    emergencyContact = activeCruiseView.emergencyContact,
-    routeStop1Title = activeCruiseView.routeStop1Title,
-    routeStop1Detail = activeCruiseView.routeStop1Detail,
-    routeStop1Stamp = activeCruiseView.routeStop1Stamp,
-    routeStop2Title = activeCruiseView.routeStop2Title,
-    routeStop2Detail = activeCruiseView.routeStop2Detail,
-    routeStop2Stamp = activeCruiseView.routeStop2Stamp,
-    routeStop3Title = activeCruiseView.routeStop3Title,
-    routeStop3Detail = activeCruiseView.routeStop3Detail,
-    routeStop3Stamp = activeCruiseView.routeStop3Stamp,
-    routeStop4Title = activeCruiseView.routeStop4Title,
-    routeStop4Detail = activeCruiseView.routeStop4Detail,
-    routeStop4Stamp = activeCruiseView.routeStop4Stamp
-  };
+
+  if (!isStruct(activeCruiseV2Model) OR !structCount(activeCruiseV2Model)) {
+    activeCruiseV2Model = {
+      success = false,
+      message = activeCruiseV2AccessMessage,
+      generatedAtUtc = "",
+      tripState = "unknown_error",
+      motionState = "unknown",
+      safetyState = "normal",
+      displayAuthority = {
+        primary = "unavailable",
+        routeTimeline = "unavailable",
+        monitoring = "unavailable",
+        warnings = []
+      },
+      floatPlan = {},
+      route = {},
+      currentLeg = {},
+      routeTimeline = { available = false, legs = [], warnings = [] },
+      monitoring = { available = false },
+      checkIn = { allowedStatusOptions = [], validationMessages = {} },
+      actions = {},
+      floatPlanInfo = {},
+      contacts = { items = [], passengers = [] },
+      warnings = []
+    };
+  }
+
   if (
-    !activeCruiseTripStarted
-    AND structKeyExists(activeCruiseHooks.fields, "heroEtaUtc")
-    AND len(trim(toString(activeCruiseHooks.fields.heroEtaUtc)))
+    structKeyExists(activeCruiseV2Model, "routeTimeline")
+    AND isStruct(activeCruiseV2Model.routeTimeline)
+    AND structKeyExists(activeCruiseV2Model.routeTimeline, "summary")
+    AND isStruct(activeCruiseV2Model.routeTimeline.summary)
   ) {
-    activeCruiseHooks.fields.legArrivalUtc = trim(toString(activeCruiseHooks.fields.heroEtaUtc));
+    activeCruiseV2RouteProgressSummary = activeCruiseV2Model.routeTimeline.summary;
   }
-  if (activeCruiseAccessValid AND activeCruiseContext.routeInstanceId GT 0 AND activeCruiseUserId GT 0) {
-    activeCruiseMapComponent = "";
-    activeCruiseMapRaw = {};
-    try {
-      activeCruiseMapComponent = createObject("component", "fpw.api.v1.voyage");
-    } catch (any activeCruiseMapComponentErrA) {
-      try {
-        activeCruiseMapComponent = createObject("component", "api.v1.voyage");
-      } catch (any activeCruiseMapComponentErrB) {
-        activeCruiseMapComponent = "";
-      }
-    }
-    if (isObject(activeCruiseMapComponent)) {
-      try {
-        activeCruiseMapRaw = activeCruiseMapComponent.buildRouteMapData(
-          routeInstanceId = activeCruiseContext.routeInstanceId,
-          ownerUserId = activeCruiseUserId,
-          fallbackDays = 0
-        );
-      } catch (any activeCruiseMapBuildErr) {
-        activeCruiseMapRaw = {};
-      }
-    }
-    if (isStruct(activeCruiseMapRaw) AND structCount(activeCruiseMapRaw)) {
-      if (structKeyExists(activeCruiseMapRaw, "route_geo") AND isStruct(activeCruiseMapRaw.route_geo)) {
-        activeCruiseMapPayload.routeGeo = duplicate(activeCruiseMapRaw.route_geo);
-      }
-      if (structKeyExists(activeCruiseMapRaw, "pins") AND isArray(activeCruiseMapRaw.pins)) {
-        activeCruiseMapPayload.pins = duplicate(activeCruiseMapRaw.pins);
-      }
-      if (structKeyExists(activeCruiseMapRaw, "current") AND isStruct(activeCruiseMapRaw.current)) {
-        activeCruiseMapPayload.current = duplicate(activeCruiseMapRaw.current);
-      }
-    }
-  }
-  activeCruiseHooks.map = activeCruiseMapPayload;
-  activeCruiseHooksJson = replace(serializeJSON(activeCruiseHooks), "</", "<\/", "all");
 </cfscript>
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FPW Active Cruise Console</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Active Cruise V2</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <style>
+    :root {
+      color-scheme: dark;
+      --page-bg: #07151c;
+      --surface: #0e2029;
+      --surface-2: #132b35;
+      --surface-3: #18313d;
+      --line: #254653;
+      --line-strong: #3b6673;
+      --text: #eff7fa;
+      --muted: #a7bac2;
+      --quiet: #78909a;
+      --teal: #2fb8a9;
+      --amber: #e9b65c;
+      --red: #ec7f78;
+      --green: #8bcf9b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--page-bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    main {
+      width: min(1320px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 22px 0 42px;
+    }
+    h1, h2, h3 { margin: 0; }
+    h1 {
+      font-size: clamp(1.7rem, 3vw, 2.4rem);
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+    h2 {
+      color: var(--muted);
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    h3 {
+      font-size: 1rem;
+      line-height: 1.25;
+    }
+    p {
+      margin: .35rem 0;
+      color: var(--muted);
+    }
+    code {
+      color: var(--text);
+      background: rgba(255, 255, 255, .05);
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+    .page-top {
+      display: grid;
+      gap: 14px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 16px;
+    }
+    .identity-strip {
+      display: grid;
+      grid-template-columns: 1.3fr repeat(4, minmax(120px, .5fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+    .identity-cell,
+    .metric,
+    .section,
+    .timeline,
+    .warning-panel {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--surface);
+    }
+    .identity-cell {
+      min-height: 66px;
+      padding: 10px 12px;
+    }
+    .identity-label,
+    .metric-label,
+    .field-label {
+      color: var(--quiet);
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .identity-value,
+    .metric-value,
+    .field-value {
+      color: var(--text);
+      overflow-wrap: anywhere;
+    }
+    .identity-value {
+      margin-top: 6px;
+      font-size: .95rem;
+      font-weight: 700;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.65fr) minmax(320px, .9fr);
+      gap: 14px;
+    }
+    .supporting-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .left-stack,
+    .right-stack,
+    .supporting-stack {
+      display: grid;
+      gap: 14px;
+    }
+    .hero {
+      border: 1px solid var(--line-strong);
+      border-radius: 4px;
+      background: var(--surface-2);
+      padding: 18px;
+    }
+    .hero-main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: start;
+    }
+    .state-pill,
+    .authority-pill,
+    .leg-pill {
+      display: inline-flex;
+      width: fit-content;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      min-height: 30px;
+      padding: 3px 11px;
+      background: rgba(255, 255, 255, .04);
+      font-weight: 800;
+    }
+    .state-pill {
+      min-width: 118px;
+      color: var(--text);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      font-size: .8rem;
+    }
+    .state-pill.is-active { border-color: var(--teal); color: var(--teal); }
+    .state-pill.is-scheduled { border-color: var(--amber); color: var(--amber); }
+    .state-pill.is-paused { border-color: var(--muted); color: var(--muted); }
+    .state-pill.is-alert { border-color: var(--red); color: var(--red); }
+    .hero-title {
+      margin-top: 8px;
+      max-width: 780px;
+    }
+    .hero-subtitle {
+      margin-top: 10px;
+      max-width: 780px;
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .metric {
+      padding: 12px;
+      min-height: 82px;
+    }
+    .metric-value {
+      margin-top: 6px;
+      font-size: 1.25rem;
+      font-weight: 800;
+    }
+    .metric-note {
+      color: var(--muted);
+      margin-top: 4px;
+      font-size: .86rem;
+    }
+    .section,
+    .warning-panel {
+      padding: 16px;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 13px;
+    }
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .field {
+      border-top: 1px solid var(--line);
+      padding-top: 9px;
+    }
+    .field-value {
+      margin-top: 4px;
+      font-weight: 700;
+    }
+    .detail-list,
+    .contact-list,
+    .log-list {
+      display: grid;
+      gap: 8px;
+    }
+    .detail-row {
+      display: grid;
+      grid-template-columns: minmax(110px, .38fr) minmax(0, 1fr);
+      gap: 10px;
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
+    }
+    .detail-row:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+    .contact-item,
+    .log-item,
+    .panel-note {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: rgba(255, 255, 255, .03);
+      padding: 10px;
+    }
+    .panel-note.is-warning {
+      border-color: rgba(233, 182, 92, .55);
+      background: rgba(233, 182, 92, .06);
+    }
+    .panel-note.is-success {
+      border-color: rgba(139, 207, 155, .55);
+      color: var(--green);
+    }
+    .panel-note.is-error {
+      border-color: rgba(236, 127, 120, .55);
+      color: var(--red);
+    }
+    .ac-weather-command-panel {
+      display: grid;
+      gap: 14px;
+      margin-top: 16px;
+      padding: 16px;
+    }
+    .weather-lookup-layout,
+    .ac-weather-command-header,
+    .ac-weather-command-controls,
+    .ac-weather-command-footer,
+    .weather-choice-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .weather-lookup-layout {
+      gap: 14px;
+      justify-content: space-between;
+    }
+    .ac-weather-command-header {
+      gap: 14px;
+      justify-content: space-between;
+      inline-size: 100%;
+    }
+    .ac-weather-command-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-inline-size: 160px;
+    }
+    .ac-weather-command-title h3 {
+      margin: 0;
+    }
+    .ac-weather-command-icon {
+      color: var(--blue);
+      font-size: 1.35rem;
+      line-height: 1;
+    }
+    .weather-lookup-form,
+    .ac-weather-command-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    .ac-weather-control-label {
+      color: var(--muted);
+      font-size: .75rem;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .weather-choice-row {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 10px;
+    }
+    .weather-choice,
+    .ac-weather-status-chip {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .weather-choice input {
+      inline-size: 16px;
+      block-size: 16px;
+    }
+    .ac-weather-command-btn {
+      min-height: 40px;
+      padding: 9px 14px;
+    }
+    .ac-weather-status-chip {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .03);
+      min-height: 40px;
+      padding: 8px 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .ac-weather-summary-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      color: var(--muted);
+      font-size: .9rem;
+    }
+    .ac-weather-summary-row strong {
+      color: var(--text);
+      font-weight: 700;
+    }
+    .weather-result {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+    .weather-result.is-empty .ac-weather-metric-value,
+    .weather-result.is-empty .field-value {
+      color: var(--muted);
+    }
+    .ac-weather-metric-tile {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, .03);
+      min-block-size: 92px;
+      padding: 14px;
+    }
+    .ac-weather-metric-label {
+      color: var(--muted);
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .ac-weather-metric-value {
+      display: block;
+      margin-top: 12px;
+      color: var(--text);
+      font-size: .95rem;
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+    .ac-weather-command-footer {
+      border-top: 1px solid var(--line);
+      gap: 12px;
+      justify-content: space-between;
+      padding-top: 12px;
+    }
+    .ac-weather-applied-note {
+      color: var(--muted);
+      margin: 0;
+    }
+    .weather-alert-list,
+    .weather-warning-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    @media (max-width: 1100px) {
+      .weather-result {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 680px) {
+      .ac-weather-command-controls,
+      .weather-lookup-form,
+      .ac-weather-command-footer {
+        align-items: stretch;
+        flex-direction: column;
+        inline-size: 100%;
+      }
+      .weather-choice-row,
+      .ac-weather-command-btn,
+      .ac-weather-status-chip {
+        justify-content: center;
+        inline-size: 100%;
+      }
+      .weather-result {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    .map-overview {
+      display: grid;
+      gap: 10px;
+    }
+    .map-canvas {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #0b1c24;
+      min-height: 340px;
+      overflow: hidden;
+      position: relative;
+    }
+    .map-leaflet-canvas {
+      height: clamp(340px, 42vw, 520px);
+    }
+    #fpwActiveCruiseV2Map {
+      width: 100%;
+      height: 100%;
+      min-height: inherit;
+      background: #0b1c24;
+    }
+    .map-leaflet-canvas .leaflet-container {
+      background: #0b1c24;
+      color: #111827;
+    }
+    .map-leaflet-canvas .leaflet-control-layers,
+    .map-leaflet-canvas .leaflet-control-zoom a,
+    .map-leaflet-canvas .leaflet-control-attribution {
+      color: #1f2937;
+    }
+    #fpwActiveCruiseV2Map .leaflet-control-layers-overlays input[type="checkbox"].leaflet-control-layers-selector,
+    #fpwActiveCruiseV2FullMap .leaflet-control-layers-overlays input[type="checkbox"].leaflet-control-layers-selector {
+      accent-color: #fff;
+      color-scheme: light;
+    }
+    #fpwActiveCruiseV2Map .radar-opacity-control {
+      background: rgba(255, 255, 255, 0.92);
+      padding: 0.35rem 0.5rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      font-size: 0.7rem;
+      min-width: 140px;
+    }
+    #fpwActiveCruiseV2Map .radar-opacity-control label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      color: #1b1b1b;
+    }
+    #fpwActiveCruiseV2Map .radar-opacity-control input[type="range"] {
+      width: 100%;
+    }
+    #fpwActiveCruiseV2Map .radar-opacity-control.is-disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .map-load-state {
+      position: absolute;
+      inset: 12px;
+      z-index: 450;
+      display: none;
+      align-items: flex-start;
+      justify-content: flex-start;
+      pointer-events: none;
+    }
+    .map-load-state.is-visible {
+      display: flex;
+    }
+    .map-load-state span {
+      border: 1px solid rgba(37, 70, 83, .75);
+      border-radius: 4px;
+      background: rgba(7, 21, 28, .88);
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: .84rem;
+      font-weight: 700;
+    }
+    .follow-pin,
+    .follow-boat-marker {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 17px;
+      height: 17px;
+      border: 2px solid #ffffff;
+      border-radius: 999px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, .35);
+    }
+    .follow-pin.start { background: #22c55e; }
+    .follow-pin.end { background: #2563eb; }
+    .follow-pin.intermediate { background: #64748b; }
+    .follow-boat-marker {
+      background: #0ea5e9;
+      border-color: #ffffff;
+    }
+    .map-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .map-leg-list {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .map-leg-row {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      border-top: 1px solid var(--line);
+      padding: 8px 10px;
+    }
+    .map-leg-row:first-child {
+      border-top: 0;
+    }
+    .map-leg-order {
+      color: var(--quiet);
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .map-leg-route {
+      overflow-wrap: anywhere;
+      font-weight: 700;
+    }
+    .map-leg-meta {
+      color: var(--muted);
+      font-size: .82rem;
+      white-space: nowrap;
+    }
+    .panel-subhead {
+      color: var(--muted);
+      font-size: .86rem;
+      font-weight: 800;
+      margin: 12px 0 6px;
+    }
+    .progress-track {
+      height: 9px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, .04);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    .progress-fill {
+      height: 100%;
+      width: var(--progress-width, 0%);
+      background: var(--teal);
+    }
+    .timeline {
+      overflow: hidden;
+    }
+    .timeline-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .timeline-body {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      color: var(--quiet);
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      font-size: .72rem;
+    }
+    tbody tr:last-child td { border-bottom: 0; }
+    .timeline-row-current td {
+      background: rgba(47, 184, 169, .1);
+      border-top: 1px solid rgba(47, 184, 169, .35);
+      border-bottom: 1px solid rgba(47, 184, 169, .35);
+    }
+    .timeline-row-completed td {
+      color: var(--muted);
+    }
+    .timeline-row-future td {
+      color: var(--text);
+    }
+    .route-pair {
+      display: grid;
+      gap: 2px;
+    }
+    .route-pair span {
+      color: var(--muted);
+      font-size: .82rem;
+    }
+    .empty-state {
+      padding: 16px;
+      color: var(--muted);
+    }
+    .status-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .authority-pill {
+      min-height: 26px;
+      color: var(--muted);
+      font-size: .78rem;
+    }
+    .warning-panel {
+      border-color: rgba(233, 182, 92, .65);
+      background: #1c1a14;
+    }
+    .warning-list {
+      display: grid;
+      gap: 9px;
+      margin-top: 12px;
+    }
+    .warning-item {
+      border: 1px solid rgba(233, 182, 92, .3);
+      border-radius: 4px;
+      padding: 10px;
+      background: rgba(233, 182, 92, .06);
+    }
+    .warning-source {
+      color: var(--quiet);
+      margin-top: 3px;
+      font-size: .82rem;
+    }
+    .captain-actions {
+      display: grid;
+      gap: 12px;
+    }
+    .action-group {
+      display: grid;
+      gap: 8px;
+    }
+    .action-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 4px;
+    }
+    .action-button {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--surface-3);
+      color: var(--text);
+      min-height: 38px;
+      padding: 8px 10px;
+      font: inherit;
+      font-size: .88rem;
+      font-weight: 700;
+      text-align: left;
+      cursor: pointer;
+    }
+    .action-button:hover:not(:disabled) {
+      border-color: var(--teal);
+      color: var(--teal);
+    }
+    .action-button:disabled {
+      background: rgba(255, 255, 255, .03);
+      color: var(--quiet);
+      cursor: not-allowed;
+    }
+    .action-reason {
+      color: var(--quiet);
+      font-size: .8rem;
+    }
+    .checkin-note-input {
+      width: 100%;
+      min-height: 74px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #08161d;
+      color: var(--text);
+      padding: 8px 10px;
+      font: inherit;
+    }
+    .action-feedback {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: rgba(255, 255, 255, .04);
+      color: var(--muted);
+      min-height: 42px;
+      padding: 10px;
+      font-size: .86rem;
+    }
+    .action-feedback.is-success {
+      border-color: rgba(139, 207, 155, .55);
+      color: var(--green);
+    }
+    .action-feedback.is-error {
+      border-color: rgba(236, 127, 120, .55);
+      color: var(--red);
+    }
+    .timing-controls {
+      display: grid;
+      gap: 12px;
+    }
+    .timing-summary-grid,
+    .timing-form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .timing-form-grid {
+      align-items: stretch;
+    }
+    .timing-control {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: rgba(255, 255, 255, .03);
+      padding: 12px;
+    }
+    .timing-control.is-wide {
+      grid-column: 1 / -1;
+    }
+    .timing-inline {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: end;
+      margin-top: 10px;
+    }
+    .timing-input {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #08161d;
+      color: var(--text);
+      padding: 8px 10px;
+      font: inherit;
+    }
+    .timing-input:disabled {
+      color: var(--quiet);
+      background: rgba(255, 255, 255, .03);
+      cursor: not-allowed;
+    }
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      background: rgba(0, 0, 0, .25);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 10px;
+      color: var(--muted);
+      margin: 8px 0 0;
+    }
+    .unavailable {
+      border: 1px solid rgba(233, 182, 92, .65);
+      border-radius: 4px;
+      background: #1c1a14;
+      padding: 18px;
+    }
+
+    /* AC-V2 visual parity: V1-derived presentation only. V2 model/actions remain the authority. */
     :root {
       --bg: #06111a;
       --bg2: #0a1824;
@@ -2612,22 +1207,25 @@
       --max: 1480px;
     }
 
-    * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     body {
-      margin: 0;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: var(--text);
       background:
         radial-gradient(circle at 10% 10%, rgba(24,242,210,0.06), transparent 0 22%),
         radial-gradient(circle at 90% 0%, rgba(67,199,255,0.09), transparent 0 26%),
         linear-gradient(180deg, #051018 0%, #07141e 40%, #091923 100%);
       min-height: 100vh;
     }
-
     a { color: inherit; text-decoration: none; }
-    .shell { width: min(calc(100% - 28px), var(--max)); margin: 0 auto; }
-
+    main.main {
+      width: auto;
+      margin: 0;
+      padding: 22px 0 34px;
+    }
+    .shell {
+      width: min(calc(100% - 28px), var(--max));
+      margin: 0 auto;
+    }
     .topbar {
       position: sticky;
       top: 0;
@@ -2636,7 +1234,6 @@
       background: rgba(5, 16, 24, 0.74);
       border-bottom: 1px solid rgba(126,184,226,0.1);
     }
-
     .topbar-inner {
       display: flex;
       align-items: center;
@@ -2644,14 +1241,12 @@
       gap: 18px;
       padding: 14px 0;
     }
-
     .brand {
       display: flex;
       align-items: center;
       gap: 14px;
       min-width: 0;
     }
-
     .brand-mark {
       width: 44px;
       height: 44px;
@@ -2663,11 +1258,9 @@
       box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 24px rgba(0,0,0,0.26);
       font-size: 1.2rem;
     }
-
     .brand-copy { min-width: 0; }
     .brand-title { font-weight: 800; letter-spacing: 0.02em; }
     .brand-sub { color: var(--muted); font-size: 0.86rem; margin-top: 2px; }
-
     .top-actions {
       display: flex;
       align-items: center;
@@ -2675,8 +1268,11 @@
       flex-wrap: wrap;
       justify-content: flex-end;
     }
-
-    .chip, .btn {
+    .chip,
+    .btn,
+    .authority-pill,
+    .state-pill,
+    .leg-pill {
       border-radius: 999px;
       display: inline-flex;
       align-items: center;
@@ -2684,7 +1280,6 @@
       gap: 8px;
       white-space: nowrap;
     }
-
     .chip {
       padding: 10px 14px;
       background: rgba(126,184,226,0.07);
@@ -2693,8 +1288,8 @@
       font-size: 0.9rem;
       font-weight: 700;
     }
-
-    .btn {
+    .btn,
+    .action-button {
       border: 0;
       cursor: pointer;
       font-weight: 800;
@@ -2702,181 +1297,57 @@
       padding: 12px 18px;
       transition: 0.18s ease;
     }
-
-    .btn:hover { transform: translateY(-1px); }
+    .btn:hover,
+    .action-button:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
     .btn-primary {
       color: #041019;
       background: linear-gradient(135deg, var(--accent-2), var(--accent));
       box-shadow: 0 16px 32px rgba(67,199,255,0.18);
     }
-    .btn-secondary {
+    .btn-secondary,
+    .action-button {
       color: var(--text);
       background: rgba(126,184,226,0.08);
       border: 1px solid rgba(126,184,226,0.18);
-    }
-
-    .checkin-modal {
-      position: fixed;
-      inset: 0;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      background: rgba(3, 10, 16, 0.78);
-      z-index: 120;
-    }
-
-    .checkin-modal.is-open {
-      display: flex;
-    }
-
-    .checkin-modal__dialog {
-      width: min(100%, 560px);
-      background: var(--panel-2);
-      border: 1px solid var(--line-strong);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow);
-      padding: 22px;
-    }
-
-    .checkin-modal__head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 18px;
-    }
-
-    .checkin-modal__title {
-      margin: 0;
-      font-size: 1.2rem;
-      font-weight: 800;
-      letter-spacing: 0.02em;
-    }
-
-    .checkin-modal__close {
-      appearance: none;
-      border: 0;
-      background: transparent;
-      color: var(--muted);
-      cursor: pointer;
-      font-size: 1.5rem;
-      line-height: 1;
-      padding: 0;
-    }
-
-    .checkin-modal__section {
-      display: grid;
-      gap: 12px;
-    }
-
-    .checkin-modal__label {
-      font-size: 0.82rem;
-      font-weight: 800;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    .checkin-modal__status-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-
-    .checkin-modal__status {
-      appearance: none;
-      border: 1px solid rgba(126,184,226,0.18);
-      background: rgba(126,184,226,0.07);
-      color: var(--text);
       border-radius: 999px;
-      cursor: pointer;
-      font-size: 0.92rem;
-      font-weight: 700;
-      padding: 11px 16px;
-      transition: 0.18s ease;
+      min-height: auto;
+      text-align: center;
     }
-
-    .checkin-modal__status.is-selected {
-      color: #041019;
-      background: linear-gradient(135deg, var(--accent-2), var(--accent));
-      border-color: transparent;
-      box-shadow: 0 16px 32px rgba(67,199,255,0.18);
-    }
-
-    .checkin-modal__note-toggle {
-      appearance: none;
-      border: 0;
-      background: transparent;
-      color: var(--accent-2);
-      cursor: pointer;
-      font-size: 0.95rem;
-      font-weight: 700;
-      padding: 0;
-      text-align: left;
-    }
-
-    .checkin-modal__option {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 18px;
-      color: var(--text);
-      font-size: 0.95rem;
-      font-weight: 700;
-    }
-
-    .checkin-modal__option input {
-      width: 18px;
-      height: 18px;
-      accent-color: var(--accent-2);
-      margin: 0;
-    }
-
-    .checkin-modal__note {
-      display: none;
-      margin-top: 18px;
-    }
-
-    .checkin-modal__note.is-open {
-      display: grid;
-      gap: 10px;
-    }
-
-    .checkin-modal__textarea {
-      width: 100%;
-      min-height: 116px;
-      resize: vertical;
-      border-radius: var(--radius-md);
-      border: 1px solid rgba(126,184,226,0.18);
-      background: rgba(126,184,226,0.06);
-      color: var(--text);
-      font: inherit;
-      line-height: 1.5;
-      padding: 14px 16px;
-    }
-
-    .checkin-modal__textarea::placeholder {
+    .action-button:disabled {
+      background: rgba(126,184,226,0.05);
       color: var(--soft);
+      cursor: not-allowed;
+      opacity: .72;
     }
-
-    .checkin-modal__actions {
-      display: flex;
-      justify-content: flex-end;
-      margin-top: 22px;
-    }
-
-    .main {
-      padding: 22px 0 34px;
-    }
-
-    .hero {
+    .page-top { display: none; }
+    .layout,
+    .supporting-grid,
+    .content-grid {
       display: grid;
       grid-template-columns: 1.2fr 0.8fr;
       gap: 18px;
       margin-bottom: 18px;
     }
-
+    .left-stack,
+    .right-stack,
+    .supporting-stack,
+    .stack {
+      display: grid;
+      gap: 18px;
+    }
+    .identity-strip {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .identity-cell,
+    .metric,
+    .section,
+    .timeline,
+    .warning-panel,
     .panel {
       background: var(--panel);
       border: 1px solid var(--line);
@@ -2884,8 +1355,359 @@
       box-shadow: var(--shadow);
       backdrop-filter: blur(16px);
     }
-
+    .identity-cell,
+    .metric {
+      background: rgba(126,184,226,0.05);
+      border: 1px solid rgba(126,184,226,0.12);
+      border-radius: 18px;
+      padding: 16px;
+      min-height: 96px;
+    }
+    .identity-label,
+    .metric-label,
+    .field-label,
+    .panel-subhead {
+      display: block;
+      color: var(--soft);
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 8px;
+      font-weight: 800;
+    }
+    .identity-value,
+    .metric-value,
+    .field-value {
+      color: var(--text);
+      font-weight: 800;
+      line-height: 1.12;
+      letter-spacing: -0.03em;
+    }
+    .identity-value,
+    .metric-value {
+      font-size: 1.35rem;
+      margin-top: 0;
+    }
+    .metric-note {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.45;
+      display: block;
+      margin-top: 6px;
+    }
+    .hero {
+      display: block;
+      padding: 26px 26px 24px;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 0;
+      background:
+        radial-gradient(circle at 0% 0%, rgba(67,199,255,0.08), transparent 0 24%),
+        linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01));
+    }
     .hero-main {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 18px;
+    }
+    .status-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .state-pill {
+      min-width: 170px;
+      padding: 14px 18px;
+      border-radius: 18px;
+      background: rgba(125,242,183,0.08);
+      border: 1px solid rgba(125,242,183,0.18);
+      color: var(--good);
+      text-align: center;
+      font-size: 0.8rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .state-pill.is-scheduled,
+    .state-pill.is-paused {
+      background: rgba(255,198,97,0.08);
+      border-color: rgba(255,198,97,0.18);
+      color: var(--warn);
+    }
+    .state-pill.is-alert {
+      background: rgba(255,127,127,0.08);
+      border-color: rgba(255,127,127,0.18);
+      color: var(--alert);
+    }
+    .authority-pill,
+    .leg-pill {
+      padding: 9px 12px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 800;
+      white-space: nowrap;
+      background: rgba(67,199,255,0.1);
+      color: var(--accent);
+      border: 1px solid rgba(67,199,255,0.18);
+    }
+    .pace-header-label {
+      color: var(--accent);
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .hero-title,
+    h1 {
+      margin: 14px 0 0;
+      font-size: clamp(2rem, 4vw, 3.5rem);
+      line-height: 0.96;
+      letter-spacing: -0.045em;
+    }
+    .hero-main h1 {
+      font-size: clamp(1rem, 2vw, 1.75rem);
+      line-height: 1.08;
+    }
+    .hero-subtitle,
+    .subline,
+    .section-top p,
+    p {
+      color: var(--muted);
+      font-size: 1.05rem;
+      line-height: 1.65;
+      margin-top: 14px;
+    }
+    .hero-grid,
+    .header-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+      margin-bottom: 0;
+    }
+    .section,
+    .timeline,
+    .warning-panel,
+    .section-card {
+      padding: 22px;
+      border-radius: var(--radius-xl);
+    }
+    .section-header,
+    .section-top,
+    .timeline-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 18px;
+      padding: 0;
+      border-bottom: 0;
+    }
+    h2,
+    .section-header h2,
+    .section-top h2 {
+      margin: 0;
+      color: var(--text);
+      font-size: 1.28rem;
+      letter-spacing: -0.03em;
+      text-transform: none;
+    }
+    h3 {
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+    .field-grid,
+    .data-grid,
+    .timing-summary-grid,
+    .timing-form-grid,
+    .map-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .map-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .field,
+    .data-item,
+    .timing-control,
+    .contact-item,
+    .log-item,
+    .panel-note,
+    .action-row,
+    .detail-row {
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(126,184,226,0.08);
+    }
+    .field {
+      border-top: 1px solid rgba(126,184,226,0.08);
+    }
+    .detail-row {
+      display: grid;
+      grid-template-columns: minmax(140px, .38fr) minmax(0, 1fr);
+      gap: 12px;
+      border-top: 1px solid rgba(126,184,226,0.08);
+    }
+    .progress-track,
+    .bar-shell {
+      width: 100%;
+      height: 14px;
+      border-radius: 999px;
+      background: rgba(126,184,226,0.1);
+      overflow: hidden;
+      border: 1px solid rgba(126,184,226,0.12);
+      margin: 14px 0;
+    }
+    .progress-fill,
+    .bar-fill {
+      height: 100%;
+      width: var(--progress-width, 0%);
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent-2), var(--accent));
+      box-shadow: 0 0 18px rgba(67,199,255,0.22);
+    }
+    .map-canvas,
+    .active-cruise-map-canvas {
+      position: relative;
+      min-height: 420px;
+      height: clamp(360px, 42vw, 520px);
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(208, 221, 233, 0.24);
+      background: rgba(126,184,226,0.04);
+    }
+    .map-leaflet-canvas { height: clamp(360px, 42vw, 520px); }
+    .weather-lookup-layout {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 14px;
+      justify-content: space-between;
+    }
+    .weather-lookup-form {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    .weather-choice-row,
+    .timing-inline {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .weather-choice input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent-2);
+      margin: 0;
+    }
+    .timing-input,
+    .checkin-note-input {
+      border-radius: 10px;
+      border: 1px solid rgba(126,184,226,0.18);
+      background: rgba(8,18,28,0.82);
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+    }
+    .checkin-note-input {
+      min-height: 96px;
+      border-radius: var(--radius-md);
+      line-height: 1.5;
+      margin-top: 8px;
+    }
+    .captain-actions,
+    .contact-list,
+    .quick-actions,
+    .log-list,
+    .detail-list {
+      display: grid;
+      gap: 12px;
+    }
+    .action-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 8px;
+    }
+    .quick-actions .action-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .action-mini {
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: var(--accent);
+      background: rgba(67,199,255,0.08);
+      border: 1px solid rgba(67,199,255,0.16);
+      white-space: nowrap;
+    }
+    .timeline-body {
+      overflow-x: auto;
+      border-radius: 20px;
+      background: rgba(126,184,226,0.05);
+      border: 1px solid rgba(126,184,226,0.12);
+    }
+    th,
+    td {
+      border-bottom: 1px solid rgba(126,184,226,0.1);
+      padding: 12px 14px;
+    }
+    th {
+      color: var(--soft);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+    }
+    .timeline-row-current td {
+      background: rgba(67,199,255,0.08);
+      border-color: rgba(67,199,255,0.38);
+    }
+    .timeline-row-completed td {
+      color: var(--muted);
+    }
+    .warning-panel {
+      border-color: rgba(255,198,97,0.18);
+      background: rgba(255,198,97,0.06);
+    }
+    .warning-item {
+      border-color: rgba(255,198,97,0.18);
+      border-radius: 16px;
+      background: rgba(255,255,255,0.025);
+      padding: 14px;
+    }
+    .v2-placeholder-note {
+      display: none;
+    }
+    /* AC-V2 visual best fix: structural classes copied from V1 presentation only. */
+    .hero {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 18px;
+      margin-bottom: 18px;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      backdrop-filter: none;
+      overflow: visible;
+    }
+    .hero > .stack:first-child,
+    .hero > .stack:last-child {
+      align-self: start;
+    }
+    .hero-main {
+      display: block;
       padding: 26px 26px 24px;
       position: relative;
       overflow: hidden;
@@ -2893,7 +1715,6 @@
         radial-gradient(circle at 0% 0%, rgba(67,199,255,0.08), transparent 0 24%),
         linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01));
     }
-
     .eyebrow {
       display: inline-flex;
       align-items: center;
@@ -2909,7 +1730,6 @@
       border: 1px solid rgba(125,242,183,0.16);
       margin-bottom: 18px;
     }
-
     .title-row {
       display: flex;
       justify-content: space-between;
@@ -2917,22 +1737,6 @@
       gap: 18px;
       margin-bottom: 18px;
     }
-
-    h1 {
-      margin: 0;
-      font-size: clamp(2rem, 4vw, 3.5rem);
-      line-height: 0.96;
-      letter-spacing: -0.045em;
-    }
-
-    .subline {
-      color: var(--muted);
-      font-size: 1.05rem;
-      line-height: 1.65;
-      margin-top: 14px;
-      max-width: 58ch;
-    }
-
     .status-pill {
       padding: 14px 18px;
       border-radius: 18px;
@@ -2941,7 +1745,6 @@
       min-width: 170px;
       text-align: center;
     }
-
     .status-pill b {
       display: block;
       color: var(--good);
@@ -2950,33 +1753,29 @@
       text-transform: uppercase;
       margin-bottom: 6px;
     }
-
     .status-pill strong {
       display: block;
-      font-size: 1.22rem;
-      letter-spacing: -0.03em;
+      font-size: 0.95rem;
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: 0;
     }
-
     .status-pill.status-pill--warning {
       background: rgba(255,198,97,0.08);
       border-color: rgba(255,198,97,0.18);
     }
-
     .status-pill.status-pill--warning b,
     .status-pill.status-pill--warning strong {
       color: var(--warn);
     }
-
     .status-pill.status-pill--danger {
       background: rgba(255,127,127,0.08);
       border-color: rgba(255,127,127,0.18);
     }
-
     .status-pill.status-pill--danger b,
     .status-pill.status-pill--danger strong {
       color: var(--alert);
     }
-
     .header-stats {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -2984,16 +1783,8 @@
       margin-top: 18px;
       margin-bottom: 18px;
     }
-
-    .metric {
-      background: rgba(126,184,226,0.05);
-      border: 1px solid rgba(126,184,226,0.12);
-      border-radius: 18px;
-      padding: 16px;
-      min-height: 96px;
-    }
-
-    .metric span {
+    .metric span,
+    .data-item span {
       display: block;
       color: var(--soft);
       font-size: 0.78rem;
@@ -3002,7 +1793,6 @@
       margin-bottom: 10px;
       font-weight: 800;
     }
-
     .metric strong {
       display: block;
       font-size: 1.5rem;
@@ -3010,41 +1800,64 @@
       margin-bottom: 6px;
       line-height: 1;
     }
-
-    .metric small {
+    .metric small,
+    .data-item small {
       color: var(--muted);
       font-size: 0.88rem;
       line-height: 1.45;
       display: block;
+      margin-top: 6px;
     }
-
-    .hero-side {
-      padding: 18px;
-      display: grid;
-      gap: 16px;
-      align-self: start;
-      background:
-        linear-gradient(180deg, rgba(255,255,255,0.022), rgba(255,255,255,0.01)),
-        radial-gradient(circle at 90% 0%, rgba(24,242,210,0.08), transparent 0 28%);
+    .data-item span {
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
     }
-
+    .data-item strong {
+      font-size: 0.95rem;
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+    .header-stats .metric span {
+      font-size: 0.80rem;
+      margin-bottom: 6px;
+    }
+    .header-stats .metric strong {
+      font-size: 0.80rem;
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: 0;
+      margin-bottom: 0;
+    }
+    .header-stats .metric small {
+      font-size: 0.80rem;
+      line-height: 1.35;
+      margin-top: 4px;
+    }
     .mini-panel {
       border-radius: 22px;
       background: rgba(126,184,226,0.05);
       border: 1px solid rgba(126,184,226,0.12);
       padding: 18px;
     }
-
     .mini-panel--route-progress-flat {
       border: 0;
       border-radius: 0;
       background: transparent;
+      padding-top: 5px;
+      padding-bottom: 5px;
     }
-
-    .floatplan-box > .mini-panel {
-      margin-bottom: 12px;
+    .mini-panel--route-progress-flat .mini-head h3,
+    .mini-panel--route-progress-flat .mini-head span {
+      font-size: 0.80rem;
     }
-
+    .hero > .stack + .stack > .panel.section-card:first-child > .floatplan-box {
+      background: transparent;
+      border: 0;
+      padding: 0;
+    }
     .mini-head {
       display: flex;
       justify-content: space-between;
@@ -3052,13 +1865,11 @@
       gap: 10px;
       margin-bottom: 12px;
     }
-
     .mini-head h3 {
       margin: 0;
       font-size: 1rem;
       letter-spacing: -0.02em;
     }
-
     .mini-head span {
       color: var(--soft);
       font-size: 0.78rem;
@@ -3066,12 +1877,10 @@
       letter-spacing: 0.12em;
       font-weight: 800;
     }
-
     .active-cruise-map-panel {
       margin-bottom: 18px;
       overflow: hidden;
     }
-
     .active-cruise-map-head {
       display: flex;
       align-items: flex-start;
@@ -3079,139 +1888,104 @@
       gap: 14px;
       margin-bottom: 12px;
     }
-
     .active-cruise-map-copy h3 {
       margin: 0;
       font-size: 1rem;
       letter-spacing: -0.02em;
     }
-
     .active-cruise-map-copy p {
       margin: 4px 0 0;
       color: var(--muted);
       font-size: 0.92rem;
       line-height: 1.45;
     }
-
     .active-cruise-map-wrap {
       position: relative;
     }
-
-    .active-cruise-map-canvas {
+    .active-cruise-map-canvas,
+    .map-canvas {
       position: relative;
       height: 420px;
+      min-height: 420px;
       border-radius: 18px;
       overflow: hidden;
       border: 1px solid rgba(208, 221, 233, 0.24);
       background: rgba(126,184,226,0.04);
     }
-
-    #fpwActiveCruiseMap .radar-opacity-control {
-      background: rgba(255, 255, 255, 0.92);
-      padding: 0.35rem 0.5rem;
-      border-radius: 0.5rem;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      font-size: 0.7rem;
-      min-width: 140px;
-    }
-
-    #fpwActiveCruiseMap .radar-opacity-control label {
-      display: block;
-      font-weight: 600;
-      margin-bottom: 0.25rem;
-      color: #1b1b1b;
-    }
-
-    #fpwActiveCruiseMap .radar-opacity-control input[type="range"] {
-      width: 100%;
-    }
-
-    #fpwActiveCruiseMap .radar-opacity-control.is-disabled {
-      opacity: 0.5;
-      pointer-events: none;
-    }
-
-    .follow-pin {
-      display: inline-flex;
+    .ac-v2-map-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1200;
+      display: none;
       align-items: center;
       justify-content: center;
-      width: 17px;
-      height: 17px;
-      border-radius: 50%;
-      border: 2px solid #fff;
-      color: #fff;
-      font-size: 10px;
-      font-weight: 600;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+      padding: 20px;
+      background: rgba(1, 10, 16, 0.78);
+      backdrop-filter: blur(10px);
     }
-
-    .follow-pin.start {
-      background: #22c55e;
+    .ac-v2-map-modal.is-open {
+      display: flex;
     }
-
-    .follow-pin.end {
-      background: #2563eb;
+    .ac-v2-map-modal[hidden] {
+      display: none;
     }
-
-    .follow-pin.intermediate {
-      background: #64748b;
-      width: 17px;
-      height: 17px;
-    }
-
-    .follow-boat-marker {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 17px;
-      height: 17px;
-      border-radius: 50%;
-      background: #0ea5e9;
-      border: 3px solid #fff;
-      color: #fff;
-      font-size: 11px;
-      font-weight: 600;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.35);
-    }
-
-    .weather-grid {
+    .ac-v2-map-modal-dialog {
+      width: min(100%, 1480px);
+      max-height: calc(100vh - 40px);
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 12px;
+      padding: 16px;
+      border: 1px solid rgba(126,184,226,0.22);
+      border-radius: 20px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+    .ac-v2-map-modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       gap: 12px;
     }
-
-    .wx {
-      border-radius: 16px;
-      padding: 14px;
-      background: rgba(255,255,255,0.02);
-      border: 1px solid rgba(126,184,226,0.08);
+    .ac-v2-map-modal-title {
+      margin: 0;
+      color: var(--text);
+      font-size: 1rem;
+      letter-spacing: -0.02em;
     }
-
-    .wx strong { display: block; font-size: 1.25rem; margin-bottom: 4px; }
-    .wx span { color: var(--muted); font-size: 0.86rem; }
-
+    .ac-v2-map-modal-close {
+      min-width: 40px;
+      min-height: 40px;
+      border: 1px solid rgba(126,184,226,0.24);
+      border-radius: 999px;
+      background: rgba(126,184,226,0.08);
+      color: var(--text);
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .ac-v2-map-modal-close:hover {
+      border-color: rgba(67,199,255,0.7);
+    }
+    .ac-v2-map-modal-body {
+      position: relative;
+      min-height: min(78vh, 760px);
+      border: 1px solid rgba(208, 221, 233, 0.24);
+      border-radius: 16px;
+      overflow: hidden;
+      background: rgba(126,184,226,0.04);
+    }
+    .ac-v2-map-modal-canvas {
+      position: absolute;
+      inset: 0;
+    }
+    body.ac-v2-map-modal-open {
+      overflow: hidden;
+    }
     .progress-block {
       display: grid;
       gap: 12px;
     }
-
-    .bar-shell {
-      width: 100%;
-      height: 14px;
-      border-radius: 999px;
-      background: rgba(126,184,226,0.1);
-      overflow: hidden;
-      border: 1px solid rgba(126,184,226,0.12);
-    }
-
-    .bar-fill {
-      height: 100%;
-      width: 56%;
-      border-radius: 999px;
-      background: linear-gradient(90deg, var(--accent-2), var(--accent));
-      box-shadow: 0 0 18px rgba(67,199,255,0.22);
-    }
-
     .route-leg-estimate {
       margin-top: 12px;
       padding: 16px;
@@ -3221,107 +1995,96 @@
       display: grid;
       gap: 14px;
     }
-
     .route-leg-estimate-head {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
       gap: 12px;
     }
-
     .route-leg-estimate-title {
       margin: 0;
-      font-size: 1.02rem;
+      font-size: 0.80rem;
       line-height: 1.2;
       letter-spacing: 0;
     }
-
     .route-leg-estimate-state {
       color: var(--accent);
-      font-size: 0.9rem;
+      font-size: 0.80rem;
       font-weight: 800;
       white-space: nowrap;
     }
-
     .route-leg-estimate-copy {
       margin: 0;
       color: var(--soft);
       line-height: 1.45;
-      font-size: 0.92rem;
+      font-size: 0.80rem;
     }
-
     .route-leg-estimate-metrics {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       border-top: 1px solid rgba(126,184,226,0.14);
       border-bottom: 1px solid rgba(126,184,226,0.14);
     }
-
     .route-leg-estimate-metric {
       min-width: 0;
       padding: 12px 14px;
     }
-
     .route-leg-estimate-metric:first-child { padding-left: 0; }
     .route-leg-estimate-metric + .route-leg-estimate-metric { border-left: 1px solid rgba(126,184,226,0.16); }
-
     .route-leg-estimate-metric span {
       display: block;
       color: var(--muted);
-      font-size: 0.78rem;
-      font-weight: 700;
+      font-size: 0.80rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
       margin-bottom: 6px;
+      text-transform: uppercase;
     }
-
     .route-leg-estimate-metric strong {
       display: block;
       color: var(--text);
-      font-size: clamp(1.28rem, 2vw, 1.72rem);
-      line-height: 1.1;
+      font-size: 0.80rem;
+      font-weight: 800;
+      line-height: 1.2;
       letter-spacing: 0;
       overflow-wrap: anywhere;
     }
-
+    @media (max-width: 1040px) {
+      .route-leg-estimate-metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 680px) {
+      .route-leg-estimate-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
     .route-leg-estimate-progress {
       display: grid;
       gap: 8px;
     }
-
     .route-leg-estimate-progress-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
       color: var(--muted);
-      font-size: 0.86rem;
+      font-size: 0.80rem;
       font-weight: 700;
     }
-
-    .route-leg-estimate-progress-row .bar-shell {
-      height: 12px;
-      border-radius: 8px;
-      background: rgba(126,184,226,0.09);
-    }
-
-    .route-leg-estimate-progress-row .bar-fill {
-      border-radius: 8px;
-    }
-
     .route-leg-estimate-foot {
       border-top: 1px solid rgba(126,184,226,0.14);
       padding-top: 12px;
       color: var(--soft);
-      font-size: 0.88rem;
+      font-size: 0.80rem;
       line-height: 1.45;
     }
-
     .route-leg-estimate-foot small {
       display: block;
       margin-top: 4px;
       color: var(--muted);
-      font-size: 0.82rem;
+      font-size: 0.80rem;
     }
-
     .split {
       display: flex;
       justify-content: space-between;
@@ -3329,774 +2092,17 @@
       color: var(--muted);
       font-size: 0.92rem;
     }
-
-    .content-grid {
-      display: grid;
-      grid-template-columns: 1.2fr 0.8fr;
-      gap: 18px;
-      margin-bottom: 18px;
-    }
-
-    .stack { display: grid; gap: 18px; }
-
-    .hero > .stack:first-child,
-    .hero > .stack:last-child {
-      align-self: start;
-    }
-
-    .section-card {
-      padding: 22px;
-    }
-
-    .section-top {
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      align-items: flex-start;
-      margin-bottom: 18px;
-    }
-
-    .section-top h2 {
-      margin: 0;
-      font-size: 1.28rem;
-      letter-spacing: -0.03em;
-    }
-
-    .section-top p {
-      margin: 8px 0 0;
-      color: var(--muted);
-      line-height: 1.6;
-      font-size: 0.95rem;
-      max-width: 68ch;
-    }
-
-    .badge {
-      padding: 9px 12px;
-      border-radius: 999px;
-      font-size: 0.78rem;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      font-weight: 800;
-      white-space: nowrap;
-      border: 1px solid transparent;
-    }
-
-    .badge-accent { background: rgba(67,199,255,0.1); color: var(--accent); border-color: rgba(67,199,255,0.18); }
-    .badge-good { background: rgba(125,242,183,0.1); color: var(--good); border-color: rgba(125,242,183,0.18); }
-    .badge-warn { background: rgba(255,198,97,0.1); color: var(--warn); border-color: rgba(255,198,97,0.18); }
-
-    .leg-grid {
-      display: grid;
-      grid-template-columns: 1.15fr 0.85fr;
-      gap: 16px;
-    }
-
-    .route-box,
-    .detail-box,
-    .list-box,
-    .action-box,
-    .log-box,
-    .timeline-box,
-    .contacts-box,
-    .floatplan-box {
-      border-radius: 20px;
-      background: rgba(126,184,226,0.05);
-      border: 1px solid rgba(126,184,226,0.12);
-      padding: 18px;
-    }
-
-    .route-path {
-      display: grid;
-      gap: 16px;
-      margin-top: 10px;
-    }
-
-    .route-stop {
-      display: grid;
-      grid-template-columns: 18px 1fr auto;
-      gap: 14px;
-      align-items: center;
-    }
-
-    .dot {
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      position: relative;
-      border: 2px solid var(--accent);
-      box-shadow: 0 0 0 5px rgba(67,199,255,0.08);
-    }
-
-    .dot.done { border-color: var(--good); }
-    .dot.current { border-color: var(--accent-3); }
-    .dot.future { border-color: rgba(126,184,226,0.4); box-shadow: none; }
-
-    .route-stop b { display: block; font-size: 0.96rem; }
-    .route-stop span { display: block; color: var(--muted); font-size: 0.88rem; margin-top: 2px; }
-    .route-stop small { color: var(--soft); font-size: 0.86rem; }
-
-    .route-plan-box {
-      display: flex;
-      flex-direction: column;
-      min-height: 560px;
-      max-height: 560px;
-    }
-
-    .route-plan-departure,
-    .route-plan-final,
-    .route-plan-leg {
-      border-radius: 16px;
-      border: 1px solid rgba(126,184,226,0.11);
-      background: rgba(255,255,255,0.025);
-    }
-
-    .route-plan-departure,
-    .route-plan-final {
-      padding: 14px;
-    }
-
-    .route-plan-kicker,
-    .route-plan-leg-kicker {
-      color: var(--soft);
-      font-size: 0.72rem;
-      font-weight: 800;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-
-    .route-plan-departure strong,
-    .route-plan-final strong {
-      display: block;
-      margin-top: 6px;
-      font-size: 1rem;
-      line-height: 1.25;
-    }
-
-    .route-plan-departure span,
-    .route-plan-final span {
-      display: block;
-      margin-top: 4px;
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-
-    .route-plan-toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin: 12px 0;
-    }
-
-    .route-plan-preview-note {
-      color: var(--muted);
-      font-size: 0.82rem;
-      line-height: 1.4;
-      margin: 0;
-    }
-
-    .route-plan-scroll {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      flex: 1 1 auto;
-      overflow-y: auto;
-      min-height: 0;
-      padding-right: 4px;
-    }
-
-    .route-plan-scroll > * {
-      flex: 0 0 auto;
-    }
-
-    .route-plan-leg {
-      overflow: hidden;
-    }
-
-    .route-plan-leg--current {
-      border-color: rgba(67,199,255,0.38);
-      background: rgba(67,199,255,0.08);
-      box-shadow: 0 0 0 1px rgba(67,199,255,0.08);
-    }
-
-    .route-plan-leg--next {
-      border-color: rgba(125,242,183,0.26);
-      background: rgba(125,242,183,0.06);
-    }
-
-    .route-plan-leg--completed {
-      border-color: rgba(125,242,183,0.18);
-    }
-
-    .route-plan-leg-button {
-      width: 100%;
-      border: 0;
-      background: transparent;
-      color: inherit;
-      padding: 14px;
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      gap: 12px;
-      align-items: center;
-      text-align: left;
-      cursor: pointer;
-    }
-
-    .route-plan-leg-dot {
-      width: 16px;
-      height: 16px;
-      border-radius: 999px;
-      border: 2px solid rgba(126,184,226,0.4);
-      box-shadow: none;
-    }
-
-    .route-plan-leg--completed .route-plan-leg-dot {
-      border-color: var(--good);
-      box-shadow: 0 0 0 5px rgba(125,242,183,0.08);
-    }
-
-    .route-plan-leg--current .route-plan-leg-dot {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 5px rgba(67,199,255,0.1);
-    }
-
-    .route-plan-leg--next .route-plan-leg-dot {
-      border-color: var(--accent-3);
-      box-shadow: 0 0 0 5px rgba(125,242,183,0.08);
-    }
-
-    .route-plan-leg-title {
-      display: block;
-      font-size: 0.98rem;
-      font-weight: 800;
-      line-height: 1.25;
-    }
-
-    .route-plan-leg-meta {
-      display: block;
-      color: var(--muted);
-      font-size: 0.84rem;
-      margin-top: 3px;
-    }
-
-    .route-plan-leg-side {
-      display: grid;
-      justify-items: end;
-      gap: 4px;
-      color: var(--soft);
-      font-size: 0.82rem;
-      white-space: nowrap;
-    }
-
-    .route-plan-leg-chevron {
-      color: var(--accent);
-      font-weight: 900;
-    }
-
-    .route-plan-leg-button[aria-expanded="true"] .route-plan-leg-chevron {
-      transform: rotate(180deg);
-    }
-
-    .route-plan-leg-detail {
-      border-top: 1px solid rgba(126,184,226,0.1);
-      padding: 12px 14px 14px 42px;
-    }
-
-    .route-plan-leg-detail[hidden] {
-      display: none;
-    }
-
-    .route-plan-detail-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .route-plan-detail-grid div {
-      border-radius: 12px;
-      background: rgba(255,255,255,0.025);
-      border: 1px solid rgba(126,184,226,0.08);
-      padding: 10px;
-    }
-
-    .route-plan-detail-grid span {
-      display: block;
-      color: var(--soft);
-      font-size: 0.68rem;
-      font-weight: 800;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      margin-bottom: 5px;
-    }
-
-    .route-plan-detail-grid strong {
-      display: block;
-      font-size: 0.92rem;
-      line-height: 1.25;
-    }
-
-    .route-plan-detail-grid small {
-      display: block;
-      margin-top: 6px;
-      color: var(--muted);
-      font-size: 0.78rem;
-      font-weight: 600;
-      line-height: 1.25;
-    }
-
-    .route-plan-progress-footer {
-      margin-top: 16px;
-      padding: 16px;
-      border-radius: 18px;
-      border: 1px solid rgba(126,184,226,0.12);
-      background: rgba(126,184,226,0.04);
-    }
-
-    .route-plan-progress-footer--flat {
-      margin-top: 14px;
-      padding: 0;
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-    }
-
-    .route-plan-progress-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-
-    .route-plan-progress-grid span {
-      display: block;
-      color: var(--soft);
-      font-size: 0.68rem;
-      font-weight: 800;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      margin-bottom: 5px;
-    }
-
-    .route-plan-progress-grid strong {
-      display: block;
-      font-size: 0.98rem;
-    }
-
-    .route-plan-progress-bar {
-      height: 9px;
-      overflow: hidden;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(126,184,226,0.12);
-    }
-
-    .route-plan-progress-bar span {
-      display: block;
-      height: 100%;
-      border-radius: 999px;
-      background: linear-gradient(90deg, var(--accent), var(--accent-3));
-    }
-
-    .data-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .data-item {
-      padding: 14px;
-      border-radius: 16px;
-      background: rgba(255,255,255,0.02);
-      border: 1px solid rgba(126,184,226,0.08);
-    }
-
-    .data-item span {
-      display: block;
-      color: var(--soft);
-      font-size: 0.76rem;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      margin-bottom: 8px;
-      font-weight: 800;
-    }
-
-    .data-item strong {
-      display: block;
-      font-size: 1.2rem;
-      letter-spacing: -0.03em;
-      line-height: 1.1;
-    }
-
-    .data-item small {
-      display: block;
-      color: var(--muted);
-      font-size: 0.86rem;
-      margin-top: 6px;
-      line-height: 1.45;
-    }
-
-    .timeline {
-      display: grid;
-      gap: 14px;
-    }
-
-    .timeline-row {
-      display: grid;
-      grid-template-columns: 84px 18px 1fr;
-      gap: 14px;
-      align-items: start;
-    }
-
-    .timeline-time {
-      color: var(--soft);
-      font-size: 0.86rem;
-      font-weight: 700;
-      padding-top: 2px;
-    }
-
-    .timeline-node {
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      border: 2px solid var(--accent);
-      position: relative;
-      margin-top: 1px;
-    }
-
-    .timeline-node::after {
-      content: "";
-      position: absolute;
-      left: 6px;
-      top: 18px;
-      width: 2px;
-      height: 34px;
-      background: rgba(126,184,226,0.18);
-    }
-
-    .timeline-row:last-child .timeline-node::after { display: none; }
-
-    .timeline-copy b {
-      display: block;
-      font-size: 0.95rem;
-      margin-bottom: 4px;
-    }
-
-    .timeline-copy span {
-      display: block;
-      color: var(--muted);
-      line-height: 1.55;
-      font-size: 0.9rem;
-    }
-
-    .contact-list,
-    .quick-actions,
-    .log-list {
-      display: grid;
-      gap: 12px;
-    }
-
-    .contact-row,
-    .action-row,
-    .log-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 14px 16px;
-      border-radius: 16px;
-      background: rgba(255,255,255,0.02);
-      border: 1px solid rgba(126,184,226,0.08);
-    }
-
-    .contact-row b,
-    .action-row b,
-    .log-row b { display: block; font-size: 0.95rem; }
-    .contact-row span,
-    .action-row span,
-    .log-row span { color: var(--muted); font-size: 0.88rem; display: block; margin-top: 4px; }
-
-    .action-mini {
-      padding: 8px 12px;
-      border-radius: 999px;
-      font-size: 0.8rem;
-      font-weight: 800;
-      color: var(--accent);
-      background: rgba(67,199,255,0.08);
-      border: 1px solid rgba(67,199,255,0.16);
-      white-space: nowrap;
-    }
-
-    .captain-note-form {
-      display: grid;
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-
-    .captain-note-label {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      color: var(--text);
-      font-weight: 800;
-      font-size: 0.95rem;
-    }
-
-    .captain-note-label span {
-      color: var(--soft);
-      font-size: 0.72rem;
-      font-weight: 800;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-
-    .captain-note-textarea {
-      width: 100%;
-      min-height: 96px;
-      resize: vertical;
-      border-radius: 10px;
-      border: 1px solid rgba(126,184,226,0.16);
-      background: rgba(255,255,255,0.025);
-      color: var(--text);
-      padding: 12px 14px;
-      font: inherit;
-      line-height: 1.45;
-    }
-
-    .captain-note-textarea:focus {
-      outline: none;
-      border-color: rgba(67,199,255,0.55);
-      box-shadow: 0 0 0 2px rgba(67,199,255,0.1);
-    }
-
-    .captain-note-tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .captain-note-tag {
-      border: 1px solid rgba(67,199,255,0.16);
-      border-radius: 8px;
-      background: rgba(67,199,255,0.06);
-      color: var(--accent);
-      padding: 8px 10px;
-      font: inherit;
-      font-size: 0.78rem;
-      font-weight: 800;
-      cursor: pointer;
-    }
-
-    .captain-note-tag.is-selected {
-      border-color: rgba(67,199,255,0.5);
-      background: rgba(67,199,255,0.16);
-      color: var(--text);
-    }
-
-    .captain-note-post-option {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 10px;
-      align-items: start;
-      border: 1px solid rgba(126,184,226,0.12);
-      border-radius: 10px;
-      padding: 12px;
-      background: rgba(255,255,255,0.02);
-      color: var(--text);
-      cursor: pointer;
-    }
-
-    .captain-note-post-option input {
-      margin-top: 4px;
-    }
-
-    .captain-note-post-option b,
-    .captain-note-post-option span {
-      display: block;
-    }
-
-    .captain-note-post-option span {
-      color: var(--muted);
-      font-size: 0.86rem;
-      margin-top: 4px;
-    }
-
-    .captain-note-actions {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .captain-note-message {
-      color: var(--muted);
-      font-size: 0.86rem;
-      min-height: 1.2em;
-    }
-
-    .captain-note-message.is-error {
-      color: var(--alert);
-    }
-
-    .captain-note-save {
-      border: 1px solid rgba(67,199,255,0.28);
-      border-radius: 10px;
-      background: rgba(67,199,255,0.12);
-      color: var(--text);
-      padding: 10px 16px;
-      font: inherit;
-      font-weight: 900;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-
-    .captain-note-save:disabled {
-      cursor: wait;
-      opacity: 0.65;
-    }
-
-    .captain-note-entry small {
-      display: block;
-      margin-top: 6px;
-      color: var(--soft);
-      font-size: 0.78rem;
-      font-weight: 700;
-    }
-
-    .captain-note-empty {
-      color: var(--muted);
-      font-size: 0.9rem;
-      line-height: 1.45;
-    }
-
-    .active-cruise-reference-card {
-      padding: 18px;
-    }
-
-    .reference-card-header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 14px;
-    }
-
-    .reference-card-header h2 {
-      margin: 0;
-      font-size: 1.12rem;
-      letter-spacing: -0.03em;
-    }
-
-    .reference-card-header p {
-      margin: 6px 0 0;
-      color: var(--muted);
-      font-size: 0.9rem;
-      line-height: 1.45;
-    }
-
-    .reference-badge {
-      flex: 0 0 auto;
-      padding: 7px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(67,199,255,0.18);
-      background: rgba(67,199,255,0.08);
-      color: var(--accent);
-      font-size: 0.68rem;
-      font-weight: 800;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      white-space: nowrap;
-    }
-
-    .contact-reference-stack {
-      display: grid;
-      gap: 12px;
-    }
-
-    .contact-reference-panel {
-      padding: 14px;
-      border-radius: 18px;
-      border: 1px solid rgba(126,184,226,0.1);
-      background: rgba(126,184,226,0.045);
-    }
-
-    .contact-reference-panel--primary {
-      border-color: rgba(67,199,255,0.16);
-      background: rgba(67,199,255,0.055);
-    }
-
-    .contact-reference-panel--operator {
-      border-color: rgba(67,199,255,0.14);
-      background: rgba(67,199,255,0.045);
-    }
-
-    .contact-reference-panel--monitor {
-      border-color: rgba(125,242,183,0.14);
-      background: rgba(125,242,183,0.045);
-    }
-
-    .contact-reference-main {
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      min-width: 0;
-    }
-
-    .contact-reference-icon {
-      width: 34px;
-      height: 34px;
-      flex: 0 0 34px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 12px;
-      border: 1px solid rgba(126,184,226,0.18);
-      background: rgba(8,18,28,0.5);
-      color: var(--accent);
-    }
-
-    .contact-reference-content {
-      min-width: 0;
-      flex: 1 1 auto;
-    }
-
-    .contact-reference-kicker {
-      color: var(--soft);
-      font-size: 0.68rem;
-      font-weight: 800;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      margin-bottom: 5px;
-    }
-
-    .contact-reference-name {
-      color: var(--text);
-      font-size: 1rem;
-      font-weight: 800;
-      line-height: 1.2;
-      overflow-wrap: anywhere;
-    }
-
-    .contact-reference-subtext {
-      color: var(--muted);
-      font-size: 0.86rem;
-      line-height: 1.45;
-      margin-top: 4px;
-    }
-
     .contact-reference-actions {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       margin-top: 12px;
     }
-
     .contact-reference-actions--empty {
       color: var(--muted);
       font-size: 0.84rem;
       line-height: 1.4;
     }
-
     .contact-reference-action {
       display: inline-flex;
       align-items: center;
@@ -4112,18 +2118,583 @@
       font-weight: 800;
       text-decoration: none;
     }
-
     .contact-reference-action:hover {
       border-color: rgba(67,199,255,0.28);
       color: var(--accent);
     }
-
+    .leg-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 16px;
+    }
+    .route-box,
+    .detail-box,
+    .list-box,
+    .action-box,
+    .log-box,
+    .timeline-box,
+    .contacts-box,
+    .floatplan-box {
+      border-radius: 20px;
+      background: rgba(126,184,226,0.05);
+      border: 1px solid rgba(126,184,226,0.12);
+      padding: 18px;
+    }
+    .route-plan-box {
+      display: flex;
+      flex-direction: column;
+      min-height: 680px;
+      max-height: 680px;
+    }
+    .route-plan-departure,
+    .route-plan-final,
+    .route-plan-leg {
+      border-radius: 16px;
+      border: 1px solid rgba(126,184,226,0.11);
+      background: rgba(255,255,255,0.025);
+    }
+    .route-plan-departure,
+    .route-plan-final {
+      padding: 14px;
+    }
+    .route-plan-departure {
+      margin-bottom: 12px;
+    }
+    .route-plan-kicker,
+    .route-plan-leg-kicker {
+      color: var(--soft);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .route-plan-departure strong,
+    .route-plan-final strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 1rem;
+      line-height: 1.25;
+    }
+    .route-plan-departure span,
+    .route-plan-final span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .route-plan-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 12px 0;
+    }
+    .route-plan-preview-note {
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.4;
+      margin: 0;
+    }
+    .route-plan-scroll {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1 1 auto;
+      overflow-y: auto;
+      min-height: 0;
+      padding-right: 4px;
+    }
+    .route-plan-leg {
+      overflow: hidden;
+      flex: 0 0 auto;
+      cursor: pointer;
+      transition: border-color .16s ease, background .16s ease, box-shadow .16s ease;
+    }
+    .route-plan-leg--current {
+      border-color: rgba(67,199,255,0.38);
+      background: rgba(67,199,255,0.08);
+      box-shadow: 0 0 0 1px rgba(67,199,255,0.08);
+    }
+    .route-plan-leg--completed {
+      border-color: rgba(125,242,183,0.18);
+    }
+    .route-plan-leg.is-selected {
+      border-color: rgba(67,199,255,0.58);
+      background: rgba(67,199,255,0.11);
+      box-shadow: 0 0 0 1px rgba(67,199,255,0.16), 0 18px 36px rgba(0,0,0,0.18);
+    }
+    .route-plan-leg:focus-visible {
+      outline: 2px solid rgba(67,199,255,0.82);
+      outline-offset: 3px;
+    }
+    .route-plan-leg-button {
+      width: 100%;
+      color: inherit;
+      padding: 14px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 12px;
+      align-items: center;
+      text-align: left;
+    }
+    .route-plan-leg-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      border: 2px solid rgba(126,184,226,0.4);
+      box-shadow: none;
+    }
+    .route-plan-leg--completed .route-plan-leg-dot {
+      border-color: var(--good);
+      box-shadow: 0 0 0 5px rgba(125,242,183,0.08);
+    }
+    .route-plan-leg--current .route-plan-leg-dot {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 5px rgba(67,199,255,0.1);
+    }
+    .route-plan-leg.is-selected .route-plan-leg-dot {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 5px rgba(67,199,255,0.16);
+    }
+    .route-plan-leg-title {
+      display: block;
+      font-size: 0.98rem;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+    .route-plan-leg-meta {
+      display: block;
+      color: var(--muted);
+      font-size: 0.84rem;
+      margin-top: 3px;
+    }
+    .route-plan-leg-side {
+      display: grid;
+      justify-items: end;
+      gap: 4px;
+      color: var(--soft);
+      font-size: 0.82rem;
+      white-space: nowrap;
+    }
+    .route-plan-leg-detail {
+      border-top: 1px solid rgba(126,184,226,0.1);
+      padding: 12px 14px 14px 42px;
+      display: none;
+    }
+    .route-plan-leg.is-selected .route-plan-leg-detail {
+      display: block;
+    }
+    .route-plan-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .route-plan-detail-grid div {
+      border-radius: 12px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(126,184,226,0.08);
+      padding: 10px;
+    }
+    .route-plan-detail-grid span {
+      display: block;
+      color: var(--soft);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    .route-plan-detail-grid strong {
+      display: block;
+      font-size: 0.95rem;
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+    .route-plan-lock-detail {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .route-plan-lock-list {
+      display: grid;
+      gap: 10px;
+    }
+    .route-plan-lock-item {
+      border-radius: 12px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(126,184,226,0.08);
+      padding: 12px;
+    }
+    .route-plan-lock-item h4 {
+      margin: 0 0 8px;
+      color: var(--text);
+      font-size: 0.94rem;
+      line-height: 1.3;
+    }
+    .route-plan-lock-meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px 14px;
+      color: var(--soft);
+      font-size: 0.8rem;
+      line-height: 1.35;
+    }
+    .route-plan-lock-meta strong {
+      color: var(--text);
+      font-weight: 800;
+    }
+    .route-plan-lock-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+    .route-plan-progress-footer {
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(126,184,226,0.12);
+      background: rgba(126,184,226,0.04);
+    }
+    .route-plan-progress-footer--flat {
+      margin-top: 14px;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+    }
+    .route-plan-progress-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .route-plan-progress-grid span {
+      display: block;
+      color: var(--soft);
+      font-size: 0.80rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    .route-plan-progress-grid strong {
+      display: block;
+      font-size: 0.80rem;
+    }
+    .route-plan-progress-bar {
+      height: 9px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(126,184,226,0.12);
+    }
+    .route-plan-progress-bar span {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-3));
+    }
+    .route-selected-leg-box {
+      min-height: 560px;
+    }
+    @media (min-width: 861px) {
+      #acV2RouteProgressPanel .route-plan-box {
+        min-height: 899.21875px;
+        max-height: 899.21875px;
+      }
+    }
+    .timeline {
+      display: grid;
+      gap: 14px;
+    }
+    .today-checkin-history {
+      max-height: 360px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .timeline-row {
+      display: grid;
+      grid-template-columns: 84px 18px 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+    .timeline-time {
+      color: var(--soft);
+      font-size: 0.86rem;
+      font-weight: 700;
+      padding-top: 2px;
+    }
+    .timeline-node {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      position: relative;
+      margin-top: 1px;
+    }
+    .timeline-node::after {
+      content: "";
+      position: absolute;
+      left: 6px;
+      top: 18px;
+      width: 2px;
+      height: 34px;
+      background: rgba(126,184,226,0.18);
+    }
+    .timeline-row:last-child .timeline-node::after { display: none; }
+    .timeline-copy b {
+      display: block;
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+    }
+    .timeline-copy span {
+      display: block;
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 0.9rem;
+    }
+    .timeline-copy .timeline-source {
+      margin-top: 6px;
+      color: var(--soft);
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .contact-row,
+    .log-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(126,184,226,0.08);
+    }
+    .contact-row b,
+    .action-row b,
+    .log-row b { display: block; font-size: 0.95rem; }
+    .contact-row span,
+    .action-row span,
+    .log-row span { color: var(--muted); font-size: 0.88rem; display: block; margin-top: 4px; }
+    .captain-quick-note-form {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      margin-bottom: 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(126,184,226,0.1);
+      background: rgba(8,18,28,0.32);
+    }
+    .captain-note-label {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--text);
+      font-weight: 800;
+    }
+    .captain-note-label small,
+    .captain-note-help,
+    .captain-note-message,
+    .captain-note-meta span {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+    .captain-note-input {
+      width: 100%;
+      min-height: 92px;
+      resize: vertical;
+      border-radius: 12px;
+      border: 1px solid rgba(126,184,226,0.18);
+      background: rgba(8,18,28,0.82);
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+      line-height: 1.45;
+    }
+    .captain-note-input:focus {
+      outline: 2px solid rgba(24,242,210,0.28);
+      outline-offset: 2px;
+    }
+    .captain-note-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .captain-note-tag {
+      min-height: 32px;
+      border: 1px solid rgba(126,184,226,0.18);
+      border-radius: 999px;
+      background: rgba(126,184,226,0.05);
+      color: var(--text);
+      padding: 6px 10px;
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .captain-note-tag:hover:not(:disabled),
+    .captain-note-tag.is-selected {
+      border-color: rgba(24,242,210,0.48);
+      background: rgba(24,242,210,0.1);
+      color: var(--accent-2);
+    }
+    .captain-note-post-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      color: var(--text);
+      font-size: 0.88rem;
+      line-height: 1.4;
+    }
+    .captain-note-post-option input {
+      margin-top: 3px;
+    }
+    .captain-note-message {
+      min-height: 20px;
+      line-height: 1.4;
+    }
+    .captain-note-message.is-success {
+      color: var(--green);
+    }
+    .captain-note-message.is-error {
+      color: var(--red);
+    }
+    .captain-note-save {
+      min-height: 40px;
+      border: 1px solid rgba(24,242,210,0.38);
+      border-radius: 10px;
+      background: rgba(24,242,210,0.1);
+      color: var(--accent-2);
+      font: inherit;
+      font-weight: 900;
+      cursor: pointer;
+    }
+    .captain-note-save:disabled,
+    .captain-note-tag:disabled,
+    .captain-note-input:disabled {
+      cursor: not-allowed;
+      opacity: 0.58;
+    }
+    .captain-note-meta {
+      display: grid;
+      justify-items: end;
+      gap: 4px;
+      flex: 0 0 auto;
+    }
+    .captain-note-meta .action-mini {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      font-size: 0.8rem;
+    }
+    .captain-note-log-list {
+      max-height: 408px;
+      overflow-y: auto;
+      padding-right: 4px;
+      scrollbar-gutter: stable;
+    }
+    .active-cruise-reference-card {
+      padding: 18px;
+    }
+    .reference-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .reference-card-header h2 {
+      margin: 0;
+      font-size: 1.12rem;
+      letter-spacing: -0.03em;
+    }
+    .reference-card-header p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    .reference-badge {
+      flex: 0 0 auto;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(67,199,255,0.18);
+      background: rgba(67,199,255,0.08);
+      color: var(--accent);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .contact-reference-stack {
+      display: grid;
+      gap: 12px;
+    }
+    .contact-reference-panel {
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(126,184,226,0.1);
+      background: rgba(126,184,226,0.045);
+    }
+    .contact-reference-panel--primary {
+      border-color: rgba(67,199,255,0.16);
+      background: rgba(67,199,255,0.055);
+    }
+    .contact-reference-main {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      min-width: 0;
+    }
+    .contact-reference-icon {
+      width: 34px;
+      height: 34px;
+      flex: 0 0 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      border: 1px solid rgba(126,184,226,0.18);
+      background: rgba(8,18,28,0.5);
+      color: var(--accent);
+    }
+    .contact-reference-content {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+    .contact-reference-kicker {
+      color: var(--soft);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    .contact-reference-name {
+      color: var(--text);
+      font-size: 1rem;
+      font-weight: 800;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+    .contact-reference-subtext {
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.45;
+      margin-top: 4px;
+    }
     .contact-reference-crew-list {
       display: grid;
       gap: 8px;
       margin-top: 12px;
     }
-
     .contact-reference-crew-row {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
@@ -4133,7 +2704,6 @@
       font-size: 0.86rem;
       min-width: 0;
     }
-
     .contact-reference-dot {
       width: 7px;
       height: 7px;
@@ -4141,7 +2711,6 @@
       background: var(--accent);
       box-shadow: 0 0 0 4px rgba(67,199,255,0.08);
     }
-
     .contact-reference-crew-name {
       color: var(--text);
       font-weight: 700;
@@ -4149,59 +2718,23 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-
     .contact-reference-crew-role {
       color: var(--soft);
       font-size: 0.78rem;
       white-space: nowrap;
     }
-
     .contact-reference-empty {
       color: var(--muted);
       font-size: 0.86rem;
       line-height: 1.45;
       margin-top: 10px;
     }
-
-    .contact-reference-link,
-    .contact-reference-floatplan-link {
-      display: inline-flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      color: var(--accent);
-      font-weight: 800;
-      font-size: 0.86rem;
-      text-decoration: none;
-      margin-top: 12px;
-    }
-
-    .contact-reference-floatplan-link {
-      margin-top: 0;
-      width: 100%;
-      min-height: 44px;
-      padding: 0 14px;
-      border-radius: 16px;
-      border: 1px solid rgba(67,199,255,0.18);
-      background: rgba(67,199,255,0.08);
-      color: var(--text);
-    }
-
-    .contact-reference-footer {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      color: var(--muted);
-      font-size: 0.82rem;
-      line-height: 1.4;
-    }
-
     .footer-band {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
       gap: 18px;
+      margin-top: 18px;
     }
-
     .foot-card {
       padding: 20px;
       border-radius: 22px;
@@ -4209,3421 +2742,3665 @@
       border: 1px solid var(--line);
       box-shadow: var(--shadow);
     }
-
     .foot-card h3 {
       margin: 0 0 10px;
       font-size: 1rem;
       letter-spacing: -0.02em;
     }
-
     .foot-card p {
       margin: 0;
       color: var(--muted);
       line-height: 1.65;
       font-size: 0.92rem;
     }
-
-    @media (max-width: 1240px) {
-      .hero,
+    .ac-checkin-command-panel {
+      display: grid;
+      gap: 14px;
+      padding: 18px;
+      border-radius: 20px;
+      background: rgba(7, 24, 36, 0.34);
+      border: 1px solid rgba(126,184,226,0.12);
+    }
+    .ac-panel-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+    .ac-panel-header h2 {
+      color: var(--text);
+      font-size: 1.12rem;
+      letter-spacing: -0.03em;
+      text-transform: none;
+    }
+    .ac-panel-header p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .ac-info-button {
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      border: 1px solid rgba(126,184,226,0.26);
+      background: rgba(126,184,226,0.06);
+      color: var(--muted);
+      font: inherit;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .ac-command-section {
+      display: grid;
+      gap: 10px;
+      border-top: 1px solid rgba(126,184,226,0.12);
+      padding-top: 12px;
+    }
+    .ac-section-label {
+      color: var(--soft);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .ac-status-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .ac-status-cell,
+    .ac-route-action-cell {
+      display: grid;
+      gap: 6px;
+    }
+    .ac-command-btn {
+      width: 100%;
+      min-height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(67,199,255,0.45);
+      background: rgba(67,199,255,0.08);
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .ac-command-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      border-color: rgba(67,199,255,0.75);
+    }
+    .ac-command-btn:disabled {
+      cursor: not-allowed;
+      opacity: .62;
+      color: var(--soft);
+      background: rgba(126,184,226,0.045);
+      border-color: rgba(126,184,226,0.12);
+      transform: none;
+    }
+    .ac-command-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      flex: 0 0 24px;
+      border-radius: 999px;
+      color: currentColor;
+      font-weight: 900;
+    }
+    .ac-status-ontrack { border-color: rgba(34,149,255,0.72); color: #dff1ff; }
+    .ac-status-delayed { border-color: rgba(255,170,35,0.72); color: #fff0d1; }
+    .ac-status-changed { border-color: rgba(154,92,255,0.72); color: #efe6ff; }
+    .ac-status-secure { border-color: rgba(24,242,210,0.54); color: #d5fff8; }
+    .ac-assistance-btn {
+      border-color: rgba(255,91,58,0.76);
+      background: rgba(255,91,58,0.12);
+      color: #ffe0d8;
+    }
+    .ac-checkin-note {
+      width: 100%;
+      min-height: 74px;
+      max-height: 120px;
+      resize: vertical;
+      border-radius: 10px;
+      border: 1px solid rgba(126,184,226,0.18);
+      background: rgba(8,18,28,0.82);
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+      line-height: 1.45;
+    }
+    .ac-note-counter {
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-align: right;
+    }
+    .ac-route-action-btn {
+      justify-content: flex-start;
+      text-align: left;
+      border-color: rgba(34,149,255,0.72);
+      background: rgba(34,149,255,0.1);
+    }
+    .ac-route-action-btn span:last-child,
+    .ac-disabled-action-row span:last-child {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+    .ac-route-action-btn strong,
+    .ac-disabled-action-row strong {
+      color: inherit;
+      font-size: 0.95rem;
+      line-height: 1.2;
+    }
+    .ac-route-action-btn small,
+    .ac-disabled-action-row small {
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.35;
+    }
+    .ac-disabled-action-row {
+      min-height: 46px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(126,184,226,0.12);
+      background: rgba(126,184,226,0.04);
+      color: var(--soft);
+      padding: 9px 12px;
+    }
+    .ac-v2-compact-checkin-panel {
+      gap: 10px;
+      padding: 12px;
+      border-radius: 18px;
+    }
+    .ac-v2-compact-checkin-panel .ac-panel-header {
+      align-items: center;
+      gap: 10px;
+    }
+    .ac-v2-compact-checkin-panel .ac-panel-header h2 {
+      font-size: 1.02rem;
+    }
+    .ac-v2-compact-checkin-panel .ac-panel-header p {
+      margin-top: 2px;
+      font-size: 0.84rem;
+    }
+    .ac-v2-compact-checkin-panel .ac-command-section {
+      gap: 7px;
+      padding-top: 9px;
+    }
+    .ac-status-compact-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 7px;
+    }
+    .ac-v2-compact-checkin-panel .ac-status-cell,
+    .ac-v2-compact-checkin-panel .ac-route-action-cell {
+      gap: 4px;
+    }
+    .ac-v2-compact-checkin-panel .ac-command-btn {
+      min-height: 40px;
+      gap: 7px;
+      border-radius: 8px;
+      padding: 7px 9px;
+      font-size: 0.82rem;
+      line-height: 1.15;
+    }
+    .ac-v2-compact-checkin-panel .ac-command-icon {
+      width: 18px;
+      height: 18px;
+      flex-basis: 18px;
+      font-size: 0.86rem;
+    }
+    .ac-v2-compact-checkin-panel .action-reason {
+      font-size: 0.72rem;
+      line-height: 1.25;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .ac-assistance-compact-row .ac-assistance-btn {
+      min-height: 38px;
+    }
+    .ac-v2-note-compact {
+      gap: 7px;
+    }
+    .ac-v2-compact-checkin-panel .ac-v2-note-compact {
+      display: none;
+    }
+    .ac-v2-note-toggle {
+      width: 100%;
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border: 1px solid rgba(126,184,226,0.14);
+      border-radius: 8px;
+      background: rgba(126,184,226,0.045);
+      color: var(--text);
+      padding: 7px 10px;
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .ac-v2-note-toggle:hover {
+      border-color: rgba(67,199,255,0.45);
+    }
+    .ac-v2-note-toggle .ac-note-counter {
+      text-align: right;
+      font-weight: 700;
+    }
+    .ac-v2-note-collapsible[hidden] {
+      display: none;
+    }
+    .ac-v2-compact-checkin-panel .ac-checkin-note {
+      min-height: 64px;
+      max-height: 96px;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 0.86rem;
+    }
+    .ac-route-actions-compact {
+      gap: 7px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .ac-route-actions-compact .ac-section-label {
+      grid-column: 1 / -1;
+    }
+    .ac-v2-compact-checkin-panel .ac-route-action-btn {
+      min-height: 40px;
+      justify-content: center;
+      text-align: center;
+    }
+    .ac-v2-compact-checkin-panel .ac-route-action-btn span:last-child {
+      display: inline;
+    }
+    .ac-v2-compact-checkin-panel .ac-route-action-btn small {
+      display: none;
+    }
+    .ac-v2-compact-checkin-panel .ac-disabled-action-row {
+      min-height: 40px;
+      gap: 8px;
+      border-radius: 8px;
+      padding: 7px 10px;
+    }
+    .ac-v2-compact-checkin-panel .ac-disabled-action-row strong {
+      font-size: 0.82rem;
+    }
+    .ac-v2-compact-checkin-panel .ac-disabled-action-row small {
+      font-size: 0.74rem;
+      line-height: 1.25;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .ac-status-btn,
+    .ac-route-action-btn,
+    #fpwV2TimingPanel .ac-command-btn,
+    .ac-weather-command-btn {
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 800;
+      line-height: 1.1;
+      text-align: center;
+      letter-spacing: 0;
+    }
+    .ac-status-btn span:last-child,
+    .ac-route-action-btn strong,
+    .ac-disabled-action-row strong,
+    #fpwV2TimingPanel .ac-command-btn,
+    .ac-weather-command-btn {
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+    .ac-v2-compact-checkin-panel .ac-action-ready-message {
+      padding-top: 9px;
+      font-size: 0.8rem;
+      line-height: 1.35;
+    }
+    .ac-v2-compact-checkin-panel .ac-action-ready-message::before {
+      width: 18px;
+      height: 18px;
+      flex-basis: 18px;
+    }
+    .ac-v2-compact-checkin-panel #fpwV2ActionFeedback {
+      display: none !important;
+    }
+    .ac-monitor-command-panel #fpwV2TimingFeedback {
+      display: none !important;
+    }
+    .ac-action-ready-message {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      border-top: 1px solid rgba(126,184,226,0.12);
+      padding-top: 12px;
+    }
+    .ac-action-ready-message::before {
+      content: "";
+      width: 26px;
+      height: 26px;
+      flex: 0 0 26px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    }
+    .ac-monitor-command-panel {
+      display: grid;
+      gap: 16px;
+      padding: 18px;
+      border-radius: 20px;
+      background: rgba(7, 24, 36, 0.34);
+      border: 1px solid rgba(126,184,226,0.12);
+    }
+    .ac-monitor-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px;
+    }
+    .ac-monitor-tile {
+      display: grid;
+      gap: 7px;
+      min-height: 96px;
+      border-radius: 14px;
+      border: 1px solid rgba(126,184,226,0.14);
+      background: rgba(126,184,226,0.045);
+      padding: 8px 10px;
+    }
+    .ac-delay-tile {
+      grid-column: 1 / -1;
+    }
+    .ac-monitor-tile p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.86rem;
+    }
+    .ac-monitor-value {
+      display: block;
+      color: var(--text);
+      font-size: 0.95rem;
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+    }
+    .ac-delay-tile .ac-command-btn {
+      margin-top: 4px;
+    }
+    .ac-muted-note {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+    .ac-inline-control-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: end;
+      margin-top: 4px;
+    }
+    .ac-monitor-command-panel .timing-input {
+      min-height: 48px;
+      width: 100%;
+      border-radius: 10px;
+    }
+    .ac-monitor-command-panel .ac-command-section h3 {
+      margin: 0;
+      color: var(--text);
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+    .ac-monitor-command-panel .ac-command-section p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .ac-pace-command-panel {
+      display: grid;
+      gap: 14px;
+      padding: 18px;
+      border-radius: 20px;
+      background: rgba(7, 24, 36, 0.34);
+      border: 1px solid rgba(126,184,226,0.12);
+    }
+    .route-leg-estimate + .ac-pace-command-panel {
+      margin-top: 16px;
+    }
+    .ac-pace-meter {
+      display: grid;
+      gap: 7px;
+      border-radius: 14px;
+      border: 1px solid rgba(126,184,226,0.14);
+      background: rgba(126,184,226,0.045);
+      padding: 10px 12px;
+    }
+    .ac-pace-meter p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.86rem;
+    }
+    .ac-pace-slider {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+    .ac-pace-label-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      color: var(--soft);
+      font-size: 0.78rem;
+      font-weight: 800;
+      text-align: center;
+    }
+    .ac-pace-selected {
+      display: grid;
+      gap: 4px;
+      min-height: 48px;
+      align-content: center;
+      border-radius: 10px;
+      border: 1px solid rgba(126,184,226,0.14);
+      background: rgba(8,18,28,0.52);
+      padding: 8px 10px;
+    }
+    .ac-pace-selected span {
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .ac-pace-selected strong {
+      color: var(--text);
+      font-size: 0.94rem;
+      line-height: 1.15;
+    }
+    @media (max-width: 780px) {
+      main.main { width: auto; }
+      .shell { width: min(calc(100% - 20px), var(--max)); }
+      .identity-strip,
+      .layout,
+      .supporting-grid,
       .content-grid,
-      .leg-grid,
+      .footer-band,
+      .hero-main,
+      .hero-grid,
+      .field-grid,
+      .detail-row,
+      .weather-lookup-layout,
+      .timing-summary-grid,
+      .timing-form-grid,
+      .timing-inline,
+      .ac-monitor-header,
+      .ac-inline-control-row,
+      .timeline-head {
+        grid-template-columns: 1fr;
+      }
+      table { font-size: .84rem; }
+    }
+    @media (max-width: 1240px) {
+      .layout,
+      .supporting-grid,
+      .content-grid,
       .footer-band {
         grid-template-columns: 1fr;
       }
-
-      .route-plan-box {
-        max-height: 520px;
-        min-height: 520px;
-      }
-
-      .header-stats {
+      .identity-strip {
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
     }
-
     @media (max-width: 860px) {
       .shell { width: min(calc(100% - 18px), var(--max)); }
       .topbar-inner,
-      .title-row,
-      .active-cruise-map-head,
-      .section-top {
+      .hero-main,
+      .section-header,
+      .section-top,
+      .timeline-head {
         flex-direction: column;
         align-items: flex-start;
       }
-
       .top-actions { justify-content: flex-start; }
-      .header-stats,
-      .weather-grid,
+      .identity-strip,
+      .hero-grid,
+      .map-summary-grid,
+      .field-grid,
       .data-grid,
-      .route-plan-progress-grid { grid-template-columns: 1fr 1fr; }
-
-      .route-leg-estimate-head {
-        align-items: flex-start;
-        flex-direction: column;
+      .timing-summary-grid,
+      .timing-form-grid {
+        grid-template-columns: 1fr 1fr;
       }
-
-      .route-leg-estimate-metrics {
+      .leg-grid {
         grid-template-columns: 1fr;
       }
-
-      .route-leg-estimate-metric {
-        padding: 12px 0;
+      .route-plan-box {
+        max-height: none;
       }
-
-      .route-leg-estimate-metric + .route-leg-estimate-metric {
-        border-left: 0;
-        border-top: 1px solid rgba(126,184,226,0.14);
+      .route-plan-scroll {
+        max-height: 420px;
+      }
+      .route-selected-leg-box {
+        min-height: auto;
       }
     }
-
     @media (max-width: 640px) {
-      .header-stats,
-      .weather-grid,
+      .identity-strip,
+      .hero-grid,
+      .map-summary-grid,
+      .field-grid,
       .data-grid,
-      .route-plan-detail-grid,
-      .route-plan-progress-grid,
-      .footer-band { grid-template-columns: 1fr; }
-
-      .active-cruise-map-canvas { height: 340px; }
-
-      .route-plan-box {
-        max-height: 500px;
-        min-height: 500px;
+      .ac-monitor-grid,
+      .ac-status-grid,
+      .ac-status-compact-grid,
+      .timing-summary-grid,
+      .timing-form-grid,
+      .ac-route-actions-compact,
+      .footer-band {
+        grid-template-columns: 1fr;
       }
-
-      .route-plan-leg-button {
-        grid-template-columns: auto 1fr;
+      .map-canvas,
+      .active-cruise-map-canvas {
+        min-height: 340px;
+        height: 340px;
       }
-
-      .route-plan-leg-side {
-        grid-column: 2;
-        justify-items: start;
+      .ac-v2-map-modal {
+        padding: 8px;
       }
-
-      .timeline-row {
-        grid-template-columns: 72px 16px 1fr;
+      .ac-v2-map-modal-dialog {
+        max-height: calc(100vh - 16px);
+        padding: 10px;
+        border-radius: 14px;
       }
+      .ac-v2-map-modal-body {
+        min-height: 70vh;
+      }
+    }
+    body :where(:not(h1):not(h2):not(h3):not(h4):not(h5):not(h6):not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *)),
+    body :where(button:not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *),
+      a.btn:not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *),
+      .btn:not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *),
+      .ac-command-btn:not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *),
+      .ac-route-action-btn:not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *),
+      .ac-status-btn:not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *)) {
+      font-size: 0.80rem !important;
     }
   </style>
 </head>
-<body data-fpw-page="active-cruise-console">
-  <header class="topbar">
+<body>
+<cfoutput>
+  <header class="topbar" aria-label="Active Cruise V2 visual shell">
     <div class="shell topbar-inner">
       <div class="brand">
-        <div class="brand-mark">⚓</div>
+        <div class="brand-mark" aria-hidden="true">&##9875;</div>
         <div class="brand-copy">
-          <div class="brand-title">FloatPlanWizard • Active Cruise Console</div>
+          <div class="brand-title">FloatPlanWizard &bull; Active Cruise Console</div>
           <div class="brand-sub">Private operational view for the captain and trip owner</div>
         </div>
       </div>
-      <div class="top-actions">
-        <cfif activeCruiseAccessValid>
-          <div class="chip" data-fpw-field="top.routeName"><cfoutput>#encodeForHtml(activeCruiseView.topRouteChip)#</cfoutput></div>
-          <div class="chip" data-fpw-field="top.floatPlanState"><cfoutput>#encodeForHtml(activeCruiseView.topFloatPlanState)#</cfoutput></div>
-          <button class="btn btn-secondary">View Trip Page</button>
-          <cfif activeCruiseCanStartNextLeg>
-            <button class="btn btn-secondary" id="fpwStartNextLegBtn">Start Next Leg</button>
-          </cfif>
-          <cfif activeCruiseCanCompleteLeg>
-            <button class="btn btn-secondary" id="fpwCompleteLegBtn">Arrived / Complete Leg</button>
-          </cfif>
-          <button class="btn btn-primary" id="fpwCheckInBtn">Check In Now</button>
-        <cfelse>
-          <div class="chip">No active trip</div>
-        </cfif>
+      <div class="top-actions" aria-label="Read-only Active Cruise V2 identity">
+        <span class="chip">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "routeName"), "No active route"))#</span>
+        <span class="chip">Float Plan #encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.floatPlan, "id"), "n/a"))#</span>
+        <span class="chip">#encodeForHTML(fpwV2Text(activeCruiseV2Model.tripState, "unknown"))#</span>
       </div>
     </div>
   </header>
 
   <main class="main">
     <div class="shell">
-      <cfif activeCruiseAccessValid>
-	      <section class="hero">
-	        <div class="stack">
-	          <div class="panel hero-main">
-          <div class="eyebrow"><cfoutput>#encodeForHtml(activeCruiseEyebrowLabel)#</cfoutput></div>
-          <div class="title-row">
+      <cfif !activeCruiseV2AccessValid>
+        <section class="panel section-card">
+          <div class="section-top">
             <div>
-              <h1 data-fpw-field="hero.routeTitle"><cfoutput>#encodeForHtml(activeCruiseView.heroRouteTitle)#</cfoutput></h1>
-              <div class="subline"><cfoutput>#encodeForHtml(activeCruiseHeroSubline)#</cfoutput></div>
+              <h2>#encodeForHTML(activeCruiseV2AccessMessage)#</h2>
+              <p>#encodeForHTML(activeCruiseV2AccessDetail)#</p>
             </div>
-            <div class="status-pill<cfoutput><cfif len(trim(activeCruiseView.heroVoyageStatusVariant))> status-pill--#encodeForHtmlAttribute(activeCruiseView.heroVoyageStatusVariant)#</cfif></cfoutput>">
-              <b>Voyage Status</b>
-              <strong data-fpw-field="hero.voyageStatus"><cfoutput>#encodeForHtml(activeCruiseView.heroVoyageStatus)#</cfoutput></strong>
-            </div>
+            <div class="badge badge-warn">Active Cruise Unavailable</div>
           </div>
-
-          <div class="mini-panel active-cruise-map-panel">
-            <div class="active-cruise-map-head">
-              <div class="active-cruise-map-copy">
-                <h3>Map Overview</h3>
-                <p>Live route view with current position, completed track, and destination.</p>
-              </div>
-              <button class="btn btn-secondary" id="fpwActiveCruiseOpenFullMapBtn" type="button">Open Full Map</button>
-            </div>
-            <div class="active-cruise-map-wrap">
-              <div id="fpwActiveCruiseMap" class="active-cruise-map-canvas" aria-label="Voyage route map"></div>
-            </div>
+          <div class="floatplan-box">
+            <p style="margin:0; color:var(--muted); line-height:1.6;">The V2 page uses the authenticated session user as its access authority.</p>
           </div>
+        </section>
+      <cfelse>
+        <cfset mapModel = (structKeyExists(activeCruiseV2Model, "map") AND isStruct(activeCruiseV2Model.map) ? activeCruiseV2Model.map : {})>
+        <cfset weatherModel = (structKeyExists(activeCruiseV2Model, "weather") AND isStruct(activeCruiseV2Model.weather) ? activeCruiseV2Model.weather : {})>
+        <cfset floatPlanInfoModel = (structKeyExists(activeCruiseV2Model, "floatPlanInfo") AND isStruct(activeCruiseV2Model.floatPlanInfo) ? activeCruiseV2Model.floatPlanInfo : {})>
+        <cfset activeCruiseV2TripTimezone = fpwV2Text(fpwV2Get(activeCruiseV2Model.floatPlan, "timezone"), "UTC")>
+        <cfset vesselModel = (structKeyExists(floatPlanInfoModel, "vessel") AND isStruct(floatPlanInfoModel.vessel) ? floatPlanInfoModel.vessel : {})>
+        <cfset operatorModel = (structKeyExists(floatPlanInfoModel, "operator") AND isStruct(floatPlanInfoModel.operator) ? floatPlanInfoModel.operator : {})>
+        <cfset contactsModel = (structKeyExists(activeCruiseV2Model, "contacts") AND isStruct(activeCruiseV2Model.contacts) ? activeCruiseV2Model.contacts : { "items" = [], "passengers" = [] })>
+        <cfset floatPlanMonitorModel = (structKeyExists(activeCruiseV2Model, "floatPlanMonitor") AND isStruct(activeCruiseV2Model.floatPlanMonitor) ? activeCruiseV2Model.floatPlanMonitor : {})>
+        <cfset floatPlanMonitorContact = (structKeyExists(floatPlanMonitorModel, "monitorContact") AND isStruct(floatPlanMonitorModel.monitorContact) ? floatPlanMonitorModel.monitorContact : {})>
+        <cfset floatPlanMonitorPhoneHref = fpwV2Text(fpwV2Get(floatPlanMonitorContact, "phoneHref"), "")>
+        <cfset floatPlanMonitorSmsHref = fpwV2Text(fpwV2Get(floatPlanMonitorContact, "smsHref"), "")>
+        <cfset floatPlanMonitorEmailHref = fpwV2Text(fpwV2Get(floatPlanMonitorContact, "emailHref"), "")>
+        <cfset captainLogModel = (structKeyExists(activeCruiseV2Model, "captainLog") AND isStruct(activeCruiseV2Model.captainLog) ? activeCruiseV2Model.captainLog : { "items" = [], "count" = 0 })>
+        <cfset captainLogActionsModel = (structKeyExists(activeCruiseV2Model, "actions") AND isStruct(activeCruiseV2Model.actions) AND structKeyExists(activeCruiseV2Model.actions, "captainLog") AND isStruct(activeCruiseV2Model.actions.captainLog) ? activeCruiseV2Model.actions.captainLog : {})>
+        <cfset captainLogSaveAction = (structKeyExists(captainLogActionsModel, "save") AND isStruct(captainLogActionsModel.save) ? captainLogActionsModel.save : {})>
+        <cfset checkInHistoryModel = (structKeyExists(activeCruiseV2Model, "checkInHistory") AND isStruct(activeCruiseV2Model.checkInHistory) ? activeCruiseV2Model.checkInHistory : { "items" = [], "count" = 0 })>
+        <cfset privateTimelineModel = (structKeyExists(activeCruiseV2Model, "privateTimeline") AND isStruct(activeCruiseV2Model.privateTimeline) ? activeCruiseV2Model.privateTimeline : { "items" = [], "count" = 0 })>
+        <cfset mapLegs = (structKeyExists(mapModel, "legs") AND isArray(mapModel.legs) ? mapModel.legs : [])>
+        <cfset mapBounds = (structKeyExists(mapModel, "bounds") AND isStruct(mapModel.bounds) ? mapModel.bounds : {})>
+        <cfset mapCenter = (structKeyExists(mapModel, "center") AND isStruct(mapModel.center) ? mapModel.center : {})>
+        <cfset mapWarnings = (structKeyExists(mapModel, "warnings") AND isArray(mapModel.warnings) ? mapModel.warnings : [])>
+        <cfset mapAvailable = (structKeyExists(mapModel, "available") AND isBoolean(mapModel.available) AND mapModel.available)>
+        <cfset mapGeometryAuthority = fpwV2Text(fpwV2Get(mapModel, "geometryAuthority"), "Not available")>
+        <cfset mapGeometryAuthorityLabel = replace(mapGeometryAuthority, "_", " ", "all")>
+        <cfset weatherPoints = (structKeyExists(weatherModel, "points") AND isStruct(weatherModel.points) ? weatherModel.points : {})>
+        <cfset weatherLookup = (structKeyExists(weatherModel, "lookup") AND isStruct(weatherModel.lookup) ? weatherModel.lookup : {})>
+        <cfset weatherWarnings = (structKeyExists(weatherModel, "warnings") AND isArray(weatherModel.warnings) ? weatherModel.warnings : [])>
+        <cfset weatherLookupAvailable = (structKeyExists(weatherLookup, "available") AND isBoolean(weatherLookup.available) AND weatherLookup.available)>
+        <cfset weatherApplyRouteCode = "">
+        <cfif structKeyExists(activeCruiseV2Model, "route") AND isStruct(activeCruiseV2Model.route)>
+          <cfset weatherApplyRouteCode = fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "routeCode"), "")>
+        </cfif>
+        <cfif (
+          len(weatherApplyRouteCode)
+          AND (
+            NOT structKeyExists(weatherModel, "apply")
+            OR NOT isStruct(weatherModel.apply)
+            OR NOT (
+              structKeyExists(weatherModel.apply, "available")
+              AND isBoolean(weatherModel.apply.available)
+              AND weatherModel.apply.available
+            )
+          )
+        )>
+          <cfset weatherModel.apply = {
+            "available" = weatherLookup.available,
+            "method" = "POST",
+            "routeCode" = weatherApplyRouteCode,
+            "endpoints" = {
+              "editContext" = "/api/v1/routeBuilder.cfc?method=handle&action=routegen_geteditcontext&returnFormat=json",
+              "generatedPreview" = "/api/v1/routeBuilder.cfc?method=handle&action=routegen_preview&returnFormat=json",
+              "myRoutePreview" = "/api/v1/routeBuilder.cfc?method=handle&action=previewuserroute&returnFormat=json",
+              "update" = "/api/v1/routeBuilder.cfc?method=handle&action=routegen_update&returnFormat=json"
+            },
+            "payload" = {
+              "routeCode" = weatherApplyRouteCode
+            }
+          }>
+        </cfif>
+        <cfset weatherApply = (structKeyExists(weatherModel, "apply") AND isStruct(weatherModel.apply) ? weatherModel.apply : {})>
+        <cfif structCount(weatherApply) AND structKeyExists(weatherApply, "available")>
+          <cfif weatherApply.available>
+            <cfset weatherModel.apply.available = true>
+          <cfelse>
+            <cfset weatherModel.apply.available = false>
+          </cfif>
+          <cfset weatherApply = weatherModel.apply>
+        </cfif>
+        <cfset weatherApplyAvailable = (structKeyExists(weatherApply, "available") AND isBoolean(weatherApply.available) AND weatherApply.available)>
+        <cfset weatherStartPoint = (structKeyExists(weatherPoints, "start") AND isStruct(weatherPoints.start) ? weatherPoints.start : {})>
+        <cfset weatherEndPoint = (structKeyExists(weatherPoints, "end") AND isStruct(weatherPoints.end) ? weatherPoints.end : {})>
+        <cfset timingActionsModel = (structKeyExists(activeCruiseV2Model.actions, "timing") AND isStruct(activeCruiseV2Model.actions.timing) ? activeCruiseV2Model.actions.timing : {})>
+        <cfset timingAddDelayAction = (structKeyExists(timingActionsModel, "addDelay") AND isStruct(timingActionsModel.addDelay) ? timingActionsModel.addDelay : {})>
+        <cfset timingClearDelayAction = (structKeyExists(timingActionsModel, "clearDelay") AND isStruct(timingActionsModel.clearDelay) ? timingActionsModel.clearDelay : {})>
+        <cfset timingDailyStartAction = (structKeyExists(timingActionsModel, "updateDailyStart") AND isStruct(timingActionsModel.updateDailyStart) ? timingActionsModel.updateDailyStart : {})>
+        <cfset paceModel = (structKeyExists(activeCruiseV2Model, "pace") AND isStruct(activeCruiseV2Model.pace) ? activeCruiseV2Model.pace : {})>
+        <cfset paceActionsModel = (structKeyExists(activeCruiseV2Model.actions, "pace") AND isStruct(activeCruiseV2Model.actions.pace) ? activeCruiseV2Model.actions.pace : {})>
+        <cfset paceUpdateAction = (structKeyExists(paceActionsModel, "updatePace") AND isStruct(paceActionsModel.updatePace) ? paceActionsModel.updatePace : {})>
+        <cfset paceOptions = (structKeyExists(paceModel, "options") AND isArray(paceModel.options) ? paceModel.options : [
+          { "value" = "RELAXED", "label" = "Relaxed", "index" = 0 },
+          { "value" = "BALANCED", "label" = "Efficient Speed", "index" = 1 },
+          { "value" = "AGGRESSIVE", "label" = "Max Speed", "index" = 2 }
+        ])>
+        <cfset paceCurrentValue = uCase(fpwV2Text(fpwV2Get(paceModel, "currentValue"), "RELAXED"))>
+        <cfif paceCurrentValue NEQ "BALANCED" AND paceCurrentValue NEQ "AGGRESSIVE">
+          <cfset paceCurrentValue = "RELAXED">
+        </cfif>
+        <cfset paceCurrentIndex = fpwV2Get(paceModel, "currentIndex", 0)>
+        <cfif !isNumeric(paceCurrentIndex)>
+          <cfset paceCurrentIndex = 0>
+        </cfif>
+        <cfset paceCurrentIndex = val(paceCurrentIndex)>
+        <cfif paceCurrentIndex LT 0 OR paceCurrentIndex GT 2>
+          <cfset paceCurrentIndex = 0>
+        </cfif>
+        <cfset paceUpdateEnabled = fpwV2ActionEnabled(paceUpdateAction)>
+        <cfset paceUpdateReason = fpwV2Text(fpwV2Get(paceUpdateAction, "disabledReason"), fpwV2Text(fpwV2Get(paceUpdateAction, "reason"), ""))>
+        <cfif paceUpdateEnabled><cfset paceUpdateReason = ""></cfif>
+        <cfset manualDelayMinutesTotal = fpwV2Get(activeCruiseV2Model.monitoring, "manualDelayMinutesTotal", 0)>
+        <cfif !isNumeric(manualDelayMinutesTotal)>
+          <cfset manualDelayMinutesTotal = 0>
+        </cfif>
+        <cfset manualDelayMinutesTotal = val(manualDelayMinutesTotal)>
+        <cfset addDelayEnabled = fpwV2ActionEnabled(timingAddDelayAction)>
+        <cfset clearDelayEnabled = fpwV2ActionEnabled(timingClearDelayAction) AND manualDelayMinutesTotal GT 0>
+        <cfset dailyStartEnabled = fpwV2ActionEnabled(timingDailyStartAction)>
+        <cfset addDelayReason = fpwV2Text(fpwV2Get(timingAddDelayAction, "disabledReason"), fpwV2Text(fpwV2Get(timingAddDelayAction, "reason"), ""))>
+        <cfset clearDelayReason = fpwV2Text(fpwV2Get(timingClearDelayAction, "disabledReason"), fpwV2Text(fpwV2Get(timingClearDelayAction, "reason"), ""))>
+        <cfset dailyStartReason = fpwV2Text(fpwV2Get(timingDailyStartAction, "disabledReason"), fpwV2Text(fpwV2Get(timingDailyStartAction, "reason"), ""))>
+        <cfset dailyStartInputValue = fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "dailyStartLocalTime"), "")>
+        <cfif len(dailyStartInputValue) GTE 5>
+          <cfset dailyStartInputValue = left(dailyStartInputValue, 5)>
+        </cfif>
+        <cfif addDelayEnabled><cfset addDelayReason = ""></cfif>
+        <cfif fpwV2ActionEnabled(timingClearDelayAction) AND manualDelayMinutesTotal LTE 0>
+          <cfset clearDelayReason = "No manual delay is currently applied.">
+        <cfelseif clearDelayEnabled>
+          <cfset clearDelayReason = "">
+        </cfif>
+        <cfif dailyStartEnabled><cfset dailyStartReason = ""></cfif>
 
-	          <div class="header-stats">
-	            <div class="metric">
-	              <span>Scheduled Departure</span>
-	              <strong data-fpw-field="hero.tripStart"><cfoutput>#encodeForHtml(activeCruiseView.heroTripStart)#</cfoutput></strong>
-	              <small>Planned trip start</small>
-	            </div>
-	            <div class="metric">
-	              <span>Current Leg</span>
-	              <strong data-fpw-field="hero.currentLegSummary"><cfoutput>#encodeForHtml(activeCruiseView.heroCurrentLegSummary)#</cfoutput></strong>
-	              <small data-fpw-field="hero.legMeta"><cfoutput>#encodeForHtml(activeCruiseView.heroLegMeta)#</cfoutput></small>
-            </div>
-            <div class="metric">
-              <span>Distance Complete</span>
-              <strong data-fpw-field="hero.distanceComplete"><cfoutput>#encodeForHtml(activeCruiseView.heroDistanceComplete)#</cfoutput></strong>
-              <small data-fpw-field="hero.percentComplete"><cfoutput>#encodeForHtml(activeCruiseView.heroPercentComplete)#</cfoutput></small>
-            </div>
-            <div class="metric">
-              <span>Next Stop</span>
-              <strong data-fpw-field="hero.nextStop"><cfoutput>#encodeForHtml(activeCruiseView.heroNextStop)#</cfoutput></strong>
-              <small data-fpw-field="hero.nextStopMeta"><cfoutput>#encodeForHtml(activeCruiseView.heroNextStopMeta)#</cfoutput></small>
-            </div>
-            <div class="metric">
-              <span>ETA</span>
-              <strong data-fpw-field="hero.eta"><cfoutput>#encodeForHtml(activeCruiseView.heroEta)#</cfoutput></strong>
-              <small data-fpw-field="hero.etaMeta"><cfoutput>#encodeForHtml(activeCruiseView.heroEtaMeta)#</cfoutput></small>
-              <small data-fpw-field="hero.etaScheduleMeta"></small>
-            </div>
-	          </div>
-
-	          <div class="mini-panel mini-panel--route-progress-flat">
-	            <div class="mini-head">
-	              <h3>Route Progress</h3>
-	              <span><cfoutput>#encodeForHtml(activeCruiseProgressWindowLabel)#</cfoutput></span>
-	            </div>
-	            <div class="progress-block">
-	              <div class="route-plan-progress-footer route-plan-progress-footer--flat">
-	                <div class="route-plan-progress-grid">
-	                  <div>
-	                    <span>Complete</span>
-	                    <strong><cfoutput>#encodeForHtml(fpwFormatPct(activeCruiseRoutePlan.summary.progressPct))#</cfoutput></strong>
-	                  </div>
-	                  <div>
-	                    <span>Total Route</span>
-	                    <strong><cfoutput>#encodeForHtml(activeCruiseRoutePlan.summary.totalNm GT 0 ? fpwFormatNm(activeCruiseRoutePlan.summary.totalNm) : "—")#</cfoutput></strong>
-	                  </div>
-	                  <div>
-	                    <span>Remaining</span>
-	                    <strong><cfoutput>#encodeForHtml(activeCruiseRoutePlan.summary.remainingNm GT 0 ? fpwFormatNm(activeCruiseRoutePlan.summary.remainingNm) : "—")#</cfoutput></strong>
-	                  </div>
-	                  <div>
-	                    <span>Final Arrival</span>
-	                    <strong data-route-plan-summary="finalArrivalFooter"><cfoutput>#encodeForHtml(activeCruiseRoutePlan.summary.finalArrivalLabel)#</cfoutput></strong>
-	                  </div>
-	                </div>
-	                <div class="route-plan-progress-bar" aria-hidden="true">
-	                  <span id="fpwRoutePlanProgressBar" style="width:<cfoutput>#encodeForHtmlAttribute(fpwFormatPct(activeCruiseRoutePlan.summary.progressPct))#</cfoutput>;"></span>
-	                </div>
-	              </div>
-	              <div class="route-leg-estimate" aria-label="Route leg estimate">
-	                <div class="route-leg-estimate-head">
-	                  <h4 class="route-leg-estimate-title">Current Leg Estimate</h4>
-	                  <span class="route-leg-estimate-state" id="fpwExperimentalLegStatus"><cfoutput>#encodeForHtml(activeCruiseView.experimentalLegStatus)#</cfoutput></span>
-	                </div>
-	                <p class="route-leg-estimate-copy" id="fpwExperimentalLegMeta"><cfoutput>#encodeForHtml(activeCruiseView.experimentalLegMeta)#</cfoutput></p>
-	                <div class="route-leg-estimate-metrics">
-	                  <div class="route-leg-estimate-metric">
-	                    <span>Distance</span>
-	                    <strong id="fpwExperimentalLegRemaining"><cfoutput>#encodeForHtml(activeCruiseView.experimentalLegRemainingDistance)#</cfoutput></strong>
-	                  </div>
-	                  <div class="route-leg-estimate-metric">
-	                    <span>Planned Speed</span>
-	                    <strong id="fpwExperimentalLegPace"><cfoutput>#encodeForHtml(activeCruiseView.experimentalLegPace)#</cfoutput></strong>
-	                  </div>
-	                  <div class="route-leg-estimate-metric">
-	                    <span>Leg Fuel Estimate</span>
-	                    <strong id="fpwExperimentalLegFuel"><cfoutput>#encodeForHtml(activeCruiseView.experimentalLegRemainingFuel)#</cfoutput></strong>
-	                  </div>
-	                </div>
-	                <div class="route-leg-estimate-progress">
-	                  <div class="route-leg-estimate-progress-head"><span>Leg Progress</span><span id="fpwExperimentalLegPercent"><cfoutput>#encodeForHtml(activeCruiseView.experimentalLegPercentComplete)#</cfoutput></span></div>
-	                  <div class="route-leg-estimate-progress-row"><div class="bar-shell"><div class="bar-fill" id="fpwExperimentalLegBar" style="width:<cfoutput>#encodeForHtmlAttribute(activeCruiseView.experimentalProgressBarWidth)#</cfoutput>;"></div></div></div>
-	                </div>
-	                <div class="route-leg-estimate-foot">
-	                  <div id="fpwExperimentalLegHelper">Tap Start Next Leg when you actually depart this leg.</div>
-	                  <small id="fpwExperimentalLegDisclaimer">Estimate only — not GPS-tracked vessel position.</small>
-	                </div>
-		              </div>
-		            </div>
-			          </div>
-		          <div class="mini-panel" style="margin-top:16px;">
-		            <div class="mini-head">
-		              <h3>Weather Lookup</h3>
-		              <span>Current Leg</span>
-		            </div>
-		            <div class="split" style="align-items:center; gap:10px; flex-wrap:wrap;">
-		              <span>Lookup Point</span>
-		              <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-		                <label style="display:inline-flex; align-items:center; gap:6px;"><input type="radio" name="fpwMonitorWeatherPoint" value="start"><cfoutput>#encodeForHtml(len(trim(currentLegStartName)) ? currentLegStartName : "Start")#</cfoutput></label>
-		                <label style="display:inline-flex; align-items:center; gap:6px;"><input type="radio" name="fpwMonitorWeatherPoint" value="end"><cfoutput>#encodeForHtml(len(trim(currentLegEndName)) ? currentLegEndName : "End")#</cfoutput></label>
-		              </div>
-		            </div>
-		            <div style="margin-top:10px; display:flex; justify-content:flex-end;">
-		              <button class="btn btn-secondary" type="button" id="fpwMonitorWeatherBtn">Check Conditions</button>
-		            </div>
-		            <div id="fpwMonitorWeatherMessage" style="margin-top:10px; color:var(--muted); font-size:0.9rem;" aria-live="polite"></div>
-		            <div id="fpwMonitorWeatherResult" style="margin-top:10px;" hidden>
-		              <div class="split"><span>Point</span><strong id="fpwMonitorWeatherPointLabel">—</strong></div>
-		              <div class="split" style="margin-top:10px;"><span>Wind</span><strong id="fpwMonitorWeatherWind">—</strong></div>
-		              <div class="split" style="margin-top:10px;"><span>Gusts</span><strong id="fpwMonitorWeatherGusts">—</strong></div>
-		              <div class="split" style="margin-top:10px;"><span>Waves</span><strong id="fpwMonitorWeatherWaves">—</strong></div>
-		              <div class="split" style="margin-top:10px;"><span>Visibility</span><strong id="fpwMonitorWeatherVisibility">—</strong></div>
-		              <div class="split" style="margin-top:10px;"><span>Weather % Factor</span><strong id="fpwMonitorWeatherFactor" data-fpw-field="monitor.weatherFactor"><cfoutput>#encodeForHtml(activeCruiseView.monitorWeatherFactor)#</cfoutput></strong></div>
-		              <div style="margin-top:10px;">
-		                <div class="split"><span>Alerts</span><strong id="fpwMonitorWeatherAlertsSummary">No alerts</strong></div>
-		                <div id="fpwMonitorWeatherAlerts" style="margin-top:10px;"></div>
-		              </div>
-		              <div id="fpwMonitorWeatherApplyWrap" style="margin-top:12px; display:flex; justify-content:flex-end;" hidden>
-		                <button class="btn btn-secondary" type="button" id="fpwMonitorWeatherApplyBtn" disabled>Apply Weather to Route</button>
-		              </div>
-		            </div>
-		          </div>
-		          </div>
-	          <div class="panel section-card">
-	            <div class="section-top">
-	              <div>
-                <h2>Route Plan &amp; Progress</h2>
-                <p>Complete active-route overview with display-only timing estimates from the current page data.</p>
+        <section class="hero" aria-label="Active Cruise V2 operational console">
+          <div class="stack">
+            <div class="panel hero-main">
+              <div class="title-row">
+                <div>
+                  <h1 data-fpw-field="hero.routeTitle">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.hero, "title"), fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "routeName"), "Active Cruise")))#</h1>
+                  <div class="subline">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.hero, "statusDetail"), activeCruiseV2Model.message))#</div>
+                </div>
+                <div class="status-pill<cfif fpwV2StateClass(activeCruiseV2Model.tripState) EQ 'is-alert'> status-pill--danger<cfelseif fpwV2StateClass(activeCruiseV2Model.tripState) EQ 'is-scheduled' OR fpwV2StateClass(activeCruiseV2Model.tripState) EQ 'is-paused'> status-pill--warning</cfif>">
+                  <strong data-fpw-field="hero.voyageStatus">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.hero, "status"), fpwV2Text(activeCruiseV2Model.tripState, "unknown")))#</strong>
+                </div>
               </div>
-              <!--- Badge removed by approved scope. --->
-            </div>
 
-            <div class="leg-grid">
-              <div class="route-box route-plan-box">
-                <div class="mini-head" style="margin-bottom:12px;">
-                  <h3>Route Timeline</h3>
-                  <span><cfoutput>#encodeForHtml(arrayLen(activeCruiseRoutePlan.legs) & " legs")#</cfoutput></span>
+              <div class="mini-panel active-cruise-map-panel">
+                <div class="active-cruise-map-head">
+                  <div class="active-cruise-map-copy">
+                    <h3>Map Overview</h3>
+                    <p>Live route view with current position, completed track, and destination.</p>
+                  </div>
+                  <button class="btn btn-secondary" id="fpwActiveCruiseV2OpenFullMapBtn" type="button"<cfif NOT (mapAvailable AND structKeyExists(mapBounds, "available") AND mapBounds.available EQ true AND arrayLen(mapLegs))> disabled aria-disabled="true"</cfif>>Open Full Map</button>
                 </div>
-
-                <div class="route-plan-departure">
-                  <div class="route-plan-kicker">Scheduled Departure</div>
-                  <strong data-route-plan-summary="scheduledDeparture"><cfoutput>#encodeForHtml(activeCruiseRoutePlan.scheduledDepartureLabel)#</cfoutput></strong>
-                  <span>Timing is display-only until an existing route action persists changes.</span>
-                </div>
-
-                <div class="route-plan-toolbar">
-                  <p class="route-plan-preview-note" id="fpwRoutePlanPreviewNote">Uses active route data already available on this page.</p>
-                  <cfif arrayLen(activeCruiseRoutePlan.legs) GT 4>
-                    <button class="btn btn-secondary" type="button" id="fpwRoutePlanJumpCurrentBtn">Jump to Current Leg</button>
-                  </cfif>
-                </div>
-
-                <div class="route-plan-scroll" id="fpwRoutePlanTimeline">
-                  <cfif activeCruiseRoutePlan.available AND arrayLen(activeCruiseRoutePlan.legs)>
-                    <cfloop array="#activeCruiseRoutePlan.legs#" index="routePlanLeg">
-                      <cfset routePlanLegExpanded = (routePlanLeg.state EQ "current" OR (routePlanLeg.state EQ "next" AND activeCruiseRoutePlan.currentLegOrder LTE 0))>
-                      <article
-                        class="route-plan-leg route-plan-leg--<cfoutput>#encodeForHtmlAttribute(routePlanLeg.state)#</cfoutput><cfif routePlanLegExpanded> is-expanded</cfif>"
-                        data-route-plan-leg
-                        data-route-plan-leg-order="<cfoutput>#encodeForHtmlAttribute(routePlanLeg.order)#</cfoutput>"
-                        data-route-plan-state="<cfoutput>#encodeForHtmlAttribute(routePlanLeg.state)#</cfoutput>"
-                        <cfif routePlanLeg.state EQ "current" OR routePlanLeg.state EQ "next">data-route-plan-current="true"</cfif>
-                      >
-                        <button class="route-plan-leg-button" type="button" data-route-plan-toggle aria-expanded="<cfoutput>#encodeForHtmlAttribute(routePlanLegExpanded ? "true" : "false")#</cfoutput>">
-                          <span class="route-plan-leg-dot" aria-hidden="true"></span>
-                          <span>
-                            <span class="route-plan-leg-kicker"><cfoutput>#encodeForHtml(routePlanLeg.status)#</cfoutput></span>
-                            <span class="route-plan-leg-title"><cfoutput>#encodeForHtml(routePlanLeg.label)#</cfoutput></span>
-                            <span class="route-plan-leg-meta"><cfoutput>#encodeForHtml(routePlanLeg.distanceNm GT 0 ? fpwFormatNm(routePlanLeg.distanceNm) : "—")#</cfoutput></span>
-                          </span>
-                          <span class="route-plan-leg-side">
-                            <span data-route-plan-field="arrival"><cfoutput>#encodeForHtml(routePlanLeg.arrivalLabel)#</cfoutput></span>
-                            <span class="route-plan-leg-chevron" aria-hidden="true">⌄</span>
-                          </span>
-                        </button>
-                        <div class="route-plan-leg-detail"<cfif NOT routePlanLegExpanded> hidden</cfif>>
-                          <div class="route-plan-detail-grid">
-                            <div>
-                              <span data-route-plan-label="departure"><cfoutput>#encodeForHtml(routePlanLeg.departureFieldLabel)#</cfoutput></span>
-                              <strong data-route-plan-field="departure"><cfoutput>#encodeForHtml(routePlanLeg.departureLabel)#</cfoutput></strong>
-                              <small data-route-plan-field="plannedDeparture"><cfoutput>#encodeForHtml(routePlanLeg.departureSource EQ "planned" ? "" : "Plan: " & routePlanLeg.plannedDepartureLabel)#</cfoutput></small>
-                            </div>
-                            <div>
-                              <span data-route-plan-label="arrivalDetail"><cfoutput>#encodeForHtml(routePlanLeg.arrivalFieldLabel)#</cfoutput></span>
-                              <strong data-route-plan-field="arrivalDetail"><cfoutput>#encodeForHtml(routePlanLeg.arrivalLabel)#</cfoutput></strong>
-                              <small data-route-plan-field="plannedArrival"><cfoutput>#encodeForHtml(routePlanLeg.arrivalSource EQ "planned" ? "" : "Plan: " & routePlanLeg.plannedArrivalLabel)#</cfoutput></small>
-                            </div>
-                            <div>
-                              <span>Duration</span>
-                              <strong data-route-plan-field="duration"><cfoutput>#encodeForHtml(routePlanLeg.durationLabel)#</cfoutput></strong>
-                            </div>
-                            <div>
-                              <span>Distance</span>
-                              <strong><cfoutput>#encodeForHtml(routePlanLeg.distanceNm GT 0 ? fpwFormatNm(routePlanLeg.distanceNm) : "—")#</cfoutput></strong>
-                            </div>
-                            <div>
-                              <span>Pace Used</span>
-                              <strong data-route-plan-field="speed"><cfoutput>#encodeForHtml(routePlanLeg.speedKn GT 0 ? numberFormat(routePlanLeg.speedKn, "0.0") & " kt" : "—")#</cfoutput></strong>
-                            </div>
-                            <div>
-                              <span>Weather Effect</span>
-                              <strong data-route-plan-field="weather"><cfoutput>#encodeForHtml(activeCruiseRoutePlan.weatherFactorPct GT 0 ? numberFormat(activeCruiseRoutePlan.weatherFactorPct, "0") & "% factor" : "—")#</cfoutput></strong>
-                            </div>
-                            <div>
-                              <span>Fuel Need</span>
-                              <strong data-route-plan-field="fuel"><cfoutput>#encodeForHtml(routePlanLeg.fuelNeedGal GT 0 ? numberFormat(routePlanLeg.fuelNeedGal, "0.0") & " gal" : "—")#</cfoutput></strong>
-                            </div>
-                            <div>
-                              <span>Reserve</span>
-                              <strong data-route-plan-field="reserve"><cfoutput>#encodeForHtml(routePlanLeg.reserveGal GT 0 ? numberFormat(routePlanLeg.reserveGal, "0.0") & " gal" : "—")#</cfoutput></strong>
-                            </div>
-                            <div>
-                              <span>Delay Adjustment</span>
-                              <strong data-route-plan-field="delay"><cfoutput>#encodeForHtml(routePlanLeg.delayMinutes GT 0 ? routePlanLeg.delayMinutes & " min" : "—")#</cfoutput></strong>
-                            </div>
-                            <div>
-                              <span>Status Times</span>
-                              <strong><cfoutput>#encodeForHtml(len(routePlanLeg.completedAtLabel) ? routePlanLeg.completedAtLabel : (len(routePlanLeg.startedAtLabel) ? routePlanLeg.startedAtLabel : "—"))#</cfoutput></strong>
-                            </div>
-                          </div>
-                        </div>
-                      </article>
-                    </cfloop>
-                    <div class="route-plan-final">
-                      <div class="route-plan-kicker">Final Destination</div>
-                      <strong><cfoutput>#encodeForHtml(activeCruiseRoutePlan.finalDestinationLabel)#</cfoutput></strong>
-                      <span data-route-plan-summary="finalArrival"><cfoutput>#encodeForHtml(activeCruiseRoutePlan.summary.finalArrivalLabel)#</cfoutput></span>
+                <div class="active-cruise-map-wrap" data-ac-v2-map-authority="#encodeForHTMLAttribute(mapGeometryAuthority)#">
+                  <cfif mapAvailable AND structKeyExists(mapBounds, "available") AND mapBounds.available EQ true AND arrayLen(mapLegs)>
+                    <div class="active-cruise-map-canvas map-leaflet-canvas" aria-label="Read-only route map from Active Cruise V2 view model">
+                      <div id="fpwActiveCruiseV2Map" data-ac-v2-map-canvas="true"></div>
+                      <div id="fpwActiveCruiseV2MapStatus" class="map-load-state is-visible" aria-live="polite">
+                        <span>Loading route map...</span>
+                      </div>
                     </div>
                   <cfelse>
-                    <div class="route-plan-final">
-                      <div class="route-plan-kicker">Route Plan</div>
-                      <strong>—</strong>
-                      <span>No active route legs are available to this page.</span>
-                    </div>
+                    <div class="panel-note is-warning">Map geometry is not available from the V2 view model for this trip.</div>
                   </cfif>
                 </div>
               </div>
 
-              <div class="detail-box">
-                <div class="mini-head" style="margin-bottom:16px;">
-                  <h3>Current Leg Data</h3>
-                  <span>Computed</span>
+              <div class="header-stats">
+                <div class="metric">
+                  <span>Scheduled Departure</span>
+                  <strong data-fpw-field="hero.tripStart">#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureUtc"), activeCruiseV2TripTimezone, "Not available"))#</strong>
+                  <small>Planned trip start</small>
                 </div>
-                <div class="data-grid">
-                  <div class="data-item">
-                    <span>Distance</span>
-                    <strong data-fpw-field="leg.distance"><cfoutput>#encodeForHtml(activeCruiseView.legDistance)#</cfoutput></strong>
-                    <small>Total leg length</small>
-                  </div>
-                  <div class="data-item">
-                    <span>Remaining</span>
-                    <strong data-fpw-field="leg.remaining"><cfoutput>#encodeForHtml(activeCruiseView.legRemaining)#</cfoutput></strong>
-                    <small>Approximate to next stop</small>
-                  </div>
-                  <div class="data-item">
-                    <span>Pace</span>
-                    <strong data-fpw-field="leg.dataPace"><cfoutput>#encodeForHtml(activeCruiseView.legDataPace)#</cfoutput></strong>
-                    <small>Weather-adjusted</small>
-                  </div>
-                  <div class="data-item">
-                    <span>Fuel Need</span>
-                    <strong data-fpw-field="leg.fuelNeed"><cfoutput>#encodeForHtml(activeCruiseView.legFuelNeed)#</cfoutput></strong>
-                    <small>Estimated for remainder</small>
-                  </div>
-                  <div class="data-item">
-                    <span>Reserve</span>
-                    <strong data-fpw-field="leg.reserveFuel"><cfoutput>#encodeForHtml(activeCruiseView.legReserveFuel)#</cfoutput></strong>
-                    <small>Target reserve retained</small>
-                  </div>
-                  <div class="data-item">
-                    <span>Arrival</span>
-                    <strong data-fpw-field="leg.arrival"><cfoutput>#encodeForHtml(activeCruiseView.legArrival)#</cfoutput></strong>
-                    <small data-fpw-field="leg.arrivalMeta">Based on current conditions</small>
-                    <small data-fpw-field="leg.arrivalScheduleMeta"></small>
-                  </div>
+                <div class="metric">
+                  <span>Current Leg</span>
+                  <strong data-fpw-field="hero.currentLegSummary">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "order"), "Not available"))# of #encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "totalLegs"), "0"))#</strong>
+                  <small data-fpw-field="hero.legMeta">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "statusLabel"), "Current route leg"))#</small>
+                </div>
+                <div class="metric">
+                  <span>Distance Complete</span>
+                  <strong data-fpw-field="hero.distanceComplete">#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2Model.currentLeg, "completedNm"), " nm"))#</strong>
+                  <small data-fpw-field="hero.percentComplete">#encodeForHTML(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))# complete</small>
+                </div>
+                <div class="metric">
+                  <span>Next Stop</span>
+                  <strong data-fpw-field="hero.nextStop">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "toName"), fpwV2Get(activeCruiseV2Model.route, "endLocation", "Not available")))#</strong>
+                  <small data-fpw-field="hero.nextStopMeta">Upcoming planned stop</small>
+                </div>
+                <div class="metric">
+                  <span>ETA</span>
+                  <strong data-fpw-field="hero.eta">#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2Model.currentLeg, "etaUtc"), activeCruiseV2TripTimezone, "Not available"))#</strong>
+                  <small data-fpw-field="hero.etaMeta">Active leg ETA</small>
                 </div>
               </div>
-            </div>
-          </div>
 
-	        </div>
-
-		        <div class="stack">
-          <div class="panel section-card">
-          <!--- Monitoring status pill row removed by approved scope. --->
-            <div class="floatplan-box">
-              <div class="mini-panel">
-                <div class="mini-head">
-                  <h3>Float Plan Monitor</h3>
-                  <span>Attached</span>
+              <div class="mini-panel mini-panel--route-progress-flat">
+                <div class="progress-block">
+                  <div class="route-plan-progress-footer route-plan-progress-footer--flat">
+                    <div class="route-plan-progress-grid">
+                      <div>
+                        <span>Complete</span>
+                        <strong data-fpw-field="routeProgress.percentComplete">#encodeForHTML(fpwV2Percent(fpwV2Get(activeCruiseV2RouteProgressSummary, "percentComplete")))#</strong>
+                      </div>
+                      <div>
+                        <span>Total Route</span>
+                        <strong data-fpw-field="routeProgress.totalLegs">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "totalLegs"), "0"))# legs</strong>
+                      </div>
+                      <div>
+                        <span>Remaining</span>
+                        <strong data-fpw-field="routeProgress.remainingNm">#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2RouteProgressSummary, "remainingNm"), " nm"))#</strong>
+                      </div>
+                      <div>
+                        <span>Final Arrival</span>
+                        <strong data-fpw-field="routeProgress.finalArrival" data-route-plan-summary="finalArrivalFooter">#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2RouteProgressSummary, "finalArrivalUtc"), activeCruiseV2TripTimezone, fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "endLocation"), "Not available")))#</strong>
+                      </div>
+                    </div>
+                    <div class="route-plan-progress-bar" aria-hidden="true">
+                      <span data-fpw-field="routeProgress.progressBar" style="width:#encodeForHTMLAttribute(fpwV2Percent(fpwV2Get(activeCruiseV2RouteProgressSummary, "percentComplete")))#;"></span>
+                    </div>
+                  </div>
+                  <div class="route-leg-estimate" aria-label="Route leg estimate">
+                    <div class="route-leg-estimate-head">
+                      <h4 class="route-leg-estimate-title">Current Leg Estimate</h4>
+                      <span class="route-leg-estimate-state" data-fpw-field="currentLeg.statusLabel">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "statusLabel"), "Not available"))#</span>
+                    </div>
+                    <p class="route-leg-estimate-copy" data-fpw-field="currentLeg.summary">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "fromName"), "Not available"))# to #encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "toName"), "Not available"))#</p>
+                    <div class="route-leg-estimate-metrics">
+                      <div class="route-leg-estimate-metric">
+                        <span>Distance</span>
+                        <strong data-fpw-field="currentLeg.distanceNm">#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2Model.currentLeg, "distanceNm"), " nm"))#</strong>
+                      </div>
+                      <div class="route-leg-estimate-metric">
+                        <span>Remaining</span>
+                        <strong data-fpw-field="currentLeg.remainingNm">#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2Model.currentLeg, "remainingNm"), " nm"))#</strong>
+                      </div>
+                      <div class="route-leg-estimate-metric">
+                        <span>ETA</span>
+                        <strong data-fpw-field="currentLeg.etaUtc">#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2Model.currentLeg, "etaUtc"), activeCruiseV2TripTimezone, "Not available"))#</strong>
+                      </div>
+                      <div class="route-leg-estimate-metric">
+                        <span>Adjusted Speed</span>
+                        <strong data-fpw-field="currentLeg.adjustedSpeedLabel">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "adjustedSpeedLabel"), "--"))#</strong>
+                      </div>
+                      <div class="route-leg-estimate-metric">
+                        <span>Weather Factor</span>
+                        <strong data-fpw-field="currentLeg.weatherFactorLabel">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "weatherFactorLabel"), "0%"))#</strong>
+                      </div>
+                    </div>
+                    <div class="route-leg-estimate-progress">
+                      <div class="route-leg-estimate-progress-head"><span>Leg Progress</span><span data-fpw-field="currentLeg.percentComplete">#encodeForHTML(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))#</span></div>
+                      <div class="route-leg-estimate-progress-row"><div class="bar-shell"><div class="bar-fill" data-fpw-field="currentLeg.progressBar" style="width:#encodeForHTMLAttribute(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))#;"></div></div></div>
+                    </div>
+                    <div class="route-leg-estimate-foot">
+                      <div>Start Next Leg and Complete Leg remain controlled by the V2 action contracts.</div>
+                      <small>Display values come from activeCruiseV2Model.currentLeg.</small>
+                    </div>
+                  </div>
+                  <section class="ac-v2-panel ac-pace-command-panel" id="fpwV2PacePanel" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(paceUpdateAction, "endpoint"), ""))#" data-method="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(paceUpdateAction, "method"), "POST"))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(paceUpdateAction, "payload", {})))#" data-enabled="#encodeForHTMLAttribute(paceUpdateEnabled ? "true" : "false")#" aria-label="Pace controls">
+                    <div class="ac-panel-header">
+                      <div>
+                        <h2>Pace / Speed</h2>
+                        <p>Operational pace for the active trip projection.</p>
+                      </div>
+                      <span class="pace-header-label">#encodeForHTML(fpwV2Text(fpwV2Get(paceModel, "currentLabel"), "Relaxed"))#</span>
+                    </div>
+                    <div class="ac-pace-meter">
+                      <div class="ac-section-label">Current Pace</div>
+                      <strong class="ac-monitor-value" data-fpw-field="pace.currentLabel">#encodeForHTML(fpwV2Text(fpwV2Get(paceModel, "currentLabel"), "Relaxed"))#</strong>
+                      <p><span data-fpw-field="pace.weatherAdjustedSpeedLabel">#encodeForHTML(fpwV2Text(fpwV2Get(paceModel, "weatherAdjustedSpeedLabel"), "--"))#</span> after #encodeForHTML(fpwV2Text(fpwV2Get(paceModel, "weatherFactorLabel"), "0%"))# weather factor.</p>
+                    </div>
+                    <div class="ac-command-section ac-pace-section">
+                      <label class="ac-section-label" for="fpwV2PaceSlider">Set Active-Trip Pace</label>
+                      <input id="fpwV2PaceSlider" class="ac-pace-slider" type="range" min="0" max="2" step="1" value="#encodeForHTMLAttribute(paceCurrentIndex)#"<cfif !paceUpdateEnabled> disabled</cfif> data-current-value="#encodeForHTMLAttribute(paceCurrentValue)#">
+                      <div class="ac-pace-label-row" aria-hidden="true">
+                        <cfloop array="#paceOptions#" item="paceOption">
+                          <span>#encodeForHTML(fpwV2Text(fpwV2Get(paceOption, "label"), "Pace"))#</span>
+                        </cfloop>
+                      </div>
+                      <div class="ac-inline-control-row">
+                        <div class="ac-pace-selected" aria-live="polite">
+                          <span>Selected</span>
+                          <strong id="fpwV2PaceSelectedLabel">#encodeForHTML(fpwV2Text(fpwV2Get(paceModel, "currentLabel"), "Relaxed"))#</strong>
+                        </div>
+                      </div>
+                      <cfif len(paceUpdateReason)><p class="ac-muted-note">#encodeForHTML(paceUpdateReason)#</p></cfif>
+                    </div>
+                    <div class="action-feedback ac-action-ready-message" id="fpwV2PaceFeedback" role="status" aria-live="polite">Change pace to update the active trip projection.</div>
+                  </section>
                 </div>
-                <div class="split"><span>Status</span><strong style="color:<cfoutput>#encodeForHtmlAttribute(activeCruiseView.monitorStatusColor)#</cfoutput>;" data-fpw-field="monitor.status"><cfoutput>#encodeForHtml(activeCruiseView.monitorStatus)#</cfoutput></strong></div>
-                <div class="split" style="margin-top:10px;"><span>Trip Page</span><strong style="color:var(--accent);" data-fpw-field="monitor.followerState"><cfoutput>#encodeForHtml(activeCruiseView.monitorFollowerState)#</cfoutput></strong></div>
-                <div class="split" style="margin-top:10px;"><span>Monitor</span><strong data-fpw-field="monitor.emergencyContact"><cfoutput>#encodeForHtml(activeCruiseView.monitorEmergencyContact)#</cfoutput></strong></div>
-                <cfif len(activeCruiseContacts.monitor.phoneHref) OR len(activeCruiseContacts.monitor.smsHref) OR len(activeCruiseContacts.monitor.emailHref)>
-                  <div class="contact-reference-actions" aria-label="Emergency monitor contact actions">
-                    <cfif len(activeCruiseContacts.monitor.phoneHref)>
-                      <a class="contact-reference-action" data-fpw-field="contacts.monitor.phoneLink" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseContacts.monitor.phoneHref)#</cfoutput>">
-                        <span aria-hidden="true">&#9742;</span>
-                        <span>Call</span>
-                      </a>
-                    </cfif>
-                    <cfif len(activeCruiseContacts.monitor.smsHref)>
-                      <a class="contact-reference-action" data-fpw-field="contacts.monitor.smsLink" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseContacts.monitor.smsHref)#</cfoutput>">
-                        <span aria-hidden="true">&#128172;</span>
-                        <span>Text</span>
-                      </a>
-                    </cfif>
-                    <cfif len(activeCruiseContacts.monitor.emailHref)>
-                      <a class="contact-reference-action" data-fpw-field="contacts.monitor.emailLink" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseContacts.monitor.emailHref)#</cfoutput>">
-                        <span aria-hidden="true">&#9993;</span>
-                        <span>Email</span>
-                      </a>
-                    </cfif>
+              </div>
+
+              <section class="mini-panel ac-weather-command-panel" id="acV2WeatherPanel" aria-label="Weather lookup">
+                <div id="fpwV2WeatherLookup" class="weather-lookup-layout" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#">
+                  <div class="ac-weather-command-header">
+                    <div class="ac-weather-command-title">
+                      <span class="ac-weather-command-icon" aria-hidden="true">WX</span>
+                      <h3>Weather</h3>
+                    </div>
+                    <form id="fpwV2WeatherForm" class="weather-lookup-form">
+                      <div class="weather-choice-row" role="group" aria-label="Current leg weather lookup point">
+                        <span class="ac-weather-control-label">Current Leg</span>
+                        <label class="weather-choice">
+                          <input type="radio" name="fpwV2WeatherPoint" value="start"<cfif structKeyExists(weatherStartPoint, "available") AND weatherStartPoint.available EQ true> checked</cfif><cfif !structKeyExists(weatherStartPoint, "available") OR weatherStartPoint.available NEQ true> disabled</cfif>>
+                          <span>#encodeForHTML(fpwV2Text(fpwV2Get(weatherStartPoint, "label"), "Start"))#</span>
+                        </label>
+                        <label class="weather-choice">
+                          <input type="radio" name="fpwV2WeatherPoint" value="end"<cfif (!structKeyExists(weatherStartPoint, "available") OR weatherStartPoint.available NEQ true) AND structKeyExists(weatherEndPoint, "available") AND weatherEndPoint.available EQ true> checked</cfif><cfif !structKeyExists(weatherEndPoint, "available") OR weatherEndPoint.available NEQ true> disabled</cfif>>
+                          <span>#encodeForHTML(fpwV2Text(fpwV2Get(weatherEndPoint, "label"), "End"))#</span>
+                        </label>
+                      </div>
+                      <button type="submit" class="btn btn-secondary ac-weather-command-btn"<cfif !weatherLookupAvailable> disabled</cfif>>Check Conditions</button>
+                      <span class="ac-weather-status-chip" data-weather-chip="alerts">No alerts</span>
+                      <span class="ac-weather-status-chip" data-weather-chip="factor">0% factor</span>
+                    </form>
+                  </div>
+                </div>
+                <cfif !weatherLookupAvailable>
+                  <div id="fpwV2WeatherFeedback" class="panel-note is-warning">#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "message"), "Weather lookup is not currently available."))#</div>
+                <cfelse>
+                  <div id="fpwV2WeatherFeedback" class="panel-note">#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "message"), "Select a current-leg point and check conditions."))#</div>
+                </cfif>
+                <div class="ac-weather-summary-row" aria-live="polite">
+                  <span>Point: <strong data-weather-field="point">Not checked</strong></span>
+                  <span>Summary: <strong data-weather-field="summary">Not checked</strong></span>
+                  <span>Temperature: <strong data-weather-field="temperature">Not checked</strong></span>
+                  <span>Source: <strong>#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "source"), "Not available"))#</strong></span>
+                </div>
+                <div id="fpwV2WeatherResult" class="weather-result is-empty" aria-live="polite">
+                  <article class="ac-weather-metric-tile">
+                    <div class="ac-weather-metric-label">Wind</div>
+                    <strong class="ac-weather-metric-value" data-weather-field="wind">Not checked</strong>
+                  </article>
+                  <article class="ac-weather-metric-tile">
+                    <div class="ac-weather-metric-label">Gusts</div>
+                    <strong class="ac-weather-metric-value" data-weather-field="gusts">Not checked</strong>
+                  </article>
+                  <article class="ac-weather-metric-tile">
+                    <div class="ac-weather-metric-label">Waves</div>
+                    <strong class="ac-weather-metric-value" data-weather-field="waves">Not checked</strong>
+                  </article>
+                  <article class="ac-weather-metric-tile">
+                    <div class="ac-weather-metric-label">Visibility</div>
+                    <strong class="ac-weather-metric-value" data-weather-field="visibility">Not checked</strong>
+                  </article>
+                  <article class="ac-weather-metric-tile">
+                    <div class="ac-weather-metric-label">Weather Factor</div>
+                    <strong class="ac-weather-metric-value" data-weather-field="weatherFactor">0%</strong>
+                  </article>
+                  <article class="ac-weather-metric-tile">
+                    <div class="ac-weather-metric-label">Alerts</div>
+                    <strong class="ac-weather-metric-value" data-weather-field="alerts">Not checked</strong>
+                  </article>
+                </div>
+                <div class="ac-weather-command-footer">
+                  <p class="ac-weather-applied-note" data-weather-field="weatherFactorNote"><cfif weatherApplyAvailable>Check conditions to calculate a route weather factor.<cfelse>Weather factor apply is not available in AC-V2.</cfif></p>
+                  <button type="button" class="btn btn-secondary ac-weather-command-btn ac-weather-apply-btn" id="fpwV2WeatherApplyBtn" disabled aria-disabled="true">Apply Weather to Route</button>
+                </div>
+                <cfif arrayLen(weatherWarnings)>
+                  <div class="weather-warning-list">
+                    <cfloop array="#weatherWarnings#" item="weatherWarning">
+                      <cfif isStruct(weatherWarning)>
+                        <div class="panel-note is-warning">#encodeForHTML(fpwV2Text(fpwV2Get(weatherWarning, "message"), "Weather lookup warning."))#</div>
+                      </cfif>
+                    </cfloop>
                   </div>
                 </cfif>
-              </div>
-              <div class="data-grid">
-                <div class="data-item">
-                  <span>Last Check-In</span>
-                  <strong data-fpw-field="floatPlan.lastCheckIn"><cfoutput>#encodeForHtml(activeCruiseView.floatPlanLastCheckIn)#</cfoutput></strong>
-                  <small>Captain confirmed status</small>
-                </div>
-                <div class="data-item">
-                  <span>Since Check-In</span>
-                  <strong data-fpw-field="floatPlan.nextExpected"><cfoutput>#encodeForHtml(activeCruiseView.floatPlanNextExpected)#</cfoutput></strong>
-                  <small><cfoutput>#encodeForHtml(activeCruiseFloatPlanNextExpectedNote)#</cfoutput></small>
-                </div>
-                <div class="data-item">
-                  <span>Next Expected Check-In</span>
-                  <strong data-fpw-field="monitor.nextExpectedCheckIn"><cfoutput>#encodeForHtml(activeCruiseView.monitorNextExpectedCheckIn)#</cfoutput></strong>
-                  <small>Canonical monitoring checkpoint</small>
-                </div>
-                <div class="data-item">
-                  <span>Current Delay</span>
-                  <strong data-fpw-field="delay.currentTotal"><cfoutput>#encodeForHtml(activeCruiseView.manualDelayMinutesLabel)#</cfoutput></strong>
-                  <small>Current manual delay total applied to canonical trip timing.</small>
-                  <button
-                    type="button"
-                    id="fpwManualDelayClearBtn"
-                    class="action-btn"
-                    style="margin-top:12px; width:100%; padding:8px 14px; min-height:auto;"
-                  >Clear Delay</button>
-                </div>
-                <div class="data-item" style="grid-column:1 / -1;">
-                  <span>Add Delay Time</span>
-                  <strong>Manual timing adjustment</strong>
-                  <small>Add positive minutes to the active trip timeline without changing monitoring cadence.</small>
-                  <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
-                    <input
-                      type="number"
-                      id="fpwManualDelayMinutesInput"
-                      min="1"
-                      step="1"
-                      inputmode="numeric"
-                      placeholder="Minutes"
-                      style="min-width:128px; padding:8px 10px; border-radius:10px; border:1px solid rgba(126,184,226,0.18); background:rgba(8,18,28,0.82); color:var(--text);"
-                    >
-                    <button
-                      type="button"
-                      id="fpwManualDelayAddBtn"
-                      class="action-btn"
-                      style="padding:8px 14px; min-height:auto;"
-                    >Add Delay Time</button>
-                  </div>
-                  <small id="fpwManualDelayNote">Adds minutes to the canonical trip delay total used by Active Cruise and Follow timing.</small>
-                </div>
-                <div class="data-item" style="grid-column:1 / -1;">
-                  <span>Daily Start Time</span>
-                  <strong data-fpw-field="monitor.dailyStartLabel"><cfoutput>#encodeForHtml(activeCruiseView.monitorDailyStartLabel)#</cfoutput></strong>
-                  <small>Applied to overnight resume and next-day monitoring.</small>
-                  <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
-                    <input
-                      type="time"
-                      id="fpwMonitorDailyStartInput"
-                      value="<cfoutput>#encodeForHtmlAttribute(activeCruiseView.monitorDailyStartInput)#</cfoutput>"
-                      step="60"
-                      style="min-width:128px; padding:8px 10px; border-radius:10px; border:1px solid rgba(126,184,226,0.18); background:rgba(8,18,28,0.82); color:var(--text);"
-                    >
-                    <button
-                      type="button"
-                      id="fpwMonitorDailyStartSaveBtn"
-                      class="action-btn"
-                      style="padding:8px 14px; min-height:auto;"
-                    >Save</button>
-                  </div>
-                  <small id="fpwMonitorDailyStartNote">If you change this while secured for the night, the next resume/check-in time updates from the new local start.</small>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!--- Attached Float Plan card removed by approved scope. --->
-
-          <div class="panel section-card">
-            <div class="section-top">
-              <div>
-                <h2>Route Timeline & Current Notes</h2>
-                <p>This section acts as the active voyage log. It gives the member a clean operational history for the current day and makes it easy to see what happened, what changed, and what needs attention next.</p>
-              </div>
-              <!--- Badge removed by approved scope. --->
+              </section>
             </div>
 
-            <div class="stack">
-              <div class="timeline-box">
-                <div class="mini-head" style="margin-bottom:16px;">
-                  <h3>Today’s Timeline</h3>
-                  <span>Chronological</span>
-                </div>
-                <div class="timeline">
-	                  <cfoutput>
-	                    <cfloop array="#activeCruiseTimelineItems#" index="timelineItem">
-	                      <div class="timeline-row">
-	                        <div class="timeline-time"<cfif structKeyExists(timelineItem, "timeUtc") AND len(trim(toString(timelineItem.timeUtc)))> data-time-utc="#encodeForHtmlAttribute(toString(timelineItem.timeUtc))#"</cfif>>#encodeForHtml(toString(timelineItem.time))#</div>
-	                        <div class="timeline-node"></div>
-	                        <div class="timeline-copy">
-	                          <b>#encodeForHtml(toString(timelineItem.title))#</b>
-	                          <cfif len(trim(toString(timelineItem.detail)))>
-	                            <span>#encodeForHtml(toString(timelineItem.detail))#</span>
-                          </cfif>
-                        </div>
-                      </div>
-                    </cfloop>
-                  </cfoutput>
-                </div>
-              </div>
-
-              <div class="log-box">
-                <div class="mini-head" style="margin-bottom:16px;">
-                  <h3>Quick Notes</h3>
-                  <span>Editable</span>
-                </div>
-                <div class="captain-note-form" id="fpwCaptainQuickNoteForm">
-                  <label class="captain-note-label" for="fpwCaptainQuickNoteInput">
-                    Add captain note
-                    <span>Private by default</span>
-                  </label>
-                  <textarea class="captain-note-textarea" id="fpwCaptainQuickNoteInput" placeholder="Write a quick captain note… Example: Called marina, confirmed slip assignment, ETA still on track."></textarea>
-                  <div class="captain-note-tags" aria-label="Quick note tags">
-                    <button class="captain-note-tag" type="button" data-fpw-captain-note-tag="All good">All good</button>
-                    <button class="captain-note-tag" type="button" data-fpw-captain-note-tag="Underway">Underway</button>
-                    <button class="captain-note-tag" type="button" data-fpw-captain-note-tag="Weather delay">Weather delay</button>
-                    <button class="captain-note-tag" type="button" data-fpw-captain-note-tag="Anchored">Anchored</button>
-                    <button class="captain-note-tag" type="button" data-fpw-captain-note-tag="Docking">Docking</button>
-                    <button class="captain-note-tag" type="button" data-fpw-captain-note-tag="Fuel">Fuel</button>
-                    <button class="captain-note-tag" type="button" data-fpw-captain-note-tag="Mechanical">Mechanical</button>
-                    <button class="captain-note-tag" type="button" data-fpw-captain-note-tag="Marina call">Marina call</button>
+            <div class="panel section-card" id="acV2RouteProgressPanel">
+              <cfset selectedRoutePlanLeg = {}>
+              <cfset selectedRoutePlanLegIndex = 1>
+              <cfif structKeyExists(activeCruiseV2Model.routeTimeline, "available") AND activeCruiseV2Model.routeTimeline.available EQ true AND structKeyExists(activeCruiseV2Model.routeTimeline, "legs") AND arrayLen(activeCruiseV2Model.routeTimeline.legs)>
+                <cfset routePlanSelectionIndex = 0>
+                <cfset startedRoutePlanLeg = {}>
+                <cfset startedRoutePlanLegIndex = 0>
+                <cfset currentRoutePlanLeg = {}>
+                <cfset currentRoutePlanLegIndex = 0>
+                <cfloop array="#activeCruiseV2Model.routeTimeline.legs#" item="routePlanSelectionLeg">
+                  <cfset routePlanSelectionIndex = routePlanSelectionIndex + 1>
+                  <cfset routePlanSelectionState = lCase(fpwV2Text(fpwV2Get(routePlanSelectionLeg, "state"), ""))>
+                  <cfset routePlanSelectionStatus = uCase(fpwV2Text(fpwV2Get(routePlanSelectionLeg, "status"), ""))>
+                  <cfif NOT structCount(startedRoutePlanLeg) AND routePlanSelectionStatus EQ "STARTED">
+                    <cfset startedRoutePlanLeg = routePlanSelectionLeg>
+                    <cfset startedRoutePlanLegIndex = routePlanSelectionIndex>
+                  </cfif>
+                  <cfif NOT structCount(currentRoutePlanLeg) AND ((structKeyExists(routePlanSelectionLeg, "isCurrent") AND routePlanSelectionLeg.isCurrent EQ true) OR routePlanSelectionState EQ "current")>
+                    <cfset currentRoutePlanLeg = routePlanSelectionLeg>
+                    <cfset currentRoutePlanLegIndex = routePlanSelectionIndex>
+                  </cfif>
+                </cfloop>
+                <cfif structCount(startedRoutePlanLeg)>
+                  <cfset selectedRoutePlanLeg = startedRoutePlanLeg>
+                  <cfset selectedRoutePlanLegIndex = startedRoutePlanLegIndex>
+                <cfelseif structCount(currentRoutePlanLeg)>
+                  <cfset selectedRoutePlanLeg = currentRoutePlanLeg>
+                  <cfset selectedRoutePlanLegIndex = currentRoutePlanLegIndex>
+                </cfif>
+                <cfif NOT structCount(selectedRoutePlanLeg)>
+                  <cfset selectedRoutePlanLeg = activeCruiseV2Model.routeTimeline.legs[1]>
+                  <cfset selectedRoutePlanLegIndex = 1>
+                </cfif>
+              </cfif>
+              <cfset selectedRoutePlanDistanceLabel = fpwV2Number(fpwV2Get(selectedRoutePlanLeg, "distanceNm"), " nm")>
+              <cfset selectedRoutePlanRemainingLabel = fpwV2Number(fpwV2Get(selectedRoutePlanLeg, "remainingNm"), " nm")>
+              <cfset selectedRoutePlanCompletedLabel = fpwV2Number(fpwV2Get(selectedRoutePlanLeg, "completedNm"), " nm")>
+              <cfset selectedRoutePlanProgressLabel = fpwV2Percent(fpwV2Get(selectedRoutePlanLeg, "percentComplete"))>
+              <cfset selectedRoutePlanStatusLabel = fpwV2Text(fpwV2Get(selectedRoutePlanLeg, "status"), fpwV2Get(selectedRoutePlanLeg, "state", "Not available"))>
+              <cfset selectedRoutePlanArrivalLabel = fpwV2TripDateTimeLabel(fpwV2Text(fpwV2Get(selectedRoutePlanLeg, "etaUtc"), fpwV2Get(selectedRoutePlanLeg, "arrivalUtc")), activeCruiseV2TripTimezone, "Not available")>
+              <cfset selectedRoutePlanEstimatedDurationLabel = fpwV2Text(fpwV2Get(selectedRoutePlanLeg, "estimatedDurationLabel"), "Not available")>
+              <cfset selectedRoutePlanRemainingDurationLabel = fpwV2Text(fpwV2Get(selectedRoutePlanLeg, "remainingDurationLabel"), "Not available")>
+              <div class="leg-grid">
+                <div class="route-box route-plan-box">
+                  <div class="mini-head" style="margin-bottom:12px;">
+                    <h3>Route Timeline</h3>
+                    <span>#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "totalLegs"), "0"))# legs</span>
                   </div>
-                  <label class="captain-note-post-option" for="fpwCaptainQuickNotePost">
-                    <input type="checkbox" id="fpwCaptainQuickNotePost" />
-                    <span>
-                      <b>Also post this note to the Follow page voyage stream.</b>
-                      <span>Leave unchecked for a private captain log entry only.</span>
-                    </span>
-                  </label>
-                  <div class="captain-note-actions">
-                    <span class="captain-note-message" id="fpwCaptainQuickNoteMessage" aria-live="polite"></span>
-                    <button class="captain-note-save" type="button" id="fpwCaptainQuickNoteSaveBtn">Save Note</button>
+                  <div class="route-plan-departure">
+                    <div class="route-plan-kicker">Scheduled Departure</div>
+                    <strong>#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureUtc"), activeCruiseV2TripTimezone, "Not available"))#</strong>
                   </div>
-                </div>
-                <div class="log-list" id="fpwCaptainQuickNoteList">
-                  <cfoutput>
-                    <cfif arrayLen(activeCruiseCaptainLogEntries)>
-                      <cfloop array="#activeCruiseCaptainLogEntries#" index="noteEntry">
-                        <div class="log-row captain-note-entry" data-captain-note-id="#encodeForHtmlAttribute(toString(noteEntry.id))#">
-                          <div>
-                            <b>#encodeForHtml(len(trim(toString(noteEntry.tag))) ? toString(noteEntry.tag) : "Captain note")#</b>
-                            <span>#encodeForHtml(toString(noteEntry.body))#</span>
-                            <small<cfif structKeyExists(noteEntry, "createdUtc") AND len(trim(toString(noteEntry.createdUtc)))> data-time-utc="#encodeForHtmlAttribute(toString(noteEntry.createdUtc))#"</cfif>>#encodeForHtml(toString(noteEntry.createdLabel))#</small>
-                          </div>
-                          <div class="action-mini">#encodeForHtml(toString(noteEntry.badge))#</div>
-                        </div>
-                      </cfloop>
-                    <cfelse>
-                      <div class="captain-note-empty" data-fpw-captain-note-empty>Private captain notes will appear here after they are saved.</div>
-                    </cfif>
-                  </cfoutput>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <section class="panel active-cruise-reference-card fpw-contact-reference-card" aria-labelledby="crew-emergency-title">
-            <div class="reference-card-header">
-              <div>
-                <h2 id="crew-emergency-title">Crew &amp; Passengers</h2>
-                <p>Quick access to trip contacts</p>
-              </div>
-              <span class="reference-badge">REFERENCE</span>
-            </div>
-
-            <div class="contact-reference-stack">
-              <article class="contact-reference-panel contact-reference-panel--primary">
-                <div class="contact-reference-main">
-                  <div class="contact-reference-icon" aria-hidden="true">
-                    <span class="contact-reference-icon-symbol">&#9875;</span>
-                  </div>
-
-                  <div class="contact-reference-content">
-                    <div class="contact-reference-kicker">
-                      <cfif activeCruiseContacts.operator.sameAsOwner>
-                        CAPTAIN / OWNER / OPERATOR
-                      <cfelse>
-                        CAPTAIN / OWNER
-                      </cfif>
-                    </div>
-                    <div class="contact-reference-name" data-fpw-field="contacts.owner.name"><cfoutput>#encodeForHtml(activeCruiseContacts.owner.name)#</cfoutput></div>
-                    <div class="contact-reference-subtext" data-fpw-field="contacts.owner.role"><cfoutput>#encodeForHtml(activeCruiseContacts.owner.role)#</cfoutput></div>
-                  </div>
-                </div>
-
-                <!--- Captain/Owner contact actions removed by approved scope. --->
-              </article>
-
-              <cfif NOT activeCruiseContacts.operator.sameAsOwner>
-                <article class="contact-reference-panel contact-reference-panel--operator">
-                  <div class="contact-reference-main">
-                    <div class="contact-reference-icon" aria-hidden="true">
-                      <span class="contact-reference-icon-symbol">&#9096;</span>
-                    </div>
-
-                    <div class="contact-reference-content">
-                      <div class="contact-reference-kicker">OPERATOR</div>
-                      <div class="contact-reference-name" data-fpw-field="contacts.operator.name">
-                        <cfif len(activeCruiseContacts.operator.name)>
-                          <cfoutput>#encodeForHtml(activeCruiseContacts.operator.name)#</cfoutput>
-                        <cfelse>
-                          No operator assigned
+                  <div class="route-plan-scroll" id="acV2RouteLegList">
+                    <cfif structKeyExists(activeCruiseV2Model.routeTimeline, "available") AND activeCruiseV2Model.routeTimeline.available EQ true AND structKeyExists(activeCruiseV2Model.routeTimeline, "legs") AND arrayLen(activeCruiseV2Model.routeTimeline.legs)>
+                      <cfset routePlanLegIndex = 0>
+                      <cfloop array="#activeCruiseV2Model.routeTimeline.legs#" item="routePlanLeg">
+                        <cfset routePlanLegIndex = routePlanLegIndex + 1>
+                        <cfset routePlanState = lCase(fpwV2Text(fpwV2Get(routePlanLeg, "state"), "future"))>
+                        <cfset routePlanLegOrder = fpwV2Text(fpwV2Get(routePlanLeg, "routeLegOrder"), "")>
+                        <cfset routePlanStatusLabel = fpwV2Text(fpwV2Get(routePlanLeg, "status"), fpwV2Get(routePlanLeg, "state", "Not available"))>
+                        <cfset routePlanTitle = fpwV2Text(fpwV2Get(routePlanLeg, "fromName"), "Not available") & " to " & fpwV2Text(fpwV2Get(routePlanLeg, "toName"), "Not available")>
+                        <cfset routePlanDistanceLabel = fpwV2Number(fpwV2Get(routePlanLeg, "distanceNm"), " nm")>
+                        <cfset routePlanRemainingLabel = fpwV2Number(fpwV2Get(routePlanLeg, "remainingNm"), " nm")>
+                        <cfset routePlanCompletedLabel = fpwV2Number(fpwV2Get(routePlanLeg, "completedNm"), " nm")>
+                        <cfset routePlanProgressLabel = fpwV2Percent(fpwV2Get(routePlanLeg, "percentComplete"))>
+                        <cfset routePlanDepartureLabel = fpwV2TripDateTimeLabel(fpwV2Get(routePlanLeg, "departureUtc"), activeCruiseV2TripTimezone, "Not available")>
+                        <cfset routePlanArrivalLabel = fpwV2TripDateTimeLabel(fpwV2Text(fpwV2Get(routePlanLeg, "etaUtc"), fpwV2Get(routePlanLeg, "arrivalUtc")), activeCruiseV2TripTimezone, "Not available")>
+                        <cfset routePlanEstimatedDurationLabel = fpwV2Text(fpwV2Get(routePlanLeg, "estimatedDurationLabel"), "Not available")>
+                        <cfset routePlanRemainingDurationLabel = fpwV2Text(fpwV2Get(routePlanLeg, "remainingDurationLabel"), "Not available")>
+                        <cfset routePlanLockSummary = fpwV2Get(routePlanLeg, "lockSummary", {})>
+                        <cfset routePlanLocks = (structKeyExists(routePlanLeg, "locks") AND isArray(routePlanLeg.locks) ? routePlanLeg.locks : [])>
+                        <cfset routePlanHasLocks = (structKeyExists(routePlanLockSummary, "hasLocks") AND routePlanLockSummary.hasLocks EQ true)>
+                        <cfset routePlanLockCountLabel = fpwV2Text(fpwV2Get(routePlanLockSummary, "lockCount"), "0")>
+                        <cfset routePlanBestDelayLabel = fpwV2Minutes(fpwV2Get(routePlanLockSummary, "bestDelayMinutes"))>
+                        <cfset routePlanTypicalDelayLabel = fpwV2Minutes(fpwV2Get(routePlanLockSummary, "typicalDelayMinutes"))>
+                        <cfset routePlanWorstDelayLabel = fpwV2Minutes(fpwV2Get(routePlanLockSummary, "worstDelayMinutes"))>
+                        <cfset routePlanDelayLabel = fpwV2Text(fpwV2Get(routePlanLockSummary, "delayLabel"), "Delay estimate unavailable")>
+                        <cfset routePlanSelectedClass = "">
+                        <cfset routePlanAriaExpanded = "false">
+                        <cfif routePlanLegIndex EQ selectedRoutePlanLegIndex>
+                          <cfset routePlanSelectedClass = " is-selected">
+                          <cfset routePlanAriaExpanded = "true">
                         </cfif>
+                        <article class="route-plan-leg route-plan-leg--#encodeForHTMLAttribute(routePlanState)##routePlanSelectedClass#"
+                          data-route-plan-leg
+                          data-ac-v2-leg-row
+                          data-leg-index="#encodeForHTMLAttribute(routePlanLegIndex)#"
+                          data-leg-order="#encodeForHTMLAttribute(routePlanLegOrder)#"
+                          data-leg-state="#encodeForHTMLAttribute(routePlanState)#"
+                          data-leg-title="#encodeForHTMLAttribute(routePlanTitle)#"
+                          data-leg-distance="#encodeForHTMLAttribute(routePlanDistanceLabel)#"
+                          data-leg-remaining="#encodeForHTMLAttribute(routePlanRemainingLabel)#"
+                          data-leg-completed="#encodeForHTMLAttribute(routePlanCompletedLabel)#"
+                          data-leg-progress="#encodeForHTMLAttribute(routePlanProgressLabel)#"
+                          data-leg-estimated-duration="#encodeForHTMLAttribute(routePlanEstimatedDurationLabel)#"
+                          data-leg-remaining-duration="#encodeForHTMLAttribute(routePlanRemainingDurationLabel)#"
+                          data-leg-status="#encodeForHTMLAttribute(routePlanStatusLabel)#"
+                          data-leg-status-label="#encodeForHTMLAttribute(routePlanStatusLabel)#"
+                          data-leg-departure="#encodeForHTMLAttribute(routePlanDepartureLabel)#"
+                          data-leg-arrival="#encodeForHTMLAttribute(routePlanArrivalLabel)#"
+                          data-leg-arrival-label="#encodeForHTMLAttribute(routePlanArrivalLabel)#"
+                          data-route-plan-leg-order="#encodeForHTMLAttribute(routePlanLegOrder)#"
+                          data-route-plan-state="#encodeForHTMLAttribute(routePlanState)#"
+                          role="button"
+                          tabindex="0"
+                          aria-expanded="#routePlanAriaExpanded#"
+                          aria-label="Select route leg #encodeForHTMLAttribute(routePlanTitle)#">
+                          <div class="route-plan-leg-button">
+                            <span class="route-plan-leg-dot" aria-hidden="true"></span>
+                            <span>
+                              <span class="route-plan-leg-kicker">#encodeForHTML(routePlanStatusLabel)#</span>
+                              <span class="route-plan-leg-title">#encodeForHTML(routePlanTitle)#</span>
+                              <span class="route-plan-leg-meta">#encodeForHTML(routePlanDistanceLabel)#</span>
+                            </span>
+                            <span class="route-plan-leg-side">
+                              <span>#encodeForHTML(routePlanArrivalLabel)#</span>
+                            </span>
+                          </div>
+                          <div class="route-plan-leg-detail">
+                            <div class="route-plan-detail-grid">
+                              <div><span>Departure</span><strong>#encodeForHTML(routePlanDepartureLabel)#</strong></div>
+                              <div><span>ETA / Arrival</span><strong>#encodeForHTML(routePlanArrivalLabel)#</strong></div>
+                              <div><span>Distance</span><strong>#encodeForHTML(routePlanDistanceLabel)#</strong></div>
+                              <div><span>Progress</span><strong>#encodeForHTML(routePlanProgressLabel)#</strong></div>
+                            </div>
+                            <div class="route-plan-lock-detail">
+                              <div class="route-plan-kicker">Lock Navigation Details</div>
+                              <div class="route-plan-detail-grid">
+                                <div><span>Locks</span><strong>#encodeForHTML(routePlanLockCountLabel)#</strong></div>
+                                <div><span>Best Delay</span><strong>#encodeForHTML(routePlanBestDelayLabel)#</strong></div>
+                                <div><span>Typical Delay</span><strong>#encodeForHTML(routePlanTypicalDelayLabel)#</strong></div>
+                                <div><span>Worst Delay</span><strong>#encodeForHTML(routePlanWorstDelayLabel)#</strong></div>
+                              </div>
+                              <cfif routePlanHasLocks AND arrayLen(routePlanLocks)>
+                                <div class="route-plan-lock-list">
+                                  <cfloop array="#routePlanLocks#" item="routePlanLock">
+                                    <cfset routePlanLockTitle = fpwV2Text(fpwV2Get(routePlanLock, "name"), fpwV2Text(fpwV2Get(routePlanLock, "lockCode"), "Lock"))>
+                                    <cfset routePlanLockCode = fpwV2Text(fpwV2Get(routePlanLock, "lockCode"), "")>
+                                    <cfset routePlanLockWaterway = fpwV2Text(fpwV2Get(routePlanLock, "waterway"), "Waterway unavailable")>
+                                    <cfset routePlanLockState = fpwV2Text(fpwV2Get(routePlanLock, "state"), "")>
+                                    <cfset routePlanLockCountry = fpwV2Text(fpwV2Get(routePlanLock, "country"), "")>
+                                    <cfset routePlanLockPlace = trim(routePlanLockState & (len(routePlanLockState) AND len(routePlanLockCountry) ? ", " : "") & routePlanLockCountry)>
+                                    <cfset routePlanLockType = fpwV2Text(fpwV2Get(routePlanLock, "lockType"), "type unavailable")>
+                                    <cfset routePlanLockChamber = "--">
+                                    <cfif isNumeric(fpwV2Get(routePlanLock, "chamberLengthFt")) AND val(fpwV2Get(routePlanLock, "chamberLengthFt")) GT 0 AND isNumeric(fpwV2Get(routePlanLock, "chamberWidthFt")) AND val(fpwV2Get(routePlanLock, "chamberWidthFt")) GT 0>
+                                      <cfset routePlanLockChamber = numberFormat(val(fpwV2Get(routePlanLock, "chamberLengthFt")), "0") & " x " & numberFormat(val(fpwV2Get(routePlanLock, "chamberWidthFt")), "0") & " ft">
+                                    </cfif>
+                                    <cfset routePlanLockLocation = "--">
+                                    <cfif isNumeric(fpwV2Get(routePlanLock, "latitude")) AND isNumeric(fpwV2Get(routePlanLock, "longitude"))>
+                                      <cfset routePlanLockLocation = numberFormat(val(fpwV2Get(routePlanLock, "latitude")), "0.00000") & ", " & numberFormat(val(fpwV2Get(routePlanLock, "longitude")), "0.00000")>
+                                    </cfif>
+                                    <cfset routePlanLockDelay = "Best/Typical/Worst: " & fpwV2Minutes(fpwV2Get(routePlanLock, "bestDelayMinutes")) & " / " & fpwV2Minutes(fpwV2Get(routePlanLock, "typicalDelayMinutes")) & " / " & fpwV2Minutes(fpwV2Get(routePlanLock, "worstDelayMinutes"))>
+                                    <article class="route-plan-lock-item">
+                                      <h4>###encodeForHTML(fpwV2Text(fpwV2Get(routePlanLock, "sequence"), ""))# #encodeForHTML(routePlanLockTitle)#<cfif len(routePlanLockCode)> <small>#encodeForHTML(routePlanLockCode)#</small></cfif></h4>
+                                      <div class="route-plan-lock-meta">
+                                        <div><strong>Waterway</strong><br>#encodeForHTML(routePlanLockWaterway)#</div>
+                                        <div><strong>Place</strong><br>#encodeForHTML(fpwV2Text(routePlanLockPlace, "--"))#</div>
+                                        <div><strong>Type</strong><br>#encodeForHTML(routePlanLockType)#</div>
+                                        <div><strong>Chamber</strong><br>#encodeForHTML(routePlanLockChamber)#</div>
+                                        <div><strong>Agency</strong><br>#encodeForHTML(fpwV2Text(fpwV2Get(routePlanLock, "agency"), "--"))#</div>
+                                        <div><strong>Delay</strong><br>#encodeForHTML(routePlanLockDelay)#</div>
+                                        <div><strong>Lat/Lng</strong><br>#encodeForHTML(routePlanLockLocation)#</div>
+                                        <div><strong>Source</strong><br>#encodeForHTML(fpwV2Text(fpwV2Get(routePlanLock, "source"), "--"))#</div>
+                                      </div>
+                                      <cfif len(fpwV2Text(fpwV2Get(routePlanLock, "delayNotes"), ""))>
+                                        <p class="route-plan-lock-note">Delay notes: #encodeForHTML(fpwV2Text(fpwV2Get(routePlanLock, "delayNotes"), ""))#</p>
+                                      </cfif>
+                                      <cfif len(fpwV2Text(fpwV2Get(routePlanLock, "notes"), ""))>
+                                        <p class="route-plan-lock-note">Notes: #encodeForHTML(fpwV2Text(fpwV2Get(routePlanLock, "notes"), ""))#</p>
+                                      </cfif>
+                                    </article>
+                                  </cfloop>
+                                </div>
+                              <cfelse>
+                                <p class="route-plan-lock-note">#encodeForHTML(routePlanDelayLabel)#.</p>
+                              </cfif>
+                            </div>
+                          </div>
+                        </article>
+                      </cfloop>
+                      <div class="route-plan-final">
+                        <div class="route-plan-kicker">Final Destination</div>
+                        <strong>#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "endLocation"), "Not available"))#</strong>
+                        <span>#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2Model.currentLeg, "etaUtc"), activeCruiseV2TripTimezone, "ETA unavailable"))#</span>
                       </div>
-                      <div class="contact-reference-subtext" data-fpw-field="contacts.operator.role"><cfoutput>#encodeForHtml(activeCruiseContacts.operator.role)#</cfoutput></div>
-                    </div>
+                    <cfelse>
+                      <div class="route-plan-final">
+                        <div class="route-plan-kicker">Route Plan</div>
+                        <strong>Not available</strong>
+                        <span>No canonical route timeline is available from the V2 model.</span>
+                      </div>
+                    </cfif>
                   </div>
+                </div>
 
-                  <cfif len(activeCruiseContacts.operator.phoneHref) OR len(activeCruiseContacts.operator.smsHref) OR len(activeCruiseContacts.operator.emailHref)>
-                    <div class="contact-reference-actions" aria-label="Operator contact actions">
-                      <cfif len(activeCruiseContacts.operator.phoneHref)>
-                        <a class="contact-reference-action" data-fpw-field="contacts.operator.phoneLink" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseContacts.operator.phoneHref)#</cfoutput>">
-                          <span aria-hidden="true">&#9742;</span>
+                <div class="detail-box route-selected-leg-box" id="acV2SelectedLegPanel">
+                  <div class="mini-head" style="margin-bottom:16px;">
+                    <h3 id="acV2SelectedLegPanelTitle">Selected Leg Data</h3>
+                    <span>V2 Model</span>
+                  </div>
+                  <div class="data-grid">
+                    <div class="data-item"><span>Distance</span><strong data-selected-leg-field="distance">#encodeForHTML(selectedRoutePlanDistanceLabel)#</strong><small>Total leg length</small></div>
+                    <div class="data-item"><span>Remaining</span><strong data-selected-leg-field="remaining">#encodeForHTML(selectedRoutePlanRemainingLabel)#</strong><small>From selected leg model</small></div>
+                    <div class="data-item"><span>Est. Leg Time</span><strong data-selected-leg-field="estimatedDuration">#encodeForHTML(selectedRoutePlanEstimatedDurationLabel)#</strong><small>Projected full duration</small></div>
+                    <div class="data-item"><span>Time Left</span><strong data-selected-leg-field="remainingDuration">#encodeForHTML(selectedRoutePlanRemainingDurationLabel)#</strong><small>Projected remaining duration</small></div>
+                    <div class="data-item"><span>Completed</span><strong data-selected-leg-field="completed">#encodeForHTML(selectedRoutePlanCompletedLabel)#</strong><small>Selected leg completed distance</small></div>
+                    <div class="data-item"><span>Progress</span><strong data-selected-leg-field="progress">#encodeForHTML(selectedRoutePlanProgressLabel)#</strong><small>Selected leg progress</small></div>
+                    <div class="data-item"><span>Status</span><strong data-selected-leg-field="status">#encodeForHTML(selectedRoutePlanStatusLabel)#</strong><small>Selected leg status</small></div>
+                    <div class="data-item"><span>Arrival</span><strong data-selected-leg-field="arrival">#encodeForHTML(selectedRoutePlanArrivalLabel)#</strong><small>ETA / arrival</small></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="panel section-card">
+              <div class="floatplan-box">
+                <div class="mini-panel">
+                  <div class="mini-head">
+                    <h3>Float Plan Monitor</h3>
+                    <span>#encodeForHTML(fpwV2Text(fpwV2Get(floatPlanMonitorModel, "attachmentLabel"), "Attached"))#</span>
+                  </div>
+                  <div class="split"><span>Status</span><strong style="color:#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(floatPlanMonitorModel, "statusColor"), "var(--muted)"))#;" data-fpw-field="monitor.status">#encodeForHTML(fpwV2Text(fpwV2Get(floatPlanMonitorModel, "statusLabel"), "Unknown"))#</strong></div>
+                  <div class="split" style="margin-top:10px;"><span>Trip Page</span><strong style="color:var(--accent);" data-fpw-field="monitor.followerState">#encodeForHTML(fpwV2Text(fpwV2Get(floatPlanMonitorModel, "tripPageLabel"), "Not linked"))#</strong></div>
+                  <div class="split" style="margin-top:10px;"><span>Monitor</span><strong data-fpw-field="monitor.emergencyContact">#encodeForHTML(fpwV2Text(fpwV2Get(floatPlanMonitorContact, "name"), "Emergency monitor not named"))#</strong></div>
+                  <cfif len(floatPlanMonitorPhoneHref) OR len(floatPlanMonitorSmsHref) OR len(floatPlanMonitorEmailHref)>
+                    <div class="contact-reference-actions" aria-label="Float plan monitor contact actions">
+                      <cfif len(floatPlanMonitorPhoneHref)>
+                        <a class="contact-reference-action" data-fpw-field="contacts.monitor.phoneLink" href="#encodeForHTMLAttribute(floatPlanMonitorPhoneHref)#">
+                          <span aria-hidden="true">&##9742;</span>
                           <span>Call</span>
                         </a>
                       </cfif>
-                      <cfif len(activeCruiseContacts.operator.smsHref)>
-                        <a class="contact-reference-action" data-fpw-field="contacts.operator.smsLink" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseContacts.operator.smsHref)#</cfoutput>">
-                          <span aria-hidden="true">&#128172;</span>
+                      <cfif len(floatPlanMonitorSmsHref)>
+                        <a class="contact-reference-action" data-fpw-field="contacts.monitor.smsLink" href="#encodeForHTMLAttribute(floatPlanMonitorSmsHref)#">
+                          <span aria-hidden="true">&##128172;</span>
                           <span>Text</span>
                         </a>
                       </cfif>
-                      <cfif len(activeCruiseContacts.operator.emailHref)>
-                        <a class="contact-reference-action" data-fpw-field="contacts.operator.emailLink" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseContacts.operator.emailHref)#</cfoutput>">
-                          <span aria-hidden="true">&#9993;</span>
+                      <cfif len(floatPlanMonitorEmailHref)>
+                        <a class="contact-reference-action" data-fpw-field="contacts.monitor.emailLink" href="#encodeForHTMLAttribute(floatPlanMonitorEmailHref)#">
+                          <span aria-hidden="true">&##9993;</span>
                           <span>Email</span>
                         </a>
                       </cfif>
                     </div>
-                  <cfelse>
-                    <div class="contact-reference-actions contact-reference-actions--empty">No direct contact actions listed</div>
                   </cfif>
-                </article>
-              </cfif>
-
-              <article class="contact-reference-panel contact-reference-panel--crew">
-                <div class="contact-reference-main">
-                  <div class="contact-reference-icon" aria-hidden="true">
-                    <span class="contact-reference-icon-symbol">&#128101;</span>
-                  </div>
-
-                  <div class="contact-reference-content">
-                    <div class="contact-reference-kicker">CREW / PASSENGERS</div>
-                    <div class="contact-reference-name" data-fpw-field="contacts.crew.count"><cfoutput>#encodeForHtml(activeCruiseContacts.crew.countLabel)#</cfoutput></div>
-                  </div>
                 </div>
+              </div>
+            </div>
 
-                <cfif arrayLen(activeCruiseContacts.crew.list)>
-                  <div class="contact-reference-crew-list" data-fpw-field="contacts.crew.list">
-                    <cfloop from="1" to="#min(2, arrayLen(activeCruiseContacts.crew.list))#" index="crewDisplayIndex">
-                      <cfset crewDisplayItem = activeCruiseContacts.crew.list[crewDisplayIndex]>
-                      <div class="contact-reference-crew-row">
-                        <span class="contact-reference-dot" aria-hidden="true"></span>
-                        <span class="contact-reference-crew-name"><cfoutput>#encodeForHtml(crewDisplayItem.name)#</cfoutput></span>
-                        <span class="contact-reference-crew-role"><cfoutput>#encodeForHtml(crewDisplayItem.role)#</cfoutput></span>
+            <div class="panel section-card">
+              <div class="action-box ac-checkin-command-panel ac-v2-compact-checkin-panel" id="acCheckInPanel">
+                <div class="captain-actions" id="fpwV2ActionPanel" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#">
+                  <div class="ac-panel-header">
+                    <div>
+                      <h2>Check-In &amp; Route Control</h2>
+                      <p>Update status and route actions.</p>
+                    </div>
+                  </div>
+
+                  <cfset checkAction = {}>
+                  <cfif structKeyExists(activeCruiseV2Model.actions, "checkIn") AND isStruct(activeCruiseV2Model.actions.checkIn)>
+                    <cfset checkAction = activeCruiseV2Model.actions.checkIn>
+                  </cfif>
+                  <cfset checkStatusOptions = []>
+                  <cfif structKeyExists(activeCruiseV2Model.checkIn, "allowedStatusOptions") AND isArray(activeCruiseV2Model.checkIn.allowedStatusOptions)>
+                    <cfset checkStatusOptions = activeCruiseV2Model.checkIn.allowedStatusOptions>
+                  </cfif>
+
+                  <div class="ac-command-section" aria-label="Check-in status actions">
+                    <div class="ac-section-label">Status</div>
+                    <cfif arrayLen(checkStatusOptions)>
+                      <cfset routineStatusNames = [ "On Track", "Delayed", "Changed Plan", "Secure for the Night" ]>
+                      <cfset renderedRoutineStatusCount = 0>
+                      <div class="ac-status-grid ac-status-compact-grid">
+                        <cfloop array="#routineStatusNames#" item="routineStatusName">
+                          <cfset statusOption = {}>
+                          <cfloop array="#checkStatusOptions#" item="candidateStatusOption">
+                            <cfif compareNoCase(fpwV2Text(fpwV2Get(candidateStatusOption, "status"), ""), routineStatusName) EQ 0>
+                              <cfset statusOption = candidateStatusOption>
+                              <cfbreak>
+                            </cfif>
+                          </cfloop>
+                          <cfif structCount(statusOption)>
+                            <cfset renderedRoutineStatusCount++>
+                            <cfset checkPayload = {}>
+                            <cfif structKeyExists(checkAction, "payload") AND isStruct(checkAction.payload)>
+                              <cfset checkPayload = duplicate(checkAction.payload)>
+                            </cfif>
+                            <cfset checkPayload.status = fpwV2Text(fpwV2Get(statusOption, "status"), "")>
+                            <cfset checkEnabled = fpwV2ActionEnabled(checkAction) AND fpwV2Get(statusOption, "enabled", true) EQ true>
+                            <cfset checkReason = fpwV2Text(fpwV2Get(statusOption, "disabledReason"), fpwV2Text(fpwV2Get(checkAction, "reason"), ""))>
+                            <cfif checkEnabled><cfset checkReason = ""></cfif>
+                            <cfset checkStatusText = fpwV2Text(fpwV2Get(statusOption, "status"), "Status")>
+                            <cfset checkDisplayText = checkStatusText>
+                            <cfset checkStatusClass = "ontrack">
+                            <cfset checkIcon = "&##10003;">
+                            <cfif compareNoCase(checkStatusText, "Delayed") EQ 0>
+                              <cfset checkStatusClass = "delayed">
+                              <cfset checkIcon = "&##9719;">
+                            <cfelseif compareNoCase(checkStatusText, "Changed Plan") EQ 0>
+                              <cfset checkStatusClass = "changed">
+                              <cfset checkIcon = "&##8605;">
+                            <cfelseif compareNoCase(checkStatusText, "Secure for the Night") EQ 0>
+                              <cfset checkStatusClass = "secure">
+                              <cfset checkIcon = "&##9790;">
+                              <cfset checkDisplayText = "Secure Night">
+                            </cfif>
+                            <div class="ac-status-cell">
+                              <button type="button" class="ac-command-btn ac-status-btn ac-status-#encodeForHTMLAttribute(checkStatusClass)#" data-ac-v2-action="checkin" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(checkAction, "endpoint"), ""))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(checkPayload))#" data-confirmation-required="#encodeForHTMLAttribute(toString(fpwV2Get(statusOption, "confirmationRequired", false)))#" data-confirmation-message="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(statusOption, "confirmationMessage"), ""))#"<cfif !checkEnabled> disabled aria-disabled="true"</cfif>><span class="ac-command-icon" aria-hidden="true">#checkIcon#</span><span>#encodeForHTML(checkDisplayText)#</span></button>
+                              <cfif len(checkReason)><div class="action-reason" title="#encodeForHTMLAttribute(checkReason)#">#encodeForHTML(checkReason)#</div></cfif>
+                            </div>
+                          </cfif>
+                        </cfloop>
                       </div>
+                      <cfif renderedRoutineStatusCount EQ 0>
+                        <p>No routine check-in status options were returned by the view model.</p>
+                      </cfif>
+
+                    <cfelse>
+                      <p>No check-in status options were returned by the view model.</p>
+                    </cfif>
+                  </div>
+
+                  <div class="ac-command-section ac-v2-note-compact" aria-label="Check-in note" data-ac-v2-note-shell>
+                    <button type="button" class="ac-v2-note-toggle" data-ac-v2-note-toggle aria-expanded="false" aria-controls="fpwV2CheckInNoteShell">
+                      <span>+ Add optional note</span>
+                      <span class="ac-note-counter" id="fpwV2CheckInNoteCounter">0/500</span>
+                    </button>
+                    <div class="ac-v2-note-collapsible" id="fpwV2CheckInNoteShell" data-ac-v2-note-collapsible hidden>
+                      <textarea id="fpwV2CheckInNote" class="ac-checkin-note checkin-note-input" maxlength="500" placeholder="Optional note for this check-in"></textarea>
+                    </div>
+                  </div>
+
+                  <div class="ac-command-section ac-route-actions-compact" aria-label="Route and float plan actions">
+                    <div class="ac-section-label">Route Actions</div>
+                    <cfset routeActions = [
+                      { "key" = "completeLeg", "label" = "Complete Current Leg / Arrived", "icon" = "&##9873;", "description" = "Mark this leg complete." },
+                      { "key" = "startNextLeg", "label" = "Start Next Leg", "icon" = "&##10140;", "description" = "Start the next pending route leg." },
+                      { "key" = "closeFloatPlan", "label" = "Close Float Plan", "icon" = "&##9633;", "description" = "Close this active float plan." }
+                    ]>
+                    <cfloop array="#routeActions#" item="routeAction">
+                      <cfset routeActionModel = {}>
+                      <cfif structKeyExists(activeCruiseV2Model.actions, routeAction.key) AND isStruct(activeCruiseV2Model.actions[routeAction.key])>
+                        <cfset routeActionModel = activeCruiseV2Model.actions[routeAction.key]>
+                      </cfif>
+                      <cfset routeActionEnabled = fpwV2ActionEnabled(routeActionModel)>
+                      <cfset routeActionReason = fpwV2Text(fpwV2Get(routeActionModel, "reason"), "")>
+                      <cfif routeActionEnabled>
+                        <div class="ac-route-action-cell">
+                          <button type="button" class="ac-command-btn ac-route-action-btn" data-ac-v2-action="#encodeForHTMLAttribute(routeAction.key)#" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(routeActionModel, "endpoint"), ""))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(routeActionModel, "payload", {})))#" data-confirmation-required="#encodeForHTMLAttribute(toString(fpwV2Get(routeActionModel, "confirmationRequired", false)))#" data-confirmation-message="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(routeActionModel, "confirmationMessage"), ""))#"><span class="ac-command-icon" aria-hidden="true">#routeAction.icon#</span><span><strong>#encodeForHTML(routeAction.label)#</strong><small>#encodeForHTML(routeAction.description)#</small></span></button>
+                        </div>
+                      <cfelse>
+                        <div class="ac-disabled-action-row" aria-disabled="true">
+                          <span class="ac-command-icon" aria-hidden="true">#routeAction.icon#</span>
+                          <span>
+                            <strong>#encodeForHTML(routeAction.label)# unavailable</strong>
+                            <small title="#encodeForHTMLAttribute(fpwV2Text(routeActionReason, "Unavailable from the current view model state."))#">#encodeForHTML(fpwV2Text(routeActionReason, "Unavailable from the current view model state."))#</small>
+                          </span>
+                        </div>
+                      </cfif>
                     </cfloop>
                   </div>
-                <cfelse>
-                  <div class="contact-reference-empty" data-fpw-field="contacts.crew.list">No crew/passengers listed</div>
-                </cfif>
-
-                <cfif arrayLen(activeCruiseContacts.crew.list) GT 2>
-                  <a class="contact-reference-link" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseFloatPlanHref)#</cfoutput>" data-fpw-action="viewCrewList">
-                    View all crew
-                    <span aria-hidden="true">&rsaquo;</span>
-                  </a>
-                </cfif>
-              </article>
-
-              <!--- Emergency monitor card removed by approved scope. --->
-
-              <a class="contact-reference-floatplan-link" href="<cfoutput>#encodeForHtmlAttribute(activeCruiseFloatPlanHref)#</cfoutput>" data-fpw-field="contacts.floatPlanLink">
-                <span aria-hidden="true">&#128203;</span>
-                <span>View full float plan</span>
-                <span aria-hidden="true">&rsaquo;</span>
-              </a>
-
-              <cfif len(activeCruiseContacts.currentAsOf)>
-                <div class="contact-reference-footer">
-                  <span aria-hidden="true">&#9719;</span>
-                  <span data-fpw-field="contacts.currentAsOf"><cfoutput>#encodeForHtml(activeCruiseContacts.currentAsOf)#</cfoutput></span>
-                </div>
-              </cfif>
-            </div>
-          </section>
-
-          <div class="panel section-card">
-            <div class="section-top">
-              <div>
-                <h2>Quick Actions</h2>
-                <p>Operational shortcuts that make this page worth keeping open during the trip.</p>
-              </div>
-              <div class="badge badge-accent">Action Center</div>
-            </div>
-            <div class="action-box">
-              <div class="quick-actions">
-                <div class="action-row">
-                  <div>
-                    <b>Submit Check-In</b>
-                    <span>Record current status and satisfy monitoring expectations.</span>
-                  </div>
-                  <div class="action-mini">Run</div>
-                </div>
-                <div class="action-row">
-                  <div>
-                    <b>Update ETA</b>
-                    <span>Push an updated arrival expectation to the trip record.</span>
-                  </div>
-                  <div class="action-mini">Edit</div>
-                </div>
-                <div class="action-row">
-                  <div>
-                    <b>Add Log Entry</b>
-                    <span>Capture operational notes, conditions, or route observations.</span>
-                  </div>
-                  <div class="action-mini">Add</div>
-                </div>
-                <div class="action-row">
-                  <div>
-                    <b>Open Trip Page</b>
-                    <span>Preview what family and friends are seeing right now.</span>
-                  </div>
-                  <div class="action-mini">View</div>
-                </div>
-                <div class="action-row">
-                  <div>
-                    <b>View Full Float Plan</b>
-                    <span>Review the attached plan, crew, vessel, and emergency details.</span>
-                  </div>
-                  <div class="action-mini">Open</div>
+                  <div class="action-feedback ac-action-ready-message" id="fpwV2ActionFeedback" role="status" aria-live="polite" hidden aria-hidden="true">Ready. Actions submit existing endpoint and payload contracts returned by the view model.</div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
 
-      <section class="footer-band">
-        <div class="foot-card">
-          <h3>Why this screen matters</h3>
-          <p>This is not just another dashboard. It is the private, active-trip view that gives the member the immediate operational context they need while underway or preparing for the next stop.</p>
-        </div>
-        <div class="foot-card">
-          <h3>Best use case</h3>
-          <p>Ideal on a tablet in the cabin, at the helm before departure, or during long-distance cruising where route progress, float plan monitoring, and next actions all need to stay visible.</p>
-        </div>
-        <div class="foot-card">
-          <h3>FPW fit</h3>
-          <p>This bridges the gap between route planning and follower sharing. It turns FPW into an actual in-trip companion, not just a pre-departure planning tool.</p>
-        </div>
-      </section>
-      <cfelse>
-      <section class="panel section-card">
-        <div class="section-top">
-          <div>
-            <h2><cfoutput>#encodeForHtml(activeCruiseAccessTitle)#</cfoutput></h2>
-            <p><cfoutput>#encodeForHtml(activeCruiseAccessMessage)#</cfoutput></p>
+            <div class="panel section-card">
+              <section class="ac-v2-panel ac-monitor-command-panel" id="fpwV2TimingPanel" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#" aria-label="Timing controls">
+                <div class="ac-monitor-grid">
+                  <article class="ac-monitor-tile">
+                    <div class="ac-section-label">Last Check-In</div>
+                    <strong class="ac-monitor-value" data-fpw-field="floatPlan.lastCheckIn">#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2Model.monitoring, "lastCheckinAtUtc"), activeCruiseV2TripTimezone, "Not available"))#</strong>
+                    <p>Captain confirmed status</p>
+                  </article>
+                  <article class="ac-monitor-tile">
+                    <div class="ac-section-label">Secure for Night</div>
+                    <strong class="ac-monitor-value" data-fpw-field="monitor.secureForNight"><cfif fpwV2Get(activeCruiseV2Model.monitoring, "secureForNight", false) EQ true>YES<cfelse>NO</cfif></strong>
+                    <p>#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2Model.monitoring, "secureForNightUntilUtc"), activeCruiseV2TripTimezone, "Secure-until unavailable"))#</p>
+                  </article>
+                  <article class="ac-monitor-tile">
+                    <div class="ac-section-label">Next Expected Check-In</div>
+                    <strong class="ac-monitor-value" data-fpw-field="monitor.nextExpectedCheckIn">#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2Model.monitoring, "expectedCheckinAtUtc"), activeCruiseV2TripTimezone, fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "expectedCheckinLocalLabel"), "Not available")))#</strong>
+                    <p>Canonical monitoring checkpoint</p>
+                  </article>
+                  <article class="ac-monitor-tile ac-delay-tile">
+                    <div class="ac-section-label">Current Delay</div>
+                    <strong class="ac-monitor-value" data-fpw-field="delay.currentTotal">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "manualDelayLabel"), "0 minutes"))#</strong>
+                    <p>Current manual delay total applied to canonical trip timing.</p>
+                    <button type="button" class="ac-command-btn ac-clear-delay-btn" data-ac-v2-timing-action="clearDelay" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingClearDelayAction, "endpoint"), ""))#" data-method="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingClearDelayAction, "method"), "POST"))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(timingClearDelayAction, "payload", {})))#" data-confirmation-required="#encodeForHTMLAttribute(toString(fpwV2Get(timingClearDelayAction, "confirmationRequired", false)))#" data-confirmation-message="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingClearDelayAction, "confirmationMessage"), ""))#"<cfif !clearDelayEnabled> disabled aria-disabled="true"</cfif>>#encodeForHTML(fpwV2Text(fpwV2Get(timingClearDelayAction, "label"), "Clear Delay"))#</button>
+                    <cfif len(clearDelayReason)><p class="ac-muted-note">#encodeForHTML(clearDelayReason)#</p></cfif>
+                  </article>
+                </div>
+
+                <div class="ac-command-section ac-delay-section">
+                  <div class="ac-section-label">Add Delay Time</div>
+                  <h3>Manual timing adjustment</h3>
+                  <p>Add positive minutes to the active trip timeline without changing monitoring cadence.</p>
+                  <div class="ac-inline-control-row">
+                    <input id="fpwV2AddDelayMinutes" class="timing-input" type="number" min="1" step="1" inputmode="numeric" placeholder="0"<cfif !addDelayEnabled> disabled</cfif>>
+                    <button type="button" class="ac-command-btn" data-ac-v2-timing-action="addDelay" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingAddDelayAction, "endpoint"), ""))#" data-method="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingAddDelayAction, "method"), "POST"))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(timingAddDelayAction, "payload", {})))#" data-confirmation-required="#encodeForHTMLAttribute(toString(fpwV2Get(timingAddDelayAction, "confirmationRequired", false)))#" data-confirmation-message="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingAddDelayAction, "confirmationMessage"), ""))#"<cfif !addDelayEnabled> disabled aria-disabled="true"</cfif>>#encodeForHTML(fpwV2Text(fpwV2Get(timingAddDelayAction, "label"), "Add Delay Time"))#</button>
+                  </div>
+                  <cfif len(addDelayReason)><p class="ac-muted-note">#encodeForHTML(addDelayReason)#</p></cfif>
+                </div>
+
+                <div class="ac-command-section ac-daily-start-section">
+                  <div class="ac-section-label">Daily Start Time</div>
+                  <strong class="ac-monitor-value" data-fpw-field="monitor.dailyStartLabel">#encodeForHTML(fpwV2TripLocalTimeLabel(fpwV2Get(activeCruiseV2Model.monitoring, "dailyStartLocalTime"), activeCruiseV2TripTimezone, fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureUtc"), "08:00 " & fpwV2TripTimezoneLabel(activeCruiseV2TripTimezone, fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureUtc"))))#</strong>
+                  <p>Applied to overnight resume and next-day monitoring.</p>
+                  <div class="ac-inline-control-row">
+                    <input id="fpwV2DailyStartLocalTime" class="timing-input" type="time" step="60" value="#encodeForHTMLAttribute(dailyStartInputValue)#"<cfif !dailyStartEnabled> disabled</cfif>>
+                    <button type="button" class="ac-command-btn" data-ac-v2-timing-action="updateDailyStart" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingDailyStartAction, "endpoint"), ""))#" data-method="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingDailyStartAction, "method"), "POST"))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(timingDailyStartAction, "payload", {})))#" data-confirmation-required="#encodeForHTMLAttribute(toString(fpwV2Get(timingDailyStartAction, "confirmationRequired", false)))#" data-confirmation-message="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingDailyStartAction, "confirmationMessage"), ""))#"<cfif !dailyStartEnabled> disabled aria-disabled="true"</cfif>>#encodeForHTML(fpwV2Text(fpwV2Get(timingDailyStartAction, "label"), "Save Daily Start Time"))#</button>
+                  </div>
+                  <cfif len(dailyStartReason)><p class="ac-muted-note">#encodeForHTML(dailyStartReason)#</p></cfif>
+                </div>
+
+                <div class="action-feedback ac-action-ready-message" id="fpwV2TimingFeedback" role="status" aria-live="polite" hidden aria-hidden="true"></div>
+              </section>
+            </div>
+
+            <div class="panel section-card">
+              <div class="stack">
+                <div class="timeline-box">
+                  <div class="mini-head" style="margin-bottom:16px;">
+                    <h3>Today's Timeline</h3>
+                    <span>Newest First</span>
+                  </div>
+                  <cfif structKeyExists(privateTimelineModel, "items") AND isArray(privateTimelineModel.items) AND arrayLen(privateTimelineModel.items)>
+                    <div class="timeline today-checkin-history">
+                      <cfloop array="#privateTimelineModel.items#" item="historyItem">
+                        <cfset historyDetail = fpwV2Text(fpwV2Get(historyItem, "detail"), "")>
+                        <cfset historyNote = fpwV2Text(fpwV2Get(historyItem, "note"), "")>
+                        <div class="timeline-row">
+                          <div class="timeline-time">#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(historyItem, "occurredAtUtc"), activeCruiseV2TripTimezone, fpwV2Text(fpwV2Get(historyItem, "occurredLocalLabel"), "time unavailable")))#</div>
+                          <div class="timeline-node"></div>
+                          <div class="timeline-copy">
+                            <b>#encodeForHTML(fpwV2Text(fpwV2Get(historyItem, "title"), "Operational event"))#</b>
+                            <span>#encodeForHTML(len(historyDetail) ? historyDetail : "Private operational event recorded.")#</span>
+                            <cfif len(historyNote)>
+                              <span>#encodeForHTML(historyNote)#</span>
+                            </cfif>
+                            <span class="timeline-source">Private operational timeline</span>
+                          </div>
+                        </div>
+                      </cfloop>
+                    </div>
+                  <cfelse>
+                    <div class="captain-note-empty">Private timeline events will appear here after the next Active Cruise V2 action.</div>
+                  </cfif>
+                </div>
+                <div class="log-box">
+                  <div class="mini-head" style="margin-bottom:16px;">
+                    <h3>Quick Notes</h3>
+                    <span>Private by Default</span>
+                  </div>
+                  <cfset captainLogSaveEnabled = fpwV2ActionEnabled(captainLogSaveAction)>
+                  <cfset captainLogSaveReason = fpwV2Text(fpwV2Get(captainLogSaveAction, "reason"), fpwV2Text(fpwV2Get(captainLogSaveAction, "disabledReason"), ""))>
+                  <cfset captainLogTags = [ "All good", "Underway", "Weather delay", "Anchored", "Docking", "Fuel", "Mechanical", "Marina call" ]>
+                  <div class="captain-quick-note-form" id="fpwV2CaptainQuickNoteForm" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(captainLogSaveAction, "endpoint"), ""))#" data-method="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(captainLogSaveAction, "method"), "POST"))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(captainLogSaveAction, "payload", {})))#" data-enabled="#encodeForHTMLAttribute(captainLogSaveEnabled ? "true" : "false")#">
+                    <label class="captain-note-label" for="fpwV2CaptainQuickNoteInput">
+                      <span>Add captain note</span>
+                      <small>Private by default</small>
+                    </label>
+                    <textarea id="fpwV2CaptainQuickNoteInput" class="captain-note-input" rows="3" maxlength="1200" placeholder="Write a quick captain note for this trip."<cfif !captainLogSaveEnabled> disabled</cfif>></textarea>
+                    <div class="captain-note-tags" aria-label="Captain note presets">
+                      <cfloop array="#captainLogTags#" item="captainLogTag">
+                        <button type="button" class="captain-note-tag" data-fpw-v2-captain-note-tag="#encodeForHTMLAttribute(captainLogTag)#"<cfif !captainLogSaveEnabled> disabled</cfif>>#encodeForHTML(captainLogTag)#</button>
+                      </cfloop>
+                    </div>
+                    <label class="captain-note-post-option">
+                      <input type="checkbox" id="fpwV2CaptainQuickNotePost"<cfif !captainLogSaveEnabled> disabled</cfif>>
+                      <span>Also post this note to the Follow page voyage stream.</span>
+                    </label>
+                    <div class="captain-note-help">Leave unchecked for a private captain log entry only.</div>
+                    <div class="captain-note-message" id="fpwV2CaptainQuickNoteMessage" role="status" aria-live="polite"><cfif captainLogSaveEnabled>Ready to save a private captain note.<cfelse>#encodeForHTML(fpwV2Text(captainLogSaveReason, "Captain note writing is not available from the current view model."))#</cfif></div>
+                    <button type="button" class="captain-note-save" id="fpwV2CaptainQuickNoteSaveBtn"<cfif !captainLogSaveEnabled> disabled</cfif>>Save Note</button>
+                  </div>
+                  <cfif structKeyExists(captainLogModel, "items") AND isArray(captainLogModel.items) AND arrayLen(captainLogModel.items)>
+                    <div class="log-list captain-note-log-list" id="fpwV2CaptainQuickNoteList">
+                      <cfloop array="#captainLogModel.items#" item="logItem">
+                        <cfset logPostedBadge = (val(fpwV2Get(logItem, "posted_to_stream", 0)) EQ 1 ? "POSTED" : "PRIVATE")>
+                        <div class="log-row">
+                          <div>
+                            <b>#encodeForHTML(fpwV2Text(fpwV2Get(logItem, "note_tag"), "Captain note"))#</b>
+                            <span>#encodeForHTML(fpwV2Text(fpwV2Get(logItem, "note_body"), "No note text returned."))#</span>
+                          </div>
+                          <div class="captain-note-meta">
+                            <div class="action-mini">#encodeForHTML(logPostedBadge)#</div>
+                            <span>#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(logItem, "created_utc"), activeCruiseV2TripTimezone, "time unavailable"))#</span>
+                          </div>
+                        </div>
+                      </cfloop>
+                    </div>
+                  <cfelse>
+                    <div class="log-list captain-note-log-list" id="fpwV2CaptainQuickNoteList"></div>
+                    <div class="captain-note-empty" id="fpwV2CaptainQuickNoteEmpty">Private captain notes will appear here after they are saved.</div>
+                  </cfif>
+                </div>
+              </div>
+            </div>
+
+            <section class="panel active-cruise-reference-card fpw-contact-reference-card" aria-labelledby="crew-emergency-title">
+              <div class="reference-card-header">
+                <div>
+                  <h2 id="crew-emergency-title">Crew &amp; Passengers</h2>
+                </div>
+              </div>
+              <div class="contact-reference-stack">
+                <article class="contact-reference-panel contact-reference-panel--primary">
+                  <div class="contact-reference-main">
+                    <div class="contact-reference-icon" aria-hidden="true"><span class="contact-reference-icon-symbol">&##9875;</span></div>
+                    <div class="contact-reference-content">
+                      <div class="contact-reference-kicker">Captain / Operator</div>
+                      <div class="contact-reference-name">#encodeForHTML(fpwV2Text(fpwV2Get(operatorModel, "name"), "Not available"))#</div>
+                      <div class="contact-reference-subtext">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.floatPlan, "name"), "Float plan name unavailable"))#</div>
+                    </div>
+                  </div>
+                </article>
+                <article class="contact-reference-panel contact-reference-panel--crew">
+                  <div class="contact-reference-main">
+                    <div class="contact-reference-icon" aria-hidden="true"><span class="contact-reference-icon-symbol">&##128101;</span></div>
+                    <div class="contact-reference-content">
+                      <div class="contact-reference-kicker">Crew / Passengers</div>
+                      <div class="contact-reference-name">#encodeForHTML(fpwV2Text(fpwV2Get(contactsModel, "passengerCount"), fpwV2Text(fpwV2Get(contactsModel, "count"), "0")))# listed</div>
+                    </div>
+                  </div>
+                  <cfif structKeyExists(contactsModel, "passengers") AND isArray(contactsModel.passengers) AND arrayLen(contactsModel.passengers)>
+                    <div class="contact-reference-crew-list">
+                      <cfloop from="1" to="#min(2, arrayLen(contactsModel.passengers))#" index="passengerIndex">
+                        <cfset passengerItem = contactsModel.passengers[passengerIndex]>
+                        <div class="contact-reference-crew-row">
+                          <span class="contact-reference-dot" aria-hidden="true"></span>
+                          <span class="contact-reference-crew-name">#encodeForHTML(fpwV2Text(fpwV2Get(passengerItem, "name"), "Unnamed passenger"))#</span>
+                          <span class="contact-reference-crew-role">Passenger</span>
+                        </div>
+                      </cfloop>
+                    </div>
+                  <cfelse>
+                    <div class="contact-reference-empty">No crew/passengers listed</div>
+                  </cfif>
+                </article>
+                <article class="contact-reference-panel">
+                  <div class="contact-reference-main">
+                    <div class="contact-reference-icon" aria-hidden="true"><span class="contact-reference-icon-symbol">&##9993;</span></div>
+                    <div class="contact-reference-content">
+                      <div class="contact-reference-kicker">Notification Contacts</div>
+                      <div class="contact-reference-name">#encodeForHTML(fpwV2Text(fpwV2Get(contactsModel, "count"), "0"))# contacts</div>
+                      <div class="contact-reference-subtext">Read-only from activeCruiseV2Model.contacts.</div>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </section>
+
           </div>
-          <div class="badge badge-warn">Active Cruise Unavailable</div>
-        </div>
-        <div class="floatplan-box">
-          <p style="margin:0; color:var(--muted); line-height:1.6;"><cfoutput>#encodeForHtml(activeCruiseAccessDetail)#</cfoutput></p>
-        </div>
-      </section>
+        </section>
+
+        <section class="footer-band" aria-label="V1 visual footer placeholder">
+          <!-- AC-V2 visual placeholder: footer band copied as visual content only. -->
+          <div class="foot-card"><h3>Why this screen matters</h3><p>This is not just another dashboard. It is the private, active-trip view that gives the member the immediate operational context they need while underway or preparing for the next stop.</p></div>
+          <div class="foot-card"><h3>Best use case</h3><p>Ideal on a tablet in the cabin, at the helm before departure, or during long-distance cruising where route progress, float plan monitoring, and next actions all need to stay visible.</p></div>
+          <div class="foot-card"><h3>FPW fit</h3><p>This bridges the gap between route planning and follower sharing. It turns FPW into an actual in-trip companion, not just a pre-departure planning tool.</p></div>
+        </section>
+
+        <section class="warning-panel" aria-label="Warnings and authority diagnostics">
+          <div class="section-header">
+            <h2>Warnings / Diagnostics</h2>
+            <span class="authority-pill">#fpwV2WarningCount(activeCruiseV2Model)# warnings</span>
+          </div>
+          <p>Projection, view-model consistency, missing-authority, and contradiction warnings remain visible during development.</p>
+          <cfif structKeyExists(activeCruiseV2Model, "warnings") AND arrayLen(activeCruiseV2Model.warnings)>
+            <div class="warning-list">
+              <cfloop array="#activeCruiseV2Model.warnings#" item="warningItem">
+                <div class="warning-item">
+                  <h3>#encodeForHTML(fpwV2Text(fpwV2Get(warningItem, "code"), "Warning"))#</h3>
+                  <p>#encodeForHTML(fpwV2Text(fpwV2Get(warningItem, "message"), "No message returned."))#</p>
+                  <div class="warning-source">Source: #encodeForHTML(fpwV2Text(fpwV2Get(warningItem, "source"), "Not available"))#</div>
+                </div>
+              </cfloop>
+            </div>
+          <cfelse>
+            <p>No warnings returned by the view model.</p>
+          </cfif>
+        </section>
       </cfif>
     </div>
   </main>
-  <cfif activeCruiseAccessValid>
-  <div class="checkin-modal" id="fpwCheckInModal" aria-hidden="true">
-    <div class="checkin-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="fpwCheckInModalTitle">
-      <div class="checkin-modal__head">
-        <h2 class="checkin-modal__title" id="fpwCheckInModalTitle">Check In</h2>
-        <button class="checkin-modal__close" type="button" id="fpwCheckInCloseBtn" aria-label="Close">&times;</button>
-      </div>
-
-      <div class="checkin-modal__section">
-        <div class="checkin-modal__label">Status</div>
-        <div class="checkin-modal__status-grid" id="fpwCheckInStatusGroup">
-          <button class="checkin-modal__status is-selected" type="button" data-status="On Track" aria-pressed="true">On Track</button>
-          <button class="checkin-modal__status" type="button" data-status="Delayed" aria-pressed="false">Delayed</button>
-          <button class="checkin-modal__status" type="button" data-status="Changed Plan" aria-pressed="false">Changed Plan</button>
-          <button class="checkin-modal__status" type="button" data-status="Assistance Needed" aria-pressed="false">Assistance Needed</button>
-          <button class="checkin-modal__status" type="button" data-status="Secure for the Night" aria-pressed="false">Secure for the Night</button>
-          <button class="checkin-modal__status" type="button" data-status="Arrived" aria-pressed="false">Arrived</button>
+  <cfif activeCruiseV2AccessValid>
+    <div class="ac-v2-map-modal" id="fpwActiveCruiseV2FullMapModal" aria-hidden="true" hidden>
+      <div class="ac-v2-map-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="fpwActiveCruiseV2FullMapTitle">
+        <div class="ac-v2-map-modal-head">
+          <h2 class="ac-v2-map-modal-title" id="fpwActiveCruiseV2FullMapTitle">Full Route Map</h2>
+          <button class="ac-v2-map-modal-close" id="fpwActiveCruiseV2FullMapClose" type="button" aria-label="Close full map">&times;</button>
+        </div>
+        <div class="ac-v2-map-modal-body">
+          <div class="ac-v2-map-modal-canvas" id="fpwActiveCruiseV2FullMap" aria-label="Full route map from Active Cruise V2 view model"></div>
+          <div id="fpwActiveCruiseV2FullMapStatus" class="map-load-state is-visible" aria-live="polite">
+            <span>Loading full route map...</span>
+          </div>
         </div>
       </div>
-
-      <div class="checkin-modal__note-toggle-wrap" style="margin-top:18px;">
-        <button class="checkin-modal__note-toggle" type="button" id="fpwCheckInNoteToggle">Add Note</button>
-      </div>
-
-      <div class="checkin-modal__note" id="fpwCheckInNoteWrap">
-        <label class="checkin-modal__label" for="fpwCheckInNote">Add Note (optional)</label>
-        <textarea class="checkin-modal__textarea" id="fpwCheckInNote" placeholder=""></textarea>
-      </div>
-
-      <div class="checkin-modal__actions">
-        <button class="btn btn-primary" type="button" id="fpwCheckInSubmitBtn">Check In</button>
-      </div>
     </div>
-  </div>
-  <script src="../assets/js/app/api.js?v=20260423a"></script>
-  <script src="../assets/js/app/dashboard/routebuilder.js?v=20260422b"></script>
+    <script id="fpwActiveCruiseV2MapPayload" type="application/json">#fpwV2JsonForScript(mapModel)#</script>
+    <script id="fpwActiveCruiseV2WeatherPayload" type="application/json">#fpwV2JsonForScript(weatherModel)#</script>
+  </cfif>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="../assets/js/app/follow/followMap.js?v=202604131858a"></script>
-  <script src="../assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260430-radar-opacity-a"></script>
-  <script src="../assets/js/maps/fpw-weather-overlays.js?v=20260430a"></script>
-  <script id="fpw-active-cruise-hooks" type="application/json"><cfoutput>#activeCruiseHooksJson#</cfoutput></script>
-  <script>
-    (function (window, document) {
-      "use strict";
+  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/app/follow/followMap.js?v=20260423a"></script>
+  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/app/shared/route-weather-assist.js?v=20260507b"></script>
+  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260430-radar-opacity-a"></script>
+  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/maps/fpw-weather-overlays.js?v=20260430a"></script>
+</cfoutput>
+<script>
+(function() {
+  const mapEl = document.getElementById('fpwActiveCruiseV2Map');
+  const payloadEl = document.getElementById('fpwActiveCruiseV2MapPayload');
+  const statusEl = document.getElementById('fpwActiveCruiseV2MapStatus');
+  const fullMapButton = document.getElementById('fpwActiveCruiseV2OpenFullMapBtn');
+  const fullMapModal = document.getElementById('fpwActiveCruiseV2FullMapModal');
+  const fullMapCloseButton = document.getElementById('fpwActiveCruiseV2FullMapClose');
+  const fullMapEl = document.getElementById('fpwActiveCruiseV2FullMap');
+  const fullMapStatusEl = document.getElementById('fpwActiveCruiseV2FullMapStatus');
+  let fullMapInstance = null;
+  let fullMapRouteLayer = null;
+  let fullMapPinLayer = null;
+  let fullMapBoatMarker = null;
+  let fullMapReturnFocusEl = null;
 
-      var hooksEl = document.getElementById("fpw-active-cruise-hooks");
-      var startNextLegButton = document.getElementById("fpwStartNextLegBtn");
-      var completeLegButton = document.getElementById("fpwCompleteLegBtn");
-      var checkInButton = document.getElementById("fpwCheckInBtn");
-      var modalEl = document.getElementById("fpwCheckInModal");
-      var closeBtn = document.getElementById("fpwCheckInCloseBtn");
-      var statusGroupEl = document.getElementById("fpwCheckInStatusGroup");
-      var noteToggleBtn = document.getElementById("fpwCheckInNoteToggle");
-      var noteWrapEl = document.getElementById("fpwCheckInNoteWrap");
-      var noteInput = document.getElementById("fpwCheckInNote");
-      var submitBtn = document.getElementById("fpwCheckInSubmitBtn");
-      var selectedStatus = "On Track";
-      var pageHooks = {};
-      var pageContext = {};
-      var pageFields = {};
-      var experimentalLegModel = {};
-      var canonicalProjectionModel = {};
-      var canonicalRouteTimelineModel = {};
-      var routePlanModel = {};
-      var floatPlanId = 0;
-      var weatherButton = document.getElementById("fpwMonitorWeatherBtn");
-      var weatherMessageEl = document.getElementById("fpwMonitorWeatherMessage");
-      var weatherResultEl = document.getElementById("fpwMonitorWeatherResult");
-      var weatherPointLabelEl = document.getElementById("fpwMonitorWeatherPointLabel");
-      var weatherWindEl = document.getElementById("fpwMonitorWeatherWind");
-      var weatherGustsEl = document.getElementById("fpwMonitorWeatherGusts");
-      var weatherWavesEl = document.getElementById("fpwMonitorWeatherWaves");
-      var weatherVisibilityEl = document.getElementById("fpwMonitorWeatherVisibility");
-      var weatherFactorEl = document.getElementById("fpwMonitorWeatherFactor");
-      var weatherAlertsSummaryEl = document.getElementById("fpwMonitorWeatherAlertsSummary");
-      var weatherAlertsEl = document.getElementById("fpwMonitorWeatherAlerts");
-      var weatherApplyWrapEl = document.getElementById("fpwMonitorWeatherApplyWrap");
-      var weatherApplyButton = document.getElementById("fpwMonitorWeatherApplyBtn");
-      var routeWeatherAssist = (window.FPW && window.FPW.RouteWeatherAssist) ? window.FPW.RouteWeatherAssist : null;
-      var weatherLookupState = {
-        point: "",
-        data: null
-      };
-      var experimentalLegStatusEl = document.getElementById("fpwExperimentalLegStatus");
-      var experimentalLegBarEl = document.getElementById("fpwExperimentalLegBar");
-      var experimentalLegRemainingEl = document.getElementById("fpwExperimentalLegRemaining");
-      var experimentalLegPercentEl = document.getElementById("fpwExperimentalLegPercent");
-      var experimentalLegPaceEl = document.getElementById("fpwExperimentalLegPace");
-      var experimentalLegFuelEl = document.getElementById("fpwExperimentalLegFuel");
-      var experimentalLegMetaEl = document.getElementById("fpwExperimentalLegMeta");
-      var experimentalLegHelperEl = document.getElementById("fpwExperimentalLegHelper");
-      var experimentalLegDisclaimerEl = document.getElementById("fpwExperimentalLegDisclaimer");
-      var heroEtaEl = document.querySelector('[data-fpw-field="hero.eta"]');
-      var heroEtaMetaEl = document.querySelector('[data-fpw-field="hero.etaMeta"]');
-      var heroEtaScheduleMetaEl = document.querySelector('[data-fpw-field="hero.etaScheduleMeta"]');
-      var heroTripStartEl = document.querySelector('[data-fpw-field="hero.tripStart"]');
-      var heroLastCheckInEl = document.querySelector('[data-fpw-field="hero.lastCheckIn"]');
-      var floatPlanLastCheckInEl = document.querySelector('[data-fpw-field="floatPlan.lastCheckIn"]');
-      var monitorDailyStartInputEl = document.getElementById("fpwMonitorDailyStartInput");
-      var monitorDailyStartSaveBtn = document.getElementById("fpwMonitorDailyStartSaveBtn");
-      var manualDelayCurrentTotalEl = document.querySelector('[data-fpw-field="delay.currentTotal"]');
-      var manualDelayMinutesInputEl = document.getElementById("fpwManualDelayMinutesInput");
-      var manualDelayAddBtn = document.getElementById("fpwManualDelayAddBtn");
-      var manualDelayClearBtn = document.getElementById("fpwManualDelayClearBtn");
-      var legArrivalEl = document.querySelector('[data-fpw-field="leg.arrival"]');
-      var legArrivalMetaEl = document.querySelector('[data-fpw-field="leg.arrivalMeta"]');
-      var legArrivalScheduleMetaEl = document.querySelector('[data-fpw-field="leg.arrivalScheduleMeta"]');
-      var routeStop4StampEl = document.querySelector('[data-fpw-field="leg.routeStop4Stamp"]');
-      var routePlanTimelineEl = document.getElementById("fpwRoutePlanTimeline");
-      var routePlanJumpCurrentBtn = document.getElementById("fpwRoutePlanJumpCurrentBtn");
-      var routePlanPreviewNoteEl = document.getElementById("fpwRoutePlanPreviewNote");
-      var captainNoteInputEl = document.getElementById("fpwCaptainQuickNoteInput");
-      var captainNotePostEl = document.getElementById("fpwCaptainQuickNotePost");
-      var captainNoteSaveBtn = document.getElementById("fpwCaptainQuickNoteSaveBtn");
-      var captainNoteMessageEl = document.getElementById("fpwCaptainQuickNoteMessage");
-      var captainNoteListEl = document.getElementById("fpwCaptainQuickNoteList");
-      var captainNoteTagButtons = document.querySelectorAll("[data-fpw-captain-note-tag]");
-      var selectedCaptainNoteTag = "";
-      var activeCruiseMapEl = document.getElementById("fpwActiveCruiseMap");
-      var activeCruiseOpenFullMapBtn = document.getElementById("fpwActiveCruiseOpenFullMapBtn");
-      var activeCruiseMapInstance = null;
+  function setMapStatus(message, visible) {
+    const label = statusEl ? statusEl.querySelector('span') : null;
+    if (!statusEl || !label) {
+      return;
+    }
+    label.textContent = message;
+    statusEl.classList.toggle('is-visible', visible === true);
+  }
 
-      if (!checkInButton || !modalEl || !closeBtn || !statusGroupEl || !noteToggleBtn || !noteWrapEl || !noteInput || !submitBtn) {
+  function setFullMapStatus(message, visible) {
+    const label = fullMapStatusEl ? fullMapStatusEl.querySelector('span') : null;
+    if (!fullMapStatusEl || !label) {
+      return;
+    }
+    label.textContent = message;
+    fullMapStatusEl.classList.toggle('is-visible', visible === true);
+  }
+
+  function safeNumber(value) {
+    const numberValue = parseFloat(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+  }
+
+  function normalizePoint(raw) {
+    if (!raw || typeof raw !== 'object' || raw.available !== true) {
+      return null;
+    }
+    const lat = safeNumber(raw.lat);
+    const lng = safeNumber(raw.lng !== undefined ? raw.lng : raw.lon);
+    if (lat === null || lng === null) {
+      return null;
+    }
+    return {
+      lat: lat,
+      lng: lng,
+      name: String(raw.name || '').trim()
+    };
+  }
+
+  function normalizeMapCoordinate(raw) {
+    if (!raw || typeof raw !== 'object') {
+      return null;
+    }
+    const lat = safeNumber(raw.lat !== undefined ? raw.lat : raw.latitude);
+    const lng = safeNumber(raw.lng !== undefined ? raw.lng : (raw.lon !== undefined ? raw.lon : raw.longitude));
+    if (lat === null || lng === null) {
+      return null;
+    }
+    return {
+      lat: lat,
+      lng: lng,
+      name: String(raw.name || raw.label || '').trim()
+    };
+  }
+
+  function buildRouteGeo(mapModel) {
+    const legs = Array.isArray(mapModel.legs) ? mapModel.legs : [];
+    const coordinates = [];
+
+    legs.forEach(function(leg) {
+      const fromPoint = normalizePoint(leg && leg.from);
+      const toPoint = normalizePoint(leg && leg.to);
+      if (!fromPoint || !toPoint) {
+        return;
+      }
+      coordinates.push([
+        [fromPoint.lng, fromPoint.lat],
+        [toPoint.lng, toPoint.lat]
+      ]);
+    });
+
+    return {
+      type: 'MultiLineString',
+      coordinates: coordinates
+    };
+  }
+
+  function normalizeRouteGeo(rawRouteGeo) {
+    if (!rawRouteGeo || typeof rawRouteGeo !== 'object') {
+      return null;
+    }
+    if (!Array.isArray(rawRouteGeo.coordinates)) {
+      return null;
+    }
+    return rawRouteGeo;
+  }
+
+  function hasRouteCoordinates(routeGeo) {
+    return !!(
+      routeGeo &&
+      typeof routeGeo === 'object' &&
+      Array.isArray(routeGeo.coordinates) &&
+      routeGeo.coordinates.length
+    );
+  }
+
+  function buildPins(mapModel) {
+    const legs = Array.isArray(mapModel.legs) ? mapModel.legs : [];
+    const pins = [];
+
+    function pointsMatch(left, right) {
+      if (!left || !right) {
+        return false;
+      }
+      return Math.abs(left.lat - right.lat) < 0.000001 && Math.abs(left.lng - right.lng) < 0.000001;
+    }
+
+    function pushPin(point, type) {
+      const prior = pins.length ? pins[pins.length - 1] : null;
+      if (!point) {
+        return;
+      }
+      if (prior && pointsMatch(prior, point)) {
+        if (type === 'end') {
+          prior.type = 'end';
+          prior.label = point.name || prior.label || 'End';
+        }
+        return;
+      }
+      pins.push({
+        type: type,
+        label: point.name || (type === 'start' ? 'Start' : (type === 'end' ? 'End' : 'Waypoint')),
+        lat: point.lat,
+        lng: point.lng,
+        sequence: pins.length + 1
+      });
+    }
+
+    if (legs.length) {
+      pushPin(normalizePoint(legs[0] && legs[0].from), 'start');
+    }
+    legs.forEach(function(leg, index) {
+      pushPin(normalizePoint(leg && leg.to), index === legs.length - 1 ? 'end' : 'intermediate');
+    });
+    if (pins.length === 1) {
+      pins[0].type = 'end';
+    }
+    return pins;
+  }
+
+  function readMapPayload() {
+    if (!payloadEl) {
+      return {};
+    }
+    try {
+      return JSON.parse(payloadEl.textContent || '{}');
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function renderMap() {
+    const mapModel = readMapPayload();
+    const routeGeo = normalizeRouteGeo(mapModel.routeGeo) || buildRouteGeo(mapModel);
+    const pins = (Array.isArray(mapModel.pins) && mapModel.pins.length) ? mapModel.pins : buildPins(mapModel);
+    const currentPosition = normalizePoint(mapModel.currentPosition);
+    let mapInstance = null;
+
+    if (!mapEl || !payloadEl) {
+      return;
+    }
+    if (!window.L || !window.FPWFollowMap || typeof window.FPWFollowMap.initFollowMap !== 'function') {
+      setMapStatus('Leaflet map renderer is not available.', true);
+      return;
+    }
+    if (!mapModel.available || !hasRouteCoordinates(routeGeo)) {
+      setMapStatus('Map geometry is not available from the V2 view model.', true);
+      return;
+    }
+
+    mapInstance = window.FPWFollowMap.initFollowMap('fpwActiveCruiseV2Map', {});
+    if (window.FPW && typeof window.FPW.attachLeafletMarineLayers === 'function') {
+      window.FPW.attachLeafletMarineLayers({
+        map: mapInstance
+      });
+    }
+    if (window.FPW && typeof window.FPW.attachLeafletWeatherOverlays === 'function') {
+      window.FPW.attachLeafletWeatherOverlays({
+        map: mapInstance,
+        mode: 'activeCruise'
+      });
+    }
+    window.FPWFollowMap.renderRoute(routeGeo);
+    window.FPWFollowMap.renderPins(pins);
+    window.FPWFollowMap.fitBoundsToRoute(routeGeo, pins);
+
+    if (currentPosition && typeof window.FPWFollowMap.updateBoatMarker === 'function') {
+      window.FPWFollowMap.updateBoatMarker(currentPosition.lat, currentPosition.lng, currentPosition.name || 'Current position');
+    }
+    if (mapInstance && typeof mapInstance.invalidateSize === 'function') {
+      window.setTimeout(function() {
+        mapInstance.invalidateSize();
+        window.FPWFollowMap.fitBoundsToRoute(routeGeo, pins);
+      }, 100);
+    }
+
+    mapEl.setAttribute('data-ac-v2-map-rendered', 'true');
+    mapEl.setAttribute('data-ac-v2-map-point-count', String(pins.length));
+    setMapStatus('Route map loaded.', false);
+  }
+
+  function buildFullMapRouteLayer(mapInstance, routeGeo) {
+    if (!mapInstance || !window.L || !routeGeo) {
+      return null;
+    }
+    return window.L.geoJSON(routeGeo, {
+      style: {
+        color: '#5b7cfa',
+        weight: 4,
+        opacity: 0.92,
+        lineJoin: 'round',
+        lineCap: 'round'
+      }
+    }).addTo(mapInstance);
+  }
+
+  function makeFullMapPinIcon(type) {
+    let pinType = String(type || 'intermediate').toLowerCase();
+    if (pinType !== 'start' && pinType !== 'end') {
+      pinType = 'intermediate';
+    }
+    return window.L.divIcon({
+      className: 'marine-poi-icon follow-map-marker',
+      html: '<span class="follow-pin ' + pinType + '"></span>',
+      iconSize: [17, 17],
+      iconAnchor: [8.5, 8.5]
+    });
+  }
+
+  function makeFullMapBoatIcon() {
+    return window.L.divIcon({
+      className: 'marine-poi-icon follow-map-marker',
+      html: '<span class="follow-boat-marker"></span>',
+      iconSize: [17, 17],
+      iconAnchor: [8.5, 8.5]
+    });
+  }
+
+  function resetFullMapLayers() {
+    if (!fullMapInstance) {
+      return;
+    }
+    if (fullMapRouteLayer) {
+      fullMapInstance.removeLayer(fullMapRouteLayer);
+      fullMapRouteLayer = null;
+    }
+    if (fullMapPinLayer) {
+      fullMapInstance.removeLayer(fullMapPinLayer);
+      fullMapPinLayer = null;
+    }
+    if (fullMapBoatMarker) {
+      fullMapInstance.removeLayer(fullMapBoatMarker);
+      fullMapBoatMarker = null;
+    }
+  }
+
+  function fitFullMapBounds() {
+    const bounds = window.L.latLngBounds([]);
+    if (!fullMapInstance || !window.L) {
+      return;
+    }
+    if (fullMapRouteLayer && typeof fullMapRouteLayer.getBounds === 'function') {
+      const routeBounds = fullMapRouteLayer.getBounds();
+      if (routeBounds && routeBounds.isValid()) {
+        bounds.extend(routeBounds);
+      }
+    }
+    if (fullMapPinLayer && typeof fullMapPinLayer.eachLayer === 'function') {
+      fullMapPinLayer.eachLayer(function(layer) {
+        if (layer && typeof layer.getLatLng === 'function') {
+          bounds.extend(layer.getLatLng());
+        }
+      });
+    }
+    if (fullMapBoatMarker && typeof fullMapBoatMarker.getLatLng === 'function') {
+      bounds.extend(fullMapBoatMarker.getLatLng());
+    }
+    if (bounds.isValid()) {
+      fullMapInstance.fitBounds(bounds, {
+        padding: [28, 28],
+        maxZoom: 11
+      });
+    }
+  }
+
+  function ensureFullMapInstance() {
+    let baseLayer = null;
+    if (fullMapInstance || !fullMapEl || !window.L) {
+      return fullMapInstance;
+    }
+    fullMapInstance = window.L.map(fullMapEl, {
+      zoomControl: true,
+      preferCanvas: true
+    }).setView([39.5, -95.5], 4);
+    baseLayer = window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(fullMapInstance);
+    if (window.FPW && typeof window.FPW.attachLeafletMarineLayers === 'function') {
+      window.FPW.attachLeafletMarineLayers({
+        map: fullMapInstance,
+        baseLayer: baseLayer
+      });
+    }
+    if (window.FPW && typeof window.FPW.attachLeafletWeatherOverlays === 'function') {
+      window.FPW.attachLeafletWeatherOverlays({
+        map: fullMapInstance,
+        mode: 'activeCruise'
+      });
+    }
+    return fullMapInstance;
+  }
+
+  function renderFullMap() {
+    const mapModel = readMapPayload();
+    const routeGeo = normalizeRouteGeo(mapModel.routeGeo) || buildRouteGeo(mapModel);
+    const pins = (Array.isArray(mapModel.pins) && mapModel.pins.length) ? mapModel.pins : buildPins(mapModel);
+    const currentPosition = normalizePoint(mapModel.currentPosition);
+    const mapInstance = ensureFullMapInstance();
+
+    if (!mapInstance) {
+      setFullMapStatus('Leaflet map renderer is not available.', true);
+      return;
+    }
+    if (!mapModel.available || !hasRouteCoordinates(routeGeo)) {
+      setFullMapStatus('Map geometry is not available from the V2 view model.', true);
+      return;
+    }
+
+    resetFullMapLayers();
+    fullMapRouteLayer = buildFullMapRouteLayer(mapInstance, routeGeo);
+    fullMapPinLayer = window.L.layerGroup().addTo(mapInstance);
+    pins.forEach(function(pin) {
+      const point = normalizeMapCoordinate(pin);
+      const sequence = safeNumber(pin && pin.sequence);
+      let label = String((pin && pin.label) || 'Point').trim() || 'Point';
+      let marker = null;
+      if (!point) {
+        return;
+      }
+      if (sequence !== null) {
+        label += ' (#' + String(Math.round(sequence)) + ')';
+      }
+      marker = window.L.marker([point.lat, point.lng], {
+        icon: makeFullMapPinIcon(pin && pin.type)
+      }).addTo(fullMapPinLayer);
+      marker.bindTooltip(label, {
+        direction: 'top',
+        opacity: 0.92
+      });
+    });
+    if (currentPosition) {
+      fullMapBoatMarker = window.L.marker([currentPosition.lat, currentPosition.lng], {
+        icon: makeFullMapBoatIcon()
+      }).addTo(mapInstance);
+      fullMapBoatMarker.bindTooltip(currentPosition.name || 'Current position', {
+        direction: 'right',
+        opacity: 0.9
+      });
+    }
+    window.setTimeout(function() {
+      mapInstance.invalidateSize();
+      fitFullMapBounds();
+      setFullMapStatus('Full route map loaded.', false);
+    }, 100);
+  }
+
+  function openFullMapModal() {
+    if (!fullMapModal || !fullMapButton) {
+      return;
+    }
+    fullMapReturnFocusEl = document.activeElement;
+    fullMapModal.hidden = false;
+    fullMapModal.classList.add('is-open');
+    fullMapModal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('ac-v2-map-modal-open');
+    setFullMapStatus('Loading full route map...', true);
+    window.setTimeout(renderFullMap, 60);
+    if (fullMapCloseButton) {
+      fullMapCloseButton.focus();
+    }
+  }
+
+  function closeFullMapModal() {
+    if (!fullMapModal) {
+      return;
+    }
+    fullMapModal.classList.remove('is-open');
+    fullMapModal.setAttribute('aria-hidden', 'true');
+    fullMapModal.hidden = true;
+    document.body.classList.remove('ac-v2-map-modal-open');
+    if (fullMapReturnFocusEl && typeof fullMapReturnFocusEl.focus === 'function') {
+      fullMapReturnFocusEl.focus();
+    }
+    fullMapReturnFocusEl = null;
+  }
+
+  function setupFullMapModal() {
+    if (!fullMapButton || !fullMapModal || !fullMapEl) {
+      return;
+    }
+    fullMapButton.addEventListener('click', function() {
+      if (fullMapButton.disabled) {
+        return;
+      }
+      openFullMapModal();
+    });
+    if (fullMapCloseButton) {
+      fullMapCloseButton.addEventListener('click', closeFullMapModal);
+    }
+    fullMapModal.addEventListener('click', function(event) {
+      if (event.target === fullMapModal) {
+        closeFullMapModal();
+      }
+    });
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape' && fullMapModal.classList.contains('is-open')) {
+        closeFullMapModal();
+      }
+    });
+  }
+
+  function initializeMaps() {
+    renderMap();
+    setupFullMapModal();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeMaps);
+  } else {
+    initializeMaps();
+  }
+})();
+
+window.FPWActiveCruiseV2 = window.FPWActiveCruiseV2 || {};
+window.FPWActiveCruiseV2.fieldSelectorValue = function(value) {
+  return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+};
+window.FPWActiveCruiseV2.refreshFromDocument = function(sourceDoc, options) {
+  const settings = options || {};
+  const replaceSelectors = Array.isArray(settings.replaceSelectors) ? settings.replaceSelectors : [];
+  const sourcePayloadEl = sourceDoc ? sourceDoc.getElementById('fpwActiveCruiseV2WeatherPayload') : null;
+  const targetPayloadEl = document.getElementById('fpwActiveCruiseV2WeatherPayload');
+
+  if (!sourceDoc) {
+    throw new Error('Active Cruise V2 refresh data unavailable.');
+  }
+
+  Array.from(sourceDoc.querySelectorAll('[data-fpw-field]')).forEach(function(sourceFieldNode) {
+    const fieldName = String(sourceFieldNode.getAttribute('data-fpw-field') || '').trim();
+    if (!fieldName) {
+      return;
+    }
+    document.querySelectorAll('[data-fpw-field="' + window.FPWActiveCruiseV2.fieldSelectorValue(fieldName) + '"]').forEach(function(targetNode) {
+      targetNode.textContent = sourceFieldNode.textContent;
+      if (sourceFieldNode.hasAttribute('style')) {
+        targetNode.setAttribute('style', sourceFieldNode.getAttribute('style'));
+      } else {
+        targetNode.removeAttribute('style');
+      }
+    });
+  });
+
+  replaceSelectors.forEach(function(selector) {
+    const sourceNode = sourceDoc.querySelector(selector);
+    const targetNode = document.querySelector(selector);
+    if (sourceNode && targetNode) {
+      targetNode.replaceWith(sourceNode.cloneNode(true));
+    }
+  });
+
+  if (targetPayloadEl && sourcePayloadEl) {
+    targetPayloadEl.textContent = sourcePayloadEl.textContent || '{}';
+  }
+
+  if (typeof window.FPWActiveCruiseV2.bindRouteProgressPanel === 'function') {
+    window.FPWActiveCruiseV2.bindRouteProgressPanel();
+  }
+  if (typeof window.FPWActiveCruiseV2.bindPacePanel === 'function') {
+    window.FPWActiveCruiseV2.bindPacePanel();
+  }
+  if (typeof window.FPWActiveCruiseV2.bindTimingPanel === 'function') {
+    window.FPWActiveCruiseV2.bindTimingPanel();
+  }
+};
+window.FPWActiveCruiseV2.fetchAndRefresh = function(options) {
+  return fetch(window.location.href, {
+    method: 'GET',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: {
+      'Accept': 'text/html'
+    }
+  })
+    .then(function(response) {
+      if (!response.ok) {
+        throw new Error('Active Cruise V2 refresh failed.');
+      }
+      return response.text();
+    })
+    .then(function(html) {
+      const parser = new window.DOMParser();
+      const refreshedDoc = parser.parseFromString(html, 'text/html');
+      window.FPWActiveCruiseV2.refreshFromDocument(refreshedDoc, options || {});
+    });
+};
+
+window.FPWActiveCruiseV2.bindRouteProgressPanel = function() {
+  const panel = document.getElementById('acV2RouteProgressPanel');
+  if (!panel) {
+    return;
+  }
+  if (panel.getAttribute('data-ac-v2-route-progress-bound') === 'true') {
+    return;
+  }
+
+  const rows = Array.from(panel.querySelectorAll('[data-ac-v2-leg-row]'));
+  if (!rows.length) {
+    return;
+  }
+  panel.setAttribute('data-ac-v2-route-progress-bound', 'true');
+
+  const fields = {
+    distance: panel.querySelector('[data-selected-leg-field="distance"]'),
+    remaining: panel.querySelector('[data-selected-leg-field="remaining"]'),
+    estimatedDuration: panel.querySelector('[data-selected-leg-field="estimatedDuration"]'),
+    remainingDuration: panel.querySelector('[data-selected-leg-field="remainingDuration"]'),
+    completed: panel.querySelector('[data-selected-leg-field="completed"]'),
+    progress: panel.querySelector('[data-selected-leg-field="progress"]'),
+    status: panel.querySelector('[data-selected-leg-field="status"]'),
+    arrival: panel.querySelector('[data-selected-leg-field="arrival"]')
+  };
+
+  function valueFrom(row, key, fallback) {
+    const value = row && row.dataset ? row.dataset[key] : '';
+    return value || fallback || 'Not available';
+  }
+
+  function isStartedLeg(row) {
+    const status = row && row.dataset ? String(row.dataset.legStatus || row.dataset.legStatusLabel || '').toUpperCase() : '';
+    return status === 'STARTED';
+  }
+
+  function isCurrentLeg(row) {
+    const state = row && row.dataset ? String(row.dataset.legState || row.dataset.routePlanState || '').toLowerCase() : '';
+    return state === 'current';
+  }
+
+  function isExpandedRow(row) {
+    return !!row && (row.classList.contains('is-selected') || row.getAttribute('aria-expanded') === 'true');
+  }
+
+  function collapseRow(row) {
+    if (!row) {
+      return;
+    }
+    row.classList.remove('is-selected');
+    row.setAttribute('aria-expanded', 'false');
+  }
+
+  function scrollRowToTop(row) {
+    const list = row ? row.closest('#acV2RouteLegList') : null;
+    if (!list) {
+      return;
+    }
+
+    const listRect = list.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    const top = list.scrollTop + rowRect.top - listRect.top;
+    list.scrollTo({
+      top: Math.max(0, top),
+      behavior: 'smooth'
+    });
+  }
+
+  function selectRow(row, options) {
+    const settings = options || {};
+    if (!row) {
+      return;
+    }
+
+    rows.forEach(function(candidate) {
+      const isSelected = candidate === row;
+      candidate.classList.toggle('is-selected', isSelected);
+      candidate.setAttribute('aria-expanded', isSelected ? 'true' : 'false');
+    });
+
+    if (fields.distance) fields.distance.textContent = valueFrom(row, 'legDistance');
+    if (fields.remaining) fields.remaining.textContent = valueFrom(row, 'legRemaining');
+    if (fields.estimatedDuration) fields.estimatedDuration.textContent = valueFrom(row, 'legEstimatedDuration');
+    if (fields.remainingDuration) fields.remainingDuration.textContent = valueFrom(row, 'legRemainingDuration');
+    if (fields.completed) fields.completed.textContent = valueFrom(row, 'legCompleted');
+    if (fields.progress) fields.progress.textContent = valueFrom(row, 'legProgress');
+    if (fields.status) fields.status.textContent = valueFrom(row, 'legStatusLabel');
+    if (fields.arrival) fields.arrival.textContent = valueFrom(row, 'legArrivalLabel', valueFrom(row, 'legArrival'));
+
+    if (settings.focus === true && typeof row.focus === 'function') {
+      try {
+        row.focus({ preventScroll: true });
+      } catch (focusError) {
+        row.focus();
+      }
+    }
+    if (settings.scroll === true) {
+      scrollRowToTop(row);
+    }
+  }
+
+  rows.forEach(function(row) {
+    row.addEventListener('click', function(event) {
+      const mainRow = event.target ? event.target.closest('.route-plan-leg-button') : null;
+      if (!mainRow || !row.contains(mainRow)) {
+        return;
+      }
+      if (isExpandedRow(row)) {
+        collapseRow(row);
+        return;
+      }
+      selectRow(row, { scroll: true, focus: true });
+    });
+
+    row.addEventListener('keydown', function(event) {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        if (isExpandedRow(row)) {
+          collapseRow(row);
+          return;
+        }
+        selectRow(row, { scroll: true });
+      }
+    });
+  });
+
+  selectRow(
+    rows.find(isStartedLeg) ||
+    rows.find(function(row) {
+      return row.classList.contains('is-selected') || row.getAttribute('aria-expanded') === 'true';
+    }) ||
+    rows.find(isCurrentLeg) ||
+    rows[0]
+  );
+};
+window.FPWActiveCruiseV2.bindRouteProgressPanel();
+
+(function() {
+  const root = document.getElementById('fpwV2WeatherLookup');
+  const form = document.getElementById('fpwV2WeatherForm');
+  const feedback = document.getElementById('fpwV2WeatherFeedback');
+  const result = document.getElementById('fpwV2WeatherResult');
+  const payloadEl = document.getElementById('fpwActiveCruiseV2WeatherPayload');
+  const weatherPanel = document.getElementById('acV2WeatherPanel') || root;
+  const applyButton = document.getElementById('fpwV2WeatherApplyBtn');
+  const routeWeatherAssist = (window.FPW && window.FPW.RouteWeatherAssist) ? window.FPW.RouteWeatherAssist : null;
+  const weatherLookupState = {
+    point: '',
+    data: null,
+    suggestedPct: null,
+    requestSeq: 0
+  };
+
+  if (!root || !form || !result || !payloadEl) {
+    return;
+  }
+
+  function readWeatherModel() {
+    try {
+      return JSON.parse(payloadEl.textContent || '{}');
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function getAny(source, keys, fallback) {
+    if (!source || typeof source !== 'object') {
+      return fallback;
+    }
+    for (let index = 0; index < keys.length; index += 1) {
+      if (Object.prototype.hasOwnProperty.call(source, keys[index]) && source[keys[index]] !== null && source[keys[index]] !== undefined) {
+        return source[keys[index]];
+      }
+    }
+    return fallback;
+  }
+
+  function firstArrayItem(value) {
+    return Array.isArray(value) && value.length && value[0] && typeof value[0] === 'object' ? value[0] : {};
+  }
+
+  function textValue(value, fallback) {
+    if (value === null || value === undefined) {
+      return fallback;
+    }
+    const text = String(value).trim();
+    return text ? text : fallback;
+  }
+
+  function isTrueValue(value) {
+    if (value === true) {
+      return true;
+    }
+    if (typeof value === 'number') {
+      return value > 0;
+    }
+    if (typeof value === 'string') {
+      const text = value.trim().toLowerCase();
+      return text === 'true' || text === '1' || text === 'yes';
+    }
+    return false;
+  }
+
+  function joinParts(parts, fallback) {
+    const value = parts.map(function(part) {
+      return textValue(part, '');
+    }).filter(Boolean).join(' ');
+    return value || fallback;
+  }
+
+  function resolveEndpoint(endpoint) {
+    const basePath = root.getAttribute('data-fpw-base') || '';
+    if (endpoint && endpoint.indexOf('/api/') === 0 && basePath) {
+      return basePath + endpoint;
+    }
+    return endpoint || '';
+  }
+
+  function setFeedback(message, state) {
+    if (!feedback) {
+      return;
+    }
+    feedback.textContent = message;
+    feedback.classList.remove('is-warning', 'is-success', 'is-error');
+    if (state) {
+      feedback.classList.add(state);
+    }
+  }
+
+  function setField(name, value) {
+    const field = weatherPanel.querySelector('[data-weather-field="' + name + '"]');
+    if (field) {
+      field.textContent = textValue(value, 'Not available');
+    }
+  }
+
+  function setChip(name, value) {
+    const chip = weatherPanel.querySelector('[data-weather-chip="' + name + '"]');
+    if (chip) {
+      chip.textContent = textValue(value, 'Not available');
+    }
+  }
+
+  function formatPercent(value, fallback) {
+    if (value === null || value === undefined || value === '') {
+      return fallback;
+    }
+    if (Number.isFinite(Number(value))) {
+      return String(Math.round(Number(value))) + '%';
+    }
+    return textValue(value, fallback);
+  }
+
+  function cloneData(value) {
+    if (value === null || value === undefined) {
+      return value;
+    }
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (error) {
+      return value;
+    }
+  }
+
+  function extractPayloadData(payload) {
+    return payload && typeof payload === 'object'
+      ? getAny(payload, ['DATA', 'data'], {})
+      : {};
+  }
+
+  function extractApiMessage(payload, fallback) {
+    const errorData = payload && typeof payload === 'object' ? getAny(payload, ['ERROR', 'error'], {}) : {};
+    return textValue(
+      getAny(payload, ['MESSAGE', 'message'], getAny(errorData, ['MESSAGE', 'message'], fallback)),
+      fallback
+    );
+  }
+
+  function postJson(endpoint, payload, fallbackMessage) {
+    return fetch(endpoint, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(payload || {})
+    })
+      .then(function(response) {
+        return response.text().then(function(text) {
+          let parsed = {};
+          if (text) {
+            try {
+              parsed = JSON.parse(text);
+            } catch (parseError) {
+              parsed = { SUCCESS: false, MESSAGE: text };
+            }
+          }
+          if (!response.ok || !(parsed.SUCCESS === true || parsed.success === true)) {
+            throw new Error(extractApiMessage(parsed, fallbackMessage));
+          }
+          return parsed;
+        });
+      });
+  }
+
+  function fieldSelectorValue(value) {
+    return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  }
+
+  function refreshActiveCruiseV2FieldsFromDocument(sourceDoc) {
+    const sourcePayloadEl = sourceDoc ? sourceDoc.getElementById('fpwActiveCruiseV2WeatherPayload') : null;
+
+    if (!sourceDoc) {
+      throw new Error('Active Cruise V2 refresh data unavailable.');
+    }
+
+    Array.from(sourceDoc.querySelectorAll('[data-fpw-field]')).forEach(function(sourceFieldNode) {
+      const fieldName = String(sourceFieldNode.getAttribute('data-fpw-field') || '').trim();
+      if (!fieldName) {
+        return;
+      }
+      document.querySelectorAll('[data-fpw-field="' + fieldSelectorValue(fieldName) + '"]').forEach(function(targetNode) {
+        targetNode.textContent = sourceFieldNode.textContent;
+        if (sourceFieldNode.hasAttribute('style')) {
+          targetNode.setAttribute('style', sourceFieldNode.getAttribute('style'));
+        } else {
+          targetNode.removeAttribute('style');
+        }
+      });
+    });
+
+    if (payloadEl && sourcePayloadEl) {
+      payloadEl.textContent = sourcePayloadEl.textContent || '{}';
+    }
+  }
+
+  function refreshActiveCruiseV2ViewAfterWeatherApply() {
+    return fetch(window.location.href, {
+      method: 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: {
+        'Accept': 'text/html'
+      }
+    })
+      .then(function(response) {
+        if (!response.ok) {
+          throw new Error('Active Cruise V2 refresh failed.');
+        }
+        return response.text();
+      })
+      .then(function(html) {
+        const parser = new window.DOMParser();
+        const refreshedDoc = parser.parseFromString(html, 'text/html');
+        refreshActiveCruiseV2FieldsFromDocument(refreshedDoc);
+      });
+  }
+
+  function getApplyContract() {
+    const weatherModel = readWeatherModel();
+    return weatherModel && typeof weatherModel === 'object' && weatherModel.apply && typeof weatherModel.apply === 'object'
+      ? weatherModel.apply
+      : {};
+  }
+
+  function getApplyEndpoint(name) {
+    const apply = getApplyContract();
+    const endpoints = apply && typeof apply === 'object' && apply.endpoints && typeof apply.endpoints === 'object'
+      ? apply.endpoints
+      : {};
+    return resolveEndpoint(endpoints[name] || '');
+  }
+
+  function getApplyRouteCode() {
+    const apply = getApplyContract();
+    const payload = apply && typeof apply === 'object' && apply.payload && typeof apply.payload === 'object'
+      ? apply.payload
+      : {};
+    return textValue(getAny(apply, ['routeCode', 'route_code'], getAny(payload, ['routeCode', 'route_code'], '')), '');
+  }
+
+  function isApplyAvailable() {
+    const apply = getApplyContract();
+    return isTrueValue(getAny(apply, ['available', 'AVAILABLE'], false));
+  }
+
+  function setWeatherApplyButtonState(options) {
+    const state = options && typeof options === 'object' ? options : {};
+    const disabled = state.disabled !== false;
+    const label = textValue(state.label, 'Apply Weather to Route');
+    if (applyButton) {
+      applyButton.disabled = disabled || !isApplyAvailable();
+      applyButton.setAttribute('aria-disabled', applyButton.disabled ? 'true' : 'false');
+      applyButton.textContent = label;
+    }
+  }
+
+  function isMyRouteType(routeType) {
+    const value = String(routeType || '').trim().toLowerCase();
+    return value === 'my_route' || value === 'my_routes' || value === 'custom';
+  }
+
+  function requestRouteEditContext(routeCode) {
+    const endpoint = getApplyEndpoint('editContext');
+    if (!endpoint) {
+      return Promise.reject(new Error('The view model did not return a route edit-context endpoint.'));
+    }
+    return postJson(endpoint, { route_code: routeCode }, 'Unable to load route edit context.');
+  }
+
+  function requestRoutePreview(inputs) {
+    const previewInputs = cloneData(inputs || {});
+    const endpoint = getApplyEndpoint(isMyRouteType(previewInputs.route_type) ? 'myRoutePreview' : 'generatedPreview');
+    if (!endpoint) {
+      return Promise.reject(new Error('The view model did not return a route preview endpoint.'));
+    }
+    return postJson(endpoint, previewInputs, 'Unable to preview weather-adjusted route.');
+  }
+
+  function requestRouteUpdate(payload) {
+    const endpoint = getApplyEndpoint('update');
+    if (!endpoint) {
+      return Promise.reject(new Error('The view model did not return a route update endpoint.'));
+    }
+    return postJson(endpoint, payload, 'Unable to apply weather to this route.');
+  }
+
+  function resolveWeatherSuggestionForLookup() {
+    let routeCode = getApplyRouteCode();
+    let editInputs = {};
+    let routeName = '';
+
+    if (!isApplyAvailable()) {
+      return Promise.reject(new Error('Weather factor apply is not available for this active route.'));
+    }
+    if (!routeWeatherAssist) {
+      return Promise.reject(new Error('Route weather helper unavailable.'));
+    }
+    if (!routeCode) {
+      return Promise.reject(new Error('Unable to resolve the active route code.'));
+    }
+    if (!weatherLookupState.data || !weatherLookupState.data.available || !weatherLookupState.data.weather) {
+      return Promise.reject(new Error('Check current-leg conditions before applying weather to the route.'));
+    }
+
+    return requestRouteEditContext(routeCode)
+      .then(function(editContextPayload) {
+        const editContextData = extractPayloadData(editContextPayload);
+        editInputs = cloneData((editContextData && (editContextData.inputs || editContextData.INPUTS)) || {});
+        routeName = String(
+          editInputs.route_name ||
+          ((editContextData.route || {}).route_name) ||
+          ((editContextData.route || {}).ROUTE_NAME) ||
+          ''
+        ).trim();
+        if (!routeName) {
+          throw new Error('Route name unavailable for route update.');
+        }
+        editInputs.route_name = routeName;
+        if (!String(editInputs.route_code || '').trim()) {
+          editInputs.route_code = routeCode;
+        }
+        return requestRoutePreview(editInputs);
+      })
+      .then(function(previewPayload) {
+        const previewData = extractPayloadData(previewPayload);
+        const previewLegs = Array.isArray(previewData.legs) ? previewData.legs : (Array.isArray(previewData.LEGS) ? previewData.LEGS : []);
+        const routeContext = routeWeatherAssist.buildRouteWeatherContextFromLegs(previewLegs);
+        const weatherEnvelope = routeWeatherAssist.normalizeWeatherEnvelope(weatherLookupState.data.weather || {}, '');
+        const suggestion = routeWeatherAssist.computeLiveWeatherFactorPct(weatherEnvelope, routeContext);
+        const suggestedPct = parseInt(suggestion.suggestedPct, 10);
+        if (!previewLegs.length) {
+          throw new Error('Route preview returned no legs.');
+        }
+        if (!suggestion.available || !Number.isFinite(suggestedPct)) {
+          throw new Error('Weather factor suggestion unavailable for this route.');
+        }
+        return {
+          routeCode: routeCode,
+          routeName: routeName,
+          editInputs: editInputs,
+          suggestedPct: suggestedPct,
+          suggestion: suggestion
+        };
+      });
+  }
+
+  function renderWeatherSuggestion(resultData) {
+    const pct = parseInt(resultData && resultData.suggestedPct, 10);
+    if (!Number.isFinite(pct)) {
+      weatherLookupState.suggestedPct = null;
+      setField('weatherFactor', '0%');
+      setChip('factor', '0% factor');
+      setField('weatherFactorNote', 'Weather factor suggestion unavailable.');
+      setWeatherApplyButtonState({ disabled: true });
+      return;
+    }
+    weatherLookupState.suggestedPct = pct;
+    setField('weatherFactor', formatPercent(pct, '0%'));
+    setChip('factor', formatPercent(pct, '0%') + ' factor');
+    setField('weatherFactorNote', 'Suggested ' + pct + '% weather factor. Apply to update the route.');
+    setWeatherApplyButtonState({ disabled: false });
+  }
+
+  function applyWeatherToRouteFromLookup() {
+    return resolveWeatherSuggestionForLookup()
+      .then(function(suggestionResult) {
+        const updatedPayload = cloneData(suggestionResult.editInputs);
+        updatedPayload.weather_factor_pct = suggestionResult.suggestedPct;
+        updatedPayload.route_code = suggestionResult.routeCode;
+        updatedPayload.route_name = suggestionResult.routeName;
+        return requestRouteUpdate(updatedPayload).then(function(updatePayload) {
+          return {
+            updatePayload: updatePayload,
+            suggestedPct: suggestionResult.suggestedPct
+          };
+        });
+      });
+  }
+
+  function renderWeatherPayload(payload) {
+    const data = getAny(payload, ['data', 'DATA'], {});
+    const weather = getAny(data, ['weather', 'WEATHER'], {});
+    const forecast = firstArrayItem(getAny(weather, ['FORECAST', 'forecast'], []));
+    const marine = getAny(weather, ['MARINE', 'marine'], {});
+    const surface = getAny(weather, ['surface', 'SURFACE'], {});
+    const alerts = getAny(weather, ['ALERTS', 'alerts'], []);
+    const pointLabel = getAny(data, ['point_label', 'POINT_LABEL', 'label'], getAny(data, ['point', 'POINT'], 'Selected point'));
+    const summary = getAny(weather, ['SUMMARY', 'summary'], getAny(forecast, ['shortForecast', 'SHORTFORECAST', 'detailedForecast'], getAny(payload, ['MESSAGE', 'message'], 'Not available')));
+    const temperature = joinParts([
+      getAny(forecast, ['temperature', 'TEMPERATURE'], ''),
+      getAny(forecast, ['temperatureUnit', 'TEMPERATUREUNIT'], '')
+    ], 'Not available');
+    const wind = joinParts([
+      getAny(forecast, ['windDirection', 'WINDDIRECTION'], ''),
+      getAny(forecast, ['windSpeed', 'WINDSPEED'], '')
+    ], 'Not available');
+    const gusts = getAny(forecast, ['gustMph', 'GUSTMPH', 'windGust', 'WINDGUST'], 'Not available');
+    const waves = getAny(marine, ['wave_height_ft', 'WAVE_HEIGHT_FT', 'waveHeightFt'], 'Not available');
+    const visibility = getAny(surface, ['visibility_mi', 'VISIBILITY_MI', 'visibilityMi'], 'Not available');
+    const alertText = Array.isArray(alerts) && alerts.length
+      ? alerts.map(function(alertItem) {
+          return textValue(getAny(alertItem, ['headline', 'HEADLINE', 'event', 'EVENT'], 'Alert'), 'Alert');
+        }).join('; ')
+      : 'No alerts';
+    const weatherFactor = formatPercent(getAny(data, ['weather_factor_pct', 'WEATHER_FACTOR_PCT', 'weatherFactorPct', 'weatherFactor'], getAny(weather, ['weather_factor_pct', 'WEATHER_FACTOR_PCT', 'weatherFactorPct', 'weatherFactor'], 0)), '0%');
+    const alertChip = Array.isArray(alerts) && alerts.length
+      ? String(alerts.length) + ' alert' + (alerts.length === 1 ? '' : 's')
+      : 'No alerts';
+
+    result.classList.remove('is-empty');
+    setField('point', pointLabel);
+    setField('summary', summary);
+    setField('temperature', temperature);
+    setField('wind', wind);
+    setField('gusts', gusts);
+    setField('waves', waves);
+    setField('visibility', visibility);
+    setField('weatherFactor', weatherFactor);
+    setField('alerts', alertText);
+    setChip('alerts', alertChip);
+    setChip('factor', weatherFactor + ' factor');
+    return {
+      data: data,
+      weatherFactor: weatherFactor
+    };
+  }
+
+  setWeatherApplyButtonState({ disabled: true });
+
+  form.addEventListener('submit', function(event) {
+    event.preventDefault();
+
+    const weatherModel = readWeatherModel();
+    const lookup = weatherModel && typeof weatherModel === 'object' && weatherModel.lookup && typeof weatherModel.lookup === 'object' ? weatherModel.lookup : {};
+    const endpoint = resolveEndpoint(lookup.endpoint || '');
+    const selectedPoint = form.querySelector('input[name="fpwV2WeatherPoint"]:checked');
+    const button = form.querySelector('button[type="submit"]');
+    const requestPayload = Object.assign({}, lookup.payload || {}, {
+      point: selectedPoint ? selectedPoint.value : ''
+    });
+
+    if (!endpoint || !requestPayload.point) {
+      setFeedback('The view model did not return an executable weather lookup contract.', 'is-warning');
+      return;
+    }
+
+    if (button) {
+      button.disabled = true;
+    }
+    setFeedback('Checking conditions...', '');
+
+    fetch(endpoint, {
+      method: lookup.method || 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(requestPayload)
+    })
+      .then(function(response) {
+        return response.text().then(function(text) {
+          let payload = {};
+          if (text) {
+            try {
+              payload = JSON.parse(text);
+            } catch (parseError) {
+              payload = { success: false, message: text };
+            }
+          }
+          return { ok: response.ok, payload: payload };
+        });
+      })
+      .then(function(resultPayload) {
+        const responsePayload = resultPayload.payload || {};
+        const success = resultPayload.ok && isTrueValue(getAny(responsePayload, ['success', 'SUCCESS'], false));
+        const data = getAny(responsePayload, ['data', 'DATA'], {});
+        const available = isTrueValue(getAny(data, ['available', 'AVAILABLE'], false));
+        const message = textValue(getAny(responsePayload, ['MESSAGE', 'message'], getAny(data, ['message', 'MESSAGE'], 'Weather lookup completed.')), 'Weather lookup completed.');
+        const seq = weatherLookupState.requestSeq + 1;
+
+        weatherLookupState.requestSeq = seq;
+        weatherLookupState.point = requestPayload.point;
+        weatherLookupState.data = available ? data : null;
+        weatherLookupState.suggestedPct = null;
+        setWeatherApplyButtonState({ disabled: true });
+        renderWeatherPayload(responsePayload);
+        setFeedback(message, success && available ? 'is-success' : 'is-warning');
+
+        if (success && available && isApplyAvailable()) {
+          setField('weatherFactorNote', 'Calculating route weather factor...');
+          resolveWeatherSuggestionForLookup()
+            .then(function(suggestionResult) {
+              if (seq === weatherLookupState.requestSeq) {
+                renderWeatherSuggestion(suggestionResult);
+              }
+            })
+            .catch(function(error) {
+              if (seq === weatherLookupState.requestSeq) {
+                weatherLookupState.suggestedPct = null;
+                setWeatherApplyButtonState({ disabled: true });
+                setField('weatherFactorNote', error && error.message ? error.message : 'Weather factor suggestion unavailable.');
+              }
+            });
+        }
+      })
+      .catch(function(error) {
+        setFeedback(error && error.message ? error.message : 'Weather lookup failed.', 'is-error');
+      })
+      .finally(function() {
+        if (button) {
+          button.disabled = false;
+        }
+      });
+  });
+
+  Array.from(form.querySelectorAll('input[name="fpwV2WeatherPoint"]')).forEach(function(input) {
+    input.addEventListener('change', function() {
+      weatherLookupState.point = '';
+      weatherLookupState.data = null;
+      weatherLookupState.suggestedPct = null;
+      weatherLookupState.requestSeq += 1;
+      result.classList.add('is-empty');
+      setField('point', 'Not checked');
+      setField('summary', 'Not checked');
+      setField('temperature', 'Not checked');
+      setField('wind', 'Not checked');
+      setField('gusts', 'Not checked');
+      setField('waves', 'Not checked');
+      setField('visibility', 'Not checked');
+      setField('weatherFactor', '0%');
+      setField('alerts', 'Not checked');
+      setField('weatherFactorNote', isApplyAvailable() ? 'Check conditions to calculate a route weather factor.' : 'Weather factor apply is not available in AC-V2.');
+      setChip('alerts', 'No alerts');
+      setChip('factor', '0% factor');
+      setWeatherApplyButtonState({ disabled: true });
+    });
+  });
+
+  if (applyButton) {
+    applyButton.addEventListener('click', function() {
+      let appliedPctText = '';
+      if (applyButton.disabled) {
+        return;
+      }
+      setWeatherApplyButtonState({ disabled: true, label: 'Applying...' });
+      setFeedback('Applying weather factor to route...', '');
+      applyWeatherToRouteFromLookup()
+        .then(function(resultData) {
+          const pct = parseInt(resultData && resultData.suggestedPct, 10);
+          const pctText = Number.isFinite(pct) ? String(pct) + '%' : 'selected';
+          appliedPctText = pctText;
+          setField('weatherFactor', Number.isFinite(pct) ? pctText : '0%');
+          setChip('factor', Number.isFinite(pct) ? pctText + ' factor' : '0% factor');
+          setField('weatherFactorNote', 'Applied ' + pctText + ' weather factor to route. Refreshing route view...');
+          setFeedback('Applied ' + pctText + ' weather factor to route.', 'is-success');
+          return refreshActiveCruiseV2ViewAfterWeatherApply();
+        })
+        .then(function() {
+          if (appliedPctText) {
+            setField('weatherFactorNote', 'Applied ' + appliedPctText + ' weather factor to route.');
+            setFeedback('Applied ' + appliedPctText + ' weather factor to route.', 'is-success');
+          }
+        })
+        .catch(function(error) {
+          setWeatherApplyButtonState({ disabled: weatherLookupState.suggestedPct === null });
+          if (appliedPctText) {
+            const refreshMessage = 'Applied ' + appliedPctText + ' weather factor to route, but Active Cruise V2 refresh did not complete.';
+            setField('weatherFactorNote', refreshMessage);
+            setFeedback(refreshMessage, 'is-warning');
+            return;
+          }
+          setFeedback(error && error.message ? error.message : 'Unable to apply weather to this route.', 'is-error');
+        })
+        .finally(function() {
+          setWeatherApplyButtonState({ disabled: weatherLookupState.suggestedPct === null });
+        });
+    });
+  }
+})();
+
+(function() {
+  const form = document.getElementById('fpwV2CaptainQuickNoteForm');
+  if (!form) {
+    return;
+  }
+
+  const noteInput = document.getElementById('fpwV2CaptainQuickNoteInput');
+  const postCheckbox = document.getElementById('fpwV2CaptainQuickNotePost');
+  const saveButton = document.getElementById('fpwV2CaptainQuickNoteSaveBtn');
+  const message = document.getElementById('fpwV2CaptainQuickNoteMessage');
+  const noteList = document.getElementById('fpwV2CaptainQuickNoteList');
+  const emptyState = document.getElementById('fpwV2CaptainQuickNoteEmpty');
+  const tagButtons = Array.from(form.querySelectorAll('[data-fpw-v2-captain-note-tag]'));
+  const tripTimeZone = '#encodeForJavaScript(activeCruiseV2TripTimezone)#' || 'UTC';
+  let selectedTag = '';
+
+  function setMessage(text, state) {
+    if (!message) {
+      return;
+    }
+    message.textContent = text || '';
+    message.classList.remove('is-success', 'is-error');
+    if (state) {
+      message.classList.add(state);
+    }
+  }
+
+  function resolveEndpoint(endpoint) {
+    if (!endpoint) {
+      return '';
+    }
+    const basePath = form.getAttribute('data-fpw-base') || '';
+    if (endpoint.indexOf('/api/') === 0 && basePath) {
+      return basePath + endpoint;
+    }
+    return endpoint;
+  }
+
+  function readPayload() {
+    try {
+      return JSON.parse(form.getAttribute('data-payload') || '{}');
+    } catch (payloadError) {
+      return {};
+    }
+  }
+
+  function responseMessage(payload, fallback) {
+    if (payload && typeof payload === 'object') {
+      return payload.MESSAGE || payload.message || payload.ERROR || payload.error || fallback;
+    }
+    return fallback;
+  }
+
+  function parseUtcDate(value) {
+    let raw = value ? String(value).trim() : '';
+    if (!raw) {
+      return null;
+    }
+    if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(raw)) {
+      raw = raw.replace(/\s+/, 'T') + 'Z';
+    } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw) && !/(Z|[+-]\d{2}:?\d{2})$/.test(raw)) {
+      raw += 'Z';
+    }
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  function formatTripDateTimeLabel(value, fallback) {
+    const parsed = parseUtcDate(value);
+    if (!parsed) {
+      return fallback || 'time unavailable';
+    }
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: tripTimeZone,
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZoneName: 'short'
+      }).formatToParts(parsed).reduce(function(acc, part) {
+        acc[part.type] = part.value;
+        return acc;
+      }, {});
+      return (parts.month || '')
+        + ' ' + (parts.day || '')
+        + ', ' + (parts.year || '')
+        + ' \u00b7 '
+        + (parts.hour || '00')
+        + ':' + (parts.minute || '00')
+        + ' ' + (parts.timeZoneName || tripTimeZone);
+    } catch (formatError) {
+      return fallback || 'time unavailable';
+    }
+  }
+
+  function updateSaveLabel() {
+    if (!saveButton) {
+      return;
+    }
+    saveButton.textContent = postCheckbox && postCheckbox.checked ? 'Save & Post' : 'Save Note';
+  }
+
+  function setSelectedTag(tagValue) {
+    selectedTag = tagValue || '';
+    tagButtons.forEach(function(button) {
+      button.classList.toggle('is-selected', (button.getAttribute('data-fpw-v2-captain-note-tag') || '') === selectedTag);
+    });
+  }
+
+  function appendTagToNote(tagValue) {
+    if (!noteInput || !tagValue) {
+      return;
+    }
+    const currentValue = String(noteInput.value || '').trim();
+    const appendedValue = '[' + tagValue + ']';
+    if (!currentValue) {
+      noteInput.value = tagValue;
+      return;
+    }
+    if (currentValue === tagValue || currentValue.indexOf(appendedValue) !== -1) {
+      return;
+    }
+    noteInput.value = currentValue + ' ' + appendedValue;
+  }
+
+  function buildNoteRow(notePayload, fallbackNoteBody, fallbackTag, postedToStream) {
+    const row = document.createElement('div');
+    const bodyWrap = document.createElement('div');
+    const title = document.createElement('b');
+    const body = document.createElement('span');
+    const meta = document.createElement('div');
+    const badge = document.createElement('div');
+    const time = document.createElement('span');
+    const noteBody = (notePayload && (notePayload.noteBody || notePayload.NOTEBODY || notePayload.note_body || notePayload.NOTE_BODY)) || fallbackNoteBody || 'No note text returned.';
+    const noteTag = (notePayload && (notePayload.noteTag || notePayload.NOTETAG || notePayload.note_tag || notePayload.NOTE_TAG)) || fallbackTag || 'Captain note';
+    const noteBadge = (notePayload && (notePayload.badge || notePayload.BADGE)) || (postedToStream ? 'POSTED' : 'PRIVATE');
+    const rawNoteTime = (notePayload && (notePayload.createdLabel || notePayload.CREATEDLABEL || notePayload.createdUtc || notePayload.CREATEDUTC || notePayload.created_utc || notePayload.CREATED_UTC)) || '';
+    const noteTime = formatTripDateTimeLabel(rawNoteTime, rawNoteTime || 'time unavailable');
+
+    row.className = 'log-row';
+    meta.className = 'captain-note-meta';
+    badge.className = 'action-mini';
+
+    title.textContent = noteTag;
+    body.textContent = noteBody;
+    badge.textContent = noteBadge;
+    time.textContent = noteTime;
+
+    bodyWrap.appendChild(title);
+    bodyWrap.appendChild(body);
+    meta.appendChild(badge);
+    meta.appendChild(time);
+    row.appendChild(bodyWrap);
+    row.appendChild(meta);
+    return row;
+  }
+
+  function prependNote(notePayload, fallbackNoteBody, fallbackTag, postedToStream) {
+    if (!noteList) {
+      return;
+    }
+    noteList.insertBefore(buildNoteRow(notePayload, fallbackNoteBody, fallbackTag, postedToStream), noteList.firstChild);
+    if (emptyState) {
+      emptyState.hidden = true;
+    }
+  }
+
+  function setSaving(saving) {
+    if (saveButton) {
+      saveButton.disabled = saving;
+      saveButton.textContent = saving ? 'Saving...' : (postCheckbox && postCheckbox.checked ? 'Save & Post' : 'Save Note');
+    }
+    tagButtons.forEach(function(button) {
+      button.disabled = saving || form.getAttribute('data-enabled') !== 'true';
+    });
+    if (postCheckbox) {
+      postCheckbox.disabled = saving || form.getAttribute('data-enabled') !== 'true';
+    }
+  }
+
+  tagButtons.forEach(function(button) {
+    button.addEventListener('click', function() {
+      const tagValue = button.getAttribute('data-fpw-v2-captain-note-tag') || '';
+      if (selectedTag === tagValue) {
+        setSelectedTag('');
+        return;
+      }
+      setSelectedTag(tagValue);
+      appendTagToNote(tagValue);
+      if (noteInput) {
+        noteInput.focus();
+      }
+    });
+  });
+
+  if (postCheckbox) {
+    postCheckbox.addEventListener('change', updateSaveLabel);
+  }
+
+  if (saveButton) {
+    saveButton.addEventListener('click', function() {
+      const enabled = form.getAttribute('data-enabled') === 'true';
+      const endpoint = resolveEndpoint(form.getAttribute('data-endpoint') || '');
+      const method = form.getAttribute('data-method') || 'POST';
+      const noteBody = noteInput ? String(noteInput.value || '').trim() : '';
+      const postToFollowStream = postCheckbox ? postCheckbox.checked : false;
+      const payload = readPayload();
+
+      if (!enabled || !endpoint) {
+        setMessage('The view model did not return an executable captain note contract.', 'is-error');
+        return;
+      }
+      if (!noteBody) {
+        setMessage('A captain note is required.', 'is-error');
+        if (noteInput) {
+          noteInput.focus();
+        }
         return;
       }
 
-      function normalizeExperimentalLegModel(rawModel) {
-        var model = (rawModel && typeof rawModel === "object") ? rawModel : {};
-        return {
-          available: model.available === true || model.AVAILABLE === true,
-          departureTimeZone: model.departureTimeZone || model.DEPARTURETIMEZONE || "",
-          generatedAtUtc: model.generatedAtUtc || model.GENERATEDATUTC || "",
-          baseStartUtc: model.baseStartUtc || model.BASESTARTUTC || "",
-          pauseStartUtc: model.pauseStartUtc || model.PAUSESTARTUTC || "",
-          pauseResumeUtc: model.pauseResumeUtc || model.PAUSERESUMEUTC || "",
-          currentLegDistanceNm: model.currentLegDistanceNm || model.CURRENTLEGDISTANCENM || 0,
-          speedKn: model.speedKn || model.SPEEDKN || 0,
-          fuelBurnGph: model.fuelBurnGph || model.FUELBURNGPH || 0,
-          reservePct: model.reservePct || model.RESERVEPCT || 0,
-          isOvernight: model.isOvernight === true || model.ISOVERNIGHT === true,
-          assumptionLabel: model.assumptionLabel || model.ASSUMPTIONLABEL || "",
-          statusLabel: model.statusLabel || model.STATUSLABEL || ""
-        };
-      }
-
-      function readRoutePlanValue(source, keys, fallbackValue) {
-        var obj = (source && typeof source === "object") ? source : {};
-        var idx = 0;
-        var key = "";
-
-        for (idx = 0; idx < keys.length; idx += 1) {
-          key = keys[idx];
-          if (Object.prototype.hasOwnProperty.call(obj, key) && obj[key] !== null && typeof obj[key] !== "undefined") {
-            return obj[key];
-          }
-        }
-        return fallbackValue;
-      }
-
-      function toRoutePlanNumber(value, fallbackValue) {
-        var parsed = Number(value);
-        if (!Number.isFinite(parsed)) {
-          return fallbackValue;
-        }
-        return parsed;
-      }
-
-      function normalizeCanonicalRouteTimelineModel(rawModel) {
-        var model = (rawModel && typeof rawModel === "object") ? rawModel : {};
-        var summary = readRoutePlanValue(model, ["summary", "SUMMARY"], {});
-        var rawLegs = readRoutePlanValue(model, ["legs", "LEGS"], []);
-        var legs = Array.isArray(rawLegs) ? rawLegs : [];
-
-        return {
-          available: readRoutePlanValue(model, ["available", "AVAILABLE"], false) === true,
-          authority: String(readRoutePlanValue(model, ["authority", "AUTHORITY"], "") || ""),
-          currentLegOrder: toRoutePlanNumber(readRoutePlanValue(model, ["currentLegOrder", "CURRENTLEGORDER"], 0), 0),
-          routeInstanceId: toRoutePlanNumber(readRoutePlanValue(model, ["routeInstanceId", "ROUTEINSTANCEID"], 0), 0),
-          effectiveSpeedKn: toRoutePlanNumber(readRoutePlanValue(model, ["effectiveSpeedKn", "EFFECTIVESPEEDKN"], 0), 0),
-          usesLatestCheckinAsAnchor: readRoutePlanValue(model, ["usesLatestCheckinAsAnchor", "USESLATESTCHECKINASANCHOR"], false) === true,
-          summary: {
-            totalNm: toRoutePlanNumber(readRoutePlanValue(summary, ["totalNm", "TOTALNM"], 0), 0),
-            completedNm: toRoutePlanNumber(readRoutePlanValue(summary, ["completedNm", "COMPLETEDNM"], 0), 0),
-            remainingNm: toRoutePlanNumber(readRoutePlanValue(summary, ["remainingNm", "REMAININGNM"], 0), 0),
-            percentComplete: toRoutePlanNumber(readRoutePlanValue(summary, ["percentComplete", "PERCENTCOMPLETE"], 0), 0),
-            finalArrivalUtc: String(readRoutePlanValue(summary, ["finalArrivalUtc", "FINALARRIVALUTC"], "") || "")
-          },
-          legs: legs.map(function (rawLeg) {
-            var leg = (rawLeg && typeof rawLeg === "object") ? rawLeg : {};
-            var state = String(readRoutePlanValue(leg, ["state", "STATE"], "") || "").toLowerCase();
-            var isCompleted = readRoutePlanValue(leg, ["isCompleted", "ISCOMPLETED"], false) === true;
-            var isCurrent = readRoutePlanValue(leg, ["isCurrent", "ISCURRENT"], false) === true;
-            var isFuture = readRoutePlanValue(leg, ["isFuture", "ISFUTURE"], false) === true;
-
-            if (!state) {
-              if (isCompleted) {
-                state = "completed";
-              } else if (isCurrent) {
-                state = "current";
-              } else if (isFuture) {
-                state = "future";
-              } else {
-                state = "future";
-              }
-            }
-
-            return {
-              routeLegOrder: toRoutePlanNumber(readRoutePlanValue(leg, ["routeLegOrder", "ROUTELEGORDER"], 0), 0),
-              state: state,
-              status: String(readRoutePlanValue(leg, ["status", "STATUS"], "") || ""),
-              fromName: String(readRoutePlanValue(leg, ["fromName", "FROMNAME"], "") || ""),
-              toName: String(readRoutePlanValue(leg, ["toName", "TONAME"], "") || ""),
-              distanceNm: toRoutePlanNumber(readRoutePlanValue(leg, ["distanceNm", "DISTANCENM"], 0), 0),
-              effectiveSpeedKn: toRoutePlanNumber(readRoutePlanValue(leg, ["effectiveSpeedKn", "EFFECTIVESPEEDKN", "speedKn", "SPEEDKN"], 0), 0),
-              departureUtc: String(readRoutePlanValue(leg, ["departureUtc", "DEPARTUREUTC"], "") || ""),
-              arrivalUtc: String(readRoutePlanValue(leg, ["arrivalUtc", "ARRIVALUTC"], "") || ""),
-              etaUtc: String(readRoutePlanValue(leg, ["etaUtc", "ETAUTC"], "") || ""),
-              startedAtUtc: String(readRoutePlanValue(leg, ["startedAtUtc", "STARTEDATUTC"], "") || ""),
-              completedAtUtc: String(readRoutePlanValue(leg, ["completedAtUtc", "COMPLETEDATUTC"], "") || ""),
-              completedNm: toRoutePlanNumber(readRoutePlanValue(leg, ["completedNm", "COMPLETEDNM"], 0), 0),
-              remainingNm: toRoutePlanNumber(readRoutePlanValue(leg, ["remainingNm", "REMAININGNM"], 0), 0),
-              percentComplete: toRoutePlanNumber(readRoutePlanValue(leg, ["percentComplete", "PERCENTCOMPLETE"], 0), 0),
-              departureSource: String(readRoutePlanValue(leg, ["departureSource", "DEPARTURESOURCE"], "") || ""),
-              arrivalSource: String(readRoutePlanValue(leg, ["arrivalSource", "ARRIVALSOURCE"], "") || ""),
-              authority: String(readRoutePlanValue(leg, ["authority", "AUTHORITY"], "") || ""),
-              warnings: readRoutePlanValue(leg, ["warnings", "WARNINGS"], []),
-              usesLatestCheckinAsAnchor: readRoutePlanValue(leg, ["usesLatestCheckinAsAnchor", "USESLATESTCHECKINASANCHOR"], false) === true
-            };
-          })
-        };
-      }
-
-      function normalizeCanonicalProjectionModel(rawModel) {
-        var model = (rawModel && typeof rawModel === "object") ? rawModel : {};
-        var routeTimeline = normalizeCanonicalRouteTimelineModel(
-          readRoutePlanValue(model, ["routeTimeline", "ROUTETIMELINE"], {})
-        );
-
-        return {
-          available: readRoutePlanValue(model, ["available", "AVAILABLE"], false) === true,
-          authority: String(readRoutePlanValue(model, ["authority", "AUTHORITY"], "") || ""),
-          warnings: readRoutePlanValue(model, ["warnings", "WARNINGS"], []),
-          etaProjection: readRoutePlanValue(model, ["etaProjection", "ETAPROJECTION"], {}),
-          todayProgress: readRoutePlanValue(model, ["todayProgress", "TODAYPROGRESS"], {}),
-          currentLegProgress: readRoutePlanValue(model, ["currentLegProgress", "CURRENTLEGPROGRESS"], {}),
-          routeTimeline: routeTimeline
-        };
-      }
-
-      function normalizeRoutePlanModel(rawModel) {
-        var model = (rawModel && typeof rawModel === "object") ? rawModel : {};
-        var summary = readRoutePlanValue(model, ["summary", "SUMMARY"], {});
-        var rawLegs = readRoutePlanValue(model, ["legs", "LEGS"], []);
-        var legs = Array.isArray(rawLegs) ? rawLegs : [];
-
-        return {
-          available: readRoutePlanValue(model, ["available", "AVAILABLE"], false) === true,
-          scheduledDepartureLabel: String(readRoutePlanValue(model, ["scheduledDepartureLabel", "SCHEDULEDDEPARTURELABEL"], "—") || "—"),
-          scheduledDepartureIso: String(readRoutePlanValue(model, ["scheduledDepartureIso", "SCHEDULEDDEPARTUREISO"], "") || ""),
-          finalDestinationLabel: String(readRoutePlanValue(model, ["finalDestinationLabel", "FINALDESTINATIONLABEL"], "—") || "—"),
-          currentLegOrder: toRoutePlanNumber(readRoutePlanValue(model, ["currentLegOrder", "CURRENTLEGORDER"], 0), 0),
-          nextLegOrder: toRoutePlanNumber(readRoutePlanValue(model, ["nextLegOrder", "NEXTLEGORDER"], 0), 0),
-          baseSpeedKn: toRoutePlanNumber(readRoutePlanValue(model, ["baseSpeedKn", "BASESPEEDKN"], 0), 0),
-          effectiveSpeedKn: toRoutePlanNumber(readRoutePlanValue(model, ["effectiveSpeedKn", "EFFECTIVESPEEDKN"], 0), 0),
-          fuelBurnGph: toRoutePlanNumber(readRoutePlanValue(model, ["fuelBurnGph", "FUELBURNGPH"], 0), 0),
-          reservePct: toRoutePlanNumber(readRoutePlanValue(model, ["reservePct", "RESERVEPCT"], 0), 0),
-          weatherFactorPct: toRoutePlanNumber(readRoutePlanValue(model, ["weatherFactorPct", "WEATHERFACTORPCT"], 0), 0),
-          manualDelayMinutes: toRoutePlanNumber(readRoutePlanValue(model, ["manualDelayMinutes", "MANUALDELAYMINUTES"], 0), 0),
-          pauseStartUtc: String(readRoutePlanValue(model, ["pauseStartUtc", "PAUSESTARTUTC"], "") || ""),
-          pauseResumeUtc: String(readRoutePlanValue(model, ["pauseResumeUtc", "PAUSERESUMEUTC"], "") || ""),
-          summary: {
-            totalNm: toRoutePlanNumber(readRoutePlanValue(summary, ["totalNm", "TOTALNM"], 0), 0),
-            completedNm: toRoutePlanNumber(readRoutePlanValue(summary, ["completedNm", "COMPLETEDNM"], 0), 0),
-            remainingNm: toRoutePlanNumber(readRoutePlanValue(summary, ["remainingNm", "REMAININGNM"], 0), 0),
-            progressPct: toRoutePlanNumber(readRoutePlanValue(summary, ["progressPct", "PROGRESSPCT"], 0), 0),
-            totalHours: toRoutePlanNumber(readRoutePlanValue(summary, ["totalHours", "TOTALHOURS"], 0), 0),
-            finalArrivalLabel: String(readRoutePlanValue(summary, ["finalArrivalLabel", "FINALARRIVALLABEL"], "—") || "—"),
-            finalArrivalIso: String(readRoutePlanValue(summary, ["finalArrivalIso", "FINALARRIVALISO"], "") || "")
-          },
-          legs: legs.map(function (rawLeg) {
-            var leg = (rawLeg && typeof rawLeg === "object") ? rawLeg : {};
-            return {
-              order: toRoutePlanNumber(readRoutePlanValue(leg, ["order", "ORDER"], 0), 0),
-              state: String(readRoutePlanValue(leg, ["state", "STATE"], "future") || "future"),
-              status: String(readRoutePlanValue(leg, ["status", "STATUS"], "Remaining") || "Remaining"),
-              label: String(readRoutePlanValue(leg, ["label", "LABEL"], "Leg") || "Leg"),
-              distanceNm: toRoutePlanNumber(readRoutePlanValue(leg, ["distanceNm", "DISTANCENM"], 0), 0),
-              durationHours: toRoutePlanNumber(readRoutePlanValue(leg, ["durationHours", "DURATIONHOURS"], 0), 0),
-              departureLabel: String(readRoutePlanValue(leg, ["departureLabel", "DEPARTURELABEL"], "—") || "—"),
-              arrivalLabel: String(readRoutePlanValue(leg, ["arrivalLabel", "ARRIVALLABEL"], "—") || "—"),
-              plannedDepartureLabel: String(readRoutePlanValue(leg, ["plannedDepartureLabel", "PLANNEDDEPARTURELABEL"], "—") || "—"),
-              plannedArrivalLabel: String(readRoutePlanValue(leg, ["plannedArrivalLabel", "PLANNEDARRIVALLABEL"], "—") || "—"),
-              departureFieldLabel: String(readRoutePlanValue(leg, ["departureFieldLabel", "DEPARTUREFIELDLABEL"], "Planned Departure") || "Planned Departure"),
-              arrivalFieldLabel: String(readRoutePlanValue(leg, ["arrivalFieldLabel", "ARRIVALFIELDLABEL"], "Planned Arrival / ETA") || "Planned Arrival / ETA"),
-              departureSource: String(readRoutePlanValue(leg, ["departureSource", "DEPARTURESOURCE"], "planned") || "planned"),
-              arrivalSource: String(readRoutePlanValue(leg, ["arrivalSource", "ARRIVALSOURCE"], "planned") || "planned"),
-              departureIso: String(readRoutePlanValue(leg, ["departureIso", "DEPARTUREISO"], "") || ""),
-              arrivalIso: String(readRoutePlanValue(leg, ["arrivalIso", "ARRIVALISO"], "") || ""),
-              plannedDepartureIso: String(readRoutePlanValue(leg, ["plannedDepartureIso", "PLANNEDDEPARTUREISO"], "") || ""),
-              plannedArrivalIso: String(readRoutePlanValue(leg, ["plannedArrivalIso", "PLANNEDARRIVALISO"], "") || ""),
-              startedAtUtc: String(readRoutePlanValue(leg, ["startedAtUtc", "STARTEDATUTC"], "") || ""),
-              completedAtUtc: String(readRoutePlanValue(leg, ["completedAtUtc", "COMPLETEDATUTC"], "") || ""),
-              departureOffsetHours: toRoutePlanNumber(readRoutePlanValue(leg, ["departureOffsetHours", "DEPARTUREOFFSETHOURS"], 0), 0),
-              arrivalOffsetHours: toRoutePlanNumber(readRoutePlanValue(leg, ["arrivalOffsetHours", "ARRIVALOFFSETHOURS"], 0), 0),
-              speedKn: toRoutePlanNumber(readRoutePlanValue(leg, ["speedKn", "SPEEDKN"], 0), 0),
-              fuelNeedGal: toRoutePlanNumber(readRoutePlanValue(leg, ["fuelNeedGal", "FUELNEEDGAL"], 0), 0),
-              reserveGal: toRoutePlanNumber(readRoutePlanValue(leg, ["reserveGal", "RESERVEGAL"], 0), 0),
-              delayMinutes: toRoutePlanNumber(readRoutePlanValue(leg, ["delayMinutes", "DELAYMINUTES"], 0), 0),
-              pauseMinutes: toRoutePlanNumber(readRoutePlanValue(leg, ["pauseMinutes", "PAUSEMINUTES"], 0), 0)
-            };
-          })
-        };
-      }
-
-      function applyHookPayload(rawHooks) {
-        pageHooks = (rawHooks && typeof rawHooks === "object") ? rawHooks : {};
-        pageContext = (pageHooks && (pageHooks.context || pageHooks.CONTEXT)) || {};
-        pageFields = (pageHooks && (pageHooks.fields || pageHooks.FIELDS)) || {};
-        experimentalLegModel = normalizeExperimentalLegModel(
-          (pageHooks && (pageHooks.experimentalLeg || pageHooks.EXPERIMENTALLEG)) || {}
-        );
-        canonicalProjectionModel = normalizeCanonicalProjectionModel(
-          (pageHooks && (pageHooks.canonicalProjection || pageHooks.CANONICALPROJECTION)) || {}
-        );
-        canonicalRouteTimelineModel = canonicalProjectionModel.routeTimeline || {};
-        routePlanModel = {
-          currentLegOrder: canonicalRouteTimelineModel.currentLegOrder || 0
-        };
-        if (pageContext) {
-          floatPlanId = parseInt(pageContext.floatPlanId || pageContext.FLOATPLANID, 10);
-        }
-        if (!Number.isFinite(floatPlanId)) {
-          floatPlanId = 0;
-        }
-      }
-
-      if (hooksEl) {
-        try {
-          applyHookPayload(JSON.parse(hooksEl.textContent || "{}"));
-        } catch (err) {
-          applyHookPayload({});
-        }
-      } else {
-        applyHookPayload({});
-      }
-
-	      function formatTimelineLocalTime(input) {
-	        var raw = String(input || "").trim();
-	        var date = raw ? new Date(raw) : null;
-	        if (!date || Number.isNaN(date.getTime())) {
-	          return "";
-	        }
-	        return date.toLocaleTimeString([], {
-	          hour: "numeric",
-	          minute: "2-digit"
-	        });
-	      }
-
-	      function hydrateTimelineTimes() {
-	        document.querySelectorAll(".timeline-time[data-time-utc]").forEach(function (el) {
-	          var label = formatTimelineLocalTime(el.getAttribute("data-time-utc"));
-	          if (label) {
-	            el.textContent = label;
-	          }
-	        });
-	      }
-
-      function formatHeroEtaLabel(input) {
-        var raw = String(input || "").trim();
-        var date = raw ? new Date(raw) : null;
-        var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        var hours = 0;
-        var displayHour = 0;
-        var minutes = "";
-        var suffix = "";
-
-        if (!date || Number.isNaN(date.getTime())) {
-          return "";
-        }
-
-        hours = date.getHours();
-        displayHour = hours % 12;
-        if (displayHour === 0) {
-          displayHour = 12;
-        }
-        minutes = String(date.getMinutes());
-        if (minutes.length < 2) {
-          minutes = "0" + minutes;
-        }
-        suffix = hours >= 12 ? "PM" : "AM";
-
-        return monthNames[date.getMonth()] + " " + date.getDate() + ", " + date.getFullYear() + " " + displayHour + ":" + minutes + " " + suffix;
-      }
-
-      function hydrateHeroEta() {
-        var fields = (pageHooks && (pageHooks.fields || pageHooks.FIELDS)) || {};
-        var heroEtaUtc = String(fields.heroEtaUtc || fields.HEROETAUTC || "").trim();
-        var label = formatHeroEtaLabel(heroEtaUtc);
-
-        if (!heroEtaEl || !label) {
-          return;
-        }
-
-        heroEtaEl.textContent = label;
-      }
-
-      function hydrateHeroTripStart() {
-        var fields = (pageHooks && (pageHooks.fields || pageHooks.FIELDS)) || {};
-        var heroTripStartUtc = String(fields.heroTripStartUtc || fields.HEROTRIPSTARTUTC || "").trim();
-        var label = formatHeroEtaLabel(heroTripStartUtc);
-
-        if (!heroTripStartEl || !label) {
-          return;
-        }
-
-        heroTripStartEl.textContent = label;
-      }
-
-      function hydrateLastCheckinLabels() {
-        var fields = (pageHooks && (pageHooks.fields || pageHooks.FIELDS)) || {};
-        var heroLastCheckInUtc = String(fields.heroLastCheckInUtc || fields.HEROLASTCHECKINUTC || "").trim();
-        var label = formatHeroEtaLabel(heroLastCheckInUtc);
-
-        if (!label) {
-          return;
-        }
-        if (heroLastCheckInEl) {
-          heroLastCheckInEl.textContent = label;
-        }
-        if (floatPlanLastCheckInEl) {
-          floatPlanLastCheckInEl.textContent = label;
-        }
-      }
-
-      function hydrateLegArrival() {
-        var fields = (pageHooks && (pageHooks.fields || pageHooks.FIELDS)) || {};
-        var heroEtaUtc = String(fields.heroEtaUtc || fields.HEROETAUTC || "").trim();
-        var label = formatTimelineLocalTime(heroEtaUtc);
-
-        if (!legArrivalEl || !label) {
-          return;
-        }
-
-        legArrivalEl.textContent = label;
-      }
-
-      function hydrateRouteStop4Stamp() {
-        var fields = (pageHooks && (pageHooks.fields || pageHooks.FIELDS)) || {};
-        var heroEtaUtc = String(fields.heroEtaUtc || fields.HEROETAUTC || "").trim();
-        var label = formatHeroEtaLabel(heroEtaUtc);
-
-        if (!routeStop4StampEl || !label) {
-          return;
-        }
-
-        routeStop4StampEl.textContent = label + " ETA";
-      }
-
-      function formatManualDelayLabel(rawValue) {
-        var total = parseInt(rawValue, 10);
-        if (!Number.isFinite(total) || total < 0) {
-          total = 0;
-        }
-        return String(total) + " minute" + (total === 1 ? "" : "s");
-      }
-
-      function hydrateManualDelayTotal() {
-        var fields = (pageHooks && (pageHooks.fields || pageHooks.FIELDS)) || {};
-        var total = fields.manualDelayMinutesTotal;
-
-        if (typeof total === "undefined") {
-          total = fields.MANUALDELAYMINUTESTOTAL;
-        }
-        if (!manualDelayCurrentTotalEl) {
-          return;
-        }
-
-        manualDelayCurrentTotalEl.textContent = formatManualDelayLabel(total);
-      }
-
-      function formatRoutePlanDuration(hoursValue) {
-        var totalMinutes = Math.round(toRoutePlanNumber(hoursValue, 0) * 60);
-        var hoursPart = 0;
-        var minutesPart = 0;
-
-        if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) {
-          return "—";
-        }
-        hoursPart = Math.floor(totalMinutes / 60);
-        minutesPart = totalMinutes % 60;
-        if (hoursPart > 0 && minutesPart > 0) {
-          return String(hoursPart) + "h " + String(minutesPart) + "m";
-        }
-        if (hoursPart > 0) {
-          return String(hoursPart) + "h";
-        }
-        return String(minutesPart) + "m";
-      }
-
-      function formatRoutePlanDate(dateValue) {
-        var date = dateValue instanceof Date ? dateValue : null;
-        var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        var hour = 0;
-        var displayHour = 0;
-        var minutes = "";
-        var suffix = "";
-
-        if (!date || Number.isNaN(date.getTime())) {
-          return "—";
-        }
-        hour = date.getHours();
-        displayHour = hour % 12;
-        if (displayHour === 0) {
-          displayHour = 12;
-        }
-        minutes = String(date.getMinutes());
-        if (minutes.length < 2) {
-          minutes = "0" + minutes;
-        }
-        suffix = hour >= 12 ? "PM" : "AM";
-        return months[date.getMonth()] + " " + date.getDate() + " " + displayHour + ":" + minutes + " " + suffix;
-      }
-
-      function formatRoutePlanNm(nmValue) {
-        var nm = toRoutePlanNumber(nmValue, 0);
-        if (nm <= 0) {
-          return "—";
-        }
-        return nm.toFixed(1) + " nm";
-      }
-
-      function formatRoutePlanFuel(gallonsValue) {
-        var gallons = toRoutePlanNumber(gallonsValue, 0);
-        if (gallons <= 0) {
-          return "—";
-        }
-        return gallons.toFixed(1) + " gal";
-      }
-
-      function formatRoutePlanSpeed(speedValue) {
-        var speed = toRoutePlanNumber(speedValue, 0);
-        if (speed <= 0) {
-          return "—";
-        }
-        return speed.toFixed(1) + " kt";
-      }
-
-      function parseRoutePlanWeatherPct() {
-        var visibleValue = weatherFactorEl ? String(weatherFactorEl.textContent || "").trim() : "";
-        var parsed = parseFloat(visibleValue.replace("%", ""));
-
-        if (Number.isFinite(parsed)) {
-          return Math.max(0, parsed);
-        }
-        return Math.max(0, toRoutePlanNumber(routePlanModel.weatherFactorPct, 0));
-      }
-
-      function getRoutePlanPreviewDelayMinutes() {
-        var storedDelay = Math.max(0, toRoutePlanNumber(routePlanModel.manualDelayMinutes, 0));
-        var pendingRaw = manualDelayMinutesInputEl ? String(manualDelayMinutesInputEl.value || "").trim() : "";
-        var pendingValue = parseInt(pendingRaw, 10);
-
-        if (/^\d+$/.test(pendingRaw) && Number.isFinite(pendingValue) && pendingValue > 0) {
-          return storedDelay + pendingValue;
-        }
-        return storedDelay;
-      }
-
-      function setRoutePlanField(rootNode, fieldName, value) {
-        if (!rootNode) {
-          return;
-        }
-        rootNode.querySelectorAll('[data-route-plan-field="' + fieldName + '"]').forEach(function (fieldNode) {
-          fieldNode.textContent = value;
-        });
-      }
-
-      function setRoutePlanLabel(rootNode, labelName, value) {
-        if (!rootNode) {
-          return;
-        }
-        rootNode.querySelectorAll('[data-route-plan-label="' + labelName + '"]').forEach(function (labelNode) {
-          labelNode.textContent = value;
-        });
-      }
-
-      function getRoutePlanMinuteTime(dateValue) {
-        var copy = null;
-        if (!(dateValue instanceof Date) || Number.isNaN(dateValue.getTime())) {
-          return null;
-        }
-        copy = new Date(dateValue.getTime());
-        copy.setSeconds(0, 0);
-        return copy.getTime();
-      }
-
-      function formatRoutePlanEtaValue(dateValue) {
-        if (!(dateValue instanceof Date) || Number.isNaN(dateValue.getTime())) {
-          return "";
-        }
-        return formatHeroEtaLabel(dateValue.toISOString());
-      }
-
-      function formatRoutePlanArrivalValue(dateValue) {
-        if (!(dateValue instanceof Date) || Number.isNaN(dateValue.getTime())) {
-          return "";
-        }
-        return formatTimelineLocalTime(dateValue.toISOString());
-      }
-
-      function formatRoutePlanVarianceDuration(totalMinutes) {
-        var minutes = Math.max(0, Math.floor(Math.abs(Number(totalMinutes) || 0)));
-        var hours = Math.floor(minutes / 60);
-        var remainingMinutes = minutes % 60;
-        if (hours <= 0) {
-          return String(minutes) + " min";
-        }
-        if (remainingMinutes === 0) {
-          return String(hours) + "h";
-        }
-        return String(hours) + "h " + String(remainingMinutes) + "m";
-      }
-
-      function buildRoutePlanScheduleVariance(adjustedDate, plannedDate) {
-        var adjustedMinute = getRoutePlanMinuteTime(adjustedDate);
-        var plannedMinute = getRoutePlanMinuteTime(plannedDate);
-        var diffMinutes = 0;
-        var durationLabel = "";
-
-        if (adjustedMinute === null || plannedMinute === null) {
-          return { hero: "", leg: "" };
-        }
-
-        diffMinutes = Math.round((adjustedMinute - plannedMinute) / 60000);
-        if (Math.abs(diffMinutes) <= 5) {
-          return { hero: "Aligned with latest route plan", leg: "Aligned with latest route plan" };
-        }
-
-        durationLabel = formatRoutePlanVarianceDuration(diffMinutes);
-        if (diffMinutes > 0) {
-          return { hero: durationLabel + " later than latest route plan", leg: durationLabel + " later than latest route plan" };
-        }
-        return { hero: durationLabel + " earlier than latest route plan", leg: durationLabel + " earlier than latest route plan" };
-      }
-
-      function updateRoutePlanEtaCards() {
-        var etaProjection = (canonicalProjectionModel && canonicalProjectionModel.etaProjection && typeof canonicalProjectionModel.etaProjection === "object")
-          ? canonicalProjectionModel.etaProjection
-          : {};
-        var canonicalEtaUtc = String(readRoutePlanValue(etaProjection, ["etaUtc", "ETAUTC"], "") || "").trim();
-        var heroEtaUtc = String(pageFields.heroEtaUtc || pageFields.HEROETAUTC || canonicalEtaUtc || "").trim();
-        var legArrivalUtc = String(pageFields.legArrivalUtc || pageFields.LEGARRIVALUTC || canonicalEtaUtc || heroEtaUtc || "").trim();
-        var heroValue = formatHeroEtaLabel(heroEtaUtc);
-        var legValue = formatRoutePlanArrivalValue(parseRoutePlanDate(legArrivalUtc));
-
-        if (heroEtaEl && heroValue) {
-          heroEtaEl.textContent = heroValue;
-        }
-        if (legArrivalEl && legValue) {
-          legArrivalEl.textContent = legValue;
-        }
-      }
-
-      function parseRoutePlanDate(value) {
-        var raw = String(value || "").trim();
-        var date = raw ? new Date(raw) : null;
-        if (!date || Number.isNaN(date.getTime())) {
-          return null;
-        }
-        return date;
-      }
-
-      function addRoutePlanMinutes(dateValue, minutesValue) {
-        var minutes = Math.round(toRoutePlanNumber(minutesValue, 0));
-        if (!(dateValue instanceof Date) || Number.isNaN(dateValue.getTime())) {
-          return null;
-        }
-        return new Date(dateValue.getTime() + (minutes * 60000));
-      }
-
-      function getRoutePlanPauseMinutes(startDate, arrivalDate) {
-        var pauseStart = parseRoutePlanDate(routePlanModel.pauseStartUtc);
-        var pauseResume = parseRoutePlanDate(routePlanModel.pauseResumeUtc);
-        var pauseCountStart = null;
-        var pauseMinutes = 0;
-
-        if (!pauseStart || !pauseResume || !startDate || !arrivalDate) {
-          return 0;
-        }
-        if (pauseResume.getTime() <= pauseStart.getTime()) {
-          return 0;
-        }
-        if (pauseResume.getTime() <= startDate.getTime() || pauseStart.getTime() >= arrivalDate.getTime()) {
-          return 0;
-        }
-        pauseCountStart = pauseStart.getTime() > startDate.getTime() ? pauseStart : startDate;
-        pauseMinutes = Math.round((pauseResume.getTime() - pauseCountStart.getTime()) / 60000);
-        return pauseMinutes > 0 ? pauseMinutes : 0;
-      }
-
-      function applyRoutePlanResumeFloor(dateValue) {
-        var pauseResume = parseRoutePlanDate(routePlanModel.pauseResumeUtc);
-
-        if (!(dateValue instanceof Date) || Number.isNaN(dateValue.getTime()) || !pauseResume) {
-          return dateValue;
-        }
-        return dateValue.getTime() < pauseResume.getTime() ? pauseResume : dateValue;
-      }
-
-      function createRoutePlanElement(tagName, className, textValue) {
-        var node = document.createElement(tagName);
-        if (className) {
-          node.className = className;
-        }
-        if (typeof textValue !== "undefined") {
-          node.textContent = textValue;
-        }
-        return node;
-      }
-
-      function appendRoutePlanDetailItem(parentNode, labelText, valueText, fieldName, smallText, labelFieldName) {
-        var itemNode = createRoutePlanElement("div", "", "");
-        var labelNode = createRoutePlanElement("span", "", labelText);
-        var valueNode = createRoutePlanElement("strong", "", valueText);
-        var smallNode = null;
-
-        if (labelFieldName) {
-          labelNode.setAttribute("data-route-plan-label", labelFieldName);
-        }
-        if (fieldName) {
-          valueNode.setAttribute("data-route-plan-field", fieldName);
-        }
-        itemNode.appendChild(labelNode);
-        itemNode.appendChild(valueNode);
-        if (typeof smallText !== "undefined" && smallText !== null) {
-          smallNode = createRoutePlanElement("small", "", smallText);
-          if (fieldName === "departure") {
-            smallNode.setAttribute("data-route-plan-field", "plannedDeparture");
-          } else if (fieldName === "arrivalDetail") {
-            smallNode.setAttribute("data-route-plan-field", "plannedArrival");
-          }
-          itemNode.appendChild(smallNode);
-        }
-        parentNode.appendChild(itemNode);
-      }
-
-      function getCanonicalLegLabel(leg) {
-        var fromName = String((leg && leg.fromName) || "").trim();
-        var toName = String((leg && leg.toName) || "").trim();
-        var order = toRoutePlanNumber(leg && leg.routeLegOrder, 0);
-
-        if (fromName && toName) {
-          return fromName + " -> " + toName;
-        }
-        if (toName) {
-          return toName;
-        }
-        return order > 0 ? "Leg " + String(order) : "Leg";
-      }
-
-      function getCanonicalLegStatus(leg, isCurrent) {
-        var rawStatus = String((leg && leg.status) || "").trim();
-        var state = String((leg && leg.state) || "").trim();
-
-        if (rawStatus) {
-          return rawStatus.replace(/_/g, " ");
-        }
-        if (isCurrent) {
-          return "Current";
-        }
-        if (state) {
-          return state.charAt(0).toUpperCase() + state.slice(1);
-        }
-        return "Route Leg";
-      }
-
-      function getCanonicalLegClassState(leg, isCurrent) {
-        var state = String((leg && leg.state) || "").toLowerCase().replace(/[^a-z0-9_-]/g, "");
-        if (isCurrent) {
-          return "current";
-        }
-        return state || "future";
-      }
-
-      function getCanonicalDepartureUtc(leg) {
-        return String((leg && (leg.departureUtc || leg.startedAtUtc)) || "").trim();
-      }
-
-      function getCanonicalArrivalUtc(leg) {
-        return String((leg && (leg.completedAtUtc || leg.arrivalUtc || leg.etaUtc)) || "").trim();
-      }
-
-      function getCanonicalDepartureLabel(leg, isCurrent) {
-        if ((leg && leg.state) === "completed" || isCurrent) {
-          return "Actual Departure";
-        }
-        return "Projected Departure";
-      }
-
-      function getCanonicalArrivalLabel(leg, isCurrent) {
-        if ((leg && leg.state) === "completed") {
-          return "Actual Arrival";
-        }
-        if (isCurrent) {
-          return "Canonical ETA";
-        }
-        return "Projected ETA";
-      }
-
-      function createCanonicalRoutePlanLegNode(leg) {
-        var order = toRoutePlanNumber(leg && leg.routeLegOrder, 0);
-        var isCurrent = order > 0 && order === toRoutePlanNumber(canonicalRouteTimelineModel.currentLegOrder, 0);
-        var classState = getCanonicalLegClassState(leg, isCurrent);
-        var expanded = isCurrent;
-        var articleNode = createRoutePlanElement("article", "route-plan-leg route-plan-leg--" + classState + (expanded ? " is-expanded" : ""), "");
-        var buttonNode = createRoutePlanElement("button", "route-plan-leg-button", "");
-        var dotNode = createRoutePlanElement("span", "route-plan-leg-dot", "");
-        var bodyNode = createRoutePlanElement("span", "", "");
-        var sideNode = createRoutePlanElement("span", "route-plan-leg-side", "");
-        var arrivalSideNode = createRoutePlanElement("span", "", formatRoutePlanDate(parseRoutePlanDate(getCanonicalArrivalUtc(leg))));
-        var chevronNode = createRoutePlanElement("span", "route-plan-leg-chevron", "⌄");
-        var detailNode = createRoutePlanElement("div", "route-plan-leg-detail", "");
-        var detailGridNode = createRoutePlanElement("div", "route-plan-detail-grid", "");
-        var statusNode = createRoutePlanElement("span", "route-plan-leg-kicker", getCanonicalLegStatus(leg, isCurrent));
-        var titleNode = createRoutePlanElement("span", "route-plan-leg-title", getCanonicalLegLabel(leg));
-        var metaNode = createRoutePlanElement("span", "route-plan-leg-meta", formatRoutePlanNm(leg && leg.distanceNm));
-        var statusTime = String((leg && (leg.completedAtUtc || leg.startedAtUtc)) || "").trim();
-
-        articleNode.setAttribute("data-route-plan-leg", "");
-        articleNode.setAttribute("data-route-plan-leg-order", String(order));
-        articleNode.setAttribute("data-route-plan-state", classState);
-        articleNode.setAttribute("data-route-plan-authority", String((leg && leg.authority) || canonicalRouteTimelineModel.authority || ""));
-        if (isCurrent) {
-          articleNode.setAttribute("data-route-plan-current", "true");
-        }
-
-        buttonNode.type = "button";
-        buttonNode.setAttribute("data-route-plan-toggle", "");
-        buttonNode.setAttribute("aria-expanded", expanded ? "true" : "false");
-        dotNode.setAttribute("aria-hidden", "true");
-        chevronNode.setAttribute("aria-hidden", "true");
-        arrivalSideNode.setAttribute("data-route-plan-field", "arrival");
-
-        bodyNode.appendChild(statusNode);
-        bodyNode.appendChild(titleNode);
-        bodyNode.appendChild(metaNode);
-        sideNode.appendChild(arrivalSideNode);
-        sideNode.appendChild(chevronNode);
-        buttonNode.appendChild(dotNode);
-        buttonNode.appendChild(bodyNode);
-        buttonNode.appendChild(sideNode);
-
-        appendRoutePlanDetailItem(detailGridNode, getCanonicalDepartureLabel(leg, isCurrent), formatRoutePlanDate(parseRoutePlanDate(getCanonicalDepartureUtc(leg))), "departure", "", "departure");
-        appendRoutePlanDetailItem(detailGridNode, getCanonicalArrivalLabel(leg, isCurrent), formatRoutePlanDate(parseRoutePlanDate(getCanonicalArrivalUtc(leg))), "arrivalDetail", "", "arrivalDetail");
-        appendRoutePlanDetailItem(detailGridNode, "Duration", "—", "duration");
-        appendRoutePlanDetailItem(detailGridNode, "Distance", formatRoutePlanNm(leg && leg.distanceNm), "");
-        appendRoutePlanDetailItem(detailGridNode, "Pace Used", formatRoutePlanSpeed(leg && leg.effectiveSpeedKn), "speed");
-        appendRoutePlanDetailItem(detailGridNode, "Weather Effect", "—", "weather");
-        appendRoutePlanDetailItem(detailGridNode, "Fuel Need", "—", "fuel");
-        appendRoutePlanDetailItem(detailGridNode, "Reserve", "—", "reserve");
-        appendRoutePlanDetailItem(detailGridNode, "Delay Adjustment", "—", "delay");
-        appendRoutePlanDetailItem(detailGridNode, "Status Times", statusTime ? formatHeroEtaLabel(statusTime) : "—", "");
-
-        detailNode.hidden = !expanded;
-        detailNode.appendChild(detailGridNode);
-        articleNode.appendChild(buttonNode);
-        articleNode.appendChild(detailNode);
-        return articleNode;
-      }
-
-      function createRoutePlanFinalNode(labelValue, arrivalUtc) {
-        var finalNode = createRoutePlanElement("div", "route-plan-final", "");
-        var kickerNode = createRoutePlanElement("div", "route-plan-kicker", "Final Destination");
-        var strongNode = createRoutePlanElement("strong", "", labelValue || "—");
-        var spanNode = createRoutePlanElement("span", "", formatRoutePlanDate(parseRoutePlanDate(arrivalUtc)));
-
-        spanNode.setAttribute("data-route-plan-summary", "finalArrival");
-        finalNode.appendChild(kickerNode);
-        finalNode.appendChild(strongNode);
-        finalNode.appendChild(spanNode);
-        return finalNode;
-      }
-
-      function renderRoutePlanUnavailable() {
-        var unavailableNode = createRoutePlanElement("div", "route-plan-final", "");
-
-        if (routePlanTimelineEl) {
-          routePlanTimelineEl.textContent = "";
-          unavailableNode.appendChild(createRoutePlanElement("div", "route-plan-kicker", "Route Plan"));
-          unavailableNode.appendChild(createRoutePlanElement("strong", "", "—"));
-          unavailableNode.appendChild(createRoutePlanElement("span", "", "Canonical route timeline unavailable. Route preview cannot be rendered."));
-          routePlanTimelineEl.appendChild(unavailableNode);
-        }
-        document.querySelectorAll('[data-route-plan-summary="finalArrival"], [data-route-plan-summary="finalArrivalFooter"]').forEach(function (summaryNode) {
-          summaryNode.textContent = "—";
-        });
-        if (routePlanPreviewNoteEl) {
-          routePlanPreviewNoteEl.textContent = "Canonical route timeline unavailable. Route preview cannot be rendered.";
-        }
-      }
-
-      function renderRoutePlanPreview() {
-        var timeline = canonicalRouteTimelineModel || {};
-        var legs = Array.isArray(timeline.legs) ? timeline.legs : [];
-        var firstLeg = legs.length ? legs[0] : {};
-        var finalLeg = legs.length ? legs[legs.length - 1] : {};
-        var finalArrivalUtc = String((timeline.summary && timeline.summary.finalArrivalUtc) || getCanonicalArrivalUtc(finalLeg) || "").trim();
-
-        updateRoutePlanEtaCards();
-        if (!routePlanTimelineEl || canonicalProjectionModel.available !== true || timeline.available !== true || !legs.length) {
-          renderRoutePlanUnavailable();
-          return;
-        }
-
-        document.querySelectorAll('[data-route-plan-summary="scheduledDeparture"]').forEach(function (summaryNode) {
-          summaryNode.textContent = formatRoutePlanDate(parseRoutePlanDate(getCanonicalDepartureUtc(firstLeg)));
-        });
-        document.querySelectorAll('[data-route-plan-summary="finalArrival"], [data-route-plan-summary="finalArrivalFooter"]').forEach(function (summaryNode) {
-          summaryNode.textContent = formatRoutePlanDate(parseRoutePlanDate(finalArrivalUtc));
-        });
-
-        routePlanTimelineEl.textContent = "";
-        legs.forEach(function (leg) {
-          routePlanTimelineEl.appendChild(createCanonicalRoutePlanLegNode(leg));
-        });
-        routePlanTimelineEl.appendChild(createRoutePlanFinalNode(String((finalLeg && finalLeg.toName) || "—"), finalArrivalUtc));
-
-        if (routePlanPreviewNoteEl) {
-          routePlanPreviewNoteEl.textContent = "Route preview uses canonical route timeline projection.";
-        }
-      }
-
-      function initializeRoutePlanInteractions() {
-        if (routePlanTimelineEl) {
-          if (routePlanTimelineEl.getAttribute("data-route-plan-interactions-bound") !== "true") {
-            routePlanTimelineEl.setAttribute("data-route-plan-interactions-bound", "true");
-            routePlanTimelineEl.addEventListener("click", function (event) {
-              var toggleButton = event.target ? event.target.closest("[data-route-plan-toggle]") : null;
-              var legNode = toggleButton ? toggleButton.closest("[data-route-plan-leg]") : null;
-              var detailNode = legNode ? legNode.querySelector(".route-plan-leg-detail") : null;
-              var shouldExpand = toggleButton ? toggleButton.getAttribute("aria-expanded") !== "true" : false;
-
-              if (!toggleButton || !legNode) {
-                return;
-              }
-
-              routePlanTimelineEl.querySelectorAll("[data-route-plan-toggle]").forEach(function (otherButton) {
-                var otherLegNode = otherButton.closest("[data-route-plan-leg]");
-                var otherDetailNode = otherLegNode ? otherLegNode.querySelector(".route-plan-leg-detail") : null;
-                otherButton.setAttribute("aria-expanded", "false");
-                if (otherLegNode) {
-                  otherLegNode.classList.remove("is-expanded");
-                }
-                if (otherDetailNode) {
-                  otherDetailNode.hidden = true;
-                }
-              });
-
-              toggleButton.setAttribute("aria-expanded", shouldExpand ? "true" : "false");
-              legNode.classList.toggle("is-expanded", shouldExpand);
-              if (detailNode) {
-                detailNode.hidden = !shouldExpand;
-              }
-            });
-          }
-        }
-        if (routePlanJumpCurrentBtn && routePlanTimelineEl) {
-          routePlanJumpCurrentBtn.addEventListener("click", function () {
-            var currentNode = routePlanTimelineEl.querySelector('[data-route-plan-current="true"]');
-            if (!currentNode) {
-              return;
-            }
-            routePlanTimelineEl.scrollTop = currentNode.offsetTop - routePlanTimelineEl.offsetTop - 12;
-          });
-        }
-        if (manualDelayMinutesInputEl) {
-          manualDelayMinutesInputEl.addEventListener("input", renderRoutePlanPreview);
-        }
-      }
-
-      hydrateTimelineTimes();
-      hydrateHeroEta();
-      hydrateHeroTripStart();
-      hydrateLastCheckinLabels();
-      hydrateLegArrival();
-      hydrateRouteStop4Stamp();
-      hydrateManualDelayTotal();
-      renderRoutePlanPreview();
-      initializeRoutePlanInteractions();
-      renderActiveCruiseMap();
-      window.addEventListener("load", syncActiveCruiseMapSize);
-      window.addEventListener("resize", syncActiveCruiseMapSize);
-
-      function parseExperimentalDate(value) {
-        var raw = String(value || "").trim();
-        var parsed = raw ? new Date(raw) : null;
-        if (!parsed || Number.isNaN(parsed.getTime())) {
-          return null;
-        }
-        return parsed;
-      }
-
-      function formatExperimentalNm(value) {
-        var numeric = Number(value);
-        if (!Number.isFinite(numeric) || numeric < 0) {
-          numeric = 0;
-        }
-        return numeric.toFixed(1) + " nm";
-      }
-
-      function formatExperimentalPct(value) {
-        var numeric = Math.floor(Number(value));
-        if (!Number.isFinite(numeric) || numeric < 0) {
-          numeric = 0;
-        }
-        if (numeric > 100) {
-          numeric = 100;
-        }
-        return String(numeric) + "%";
-      }
-
-      function formatExperimentalMetricNumber(value, decimals) {
-        var numeric = Number(value);
-        var fixed = "";
-        if (!Number.isFinite(numeric) || numeric < 0) {
-          return "";
-        }
-        fixed = numeric.toFixed(decimals);
-        return fixed.replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1");
-      }
-
-      function formatExperimentalDistanceMetric(value, suffixText) {
-        var formatted = formatExperimentalMetricNumber(value, 1);
-        if (!formatted) {
-          return "Distance unavailable";
-        }
-        return formatted + " NM" + (suffixText || "");
-      }
-
-      function formatExperimentalSpeedMetric(value) {
-        var formatted = formatExperimentalMetricNumber(value, 2);
-        if (!formatted) {
-          return "Speed unavailable";
-        }
-        return formatted + " kt";
-      }
-
-      function formatExperimentalFuelMetric(value) {
-        var numeric = Number(value);
-        if (!Number.isFinite(numeric) || numeric <= 0) {
-          return "Fuel unavailable";
-        }
-        return (numeric >= 10 ? numeric.toFixed(0) : numeric.toFixed(1)) + " gal";
-      }
-
-      function computeExperimentalFuelForDistance(distanceNm, speedKn, fuelBurnGph, reservePct) {
-        var distanceVal = Number(distanceNm);
-        var speedVal = Number(speedKn);
-        var burnVal = Number(fuelBurnGph);
-        var reserveVal = Number(reservePct);
-        var baseFuelGal = 0;
-        var reserveFuelGal = 0;
-        if (!Number.isFinite(distanceVal) || distanceVal <= 0 || !Number.isFinite(speedVal) || speedVal <= 0 || !Number.isFinite(burnVal) || burnVal <= 0) {
-          return 0;
-        }
-        baseFuelGal = (distanceVal / speedVal) * burnVal;
-        if (!Number.isFinite(baseFuelGal) || baseFuelGal < 0) {
-          baseFuelGal = 0;
-        }
-        if (Number.isFinite(reserveVal) && reserveVal > 0) {
-          reserveFuelGal = baseFuelGal * (reserveVal / 100);
-        }
-        return baseFuelGal + reserveFuelGal;
-      }
-
-      function experimentalPendingLegOrder() {
-        var rawOrder = pageContext && (pageContext.pendingLegOrder || pageContext.PENDINGLEGORDER);
-        var parsedOrder = parseInt(rawOrder, 10);
-        return Number.isFinite(parsedOrder) && parsedOrder > 0 ? parsedOrder : 0;
-      }
-
-      function experimentalIsAwaitingDeparture() {
-        return !!(pageContext && (pageContext.awaitingDepartureStop === true || pageContext.AWAITINGDEPARTURESTOP === true));
-      }
-
-      function setExperimentalLegSupportText(helperText, disclaimerText) {
-        if (experimentalLegHelperEl) {
-          experimentalLegHelperEl.textContent = helperText || "";
-        }
-        if (experimentalLegDisclaimerEl) {
-          experimentalLegDisclaimerEl.textContent = disclaimerText || "Estimate only — not GPS-tracked vessel position.";
-        }
-      }
-
-      function cleanExperimentalStatusLabel(statusLabel) {
-        var label = String(statusLabel || "").trim();
-        if (!label || label === "Browser-time display") {
-          return "Leg Underway";
-        }
-        return label;
-      }
-
-      function renderExperimentalAwaitingDeparture() {
-        var pendingOrder = experimentalPendingLegOrder();
-        var distanceNm = Number(experimentalLegModel && experimentalLegModel.currentLegDistanceNm);
-        var speedKn = Number(experimentalLegModel && experimentalLegModel.speedKn);
-        var fuelBurnGph = Number(experimentalLegModel && experimentalLegModel.fuelBurnGph);
-        var reservePct = Number(experimentalLegModel && experimentalLegModel.reservePct);
-        var fuelGal = computeExperimentalFuelForDistance(distanceNm, speedKn, fuelBurnGph, reservePct);
-
-        experimentalLegStatusEl.textContent = "Next Leg Ready";
-        experimentalLegBarEl.style.width = "0%";
-        experimentalLegRemainingEl.textContent = formatExperimentalDistanceMetric(distanceNm);
-        experimentalLegPercentEl.textContent = "0%";
-        experimentalLegPaceEl.textContent = formatExperimentalSpeedMetric(speedKn);
-        experimentalLegFuelEl.textContent = formatExperimentalFuelMetric(fuelGal);
-        experimentalLegMetaEl.textContent = pendingOrder > 0
-          ? "Leg " + pendingOrder + " is ready to start. FPW will begin estimating progress after you tap Start Next Leg."
-          : "The next leg is ready to start. FPW will begin estimating progress after you tap Start Next Leg.";
-        setExperimentalLegSupportText(
-          "Tap Start Next Leg when you actually depart this leg.",
-          "Estimate only — not GPS-tracked vessel position."
-        );
-      }
-
-      function computeExperimentalLegState(model, nowDate) {
-        var distanceNm = Number(model && model.currentLegDistanceNm);
-        var speedKn = Number(model && model.speedKn);
-        var fuelBurnGph = Number(model && model.fuelBurnGph);
-        var reservePct = Number(model && model.reservePct);
-        var startDt = parseExperimentalDate(model && model.baseStartUtc);
-        var pauseStartDt = parseExperimentalDate(model && model.pauseStartUtc);
-        var pauseResumeDt = parseExperimentalDate(model && model.pauseResumeUtc);
-        var elapsedMs = 0;
-        var pauseMs = 0;
-        var traveledNm = 0;
-        var remainingNm = 0;
-        var percentComplete = 0;
-        var baseFuelGal = 0;
-        var reserveFuelGal = 0;
-        var requiredFuelGal = 0;
-        var pauseActive = false;
-
-        if (!Number.isFinite(distanceNm) || distanceNm <= 0 || !Number.isFinite(speedKn) || speedKn <= 0 || !startDt) {
-          return null;
-        }
-
-        elapsedMs = nowDate.getTime() - startDt.getTime();
-        if (elapsedMs < 0) {
-          elapsedMs = 0;
-        }
-        if (pauseStartDt && nowDate.getTime() > pauseStartDt.getTime()) {
-          pauseActive = !pauseResumeDt || nowDate.getTime() < pauseResumeDt.getTime();
-          pauseMs = (pauseActive ? nowDate.getTime() : Math.min(nowDate.getTime(), pauseResumeDt.getTime())) - pauseStartDt.getTime();
-          if (pauseMs > 0) {
-            elapsedMs -= pauseMs;
-          }
-        }
-        if (elapsedMs < 0) {
-          elapsedMs = 0;
-        }
-
-        traveledNm = (elapsedMs / 3600000) * speedKn;
-        if (traveledNm > distanceNm) {
-          traveledNm = distanceNm;
-        }
-        if (traveledNm < 0) {
-          traveledNm = 0;
-        }
-        remainingNm = distanceNm - traveledNm;
-        if (remainingNm < 0) {
-          remainingNm = 0;
-        }
-        percentComplete = distanceNm > 0 ? Math.floor((traveledNm / distanceNm) * 100) : 0;
-        if (percentComplete < 0) {
-          percentComplete = 0;
-        }
-        if (percentComplete > 100) {
-          percentComplete = 100;
-        }
-
-        if (Number.isFinite(fuelBurnGph) && fuelBurnGph > 0 && remainingNm > 0) {
-          baseFuelGal = (remainingNm / speedKn) * fuelBurnGph;
-          if (!Number.isFinite(baseFuelGal) || baseFuelGal < 0) {
-            baseFuelGal = 0;
-          }
-          if (Number.isFinite(reservePct) && reservePct > 0) {
-            reserveFuelGal = baseFuelGal * (reservePct / 100);
-          }
-          requiredFuelGal = baseFuelGal + reserveFuelGal;
-        }
-
-        return {
-          remainingNm: remainingNm,
-          percentComplete: percentComplete,
-          paceKn: speedKn,
-          requiredFuelGal: requiredFuelGal,
-          pauseActive: pauseActive
-        };
-      }
-
-      function renderExperimentalLegProgress() {
-        var nowDate = new Date();
-        var state = computeExperimentalLegState(experimentalLegModel, nowDate);
-        var assumptionLabel = String((experimentalLegModel && experimentalLegModel.assumptionLabel) || "").trim();
-        var statusLabel = String((experimentalLegModel && experimentalLegModel.statusLabel) || "").trim();
-        var pauseResumeDt = parseExperimentalDate(experimentalLegModel && experimentalLegModel.pauseResumeUtc);
-
-        if (!experimentalLegStatusEl || !experimentalLegBarEl || !experimentalLegRemainingEl || !experimentalLegPercentEl || !experimentalLegPaceEl || !experimentalLegFuelEl || !experimentalLegMetaEl) {
-          return;
-        }
-
-        if (experimentalIsAwaitingDeparture()) {
-          renderExperimentalAwaitingDeparture();
-          return;
-        }
-
-        if (!experimentalLegModel || experimentalLegModel.available !== true || !state) {
-          experimentalLegStatusEl.textContent = statusLabel || "Route estimate unavailable";
-          experimentalLegBarEl.style.width = "0%";
-          experimentalLegRemainingEl.textContent = "Distance unavailable";
-          experimentalLegPercentEl.textContent = "0%";
-          experimentalLegPaceEl.textContent = "Speed unavailable";
-          experimentalLegFuelEl.textContent = "Fuel unavailable";
-          experimentalLegMetaEl.textContent = assumptionLabel || "Route leg estimate will appear when trip data is available.";
-          setExperimentalLegSupportText(
-            "Estimate details require route distance, planned speed, and fuel inputs.",
-            "Estimate only — not GPS-tracked vessel position."
-          );
-          return;
-        }
-
-        experimentalLegStatusEl.textContent = state.pauseActive
-          ? "Paused overnight"
-          : cleanExperimentalStatusLabel(statusLabel);
-        experimentalLegBarEl.style.width = formatExperimentalPct(state.percentComplete);
-        experimentalLegRemainingEl.textContent = formatExperimentalDistanceMetric(state.remainingNm, " remaining");
-        experimentalLegPercentEl.textContent = formatExperimentalPct(state.percentComplete);
-        experimentalLegPaceEl.textContent = formatExperimentalSpeedMetric(state.paceKn);
-        experimentalLegFuelEl.textContent = formatExperimentalFuelMetric(state.requiredFuelGal);
-        experimentalLegMetaEl.textContent = assumptionLabel || "FPW is estimating this leg from planned speed, distance, and elapsed time.";
-        setExperimentalLegSupportText(
-          "Progress updates while this leg is underway.",
-          "Estimate only — not GPS-tracked vessel position."
-        );
-        if (
-          state.pauseActive
-          && pauseResumeDt
-          && assumptionLabel.toLowerCase().indexOf("paused until") === -1
-          && assumptionLabel.toLowerCase().indexOf("overnight pause excluded until") === -1
-        ) {
-          experimentalLegMetaEl.textContent += " Paused until " + pauseResumeDt.toLocaleTimeString([], {
-            hour: "numeric",
-            minute: "2-digit"
-          }) + ".";
-        }
-      }
-
-      renderExperimentalLegProgress();
-      if (experimentalLegModel && experimentalLegModel.available === true) {
-        window.setInterval(renderExperimentalLegProgress, 60000);
-      }
-
-      function buildRouteBuilderApiUrl(action) {
-        return new URL(
-          "../api/v1/routeBuilder.cfc?method=handle&action=" + encodeURIComponent(action) + "&returnFormat=json",
-          window.location.href
-        ).toString();
-      }
-
-      function cloneData(value) {
-        return JSON.parse(JSON.stringify(value || {}));
-      }
-
-      function parseJsonResponse(response, fallbackMessage) {
-        return response.text().then(function (text) {
-          var payload = {};
-          try {
-            payload = text ? JSON.parse(text) : {};
-          } catch (err) {
-            payload = {
-              SUCCESS: false,
-              MESSAGE: fallbackMessage || "Request failed."
-            };
-          }
-          if (!response.ok || payload.SUCCESS === false || payload.success === false) {
-            throw payload;
-          }
-          return payload;
-        });
-      }
-
-      function postJson(url, payload, fallbackMessage) {
-        return fetch(url, {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-          },
-          body: JSON.stringify(payload || {})
-        }).then(function (response) {
-          return parseJsonResponse(response, fallbackMessage);
-        });
-      }
-
-      function buildVoyageApiUrl(action) {
-        return new URL(
-          "../api/v1/voyage.cfc?method=handle&action=" + encodeURIComponent(action) + "&returnFormat=json",
-          window.location.href
-        ).toString();
-      }
-
-      function normalizeActiveCruiseMapPayload(rawMap) {
-        var payload = (rawMap && typeof rawMap === "object") ? rawMap : {};
-        return {
-          routeGeo: payload.routeGeo || payload.route_geo || payload.ROUTEGEO || payload.ROUTE_GEO || { type: "MultiLineString", coordinates: [] },
-          pins: Array.isArray(payload.pins || payload.PINS) ? (payload.pins || payload.PINS) : [],
-          current: (payload.current && typeof payload.current === "object") ? payload.current : ((payload.CURRENT && typeof payload.CURRENT === "object") ? payload.CURRENT : {}),
-          streamId: parseInt(payload.streamId || payload.stream_id || payload.STREAMID || payload.STREAM_ID || 0, 10) || 0,
-          slug: String(payload.slug || payload.SLUG || "").trim(),
-          shareToken: String(payload.shareToken || payload.share_token || payload.SHARETOKEN || payload.SHARE_TOKEN || "").trim()
-        };
-      }
-
-      function readActiveCruiseMapPayload() {
-        var rawMap = (pageHooks && (pageHooks.map || pageHooks.MAP)) || {};
-        return normalizeActiveCruiseMapPayload(rawMap);
-      }
-
-      function updateActiveCruiseMapStreamContext(streamId, slug, shareToken) {
-        var nextMap = readActiveCruiseMapPayload();
-        nextMap.streamId = parseInt(streamId, 10) || 0;
-        nextMap.slug = String(slug || "").trim();
-        nextMap.shareToken = String(shareToken || "").trim();
-        pageHooks.map = nextMap;
-        return nextMap;
-      }
-
-      function syncActiveCruiseMapSize() {
-        if (!activeCruiseMapInstance || typeof activeCruiseMapInstance.invalidateSize !== "function") {
-          return;
-        }
-        window.setTimeout(function () {
-          activeCruiseMapInstance.invalidateSize(false);
-        }, 0);
-      }
-
-      function renderActiveCruiseMap() {
-        var mapPayload = readActiveCruiseMapPayload();
-        var current = mapPayload.current || {};
-        var lat = Number(current.lat);
-        var lng = Number(current.lng);
-
-        if (!activeCruiseMapEl || !window.FPWFollowMap || typeof window.FPWFollowMap.initFollowMap !== "function") {
-          return;
-        }
-
-        activeCruiseMapInstance = window.FPWFollowMap.initFollowMap("fpwActiveCruiseMap", {});
-        if (window.FPW && typeof window.FPW.attachLeafletMarineLayers === "function") {
-          window.FPW.attachLeafletMarineLayers({
-            map: activeCruiseMapInstance
-          });
-        }
-        if (window.FPW && typeof window.FPW.attachLeafletWeatherOverlays === "function") {
-          window.FPW.attachLeafletWeatherOverlays({
-            map: activeCruiseMapInstance,
-            mode: "activeCruise"
-          });
-        }
-        window.FPWFollowMap.renderRoute(mapPayload.routeGeo);
-        window.FPWFollowMap.renderPins(mapPayload.pins);
-        window.FPWFollowMap.fitBoundsToRoute(mapPayload.routeGeo, mapPayload.pins);
-        if (Number.isFinite(lat) && Number.isFinite(lng)) {
-          window.FPWFollowMap.updateBoatMarker(lat, lng, current.label || current.name || "Current position");
-        }
-        syncActiveCruiseMapSize();
-      }
-
-      function buildActiveCruiseFullMapUrl(streamData) {
-        var stream = (streamData && typeof streamData === "object") ? streamData : {};
-        var params = new URLSearchParams();
-        var baseUrl = new URL("follow-full-map.cfm", window.location.href);
-        var streamId = parseInt(stream.streamId || stream.id || stream.stream_id || 0, 10) || 0;
-        var slug = String(stream.slug || "").trim();
-        var shareToken = String(stream.shareToken || stream.share_token || "").trim();
-
-        if (!slug || !shareToken || streamId <= 0) {
-          return "";
-        }
-
-        params.set("slug", slug);
-        params.set("t", shareToken);
-        params.set("stream_id", String(streamId));
-        params.set("source", "active-cruise");
-        baseUrl.search = params.toString();
-        return baseUrl.toString();
-      }
-
-      function openActiveCruiseFullMapWindow(targetUrl) {
-        var featureParts = [
-          "popup=yes",
-          "left=0",
-          "top=0",
-          "width=" + String(window.screen && window.screen.availWidth ? window.screen.availWidth : 1440),
-          "height=" + String(window.screen && window.screen.availHeight ? window.screen.availHeight : 900)
-        ];
-        var popup = null;
-
-        if (!targetUrl) {
-          return "";
-        }
-
-        try {
-          popup = window.open("", "_blank", featureParts.join(","));
-        } catch (err) {
-          popup = null;
-        }
-
-        if (popup && !popup.closed) {
-          try {
-            popup.opener = null;
-          } catch (ignoreErr) {}
-          popup.location = targetUrl;
-          return targetUrl;
-        }
-
-        featureParts.unshift("noopener");
-        window.open(targetUrl, "_blank", featureParts.join(","));
-        return targetUrl;
-      }
-
-      function ensureActiveCruiseFollowStream() {
-        var mapPayload = readActiveCruiseMapPayload();
-
-        if (mapPayload.streamId > 0 && mapPayload.slug && mapPayload.shareToken) {
-          return Promise.resolve(mapPayload);
-        }
-
-        return fetch(buildVoyageApiUrl("ownerensurestream"), {
-          method: "GET",
-          credentials: "include",
-          headers: {
-            "Accept": "application/json"
-          }
-        }).then(function (response) {
-          return parseJsonResponse(response, "Follower page unavailable.");
-        }).then(function (payload) {
-          var data = (payload && (payload.data || payload.DATA)) || {};
-          var stream = (data && (data.stream || data.STREAM)) || {};
-          var streamId = parseInt(stream.id || stream.stream_id || 0, 10) || 0;
-          var slug = String(stream.slug || "").trim();
-          var shareToken = String(stream.share_token || "").trim();
-
-          if (streamId <= 0 || !slug || !shareToken) {
-            throw new Error("Follower page unavailable.");
-          }
-
-          return updateActiveCruiseMapStreamContext(streamId, slug, shareToken);
-        });
-      }
-
-      function readCanonicalRouteCode() {
-        return String(
-          pageContext.routeCode ||
-          pageContext.ROUTECODE ||
-          pageContext.activeRouteCode ||
-          pageContext.ACTIVEROUTECODE ||
-          ""
-        ).trim();
-      }
-
-      function isMyRouteType(rawValue) {
-        var routeType = String(rawValue || "").trim().toLowerCase();
-        return routeType === "my_route" || routeType === "my_routes" || routeType === "custom";
-      }
-
-      function setWeatherApplyButtonState(options) {
-        var opts = (options && typeof options === "object") ? options : {};
-        var isVisible = opts.visible === true;
-        var isLoading = opts.loading === true;
-        var isDisabled = opts.disabled === true || isLoading;
-        var label = String(opts.label || "Apply Weather to Route");
-
-        if (weatherApplyWrapEl) {
-          weatherApplyWrapEl.hidden = !isVisible;
-        }
-        if (!weatherApplyButton) {
-          return;
-        }
-        weatherApplyButton.disabled = isDisabled;
-        weatherApplyButton.textContent = isLoading ? "Applying..." : label;
-      }
-
-      function requestRouteEditContext(routeCode) {
-        return postJson(
-          buildRouteBuilderApiUrl("routegen_geteditcontext"),
-          {
-            route_code: routeCode
-          },
-          "Route edit context unavailable."
-        );
-      }
-
-      function requestRoutePreview(inputs) {
-        var previewInputs = cloneData(inputs);
-        var previewAction = isMyRouteType(previewInputs.route_type) ? "previewuserroute" : "routegen_preview";
-        return postJson(
-          buildRouteBuilderApiUrl(previewAction),
-          previewInputs,
-          "Route preview unavailable."
-        );
-      }
-
-      function requestRouteUpdate(payload) {
-        return postJson(
-          buildRouteBuilderApiUrl("routegen_update"),
-          payload,
-          "Unable to apply weather to this route."
-        );
-      }
-
-      function refreshActiveCruiseFieldsFromDocument(sourceDoc) {
-        var sourceHooksEl = sourceDoc ? sourceDoc.getElementById("fpw-active-cruise-hooks") : null;
-        var sourceFieldNodes = null;
-        var sourceFieldNode = null;
-        var fieldName = "";
-        var idx = 0;
-        var nextHooks = {};
-        var sourceDailyStartInput = null;
-        var sourceTimelineNodes = null;
-        var targetTimelineNodes = null;
-        var timelineLimit = 0;
-
-        if (!sourceDoc || !sourceHooksEl) {
-          throw new Error("Active Cruise refresh data unavailable.");
-        }
-
-        sourceFieldNodes = sourceDoc.querySelectorAll("[data-fpw-field]");
-        for (idx = 0; idx < sourceFieldNodes.length; idx += 1) {
-          sourceFieldNode = sourceFieldNodes[idx];
-          fieldName = String(sourceFieldNode.getAttribute("data-fpw-field") || "").trim();
-          if (!fieldName) {
-            continue;
-          }
-          document.querySelectorAll('[data-fpw-field="' + fieldName + '"]').forEach(function (targetNode) {
-            targetNode.textContent = sourceFieldNode.textContent;
-            if (sourceFieldNode.hasAttribute("style")) {
-              targetNode.setAttribute("style", sourceFieldNode.getAttribute("style"));
-            } else {
-              targetNode.removeAttribute("style");
-            }
-          });
-        }
-
-        if (hooksEl) {
-          hooksEl.textContent = sourceHooksEl.textContent || "{}";
-          try {
-            nextHooks = JSON.parse(hooksEl.textContent || "{}");
-          } catch (err) {
-            nextHooks = {};
-          }
-          applyHookPayload(nextHooks);
-        }
-
-        sourceDailyStartInput = sourceDoc.getElementById("fpwMonitorDailyStartInput");
-        if (monitorDailyStartInputEl && sourceDailyStartInput) {
-          monitorDailyStartInputEl.value = String(sourceDailyStartInput.value || "").trim();
-        }
-
-        sourceTimelineNodes = sourceDoc.querySelectorAll(".timeline-time");
-        targetTimelineNodes = document.querySelectorAll(".timeline-time");
-        timelineLimit = Math.min(sourceTimelineNodes.length, targetTimelineNodes.length);
-        for (idx = 0; idx < timelineLimit; idx += 1) {
-          targetTimelineNodes[idx].textContent = sourceTimelineNodes[idx].textContent;
-          if (sourceTimelineNodes[idx].hasAttribute("data-time-utc")) {
-            targetTimelineNodes[idx].setAttribute("data-time-utc", sourceTimelineNodes[idx].getAttribute("data-time-utc"));
-          } else {
-            targetTimelineNodes[idx].removeAttribute("data-time-utc");
-          }
-        }
-
-        hydrateTimelineTimes();
-        hydrateHeroEta();
-        hydrateHeroTripStart();
-        hydrateLastCheckinLabels();
-        hydrateLegArrival();
-        hydrateRouteStop4Stamp();
-        hydrateManualDelayTotal();
-        renderRoutePlanPreview();
-        renderExperimentalLegProgress();
-      }
-
-      function refreshActiveCruiseViewAfterWeatherApply() {
-        return fetch(window.location.href, {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-          headers: {
-            "Accept": "text/html"
-          }
-        }).then(function (response) {
-          if (!response.ok) {
-            throw new Error("Active Cruise refresh failed.");
-          }
-          return response.text();
-        }).then(function (html) {
-          var parser = new window.DOMParser();
-          var refreshedDoc = parser.parseFromString(html, "text/html");
-          refreshActiveCruiseFieldsFromDocument(refreshedDoc);
-        });
-      }
-
-      function resolveWeatherSuggestionForLookup() {
-        var routeCode = readCanonicalRouteCode();
-        var editContextData = {};
-        var editInputs = {};
-        var previewData = {};
-        var previewLegs = [];
-        var routeContext = {};
-        var weatherEnvelope = {};
-        var suggestion = {};
-        var routeName = "";
-        var suggestedPct = 0;
-
-        if (!routeWeatherAssist || typeof routeWeatherAssist.normalizeWeatherEnvelope !== "function" || typeof routeWeatherAssist.computeLiveWeatherFactorPct !== "function" || typeof routeWeatherAssist.buildRouteWeatherContextFromLegs !== "function") {
-          return Promise.reject({ MESSAGE: "Route weather helper unavailable." });
-        }
-        if (!routeCode) {
-          return Promise.reject({ MESSAGE: "Unable to resolve the active route code." });
-        }
-        if (!weatherLookupState.data || !weatherLookupState.data.available || !weatherLookupState.data.weather) {
-          return Promise.reject({ MESSAGE: "Check current-leg conditions before applying weather to the route." });
-        }
-
-        return requestRouteEditContext(routeCode)
-          .then(function (editContextPayload) {
-            editContextData = (editContextPayload && (editContextPayload.DATA || editContextPayload.data)) || {};
-            editInputs = cloneData((editContextData && (editContextData.inputs || editContextData.INPUTS)) || {});
-            routeName = String(
-              editInputs.route_name ||
-              ((editContextData.route || {}).route_name) ||
-              ((editContextData.route || {}).ROUTE_NAME) ||
-              ""
-            ).trim();
-            if (!routeName) {
-              throw { MESSAGE: "Route name unavailable for route update." };
-            }
-            editInputs.route_name = routeName;
-            if (!String(editInputs.route_code || "").trim()) {
-              editInputs.route_code = routeCode;
-            }
-            return requestRoutePreview(editInputs);
-          })
-          .then(function (previewPayload) {
-            previewData = (previewPayload && (previewPayload.DATA || previewPayload.data)) || {};
-            previewLegs = Array.isArray(previewData.legs) ? previewData.legs : (Array.isArray(previewData.LEGS) ? previewData.LEGS : []);
-            if (!previewLegs.length) {
-              throw { MESSAGE: "Route preview returned no legs." };
-            }
-            routeContext = routeWeatherAssist.buildRouteWeatherContextFromLegs(previewLegs);
-            weatherEnvelope = routeWeatherAssist.normalizeWeatherEnvelope(weatherLookupState.data.weather || {}, "");
-            suggestion = routeWeatherAssist.computeLiveWeatherFactorPct(weatherEnvelope, routeContext);
-            suggestedPct = parseInt(suggestion.suggestedPct, 10);
-            if (!suggestion.available || !Number.isFinite(suggestedPct)) {
-              throw { MESSAGE: "Weather factor suggestion unavailable for this route." };
-            }
-            return {
-              routeCode: routeCode,
-              routeName: routeName,
-              editInputs: editInputs,
-              suggestedPct: suggestedPct
-            };
-          });
-      }
-
-      function applyWeatherToRouteFromLookup() {
-        var updatedPayload = {};
-
-        return resolveWeatherSuggestionForLookup()
-          .then(function (suggestionResult) {
-            updatedPayload = cloneData(suggestionResult.editInputs);
-            updatedPayload.weather_factor_pct = suggestionResult.suggestedPct;
-            updatedPayload.route_code = suggestionResult.routeCode;
-            updatedPayload.route_name = suggestionResult.routeName;
-            return requestRouteUpdate(updatedPayload).then(function () {
-              return suggestionResult.suggestedPct;
-            });
-          });
-      }
-
-      function getSelectedWeatherPoint() {
-        var selected = document.querySelector('input[name="fpwMonitorWeatherPoint"]:checked');
-        return selected ? String(selected.value || "").trim().toLowerCase() : "";
-      }
-
-      function normalizeWeatherValue(value) {
-        if (value === 0) {
-          return "0";
-        }
-        if (value === null || value === undefined) {
-          return "—";
-        }
-        value = String(value).trim();
-        return value.length ? value : "—";
-      }
-
-      function resetWeatherResults() {
-        weatherLookupState.point = "";
-        weatherLookupState.data = null;
-        if (weatherPointLabelEl) {
-          weatherPointLabelEl.textContent = "—";
-        }
-        if (weatherWindEl) {
-          weatherWindEl.textContent = "—";
-        }
-        if (weatherGustsEl) {
-          weatherGustsEl.textContent = "—";
-        }
-        if (weatherWavesEl) {
-          weatherWavesEl.textContent = "—";
-        }
-        if (weatherVisibilityEl) {
-          weatherVisibilityEl.textContent = "—";
-        }
-        if (weatherFactorEl) {
-          weatherFactorEl.textContent = "—";
-        }
-        if (weatherAlertsSummaryEl) {
-          weatherAlertsSummaryEl.textContent = "No alerts";
-        }
-        if (weatherAlertsEl) {
-          weatherAlertsEl.textContent = "";
-        }
-        if (weatherResultEl) {
-          weatherResultEl.hidden = true;
-        }
-        setWeatherApplyButtonState({
-          visible: false,
-          disabled: true
-        });
-        renderRoutePlanPreview();
-      }
-
-      function setWeatherMessage(message) {
-        if (weatherMessageEl) {
-          weatherMessageEl.textContent = String(message || "");
-        }
-      }
-
-      function setWeatherButtonLoading(isLoading) {
-        if (!weatherButton) {
-          return;
-        }
-        weatherButton.disabled = !!isLoading;
-        weatherButton.textContent = isLoading ? "Checking..." : "Check Conditions";
-      }
-
-      function buildWeatherApiUrl() {
-        return new URL("../api/v1/voyage.cfc?method=handle&action=getactivecruiseweather&returnFormat=json", window.location.href).toString();
-      }
-
-      function buildDailyStartApiUrl() {
-        return new URL("../api/v1/floatplan.cfc?method=handle&action=updatedailystart&returnFormat=json", window.location.href).toString();
-      }
-
-      function buildCaptainLogApiUrl() {
-        return new URL("../api/v1/floatplan.cfc?method=handle&action=savecaptainlogentry&returnFormat=json", window.location.href).toString();
-      }
-
-      function setCaptainNoteMessage(message, isError) {
-        if (!captainNoteMessageEl) {
-          return;
-        }
-        captainNoteMessageEl.textContent = String(message || "");
-        captainNoteMessageEl.classList.toggle("is-error", !!isError);
-      }
-
-      function updateCaptainNoteSaveLabel() {
-        if (!captainNoteSaveBtn) {
-          return;
-        }
-        captainNoteSaveBtn.textContent = captainNotePostEl && captainNotePostEl.checked ? "Save & Post" : "Save Note";
-      }
-
-      function setSelectedCaptainNoteTag(tagValue) {
-        selectedCaptainNoteTag = String(tagValue || "").trim();
-        captainNoteTagButtons.forEach(function (button) {
-          button.classList.toggle("is-selected", String(button.getAttribute("data-fpw-captain-note-tag") || "").trim() === selectedCaptainNoteTag);
-        });
-      }
-
-      function normalizeCaptainLogNotePayload(rawNote) {
-        var note = (rawNote && typeof rawNote === "object") ? rawNote : {};
-        var posted = note.postedToStream === true || note.POSTEDTOSTREAM === true || note.posted_to_stream === true || note.posted === true;
-        return {
-          id: note.id || note.ID || 0,
-          noteBody: String(note.noteBody || note.NOTEBODY || note.note_body || note.body || note.BODY || ""),
-          noteTag: String(note.noteTag || note.NOTETAG || note.note_tag || note.tag || note.TAG || ""),
-          postedToStream: posted,
-          createdUtc: String(note.createdUtc || note.CREATEDUTC || note.created_utc || ""),
-          createdLabel: String(note.createdLabel || note.CREATEDLABEL || note.created_label || "--"),
-          badge: String(note.badge || note.BADGE || (posted ? "POSTED" : "PRIVATE"))
-        };
-      }
-
-      function createCaptainNoteElement(rawNote) {
-        var note = normalizeCaptainLogNotePayload(rawNote);
-        var row = document.createElement("div");
-        var copy = document.createElement("div");
-        var title = document.createElement("b");
-        var body = document.createElement("span");
-        var meta = document.createElement("small");
-        var badge = document.createElement("div");
-
-        row.className = "log-row captain-note-entry";
-        row.setAttribute("data-captain-note-id", String(note.id || ""));
-
-        title.textContent = note.noteTag || "Captain note";
-        body.textContent = note.noteBody;
-        meta.textContent = note.createdLabel || "--";
-        if (note.createdUtc) {
-          meta.setAttribute("data-time-utc", note.createdUtc);
-        }
-
-        badge.className = "action-mini";
-        badge.textContent = note.badge || (note.postedToStream ? "POSTED" : "PRIVATE");
-
-        copy.appendChild(title);
-        copy.appendChild(body);
-        copy.appendChild(meta);
-        row.appendChild(copy);
-        row.appendChild(badge);
-        return row;
-      }
-
-      function prependCaptainNoteEntry(rawNote) {
-        var emptyState = null;
-        var row = null;
-
-        if (!captainNoteListEl) {
-          return;
-        }
-
-        emptyState = captainNoteListEl.querySelector("[data-fpw-captain-note-empty]");
-        if (emptyState) {
-          emptyState.remove();
-        }
-
-        row = createCaptainNoteElement(rawNote);
-        captainNoteListEl.insertBefore(row, captainNoteListEl.firstChild);
-      }
-
-      function getCaptainNoteRouteInstanceId() {
-        var raw = pageContext && (pageContext.routeInstanceId || pageContext.ROUTEINSTANCEID);
-        var parsed = parseInt(raw, 10);
-        return Number.isFinite(parsed) ? parsed : 0;
-      }
-
-      function getCaptainNoteRouteLegOrder() {
-        var raw = (
-          (routePlanModel && routePlanModel.currentLegOrder)
-          || (pageContext && (pageContext.currentLegOrder || pageContext.CURRENTLEGORDER || pageContext.pendingLegOrder || pageContext.PENDINGLEGORDER))
-          || 0
-        );
-        var parsed = parseInt(raw, 10);
-        return Number.isFinite(parsed) ? parsed : 0;
-      }
-
-      function submitCaptainNote() {
-        var noteText = captainNoteInputEl ? String(captainNoteInputEl.value || "").trim() : "";
-        var shouldPost = captainNotePostEl ? !!captainNotePostEl.checked : false;
-        var originalButtonLabel = captainNoteSaveBtn ? captainNoteSaveBtn.textContent : "";
-
-        if (!captainNoteInputEl || !captainNoteSaveBtn) {
-          return;
-        }
-        if (!floatPlanId || floatPlanId <= 0) {
-          setCaptainNoteMessage("Active float plan context is unavailable.", true);
-          return;
-        }
-        if (!noteText) {
-          setCaptainNoteMessage("Add a captain note before saving.", true);
-          captainNoteInputEl.focus();
-          return;
-        }
-
-        captainNoteSaveBtn.disabled = true;
-        captainNoteSaveBtn.textContent = "Saving...";
-        setCaptainNoteMessage("", false);
-
-        postJson(buildCaptainLogApiUrl(), {
-          floatPlanId: floatPlanId,
-          routeInstanceId: getCaptainNoteRouteInstanceId(),
-          routeLegOrder: getCaptainNoteRouteLegOrder(),
-          noteBody: noteText,
-          noteTag: selectedCaptainNoteTag,
-          postToFollowStream: shouldPost
-        }, "Captain note could not be saved.").then(function (payload) {
-          var savedNote = payload.note || payload.NOTE || {};
-          prependCaptainNoteEntry(savedNote);
-          captainNoteInputEl.value = "";
-          if (captainNotePostEl) {
-            captainNotePostEl.checked = false;
-          }
-          setSelectedCaptainNoteTag("");
-          updateCaptainNoteSaveLabel();
-          setCaptainNoteMessage(shouldPost ? "Saved and posted to the Follow page." : "Private captain note saved.", false);
-        }).catch(function (err) {
-          setCaptainNoteMessage(String((err && (err.MESSAGE || err.message)) || "Captain note could not be saved."), true);
-        }).finally(function () {
-          captainNoteSaveBtn.disabled = false;
-          captainNoteSaveBtn.textContent = originalButtonLabel || "Save Note";
-          updateCaptainNoteSaveLabel();
-        });
-      }
-
-      function renderWeatherAlerts(alerts) {
-        var i = 0;
-        var alertItem = null;
-        var row = null;
-        var title = null;
-        var meta = null;
-        var ends = null;
-        var detail = null;
-        var metaParts = [];
-
-        if (!weatherAlertsEl || !weatherAlertsSummaryEl) {
-          return;
-        }
-
-        weatherAlertsEl.textContent = "";
-        if (!Array.isArray(alerts) || !alerts.length) {
-          weatherAlertsSummaryEl.textContent = "No alerts";
-          return;
-        }
-
-        weatherAlertsSummaryEl.textContent = alerts.length === 1 ? "1 alert" : String(alerts.length) + " alerts";
-        for (i = 0; i < alerts.length; i += 1) {
-          alertItem = alerts[i] || {};
-          row = document.createElement("div");
-          row.style.marginTop = i === 0 ? "10px" : "12px";
-          row.style.paddingTop = "10px";
-          row.style.borderTop = "1px solid rgba(126,184,226,0.12)";
-
-          title = document.createElement("div");
-          title.style.fontWeight = "700";
-          title.style.color = "var(--text)";
-          title.textContent = String(alertItem.headline || alertItem.event || "Alert");
-          row.appendChild(title);
-
-          metaParts = [];
-          if (alertItem.severity) {
-            metaParts.push(String(alertItem.severity));
-          }
-          if (alertItem.urgency) {
-            metaParts.push(String(alertItem.urgency));
-          }
-          if (alertItem.certainty) {
-            metaParts.push(String(alertItem.certainty));
-          }
-          if (metaParts.length) {
-            meta = document.createElement("div");
-            meta.style.marginTop = "4px";
-            meta.style.color = "var(--muted)";
-            meta.style.fontSize = "0.88rem";
-            meta.textContent = metaParts.join(" • ");
-            row.appendChild(meta);
-          }
-
-          if (alertItem.ends) {
-            ends = document.createElement("div");
-            ends.style.marginTop = "4px";
-            ends.style.color = "var(--muted)";
-            ends.style.fontSize = "0.88rem";
-            ends.textContent = "Ends: " + String(alertItem.ends);
-            row.appendChild(ends);
-          }
-
-          if (alertItem.instruction || alertItem.description) {
-            detail = document.createElement("div");
-            detail.style.marginTop = "6px";
-            detail.style.color = "var(--muted)";
-            detail.style.fontSize = "0.88rem";
-            detail.textContent = String(alertItem.instruction || alertItem.description);
-            row.appendChild(detail);
-          }
-
-          weatherAlertsEl.appendChild(row);
-        }
-      }
-
-      function renderWeatherResults(data) {
-        var weather = (data && data.weather) || {};
-        var forecast = Array.isArray(weather.FORECAST) && weather.FORECAST.length ? (weather.FORECAST[0] || {}) : {};
-        var windParts = [];
-        var windLabel = "";
-        var alerts = Array.isArray(weather.ALERTS) ? weather.ALERTS : [];
-
-        if (weatherPointLabelEl) {
-          weatherPointLabelEl.textContent = normalizeWeatherValue(data && data.point_label);
-        }
-
-        if (forecast.windDirection) {
-          windParts.push(String(forecast.windDirection).trim());
-        }
-        if (forecast.windSpeed) {
-          windParts.push(String(forecast.windSpeed).trim());
-        }
-        windLabel = windParts.join(" ").trim();
-
-        if (weatherWindEl) {
-          weatherWindEl.textContent = normalizeWeatherValue(windLabel);
-        }
-        if (weatherGustsEl) {
-          weatherGustsEl.textContent = normalizeWeatherValue(forecast.gustMph);
-        }
-        if (weatherWavesEl) {
-          weatherWavesEl.textContent = normalizeWeatherValue(weather.MARINE && weather.MARINE.wave_height_ft);
-        }
-        if (weatherVisibilityEl) {
-          weatherVisibilityEl.textContent = normalizeWeatherValue(weather.surface && weather.surface.visibility_mi);
-        }
-        if (weatherFactorEl) {
-          weatherFactorEl.textContent = "—";
-        }
-
-        renderWeatherAlerts(alerts);
-
-        if (weatherResultEl) {
-          weatherResultEl.hidden = false;
-        }
-        setWeatherApplyButtonState({
-          visible: true,
-          disabled: false
-        });
-      }
-
-      function requestWeather(point) {
-        return fetch(buildWeatherApiUrl(), {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-          },
-          body: JSON.stringify({
-            floatPlanId: floatPlanId,
-            point: point
-          })
-        }).then(function (response) {
-          return response.text().then(function (text) {
-            var payload = {};
-            try {
-              payload = text ? JSON.parse(text) : {};
-            } catch (err) {
-              payload = {
-                SUCCESS: false,
-                MESSAGE: "Unable to load weather right now."
-              };
-            }
-            if (!response.ok || payload.SUCCESS === false) {
-              throw payload;
-            }
-            return payload;
-          });
-        });
-      }
-
-	      function applySelectedStatus(nextStatus) {
-	        var buttons = statusGroupEl.querySelectorAll("[data-status]");
-        selectedStatus = nextStatus;
-        buttons.forEach(function (button) {
-          var isSelected = String(button.getAttribute("data-status") || "") === selectedStatus;
-          button.classList.toggle("is-selected", isSelected);
-          button.setAttribute("aria-pressed", isSelected ? "true" : "false");
-        });
-      }
-
-      function resetCheckInForm() {
-        applySelectedStatus("On Track");
-        noteWrapEl.classList.remove("is-open");
-        noteInput.value = "";
-        noteToggleBtn.hidden = false;
-      }
-
-      function openModal() {
-        resetCheckInForm();
-        modalEl.classList.add("is-open");
-        modalEl.setAttribute("aria-hidden", "false");
-      }
-
-      function closeModal() {
-        modalEl.classList.remove("is-open");
-        modalEl.setAttribute("aria-hidden", "true");
-      }
-
-      checkInButton.addEventListener("click", function () {
-        openModal();
-      });
-
-      if (completeLegButton) {
-        completeLegButton.addEventListener("click", function () {
-          var fields = (pageHooks && (pageHooks.fields || pageHooks.FIELDS)) || {};
-          var summary = String(fields.heroCurrentLegSummary || fields.HEROCURRENTLEGSUMMARY || "").trim();
-          var match = summary.match(/^(\d+)\s+of\s+\d+$/i);
-          var expectedLegOrder = match ? parseInt(match[1], 10) : 0;
-          var originalText = completeLegButton.textContent;
-
-          if (!floatPlanId) {
-            window.alert("Unable to find the active float plan for this trip.");
-            return;
-          }
-          if (expectedLegOrder <= 0) {
-            window.alert("Unable to resolve the current leg for this trip.");
-            return;
-          }
-          if (!window.Api || typeof window.Api.completeActiveCruiseLeg !== "function") {
-            window.alert("Leg completion service is unavailable.");
-            return;
-          }
-          if (!window.confirm("Mark the current leg as arrived and complete?")) {
-            return;
-          }
-
-          completeLegButton.disabled = true;
-          completeLegButton.textContent = "Completing...";
-
-          window.Api.completeActiveCruiseLeg({
-            floatPlanId: floatPlanId,
-            expectedLegOrder: expectedLegOrder
-          })
-            .then(function (resp) {
-              if (!resp || resp.SUCCESS !== true) {
-                throw resp || new Error("Leg completion failed.");
-              }
-              if (resp.ALREADY_COMPLETE) {
-                window.alert(resp.MESSAGE || "This leg is already completed.");
-              }
-              window.location.reload();
-            })
-            .catch(function (err) {
-              var message = (err && err.MESSAGE) || (err && err.message) || "Leg completion failed.";
-              window.alert(message);
-            })
-            .finally(function () {
-              completeLegButton.disabled = false;
-              completeLegButton.textContent = originalText;
-            });
-        });
-      }
-
-      if (startNextLegButton) {
-        startNextLegButton.addEventListener("click", function () {
-          var originalText = startNextLegButton.textContent;
-
-          if (!floatPlanId) {
-            window.alert("Unable to find the active float plan for this trip.");
-            return;
-          }
-          if (!window.Api || typeof window.Api.startNextActiveCruiseLeg !== "function") {
-            window.alert("Next-leg start service is unavailable.");
-            return;
-          }
-          if (!window.confirm("Start the next pending leg now?")) {
-            return;
-          }
-
-          startNextLegButton.disabled = true;
-          startNextLegButton.textContent = "Starting...";
-
-          window.Api.startNextActiveCruiseLeg({
-            floatPlanId: floatPlanId
-          })
-            .then(function (resp) {
-              if (!resp || resp.SUCCESS !== true) {
-                throw resp || new Error("Unable to start the next leg.");
-              }
-              window.location.reload();
-            })
-            .catch(function (err) {
-              var message = (err && err.MESSAGE) || (err && err.message) || "Unable to start the next leg.";
-              window.alert(message);
-            })
-            .finally(function () {
-              startNextLegButton.disabled = false;
-              startNextLegButton.textContent = originalText;
-            });
-        });
-      }
-
-      if (activeCruiseOpenFullMapBtn) {
-        activeCruiseOpenFullMapBtn.addEventListener("click", function () {
-          var originalText = activeCruiseOpenFullMapBtn.textContent;
-
-          activeCruiseOpenFullMapBtn.disabled = true;
-          activeCruiseOpenFullMapBtn.textContent = "Opening...";
-
-          ensureActiveCruiseFollowStream()
-            .then(function (streamData) {
-              var targetUrl = buildActiveCruiseFullMapUrl(streamData);
-              if (!targetUrl) {
-                throw new Error("Full map link unavailable.");
-              }
-              openActiveCruiseFullMapWindow(targetUrl);
-            })
-            .catch(function (err) {
-              var message = (err && err.MESSAGE) || (err && err.message) || "Full map unavailable.";
-              window.alert(message);
-            })
-            .finally(function () {
-              activeCruiseOpenFullMapBtn.disabled = false;
-              activeCruiseOpenFullMapBtn.textContent = originalText;
-            });
-        });
-      }
-
-      if (weatherButton) {
-        weatherButton.addEventListener("click", function () {
-          var selectedPoint = getSelectedWeatherPoint();
-          var data = {};
-
-          resetWeatherResults();
-
-          if (!selectedPoint) {
-            setWeatherMessage("Select Start or End to check conditions.");
-            return;
-          }
-
-          if (!floatPlanId) {
-            setWeatherMessage("Unable to find the active float plan for this trip.");
-            return;
-          }
-
-          setWeatherMessage("");
-          setWeatherButtonLoading(true);
-
-          requestWeather(selectedPoint)
-            .then(function (resp) {
-              data = (resp && (resp.data || resp.DATA)) || {};
-              if (!data.available) {
-                setWeatherMessage("Conditions unavailable for selected leg point.");
-                return;
-              }
-              weatherLookupState.point = selectedPoint;
-              weatherLookupState.data = cloneData(data);
-              setWeatherMessage("");
-              renderWeatherResults(data);
-              return resolveWeatherSuggestionForLookup()
-                .then(function (suggestionResult) {
-                  if (weatherFactorEl) {
-                    weatherFactorEl.textContent = String(suggestionResult.suggestedPct) + "%";
-                  }
-                  renderRoutePlanPreview();
-                  return null;
-                })
-                .catch(function () {
-                  if (weatherFactorEl) {
-                    weatherFactorEl.textContent = "—";
-                  }
-                  renderRoutePlanPreview();
-                  return null;
-                });
-            })
-            .catch(function (err) {
-              var message = (err && err.MESSAGE) || (err && err.message) || "Unable to load weather right now.";
-              setWeatherMessage(message);
-              resetWeatherResults();
-            })
-            .finally(function () {
-              setWeatherButtonLoading(false);
-            });
-        });
-      }
-
-      document.querySelectorAll('input[name="fpwMonitorWeatherPoint"]').forEach(function (input) {
-        input.addEventListener("change", function () {
-          resetWeatherResults();
-          setWeatherMessage("");
-        });
-      });
-
-      if (weatherApplyButton) {
-        weatherApplyButton.addEventListener("click", function () {
-          var appliedPct = null;
-
-          setWeatherMessage("");
-          setWeatherApplyButtonState({
-            visible: true,
-            loading: true
-          });
-
-          applyWeatherToRouteFromLookup()
-            .then(function (suggestedPct) {
-              appliedPct = suggestedPct;
-              if (weatherFactorEl) {
-                weatherFactorEl.textContent = String(appliedPct) + "%";
-              }
-              renderRoutePlanPreview();
-              return refreshActiveCruiseViewAfterWeatherApply();
-            })
-            .then(function () {
-              setWeatherMessage("Applied " + appliedPct + "% weather factor to route.");
-            })
-            .catch(function (err) {
-              var message = (err && err.MESSAGE) || (err && err.message) || "Unable to apply weather to the route.";
-              if (appliedPct !== null) {
-                message = "Applied " + appliedPct + "% weather factor to route, but Active Cruise refresh did not complete.";
-              }
-              setWeatherMessage(message);
-            })
-            .finally(function () {
-              setWeatherApplyButtonState({
-                visible: !!weatherLookupState.data,
-                disabled: !weatherLookupState.data
-              });
-            });
-        });
-      }
-
-      if (captainNotePostEl) {
-        captainNotePostEl.addEventListener("change", updateCaptainNoteSaveLabel);
-      }
-
-      captainNoteTagButtons.forEach(function (button) {
-        button.addEventListener("click", function () {
-          var tagValue = String(button.getAttribute("data-fpw-captain-note-tag") || "").trim();
-          setSelectedCaptainNoteTag(selectedCaptainNoteTag === tagValue ? "" : tagValue);
-        });
-      });
-
-      if (captainNoteSaveBtn) {
-        captainNoteSaveBtn.addEventListener("click", submitCaptainNote);
-      }
-
-      updateCaptainNoteSaveLabel();
-
-      closeBtn.addEventListener("click", function () {
-        closeModal();
-      });
-
-      modalEl.addEventListener("click", function (event) {
-        if (event.target === modalEl) {
-          closeModal();
-        }
-      });
-
-      statusGroupEl.addEventListener("click", function (event) {
-        var button = event.target.closest("[data-status]");
-        var nextStatus = "";
-        if (!button) {
-          return;
-        }
-        nextStatus = String(button.getAttribute("data-status") || "");
-        if (!nextStatus) {
-          return;
-        }
-        applySelectedStatus(nextStatus);
-      });
-
-      noteToggleBtn.addEventListener("click", function () {
-        noteWrapEl.classList.add("is-open");
-        noteToggleBtn.hidden = true;
-        noteInput.focus();
-      });
-
-      submitBtn.addEventListener("click", function () {
-        var payload = {
-          status: selectedStatus,
-          note: String(noteInput.value || ""),
-          checkinContext: ""
-        };
-        var apiPayload = {
-          floatPlanId: floatPlanId,
-          status: payload.status,
-          note: payload.note,
-          checkinContext: payload.checkinContext
-        };
-        var shouldConfirmAssistance = (payload.status === "Assistance Needed");
-
-        if (!floatPlanId) {
-          window.alert("Unable to find the active float plan for this trip.");
-          return;
-        }
-        if (!window.Api || typeof window.Api.submitFloatPlanCheckIn !== "function") {
-          window.alert("Check-in service is unavailable.");
-          return;
-        }
-        if (shouldConfirmAssistance && !window.confirm("Confirm Assistance Needed? This will immediately alert your float plan contacts.")) {
-          return;
-        }
-
-        window.Api.submitFloatPlanCheckIn(apiPayload)
-          .then(function (resp) {
-            if (!resp || (resp.success !== true && resp.SUCCESS !== true)) {
-              throw resp || new Error("Check-in failed.");
-            }
-            closeModal();
-            window.location.reload();
-          })
-          .catch(function (err) {
-            var message = (err && err.MESSAGE) || (err && err.message) || "Check-in failed.";
-            window.alert(message);
-          });
-      });
-
-      if (monitorDailyStartInputEl && monitorDailyStartSaveBtn) {
-        monitorDailyStartSaveBtn.addEventListener("click", function () {
-          var dailyStartLocalTime = String(monitorDailyStartInputEl.value || "").trim();
-
-          if (!floatPlanId) {
-            window.alert("Unable to find the active float plan for this trip.");
-            return;
-          }
-          if (!dailyStartLocalTime) {
-            window.alert("Daily start time is required.");
-            return;
-          }
-
-          monitorDailyStartSaveBtn.disabled = true;
-          monitorDailyStartSaveBtn.textContent = "Saving...";
-
-          fetch(buildDailyStartApiUrl(), {
-            method: "POST",
-            credentials: "include",
-            headers: {
-              "Content-Type": "application/json",
-              "Accept": "application/json"
-            },
-            body: JSON.stringify({
-              floatPlanId: floatPlanId,
-              dailyStartLocalTime: dailyStartLocalTime
-            })
-          }).then(function (response) {
-            return response.text().then(function (text) {
-              var payload = {};
+      payload.noteBody = noteBody;
+      payload.noteTag = selectedTag;
+      payload.postToFollowStream = postToFollowStream;
+
+      setSaving(true);
+      setMessage('Saving captain note...', '');
+
+      fetch(endpoint, {
+        method: method,
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+        .then(function(response) {
+          return response.text().then(function(text) {
+            let responsePayload = {};
+            if (text) {
               try {
-                payload = text ? JSON.parse(text) : {};
-              } catch (err) {
-                payload = {
-                  SUCCESS: false,
-                  MESSAGE: "Daily start update failed."
-                };
+                responsePayload = JSON.parse(text);
+              } catch (parseError) {
+                responsePayload = { success: false, message: text };
               }
-              if (!response.ok || payload.SUCCESS === false) {
-                throw payload;
-              }
-              return payload;
-            });
-          }).then(function () {
-            window.location.reload();
-          }).catch(function (err) {
-            var message = (err && err.MESSAGE) || (err && err.message) || "Daily start update failed.";
-            window.alert(message);
-          }).finally(function () {
-            monitorDailyStartSaveBtn.disabled = false;
-            monitorDailyStartSaveBtn.textContent = "Save";
+            }
+            return { ok: response.ok, payload: responsePayload };
           });
+        })
+        .then(function(result) {
+          const responsePayload = result.payload || {};
+          const success = result.ok && (responsePayload.success === true || responsePayload.SUCCESS === true);
+          const savedNote = responsePayload.note || responsePayload.NOTE || {};
+          if (!success) {
+            setMessage(responseMessage(responsePayload, 'Captain note save failed.'), 'is-error');
+            return;
+          }
+          prependNote(savedNote, noteBody, selectedTag, postToFollowStream);
+          if (noteInput) {
+            noteInput.value = '';
+          }
+          if (postCheckbox) {
+            postCheckbox.checked = false;
+          }
+          setSelectedTag('');
+          updateSaveLabel();
+          setMessage(postToFollowStream ? 'Saved and posted to the Follow page.' : 'Private captain note saved.', 'is-success');
+        })
+        .catch(function(error) {
+          setMessage(error && error.message ? error.message : 'Captain note request failed.', 'is-error');
+        })
+        .finally(function() {
+          setSaving(false);
         });
+    });
+  }
+
+  updateSaveLabel();
+})();
+
+window.FPWActiveCruiseV2.bindPacePanel = function() {
+  const panel = document.getElementById('fpwV2PacePanel');
+  const slider = document.getElementById('fpwV2PaceSlider');
+  const selectedLabel = document.getElementById('fpwV2PaceSelectedLabel');
+  const feedback = document.getElementById('fpwV2PaceFeedback');
+  const initiallyDisabled = slider ? slider.disabled : true;
+  let lastCommittedPaceValue = slider ? String(slider.getAttribute('data-current-value') || '').toUpperCase() : '';
+  const paceByIndex = [
+    { value: 'RELAXED', label: 'Relaxed' },
+    { value: 'BALANCED', label: 'Efficient Speed' },
+    { value: 'AGGRESSIVE', label: 'Max Speed' }
+  ];
+
+  if (!panel || !slider || !selectedLabel || !feedback) {
+    return;
+  }
+  if (panel.getAttribute('data-ac-v2-pace-bound') === 'true') {
+    return;
+  }
+  panel.setAttribute('data-ac-v2-pace-bound', 'true');
+
+  function setFeedback(message, state) {
+    feedback.textContent = message;
+    feedback.classList.remove('is-success', 'is-error');
+    if (state) {
+      feedback.classList.add(state);
+    }
+    feedback.hidden = false;
+    feedback.setAttribute('aria-hidden', 'false');
+  }
+
+  function resolveEndpoint(endpoint) {
+    const basePath = panel.getAttribute('data-fpw-base') || '';
+    if (endpoint && endpoint.indexOf('/api/') === 0 && basePath) {
+      return basePath + endpoint;
+    }
+    return endpoint || '';
+  }
+
+  function readPayload() {
+    const raw = panel.getAttribute('data-payload') || '{}';
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function responseMessage(payload, fallback) {
+    if (payload && typeof payload === 'object') {
+      return payload.MESSAGE || payload.message || payload.ERROR || payload.error || fallback;
+    }
+    return fallback;
+  }
+
+  function selectedPace() {
+    const index = Math.max(0, Math.min(2, parseInt(slider.value || '0', 10) || 0));
+    return paceByIndex[index] || paceByIndex[0];
+  }
+
+  function paceIndexFromValue(value) {
+    const paceValue = String(value || '').toUpperCase();
+    for (let index = 0; index < paceByIndex.length; index += 1) {
+      if (paceByIndex[index].value === paceValue) {
+        return index;
       }
+    }
+    return 0;
+  }
 
-      if (manualDelayMinutesInputEl && manualDelayAddBtn) {
-        manualDelayAddBtn.addEventListener("click", function () {
-          var originalText = manualDelayAddBtn.textContent;
-          var minutesRaw = String(manualDelayMinutesInputEl.value || "").trim();
-          var minutesValue = parseInt(minutesRaw, 10);
-          var successMessage = "";
-          var totalMinutes = 0;
+  function syncSelectedLabel() {
+    selectedLabel.textContent = selectedPace().label;
+  }
 
-          if (!floatPlanId) {
-            window.alert("Unable to find the active float plan for this trip.");
-            return;
-          }
-          if (!minutesRaw) {
-            window.alert("Delay minutes are required.");
-            return;
-          }
-          if (!/^\d+$/.test(minutesRaw) || !Number.isFinite(minutesValue) || minutesValue <= 0) {
-            window.alert("Delay minutes must be a positive whole number.");
-            return;
-          }
-          if (!window.Api || typeof window.Api.addActiveCruiseDelay !== "function") {
-            window.alert("Delay-time service is unavailable.");
-            return;
-          }
+  function restoreCommittedPace() {
+    slider.value = String(paceIndexFromValue(lastCommittedPaceValue));
+    syncSelectedLabel();
+  }
 
-          manualDelayAddBtn.disabled = true;
-          if (manualDelayClearBtn) {
-            manualDelayClearBtn.disabled = true;
-          }
-          manualDelayAddBtn.textContent = "Adding...";
+  function saveSelectedPace() {
+    const endpoint = resolveEndpoint(panel.getAttribute('data-endpoint') || '');
+    const method = panel.getAttribute('data-method') || 'POST';
+    const payload = readPayload();
+    const pace = selectedPace();
+    const isEnabled = panel.getAttribute('data-enabled') === 'true';
 
-          window.Api.addActiveCruiseDelay({
-            floatPlanId: floatPlanId,
-            minutes: minutesValue
-          }).then(function (resp) {
-            if (!resp || resp.SUCCESS !== true) {
-              throw resp || new Error("Unable to add delay time.");
+    if (!isEnabled || slider.disabled) {
+      return;
+    }
+    if (pace.value === lastCommittedPaceValue) {
+      setFeedback('Change pace to update the active trip projection.', '');
+      return;
+    }
+    if (!endpoint) {
+      setFeedback('The view model did not return an executable pace endpoint.', 'is-error');
+      restoreCommittedPace();
+      return;
+    }
+
+    payload.pace = pace.value;
+    slider.disabled = true;
+    setFeedback('Saving active-trip pace...', '');
+
+    fetch(endpoint, {
+      method: method,
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+      .then(function(response) {
+        return response.text().then(function(text) {
+          let responsePayload = {};
+          if (text) {
+            try {
+              responsePayload = JSON.parse(text);
+            } catch (parseError) {
+              responsePayload = { success: false, message: text };
             }
-            totalMinutes = parseInt(resp.MANUAL_DELAY_MINUTES_TOTAL, 10);
-            successMessage = "Added " + minutesValue + " minutes of delay time.";
-            if (Number.isFinite(totalMinutes) && totalMinutes > 0) {
-              successMessage += " Total manual delay: " + totalMinutes + " minutes.";
-            }
-            window.alert(successMessage);
-            window.location.reload();
-          }).catch(function (err) {
-            var message = (err && err.MESSAGE) || (err && err.message) || "Unable to add delay time.";
-            window.alert(message);
-          }).finally(function () {
-            manualDelayAddBtn.disabled = false;
-            if (manualDelayClearBtn) {
-              manualDelayClearBtn.disabled = false;
-            }
-            manualDelayAddBtn.textContent = originalText;
-          });
+          }
+          return { ok: response.ok, payload: responsePayload };
         });
-      }
-
-      if (manualDelayClearBtn) {
-        manualDelayClearBtn.addEventListener("click", function () {
-          var originalText = manualDelayClearBtn.textContent;
-          var totalMinutes = 0;
-
-          if (!floatPlanId) {
-            window.alert("Unable to find the active float plan for this trip.");
-            return;
+      })
+      .then(function(result) {
+        const responsePayload = result.payload || {};
+        const success = result.ok && (responsePayload.success === true || responsePayload.SUCCESS === true);
+        if (!success) {
+          throw new Error(responseMessage(responsePayload, 'Pace update failed.'));
+        }
+        lastCommittedPaceValue = pace.value;
+        slider.setAttribute('data-current-value', lastCommittedPaceValue);
+        setFeedback('Pace updated. Refreshing view model...', 'is-success');
+        return window.FPWActiveCruiseV2.fetchAndRefresh({
+          replaceSelectors: [
+            '#fpwV2PacePanel',
+            '#acV2RouteProgressPanel'
+          ]
+        }).then(function() {
+          const refreshedFeedback = document.getElementById('fpwV2PaceFeedback');
+          if (refreshedFeedback) {
+            refreshedFeedback.textContent = 'Pace updated from latest view model.';
+            refreshedFeedback.classList.remove('is-error');
+            refreshedFeedback.classList.add('is-success');
+            refreshedFeedback.hidden = false;
+            refreshedFeedback.setAttribute('aria-hidden', 'false');
           }
-          if (!window.Api || typeof window.Api.clearActiveCruiseDelay !== "function") {
-            window.alert("Delay-time service is unavailable.");
-            return;
-          }
-
-          manualDelayClearBtn.disabled = true;
-          if (manualDelayAddBtn) {
-            manualDelayAddBtn.disabled = true;
-          }
-          manualDelayClearBtn.textContent = "Clearing...";
-
-          window.Api.clearActiveCruiseDelay({
-            floatPlanId: floatPlanId
-          }).then(function (resp) {
-            if (!resp || resp.SUCCESS !== true) {
-              throw resp || new Error("Unable to clear delay time.");
-            }
-            totalMinutes = parseInt(resp.MANUAL_DELAY_MINUTES_TOTAL, 10);
-            if (!Number.isFinite(totalMinutes) || totalMinutes < 0) {
-              totalMinutes = 0;
-            }
-            window.alert("Cleared manual delay time. Total manual delay: " + totalMinutes + " minutes.");
-            window.location.reload();
-          }).catch(function (err) {
-            var message = (err && err.MESSAGE) || (err && err.message) || "Unable to clear delay time.";
-            window.alert(message);
-          }).finally(function () {
-            manualDelayClearBtn.disabled = false;
-            if (manualDelayAddBtn) {
-              manualDelayAddBtn.disabled = false;
-            }
-            manualDelayClearBtn.textContent = originalText;
-          });
         });
+      })
+      .catch(function(error) {
+        setFeedback(error && error.message ? error.message : 'Pace update request failed.', 'is-error');
+        restoreCommittedPace();
+        slider.disabled = initiallyDisabled;
+      });
+  }
+
+  if (!lastCommittedPaceValue) {
+    lastCommittedPaceValue = selectedPace().value;
+    slider.setAttribute('data-current-value', lastCommittedPaceValue);
+  }
+
+  slider.addEventListener('input', syncSelectedLabel);
+  slider.addEventListener('change', saveSelectedPace);
+
+  syncSelectedLabel();
+};
+window.FPWActiveCruiseV2.bindPacePanel();
+
+window.FPWActiveCruiseV2.bindTimingPanel = function() {
+  const panel = document.getElementById('fpwV2TimingPanel');
+  const feedback = document.getElementById('fpwV2TimingFeedback');
+  if (!panel || !feedback) {
+    return;
+  }
+  if (panel.getAttribute('data-ac-v2-timing-bound') === 'true') {
+    return;
+  }
+  panel.setAttribute('data-ac-v2-timing-bound', 'true');
+
+  function setFeedback(message, state) {
+    feedback.textContent = message;
+    feedback.classList.remove('is-success', 'is-error');
+    if (state) {
+      feedback.classList.add(state);
+    }
+    feedback.hidden = false;
+    feedback.setAttribute('aria-hidden', 'false');
+  }
+
+  function resolveEndpoint(endpoint) {
+    if (!endpoint) {
+      return '';
+    }
+    const basePath = panel.getAttribute('data-fpw-base') || '';
+    if (endpoint.indexOf('/api/') === 0 && basePath) {
+      return basePath + endpoint;
+    }
+    return endpoint;
+  }
+
+  function readPayload(button) {
+    try {
+      return JSON.parse(button.getAttribute('data-payload') || '{}');
+    } catch (payloadError) {
+      return {};
+    }
+  }
+
+  function responseMessage(payload, fallback) {
+    if (payload && typeof payload === 'object') {
+      return payload.MESSAGE || payload.message || payload.ERROR || payload.error || fallback;
+    }
+    return fallback;
+  }
+
+  function confirmationRequired(button) {
+    return String(button.getAttribute('data-confirmation-required') || '').toLowerCase() === 'true';
+  }
+
+  function restoreButtons(buttons, states) {
+    buttons.forEach(function(actionButton, index) {
+      actionButton.disabled = states[index] === true;
+    });
+  }
+
+  function refreshSelectorsForAction(actionName) {
+    const refreshMap = {
+      addDelay: [
+        '#fpwV2TimingPanel',
+        '#acV2RouteProgressPanel'
+      ],
+      clearDelay: [
+        '#fpwV2TimingPanel',
+        '#acV2RouteProgressPanel'
+      ],
+      updateDailyStart: [
+        '#fpwV2TimingPanel'
+      ]
+    };
+    return refreshMap[actionName] || [];
+  }
+
+  function showRefreshedFeedback(message) {
+    const refreshedFeedback = document.getElementById('fpwV2TimingFeedback');
+    if (refreshedFeedback) {
+      refreshedFeedback.textContent = message;
+      refreshedFeedback.classList.remove('is-error');
+      refreshedFeedback.classList.add('is-success');
+      refreshedFeedback.hidden = false;
+      refreshedFeedback.setAttribute('aria-hidden', 'false');
+    }
+  }
+
+  panel.addEventListener('click', function(event) {
+    const button = event.target.closest('[data-ac-v2-timing-action]');
+    if (!button || button.disabled) {
+      return;
+    }
+
+    const actionName = button.getAttribute('data-ac-v2-timing-action') || '';
+    const endpoint = resolveEndpoint(button.getAttribute('data-endpoint') || '');
+    const payload = readPayload(button);
+    const method = button.getAttribute('data-method') || 'POST';
+    const confirmationRequired = String(button.getAttribute('data-confirmation-required') || '').toLowerCase() === 'true';
+    const confirmationMessage = button.getAttribute('data-confirmation-message') || 'Confirm this timing update.';
+    const buttons = Array.from(panel.querySelectorAll('[data-ac-v2-timing-action]'));
+    const buttonStates = buttons.map(function(actionButton) { return actionButton.disabled; });
+
+    if (!endpoint) {
+      setFeedback('The view model did not return an executable endpoint for this timing action.', 'is-error');
+      return;
+    }
+
+    if (actionName === 'addDelay') {
+      const minutesInput = document.getElementById('fpwV2AddDelayMinutes');
+      const minutesRaw = minutesInput ? String(minutesInput.value || '').trim() : '';
+      const minutesValue = parseInt(minutesRaw, 10);
+      if (!minutesRaw) {
+        setFeedback('Delay minutes are required.', 'is-error');
+        return;
       }
-    })(window, document);
-  </script>
-  </cfif>
+      if (!/^\d+$/.test(minutesRaw) || !Number.isFinite(minutesValue) || minutesValue <= 0) {
+        setFeedback('Delay minutes must be a positive whole number.', 'is-error');
+        return;
+      }
+      payload.minutes = minutesValue;
+    }
+
+    if (actionName === 'updateDailyStart') {
+      const dailyStartInput = document.getElementById('fpwV2DailyStartLocalTime');
+      const dailyStartLocalTime = dailyStartInput ? String(dailyStartInput.value || '').trim() : '';
+      if (!dailyStartLocalTime) {
+        setFeedback('Daily start time is required.', 'is-error');
+        return;
+      }
+      const dailyStartMatch = dailyStartLocalTime.match(/^(\d{2}:\d{2})(?::\d{2})?$/);
+      if (!dailyStartMatch) {
+        setFeedback('Daily start time must use HH:mm format.', 'is-error');
+        return;
+      }
+      payload.dailyStartLocalTime = dailyStartMatch[1];
+    }
+
+    if (confirmationRequired && !window.confirm(confirmationMessage)) {
+      return;
+    }
+
+    buttons.forEach(function(actionButton) {
+      actionButton.disabled = true;
+    });
+    setFeedback('Submitting timing update...', '');
+
+    fetch(endpoint, {
+      method: method,
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+      .then(function(response) {
+        return response.text().then(function(text) {
+          let responsePayload = {};
+          if (text) {
+            try {
+              responsePayload = JSON.parse(text);
+            } catch (parseError) {
+              responsePayload = { success: false, message: text };
+            }
+          }
+          return { ok: response.ok, payload: responsePayload };
+        });
+      })
+      .then(function(result) {
+        const payloadResult = result.payload || {};
+        const success = result.ok && (payloadResult.success === true || payloadResult.SUCCESS === true);
+        const message = responseMessage(payloadResult, success ? 'Timing update completed.' : 'Timing update failed.');
+        if (success) {
+          setFeedback(message + ' Refreshing view model...', 'is-success');
+          const refreshSelectors = refreshSelectorsForAction(actionName);
+          if (refreshSelectors.length) {
+            return window.FPWActiveCruiseV2.fetchAndRefresh({
+              replaceSelectors: refreshSelectors
+            }).then(function() { showRefreshedFeedback(message); });
+          }
+          window.location.reload();
+          return;
+        }
+        setFeedback(message, 'is-error');
+        restoreButtons(buttons, buttonStates);
+      })
+      .catch(function(error) {
+        setFeedback(error && error.message ? error.message : 'Timing update request failed.', 'is-error');
+        restoreButtons(buttons, buttonStates);
+      });
+  });
+};
+window.FPWActiveCruiseV2.bindTimingPanel();
+
+(function() {
+  const noteInput = document.getElementById('fpwV2CheckInNote');
+  const noteCounter = document.getElementById('fpwV2CheckInNoteCounter');
+  if (!noteInput || !noteCounter) {
+    return;
+  }
+
+  const noteShell = document.querySelector('[data-ac-v2-note-shell]');
+  const noteToggle = noteShell ? noteShell.querySelector('[data-ac-v2-note-toggle]') : null;
+  const noteCollapsible = noteShell ? noteShell.querySelector('[data-ac-v2-note-collapsible]') : null;
+  const maxLength = parseInt(noteInput.getAttribute('maxlength') || '500', 10) || 500;
+
+  function setNoteExpanded(expanded, focusTextarea) {
+    if (!noteToggle || !noteCollapsible) {
+      return;
+    }
+    noteToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    noteCollapsible.hidden = !expanded;
+    if (noteShell) {
+      noteShell.classList.toggle('is-expanded', expanded);
+    }
+    if (expanded && focusTextarea) {
+      noteInput.focus();
+    }
+  }
+
+  function updateNoteCounter() {
+    noteCounter.textContent = String((noteInput.value || '').length) + '/' + String(maxLength);
+    if ((noteInput.value || '').trim().length > 0) {
+      setNoteExpanded(true, false);
+    }
+  }
+
+  if (noteToggle && noteCollapsible) {
+    noteToggle.addEventListener('click', function() {
+      const isExpanded = noteToggle.getAttribute('aria-expanded') === 'true';
+      setNoteExpanded(!isExpanded, !isExpanded);
+    });
+  }
+  noteInput.addEventListener('input', updateNoteCounter);
+  updateNoteCounter();
+})();
+
+(function() {
+  const panel = document.getElementById('fpwV2ActionPanel');
+  const feedback = document.getElementById('fpwV2ActionFeedback');
+  if (!panel || !feedback) {
+    return;
+  }
+
+  function setFeedback(message, state) {
+    feedback.textContent = message;
+    feedback.classList.remove('is-success', 'is-error');
+    if (state) {
+      feedback.classList.add(state);
+    }
+  }
+
+  function resolveEndpoint(endpoint) {
+    if (!endpoint) {
+      return '';
+    }
+    const basePath = panel.getAttribute('data-fpw-base') || '';
+    if (endpoint.indexOf('/api/') === 0 && basePath) {
+      return basePath + endpoint;
+    }
+    return endpoint;
+  }
+
+  function readPayload(button) {
+    try {
+      return JSON.parse(button.getAttribute('data-payload') || '{}');
+    } catch (payloadError) {
+      return {};
+    }
+  }
+
+  function responseMessage(payload, fallback) {
+    if (payload && typeof payload === 'object') {
+      return payload.MESSAGE || payload.message || payload.ERROR || payload.error || fallback;
+    }
+    return fallback;
+  }
+
+  function actionConfirmationRequired(button) {
+    return String(button.getAttribute('data-confirmation-required') || '').toLowerCase() === 'true';
+  }
+
+  panel.addEventListener('click', function(event) {
+    const button = event.target.closest('[data-ac-v2-action]');
+    if (!button || button.disabled) {
+      return;
+    }
+
+    const endpoint = resolveEndpoint(button.getAttribute('data-endpoint') || '');
+    if (!endpoint) {
+      setFeedback('The view model did not return an executable endpoint for this action.', 'is-error');
+      return;
+    }
+
+    const actionName = button.getAttribute('data-ac-v2-action') || '';
+    const payload = readPayload(button);
+    if (actionName === 'checkin') {
+      const noteInput = document.getElementById('fpwV2CheckInNote');
+      const noteValue = noteInput ? String(noteInput.value || '') : '';
+      if (noteValue.trim()) {
+        payload.note = noteValue;
+      } else if (Object.prototype.hasOwnProperty.call(payload, 'note')) {
+        delete payload.note;
+      }
+    }
+
+    if (actionConfirmationRequired(button)) {
+      const confirmationMessage = button.getAttribute('data-confirmation-message') || 'Confirm this action?';
+      if (!window.confirm(confirmationMessage || 'Confirm this action?')) {
+        return;
+      }
+    }
+
+    const buttons = panel.querySelectorAll('[data-ac-v2-action]');
+    buttons.forEach(function(actionButton) {
+      actionButton.disabled = true;
+    });
+    setFeedback('Submitting action...', '');
+
+    fetch(endpoint, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+      .then(function(response) {
+        return response.text().then(function(text) {
+          let payload = {};
+          if (text) {
+            try {
+              payload = JSON.parse(text);
+            } catch (parseError) {
+              payload = { success: false, message: text };
+            }
+          }
+          return { ok: response.ok, payload: payload };
+        });
+      })
+      .then(function(result) {
+        const payload = result.payload || {};
+        const success = result.ok && (payload.success === true || payload.SUCCESS === true);
+        const message = responseMessage(payload, success ? 'Action completed.' : 'Action failed.');
+        if (success) {
+          setFeedback(message + ' Refreshing view model...', 'is-success');
+          window.location.reload();
+          return;
+        }
+        setFeedback(message, 'is-error');
+        buttons.forEach(function(actionButton) {
+          actionButton.disabled = actionButton.hasAttribute('aria-disabled');
+        });
+      })
+      .catch(function(error) {
+        setFeedback(error && error.message ? error.message : 'Action request failed.', 'is-error');
+        buttons.forEach(function(actionButton) {
+          actionButton.disabled = actionButton.hasAttribute('aria-disabled');
+        });
+      });
+  });
+})();
+</script>
 </body>
 </html>

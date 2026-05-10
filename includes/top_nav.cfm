@@ -529,7 +529,7 @@ if (!len(trim(basePath)) && structKeyExists(cgi, "script_name")) {
 
       <nav class="tabs" aria-label="App Primary">
         <a class="tab<cfif request.fpwTopNavActive EQ 'dashboard'> active</cfif>" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm">Dashboard</a>
-        <a class="tab" href="#monitoring">Monitoring</a>
+        <a class="tab" href="<cfoutput>#basePath#</cfoutput>/app/monitoring.cfm">Monitoring</a>
         <a class="tab<cfif request.fpwTopNavActive EQ 'weather'> active</cfif>" id="fpwNavWeatherLink" href="<cfoutput>#basePath#</cfoutput>/app/weather.cfm">Weather</a>
         <a class="tab" href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm">Fuel Calculator</a>
       </nav>
@@ -563,7 +563,7 @@ if (!len(trim(basePath)) && structKeyExists(cgi, "script_name")) {
   <div class="fpwMobileBackdrop fpwMobileBackdrop--app" id="fpwMobileBackdropApp" aria-hidden="true"></div>
   <nav class="fpwMobileMenu fpwMobileMenu--app" id="fpwMobileMenuApp" role="navigation" aria-label="Mobile app menu" aria-hidden="true">
     <a href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm">Dashboard</a>
-    <a href="#monitoring">Monitoring</a>
+    <a href="<cfoutput>#basePath#</cfoutput>/app/monitoring.cfm">Monitoring</a>
     <a id="fpwMobileWeatherLink" href="<cfoutput>#basePath#</cfoutput>/app/weather.cfm">Weather</a>
     <a href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm">Fuel Calculator</a>
     <hr />

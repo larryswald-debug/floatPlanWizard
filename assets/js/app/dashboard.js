@@ -4195,20 +4195,17 @@
       if (!currentGroup) html += '<div class="fpw-route-table-actions">';
       if (currentState === "ACTIVE" && currentGroup) {
         html += showActiveCruiseAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--cruise js-expedition-active-cruise" aria-label="Open Active Cruise" title="Open Active Cruise"></button>' : "";
-        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--view js-expedition-view-edit" aria-label="View Route" title="View Route"></button>';
-        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-route js-expedition-view-edit" aria-label="Edit Route" title="Edit Route"></button>';
         html += showTripPageAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--follow js-expedition-trip-page" aria-label="Follow Page" title="Follow Page"></button>' : "";
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-route js-expedition-view-edit" aria-label="Edit Route" title="Edit Route"></button>';
         html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--cancel js-expedition-plan-cancel" data-action="cancel" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="Cancel" title="Cancel"></button>';
       } else if (currentGroup) {
         html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--send js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="View and Send Float Plan" title="View & Send Float Plan"></button>';
         html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-plan js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="Edit Float Plan" title="Edit Float Plan"></button>';
         html += showActivateRouteAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--activate js-expedition-build-floatplans" aria-label="Activate Route" title="Activate Route"></button>' : "";
-        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--view js-expedition-view-edit" aria-label="View Route" title="View Route"></button>';
         html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-route js-expedition-view-edit" aria-label="Edit Route" title="Edit Route"></button>';
         html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--delete js-expedition-delete" aria-label="Delete" title="Delete"></button>';
       } else {
         html += showActivateRouteAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--activate js-expedition-build-floatplans" aria-label="Activate Route" title="Activate Route"></button>' : "";
-        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--view js-expedition-view-edit" aria-label="View Route" title="View Route"></button>';
         html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-route js-expedition-view-edit" aria-label="Edit Route" title="Edit Route"></button>';
         html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--delete js-expedition-delete" aria-label="Delete" title="Delete"></button>';
       }
@@ -4266,18 +4263,14 @@
     function buildRouteRow(route, routeMeta) {
       var totals = routeMeta.totals;
       var summary = getRouteSummaryValues(route, totals);
-      var typeLabel = getRouteTypeLabel(route);
       var subtitle = buildRouteSubtitle(route, routeMeta.currentRouteGroup);
-      var updatedLabel = formatRouteUpdatedLabel(route);
       return ""
         + '<div class="expedition-route-card fpw-routes-table-row' + (routeMeta.isSelected ? ' is-selected' : '') + (routeMeta.isRouteForActiveTrip ? ' is-active' : '') + '"' + routeMeta.dataAttrs + ' role="button" tabindex="0">'
         + '  <div class="fpw-route-cell fpw-route-cell--route"><span class="fpw-route-favorite" aria-hidden="true"></span><div><strong>' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</strong><span>' + escapeHtml(subtitle) + '</span></div></div>'
-        + '  <div class="fpw-route-cell fpw-route-cell--type"><span class="fpw-route-type-text">' + escapeHtml(typeLabel) + '</span></div>'
         + '  <div class="fpw-route-cell fpw-route-cell--points"><span>' + escapeHtml(summary.start) + '</span><span>' + escapeHtml(summary.end) + '</span></div>'
         + '  <div class="fpw-route-cell">' + escapeHtml(summary.distance) + '</div>'
         + '  <div class="fpw-route-cell fpw-route-cell--duration">' + escapeHtml(summary.estimatedHours) + '</div>'
         + '  <div class="fpw-route-cell">' + buildRouteStatusText(routeMeta.currentState, routeMeta.isRouteForActiveTrip) + '</div>'
-        + '  <div class="fpw-route-cell fpw-route-cell--updated"><span class="fpw-route-updated-text">' + escapeHtml(updatedLabel) + '</span></div>'
         + '  <div class="fpw-route-cell fpw-route-cell--actions">' + buildRouteTableActions(routeMeta.currentRouteGroup, routeMeta.currentState, routeMeta.showActiveCruiseAction, routeMeta.showTripPageAction, routeMeta.showActivateRouteAction) + '</div>'
         + '</div>';
     }
@@ -4392,7 +4385,7 @@
         + '  <div class="fpw-routes-table-pane">'
         + '    <div class="fpw-routes-table" role="table" aria-label="Saved routes">'
         + '      <div class="fpw-routes-table-head" role="row">'
-        + '        <div>Route Name</div><div>Type</div><div>Start / End</div><div>Distance</div><div>Est. Duration</div><div>Status</div><div>Updated</div><div>Actions</div>'
+        + '        <div>Route Name</div><div>Start / End</div><div>Distance</div><div>Est. Duration</div><div>Status</div><div>Actions</div>'
         + '      </div>'
         + list.map(function (route) {
           var meta = getRouteRenderMeta(route, activeCode);
