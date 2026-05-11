@@ -43,6 +43,7 @@
             <cfset var followerIdVal = 0>
             <cfset var floatPlanIdVal = 0>
             <cfset var pointVal = "">
+            <cfset var routeLegOrderVal = "">
             <cfset var asOfUtcVal = "">
             <cfif act EQ "getstreambootstrap">
                 <cfset slugVal = trim(toString(pickArg(body, "slug", "route_slug", arguments.slug)))>
@@ -55,7 +56,8 @@
             <cfelseif act EQ "getactivecruiseweather">
                 <cfset floatPlanIdVal = val(pickArg(body, "floatPlanId", "float_plan_id", 0))>
                 <cfset pointVal = lCase(trim(toString(pickArg(body, "point", "leg_point", ""))))>
-                <cfset payload = getActiveCruiseWeatherCanonical(currentUserId, floatPlanIdVal, pointVal)>
+                <cfset routeLegOrderVal = trim(toString(pickArg(body, "routeLegOrder", "route_leg_order", "")))>
+                <cfset payload = getActiveCruiseWeatherCanonical(currentUserId, floatPlanIdVal, pointVal, routeLegOrderVal)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
@@ -295,6 +297,16 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="createActiveTripPaceService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.ActiveTripPaceService").init(resolveDatasource());
+            } catch (any pacePathErr) {
+                return createObject("component", "api.v1.ActiveTripPaceService").init(resolveDatasource());
+            }
+        </cfscript>
+    </cffunction>
+
     <cffunction name="createRouteMapGeometryService" access="private" returntype="any" output="false">
         <cfscript>
             try {
@@ -392,7 +404,8 @@
                 "legWeather"={},
                 "pinned"={},
                 "timeline"={"summary"={}, "legs"=[], "meta"={}},
-                "body"={}
+                "body"={},
+                "publicAuthority"={}
             };
             var streamRow = readStream(arguments.slug, arguments.streamId);
             var canRead = {};
@@ -440,6 +453,8 @@
             var storedOvernightPauseMinutes = 0;
             var storedManualDelayMinutes = 0;
             var followProjection = {};
+            var publicAuthority = {};
+            var publicAuthorityService = "";
             var useCanonicalFollowProjection = false;
             var canonicalFollowProjectionBlocked = false;
             var followProjectionWarningIndex = 0;
@@ -725,6 +740,16 @@
                 monitoringCheckinStatusVal = uCase(trim(toString(qPlan.last_checkin_status[1])));
             }
             routeInstanceIdVal = (!isNull(qPlan.route_instance_id[1]) ? val(qPlan.route_instance_id[1]) : 0);
+            try {
+                try {
+                    publicAuthorityService = createObject("component", "fpw.api.v1.ActiveCruiseViewModelService").init(ds);
+                } catch (any publicAuthorityPathErr) {
+                    publicAuthorityService = createObject("component", "api.v1.ActiveCruiseViewModelService").init(ds);
+                }
+                publicAuthority = publicAuthorityService.getPublicFollowAuthority(streamRow.owner_user_id, streamRow.floatplan_id);
+            } catch (any publicAuthorityErr) {
+                publicAuthority = {};
+            }
             checkInContextVal = normalizeCheckInContext(isNull(qPlan.checkin_context[1]) ? "" : qPlan.checkin_context[1]);
             isOvernightCheckIn = (checkInContextVal EQ "overnight");
             storedOvernightPauseMinutes = (
@@ -1880,8 +1905,9 @@
             };
 	            out.legWeather = legWeather;
 	            out.pinned = pinned;
-	            out.timeline = followTimeline;
-	            out.body = body;
+            out.timeline = followTimeline;
+            out.body = body;
+            out.publicAuthority = publicAuthority;
             if (!tripStarted) {
                 out.stream.status = "Scheduled";
                 out.topCards.status = "Scheduled";
@@ -2684,10 +2710,16 @@
         <cfargument name="currentUserId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfargument name="point" type="string" required="true">
+        <cfargument name="routeLegOrder" type="string" required="false" default="">
         <cfscript>
             var canonicalPlan = {};
             var routeMap = {};
             var pointKey = lCase(trim(arguments.point));
+            var routeLegOrderRaw = trim(toString(arguments.routeLegOrder));
+            var routeLegOrderProvided = len(routeLegOrderRaw) GT 0;
+            var routeLegOrderVal = val(routeLegOrderRaw);
+            var ds = resolveDatasource();
+            var qRouteLeg = queryNew("");
             var pointLabel = "";
             var pointLat = "";
             var pointLng = "";
@@ -2752,15 +2784,44 @@
                 );
             }
 
-            routeMap = buildRouteMapData(canonicalPlan.ROUTE_INSTANCE_ID, arguments.currentUserId);
-            if (pointKey EQ "start") {
-                pointLabel = (structKeyExists(routeMap, "active_leg_start_name") ? trim(toString(routeMap.active_leg_start_name)) : "");
-                pointLat = (structKeyExists(routeMap, "active_leg_start_lat") ? routeMap.active_leg_start_lat : "");
-                pointLng = (structKeyExists(routeMap, "active_leg_start_lng") ? routeMap.active_leg_start_lng : "");
+            if (routeLegOrderProvided) {
+                if (routeLegOrderVal GT 0) {
+                    qRouteLeg = queryExecute(
+                        "SELECT start_name, end_name, start_lat, start_lng, end_lat, end_lng
+                         FROM route_instance_legs
+                         WHERE route_instance_id = :routeInstanceId
+                           AND leg_order = :legOrder
+                         ORDER BY id ASC
+                         LIMIT 1",
+                        {
+                            routeInstanceId = { value=canonicalPlan.ROUTE_INSTANCE_ID, cfsqltype="cf_sql_integer" },
+                            legOrder = { value=routeLegOrderVal, cfsqltype="cf_sql_integer" }
+                        },
+                        { datasource=ds }
+                    );
+                }
+                if (qRouteLeg.recordCount GT 0) {
+                    if (pointKey EQ "start") {
+                        pointLabel = (isNull(qRouteLeg.start_name[1]) ? "" : trim(toString(qRouteLeg.start_name[1])));
+                        pointLat = (isNull(qRouteLeg.start_lat[1]) ? "" : qRouteLeg.start_lat[1]);
+                        pointLng = (isNull(qRouteLeg.start_lng[1]) ? "" : qRouteLeg.start_lng[1]);
+                    } else {
+                        pointLabel = (isNull(qRouteLeg.end_name[1]) ? "" : trim(toString(qRouteLeg.end_name[1])));
+                        pointLat = (isNull(qRouteLeg.end_lat[1]) ? "" : qRouteLeg.end_lat[1]);
+                        pointLng = (isNull(qRouteLeg.end_lng[1]) ? "" : qRouteLeg.end_lng[1]);
+                    }
+                }
             } else {
-                pointLabel = (structKeyExists(routeMap, "active_leg_end_name") ? trim(toString(routeMap.active_leg_end_name)) : "");
-                pointLat = (structKeyExists(routeMap, "active_leg_end_lat") ? routeMap.active_leg_end_lat : "");
-                pointLng = (structKeyExists(routeMap, "active_leg_end_lng") ? routeMap.active_leg_end_lng : "");
+                routeMap = buildRouteMapData(canonicalPlan.ROUTE_INSTANCE_ID, arguments.currentUserId);
+                if (pointKey EQ "start") {
+                    pointLabel = (structKeyExists(routeMap, "active_leg_start_name") ? trim(toString(routeMap.active_leg_start_name)) : "");
+                    pointLat = (structKeyExists(routeMap, "active_leg_start_lat") ? routeMap.active_leg_start_lat : "");
+                    pointLng = (structKeyExists(routeMap, "active_leg_start_lng") ? routeMap.active_leg_start_lng : "");
+                } else {
+                    pointLabel = (structKeyExists(routeMap, "active_leg_end_name") ? trim(toString(routeMap.active_leg_end_name)) : "");
+                    pointLat = (structKeyExists(routeMap, "active_leg_end_lat") ? routeMap.active_leg_end_lat : "");
+                    pointLng = (structKeyExists(routeMap, "active_leg_end_lng") ? routeMap.active_leg_end_lng : "");
+                }
             }
 
             if (!isNumeric(pointLat) OR !isNumeric(pointLng)) {
@@ -5236,6 +5297,7 @@
             var planVesselId = 0;
             var legLockDetails = {};
             var canonicalActivePlan = {};
+            var activePaceFloatPlanId = 0;
             var qActivePlanDelay = queryNew("");
             var manualDelayMinutesTotal = 0;
             var manualDelayHoursTotal = 0.0;
@@ -5293,6 +5355,7 @@
                 AND structKeyExists(canonicalActivePlan, "ROUTE_INSTANCE_ID")
                 AND val(canonicalActivePlan.ROUTE_INSTANCE_ID) EQ routeInstanceIdVal
             ) {
+                activePaceFloatPlanId = val(canonicalActivePlan.FLOATPLANID);
                 qActivePlanDelay = queryExecute(
                     "SELECT manual_delay_minutes_total
                      FROM floatplans
@@ -5376,7 +5439,7 @@
                 }
             }
             if (effectiveSpeedKn LTE 0) {
-                routeInputSpeedKn = deriveEffectiveSpeedFromInputs(storedInputs);
+                routeInputSpeedKn = deriveEffectiveSpeedFromInputs(storedInputs, activePaceFloatPlanId);
                 if (routeInputSpeedKn GT 0) {
                     effectiveSpeedKn = roundTo2(routeInputSpeedKn);
                     usedRouteInputs = true;
@@ -5821,17 +5884,28 @@
 
     <cffunction name="deriveEffectiveSpeedFromInputs" access="private" returntype="numeric" output="false">
         <cfargument name="routeInputs" type="any" required="false" default="#{}#">
+        <cfargument name="floatPlanId" type="numeric" required="false" default="0">
         <cfscript>
             var src = (isStruct(arguments.routeInputs) ? arguments.routeInputs : {});
+            var activePaceSpeed = 0;
             var directSpeed = getNumericFromKeys(
                 src,
                 [ "weather_adjusted_speed_kn", "weatherAdjustedSpeedKn", "effective_speed_kn", "effectiveSpeedKn", "effective_cruising_speed", "effectiveCruisingSpeed" ],
                 true
             );
             var maxSpeed = 0;
+            var mostEfficientSpeed = 0;
             var paceFactor = 0.25;
+            var paceVal = "";
             var weatherPct = 0;
             var out = 0;
+
+            if (arguments.floatPlanId GT 0) {
+                activePaceSpeed = createActiveTripPaceService().resolveEffectiveSpeedKn(src, arguments.floatPlanId);
+                if (activePaceSpeed GT 0) {
+                    return roundTo2(activePaceSpeed);
+                }
+            }
             if (directSpeed GT 0) return roundTo2(directSpeed);
 
             maxSpeed = getNumericFromKeys(
@@ -5850,8 +5924,18 @@
             );
             if (maxSpeed LTE 0) return 0;
 
-            paceFactor = resolvePaceFactor(structKeyExists(src, "pace") ? src.pace : "RELAXED");
-            out = roundTo2(maxSpeed * paceFactor);
+            paceVal = (structKeyExists(src, "pace") ? uCase(trim(toString(src.pace))) : "RELAXED");
+            mostEfficientSpeed = getNumericFromKeys(
+                src,
+                [ "vessel_most_efficient_speed_kn", "vesselMostEfficientSpeedKn", "most_efficient_speed_kn", "mostEfficientSpeedKn", "MOST_EFFICIENT_SPEED_KN", "MOST_EFFICIENT_SPEED" ],
+                true
+            );
+            if (paceVal EQ "BALANCED" AND mostEfficientSpeed GTE 1) {
+                out = roundTo2(min(60, mostEfficientSpeed));
+            } else {
+                paceFactor = resolvePaceFactor(paceVal);
+                out = roundTo2(maxSpeed * paceFactor);
+            }
             if (out LT 0.5) out = 0.5;
 
             weatherPct = getNumericFromKeys(

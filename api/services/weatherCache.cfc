@@ -252,14 +252,22 @@
         <cfargument name="ttlSeconds" type="numeric" required="false" default="900">
         <cfargument name="bypassCache" type="boolean" required="false" default="false">
         <cfargument name="fetcher" type="any" required="false" default="">
+        <cfargument name="cacheVariant" type="string" required="false" default="">
         <cfscript>
             var norm = normalizeLatLng(arguments.lat, arguments.lng, 3);
             var ttl = normalizeTtl(arguments.ttlSeconds, variables.defaultTtl.marine);
-            var cacheKey = buildKey("marine", norm.lat, norm.lng, 3);
+            var variant = normalizeMarineCacheVariant(arguments.cacheVariant);
+            var cachePrefix = "marine";
+            var cacheKey = "";
             var cachedEnvelope = {};
             var payload = {};
             var envelope = {};
             var httpMeta = {};
+
+            if (len(variant)) {
+                cachePrefix &= ":" & variant;
+            }
+            cacheKey = buildKey(cachePrefix, norm.lat, norm.lng, 3);
 
             if (!arguments.bypassCache) {
                 cachedEnvelope = cacheGetEnvelope("marine", cacheKey);
@@ -297,6 +305,16 @@
             envelope = buildEnvelope(cacheKey, "marine", payload, ttl, httpMeta);
             cacheSetEnvelope("marine", cacheKey, envelope, cacheTypeLimit("marine"));
             return mergePayloadWithCacheMeta(payload, envelope, cacheKey, ttl, false, arguments.bypassCache);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeMarineCacheVariant" access="private" returntype="string" output="false">
+        <cfargument name="variant" type="string" required="false" default="">
+        <cfscript>
+            var normalized = lcase(trim(toString(arguments.variant)));
+            if (normalized EQ "quick") return "quick";
+            if (normalized EQ "full") return "full";
+            return "";
         </cfscript>
     </cffunction>
 

@@ -380,6 +380,34 @@
     el.style.width = Math.max(0, Math.min(100, value)) + "%";
   }
 
+  function getPublicAuthority(payload) {
+    var authority = payload && payload.publicAuthority;
+    return (authority && typeof authority === "object") ? authority : {};
+  }
+
+  function getAuthoritySection(payload, sectionName) {
+    var authority = getPublicAuthority(payload);
+    var section = authority[String(sectionName || "")];
+    return (section && typeof section === "object") ? section : {};
+  }
+
+  function authorityText(value) {
+    return String(value === undefined || value === null ? "" : value).trim();
+  }
+
+  function formatProgressLabel(value) {
+    var n = safeNum(value);
+    if (n === null) return "";
+    return n.toFixed(1) + "%";
+  }
+
+  function authorityLocalLabel(localLabel, utcValue, fallback) {
+    var label = authorityText(localLabel);
+    if (label) return label;
+    label = formatSidebarLastCheckinLabel(utcValue || "");
+    return label || authorityText(fallback);
+  }
+
   function renderPhase5StreamShell(payload) {
     var pinned = payload.pinned || {};
     var topCards = payload.topCards || {};
@@ -387,17 +415,21 @@
     var sidebar = payload.sidebar || {};
     var timeline = payload.timeline || {};
     var map = payload.map || {};
+    var authorityProgress = getAuthoritySection(payload, "progress");
+    var authorityCurrentLeg = getAuthoritySection(payload, "currentLeg");
+    var authorityTiming = getAuthoritySection(payload, "timing");
+    var authorityMonitoring = getAuthoritySection(payload, "monitoring");
     var summary = timeline.summary || {};
     var legs = Array.isArray(timeline.legs) ? timeline.legs : [];
-    var updatedLabel = formatSidebarLastCheckinLabel(topCards.last_checkin_utc || "") || "—";
-    var nextStop = String(topCards.next_stop || map.next_stop_label || "").trim();
-    var etaUtc = String(topCards.eta_utc || "").trim();
-    var realLastCheckinUtc = String(sidebar.last_checkin_utc || "").trim();
+    var updatedLabel = authorityLocalLabel(authorityMonitoring.lastCheckinLocalLabel, authorityMonitoring.lastCheckinUtc || topCards.last_checkin_utc, "—");
+    var nextStop = authorityText(authorityCurrentLeg.toName) || String(topCards.next_stop || map.next_stop_label || "").trim();
+    var etaUtc = authorityText(authorityTiming.etaUtc) || String(topCards.eta_utc || "").trim();
+    var realLastCheckinUtc = authorityText(authorityMonitoring.lastCheckinUtc) || String(sidebar.last_checkin_utc || "").trim();
     var fallbackLastCheckinUtc = String(topCards.last_checkin_utc || "").trim();
-    var lastCheckinLabel = formatSidebarLastCheckinLabel(realLastCheckinUtc) || formatSidebarLastCheckinLabel(fallbackLastCheckinUtc) || "—";
+    var lastCheckinLabel = authorityLocalLabel(authorityMonitoring.lastCheckinLocalLabel, realLastCheckinUtc || fallbackLastCheckinUtc, "—");
     var lastCheckinMeta = realLastCheckinUtc ? (String(body.journey_checkin_meta || "").trim() || "—") : "—";
     var nextStopEtaLabel = "—";
-    var locationLabel = String(topCards.location_label || (map.current && map.current.label ? map.current.label : "") || "").trim();
+    var locationLabel = authorityText(authorityCurrentLeg.fromName) || String(topCards.location_label || (map.current && map.current.label ? map.current.label : "") || "").trim();
     var checkinMeta = String(body.journey_checkin_meta || "").trim();
     var cardCheckinMeta = checkinMeta.replace(/\s*Next update expected tomorrow morning\.\s*/i, "").trim();
     var isAwaitingDeparture = isAwaitingDepartureState(body, topCards, timeline);
@@ -415,12 +447,21 @@
     var currentStopMeta = "—";
     var isOvernightState = /overnight|secure for the night/i.test(checkinMeta);
     var activeLegDistanceNm = safeNum(activeLeg && activeLeg.dist_nm);
-    var activeLegProgressPct = safeNum(activeLeg && activeLeg.progress ? activeLeg.progress.percent_complete : null);
-    var pinnedMilesTodayNm = safeNum(pinned.miles_today_nm);
-    var pinnedHoursToday = safeNum(pinned.hours_today);
+    var activeLegProgressPct = safeNum(authorityProgress.legProgressPercent);
+    var pinnedMilesTodayNm = safeNum(authorityTiming.milesTodayNm);
+    var pinnedHoursToday = safeNum(authorityTiming.hoursToday);
     var milesTodayLabel = "—";
     var hoursUnderwayLabel = "—";
     var hoursUnderwayTotal = 0;
+    if (activeLegProgressPct === null) {
+      activeLegProgressPct = safeNum(activeLeg && activeLeg.progress ? activeLeg.progress.percent_complete : null);
+    }
+    if (pinnedMilesTodayNm === null) {
+      pinnedMilesTodayNm = safeNum(pinned.miles_today_nm);
+    }
+    if (pinnedHoursToday === null) {
+      pinnedHoursToday = safeNum(pinned.hours_today);
+    }
     if (pinnedMilesTodayNm !== null) {
       milesTodayLabel = pinnedMilesTodayNm.toFixed(1);
     } else if (activeLegDistanceNm !== null && activeLegProgressPct !== null) {
@@ -439,7 +480,7 @@
       });
       hoursUnderwayLabel = hoursUnderwayTotal.toFixed(1);
     }
-    nextStopEtaLabel = formatSidebarLastCheckinLabel(etaUtc) || "—";
+    nextStopEtaLabel = authorityLocalLabel(authorityTiming.etaLocalLabel, etaUtc, "—");
 
     setHookText("stream-glance-updated", updatedLabel);
     setHookText("stream-glance-miles", milesTodayLabel);
@@ -456,6 +497,9 @@
     } else if (locationLabel || cardCheckinMeta) {
       currentStopValue = locationLabel || "—";
       currentStopMeta = cardCheckinMeta || "—";
+    }
+    if (!isAwaitingDeparture && activeLegProgressPct !== null) {
+      currentStopMeta = "Current leg " + formatProgressLabel(activeLegProgressPct) + " complete";
     }
     setHookText("stream-glance-checkin", currentStopValue);
     setHookText("stream-glance-checkin-meta", currentStopMeta);
@@ -502,19 +546,33 @@
     var pinned = payload.pinned || {};
     var map = payload.map || {};
     var timeline = payload.timeline || {};
+    var authorityProgress = getAuthoritySection(payload, "progress");
+    var authorityCurrentLeg = getAuthoritySection(payload, "currentLeg");
+    var authorityTiming = getAuthoritySection(payload, "timing");
+    var authorityTripState = getAuthoritySection(payload, "tripState");
+    var authorityMonitoring = getAuthoritySection(payload, "monitoring");
     var summary = timeline.summary || {};
     var legs = Array.isArray(timeline.legs) ? timeline.legs : [];
     var miles = safeNum(pinned.miles);
-    var pinnedMilesTodayNm = safeNum(pinned.miles_today_nm);
+    var pinnedMilesTodayNm = safeNum(authorityTiming.milesTodayNm);
     var totalHoursText = timelineValueText(summary.total_hours, 1, "h");
     var completedMilesNm = 0;
     var photoCount = findRecentMediaPosts(posts).length;
-    var currentLocation = String(map.current && map.current.label ? map.current.label : topCards.location_label || "").trim();
-    var nextStop = String(topCards.next_stop || "").trim();
-    var etaUtc = String(topCards.eta_utc || "").trim();
+    var currentLocation = authorityText(authorityCurrentLeg.fromName) || String(map.current && map.current.label ? map.current.label : topCards.location_label || "").trim();
+    var currentLegLabel = authorityText(authorityCurrentLeg.label);
+    var nextStop = authorityText(authorityCurrentLeg.toName) || String(topCards.next_stop || "").trim();
+    var etaUtc = authorityText(authorityTiming.etaUtc) || String(topCards.eta_utc || "").trim();
     var etaLabel = "—";
     var isAwaitingDeparture = isAwaitingDepartureState(body, topCards, timeline);
-    var progressPct = computeJourneyProgressPct(summary, legs, currentLocation, nextStop, isAwaitingDeparture);
+    var progressPct = safeNum(authorityProgress.routeProgressPercent);
+    var publicHealthLabel = authorityText(authorityMonitoring.publicHealthLabel);
+    var tripStateLabel = authorityText(authorityTripState.label);
+    if (pinnedMilesTodayNm === null) {
+      pinnedMilesTodayNm = safeNum(pinned.miles_today_nm);
+    }
+    if (progressPct === null) {
+      progressPct = computeJourneyProgressPct(summary, legs, currentLocation, nextStop, isAwaitingDeparture);
+    }
 
     legs.forEach(function (leg) {
       var legProgress = safeNum(leg && leg.progress ? leg.progress.percent_complete : null);
@@ -524,18 +582,18 @@
         completedMilesNm += legDistanceNm;
       }
     });
-    etaLabel = formatSidebarLastCheckinLabel(etaUtc) || "—";
+    etaLabel = authorityLocalLabel(authorityTiming.etaLocalLabel, etaUtc, "—");
 
     setHookText("today-progress-metric", (pinnedMilesTodayNm === null ? completedMilesNm : pinnedMilesTodayNm).toFixed(1) + " nm");
-    setHookText("today-progress-location", "Current location: " + String(topCards.location_label || "").trim());
+    setHookText("today-progress-location", currentLegLabel ? ("Current leg: " + currentLegLabel) : ("Current location: " + currentLocation));
     setHookText("today-progress-eta", isAwaitingDeparture ? "Awaiting departure" : (etaLabel === "—" ? "—" : ("Estimated arrival: " + etaLabel)));
     setHookWidth("today-progress-fill", progressPct);
     setHookText("latest-photos-count", String(photoCount) + " recent " + (photoCount === 1 ? "moment" : "moments") + " shared");
     setHookText("trip-summary-metric", totalHoursText === "n/a" ? "n/a" : (totalHoursText + " total"));
     setHookText("trip-summary-distance", miles === null ? "0" : miles.toFixed(1) + " mi");
     setHookText("trip-summary-confidence", body.trip_summary_confidence);
-    setHookText("trip-summary-mode", isAwaitingDeparture ? "Trip mode: Awaiting departure" : body.trip_summary_mode);
-    setHookText("trip-summary-safety", body.trip_summary_safety);
+    setHookText("trip-summary-mode", tripStateLabel ? ("Trip state: " + tripStateLabel) : (isAwaitingDeparture ? "Trip mode: Awaiting departure" : body.trip_summary_mode));
+    setHookText("trip-summary-safety", publicHealthLabel ? ("Health: " + publicHealthLabel) : body.trip_summary_safety);
     renderLatestPhotoRow(posts);
   }
 
@@ -636,35 +694,55 @@
     var topCards = payload.topCards || {};
     var map = payload.map || {};
     var timeline = payload.timeline || {};
+    var authorityProgress = getAuthoritySection(payload, "progress");
+    var authorityCurrentLeg = getAuthoritySection(payload, "currentLeg");
+    var authorityTiming = getAuthoritySection(payload, "timing");
+    var authorityMonitoring = getAuthoritySection(payload, "monitoring");
+    var authorityTripState = getAuthoritySection(payload, "tripState");
     var summary = timeline.summary || {};
     var legs = Array.isArray(timeline.legs) ? timeline.legs : [];
     var title = String(stream.title || "").trim();
-    var status = String(topCards.status || stream.status || "").trim();
-    var voyageProgressStatus = String(topCards.voyage_progress_status || status || "").trim();
-    var voyageProgressStatusVariant = String(topCards.voyage_progress_status_variant || "good").trim().toLowerCase();
-    var lastCheckinUtc = String(topCards.last_checkin_utc || "").trim();
-    var realCheckInUtc = String(sidebar.last_checkin_utc || "").trim();
-    var lastCheckinLabel = formatSidebarLastCheckinLabel(lastCheckinUtc) || "";
-    var realCheckInLabel = formatSidebarLastCheckinLabel(realCheckInUtc) || "";
+    var publicHealthLabel = authorityText(authorityMonitoring.publicHealthLabel);
+    var publicHealthVariant = authorityText(authorityMonitoring.publicHealthVariant).toLowerCase();
+    var tripStateLabel = authorityText(authorityTripState.label);
+    var tripStateHelper = authorityText(authorityTripState.helperText);
+    var status = publicHealthLabel || String(topCards.status || stream.status || "").trim();
+    var voyageProgressStatus = publicHealthLabel || String(topCards.voyage_progress_status || status || "").trim();
+    var voyageProgressStatusVariant = publicHealthVariant || String(topCards.voyage_progress_status_variant || "good").trim().toLowerCase();
+    var lastCheckinUtc = authorityText(authorityMonitoring.lastCheckinUtc) || String(topCards.last_checkin_utc || "").trim();
+    var realCheckInUtc = authorityText(authorityMonitoring.lastCheckinUtc) || String(sidebar.last_checkin_utc || "").trim();
+    var lastCheckinLabel = authorityLocalLabel(authorityMonitoring.lastCheckinLocalLabel, lastCheckinUtc, "");
+    var realCheckInLabel = authorityLocalLabel(authorityMonitoring.lastCheckinLocalLabel, realCheckInUtc, "");
     var sidebarLastCheckin = realCheckInLabel || lastCheckinLabel || "—";
     var shareSlug = String(stream.slug || state.slug || "").trim();
-    var nextStop = String(topCards.next_stop || map.next_stop_label || "").trim();
+    var nextStop = authorityText(authorityCurrentLeg.toName) || String(topCards.next_stop || map.next_stop_label || "").trim();
     var conditions = String(topCards.conditions || "").trim();
     var legWeather = payload.legWeather || {};
     var weatherConditions = legWeather.conditions || {};
     var startWeather = legWeather.start || {};
     var endWeather = legWeather.end || {};
-    var currentLocation = String(map.current && map.current.label ? map.current.label : "").trim();
+    var currentLocation = authorityText(authorityCurrentLeg.fromName) || String(map.current && map.current.label ? map.current.label : "").trim();
     var completedLegs = toInt(summary.completed_legs, 0);
     var isAwaitingDeparture = isAwaitingDepartureState(body, topCards, timeline);
     var activeLeg = findActiveTimelineLeg(legs, currentLocation, nextStop, summary, isAwaitingDeparture);
-    var activeLegLabel = String(activeLeg && activeLeg.label ? activeLeg.label : "").trim();
+    var activeLegLabel = authorityText(authorityCurrentLeg.label) || String(activeLeg && activeLeg.label ? activeLeg.label : "").trim();
     var activeLegStartName = String(activeLeg && activeLeg.start_name ? activeLeg.start_name : currentLocation).trim();
     var activeLegEndName = String(activeLeg && activeLeg.end_name ? activeLeg.end_name : nextStop).trim();
     var effectiveSpeedKn = safeNum(summary.effective_speed_kn);
-    var progressPct = computeJourneyProgressPct(summary, legs, currentLocation, nextStop, isAwaitingDeparture);
+    var progressPct = safeNum(authorityProgress.routeProgressPercent);
+    var legProgressPct = safeNum(authorityProgress.legProgressPercent);
     var departedLocalMeta = formatSidebarLastCheckinLabel(body.journey_departed_meta_utc || "") || "—";
-    var nextStopLocalEta = formatSidebarLastCheckinLabel(topCards.eta_utc || "") || "—";
+    var nextStopLocalEta = authorityLocalLabel(authorityTiming.etaLocalLabel, authorityTiming.etaUtc || topCards.eta_utc, "—");
+    var finalArrivalLabel = authorityLocalLabel(authorityTiming.finalArrivalLocalLabel, authorityTiming.finalArrivalUtc, "");
+    var routeProgressLabel = "";
+    var legProgressLabel = "";
+    var journeySubtitleText = "";
+    var currentLegMetaText = "";
+    if (progressPct === null) {
+      progressPct = computeJourneyProgressPct(summary, legs, currentLocation, nextStop, isAwaitingDeparture);
+    }
+    routeProgressLabel = formatProgressLabel(progressPct);
+    legProgressLabel = formatProgressLabel(legProgressPct);
     var startSummary = String(startWeather.summary || "").trim();
     var endSummary = String(endWeather.summary || "").trim();
     var startSummaryLine = startSummary ? (activeLegStartName ? "Start · " + activeLegStartName + " · " + startSummary : startSummary) : "";
@@ -705,11 +783,16 @@
       setHookText("live-chip", "Live now · Updated " + lastCheckinLabel);
     }
 
-    setHookText("journey-subtitle", isAwaitingDeparture ? "Awaiting departure from the current stop." : body.journey_subtitle);
+    journeySubtitleText = isAwaitingDeparture ? "Awaiting departure from the current stop." : body.journey_subtitle;
+    if (tripStateLabel || routeProgressLabel) {
+      journeySubtitleText = (tripStateLabel ? ("Trip state: " + tripStateLabel) : "") + (routeProgressLabel ? ((tripStateLabel ? " · " : "") + "Route progress " + routeProgressLabel) : "");
+    }
+    setHookText("journey-subtitle", journeySubtitleText);
     setHookText("journey-status-pill", voyageProgressStatus);
     if (dom.journeyStatusPill) {
+      dom.journeyStatusPill.classList.toggle("warning", voyageProgressStatusVariant === "warning");
       dom.journeyStatusPill.classList.toggle("danger", voyageProgressStatusVariant === "danger");
-      dom.journeyStatusPill.classList.toggle("good", voyageProgressStatusVariant !== "danger");
+      dom.journeyStatusPill.classList.toggle("good", voyageProgressStatusVariant !== "danger" && voyageProgressStatusVariant !== "warning");
     }
     setHookWidth("journey-progress-fill", progressPct);
     setHookText("journey-departed-value", body.journey_departed_value);
@@ -717,28 +800,34 @@
     setHookText("journey-current-leg-value", isAwaitingDeparture ? "Awaiting Departure" : activeLegLabel);
     if (isAwaitingDeparture) {
       setHookText("journey-current-leg-meta", "Next leg has not started yet.");
+    } else if (legProgressLabel) {
+      currentLegMetaText = "Current leg " + legProgressLabel + " complete";
+      if (nextStopLocalEta !== "—") {
+        currentLegMetaText += " · ETA " + nextStopLocalEta;
+      }
+      setHookText("journey-current-leg-meta", currentLegMetaText);
     } else if (activeLeg && completedLegs < legs.length && effectiveSpeedKn !== null && effectiveSpeedKn > 0) {
       setHookText("journey-current-leg-meta", "Making way at " + String(effectiveSpeedKn) + " kn");
     }
     setHookText("journey-next-stop-value", nextStop);
     setHookText("journey-next-stop-meta", nextStopLocalEta);
     setHookText("journey-checkin-value", realCheckInLabel ? ("Checked in at " + realCheckInLabel) : "Checked in at --");
-    setHookText("journey-checkin-meta", body.journey_checkin_meta);
+    setHookText("journey-checkin-meta", authorityText(authorityMonitoring.nextExpectedCheckinLocalLabel) ? ("Next expected: " + authorityText(authorityMonitoring.nextExpectedCheckinLocalLabel)) : body.journey_checkin_meta);
 
     setHookText("card-status-title", voyageProgressStatus);
     setHookText("card-status-value", lastCheckinLabel || "—");
-    setHookText("card-status-copy", voyageProgressStatusCopy);
+    setHookText("card-status-copy", tripStateLabel ? ("Trip state: " + tripStateLabel + (tripStateHelper ? (". " + tripStateHelper) : "")) : voyageProgressStatusCopy);
     if (dom.statusDot) {
       dom.statusDot.classList.toggle("warning", voyageProgressStatusVariant === "warning");
       dom.statusDot.classList.toggle("danger", voyageProgressStatusVariant === "danger");
     }
-    setHookText("card-location-title", String(topCards.location_label || "").trim());
+    setHookText("card-location-title", currentLocation || String(topCards.location_label || "").trim());
     setHookText("card-location-value", nextStop);
     setHookText("card-location-copy", isAwaitingDeparture ? "The trip is paused at the current stop and awaiting the next departure." : body.card_location_copy);
     setHookText("card-destination-title", nextStop);
     setHookText("card-destination-value", topCards.next_stop);
-    setHookText("card-destination-copy", body.card_destination_copy);
-    setHookText("card-arrival-title", formatSidebarLastCheckinLabel(topCards.eta_utc || "") || "—");
+    setHookText("card-destination-copy", finalArrivalLabel ? ("Final route arrival: " + finalArrivalLabel) : body.card_destination_copy);
+    setHookText("card-arrival-title", nextStopLocalEta);
     setHookText("card-arrival-value", nextStop);
     setHookText("card-arrival-copy", isAwaitingDeparture ? "Departure has not started for the next leg yet." : body.card_arrival_copy);
     setHookText("card-conditions-title", conditionsTitle);
@@ -751,18 +840,23 @@
     var stream = payload.stream || {};
     var topCards = payload.topCards || {};
     var pinned = payload.pinned || {};
+    var authorityProgress = getAuthoritySection(payload, "progress");
+    var authorityCurrentLeg = getAuthoritySection(payload, "currentLeg");
+    var authorityTiming = getAuthoritySection(payload, "timing");
+    var authorityMonitoring = getAuthoritySection(payload, "monitoring");
     var title = stream.title || "Voyage Stream";
-    var status = topCards.status || stream.status || "n/a";
-    var lastCheckin = formatSidebarLastCheckinLabel(topCards.last_checkin_utc || "") || "n/a";
-    var location = topCards.location_label || "n/a";
-    var nextStop = topCards.next_stop || "n/a";
-    var eta = formatSidebarLastCheckinLabel(topCards.eta_utc || "") || "—";
+    var status = authorityText(authorityMonitoring.publicHealthLabel) || topCards.status || stream.status || "n/a";
+    var lastCheckin = authorityLocalLabel(authorityMonitoring.lastCheckinLocalLabel, authorityMonitoring.lastCheckinUtc || topCards.last_checkin_utc, "n/a");
+    var location = authorityText(authorityCurrentLeg.fromName) || topCards.location_label || "n/a";
+    var nextStop = authorityText(authorityCurrentLeg.toName) || topCards.next_stop || "n/a";
+    var eta = authorityLocalLabel(authorityTiming.etaLocalLabel, authorityTiming.etaUtc || topCards.eta_utc, "—");
     var conditions = topCards.conditions || "n/a";
     var miles = safeNum(pinned.miles);
     var days = toInt(pinned.days, 0);
     var locks = toInt(pinned.locks, 0);
     var wildlife = toInt(pinned.wildlife, 0);
-    var progressPct = 0;
+    var progressPct = safeNum(authorityProgress.routeProgressPercent);
+    var progressLabel = "";
 
     renderPhase3Shell(payload);
     renderPhase5StreamShell(payload);
@@ -785,7 +879,7 @@
     if (dom.cardConditionsValue) dom.cardConditionsValue.textContent = conditions;
     if (dom.cardConditionsSub) dom.cardConditionsSub.textContent = "Based on latest stream updates";
 
-    if (dom.overlayLeg) dom.overlayLeg.textContent = location + " to " + nextStop;
+    if (dom.overlayLeg) dom.overlayLeg.textContent = authorityText(authorityCurrentLeg.label) || (location + " to " + nextStop);
     if (dom.overlayProgress) dom.overlayProgress.textContent = (miles === null ? "n/a" : miles.toFixed(1) + " mi");
     if (dom.overlayCheckin) dom.overlayCheckin.textContent = lastCheckin;
 
@@ -799,11 +893,14 @@
     if (dom.summarySub) dom.summarySub.textContent = String(days) + " days | " + String(locks) + " locks | " + String(wildlife) + " wildlife";
     if (dom.summaryMeta) dom.summaryMeta.textContent = "Confidence: route-based";
 
-    progressPct = Math.min(100, Math.max(0, days > 0 ? Math.round((days / Math.max(days, 1)) * 100) : 0));
+    if (progressPct === null) {
+      progressPct = Math.min(100, Math.max(0, days > 0 ? Math.round((days / Math.max(days, 1)) * 100) : 0));
+    }
+    progressLabel = formatProgressLabel(progressPct);
     if (dom.progressFill) dom.progressFill.style.width = progressPct + "%";
     if (dom.progressMarker) dom.progressMarker.style.left = progressPct + "%";
-    if (dom.progressHours) dom.progressHours.textContent = (miles === null ? "n/a" : miles.toFixed(1) + " mi");
-    if (dom.progressSub) dom.progressSub.textContent = "Current location: " + location;
+    if (dom.progressHours) dom.progressHours.textContent = progressLabel || (miles === null ? "n/a" : miles.toFixed(1) + " mi");
+    if (dom.progressSub) dom.progressSub.textContent = "Current leg: " + (authorityText(authorityCurrentLeg.label) || (location + " to " + nextStop));
   }
 
   function formatTimelineNumber(value, decimals) {

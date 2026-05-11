@@ -26,6 +26,9 @@
         <cfargument name="marineMode" type="any" required="false">
         <cfargument name="marineOnly" type="any" required="false">
         <cfargument name="waveTestFt" type="any" required="false">
+        <cfargument name="cache" type="any" required="false">
+        <cfargument name="bypassCache" type="any" required="false">
+        <cfargument name="nocache" type="any" required="false">
 
         <cfsetting enablecfoutputonly="true" showdebugoutput="false">
         <cfcontent type="application/json; charset=utf-8">
@@ -1581,29 +1584,28 @@
         <cfif arguments.noCache>
             <cfset local.bypassCache = true>
         </cfif>
-        <cfif len(trim(arguments.zipHint)) EQ 5>
-            <cfset local.bypassCache = true>
-        </cfif>
 
         <cfset request._fpwMarineCacheFetchOpts = {
             "noCache"=arguments.noCache,
             "marineMode"=arguments.marineMode,
             "zipHint"=arguments.zipHint
         }>
+        <cfset local.marineCacheFetcher = function(required numeric cacheLat, required numeric cacheLon) {
+            return getMarineData(
+                arguments.cacheLat,
+                arguments.cacheLon,
+                request._fpwMarineCacheFetchOpts.noCache,
+                request._fpwMarineCacheFetchOpts.marineMode,
+                request._fpwMarineCacheFetchOpts.zipHint
+            );
+        }>
         <cfset local.cachedMarine = getWeatherCacheService().getMarineCached(
             arguments.lat,
             arguments.lon,
             local.ttlSeconds,
             local.bypassCache,
-            function(required numeric cacheLat, required numeric cacheLon) {
-                return getMarineData(
-                    arguments.cacheLat,
-                    arguments.cacheLon,
-                    request._fpwMarineCacheFetchOpts.noCache,
-                    request._fpwMarineCacheFetchOpts.marineMode,
-                    request._fpwMarineCacheFetchOpts.zipHint
-                );
-            }
+            local.marineCacheFetcher,
+            arguments.marineMode
         )>
         <cfset structDelete(request, "_fpwMarineCacheFetchOpts", false)>
 

@@ -29,6 +29,10 @@
             var cutoverEventId = 0;
             var expectedResumeAt = "";
             var shouldWriteRouteState = false;
+            var currentSegmentType = "";
+            var checkinIdempotencyKey = "";
+            var idempotencyStatus = "";
+            var qDuplicateCheckin = queryNew("");
 
             if (arguments.floatPlanId LTE 0 OR arguments.userId LTE 0) {
                 out.ERROR = "INVALID_ID";
@@ -59,6 +63,18 @@
             payloadVal.canonical_write_scope = "active_cruise_checkin";
             payloadVal.monitoring_status = statusVal;
             payloadVal.checkin_context = arguments.checkinContext;
+            idempotencyStatus = statusVal;
+            if (arguments.sourcePostId GT 0) {
+                idempotencyStatus &= ":" & arguments.sourcePostId;
+            }
+            checkinIdempotencyKey = buildIdempotencyKey("checkin", arguments.floatPlanId, idempotencyStatus, arguments.occurredAtUtc);
+            qDuplicateCheckin = getEventByIdempotencyKey(checkinIdempotencyKey);
+            if (qDuplicateCheckin.recordCount GT 0) {
+                out.SUCCESS = true;
+                out.SKIPPED = true;
+                arrayAppend(out.EVENTS, "CHECKIN_RECEIVED");
+                return out;
+            }
 
             try {
                 transaction {
@@ -68,6 +84,9 @@
                             message = "Multiple open canonical activity segments were detected.",
                             detail = "floatPlanId=" & arguments.floatPlanId
                         );
+                    }
+                    if (arrayLen(openSegments) EQ 1) {
+                        currentSegmentType = openSegments[1].segmentType;
                     }
 
                     if (shouldWriteRouteState) {
@@ -91,7 +110,7 @@
                         actorUserId = arguments.userId,
                         sourceMonitoringId = arguments.monitoringId,
                         sourcePostId = arguments.sourcePostId,
-                        idempotencyKey = buildIdempotencyKey("checkin", arguments.floatPlanId, statusVal, arguments.occurredAtUtc),
+                        idempotencyKey = checkinIdempotencyKey,
                         payload = payloadVal
                     );
                     arrayAppend(out.EVENTS, "CHECKIN_RECEIVED");
@@ -107,24 +126,50 @@
                             actorUserId = arguments.userId,
                             sourceMonitoringId = arguments.monitoringId,
                             sourcePostId = arguments.sourcePostId,
-                            idempotencyKey = buildIdempotencyKey("secure_for_night", arguments.floatPlanId, statusVal, arguments.occurredAtUtc),
+                            idempotencyKey = buildIdempotencyKey("secure_for_night", arguments.floatPlanId, idempotencyStatus, arguments.occurredAtUtc),
                             payload = payloadVal
                         );
                         arrayAppend(out.EVENTS, "SECURE_FOR_NIGHT");
                         if (arrayLen(openSegments) EQ 0) {
                             openSegment(planCtx, routeCtx, "PAUSED_SECURE_FOR_NIGHT", arguments.occurredAtUtc, expectedResumeAt, "", stateEventId);
                             arrayAppend(out.SEGMENTS, "OPENED_PAUSED_SECURE_FOR_NIGHT");
-                        } else if (openSegments[1].segmentType EQ "UNDERWAY") {
+                        } else if (currentSegmentType EQ "UNDERWAY") {
                             closeSegment(openSegments[1].id, arguments.occurredAtUtc, stateEventId);
                             openSegment(planCtx, routeCtx, "PAUSED_SECURE_FOR_NIGHT", arguments.occurredAtUtc, expectedResumeAt, "", stateEventId);
                             arrayAppend(out.SEGMENTS, "CLOSED_UNDERWAY");
                             arrayAppend(out.SEGMENTS, "OPENED_PAUSED_SECURE_FOR_NIGHT");
+                        } else if (currentSegmentType EQ "PAUSED_DELAYED") {
+                            closeSegment(openSegments[1].id, arguments.occurredAtUtc, stateEventId);
+                            openSegment(planCtx, routeCtx, "PAUSED_SECURE_FOR_NIGHT", arguments.occurredAtUtc, expectedResumeAt, "", stateEventId);
+                            arrayAppend(out.SEGMENTS, "CLOSED_PAUSED_DELAYED");
+                            arrayAppend(out.SEGMENTS, "OPENED_PAUSED_SECURE_FOR_NIGHT");
+                        }
+                    } else if (statusVal EQ "DELAYED") {
+                        if (currentSegmentType EQ "UNDERWAY") {
+                            stateEventId = insertEvent(
+                                planCtx = planCtx,
+                                routeCtx = routeCtx,
+                                eventType = "DELAYED_PAUSE",
+                                eventStatus = "ACTIVE",
+                                occurredAtUtc = arguments.occurredAtUtc,
+                                source = "active_cruise_checkin",
+                                actorUserId = arguments.userId,
+                                sourceMonitoringId = arguments.monitoringId,
+                                sourcePostId = arguments.sourcePostId,
+                                idempotencyKey = buildIdempotencyKey("delayed_pause", arguments.floatPlanId, idempotencyStatus, arguments.occurredAtUtc),
+                                payload = payloadVal
+                            );
+                            closeSegment(openSegments[1].id, arguments.occurredAtUtc, stateEventId);
+                            openSegment(planCtx, routeCtx, "PAUSED_DELAYED", arguments.occurredAtUtc, expectedResumeAt, "", stateEventId);
+                            arrayAppend(out.EVENTS, "DELAYED_PAUSE");
+                            arrayAppend(out.SEGMENTS, "CLOSED_UNDERWAY");
+                            arrayAppend(out.SEGMENTS, "OPENED_PAUSED_DELAYED");
                         }
                     } else if (statusVal EQ "ON_TRACK") {
                         if (arrayLen(openSegments) EQ 0) {
                             openSegment(planCtx, routeCtx, "UNDERWAY", arguments.occurredAtUtc, "", "", checkinEventId);
                             arrayAppend(out.SEGMENTS, "OPENED_UNDERWAY");
-                        } else if (openSegments[1].segmentType EQ "PAUSED_SECURE_FOR_NIGHT") {
+                        } else if (isResumeEligiblePauseSegment(currentSegmentType)) {
                             stateEventId = insertEvent(
                                 planCtx = planCtx,
                                 routeCtx = routeCtx,
@@ -135,13 +180,13 @@
                                 actorUserId = arguments.userId,
                                 sourceMonitoringId = arguments.monitoringId,
                                 sourcePostId = arguments.sourcePostId,
-                                idempotencyKey = buildIdempotencyKey("resumed_underway", arguments.floatPlanId, statusVal, arguments.occurredAtUtc),
+                                idempotencyKey = buildIdempotencyKey("resumed_underway", arguments.floatPlanId, idempotencyStatus, arguments.occurredAtUtc),
                                 payload = payloadVal
                             );
                             closeSegment(openSegments[1].id, arguments.occurredAtUtc, stateEventId);
                             openSegment(planCtx, routeCtx, "UNDERWAY", arguments.occurredAtUtc, "", arguments.occurredAtUtc, stateEventId);
                             arrayAppend(out.EVENTS, "RESUMED_UNDERWAY");
-                            arrayAppend(out.SEGMENTS, "CLOSED_PAUSED_SECURE_FOR_NIGHT");
+                            arrayAppend(out.SEGMENTS, "CLOSED_" & currentSegmentType);
                             arrayAppend(out.SEGMENTS, "OPENED_UNDERWAY");
                         }
                     }
@@ -645,6 +690,13 @@
                 return arguments.planCtx.expectedCheckinAt;
             }
             return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="isResumeEligiblePauseSegment" access="private" returntype="boolean" output="false">
+        <cfargument name="segmentType" type="string" required="true">
+        <cfscript>
+            return listFindNoCase("PAUSED_SECURE_FOR_NIGHT,PAUSED_DELAYED", uCase(trim(arguments.segmentType))) GT 0;
         </cfscript>
     </cffunction>
 
