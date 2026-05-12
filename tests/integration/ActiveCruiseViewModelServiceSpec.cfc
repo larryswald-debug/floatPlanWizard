@@ -67,7 +67,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         }
       });
 
-      it("adds persisted lock details to scheduled route timeline legs", function() {
+      it("keeps persisted lock details visible without adding operational lock time to scheduled route timeline legs", function() {
         var prefix = variables.naming.buildPrefix("active-cruise-v2", "lock-detail");
         var sessionApi = buildSessionApiSupport();
         var localCreated = newCreatedTracker();
@@ -106,12 +106,14 @@ component extends="testbox.system.BaseSpec" output="false" {
           cruiseSeconds = round((firstLeg.distanceNm / model.routeTimeline.effectiveSpeedKn) * 3600);
           lockSeconds = round(firstLeg.lockSummary.operationalLockTimeMinutes * 60);
           projectedSeconds = dateDiff("s", parseUtcForTest(firstLeg.departureUtc), parseUtcForTest(firstLeg.etaUtc));
-          expect(projectedSeconds).toBe(cruiseSeconds + lockSeconds, serializeJSON(firstLeg));
-          expect(firstLeg.estimatedDurationSeconds).toBe(cruiseSeconds + lockSeconds, serializeJSON(firstLeg));
+          expect(lockSeconds).toBeGT(0, serializeJSON(firstLeg.lockSummary));
+          expect(projectedSeconds).toBe(cruiseSeconds, serializeJSON(firstLeg));
+          expect(firstLeg.estimatedDurationSeconds).toBe(cruiseSeconds, serializeJSON(firstLeg));
           expect(firstLeg.remainingDurationSeconds).toBe(firstLeg.estimatedDurationSeconds, serializeJSON(firstLeg));
           expect(len(firstLeg.estimatedDurationLabel)).toBeGT(0, serializeJSON(firstLeg));
           expect(len(firstLeg.remainingDurationLabel)).toBeGT(0, serializeJSON(firstLeg));
-          expect(firstLeg.arrivalSource).toBe("scheduled_projection_plus_operational_lock_time", serializeJSON(firstLeg));
+          expect(firstLeg.durationAuthority).toBe("scheduled_projection", serializeJSON(firstLeg));
+          expect(firstLeg.arrivalSource).toBe("scheduled_projection", serializeJSON(firstLeg));
         } finally {
           cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
         }

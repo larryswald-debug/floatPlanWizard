@@ -84,6 +84,10 @@
       result.route = buildRoute(activeCruiseModel);
       result.currentLeg = buildCurrentLeg(activeCruiseModel);
       result.monitoring = buildMonitoring(activeCruiseModel);
+      result.monitoring.lastCheckinLocation = loadLatestCompanionCheckinLocation(
+        arguments.userId,
+        readNumber(result.activeFloatPlan, "id")
+      );
       result.checkIn = buildCheckIn(activeCruiseModel);
       result.actions = buildActions(activeCruiseModel);
       result.refresh = buildRefreshHint();
@@ -207,6 +211,99 @@
         "manualDelayLabel" = readString(monitoring, "manualDelayLabel"),
         "dailyStartLocalTime" = readString(monitoring, "dailyStartLocalTime"),
         "dailyStartLabel" = readString(monitoring, "dailyStartLabel")
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="loadLatestCompanionCheckinLocation" access="private" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="floatPlanId" type="numeric" required="true">
+    <cfscript>
+      var location = buildEmptyLastCheckinLocation();
+      var qCheckin = "";
+      var hasGps = false;
+
+      if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
+        return location;
+      }
+
+      qCheckin = queryExecute("
+        SELECT
+          id,
+          mobile_submission_id,
+          canonical_status,
+          latitude,
+          longitude,
+          gps_accuracy_meters,
+          location_captured_at_utc,
+          received_at_utc,
+          created_utc
+        FROM floatplan_companion_events
+        WHERE user_id = :userId
+          AND floatplan_id = :floatPlanId
+          AND event_type = 'CHECKIN'
+          AND process_status = 'PROCESSED'
+        ORDER BY COALESCE(location_captured_at_utc, received_at_utc, created_utc) DESC, id DESC
+        LIMIT 1
+      ", {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+      }, { datasource = variables.datasource });
+
+      if (qCheckin.recordCount EQ 0) {
+        return location;
+      }
+
+      hasGps = (
+        !isNull(qCheckin.latitude[1])
+        AND !isNull(qCheckin.longitude[1])
+        AND isNumeric(qCheckin.latitude[1])
+        AND isNumeric(qCheckin.longitude[1])
+      );
+
+      location.eventId = readNumberFromValue(qCheckin.id[1]);
+      location.status = (!isNull(qCheckin.canonical_status[1]) ? trim(toString(qCheckin.canonical_status[1])) : "");
+      location.capturedAtUtc = formatUtcValue(qCheckin.location_captured_at_utc[1]);
+
+      if (!len(location.capturedAtUtc)) {
+        location.capturedAtUtc = formatUtcValue(qCheckin.received_at_utc[1]);
+      }
+
+      if (!hasGps) {
+        return location;
+      }
+
+      location.hasGps = true;
+      location.latitude = val(qCheckin.latitude[1]);
+      location.longitude = val(qCheckin.longitude[1]);
+      location.coordinateLabel = numberFormat(location.latitude, "0.0000000") & ", " & numberFormat(location.longitude, "0.0000000");
+
+      if (!isNull(qCheckin.gps_accuracy_meters[1]) AND isNumeric(qCheckin.gps_accuracy_meters[1])) {
+        location.accuracyMeters = val(qCheckin.gps_accuracy_meters[1]);
+        location.accuracyLabel = "Accuracy " & numberFormat(location.accuracyMeters, "0.0") & " m";
+      }
+
+      if (len(location.capturedAtUtc)) {
+        location.capturedAtLabel = "Captured " & location.capturedAtUtc;
+      }
+
+      return location;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildEmptyLastCheckinLocation" access="private" returntype="struct" output="false">
+    <cfscript>
+      return {
+        "hasGps" = false,
+        "eventId" = 0,
+        "status" = "",
+        "latitude" = javaCast("null", ""),
+        "longitude" = javaCast("null", ""),
+        "accuracyMeters" = javaCast("null", ""),
+        "capturedAtUtc" = "",
+        "coordinateLabel" = "",
+        "accuracyLabel" = "",
+        "capturedAtLabel" = ""
       };
     </cfscript>
   </cffunction>
@@ -384,6 +481,17 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="readNumberFromValue" access="private" returntype="numeric" output="false">
+    <cfargument name="value" type="any" required="true">
+    <cfargument name="fallback" type="numeric" required="false" default="0">
+    <cfscript>
+      if (isNull(arguments.value) OR !isNumeric(arguments.value)) {
+        return arguments.fallback;
+      }
+      return val(arguments.value);
+    </cfscript>
+  </cffunction>
+
   <cffunction name="readBoolean" access="private" returntype="boolean" output="false">
     <cfargument name="source" type="any" required="true">
     <cfargument name="key" type="string" required="true">
@@ -414,6 +522,21 @@
         }
       }
       return "";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatUtcValue" access="private" returntype="string" output="false">
+    <cfargument name="value" type="any" required="true">
+    <cfscript>
+      if (isNull(arguments.value)) {
+        return "";
+      }
+
+      if (isDate(arguments.value)) {
+        return dateTimeFormat(arguments.value, "yyyy-mm-dd'T'HH:nn:ss'Z'");
+      }
+
+      return trim(toString(arguments.value));
     </cfscript>
   </cffunction>
 

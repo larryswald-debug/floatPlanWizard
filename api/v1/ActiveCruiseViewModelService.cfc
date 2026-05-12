@@ -571,7 +571,7 @@
         service = createObject("component", "api.v1.TripProgressProjectionService").init(variables.datasource);
       }
       try {
-        return service.getProjection(arguments.floatPlanId, "", { "includeOperationalLockTime" = true });
+        return service.getProjection(arguments.floatPlanId, "", { "includeOperationalLockTime" = false });
       } catch (any projectionErr) {
         addWarning(arguments.model, "ACTIVE_CRUISE_PROJECTION_ERROR", projectionErr.message, "TripProgressProjectionService");
         return {
@@ -968,6 +968,11 @@
             "status" = { "required" = true },
             "note" = { "required" = false },
             "checkinContext" = { "required" = false }
+          },
+          "supportsLocation" = true,
+          "locationCapture" = {
+            "required" = false,
+            "source" = "browser_geolocation"
           },
           "confirmationRequired" = false,
           "confirmationMessage" = ""

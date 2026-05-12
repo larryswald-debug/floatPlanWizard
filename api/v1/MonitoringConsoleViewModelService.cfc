@@ -17,7 +17,8 @@
       var context = {};
       var qPlan = queryNew("");
       var qMonitoring = queryNew("");
-      var qLatestGps = queryNew("");
+      var latestGps = {};
+      var gpsHistory = [];
       var routeMap = {};
       var timezone = "UTC";
 
@@ -74,9 +75,14 @@
           setEmptyState(dto, "COMPLETED_OR_CLOSED");
         }
 
-        qLatestGps = loadLatestCompanionGpsCheckin(arguments.userId, context.floatPlanId);
-        dto.lastCheckinLocation = buildLastCheckinLocation(qLatestGps, timezone, nowUtc);
-        if (dto.lastCheckinLocation.hasLocation) {
+        gpsHistory = loadGpsHistory(arguments.userId, context.floatPlanId, timezone, 20);
+        latestGps = findLatestGpsHistoryLocation(gpsHistory);
+        dto.lastCheckinLocation = buildLastCheckinLocation(latestGps, timezone, nowUtc);
+        if (
+          dto.lastCheckinLocation.hasLocation
+          AND dto.lastCheckinLocation.sourceCode EQ "COMPANION_APP"
+          AND val(dto.lastCheckinLocation.canonicalEventId) LTE 0
+        ) {
           addWarning(
             dto,
             "CANONICAL_CORRELATION_UNAVAILABLE",
@@ -90,8 +96,8 @@
 
         dto.map = buildMapSection(routeMap, dto.lastCheckinLocation);
         dto.auditTimeline = loadMonitoringAudit(arguments.userId, context.floatPlanId, timezone);
-        dto.gpsHistory = loadGpsHistory(arguments.userId, context.floatPlanId, timezone, 20);
-        dto.technicalSnapshot = buildTechnicalSnapshot(dto, qLatestGps);
+        dto.gpsHistory = gpsHistory;
+        dto.technicalSnapshot = buildTechnicalSnapshot(dto, latestGps);
         dto.safetyCopy = buildSafetyCopy(dto.lastCheckinLocation);
 
         return dto;
@@ -323,14 +329,20 @@
     <cfargument name="timezone" type="string" required="true">
     <cfargument name="limit" type="numeric" required="false" default="20">
     <cfscript>
+      var limitRows = min(max(val(arguments.limit), 1), 20);
+      var canonicalScanLimit = limitRows * 2;
       var qHistory = queryExecute("
         SELECT
           id,
+          mobile_submission_id,
           canonical_status,
           checkin_context,
           latitude,
           longitude,
           gps_accuracy_meters,
+          gps_altitude_meters,
+          speed_knots,
+          heading_degrees,
           location_captured_at_utc,
           received_at_utc,
           process_status,
@@ -344,13 +356,32 @@
       ", {
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
         userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
-        limitRows = { value = min(max(val(arguments.limit), 1), 20), cfsqltype = "cf_sql_integer" }
+        limitRows = { value = limitRows, cfsqltype = "cf_sql_integer" }
+      }, { datasource = variables.datasource });
+      var qCanonical = queryExecute("
+        SELECT id, event_status, occurred_at_utc, payload_json
+        FROM floatplan_events
+        WHERE floatplan_id = :floatPlanId
+          AND user_id = :userId
+          AND event_type = 'CHECKIN_RECEIVED'
+          AND source = 'active_cruise_checkin'
+          AND voided_at_utc IS NULL
+        ORDER BY occurred_at_utc DESC, id DESC
+        LIMIT :limitRows
+      ", {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+        limitRows = { value = canonicalScanLimit, cfsqltype = "cf_sql_integer" }
       }, { datasource = variables.datasource });
       var items = [];
       var i = 0;
       var hasGps = false;
       var checkinAt = "";
       var statusCode = "";
+      var payload = {};
+      var location = {};
+      var capturedAt = "";
+      var receivedAt = "";
 
       for (i = 1; i LTE qHistory.recordCount; i++) {
         hasGps = isNumericValue(qHistory.latitude[i]) AND isNumericValue(qHistory.longitude[i]);
@@ -363,24 +394,74 @@
           "statusCode" = statusCode,
           "statusLabel" = labelizeStatus(statusCode),
           "sourceCode" = "COMPANION_APP",
-          "sourceLabel" = "Companion App",
+          "sourceLabel" = (hasGps ? "Companion App GPS" : "Companion App"),
           "hasGps" = hasGps,
           "latitude" = (hasGps ? safeNumber(qHistory.latitude[i]) : nullValue()),
           "longitude" = (hasGps ? safeNumber(qHistory.longitude[i]) : nullValue()),
           "accuracyMeters" = (isNumericValue(qHistory.gps_accuracy_meters[i]) ? safeNumber(qHistory.gps_accuracy_meters[i]) : nullValue()),
           "accuracyLabel" = buildAccuracyLabel(qHistory.gps_accuracy_meters[i]),
+          "altitudeMeters" = (isNumericValue(qHistory.gps_altitude_meters[i]) ? safeNumber(qHistory.gps_altitude_meters[i]) : nullValue()),
+          "speedKnots" = (isNumericValue(qHistory.speed_knots[i]) ? safeNumber(qHistory.speed_knots[i]) : nullValue()),
+          "headingDegrees" = (isNumericValue(qHistory.heading_degrees[i]) ? safeNumber(qHistory.heading_degrees[i]) : nullValue()),
           "capturedAtUtc" = formatUtc(qHistory.location_captured_at_utc[i]),
           "capturedAtLocalLabel" = formatLocalLabel(qHistory.location_captured_at_utc[i], arguments.timezone),
           "receivedAtUtc" = formatUtc(qHistory.received_at_utc[i]),
           "receivedAtLocalLabel" = formatLocalLabel(qHistory.received_at_utc[i], arguments.timezone),
           "companionEventId" = safeNumber(qHistory.id[i]),
           "canonicalEventId" = 0,
+          "mobileSubmissionId" = safeString(qHistory.mobile_submission_id[i]),
+          "processedStatus" = safeString(qHistory.process_status[i]),
           "gpsQualityLabel" = buildAccuracyQualityLabel(qHistory.gps_accuracy_meters[i]),
           "notePreview" = "",
           "rowTone" = buildRowTone(statusCode, hasGps)
         });
       }
-      return items;
+
+      for (i = 1; i LTE qCanonical.recordCount; i++) {
+        payload = parseJsonStruct(qCanonical.payload_json[i]);
+        location = (structKeyExists(payload, "location") AND isStruct(payload.location) ? payload.location : {});
+        hasGps = (
+          structKeyExists(location, "latitude")
+          AND structKeyExists(location, "longitude")
+          AND isNumericValue(location.latitude)
+          AND isNumericValue(location.longitude)
+        );
+        capturedAt = parseStoredUtcDate(structKeyExists(location, "capturedAtUtc") ? location.capturedAtUtc : "");
+        receivedAt = qCanonical.occurred_at_utc[i];
+        checkinAt = firstDate(capturedAt, receivedAt);
+        statusCode = normalizeStatusCode(qCanonical.event_status[i]);
+        arrayAppend(items, {
+          "id" = "active-cruise-" & safeString(qCanonical.id[i]),
+          "checkinAtUtc" = formatUtc(checkinAt),
+          "checkinLocalLabel" = formatLocalLabel(checkinAt, arguments.timezone),
+          "statusCode" = statusCode,
+          "statusLabel" = labelizeStatus(statusCode),
+          "sourceCode" = "ACTIVE_CRUISE_WEB",
+          "sourceLabel" = (hasGps ? "Active Cruise GPS" : "Active Cruise Web"),
+          "hasGps" = hasGps,
+          "latitude" = (hasGps ? safeNumber(location.latitude) : nullValue()),
+          "longitude" = (hasGps ? safeNumber(location.longitude) : nullValue()),
+          "accuracyMeters" = (structKeyExists(location, "accuracyMeters") AND isNumericValue(location.accuracyMeters) ? safeNumber(location.accuracyMeters) : nullValue()),
+          "accuracyLabel" = (structKeyExists(location, "accuracyMeters") ? buildAccuracyLabel(location.accuracyMeters) : ""),
+          "altitudeMeters" = (structKeyExists(location, "altitudeMeters") AND isNumericValue(location.altitudeMeters) ? safeNumber(location.altitudeMeters) : nullValue()),
+          "speedKnots" = (structKeyExists(location, "speedKnots") AND isNumericValue(location.speedKnots) ? safeNumber(location.speedKnots) : nullValue()),
+          "headingDegrees" = (structKeyExists(location, "headingDegrees") AND isNumericValue(location.headingDegrees) ? safeNumber(location.headingDegrees) : nullValue()),
+          "capturedAtUtc" = formatUtc(capturedAt),
+          "capturedAtLocalLabel" = formatLocalLabel(capturedAt, arguments.timezone),
+          "receivedAtUtc" = formatUtc(receivedAt),
+          "receivedAtLocalLabel" = formatLocalLabel(receivedAt, arguments.timezone),
+          "companionEventId" = 0,
+          "canonicalEventId" = safeNumber(qCanonical.id[i]),
+          "mobileSubmissionId" = "",
+          "processedStatus" = "RECORDED",
+          "gpsQualityLabel" = (structKeyExists(location, "accuracyMeters") ? buildAccuracyQualityLabel(location.accuracyMeters) : "Unknown"),
+          "notePreview" = "",
+          "rowTone" = buildRowTone(statusCode, hasGps)
+        });
+      }
+
+      sortGpsHistoryItemsDesc(items);
+      return limitArray(items, limitRows);
     </cfscript>
   </cffunction>
 
@@ -395,6 +476,23 @@
       items = appendCanonicalAuditItems(items, arguments.userId, arguments.floatPlanId, arguments.timezone);
       sortAuditItemsDesc(items);
       return limitArray(items, 20);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="findLatestGpsHistoryLocation" access="private" returntype="struct" output="false">
+    <cfargument name="gpsHistory" type="array" required="true">
+    <cfscript>
+      var i = 0;
+      for (i = 1; i LTE arrayLen(arguments.gpsHistory); i++) {
+        if (
+          isStruct(arguments.gpsHistory[i])
+          AND structKeyExists(arguments.gpsHistory[i], "hasGps")
+          AND arguments.gpsHistory[i].hasGps
+        ) {
+          return arguments.gpsHistory[i];
+        }
+      }
+      return {};
     </cfscript>
   </cffunction>
 
@@ -511,7 +609,7 @@
     <cfargument name="timezone" type="string" required="true">
     <cfscript>
       var qEvents = queryExecute("
-        SELECT id, event_status, occurred_at_utc, source
+        SELECT id, event_status, occurred_at_utc, source, payload_json
         FROM floatplan_events
         WHERE floatplan_id = :floatPlanId
           AND user_id = :userId
@@ -526,9 +624,20 @@
       }, { datasource = variables.datasource });
       var i = 0;
       var statusCode = "";
+      var payload = {};
+      var location = {};
+      var hasGps = false;
 
       for (i = 1; i LTE qEvents.recordCount; i++) {
         statusCode = normalizeStatusCode(qEvents.event_status[i]);
+        payload = parseJsonStruct(qEvents.payload_json[i]);
+        location = (structKeyExists(payload, "location") AND isStruct(payload.location) ? payload.location : {});
+        hasGps = (
+          structKeyExists(location, "latitude")
+          AND structKeyExists(location, "longitude")
+          AND isNumericValue(location.latitude)
+          AND isNumericValue(location.longitude)
+        );
         arrayAppend(arguments.items, buildAuditItem(
           "canonical-" & qEvents.id[i],
           qEvents.occurred_at_utc[i],
@@ -543,6 +652,22 @@
           0,
           true
         ));
+        if (hasGps) {
+          arrayAppend(arguments.items, buildAuditItem(
+            "active-cruise-gps-" & qEvents.id[i],
+            firstDate(parseStoredUtcDate(structKeyExists(location, "capturedAtUtc") ? location.capturedAtUtc : ""), qEvents.occurred_at_utc[i]),
+            arguments.timezone,
+            "GPS_CAPTURED",
+            "GPS captured with check-in",
+            "GPS coordinates were stored from Active Cruise" & (structKeyExists(location, "accuracyMeters") AND len(buildAccuracyLabel(location.accuracyMeters)) ? " with " & buildAccuracyLabel(location.accuracyMeters) & " accuracy." : "."),
+            "info",
+            "floatplan_events",
+            0,
+            safeNumber(qEvents.id[i]),
+            0,
+            false
+          ));
+        }
       }
       return arguments.items;
     </cfscript>
@@ -662,7 +787,7 @@
   </cffunction>
 
   <cffunction name="buildLastCheckinLocation" access="private" returntype="struct" output="false">
-    <cfargument name="qLatestGps" type="query" required="true">
+    <cfargument name="latestGps" type="struct" required="true">
     <cfargument name="timezone" type="string" required="true">
     <cfargument name="nowUtc" type="any" required="true">
     <cfscript>
@@ -672,33 +797,37 @@
       var ageMinutes = 0;
       var statusCode = "";
 
-      if (arguments.qLatestGps.recordCount EQ 0) {
+      if (
+        !isStruct(arguments.latestGps)
+        OR !structKeyExists(arguments.latestGps, "hasGps")
+        OR !arguments.latestGps.hasGps
+      ) {
         return out;
       }
 
-      capturedAt = arguments.qLatestGps.location_captured_at_utc[1];
-      receivedAt = arguments.qLatestGps.received_at_utc[1];
-      statusCode = normalizeStatusCode(arguments.qLatestGps.canonical_status[1]);
+      capturedAt = parseStoredUtcDate(safeString(arguments.latestGps.capturedAtUtc));
+      receivedAt = parseStoredUtcDate(safeString(arguments.latestGps.receivedAtUtc));
+      statusCode = normalizeStatusCode(arguments.latestGps.statusCode);
       out.hasLocation = true;
-      out.latitude = safeNumber(arguments.qLatestGps.latitude[1]);
-      out.longitude = safeNumber(arguments.qLatestGps.longitude[1]);
-      out.accuracyMeters = (isNumericValue(arguments.qLatestGps.gps_accuracy_meters[1]) ? safeNumber(arguments.qLatestGps.gps_accuracy_meters[1]) : nullValue());
-      out.accuracyLabel = buildAccuracyLabel(arguments.qLatestGps.gps_accuracy_meters[1]);
-      out.accuracyQualityLabel = buildAccuracyQualityLabel(arguments.qLatestGps.gps_accuracy_meters[1]);
-      out.altitudeMeters = (isNumericValue(arguments.qLatestGps.gps_altitude_meters[1]) ? safeNumber(arguments.qLatestGps.gps_altitude_meters[1]) : nullValue());
-      out.speedKnots = (isNumericValue(arguments.qLatestGps.speed_knots[1]) ? safeNumber(arguments.qLatestGps.speed_knots[1]) : nullValue());
-      out.headingDegrees = (isNumericValue(arguments.qLatestGps.heading_degrees[1]) ? safeNumber(arguments.qLatestGps.heading_degrees[1]) : nullValue());
+      out.latitude = safeNumber(arguments.latestGps.latitude);
+      out.longitude = safeNumber(arguments.latestGps.longitude);
+      out.accuracyMeters = (structKeyExists(arguments.latestGps, "accuracyMeters") AND !isNull(arguments.latestGps.accuracyMeters) AND isNumericValue(arguments.latestGps.accuracyMeters) ? safeNumber(arguments.latestGps.accuracyMeters) : nullValue());
+      out.accuracyLabel = buildAccuracyLabel(out.accuracyMeters);
+      out.accuracyQualityLabel = buildAccuracyQualityLabel(out.accuracyMeters);
+      out.altitudeMeters = (structKeyExists(arguments.latestGps, "altitudeMeters") AND !isNull(arguments.latestGps.altitudeMeters) AND isNumericValue(arguments.latestGps.altitudeMeters) ? safeNumber(arguments.latestGps.altitudeMeters) : nullValue());
+      out.speedKnots = (structKeyExists(arguments.latestGps, "speedKnots") AND !isNull(arguments.latestGps.speedKnots) AND isNumericValue(arguments.latestGps.speedKnots) ? safeNumber(arguments.latestGps.speedKnots) : nullValue());
+      out.headingDegrees = (structKeyExists(arguments.latestGps, "headingDegrees") AND !isNull(arguments.latestGps.headingDegrees) AND isNumericValue(arguments.latestGps.headingDegrees) ? safeNumber(arguments.latestGps.headingDegrees) : nullValue());
       out.capturedAtUtc = formatUtc(capturedAt);
       out.capturedAtLocalLabel = formatLocalLabel(capturedAt, arguments.timezone);
       out.receivedAtUtc = formatUtc(receivedAt);
       out.receivedAtLocalLabel = formatLocalLabel(receivedAt, arguments.timezone);
-      out.sourceCode = "COMPANION_APP";
-      out.sourceLabel = "Companion App GPS";
+      out.sourceCode = safeString(arguments.latestGps.sourceCode);
+      out.sourceLabel = safeString(arguments.latestGps.sourceLabel);
       out.statusCode = statusCode;
       out.statusLabel = labelizeStatus(statusCode);
-      out.notePreview = "";
-      out.companionEventId = safeNumber(arguments.qLatestGps.id[1]);
-      out.canonicalEventId = 0;
+      out.notePreview = safeString(arguments.latestGps.notePreview);
+      out.companionEventId = safeNumber(arguments.latestGps.companionEventId);
+      out.canonicalEventId = safeNumber(arguments.latestGps.canonicalEventId);
       if (isDate(capturedAt) AND isDate(arguments.nowUtc)) {
         ageMinutes = max(0, dateDiff("n", capturedAt, arguments.nowUtc));
         out.ageMinutes = ageMinutes;
@@ -775,7 +904,7 @@
 
   <cffunction name="buildTechnicalSnapshot" access="private" returntype="struct" output="false">
     <cfargument name="dto" type="struct" required="true">
-    <cfargument name="qLatestGps" type="query" required="true">
+    <cfargument name="latestGps" type="struct" required="true">
     <cfscript>
       var out = duplicate(arguments.dto.technicalSnapshot);
       out.monitoringRowId = arguments.dto.monitoring.monitoringRowId;
@@ -783,9 +912,9 @@
       out.monitoringMode = arguments.dto.monitoring.mode;
       out.companionEventId = arguments.dto.lastCheckinLocation.companionEventId;
       out.canonicalEventId = arguments.dto.lastCheckinLocation.canonicalEventId;
-      if (arguments.qLatestGps.recordCount GT 0) {
-        out.mobileSubmissionId = safeString(arguments.qLatestGps.mobile_submission_id[1]);
-        out.processedStatus = safeString(arguments.qLatestGps.process_status[1]);
+      if (isStruct(arguments.latestGps) AND structKeyExists(arguments.latestGps, "hasGps") AND arguments.latestGps.hasGps) {
+        out.mobileSubmissionId = (structKeyExists(arguments.latestGps, "mobileSubmissionId") ? safeString(arguments.latestGps.mobileSubmissionId) : "");
+        out.processedStatus = (structKeyExists(arguments.latestGps, "processedStatus") ? safeString(arguments.latestGps.processedStatus) : "");
         out.locationCapturedAtUtc = arguments.dto.lastCheckinLocation.capturedAtUtc;
       }
       out.duplicateReplay = false;
@@ -1250,6 +1379,45 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="parseStoredUtcDate" access="private" returntype="any" output="false">
+    <cfargument name="value" type="any" required="true">
+    <cfscript>
+      var raw = safeString(arguments.value);
+      var normalized = "";
+      if (isDate(arguments.value)) {
+        return arguments.value;
+      }
+      if (!len(raw)) {
+        return "";
+      }
+      normalized = replace(raw, "T", " ", "one");
+      normalized = reReplace(normalized, "Z$", "", "one");
+      normalized = reReplace(normalized, "\.\d+", "", "one");
+      normalized = reReplace(normalized, "([+-]\d{2}:\d{2})$", "", "one");
+      if (!isDate(normalized)) {
+        return "";
+      }
+      return parseDateTime(normalized);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="parseJsonStruct" access="private" returntype="struct" output="false">
+    <cfargument name="value" type="any" required="true">
+    <cfscript>
+      var raw = safeString(arguments.value);
+      var parsed = {};
+      if (!len(raw)) {
+        return {};
+      }
+      try {
+        parsed = deserializeJSON(raw);
+      } catch (any parseErr) {
+        return {};
+      }
+      return isStruct(parsed) ? parsed : {};
+    </cfscript>
+  </cffunction>
+
   <cffunction name="valueAt" access="private" returntype="any" output="false">
     <cfargument name="q" type="query" required="true">
     <cfargument name="column" type="string" required="true">
@@ -1345,6 +1513,24 @@
       for (i = 1; i LTE arrayLen(arguments.items); i++) {
         for (j = i + 1; j LTE arrayLen(arguments.items); j++) {
           if (safeString(arguments.items[j].occurredAtUtc) GT safeString(arguments.items[i].occurredAtUtc)) {
+            tmp = arguments.items[i];
+            arguments.items[i] = arguments.items[j];
+            arguments.items[j] = tmp;
+          }
+        }
+      }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="sortGpsHistoryItemsDesc" access="private" returntype="void" output="false">
+    <cfargument name="items" type="array" required="true">
+    <cfscript>
+      var i = 0;
+      var j = 0;
+      var tmp = {};
+      for (i = 1; i LTE arrayLen(arguments.items); i++) {
+        for (j = i + 1; j LTE arrayLen(arguments.items); j++) {
+          if (safeString(arguments.items[j].checkinAtUtc) GT safeString(arguments.items[i].checkinAtUtc)) {
             tmp = arguments.items[i];
             arguments.items[i] = arguments.items[j];
             arguments.items[j] = tmp;

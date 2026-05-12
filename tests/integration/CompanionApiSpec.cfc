@@ -554,6 +554,11 @@ component extends="testbox.system.BaseSpec" output="false" {
             expect(val(response.eventId ?: 0)).toBeGT(0, serializeJSON(response));
             expect(structKeyExists(response, "companion")).toBeTrue(serializeJSON(response));
             expect(response.companion.SUCCESS).toBeTrue(serializeJSON(response.companion));
+            expect(structKeyExists(response.companion.monitoring, "lastCheckinLocation")).toBeTrue(serializeJSON(response.companion.monitoring));
+            expect(response.companion.monitoring.lastCheckinLocation.hasGps).toBeTrue(serializeJSON(response.companion.monitoring.lastCheckinLocation));
+            expect(numberFormat(val(response.companion.monitoring.lastCheckinLocation.latitude), "0.0000000")).toBe("29.1234567", serializeJSON(response.companion.monitoring.lastCheckinLocation));
+            expect(numberFormat(val(response.companion.monitoring.lastCheckinLocation.longitude), "0.0000000")).toBe("-83.1234567", serializeJSON(response.companion.monitoring.lastCheckinLocation));
+            expect(response.companion.monitoring.lastCheckinLocation.coordinateLabel).toBe("29.1234567, -83.1234567", serializeJSON(response.companion.monitoring.lastCheckinLocation));
 
             eventRow = loadCompanionEventByMobileId(mobileId);
             expect(eventRow.process_status).toBe("PROCESSED", serializeJSON(eventRow));

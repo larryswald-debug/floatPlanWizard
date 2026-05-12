@@ -60,6 +60,41 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(arrayLen(model.gpsHistory) LTE 20).toBeTrue(serializeJSON(model.gpsHistory));
         expect(arrayLen(forbidden)).toBe(0, serializeJSON(forbidden));
       });
+
+      it("uses Active Cruise GPS from canonical check-in payloads when that is the latest location source", function() {
+        var fixture = findMonitoringAuditFixture();
+        var insertedEventId = 0;
+        var model = {};
+        var activeCruiseHistoryRows = [];
+        var forbidden = [];
+
+        if (!fixture.hasFixture) {
+          skip("No active route-backed monitoring fixture is available.");
+        }
+
+        try {
+          insertedEventId = insertActiveCruiseGpsCanonicalEvent(fixture);
+          model = variables.service.getMonitoringConsoleViewModel(fixture.userId, fixture.floatPlanId);
+          forbidden = variables.service.scanForbiddenPrivateKeysForTests(model);
+          activeCruiseHistoryRows = findGpsHistoryRowsBySource(model.gpsHistory, "ACTIVE_CRUISE_WEB");
+
+          expect(model.success).toBeTrue(serializeJSON(model));
+          expect(model.lastCheckinLocation.hasLocation).toBeTrue(serializeJSON(model.lastCheckinLocation));
+          expect(model.lastCheckinLocation.sourceCode).toBe("ACTIVE_CRUISE_WEB", serializeJSON(model.lastCheckinLocation));
+          expect(model.lastCheckinLocation.sourceLabel).toBe("Active Cruise GPS", serializeJSON(model.lastCheckinLocation));
+          expect(model.lastCheckinLocation.canonicalEventId).toBe(insertedEventId, serializeJSON(model.lastCheckinLocation));
+          expect(model.lastCheckinLocation.companionEventId).toBe(0, serializeJSON(model.lastCheckinLocation));
+          expect(numberFormat(val(model.lastCheckinLocation.latitude), "0.0000000")).toBe("30.1234567", serializeJSON(model.lastCheckinLocation));
+          expect(numberFormat(val(model.lastCheckinLocation.longitude), "0.0000000")).toBe("-84.1234567", serializeJSON(model.lastCheckinLocation));
+          expect(arrayLen(activeCruiseHistoryRows)).toBeGT(0, serializeJSON(model.gpsHistory));
+          expect(activeCruiseHistoryRows[1].canonicalEventId).toBe(insertedEventId, serializeJSON(activeCruiseHistoryRows[1]));
+          expect(arrayLen(forbidden)).toBe(0, serializeJSON(forbidden));
+        } finally {
+          if (insertedEventId GT 0) {
+            deleteCanonicalEvent(insertedEventId);
+          }
+        }
+      });
     });
   }
 
@@ -79,6 +114,8 @@ component extends="testbox.system.BaseSpec" output="false" {
        INNER JOIN floatplan_monitoring fm
           ON fm.float_plan_id = fp.floatPlanId
          AND fm.user_id = fp.userId
+         AND UPPER(TRIM(fm.monitor_state)) <> 'CLOSED'
+         AND fm.closed_at IS NULL
        LEFT JOIN floatplan_companion_events fce
           ON fce.user_id = fp.userId
          AND fce.floatplan_id = fp.floatPlanId
@@ -144,5 +181,97 @@ component extends="testbox.system.BaseSpec" output="false" {
       }
     }
     return {};
+  }
+
+  private numeric function insertActiveCruiseGpsCanonicalEvent(required struct fixture) {
+    var payload = {
+      status_label = "On Track",
+      monitoring_status = "ON_TRACK",
+      checkin_context = "",
+      note_body = "",
+      stream_id = 0,
+      source_post_id = 0,
+      is_overnight_transition = false,
+      legacy_history_not_backfilled = true,
+      location = {
+        source = "ACTIVE_CRUISE_WEB",
+        latitude = 30.1234567,
+        longitude = -84.1234567,
+        accuracyMeters = 15.2,
+        capturedAtUtc = dateTimeFormat(dateAdd("n", 1, now()), "yyyy-mm-dd'T'HH:nn:ss'Z'")
+      }
+    };
+    var eventKey = "monitoring-console-active-cruise-gps-" & replace(createUUID(), "-", "", "all");
+    var qInserted = queryNew("");
+
+    queryExecute(
+      "INSERT INTO floatplan_events (
+          floatplan_id,
+          user_id,
+          route_instance_id,
+          route_leg_order,
+          event_type,
+          event_status,
+          occurred_at_utc,
+          source,
+          actor_user_id,
+          source_checkin_id,
+          source_monitoring_id,
+          source_post_id,
+          idempotency_key,
+          payload_json
+       ) VALUES (
+          :floatPlanId,
+          :userId,
+          :routeInstanceId,
+          NULL,
+          'CHECKIN_RECEIVED',
+          'ON_TRACK',
+          UTC_TIMESTAMP(),
+          'active_cruise_checkin',
+          :userId,
+          NULL,
+          0,
+          0,
+          :eventKey,
+          :payloadJson
+       )",
+      {
+        floatPlanId = { value = arguments.fixture.floatPlanId, cfsqltype = "cf_sql_integer" },
+        userId = { value = arguments.fixture.userId, cfsqltype = "cf_sql_integer" },
+        routeInstanceId = { value = arguments.fixture.routeInstanceId, cfsqltype = "cf_sql_integer" },
+        eventKey = { value = eventKey, cfsqltype = "cf_sql_varchar" },
+        payloadJson = { value = serializeJSON(payload), cfsqltype = "cf_sql_longvarchar" }
+      },
+      { datasource = "fpw" }
+    );
+
+    qInserted = queryExecute("SELECT LAST_INSERT_ID() AS event_id", {}, { datasource = "fpw" });
+    return val(qInserted.event_id[1]);
+  }
+
+  private array function findGpsHistoryRowsBySource(required array items, required string sourceCode) {
+    var matches = [];
+    var i = 0;
+    for (i = 1; i <= arrayLen(arguments.items); i++) {
+      if (
+        isStruct(arguments.items[i])
+        AND structKeyExists(arguments.items[i], "sourceCode")
+        AND arguments.items[i].sourceCode EQ arguments.sourceCode
+      ) {
+        arrayAppend(matches, arguments.items[i]);
+      }
+    }
+    return matches;
+  }
+
+  private void function deleteCanonicalEvent(required numeric eventId) {
+    queryExecute(
+      "DELETE FROM floatplan_events WHERE id = :eventId",
+      {
+        eventId = { value = arguments.eventId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
   }
 }

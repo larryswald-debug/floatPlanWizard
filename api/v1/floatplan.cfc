@@ -177,7 +177,8 @@
                         <cfset arrivedCheckinResult.AUTH = true>
                         <cfoutput>#serializeJSON(arrivedCheckinResult)#</cfoutput>
                     <cfelseif len(checkinStatus) OR structKeyExists(body, "note")>
-                        <cfset var cruiseCheckinResult = submitActiveCruiseCheckIn(userId, checkinId, checkinStatus, checkinNote, checkinContext)>
+                        <cfset var checkinLocation = (structKeyExists(body, "location") ? body.location : "")>
+                        <cfset var cruiseCheckinResult = submitActiveCruiseCheckIn(userId, checkinId, checkinStatus, checkinNote, checkinContext, checkinLocation)>
                         <cfif structKeyExists(cruiseCheckinResult, "success") AND NOT structKeyExists(cruiseCheckinResult, "SUCCESS")>
                             <cfset cruiseCheckinResult.SUCCESS = cruiseCheckinResult.success>
                         </cfif>
@@ -3179,6 +3180,7 @@
         <cfargument name="status" type="string" required="true">
         <cfargument name="note" type="string" required="false" default="">
         <cfargument name="checkinContext" type="string" required="false" default="">
+        <cfargument name="location" type="any" required="false" default="">
         <cfscript>
             var result = { "success" = false };
             var allowedStatuses = "On Track,Delayed,Changed Plan,Assistance Needed,Secure for the Night";
@@ -3227,6 +3229,7 @@
             var scheduledMonitoringResult = {};
             var shouldStartOperationallyForCheckin = false;
             var operationalStartResult = {};
+            var activeCruiseLocation = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.SUCCESS = false;
@@ -3250,6 +3253,14 @@
                 result.ERROR = "INVALID_CHECKIN_CONTEXT";
                 result.MESSAGE = "checkinContext must be blank or overnight.";
                 return result;
+            }
+
+            activeCruiseLocation = validateActiveCruiseCheckinLocation(arguments.location);
+            if (
+                !structKeyExists(activeCruiseLocation, "SUCCESS")
+                OR activeCruiseLocation.SUCCESS NEQ true
+            ) {
+                return activeCruiseLocation;
             }
 
             qPlan = queryExecute(
@@ -3602,6 +3613,14 @@
                         "is_overnight_transition" = isOvernightTransition,
                         "legacy_history_not_backfilled" = true
                     };
+                    if (
+                        structKeyExists(activeCruiseLocation, "hasLocation")
+                        AND activeCruiseLocation.hasLocation
+                        AND structKeyExists(activeCruiseLocation, "location")
+                        AND isStruct(activeCruiseLocation.location)
+                    ) {
+                        canonicalPayload.location = activeCruiseLocation.location;
+                    }
                     canonicalActivityService = createObject("component", resolveApiV1ComponentPath("TripActivityWriterService")).init(ds);
                     canonicalActivityResult = canonicalActivityService.recordActiveCruiseCheckin(
                         floatPlanId = arguments.floatPlanId,
@@ -3679,6 +3698,150 @@
                 }
             }
             return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="validateActiveCruiseCheckinLocation" access="private" returntype="struct" output="false">
+        <cfargument name="location" type="any" required="false" default="">
+        <cfscript>
+            var rawLocation = {};
+            var result = {
+                "SUCCESS" = true,
+                "success" = true,
+                "AUTH" = true,
+                "hasLocation" = false,
+                "location" = {}
+            };
+            var capturedAtRaw = "";
+            var capturedAt = {};
+
+            if (!isStruct(arguments.location) OR structCount(arguments.location) EQ 0) {
+                return result;
+            }
+
+            rawLocation = arguments.location;
+
+            if (!hasActiveCruiseNumericField(rawLocation, "latitude") OR val(rawLocation.latitude) LT -90 OR val(rawLocation.latitude) GT 90) {
+                return activeCruiseLocationError("Latitude must be between -90 and 90.");
+            }
+            if (!hasActiveCruiseNumericField(rawLocation, "longitude") OR val(rawLocation.longitude) LT -180 OR val(rawLocation.longitude) GT 180) {
+                return activeCruiseLocationError("Longitude must be between -180 and 180.");
+            }
+
+            capturedAtRaw = readActiveCruiseLocationString(rawLocation, "capturedAtUtc");
+            if (!len(capturedAtRaw)) {
+                return activeCruiseLocationError("Location capturedAtUtc is required.");
+            }
+            capturedAt = parseActiveCruiseUtcDate(capturedAtRaw);
+            if (!capturedAt.SUCCESS) {
+                return activeCruiseLocationError("Location capturedAtUtc must be parseable.");
+            }
+
+            result.hasLocation = true;
+            result.location = {
+                "source" = "ACTIVE_CRUISE_WEB",
+                "latitude" = val(rawLocation.latitude),
+                "longitude" = val(rawLocation.longitude),
+                "capturedAtUtc" = dateTimeFormat(capturedAt.value, "yyyy-mm-dd'T'HH:nn:ss'Z'")
+            };
+
+            if (hasActiveCruiseOptionalValue(rawLocation, "accuracyMeters")) {
+                if (!isNumeric(rawLocation.accuracyMeters) OR val(rawLocation.accuracyMeters) LT 0) {
+                    return activeCruiseLocationError("GPS accuracy must be numeric and non-negative.");
+                }
+                result.location.accuracyMeters = val(rawLocation.accuracyMeters);
+            }
+            if (hasActiveCruiseOptionalValue(rawLocation, "altitudeMeters")) {
+                if (!isNumeric(rawLocation.altitudeMeters)) {
+                    return activeCruiseLocationError("GPS altitude must be numeric.");
+                }
+                result.location.altitudeMeters = val(rawLocation.altitudeMeters);
+            }
+            if (hasActiveCruiseOptionalValue(rawLocation, "speedKnots")) {
+                if (!isNumeric(rawLocation.speedKnots) OR val(rawLocation.speedKnots) LT 0) {
+                    return activeCruiseLocationError("Speed must be numeric and non-negative.");
+                }
+                result.location.speedKnots = val(rawLocation.speedKnots);
+            }
+            if (hasActiveCruiseOptionalValue(rawLocation, "headingDegrees")) {
+                if (!isNumeric(rawLocation.headingDegrees) OR val(rawLocation.headingDegrees) LT 0 OR val(rawLocation.headingDegrees) GT 360) {
+                    return activeCruiseLocationError("Heading must be between 0 and 360 degrees.");
+                }
+                result.location.headingDegrees = val(rawLocation.headingDegrees);
+            }
+
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="activeCruiseLocationError" access="private" returntype="struct" output="false">
+        <cfargument name="message" type="string" required="true">
+        <cfscript>
+            return {
+                "SUCCESS" = false,
+                "success" = false,
+                "AUTH" = true,
+                "ERROR" = "INVALID_LOCATION",
+                "MESSAGE" = arguments.message
+            };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="hasActiveCruiseNumericField" access="private" returntype="boolean" output="false">
+        <cfargument name="source" type="struct" required="true">
+        <cfargument name="key" type="string" required="true">
+        <cfscript>
+            return (
+                structKeyExists(arguments.source, arguments.key)
+                AND !isNull(arguments.source[arguments.key])
+                AND len(trim(toString(arguments.source[arguments.key])))
+                AND isNumeric(arguments.source[arguments.key])
+            );
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="hasActiveCruiseOptionalValue" access="private" returntype="boolean" output="false">
+        <cfargument name="source" type="struct" required="true">
+        <cfargument name="key" type="string" required="true">
+        <cfscript>
+            if (!structKeyExists(arguments.source, arguments.key) OR isNull(arguments.source[arguments.key]) OR !len(trim(toString(arguments.source[arguments.key])))) {
+                return false;
+            }
+            return true;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="readActiveCruiseLocationString" access="private" returntype="string" output="false">
+        <cfargument name="source" type="struct" required="true">
+        <cfargument name="key" type="string" required="true">
+        <cfscript>
+            if (!structKeyExists(arguments.source, arguments.key) OR isNull(arguments.source[arguments.key])) {
+                return "";
+            }
+            return trim(toString(arguments.source[arguments.key]));
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="parseActiveCruiseUtcDate" access="private" returntype="struct" output="false">
+        <cfargument name="rawValue" type="string" required="true">
+        <cfscript>
+            var raw = trim(arguments.rawValue);
+            var normalized = "";
+
+            if (!len(raw)) {
+                return { "SUCCESS" = false, "success" = false, "value" = "" };
+            }
+
+            normalized = replace(raw, "T", " ", "one");
+            normalized = reReplace(normalized, "Z$", "", "one");
+            normalized = reReplace(normalized, "\.\d+", "", "one");
+            normalized = reReplace(normalized, "([+-]\d{2}:\d{2})$", "", "one");
+
+            if (!isDate(normalized)) {
+                return { "SUCCESS" = false, "success" = false, "value" = "" };
+            }
+
+            return { "SUCCESS" = true, "success" = true, "value" = parseDateTime(normalized) };
         </cfscript>
     </cffunction>
 

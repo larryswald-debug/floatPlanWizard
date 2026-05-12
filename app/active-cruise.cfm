@@ -3483,6 +3483,9 @@
         <cfif len(dailyStartInputValue) GTE 5>
           <cfset dailyStartInputValue = left(dailyStartInputValue, 5)>
         </cfif>
+        <cfif !len(trim(dailyStartInputValue))>
+          <cfset dailyStartInputValue = "08:00">
+        </cfif>
         <cfif addDelayEnabled><cfset addDelayReason = ""></cfif>
         <cfif fpwV2ActionEnabled(timingClearDelayAction) AND manualDelayMinutesTotal LTE 0>
           <cfset clearDelayReason = "No manual delay is currently applied.">
@@ -4144,6 +4147,7 @@
                     <input id="fpwV2DailyStartLocalTime" class="timing-input" type="time" step="60" value="#encodeForHTMLAttribute(dailyStartInputValue)#"<cfif !dailyStartEnabled> disabled</cfif>>
                     <button type="button" class="ac-command-btn" data-ac-v2-timing-action="updateDailyStart" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingDailyStartAction, "endpoint"), ""))#" data-method="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingDailyStartAction, "method"), "POST"))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(timingDailyStartAction, "payload", {})))#" data-confirmation-required="#encodeForHTMLAttribute(toString(fpwV2Get(timingDailyStartAction, "confirmationRequired", false)))#" data-confirmation-message="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingDailyStartAction, "confirmationMessage"), ""))#"<cfif !dailyStartEnabled> disabled aria-disabled="true"</cfif>>#encodeForHTML(fpwV2Text(fpwV2Get(timingDailyStartAction, "label"), "Save Daily Start Time"))#</button>
                   </div>
+                  <div class="action-feedback ac-action-ready-message" id="fpwV2DailyStartFeedback" role="status" aria-live="polite" hidden aria-hidden="true"></div>
                   <cfif len(dailyStartReason)><p class="ac-muted-note">#encodeForHTML(dailyStartReason)#</p></cfif>
                 </div>
 
@@ -4511,9 +4515,11 @@
 
   function renderMap() {
     const mapModel = readMapPayload();
-    const routeGeo = normalizeRouteGeo(mapModel.routeGeo) || buildRouteGeo(mapModel);
+    const routeGeo = normalizeRouteGeo(mapModel.routeGeo);
     const pins = (Array.isArray(mapModel.pins) && mapModel.pins.length) ? mapModel.pins : buildPins(mapModel);
     const currentPosition = normalizePoint(mapModel.currentPosition);
+    const hasRouteGeometry = hasRouteCoordinates(routeGeo);
+    const hasMapPins = pins.length > 0;
     let mapInstance = null;
 
     if (!mapEl || !payloadEl) {
@@ -4523,7 +4529,7 @@
       setMapStatus('Leaflet map renderer is not available.', true);
       return;
     }
-    if (!mapModel.available || !hasRouteCoordinates(routeGeo)) {
+    if (!mapModel.available || (!hasRouteGeometry && !hasMapPins)) {
       setMapStatus('Map geometry is not available from the V2 view model.', true);
       return;
     }
@@ -4540,7 +4546,9 @@
         mode: 'activeCruise'
       });
     }
-    window.FPWFollowMap.renderRoute(routeGeo);
+    if (hasRouteGeometry) {
+      window.FPWFollowMap.renderRoute(routeGeo);
+    }
     window.FPWFollowMap.renderPins(pins);
     window.FPWFollowMap.fitBoundsToRoute(routeGeo, pins);
 
@@ -4673,22 +4681,24 @@
 
   function renderFullMap() {
     const mapModel = readMapPayload();
-    const routeGeo = normalizeRouteGeo(mapModel.routeGeo) || buildRouteGeo(mapModel);
+    const routeGeo = normalizeRouteGeo(mapModel.routeGeo);
     const pins = (Array.isArray(mapModel.pins) && mapModel.pins.length) ? mapModel.pins : buildPins(mapModel);
     const currentPosition = normalizePoint(mapModel.currentPosition);
     const mapInstance = ensureFullMapInstance();
+    const hasRouteGeometry = hasRouteCoordinates(routeGeo);
+    const hasMapPins = pins.length > 0;
 
     if (!mapInstance) {
       setFullMapStatus('Leaflet map renderer is not available.', true);
       return;
     }
-    if (!mapModel.available || !hasRouteCoordinates(routeGeo)) {
+    if (!mapModel.available || (!hasRouteGeometry && !hasMapPins)) {
       setFullMapStatus('Map geometry is not available from the V2 view model.', true);
       return;
     }
 
     resetFullMapLayers();
-    fullMapRouteLayer = buildFullMapRouteLayer(mapInstance, routeGeo);
+    fullMapRouteLayer = (hasRouteGeometry ? buildFullMapRouteLayer(mapInstance, routeGeo) : null);
     fullMapPinLayer = window.L.layerGroup().addTo(mapInstance);
     pins.forEach(function(pin) {
       const point = normalizeMapCoordinate(pin);
@@ -4841,6 +4851,9 @@ window.FPWActiveCruiseV2.refreshFromDocument = function(sourceDoc, options) {
   }
   if (typeof window.FPWActiveCruiseV2.bindTimingPanel === 'function') {
     window.FPWActiveCruiseV2.bindTimingPanel();
+  }
+  if (typeof window.FPWActiveCruiseV2.bindActionPanel === 'function') {
+    window.FPWActiveCruiseV2.bindActionPanel();
   }
 };
 window.FPWActiveCruiseV2.fetchAndRefresh = function(options) {
@@ -6061,6 +6074,20 @@ window.FPWActiveCruiseV2.bindTimingPanel = function() {
     feedback.setAttribute('aria-hidden', 'false');
   }
 
+  function setDailyStartFeedback(message, state) {
+    const dailyStartFeedback = document.getElementById('fpwV2DailyStartFeedback');
+    if (!dailyStartFeedback) {
+      return;
+    }
+    dailyStartFeedback.textContent = message || '';
+    dailyStartFeedback.classList.remove('is-success', 'is-error');
+    if (state) {
+      dailyStartFeedback.classList.add(state);
+    }
+    dailyStartFeedback.hidden = !message;
+    dailyStartFeedback.setAttribute('aria-hidden', message ? 'false' : 'true');
+  }
+
   function resolveEndpoint(endpoint) {
     if (!endpoint) {
       return '';
@@ -6165,14 +6192,23 @@ window.FPWActiveCruiseV2.bindTimingPanel = function() {
       const dailyStartLocalTime = dailyStartInput ? String(dailyStartInput.value || '').trim() : '';
       if (!dailyStartLocalTime) {
         setFeedback('Daily start time is required.', 'is-error');
+        setDailyStartFeedback('Choose a daily start time before saving.', 'is-error');
+        if (dailyStartInput) {
+          dailyStartInput.focus();
+        }
         return;
       }
       const dailyStartMatch = dailyStartLocalTime.match(/^(\d{2}:\d{2})(?::\d{2})?$/);
       if (!dailyStartMatch) {
         setFeedback('Daily start time must use HH:mm format.', 'is-error');
+        setDailyStartFeedback('Use a valid HH:mm daily start time before saving.', 'is-error');
+        if (dailyStartInput) {
+          dailyStartInput.focus();
+        }
         return;
       }
       payload.dailyStartLocalTime = dailyStartMatch[1];
+      setDailyStartFeedback('', '');
     }
 
     if (confirmationRequired && !window.confirm(confirmationMessage)) {
@@ -6275,12 +6311,16 @@ window.FPWActiveCruiseV2.bindTimingPanel();
   updateNoteCounter();
 })();
 
-(function() {
+window.FPWActiveCruiseV2.bindActionPanel = function() {
   const panel = document.getElementById('fpwV2ActionPanel');
   const feedback = document.getElementById('fpwV2ActionFeedback');
   if (!panel || !feedback) {
     return;
   }
+  if (panel.getAttribute('data-ac-v2-action-bound') === 'true') {
+    return;
+  }
+  panel.setAttribute('data-ac-v2-action-bound', 'true');
 
   function setFeedback(message, state) {
     feedback.textContent = message;
@@ -6288,6 +6328,8 @@ window.FPWActiveCruiseV2.bindTimingPanel();
     if (state) {
       feedback.classList.add(state);
     }
+    feedback.hidden = false;
+    feedback.setAttribute('aria-hidden', 'false');
   }
 
   function resolveEndpoint(endpoint) {
@@ -6318,6 +6360,141 @@ window.FPWActiveCruiseV2.bindTimingPanel();
 
   function actionConfirmationRequired(button) {
     return String(button.getAttribute('data-confirmation-required') || '').toLowerCase() === 'true';
+  }
+
+  function restoreButtons(buttons) {
+    buttons.forEach(function(actionButton) {
+      actionButton.disabled = actionButton.hasAttribute('aria-disabled');
+    });
+  }
+
+  function refreshSelectorsForAction(actionName) {
+    if (actionName === 'checkin') {
+      return [
+        '#fpwV2ActionPanel',
+        '#fpwV2TimingPanel',
+        '#acV2RouteProgressPanel'
+      ];
+    }
+    return [];
+  }
+
+  function showRefreshedFeedback(message) {
+    const refreshedFeedback = document.getElementById('fpwV2ActionFeedback');
+    if (refreshedFeedback) {
+      refreshedFeedback.textContent = message;
+      refreshedFeedback.classList.remove('is-error');
+      refreshedFeedback.classList.add('is-success');
+      refreshedFeedback.hidden = false;
+      refreshedFeedback.setAttribute('aria-hidden', 'false');
+    }
+  }
+
+  function buildPositionLocationPayload(position) {
+    const coords = position && position.coords ? position.coords : {};
+    const location = {
+      source: 'ACTIVE_CRUISE_WEB',
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      capturedAtUtc: new Date(
+        position && typeof position.timestamp === 'number'
+          ? position.timestamp
+          : Date.now()
+      ).toISOString()
+    };
+
+    if (typeof coords.accuracy === 'number' && isFinite(coords.accuracy)) {
+      location.accuracyMeters = coords.accuracy;
+    }
+    if (typeof coords.altitude === 'number' && isFinite(coords.altitude)) {
+      location.altitudeMeters = coords.altitude;
+    }
+    if (typeof coords.speed === 'number' && isFinite(coords.speed) && coords.speed >= 0) {
+      location.speedKnots = coords.speed * 1.94384449;
+    }
+    if (typeof coords.heading === 'number' && isFinite(coords.heading)) {
+      location.headingDegrees = coords.heading;
+    }
+    return location;
+  }
+
+  function captureCheckInLocation() {
+    return new Promise(function(resolve) {
+      if (!navigator.geolocation || typeof navigator.geolocation.getCurrentPosition !== 'function') {
+        resolve(null);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        function(position) {
+          resolve(buildPositionLocationPayload(position));
+        },
+        function() {
+          resolve(null);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 8000,
+          maximumAge: 60000
+        }
+      );
+    });
+  }
+
+  function submitAction(endpoint, payload, buttons, actionName) {
+    fetch(endpoint, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+      .then(function(response) {
+        return response.text().then(function(text) {
+          let payload = {};
+          if (text) {
+            try {
+              payload = JSON.parse(text);
+            } catch (parseError) {
+              payload = { success: false, message: text };
+            }
+          }
+          return { ok: response.ok, payload: payload };
+        });
+      })
+      .then(function(result) {
+        const payload = result.payload || {};
+        const success = result.ok && (payload.success === true || payload.SUCCESS === true);
+        const message = responseMessage(payload, success ? 'Action completed.' : 'Action failed.');
+        if (success) {
+          setFeedback(message + ' Refreshing view model...', 'is-success');
+          const refreshSelectors = refreshSelectorsForAction(actionName);
+          if (refreshSelectors.length && typeof window.FPWActiveCruiseV2.fetchAndRefresh === 'function') {
+            return window.FPWActiveCruiseV2.fetchAndRefresh({
+              replaceSelectors: refreshSelectors
+            }).then(function() {
+              showRefreshedFeedback(message);
+            }).catch(function() {
+              setFeedback(message + ' The check-in was submitted, but the view could not refresh. Please refresh manually to see the latest data.', 'is-error');
+              restoreButtons(buttons);
+            });
+          }
+          if (refreshSelectors.length) {
+            setFeedback(message + ' The check-in was submitted, but background refresh is unavailable. Please refresh manually to see the latest data.', 'is-error');
+            restoreButtons(buttons);
+            return;
+          }
+          window.location.reload();
+          return;
+        }
+        setFeedback(message, 'is-error');
+        restoreButtons(buttons);
+      })
+      .catch(function(error) {
+        setFeedback(error && error.message ? error.message : 'Action request failed.', 'is-error');
+        restoreButtons(buttons);
+      });
   }
 
   panel.addEventListener('click', function(event) {
@@ -6355,52 +6532,29 @@ window.FPWActiveCruiseV2.bindTimingPanel();
     buttons.forEach(function(actionButton) {
       actionButton.disabled = true;
     });
-    setFeedback('Submitting action...', '');
 
-    fetch(endpoint, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    })
-      .then(function(response) {
-        return response.text().then(function(text) {
-          let payload = {};
-          if (text) {
-            try {
-              payload = JSON.parse(text);
-            } catch (parseError) {
-              payload = { success: false, message: text };
-            }
+    if (actionName === 'checkin') {
+      setFeedback('Requesting GPS for this check-in...', '');
+      captureCheckInLocation().then(function(location) {
+        if (location) {
+          payload.location = location;
+          setFeedback('GPS captured with check-in. Submitting check-in...', '');
+        } else {
+          if (Object.prototype.hasOwnProperty.call(payload, 'location')) {
+            delete payload.location;
           }
-          return { ok: response.ok, payload: payload };
-        });
-      })
-      .then(function(result) {
-        const payload = result.payload || {};
-        const success = result.ok && (payload.success === true || payload.SUCCESS === true);
-        const message = responseMessage(payload, success ? 'Action completed.' : 'Action failed.');
-        if (success) {
-          setFeedback(message + ' Refreshing view model...', 'is-success');
-          window.location.reload();
-          return;
+          setFeedback('GPS unavailable; submitting check-in without location.', '');
         }
-        setFeedback(message, 'is-error');
-        buttons.forEach(function(actionButton) {
-          actionButton.disabled = actionButton.hasAttribute('aria-disabled');
-        });
-      })
-      .catch(function(error) {
-        setFeedback(error && error.message ? error.message : 'Action request failed.', 'is-error');
-        buttons.forEach(function(actionButton) {
-          actionButton.disabled = actionButton.hasAttribute('aria-disabled');
-        });
+        submitAction(endpoint, payload, buttons, actionName);
       });
+      return;
+    }
+
+    setFeedback('Submitting action...', '');
+    submitAction(endpoint, payload, buttons, actionName);
   });
-})();
+};
+window.FPWActiveCruiseV2.bindActionPanel();
 </script>
 </body>
 </html>
