@@ -57,3 +57,27 @@ snapshot*/
 *.snapshot*
 
 error-context*
+
+# Local/dev cleanup
+.DS_Store
+node_modules/
+.playwright-mcp/
+test-results/
+.codex-snapshots/
+.snapshots/
+tmp/
+*.log
+*.bak
+*.snapshot-*
+
+# Local/dev cleanup
+.DS_Store
+node_modules/
+.playwright-mcp/
+test-results/
+.codex-snapshots/
+.snapshots/
+tmp/
+*.log
+*.bak
+*.snapshot-*
