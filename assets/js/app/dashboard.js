@@ -432,6 +432,14 @@
   }
 
   function onQuickAction(action) {
+    if (action === "create-basic-float-plan") {
+      if (modules.basicFloatPlan && typeof modules.basicFloatPlan.open === "function") {
+        modules.basicFloatPlan.open();
+      } else {
+        scrollToPanel("#expeditionTimelinePanel");
+      }
+      return;
+    }
     if (action === "generate-route") {
       if (!triggerExistingButton("openRouteBuilderBtn")) {
         scrollToPanel("#expeditionTimelinePanel");
@@ -759,6 +767,13 @@
         meta: "Review and send it to activate monitoring for this route.",
         action: "draft-view-send",
         actionLabel: "View & Send Float Plan"
+      });
+    } else if (state.isBasicMember) {
+      steps.push({
+        title: "Create a Basic Float Plan",
+        meta: "Basic members can send one-day float plans with up to 2 saved waypoints.",
+        action: "create-basic-float-plan",
+        actionLabel: "Create Basic Float Plan"
       });
     } else if ((dashboardSignals.floatPlans.total || 0) === 0) {
       steps.push({
@@ -4499,6 +4514,80 @@
       return fallbackText || "Request failed.";
     }
 
+    function getPayloadErrorCode(payload) {
+      if (!payload || typeof payload !== "object") return "";
+      if (payload.errorCode !== undefined && payload.errorCode !== null) {
+        return String(payload.errorCode).trim().toUpperCase();
+      }
+      if (payload.ERROR && payload.ERROR.CODE !== undefined && payload.ERROR.CODE !== null) {
+        return String(payload.ERROR.CODE).trim().toUpperCase();
+      }
+      if (payload.ERROR_CODE !== undefined && payload.ERROR_CODE !== null) {
+        return String(payload.ERROR_CODE).trim().toUpperCase();
+      }
+      return "";
+    }
+
+    function isBasicRouteLibraryRestriction(payload) {
+      return getPayloadErrorCode(payload) === "BASIC_SAVED_ROUTE_RESTRICTED";
+    }
+
+    function renderBasicRoutePanel(payload) {
+      var basicModule = window.FPW && window.FPW.DashboardModules
+        ? window.FPW.DashboardModules.basicFloatPlan
+        : null;
+      state.isBasicMember = true;
+      state.activeTripFloatPlanId = 0;
+      state.activeTripRouteCode = "";
+      state.currentRouteGroup = { HAS_CURRENT_GROUP: false };
+      state.routeState = state.routeState || {};
+      state.routeState.all = [];
+      state.floatPlanState = state.floatPlanState || { all: [], filtered: [], query: "" };
+      state.floatPlanState.all = [];
+      state.floatPlanState.filtered = [];
+      dashboardSignals.routes.total = 0;
+      dashboardSignals.activeRoute = { name: "", isActive: false };
+      setRouteSignals(
+        "Basic Float Plan",
+        "Create a one-day Basic float plan without saving a reusable route.",
+        0
+      );
+      if (summaryEl) {
+        summaryEl.textContent = "Basic float-plan-first workspace";
+      }
+      if (routeEmptyEl) toggleHidden(routeEmptyEl, true);
+      if (accordionEl) {
+        accordionEl.innerHTML = "";
+        toggleHidden(accordionEl, true);
+      }
+      if (basicModule && typeof basicModule.renderPanel === "function") {
+        basicModule.renderPanel(routeListEl, payload);
+      } else if (routeListEl) {
+        routeListEl.innerHTML = ""
+          + '<article class="fpw-basic-floatplan-panel">'
+          + '  <div class="fpw-basic-floatplan-main">'
+          + '    <span class="fpw-basic-kicker">Basic member flow</span>'
+          + '    <h3>Basic Float Plan</h3>'
+          + '    <p>Create a simple one-day float plan with up to 2 saved waypoints.</p>'
+          + '    <button type="button" class="btn-primary" data-basic-floatplan-open>Create Basic Float Plan</button>'
+          + '  </div>'
+          + '</article>';
+      }
+      refreshMissionSummary();
+      renderRecommendedNextSteps();
+      updateCurrentDraftActionButtons();
+    }
+
+    function renderBasicAccessPanel(payload) {
+      renderBasicRoutePanel(payload || {
+        SUCCESS: false,
+        ERROR: "BASIC_SAVED_ROUTE_RESTRICTED",
+        errorCode: "BASIC_SAVED_ROUTE_RESTRICTED",
+        MESSAGE: "Basic members use the Basic Float Plan flow."
+      });
+      setState("ready");
+    }
+
     function normalizeFloatPlanId(value) {
       var planId = parseInt(value, 10);
       if (!Number.isFinite(planId) || planId <= 0) {
@@ -4684,9 +4773,24 @@
       return fetch(url, fetchOptions)
         .then(function (response) {
           if (response.status === 401 || response.status === 403) {
-            var authErr = new Error("Unauthorized");
-            authErr.code = "UNAUTHORIZED";
-            throw authErr;
+            return response.json()
+              .then(function (payload) {
+                if (isBasicRouteLibraryRestriction(payload)) {
+                  return payload;
+                }
+                var authErr = new Error("Unauthorized");
+                authErr.code = "UNAUTHORIZED";
+                authErr.payload = payload;
+                throw authErr;
+              })
+              .catch(function (err) {
+                if (err && err.code === "UNAUTHORIZED") {
+                  throw err;
+                }
+                var authErr = new Error("Unauthorized");
+                authErr.code = "UNAUTHORIZED";
+                throw authErr;
+              });
           }
           return response.json();
         });
@@ -4775,7 +4879,16 @@
               setState("unauthorized");
               return null;
             }
+            if (isBasicRouteLibraryRestriction(routesPayload)) {
+              renderBasicRoutePanel(routesPayload);
+              setState("ready");
+              return null;
+            }
             throw new Error((routesPayload && routesPayload.MESSAGE) ? routesPayload.MESSAGE : "Unable to load routes.");
+          }
+          state.isBasicMember = false;
+          if (modules.basicFloatPlan && typeof modules.basicFloatPlan.setBasicMode === "function") {
+            modules.basicFloatPlan.setBasicMode(false);
           }
           var routes = Array.isArray(routesPayload.ROUTES) ? routesPayload.ROUTES : [];
           var currentGroup = (routesPayload.CURRENT_GROUP && typeof routesPayload.CURRENT_GROUP === "object")
@@ -5006,6 +5119,9 @@
     }
     if (modules.alerts && modules.alerts.init) {
       modules.alerts.init();
+    }
+    if (modules.basicFloatPlan && modules.basicFloatPlan.init) {
+      modules.basicFloatPlan.init();
     }
     if (modules.expeditionTimeline && modules.expeditionTimeline.init) {
       modules.expeditionTimeline.init();

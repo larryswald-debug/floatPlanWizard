@@ -124,6 +124,36 @@
       return request(path, { method: "GET" });
     },
 
+    getBasicFloatPlanDrafts: function () {
+      return request("/floatplan.cfc?method=handle&action=listbasicdrafts", { method: "GET" });
+    },
+
+    getBasicFloatPlanCurrent: function () {
+      return request("/floatplan.cfc?method=handle&action=getbasiccurrent", { method: "GET" });
+    },
+
+	    getBasicFloatPlanDraft: function (floatPlanId) {
+	      var id = parseInt(floatPlanId, 10);
+	      if (!(id > 0)) {
+        return Promise.reject({
+          MESSAGE: "Basic float plan draft id is required."
+        });
+      }
+	      return request("/floatplan.cfc?method=handle&action=getbasicdraft&id=" + encodeURIComponent(id), { method: "GET" });
+	    },
+
+	    getBasicRescueAuthorities: function () {
+	      return request("/floatplan.cfc?method=handle&action=getbasicrescueauthorities", { method: "GET" });
+	    },
+
+	    getBasicFloatPlanPdfDownloadUrl: function (floatPlanId) {
+      var id = parseInt(floatPlanId, 10);
+      if (!(id > 0)) {
+        return "";
+      }
+      return API_BASE + "/floatplan.cfc?method=handle&action=downloadbasicpdf&id=" + encodeURIComponent(id);
+    },
+
     getVessels: function (options) {
       return listGet("vessels", options);
     },
@@ -234,11 +264,40 @@
       });
     },
 
+    saveBasicFloatPlan: function (payload) {
+      payload = payload || {};
+      payload.action = "savebasic";
+      return request("/floatplan.cfc?method=handle", {
+        method: "POST",
+        body: payload
+      });
+    },
+
     sendFloatPlan: function (floatPlanId) {
       return request("/floatplan.cfc?method=handle", {
         method: "POST",
         body: {
           action: "send",
+          floatPlanId: floatPlanId
+        }
+      });
+    },
+
+    sendBasicFloatPlan: function (floatPlanId) {
+      return request("/floatplan.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "sendbasic",
+          floatPlanId: floatPlanId
+        }
+      });
+    },
+
+    closeBasicFloatPlan: function (floatPlanId) {
+      return request("/floatplan.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "closebasic",
           floatPlanId: floatPlanId
         }
       });

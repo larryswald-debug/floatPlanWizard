@@ -9,7 +9,7 @@
     <cfinclude template="../includes/header_styles.cfm">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260504-dashboard-port-a">
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260513-basic-details">
 </head>
 <body class="dashboard-body" data-fpw-page="dashboard">
 
@@ -1025,6 +1025,165 @@
     </div>
 </div>
 
+<div class="modal fade" id="basicFloatPlanModal" tabindex="-1" aria-labelledby="basicFloatPlanLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="basicFloatPlanLabel">Basic Float Plan</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body">
+                <div id="basicFloatPlanMessage" class="alert d-none" role="status"></div>
+                <div id="basicFloatPlanSentState" class="fpw-basic-sent-state d-none" aria-live="polite">
+                    <h3>Basic Float Plan Sent</h3>
+                    <p>Your one-day float plan has been sent. Basic monitoring is active.</p>
+                    <p class="fpw-basic-upgrade-note">Upgrade to Premium for saved routes, Active Cruise, Follow Page sharing, multi-day trips, and advanced monitoring.</p>
+                </div>
+
+                <form id="basicFloatPlanForm" class="fpw-basic-floatplan-form" novalidate>
+                    <input type="hidden" id="basicFloatPlanId" value="0">
+
+                    <section class="fpw-basic-form-section" aria-labelledby="basicFloatPlanBasicsTitle">
+                        <div class="fpw-basic-form-heading">
+                            <h3 id="basicFloatPlanBasicsTitle">Trip basics</h3>
+                            <p>Create a route-less, one-day Basic float plan. This does not create a saved route.</p>
+                        </div>
+                        <div class="row">
+                            <div class="col-lg-6 mb-3">
+                                <label class="form-label" for="basicPlanName">Float plan name *</label>
+                                <input type="text" class="form-control" id="basicPlanName" required>
+                                <div class="invalid-feedback">Float plan name is required.</div>
+                            </div>
+                            <div class="col-lg-3 mb-3">
+                                <label class="form-label" for="basicPlanVesselName">Vessel name *</label>
+                                <input type="text" class="form-control" id="basicPlanVesselName" maxlength="255" required>
+                                <div class="invalid-feedback">Enter the vessel name.</div>
+                            </div>
+                            <div class="col-lg-3 mb-3">
+                                <label class="form-label" for="basicPlanOperatorName">Operator name *</label>
+                                <input type="text" class="form-control" id="basicPlanOperatorName" maxlength="255" required>
+                                <div class="invalid-feedback">Enter the operator name.</div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-lg-3 mb-3">
+                                <label class="form-label" for="basicPlanCaptainName">Captain name *</label>
+                                <input type="text" class="form-control" id="basicPlanCaptainName" maxlength="255" required>
+                                <div class="invalid-feedback">Enter the captain name.</div>
+                            </div>
+                            <div class="col-lg-3 mb-3">
+                                <label class="form-label" for="basicPlanEmail">Captain email *</label>
+                                <input type="email" class="form-control" id="basicPlanEmail" autocomplete="email" required>
+                                <div class="invalid-feedback">Enter an email address.</div>
+                            </div>
+                            <div class="col-lg-3 mb-3">
+                                <label class="form-label" for="basicAuthorityId">Official Emergency Authority *</label>
+                                <select class="form-select" id="basicAuthorityId" required>
+                                    <option value="">Loading authorities...</option>
+                                </select>
+                                <div class="invalid-feedback">Select an official emergency authority.</div>
+                            </div>
+                            <div class="col-lg-3 mb-3">
+                                <label class="form-label" for="basicRescuePhone">Authority phone</label>
+                                <input type="tel" class="form-control" id="basicRescuePhone" inputmode="tel" readonly aria-readonly="true">
+                                <div class="form-text">Phone is set from the selected authority.</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="fpw-basic-form-section" aria-labelledby="basicFloatPlanTimingTitle">
+                        <div class="fpw-basic-form-heading">
+                            <h3 id="basicFloatPlanTimingTitle">Same-day timing</h3>
+                            <p>Basic float plans are limited to trips up to 24 hours.</p>
+                        </div>
+                        <div class="row">
+                            <div class="col-lg-6 mb-3">
+                                <label class="form-label" for="basicDepartingFrom">Home port / launch location *</label>
+                                <input type="text" class="form-control" id="basicDepartingFrom" required>
+                                <div class="invalid-feedback">Enter the launch location.</div>
+                            </div>
+                            <div class="col-lg-6 mb-3">
+                                <label class="form-label" for="basicDestination">Destination / turnaround point *</label>
+                                <input type="text" class="form-control" id="basicDestination" required>
+                                <div class="invalid-feedback">Enter the destination / turnaround point.</div>
+                                <div class="form-text">Return to launch is implied.</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-lg-3 mb-3">
+                                <label class="form-label" for="basicDepartureTime">Departure time *</label>
+                                <input type="datetime-local" class="form-control" id="basicDepartureTime" required>
+                                <div class="invalid-feedback">Enter a departure time.</div>
+                            </div>
+                            <div class="col-lg-3 mb-3">
+                                <label class="form-label" for="basicDepartureTimezone">Departure timezone *</label>
+                                <select class="form-select" id="basicDepartureTimezone" required></select>
+                                <div class="invalid-feedback">Select a departure timezone.</div>
+                            </div>
+                            <div class="col-lg-3 mb-3">
+                                <label class="form-label" for="basicReturnTime">Return time *</label>
+                                <input type="datetime-local" class="form-control" id="basicReturnTime" required>
+                                <div class="invalid-feedback">Return must be after departure and within 24 hours.</div>
+                            </div>
+                            <div class="col-lg-3 mb-3">
+                                <label class="form-label" for="basicReturnTimezone">Return timezone *</label>
+                                <select class="form-select" id="basicReturnTimezone" required></select>
+                                <div class="invalid-feedback">Select a return timezone.</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="fpw-basic-form-section" aria-labelledby="basicFloatPlanStopsTitle">
+                        <div class="fpw-basic-form-heading">
+                            <h3 id="basicFloatPlanStopsTitle">Waypoints and people</h3>
+                            <p>Select up to 2 saved waypoints and enter one notification contact.</p>
+                        </div>
+                        <div class="row">
+                            <div class="col-lg-4 mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label class="form-label mb-0">Waypoints</label>
+                                    <span class="fpw-basic-count" id="basicSelectedWaypointCount">0 / 2</span>
+                                </div>
+                                <div class="fpw-basic-options-list" id="basicWaypointOptions" aria-describedby="basicWaypointHelp">
+                                    <p class="fpw-basic-options-empty">Loading waypoints...</p>
+                                </div>
+                                <p class="form-text" id="basicWaypointHelp">Use the setup tile below if you need to add saved locations first.</p>
+                            </div>
+                            <div class="col-lg-4 mb-3">
+                                <label class="form-label">Passengers</label>
+                                <div class="fpw-basic-options-list" id="basicPassengerOptions">
+                                    <p class="fpw-basic-options-empty">Loading passengers...</p>
+                                </div>
+                            </div>
+                            <div class="col-lg-4 mb-3">
+                                <label class="form-label" for="basicContactName">Notification contact name *</label>
+                                <input type="text" class="form-control mb-2" id="basicContactName" maxlength="255" required>
+                                <label class="form-label" for="basicContactEmail">Notification contact email *</label>
+                                <input type="email" class="form-control mb-2" id="basicContactEmail" autocomplete="email" required>
+                                <label class="form-label" for="basicContactPhone">Notification contact phone</label>
+                                <input type="tel" class="form-control" id="basicContactPhone" inputmode="tel" maxlength="45">
+                                <div class="invalid-feedback d-block d-none" id="basicContactError">
+                                    Enter a notification contact name and valid email.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="basicNotes">Notes</label>
+                            <textarea class="form-control" id="basicNotes" rows="3"></textarea>
+                        </div>
+                    </section>
+                </form>
+            </div>
+            <div class="modal-footer card-footer fpw-basic-modal-footer">
+                <button type="button" class="btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn-secondary" id="basicFloatPlanSaveBtn">Save Draft</button>
+                <button type="button" class="btn-primary" id="basicFloatPlanSendBtn">Save &amp; Send</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="floatPlanCloneModal" tabindex="-1" aria-labelledby="floatPlanCloneLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog">
         <div class="modal-content dashboard-card">
@@ -1070,10 +1229,11 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260426a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260426a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=202603191500a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20260513-basic-panel-lock"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260422b"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260504-dashboard-port-a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260513-basic-details"></script>
 
 </body>
 </html>
