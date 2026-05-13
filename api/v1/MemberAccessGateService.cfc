@@ -103,7 +103,7 @@
       if (maxWaypoints GT 0 AND arguments.waypointCount GT maxWaypoints) {
         return denied(
           errorCode = "BASIC_WAYPOINT_LIMIT",
-          message = "Basic members can include up to 3 waypoints on a float plan.",
+          message = "Basic members can include up to 2 saved waypoints on a float plan.",
           auth = true,
           statusCode = 403,
           includeUpgradeOptions = true,

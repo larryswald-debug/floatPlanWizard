@@ -271,7 +271,7 @@ component extends="testbox.system.BaseSpec" output="false" {
   }
 
   private void function expectBasicLimits(required struct limits) {
-    expect(arguments.limits.maxWaypoints).toBe(3);
+    expect(arguments.limits.maxWaypoints).toBe(2);
     expect(arguments.limits.maxTripDays).toBe(1);
     expect(arguments.limits.canSaveRoutes).toBeFalse(serializeJSON(arguments.limits));
     expect(arguments.limits.canUseRouteLibrary).toBeFalse(serializeJSON(arguments.limits));

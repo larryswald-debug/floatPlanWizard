@@ -63,7 +63,7 @@
   <cffunction name="getBasicLimits" access="public" returntype="struct" output="false">
     <cfscript>
       return {
-        "maxWaypoints" = 3,
+        "maxWaypoints" = 2,
         "maxTripDays" = 1,
         "canSaveRoutes" = false,
         "canUseRouteLibrary" = false,
