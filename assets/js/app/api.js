@@ -109,6 +109,10 @@
       return request("/me.cfc?method=handle", { method: "GET" });
     },
 
+    getCurrentMemberAccess: function () {
+      return request("/me.cfc?method=handle", { method: "GET" });
+    },
+
     getFloatPlans: function (options) {
       return listGet("floatplans", options);
     },

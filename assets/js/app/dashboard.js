@@ -5064,21 +5064,52 @@
         });
       }
       document.addEventListener("fpw:routes-updated", function (event) {
+        if (state.isBasicMember) {
+          renderBasicAccessPanel();
+          return;
+        }
         load();
       });
       document.addEventListener("fpw:floatplans-updated", function () {
+        if (state.isBasicMember) {
+          renderBasicAccessPanel();
+          return;
+        }
         load();
       });
-      load();
     }
 
     return {
       init: init,
-      load: load
+      load: load,
+      renderBasicPanel: renderBasicAccessPanel
     };
   })();
 
   window.FPW.DashboardModules = modules;
+
+  function resolveMemberAccess(payload) {
+    if (!payload || typeof payload !== "object") {
+      return null;
+    }
+    if (payload.ACCESS && typeof payload.ACCESS === "object") {
+      return payload.ACCESS;
+    }
+    if (payload.access && typeof payload.access === "object") {
+      return payload.access;
+    }
+    return null;
+  }
+
+  function hasPremiumMemberAccess(access) {
+    var value = access && Object.prototype.hasOwnProperty.call(access, "hasPremium")
+      ? access.hasPremium
+      : (access && Object.prototype.hasOwnProperty.call(access, "HASPREMIUM") ? access.HASPREMIUM : false);
+    if (value === true || value === 1) {
+      return true;
+    }
+    return String(value).trim().toLowerCase() === "true" || String(value).trim() === "1";
+  }
 
   function initDashboard() {
     if (utils.clearDashboardAlert) {
@@ -5134,28 +5165,46 @@
       refreshDerivedSignalsFromState();
     });
 
-    Api.getCurrentUser()
+    (Api.getCurrentMemberAccess ? Api.getCurrentMemberAccess() : Api.getCurrentUser())
       .then(function (data) {
+        var user = data && (data.USER || data.user);
+        var memberAccess = resolveMemberAccess(data);
+        var hasPremium = memberAccess ? hasPremiumMemberAccess(memberAccess) : null;
+
         // data.SUCCESS already checked in Api.request
         if (utils.ensureAuthResponse && !utils.ensureAuthResponse(data)) {
           return;
         }
 
-        if (!data.USER) {
+        if (!user) {
           redirectToLogin();
           return;
         }
 
-        populateUserInfo(data.USER);
-        state.currentUser = data.USER;
+        populateUserInfo(user);
+        state.currentUser = user;
+        state.memberAccess = memberAccess;
         if (utils.resolveHomePortLatLng) {
-          state.homePortLatLng = utils.resolveHomePortLatLng(data.USER);
+          state.homePortLatLng = utils.resolveHomePortLatLng(user);
         }
         var homePortZip = "";
         if (utils.resolveHomePortZip) {
-          homePortZip = utils.resolveHomePortZip(data.USER);
+          homePortZip = utils.resolveHomePortZip(user);
         }
         initWeatherPanel(homePortZip, state.homePortLatLng || null);
+
+        if (memberAccess && hasPremium === false && modules.expeditionTimeline && typeof modules.expeditionTimeline.renderBasicPanel === "function") {
+          modules.expeditionTimeline.renderBasicPanel({
+            SUCCESS: false,
+            ERROR: "BASIC_SAVED_ROUTE_RESTRICTED",
+            errorCode: "BASIC_SAVED_ROUTE_RESTRICTED",
+            MESSAGE: "Basic members use the Basic Float Plan flow.",
+            ACCESS: memberAccess,
+            access: memberAccess
+          });
+        } else if (modules.expeditionTimeline && typeof modules.expeditionTimeline.load === "function") {
+          modules.expeditionTimeline.load();
+        }
 
         var readyEvent = null;
         if (typeof Event === "function") {

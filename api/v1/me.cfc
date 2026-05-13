@@ -13,6 +13,7 @@
                 <cfset local.user = duplicate(session.user)>
                 <cfset local.userId = 0>
                 <cfset local.homePort = {} >
+                <cfset local.access = {} >
 
                 <cfif structKeyExists(local.user, "userId")>
                     <cfset local.userId = int(val(local.user.userId))>
@@ -65,32 +66,46 @@
                 <cfset local.user.homePort = local.homePort>
                 <cfset local.user.HOMEPORT = local.homePort>
 
-                <cfset response = {
-                    SUCCESS = true,
-                    AUTH    = true,
-                    USER    = local.user
-                }>
+                <cfset local.access = new fpw.api.v1.MemberEntitlementService().init("fpw").getCurrentAccess(local.userId)>
+                <cfset structDelete(local.access, "premiumEntitlementId", false)>
+
+                <cfset response = structNew("ordered-casesensitive")>
+                <cfset response["SUCCESS"] = true>
+                <cfset response["success"] = true>
+                <cfset response["AUTH"] = true>
+                <cfset response["auth"] = true>
+                <cfset response["USER"] = local.user>
+                <cfset response["user"] = local.user>
+                <cfset response["ACCESS"] = local.access>
+                <cfset response["access"] = local.access>
 
             <cfelse>
 
-                <cfset response = {
-                    SUCCESS = false,
-                    AUTH    = false,
-                    MESSAGE = "Not logged in."
-                }>
+                <cfset response = structNew("ordered-casesensitive")>
+                <cfset response["SUCCESS"] = false>
+                <cfset response["success"] = false>
+                <cfset response["AUTH"] = false>
+                <cfset response["auth"] = false>
+                <cfset response["MESSAGE"] = "Not logged in.">
+                <cfset response["message"] = "Not logged in.">
+                <cfset response["ERROR"] = "AUTH_REQUIRED">
+                <cfset response["errorCode"] = "AUTH_REQUIRED">
 
             </cfif>
 
             <cfoutput>#serializeJSON(response)#</cfoutput>
 
             <cfcatch type="any">
-                <cfset errResponse = {
-                    SUCCESS = false,
-                    AUTH    = false,
-                    MESSAGE = "Server error fetching current user.",
-                    ERROR   = "SERVER_ERROR",
-                    DETAIL  = cfcatch.message
-                }>
+                <cfset errResponse = structNew("ordered-casesensitive")>
+                <cfset errResponse["SUCCESS"] = false>
+                <cfset errResponse["success"] = false>
+                <cfset errResponse["AUTH"] = false>
+                <cfset errResponse["auth"] = false>
+                <cfset errResponse["MESSAGE"] = "Server error fetching current user.">
+                <cfset errResponse["message"] = "Server error fetching current user.">
+                <cfset errResponse["ERROR"] = "SERVER_ERROR">
+                <cfset errResponse["errorCode"] = "SERVER_ERROR">
+                <cfset errResponse["DETAIL"] = cfcatch.message>
                 <cfoutput>#serializeJSON(errResponse)#</cfoutput>
             </cfcatch>
 
