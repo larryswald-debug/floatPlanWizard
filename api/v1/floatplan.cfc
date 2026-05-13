@@ -94,6 +94,62 @@
                     <cfoutput>#serializeJSON(saveBasicResult)#</cfoutput>
                 </cfcase>
 
+                <cfcase value="getbasiccurrent">
+                    <cfset var basicCurrentResult = getBasicOperationalCurrentPlan(userId)>
+                    <cfset basicCurrentResult.AUTH = true>
+                    <cfoutput>#serializeJSON(basicCurrentResult)#</cfoutput>
+                </cfcase>
+
+                <cfcase value="getbasicrescueauthorities">
+                    <cfset var basicAuthorityResult = listBasicRescueAuthorities()>
+                    <cfset basicAuthorityResult.AUTH = true>
+                    <cfoutput>#serializeJSON(basicAuthorityResult)#</cfoutput>
+                </cfcase>
+
+                <cfcase value="listbasicdrafts">
+                    <cfset var basicDraftsResult = listBasicOperationalDrafts(userId)>
+                    <cfset basicDraftsResult.AUTH = true>
+                    <cfoutput>#serializeJSON(basicDraftsResult)#</cfoutput>
+                </cfcase>
+
+                <cfcase value="getbasicdraft">
+                    <cfset var basicDraftId = 0>
+                    <cfif structKeyExists(body, "floatPlanId")>
+                        <cfset basicDraftId = val(body.floatPlanId)>
+                    <cfelseif structKeyExists(url, "floatPlanId")>
+                        <cfset basicDraftId = val(url.floatPlanId)>
+                    <cfelseif structKeyExists(url, "id")>
+                        <cfset basicDraftId = val(url.id)>
+                    </cfif>
+
+                    <cfset var basicDraftResult = getBasicOperationalDraft(userId, basicDraftId)>
+                    <cfset basicDraftResult.AUTH = true>
+                    <cfoutput>#serializeJSON(basicDraftResult)#</cfoutput>
+                </cfcase>
+
+                <cfcase value="downloadbasicpdf">
+                    <cfset var downloadBasicId = 0>
+                    <cfif structKeyExists(body, "floatPlanId")>
+                        <cfset downloadBasicId = val(body.floatPlanId)>
+                    <cfelseif structKeyExists(url, "floatPlanId")>
+                        <cfset downloadBasicId = val(url.floatPlanId)>
+                    <cfelseif structKeyExists(url, "id")>
+                        <cfset downloadBasicId = val(url.id)>
+                    </cfif>
+
+                    <cfset var downloadBasicResult = prepareBasicOperationalPdfDownload(userId, downloadBasicId)>
+                    <cfif NOT downloadBasicResult.SUCCESS>
+                        <cfset downloadBasicResult.AUTH = true>
+                        <cfoutput>#serializeJSON(downloadBasicResult)#</cfoutput>
+                    <cfelse>
+                        <cfheader name="Content-Disposition" value="attachment; filename=""#downloadBasicResult.FILE_NAME#""">
+                        <cfheader name="X-Content-Type-Options" value="nosniff">
+                        <cfcontent type="application/pdf" file="#downloadBasicResult.FILE_PATH#" deletefile="false" reset="true">
+                        <cfsetting enablecfoutputonly="false">
+                        <cfreturn>
+                    </cfif>
+                </cfcase>
+
                 <cfcase value="send">
                     <cfset var sendId = 0>
                     <cfif structKeyExists(body, "floatPlanId")>
@@ -122,6 +178,21 @@
                     <cfset var sendBasicResult = sendBasicFloatPlanToContacts(userId, sendBasicId)>
                     <cfset sendBasicResult.AUTH = true>
                     <cfoutput>#serializeJSON(sendBasicResult)#</cfoutput>
+                </cfcase>
+
+                <cfcase value="closebasic">
+                    <cfset var closeBasicId = 0>
+                    <cfif structKeyExists(body, "floatPlanId")>
+                        <cfset closeBasicId = val(body.floatPlanId)>
+                    <cfelseif structKeyExists(url, "floatPlanId")>
+                        <cfset closeBasicId = val(url.floatPlanId)>
+                    <cfelseif structKeyExists(url, "id")>
+                        <cfset closeBasicId = val(url.id)>
+                    </cfif>
+
+                    <cfset var closeBasicResult = closeBasicFloatPlan(userId, closeBasicId)>
+                    <cfset closeBasicResult.AUTH = true>
+                    <cfoutput>#serializeJSON(closeBasicResult)#</cfoutput>
                 </cfcase>
 
                 <cfcase value="clone">
@@ -806,6 +877,27 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="validateBasicSavedWaypointLimit" access="private" returntype="struct" output="false">
+        <cfargument name="waypointCount" type="numeric" required="true">
+	        <cfscript>
+	            if (arguments.waypointCount GT 2) {
+	                return {
+	                    "allowed" = false,
+	                    "SUCCESS" = false,
+	                    "success" = false,
+	                    "response" = getMemberAccessGateService().buildDeniedResponse(
+	                        errorCode = "BASIC_WAYPOINT_LIMIT",
+	                        message = "Basic float plans can include up to 2 saved waypoints.",
+	                        auth = true,
+	                        statusCode = 403,
+	                        includeUpgradeOptions = true
+	                    )
+	                };
+	            }
+	            return { "allowed" = true, "SUCCESS" = true, "success" = true };
+	        </cfscript>
+    </cffunction>
+
     <cffunction name="loadStoredFloatPlanTimes" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
@@ -940,6 +1032,163 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="getBasicOperationalSingletonState" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var result = {
+                HAS_SCOPE_COLUMNS = hasBasicOperationalFloatPlanColumns(arguments.datasource),
+                HAS_ACTIVE = false,
+                ACTIVE_FLOATPLANID = 0,
+                HAS_DRAFT = false,
+                DRAFT_FLOATPLANID = 0
+            };
+            var qPlans = queryNew("");
+            var rowIndex = 0;
+            var statusValue = "";
+
+            if (arguments.userId LTE 0 OR !result.HAS_SCOPE_COLUMNS) {
+                return result;
+            }
+
+            qPlans = queryExecute(
+                "SELECT fp.floatplanId,
+                        UPPER(TRIM(fp.`status`)) AS statusValue
+                   FROM floatplans fp
+                  WHERE fp.userId = :userId
+                    AND fp.route_instance_id IS NULL
+                    AND fp.route_origin = 'basic_float_plan'
+                    AND fp.is_reusable = 0
+                    AND fp.is_visible_in_route_library = 0
+                    AND fp.closedAt IS NULL
+                    AND (
+                        UPPER(TRIM(fp.`status`)) = 'ACTIVE'
+                        OR (
+                            UPPER(TRIM(fp.`status`)) = 'DRAFT'
+                            AND fp.activatedAt IS NULL
+                            AND fp.initialSentAt IS NULL
+                        )
+                    )
+                  ORDER BY CASE WHEN UPPER(TRIM(fp.`status`)) = 'ACTIVE' THEN 1 ELSE 2 END,
+                           COALESCE(fp.activatedAt, fp.lastUpdateStatus, fp.lastUpdate, fp.dateCreated) DESC,
+                           fp.floatplanId DESC
+                  LIMIT 20",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = arguments.datasource }
+            );
+
+            for (rowIndex = 1; rowIndex LTE qPlans.recordCount; rowIndex++) {
+                statusValue = trim(toString(qPlans.statusValue[rowIndex]));
+                if (statusValue EQ "ACTIVE" AND !result.HAS_ACTIVE) {
+                    result.HAS_ACTIVE = true;
+                    result.ACTIVE_FLOATPLANID = val(qPlans.floatplanId[rowIndex]);
+                } else if (statusValue EQ "DRAFT" AND !result.HAS_DRAFT) {
+                    result.HAS_DRAFT = true;
+                    result.DRAFT_FLOATPLANID = val(qPlans.floatplanId[rowIndex]);
+                }
+            }
+
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="prepareBasicOperationalPdfDownload" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                MESSAGE = ""
+            };
+            var scope = {};
+            var plan = {};
+            var floatPlanUtils = {};
+            var pdfFileName = "";
+            var pdfPath = "";
+            var planName = "";
+
+            if (arguments.floatPlanId LTE 0) {
+                result.ERROR = "MISSING_PLAN_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            scope = loadBasicOperationalPlanScope(arguments.userId, arguments.floatPlanId, arguments.datasource);
+            if (!scope.EXISTS) {
+                result.ERROR = "PLAN_NOT_FOUND";
+                result.MESSAGE = "Float plan not found.";
+                return result;
+            }
+
+            if (!scope.IS_BASIC_OPERATIONAL) {
+                return getMemberAccessGateService().buildDeniedResponse(
+                    errorCode = "BASIC_SAVED_ROUTE_RESTRICTED",
+                    message = "Basic PDF download is only available for route-less operational Basic float plans.",
+                    auth = true,
+                    statusCode = 403,
+                    includeUpgradeOptions = true
+                );
+            }
+
+            if (compareNoCase(scope.STATUS, "ACTIVE") NEQ 0) {
+                result.ERROR = "BASIC_PDF_UNAVAILABLE";
+                result.MESSAGE = "Only sent Basic float plans can be downloaded.";
+                return result;
+            }
+
+            plan = loadFloatPlan(arguments.userId, arguments.floatPlanId);
+            floatPlanUtils = createObject("component", resolveFloatPlanUtilsComponentPath()).init();
+            pdfFileName = floatPlanUtils.createPDF(arguments.floatPlanId);
+            if (!len(trim(pdfFileName))) {
+                result.ERROR = "PDF_FAILED";
+                result.MESSAGE = "Unable to generate float plan PDF.";
+                return result;
+            }
+
+            pdfPath = floatPlanUtils.getPdfPath(pdfFileName);
+            if (!fileExists(pdfPath)) {
+                result.ERROR = "PDF_FAILED";
+                result.MESSAGE = "Unable to locate generated float plan PDF.";
+                return result;
+            }
+
+            planName = trim(toString(pickValue(plan, ["NAME", "floatPlanName"], "")));
+
+            result.SUCCESS = true;
+            result.FILE_PATH = pdfPath;
+            result.FILE_NAME = buildBasicOperationalPdfDownloadFileName(planName, arguments.floatPlanId);
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildBasicOperationalPdfDownloadFileName" access="private" returntype="string" output="false">
+        <cfargument name="planName" type="string" required="false" default="">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var fileBase = trim(arguments.planName);
+            if (!len(fileBase)) {
+                fileBase = "basic-float-plan-" & arguments.floatPlanId;
+            }
+
+            fileBase = reReplace(fileBase, "[^A-Za-z0-9._-]+", "-", "all");
+            fileBase = reReplace(fileBase, "-{2,}", "-", "all");
+            fileBase = reReplace(fileBase, "(^-|-$)", "", "all");
+
+            if (!len(fileBase)) {
+                fileBase = "basic-float-plan-" & arguments.floatPlanId;
+            }
+
+            if (right(lCase(fileBase), 4) NEQ ".pdf") {
+                fileBase &= ".pdf";
+            }
+
+            return fileBase;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="markBasicOperationalFloatPlanScope" access="private" returntype="void" output="false">
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfargument name="datasource" type="string" required="false" default="fpw">
@@ -960,6 +1209,763 @@
                 },
                 { datasource = arguments.datasource }
             );
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="hasBasicDetailsTable" access="private" returntype="boolean" output="false">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var cacheKey = "fpwBasicDetailsTable:" & arguments.datasource;
+            var qTable = queryNew("");
+
+            if (structKeyExists(request, cacheKey)) {
+                return booleanValue(request[cacheKey]);
+            }
+
+            qTable = queryExecute(
+                "SELECT COUNT(*) AS tableCount
+                   FROM information_schema.tables
+                  WHERE table_schema = DATABASE()
+                    AND table_name = 'floatplan_basic_details'",
+                {},
+                { datasource = arguments.datasource }
+            );
+
+            request[cacheKey] = (qTable.recordCount EQ 1 AND val(qTable.tableCount[1]) EQ 1);
+            return request[cacheKey];
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="listBasicRescueAuthorities" access="private" returntype="struct" output="false">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var result = { SUCCESS = true, AUTHORITIES = [] };
+            var qAuthorities = queryExecute(
+                "SELECT recId, rcName, rcDistrict, rcLocation, rcArea, rcPhone
+                   FROM rescuecenters
+                  ORDER BY rcName ASC, recId ASC",
+                {},
+                { datasource = arguments.datasource }
+            );
+            var i = 0;
+
+            for (i = 1; i LTE qAuthorities.recordCount; i++) {
+                arrayAppend(result.AUTHORITIES, {
+                    AUTHORITY_ID = val(qAuthorities.recId[i]),
+                    NAME = isNull(qAuthorities.rcName[i]) ? "" : trim(toString(qAuthorities.rcName[i])),
+                    DISTRICT = isNull(qAuthorities.rcDistrict[i]) ? "" : trim(toString(qAuthorities.rcDistrict[i])),
+                    LOCATION = isNull(qAuthorities.rcLocation[i]) ? "" : trim(toString(qAuthorities.rcLocation[i])),
+                    AREA = isNull(qAuthorities.rcArea[i]) ? "" : trim(toString(qAuthorities.rcArea[i])),
+                    PHONE = isNull(qAuthorities.rcPhone[i]) ? "" : trim(toString(qAuthorities.rcPhone[i]))
+                });
+            }
+
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveBasicRescueAuthority" access="private" returntype="struct" output="false">
+        <cfargument name="authorityId" type="numeric" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var result = { SUCCESS = false };
+            var qAuthority = queryNew("");
+
+            if (arguments.authorityId LTE 0) {
+                result.ERROR = "VALIDATION";
+                result.MESSAGE = "Official Emergency Authority is required.";
+                return result;
+            }
+
+            qAuthority = queryExecute(
+                "SELECT recId, rcName, rcPhone
+                   FROM rescuecenters
+                  WHERE recId = :authorityId
+                  LIMIT 1",
+                {
+                    authorityId = { value = arguments.authorityId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = arguments.datasource }
+            );
+
+            if (qAuthority.recordCount EQ 0) {
+                result.ERROR = "VALIDATION";
+                result.MESSAGE = "Selected Official Emergency Authority could not be found.";
+                return result;
+            }
+
+            result.SUCCESS = true;
+            result.AUTHORITY_ID = val(qAuthority.recId[1]);
+            result.AUTHORITY_NAME = isNull(qAuthority.rcName[1]) ? "" : trim(toString(qAuthority.rcName[1]));
+            result.AUTHORITY_PHONE = isNull(qAuthority.rcPhone[1]) ? "" : trim(toString(qAuthority.rcPhone[1]));
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeBasicDetailsPayload" access="private" returntype="struct" output="false">
+        <cfargument name="payload" type="struct" required="true">
+        <cfargument name="floatPlan" type="struct" required="true">
+        <cfscript>
+            var source = {};
+            if (structKeyExists(arguments.payload, "BASIC_DETAILS") AND isStruct(arguments.payload.BASIC_DETAILS)) {
+                source = arguments.payload.BASIC_DETAILS;
+            } else if (structKeyExists(arguments.payload, "basicDetails") AND isStruct(arguments.payload.basicDetails)) {
+                source = arguments.payload.basicDetails;
+            }
+
+            return {
+                VESSEL_NAME = trim(pickValue(source, ["VESSEL_NAME", "vesselName"], "")),
+                OPERATOR_NAME = trim(pickValue(source, ["OPERATOR_NAME", "operatorName"], "")),
+                CAPTAIN_NAME = trim(pickValue(source, ["CAPTAIN_NAME", "captainName"], "")),
+                CAPTAIN_EMAIL = trim(pickValue(source, ["CAPTAIN_EMAIL", "captainEmail"], pickValue(arguments.floatPlan, ["EMAIL", "email"], ""))),
+                NOTIFICATION_CONTACT_NAME = trim(pickValue(source, ["NOTIFICATION_CONTACT_NAME", "notificationContactName"], "")),
+                NOTIFICATION_CONTACT_EMAIL = trim(pickValue(source, ["NOTIFICATION_CONTACT_EMAIL", "notificationContactEmail"], "")),
+                NOTIFICATION_CONTACT_PHONE = trim(pickValue(source, ["NOTIFICATION_CONTACT_PHONE", "notificationContactPhone"], "")),
+                LAUNCH_LOCATION = trim(pickValue(source, ["LAUNCH_LOCATION", "launchLocation"], pickValue(arguments.floatPlan, ["DEPARTING_FROM", "departingFrom"], ""))),
+                DESTINATION_LOCATION = trim(pickValue(source, ["DESTINATION_LOCATION", "destinationLocation"], pickValue(arguments.floatPlan, ["RETURNING_TO", "returningTo"], ""))),
+                AUTHORITY_ID = val(pickValue(source, ["AUTHORITY_ID", "authorityId"], pickValue(arguments.floatPlan, ["RESCUE_CENTERID", "rescueCenterId"], 0)))
+            };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="validateBasicDetailsPayload" access="private" returntype="struct" output="false">
+        <cfargument name="details" type="struct" required="true">
+        <cfscript>
+            var requiredFields = [
+                ["VESSEL_NAME", "Vessel name is required."],
+                ["OPERATOR_NAME", "Operator name is required."],
+                ["CAPTAIN_NAME", "Captain name is required."],
+                ["CAPTAIN_EMAIL", "Captain email is required."],
+                ["NOTIFICATION_CONTACT_NAME", "Notification contact name is required."],
+                ["NOTIFICATION_CONTACT_EMAIL", "Notification contact email is required."],
+                ["LAUNCH_LOCATION", "Launch location is required."],
+                ["DESTINATION_LOCATION", "Destination / turnaround point is required."]
+            ];
+            var i = 0;
+
+            for (i = 1; i LTE arrayLen(requiredFields); i++) {
+                if (!len(trim(toString(arguments.details[requiredFields[i][1]])))) {
+                    return {
+                        SUCCESS = false,
+                        ERROR = "VALIDATION",
+                        MESSAGE = requiredFields[i][2]
+                    };
+                }
+            }
+
+            if (!isValid("email", arguments.details.CAPTAIN_EMAIL)) {
+                return { SUCCESS = false, ERROR = "VALIDATION", MESSAGE = "Captain email is invalid." };
+            }
+            if (!isValid("email", arguments.details.NOTIFICATION_CONTACT_EMAIL)) {
+                return { SUCCESS = false, ERROR = "VALIDATION", MESSAGE = "Notification contact email is invalid." };
+            }
+            if (val(arguments.details.AUTHORITY_ID) LTE 0) {
+                return { SUCCESS = false, ERROR = "VALIDATION", MESSAGE = "Official Emergency Authority is required." };
+            }
+
+            return { SUCCESS = true };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="upsertBasicDetails" access="private" returntype="void" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="details" type="struct" required="true">
+        <cfargument name="authority" type="struct" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            queryExecute(
+                "INSERT INTO floatplan_basic_details (
+                    floatplan_id,
+                    vessel_name,
+                    operator_name,
+                    captain_name,
+                    captain_email,
+                    notification_contact_name,
+                    notification_contact_email,
+                    notification_contact_phone,
+                    launch_location,
+                    destination_location,
+                    authority_id,
+                    authority_name_snapshot,
+                    authority_phone_snapshot,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    :floatPlanId,
+                    :vesselName,
+                    :operatorName,
+                    :captainName,
+                    :captainEmail,
+                    :contactName,
+                    :contactEmail,
+                    :contactPhone,
+                    :launchLocation,
+                    :destinationLocation,
+                    :authorityId,
+                    :authorityName,
+                    :authorityPhone,
+                    UTC_TIMESTAMP(),
+                    UTC_TIMESTAMP()
+                )
+                ON DUPLICATE KEY UPDATE
+                    vessel_name = VALUES(vessel_name),
+                    operator_name = VALUES(operator_name),
+                    captain_name = VALUES(captain_name),
+                    captain_email = VALUES(captain_email),
+                    notification_contact_name = VALUES(notification_contact_name),
+                    notification_contact_email = VALUES(notification_contact_email),
+                    notification_contact_phone = VALUES(notification_contact_phone),
+                    launch_location = VALUES(launch_location),
+                    destination_location = VALUES(destination_location),
+                    authority_id = VALUES(authority_id),
+                    authority_name_snapshot = VALUES(authority_name_snapshot),
+                    authority_phone_snapshot = VALUES(authority_phone_snapshot),
+                    updated_at = UTC_TIMESTAMP()",
+                {
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    vesselName = { value = left(arguments.details.VESSEL_NAME, 255), cfsqltype = "cf_sql_varchar" },
+                    operatorName = { value = left(arguments.details.OPERATOR_NAME, 255), cfsqltype = "cf_sql_varchar" },
+                    captainName = { value = left(arguments.details.CAPTAIN_NAME, 255), cfsqltype = "cf_sql_varchar" },
+                    captainEmail = { value = left(arguments.details.CAPTAIN_EMAIL, 255), cfsqltype = "cf_sql_varchar" },
+                    contactName = { value = left(arguments.details.NOTIFICATION_CONTACT_NAME, 255), cfsqltype = "cf_sql_varchar" },
+                    contactEmail = { value = left(arguments.details.NOTIFICATION_CONTACT_EMAIL, 255), cfsqltype = "cf_sql_varchar" },
+                    contactPhone = { value = left(arguments.details.NOTIFICATION_CONTACT_PHONE, 45), cfsqltype = "cf_sql_varchar", null = NOT len(arguments.details.NOTIFICATION_CONTACT_PHONE) },
+                    launchLocation = { value = left(arguments.details.LAUNCH_LOCATION, 255), cfsqltype = "cf_sql_varchar" },
+                    destinationLocation = { value = left(arguments.details.DESTINATION_LOCATION, 255), cfsqltype = "cf_sql_varchar" },
+                    authorityId = { value = arguments.authority.AUTHORITY_ID, cfsqltype = "cf_sql_integer" },
+                    authorityName = { value = left(arguments.authority.AUTHORITY_NAME, 255), cfsqltype = "cf_sql_varchar" },
+                    authorityPhone = { value = left(arguments.authority.AUTHORITY_PHONE, 45), cfsqltype = "cf_sql_varchar" }
+                },
+                { datasource = arguments.datasource }
+            );
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="loadBasicDetails" access="private" returntype="struct" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var result = {};
+            var qDetails = queryNew("");
+
+            if (arguments.floatPlanId LTE 0 OR !hasBasicDetailsTable(arguments.datasource)) {
+                return result;
+            }
+
+            qDetails = queryExecute(
+                "SELECT *
+                   FROM floatplan_basic_details
+                  WHERE floatplan_id = :planId
+                  LIMIT 1",
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = arguments.datasource }
+            );
+
+            if (qDetails.recordCount EQ 0) {
+                return result;
+            }
+
+            result.FLOATPLAN_ID = val(qDetails.floatplan_id[1]);
+            result.VESSEL_NAME = isNull(qDetails.vessel_name[1]) ? "" : trim(toString(qDetails.vessel_name[1]));
+            result.OPERATOR_NAME = isNull(qDetails.operator_name[1]) ? "" : trim(toString(qDetails.operator_name[1]));
+            result.CAPTAIN_NAME = isNull(qDetails.captain_name[1]) ? "" : trim(toString(qDetails.captain_name[1]));
+            result.CAPTAIN_EMAIL = isNull(qDetails.captain_email[1]) ? "" : trim(toString(qDetails.captain_email[1]));
+            result.NOTIFICATION_CONTACT_NAME = isNull(qDetails.notification_contact_name[1]) ? "" : trim(toString(qDetails.notification_contact_name[1]));
+            result.NOTIFICATION_CONTACT_EMAIL = isNull(qDetails.notification_contact_email[1]) ? "" : trim(toString(qDetails.notification_contact_email[1]));
+            result.NOTIFICATION_CONTACT_PHONE = isNull(qDetails.notification_contact_phone[1]) ? "" : trim(toString(qDetails.notification_contact_phone[1]));
+            result.LAUNCH_LOCATION = isNull(qDetails.launch_location[1]) ? "" : trim(toString(qDetails.launch_location[1]));
+            result.DESTINATION_LOCATION = isNull(qDetails.destination_location[1]) ? "" : trim(toString(qDetails.destination_location[1]));
+            result.AUTHORITY_ID = isNull(qDetails.authority_id[1]) ? 0 : val(qDetails.authority_id[1]);
+            result.AUTHORITY_NAME_SNAPSHOT = isNull(qDetails.authority_name_snapshot[1]) ? "" : trim(toString(qDetails.authority_name_snapshot[1]));
+            result.AUTHORITY_PHONE_SNAPSHOT = isNull(qDetails.authority_phone_snapshot[1]) ? "" : trim(toString(qDetails.authority_phone_snapshot[1]));
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="loadBasicPlanSelections" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var selections = loadPlanSelections(arguments.userId, arguments.floatPlanId);
+            var details = loadBasicDetails(arguments.floatPlanId, arguments.datasource);
+
+            selections.CONTACTS = [];
+            if (!structIsEmpty(details) AND len(details.NOTIFICATION_CONTACT_EMAIL)) {
+                arrayAppend(selections.CONTACTS, {
+                    CONTACTID = 0,
+                    NAME = details.NOTIFICATION_CONTACT_NAME,
+                    EMAIL = details.NOTIFICATION_CONTACT_EMAIL,
+                    PHONE = details.NOTIFICATION_CONTACT_PHONE,
+                    SORT_ORDER = 1,
+                    BASIC_ONE_TIME = true
+                });
+            }
+
+            return selections;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="loadBasicPlanContactEmails" access="private" returntype="array" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var contacts = [];
+            var details = loadBasicDetails(arguments.floatPlanId, arguments.datasource);
+
+            if (!structIsEmpty(details) AND len(details.NOTIFICATION_CONTACT_EMAIL)) {
+                arrayAppend(contacts, {
+                    CONTACTID = 0,
+                    NAME = details.NOTIFICATION_CONTACT_NAME,
+                    EMAIL = details.NOTIFICATION_CONTACT_EMAIL,
+                    PHONE = details.NOTIFICATION_CONTACT_PHONE,
+                    BASIC_ONE_TIME = true
+                });
+            }
+
+            return contacts;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getBasicOperationalCurrentPlan" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var result = {
+                SUCCESS = true,
+                HAS_BASIC_PLAN = false,
+                HAS_ACTIVE_PLAN = false,
+                HAS_DRAFT = false,
+                STATE = "empty",
+                FLOATPLANID = 0,
+                BASIC_PLAN = {},
+                FLOATPLAN = {},
+                PLAN_PASSENGERS = [],
+                PLAN_CONTACTS = [],
+                PLAN_WAYPOINTS = [],
+                MONITORING = {},
+                BASIC_OPERATIONAL_ONLY = true,
+                ROUTE_ORIGIN = "basic_float_plan"
+            };
+            var qActive = queryNew("");
+            var qDraft = queryNew("");
+
+            if (arguments.userId LTE 0) {
+                result.SUCCESS = false;
+                result.ERROR = "INVALID_USER_ID";
+                result.MESSAGE = "A valid user id is required.";
+                return result;
+            }
+
+            if (!hasBasicOperationalFloatPlanColumns(arguments.datasource)) {
+                return result;
+            }
+
+            qActive = queryExecute(
+                "SELECT fp.floatplanId
+                   FROM floatplans fp
+                  WHERE fp.userId = :userId
+                    AND fp.route_instance_id IS NULL
+                    AND fp.route_origin = 'basic_float_plan'
+                    AND fp.is_reusable = 0
+                    AND fp.is_visible_in_route_library = 0
+                    AND UPPER(TRIM(fp.`status`)) = 'ACTIVE'
+                    AND fp.closedAt IS NULL
+                  ORDER BY COALESCE(fp.activatedAt, fp.lastUpdateStatus, fp.lastUpdate, fp.dateCreated) DESC,
+                           fp.floatplanId DESC
+                  LIMIT 1",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = arguments.datasource }
+            );
+
+            if (qActive.recordCount GT 0) {
+                return buildBasicOperationalCurrentResponse(
+                    userId = arguments.userId,
+                    floatPlanId = val(qActive.floatplanId[1]),
+                    stateName = "active",
+                    datasource = arguments.datasource
+                );
+            }
+
+            qDraft = queryExecute(
+                "SELECT fp.floatplanId
+                   FROM floatplans fp
+                  WHERE fp.userId = :userId
+                    AND fp.route_instance_id IS NULL
+                    AND fp.route_origin = 'basic_float_plan'
+                    AND fp.is_reusable = 0
+                    AND fp.is_visible_in_route_library = 0
+                    AND UPPER(TRIM(fp.`status`)) = 'DRAFT'
+                    AND fp.activatedAt IS NULL
+                    AND fp.initialSentAt IS NULL
+                    AND fp.closedAt IS NULL
+                  ORDER BY fp.lastUpdate DESC,
+                           fp.dateCreated DESC,
+                           fp.floatplanId DESC
+                  LIMIT 1",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = arguments.datasource }
+            );
+
+            if (qDraft.recordCount GT 0) {
+                return buildBasicOperationalCurrentResponse(
+                    userId = arguments.userId,
+                    floatPlanId = val(qDraft.floatplanId[1]),
+                    stateName = "draft",
+                    datasource = arguments.datasource
+                );
+            }
+
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildBasicOperationalCurrentResponse" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="stateName" type="string" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var stateValue = lCase(trim(arguments.stateName));
+            var savedPlan = loadFloatPlan(arguments.userId, arguments.floatPlanId);
+            var savedSelections = loadBasicPlanSelections(arguments.userId, arguments.floatPlanId, arguments.datasource);
+            var monitoring = loadBasicOperationalMonitoringSummary(arguments.floatPlanId, arguments.datasource);
+            var basicDetails = loadBasicDetails(arguments.floatPlanId, arguments.datasource);
+            var summary = buildBasicOperationalPlanSummary(
+                userId = arguments.userId,
+                floatPlanId = arguments.floatPlanId,
+                stateName = stateValue,
+                plan = savedPlan,
+                selections = savedSelections,
+                basicDetails = basicDetails,
+                monitoring = monitoring,
+                datasource = arguments.datasource
+            );
+
+            return {
+                SUCCESS = true,
+                HAS_BASIC_PLAN = true,
+                HAS_ACTIVE_PLAN = (stateValue EQ "active"),
+                HAS_DRAFT = (stateValue EQ "draft"),
+                STATE = stateValue,
+                FLOATPLANID = arguments.floatPlanId,
+                BASIC_PLAN = summary,
+                FLOATPLAN = savedPlan,
+                BASIC_DETAILS = basicDetails,
+                PLAN_PASSENGERS = savedSelections.PASSENGERS,
+                PLAN_CONTACTS = savedSelections.CONTACTS,
+                PLAN_WAYPOINTS = savedSelections.WAYPOINTS,
+                MONITORING = monitoring,
+                BASIC_OPERATIONAL_ONLY = true,
+                ROUTE_ORIGIN = "basic_float_plan"
+            };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildBasicOperationalPlanSummary" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="stateName" type="string" required="true">
+        <cfargument name="plan" type="struct" required="true">
+        <cfargument name="selections" type="struct" required="true">
+        <cfargument name="basicDetails" type="struct" required="false" default="#structNew()#">
+        <cfargument name="monitoring" type="struct" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var hasDetails = !structIsEmpty(arguments.basicDetails);
+            var summary = {
+                FLOATPLANID = arguments.floatPlanId,
+                NAME = trim(toString(pickValue(arguments.plan, ["NAME", "floatPlanName"], "Basic Float Plan"))),
+                STATUS = trim(toString(pickValue(arguments.plan, ["STATUS", "status"], ""))),
+                STATE = lCase(trim(arguments.stateName)),
+                DEPARTING_FROM = hasDetails ? arguments.basicDetails.LAUNCH_LOCATION : trim(toString(pickValue(arguments.plan, ["DEPARTING_FROM", "departingFrom"], ""))),
+                RETURNING_TO = hasDetails ? arguments.basicDetails.LAUNCH_LOCATION : trim(toString(pickValue(arguments.plan, ["RETURNING_TO", "returningTo"], ""))),
+                DESTINATION_LOCATION = hasDetails ? arguments.basicDetails.DESTINATION_LOCATION : "",
+                CAPTAIN_NAME = hasDetails ? arguments.basicDetails.CAPTAIN_NAME : "",
+                CAPTAIN_EMAIL = hasDetails ? arguments.basicDetails.CAPTAIN_EMAIL : trim(toString(pickValue(arguments.plan, ["EMAIL", "email"], ""))),
+                AUTHORITY_NAME = hasDetails ? arguments.basicDetails.AUTHORITY_NAME_SNAPSHOT : trim(toString(pickValue(arguments.plan, ["RESCUE_AUTHORITY", "rescueAuthority"], ""))),
+                AUTHORITY_PHONE = hasDetails ? arguments.basicDetails.AUTHORITY_PHONE_SNAPSHOT : trim(toString(pickValue(arguments.plan, ["RESCUE_AUTHORITY_PHONE", "rescueAuthorityPhone"], ""))),
+                DEPARTURE_TIME = structKeyExists(arguments.plan, "DEPARTURE_TIME") ? arguments.plan.DEPARTURE_TIME : "",
+                RETURN_TIME = structKeyExists(arguments.plan, "RETURN_TIME") ? arguments.plan.RETURN_TIME : "",
+                DEPARTURE_TIMEZONE = trim(toString(pickValue(arguments.plan, ["DEPARTURE_TIMEZONE", "departureTimezone"], ""))),
+                RETURN_TIMEZONE = trim(toString(pickValue(arguments.plan, ["RETURN_TIMEZONE", "returnTimezone"], ""))),
+                WAYPOINT_COUNT = arrayLen(arguments.selections.WAYPOINTS),
+                CONTACT_COUNT = (hasDetails AND len(arguments.basicDetails.NOTIFICATION_CONTACT_EMAIL)) ? 1 : arrayLen(arguments.selections.CONTACTS),
+                PASSENGER_COUNT = arrayLen(arguments.selections.PASSENGERS),
+                WAYPOINT_SUMMARY = buildBasicOperationalWaypointSummary(arguments.userId, arguments.floatPlanId, arguments.datasource),
+                ROUTE_ORIGIN = "basic_float_plan",
+                IS_REUSABLE = false,
+                IS_VISIBLE_IN_ROUTE_LIBRARY = false,
+                IS_SENDABLE = false,
+                MONITORING = arguments.monitoring
+            };
+
+            if (compareNoCase(summary.STATE, "draft") EQ 0) {
+                summary.IS_SENDABLE = isBasicOperationalDraftSendable(arguments.floatPlanId, arguments.datasource);
+            }
+
+            if (structKeyExists(arguments.monitoring, "MONITORING_MODE")) {
+                summary.MONITORING_MODE = arguments.monitoring.MONITORING_MODE;
+            }
+            if (structKeyExists(arguments.monitoring, "MONITOR_STATE")) {
+                summary.MONITOR_STATE = arguments.monitoring.MONITOR_STATE;
+            }
+
+            return summary;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildBasicOperationalWaypointSummary" access="private" returntype="string" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var names = [];
+            var qWaypoints = queryExecute(
+                "SELECT COALESCE(NULLIF(TRIM(w.name), ''), CONCAT('Waypoint ', fpw.wayPointId)) AS waypoint_name
+                   FROM floatplan_waypoints fpw
+                   LEFT JOIN waypoints w
+                     ON w.wpId = fpw.wayPointId
+                    AND w.userId = :userId
+                  WHERE fpw.floatPlanId = :planId
+                  ORDER BY fpw.recId ASC",
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                },
+                { datasource = arguments.datasource }
+            );
+            var i = 0;
+
+            for (i = 1; i LTE qWaypoints.recordCount; i++) {
+                arrayAppend(names, trim(toString(qWaypoints.waypoint_name[i])));
+            }
+
+            return arrayToList(names, " / ");
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="isBasicOperationalDraftSendable" access="private" returntype="boolean" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var qSendable = queryExecute(
+                "SELECT CASE
+                          WHEN returnTime IS NOT NULL
+                           AND returnTime > UTC_TIMESTAMP()
+                          THEN 1 ELSE 0
+                        END AS is_sendable
+                   FROM floatplans
+                  WHERE floatplanId = :planId
+                    AND route_instance_id IS NULL
+                    AND route_origin = 'basic_float_plan'
+                    AND is_reusable = 0
+                    AND is_visible_in_route_library = 0
+                    AND UPPER(TRIM(`status`)) = 'DRAFT'",
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = arguments.datasource }
+            );
+
+            return qSendable.recordCount GT 0 AND val(qSendable.is_sendable[1]) EQ 1;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="loadBasicOperationalMonitoringSummary" access="private" returntype="struct" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var result = {};
+            var qMonitoring = queryExecute(
+                "SELECT monitoring_mode,
+                        monitor_state,
+                        is_monitoring_enabled,
+                        expected_checkin_at,
+                        grace_expires_at,
+                        last_checkin_at,
+                        last_checkin_status
+                   FROM floatplan_monitoring
+                  WHERE float_plan_id = :planId
+                  ORDER BY id DESC
+                  LIMIT 1",
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = arguments.datasource }
+            );
+
+            if (qMonitoring.recordCount EQ 0) {
+                return result;
+            }
+
+            result.MONITORING_MODE = isNull(qMonitoring.monitoring_mode[1]) ? "" : trim(toString(qMonitoring.monitoring_mode[1]));
+            result.MONITOR_STATE = isNull(qMonitoring.monitor_state[1]) ? "" : trim(toString(qMonitoring.monitor_state[1]));
+            result.IS_MONITORING_ENABLED = !isNull(qMonitoring.is_monitoring_enabled[1]) AND val(qMonitoring.is_monitoring_enabled[1]) NEQ 0;
+            result.EXPECTED_CHECKIN_AT = isNull(qMonitoring.expected_checkin_at[1]) ? "" : qMonitoring.expected_checkin_at[1];
+            result.GRACE_EXPIRES_AT = isNull(qMonitoring.grace_expires_at[1]) ? "" : qMonitoring.grace_expires_at[1];
+            result.LAST_CHECKIN_AT = isNull(qMonitoring.last_checkin_at[1]) ? "" : qMonitoring.last_checkin_at[1];
+            result.LAST_CHECKIN_STATUS = isNull(qMonitoring.last_checkin_status[1]) ? "" : trim(toString(qMonitoring.last_checkin_status[1]));
+
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="listBasicOperationalDrafts" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var result = {
+                SUCCESS = true,
+                BASIC_DRAFTS = [],
+                HAS_DRAFT = false,
+                LATEST_DRAFT = {}
+            };
+            var qDrafts = queryNew("");
+            var row = {};
+            var i = 0;
+
+            if (arguments.userId LTE 0) {
+                result.SUCCESS = false;
+                result.ERROR = "INVALID_USER_ID";
+                result.MESSAGE = "A valid user id is required.";
+                return result;
+            }
+
+            if (!hasBasicOperationalFloatPlanColumns(arguments.datasource)) {
+                return result;
+            }
+
+            qDrafts = queryExecute(
+                "SELECT
+                    fp.floatplanId,
+                    fp.floatPlanName,
+                    fp.status,
+                    fp.departing,
+                    fp.returning,
+                    fp.departureTime,
+                    fp.returnTime,
+                    fp.departureTZ,
+                    fp.returnTZ,
+                    fp.departTimezone,
+                    fp.returnTimezone,
+                    fp.dateCreated,
+                    fp.lastUpdate,
+                    (
+                        SELECT COUNT(*)
+                        FROM floatplan_waypoints fpw
+                        WHERE fpw.floatPlanId = fp.floatplanId
+                    ) AS waypoint_count,
+                    (
+                        SELECT COUNT(*)
+                        FROM floatplan_contacts fpc
+                        WHERE fpc.floatPlanId = fp.floatplanId
+                    ) AS contact_count
+                 FROM floatplans fp
+                 WHERE fp.userId = :userId
+                   AND fp.route_instance_id IS NULL
+                   AND fp.route_origin = 'basic_float_plan'
+                   AND fp.is_reusable = 0
+                   AND fp.is_visible_in_route_library = 0
+                   AND UPPER(TRIM(fp.`status`)) = 'DRAFT'
+                   AND fp.activatedAt IS NULL
+                   AND fp.initialSentAt IS NULL
+                   AND fp.closedAt IS NULL
+                 ORDER BY fp.lastUpdate DESC, fp.floatplanId DESC
+                 LIMIT 10",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = arguments.datasource }
+            );
+
+            for (i = 1; i LTE qDrafts.recordCount; i++) {
+                row = {
+                    FLOATPLANID = val(qDrafts.floatplanId[i]),
+                    NAME = isNull(qDrafts.floatPlanName[i]) ? "" : trim(toString(qDrafts.floatPlanName[i])),
+                    STATUS = isNull(qDrafts.status[i]) ? "" : trim(toString(qDrafts.status[i])),
+                    DEPARTING_FROM = isNull(qDrafts.departing[i]) ? "" : trim(toString(qDrafts.departing[i])),
+                    RETURNING_TO = isNull(qDrafts.returning[i]) ? "" : trim(toString(qDrafts.returning[i])),
+                    DEPARTURE_TIME = isNull(qDrafts.departureTime[i]) ? "" : qDrafts.departureTime[i],
+                    RETURN_TIME = isNull(qDrafts.returnTime[i]) ? "" : qDrafts.returnTime[i],
+                    DEPARTURE_TIMEZONE = isNull(qDrafts.departureTZ[i]) ? "" : trim(toString(qDrafts.departureTZ[i])),
+                    RETURN_TIMEZONE = isNull(qDrafts.returnTZ[i]) ? "" : trim(toString(qDrafts.returnTZ[i])),
+                    STORED_DEPARTURE_TIMEZONE = isNull(qDrafts.departTimezone[i]) ? "" : trim(toString(qDrafts.departTimezone[i])),
+                    STORED_RETURN_TIMEZONE = isNull(qDrafts.returnTimezone[i]) ? "" : trim(toString(qDrafts.returnTimezone[i])),
+                    DATE_CREATED = isNull(qDrafts.dateCreated[i]) ? "" : qDrafts.dateCreated[i],
+                    LAST_UPDATE = isNull(qDrafts.lastUpdate[i]) ? "" : qDrafts.lastUpdate[i],
+                    WAYPOINT_COUNT = val(qDrafts.waypoint_count[i]),
+                    CONTACT_COUNT = val(qDrafts.contact_count[i]),
+                    ROUTE_ORIGIN = "basic_float_plan",
+                    IS_REUSABLE = false,
+                    IS_VISIBLE_IN_ROUTE_LIBRARY = false
+                };
+                arrayAppend(result.BASIC_DRAFTS, row);
+                if (!result.HAS_DRAFT) {
+                    result.HAS_DRAFT = true;
+                    result.LATEST_DRAFT = row;
+                }
+            }
+
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getBasicOperationalDraft" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var result = { SUCCESS = false };
+            var scope = {};
+            var savedPlan = {};
+            var savedSelections = {};
+
+            if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
+                result.ERROR = "INVALID_ID";
+                result.MESSAGE = "Basic float plan draft id is required.";
+                return result;
+            }
+
+            scope = loadBasicOperationalPlanScope(arguments.userId, arguments.floatPlanId, arguments.datasource);
+            if (!scope.EXISTS) {
+                result.ERROR = "NOT_FOUND";
+                result.MESSAGE = "Basic float plan draft not found.";
+                return result;
+            }
+
+            if (!scope.IS_BASIC_OPERATIONAL) {
+                result.ERROR = "BASIC_SAVED_ROUTE_RESTRICTED";
+                result.MESSAGE = "This float plan is not a Basic operational draft.";
+                return result;
+            }
+
+            if (compareNoCase(scope.STATUS, "DRAFT") NEQ 0) {
+                result.ERROR = "BASIC_DRAFT_UNAVAILABLE";
+                result.MESSAGE = "Only draft Basic float plans can be resumed.";
+                return result;
+            }
+
+            savedPlan = loadFloatPlan(arguments.userId, arguments.floatPlanId);
+            savedSelections = loadBasicPlanSelections(arguments.userId, arguments.floatPlanId, arguments.datasource);
+
+            result.SUCCESS = true;
+            result.FLOATPLANID = arguments.floatPlanId;
+            result.FLOATPLAN = savedPlan;
+            result.BASIC_DETAILS = loadBasicDetails(arguments.floatPlanId, arguments.datasource);
+            result.PLAN_PASSENGERS = savedSelections.PASSENGERS;
+            result.PLAN_CONTACTS = savedSelections.CONTACTS;
+            result.PLAN_WAYPOINTS = savedSelections.WAYPOINTS;
+            result.BASIC_OPERATIONAL_ONLY = true;
+            result.ROUTE_ORIGIN = "basic_float_plan";
+
+            return result;
         </cfscript>
     </cffunction>
 
@@ -2099,22 +3105,24 @@
 
             var floatPlan = arguments.payload.FLOATPLAN;
             var selectedPassengers = structKeyExists(arguments.payload, "PASSENGERS") ? arguments.payload.PASSENGERS : [];
-            var selectedContacts   = structKeyExists(arguments.payload, "CONTACTS") ? arguments.payload.CONTACTS : [];
             var selectedWaypoints  = structKeyExists(arguments.payload, "WAYPOINTS") ? arguments.payload.WAYPOINTS : [];
+            var basicDetails = normalizeBasicDetailsPayload(arguments.payload, floatPlan);
+            var detailsValidation = {};
+            var authority = {};
 
             var planId    = val(pickValue(floatPlan, ["floatPlanId", "FLOATPLANID"], 0));
             var planName  = trim(pickValue(floatPlan, ["floatPlanName", "NAME"], ""));
-            var vesselId  = val(pickValue(floatPlan, ["vesselId", "VESSELID"], 0));
-            var operatorId = val(pickValue(floatPlan, ["operatorId", "OPERATORID"], 0));
+            var vesselId  = 0;
+            var operatorId = 0;
             var operatorHasPfd = booleanValue(pickValue(floatPlan, ["operatorHasPfd", "OPERATOR_HAS_PFD"], false));
-            var email     = trim(pickValue(floatPlan, ["email", "EMAIL"], ""));
-            var rescueAuthority = trim(pickValue(floatPlan, ["rescueAuthority", "RESCUE_AUTHORITY"], ""));
-            var rescuePhone     = trim(pickValue(floatPlan, ["rescueAuthorityPhone", "RESCUE_AUTHORITY_PHONE"], ""));
-            var rescueCenterId  = val(pickValue(floatPlan, ["rescueCenterId", "RESCUE_CENTERID"], 0));
-            var departingFrom   = trim(pickValue(floatPlan, ["departingFrom", "DEPARTING_FROM"], ""));
+            var email     = basicDetails.CAPTAIN_EMAIL;
+            var rescueAuthority = "";
+            var rescuePhone     = "";
+            var rescueCenterId  = basicDetails.AUTHORITY_ID;
+            var departingFrom   = basicDetails.LAUNCH_LOCATION;
             var departureTime   = trim(pickValue(floatPlan, ["departureTime", "DEPARTURE_TIME"], ""));
             var departureTz     = trim(pickValue(floatPlan, ["departureTimezone", "DEPARTURE_TIMEZONE"], ""));
-            var returningTo     = trim(pickValue(floatPlan, ["returningTo", "RETURNING_TO"], ""));
+            var returningTo     = basicDetails.LAUNCH_LOCATION;
             var returnTime      = trim(pickValue(floatPlan, ["returnTime", "RETURN_TIME"], ""));
             var returnTz        = trim(pickValue(floatPlan, ["returnTimezone", "RETURN_TIMEZONE"], ""));
             var foodDays        = trim(pickValue(floatPlan, ["foodDaysPerPerson", "FOOD_DAYS_PER_PERSON"], ""));
@@ -2129,6 +3137,7 @@
             var returnSourceTz = returnTz;
             var memberGateResult = {};
             var existingScope = {};
+            var singletonState = {};
             var ds = "fpw";
 
             if (routeInstanceId GT 0) {
@@ -2164,17 +3173,45 @@
                 }
             }
 
+            singletonState = getBasicOperationalSingletonState(arguments.userId, ds);
+            if (singletonState.HAS_ACTIVE AND singletonState.ACTIVE_FLOATPLANID NEQ planId) {
+                result.ERROR = "BASIC_ACTIVE_PLAN_EXISTS";
+                result.MESSAGE = "You already have an active Basic Float Plan. Close it before creating a new one.";
+                result.EXISTING_FLOATPLANID = singletonState.ACTIVE_FLOATPLANID;
+                return result;
+            }
+            if (singletonState.HAS_DRAFT AND singletonState.DRAFT_FLOATPLANID NEQ planId) {
+                result.ERROR = "BASIC_DRAFT_EXISTS";
+                result.MESSAGE = "You already have a Basic Float Plan draft. Resume that draft instead of creating a new one.";
+                result.EXISTING_FLOATPLANID = singletonState.DRAFT_FLOATPLANID;
+                return result;
+            }
+
             if (NOT len(planName)) {
                 result.ERROR = "VALIDATION";
                 result.MESSAGE = "Float plan name is required.";
                 return result;
             }
 
-            if (vesselId LTE 0) {
-                result.ERROR = "VALIDATION";
-                result.MESSAGE = "Please select a vessel.";
+            if (!hasBasicDetailsTable(ds)) {
+                result.ERROR = "BASIC_DETAILS_SCHEMA_REQUIRED";
+                result.MESSAGE = "Basic float plan details table is not available.";
                 return result;
             }
+
+            detailsValidation = validateBasicDetailsPayload(basicDetails);
+            if (!detailsValidation.SUCCESS) {
+                return detailsValidation;
+            }
+
+            authority = resolveBasicRescueAuthority(basicDetails.AUTHORITY_ID, ds);
+            if (!authority.SUCCESS) {
+                return authority;
+            }
+            rescueCenterId = authority.AUTHORITY_ID;
+            rescueAuthority = authority.AUTHORITY_NAME;
+            rescuePhone = authority.AUTHORITY_PHONE;
+            basicDetails.AUTHORITY_ID = rescueCenterId;
 
             planName = ensureUniquePlanName(arguments.userId, planId, planName, ds);
 
@@ -2216,8 +3253,7 @@
                 returnTzStore = "UTC";
             }
 
-            memberGateResult = getMemberAccessGateService().validateWaypointLimit(
-                userId = arguments.userId,
+            memberGateResult = validateBasicSavedWaypointLimit(
                 waypointCount = countEffectivePayloadWaypoints(selectedWaypoints)
             );
             if (!memberGateResult.allowed) {
@@ -2374,6 +3410,7 @@
                 }
 
                 markBasicOperationalFloatPlanScope(planId, ds);
+                upsertBasicDetails(planId, basicDetails, authority, ds);
 
                 for (var pIndex = 1; pIndex LTE arrayLen(selectedPassengers); pIndex++) {
                     var p = selectedPassengers[pIndex];
@@ -2387,19 +3424,6 @@
                         planId = { value = planId, cfsqltype = "cf_sql_integer" },
                         passengerId = { value = passengerId, cfsqltype = "cf_sql_integer" },
                         hasPfd = { value = hasPfd, cfsqltype = "cf_sql_bit" }
-                    }, { datasource = ds });
-                }
-
-                for (var cIndex = 1; cIndex LTE arrayLen(selectedContacts); cIndex++) {
-                    var c = selectedContacts[cIndex];
-                    var contactId = val(pickValue(c, ["CONTACTID", "contactId"], 0));
-                    if (contactId LTE 0) continue;
-                    queryExecute("
-                        INSERT INTO floatplan_contacts (contactId, floatplanId)
-                        VALUES (:contactId, :planId)
-                    ", {
-                        contactId = { value = contactId, cfsqltype = "cf_sql_integer" },
-                        planId = { value = planId, cfsqltype = "cf_sql_integer" }
                     }, { datasource = ds });
                 }
 
@@ -2429,11 +3453,12 @@
             }
 
             var savedPlan = loadFloatPlan(arguments.userId, planId);
-            var savedSelections = loadPlanSelections(arguments.userId, planId);
+            var savedSelections = loadBasicPlanSelections(arguments.userId, planId, ds);
 
             result.SUCCESS = true;
             result.FLOATPLANID = planId;
             result.FLOATPLAN = savedPlan;
+            result.BASIC_DETAILS = loadBasicDetails(planId, ds);
             result.PLAN_PASSENGERS = savedSelections.PASSENGERS;
             result.PLAN_CONTACTS = savedSelections.CONTACTS;
             result.PLAN_WAYPOINTS = savedSelections.WAYPOINTS;
@@ -2882,6 +3907,16 @@
                 },
                 { datasource = "fpw" }
             );
+            if (hasBasicDetailsTable("fpw")) {
+                queryExecute(
+                    "DELETE FROM floatplan_basic_details
+                     WHERE floatplan_id IN (:planIds)",
+                    {
+                        planIds = { value = idList, cfsqltype = "cf_sql_integer", list = true }
+                    },
+                    { datasource = "fpw" }
+                );
+            }
             queryExecute(
                 "DELETE FROM floatplans
                  WHERE floatplanId IN (:planIds)
@@ -4994,6 +6029,97 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="closeBasicFloatPlan" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                MESSAGE = ""
+            };
+            var ds = "fpw";
+            var basicScope = {};
+            var monitoringService = {};
+            var monitoringResult = {};
+
+            if (arguments.floatPlanId LTE 0) {
+                result.ERROR = "MISSING_PLAN_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            basicScope = loadBasicOperationalPlanScope(arguments.userId, arguments.floatPlanId, ds);
+            if (!basicScope.EXISTS) {
+                result.ERROR = "PLAN_NOT_FOUND";
+                result.MESSAGE = "Float plan not found.";
+                return result;
+            }
+            if (!basicScope.IS_BASIC_OPERATIONAL) {
+                return getMemberAccessGateService().buildDeniedResponse(
+                    errorCode = "BASIC_SAVED_ROUTE_RESTRICTED",
+                    message = "Basic close-out is only available for route-less operational Basic float plans.",
+                    auth = true,
+                    statusCode = 403,
+                    includeUpgradeOptions = true
+                );
+            }
+            if (basicScope.STATUS NEQ "ACTIVE") {
+                result.ERROR = "INVALID_STATUS";
+                result.MESSAGE = "Only active Basic float plans can be closed.";
+                return result;
+            }
+
+            try {
+                transaction {
+                    queryExecute(
+                        "UPDATE floatplans
+                            SET `status` = 'CLOSED',
+                                checkedInAt = COALESCE(checkedInAt, UTC_TIMESTAMP()),
+                                checkin_context = NULL,
+                                closedAt = UTC_TIMESTAMP(),
+                                lastUpdateStatus = UTC_TIMESTAMP()
+                          WHERE floatplanId = :planId
+                            AND userId = :userId
+                            AND route_instance_id IS NULL
+                            AND route_origin = 'basic_float_plan'
+                            AND is_reusable = 0
+                            AND is_visible_in_route_library = 0
+                            AND UPPER(TRIM(`status`)) = 'ACTIVE'",
+                        {
+                            planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                            userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                        },
+                        { datasource = ds }
+                    );
+
+                    monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
+                    monitoringResult = monitoringService.closeMonitoringForFloatPlan(arguments.floatPlanId, "basic_close");
+                    if (
+                        !structKeyExists(monitoringResult, "SUCCESS")
+                        OR monitoringResult.SUCCESS NEQ true
+                    ) {
+                        throw(message = "Basic monitoring close failed.", detail = serializeJSON(monitoringResult));
+                    }
+                }
+            } catch (any closeErr) {
+                result.ERROR = "BASIC_MONITORING_CLOSE_FAILED";
+                result.MESSAGE = "Basic monitoring close failed.";
+                result.MONITORING_RESULT = monitoringResult;
+                result.DETAIL = closeErr.message;
+                return result;
+            }
+
+            result.SUCCESS = true;
+            result.FLOATPLANID = arguments.floatPlanId;
+            result.STATUS = "CLOSED";
+            result.MESSAGE = "Basic float plan closed. Basic monitoring has ended.";
+            result.MONITORING_RESULT = monitoringResult;
+            result.BASIC_OPERATIONAL_ONLY = true;
+            result.CURRENT = getBasicOperationalCurrentPlan(arguments.userId, ds);
+            return result;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="sendBasicFloatPlanToContacts" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
@@ -5008,6 +6134,10 @@
             var storedPlanTimes = {};
             var monitoringService = {};
             var monitoringResult = {};
+            var singletonState = {};
+            var basicDetails = {};
+            var detailsValidation = {};
+            var authority = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "MISSING_PLAN_ID";
@@ -5036,7 +6166,63 @@
                 return result;
             }
 
+            singletonState = getBasicOperationalSingletonState(arguments.userId, ds);
+            if (singletonState.HAS_ACTIVE AND singletonState.ACTIVE_FLOATPLANID NEQ arguments.floatPlanId) {
+                result.ERROR = "BASIC_ACTIVE_PLAN_EXISTS";
+                result.MESSAGE = "You already have an active Basic Float Plan. Close it before creating a new one.";
+                result.EXISTING_FLOATPLANID = singletonState.ACTIVE_FLOATPLANID;
+                return result;
+            }
+            if (singletonState.HAS_DRAFT AND singletonState.DRAFT_FLOATPLANID NEQ arguments.floatPlanId) {
+                result.ERROR = "BASIC_DRAFT_EXISTS";
+                result.MESSAGE = "You already have a Basic Float Plan draft. Resume that draft instead of creating a new one.";
+                result.EXISTING_FLOATPLANID = singletonState.DRAFT_FLOATPLANID;
+                return result;
+            }
+
             var plan = loadFloatPlan(arguments.userId, arguments.floatPlanId);
+            basicDetails = loadBasicDetails(arguments.floatPlanId, ds);
+            if (structIsEmpty(basicDetails)) {
+                result.ERROR = "BASIC_DETAILS_REQUIRED";
+                result.MESSAGE = "Basic float plan details are required before sending.";
+                return result;
+            }
+
+            detailsValidation = validateBasicDetailsPayload(basicDetails);
+            if (!detailsValidation.SUCCESS) {
+                return detailsValidation;
+            }
+
+            authority = resolveBasicRescueAuthority(basicDetails.AUTHORITY_ID, ds);
+            if (!authority.SUCCESS) {
+                return authority;
+            }
+            basicDetails.AUTHORITY_ID = authority.AUTHORITY_ID;
+            upsertBasicDetails(arguments.floatPlanId, basicDetails, authority, ds);
+
+            queryExecute("
+                UPDATE floatplans
+                   SET floatPlanEmail = :captainEmail,
+                       rescueAuthority = :rescueAuthority,
+                       rescueAuthorityPhone = :rescuePhone,
+                       rescueCenterId = :rescueCenterId,
+                       departing = :launchLocation,
+                       returning = :launchLocation,
+                       lastUpdate = NOW()
+                 WHERE floatplanId = :planId
+                   AND userId = :userId
+                   AND route_instance_id IS NULL
+            ", {
+                planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                captainEmail = { value = basicDetails.CAPTAIN_EMAIL, cfsqltype = "cf_sql_varchar" },
+                rescueAuthority = { value = authority.AUTHORITY_NAME, cfsqltype = "cf_sql_varchar" },
+                rescuePhone = { value = authority.AUTHORITY_PHONE, cfsqltype = "cf_sql_varchar" },
+                rescueCenterId = { value = authority.AUTHORITY_ID, cfsqltype = "cf_sql_integer" },
+                launchLocation = { value = basicDetails.LAUNCH_LOCATION, cfsqltype = "cf_sql_varchar" }
+            }, { datasource = ds });
+
+            plan = loadFloatPlan(arguments.userId, arguments.floatPlanId);
 
             if (NOT structKeyExists(plan, "RETURN_TIME") OR NOT isDate(plan.RETURN_TIME)) {
                 result.ERROR = "RETURN_TIME_REQUIRED";
@@ -5064,8 +6250,7 @@
                 return result;
             }
 
-            memberGateResult = getMemberAccessGateService().validateWaypointLimit(
-                userId = arguments.userId,
+            memberGateResult = validateBasicSavedWaypointLimit(
                 waypointCount = countStoredFloatPlanWaypoints(arguments.floatPlanId)
             );
             if (!memberGateResult.allowed) {
@@ -5090,7 +6275,7 @@
                 return memberGateResult.response;
             }
 
-            var contacts = loadPlanContactEmails(arguments.userId, arguments.floatPlanId);
+            var contacts = loadBasicPlanContactEmails(arguments.floatPlanId, ds);
             if (!arrayLen(contacts)) {
                 result.ERROR = "NO_CONTACTS";
                 result.MESSAGE = "No contacts are selected for this float plan.";
@@ -5111,8 +6296,8 @@
                 planName = "Float Plan";
             }
 
-            var rescueAuthority = trim(structKeyExists(plan, "RESCUE_AUTHORITY") ? plan.RESCUE_AUTHORITY : "");
-            var rescuePhone = trim(structKeyExists(plan, "RESCUE_AUTHORITY_PHONE") ? plan.RESCUE_AUTHORITY_PHONE : "");
+            var rescueAuthority = authority.AUTHORITY_NAME;
+            var rescuePhone = authority.AUTHORITY_PHONE;
             var safePlanName = encodeForHtml(planName);
             var safeRescueAuthority = encodeForHtml(rescueAuthority);
             var safeRescuePhone = encodeForHtml(rescuePhone);

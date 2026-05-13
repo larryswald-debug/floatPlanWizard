@@ -43,9 +43,10 @@
 
             var vessel = loadVessel(getNumeric(plan, "vesselId", 0), ds);
             var operatorInfo = loadOperator(getNumeric(plan, "operatorId", 0), ds);
-            var passengers = loadPassengers(arguments.floatPlanId, ds);
-            var contacts = loadContacts(arguments.floatPlanId, ds);
-            var waypoints = loadWaypoints(arguments.floatPlanId, ds);
+	            var passengers = loadPassengers(arguments.floatPlanId, ds);
+	            var contacts = loadContacts(arguments.floatPlanId, ds);
+	            var waypoints = loadWaypoints(arguments.floatPlanId, ds);
+	            var basicDetails = loadBasicDetails(arguments.floatPlanId, ds);
 
             writeLog(file="fpw_pdf", text="createPDF writing destinationPath=#destinationPath# readonlyPath=#readonlyPath#", type="information");
 
@@ -119,11 +120,34 @@
             var oprVesselExperience = getString(operatorInfo, "expWithVessel", "");
             var oprAreaExperience = getString(operatorInfo, "expWithBoatingArea", "");
             var oprPhone = getString(operatorInfo, "phone", "");
-            var oprVehicleYearMakeModel = getString(operatorInfo, "vehicle", "");
-            var oprVehicleLicenseNum = getString(operatorInfo, "vehicleLicense", "");
-            var oprVehicleParkedAt = getString(operatorInfo, "vehicleParkedAt", "");
-            var oprNotes = getString(operatorInfo, "notes", "");
-        </cfscript>
+	            var oprVehicleYearMakeModel = getString(operatorInfo, "vehicle", "");
+	            var oprVehicleLicenseNum = getString(operatorInfo, "vehicleLicense", "");
+	            var oprVehicleParkedAt = getString(operatorInfo, "vehicleParkedAt", "");
+	            var oprNotes = getString(operatorInfo, "notes", "");
+
+	            if (!structIsEmpty(basicDetails)) {
+	                vesselName = getString(basicDetails, "vessel_name", vesselName);
+	                oprName = getString(basicDetails, "operator_name", oprName);
+	                email = getString(basicDetails, "captain_email", email);
+	                tripDepartLocation = getString(basicDetails, "launch_location", tripDepartLocation);
+	                tripReturnLocation = getString(basicDetails, "launch_location", tripReturnLocation);
+	                rescueAuthority = getString(basicDetails, "authority_name_snapshot", rescueAuthority);
+	                rescueAuthorityPhone = getString(basicDetails, "authority_phone_snapshot", rescueAuthorityPhone);
+	                contacts = [{
+	                    name = getString(basicDetails, "notification_contact_name", ""),
+	                    phone = getString(basicDetails, "notification_contact_phone", "")
+	                }];
+	                if (len(getString(basicDetails, "destination_location", ""))) {
+	                    arrayInsertAt(waypoints, 1, {
+	                        name = getString(basicDetails, "destination_location", ""),
+	                        reason = "Destination / turnaround point",
+	                        departType = "planned",
+	                        arrival = "",
+	                        departure = ""
+	                    });
+	                }
+	            }
+	        </cfscript>
 
         <cftry>
         <cfpdfform action="populate" source="#templatePath#" destination="#destinationPath#" overwrite="true">
@@ -303,9 +327,9 @@
         </cfscript>
     </cffunction>
 
-    <cffunction name="loadFloatPlan" access="private" output="false" returntype="struct">
-        <cfargument name="floatPlanId" type="numeric" required="true">
-        <cfargument name="datasource" type="string" required="true">
+	    <cffunction name="loadFloatPlan" access="private" output="false" returntype="struct">
+	        <cfargument name="floatPlanId" type="numeric" required="true">
+	        <cfargument name="datasource" type="string" required="true">
         <cfscript>
             var qPlan = queryExecute(
                 "SELECT * FROM floatplans WHERE floatplanId = :planId LIMIT 1",
@@ -313,10 +337,30 @@
                 { datasource = arguments.datasource }
             );
             return queryRowToStruct(qPlan);
-        </cfscript>
-    </cffunction>
+	        </cfscript>
+	    </cffunction>
 
-    <cffunction name="loadVessel" access="private" output="false" returntype="struct">
+	    <cffunction name="loadBasicDetails" access="private" output="false" returntype="struct">
+	        <cfargument name="floatPlanId" type="numeric" required="true">
+	        <cfargument name="datasource" type="string" required="true">
+	        <cfscript>
+	            var qDetails = queryNew("");
+	        </cfscript>
+	        <cftry>
+	            <cfquery name="qDetails" datasource="#arguments.datasource#">
+	                SELECT *
+	                  FROM floatplan_basic_details
+	                 WHERE floatplan_id = <cfqueryparam value="#arguments.floatPlanId#" cfsqltype="cf_sql_integer">
+	                 LIMIT 1
+	            </cfquery>
+	            <cfreturn queryRowToStruct(qDetails)>
+	            <cfcatch type="any">
+	                <cfreturn {}>
+	            </cfcatch>
+	        </cftry>
+	    </cffunction>
+
+	    <cffunction name="loadVessel" access="private" output="false" returntype="struct">
         <cfargument name="vesselId" type="numeric" required="true">
         <cfargument name="datasource" type="string" required="true">
         <cfscript>
