@@ -113,6 +113,31 @@
       return request("/me.cfc?method=handle", { method: "GET" });
     },
 
+    createPremiumCheckoutSession: function (interval) {
+      var intervalValue = String(interval || "").trim().toLowerCase();
+      if (intervalValue !== "monthly" && intervalValue !== "yearly") {
+        return Promise.reject({
+          SUCCESS: false,
+          success: false,
+          ERROR: "INVALID_PRICE_SELECTOR",
+          errorCode: "INVALID_PRICE_SELECTOR",
+          MESSAGE: "Choose monthly or yearly Premium billing.",
+          message: "Choose monthly or yearly Premium billing."
+        });
+      }
+      return request("/billing.cfc?method=handle&action=createcheckoutsession", {
+        method: "POST",
+        body: { interval: intervalValue }
+      });
+    },
+
+    createBillingPortalSession: function () {
+      return request("/billing.cfc?method=handle&action=createportal", {
+        method: "POST",
+        body: {}
+      });
+    },
+
     getFloatPlans: function (options) {
       return listGet("floatplans", options);
     },

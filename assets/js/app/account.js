@@ -122,6 +122,202 @@
     populateHomePort(home);
   }
 
+  function getAccessFromPayload(payload) {
+    if (!payload || typeof payload !== "object") return null;
+    if (payload.ACCESS && typeof payload.ACCESS === "object") return payload.ACCESS;
+    if (payload.access && typeof payload.access === "object") return payload.access;
+    return null;
+  }
+
+  function hasPremiumAccess(access) {
+    var value = access && Object.prototype.hasOwnProperty.call(access, "hasPremium")
+      ? access.hasPremium
+      : (access && Object.prototype.hasOwnProperty.call(access, "HASPREMIUM") ? access.HASPREMIUM : false);
+    if (value === true || value === 1) return true;
+    return String(value).trim().toLowerCase() === "true" || String(value).trim() === "1";
+  }
+
+  function getPremiumSource(access) {
+    return String(pick(access, ["premiumSource", "PREMIUMSOURCE", "source", "SOURCE"], "") || "").trim().toLowerCase();
+  }
+
+  function setBillingStatus(label, statusKey) {
+    var el = $("membershipBillingStatus");
+    if (!el) return;
+    el.textContent = label || "Unknown";
+    el.className = "membership-status-badge membership-status-" + (statusKey || "unknown");
+  }
+
+  function showBillingMessage(message, tone) {
+    var el = $("membershipBillingMessage");
+    if (!el) return;
+    el.textContent = message || "";
+    el.classList.remove("membership-message-error", "membership-message-success");
+    if (tone === "error" || tone === "danger") el.classList.add("membership-message-error");
+    if (tone === "success") el.classList.add("membership-message-success");
+  }
+
+  function setBillingActionsBusy(isBusy) {
+    var buttons = document.querySelectorAll("[data-membership-upgrade], #membershipManageBillingBtn");
+    Array.prototype.forEach.call(buttons, function (button) {
+      button.disabled = !!isBusy;
+      button.setAttribute("aria-disabled", isBusy ? "true" : "false");
+    });
+  }
+
+  function renderMembershipBilling(access) {
+    var summary = $("membershipBillingSummary");
+    var upgradeActions = $("membershipUpgradeActions");
+    var portalActions = $("membershipPortalActions");
+    var hasPremium = hasPremiumAccess(access);
+    var premiumSource = getPremiumSource(access);
+
+    if (upgradeActions) upgradeActions.classList.add("d-none");
+    if (portalActions) portalActions.classList.add("d-none");
+    showBillingMessage("", "info");
+
+    if (!access) {
+      setBillingStatus("Unavailable", "unknown");
+      if (summary) summary.textContent = "Membership status is unavailable.";
+      return;
+    }
+
+    if (!hasPremium) {
+      setBillingStatus("Basic", "basic");
+      if (summary) summary.textContent = "Upgrade to Premium for saved routes, multi-day trips, Active Cruise, Follow Page sharing, and advanced monitoring.";
+      if (upgradeActions) upgradeActions.classList.remove("d-none");
+      return;
+    }
+
+    setBillingStatus("Premium", "premium");
+    if (premiumSource === "stripe_subscription") {
+      if (summary) summary.textContent = "Premium access is active through a Stripe subscription.";
+      if (portalActions) portalActions.classList.remove("d-none");
+      return;
+    }
+
+    if (summary) summary.textContent = "Premium access is active. Stripe billing management is not available for this membership source.";
+  }
+
+  function getCheckoutUrl(payload) {
+    return payload && (payload.checkoutUrl || payload.CHECKOUT_URL)
+      ? String(payload.checkoutUrl || payload.CHECKOUT_URL)
+      : "";
+  }
+
+  function getPortalUrl(payload) {
+    return payload && (payload.portalUrl || payload.PORTAL_URL)
+      ? String(payload.portalUrl || payload.PORTAL_URL)
+      : "";
+  }
+
+  function getErrorCode(error) {
+    if (error && typeof error.ERROR === "string") return String(error.ERROR);
+    if (error && typeof error.errorCode === "string") return String(error.errorCode);
+    if (error && error.ERROR && error.ERROR.CODE) return String(error.ERROR.CODE);
+    return "";
+  }
+
+  async function loadMembershipBilling() {
+    if (!$("membershipBillingCard")) return;
+
+    try {
+      var data = window.Api && typeof window.Api.getCurrentMemberAccess === "function"
+        ? await window.Api.getCurrentMemberAccess()
+        : await fetchJson(API_BASE + "/me.cfc?method=handle", { method: "GET" });
+
+      if (!ensureAuth(data)) {
+        return;
+      }
+      if (!data || (data.SUCCESS !== true && data.success !== true)) {
+        throw data || { MESSAGE: "Unable to load membership status." };
+      }
+
+      renderMembershipBilling(getAccessFromPayload(data));
+    } catch (err) {
+      if (handleAuthError(err)) {
+        return;
+      }
+      setBillingStatus("Unavailable", "unknown");
+      setText("membershipBillingSummary", "Membership status is unavailable.");
+      showBillingMessage("Unable to load membership status.", "error");
+    }
+  }
+
+  async function startPremiumUpgrade(interval, trigger) {
+    var intervalValue = String(interval || "").trim().toLowerCase();
+    var originalText = trigger ? trigger.textContent : "";
+    if (intervalValue !== "monthly" && intervalValue !== "yearly") {
+      showBillingMessage("Choose monthly or yearly Premium billing.", "error");
+      return;
+    }
+    if (!window.Api || typeof window.Api.createPremiumCheckoutSession !== "function") {
+      showBillingMessage("Premium checkout is not available yet.", "error");
+      return;
+    }
+
+    setBillingActionsBusy(true);
+    if (trigger) trigger.textContent = "Opening...";
+    showBillingMessage("Opening Stripe-hosted checkout...", "info");
+
+    try {
+      var data = await window.Api.createPremiumCheckoutSession(intervalValue);
+      var checkoutUrl = getCheckoutUrl(data);
+      if (!data || (data.SUCCESS !== true && data.success !== true) || !checkoutUrl) {
+        throw data || { MESSAGE: "Premium checkout is not available right now." };
+      }
+      window.location.href = checkoutUrl;
+    } catch (err) {
+      var code = getErrorCode(err).toUpperCase();
+      if (code === "STRIPE_CONFIG_MISSING") {
+        showBillingMessage("Premium checkout is not available yet. Please contact FPW support.", "error");
+      } else if (code === "ALREADY_PREMIUM") {
+        showBillingMessage("Your account already has Premium access.", "success");
+        await loadMembershipBilling();
+      } else if (code === "INVALID_PRICE_SELECTOR") {
+        showBillingMessage("Choose monthly or yearly Premium billing.", "error");
+      } else {
+        showBillingMessage((err && (err.MESSAGE || err.message)) ? (err.MESSAGE || err.message) : "Premium checkout is not available right now.", "error");
+      }
+    } finally {
+      setBillingActionsBusy(false);
+      if (trigger) trigger.textContent = originalText || (intervalValue === "yearly" ? "Upgrade Yearly" : "Upgrade Monthly");
+    }
+  }
+
+  async function openBillingPortal(trigger) {
+    var originalText = trigger ? trigger.textContent : "";
+    if (!window.Api || typeof window.Api.createBillingPortalSession !== "function") {
+      showBillingMessage("Billing management is not available right now.", "error");
+      return;
+    }
+
+    setBillingActionsBusy(true);
+    if (trigger) trigger.textContent = "Opening...";
+    showBillingMessage("Opening Stripe-hosted billing management...", "info");
+
+    try {
+      var data = await window.Api.createBillingPortalSession();
+      var portalUrl = getPortalUrl(data);
+      if (!data || (data.SUCCESS !== true && data.success !== true) || !portalUrl) {
+        throw data || { MESSAGE: "Billing management is not available right now." };
+      }
+      window.location.href = portalUrl;
+    } catch (err) {
+      var code = getErrorCode(err).toUpperCase();
+      if (code === "NO_BILLING_CUSTOMER") {
+        showBillingMessage("Billing management is not available for this account yet.", "error");
+      } else if (code === "STRIPE_CONFIG_MISSING") {
+        showBillingMessage("Billing management is not available right now.", "error");
+      } else {
+        showBillingMessage((err && (err.MESSAGE || err.message)) ? (err.MESSAGE || err.message) : "Billing management is not available right now.", "error");
+      }
+    } finally {
+      setBillingActionsBusy(false);
+      if (trigger) trigger.textContent = originalText || "Manage Billing";
+    }
+  }
+
   async function fetchJson(url, options) {
     options = options || {};
     options.credentials = "include";
@@ -563,10 +759,23 @@
     var companionCopyBtn = $("copyCompanionPairingCodeBtn");
     if (companionCopyBtn) companionCopyBtn.addEventListener("click", copyCompanionPairingCode);
 
+    var upgradeButtons = document.querySelectorAll("[data-membership-upgrade]");
+    Array.prototype.forEach.call(upgradeButtons, function (button) {
+      button.addEventListener("click", function () {
+        startPremiumUpgrade(button.getAttribute("data-membership-upgrade") || "", button);
+      });
+    });
+
+    var manageBillingBtn = $("membershipManageBillingBtn");
+    if (manageBillingBtn) manageBillingBtn.addEventListener("click", function () {
+      openBillingPortal(manageBillingBtn);
+    });
+
     var logoutBtn = $("logoutButton");
     if (logoutBtn) logoutBtn.addEventListener("click", logout);
 
     loadProfile();
+    loadMembershipBilling();
     loadCompanionDevices();
   });
 

@@ -103,6 +103,29 @@
     </div>
 
     <div class="col-12 col-lg-5">
+      <div class="card shadow-sm mb-4" id="membershipBillingCard">
+        <div class="card-body">
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+            <div>
+              <h2 class="h5 mb-1">Membership &amp; Billing</h2>
+              <p class="small text-muted mb-0" id="membershipBillingSummary">Checking membership status...</p>
+            </div>
+            <span class="membership-status-badge" id="membershipBillingStatus">Loading</span>
+          </div>
+
+          <div class="membership-billing-actions d-none" id="membershipUpgradeActions">
+            <button class="btn btn-primary btn-sm" type="button" data-membership-upgrade="monthly">Upgrade Monthly</button>
+            <button class="btn btn-outline-primary btn-sm" type="button" data-membership-upgrade="yearly">Upgrade Yearly</button>
+          </div>
+
+          <div class="membership-billing-actions d-none" id="membershipPortalActions">
+            <button class="btn btn-primary btn-sm" type="button" id="membershipManageBillingBtn">Manage Billing</button>
+          </div>
+
+          <p class="small text-muted mt-3 mb-0" id="membershipBillingMessage" aria-live="polite"></p>
+        </div>
+      </div>
+
       <div class="card shadow-sm">
         <div class="card-body">
           <h2 class="h5 mb-3">Change Password</h2>

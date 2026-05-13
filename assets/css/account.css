@@ -193,6 +193,46 @@
       color: var(--success) !important;
     }
 
+    .account-body .membership-status-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      border: 1px solid var(--panel-border);
+      background: rgba(255,255,255,0.05);
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .account-body .membership-status-basic {
+      color: var(--warning);
+      border-color: rgba(255, 176, 32, 0.42);
+      background: rgba(255, 176, 32, 0.12);
+    }
+
+    .account-body .membership-status-premium {
+      color: var(--success);
+      border-color: rgba(40, 209, 124, 0.45);
+      background: rgba(40, 209, 124, 0.12);
+    }
+
+    .account-body .membership-billing-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+
+    .account-body .membership-message-error {
+      color: var(--danger) !important;
+    }
+
+    .account-body .membership-message-success {
+      color: var(--success) !important;
+    }
+
     @media (max-width: 760px) {
       .account-body .companion-device-row {
         flex-direction: column;

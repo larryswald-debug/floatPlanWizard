@@ -78,6 +78,88 @@
     return fallback || "Request failed.";
   }
 
+  function getErrorCode(error) {
+    if (error && typeof error.ERROR === "string") return String(error.ERROR);
+    if (error && typeof error.errorCode === "string") return String(error.errorCode);
+    if (error && error.ERROR && error.ERROR.CODE) return String(error.ERROR.CODE);
+    return "";
+  }
+
+  function showUpgradeMessage(message, tone) {
+    var el = document.getElementById("basicPremiumUpgradeMessage");
+    if (el) {
+      el.textContent = message || "";
+      el.classList.remove("fpw-basic-upgrade-message--error", "fpw-basic-upgrade-message--success");
+      if (tone === "danger" || tone === "error") {
+        el.classList.add("fpw-basic-upgrade-message--error");
+      } else if (tone === "success") {
+        el.classList.add("fpw-basic-upgrade-message--success");
+      }
+      return;
+    }
+    if (message && utils && typeof utils.showDashboardAlert === "function") {
+      utils.showDashboardAlert(message, tone || "info");
+    }
+  }
+
+  function setUpgradeButtonsBusy(isBusy) {
+    var buttons = document.querySelectorAll("[data-basic-premium-upgrade]");
+    Array.prototype.forEach.call(buttons, function (button) {
+      button.disabled = !!isBusy;
+      button.setAttribute("aria-disabled", isBusy ? "true" : "false");
+    });
+  }
+
+  function getCheckoutUrl(payload) {
+    return payload && (payload.checkoutUrl || payload.CHECKOUT_URL)
+      ? String(payload.checkoutUrl || payload.CHECKOUT_URL)
+      : "";
+  }
+
+  function startPremiumCheckout(interval, trigger) {
+    var intervalValue = String(interval || "").trim().toLowerCase();
+    var originalText = trigger ? trigger.textContent : "";
+    if (!window.Api || typeof window.Api.createPremiumCheckoutSession !== "function") {
+      showUpgradeMessage("Premium checkout is not available yet.", "danger");
+      return;
+    }
+    if (intervalValue !== "monthly" && intervalValue !== "yearly") {
+      showUpgradeMessage("Choose monthly or yearly Premium billing.", "danger");
+      return;
+    }
+    setUpgradeButtonsBusy(true);
+    if (trigger) {
+      trigger.textContent = "Opening...";
+    }
+    showUpgradeMessage("Opening Stripe-hosted checkout...", "info");
+    window.Api.createPremiumCheckoutSession(intervalValue)
+      .then(function (payload) {
+        var checkoutUrl = getCheckoutUrl(payload);
+        if (!payload || (payload.SUCCESS !== true && payload.success !== true) || !checkoutUrl) {
+          throw payload || { MESSAGE: "Premium checkout is not available right now." };
+        }
+        window.location.href = checkoutUrl;
+      })
+      .catch(function (err) {
+        var code = getErrorCode(err).toUpperCase();
+        if (code === "STRIPE_CONFIG_MISSING") {
+          showUpgradeMessage("Premium checkout is not available yet. Please contact FPW support.", "danger");
+        } else if (code === "ALREADY_PREMIUM") {
+          showUpgradeMessage("Your account already has Premium access.", "success");
+        } else if (code === "INVALID_PRICE_SELECTOR") {
+          showUpgradeMessage("Choose monthly or yearly Premium billing.", "danger");
+        } else {
+          showUpgradeMessage(getMessage(err, "Premium checkout is not available right now."), "danger");
+        }
+      })
+      .finally(function () {
+        setUpgradeButtonsBusy(false);
+        if (trigger) {
+          trigger.textContent = originalText || (intervalValue === "yearly" ? "Upgrade Yearly" : "Upgrade Monthly");
+        }
+      });
+  }
+
 	  function cacheDom() {
     dom.modalEl = document.getElementById("basicFloatPlanModal");
     dom.form = document.getElementById("basicFloatPlanForm");
@@ -324,6 +406,11 @@
       + '      <li>Active Cruise and Follow Page sharing</li>'
       + '      <li>Advanced monitoring</li>'
       + '    </ul>'
+      + '    <div class="fpw-basic-draft-actions fpw-basic-upgrade-actions">'
+      + '      <button type="button" class="btn-primary" data-basic-premium-upgrade="monthly">Upgrade Monthly</button>'
+      + '      <button type="button" class="btn-secondary" data-basic-premium-upgrade="yearly">Upgrade Yearly</button>'
+      + '    </div>'
+      + '    <p id="basicPremiumUpgradeMessage" class="fpw-basic-upgrade-note" aria-live="polite"></p>'
       + '  </aside>'
       + buildDraftPanelHtml()
       + (lastSentSummary ? buildSentPanelHtml(lastSentSummary) : "")
@@ -990,7 +1077,7 @@
       return;
     }
     var target = event.target && event.target.closest
-      ? event.target.closest("[data-basic-floatplan-open], [data-basic-floatplan-resume], [data-basic-floatplan-send-draft], [data-basic-floatplan-close], #openRouteBuilderBtn")
+      ? event.target.closest("[data-basic-floatplan-open], [data-basic-floatplan-resume], [data-basic-floatplan-send-draft], [data-basic-floatplan-close], [data-basic-premium-upgrade], #openRouteBuilderBtn")
       : null;
     if (!target) return;
     if (target.id === "openRouteBuilderBtn" && !basicMode) return;
@@ -1005,6 +1092,10 @@
     }
     if (target.hasAttribute("data-basic-floatplan-close")) {
       closeBasicPlan(target, target.getAttribute("data-basic-floatplan-id") || 0);
+      return;
+    }
+    if (target.hasAttribute("data-basic-premium-upgrade")) {
+      startPremiumCheckout(target.getAttribute("data-basic-premium-upgrade") || "", target);
       return;
     }
     openModal(target.getAttribute("data-basic-floatplan-id") || 0);
