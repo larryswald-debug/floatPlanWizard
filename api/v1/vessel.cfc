@@ -63,8 +63,19 @@
                 <cfset action = lcase(trim(body.action))>
             </cfif>
 
-            <cfif action EQ "save">
-                <cfset vessel = {}>
+	            <cfif action EQ "save">
+	                <cfset memberGateResult = getMemberAccessGateService().requirePremium(
+	                    userId = userId,
+	                    errorCode = "BASIC_REUSABLE_VESSEL_RESTRICTED",
+	                    message = "Upgrade to Premium to save reusable vessels. Basic float plans use one-time vessel details."
+	                )>
+	                <cfif NOT memberGateResult.allowed>
+	                    <cfoutput>#serializeJSON(memberGateResult.response)#</cfoutput>
+	                    <cfsetting enablecfoutputonly="false">
+	                    <cfabort>
+	                </cfif>
+
+	                <cfset vessel = {}>
                 <cfif structKeyExists(body, "vessel")>
                     <cfset vessel = body.vessel>
                 <cfelseif structKeyExists(body, "VESSEL")>
@@ -336,6 +347,15 @@
         </cftry>
 
         <cfsetting enablecfoutputonly="false">
-    </cffunction>
+	    </cffunction>
+
+	    <cffunction name="getMemberAccessGateService" access="private" returntype="any" output="false">
+	        <cftry>
+	            <cfreturn createObject("component", "fpw.api.v1.MemberAccessGateService").init("fpw")>
+	            <cfcatch>
+	                <cfreturn createObject("component", "api.v1.MemberAccessGateService").init("fpw")>
+	            </cfcatch>
+	        </cftry>
+	    </cffunction>
 
 </cfcomponent>

@@ -63,8 +63,19 @@
                 <cfset action = lcase(trim(body.action))>
             </cfif>
 
-            <cfif action EQ "save">
-                <cfset contact = {}>
+	            <cfif action EQ "save">
+	                <cfset memberGateResult = getMemberAccessGateService().requirePremium(
+	                    userId = userId,
+	                    errorCode = "BASIC_REUSABLE_CONTACT_RESTRICTED",
+	                    message = "Upgrade to Premium to save reusable contacts. Basic float plans use one-time notification contacts."
+	                )>
+	                <cfif NOT memberGateResult.allowed>
+	                    <cfoutput>#serializeJSON(memberGateResult.response)#</cfoutput>
+	                    <cfsetting enablecfoutputonly="false">
+	                    <cfabort>
+	                </cfif>
+
+	                <cfset contact = {}>
                 <cfif structKeyExists(body, "contact")>
                     <cfset contact = body.contact>
                 <cfelseif structKeyExists(body, "CONTACT")>
@@ -252,6 +263,15 @@
         </cftry>
 
         <cfsetting enablecfoutputonly="false">
-    </cffunction>
+	    </cffunction>
+
+	    <cffunction name="getMemberAccessGateService" access="private" returntype="any" output="false">
+	        <cftry>
+	            <cfreturn createObject("component", "fpw.api.v1.MemberAccessGateService").init("fpw")>
+	            <cfcatch>
+	                <cfreturn createObject("component", "api.v1.MemberAccessGateService").init("fpw")>
+	            </cfcatch>
+	        </cftry>
+	    </cffunction>
 
 </cfcomponent>
