@@ -19,7 +19,7 @@
         <cfset act = lCase(trim(toString(body.action)))>
       </cfif>
 
-      <cfif act NEQ "createcheckoutsession">
+      <cfif NOT listFindNoCase("createcheckoutsession,createportal", act)>
         <cfset response = buildErrorResponse(false, false, "INVALID_ACTION", "Billing action is not supported.")>
         <cfoutput>#serializeJSON(response)#</cfoutput>
         <cfreturn>
@@ -27,7 +27,7 @@
 
       <cfif uCase(trim(cgi.request_method)) NEQ "POST">
         <cfheader statuscode="405">
-        <cfset response = buildErrorResponse(false, false, "METHOD_NOT_ALLOWED", "Use POST to create a checkout session.")>
+        <cfset response = buildErrorResponse(false, false, "METHOD_NOT_ALLOWED", "Use POST for billing requests.")>
         <cfoutput>#serializeJSON(response)#</cfoutput>
         <cfreturn>
       </cfif>
@@ -45,20 +45,25 @@
         <cfreturn>
       </cfif>
 
-      <cfset access = new fpw.api.v1.MemberEntitlementService().init("fpw").getCurrentAccess(userId)>
-      <cfif structKeyExists(access, "hasPremium") AND access.hasPremium EQ true>
-        <cfset response = buildErrorResponse(false, true, "ALREADY_PREMIUM", "Your account already has Premium access.")>
-        <cfoutput>#serializeJSON(response)#</cfoutput>
-        <cfreturn>
+      <cfif act EQ "createcheckoutsession">
+        <cfset access = new fpw.api.v1.MemberEntitlementService().init("fpw").getCurrentAccess(userId)>
+        <cfif structKeyExists(access, "hasPremium") AND access.hasPremium EQ true>
+          <cfset response = buildErrorResponse(false, true, "ALREADY_PREMIUM", "Your account already has Premium access.")>
+          <cfoutput>#serializeJSON(response)#</cfoutput>
+          <cfreturn>
+        </cfif>
+
+        <cfset response = new fpw.api.v1.StripeCheckoutService().init("fpw").createCheckoutSession(userId, intervalValue)>
+      <cfelse>
+        <cfset response = new fpw.api.v1.StripeCheckoutService().init("fpw").createPortalSession(userId)>
       </cfif>
 
-      <cfset response = new fpw.api.v1.StripeCheckoutService().init("fpw").createCheckoutSession(userId, intervalValue)>
       <cfset response["AUTH"] = true>
       <cfset response["auth"] = true>
       <cfoutput>#serializeJSON(response)#</cfoutput>
 
       <cfcatch type="any">
-        <cfset response = buildErrorResponse(false, false, "STRIPE_CHECKOUT_FAILED", "Stripe checkout session could not be created.")>
+        <cfset response = buildErrorResponse(false, false, "STRIPE_BILLING_FAILED", "Stripe billing request could not be completed.")>
         <cfoutput>#serializeJSON(response)#</cfoutput>
       </cfcatch>
     </cftry>

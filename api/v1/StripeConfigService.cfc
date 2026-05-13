@@ -43,6 +43,12 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="getBillingPortalReturnUrl" access="public" returntype="string" output="false">
+    <cfscript>
+      return getEnvValue("FPW_STRIPE_BILLING_PORTAL_RETURN_URL");
+    </cfscript>
+  </cffunction>
+
   <cffunction name="getConfigStatus" access="public" returntype="struct" output="false">
     <cfscript>
       return {
@@ -53,7 +59,8 @@
         "hasPremiumMonthlyPriceId" = len(getPremiumMonthlyPriceId()) GT 0,
         "hasPremiumYearlyPriceId" = len(getPremiumYearlyPriceId()) GT 0,
         "hasCheckoutSuccessUrl" = len(getCheckoutSuccessUrl()) GT 0,
-        "hasCheckoutCancelUrl" = len(getCheckoutCancelUrl()) GT 0
+        "hasCheckoutCancelUrl" = len(getCheckoutCancelUrl()) GT 0,
+        "hasBillingPortalReturnUrl" = len(getBillingPortalReturnUrl()) GT 0
       };
     </cfscript>
   </cffunction>

@@ -76,6 +76,57 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="createPortalSession" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var userIdValue = int(val(arguments.userId));
+      var stripeCustomerId = "";
+      var secretKey = "";
+      var returnUrl = "";
+      var requestPayload = {};
+      var stripeResult = {};
+      var stripePayload = {};
+      var portalUrl = "";
+      var response = {};
+
+      if (userIdValue LTE 0) {
+        return errorResponse("INVALID_USER_ID", "Session user is invalid.");
+      }
+
+      stripeCustomerId = loadStripeCustomerIdForUser(userIdValue);
+      if (!len(stripeCustomerId)) {
+        return errorResponse("NO_BILLING_CUSTOMER", "No Stripe billing customer is available for this account.");
+      }
+
+      secretKey = readConfigValue("secretKey", "getSecretKey");
+      returnUrl = readConfigValue("billingPortalReturnUrl", "getBillingPortalReturnUrl");
+      if (!len(secretKey) OR !len(returnUrl)) {
+        return errorResponse("STRIPE_CONFIG_MISSING", "Stripe billing portal configuration is incomplete.");
+      }
+
+      requestPayload = buildStripePortalRequestPayload(stripeCustomerId, returnUrl);
+      stripeResult = executeStripePortalRequest(requestPayload, secretKey);
+      if (!structKeyExists(stripeResult, "SUCCESS") OR stripeResult.SUCCESS NEQ true) {
+        return errorResponse("STRIPE_PORTAL_FAILED", "Stripe billing portal session could not be created.");
+      }
+
+      stripePayload = normalizeStripePayload(stripeResult);
+      portalUrl = readString(stripePayload, "url");
+      if (!len(portalUrl)) {
+        return errorResponse("STRIPE_PORTAL_FAILED", "Stripe billing portal session response was incomplete.");
+      }
+
+      response = structNew("ordered-casesensitive");
+      response["SUCCESS"] = true;
+      response["success"] = true;
+      response["MESSAGE"] = "Billing portal session created.";
+      response["message"] = "Billing portal session created.";
+      response["PORTAL_URL"] = portalUrl;
+      response["portalUrl"] = portalUrl;
+      return response;
+    </cfscript>
+  </cffunction>
+
   <cffunction name="buildStripeRequestPayload" access="private" returntype="struct" output="false">
     <cfargument name="userId" type="numeric" required="true">
     <cfargument name="priceId" type="string" required="true">
@@ -98,6 +149,20 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="buildStripePortalRequestPayload" access="private" returntype="struct" output="false">
+    <cfargument name="stripeCustomerId" type="string" required="true">
+    <cfargument name="returnUrl" type="string" required="true">
+    <cfscript>
+      return {
+        "url" = "https://api.stripe.com/v1/billing_portal/sessions",
+        "formFields" = {
+          "customer" = trim(arguments.stripeCustomerId),
+          "return_url" = trim(arguments.returnUrl)
+        }
+      };
+    </cfscript>
+  </cffunction>
+
   <cffunction name="executeStripeCheckoutRequest" access="private" returntype="struct" output="false">
     <cfargument name="requestPayload" type="struct" required="true">
     <cfargument name="secretKey" type="string" required="true">
@@ -112,7 +177,29 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="executeStripePortalRequest" access="private" returntype="struct" output="false">
+    <cfargument name="requestPayload" type="struct" required="true">
+    <cfargument name="secretKey" type="string" required="true">
+    <cfscript>
+      if (isObject(variables.stripeTransport)) {
+        return invoke(variables.stripeTransport, "createPortalSession", { requestPayload = arguments.requestPayload, secretKey = arguments.secretKey });
+      }
+      if (isStruct(variables.stripeTransport) AND structKeyExists(variables.stripeTransport, "createPortalSession")) {
+        return variables.stripeTransport.createPortalSession(arguments.requestPayload, arguments.secretKey);
+      }
+      return executeLiveStripeRequest(arguments.requestPayload, arguments.secretKey);
+    </cfscript>
+  </cffunction>
+
   <cffunction name="executeLiveStripeCheckoutRequest" access="private" returntype="struct" output="false">
+    <cfargument name="requestPayload" type="struct" required="true">
+    <cfargument name="secretKey" type="string" required="true">
+    <cfscript>
+      return executeLiveStripeRequest(arguments.requestPayload, arguments.secretKey);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="executeLiveStripeRequest" access="private" returntype="struct" output="false">
     <cfargument name="requestPayload" type="struct" required="true">
     <cfargument name="secretKey" type="string" required="true">
     <cfscript>
@@ -121,7 +208,6 @@
       var statusCode = 0;
       var rawBody = "";
     </cfscript>
-
     <cfhttp url="#arguments.requestPayload.url#" method="post" result="httpResult" charset="utf-8" timeout="20">
       <cfhttpparam type="header" name="Authorization" value="Bearer #arguments.secretKey#">
       <cfloop collection="#arguments.requestPayload.formFields#" item="fieldName">
@@ -138,6 +224,37 @@
         "statusCode" = statusCode,
         "rawBody" = rawBody
       };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="loadStripeCustomerIdForUser" access="private" returntype="string" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var qCustomer = queryExecute(
+        "SELECT stripe_customer_id
+         FROM member_entitlements
+         WHERE user_id = :userId
+           AND entitlement_type = 'premium'
+           AND source = 'stripe_subscription'
+           AND stripe_customer_id IS NOT NULL
+           AND stripe_customer_id <> ''
+         ORDER BY
+           CASE
+             WHEN status = 'active'
+              AND starts_at_utc <= UTC_TIMESTAMP()
+              AND (expires_at_utc IS NULL OR expires_at_utc >= UTC_TIMESTAMP())
+             THEN 0
+             ELSE 1
+           END ASC,
+           updated_utc DESC,
+           id DESC
+         LIMIT 1",
+        {
+          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = variables.datasource }
+      );
+      return qCustomer.recordCount ? trim(toString(qCustomer.stripe_customer_id[1])) : "";
     </cfscript>
   </cffunction>
 
