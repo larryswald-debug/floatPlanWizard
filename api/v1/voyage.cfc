@@ -45,6 +45,7 @@
             <cfset var pointVal = "">
             <cfset var routeLegOrderVal = "">
             <cfset var asOfUtcVal = "">
+            <cfset var memberGateResult = {}>
             <cfif act EQ "getstreambootstrap">
                 <cfset slugVal = trim(toString(pickArg(body, "slug", "route_slug", arguments.slug)))>
                 <cfset tokenVal = trim(toString(pickArg(body, "t", "token", arguments.t)))>
@@ -57,6 +58,11 @@
                 <cfset floatPlanIdVal = val(pickArg(body, "floatPlanId", "float_plan_id", 0))>
                 <cfset pointVal = lCase(trim(toString(pickArg(body, "point", "leg_point", ""))))>
                 <cfset routeLegOrderVal = trim(toString(pickArg(body, "routeLegOrder", "route_leg_order", "")))>
+                <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_ACTIVE_CRUISE_RESTRICTED", "Upgrade to Premium to use Active Cruise weather.")>
+                <cfif NOT memberGateResult.SUCCESS>
+                    <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
+                    <cfreturn>
+                </cfif>
                 <cfset payload = getActiveCruiseWeatherCanonical(currentUserId, floatPlanIdVal, pointVal, routeLegOrderVal)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
@@ -65,6 +71,11 @@
                 <cfset streamIdVal = val(pickArg(body, "stream_id", "streamId", arguments.stream_id))>
                 <cfset floatPlanIdVal = val(pickArg(body, "floatplan_id", "floatPlanId", arguments.floatplan_id))>
                 <cfset asOfUtcVal = trim(toString(pickArg(body, "as_of_utc", "asOfUtc", arguments.as_of_utc)))>
+                <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_ACTIVE_CRUISE_RESTRICTED", "Upgrade to Premium to use Active Cruise trip projections.")>
+                <cfif NOT memberGateResult.SUCCESS>
+                    <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
+                    <cfreturn>
+                </cfif>
                 <cfset payload = getTripProgressProjectionDiagnostic(streamIdVal, floatPlanIdVal, asOfUtcVal, currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
@@ -109,6 +120,11 @@
                 <cfset streamIdVal = val(pickArg(body, "stream_id", "streamId", arguments.stream_id))>
                 <cfset bodyTextVal = trim(toString(pickArg(body, "body", "text", "")))>
                 <cfset mediaUrlVal = trim(toString(pickArg(body, "media_url", "mediaUrl", "")))>
+                <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_FOLLOW_RESTRICTED", "Upgrade to Premium to publish Follow Page updates.")>
+                <cfif NOT memberGateResult.SUCCESS>
+                    <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
+                    <cfreturn>
+                </cfif>
                 <cfset payload = ownerCreatePost(streamIdVal, bodyTextVal, mediaUrlVal, currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
@@ -116,29 +132,54 @@
             <cfelseif act EQ "ownercreatepostwithmedia">
                 <cfset streamIdVal = val(structKeyExists(form, "stream_id") ? form.stream_id : pickArg(body, "stream_id", "streamId", arguments.stream_id))>
                 <cfset bodyTextVal = trim(toString(structKeyExists(form, "body") ? form.body : pickArg(body, "body", "text", "")))>
+                <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_FOLLOW_RESTRICTED", "Upgrade to Premium to publish Follow Page updates.")>
+                <cfif NOT memberGateResult.SUCCESS>
+                    <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
+                    <cfreturn>
+                </cfif>
                 <cfset payload = ownerCreatePostWithMediaInternal(streamIdVal, bodyTextVal, currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
             <cfelseif act EQ "ownerdeletepost">
                 <cfset postIdVal = val(pickArg(body, "post_id", "postId", 0))>
+                <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_FOLLOW_RESTRICTED", "Upgrade to Premium to manage Follow Page posts.")>
+                <cfif NOT memberGateResult.SUCCESS>
+                    <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
+                    <cfreturn>
+                </cfif>
                 <cfset payload = ownerDeletePost(postIdVal, currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
             <cfelseif act EQ "ownerdeletecomment">
                 <cfset commentIdVal = val(pickArg(body, "comment_id", "commentId", 0))>
+                <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_FOLLOW_RESTRICTED", "Upgrade to Premium to manage Follow Page comments.")>
+                <cfif NOT memberGateResult.SUCCESS>
+                    <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
+                    <cfreturn>
+                </cfif>
                 <cfset payload = ownerDeleteComment(commentIdVal, currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
             <cfelseif act EQ "ownerblockfollower">
                 <cfset followerIdVal = val(pickArg(body, "follower_id", "followerId", 0))>
+                <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_FOLLOW_RESTRICTED", "Upgrade to Premium to manage Follow Page followers.")>
+                <cfif NOT memberGateResult.SUCCESS>
+                    <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
+                    <cfreturn>
+                </cfif>
                 <cfset payload = ownerBlockFollower(followerIdVal, currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
             <cfelseif act EQ "ownerensurestream">
+                <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_FOLLOW_RESTRICTED", "Upgrade to Premium to create or manage Follow Page streams.")>
+                <cfif NOT memberGateResult.SUCCESS>
+                    <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
+                    <cfreturn>
+                </cfif>
                 <cfset payload = ownerEnsureStream(currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
@@ -178,6 +219,7 @@
         <cfset var streamIdVal = val(structKeyExists(form, "stream_id") ? form.stream_id : 0)>
         <cfset var bodyTextVal = trim(toString(structKeyExists(form, "body") ? form.body : ""))>
         <cfset var requestMethodVal = structKeyExists(cgi, "request_method") ? uCase(toString(cgi.request_method)) : "">
+        <cfset var memberGateResult = {}>
         <cfset var payload = {
             "SUCCESS"=false,
             "AUTH"=(currentUserId GT 0),
@@ -187,6 +229,14 @@
         }>
         <cfcontent type="application/json; charset=utf-8">
         <cfheader name="Cache-Control" value="no-store, no-cache, must-revalidate">
+        <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_FOLLOW_RESTRICTED", "Upgrade to Premium to publish Follow Page updates.")>
+        <cfif NOT memberGateResult.SUCCESS>
+            <cfif structKeyExists(memberGateResult, "STATUS_CODE")>
+                <cfheader statuscode="#val(memberGateResult.STATUS_CODE)#">
+            </cfif>
+            <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
+            <cfreturn>
+        </cfif>
         <cfif requestMethodVal EQ "POST">
             <cfset payload = {
                 "SUCCESS"=false,
@@ -494,6 +544,7 @@
             var tripStartState = {};
             var tripStarted = true;
             var routeInstanceIdVal = 0;
+            var memberGateResult = {};
             var weatherComponent = "";
             var weatherComponentPath = "";
             var legWeather = {
@@ -604,6 +655,12 @@
 	                writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
 	                return out;
 	            }
+
+            memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id);
+            if (!memberGateResult.SUCCESS) {
+                writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
+                return memberGateResult;
+            }
 
 	            if (streamRow.floatplan_id LTE 0) {
 	                out.MESSAGE = "No active trip";
@@ -2975,6 +3032,7 @@
             var sql = "";
             var params = {};
             var commentObj = {};
+            var memberGateResult = {};
 
             if (streamIdVal LTE 0) {
                 out.MESSAGE = "stream_id required";
@@ -2998,6 +3056,11 @@
                 out.STATUS_CODE = 403;
                 out.ERROR = { "CODE"=canRead.code, "MESSAGE"=canRead.message };
                 return out;
+            }
+
+            memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id);
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
             }
 
             if (isOwner) {
@@ -3158,6 +3221,7 @@
             var followerToken = "";
             var followerId = 0;
             var hashVal = "";
+            var memberGateResult = {};
 
             if (streamIdVal LTE 0) {
                 out.MESSAGE = "stream_id required";
@@ -3176,6 +3240,11 @@
                 out.STATUS_CODE = 403;
                 out.ERROR = { "CODE"=canRead.code, "MESSAGE"=canRead.message };
                 return out;
+            }
+
+            memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id);
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
             }
 
             if (!len(displayNameVal)) {
@@ -6544,6 +6613,7 @@
             var ds = resolveDatasource();
             var q = queryNew("");
             var ownerFollower = {};
+            var memberGateResult = {};
 
             if (postIdVal LTE 0) {
                 out.MESSAGE = "post_id required";
@@ -6555,6 +6625,7 @@
                     "SELECT
                         vp.id AS post_id,
                         vp.stream_id,
+                        vs.owner_user_id,
                         vs.allow_interactions,
                         vf.id AS follower_id,
                         vf.display_name,
@@ -6589,6 +6660,11 @@
                     out.STATUS_CODE = 403;
                     out.ERROR = { "CODE"="INTERACTIONS_DISABLED", "MESSAGE"="Interactions are disabled for this stream." };
                     return out;
+                }
+
+                memberGateResult = requireOwnerPremiumFollowAccess(val(q.owner_user_id[1]));
+                if (!memberGateResult.SUCCESS) {
+                    return memberGateResult;
                 }
 
                 queryExecute(
@@ -6629,6 +6705,10 @@
                 );
 
                 if (q.recordCount GT 0 AND val(q.owner_user_id[1]) EQ arguments.currentUserId) {
+                    memberGateResult = requireOwnerPremiumFollowAccess(val(q.owner_user_id[1]));
+                    if (!memberGateResult.SUCCESS) {
+                        return memberGateResult;
+                    }
                     ownerFollower = ensureOwnerInteractionFollower(val(q.stream_id[1]), arguments.currentUserId);
                     if (!structCount(ownerFollower)) {
                         out.MESSAGE = "Owner interaction unavailable";
@@ -7429,6 +7509,44 @@
                 return trim(toString(application.DSN));
             }
             return "fpw";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="requireOwnerPremiumFollowAccess" access="private" returntype="struct" output="false">
+        <cfargument name="ownerUserId" type="numeric" required="true">
+        <cfscript>
+            return requireMemberPremiumAccess(
+                userId = arguments.ownerUserId,
+                errorCode = "BASIC_FOLLOW_RESTRICTED",
+                message = "Upgrade to Premium to share a Follow Page."
+            );
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="requireMemberPremiumAccess" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="errorCode" type="string" required="true">
+        <cfargument name="message" type="string" required="true">
+        <cfscript>
+            var gateResult = getMemberAccessGateService().requirePremium(
+                userId = arguments.userId,
+                errorCode = arguments.errorCode,
+                message = arguments.message
+            );
+            if (gateResult.allowed) {
+                return { "SUCCESS" = true, "success" = true, "AUTH" = true };
+            }
+            return gateResult.response;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getMemberAccessGateService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.MemberAccessGateService").init(resolveDatasource());
+            } catch (any e1) {
+                return createObject("component", "api.v1.MemberAccessGateService").init(resolveDatasource());
+            }
         </cfscript>
     </cffunction>
 

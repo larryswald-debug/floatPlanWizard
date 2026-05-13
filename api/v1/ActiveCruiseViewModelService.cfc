@@ -25,12 +25,26 @@
       var tripState = "unknown_error";
       var progressSummary = {};
       var explicitStartProof = false;
+      var memberGateResult = {};
 
       model.generatedAtUtc = formatUtc(now());
 
       if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
         model.message = "userId and floatPlanId are required.";
         addWarning(model, "ACTIVE_CRUISE_VIEW_MODEL_INVALID_INPUT", model.message, "view_model");
+        finalizeAuthorityWarnings(model);
+        return model;
+      }
+
+      memberGateResult = getMemberAccessGateService().requirePremium(
+        userId = arguments.userId,
+        errorCode = "BASIC_ACTIVE_CRUISE_RESTRICTED",
+        message = "Upgrade to Premium to use Active Cruise."
+      );
+      if (!memberGateResult.allowed) {
+        model.message = memberGateResult.response.MESSAGE;
+        model.errorCode = memberGateResult.response.ERROR.CODE;
+        addWarning(model, memberGateResult.response.ERROR.CODE, memberGateResult.response.MESSAGE, "member_entitlements");
         finalizeAuthorityWarnings(model);
         return model;
       }
@@ -151,8 +165,20 @@
       var timezone = "UTC";
       var publicHealth = {};
       var currentLegLabel = "";
+      var memberGateResult = {};
 
       if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
+        return out;
+      }
+
+      memberGateResult = getMemberAccessGateService().requirePremium(
+        userId = arguments.userId,
+        errorCode = "BASIC_FOLLOW_RESTRICTED",
+        message = "Upgrade to Premium to share a Follow Page."
+      );
+      if (!memberGateResult.allowed) {
+        out.errorCode = memberGateResult.response.ERROR.CODE;
+        out.message = memberGateResult.response.MESSAGE;
         return out;
       }
 
@@ -323,6 +349,16 @@
         "warnings" = [],
         "actions" = {}
       };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="getMemberAccessGateService" access="private" returntype="any" output="false">
+    <cfscript>
+      try {
+        return createObject("component", "fpw.api.v1.MemberAccessGateService").init(variables.datasource);
+      } catch (any e1) {
+        return createObject("component", "api.v1.MemberAccessGateService").init(variables.datasource);
+      }
     </cfscript>
   </cffunction>
 

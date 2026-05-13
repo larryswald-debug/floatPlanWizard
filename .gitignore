@@ -21,6 +21,7 @@ docker/data/
 .env.*
 secrets/
 *.key
+git access token.txt
 
 # ===== Node / Frontend (if added later) =====
 node_modules/

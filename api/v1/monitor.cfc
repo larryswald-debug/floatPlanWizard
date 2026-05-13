@@ -121,6 +121,7 @@ Line: #cfcatch.line#<br>
             var monitorId = 0;
             var monitoringStartAt = getCurrentUtcTimestamp();
             var expectedCheckinOptions = {};
+            var memberGateResult = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
@@ -138,6 +139,11 @@ Line: #cfcatch.line#<br>
                 return context;
             }
             context.monitoring_mode = modeVal;
+
+            memberGateResult = getMemberAccessGateService().validateMonitoringMode(context.user_id, modeVal);
+            if (!memberGateResult.allowed) {
+                return memberGateResult.response;
+            }
 
             expectedCheckinOptions = duplicate(arguments.options);
             if (modeVal EQ "active_route") {
@@ -290,6 +296,7 @@ Line: #cfcatch.line#<br>
             var monitorId = 0;
             var canRefreshExistingScheduledRow = false;
             var qStartedEvent = queryNew("");
+            var memberGateResult = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
@@ -300,6 +307,15 @@ Line: #cfcatch.line#<br>
             context = loadScheduledRouteMonitoringContext(arguments.floatPlanId);
             if (!context.SUCCESS) {
                 return context;
+            }
+
+            memberGateResult = getMemberAccessGateService().requirePremium(
+                userId = context.user_id,
+                errorCode = "BASIC_ADVANCED_MONITORING_RESTRICTED",
+                message = "Upgrade to Premium to use Active Cruise and scheduled route monitoring."
+            );
+            if (!memberGateResult.allowed) {
+                return memberGateResult.response;
             }
 
             expectedCheckinAt = context.departure_time;
@@ -1902,6 +1918,16 @@ Line: #cfcatch.line#<br>
                 return normalized;
             }
             return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getMemberAccessGateService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.MemberAccessGateService").init(variables.datasource);
+            } catch (any e1) {
+                return createObject("component", "api.v1.MemberAccessGateService").init(variables.datasource);
+            }
         </cfscript>
     </cffunction>
 

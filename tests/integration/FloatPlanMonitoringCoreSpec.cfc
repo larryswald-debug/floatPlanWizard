@@ -9,11 +9,13 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.cleanup = new fpw.tests.support.FpwCleanupSupport();
     variables.cleanup.init( variables.api );
     variables.monitorService = new fpw.api.v1.monitor().init();
+    variables.entitlements = new fpw.api.v1.MemberEntitlementService().init("fpw");
     variables.created = { vesselIds = [], routeCodes = [], floatPlanIds = [], contactIds = [] };
     variables.hadOriginalTestUserId = structKeyExists( url, "testUserId" );
     variables.originalTestUserId = variables.hadOriginalTestUserId ? url.testUserId : "";
     variables.sessionApiUser = createSessionApiUser();
     url.testUserId = variables.sessionApiUser.userId;
+    variables.monitoringPremiumEntitlement = variables.entitlements.createAdminCompEntitlement(variables.sessionApiUser.userId);
   }
 
   function afterAll() {
@@ -35,6 +37,13 @@ component extends="testbox.system.BaseSpec" output="false" {
         variables.cleanup.cleanupVessel( variables.created.vesselIds[ k ] );
       } catch ( any ignoredVesselCleanup ) {}
     }
+    queryExecute(
+      "DELETE FROM member_entitlements WHERE user_id = :userId",
+      {
+        userId = { value = variables.sessionApiUser.userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
     cleanupSessionApiUser();
     if ( variables.hadOriginalTestUserId ) {
       url.testUserId = variables.originalTestUserId;
@@ -675,6 +684,7 @@ component extends="testbox.system.BaseSpec" output="false" {
             authPassword = localSessionApiUser.password
           );
           url.testUserId = localSessionApiUser.userId;
+          variables.entitlements.createAdminCompEntitlement(localSessionApiUser.userId);
           asset = createRouteLinkedDraftForApi( sessionApi, prefix, localCreated );
           setPlanSchedule( asset.floatPlanId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
           markPlanActive( asset.floatPlanId );
@@ -702,6 +712,15 @@ component extends="testbox.system.BaseSpec" output="false" {
             structDelete( url, "testUserId", false );
           }
           cleanupRouteLinkedAssetsForApi( sessionApi, localCreated );
+          if ( structKeyExists( localSessionApiUser, "userId" ) && val( localSessionApiUser.userId ) GT 0 ) {
+            queryExecute(
+              "DELETE FROM member_entitlements WHERE user_id = :userId",
+              {
+                userId = { value = localSessionApiUser.userId, cfsqltype = "cf_sql_integer" }
+              },
+              { datasource = "fpw" }
+            );
+          }
           cleanupApiUser( localSessionApiUser );
         }
       } );

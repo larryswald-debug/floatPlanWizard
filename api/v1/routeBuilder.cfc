@@ -28,6 +28,19 @@
 
             <cfset var body = getBodyJson() />
             <cfset var act = lCase(trim(arguments.action)) />
+            <cfset var memberGateResult = {} />
+
+            <cfif shouldGateRouteBuilderAction(act, body)>
+                <cfset memberGateResult = getMemberAccessGateService().requirePremium(
+                    userId = userId,
+                    errorCode = "BASIC_SAVED_ROUTE_RESTRICTED",
+                    message = "Upgrade to Premium to save routes, use the route library, build route-backed float plans, and manage reusable routes."
+                ) />
+                <cfif NOT memberGateResult.allowed>
+                    <cfoutput>#serializeJSON(memberGateResult.response)#</cfoutput>
+                    <cfreturn>
+                </cfif>
+            </cfif>
 
             <cfif act EQ "generateroute">
                 <cfoutput>#serializeJSON({
@@ -12354,6 +12367,39 @@
         <cfreturn arguments.fallback />
     </cffunction>
 
+    <cffunction name="shouldGateRouteBuilderAction" access="private" returntype="boolean" output="false">
+        <cfargument name="actionName" type="string" required="true">
+        <cfargument name="body" type="struct" required="true">
+        <cfscript>
+            var actionValue = lCase(trim(arguments.actionName));
+            var routeType = "";
+            var gatedActions = "listuserroutes,createuserroute,deleteuserroute,getuserroute,setuserroutestartwaypoint,addwaypointlegtouserroute,previewuserroute,addlegtouserroute,removelegfromuserroute,reorderuserroutelegs,getroutelegoverridegeometry,saveroutelegoverridegeometry,clearroutelegoverridegeometry,routegen_geteditcontext,routegen_generate,routegen_update,routegen_savelegoverride,routegen_clearlegoverride,routegen_savesegmentoverride,routegen_clearsegmentoverride,routegen_listlegoverrides,buildfloatplansfromroute,setactiveroute,deleteroute,gettimeline";
+
+            if (listFindNoCase(gatedActions, actionValue) GT 0) {
+                return true;
+            }
+
+            if (listFindNoCase("routegen_preview,generatecruisetimeline", actionValue) GT 0) {
+                routeType = lCase(trim(toString(pickArg(arguments.body, "route_type", "routeType", ""))));
+                if (listFindNoCase("my_route,my_routes,custom", routeType) GT 0) {
+                    return true;
+                }
+            }
+
+            return false;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getMemberAccessGateService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.MemberAccessGateService").init("fpw");
+            } catch (any e1) {
+                return createObject("component", "api.v1.MemberAccessGateService").init("fpw");
+            }
+        </cfscript>
+    </cffunction>
+
     <cffunction name="pickStruct" access="private" returntype="any" output="false">
         <cfargument name="s" type="struct" required="true">
         <cfargument name="k" type="string" required="true">
@@ -12451,7 +12497,6 @@
     </cffunction>
 
 </cfcomponent>
-
 
 
 
