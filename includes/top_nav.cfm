@@ -45,6 +45,25 @@ if (!len(trim(basePath)) && structKeyExists(cgi, "script_name")) {
     basePath = left(scriptName, appPathPos - 1);
   }
 }
+
+memberDisplayInitials = "FP";
+if (len(userDisplayName)) {
+  memberInitialParts = listToArray(reReplace(userDisplayName, "\s+", " ", "all"), " ");
+  memberDisplayInitials = "";
+  memberInitialLimit = arrayLen(memberInitialParts);
+  if (memberInitialLimit > 2) {
+    memberInitialLimit = 2;
+  }
+  for (memberInitialPartIndex = 1; memberInitialPartIndex <= memberInitialLimit; memberInitialPartIndex++) {
+    if (len(memberInitialParts[memberInitialPartIndex])) {
+      memberDisplayInitials = memberDisplayInitials & left(memberInitialParts[memberInitialPartIndex], 1);
+    }
+  }
+  if (!len(memberDisplayInitials)) {
+    memberDisplayInitials = left(userDisplayName, 2);
+  }
+  memberDisplayInitials = uCase(memberDisplayInitials);
+}
 </cfscript>
 
 <style>
@@ -491,6 +510,354 @@ if (!len(trim(basePath)) && structKeyExists(cgi, "script_name")) {
     color: rgba(255,255,255,.86);
   }
 
+  /* ===== Member workspace nav ===== */
+  .fpw-member-nav,
+  .fpw-member-nav *{
+    box-sizing:border-box;
+  }
+  .fpw-member-nav{
+    position:sticky;
+    top:0;
+    z-index:1051;
+    color:#f4f8fb;
+    background:
+      radial-gradient(circle at 8% 42%, rgba(16,224,216,.12), transparent 24rem),
+      radial-gradient(circle at 86% 38%, rgba(0,180,255,.08), transparent 28rem),
+      linear-gradient(180deg, #06111c 0%, #02070d 100%);
+    border-bottom:1px solid rgba(108,210,234,.16);
+    box-shadow:0 20px 70px rgba(0,0,0,.35);
+    isolation:isolate;
+  }
+  .fpw-member-nav::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    z-index:-1;
+    background-image:
+      linear-gradient(rgba(95,184,214,.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(95,184,214,.025) 1px, transparent 1px);
+    background-size:72px 72px;
+    mask-image:linear-gradient(180deg, transparent 0%, black 24%, black 78%, transparent 100%);
+  }
+  .fpw-member-nav a{
+    color:inherit;
+    text-decoration:none;
+  }
+  .fpw-member-nav button{
+    font:inherit;
+  }
+  .fpw-member-nav__inner{
+    width:min(calc(100% - 48px), 1320px);
+    min-height:92px;
+    margin:0 auto;
+    padding:18px 0;
+    display:grid;
+    grid-template-columns:minmax(210px, .8fr) minmax(420px, auto) minmax(230px, .8fr);
+    align-items:center;
+    gap:clamp(1rem, 2vw, 2rem);
+  }
+  .fpw-member-brand{
+    display:inline-flex;
+    align-items:center;
+    gap:.9rem;
+    min-width:0;
+  }
+  .fpw-member-brand__mark{
+    width:42px;
+    height:42px;
+    flex:0 0 42px;
+    display:grid;
+    place-items:center;
+    color:#1ff0e7;
+    filter:drop-shadow(0 0 12px rgba(31,240,231,.55));
+  }
+  .fpw-member-brand__mark svg{
+    width:100%;
+    height:100%;
+    overflow:visible;
+  }
+  .fpw-member-brand__mark circle,
+  .fpw-member-brand__mark path{
+    fill:none;
+    stroke:currentColor;
+    stroke-width:4;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+  }
+  .fpw-member-brand__mark circle:nth-last-child(-n + 4){
+    fill:currentColor;
+    stroke:none;
+  }
+  .fpw-member-brand__text{
+    display:grid;
+    gap:.2rem;
+    min-width:0;
+  }
+  .fpw-member-brand__name{
+    color:#f7fbff;
+    font-size:1.45rem;
+    font-weight:900;
+    letter-spacing:-.04em;
+    line-height:.95;
+    white-space:nowrap;
+  }
+  .fpw-member-brand__label{
+    color:#29f4e7;
+    font-size:.66rem;
+    font-weight:850;
+    letter-spacing:.17em;
+    line-height:1.2;
+    text-transform:uppercase;
+    white-space:nowrap;
+  }
+  .fpw-member-tabs{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:.55rem;
+    padding:.42rem;
+    border:1px solid rgba(142,203,219,.14);
+    border-radius:999px;
+    background:rgba(2,10,18,.42);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.025);
+  }
+  .fpw-member-tab{
+    min-height:42px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:0 1rem;
+    color:rgba(247,251,255,.78);
+    border:1px solid transparent;
+    border-radius:999px;
+    font-size:.94rem;
+    font-weight:800;
+    letter-spacing:-.015em;
+    line-height:1;
+    white-space:nowrap;
+    transition:color 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  }
+  .fpw-member-tab:hover,
+  .fpw-member-tab:focus-visible{
+    color:#29f4e7;
+    background:rgba(35,215,207,.08);
+  }
+  .fpw-member-tab.is-active{
+    color:#021018;
+    background:linear-gradient(135deg, #29f4e7, #4aa3ff);
+    border-color:rgba(41,244,231,.9);
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,.14) inset,
+      0 0 24px rgba(33,243,238,.3);
+  }
+  .fpw-member-actions{
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:.75rem;
+    min-width:0;
+  }
+  .fpw-member-account{
+    position:relative;
+  }
+  .fpw-member-account__button,
+  .fpw-member-mobile-toggle{
+    min-height:48px;
+    border:1px solid rgba(33,243,238,.55);
+    border-radius:999px;
+    color:#34fff1;
+    background:rgba(2,10,18,.42);
+    box-shadow:
+      0 0 0 1px rgba(33,243,238,.08) inset,
+      0 0 18px rgba(33,243,238,.12);
+    cursor:pointer;
+  }
+  .fpw-member-account__button{
+    max-width:260px;
+    display:inline-flex;
+    align-items:center;
+    gap:.62rem;
+    padding:0 .95rem 0 .45rem;
+    font-size:.9rem;
+    font-weight:850;
+  }
+  .fpw-member-account__button:hover,
+  .fpw-member-account__button:focus-visible,
+  .fpw-member-account__button[aria-expanded="true"],
+  .fpw-member-mobile-toggle:hover,
+  .fpw-member-mobile-toggle:focus-visible,
+  .fpw-member-mobile-toggle[aria-expanded="true"]{
+    color:#ffffff;
+    border-color:#7ffcf6;
+    background:rgba(35,215,207,.1);
+    box-shadow:
+      0 0 0 1px rgba(127,252,246,.16) inset,
+      0 0 26px rgba(33,243,238,.3);
+  }
+  .fpw-member-account__avatar{
+    width:36px;
+    height:36px;
+    flex:0 0 36px;
+    display:grid;
+    place-items:center;
+    color:#021018;
+    background:linear-gradient(135deg, #29f4e7, #4aa3ff);
+    border-radius:999px;
+    font-size:.76rem;
+    font-weight:950;
+    letter-spacing:.03em;
+  }
+  .fpw-member-account__name{
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .fpw-member-account__chevron{
+    color:rgba(247,251,255,.8);
+    transform:translateY(-1px);
+  }
+  .fpw-member-account__button[aria-expanded="true"] .fpw-member-account__chevron{
+    transform:translateY(-1px) rotate(180deg);
+  }
+  .fpw-member-account__menu{
+    position:absolute;
+    top:calc(100% + 14px);
+    right:0;
+    z-index:1060;
+    width:min(280px, calc(100vw - 32px));
+    padding:10px;
+    color:#f4f8fb;
+    background:
+      radial-gradient(circle at 20% 0%, rgba(35,215,207,.18), transparent 9rem),
+      linear-gradient(180deg, rgba(7,24,42,.98), rgba(2,10,18,.98));
+    border:1px solid rgba(41,244,231,.32);
+    border-radius:18px;
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,.04) inset,
+      0 18px 52px rgba(0,0,0,.48),
+      0 0 28px rgba(33,243,238,.18);
+    opacity:0;
+    visibility:hidden;
+    pointer-events:none;
+    transform:translateY(-6px);
+    transition:opacity 160ms ease, transform 160ms ease, visibility 160ms ease;
+  }
+  .fpw-member-account__menu.is-open{
+    opacity:1;
+    visibility:visible;
+    pointer-events:auto;
+    transform:translateY(0);
+  }
+  .fpw-member-account__menu-header{
+    padding:10px 12px 12px;
+    border-bottom:1px solid rgba(142,203,219,.14);
+    margin-bottom:6px;
+  }
+  .fpw-member-account__menu-header strong,
+  .fpw-member-account__menu-header span{
+    display:block;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .fpw-member-account__menu-header strong{
+    color:#ffffff;
+    font-size:.95rem;
+    font-weight:900;
+  }
+  .fpw-member-account__menu-header span{
+    margin-top:3px;
+    color:rgba(184,203,214,.82);
+    font-size:.78rem;
+    font-weight:700;
+  }
+  .fpw-member-account__menu a,
+  .fpw-member-account__menu button,
+  .fpw-member-mobile-panel a,
+  .fpw-member-mobile-panel button{
+    width:100%;
+    display:flex;
+    align-items:center;
+    gap:.55rem;
+    padding:11px 12px;
+    border:0;
+    border-radius:12px;
+    color:rgba(244,248,251,.92);
+    background:transparent;
+    font:inherit;
+    font-size:.9rem;
+    font-weight:800;
+    text-align:left;
+    text-decoration:none;
+    cursor:pointer;
+  }
+  .fpw-member-account__menu a:hover,
+  .fpw-member-account__menu a:focus-visible,
+  .fpw-member-account__menu button:hover,
+  .fpw-member-account__menu button:focus-visible,
+  .fpw-member-mobile-panel a:hover,
+  .fpw-member-mobile-panel a:focus-visible,
+  .fpw-member-mobile-panel button:hover,
+  .fpw-member-mobile-panel button:focus-visible{
+    color:#ffffff;
+    background:rgba(35,215,207,.1);
+    box-shadow:0 0 18px rgba(33,243,238,.12) inset;
+  }
+  .fpw-member-account__menu-divider{
+    height:1px;
+    margin:7px 0;
+    background:rgba(142,203,219,.14);
+  }
+  .fpw-member-mobile-toggle{
+    width:48px;
+    display:none;
+    place-items:center;
+    padding:0;
+  }
+  .fpw-member-mobile-toggle svg{
+    width:22px;
+    height:22px;
+    fill:none;
+    stroke:currentColor;
+    stroke-width:2.2;
+    stroke-linecap:round;
+  }
+  .fpw-member-mobile-panel{
+    display:none;
+    position:fixed;
+    left:12px;
+    right:12px;
+    top:104px;
+    z-index:1059;
+    max-height:calc(100vh - 116px);
+    overflow:auto;
+    padding:10px;
+    color:#f4f8fb;
+    background:
+      radial-gradient(circle at 20% 0%, rgba(35,215,207,.18), transparent 9rem),
+      linear-gradient(180deg, rgba(7,24,42,.98), rgba(2,10,18,.98));
+    border:1px solid rgba(41,244,231,.32);
+    border-radius:18px;
+    box-shadow:
+      0 18px 52px rgba(0,0,0,.48),
+      0 0 28px rgba(33,243,238,.18);
+  }
+  .fpw-member-mobile-panel.is-open{
+    display:block;
+  }
+  .fpw-member-mobile-panel__section{
+    padding:7px 12px;
+    color:rgba(184,203,214,.82);
+    font-size:.72rem;
+    font-weight:900;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+  }
+  .fpw-member-mobile-panel a.is-active{
+    color:#021018;
+    background:linear-gradient(135deg, #29f4e7, #4aa3ff);
+  }
+
   /* Responsive: hide center links on public; you’d add hamburger later */
   @media (max-width: 980px){
     .tagline{ display:none; }
@@ -512,210 +879,258 @@ if (!len(trim(basePath)) && structKeyExists(cgi, "script_name")) {
       text-align:right;
     }
     #loginForm .field{ width:136px; }
+    .fpw-member-nav__inner{
+      width:min(calc(100% - 32px), 1320px);
+      min-height:82px;
+      grid-template-columns:1fr auto;
+      gap:1rem;
+    }
+    .fpw-member-tabs{
+      display:none;
+    }
+    .fpw-member-account__button{
+      display:none;
+    }
+    .fpw-member-mobile-toggle{
+      display:grid;
+    }
+    .fpw-member-brand__name{
+      font-size:1.25rem;
+    }
+    .fpw-member-brand__label{
+      font-size:.58rem;
+      letter-spacing:.14em;
+    }
+  }
+
+  @media (max-width: 560px){
+    .fpw-member-nav__inner{
+      width:min(calc(100% - 24px), 1320px);
+    }
+    .fpw-member-brand{
+      gap:.65rem;
+    }
+    .fpw-member-brand__mark{
+      width:36px;
+      height:36px;
+      flex-basis:36px;
+    }
+    .fpw-member-brand__label{
+      display:none;
+    }
   }
 </style>
 
 <cfif len(userDisplayName)>
   <cfparam name="request.fpwTopNavActive" default="dashboard">
 
-  <header class="topbar nav--app" role="banner">
-    <div class="inner">
-      <a class="brand brandCompact" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm" aria-label="Dashboard">
-        <span class="logo" aria-hidden="true"></span>
-        <span>
-          <div class="brandTitle">FPW</div>
+  <header class="fpw-member-nav nav--app" role="banner" data-fpw-member-nav>
+    <div class="fpw-member-nav__inner">
+      <a class="fpw-member-brand" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm" aria-label="FloatPlanWizard Dashboard">
+        <span class="fpw-member-brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 64 64" focusable="false">
+            <circle cx="32" cy="32" r="17"></circle>
+            <circle cx="32" cy="32" r="6"></circle>
+            <path d="M32 4v12"></path>
+            <path d="M32 48v12"></path>
+            <path d="M4 32h12"></path>
+            <path d="M48 32h12"></path>
+            <path d="M12.2 12.2l8.5 8.5"></path>
+            <path d="M43.3 43.3l8.5 8.5"></path>
+            <path d="M51.8 12.2l-8.5 8.5"></path>
+            <path d="M20.7 43.3l-8.5 8.5"></path>
+            <circle cx="32" cy="4" r="2.5"></circle>
+            <circle cx="32" cy="60" r="2.5"></circle>
+            <circle cx="4" cy="32" r="2.5"></circle>
+            <circle cx="60" cy="32" r="2.5"></circle>
+          </svg>
+        </span>
+        <span class="fpw-member-brand__text">
+          <span class="fpw-member-brand__name">FPW</span>
+          <span class="fpw-member-brand__label">Member Workspace</span>
         </span>
       </a>
 
-      <nav class="tabs" aria-label="App Primary">
-        <a class="tab<cfif request.fpwTopNavActive EQ 'dashboard'> active</cfif>" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm">Dashboard</a>
-        <a class="tab" href="<cfoutput>#basePath#</cfoutput>/app/monitoring.cfm">Monitoring</a>
-        <a class="tab<cfif request.fpwTopNavActive EQ 'weather'> active</cfif>" id="fpwNavWeatherLink" href="<cfoutput>#basePath#</cfoutput>/app/weather.cfm">Weather</a>
-        <a class="tab" href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm">Fuel Calculator</a>
+      <nav class="fpw-member-tabs" aria-label="Member navigation">
+        <a class="fpw-member-tab<cfif request.fpwTopNavActive EQ 'dashboard'> is-active</cfif>" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm"<cfif request.fpwTopNavActive EQ 'dashboard'> aria-current="page"</cfif>>Dashboard</a>
+        <a class="fpw-member-tab<cfif request.fpwTopNavActive EQ 'weather'> is-active</cfif>" id="fpwNavWeatherLink" href="<cfoutput>#basePath#</cfoutput>/app/weather.cfm"<cfif request.fpwTopNavActive EQ 'weather'> aria-current="page"</cfif>>Weather</a>
+        <a class="fpw-member-tab<cfif request.fpwTopNavActive EQ 'monitoring'> is-active</cfif>" href="<cfoutput>#basePath#</cfoutput>/app/monitoring.cfm"<cfif request.fpwTopNavActive EQ 'monitoring'> aria-current="page"</cfif>>Monitor</a>
+        <a class="fpw-member-tab<cfif request.fpwTopNavActive EQ 'fuel'> is-active</cfif>" href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm"<cfif request.fpwTopNavActive EQ 'fuel'> aria-current="page"</cfif>>Fuel Calculator</a>
       </nav>
 
-      <div class="actions">
-        <button class="iconBtn" type="button" aria-label="Alerts" title="Alerts">
-          🔔
-          <span class="badge">3</span>
-        </button>
+      <div class="fpw-member-actions">
+        <div class="fpw-member-account">
+          <button
+            class="fpw-member-account__button"
+            type="button"
+            aria-expanded="false"
+            aria-controls="fpwMemberAccountMenu"
+            data-fpw-member-account-toggle>
+            <span class="fpw-member-account__avatar" aria-hidden="true"><cfoutput>#encodeForHTML(memberDisplayInitials)#</cfoutput></span>
+            <span class="fpw-member-account__name"><cfoutput>#encodeForHTML(userDisplayName)#</cfoutput></span>
+            <span class="fpw-member-account__chevron" aria-hidden="true">&#8964;</span>
+          </button>
 
-        <span class="divider" aria-hidden="true"></span>
-
-        <details class="dd">
-          <summary class="btn"><cfoutput>#encodeForHTML(userDisplayName)#</cfoutput></summary>
-          <div class="menu" role="menu" aria-label="User menu">
-            <a href="<cfoutput>#basePath#</cfoutput>/app/account.cfm">👤 Account</a>
-            <a href="<cfoutput>#basePath#</cfoutput>/app/account.cfm">⚙️ Settings</a>
-            <hr />
-            <button id="logoutButton" type="button">🚪 Log out</button>
+          <div class="fpw-member-account__menu" id="fpwMemberAccountMenu" role="menu" aria-label="Member account menu" data-fpw-member-account-menu>
+            <div class="fpw-member-account__menu-header">
+              <strong><cfoutput>#encodeForHTML(userDisplayName)#</cfoutput></strong>
+              <span>Member account</span>
+            </div>
+            <a href="<cfoutput>#basePath#</cfoutput>/app/account.cfm" role="menuitem">Member Account</a>
+            <a href="<cfoutput>#basePath#</cfoutput>/app/account.cfm" role="menuitem">Account Settings</a>
+            <div class="fpw-member-account__menu-divider" aria-hidden="true"></div>
+            <button type="button" role="menuitem" data-fpw-member-logout>Logout</button>
           </div>
-        </details>
+        </div>
 
-        <button class="iconBtn fpwHamburger" type="button" id="fpwAppMobileToggle" aria-controls="fpwMobileMenuApp" aria-expanded="false" aria-label="Toggle menu">
-          <span class="fpwHamburgerIcon fpwHamburgerIcon--open" aria-hidden="true">☰</span>
-          <span class="fpwHamburgerIcon fpwHamburgerIcon--close" aria-hidden="true">✕</span>
+        <button
+          class="fpw-member-mobile-toggle"
+          type="button"
+          aria-label="Open member menu"
+          aria-expanded="false"
+          aria-controls="fpwMemberMobilePanel"
+          data-fpw-member-mobile-toggle>
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4 7h16"></path>
+            <path d="M4 12h16"></path>
+            <path d="M4 17h16"></path>
+          </svg>
         </button>
       </div>
     </div>
-  </header>
 
-  <div class="fpwMobileBackdrop fpwMobileBackdrop--app" id="fpwMobileBackdropApp" aria-hidden="true"></div>
-  <nav class="fpwMobileMenu fpwMobileMenu--app" id="fpwMobileMenuApp" role="navigation" aria-label="Mobile app menu" aria-hidden="true">
-    <a href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm">Dashboard</a>
-    <a href="<cfoutput>#basePath#</cfoutput>/app/monitoring.cfm">Monitoring</a>
-    <a id="fpwMobileWeatherLink" href="<cfoutput>#basePath#</cfoutput>/app/weather.cfm">Weather</a>
-    <a href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm">Fuel Calculator</a>
-    <hr />
-    <div class="fpwMobileSection">Account</div>
-    <a href="<cfoutput>#basePath#</cfoutput>/app/account.cfm">👤 Account</a>
-    <a href="<cfoutput>#basePath#</cfoutput>/app/account.cfm">⚙️ Settings</a>
-    <button type="button" id="fpwMobileLogoutBtn">🚪 Log out</button>
-  </nav>
+    <div class="fpw-member-mobile-panel" id="fpwMemberMobilePanel" data-fpw-member-mobile-panel aria-hidden="true">
+      <nav aria-label="Mobile member navigation">
+        <div class="fpw-member-mobile-panel__section">Workspace</div>
+        <a class="<cfif request.fpwTopNavActive EQ 'dashboard'>is-active</cfif>" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm"<cfif request.fpwTopNavActive EQ 'dashboard'> aria-current="page"</cfif>>Dashboard</a>
+        <a class="<cfif request.fpwTopNavActive EQ 'weather'>is-active</cfif>" id="fpwMobileWeatherLink" href="<cfoutput>#basePath#</cfoutput>/app/weather.cfm"<cfif request.fpwTopNavActive EQ 'weather'> aria-current="page"</cfif>>Weather</a>
+        <a class="<cfif request.fpwTopNavActive EQ 'monitoring'>is-active</cfif>" href="<cfoutput>#basePath#</cfoutput>/app/monitoring.cfm"<cfif request.fpwTopNavActive EQ 'monitoring'> aria-current="page"</cfif>>Monitor</a>
+        <a class="<cfif request.fpwTopNavActive EQ 'fuel'>is-active</cfif>" href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm"<cfif request.fpwTopNavActive EQ 'fuel'> aria-current="page"</cfif>>Fuel Calculator</a>
+        <div class="fpw-member-mobile-panel__section">Account</div>
+        <a href="<cfoutput>#basePath#</cfoutput>/app/account.cfm">Member Account</a>
+        <a href="<cfoutput>#basePath#</cfoutput>/app/account.cfm">Account Settings</a>
+        <button type="button" data-fpw-member-logout>Logout</button>
+      </nav>
+    </div>
+  </header>
 
   <script>
     (function () {
-      function initNavNewRouteLink() {
-        var newRouteLink = document.getElementById("fpwNavNewRouteLink");
-        var newFloatPlanLink = document.getElementById("fpwNavNewFloatPlanLink");
-        var weatherLinks = document.querySelectorAll("#fpwNavWeatherLink, #fpwMobileWeatherLink");
-        var appMobileToggle = document.getElementById("fpwAppMobileToggle");
-        var appMobileMenu = document.getElementById("fpwMobileMenuApp");
-        var appMobileBackdrop = document.getElementById("fpwMobileBackdropApp");
-        var mobileNewRouteBtn = document.getElementById("fpwMobileNewRouteBtn");
-        var mobileNewFloatPlanBtn = document.getElementById("fpwMobileNewFloatPlanBtn");
-        var mobileLogoutBtn = document.getElementById("fpwMobileLogoutBtn");
-        var appTopbar = document.querySelector(".topbar.nav--app");
+      function initMemberNav() {
+        var nav = document.querySelector("[data-fpw-member-nav]");
+        if (!nav) return;
 
-        function syncAppMobileMenuTop() {
-          if (!appTopbar || !appMobileMenu) return;
-          var rect = appTopbar.getBoundingClientRect();
-          var top = Math.max(0, Math.round(rect.bottom) + 8);
-          appMobileMenu.style.top = top + "px";
-          appMobileMenu.style.maxHeight = "calc(100vh - " + (top + 12) + "px)";
+        var accountToggle = nav.querySelector("[data-fpw-member-account-toggle]");
+        var accountMenu = nav.querySelector("[data-fpw-member-account-menu]");
+        var mobileToggle = nav.querySelector("[data-fpw-member-mobile-toggle]");
+        var mobilePanel = nav.querySelector("[data-fpw-member-mobile-panel]");
+        var logoutButtons = nav.querySelectorAll("[data-fpw-member-logout]");
+
+        function setAccountOpen(isOpen) {
+          if (!accountToggle || !accountMenu) return;
+          accountToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+          accountMenu.classList.toggle("is-open", isOpen);
         }
 
-        function setAppMobileOpen(isOpen) {
-          if (!appMobileMenu || !appMobileBackdrop || !appMobileToggle) return;
-          syncAppMobileMenuTop();
-          if (isOpen) {
-            appMobileMenu.classList.add("is-open");
-            appMobileBackdrop.classList.add("is-open");
-            appMobileMenu.setAttribute("aria-hidden", "false");
-            appMobileToggle.setAttribute("aria-expanded", "true");
-            document.body.classList.add("fpwMobileNavOpen");
+        function syncMobilePanelTop() {
+          if (!mobilePanel) return;
+          var rect = nav.getBoundingClientRect();
+          var top = Math.max(0, Math.round(rect.bottom) + 8);
+          mobilePanel.style.top = top + "px";
+          mobilePanel.style.maxHeight = "calc(100vh - " + (top + 12) + "px)";
+        }
+
+        function setMobileOpen(isOpen) {
+          if (!mobileToggle || !mobilePanel) return;
+          syncMobilePanelTop();
+          mobileToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+          mobilePanel.setAttribute("aria-hidden", isOpen ? "false" : "true");
+          mobilePanel.classList.toggle("is-open", isOpen);
+          document.body.classList.toggle("fpwMobileNavOpen", isOpen);
+        }
+
+        function closeMenus() {
+          setAccountOpen(false);
+          setMobileOpen(false);
+        }
+
+        function redirectAfterLogout() {
+          if (window.AppAuth && typeof window.AppAuth.redirectToLogin === "function") {
+            window.AppAuth.redirectToLogin();
           } else {
-            appMobileMenu.classList.remove("is-open");
-            appMobileBackdrop.classList.remove("is-open");
-            appMobileMenu.setAttribute("aria-hidden", "true");
-            appMobileToggle.setAttribute("aria-expanded", "false");
-            document.body.classList.remove("fpwMobileNavOpen");
+            window.location.href = "<cfoutput>#JSStringFormat(basePath)#</cfoutput>/index.cfm";
           }
         }
 
-        if (appMobileToggle) {
-          appMobileToggle.addEventListener("click", function (event) {
+        function runLogout(event) {
+          event.preventDefault();
+          closeMenus();
+          if (!window.Api || typeof window.Api.logout !== "function") {
+            console.error("Logout failed: Api.logout is not available.");
+            return;
+          }
+
+          window.Api.logout()
+            .catch(function (err) {
+              console.error("Logout failed:", err);
+            })
+            .finally(redirectAfterLogout);
+        }
+
+        if (accountToggle) {
+          accountToggle.addEventListener("click", function (event) {
             event.preventDefault();
-            setAppMobileOpen(!appMobileMenu || !appMobileMenu.classList.contains("is-open"));
+            setMobileOpen(false);
+            setAccountOpen(accountToggle.getAttribute("aria-expanded") !== "true");
           });
         }
-        if (appMobileBackdrop) {
-          appMobileBackdrop.addEventListener("click", function () {
-            setAppMobileOpen(false);
+
+        if (mobileToggle) {
+          mobileToggle.addEventListener("click", function (event) {
+            event.preventDefault();
+            setAccountOpen(false);
+            setMobileOpen(mobileToggle.getAttribute("aria-expanded") !== "true");
           });
         }
-        if (appMobileMenu) {
-          appMobileMenu.addEventListener("click", function (event) {
+
+        if (mobilePanel) {
+          mobilePanel.addEventListener("click", function (event) {
             if (event.target.closest("a,button")) {
-              setAppMobileOpen(false);
+              setMobileOpen(false);
             }
           });
         }
+
+        Array.prototype.forEach.call(logoutButtons, function (logoutButton) {
+          logoutButton.addEventListener("click", runLogout);
+        });
+
+        document.addEventListener("click", function (event) {
+          if (!nav.contains(event.target)) {
+            closeMenus();
+          }
+        });
+
         document.addEventListener("keydown", function (event) {
           if (event.key === "Escape") {
-            setAppMobileOpen(false);
+            closeMenus();
           }
         });
+
         window.addEventListener("resize", function () {
-          syncAppMobileMenuTop();
+          syncMobilePanelTop();
           if (window.innerWidth > 980) {
-            setAppMobileOpen(false);
+            setMobileOpen(false);
           }
         });
 
-        Array.prototype.forEach.call(weatherLinks, function (weatherLink) {
-          weatherLink.addEventListener("click", function () {
-            setAppMobileOpen(false);
-          });
-        });
-
-        if (newRouteLink) {
-          newRouteLink.addEventListener("click", function (event) {
-            var routeBuilderOpener = document.getElementById("openRouteBuilderBtn");
-            if (!routeBuilderOpener || typeof routeBuilderOpener.click !== "function") return;
-
-            event.preventDefault();
-            setAppMobileOpen(false);
-            routeBuilderOpener.click();
-
-            var newMenu = newRouteLink.closest("details.dd");
-            if (newMenu && newMenu.hasAttribute("open")) {
-              newMenu.removeAttribute("open");
-            }
-          });
-        }
-
-        if (newFloatPlanLink) {
-          newFloatPlanLink.addEventListener("click", function (event) {
-            var floatPlanOpener = document.getElementById("addFloatPlanBtn");
-            if (!floatPlanOpener || typeof floatPlanOpener.click !== "function") return;
-
-            event.preventDefault();
-            setAppMobileOpen(false);
-            floatPlanOpener.click();
-
-            var newMenu = newFloatPlanLink.closest("details.dd");
-            if (newMenu && newMenu.hasAttribute("open")) {
-              newMenu.removeAttribute("open");
-            }
-          });
-        }
-
-        if (mobileNewRouteBtn) {
-          mobileNewRouteBtn.addEventListener("click", function (event) {
-            var routeBuilderOpener = document.getElementById("openRouteBuilderBtn");
-            if (!routeBuilderOpener || typeof routeBuilderOpener.click !== "function") return;
-            event.preventDefault();
-            setAppMobileOpen(false);
-            routeBuilderOpener.click();
-          });
-        }
-
-        if (mobileNewFloatPlanBtn) {
-          mobileNewFloatPlanBtn.addEventListener("click", function (event) {
-            var floatPlanOpener = document.getElementById("addFloatPlanBtn");
-            if (!floatPlanOpener || typeof floatPlanOpener.click !== "function") return;
-            event.preventDefault();
-            setAppMobileOpen(false);
-            floatPlanOpener.click();
-          });
-        }
-
-        if (mobileLogoutBtn) {
-          mobileLogoutBtn.addEventListener("click", function (event) {
-            var logoutButton = document.getElementById("logoutButton");
-            if (!logoutButton || typeof logoutButton.click !== "function") return;
-            event.preventDefault();
-            setAppMobileOpen(false);
-            logoutButton.click();
-          });
-        }
+        syncMobilePanelTop();
       }
 
       if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", initNavNewRouteLink);
+        document.addEventListener("DOMContentLoaded", initMemberNav);
       } else {
-        initNavNewRouteLink();
+        initMemberNav();
       }
     })();
   </script>

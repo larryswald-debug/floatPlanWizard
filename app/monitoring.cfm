@@ -708,6 +708,9 @@
   </style>
 </head>
 <body class="fpw-monitoring-body dashboard-body" data-fpw-page="monitoring">
+<cfset request.fpwTopNavActive = "monitoring">
+<cfinclude template="../includes/top_nav.cfm">
+
 <main class="fpw-monitoring-shell" id="fpwMonitoringConsole">
   <cfoutput>
   <cfif NOT monitoringShowConsole>
@@ -1093,6 +1096,7 @@
   </cfif>
   </cfoutput>
 </main>
+<cfinclude template="../includes/footer_scripts.cfm">
 <cfif monitoringShowConsole AND monitoringMapCanRender>
   <cfoutput>
   <script id="fpwMonitoringMapPayload" type="application/json">#fpwMonitoringJsonForScript(monitoringMap)#</script>

@@ -1,5 +1,16 @@
 <cfsetting showdebugoutput="false">
 <cfcontent type="text/html; charset=utf-8">
+<cfscript>
+if (!structKeyExists(request, "fpwBase")) {
+  request.fpwBase = getDirectoryFromPath(cgi.script_name);
+  request.fpwBase = reReplace(request.fpwBase, "/app/?$", "");
+  request.fpwBase = reReplace(request.fpwBase, "/$", "");
+  if (request.fpwBase == "/") {
+    request.fpwBase = "";
+  }
+}
+fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.user);
+</cfscript>
 
 <!doctype html>
 <html lang="en">
@@ -390,6 +401,10 @@
   </style>
 </head>
 <body class="fuelcalc-page">
+  <cfif fuelCalcShowMemberNav>
+    <cfset request.fpwTopNavActive = "fuel">
+    <cfinclude template="../includes/top_nav.cfm">
+  <cfelse>
   <header class="topbar">
     <div class="promo-strip">
       <div class="shell promo-strip-inner">
@@ -414,6 +429,7 @@
       </nav>
     </div>
   </header>
+  </cfif>
   <main class="fuelcalc-main">
     <div class="wrap shell">
       <h1>Fuel Calculator</h1>
@@ -1133,5 +1149,8 @@
       resetInputs();
     })();
   </script>
+  <cfif fuelCalcShowMemberNav>
+    <cfinclude template="../includes/footer_scripts.cfm">
+  </cfif>
 </body>
 </html>
