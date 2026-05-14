@@ -21,6 +21,8 @@
         "premiumSource" = "none",
         "premiumExpiresAt" = nullValue(),
         "premiumEntitlementId" = 0,
+        "premiumSources" = [],
+        "hasStripeBilling" = false,
         "limits" = getBasicLimits()
       };
       var qPremium = queryNew("");
@@ -31,6 +33,8 @@
 
       access.authenticated = true;
       access.userId = val(arguments.userId);
+      access.premiumSources = loadCurrentPremiumSources(arguments.userId);
+      access.hasStripeBilling = hasStripeBilling(arguments.userId);
 
       qPremium = loadCurrentPremiumEntitlement(arguments.userId);
       if (qPremium.recordCount GT 0) {
@@ -141,6 +145,19 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="createFounderLifetimeEntitlement" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="startsAt" type="any" required="false" default="">
+    <cfscript>
+      return createPremiumEntitlement(
+        userId = arguments.userId,
+        source = "founder_lifetime",
+        startsAt = arguments.startsAt,
+        expiresAt = ""
+      );
+    </cfscript>
+  </cffunction>
+
   <cffunction name="createThreeDayPassEntitlement" access="public" returntype="struct" output="false">
     <cfargument name="userId" type="numeric" required="true">
     <cfargument name="startsAt" type="any" required="false" default="">
@@ -193,9 +210,10 @@
            AND (expires_at_utc IS NULL OR expires_at_utc >= UTC_TIMESTAMP())
          ORDER BY
            CASE source
-             WHEN 'stripe_subscription' THEN 1
-             WHEN 'three_day_pass' THEN 2
-             WHEN 'admin_comp' THEN 3
+             WHEN 'founder_lifetime' THEN 1
+             WHEN 'stripe_subscription' THEN 2
+             WHEN 'three_day_pass' THEN 3
+             WHEN 'admin_comp' THEN 4
              ELSE 99
            END ASC,
            CASE WHEN expires_at_utc IS NULL THEN 1 ELSE 0 END DESC,
@@ -207,6 +225,63 @@
         },
         { datasource = variables.datasource }
       );
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="loadCurrentPremiumSources" access="private" returntype="array" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var qSources = queryExecute(
+        "SELECT source
+         FROM member_entitlements
+         WHERE user_id = :userId
+           AND entitlement_type = 'premium'
+           AND status = 'active'
+           AND starts_at_utc <= UTC_TIMESTAMP()
+           AND (expires_at_utc IS NULL OR expires_at_utc >= UTC_TIMESTAMP())
+         GROUP BY source
+         ORDER BY
+           CASE source
+             WHEN 'founder_lifetime' THEN 1
+             WHEN 'stripe_subscription' THEN 2
+             WHEN 'three_day_pass' THEN 3
+             WHEN 'admin_comp' THEN 4
+             ELSE 99
+           END ASC",
+        {
+          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = variables.datasource }
+      );
+      var sources = [];
+      var i = 0;
+
+      for (i = 1; i <= qSources.recordCount; i++) {
+        arrayAppend(sources, normalizeEntitlementSource(qSources.source[i]));
+      }
+
+      return sources;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="hasStripeBilling" access="private" returntype="boolean" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var qBilling = queryExecute(
+        "SELECT COUNT(*) AS billing_count
+         FROM member_entitlements
+         WHERE user_id = :userId
+           AND entitlement_type = 'premium'
+           AND source = 'stripe_subscription'
+           AND stripe_customer_id IS NOT NULL
+           AND stripe_customer_id <> ''",
+        {
+          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = variables.datasource }
+      );
+
+      return qBilling.recordCount GT 0 AND val(qBilling.billing_count[1]) GT 0;
     </cfscript>
   </cffunction>
 
@@ -243,7 +318,7 @@
         };
       }
 
-      if (!listFindNoCase("stripe_subscription,three_day_pass,admin_comp", sourceValue)) {
+      if (!listFindNoCase("founder_lifetime,stripe_subscription,three_day_pass,admin_comp", sourceValue)) {
         return {
           "SUCCESS" = false,
           "success" = false,
