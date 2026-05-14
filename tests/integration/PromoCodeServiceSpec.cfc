@@ -8,7 +8,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.createdUserIds = [];
     variables.createdPromoIds = [];
     variables.createdEventIds = [];
-    variables.userSeed = 909000000 + randRange(1000, 99999);
+    variables.userSeed = 509000 + randRange(1000, 99999);
     ensureMemberEntitlementsTable();
     ensureStripeFoundationSchema();
     ensurePromoTables();

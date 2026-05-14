@@ -96,7 +96,7 @@
               entitlementId = findActiveFounderEntitlement(arguments.userId);
               if (entitlementId LTE 0) {
                 entitlementResult = new fpw.api.v1.MemberEntitlementService().init(variables.datasource)
-                  .createFounderLifetimeEntitlement(arguments.userId, nowValue);
+                  .createFounderLifetimeEntitlement(arguments.userId);
                 if (!structKeyExists(entitlementResult, "SUCCESS") OR entitlementResult.SUCCESS NEQ true) {
                   throw(type = "PromoCodeService.FounderEntitlementFailed", message = "Founder entitlement could not be created.");
                 }

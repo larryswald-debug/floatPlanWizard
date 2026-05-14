@@ -138,6 +138,42 @@
       });
     },
 
+    validatePromoCode: function (code) {
+      var codeValue = String(code || "").trim();
+      if (!codeValue) {
+        return Promise.reject({
+          SUCCESS: false,
+          success: false,
+          ERROR: "CODE_REQUIRED",
+          errorCode: "CODE_REQUIRED",
+          MESSAGE: "Enter a promo code.",
+          message: "Enter a promo code."
+        });
+      }
+      return request("/promo.cfc?method=handle&action=validate", {
+        method: "POST",
+        body: { code: codeValue }
+      });
+    },
+
+    redeemPromoCode: function (code) {
+      var codeValue = String(code || "").trim();
+      if (!codeValue) {
+        return Promise.reject({
+          SUCCESS: false,
+          success: false,
+          ERROR: "CODE_REQUIRED",
+          errorCode: "CODE_REQUIRED",
+          MESSAGE: "Enter a promo code.",
+          message: "Enter a promo code."
+        });
+      }
+      return request("/promo.cfc?method=handle&action=redeem", {
+        method: "POST",
+        body: { code: codeValue }
+      });
+    },
+
     getFloatPlans: function (options) {
       return listGet("floatplans", options);
     },

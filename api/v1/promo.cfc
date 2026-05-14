@@ -1,0 +1,290 @@
+<cfcomponent output="false">
+
+  <cffunction name="handle" access="remote" returntype="void" output="true">
+    <cfargument name="action" type="string" required="false" default="">
+    <cfsetting enablecfoutputonly="true" showdebugoutput="false">
+    <cfcontent type="application/json; charset=utf-8">
+    <cfheader name="Cache-Control" value="no-store, no-cache, must-revalidate">
+
+    <cftry>
+      <cfset var body = getBodyJson()>
+      <cfset var act = lCase(trim(arguments.action))>
+      <cfset var userId = 0>
+      <cfset var code = "">
+      <cfset var serviceResult = {}>
+      <cfset var response = {}>
+
+      <cfif NOT len(act) AND structKeyExists(url, "action")>
+        <cfset act = lCase(trim(toString(url.action)))>
+      </cfif>
+      <cfif NOT len(act) AND structKeyExists(body, "action")>
+        <cfset act = lCase(trim(toString(body.action)))>
+      </cfif>
+
+      <cfif NOT listFindNoCase("validate,redeem", act)>
+        <cfset response = buildErrorResponse(false, resolveSessionUserId() GT 0, "INVALID_ACTION", "Promo action is not supported.")>
+        <cfoutput>#serializeJSON(response)#</cfoutput>
+        <cfreturn>
+      </cfif>
+
+      <cfif uCase(trim(cgi.request_method)) NEQ "POST">
+        <cfheader statuscode="405">
+        <cfset response = buildErrorResponse(false, resolveSessionUserId() GT 0, "METHOD_NOT_ALLOWED", "Use POST for promo code requests.")>
+        <cfoutput>#serializeJSON(response)#</cfoutput>
+        <cfreturn>
+      </cfif>
+
+      <cfset userId = resolveSessionUserId()>
+      <cfif userId LTE 0>
+        <cfset response = buildErrorResponse(false, false, "AUTH_REQUIRED", "Log in to redeem promo codes.")>
+        <cfoutput>#serializeJSON(response)#</cfoutput>
+        <cfreturn>
+      </cfif>
+
+      <cfset code = readPromoCode(body)>
+      <cfif act EQ "validate">
+        <cfset serviceResult = new fpw.api.v1.PromoCodeService().init("fpw").validateCode(userId, code)>
+      <cfelse>
+        <cfset serviceResult = new fpw.api.v1.PromoCodeService().init("fpw").redeemCode(userId, code)>
+      </cfif>
+
+      <cfset response = buildServiceResponse(serviceResult, act)>
+      <cfoutput>#serializeJSON(response)#</cfoutput>
+
+      <cfcatch type="any">
+        <cfset response = buildErrorResponse(false, resolveSessionUserId() GT 0, "SERVER_ERROR", "Promo code request could not be completed.")>
+        <cfoutput>#serializeJSON(response)#</cfoutput>
+      </cfcatch>
+    </cftry>
+
+    <cfsetting enablecfoutputonly="false">
+  </cffunction>
+
+  <cffunction name="getBodyJson" access="private" returntype="struct" output="false">
+    <cfscript>
+      var httpData = getHttpRequestData();
+      var rawBody = structKeyExists(httpData, "content") ? toString(httpData.content) : "";
+      var parsed = {};
+      if (!len(trim(rawBody))) {
+        return {};
+      }
+      try {
+        parsed = deserializeJSON(rawBody, false);
+        if (isStruct(parsed)) {
+          return parsed;
+        }
+      } catch (any parseErr) {
+        return {};
+      }
+      return {};
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="resolveSessionUserId" access="private" returntype="numeric" output="false">
+    <cfscript>
+      if (structKeyExists(session, "user") AND isStruct(session.user)) {
+        if (structKeyExists(session.user, "userId") AND isNumeric(session.user.userId)) {
+          return val(session.user.userId);
+        }
+        if (structKeyExists(session.user, "id") AND isNumeric(session.user.id)) {
+          return val(session.user.id);
+        }
+        if (structKeyExists(session.user, "USERID") AND isNumeric(session.user.USERID)) {
+          return val(session.user.USERID);
+        }
+      }
+      return 0;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="readPromoCode" access="private" returntype="string" output="false">
+    <cfargument name="body" type="struct" required="true">
+    <cfscript>
+      if (structKeyExists(arguments.body, "code")) {
+        return trim(toString(arguments.body.code));
+      }
+      if (structKeyExists(arguments.body, "promoCode")) {
+        return trim(toString(arguments.body.promoCode));
+      }
+      if (structKeyExists(arguments.body, "PROMO_CODE")) {
+        return trim(toString(arguments.body.PROMO_CODE));
+      }
+      return "";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildServiceResponse" access="private" returntype="struct" output="false">
+    <cfargument name="serviceResult" type="struct" required="true">
+    <cfargument name="actionName" type="string" required="true">
+    <cfscript>
+      var success = structKeyExists(arguments.serviceResult, "SUCCESS") AND arguments.serviceResult.SUCCESS EQ true;
+      var promoType = safePromoType(arguments.serviceResult);
+      var nextAction = safeNextAction(arguments.serviceResult);
+      var message = safeServiceMessage(arguments.serviceResult, arguments.actionName, promoType, nextAction, success);
+      var errorCode = success ? "" : mapPromoError(readErrorCode(arguments.serviceResult));
+      var response = structNew("ordered-casesensitive");
+
+      response["SUCCESS"] = success;
+      response["success"] = success;
+      response["AUTH"] = true;
+      response["auth"] = true;
+      response["eligible"] = success AND structKeyExists(arguments.serviceResult, "eligible") ? arguments.serviceResult.eligible : false;
+      response["promoType"] = promoType;
+      response["nextAction"] = nextAction;
+      response["MESSAGE"] = message;
+      response["message"] = message;
+      response["ERROR"] = errorCode;
+      response["errorCode"] = errorCode;
+
+      if (success AND nextAction EQ "stripe_checkout_required") {
+        response["NOTICE_CODE"] = "CHECKOUT_WIRING_PENDING";
+        response["noticeCode"] = "CHECKOUT_WIRING_PENDING";
+      }
+
+      return response;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="safePromoType" access="private" returntype="string" output="false">
+    <cfargument name="serviceResult" type="struct" required="true">
+    <cfscript>
+      var promoType = "";
+      if (structKeyExists(arguments.serviceResult, "promoType")) {
+        promoType = lCase(trim(toString(arguments.serviceResult.promoType)));
+      }
+      return listFindNoCase("founder_lifetime,stripe_free_months", promoType) ? promoType : "";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="safeNextAction" access="private" returntype="string" output="false">
+    <cfargument name="serviceResult" type="struct" required="true">
+    <cfscript>
+      var nextAction = "";
+      if (structKeyExists(arguments.serviceResult, "nextAction")) {
+        nextAction = lCase(trim(toString(arguments.serviceResult.nextAction)));
+      }
+      return listFindNoCase("redeem_founder_lifetime,founder_lifetime_redeemed,stripe_checkout_required", nextAction) ? nextAction : "";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="safeServiceMessage" access="private" returntype="string" output="false">
+    <cfargument name="serviceResult" type="struct" required="true">
+    <cfargument name="actionName" type="string" required="true">
+    <cfargument name="promoType" type="string" required="true">
+    <cfargument name="nextAction" type="string" required="true">
+    <cfargument name="success" type="boolean" required="true">
+    <cfscript>
+      var errorCode = mapPromoError(readErrorCode(arguments.serviceResult));
+
+      if (arguments.success AND arguments.nextAction EQ "stripe_checkout_required") {
+        return "Launch discount recognized. Checkout activation will be completed in the next billing step.";
+      }
+      if (arguments.success AND arguments.nextAction EQ "founder_lifetime_redeemed") {
+        return "Founders Lifetime Premium has been added to your account.";
+      }
+      if (arguments.success AND arguments.promoType EQ "founder_lifetime") {
+        return arguments.actionName EQ "validate"
+          ? "Founders Lifetime Premium code is eligible."
+          : "Founders Lifetime Premium has been added to your account.";
+      }
+      if (arguments.success AND structKeyExists(arguments.serviceResult, "displayMessage")) {
+        return trim(toString(arguments.serviceResult.displayMessage));
+      }
+      return messageForError(errorCode);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="readErrorCode" access="private" returntype="string" output="false">
+    <cfargument name="serviceResult" type="struct" required="true">
+    <cfscript>
+      if (structKeyExists(arguments.serviceResult, "ERROR")) {
+        return trim(toString(arguments.serviceResult.ERROR));
+      }
+      if (structKeyExists(arguments.serviceResult, "errorCode")) {
+        return trim(toString(arguments.serviceResult.errorCode));
+      }
+      return "";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="mapPromoError" access="private" returntype="string" output="false">
+    <cfargument name="serviceCode" type="string" required="true">
+    <cfscript>
+      switch (uCase(trim(arguments.serviceCode))) {
+        case "PROMO_CODE_REQUIRED":
+          return "CODE_REQUIRED";
+        case "PROMO_CODE_NOT_FOUND":
+          return "CODE_NOT_FOUND";
+        case "PROMO_CODE_DISABLED":
+          return "CODE_DISABLED";
+        case "PROMO_NOT_STARTED":
+          return "CODE_NOT_STARTED";
+        case "PROMO_EXPIRED":
+          return "CODE_EXPIRED";
+        case "PROMO_ALREADY_REDEEMED":
+          return "CODE_ALREADY_REDEEMED";
+        case "PROMO_MAX_REDEMPTIONS_REACHED":
+          return "CODE_MAX_REDEMPTIONS_REACHED";
+        case "PROMO_UNSUPPORTED_TYPE":
+          return "PROMO_TYPE_NOT_SUPPORTED";
+        case "PROMO_REDEMPTION_FAILED":
+          return "SERVER_ERROR";
+        default:
+          return len(trim(arguments.serviceCode)) ? uCase(trim(arguments.serviceCode)) : "SERVER_ERROR";
+      }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="messageForError" access="private" returntype="string" output="false">
+    <cfargument name="errorCode" type="string" required="true">
+    <cfscript>
+      switch (uCase(trim(arguments.errorCode))) {
+        case "CODE_REQUIRED":
+          return "Enter a promo code.";
+        case "CODE_NOT_FOUND":
+          return "Promo code was not recognized.";
+        case "CODE_DISABLED":
+          return "Promo code is not active.";
+        case "CODE_NOT_STARTED":
+          return "Promo code is not active yet.";
+        case "CODE_EXPIRED":
+          return "Promo code has expired.";
+        case "CODE_ALREADY_REDEEMED":
+          return "Promo code has already been used for this account.";
+        case "CODE_MAX_REDEMPTIONS_REACHED":
+          return "Promo code has reached its redemption limit.";
+        case "PROMO_TYPE_NOT_SUPPORTED":
+          return "Promo code type is not supported.";
+        case "METHOD_NOT_ALLOWED":
+          return "Use POST for promo code requests.";
+        case "AUTH_REQUIRED":
+          return "Log in to redeem promo codes.";
+        default:
+          return "Promo code request could not be completed.";
+      }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildErrorResponse" access="private" returntype="struct" output="false">
+    <cfargument name="success" type="boolean" required="true">
+    <cfargument name="auth" type="boolean" required="true">
+    <cfargument name="errorCode" type="string" required="true">
+    <cfargument name="message" type="string" required="true">
+    <cfscript>
+      var response = structNew("ordered-casesensitive");
+      response["SUCCESS"] = arguments.success;
+      response["success"] = arguments.success;
+      response["AUTH"] = arguments.auth;
+      response["auth"] = arguments.auth;
+      response["eligible"] = false;
+      response["promoType"] = "";
+      response["nextAction"] = "";
+      response["ERROR"] = arguments.errorCode;
+      response["errorCode"] = arguments.errorCode;
+      response["MESSAGE"] = arguments.message;
+      response["message"] = arguments.message;
+      return response;
+    </cfscript>
+  </cffunction>
+
+</cfcomponent>

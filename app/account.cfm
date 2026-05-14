@@ -123,6 +123,19 @@
           </div>
 
           <p class="small text-muted mt-3 mb-0" id="membershipBillingMessage" aria-live="polite"></p>
+
+          <div class="membership-promo-panel mt-4" id="membershipPromoPanel">
+            <h3 class="h6 mb-1">Redeem Launch or Founder Code</h3>
+            <p class="small text-muted mb-3">Enter a Memorial Day launch or Founder code. Codes are validated securely before any membership changes are applied.</p>
+            <form id="promoCodeForm" novalidate>
+              <label class="visually-hidden" for="promoCodeInput">Launch or Founder code</label>
+              <div class="membership-promo-input-group">
+                <input type="text" class="form-control" id="promoCodeInput" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Enter code">
+                <button class="btn btn-outline-primary btn-sm" id="promoCodeRedeemBtn" type="submit">Redeem Code</button>
+              </div>
+            </form>
+            <p class="small text-muted mt-2 mb-0" id="promoCodeMessage" aria-live="polite"></p>
+          </div>
         </div>
       </div>
 

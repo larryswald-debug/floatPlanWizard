@@ -225,12 +225,36 @@
       gap: 0.6rem;
     }
 
+    .account-body .membership-promo-panel {
+      padding-top: 1rem;
+      border-top: 1px solid var(--panel-border);
+    }
+
+    .account-body .membership-promo-input-group {
+      display: flex;
+      gap: 0.6rem;
+    }
+
+    .account-body .membership-promo-input-group .form-control {
+      min-width: 0;
+    }
+
+    .account-body .membership-promo-input-group .btn {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
     .account-body .membership-message-error {
       color: var(--danger) !important;
     }
 
-    .account-body .membership-message-success {
+    .account-body .membership-message-success,
+    .account-body .promo-message-success {
       color: var(--success) !important;
+    }
+
+    .account-body .promo-message-error {
+      color: var(--danger) !important;
     }
 
     @media (max-width: 760px) {
@@ -243,6 +267,14 @@
       }
 
       .account-body .companion-device-actions .btn {
+        width: 100%;
+      }
+
+      .account-body .membership-promo-input-group {
+        flex-direction: column;
+      }
+
+      .account-body .membership-promo-input-group .btn {
         width: 100%;
       }
     }

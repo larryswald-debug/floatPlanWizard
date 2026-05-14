@@ -141,6 +141,24 @@
     return String(pick(access, ["premiumSource", "PREMIUMSOURCE", "source", "SOURCE"], "") || "").trim().toLowerCase();
   }
 
+  function getPremiumSources(access) {
+    var sources = access && (access.premiumSources || access.PREMIUMSOURCES);
+    if (!Array.isArray(sources)) return [];
+    return sources.map(function (source) {
+      return String(source || "").trim().toLowerCase();
+    }).filter(function (source) {
+      return !!source;
+    });
+  }
+
+  function hasStripeBilling(access) {
+    var value = access && Object.prototype.hasOwnProperty.call(access, "hasStripeBilling")
+      ? access.hasStripeBilling
+      : (access && Object.prototype.hasOwnProperty.call(access, "HASSTRIPEBILLING") ? access.HASSTRIPEBILLING : false);
+    if (value === true || value === 1) return true;
+    return String(value).trim().toLowerCase() === "true" || String(value).trim() === "1";
+  }
+
   function setBillingStatus(label, statusKey) {
     var el = $("membershipBillingStatus");
     if (!el) return;
@@ -157,6 +175,15 @@
     if (tone === "success") el.classList.add("membership-message-success");
   }
 
+  function showPromoMessage(message, tone) {
+    var el = $("promoCodeMessage");
+    if (!el) return;
+    el.textContent = message || "";
+    el.classList.remove("promo-message-error", "promo-message-success");
+    if (tone === "error" || tone === "danger") el.classList.add("promo-message-error");
+    if (tone === "success") el.classList.add("promo-message-success");
+  }
+
   function setBillingActionsBusy(isBusy) {
     var buttons = document.querySelectorAll("[data-membership-upgrade], #membershipManageBillingBtn");
     Array.prototype.forEach.call(buttons, function (button) {
@@ -165,12 +192,25 @@
     });
   }
 
+  function setPromoBusy(isBusy) {
+    var input = $("promoCodeInput");
+    var button = $("promoCodeRedeemBtn");
+    if (input) input.disabled = !!isBusy;
+    if (button) {
+      button.disabled = !!isBusy;
+      button.setAttribute("aria-disabled", isBusy ? "true" : "false");
+      button.textContent = isBusy ? "Redeeming..." : "Redeem Code";
+    }
+  }
+
   function renderMembershipBilling(access) {
     var summary = $("membershipBillingSummary");
     var upgradeActions = $("membershipUpgradeActions");
     var portalActions = $("membershipPortalActions");
     var hasPremium = hasPremiumAccess(access);
     var premiumSource = getPremiumSource(access);
+    var premiumSources = getPremiumSources(access);
+    var hasStripeBillingMapping = hasStripeBilling(access) || premiumSources.indexOf("stripe_subscription") !== -1;
 
     if (upgradeActions) upgradeActions.classList.add("d-none");
     if (portalActions) portalActions.classList.add("d-none");
@@ -190,6 +230,16 @@
     }
 
     setBillingStatus("Premium", "premium");
+    if (premiumSource === "founder_lifetime") {
+      if (summary) {
+        summary.textContent = hasStripeBillingMapping
+          ? "Founders Lifetime Premium is active. If you also have Stripe billing, manage billing separately through Stripe."
+          : "Founders Lifetime Premium is active.";
+      }
+      if (portalActions && hasStripeBillingMapping) portalActions.classList.remove("d-none");
+      return;
+    }
+
     if (premiumSource === "stripe_subscription") {
       if (summary) summary.textContent = "Premium access is active through a Stripe subscription.";
       if (portalActions) portalActions.classList.remove("d-none");
@@ -315,6 +365,69 @@
     } finally {
       setBillingActionsBusy(false);
       if (trigger) trigger.textContent = originalText || "Manage Billing";
+    }
+  }
+
+  function promoMessageForError(err) {
+    var code = getErrorCode(err).toUpperCase();
+    if (code === "CODE_REQUIRED") return "Enter a promo code.";
+    if (code === "CODE_NOT_FOUND") return "Promo code was not recognized.";
+    if (code === "CODE_DISABLED") return "Promo code is not active.";
+    if (code === "CODE_NOT_STARTED") return "Promo code is not active yet.";
+    if (code === "CODE_EXPIRED") return "Promo code has expired.";
+    if (code === "CODE_ALREADY_REDEEMED") return "Promo code has already been used for this account.";
+    if (code === "CODE_MAX_REDEMPTIONS_REACHED") return "Promo code has reached its redemption limit.";
+    if (code === "PROMO_TYPE_NOT_SUPPORTED") return "Promo code type is not supported.";
+    return (err && (err.MESSAGE || err.message)) ? (err.MESSAGE || err.message) : "Promo code could not be redeemed.";
+  }
+
+  async function redeemPromoCode(evt) {
+    evt.preventDefault();
+
+    var input = $("promoCodeInput");
+    var code = input ? String(input.value || "").trim() : "";
+    if (!code) {
+      showPromoMessage("Enter a promo code.", "error");
+      return;
+    }
+    if (!window.Api || typeof window.Api.redeemPromoCode !== "function") {
+      showPromoMessage("Promo code redemption is not available right now.", "error");
+      return;
+    }
+
+    setPromoBusy(true);
+    showPromoMessage("Checking code...", "info");
+
+    try {
+      var data = await window.Api.redeemPromoCode(code);
+      var nextAction = String((data && (data.nextAction || data.NEXTACTION)) || "").trim().toLowerCase();
+      var promoType = String((data && (data.promoType || data.PROMOTYPE)) || "").trim().toLowerCase();
+
+      if (!data || (data.SUCCESS !== true && data.success !== true)) {
+        throw data || { MESSAGE: "Promo code could not be redeemed." };
+      }
+
+      if (nextAction === "stripe_checkout_required" || promoType === "stripe_free_months") {
+        showPromoMessage("Launch discount recognized. Checkout activation will be completed in the next billing step.", "success");
+        return;
+      }
+
+      if (promoType === "founder_lifetime" || nextAction === "founder_lifetime_redeemed") {
+        if (input) input.value = "";
+        showPromoMessage("Founders Lifetime Premium has been added to your account.", "success");
+        await loadMembershipBilling();
+        return;
+      }
+
+      showPromoMessage((data.MESSAGE || data.message) || "Promo code redeemed.", "success");
+      await loadMembershipBilling();
+    } catch (err) {
+      if (handleAuthError(err)) {
+        return;
+      }
+      showPromoMessage(promoMessageForError(err), "error");
+    } finally {
+      setPromoBusy(false);
     }
   }
 
@@ -770,6 +883,9 @@
     if (manageBillingBtn) manageBillingBtn.addEventListener("click", function () {
       openBillingPortal(manageBillingBtn);
     });
+
+    var promoCodeForm = $("promoCodeForm");
+    if (promoCodeForm) promoCodeForm.addEventListener("submit", redeemPromoCode);
 
     var logoutBtn = $("logoutButton");
     if (logoutBtn) logoutBtn.addEventListener("click", logout);
