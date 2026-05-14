@@ -1,11 +1,14 @@
 <cfcomponent output="false">
 
   <cfset variables.datasource = "fpw">
+  <cfset variables.checkoutService = "">
 
   <cffunction name="init" access="public" returntype="any" output="false">
     <cfargument name="datasource" type="string" required="false" default="fpw">
+    <cfargument name="checkoutService" type="any" required="false" default="">
     <cfscript>
       variables.datasource = len(trim(arguments.datasource)) ? trim(arguments.datasource) : "fpw";
+      variables.checkoutService = arguments.checkoutService;
       return this;
     </cfscript>
   </cffunction>
@@ -63,6 +66,11 @@
       var response = {};
       var entitlementId = 0;
       var entitlementResult = {};
+      var trialDays = 0;
+      var checkoutResult = {};
+      var checkoutErrorCode = "";
+      var checkoutSessionId = "";
+      var pendingCheckout = {};
 
       if (arguments.userId LTE 0) {
         return ineligibleResponse("INVALID_USER_ID", "A valid user is required.");
@@ -109,11 +117,48 @@
               response.entitlementId = entitlementId;
               response.redeemed = true;
             } else if (promoType EQ "stripe_free_months") {
-              incrementRedemptionCount(promoId);
-              logRedemptionAttempt(promoId, arguments.userId, codeHash, "pending", "", 0, nowValue);
-              response = eligibleResponse(qPromo, "stripe_checkout_required", "Promo code is ready for Stripe checkout.");
-              response.redeemed = false;
-              response.checkoutRequired = true;
+              trialDays = resolveTrialDays(validation.durationMonths);
+              if (trialDays LTE 0) {
+                logRedemptionAttempt(promoId, arguments.userId, codeHash, "rejected", "PROMO_INVALID_TRIAL_DURATION", 0, nowValue);
+                response = ineligibleResponse("PROMO_INVALID_TRIAL_DURATION", "Free trial duration is not supported.", qPromo);
+              } else {
+                pendingCheckout = continuePendingFreeTrialCheckout(arguments.userId, nowValue);
+                if (structKeyExists(pendingCheckout, "response") AND isStruct(pendingCheckout.response)) {
+                  response = pendingCheckout.response;
+                } else {
+                checkoutResult = getCheckoutService().createFreeTrialCheckoutSession(
+                  arguments.userId,
+                  trialDays,
+                  {
+                    promoType = "stripe_free_months"
+                  }
+                );
+
+                if (!structKeyExists(checkoutResult, "SUCCESS") OR checkoutResult.SUCCESS NEQ true) {
+                  checkoutErrorCode = structKeyExists(checkoutResult, "ERROR") ? trim(toString(checkoutResult.ERROR)) : "STRIPE_CHECKOUT_FAILED";
+                  logRedemptionAttempt(promoId, arguments.userId, codeHash, "rejected", checkoutErrorCode, 0, nowValue);
+                  response = ineligibleResponse(checkoutErrorCode, structKeyExists(checkoutResult, "MESSAGE") ? trim(toString(checkoutResult.MESSAGE)) : "Stripe checkout session could not be created.", qPromo);
+                } else {
+                  checkoutSessionId = structKeyExists(checkoutResult, "stripeCheckoutSessionId") ? trim(toString(checkoutResult.stripeCheckoutSessionId)) : "";
+                  if (!len(checkoutSessionId) AND structKeyExists(checkoutResult, "STRIPE_CHECKOUT_SESSION_ID")) {
+                    checkoutSessionId = trim(toString(checkoutResult.STRIPE_CHECKOUT_SESSION_ID));
+                  }
+
+                  logRedemptionAttempt(promoId, arguments.userId, codeHash, "checkout_created", "", 0, nowValue, checkoutSessionId);
+                  response = eligibleResponse(qPromo, "stripe_trial_checkout", "No-credit-card trial checkout is ready.");
+                  response.redeemed = false;
+                  response.checkoutRequired = true;
+                  response.reusedCheckoutSession = false;
+                  response.REUSED_CHECKOUT_SESSION = false;
+                  response.trialDays = trialDays;
+                  response.TRIAL_DAYS = trialDays;
+                  response.checkoutUrl = structKeyExists(checkoutResult, "checkoutUrl") ? trim(toString(checkoutResult.checkoutUrl)) : "";
+                  response.CHECKOUT_URL = structKeyExists(checkoutResult, "CHECKOUT_URL") ? trim(toString(checkoutResult.CHECKOUT_URL)) : response.checkoutUrl;
+                  response.stripeCheckoutSessionId = checkoutSessionId;
+                  response.STRIPE_CHECKOUT_SESSION_ID = checkoutSessionId;
+                }
+                }
+              }
             } else {
               logRedemptionAttempt(promoId, arguments.userId, codeHash, "rejected", "PROMO_UNSUPPORTED_TYPE", 0, nowValue);
               response = ineligibleResponse("PROMO_UNSUPPORTED_TYPE", "Promo code type is not supported.");
@@ -197,6 +242,12 @@
       if (onePerUser AND hasUserRedeemedPromo(arguments.userId, val(arguments.qPromo.promo_code_id[1]))) {
         return ineligibleResponse("PROMO_ALREADY_REDEEMED", "Promo code has already been used for this account.", arguments.qPromo);
       }
+      if (promoType EQ "stripe_free_months" AND resolveTrialDays(arguments.qPromo.duration_months[1]) LTE 0) {
+        return ineligibleResponse("PROMO_INVALID_TRIAL_DURATION", "Free trial duration is not supported.", arguments.qPromo);
+      }
+      if (promoType EQ "stripe_free_months" AND hasUserUsedStripeFreeTrial(arguments.userId)) {
+        return ineligibleResponse("PROMO_FREE_TRIAL_ALREADY_USED", "A free trial has already been used for this account.", arguments.qPromo);
+      }
       if (!listFindNoCase("founder_lifetime,stripe_free_months", promoType)) {
         return ineligibleResponse("PROMO_UNSUPPORTED_TYPE", "Promo code type is not supported.", arguments.qPromo);
       }
@@ -265,7 +316,7 @@
          FROM fpw_promo_redemptions
          WHERE user_id = :userId
            AND promo_code_id = :promoCodeId
-           AND result IN ('redeemed', 'pending', 'checkout_created')",
+           AND result = 'redeemed'",
         {
           userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
           promoCodeId = { value = arguments.promoCodeId, cfsqltype = "cf_sql_bigint" }
@@ -273,6 +324,135 @@
         { datasource = variables.datasource }
       );
       return qExisting.recordCount GT 0 AND val(qExisting.redemption_count[1]) GT 0;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="hasUserUsedStripeFreeTrial" access="private" returntype="boolean" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var qExisting = queryExecute(
+        "SELECT COUNT(*) AS trial_count
+         FROM fpw_promo_redemptions r
+         INNER JOIN fpw_promo_codes p ON p.promo_code_id = r.promo_code_id
+         WHERE r.user_id = :userId
+           AND p.promo_type = 'stripe_free_months'
+           AND r.result = 'redeemed'",
+        {
+          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = variables.datasource }
+      );
+      return qExisting.recordCount GT 0 AND val(qExisting.trial_count[1]) GT 0;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="continuePendingFreeTrialCheckout" access="private" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="nowUtc" type="date" required="true">
+    <cfscript>
+      var qPending = loadPendingFreeTrialCheckout(arguments.userId);
+      var sessionId = "";
+      var lookup = {};
+      var statusValue = "";
+      var checkoutUrl = "";
+      var trialDays = 0;
+      var response = {};
+
+      if (qPending.recordCount EQ 0) {
+        return { "found" = false, "canCreate" = true };
+      }
+
+      sessionId = trim(toString(qPending.stripe_checkout_session_id[1]));
+      if (!len(sessionId)) {
+        return { "found" = true, "canCreate" = true };
+      }
+
+      lookup = getCheckoutService().retrieveCheckoutSession(sessionId);
+      if (!structKeyExists(lookup, "SUCCESS") OR lookup.SUCCESS NEQ true) {
+        if (structKeyExists(lookup, "ERROR") AND lookup.ERROR EQ "STRIPE_CHECKOUT_SESSION_NOT_FOUND") {
+          return { "found" = true, "canCreate" = true };
+        }
+        return {
+          "found" = true,
+          "canCreate" = false,
+          "response" = ineligibleResponse("STRIPE_CHECKOUT_LOOKUP_FAILED", "Free-trial checkout could not be checked. Please try again shortly.", qPending)
+        };
+      }
+
+      statusValue = structKeyExists(lookup, "status") ? lCase(trim(toString(lookup.status))) : "";
+      if (!len(statusValue) AND structKeyExists(lookup, "STATUS")) {
+        statusValue = lCase(trim(toString(lookup.STATUS)));
+      }
+
+      if (statusValue EQ "open") {
+        checkoutUrl = structKeyExists(lookup, "checkoutUrl") ? trim(toString(lookup.checkoutUrl)) : "";
+        if (!len(checkoutUrl) AND structKeyExists(lookup, "CHECKOUT_URL")) {
+          checkoutUrl = trim(toString(lookup.CHECKOUT_URL));
+        }
+        trialDays = resolveTrialDays(qPending.duration_months[1]);
+        response = eligibleResponse(qPending, "stripe_trial_checkout", "Continue your free-trial checkout. No credit card is required to start.");
+        response.redeemed = false;
+        response.checkoutRequired = true;
+        response.reusedCheckoutSession = true;
+        response.REUSED_CHECKOUT_SESSION = true;
+        response.trialDays = trialDays;
+        response.TRIAL_DAYS = trialDays;
+        response.checkoutUrl = checkoutUrl;
+        response.CHECKOUT_URL = checkoutUrl;
+        response.stripeCheckoutSessionId = sessionId;
+        response.STRIPE_CHECKOUT_SESSION_ID = sessionId;
+        return {
+          "found" = true,
+          "canCreate" = false,
+          "response" = response
+        };
+      }
+
+      if (listFindNoCase("expired", statusValue)) {
+        return { "found" = true, "canCreate" = true };
+      }
+
+      return {
+        "found" = true,
+        "canCreate" = false,
+        "response" = ineligibleResponse("STRIPE_CHECKOUT_CONFIRMATION_PENDING", "Free-trial checkout is being confirmed. Please refresh shortly.", qPending)
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="loadPendingFreeTrialCheckout" access="private" returntype="query" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      return queryExecute(
+        "SELECT
+            p.promo_code_id,
+            p.code_hash,
+            p.promo_type,
+            p.status,
+            p.starts_at_utc,
+            p.expires_at_utc,
+            p.max_redemptions,
+            p.redemptions_count,
+            p.one_per_user,
+            p.duration_months,
+            p.stripe_promotion_code_id,
+            p.entitlement_type,
+            p.entitlement_source,
+            r.stripe_checkout_session_id
+         FROM fpw_promo_redemptions r
+         INNER JOIN fpw_promo_codes p ON p.promo_code_id = r.promo_code_id
+         WHERE r.user_id = :userId
+           AND p.promo_type = 'stripe_free_months'
+           AND r.result = 'checkout_created'
+           AND r.stripe_checkout_session_id IS NOT NULL
+           AND r.stripe_checkout_session_id <> ''
+         ORDER BY r.created_at_utc DESC, r.redemption_id DESC
+         LIMIT 1",
+        {
+          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = variables.datasource }
+      );
     </cfscript>
   </cffunction>
 
@@ -315,6 +495,30 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="resolveTrialDays" access="private" returntype="numeric" output="false">
+    <cfargument name="durationMonths" type="any" required="true">
+    <cfscript>
+      var monthsValue = (!isNull(arguments.durationMonths) AND isNumeric(arguments.durationMonths)) ? int(val(arguments.durationMonths)) : 0;
+      switch (monthsValue) {
+        case 1:
+          return 30;
+        case 2:
+          return 60;
+        default:
+          return 0;
+      }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="getCheckoutService" access="private" returntype="any" output="false">
+    <cfscript>
+      if (isObject(variables.checkoutService) OR isStruct(variables.checkoutService)) {
+        return variables.checkoutService;
+      }
+      return new fpw.api.v1.StripeCheckoutService().init(variables.datasource);
+    </cfscript>
+  </cffunction>
+
   <cffunction name="logRedemptionAttempt" access="private" returntype="void" output="false">
     <cfargument name="promoCodeId" type="numeric" required="true">
     <cfargument name="userId" type="numeric" required="true">
@@ -323,6 +527,7 @@
     <cfargument name="errorCode" type="string" required="true">
     <cfargument name="entitlementId" type="numeric" required="true">
     <cfargument name="nowUtc" type="date" required="true">
+    <cfargument name="stripeCheckoutSessionId" type="string" required="false" default="">
     <cfscript>
       queryExecute(
         "INSERT INTO fpw_promo_redemptions (
@@ -332,6 +537,7 @@
            result,
            error_code,
            entitlement_id,
+           stripe_checkout_session_id,
            attempted_at_utc,
            redeemed_at_utc,
            created_at_utc,
@@ -343,6 +549,7 @@
            :result,
            :errorCode,
            :entitlementId,
+           :stripeCheckoutSessionId,
            :attemptedAtUtc,
            :redeemedAtUtc,
            UTC_TIMESTAMP(),
@@ -355,6 +562,7 @@
           result = { value = trim(arguments.result), cfsqltype = "cf_sql_varchar" },
           errorCode = { value = trim(arguments.errorCode), cfsqltype = "cf_sql_varchar", null = !len(trim(arguments.errorCode)) },
           entitlementId = { value = arguments.entitlementId, cfsqltype = "cf_sql_bigint", null = arguments.entitlementId LTE 0 },
+          stripeCheckoutSessionId = { value = trim(arguments.stripeCheckoutSessionId), cfsqltype = "cf_sql_varchar", null = !len(trim(arguments.stripeCheckoutSessionId)) },
           attemptedAtUtc = { value = arguments.nowUtc, cfsqltype = "cf_sql_timestamp" },
           redeemedAtUtc = { value = arguments.nowUtc, cfsqltype = "cf_sql_timestamp", null = !listFindNoCase("redeemed", arguments.result) }
         },

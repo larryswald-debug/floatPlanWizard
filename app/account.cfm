@@ -126,7 +126,7 @@
 
           <div class="membership-promo-panel mt-4" id="membershipPromoPanel">
             <h3 class="h6 mb-1">Redeem Launch or Founder Code</h3>
-            <p class="small text-muted mb-3">Enter a Memorial Day launch or Founder code. Codes are validated securely before any membership changes are applied.</p>
+            <p class="small text-muted mb-3">Enter a Memorial Day launch or Founder code. Launch trial codes open secure Stripe Checkout, and no credit card is required to start.</p>
             <form id="promoCodeForm" novalidate>
               <label class="visually-hidden" for="promoCodeInput">Launch or Founder code</label>
               <div class="membership-promo-input-group">

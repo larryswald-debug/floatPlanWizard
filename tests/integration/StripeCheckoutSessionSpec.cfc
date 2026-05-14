@@ -111,6 +111,62 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(fields["subscription_data[metadata][fpwUserId]"]).toBe(toString(userId));
       });
 
+      it("creates cardless free-trial subscription Checkout with cancel-on-missing-payment-method", function() {
+        var userId = nextTestUserId();
+        var transport = buildFakeTransport({
+          id = "cs_test_trial_checkout",
+          url = "https://checkout.stripe.com/c/pay/cs_test_trial_checkout"
+        });
+        var service = new fpw.api.v1.StripeCheckoutService().init(
+          datasource = "fpw",
+          configService = buildFakeConfig(),
+          stripeTransport = transport
+        );
+        var res = service.createFreeTrialCheckoutSession(userId, 60, { promoType = "stripe_free_months" });
+        var fields = transport.requests[1].requestPayload.formFields;
+
+        expect(res.SUCCESS).toBeTrue(serializeJSON(res));
+        expect(res.trialDays).toBe(60);
+        expect(res.CHECKOUT_URL).toBe("https://checkout.stripe.com/c/pay/cs_test_trial_checkout");
+        expect(fields.mode).toBe("subscription");
+        expect(fields["line_items[0][price]"]).toBe("price_premium_monthly_test");
+        expect(fields["line_items[0][quantity]"]).toBe("1");
+        expect(fields.payment_method_collection).toBe("if_required");
+        expect(fields["subscription_data[trial_period_days]"]).toBe("60");
+        expect(fields["subscription_data[trial_settings][end_behavior][missing_payment_method]"]).toBe("cancel");
+        expect(fields.client_reference_id).toBe(toString(userId));
+        expect(fields["metadata[fpwUserId]"]).toBe(toString(userId));
+        expect(fields["metadata[fpwPromoType]"]).toBe("stripe_free_months");
+        expect(fields["metadata[fpwTrialDays]"]).toBe("60");
+        expect(fields["subscription_data[metadata][fpwUserId]"]).toBe(toString(userId));
+        expect(fields["subscription_data[metadata][fpwPromoType]"]).toBe("stripe_free_months");
+        expect(fields["subscription_data[metadata][fpwTrialDays]"]).toBe("60");
+        expect(findNoCase("sk_test_checkout_secret", serializeJSON(res))).toBe(0);
+      });
+
+      it("retrieves safe Checkout session status fields for pending trial reuse", function() {
+        var transport = buildFakeTransport({
+          id = "cs_test_reuse",
+          url = "https://checkout.stripe.com/c/pay/cs_test_reuse",
+          status = "open",
+          payment_status = "unpaid",
+          client_secret = "should_not_return"
+        });
+        var service = new fpw.api.v1.StripeCheckoutService().init(
+          datasource = "fpw",
+          configService = buildFakeConfig(),
+          stripeTransport = transport
+        );
+        var res = service.retrieveCheckoutSession("cs_test_reuse");
+
+        expect(res.SUCCESS).toBeTrue(serializeJSON(res));
+        expect(res.status).toBe("open");
+        expect(res.checkoutUrl).toBe("https://checkout.stripe.com/c/pay/cs_test_reuse");
+        expect(res.stripeCheckoutSessionId).toBe("cs_test_reuse");
+        expect(findNoCase("should_not_return", serializeJSON(res))).toBe(0);
+        expect(transport.retrieveRequests[1].checkoutSessionId).toBe("cs_test_reuse");
+      });
+
       it("returns only safe checkout fields and no secret or full Stripe payload", function() {
         var transport = buildFakeTransport({
           id = "cs_test_safe",
@@ -171,7 +227,7 @@ component extends="testbox.system.BaseSpec" output="false" {
   }
 
   private struct function buildFakeTransport(struct responseBody = {}) {
-    var transport = { requests = [] };
+    var transport = { requests = [], retrieveRequests = [] };
     if (structIsEmpty(arguments.responseBody)) {
       arguments.responseBody = {
         id = "cs_test_checkout",
@@ -182,6 +238,18 @@ component extends="testbox.system.BaseSpec" output="false" {
     transport.createCheckoutSession = function(required struct requestPayload, required string secretKey) {
       arrayAppend(transport.requests, {
         requestPayload = duplicate(arguments.requestPayload),
+        secretKey = arguments.secretKey
+      });
+      return {
+        SUCCESS = true,
+        success = true,
+        statusCode = 200,
+        body = duplicate(transport.responseBody)
+      };
+    };
+    transport.retrieveCheckoutSession = function(required string checkoutSessionId, required string secretKey) {
+      arrayAppend(transport.retrieveRequests, {
+        checkoutSessionId = arguments.checkoutSessionId,
         secretKey = arguments.secretKey
       });
       return {

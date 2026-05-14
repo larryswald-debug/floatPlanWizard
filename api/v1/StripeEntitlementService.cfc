@@ -98,6 +98,7 @@
         identifiers = identifiers,
         preserveActive = true
       );
+      markPromoCheckoutCompleted(userId, identifiers);
 
       return successResponse("Checkout session mapping recorded without granting Premium.", userId, identifiers);
     </cfscript>
@@ -310,6 +311,72 @@
         );
       }
       return queryNew("id,status,stripe_subscription_status");
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="markPromoCheckoutCompleted" access="private" returntype="void" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="identifiers" type="struct" required="true">
+    <cfscript>
+      var checkoutId = readString(arguments.identifiers, "stripeCheckoutSessionId");
+      var qPending = queryNew("");
+      var redemptionId = 0;
+      var promoCodeId = 0;
+
+      if (!len(checkoutId)) {
+        return;
+      }
+
+      qPending = queryExecute(
+        "SELECT redemption_id, promo_code_id
+         FROM fpw_promo_redemptions
+         WHERE user_id = :userId
+           AND stripe_checkout_session_id = :checkoutId
+           AND result = 'checkout_created'
+         ORDER BY redemption_id DESC
+         LIMIT 1",
+        {
+          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+          checkoutId = { value = checkoutId, cfsqltype = "cf_sql_varchar" }
+        },
+        { datasource = variables.datasource }
+      );
+      if (qPending.recordCount EQ 0) {
+        return;
+      }
+
+      redemptionId = val(qPending.redemption_id[1]);
+      promoCodeId = val(qPending.promo_code_id[1]);
+
+      queryExecute(
+        "UPDATE fpw_promo_redemptions
+         SET result = 'redeemed',
+             stripe_customer_id = COALESCE(:stripeCustomerId, stripe_customer_id),
+             stripe_subscription_id = COALESCE(:stripeSubscriptionId, stripe_subscription_id),
+             redeemed_at_utc = UTC_TIMESTAMP(),
+             updated_at_utc = UTC_TIMESTAMP()
+         WHERE redemption_id = :redemptionId
+           AND result = 'checkout_created'",
+        {
+          redemptionId = { value = redemptionId, cfsqltype = "cf_sql_bigint" },
+          stripeCustomerId = { value = readString(arguments.identifiers, "stripeCustomerId"), cfsqltype = "cf_sql_varchar", null = !len(readString(arguments.identifiers, "stripeCustomerId")) },
+          stripeSubscriptionId = { value = readString(arguments.identifiers, "stripeSubscriptionId"), cfsqltype = "cf_sql_varchar", null = !len(readString(arguments.identifiers, "stripeSubscriptionId")) }
+        },
+        { datasource = variables.datasource }
+      );
+
+      if (promoCodeId GT 0) {
+        queryExecute(
+          "UPDATE fpw_promo_codes
+           SET redemptions_count = redemptions_count + 1,
+               updated_at_utc = UTC_TIMESTAMP()
+           WHERE promo_code_id = :promoCodeId",
+          {
+            promoCodeId = { value = promoCodeId, cfsqltype = "cf_sql_bigint" }
+          },
+          { datasource = variables.datasource }
+        );
+      }
     </cfscript>
   </cffunction>
 

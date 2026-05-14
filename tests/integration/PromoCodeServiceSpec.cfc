@@ -144,9 +144,11 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(countRedeemedRows(userId, code)).toBe(1);
       });
 
-      it("validates stripe_free_months and records pending checkout foundation without granting Premium", function() {
+      it("starts a cardless 60-day Stripe trial checkout without granting Premium", function() {
         var userId = createTestUser();
         var code = uniqueCode("free-months");
+        var checkoutService = buildFakeTrialCheckoutService();
+        var promoService = new fpw.api.v1.PromoCodeService().init(datasource = "fpw", checkoutService = checkoutService);
         var promoId = insertPromoCode(
           code = code,
           promoType = "stripe_free_months",
@@ -154,7 +156,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           stripePromotionCodeId = "promo_test_reference"
         );
         var validation = variables.promoService.validateCode(userId, code);
-        var redemption = variables.promoService.redeemCode(userId, code);
+        var redemption = promoService.redeemCode(userId, code);
         var access = variables.memberService.getCurrentAccess(userId);
         var row = loadPromoCode(promoId);
 
@@ -163,12 +165,131 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(validation.durationMonths).toBe(2);
         expect(validation.stripePromotionCodeId).toBe("promo_test_reference");
         expect(redemption.SUCCESS).toBeTrue(serializeJSON(redemption));
-        expect(redemption.nextAction).toBe("stripe_checkout_required");
+        expect(redemption.nextAction).toBe("stripe_trial_checkout");
         expect(redemption.checkoutRequired).toBeTrue(serializeJSON(redemption));
+        expect(redemption.trialDays).toBe(60);
+        expect(redemption.checkoutUrl).toBe("https://checkout.stripe.com/c/pay/cs_test_trial_" & userId & "_1");
+        expect(checkoutService.requests[1].userId).toBe(userId);
+        expect(checkoutService.requests[1].trialDays).toBe(60);
         expect(access.hasPremium).toBeFalse(serializeJSON(access));
         expect(countPremiumEntitlements(userId)).toBe(0);
-        expect(countPendingRows(userId, promoId)).toBe(1);
+        expect(countCheckoutCreatedRows(userId, promoId)).toBe(1);
+        expect(loadTrialRedemption(userId, promoId).stripe_checkout_session_id[1]).toBe("cs_test_trial_" & userId & "_1");
         expect(row.stripe_promotion_code_id[1]).toBe("promo_test_reference");
+        expect(row.redemptions_count[1]).toBe(0);
+      });
+
+      it("maps one-month free promo codes to a 30-day trial", function() {
+        var userId = createTestUser();
+        var code = uniqueCode("free-one-month");
+        var checkoutService = buildFakeTrialCheckoutService();
+        var promoService = new fpw.api.v1.PromoCodeService().init(datasource = "fpw", checkoutService = checkoutService);
+        insertPromoCode(code = code, promoType = "stripe_free_months", durationMonths = 1);
+
+        var redemption = promoService.redeemCode(userId, code);
+
+        expect(redemption.SUCCESS).toBeTrue(serializeJSON(redemption));
+        expect(redemption.nextAction).toBe("stripe_trial_checkout");
+        expect(redemption.trialDays).toBe(30);
+        expect(checkoutService.requests[1].trialDays).toBe(30);
+      });
+
+      it("reuses an open pending trial Checkout session for the same promo code", function() {
+        var userId = createTestUser();
+        var code = uniqueCode("free-reuse-same");
+        var checkoutService = buildFakeTrialCheckoutService();
+        var promoService = new fpw.api.v1.PromoCodeService().init(datasource = "fpw", checkoutService = checkoutService);
+        var promoId = insertPromoCode(code = code, promoType = "stripe_free_months", durationMonths = 1);
+
+        var first = promoService.redeemCode(userId, code);
+        var second = promoService.redeemCode(userId, code);
+
+        expect(first.SUCCESS).toBeTrue(serializeJSON(first));
+        expect(second.SUCCESS).toBeTrue(serializeJSON(second));
+        expect(second.reusedCheckoutSession).toBeTrue(serializeJSON(second));
+        expect(second.checkoutUrl).toBe(first.checkoutUrl);
+        expect(second.stripeCheckoutSessionId).toBe(first.stripeCheckoutSessionId);
+        expect(arrayLen(checkoutService.requests)).toBe(1);
+        expect(countCheckoutCreatedRows(userId, promoId)).toBe(1);
+        expect(countPremiumEntitlements(userId)).toBe(0);
+      });
+
+      it("reuses an open pending trial Checkout session across different free-month codes", function() {
+        var userId = createTestUser();
+        var firstCode = uniqueCode("free-reuse-first");
+        var secondCode = uniqueCode("free-reuse-second");
+        var checkoutService = buildFakeTrialCheckoutService();
+        var promoService = new fpw.api.v1.PromoCodeService().init(datasource = "fpw", checkoutService = checkoutService);
+        insertPromoCode(code = firstCode, promoType = "stripe_free_months", durationMonths = 1);
+        insertPromoCode(code = secondCode, promoType = "stripe_free_months", durationMonths = 2);
+
+        var first = promoService.redeemCode(userId, firstCode);
+        var second = promoService.redeemCode(userId, secondCode);
+
+        expect(first.SUCCESS).toBeTrue(serializeJSON(first));
+        expect(second.SUCCESS).toBeTrue(serializeJSON(second));
+        expect(second.reusedCheckoutSession).toBeTrue(serializeJSON(second));
+        expect(second.checkoutUrl).toBe(first.checkoutUrl);
+        expect(second.trialDays).toBe(30);
+        expect(arrayLen(checkoutService.requests)).toBe(1);
+      });
+
+      it("allows a new trial Checkout when the previous pending session expired before completion", function() {
+        var userId = createTestUser();
+        var code = uniqueCode("free-expired-retry");
+        var checkoutService = buildFakeTrialCheckoutService();
+        var promoService = new fpw.api.v1.PromoCodeService().init(datasource = "fpw", checkoutService = checkoutService);
+        var promoId = insertPromoCode(code = code, promoType = "stripe_free_months", durationMonths = 1);
+
+        var first = promoService.redeemCode(userId, code);
+        checkoutService.sessionStatuses[first.stripeCheckoutSessionId] = "expired";
+        var second = promoService.redeemCode(userId, code);
+
+        expect(first.SUCCESS).toBeTrue(serializeJSON(first));
+        expect(second.SUCCESS).toBeTrue(serializeJSON(second));
+        expect(second.reusedCheckoutSession).toBeFalse(serializeJSON(second));
+        expect(arrayLen(checkoutService.requests)).toBe(2);
+        expect(countCheckoutCreatedRows(userId, promoId)).toBe(2);
+        expect(loadPromoCode(promoId).redemptions_count[1]).toBe(0);
+      });
+
+      it("enforces one free trial per user after verified checkout completion", function() {
+        var userId = createTestUser();
+        var firstCode = uniqueCode("free-first");
+        var secondCode = uniqueCode("free-second");
+        var checkoutService = buildFakeTrialCheckoutService();
+        var promoService = new fpw.api.v1.PromoCodeService().init(datasource = "fpw", checkoutService = checkoutService);
+        insertPromoCode(code = firstCode, promoType = "stripe_free_months", durationMonths = 1);
+        insertPromoCode(code = secondCode, promoType = "stripe_free_months", durationMonths = 2);
+
+        var first = promoService.redeemCode(userId, firstCode);
+        variables.stripeService.processVerifiedEvent(checkoutEvent(uniqueEventId("evt_trial_completed"), userId, first.stripeCheckoutSessionId, "sub_trial_completed_" & userId));
+        var secondValidation = variables.promoService.validateCode(userId, secondCode);
+        var second = promoService.redeemCode(userId, secondCode);
+
+        expect(first.SUCCESS).toBeTrue(serializeJSON(first));
+        expect(secondValidation.SUCCESS).toBeFalse(serializeJSON(secondValidation));
+        expect(secondValidation.ERROR).toBe("PROMO_FREE_TRIAL_ALREADY_USED");
+        expect(second.SUCCESS).toBeFalse(serializeJSON(second));
+        expect(second.ERROR).toBe("PROMO_FREE_TRIAL_ALREADY_USED");
+        expect(arrayLen(checkoutService.requests)).toBe(1);
+      });
+
+      it("rejects unsupported free trial durations before Stripe checkout", function() {
+        var userId = createTestUser();
+        var code = uniqueCode("free-invalid-duration");
+        var checkoutService = buildFakeTrialCheckoutService();
+        var promoService = new fpw.api.v1.PromoCodeService().init(datasource = "fpw", checkoutService = checkoutService);
+        insertPromoCode(code = code, promoType = "stripe_free_months", durationMonths = 3);
+
+        var validation = variables.promoService.validateCode(userId, code);
+        var redemption = promoService.redeemCode(userId, code);
+
+        expect(validation.SUCCESS).toBeFalse(serializeJSON(validation));
+        expect(validation.ERROR).toBe("PROMO_INVALID_TRIAL_DURATION");
+        expect(redemption.SUCCESS).toBeFalse(serializeJSON(redemption));
+        expect(redemption.ERROR).toBe("PROMO_INVALID_TRIAL_DURATION");
+        expect(arrayLen(checkoutService.requests)).toBe(0);
       });
 
       it("preserves existing Basic, Stripe, three_day_pass, admin_comp, and past_due access behavior", function() {
@@ -348,6 +469,34 @@ component extends="testbox.system.BaseSpec" output="false" {
     };
   }
 
+  private struct function checkoutEvent(required string eventId, required numeric userId, required string checkoutSessionId, required string subscriptionId) {
+    return {
+      id = arguments.eventId,
+      type = "checkout.session.completed",
+      data = {
+        object = {
+          id = arguments.checkoutSessionId,
+          client_reference_id = toString(arguments.userId),
+          customer = "cus_trial_" & arguments.userId,
+          subscription = arguments.subscriptionId,
+          metadata = {
+            fpwUserId = toString(arguments.userId),
+            fpwPromoType = "stripe_free_months"
+          },
+          items = {
+            data = [
+              {
+                price = {
+                  id = "price_premium_monthly"
+                }
+              }
+            ]
+          }
+        }
+      }
+    };
+  }
+
   private struct function getMeAsUser(required numeric userId) {
     var httpResult = {};
     var raw = "";
@@ -374,10 +523,28 @@ component extends="testbox.system.BaseSpec" output="false" {
 
   private query function loadPromoCode(required numeric promoCodeId) {
     return queryExecute(
-      "SELECT stripe_promotion_code_id
+      "SELECT stripe_promotion_code_id,
+              redemptions_count
        FROM fpw_promo_codes
        WHERE promo_code_id = :promoCodeId",
       {
+        promoCodeId = { value = arguments.promoCodeId, cfsqltype = "cf_sql_bigint" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
+  private query function loadTrialRedemption(required numeric userId, required numeric promoCodeId) {
+    return queryExecute(
+      "SELECT result,
+              stripe_checkout_session_id
+       FROM fpw_promo_redemptions
+       WHERE user_id = :userId
+         AND promo_code_id = :promoCodeId
+         AND result = 'checkout_created'
+       ORDER BY redemption_id DESC",
+      {
+        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
         promoCodeId = { value = arguments.promoCodeId, cfsqltype = "cf_sql_bigint" }
       },
       { datasource = "fpw" }
@@ -428,13 +595,13 @@ component extends="testbox.system.BaseSpec" output="false" {
     return qCount.recordCount ? val(qCount.row_count[1]) : 0;
   }
 
-  private numeric function countPendingRows(required numeric userId, required numeric promoCodeId) {
+  private numeric function countCheckoutCreatedRows(required numeric userId, required numeric promoCodeId) {
     var qCount = queryExecute(
       "SELECT COUNT(*) AS row_count
        FROM fpw_promo_redemptions
        WHERE user_id = :userId
          AND promo_code_id = :promoCodeId
-         AND result = 'pending'",
+         AND result = 'checkout_created'",
       {
         userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
         promoCodeId = { value = arguments.promoCodeId, cfsqltype = "cf_sql_bigint" }
@@ -442,6 +609,57 @@ component extends="testbox.system.BaseSpec" output="false" {
       { datasource = "fpw" }
     );
     return qCount.recordCount ? val(qCount.row_count[1]) : 0;
+  }
+
+  private struct function buildFakeTrialCheckoutService() {
+    var service = { requests = [], sessionStatuses = {} };
+    service.createFreeTrialCheckoutSession = function(required numeric userId, required numeric trialDays, struct promoMetadata = {}) {
+      var sessionId = "cs_test_trial_" & arguments.userId & "_" & (arrayLen(service.requests) + 1);
+      arrayAppend(service.requests, {
+        userId = arguments.userId,
+        trialDays = arguments.trialDays,
+        promoMetadata = duplicate(arguments.promoMetadata)
+      });
+      service.sessionStatuses[sessionId] = "open";
+      return {
+        SUCCESS = true,
+        success = true,
+        CHECKOUT_URL = "https://checkout.stripe.com/c/pay/" & sessionId,
+        checkoutUrl = "https://checkout.stripe.com/c/pay/" & sessionId,
+        STRIPE_CHECKOUT_SESSION_ID = sessionId,
+        stripeCheckoutSessionId = sessionId,
+        TRIAL_DAYS = arguments.trialDays,
+        trialDays = arguments.trialDays
+      };
+    };
+    service.retrieveCheckoutSession = function(required string checkoutSessionId, string secretKey = "") {
+      var sessionId = trim(arguments.checkoutSessionId);
+      var statusValue = structKeyExists(service.sessionStatuses, sessionId) ? service.sessionStatuses[sessionId] : "open";
+      if (statusValue EQ "not_found") {
+        return {
+          SUCCESS = false,
+          success = false,
+          body = {
+            error = {
+              code = "resource_missing"
+            }
+          }
+        };
+      }
+      return {
+        SUCCESS = true,
+        success = true,
+        STRIPE_CHECKOUT_SESSION_ID = sessionId,
+        stripeCheckoutSessionId = sessionId,
+        CHECKOUT_URL = "https://checkout.stripe.com/c/pay/" & sessionId,
+        checkoutUrl = "https://checkout.stripe.com/c/pay/" & sessionId,
+        STATUS = statusValue,
+        status = statusValue,
+        PAYMENT_STATUS = "unpaid",
+        paymentStatus = "unpaid"
+      };
+    };
+    return service;
   }
 
   private void function cleanupRows() {

@@ -11,6 +11,7 @@
       <cfset var act = lCase(trim(arguments.action))>
       <cfset var userId = 0>
       <cfset var code = "">
+      <cfset var promoService = "">
       <cfset var serviceResult = {}>
       <cfset var response = {}>
 
@@ -42,10 +43,11 @@
       </cfif>
 
       <cfset code = readPromoCode(body)>
+      <cfset promoService = createPromoCodeService()>
       <cfif act EQ "validate">
-        <cfset serviceResult = new fpw.api.v1.PromoCodeService().init("fpw").validateCode(userId, code)>
+        <cfset serviceResult = promoService.validateCode(userId, code)>
       <cfelse>
-        <cfset serviceResult = new fpw.api.v1.PromoCodeService().init("fpw").redeemCode(userId, code)>
+        <cfset serviceResult = promoService.redeemCode(userId, code)>
       </cfif>
 
       <cfset response = buildServiceResponse(serviceResult, act)>
@@ -97,6 +99,20 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="createPromoCodeService" access="private" returntype="any" output="false">
+    <cfscript>
+      if (
+        structKeyExists(application, "env")
+        AND lCase(toString(application.env)) EQ "dev"
+        AND structKeyExists(application, "testPromoCodeService")
+        AND (isObject(application.testPromoCodeService) OR isStruct(application.testPromoCodeService))
+      ) {
+        return application.testPromoCodeService;
+      }
+      return new fpw.api.v1.PromoCodeService().init("fpw");
+    </cfscript>
+  </cffunction>
+
   <cffunction name="readPromoCode" access="private" returntype="string" output="false">
     <cfargument name="body" type="struct" required="true">
     <cfscript>
@@ -140,6 +156,16 @@
         response["NOTICE_CODE"] = "CHECKOUT_WIRING_PENDING";
         response["noticeCode"] = "CHECKOUT_WIRING_PENDING";
       }
+      if (success AND nextAction EQ "stripe_trial_checkout") {
+        response["CHECKOUT_URL"] = readServiceString(arguments.serviceResult, "CHECKOUT_URL", "checkoutUrl");
+        response["checkoutUrl"] = response["CHECKOUT_URL"];
+        response["STRIPE_CHECKOUT_SESSION_ID"] = readServiceString(arguments.serviceResult, "STRIPE_CHECKOUT_SESSION_ID", "stripeCheckoutSessionId");
+        response["stripeCheckoutSessionId"] = response["STRIPE_CHECKOUT_SESSION_ID"];
+        response["TRIAL_DAYS"] = readServiceNumeric(arguments.serviceResult, "TRIAL_DAYS", "trialDays");
+        response["trialDays"] = response["TRIAL_DAYS"];
+        response["REUSED_CHECKOUT_SESSION"] = readServiceBoolean(arguments.serviceResult, "REUSED_CHECKOUT_SESSION", "reusedCheckoutSession");
+        response["reusedCheckoutSession"] = response["REUSED_CHECKOUT_SESSION"];
+      }
 
       return response;
     </cfscript>
@@ -163,7 +189,7 @@
       if (structKeyExists(arguments.serviceResult, "nextAction")) {
         nextAction = lCase(trim(toString(arguments.serviceResult.nextAction)));
       }
-      return listFindNoCase("redeem_founder_lifetime,founder_lifetime_redeemed,stripe_checkout_required", nextAction) ? nextAction : "";
+      return listFindNoCase("redeem_founder_lifetime,founder_lifetime_redeemed,stripe_checkout_required,stripe_trial_checkout", nextAction) ? nextAction : "";
     </cfscript>
   </cffunction>
 
@@ -176,8 +202,14 @@
     <cfscript>
       var errorCode = mapPromoError(readErrorCode(arguments.serviceResult));
 
+      if (arguments.success AND arguments.nextAction EQ "stripe_trial_checkout") {
+        if (structKeyExists(arguments.serviceResult, "displayMessage") AND len(trim(toString(arguments.serviceResult.displayMessage)))) {
+          return trim(toString(arguments.serviceResult.displayMessage));
+        }
+        return "No-credit-card trial checkout is ready.";
+      }
       if (arguments.success AND arguments.nextAction EQ "stripe_checkout_required") {
-        return "Launch discount recognized. Checkout activation will be completed in the next billing step.";
+        return "Launch trial code recognized. Redeem to start cardless checkout.";
       }
       if (arguments.success AND arguments.nextAction EQ "founder_lifetime_redeemed") {
         return "Founders Lifetime Premium has been added to your account.";
@@ -225,8 +257,20 @@
           return "CODE_ALREADY_REDEEMED";
         case "PROMO_MAX_REDEMPTIONS_REACHED":
           return "CODE_MAX_REDEMPTIONS_REACHED";
+        case "PROMO_FREE_TRIAL_ALREADY_USED":
+          return "FREE_TRIAL_ALREADY_USED";
+        case "PROMO_INVALID_TRIAL_DURATION":
+          return "INVALID_TRIAL_DURATION";
         case "PROMO_UNSUPPORTED_TYPE":
           return "PROMO_TYPE_NOT_SUPPORTED";
+        case "STRIPE_CONFIG_MISSING":
+          return "STRIPE_CONFIG_MISSING";
+        case "STRIPE_CHECKOUT_FAILED":
+          return "STRIPE_CHECKOUT_FAILED";
+        case "STRIPE_CHECKOUT_LOOKUP_FAILED":
+          return "STRIPE_CHECKOUT_LOOKUP_FAILED";
+        case "STRIPE_CHECKOUT_CONFIRMATION_PENDING":
+          return "STRIPE_CHECKOUT_CONFIRMATION_PENDING";
         case "PROMO_REDEMPTION_FAILED":
           return "SERVER_ERROR";
         default:
@@ -253,8 +297,20 @@
           return "Promo code has already been used for this account.";
         case "CODE_MAX_REDEMPTIONS_REACHED":
           return "Promo code has reached its redemption limit.";
+        case "FREE_TRIAL_ALREADY_USED":
+          return "A free trial has already been used for this account.";
+        case "INVALID_TRIAL_DURATION":
+          return "Free trial duration is not supported.";
         case "PROMO_TYPE_NOT_SUPPORTED":
           return "Promo code type is not supported.";
+        case "STRIPE_CONFIG_MISSING":
+          return "Trial checkout is not available right now.";
+        case "STRIPE_CHECKOUT_FAILED":
+          return "Trial checkout could not be started.";
+        case "STRIPE_CHECKOUT_LOOKUP_FAILED":
+          return "Free-trial checkout could not be checked. Please try again shortly.";
+        case "STRIPE_CHECKOUT_CONFIRMATION_PENDING":
+          return "Free-trial checkout is being confirmed. Please refresh shortly.";
         case "METHOD_NOT_ALLOWED":
           return "Use POST for promo code requests.";
         case "AUTH_REQUIRED":
@@ -262,6 +318,51 @@
         default:
           return "Promo code request could not be completed.";
       }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="readServiceString" access="private" returntype="string" output="false">
+    <cfargument name="serviceResult" type="struct" required="true">
+    <cfargument name="upperKey" type="string" required="true">
+    <cfargument name="lowerKey" type="string" required="true">
+    <cfscript>
+      if (structKeyExists(arguments.serviceResult, arguments.upperKey) AND !isNull(arguments.serviceResult[arguments.upperKey])) {
+        return trim(toString(arguments.serviceResult[arguments.upperKey]));
+      }
+      if (structKeyExists(arguments.serviceResult, arguments.lowerKey) AND !isNull(arguments.serviceResult[arguments.lowerKey])) {
+        return trim(toString(arguments.serviceResult[arguments.lowerKey]));
+      }
+      return "";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="readServiceNumeric" access="private" returntype="numeric" output="false">
+    <cfargument name="serviceResult" type="struct" required="true">
+    <cfargument name="upperKey" type="string" required="true">
+    <cfargument name="lowerKey" type="string" required="true">
+    <cfscript>
+      if (structKeyExists(arguments.serviceResult, arguments.upperKey) AND isNumeric(arguments.serviceResult[arguments.upperKey])) {
+        return val(arguments.serviceResult[arguments.upperKey]);
+      }
+      if (structKeyExists(arguments.serviceResult, arguments.lowerKey) AND isNumeric(arguments.serviceResult[arguments.lowerKey])) {
+        return val(arguments.serviceResult[arguments.lowerKey]);
+      }
+      return 0;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="readServiceBoolean" access="private" returntype="boolean" output="false">
+    <cfargument name="serviceResult" type="struct" required="true">
+    <cfargument name="upperKey" type="string" required="true">
+    <cfargument name="lowerKey" type="string" required="true">
+    <cfscript>
+      if (structKeyExists(arguments.serviceResult, arguments.upperKey)) {
+        return arguments.serviceResult[arguments.upperKey] EQ true;
+      }
+      if (structKeyExists(arguments.serviceResult, arguments.lowerKey)) {
+        return arguments.serviceResult[arguments.lowerKey] EQ true;
+      }
+      return false;
     </cfscript>
   </cffunction>
 

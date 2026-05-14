@@ -127,6 +127,118 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="createFreeTrialCheckoutSession" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="trialDays" type="numeric" required="true">
+    <cfargument name="promoMetadata" type="struct" required="false" default="#structNew()#">
+    <cfscript>
+      var userIdValue = int(val(arguments.userId));
+      var trialDaysValue = int(val(arguments.trialDays));
+      var secretKey = "";
+      var selectedPriceId = "";
+      var successUrl = "";
+      var cancelUrl = "";
+      var requestPayload = {};
+      var stripeResult = {};
+      var stripePayload = {};
+      var checkoutUrl = "";
+      var checkoutSessionId = "";
+      var response = {};
+
+      if (userIdValue LTE 0) {
+        return errorResponse("INVALID_USER_ID", "Session user is invalid.");
+      }
+      if (!listFind("30,60", toString(trialDaysValue))) {
+        return errorResponse("INVALID_TRIAL_DURATION", "Free trial duration is not supported.");
+      }
+
+      secretKey = readConfigValue("secretKey", "getSecretKey");
+      selectedPriceId = readConfigValue("premiumMonthlyPriceId", "getPremiumMonthlyPriceId");
+      successUrl = readConfigValue("checkoutSuccessUrl", "getCheckoutSuccessUrl");
+      cancelUrl = readConfigValue("checkoutCancelUrl", "getCheckoutCancelUrl");
+      if (!len(secretKey) OR !len(selectedPriceId) OR !len(successUrl) OR !len(cancelUrl)) {
+        return errorResponse("STRIPE_CONFIG_MISSING", "Stripe checkout configuration is incomplete.");
+      }
+
+      requestPayload = buildStripeTrialRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl, trialDaysValue, arguments.promoMetadata);
+      stripeResult = executeStripeCheckoutRequest(requestPayload, secretKey);
+      if (!structKeyExists(stripeResult, "SUCCESS") OR stripeResult.SUCCESS NEQ true) {
+        return errorResponse("STRIPE_CHECKOUT_FAILED", "Stripe checkout session could not be created.");
+      }
+
+      stripePayload = normalizeStripePayload(stripeResult);
+      checkoutUrl = readString(stripePayload, "url");
+      checkoutSessionId = readString(stripePayload, "id");
+
+      if (!len(checkoutUrl) OR !len(checkoutSessionId)) {
+        return errorResponse("STRIPE_CHECKOUT_FAILED", "Stripe checkout session response was incomplete.");
+      }
+
+      response = structNew("ordered-casesensitive");
+      response["SUCCESS"] = true;
+      response["success"] = true;
+      response["MESSAGE"] = "Trial checkout session created.";
+      response["message"] = "Trial checkout session created.";
+      response["CHECKOUT_URL"] = checkoutUrl;
+      response["checkoutUrl"] = checkoutUrl;
+      response["STRIPE_CHECKOUT_SESSION_ID"] = checkoutSessionId;
+      response["stripeCheckoutSessionId"] = checkoutSessionId;
+      response["TRIAL_DAYS"] = trialDaysValue;
+      response["trialDays"] = trialDaysValue;
+      return response;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="retrieveCheckoutSession" access="public" returntype="struct" output="false">
+    <cfargument name="checkoutSessionId" type="string" required="true">
+    <cfscript>
+      var sessionId = trim(arguments.checkoutSessionId);
+      var secretKey = "";
+      var stripeResult = {};
+      var stripePayload = {};
+      var response = {};
+      var checkoutUrl = "";
+      var checkoutStatus = "";
+
+      if (!len(sessionId) OR left(sessionId, 3) NEQ "cs_") {
+        return errorResponse("INVALID_CHECKOUT_SESSION_ID", "Checkout session is invalid.");
+      }
+
+      secretKey = readConfigValue("secretKey", "getSecretKey");
+      if (!len(secretKey)) {
+        return errorResponse("STRIPE_CONFIG_MISSING", "Stripe checkout configuration is incomplete.");
+      }
+
+      stripeResult = executeStripeCheckoutSessionRetrieve(sessionId, secretKey);
+      if (!structKeyExists(stripeResult, "SUCCESS") OR stripeResult.SUCCESS NEQ true) {
+        stripePayload = normalizeStripePayload(stripeResult);
+        if (structKeyExists(stripePayload, "error") AND isStruct(stripePayload.error) AND readString(stripePayload.error, "code") EQ "resource_missing") {
+          return errorResponse("STRIPE_CHECKOUT_SESSION_NOT_FOUND", "Stripe checkout session was not found.");
+        }
+        return errorResponse("STRIPE_CHECKOUT_LOOKUP_FAILED", "Stripe checkout session could not be checked.");
+      }
+
+      stripePayload = normalizeStripePayload(stripeResult);
+      checkoutUrl = readString(stripePayload, "url");
+      checkoutStatus = lCase(readString(stripePayload, "status"));
+
+      response = structNew("ordered-casesensitive");
+      response["SUCCESS"] = true;
+      response["success"] = true;
+      response["MESSAGE"] = "Checkout session retrieved.";
+      response["message"] = "Checkout session retrieved.";
+      response["STRIPE_CHECKOUT_SESSION_ID"] = readString(stripePayload, "id");
+      response["stripeCheckoutSessionId"] = response["STRIPE_CHECKOUT_SESSION_ID"];
+      response["CHECKOUT_URL"] = checkoutUrl;
+      response["checkoutUrl"] = checkoutUrl;
+      response["STATUS"] = checkoutStatus;
+      response["status"] = checkoutStatus;
+      response["PAYMENT_STATUS"] = lCase(readString(stripePayload, "payment_status"));
+      response["paymentStatus"] = response["PAYMENT_STATUS"];
+      return response;
+    </cfscript>
+  </cffunction>
+
   <cffunction name="buildStripeRequestPayload" access="private" returntype="struct" output="false">
     <cfargument name="userId" type="numeric" required="true">
     <cfargument name="priceId" type="string" required="true">
@@ -145,6 +257,42 @@
           "metadata[fpwUserId]" = toString(int(val(arguments.userId))),
           "subscription_data[metadata][fpwUserId]" = toString(int(val(arguments.userId)))
         }
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildStripeTrialRequestPayload" access="private" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="priceId" type="string" required="true">
+    <cfargument name="successUrl" type="string" required="true">
+    <cfargument name="cancelUrl" type="string" required="true">
+    <cfargument name="trialDays" type="numeric" required="true">
+    <cfargument name="promoMetadata" type="struct" required="false" default="#structNew()#">
+    <cfscript>
+      var userIdText = toString(int(val(arguments.userId)));
+      var trialDaysText = toString(int(val(arguments.trialDays)));
+      var promoType = structKeyExists(arguments.promoMetadata, "promoType") ? lCase(trim(toString(arguments.promoMetadata.promoType))) : "stripe_free_months";
+      var formFields = {
+        "mode" = "subscription",
+        "line_items[0][price]" = trim(arguments.priceId),
+        "line_items[0][quantity]" = "1",
+        "success_url" = trim(arguments.successUrl),
+        "cancel_url" = trim(arguments.cancelUrl),
+        "client_reference_id" = userIdText,
+        "metadata[fpwUserId]" = userIdText,
+        "metadata[fpwPromoType]" = promoType,
+        "metadata[fpwTrialDays]" = trialDaysText,
+        "subscription_data[metadata][fpwUserId]" = userIdText,
+        "subscription_data[metadata][fpwPromoType]" = promoType,
+        "subscription_data[metadata][fpwTrialDays]" = trialDaysText,
+        "subscription_data[trial_period_days]" = trialDaysText,
+        "subscription_data[trial_settings][end_behavior][missing_payment_method]" = "cancel",
+        "payment_method_collection" = "if_required"
+      };
+
+      return {
+        "url" = "https://api.stripe.com/v1/checkout/sessions",
+        "formFields" = formFields
       };
     </cfscript>
   </cffunction>
@@ -191,6 +339,23 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="executeStripeCheckoutSessionRetrieve" access="private" returntype="struct" output="false">
+    <cfargument name="checkoutSessionId" type="string" required="true">
+    <cfargument name="secretKey" type="string" required="true">
+    <cfscript>
+      if (isObject(variables.stripeTransport)) {
+        return invoke(variables.stripeTransport, "retrieveCheckoutSession", { checkoutSessionId = arguments.checkoutSessionId, secretKey = arguments.secretKey });
+      }
+      if (isStruct(variables.stripeTransport) AND structKeyExists(variables.stripeTransport, "retrieveCheckoutSession")) {
+        return variables.stripeTransport.retrieveCheckoutSession(arguments.checkoutSessionId, arguments.secretKey);
+      }
+      return executeLiveStripeGetRequest(
+        "https://api.stripe.com/v1/checkout/sessions/" & encodeForURL(arguments.checkoutSessionId),
+        arguments.secretKey
+      );
+    </cfscript>
+  </cffunction>
+
   <cffunction name="executeLiveStripeCheckoutRequest" access="private" returntype="struct" output="false">
     <cfargument name="requestPayload" type="struct" required="true">
     <cfargument name="secretKey" type="string" required="true">
@@ -213,6 +378,30 @@
       <cfloop collection="#arguments.requestPayload.formFields#" item="fieldName">
         <cfhttpparam type="formfield" name="#fieldName#" value="#arguments.requestPayload.formFields[fieldName]#">
       </cfloop>
+    </cfhttp>
+
+    <cfscript>
+      statusCode = structKeyExists(httpResult, "statusCode") ? val(listFirst(toString(httpResult.statusCode), " ")) : 0;
+      rawBody = structKeyExists(httpResult, "fileContent") ? toString(httpResult.fileContent) : "";
+      return {
+        "SUCCESS" = (statusCode GTE 200 AND statusCode LTE 299),
+        "success" = (statusCode GTE 200 AND statusCode LTE 299),
+        "statusCode" = statusCode,
+        "rawBody" = rawBody
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="executeLiveStripeGetRequest" access="private" returntype="struct" output="false">
+    <cfargument name="requestUrl" type="string" required="true">
+    <cfargument name="secretKey" type="string" required="true">
+    <cfscript>
+      var httpResult = {};
+      var statusCode = 0;
+      var rawBody = "";
+    </cfscript>
+    <cfhttp url="#arguments.requestUrl#" method="get" result="httpResult" charset="utf-8" timeout="20">
+      <cfhttpparam type="header" name="Authorization" value="Bearer #arguments.secretKey#">
     </cfhttp>
 
     <cfscript>

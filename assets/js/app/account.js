@@ -377,7 +377,11 @@
     if (code === "CODE_EXPIRED") return "Promo code has expired.";
     if (code === "CODE_ALREADY_REDEEMED") return "Promo code has already been used for this account.";
     if (code === "CODE_MAX_REDEMPTIONS_REACHED") return "Promo code has reached its redemption limit.";
+    if (code === "FREE_TRIAL_ALREADY_USED") return "A free trial has already been used for this account.";
+    if (code === "INVALID_TRIAL_DURATION") return "Free trial duration is not supported.";
     if (code === "PROMO_TYPE_NOT_SUPPORTED") return "Promo code type is not supported.";
+    if (code === "STRIPE_CONFIG_MISSING") return "Trial checkout is not available right now.";
+    if (code === "STRIPE_CHECKOUT_FAILED") return "Trial checkout could not be started.";
     return (err && (err.MESSAGE || err.message)) ? (err.MESSAGE || err.message) : "Promo code could not be redeemed.";
   }
 
@@ -407,8 +411,19 @@
         throw data || { MESSAGE: "Promo code could not be redeemed." };
       }
 
+      if (nextAction === "stripe_trial_checkout") {
+        var checkoutUrl = String((data && (data.checkoutUrl || data.CHECKOUT_URL)) || "").trim();
+        if (!checkoutUrl) {
+          showPromoMessage("Trial checkout could not be started.", "error");
+          return;
+        }
+        showPromoMessage("Opening secure Stripe Checkout...", "success");
+        window.location.href = checkoutUrl;
+        return;
+      }
+
       if (nextAction === "stripe_checkout_required" || promoType === "stripe_free_months") {
-        showPromoMessage("Launch discount recognized. Checkout activation will be completed in the next billing step.", "success");
+        showPromoMessage("Launch trial code recognized. Redeem to start cardless checkout.", "success");
         return;
       }
 
