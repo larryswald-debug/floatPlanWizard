@@ -82,6 +82,22 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(row.stripe_subscription_status[1]).toBe("past_due");
       });
 
+      it("keeps period-end canceled active subscriptions Premium until Stripe sends canceled or deleted status", function() {
+        var userId = createTestUser();
+        var subscriptionId = "sub_period_end_cancel_" & userId;
+        var event = subscriptionEvent(uniqueEventId("evt_period_end_cancel"), "customer.subscription.updated", userId, subscriptionId, "active");
+        event.data.object.cancel_at_period_end = true;
+        event.data.object.cancel_at = 1781452571;
+
+        var result = variables.service.processVerifiedEvent(event);
+        var row = loadEntitlementBySubscription(subscriptionId);
+
+        expect(result.SUCCESS).toBeTrue(serializeJSON(result));
+        expect(variables.accessService.getCurrentAccess(userId).hasPremium).toBeTrue();
+        expect(row.status[1]).toBe("active");
+        expect(row.stripe_subscription_status[1]).toBe("active");
+      });
+
       it("removes Premium for unpaid, canceled, and deleted subscriptions", function() {
         var statuses = [ "unpaid", "canceled" ];
         var i = 0;
