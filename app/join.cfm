@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Member Sign Up</title>
+    <title>Create FloatPlan Wizard Account</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <cfinclude template="../includes/header_styles.cfm">
@@ -16,9 +16,9 @@
         <div class="col-12 col-sm-10 col-md-7 col-lg-6">
             <div class="card shadow-sm">
                 <div class="card-body p-4">
-                    <h1 class="h4 mb-2 text-center">Member Sign Up</h1>
+                    <h1 class="h4 mb-2 text-center">Create your FloatPlan Wizard account</h1>
                     <p class="text-muted small text-center mb-3">
-                        Use this form to add test users. The email becomes the username.
+                        Start with a free Basic account. You can activate the Memorial Day Premium trial after signup. No credit card is required for the launch trial.
                     </p>
 
                     <div id="joinAlert" class="alert d-none" role="alert"></div>
@@ -56,6 +56,30 @@
                                     name="email"
                                     required
                                     autocomplete="email"
+                                >
+                            </div>
+                            <div class="col-md-6">
+                                <label for="password" class="form-label">Password</label>
+                                <input
+                                    type="password"
+                                    class="form-control"
+                                    id="password"
+                                    name="password"
+                                    required
+                                    minlength="8"
+                                    autocomplete="new-password"
+                                >
+                            </div>
+                            <div class="col-md-6">
+                                <label for="confirmPassword" class="form-label">Confirm Password</label>
+                                <input
+                                    type="password"
+                                    class="form-control"
+                                    id="confirmPassword"
+                                    name="confirmPassword"
+                                    required
+                                    minlength="8"
+                                    autocomplete="new-password"
                                 >
                             </div>
                             <div class="col-12">
@@ -109,17 +133,32 @@
                                     autocomplete="tel"
                                 >
                             </div>
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        id="termsAccepted"
+                                        name="termsAccepted"
+                                        value="true"
+                                        required
+                                    >
+                                    <label class="form-check-label small" for="termsAccepted">
+                                        I agree to the <a href="#terms-placeholder">Terms of Service</a> and <a href="#privacy-placeholder">Privacy Policy</a>.
+                                    </label>
+                                </div>
+                            </div>
                         </div>
 
                         <button type="submit" class="btn btn-primary w-100 mt-3" id="joinButton">
-                            Create User
+                            Create Account
                         </button>
                     </form>
                 </div>
             </div>
 
             <p class="text-center text-muted small mt-3">
-                <cfoutput>&copy; #dateFormat(now(), "yyyy")# Mobile App Example</cfoutput>
+                <cfoutput>&copy; #dateFormat(now(), "yyyy")# FloatPlan Wizard</cfoutput>
             </p>
         </div>
     </div>
@@ -127,7 +166,7 @@
 
 <cfinclude template="../includes/footer_scripts.cfm">
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth-utils.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/join.js"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/join.js?v=2"></script>
 
 </body>
 </html>

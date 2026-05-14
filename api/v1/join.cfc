@@ -44,6 +44,12 @@
             <cfif NOT structKeyExists(body, "password") AND structKeyExists(form, "password")>
                 <cfset body.password = form.password>
             </cfif>
+            <cfif NOT structKeyExists(body, "confirmPassword") AND structKeyExists(form, "confirmPassword")>
+                <cfset body.confirmPassword = form.confirmPassword>
+            </cfif>
+            <cfif NOT structKeyExists(body, "termsAccepted") AND structKeyExists(form, "termsAccepted")>
+                <cfset body.termsAccepted = form.termsAccepted>
+            </cfif>
 
             <cfset firstName = trim(body.firstName ?: body.fName ?: "")>
             <cfset lastName  = trim(body.lastName  ?: body.lName ?: "")>
@@ -54,6 +60,22 @@
             <cfset zip       = trim(body.zip       ?: "")>
             <cfset phone     = trim(body.phone     ?: "")>
             <cfset password  = trim(body.password  ?: "")>
+            <cfset confirmPassword = "">
+            <cfif structKeyExists(body, "confirmPassword")>
+                <cfset confirmPassword = trim(body.confirmPassword)>
+            <cfelseif structKeyExists(body, "passwordConfirm")>
+                <cfset confirmPassword = trim(body.passwordConfirm)>
+            </cfif>
+            <cfset termsValue = false>
+            <cfif structKeyExists(body, "termsAccepted")>
+                <cfset termsValue = body.termsAccepted>
+            <cfelseif structKeyExists(body, "acceptTerms")>
+                <cfset termsValue = body.acceptTerms>
+            <cfelseif structKeyExists(body, "terms")>
+                <cfset termsValue = body.terms>
+            </cfif>
+            <cfset termsAccepted = isTruthy(termsValue)>
+            <cfset redirectUrl = "/fpw/app/account.cfm?offer=launch_trial">
 
             <!-- Validate required fields -->
             <cfif NOT len(firstName) OR NOT len(lastName) OR NOT len(email)>
@@ -61,6 +83,61 @@
                     SUCCESS = false,
                     MESSAGE = "First name, last name, and email are required.",
                     ERROR   = "MISSING_FIELDS"
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <cfif NOT reFindNoCase("^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$", email)>
+                <cfset response = {
+                    SUCCESS = false,
+                    MESSAGE = "Enter a valid email address.",
+                    ERROR   = "INVALID_EMAIL"
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <cfif NOT len(password)>
+                <cfset response = {
+                    SUCCESS = false,
+                    MESSAGE = "Password is required.",
+                    ERROR   = "PASSWORD_REQUIRED"
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <cfif len(password) LT 8>
+                <cfset response = {
+                    SUCCESS = false,
+                    MESSAGE = "Password must be at least 8 characters.",
+                    ERROR   = "PASSWORD_TOO_SHORT"
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <cfif NOT len(confirmPassword) OR password NEQ confirmPassword>
+                <cfset response = {
+                    SUCCESS = false,
+                    MESSAGE = "Password and confirmation do not match.",
+                    ERROR   = "PASSWORD_MISMATCH"
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <cfif NOT termsAccepted>
+                <cfset response = {
+                    SUCCESS = false,
+                    MESSAGE = "Terms of Service and Privacy Policy acceptance is required.",
+                    ERROR   = "TERMS_REQUIRED"
                 }>
                 <cfoutput>#serializeJSON(response)#</cfoutput>
                 <cfsetting enablecfoutputonly="false">
@@ -86,12 +163,6 @@
                 <cfoutput>#serializeJSON(response)#</cfoutput>
                 <cfsetting enablecfoutputonly="false">
                 <cfabort>
-            </cfif>
-
-            <cfset usingDefaultPassword = false>
-            <cfif NOT len(password)>
-                <cfset password = "changeIt">
-                <cfset usingDefaultPassword = true>
             </cfif>
 
             <cfset passwordHash = ucase(hash(password, "SHA-256", "UTF-8"))>
@@ -159,11 +230,40 @@
                 </cfif>
             </cfif>
 
+            <cfquery datasource="fpw">
+                UPDATE users
+                SET lastLogin = <cfqueryparam cfsqltype="cf_sql_timestamp" value="#nowStamp#">
+                WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#newUserId#">
+            </cfquery>
+
+            <cfset session.user = {
+                id = newUserId,
+                userId = newUserId,
+                USERID = newUserId,
+                email = email,
+                EMAIL = email,
+                firstName = firstName,
+                FIRSTNAME = firstName,
+                lastName = lastName,
+                LASTNAME = lastName,
+                mobilePhone = phone,
+                MOBILEPHONE = phone,
+                lastLogin = nowStamp,
+                LASTLOGIN = nowStamp
+            }>
+
             <cfset response = {
                 SUCCESS = true,
+                success = true,
+                AUTH = true,
+                auth = true,
                 MESSAGE = "User created successfully.",
                 USERID  = newUserId,
-                EMAIL   = email
+                EMAIL   = email,
+                USER = session.user,
+                user = session.user,
+                REDIRECT_URL = redirectUrl,
+                redirectUrl = redirectUrl
             }>
 
             <cfoutput>#serializeJSON(response)#</cfoutput>
@@ -330,6 +430,15 @@
             <cfreturn "cf_sql_timestamp">
         </cfif>
         <cfreturn "cf_sql_varchar">
+    </cffunction>
+
+    <cffunction name="isTruthy" access="private" returntype="boolean" output="false">
+        <cfargument name="value" type="any" required="false" default="">
+        <cfif isBoolean(arguments.value)>
+            <cfreturn arguments.value>
+        </cfif>
+        <cfset var normalized = lcase(trim(toString(arguments.value)))>
+        <cfreturn listFindNoCase("true,1,yes,on", normalized) GT 0>
     </cffunction>
 
 </cfcomponent>
