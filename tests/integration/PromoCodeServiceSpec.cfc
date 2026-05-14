@@ -12,6 +12,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     ensureMemberEntitlementsTable();
     ensureStripeFoundationSchema();
     ensurePromoTables();
+    cleanupHistoricalLaunchTrialFixtures();
   }
 
   function afterEach() {
@@ -290,6 +291,57 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(redemption.SUCCESS).toBeFalse(serializeJSON(redemption));
         expect(redemption.ERROR).toBe("PROMO_INVALID_TRIAL_DURATION");
         expect(arrayLen(checkoutService.requests)).toBe(0);
+      });
+
+      it("returns unavailable when no launch_trial promo is active for the requested UTC time", function() {
+        var userId = createTestUser();
+        var checkoutService = buildFakeTrialCheckoutService();
+        var promoService = new fpw.api.v1.PromoCodeService().init(datasource = "fpw", checkoutService = checkoutService);
+
+        var result = promoService.startLaunchTrial(userId, createDateTime(2000, 1, 1, 0, 0, 0));
+
+        expect(result.SUCCESS).toBeFalse(serializeJSON(result));
+        expect(result.ERROR).toBe("LAUNCH_PROMO_NOT_AVAILABLE");
+        expect(arrayLen(checkoutService.requests)).toBe(0);
+      });
+
+      it("returns ambiguous when multiple active launch_trial promos exist", function() {
+        var userId = createTestUser();
+        var fixtureNow = createDateTime(1900, 1, 1, 12, 0, 0);
+        var checkoutService = buildFakeTrialCheckoutService();
+        var promoService = new fpw.api.v1.PromoCodeService().init(datasource = "fpw", checkoutService = checkoutService);
+        insertPromoCode(code = uniqueCode("launch-ambiguous-a"), promoType = "stripe_free_months", startsAt = createDateTime(1899, 12, 31, 0, 0, 0), expiresAt = createDateTime(1900, 1, 2, 0, 0, 0), durationMonths = 1, entitlementSource = "launch_trial");
+        insertPromoCode(code = uniqueCode("launch-ambiguous-b"), promoType = "stripe_free_months", startsAt = createDateTime(1899, 12, 31, 0, 0, 0), expiresAt = createDateTime(1900, 1, 2, 0, 0, 0), durationMonths = 2, entitlementSource = "launch_trial");
+
+        var result = promoService.startLaunchTrial(userId, fixtureNow);
+
+        expect(result.SUCCESS).toBeFalse(serializeJSON(result));
+        expect(result.ERROR).toBe("LAUNCH_PROMO_AMBIGUOUS");
+        expect(arrayLen(checkoutService.requests)).toBe(0);
+      });
+
+      it("starts launch trial only from the active launch_trial marker", function() {
+        var userId = createTestUser();
+        var fixtureNow = createDateTime(1800, 1, 1, 12, 0, 0);
+        var checkoutService = buildFakeTrialCheckoutService();
+        var promoService = new fpw.api.v1.PromoCodeService().init(datasource = "fpw", checkoutService = checkoutService);
+        var unmarkedCode = uniqueCode("launch-unmarked");
+        var launchCode = uniqueCode("launch-marked");
+        insertPromoCode(code = unmarkedCode, promoType = "stripe_free_months", startsAt = createDateTime(1799, 12, 31, 0, 0, 0), expiresAt = createDateTime(1800, 1, 2, 0, 0, 0), durationMonths = 2);
+        var launchPromoId = insertPromoCode(code = launchCode, promoType = "stripe_free_months", startsAt = createDateTime(1799, 12, 31, 0, 0, 0), expiresAt = createDateTime(1800, 1, 2, 0, 0, 0), durationMonths = 1, entitlementSource = "launch_trial");
+
+        var result = promoService.startLaunchTrial(userId, fixtureNow);
+        var access = variables.memberService.getCurrentAccess(userId);
+
+        expect(result.SUCCESS).toBeTrue(serializeJSON(result));
+        expect(result.nextAction).toBe("stripe_trial_checkout");
+        expect(result.trialDays).toBe(30);
+        expect(result.promoCodeId).toBe(launchPromoId);
+        expect(result.checkoutUrl).toBe("https://checkout.stripe.com/c/pay/cs_test_trial_" & userId & "_1");
+        expect(arrayLen(checkoutService.requests)).toBe(1);
+        expect(access.hasPremium).toBeFalse(serializeJSON(access));
+        expect(countPremiumEntitlements(userId)).toBe(0);
+        expect(countCheckoutCreatedRows(userId, launchPromoId)).toBe(1);
       });
 
       it("preserves existing Basic, Stripe, three_day_pass, admin_comp, and past_due access behavior", function() {
@@ -715,6 +767,25 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.createdUserIds = [];
     variables.createdPromoIds = [];
     variables.createdEventIds = [];
+  }
+
+  private void function cleanupHistoricalLaunchTrialFixtures() {
+    queryExecute(
+      "DELETE r
+       FROM fpw_promo_redemptions r
+       INNER JOIN fpw_promo_codes p ON p.promo_code_id = r.promo_code_id
+       WHERE p.entitlement_source = 'launch_trial'
+         AND p.starts_at_utc < '2010-01-01 00:00:00'",
+      {},
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "DELETE FROM fpw_promo_codes
+       WHERE entitlement_source = 'launch_trial'
+         AND starts_at_utc < '2010-01-01 00:00:00'",
+      {},
+      { datasource = "fpw" }
+    );
   }
 
   private void function ensureMemberEntitlementsTable() {

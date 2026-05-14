@@ -174,6 +174,13 @@
       });
     },
 
+    startLaunchTrial: function () {
+      return request("/promo.cfc?method=handle&action=startlaunchtrial", {
+        method: "POST",
+        body: {}
+      });
+    },
+
     getFloatPlans: function (options) {
       return listGet("floatplans", options);
     },

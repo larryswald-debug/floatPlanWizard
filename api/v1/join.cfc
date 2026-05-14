@@ -75,7 +75,7 @@
                 <cfset termsValue = body.terms>
             </cfif>
             <cfset termsAccepted = isTruthy(termsValue)>
-            <cfset redirectUrl = "/fpw/app/account.cfm?offer=launch_trial">
+            <cfset redirectUrl = "/fpw/app/start-trial.cfm?offer=launch_trial">
 
             <!-- Validate required fields -->
             <cfif NOT len(firstName) OR NOT len(lastName) OR NOT len(email)>

@@ -173,6 +173,96 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="startLaunchTrial" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="nowUtc" type="any" required="false" default="">
+    <cfscript>
+      var nowValue = resolveNowUtc(arguments.nowUtc);
+      var qPromo = queryNew("");
+      var validation = {};
+      var promoId = 0;
+      var codeHash = "";
+      var trialDays = 0;
+      var pendingCheckout = {};
+      var checkoutResult = {};
+      var checkoutErrorCode = "";
+      var checkoutSessionId = "";
+      var response = {};
+
+      if (arguments.userId LTE 0) {
+        return ineligibleResponse("INVALID_USER_ID", "A valid user is required.");
+      }
+
+      try {
+        transaction {
+          qPromo = loadActiveLaunchTrialPromo(nowValue, true);
+
+          if (qPromo.recordCount EQ 0) {
+            response = ineligibleResponse("LAUNCH_PROMO_NOT_AVAILABLE", "The launch trial is not available right now.");
+          } else if (qPromo.recordCount GT 1) {
+            response = ineligibleResponse("LAUNCH_PROMO_AMBIGUOUS", "Launch trial setup needs attention before checkout can start.");
+          } else {
+            codeHash = trim(toString(qPromo.code_hash[1]));
+            validation = evaluatePromo(arguments.userId, codeHash, qPromo, nowValue);
+
+            if (!validation.success) {
+              response = validation;
+            } else {
+              promoId = val(validation.promoCodeId);
+              trialDays = resolveTrialDays(validation.durationMonths);
+
+              if (trialDays LTE 0) {
+                logRedemptionAttempt(promoId, arguments.userId, codeHash, "rejected", "PROMO_INVALID_TRIAL_DURATION", 0, nowValue);
+                response = ineligibleResponse("PROMO_INVALID_TRIAL_DURATION", "Free trial duration is not supported.", qPromo);
+              } else {
+                pendingCheckout = continuePendingFreeTrialCheckout(arguments.userId, nowValue);
+                if (structKeyExists(pendingCheckout, "response") AND isStruct(pendingCheckout.response)) {
+                  response = pendingCheckout.response;
+                } else {
+                  checkoutResult = getCheckoutService().createFreeTrialCheckoutSession(
+                    arguments.userId,
+                    trialDays,
+                    {
+                      promoType = "stripe_free_months"
+                    }
+                  );
+
+                  if (!structKeyExists(checkoutResult, "SUCCESS") OR checkoutResult.SUCCESS NEQ true) {
+                    checkoutErrorCode = structKeyExists(checkoutResult, "ERROR") ? trim(toString(checkoutResult.ERROR)) : "STRIPE_CHECKOUT_FAILED";
+                    logRedemptionAttempt(promoId, arguments.userId, codeHash, "rejected", checkoutErrorCode, 0, nowValue);
+                    response = ineligibleResponse(checkoutErrorCode, structKeyExists(checkoutResult, "MESSAGE") ? trim(toString(checkoutResult.MESSAGE)) : "Stripe checkout session could not be created.", qPromo);
+                  } else {
+                    checkoutSessionId = structKeyExists(checkoutResult, "stripeCheckoutSessionId") ? trim(toString(checkoutResult.stripeCheckoutSessionId)) : "";
+                    if (!len(checkoutSessionId) AND structKeyExists(checkoutResult, "STRIPE_CHECKOUT_SESSION_ID")) {
+                      checkoutSessionId = trim(toString(checkoutResult.STRIPE_CHECKOUT_SESSION_ID));
+                    }
+
+                    logRedemptionAttempt(promoId, arguments.userId, codeHash, "checkout_created", "", 0, nowValue, checkoutSessionId);
+                    response = eligibleResponse(qPromo, "stripe_trial_checkout", "No-credit-card trial checkout is ready.");
+                    response.redeemed = false;
+                    response.checkoutRequired = true;
+                    response.reusedCheckoutSession = false;
+                    response.REUSED_CHECKOUT_SESSION = false;
+                    response.trialDays = trialDays;
+                    response.TRIAL_DAYS = trialDays;
+                    response.checkoutUrl = structKeyExists(checkoutResult, "checkoutUrl") ? trim(toString(checkoutResult.checkoutUrl)) : "";
+                    response.CHECKOUT_URL = structKeyExists(checkoutResult, "CHECKOUT_URL") ? trim(toString(checkoutResult.CHECKOUT_URL)) : response.checkoutUrl;
+                    response.stripeCheckoutSessionId = checkoutSessionId;
+                    response.STRIPE_CHECKOUT_SESSION_ID = checkoutSessionId;
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (any err) {
+        response = ineligibleResponse("PROMO_REDEMPTION_FAILED", "Launch trial could not be started.");
+      }
+
+      return response;
+    </cfscript>
+  </cffunction>
+
   <cffunction name="loadPromoByHash" access="private" returntype="query" output="false">
     <cfargument name="codeHash" type="string" required="true">
     <cfargument name="forUpdate" type="boolean" required="false" default="false">
@@ -197,6 +287,43 @@
          LIMIT 1" & (arguments.forUpdate ? " FOR UPDATE" : ""),
         {
           codeHash = { value = trim(arguments.codeHash), cfsqltype = "cf_sql_char" }
+        },
+        { datasource = variables.datasource }
+      );
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="loadActiveLaunchTrialPromo" access="private" returntype="query" output="false">
+    <cfargument name="nowUtc" type="date" required="true">
+    <cfargument name="forUpdate" type="boolean" required="false" default="false">
+    <cfscript>
+      return queryExecute(
+        "SELECT
+            promo_code_id,
+            code_hash,
+            promo_type,
+            status,
+            starts_at_utc,
+            expires_at_utc,
+            max_redemptions,
+            redemptions_count,
+            one_per_user,
+            duration_months,
+            stripe_promotion_code_id,
+            entitlement_type,
+            entitlement_source
+         FROM fpw_promo_codes
+         WHERE promo_type = 'stripe_free_months'
+           AND status = 'active'
+           AND entitlement_source = 'launch_trial'
+           AND starts_at_utc <= :nowUtc
+           AND (expires_at_utc IS NULL OR expires_at_utc >= :nowUtc)
+           AND duration_months IN (1, 2)
+           AND one_per_user = 1
+         ORDER BY promo_code_id ASC
+         LIMIT 2" & (arguments.forUpdate ? " FOR UPDATE" : ""),
+        {
+          nowUtc = { value = arguments.nowUtc, cfsqltype = "cf_sql_timestamp" }
         },
         { datasource = variables.datasource }
       );

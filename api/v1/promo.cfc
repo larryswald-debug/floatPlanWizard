@@ -12,6 +12,7 @@
       <cfset var userId = 0>
       <cfset var code = "">
       <cfset var promoService = "">
+      <cfset var access = {}>
       <cfset var serviceResult = {}>
       <cfset var response = {}>
 
@@ -22,7 +23,7 @@
         <cfset act = lCase(trim(toString(body.action)))>
       </cfif>
 
-      <cfif NOT listFindNoCase("validate,redeem", act)>
+      <cfif NOT listFindNoCase("validate,redeem,startlaunchtrial", act)>
         <cfset response = buildErrorResponse(false, resolveSessionUserId() GT 0, "INVALID_ACTION", "Promo action is not supported.")>
         <cfoutput>#serializeJSON(response)#</cfoutput>
         <cfreturn>
@@ -42,12 +43,23 @@
         <cfreturn>
       </cfif>
 
-      <cfset code = readPromoCode(body)>
       <cfset promoService = createPromoCodeService()>
-      <cfif act EQ "validate">
-        <cfset serviceResult = promoService.validateCode(userId, code)>
+
+      <cfif act EQ "startlaunchtrial">
+        <cfset access = new fpw.api.v1.MemberEntitlementService().init("fpw").getCurrentAccess(userId)>
+        <cfif hasPremiumAccess(access)>
+          <cfset response = buildErrorResponse(false, true, "ALREADY_PREMIUM", "Your account already has Premium access.")>
+          <cfoutput>#serializeJSON(response)#</cfoutput>
+          <cfreturn>
+        </cfif>
+        <cfset serviceResult = promoService.startLaunchTrial(userId)>
       <cfelse>
+        <cfset code = readPromoCode(body)>
+        <cfif act EQ "validate">
+        <cfset serviceResult = promoService.validateCode(userId, code)>
+        <cfelse>
         <cfset serviceResult = promoService.redeemCode(userId, code)>
+        </cfif>
       </cfif>
 
       <cfset response = buildServiceResponse(serviceResult, act)>
@@ -126,6 +138,22 @@
         return trim(toString(arguments.body.PROMO_CODE));
       }
       return "";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="hasPremiumAccess" access="private" returntype="boolean" output="false">
+    <cfargument name="access" type="struct" required="true">
+    <cfscript>
+      var value = false;
+      if (structKeyExists(arguments.access, "hasPremium")) {
+        value = arguments.access.hasPremium;
+      } else if (structKeyExists(arguments.access, "HASPREMIUM")) {
+        value = arguments.access.HASPREMIUM;
+      }
+      if (value EQ true OR value EQ 1) {
+        return true;
+      }
+      return listFindNoCase("true,1,yes", trim(toString(value))) GT 0;
     </cfscript>
   </cffunction>
 
@@ -271,6 +299,10 @@
           return "STRIPE_CHECKOUT_LOOKUP_FAILED";
         case "STRIPE_CHECKOUT_CONFIRMATION_PENDING":
           return "STRIPE_CHECKOUT_CONFIRMATION_PENDING";
+        case "LAUNCH_PROMO_NOT_AVAILABLE":
+          return "LAUNCH_PROMO_NOT_AVAILABLE";
+        case "LAUNCH_PROMO_AMBIGUOUS":
+          return "LAUNCH_PROMO_AMBIGUOUS";
         case "PROMO_REDEMPTION_FAILED":
           return "SERVER_ERROR";
         default:
@@ -311,6 +343,12 @@
           return "Free-trial checkout could not be checked. Please try again shortly.";
         case "STRIPE_CHECKOUT_CONFIRMATION_PENDING":
           return "Free-trial checkout is being confirmed. Please refresh shortly.";
+        case "LAUNCH_PROMO_NOT_AVAILABLE":
+          return "The launch trial is not available right now.";
+        case "LAUNCH_PROMO_AMBIGUOUS":
+          return "Launch trial setup needs attention before checkout can start.";
+        case "ALREADY_PREMIUM":
+          return "Your account already has Premium access.";
         case "METHOD_NOT_ALLOWED":
           return "Use POST for promo code requests.";
         case "AUTH_REQUIRED":

@@ -32,6 +32,13 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(res.ERROR).toBe("METHOD_NOT_ALLOWED");
       });
 
+      it("rejects non-POST launch trial activation requests", function() {
+        var res = getPromo("startlaunchtrial");
+
+        expect(res.SUCCESS).toBeFalse(serializeJSON(res));
+        expect(res.ERROR).toBe("METHOD_NOT_ALLOWED");
+      });
+
       it("rejects blank and unknown codes with stable endpoint errors", function() {
         var userId = createTestUser();
         var blank = postPromo(userId, "redeem", { code = "   " });
@@ -93,6 +100,153 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(structKeyExists(res, "stripePromotionCodeId")).toBeFalse(serializeJSON(res));
         expect(structKeyExists(res, "promoCodeId")).toBeFalse(serializeJSON(res));
         expect(structKeyExists(res, "codeHash")).toBeFalse(serializeJSON(res));
+      });
+
+      it("returns a safe unavailable error when no server-side launch promo is active", function() {
+        var userId = createTestUser();
+        application.testPromoCodeService = {
+          startLaunchTrial = function(required numeric userId) {
+            return {
+              SUCCESS = false,
+              success = false,
+              eligible = false,
+              ERROR = "LAUNCH_PROMO_NOT_AVAILABLE",
+              errorCode = "LAUNCH_PROMO_NOT_AVAILABLE",
+              displayMessage = "The launch trial is not available right now."
+            };
+          }
+        };
+
+        var res = postPromo(userId, "startlaunchtrial", {});
+
+        expect(res.SUCCESS).toBeFalse(serializeJSON(res));
+        expect(res.ERROR).toBe("LAUNCH_PROMO_NOT_AVAILABLE");
+        expect(structKeyExists(res, "promoCodeId")).toBeFalse(serializeJSON(res));
+        expect(structKeyExists(res, "codeHash")).toBeFalse(serializeJSON(res));
+      });
+
+      it("returns a safe ambiguous error when multiple launch_trial promos are active", function() {
+        var userId = createTestUser();
+        application.testPromoCodeService = {
+          startLaunchTrial = function(required numeric userId) {
+            return {
+              SUCCESS = false,
+              success = false,
+              eligible = false,
+              ERROR = "LAUNCH_PROMO_AMBIGUOUS",
+              errorCode = "LAUNCH_PROMO_AMBIGUOUS",
+              displayMessage = "Launch trial setup needs attention before checkout can start."
+            };
+          }
+        };
+
+        var res = postPromo(userId, "startlaunchtrial", {});
+
+        expect(res.SUCCESS).toBeFalse(serializeJSON(res));
+        expect(res.ERROR).toBe("LAUNCH_PROMO_AMBIGUOUS");
+      });
+
+      it("starts server-side launch trial Checkout without accepting promo internals from the browser", function() {
+        var userId = createTestUser();
+        application.testPromoCodeService = {
+          startLaunchTrial = function(required numeric userId) {
+            return {
+              SUCCESS = true,
+              success = true,
+              eligible = true,
+              promoType = "stripe_free_months",
+              nextAction = "stripe_trial_checkout",
+              displayMessage = "No-credit-card trial checkout is ready.",
+              CHECKOUT_URL = "https://checkout.stripe.com/c/pay/cs_test_endpoint_trial_" & arguments.userId & "_1",
+              checkoutUrl = "https://checkout.stripe.com/c/pay/cs_test_endpoint_trial_" & arguments.userId & "_1",
+              STRIPE_CHECKOUT_SESSION_ID = "cs_test_endpoint_trial_" & arguments.userId & "_1",
+              stripeCheckoutSessionId = "cs_test_endpoint_trial_" & arguments.userId & "_1",
+              TRIAL_DAYS = 30,
+              trialDays = 30,
+              REUSED_CHECKOUT_SESSION = false,
+              reusedCheckoutSession = false
+            };
+          }
+        };
+
+        var res = postPromo(userId, "startlaunchtrial", {});
+        var access = variables.memberService.getCurrentAccess(userId);
+
+        expect(res.SUCCESS).toBeTrue(serializeJSON(res));
+        expect(res.promoType).toBe("stripe_free_months");
+        expect(res.nextAction).toBe("stripe_trial_checkout");
+        expect(res.checkoutUrl).toBe("https://checkout.stripe.com/c/pay/cs_test_endpoint_trial_" & userId & "_1");
+        expect(res.stripeCheckoutSessionId).toBe("cs_test_endpoint_trial_" & userId & "_1");
+        expect(res.trialDays).toBe(30);
+        expect(access.hasPremium).toBeFalse(serializeJSON(access));
+        expect(countPremiumEntitlements(userId)).toBe(0);
+        expect(structKeyExists(res, "promoCodeId")).toBeFalse(serializeJSON(res));
+        expect(structKeyExists(res, "codeHash")).toBeFalse(serializeJSON(res));
+        expect(structKeyExists(res, "stripePromotionCodeId")).toBeFalse(serializeJSON(res));
+      });
+
+      it("reuses an open pending server-side launch trial Checkout", function() {
+        var userId = createTestUser();
+        application.testPromoCodeService = {
+          startLaunchTrial = function(required numeric userId) {
+            return {
+              SUCCESS = true,
+              success = true,
+              eligible = true,
+              promoType = "stripe_free_months",
+              nextAction = "stripe_trial_checkout",
+              displayMessage = "Continue your free-trial checkout. No credit card is required to start.",
+              CHECKOUT_URL = "https://checkout.stripe.com/c/pay/cs_test_endpoint_trial_reused_" & arguments.userId,
+              checkoutUrl = "https://checkout.stripe.com/c/pay/cs_test_endpoint_trial_reused_" & arguments.userId,
+              STRIPE_CHECKOUT_SESSION_ID = "cs_test_endpoint_trial_reused_" & arguments.userId,
+              stripeCheckoutSessionId = "cs_test_endpoint_trial_reused_" & arguments.userId,
+              TRIAL_DAYS = 30,
+              trialDays = 30,
+              REUSED_CHECKOUT_SESSION = true,
+              reusedCheckoutSession = true
+            };
+          }
+        };
+
+        var first = postPromo(userId, "startlaunchtrial", {});
+        var second = postPromo(userId, "startlaunchtrial", {});
+
+        expect(first.SUCCESS).toBeTrue(serializeJSON(first));
+        expect(second.SUCCESS).toBeTrue(serializeJSON(second));
+        expect(second.reusedCheckoutSession).toBeTrue(serializeJSON(second));
+        expect(second.checkoutUrl).toBe(first.checkoutUrl);
+        expect(second.stripeCheckoutSessionId).toBe(first.stripeCheckoutSessionId);
+      });
+
+      it("rejects launch trial activation for an already Premium user", function() {
+        var userId = createTestUser();
+        variables.memberService.createAdminCompEntitlement(userId);
+
+        var res = postPromo(userId, "startlaunchtrial", {});
+
+        expect(res.SUCCESS).toBeFalse(serializeJSON(res));
+        expect(res.ERROR).toBe("ALREADY_PREMIUM");
+      });
+
+      it("rejects launch trial activation after verified trial use", function() {
+        var userId = createTestUser();
+        application.testPromoCodeService = {
+          startLaunchTrial = function(required numeric userId) {
+            return {
+              SUCCESS = false,
+              success = false,
+              eligible = false,
+              ERROR = "PROMO_FREE_TRIAL_ALREADY_USED",
+              errorCode = "PROMO_FREE_TRIAL_ALREADY_USED",
+              displayMessage = "A free trial has already been used for this account."
+            };
+          }
+        };
+
+        var res = postPromo(userId, "startlaunchtrial", {});
+
+        expect(res.SUCCESS).toBeFalse(serializeJSON(res));
+        expect(res.ERROR).toBe("FREE_TRIAL_ALREADY_USED");
       });
 
       it("reuses an open pending trial Checkout for the same user", function() {
@@ -186,7 +340,8 @@ component extends="testbox.system.BaseSpec" output="false" {
     required string code,
     required string promoType,
     any durationMonths = "",
-    string stripePromotionCodeId = ""
+    string stripePromotionCodeId = "",
+    string entitlementSource = ""
   ) {
     var promoId = 0;
     var qNewId = queryNew("");
@@ -219,7 +374,7 @@ component extends="testbox.system.BaseSpec" output="false" {
          :durationMonths,
          :stripePromotionCodeId,
          'premium',
-         NULL,
+         :entitlementSource,
          UTC_TIMESTAMP(),
          UTC_TIMESTAMP()
        )",
@@ -227,7 +382,8 @@ component extends="testbox.system.BaseSpec" output="false" {
         codeHash = { value = variables.promoService.hashPromoCode(arguments.code), cfsqltype = "cf_sql_char" },
         promoType = { value = arguments.promoType, cfsqltype = "cf_sql_varchar" },
         durationMonths = { value = (isNumeric(arguments.durationMonths) ? val(arguments.durationMonths) : 0), cfsqltype = "cf_sql_integer", null = !isNumeric(arguments.durationMonths) },
-        stripePromotionCodeId = { value = arguments.stripePromotionCodeId, cfsqltype = "cf_sql_varchar", null = !len(trim(arguments.stripePromotionCodeId)) }
+        stripePromotionCodeId = { value = arguments.stripePromotionCodeId, cfsqltype = "cf_sql_varchar", null = !len(trim(arguments.stripePromotionCodeId)) },
+        entitlementSource = { value = arguments.entitlementSource, cfsqltype = "cf_sql_varchar", null = !len(trim(arguments.entitlementSource)) }
       },
       { datasource = "fpw" }
     );

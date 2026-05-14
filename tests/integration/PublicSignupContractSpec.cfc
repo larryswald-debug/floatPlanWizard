@@ -108,8 +108,8 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( payload.auth ).toBeTrue( serializeJSON( payload ) );
         expect( userId ).toBeGT( 0 );
         expect( payload.EMAIL ).toBe( requestBody.email );
-        expect( payload.REDIRECT_URL ).toBe( "/fpw/app/account.cfm?offer=launch_trial" );
-        expect( payload.redirectUrl ).toBe( "/fpw/app/account.cfm?offer=launch_trial" );
+        expect( payload.REDIRECT_URL ).toBe( "/fpw/app/start-trial.cfm?offer=launch_trial" );
+        expect( payload.redirectUrl ).toBe( "/fpw/app/start-trial.cfm?offer=launch_trial" );
 
         qUser = loadUser( userId );
         expect( qUser.recordCount ).toBe( 1, serializeJSON( payload ) );
