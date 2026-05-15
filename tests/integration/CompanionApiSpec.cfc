@@ -10,6 +10,7 @@ component extends="testbox.system.BaseSpec" output="false" {
       variables.companionAuthService = new fpw.api.v1.CompanionAuthService().init("fpw");
       variables.activeCruiseViewModelService = new fpw.api.v1.ActiveCruiseViewModelService().init("fpw");
       variables.monitorService = new fpw.api.v1.monitor().init();
+      variables.entitlements = new fpw.api.v1.MemberEntitlementService().init("fpw");
       variables.hadOriginalTestUserId = structKeyExists(url, "testUserId");
     variables.originalTestUserId = variables.hadOriginalTestUserId ? url.testUserId : "";
     variables.sessionApiUser = createSessionApiUser();
@@ -1025,11 +1026,14 @@ component extends="testbox.system.BaseSpec" output="false" {
       firstName = "FPW",
       lastName = "Companion",
       email = uniqueEmail,
-      password = "changeIt"
+      password = "changeIt",
+      confirmPassword = "changeIt",
+      termsAccepted = true
     }, false);
 
     expect(payload.SUCCESS).toBeTrue(serializeJSON(payload));
     expect(val(payload.USERID ?: 0)).toBeGT(0, serializeJSON(payload));
+    variables.entitlements.createAdminCompEntitlement(val(payload.USERID));
 
     return {
       userId = val(payload.USERID),
@@ -1047,11 +1051,14 @@ component extends="testbox.system.BaseSpec" output="false" {
       firstName = "FPW",
       lastName = "Companion",
       email = uniqueEmail,
-      password = "changeIt"
+      password = "changeIt",
+      confirmPassword = "changeIt",
+      termsAccepted = true
     }, false);
 
     expect(payload.SUCCESS).toBeTrue(serializeJSON(payload));
     expect(val(payload.USERID ?: 0)).toBeGT(0, serializeJSON(payload));
+    variables.entitlements.createAdminCompEntitlement(val(payload.USERID));
 
     return {
       userId = val(payload.USERID),
@@ -1074,6 +1081,13 @@ component extends="testbox.system.BaseSpec" output="false" {
 
     cleanupCompanionAuthRows(userId);
 
+    queryExecute(
+      "DELETE FROM member_entitlements WHERE user_id = :userId",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
     queryExecute(
       "DELETE FROM users_address WHERE userId = :userId",
       {
@@ -1104,6 +1118,13 @@ component extends="testbox.system.BaseSpec" output="false" {
 
     cleanupCompanionAuthRows(userId);
 
+    queryExecute(
+      "DELETE FROM member_entitlements WHERE user_id = :userId",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
     queryExecute(
       "DELETE FROM users_address WHERE userId = :userId",
       {

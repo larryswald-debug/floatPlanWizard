@@ -11752,8 +11752,8 @@
             var q = queryNew("");
             var maxTry = max(1, int(arguments.maxAttempts));
             for (tryNum = 1; tryNum LTE maxTry; tryNum++) {
-                stamp = dateTimeFormat(now(), "yyyymmddHHnnss");
-                token = lCase(left(replace(createUUID(), "-", "", "all"), 8));
+                stamp = dateTimeFormat(now(), "yymmddHHnnss");
+                token = lCase(left(hash(createUUID(), "SHA-256"), 5));
                 candidate = "USER_ROUTE_" & int(arguments.userId) & "_" & stamp & "_" & token;
                 q = queryExecute(
                     "SELECT id
@@ -12497,7 +12497,6 @@
     </cffunction>
 
 </cfcomponent>
-
 
 
 
