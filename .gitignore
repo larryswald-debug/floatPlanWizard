@@ -34,6 +34,9 @@ node_modules/
 tmp/
 temp/
 
+# ===== Runtime user uploads =====
+/assets/uploads/
+
 
 *.pdf
 *.psd
