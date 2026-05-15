@@ -75,7 +75,7 @@
                 <cfset termsValue = body.terms>
             </cfif>
             <cfset termsAccepted = isTruthy(termsValue)>
-            <cfset redirectUrl = "/fpw/app/start-trial.cfm?offer=launch_trial">
+            <cfset redirectUrl = resolveFpwBasePath() & "/app/start-trial.cfm?offer=launch_trial">
 
             <!-- Validate required fields -->
             <cfif NOT len(firstName) OR NOT len(lastName) OR NOT len(email)>
@@ -439,6 +439,39 @@
         </cfif>
         <cfset var normalized = lcase(trim(toString(arguments.value)))>
         <cfreturn listFindNoCase("true,1,yes,on", normalized) GT 0>
+    </cffunction>
+
+    <cffunction name="resolveFpwBasePath" access="private" returntype="string" output="false">
+        <cfset var basePath = "">
+
+        <cfif structKeyExists(request, "fpwBase") AND NOT isNull(request.fpwBase)>
+            <cfset basePath = trim(toString(request.fpwBase))>
+        <cfelse>
+            <cfif structKeyExists(cgi, "script_name")>
+                <cfset basePath = trim(toString(cgi.script_name))>
+            <cfelseif structKeyExists(cgi, "SCRIPT_NAME")>
+                <cfset basePath = trim(toString(cgi.SCRIPT_NAME))>
+            </cfif>
+
+            <cfset basePath = reReplace(basePath, "[?##].*$", "")>
+            <cfset basePath = replace(basePath, "\", "/", "all")>
+            <cfset basePath = reReplaceNoCase(basePath, "/api/v1(/.*)?$", "")>
+            <cfset basePath = reReplaceNoCase(basePath, "/(app|admin|assets|tests)(/.*)?$", "")>
+            <cfset basePath = reReplaceNoCase(basePath, "/[^/]*\.(cfm|cfc)$", "")>
+        </cfif>
+
+        <cfset basePath = reReplace(basePath, "/$", "")>
+        <cfif basePath EQ "/">
+            <cfset basePath = "">
+        </cfif>
+        <cfif len(basePath) AND left(basePath, 1) NEQ "/">
+            <cfset basePath = "/" & basePath>
+        </cfif>
+
+        <cfset request.fpwBase = basePath>
+        <cfset request.fpwApiBase = basePath & "/api/v1">
+
+        <cfreturn basePath>
     </cffunction>
 
 </cfcomponent>

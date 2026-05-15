@@ -1,7 +1,7 @@
 (function (window, document) {
   "use strict";
 
-  var endpoint = "/fpw/api/v1/adminOperators.cfc?method=handle";
+  var endpoint = (window.FPW_API_BASE || ((window.FPW_BASE || "") + "/api/v1")) + "/adminOperators.cfc?method=handle";
 
   var state = {
     items: [],

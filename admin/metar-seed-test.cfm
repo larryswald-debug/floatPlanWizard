@@ -52,6 +52,7 @@ function buildMetarCacheKey(required numeric lat, required numeric lng) {
   return "metar:v2:" & numberFormat(latVal, "0.0000000") & ":" & numberFormat(lngVal, "0.0000000");
 }
 </cfscript>
+<cfinclude template="../includes/fpw_base_path.cfm">
 
 <cfparam name="form.zip" default="11234">
 <cfparam name="form.station" default="KSEED">
@@ -177,7 +178,7 @@ function buildMetarCacheKey(required numeric lat, required numeric lng) {
     <h1>METAR Trend Seed Test</h1>
     <p class="hint">Seeds a stale prior METAR sample in server cache, then fetches live weather API response so <code>DATA.surface.pressure_rate_per_hr</code> can populate immediately.</p>
 
-    <form method="post" action="/fpw/admin/metar-seed-test.cfm">
+    <form method="post" action="<cfoutput>#request.fpwBase#</cfoutput>/admin/metar-seed-test.cfm">
       <div class="grid">
         <div class="field">
           <label for="zip">ZIP</label>
@@ -227,7 +228,7 @@ function buildMetarCacheKey(required numeric lat, required numeric lng) {
       <cfif localOut.success>
         <div class="stack" id="liveFetchBox" data-zip="<cfoutput>#encodeForHtmlAttribute(localOut.zip)#</cfoutput>">
           <h2>Live API Result</h2>
-          <p class="hint">This calls <code>/fpw/api/v1/weather.cfc?action=zip&amp;zip=...</code> using your current session and dumps <code>DATA.surface</code>.</p>
+          <p class="hint">This calls <code><cfoutput>#request.fpwApiBase#</cfoutput>/weather.cfc?action=zip&amp;zip=...</code> using your current session and dumps <code>DATA.surface</code>.</p>
           <table>
             <tbody id="surfaceRows">
               <tr><th>Status</th><td>Fetching...</td></tr>
@@ -240,6 +241,9 @@ function buildMetarCacheKey(required numeric lat, required numeric lng) {
   </div>
 
   <script>
+    window.FPW_BASE = "<cfoutput>#JSStringFormat(request.fpwBase)#</cfoutput>";
+    window.FPW_API_BASE = "<cfoutput>#JSStringFormat(request.fpwApiBase)#</cfoutput>";
+
     (function () {
       var liveBox = document.getElementById("liveFetchBox");
       if (!liveBox) return;
@@ -279,7 +283,7 @@ function buildMetarCacheKey(required numeric lat, required numeric lng) {
         tbody.innerHTML = html;
       }
 
-      fetch("/fpw/api/v1/weather.cfc?action=zip&zip=" + encodeURIComponent(zip) + "&marineMode=quick", {
+      fetch(window.FPW_API_BASE + "/weather.cfc?action=zip&zip=" + encodeURIComponent(zip) + "&marineMode=quick", {
         credentials: "same-origin",
         headers: { "Accept": "application/json" }
       })
@@ -300,4 +304,3 @@ function buildMetarCacheKey(required numeric lat, required numeric lng) {
   </script>
 </body>
 </html>
-

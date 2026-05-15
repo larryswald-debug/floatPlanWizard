@@ -57,7 +57,7 @@ function buildFollowUrl(any slugValue, any shareTokenValue) {
     var shareTokenTxt = textValue(arguments.shareTokenValue);
     var url = "";
     if (!len(slugTxt)) return "";
-    url = "/fpw/app/follow.cfm?slug=" & urlEncodedFormat(slugTxt);
+    url = request.fpwBase & "/app/follow.cfm?slug=" & urlEncodedFormat(slugTxt);
     if (len(shareTokenTxt)) {
         url &= "&t=" & urlEncodedFormat(shareTokenTxt);
     }
@@ -67,7 +67,7 @@ function buildFollowUrl(any slugValue, any shareTokenValue) {
 function buildActiveCruiseUrl(any floatPlanIdValue) {
     var planId = asInt(arguments.floatPlanIdValue, 0);
     if (planId LTE 0) return "";
-    return "/fpw/app/active-cruise.cfm?floatPlanId=" & planId;
+    return request.fpwBase & "/app/active-cruise.cfm?floatPlanId=" & planId;
 }
 
 function buildTripLabel(any floatPlanNameValue, any floatPlanIdValue) {
@@ -446,6 +446,7 @@ if (isAuthorized AND len(appDsn)) {
     }
 }
 </cfscript>
+<cfinclude template="../includes/fpw_base_path.cfm">
 
 <!doctype html>
 <html lang="en">
@@ -668,4 +669,3 @@ if (isAuthorized AND len(appDsn)) {
   </div>
 </body>
 </html>
-

@@ -47,6 +47,7 @@ if (isLoggedIn) {
 
 isAuthorized = isLoggedIn AND isAdmin;
 </cfscript>
+<cfinclude template="../includes/fpw_base_path.cfm">
 
 <!doctype html>
 <html lang="en">
@@ -253,9 +254,14 @@ isAuthorized = isLoggedIn AND isAdmin;
   </cfif>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+  <cfoutput>
+    <script>
+      window.FPW_BASE = "#JSStringFormat(request.fpwBase)#";
+      window.FPW_API_BASE = "#JSStringFormat(request.fpwApiBase)#";
+    </script>
+  </cfoutput>
   <cfif isAuthorized>
-    <script src="/fpw/assets/js/app/admin/passenger-manager.js?v=20260328c"></script>
+    <script src="<cfoutput>#encodeForHTMLAttribute(request.fpwBase)#</cfoutput>/assets/js/app/admin/passenger-manager.js?v=20260328c"></script>
   </cfif>
 </body>
 </html>
-

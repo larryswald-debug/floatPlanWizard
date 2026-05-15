@@ -1,5 +1,28 @@
 <cfscript>
-adminNavBase = (structKeyExists(request, "fpwBase") AND len(trim(toString(request.fpwBase)))) ? trim(toString(request.fpwBase)) : "/fpw";
+adminNavBase = structKeyExists(request, "fpwBase") ? trim(toString(request.fpwBase)) : "";
+if (!structKeyExists(request, "fpwBase")) {
+    if (structKeyExists(cgi, "SCRIPT_NAME")) {
+        adminNavBase = trim(toString(cgi.SCRIPT_NAME));
+    } else if (structKeyExists(cgi, "script_name")) {
+        adminNavBase = trim(toString(cgi.script_name));
+    }
+
+    adminNavBase = reReplace(adminNavBase, "[?##].*$", "");
+    adminNavBase = replace(adminNavBase, "\", "/", "all");
+    adminNavBase = reReplaceNoCase(adminNavBase, "/api/v1(/.*)?$", "");
+    adminNavBase = reReplaceNoCase(adminNavBase, "/(app|admin|assets|tests)(/.*)?$", "");
+    adminNavBase = reReplaceNoCase(adminNavBase, "/[^/]*\.(cfm|cfc)$", "");
+    adminNavBase = reReplace(adminNavBase, "/$", "");
+    if (adminNavBase EQ "/") {
+        adminNavBase = "";
+    }
+    if (len(adminNavBase) AND left(adminNavBase, 1) NEQ "/") {
+        adminNavBase = "/" & adminNavBase;
+    }
+
+    request.fpwBase = adminNavBase;
+    request.fpwApiBase = adminNavBase & "/api/v1";
+}
 currentAdminFile = "";
 if (structKeyExists(cgi, "SCRIPT_NAME")) {
     currentAdminFile = lCase(listLast(toString(cgi.SCRIPT_NAME), "/"));
@@ -85,4 +108,3 @@ adminReportPages = [
         </cfloop>
     </nav>
 </div>
-

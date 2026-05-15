@@ -1,4 +1,5 @@
 <cfsetting showdebugoutput="false">
+<cfinclude template="../includes/fpw_base_path.cfm">
 
 <cfscript>
 userStruct = (structKeyExists(session, "user") AND isStruct(session.user)) ? session.user : {};
@@ -80,7 +81,7 @@ function decodeHttpJson(required struct httpRes) {
 function callRouteBuilder(required string action, required struct payload) {
     var proto = (structKeyExists(cgi, "HTTPS") AND lCase(toString(cgi.HTTPS)) EQ "on") ? "https" : "http";
     var host = structKeyExists(cgi, "HTTP_HOST") ? toString(cgi.HTTP_HOST) : (toString(cgi.SERVER_NAME) & ":" & toString(cgi.SERVER_PORT));
-    var fpwBase = "/fpw";
+    var fpwBase = request.fpwBase;
     var res = {};
     var cookiePairs = getCookiePairs();
     var targetUrl = proto & "://" & host & fpwBase & "/api/v1/routeBuilder.cfc?method=handle&action=" & urlEncodedFormat(arguments.action);
@@ -288,7 +289,6 @@ if (isLoggedIn) {
 }
 
 isAuthorized = isLoggedIn AND isAdmin;
-request.fpwBase = "/fpw";
 activeUserId = resolveUserId(userStruct);
 
 defaults = {
@@ -634,4 +634,3 @@ if (didRun AND !len(runError)) {
 </div>
 </body>
 </html>
-

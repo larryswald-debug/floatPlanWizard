@@ -1,7 +1,7 @@
 (function (window, document) {
   "use strict";
 
-  var endpoint = "/fpw/api/v1/adminWaypoints.cfc?method=handle";
+  var endpoint = (window.FPW_API_BASE || ((window.FPW_BASE || "") + "/api/v1")) + "/adminWaypoints.cfc?method=handle";
   var defaultCenter = { lat: 27.8, lng: -82.7 };
 
   var state = {

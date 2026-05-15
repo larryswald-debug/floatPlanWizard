@@ -1,13 +1,5 @@
+<cfinclude template="../includes/fpw_base_path.cfm">
 <cfscript>
-if (!structKeyExists(request, "fpwBase")) {
-  request.fpwBase = getDirectoryFromPath(cgi.script_name);
-  request.fpwBase = reReplace(request.fpwBase, "/app/?$", "");
-  request.fpwBase = reReplace(request.fpwBase, "/$", "");
-  if (request.fpwBase == "/") {
-    request.fpwBase = "";
-  }
-}
-
 startTrialUserId = 0;
 if (structKeyExists(session, "user") AND isStruct(session.user)) {
   if (structKeyExists(session.user, "userId") AND isNumeric(session.user.userId)) {

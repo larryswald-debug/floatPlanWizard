@@ -1,5 +1,6 @@
 <cfsetting showdebugoutput="false">
 <cfcontent type="text/html; charset=utf-8">
+<cfinclude template="../includes/fpw_base_path.cfm">
 
 <cfscript>
 actionType = "";
@@ -254,10 +255,10 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
                         { datasource = "fpw" }
                     );
                 }
-                message = "Force deleted " & forceDeleteCount & " float plan(s) for user " & targetUserId & ". Snapshot: /fpw/tmp/" & snapshotFile;
+                message = "Force deleted " & forceDeleteCount & " float plan(s) for user " & targetUserId & ". Snapshot: " & request.fpwBase & "/tmp/" & snapshotFile;
                 messageType = "success";
             } else {
-                message = "No float plans found for user " & targetUserId & ". Empty snapshot created: /fpw/tmp/" & snapshotFile;
+                message = "No float plans found for user " & targetUserId & ". Empty snapshot created: " & request.fpwBase & "/tmp/" & snapshotFile;
                 messageType = "info";
             }
         }
@@ -338,11 +339,11 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
         <li>Enter a numeric user id and click <strong>Preview</strong>.</li>
         <li>Use <strong>Delete All Deletable Plans</strong> to remove only <strong>DRAFT/CLOSED</strong> (dashboard-equivalent behavior).</li>
         <li>Use <strong>Force Delete All Plans (All Statuses)</strong> to remove every plan status; you must type exact confirmation text first.</li>
-        <li>Force delete always writes a rollback snapshot JSON file under <code>/fpw/tmp/</code> before deleting.</li>
+        <li>Force delete always writes a rollback snapshot JSON file under <code><cfoutput>#request.fpwBase#</cfoutput>/tmp/</code> before deleting.</li>
       </ol>
     </div>
 
-    <form method="post" action="/fpw/admin/floatplan-cleanup.cfm">
+    <form method="post" action="<cfoutput>#request.fpwBase#</cfoutput>/admin/floatplan-cleanup.cfm">
       <div class="row">
         <label for="targetUserId"><strong>User ID</strong></label>
         <input id="targetUserId" name="targetUserId" type="text" value="<cfoutput>#encodeForHtmlAttribute(targetUserIdRaw)#</cfoutput>" placeholder="e.g. 187">
@@ -396,4 +397,3 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
   </div>
 </body>
 </html>
-

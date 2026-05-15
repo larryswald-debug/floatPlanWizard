@@ -331,12 +331,14 @@
       var checkInEnabled = readBoolean(checkInAction, "enabled");
       var checkInDisabledReason = readString(checkInAction, "reason");
       var floatPlanId = readNumber(readStruct(readStruct(actions, "checkIn"), "payload"), "floatPlanId");
+      var checkInEndpoint = buildApiEndpoint("companion.cfc?method=handle&action=checkin&returnFormat=json");
+      var currentEndpoint = buildApiEndpoint("companion.cfc?method=handle&action=current&returnFormat=json");
 
       companionActions.checkIn = {
-        "endpoint" = "/fpw/api/v1/companion.cfc?method=handle&action=checkin&returnFormat=json",
+        "endpoint" = checkInEndpoint,
         "method" = "POST",
         "returnsRefreshedCompanionModel" = true,
-        "refreshEndpoint" = "/fpw/api/v1/companion.cfc?method=handle&action=current&returnFormat=json",
+        "refreshEndpoint" = currentEndpoint,
         "actions" = {
           "onTrack" = buildMobileCheckInAction("onTrack", "On Track", "On Track", "", checkInEnabled, checkInDisabledReason, false, "", floatPlanId),
           "delayed" = buildMobileCheckInAction("delayed", "Delayed", "Delayed", "", checkInEnabled, checkInDisabledReason, false, "", floatPlanId),
@@ -374,7 +376,7 @@
       return {
         "key" = arguments.key,
         "label" = arguments.label,
-        "endpoint" = "/fpw/api/v1/companion.cfc?method=handle&action=checkin&returnFormat=json",
+        "endpoint" = buildApiEndpoint("companion.cfc?method=handle&action=checkin&returnFormat=json"),
         "method" = "POST",
         "payload" = {
           "mobileSubmissionId" = "",
@@ -404,7 +406,7 @@
       return {
         "key" = "startNextLeg",
         "label" = "Start Next Leg",
-        "endpoint" = "/fpw/api/v1/floatplan.cfc?method=handle&action=startnextleg&returnFormat=json",
+        "endpoint" = buildApiEndpoint("floatplan.cfc?method=handle&action=startnextleg&returnFormat=json"),
         "method" = "POST",
         "payload" = duplicate(readStruct(arguments.sourceAction, "payload")),
         "enabled" = readBoolean(arguments.sourceAction, "enabled"),
@@ -418,9 +420,55 @@
   <cffunction name="buildRefreshHint" access="private" returntype="struct" output="false">
     <cfscript>
       return {
-        "endpoint" = "/fpw/api/v1/companion.cfc?method=handle&action=current&returnFormat=json",
+        "endpoint" = buildApiEndpoint("companion.cfc?method=handle&action=current&returnFormat=json"),
         "method" = "GET"
       };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildApiEndpoint" access="private" returntype="string" output="false">
+    <cfargument name="resourceAndQuery" type="string" required="true">
+    <cfscript>
+      var endpointPath = trim(arguments.resourceAndQuery);
+      if (left(endpointPath, 1) EQ "/") {
+        endpointPath = right(endpointPath, len(endpointPath) - 1);
+      }
+      return resolveFpwBasePath() & "/api/v1/" & endpointPath;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="resolveFpwBasePath" access="private" returntype="string" output="false">
+    <cfscript>
+      var basePath = "";
+
+      if (structKeyExists(request, "fpwBase") AND !isNull(request.fpwBase)) {
+        basePath = trim(toString(request.fpwBase));
+      } else {
+        if (structKeyExists(cgi, "script_name")) {
+          basePath = trim(toString(cgi.script_name));
+        } else if (structKeyExists(cgi, "SCRIPT_NAME")) {
+          basePath = trim(toString(cgi.SCRIPT_NAME));
+        }
+
+        basePath = reReplace(basePath, "[?##].*$", "");
+        basePath = replace(basePath, "\", "/", "all");
+        basePath = reReplaceNoCase(basePath, "/api/v1(/.*)?$", "");
+        basePath = reReplaceNoCase(basePath, "/(app|admin|assets|tests)(/.*)?$", "");
+        basePath = reReplaceNoCase(basePath, "/[^/]*\.(cfm|cfc)$", "");
+      }
+
+      basePath = reReplace(basePath, "/$", "");
+      if (basePath EQ "/") {
+        basePath = "";
+      }
+      if (len(basePath) AND left(basePath, 1) NEQ "/") {
+        basePath = "/" & basePath;
+      }
+
+      request.fpwBase = basePath;
+      request.fpwApiBase = basePath & "/api/v1";
+
+      return basePath;
     </cfscript>
   </cffunction>
 

@@ -47,6 +47,7 @@ if (isLoggedIn) {
 
 isAuthorized = isLoggedIn AND isAdmin;
 </cfscript>
+<cfinclude template="../includes/fpw_base_path.cfm">
 
 <!doctype html>
 <html lang="en">
@@ -263,10 +264,15 @@ isAuthorized = isLoggedIn AND isAdmin;
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="/fpw/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260225a"></script>
+  <script src="<cfoutput>#encodeForHTMLAttribute(request.fpwBase)#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260225a"></script>
+  <cfoutput>
+    <script>
+      window.FPW_BASE = "#JSStringFormat(request.fpwBase)#";
+      window.FPW_API_BASE = "#JSStringFormat(request.fpwApiBase)#";
+    </script>
+  </cfoutput>
   <cfif isAuthorized>
-    <script src="/fpw/assets/js/app/admin/waypoint-manager.js?v=20260225a"></script>
+    <script src="<cfoutput>#encodeForHTMLAttribute(request.fpwBase)#</cfoutput>/assets/js/app/admin/waypoint-manager.js?v=20260225a"></script>
   </cfif>
 </body>
 </html>
-

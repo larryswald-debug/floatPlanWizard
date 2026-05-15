@@ -1,4 +1,5 @@
 <cfsetting showdebugoutput="false">
+<cfinclude template="../includes/fpw_base_path.cfm">
 
 <cfscript>
 userStruct = (structKeyExists(session, "user") AND isStruct(session.user)) ? session.user : {};
@@ -42,7 +43,6 @@ if (isLoggedIn) {
 }
 
 isAuthorized = isLoggedIn AND isAdmin;
-request.fpwBase = "/fpw";
 
 formDefaults = {
     "apply" = "0",
@@ -483,4 +483,3 @@ if (isAuthorized AND structKeyExists(form, "runBackfill")) {
 <cfinclude template="../includes/footer_scripts.cfm">
 </body>
 </html>
-

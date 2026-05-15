@@ -1,5 +1,6 @@
 <cfsetting showdebugoutput="false">
 <cfcontent type="text/html; charset=utf-8">
+<cfinclude template="../includes/fpw_base_path.cfm">
 
 <cfscript>
 actionType = "";
@@ -511,7 +512,7 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
                     & forceCustomRouteCount & " custom route(s), "
                     & forceCustomLegCount & " custom route leg(s), and "
                     & forceCustomOverrideCount & " custom route override record(s) for user " & targetUserId
-                    & ". Snapshot: /fpw/tmp/" & snapshotFile;
+                    & ". Snapshot: " & request.fpwBase & "/tmp/" & snapshotFile;
                 if (!legOverrideTableExists) {
                     message &= " Override table not found; skipped override cleanup.";
                 }
@@ -523,7 +524,7 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
                 }
                 messageType = "success";
             } else {
-                message = "No generated routes, route instances, generated overrides, custom routes, custom route legs, or custom route overrides found for user " & targetUserId & ". Empty snapshot created: /fpw/tmp/" & snapshotFile;
+                message = "No generated routes, route instances, generated overrides, custom routes, custom route legs, or custom route overrides found for user " & targetUserId & ". Empty snapshot created: " & request.fpwBase & "/tmp/" & snapshotFile;
                 messageType = "info";
             }
             }
@@ -706,11 +707,11 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
         <li>Check the generated routes and custom routes you want to remove.</li>
         <li><strong>Delete Selected Route Artifacts</strong> removes only the checked generated routes, custom routes, route instances, route-specific overrides, custom route legs, and unlinks related float plans.</li>
         <li><strong>Force Delete Selected Route Artifacts</strong> does the same delete flow, but requires explicit typed confirmation.</li>
-        <li>Delete actions always write a rollback snapshot JSON file under <code>/fpw/tmp/</code> before deleting.</li>
+        <li>Delete actions always write a rollback snapshot JSON file under <code><cfoutput>#request.fpwBase#</cfoutput>/tmp/</code> before deleting.</li>
       </ol>
     </div>
 
-    <form method="post" action="/fpw/admin/route-cleanup.cfm">
+    <form method="post" action="<cfoutput>#request.fpwBase#</cfoutput>/admin/route-cleanup.cfm">
       <div class="row">
         <label for="targetUserId"><strong>User ID</strong></label>
         <input id="targetUserId" name="targetUserId" type="text" value="<cfoutput>#encodeForHtmlAttribute(targetUserIdRaw)#</cfoutput>" placeholder="e.g. 187">
@@ -851,4 +852,3 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
   </script>
 </body>
 </html>
-

@@ -1,4 +1,5 @@
 <cfsetting showdebugoutput="false">
+<cfinclude template="../includes/fpw_base_path.cfm">
 
 <cfscript>
 userStruct = (structKeyExists(session, "user") AND isStruct(session.user)) ? session.user : {};
@@ -42,7 +43,6 @@ if (isLoggedIn) {
 }
 
 isAuthorized = isLoggedIn AND isAdmin;
-request.fpwBase = "/fpw";
 </cfscript>
 
 <!doctype html>
@@ -372,7 +372,8 @@ request.fpwBase = "/fpw";
 <cfinclude template="../includes/footer_scripts.cfm">
 
 <script>
-    window.FPW_BASE = "<cfoutput>#request.fpwBase#</cfoutput>";
+    window.FPW_BASE = "<cfoutput>#JSStringFormat(request.fpwBase)#</cfoutput>";
+    window.FPW_API_BASE = "<cfoutput>#JSStringFormat(request.fpwApiBase)#</cfoutput>";
 </script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
@@ -382,4 +383,3 @@ request.fpwBase = "/fpw";
 
 </body>
 </html>
-
