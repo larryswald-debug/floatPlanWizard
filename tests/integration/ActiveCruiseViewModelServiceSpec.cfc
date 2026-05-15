@@ -9,14 +9,23 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.viewModelService = new fpw.api.v1.ActiveCruiseViewModelService().init("fpw");
     variables.projectionService = new fpw.api.v1.TripProgressProjectionService().init("fpw");
     variables.activityWriterService = new fpw.api.v1.TripActivityWriterService().init("fpw");
+    variables.entitlements = new fpw.api.v1.MemberEntitlementService().init("fpw");
     variables.voyageService = new fpw.api.v1.voyage();
     variables.hadOriginalTestUserId = structKeyExists(url, "testUserId");
     variables.originalTestUserId = variables.hadOriginalTestUserId ? url.testUserId : "";
     variables.sessionApiUser = createSessionApiUser();
     url.testUserId = variables.sessionApiUser.userId;
+    variables.activeCruisePremiumEntitlement = variables.entitlements.createAdminCompEntitlement(variables.sessionApiUser.userId);
   }
 
   function afterAll() {
+    queryExecute(
+      "DELETE FROM member_entitlements WHERE user_id = :userId",
+      {
+        userId = { value = variables.sessionApiUser.userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
     cleanupSessionApiUser();
     if (variables.hadOriginalTestUserId) {
       url.testUserId = variables.originalTestUserId;
@@ -300,6 +309,72 @@ component extends="testbox.system.BaseSpec" output="false" {
           staleProjection = variables.projectionService.getProjection(asset.floatPlanId, now(), { "includeOperationalLockTime" = true });
           expect(staleProjection.pace.isActiveTripOverride).toBeFalse(serializeJSON(staleProjection.pace));
           expect(roundTo2Numeric(staleProjection.routeTimeline.effectiveSpeedKn)).toBe(20, serializeJSON(staleProjection.pace));
+        } finally {
+          cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+        }
+      });
+
+      it("preserves active-trip pace overrides when route updates rewrite route inputs", function() {
+        var prefix = variables.naming.buildPrefix("active-cruise-v2", "pace-route-update");
+        var sessionApi = buildSessionApiSupport();
+        var localCreated = newCreatedTracker();
+        var asset = {};
+        var seedInputs = {};
+        var paceResult = {};
+        var beforeInputs = {};
+        var editContext = {};
+        var updatePayload = {};
+        var updateResult = {};
+        var afterInputs = {};
+        var model = {};
+
+        try {
+          url.testUserId = variables.sessionApiUser.userId;
+          asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+          seedInputs = loadRouteInputsForFloatPlan(asset.floatPlanId);
+          seedInputs.pace = "RELAXED";
+          seedInputs.cruising_speed = 20;
+          seedInputs.vessel_most_efficient_speed_kn = 8;
+          seedInputs.weather_factor_pct = 0;
+          seedInputs.fuel_burn_gph = 10;
+          seedInputs.reserve_pct = 33;
+          seedInputs.underway_hours_per_day = 6.5;
+          seedRouteInputsForPaceTest(asset.floatPlanId, seedInputs);
+
+          paceResult = postActiveCruisePaceWithApi(sessionApi, asset.floatPlanId, "BALANCED");
+          expect(isSuccessPayload(paceResult)).toBeTrue(serializeJSON(paceResult));
+          beforeInputs = loadRouteInputsForFloatPlan(asset.floatPlanId);
+          expect(beforeInputs.pace).toBe("RELAXED", serializeJSON(beforeInputs));
+          expect(beforeInputs.active_trip_pace).toBe("BALANCED", serializeJSON(beforeInputs));
+          expect(val(beforeInputs.active_trip_floatplan_id)).toBe(asset.floatPlanId, serializeJSON(beforeInputs));
+          expect(roundTo2Numeric(beforeInputs.active_trip_effective_speed_kn)).toBe(8, serializeJSON(beforeInputs));
+
+          editContext = sessionApi.routeBuilder("routegen_geteditcontext", { "route_code" = asset.routeCode });
+          ensureSuccess(editContext, "load route edit context");
+          updatePayload = duplicate(editContext.DATA.inputs);
+          updatePayload.route_code = asset.routeCode;
+          updatePayload.route_name = trim(toString(editContext.DATA.route.route_name));
+          updatePayload.weather_factor_pct = 42;
+
+          updateResult = sessionApi.routeBuilder("routegen_update", updatePayload);
+          ensureSuccess(updateResult, "routegen weather factor update");
+
+          afterInputs = loadRouteInputsForFloatPlan(asset.floatPlanId);
+          expect(roundTo2Numeric(afterInputs.weather_factor_pct)).toBe(42, serializeJSON(afterInputs));
+          expect(afterInputs.pace).toBe("RELAXED", serializeJSON(afterInputs));
+          expect(afterInputs.active_trip_pace).toBe("BALANCED", serializeJSON(afterInputs));
+          expect(val(afterInputs.active_trip_floatplan_id)).toBe(asset.floatPlanId, serializeJSON(afterInputs));
+          expect(roundTo2Numeric(afterInputs.active_trip_effective_speed_kn)).toBe(roundTo2Numeric(beforeInputs.active_trip_effective_speed_kn), serializeJSON(afterInputs));
+          expect(afterInputs.active_trip_speed_source).toBe(beforeInputs.active_trip_speed_source, serializeJSON(afterInputs));
+
+          model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          expect(model.success).toBeTrue(serializeJSON(model));
+          expect(model.pace.currentValue).toBe("BALANCED", serializeJSON(model.pace));
+          expect(model.pace.currentLabel).toBe("Efficient Speed", serializeJSON(model.pace));
+          expect(model.pace.isActiveTripOverride).toBeTrue(serializeJSON(model.pace));
+          expect(roundTo2Numeric(model.pace.weatherFactorPct)).toBe(42, serializeJSON(model.pace));
+          expect(roundTo2Numeric(model.pace.weatherAdjustedSpeedKn)).toBe(4.64, serializeJSON(model.pace));
+          expect(roundTo2Numeric(model.routeTimeline.effectiveSpeedKn)).toBe(4.64, serializeJSON(model.routeTimeline));
         } finally {
           cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
         }
@@ -1112,7 +1187,9 @@ component extends="testbox.system.BaseSpec" output="false" {
       firstName = "FPW",
       lastName = "ActiveCruiseV2",
       email = uniqueEmail,
-      password = "changeIt"
+      password = "changeIt",
+      confirmPassword = "changeIt",
+      termsAccepted = true
     }, false);
 
     expect(payload.SUCCESS).toBeTrue(serializeJSON(payload));

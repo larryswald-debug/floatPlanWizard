@@ -7124,6 +7124,28 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="routegenPreserveActiveTripOverrideInputs" access="private" returntype="struct" output="false">
+        <cfargument name="existingInputs" type="any" required="false" default="">
+        <cfargument name="newInputs" type="any" required="false" default="">
+        <cfscript>
+            var preservedInputs = (isStruct(arguments.newInputs) ? duplicate(arguments.newInputs) : {});
+            var storedInputs = (isStruct(arguments.existingInputs) ? arguments.existingInputs : {});
+            var keyName = "";
+
+            for (keyName in storedInputs) {
+                if (
+                    left(lCase(trim(toString(keyName))), 12) EQ "active_trip_"
+                    AND !structKeyExists(preservedInputs, keyName)
+                    AND !isNull(storedInputs[keyName])
+                ) {
+                    preservedInputs[keyName] = storedInputs[keyName];
+                }
+            }
+
+            return preservedInputs;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="routegenSerializeInputsForInstance" access="private" returntype="string" output="false">
         <cfargument name="inputData" type="any" required="false" default="">
         <cfscript>
@@ -12070,8 +12092,33 @@
             if (!len(trim(toString(structKeyExists(instanceInputs, "start_date") ? instanceInputs.start_date : "")))) {
                 instanceInputs.start_date = trim(toString(arguments.input.start_date));
             }
-            var instanceInputsJson = routegenSerializeInputsForInstance(instanceInputs);
             var hasInputsJsonCol = routegenHasInputsJsonColumn();
+            var qExistingRouteInstanceInputs = queryNew("");
+            if (hasInputsJsonCol) {
+                qExistingRouteInstanceInputs = queryExecute(
+                    "SELECT routegen_inputs_json
+                     FROM route_instances
+                     WHERE generated_route_id = :rid
+                       AND user_id = :uid
+                     ORDER BY id DESC
+                     LIMIT 1",
+                    {
+                        rid = { value=routeId, cfsqltype="cf_sql_integer" },
+                        uid = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
+                    },
+                    { datasource = application.dsn }
+                );
+                if (
+                    qExistingRouteInstanceInputs.recordCount GT 0
+                    AND !isNull(qExistingRouteInstanceInputs.routegen_inputs_json[1])
+                ) {
+                    instanceInputs = routegenPreserveActiveTripOverrideInputs(
+                        routegenParseStoredInputs(qExistingRouteInstanceInputs.routegen_inputs_json[1]),
+                        instanceInputs
+                    );
+                }
+            }
+            var instanceInputsJson = routegenSerializeInputsForInstance(instanceInputs);
             var totals = (structKeyExists(data, "totals") ? data.totals : {});
             var totalNmBind = toNullableNumber((structKeyExists(totals, "total_nm") ? totals.total_nm : ""), "numeric");
             var totalLocksBind = toNullableNumber((structKeyExists(totals, "lock_count") ? totals.lock_count : ""), "integer");
@@ -12497,9 +12544,5 @@
     </cffunction>
 
 </cfcomponent>
-
-
-
-
 
 
