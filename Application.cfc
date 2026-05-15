@@ -22,15 +22,34 @@
     </cfif>
 
     <!--- ===== PER-APP DEFAULTS ===== --->
-    <cffunction name="onApplicationStart" access="public" returntype="boolean" output="false">
-        <!--- Monitor token used by /api/v1/monitor.cfc --->
-        <cfset application.monitorToken = "abc123">
+    <cffunction name="getEnvValue" access="private" returntype="string" output="false">
+        <cfargument name="name" type="string" required="true">
+        <cfset var system = createObject("java", "java.lang.System")>
+        <cfset var value = system.getenv(arguments.name)>
+        <cfif isNull(value)>
+            <cfreturn "">
+        </cfif>
+        <cfreturn trim(toString(value))>
+    </cffunction>
 
-        <!--- Optional: environment flag --->
-        <cfset application.env = "dev">
+    <cffunction name="resolveApplicationEnv" access="private" returntype="string" output="false">
+        <cfset var envValue = lCase(trim(getEnvValue("FPW_ENV")))>
+        <cfif envValue EQ "dev">
+            <cfreturn "dev">
+        </cfif>
+        <cfreturn "prod">
+    </cffunction>
+
+    <cffunction name="isDevEnvironment" access="private" returntype="boolean" output="false">
+        <cfreturn structKeyExists(application, "env") AND lCase(toString(application.env)) EQ "dev">
+    </cffunction>
+
+    <cffunction name="onApplicationStart" access="public" returntype="boolean" output="false">
+        <!--- Monitor token used by scheduled/dev-only maintenance endpoints. --->
+        <cfset application.env = resolveApplicationEnv()>
+        <cfset application.monitorToken = getEnvValue("FPW_MONITOR_TOKEN")>
         <cfset application.DSN = "fpw">
-        <!--- Set to false after startup/request tracing is no longer needed. --->
-        <cfset application.debugRequestTrace = true>
+        <cfset application.debugRequestTrace = isDevEnvironment()>
 
         <!--- Optional: app-level settings struct --->
         <cfset application.settings = {
@@ -42,8 +61,8 @@
     </cffunction>
 
     <cffunction name="onRequestStart" access="public" returntype="boolean" output="false">
-        <!--- Allow a manual restart in dev --->
-        <cfif structKeyExists(url, "appReload") AND url.appReload EQ 1>
+        <!--- Allow a manual restart in explicitly configured dev environments only. --->
+        <cfif isDevEnvironment() AND structKeyExists(url, "appReload") AND url.appReload EQ 1>
             <cflock scope="application" type="exclusive" timeout="10">
                 <cfset onApplicationStart()>
             </cflock>
@@ -52,7 +71,8 @@
         <!--- Temporary, low-noise startup diagnostics for inbound FPW app/API traffic. --->
         <cfif structKeyExists(application, "debugRequestTrace")
             AND isBoolean(application.debugRequestTrace)
-            AND application.debugRequestTrace>
+            AND application.debugRequestTrace
+            AND isDevEnvironment()>
             <cfset var traceScriptName = structKeyExists(cgi, "script_name") ? toString(cgi.script_name) : "">
             <cfset var tracePathInfo = structKeyExists(cgi, "path_info") ? toString(cgi.path_info) : "">
             <cfset var tracePath = lCase(len(trim(tracePathInfo)) ? tracePathInfo : traceScriptName)>
@@ -75,8 +95,8 @@
             </cfif>
         </cfif>
 
-             <!--- Dev/test hook: allow explicit user-id override via request header for integration harnesses. --->
-        <cfif structKeyExists( application, "env" ) AND lCase( toString( application.env ) ) EQ "dev">
+        <!--- Dev/test hook: allow explicit user-id override via request header for integration harnesses. --->
+        <cfif isDevEnvironment()>
             <cfset var reqData = getHttpRequestData()>
             <cfset var reqHeaders = ( structKeyExists( reqData, "headers" ) AND isStruct( reqData.headers ) ) ? reqData.headers : {} >
             <cfset var headerUserIdRaw = "" >
@@ -106,12 +126,21 @@
         <cfargument name="exception" type="any" required="true">
         <cfargument name="eventName" type="string" required="true">
 
-        <cfcontent type="text/plain; charset=utf-8">
-        <cfoutput>
+        <cflog
+            file="fpw-errors"
+            type="error"
+            text="FPW_ERROR event=#arguments.eventName# message=#toString(arguments.exception.message)# detail=#toString(arguments.exception.detail)#">
+
+        <cfcontent type="text/plain; charset=utf-8" reset="true">
+        <cfif isDevEnvironment()>
+            <cfoutput>
 ERROR in #arguments.eventName#
 #toString(arguments.exception.message)#
 #toString(arguments.exception.detail)#
-        </cfoutput>
+            </cfoutput>
+        <cfelse>
+            <cfoutput>An unexpected error occurred. Please try again later.</cfoutput>
+        </cfif>
     </cffunction>
 
 </cfcomponent>

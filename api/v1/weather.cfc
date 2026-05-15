@@ -3,8 +3,8 @@
 
       Auth:
         - Normal: requires logged-in session.user
-        - Dev bypass (optional): ?token=abc123&asUserId=187
-          token must match application.monitorToken
+        - Dev bypass (optional): token/asUserId only in explicit dev mode
+          token must match configured application.monitorToken
 
       Requires:
         - application.dsn set in Application.cfc
@@ -29,6 +29,8 @@
         <cfargument name="cache" type="any" required="false">
         <cfargument name="bypassCache" type="any" required="false">
         <cfargument name="nocache" type="any" required="false">
+        <cfargument name="token" type="any" required="false">
+        <cfargument name="asUserId" type="any" required="false">
 
         <cfsetting enablecfoutputonly="true" showdebugoutput="false">
         <cfcontent type="application/json; charset=utf-8">
@@ -43,6 +45,8 @@
             <cfset local.resp = { "SUCCESS"=false, "AUTH"=true, "MESSAGE"="", "DATA"={} }>
             <cfset local.userStruct = {} >
             <cfset local.userId = 0 >
+            <cfset local.devBypassToken = structKeyExists(arguments, "token") ? trim(toString(arguments.token)) : trim(url.token)>
+            <cfset local.devBypassUserId = structKeyExists(arguments, "asUserId") ? trim(toString(arguments.asUserId)) : trim(url.asUserId)>
             <cfset local.act = "get" >
             <cfset local.fpId = 0 >
             <cfset local.data = {} >
@@ -59,12 +63,15 @@
 
             <!--- DEV BYPASS (optional) --->
             <cfif local.userId LTE 0>
-                <cfif len(trim(url.token))
+                <cfif len(local.devBypassToken)
+                    AND structKeyExists(application, "env")
+                    AND lCase(toString(application.env)) EQ "dev"
                     AND structKeyExists(application, "monitorToken")
-                    AND trim(url.token) EQ trim(application.monitorToken)
-                    AND isNumeric(url.asUserId)
-                    AND val(url.asUserId) GT 0>
-                    <cfset local.userId = int(val(url.asUserId))>
+                    AND len(trim(toString(application.monitorToken)))
+                    AND local.devBypassToken EQ trim(application.monitorToken)
+                    AND isNumeric(local.devBypassUserId)
+                    AND val(local.devBypassUserId) GT 0>
+                    <cfset local.userId = int(val(local.devBypassUserId))>
                 </cfif>
             </cfif>
 

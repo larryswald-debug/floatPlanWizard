@@ -102,10 +102,10 @@
                 </cftry>
             </cfif>
             <cfset response.SUCCESS = false>
+            <cflog file="fpw-db-backup" type="error" text="Backup export failed: #cfcatch.message# #cfcatch.detail#">
             <cfset response.ERROR = {
                 "CODE" = "BACKUP_EXPORT_FAILED",
-                "MESSAGE" = cfcatch.message,
-                "DETAIL" = cfcatch.detail
+                "MESSAGE" = "Database backup export failed."
             }>
             <cfset writeJsonResponse(response)>
         </cfcatch>
@@ -118,7 +118,7 @@
             <cfset token = trim(toString(url.token))>
         </cfif>
 
-        <cfif NOT structKeyExists(application, "monitorToken")>
+        <cfif NOT structKeyExists(application, "monitorToken") OR NOT len(trim(toString(application.monitorToken)))>
             <cfreturn false>
         </cfif>
 
@@ -235,7 +235,6 @@
     </cffunction>
 
 </cfcomponent>
-
 
 
 

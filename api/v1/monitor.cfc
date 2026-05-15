@@ -21,18 +21,8 @@
             <cfoutput>FPW legacy overdue alert runner is retired. Use runMonitoringEvaluator for canonical monitoring transitions and alerts.</cfoutput>
 
             <cfcatch>
-                <cfoutput>
-<br><br>
-==============================
-MONITOR ERROR (CAUGHT)
-==============================<br>
-Message: #htmlEditFormat(cfcatch.message)#<br>
-Detail: #htmlEditFormat(cfcatch.detail)#<br>
-Type: #htmlEditFormat(cfcatch.type)#<br>
-Template: #htmlEditFormat(cfcatch.template)#<br>
-Line: #cfcatch.line#<br>
-==============================<br>
-                </cfoutput>
+                <cflog file="fpw-monitor" type="error" text="runOverdueAlerts failed: #cfcatch.message# #cfcatch.detail#">
+                <cfoutput>SERVER_ERROR</cfoutput>
             </cfcatch>
 
         </cftry>
@@ -75,10 +65,11 @@ Line: #cfcatch.line#<br>
                 };
                 writeOutput(serializeJSON(response));
             } catch (any err) {
+                writeLog(file = "fpw-monitor", type = "error", text = "runMonitoringEvaluator failed: " & err.message & " " & err.detail);
                 response = {
                     SUCCESS = false,
                     ERROR = "SERVER_ERROR",
-                    MESSAGE = err.message
+                    MESSAGE = "Server error."
                 };
                 writeOutput(serializeJSON(response));
             }
