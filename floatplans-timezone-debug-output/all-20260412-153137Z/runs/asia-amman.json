@@ -1,9 +1,0 @@
-{
-  "timeZone": "Asia/Amman",
-  "instants": [],
-  "consoleErrors": [],
-  "pageErrors": [],
-  "failedRequests": [],
-  "zoneError": "locator.waitFor: Error: strict mode violation: locator('#floatPlansList [data-plan-id=\"387\"]') resolved to 4 elements:\n    1) <div class=\"list-item\" data-plan-id=\"387\">…</div> aka locator('div').filter({ hasText: 'TZH_1776007899685 Float Plan:' }).nth(3)\n    2) <button type=\"button\" data-action=\"view\" data-plan-id=\"387\" class=\"btn-secondary\">View & Send</button> aka getByRole('button', { name: 'View & Send' }).first()\n    3) <button type=\"button\" data-action=\"edit\" data-plan-id=\"387\" class=\"btn-secondary\">Edit</button> aka getByRole('button', { name: 'Edit' }).first()\n    4) <button type=\"button\" class=\"btn-danger\" data-plan-id=\"387\" data-action=\"delete\" data-plan-status=\"Draft\">Delete</button> aka getByRole('button', { name: 'Delete' }).first()\n\nCall log:\n\u001b[2m  - waiting for locator('#floatPlansList [data-plan-id=\"387\"]') to be visible\u001b[22m\n",
-  "zoneErrorScreenshot": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/floatplans-timezone-debug-output/all-20260412-153137Z/screenshots/asia-amman__zone-error.png"
-}
