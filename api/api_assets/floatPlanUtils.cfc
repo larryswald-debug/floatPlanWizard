@@ -138,13 +138,18 @@
 	                    phone = getString(basicDetails, "notification_contact_phone", "")
 	                }];
 	                if (len(getString(basicDetails, "destination_location", ""))) {
-	                    arrayInsertAt(waypoints, 1, {
+	                    var basicDestinationWaypoint = {
 	                        name = getString(basicDetails, "destination_location", ""),
 	                        reason = "Destination / turnaround point",
 	                        departType = "planned",
 	                        arrival = "",
 	                        departure = ""
-	                    });
+	                    };
+	                    if (arrayLen(waypoints)) {
+	                        arrayInsertAt(waypoints, 1, basicDestinationWaypoint);
+	                    } else {
+	                        arrayAppend(waypoints, basicDestinationWaypoint);
+	                    }
 	                }
 	            }
 	        </cfscript>

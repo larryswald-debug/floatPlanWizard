@@ -23,8 +23,7 @@
     "America/Anchorage",
 	    "Pacific/Honolulu"
 	  ];
-	  var BASIC_MAX_WAYPOINTS = 2;
-  var BASIC_LOCKED_PANEL_SELECTOR = "#vesselsPanel.fpw-basic-locked-panel, #operatorsPanel.fpw-basic-locked-panel, #contactsPanel.fpw-basic-locked-panel";
+  var BASIC_LOCKED_PANEL_SELECTOR = "#vesselsPanel.fpw-basic-locked-panel, #operatorsPanel.fpw-basic-locked-panel, #contactsPanel.fpw-basic-locked-panel, #waypointsPanel.fpw-basic-locked-panel";
 
   var modal = null;
   var initialized = false;
@@ -83,6 +82,27 @@
     if (error && typeof error.errorCode === "string") return String(error.errorCode);
     if (error && error.ERROR && error.ERROR.CODE) return String(error.ERROR.CODE);
     return "";
+  }
+
+  function getUsPhoneDigits(value) {
+    var digits = String(value || "").replace(/\D/g, "");
+    if (digits.length === 11 && digits.charAt(0) === "1") {
+      digits = digits.substring(1);
+    }
+    return digits;
+  }
+
+  function formatUsPhoneInput(value) {
+    var digits = getUsPhoneDigits(value).substring(0, 10);
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return "(" + digits.substring(0, 3) + ") " + digits.substring(3);
+    return "(" + digits.substring(0, 3) + ") " + digits.substring(3, 6) + "-" + digits.substring(6);
+  }
+
+  function isValidOptionalUsPhone(value) {
+    var raw = String(value || "").trim();
+    if (!raw) return true;
+    return getUsPhoneDigits(raw).length === 10;
   }
 
   function showUpgradeMessage(message, tone) {
@@ -180,12 +200,10 @@
 	    dom.returnTime = document.getElementById("basicReturnTime");
 	    dom.returnTimezone = document.getElementById("basicReturnTimezone");
 	    dom.notes = document.getElementById("basicNotes");
-	    dom.waypoints = document.getElementById("basicWaypointOptions");
 	    dom.passengers = document.getElementById("basicPassengerOptions");
 	    dom.contactName = document.getElementById("basicContactName");
 	    dom.contactEmail = document.getElementById("basicContactEmail");
 	    dom.contactPhone = document.getElementById("basicContactPhone");
-    dom.waypointCount = document.getElementById("basicSelectedWaypointCount");
     dom.contactError = document.getElementById("basicContactError");
     dom.saveBtn = document.getElementById("basicFloatPlanSaveBtn");
     dom.sendBtn = document.getElementById("basicFloatPlanSendBtn");
@@ -208,6 +226,11 @@
 	        panelId: "contactsPanel",
 	        buttonId: "addContactBtn",
 	        message: "Basic float plans use one-time notification contacts. Upgrade to Premium to save reusable contacts."
+	      },
+	      {
+	        panelId: "waypointsPanel",
+	        buttonId: "addWaypointBtn",
+	        message: "Basic float plans use the destination field for one-time trip stops. Upgrade to Premium to save reusable waypoints."
 	      }
 	    ].forEach(function (item) {
 	      var panel = document.getElementById(item.panelId);
@@ -373,7 +396,7 @@
       + '    <div><dt>Departure</dt><dd>' + escapeHtml(draft.DEPARTING_FROM || "Not provided") + '</dd></div>'
       + '    <div><dt>Return</dt><dd>' + escapeHtml(draft.RETURNING_TO || "Not provided") + '</dd></div>'
       + '    <div><dt>Last Saved</dt><dd>' + escapeHtml(formatDisplayDate(draft.LAST_UPDATE)) + '</dd></div>'
-	      + '    <div><dt>Stops</dt><dd>' + escapeHtml(waypointSummary || ((draft.WAYPOINT_COUNT || 0) + " / " + BASIC_MAX_WAYPOINTS)) + '</dd></div>'
+	      + '    <div><dt>Stops</dt><dd>' + escapeHtml(waypointSummary || ((draft.WAYPOINT_COUNT || 0) + " stop(s)")) + '</dd></div>'
       + '    <div><dt>Contacts</dt><dd>' + escapeHtml(draft.CONTACT_COUNT || 0) + '</dd></div>'
       + '    <div><dt>Status</dt><dd>Draft</dd></div>'
       + '  </dl>'
@@ -621,13 +644,10 @@
 	    setMessage("Loading Basic float plan options...", "info");
 	    return Promise.all([
 	      ensureList("passengerState", window.Api.getPassengers, ["PASSENGERS", "passengers"]),
-	      ensureList("waypointState", window.Api.getWaypoints, ["WAYPOINTS", "waypoints"]),
 	      ensureList("basicAuthorityState", window.Api.getBasicRescueAuthorities, ["AUTHORITIES", "authorities"])
 	    ]).then(function (lists) {
 	      renderCheckboxList(dom.passengers, lists[0], ["PASSENGERID", "ID"], ["PASSENGERNAME", "NAME"], "basicPassenger", "No passengers saved");
-	      renderCheckboxList(dom.waypoints, lists[1], ["WAYPOINTID", "ID"], ["WAYPOINTNAME", "NAME"], "basicWaypoint", "No waypoints saved");
-	      renderAuthoritySelect(lists[2]);
-	      updateWaypointCount();
+	      renderAuthoritySelect(lists[1]);
 	      setMessage("", "info");
 	      return lists;
 	    });
@@ -697,10 +717,8 @@
 	    setValue(dom.notes, pick(plan, ["NOTES", "notes"], ""));
 	    setValue(dom.contactName, pick(details, ["NOTIFICATION_CONTACT_NAME", "notificationContactName"], ""));
 	    setValue(dom.contactEmail, pick(details, ["NOTIFICATION_CONTACT_EMAIL", "notificationContactEmail"], ""));
-	    setValue(dom.contactPhone, pick(details, ["NOTIFICATION_CONTACT_PHONE", "notificationContactPhone"], ""));
+	    setValue(dom.contactPhone, formatUsPhoneInput(pick(details, ["NOTIFICATION_CONTACT_PHONE", "notificationContactPhone"], "")));
 	    setCheckedValues("basicPassenger", selectionIds(payload.PLAN_PASSENGERS, ["PASSENGERID", "passengerId"]));
-	    setCheckedValues("basicWaypoint", selectionIds(payload.PLAN_WAYPOINTS, ["WAYPOINTID", "waypointId", "wpId"]));
-	    updateWaypointCount();
 	  }
 
   function setMessage(message, type) {
@@ -745,13 +763,6 @@
     return Array.prototype.slice.call(dom.form.querySelectorAll('input[name="' + name + '"]:checked:not(:disabled)'));
   }
 
-  function updateWaypointCount() {
-	    var count = selectedCheckboxes("basicWaypoint").length;
-	    if (dom.waypointCount) {
-	      dom.waypointCount.textContent = count + " / " + BASIC_MAX_WAYPOINTS;
-	    }
-  }
-
   function validateForm() {
     var valid = true;
     var departureDate = null;
@@ -788,6 +799,14 @@
 	      markInvalid(dom.contactEmail);
 	      valid = false;
 	    }
+	    if (dom.contactPhone && dom.contactPhone.value.trim() && !isValidOptionalUsPhone(dom.contactPhone.value)) {
+	      markInvalid(dom.contactPhone);
+	      if (dom.contactError) {
+	        dom.contactError.textContent = "Enter a notification contact name, valid email, and a valid US phone number.";
+	        dom.contactError.classList.remove("d-none");
+	      }
+	      valid = false;
+	    }
 
     if (dom.departureTime && dom.returnTime && dom.departureTime.value && dom.returnTime.value) {
       departureDate = new Date(dom.departureTime.value);
@@ -803,13 +822,9 @@
       }
     }
 
-	    if (selectedCheckboxes("basicWaypoint").length > BASIC_MAX_WAYPOINTS) {
-	      valid = false;
-	      setMessage("Basic float plans can include up to 2 saved waypoints. Upgrade to Premium for expanded route planning.", "warning");
-	    }
-
 	    if (!dom.contactName || !dom.contactName.value.trim() || !dom.contactEmail || !dom.contactEmail.value.trim()) {
 	      if (dom.contactError) {
+	        dom.contactError.textContent = "Enter a notification contact name and valid email.";
 	        dom.contactError.classList.remove("d-none");
 	      }
       valid = false;
@@ -850,7 +865,7 @@
 	        CAPTAIN_EMAIL: dom.email ? dom.email.value.trim() : "",
 	        NOTIFICATION_CONTACT_NAME: dom.contactName ? dom.contactName.value.trim() : "",
 	        NOTIFICATION_CONTACT_EMAIL: dom.contactEmail ? dom.contactEmail.value.trim() : "",
-	        NOTIFICATION_CONTACT_PHONE: dom.contactPhone ? dom.contactPhone.value.trim() : "",
+	        NOTIFICATION_CONTACT_PHONE: dom.contactPhone ? formatUsPhoneInput(dom.contactPhone.value).trim() : "",
 	        LAUNCH_LOCATION: dom.departingFrom ? dom.departingFrom.value.trim() : "",
 	        DESTINATION_LOCATION: dom.destination ? dom.destination.value.trim() : "",
 	        AUTHORITY_ID: toInt(dom.authorityId ? dom.authorityId.value : 0)
@@ -859,13 +874,7 @@
 	        return { PASSENGERID: toInt(input.value), HAS_PFD: true };
 	      }),
 	      CONTACTS: [],
-	      WAYPOINTS: selectedCheckboxes("basicWaypoint").map(function (input) {
-        return {
-          WAYPOINTID: toInt(input.value),
-          REASON_FOR_STOP: input.getAttribute("data-label") || "Stop",
-          DEPART_MODE: "planned"
-        };
-      })
+	      WAYPOINTS: []
     };
   }
 
@@ -1038,7 +1047,6 @@
     if (dom.planId && toInt(draftId) > 0) {
       dom.planId.value = String(toInt(draftId));
     }
-    updateWaypointCount();
   }
 
   function openModal(draftId) {
@@ -1107,21 +1115,17 @@
     blockLockedReusablePanelEvent(event, lockedPanel);
   }
 
-  function handleWaypointClick(event) {
-    var input = event.target && event.target.matches ? event.target : null;
-    if (!input || !input.matches('input[name="basicWaypoint"]')) return;
-	    if (input.checked && selectedCheckboxes("basicWaypoint").length > BASIC_MAX_WAYPOINTS) {
-	      input.checked = false;
-	      setMessage("Basic float plans can include up to 2 saved waypoints. Upgrade to Premium for expanded route planning.", "warning");
-	    }
-    updateWaypointCount();
-  }
-
 	  function handleFormInput(event) {
 	    var target = event.target;
 	    if (!target) return;
+	    if (target === dom.contactPhone) {
+	      var formattedPhone = formatUsPhoneInput(target.value);
+	      if (target.value !== formattedPhone) {
+	        target.value = formattedPhone;
+	      }
+	    }
 	    target.classList.remove("is-invalid");
-	    if ((target === dom.contactName || target === dom.contactEmail) && dom.contactError) {
+	    if ((target === dom.contactName || target === dom.contactEmail || target === dom.contactPhone) && dom.contactError) {
 	      dom.contactError.classList.add("d-none");
 	    }
 	    if (target === dom.authorityId) {
@@ -1139,9 +1143,6 @@
     populateTimezones();
     document.addEventListener("click", handleDocumentClick, true);
     document.addEventListener("keydown", handleDocumentKeydown, true);
-    if (dom.waypoints) {
-      dom.waypoints.addEventListener("click", handleWaypointClick);
-    }
 	    if (dom.form) {
 	      dom.form.addEventListener("input", handleFormInput);
 	      dom.form.addEventListener("change", handleFormInput);

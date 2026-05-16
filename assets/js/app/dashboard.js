@@ -469,6 +469,13 @@
       return;
     }
     if (action === "add-waypoint") {
+      if (modules.basicFloatPlan && typeof modules.basicFloatPlan.isBasicMode === "function" && modules.basicFloatPlan.isBasicMode()) {
+        scrollToPanel("#waypointsPanel");
+        if (utils.showDashboardAlert) {
+          utils.showDashboardAlert("Basic float plans use the destination field for one-time trip stops. Upgrade to Premium to save reusable waypoints.", "warning");
+        }
+        return;
+      }
       if (!triggerExistingButton("addWaypointBtn")) {
         scrollToPanel("#waypointsPanel");
       }

@@ -1137,27 +1137,17 @@
 
                     <section class="fpw-basic-form-section" aria-labelledby="basicFloatPlanStopsTitle">
                         <div class="fpw-basic-form-heading">
-                            <h3 id="basicFloatPlanStopsTitle">Waypoints and people</h3>
-                            <p>Select up to 2 saved waypoints and enter one notification contact.</p>
+                            <h3 id="basicFloatPlanStopsTitle">Passengers and notification</h3>
+                            <p>Passengers are optional. Enter one notification contact.</p>
                         </div>
                         <div class="row">
-                            <div class="col-lg-4 mb-3">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <label class="form-label mb-0">Waypoints</label>
-                                    <span class="fpw-basic-count" id="basicSelectedWaypointCount">0 / 2</span>
-                                </div>
-                                <div class="fpw-basic-options-list" id="basicWaypointOptions" aria-describedby="basicWaypointHelp">
-                                    <p class="fpw-basic-options-empty">Loading waypoints...</p>
-                                </div>
-                                <p class="form-text" id="basicWaypointHelp">Use the setup tile below if you need to add saved locations first.</p>
-                            </div>
-                            <div class="col-lg-4 mb-3">
+                            <div class="col-lg-6 mb-3">
                                 <label class="form-label">Passengers</label>
                                 <div class="fpw-basic-options-list" id="basicPassengerOptions">
                                     <p class="fpw-basic-options-empty">Loading passengers...</p>
                                 </div>
                             </div>
-                            <div class="col-lg-4 mb-3">
+                            <div class="col-lg-6 mb-3">
                                 <label class="form-label" for="basicContactName">Notification contact name *</label>
                                 <input type="text" class="form-control mb-2" id="basicContactName" maxlength="255" required>
                                 <label class="form-label" for="basicContactEmail">Notification contact email *</label>
