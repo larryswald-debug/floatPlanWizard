@@ -4,14 +4,56 @@
 
   console.log("api.js loaded OK");
 
-  // Compute API base dynamically. If the app is served under a first
-  // path segment (e.g. "/fpw"), use that. Allow an explicit override
-  // via `window.FPW_API_BASE` for environments where detection fails.
+  function normalizeBasePath(value) {
+    if (!value) return "";
+    var normalized = String(value).replace(/\/+$/, "");
+    if (normalized === "/") return "";
+    if (/^https?:\/\//i.test(normalized)) return normalized;
+    return normalized.charAt(0) === "/" ? normalized : "/" + normalized;
+  }
+
+  function getScriptBasePath(fileName) {
+    var script = document.currentScript;
+    if (!script || !script.getAttribute) return "";
+
+    var src = script.getAttribute("src") || "";
+    if (!src) return "";
+
+    var anchor = document.createElement("a");
+    anchor.href = src;
+
+    var scriptPath = anchor.pathname || src;
+    var marker = "/assets/js/app/" + fileName;
+    var markerIndex = scriptPath.toLowerCase().indexOf(marker.toLowerCase());
+
+    if (markerIndex === -1) return "";
+    return normalizeBasePath(scriptPath.slice(0, markerIndex));
+  }
+
+  function getLocationBasePath() {
+    var basePath = window.location.pathname || "";
+    basePath = basePath.replace(/[?#].*$/, "");
+    basePath = basePath.replace(/\/api\/v1(\/.*)?$/i, "");
+    basePath = basePath.replace(/\/(app|admin|assets|tests)(\/.*)?$/i, "");
+    basePath = basePath.replace(/\/[^/]*\.(cfm|cfc)$/i, "");
+    basePath = basePath.replace(/\/$/, "");
+    return normalizeBasePath(basePath);
+  }
+
+  // Compute API base dynamically. Prefer the server-provided base values,
+  // then derive the mount from this script path, then fall back to location.
   var API_BASE = (function () {
-    if (window.FPW_API_BASE) return window.FPW_API_BASE;
-    var firstSegment = (window.location.pathname.split('/')[1] || "");
-    var prefix = firstSegment ? "/" + firstSegment : "";
-    return prefix + "/api/v1";
+    var configuredApiBase = normalizeBasePath(window.FPW_API_BASE);
+    if (configuredApiBase) return configuredApiBase;
+
+    if (Object.prototype.hasOwnProperty.call(window, "FPW_BASE")) {
+      return normalizeBasePath(window.FPW_BASE) + "/api/v1";
+    }
+
+    var scriptBasePath = getScriptBasePath("api.js");
+    if (scriptBasePath) return scriptBasePath + "/api/v1";
+
+    return getLocationBasePath() + "/api/v1";
   })();
   var API_ROOT = API_BASE.replace(/\/v1$/, "");
 

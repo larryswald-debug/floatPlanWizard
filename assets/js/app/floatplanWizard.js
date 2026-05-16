@@ -3,7 +3,49 @@
 (function (window, document, Vue) {
   "use strict";
 
-  var BASE_PATH = window.FPW_BASE || "";
+  function normalizeBasePath(value) {
+    if (!value) return "";
+    var normalized = String(value).replace(/\/+$/, "");
+    if (normalized === "/") return "";
+    if (/^https?:\/\//i.test(normalized)) return normalized;
+    return normalized.charAt(0) === "/" ? normalized : "/" + normalized;
+  }
+
+  function getScriptBasePath(fileName) {
+    var script = document.currentScript;
+    if (!script || !script.getAttribute) return "";
+
+    var src = script.getAttribute("src") || "";
+    if (!src) return "";
+
+    var anchor = document.createElement("a");
+    anchor.href = src;
+
+    var scriptPath = anchor.pathname || src;
+    var marker = "/assets/js/app/" + fileName;
+    var markerIndex = scriptPath.toLowerCase().indexOf(marker.toLowerCase());
+
+    if (markerIndex === -1) return "";
+    return normalizeBasePath(scriptPath.slice(0, markerIndex));
+  }
+
+  function getLocationBasePath() {
+    var basePath = window.location.pathname || "";
+    basePath = basePath.replace(/[?#].*$/, "");
+    basePath = basePath.replace(/\/api\/v1(\/.*)?$/i, "");
+    basePath = basePath.replace(/\/(app|admin|assets|tests)(\/.*)?$/i, "");
+    basePath = basePath.replace(/\/[^/]*\.(cfm|cfc)$/i, "");
+    basePath = basePath.replace(/\/$/, "");
+    return normalizeBasePath(basePath);
+  }
+
+  var BASE_PATH = (function () {
+    if (Object.prototype.hasOwnProperty.call(window, "FPW_BASE")) {
+      return normalizeBasePath(window.FPW_BASE);
+    }
+
+    return getScriptBasePath("floatplanWizard.js") || getLocationBasePath();
+  })();
 
   if (!Vue) {
     console.error("Vue is required for the float plan wizard.");
@@ -177,8 +219,7 @@
   }
 
   function getAppPrefix() {
-    var firstSegment = (window.location.pathname.split("/")[1] || "");
-    return firstSegment ? "/" + firstSegment : "";
+    return BASE_PATH;
   }
 
   function buildPdfPreviewUrl(fileName, cacheBust) {
@@ -1738,4 +1779,3 @@
     initWizard({ mountEl: autoMountEl });
   }
 })(window, document, window.Vue);
-
