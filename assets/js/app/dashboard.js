@@ -4233,7 +4233,6 @@
       if (!currentGroup) html += '<div class="fpw-route-detail-actions">';
       if (currentState === "ACTIVE" && currentGroup) {
         html += showActiveCruiseAction ? '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-active-cruise">Open Active Cruise</button>' : "";
-        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">View Route</button>';
         html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">Edit Route</button>';
         html += showTripPageAction ? '<button type="button" class="fpw-route-workspace-btn js-expedition-trip-page">Follow Page</button>' : "";
         html += '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--danger js-expedition-plan-cancel" data-action="cancel" data-plan-id="' + currentGroup.floatPlanId + '">Cancel</button>';
@@ -4241,12 +4240,10 @@
         html += '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '">View &amp; Send Float Plan</button>';
         html += '<button type="button" class="fpw-route-workspace-btn js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '">Edit Float Plan</button>';
         html += showActivateRouteAction ? '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-build-floatplans">Activate Route</button>' : "";
-        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">View Route</button>';
         html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">Edit Route</button>';
         html += '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--danger js-expedition-delete">Delete</button>';
       } else {
         html += showActivateRouteAction ? '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-build-floatplans">Activate Route</button>' : "";
-        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">View Route</button>';
         html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">Edit Route</button>';
         html += '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--danger js-expedition-delete">Delete</button>';
       }
