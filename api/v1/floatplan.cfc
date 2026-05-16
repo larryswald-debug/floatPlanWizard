@@ -6230,19 +6230,9 @@
                 return result;
             }
 
-            var timeQuery = queryExecute("
-                SELECT
-                    NOW() AS nowLocal,
-                    COALESCE(
-                        CONVERT_TZ(:returnTime, NULLIF(:returnTz, ''), @@session.time_zone),
-                        :returnTime
-                    ) AS returnLocal
-            ", {
-                returnTime = { value = plan.RETURN_TIME, cfsqltype = "cf_sql_timestamp" },
-                returnTz = { value = plan.RETURN_TIMEZONE, cfsqltype = "cf_sql_varchar", null = NOT len(plan.RETURN_TIMEZONE) }
-            }, { datasource = ds });
-            var nowLocal = timeQuery.nowLocal[1];
-            var returnLocal = timeQuery.returnLocal[1];
+            var returnComparison = getReturnTimeComparisonValues(plan.RETURN_TIME, plan.RETURN_TIMEZONE);
+            var nowLocal = returnComparison.nowValue;
+            var returnLocal = returnComparison.returnValue;
 
             if (dateCompare(nowLocal, returnLocal) GTE 0) {
                 result.ERROR = "RETURN_TIME_PAST";
@@ -6481,19 +6471,9 @@
                 return result;
             }
 
-            var timeQuery = queryExecute("
-                SELECT
-                    NOW() AS nowLocal,
-                    COALESCE(
-                        CONVERT_TZ(:returnTime, NULLIF(:returnTz, ''), @@session.time_zone),
-                        :returnTime
-                    ) AS returnLocal
-            ", {
-                returnTime = { value = plan.RETURN_TIME, cfsqltype = "cf_sql_timestamp" },
-                returnTz = { value = plan.RETURN_TIMEZONE, cfsqltype = "cf_sql_varchar", null = NOT len(plan.RETURN_TIMEZONE) }
-            }, { datasource = "fpw" });
-            var nowLocal = timeQuery.nowLocal[1];
-            var returnLocal = timeQuery.returnLocal[1];
+            var returnComparison = getReturnTimeComparisonValues(plan.RETURN_TIME, plan.RETURN_TIMEZONE);
+            var nowLocal = returnComparison.nowValue;
+            var returnLocal = returnComparison.returnValue;
 
             if (dateCompare(nowLocal, returnLocal) GTE 0) {
                 result.ERROR = "RETURN_TIME_PAST";
@@ -6856,6 +6836,9 @@
         <cfargument name="value" required="true">
         <cfscript>
             var normalized = trim(toString(arguments.value));
+            if (isDate(arguments.value)) {
+                return dateFormat(arguments.value, "yyyy-mm-dd") & " " & timeFormat(arguments.value, "HH:mm:ss");
+            }
             if (NOT len(normalized)) {
                 return "";
             }
@@ -6874,21 +6857,27 @@
         <cfargument name="datasource" type="string" required="true">
         <cfscript>
             var normalizedInput = normalizeTimestampInput(arguments.localDateTime);
+            var localDateTimeValue = "";
+            var sourceZone = "";
+            var utcZone = "";
+            var utcLocalDateTime = "";
             if (NOT len(normalizedInput) OR NOT len(trim(arguments.sourceTimeZone))) {
                 return "";
             }
 
-            var qUtc = queryExecute("
-                SELECT CONVERT_TZ(:localDateTime, :sourceTimeZone, 'UTC') AS utcDateTime
-            ", {
-                localDateTime = { value = normalizedInput, cfsqltype = "cf_sql_timestamp" },
-                sourceTimeZone = { value = trim(arguments.sourceTimeZone), cfsqltype = "cf_sql_varchar" }
-            }, { datasource = arguments.datasource });
-
-            if (qUtc.recordCount EQ 0 OR isNull(qUtc.utcDateTime[1])) {
+            localDateTimeValue = parseJavaLocalDateTime(normalizedInput);
+            sourceZone = resolveJavaZoneId(arguments.sourceTimeZone);
+            utcZone = resolveJavaZoneId("UTC");
+            if (isSimpleValue(localDateTimeValue) OR isSimpleValue(sourceZone) OR isSimpleValue(utcZone)) {
                 return "";
             }
-            return qUtc.utcDateTime[1];
+
+            try {
+                utcLocalDateTime = localDateTimeValue.atZone(sourceZone).withZoneSameInstant(utcZone).toLocalDateTime();
+                return createObject("java", "java.sql.Timestamp").valueOf(utcLocalDateTime);
+            } catch (any convertError) {
+                return "";
+            }
         </cfscript>
     </cffunction>
 
@@ -6897,21 +6886,107 @@
         <cfargument name="targetTimeZone" type="string" required="true">
         <cfargument name="datasource" type="string" required="true">
         <cfscript>
+            var utcLocalDateTime = "";
+            var targetZone = "";
+            var utcZone = "";
+            var targetLocalDateTime = "";
             if (!isDate(arguments.utcDateTime) OR NOT len(trim(arguments.targetTimeZone))) {
                 return arguments.utcDateTime;
             }
 
-            var qLocal = queryExecute("
-                SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
-            ", {
-                utcDateTime = { value = arguments.utcDateTime, cfsqltype = "cf_sql_timestamp" },
-                targetTimeZone = { value = trim(arguments.targetTimeZone), cfsqltype = "cf_sql_varchar" }
-            }, { datasource = arguments.datasource });
-
-            if (qLocal.recordCount EQ 0 OR isNull(qLocal.localDateTime[1])) {
+            utcLocalDateTime = parseJavaLocalDateTime(arguments.utcDateTime);
+            targetZone = resolveJavaZoneId(arguments.targetTimeZone);
+            utcZone = resolveJavaZoneId("UTC");
+            if (isSimpleValue(utcLocalDateTime) OR isSimpleValue(targetZone) OR isSimpleValue(utcZone)) {
                 return arguments.utcDateTime;
             }
-            return qLocal.localDateTime[1];
+
+            try {
+                targetLocalDateTime = utcLocalDateTime.atZone(utcZone).withZoneSameInstant(targetZone).toLocalDateTime();
+                return createObject("java", "java.sql.Timestamp").valueOf(targetLocalDateTime);
+            } catch (any convertError) {
+                return arguments.utcDateTime;
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="parseJavaLocalDateTime" access="private" returntype="any" output="false">
+        <cfargument name="value" required="true">
+        <cfscript>
+            var normalized = normalizeTimestampInput(arguments.value);
+            var formatter = "";
+            if (NOT len(normalized)) {
+                return "";
+            }
+
+            try {
+                formatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("yyyy-MM-dd HH:mm:ss");
+                return createObject("java", "java.time.LocalDateTime").parse(normalized, formatter);
+            } catch (any parseError) {
+                return "";
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveJavaZoneId" access="private" returntype="any" output="false">
+        <cfargument name="timeZoneId" type="string" required="true">
+        <cfscript>
+            var zoneId = trim(arguments.timeZoneId);
+            if (NOT len(zoneId)) {
+                return "";
+            }
+
+            try {
+                return createObject("java", "java.time.ZoneId").of(zoneId);
+            } catch (any zoneError) {
+                return "";
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="currentTimestampForTimeZone" access="private" returntype="any" output="false">
+        <cfargument name="timeZoneId" type="string" required="true">
+        <cfscript>
+            var zoneId = resolveJavaZoneId(arguments.timeZoneId);
+            var localNow = "";
+            if (isSimpleValue(zoneId)) {
+                return "";
+            }
+
+            try {
+                localNow = createObject("java", "java.time.ZonedDateTime").now(zoneId).toLocalDateTime();
+                return createObject("java", "java.sql.Timestamp").valueOf(localNow);
+            } catch (any nowError) {
+                return "";
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getReturnTimeComparisonValues" access="private" returntype="struct" output="false">
+        <cfargument name="returnTime" required="true">
+        <cfargument name="returnTimeZone" type="string" required="false" default="">
+        <cfscript>
+            var comparison = {
+                nowValue = now(),
+                returnValue = arguments.returnTime
+            };
+            var returnTimeZoneVal = trim(arguments.returnTimeZone);
+            var returnTimeUtc = "";
+            var nowUtc = "";
+
+            if (len(returnTimeZoneVal)) {
+                returnTimeUtc = toUtcTimestamp(
+                    localDateTime = arguments.returnTime,
+                    sourceTimeZone = returnTimeZoneVal,
+                    datasource = "fpw"
+                );
+                nowUtc = currentTimestampForTimeZone("UTC");
+                if (isDate(returnTimeUtc) AND isDate(nowUtc)) {
+                    comparison.nowValue = nowUtc;
+                    comparison.returnValue = returnTimeUtc;
+                }
+            }
+            return comparison;
         </cfscript>
     </cffunction>
 
@@ -7149,7 +7224,6 @@
         <cfscript>
             var result = { trip_started = true };
             var comparisonNow = "";
-            var qNow = queryNew("");
             var timeZoneId = trim(arguments.departureTimeZone);
             var storedTimeZoneId = uCase(trim(arguments.storedDepartureTimeZone));
 
@@ -7158,25 +7232,9 @@
             }
 
             if (storedTimeZoneId EQ "UTC") {
-                qNow = queryExecute(
-                    "SELECT UTC_TIMESTAMP() AS comparisonNow",
-                    {},
-                    { datasource = arguments.datasource }
-                );
-                if (qNow.recordCount GT 0 AND !isNull(qNow.comparisonNow[1]) AND isDate(qNow.comparisonNow[1])) {
-                    comparisonNow = qNow.comparisonNow[1];
-                }
+                comparisonNow = currentTimestampForTimeZone("UTC");
             } else if (len(timeZoneId)) {
-                qNow = queryExecute(
-                    "SELECT CONVERT_TZ(UTC_TIMESTAMP(), 'UTC', :targetTimeZone) AS comparisonNow",
-                    {
-                        targetTimeZone = { value = timeZoneId, cfsqltype = "cf_sql_varchar" }
-                    },
-                    { datasource = arguments.datasource }
-                );
-                if (qNow.recordCount GT 0 AND !isNull(qNow.comparisonNow[1]) AND isDate(qNow.comparisonNow[1])) {
-                    comparisonNow = qNow.comparisonNow[1];
-                }
+                comparisonNow = currentTimestampForTimeZone(timeZoneId);
             }
 
             if (!isDate(comparisonNow)) {

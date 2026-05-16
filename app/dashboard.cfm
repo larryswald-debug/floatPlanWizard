@@ -13,6 +13,7 @@
 </head>
 <body class="dashboard-body" data-fpw-page="dashboard">
 
+<cfset request.fpwTopNavActive = "dashboard">
 <cfinclude template="../includes/top_nav.cfm">
 
 
@@ -409,7 +410,7 @@
                     <div class="small text-muted mt-1">Tip: drag the marker or click the map to reposition.</div>
                     <div class="mb-3 mt-3">
                         <label class="form-label" for="waypointName">Name *</label>
-                        <input type="text" class="form-control" id="waypointName" required>
+                        <input type="text" class="form-control" id="waypointName" maxlength="45" required>
                         <div class="invalid-feedback" id="waypointNameError"></div>
                     </div>
                     <div class="row">

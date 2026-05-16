@@ -12,6 +12,7 @@
 
 <body class="dashboard-body account-body">
 
+<cfset request.fpwTopNavActive = "account">
 <cfinclude template="../includes/top_nav.cfm">
 
 <div class="account-main pb-5">

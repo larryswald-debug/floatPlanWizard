@@ -97,7 +97,68 @@ component extends="testbox.system.BaseSpec" output="false" {
 	        expect(trim(qDetails.notification_contact_email[1])).toBe("basic-operational-" & fixtures.suffix & "@example.com");
 	        expect(qAuthority.recordCount).toBe(1);
 	        expect(trim(qDetails.authority_phone_snapshot[1])).toBe(trim(qAuthority.rcPhone[1]));
-	        expect(val(qContacts.contact_count[1])).toBe(0);
+        expect(val(qContacts.contact_count[1])).toBe(0);
+      });
+
+      it("saves and sends Basic operational float plans with an IANA timezone", function() {
+        var userId = nextTestUserId();
+        var fixtures = createFixtures(userId, 1);
+        var payload = buildBasicPayload(
+          fixtures = fixtures,
+          waypointIds = fixtures.waypointIds,
+          departureAt = dateAdd("h", 8, now()),
+          returnAt = dateAdd("h", 10, now()),
+          timeZone = "America/New_York"
+        );
+
+        var saveRes = postAsUser(userId, "/api/v1/floatplan.cfc?method=handle&action=savebasic", payload);
+        expect(saveRes.SUCCESS).toBeTrue("savebasic with America/New_York failed: " & serializeJSON(saveRes));
+
+        var planId = val(saveRes.FLOATPLANID);
+        var qPlan = queryExecute(
+          "SELECT departTimezone, departureTZ, returnTimezone, returnTZ
+             FROM floatplans
+            WHERE floatplanId = :planId
+              AND userId = :userId",
+          {
+            planId = { value = planId, cfsqltype = "cf_sql_integer" },
+            userId = { value = userId, cfsqltype = "cf_sql_integer" }
+          },
+          { datasource = "fpw" }
+        );
+        expect(qPlan.recordCount).toBe(1);
+        expect(trim(qPlan.departTimezone[1])).toBe("UTC");
+        expect(trim(qPlan.departureTZ[1])).toBe("America/New_York");
+        expect(trim(qPlan.returnTimezone[1])).toBe("UTC");
+        expect(trim(qPlan.returnTZ[1])).toBe("America/New_York");
+
+        var sendRes = postAsUser(userId, "/api/v1/floatplan.cfc?method=handle&action=sendbasic", {
+          action = "sendbasic",
+          floatPlanId = planId
+        });
+        expect(sendRes.SUCCESS).toBeTrue("sendbasic with America/New_York failed: " & serializeJSON(sendRes));
+      });
+
+      it("rejects sending a Basic operational float plan with an IANA timezone return time in the past", function() {
+        var userId = nextTestUserId();
+        var fixtures = createFixtures(userId, 1);
+        var payload = buildBasicPayload(
+          fixtures = fixtures,
+          waypointIds = fixtures.waypointIds,
+          departureAt = dateAdd("h", -26, now()),
+          returnAt = dateAdd("h", -24, now()),
+          timeZone = "America/New_York"
+        );
+
+        var saveRes = postAsUser(userId, "/api/v1/floatplan.cfc?method=handle&action=savebasic", payload);
+        expect(saveRes.SUCCESS).toBeTrue("past savebasic with America/New_York failed: " & serializeJSON(saveRes));
+
+        var sendRes = postAsUser(userId, "/api/v1/floatplan.cfc?method=handle&action=sendbasic", {
+          action = "sendbasic",
+          floatPlanId = val(saveRes.FLOATPLANID)
+        });
+        expect(sendRes.SUCCESS).toBeFalse(serializeJSON(sendRes));
+        expect(sendRes.ERROR).toBe("RETURN_TIME_PAST");
       });
 
       it("returns empty Basic current state when no Basic operational plan exists", function() {
@@ -724,7 +785,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     };
   }
 
-	  private struct function buildBasicPayload(required struct fixtures, required array waypointIds, required any departureAt, required any returnAt) {
+	  private struct function buildBasicPayload(required struct fixtures, required array waypointIds, required any departureAt, required any returnAt, string timeZone = "+00:00") {
 	    var waypoints = [];
 	    var i = 0;
 	    var authority = getFirstRescueAuthority();
@@ -750,10 +811,10 @@ component extends="testbox.system.BaseSpec" output="false" {
 	        rescueAuthorityPhone = "555-0199",
 	        departingFrom = "Test Marina",
 	        departureTime = dtString(arguments.departureAt),
-	        departureTimezone = "+00:00",
+	        departureTimezone = arguments.timeZone,
         returningTo = "Test Marina",
         returnTime = dtString(arguments.returnAt),
-        returnTimezone = "+00:00",
+	        returnTimezone = arguments.timeZone,
         foodDaysPerPerson = "1",
         waterDaysPerPerson = "1",
         notes = "Basic operational test",

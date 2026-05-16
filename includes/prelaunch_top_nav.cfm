@@ -102,7 +102,7 @@ topNavIsProduction = !len(topNavBasePath)
                 <span aria-hidden="true">&##8964;</span>
               </summary>
               <div class="fpw-nav-dropdown__menu" aria-label="Tools menu">
-                <a href="#topNavBasePath#/boat-fuel-calculator/">
+                <a href="#topNavBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm">
                   <span class="fpw-nav-dropdown__item-title">Fuel Calculator</span>
                   <span class="fpw-nav-dropdown__item-copy">Estimate route fuel before you leave.</span>
                 </a>

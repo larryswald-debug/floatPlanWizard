@@ -396,6 +396,201 @@
   border-color: rgba(41, 244, 231, 0.75);
 }
 
+.fpw-member-site-header .fpw-nav-shell {
+  background: rgba(2, 10, 18, 0.54);
+}
+
+.fpw-member-site-header .fpw-nav-inner {
+  grid-template-columns: minmax(300px, 1fr) auto auto;
+  padding: 14px 0;
+  gap: clamp(1rem, 1.8vw, 1.9rem);
+}
+
+.fpw-member-site-header .fpw-brand__name {
+  font-size: clamp(1.35rem, 1.8vw, 1.75rem);
+  letter-spacing: 0;
+}
+
+.fpw-member-site-header .fpw-brand__tagline {
+  color: rgba(41, 244, 231, 0.88);
+  font-size: 0.72rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.fpw-member-primary-nav {
+  gap: 0;
+}
+
+.fpw-member-primary-nav__row {
+  gap: 0.3rem;
+  padding: 0.28rem;
+  border: 1px solid rgba(142, 203, 219, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.fpw-member-nav-link,
+.fpw-member-action-link {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0 0.95rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  letter-spacing: 0;
+  text-decoration: none;
+}
+
+.fpw-member-nav-link:hover,
+.fpw-member-nav-link:focus-visible,
+.fpw-member-action-link:hover,
+.fpw-member-action-link:focus-visible {
+  color: #34fff1;
+  background: rgba(35, 215, 207, 0.08);
+  border-color: rgba(33, 243, 238, 0.22);
+  text-decoration: none;
+}
+
+.fpw-member-nav-link.is-active,
+.fpw-member-action-link.is-active {
+  color: #06111c;
+  background: #34fff1;
+  border-color: rgba(127, 252, 246, 0.9);
+  text-shadow: none;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.18) inset,
+    0 0 20px rgba(33, 243, 238, 0.28);
+}
+
+.fpw-member-actions {
+  gap: 0.7rem;
+}
+
+.fpw-member-account-link {
+  color: rgba(247, 251, 255, 0.94);
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(142, 203, 219, 0.18);
+}
+
+.fpw-member-avatar {
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 26px;
+  color: #06111c;
+  background: #34fff1;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.fpw-member-logout-link {
+  color: rgba(229, 239, 245, 0.82);
+  background: rgba(2, 10, 18, 0.32);
+  border-color: rgba(161, 194, 211, 0.28);
+}
+
+.fpw-member-logout-link:hover,
+.fpw-member-logout-link:focus-visible {
+  color: #ffffff;
+  border-color: rgba(161, 194, 211, 0.48);
+  background: rgba(255, 255, 255, 0.055);
+  box-shadow: 0 0 18px rgba(161, 194, 211, 0.1);
+}
+
+.fpw-member-mobile-only,
+.fpw-member-site-header .fpw-member-grid-button {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .fpw-member-site-header .fpw-nav-shell {
+    min-height: auto;
+  }
+
+  .fpw-member-site-header .fpw-nav-inner {
+    width: min(calc(100% - 28px), var(--fpw-public-layout-max));
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.85rem;
+    padding-block: 14px;
+  }
+
+  .fpw-member-site-header .fpw-brand {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .fpw-member-site-header .fpw-brand__mark {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+
+  .fpw-member-site-header .fpw-brand__name {
+    font-size: 1.45rem;
+    line-height: 1;
+  }
+
+  .fpw-member-site-header .fpw-brand__tagline {
+    font-size: 0.68rem;
+    white-space: normal;
+  }
+
+  .fpw-member-site-header .fpw-primary-nav {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+
+  .fpw-member-site-header .fpw-primary-nav__row {
+    gap: 0.5rem;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .fpw-member-site-header .fpw-primary-nav__row > .fpw-member-nav-link {
+    width: 100%;
+    min-height: 46px;
+    justify-content: space-between;
+    padding: 0.78rem 0.9rem;
+    border: 1px solid rgba(142, 203, 219, 0.14);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.035);
+  }
+
+  .fpw-member-site-header .fpw-member-nav-link.is-active {
+    color: #06111c;
+    background: #34fff1;
+  }
+
+  .fpw-member-site-header .fpw-nav-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.65rem;
+  }
+
+  .fpw-member-site-header .fpw-member-action-link {
+    display: none;
+  }
+
+  .fpw-member-site-header .fpw-member-mobile-only,
+  .fpw-member-site-header .fpw-member-grid-button {
+    display: flex;
+  }
+
+  .fpw-member-site-header .fpw-member-grid-button {
+    display: grid;
+  }
+}
 @media (max-width: 1280px) {
   .fpw-nav-inner {
     grid-template-columns: minmax(290px, 1fr) auto auto;
