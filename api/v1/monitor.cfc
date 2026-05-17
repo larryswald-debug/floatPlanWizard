@@ -1849,22 +1849,18 @@
         <cfargument name="utcDateTime" required="true">
         <cfargument name="timeZoneId" type="string" required="true">
         <cfscript>
-            var qLocal = queryNew("");
-            if (!isDate(arguments.utcDateTime) OR !len(trim(arguments.timeZoneId))) {
+            var normalizedTz = normalizeMonitorTimeZoneId(arguments.timeZoneId);
+            var localStamp = "";
+            if (!isDate(arguments.utcDateTime) OR !len(normalizedTz)) {
                 return "";
             }
-            qLocal = queryExecute(
-                "SELECT CONVERT_TZ(:utcDateTime, 'UTC', :timeZoneId) AS localDateTime",
-                {
-                    utcDateTime = { value = arguments.utcDateTime, cfsqltype = "cf_sql_timestamp" },
-                    timeZoneId = { value = trim(arguments.timeZoneId), cfsqltype = "cf_sql_varchar" }
-                },
-                { datasource = variables.datasource }
-            );
-            if (qLocal.recordCount EQ 0 OR isNull(qLocal.localDateTime[1])) {
+
+            localStamp = formatUtcWallTimeForMonitorZone(arguments.utcDateTime, normalizedTz);
+            if (!len(localStamp)) {
                 return "";
             }
-            return qLocal.localDateTime[1];
+
+            return parseMonitorDateTime(localStamp);
         </cfscript>
     </cffunction>
 
@@ -1872,22 +1868,137 @@
         <cfargument name="localDateTime" required="true">
         <cfargument name="timeZoneId" type="string" required="true">
         <cfscript>
-            var qUtc = queryNew("");
-            if (!isDate(arguments.localDateTime) OR !len(trim(arguments.timeZoneId))) {
+            var normalizedTz = normalizeMonitorTimeZoneId(arguments.timeZoneId);
+            var targetLocalStamp = normalizeMonitorTimestamp(arguments.localDateTime);
+            var targetLocal = "";
+            var matches = [];
+            var matchKeys = {};
+            var offsetMinutes = 0;
+            var candidateUtc = "";
+            var candidateKey = "";
+            var candidateLocalStamp = "";
+
+            if (!len(targetLocalStamp) OR !len(normalizedTz)) {
                 return "";
             }
-            qUtc = queryExecute(
-                "SELECT CONVERT_TZ(:localDateTime, :timeZoneId, 'UTC') AS utcDateTime",
-                {
-                    localDateTime = { value = arguments.localDateTime, cfsqltype = "cf_sql_timestamp" },
-                    timeZoneId = { value = trim(arguments.timeZoneId), cfsqltype = "cf_sql_varchar" }
-                },
-                { datasource = variables.datasource }
-            );
-            if (qUtc.recordCount EQ 0 OR isNull(qUtc.utcDateTime[1])) {
+
+            targetLocal = parseMonitorDateTime(targetLocalStamp);
+            if (!isDate(targetLocal)) {
                 return "";
             }
-            return qUtc.utcDateTime[1];
+
+            if (normalizedTz EQ "UTC") {
+                return targetLocal;
+            }
+
+            for (offsetMinutes = -840; offsetMinutes <= 840; offsetMinutes += 15) {
+                candidateUtc = dateAdd("n", -offsetMinutes, targetLocal);
+                candidateKey = normalizeMonitorTimestamp(candidateUtc);
+                candidateLocalStamp = formatUtcWallTimeForMonitorZone(candidateUtc, normalizedTz);
+                if (len(candidateLocalStamp) AND candidateLocalStamp EQ targetLocalStamp AND !structKeyExists(matchKeys, candidateKey)) {
+                    matchKeys[candidateKey] = true;
+                    arrayAppend(matches, candidateUtc);
+                }
+            }
+
+            if (arrayLen(matches) NEQ 1) {
+                return "";
+            }
+
+            return matches[1];
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeMonitorTimeZoneId" access="private" returntype="string" output="false">
+        <cfargument name="timeZoneId" type="string" required="true">
+        <cfscript>
+            var tz = trim(arguments.timeZoneId);
+            if (!len(tz)) {
+                return "";
+            }
+            if (listFindNoCase("UTC,Etc/UTC,GMT,+00:00", tz)) {
+                return "UTC";
+            }
+            if (compareNoCase(tz, "US/Eastern") EQ 0) {
+                return "America/New_York";
+            }
+            if (compareNoCase(tz, "US/Central") EQ 0) {
+                return "America/Chicago";
+            }
+            if (compareNoCase(tz, "US/Mountain") EQ 0) {
+                return "America/Denver";
+            }
+            if (compareNoCase(tz, "US/Pacific") EQ 0) {
+                return "America/Los_Angeles";
+            }
+            if (compareNoCase(tz, "US/Alaska") EQ 0) {
+                return "America/Anchorage";
+            }
+            if (compareNoCase(tz, "US/Hawaii") EQ 0) {
+                return "Pacific/Honolulu";
+            }
+            return tz;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeMonitorTimestamp" access="private" returntype="string" output="false">
+        <cfargument name="value" required="true">
+        <cfscript>
+            var normalized = trim(toString(arguments.value));
+            if (isDate(arguments.value)) {
+                return dateFormat(arguments.value, "yyyy-mm-dd") & " " & timeFormat(arguments.value, "HH:mm:ss");
+            }
+            if (!len(normalized)) {
+                return "";
+            }
+            normalized = replace(normalized, "T", " ", "all");
+            normalized = reReplace(normalized, "Z$", "", "one");
+            normalized = reReplace(normalized, "([+-]\d{2}:?\d{2})$", "", "one");
+            normalized = reReplace(normalized, "\.\d+$", "", "one");
+            if (reFind("^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$", normalized)) {
+                normalized &= ":00";
+            }
+            if (!isDate(normalized)) {
+                return "";
+            }
+            return dateFormat(parseDateTime(normalized), "yyyy-mm-dd") & " " & timeFormat(parseDateTime(normalized), "HH:mm:ss");
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="parseMonitorDateTime" access="private" returntype="any" output="false">
+        <cfargument name="value" required="true">
+        <cfscript>
+            var normalized = normalizeMonitorTimestamp(arguments.value);
+            if (!len(normalized)) {
+                return "";
+            }
+            try {
+                return parseDateTime(normalized);
+            } catch (any parseError) {
+                return "";
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="formatUtcWallTimeForMonitorZone" access="private" returntype="string" output="false">
+        <cfargument name="utcDateTime" required="true">
+        <cfargument name="timeZoneId" type="string" required="true">
+        <cfscript>
+            var normalizedTz = normalizeMonitorTimeZoneId(arguments.timeZoneId);
+            var utcWallTime = parseMonitorDateTime(arguments.utcDateTime);
+            var formattingInstant = "";
+            if (!isDate(utcWallTime) OR !len(normalizedTz)) {
+                return "";
+            }
+            if (normalizedTz EQ "UTC") {
+                return normalizeMonitorTimestamp(utcWallTime);
+            }
+            try {
+                formattingInstant = dateConvert("utc2local", utcWallTime);
+                return dateTimeFormat(formattingInstant, "yyyy-mm-dd HH:nn:ss", normalizedTz);
+            } catch (any formatError) {
+                return "";
+            }
         </cfscript>
     </cffunction>
 
