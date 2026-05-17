@@ -492,7 +492,6 @@
             var actualCheckInLabel = "";
             var actualCheckInUtc = "";
             var checkedInAtVal = "";
-            var expectedCheckInDt = "";
             var checkInContextVal = "";
             var isOvernightCheckIn = false;
             var actualResumeAt = "";
@@ -675,23 +674,6 @@
                     fp.dailyStartLocalTime,
                     (
                         SELECT
-                            COALESCE(
-                                CONVERT_TZ(
-                                    m.expected_checkin_at,
-                                    'UTC',
-                                    NULLIF(COALESCE(NULLIF(fp.departureTZ, ''), NULLIF(fp.departTimezone, ''), 'UTC'), '')
-                                ),
-                                m.expected_checkin_at
-                            )
-                        FROM floatplan_monitoring m
-                        WHERE m.float_plan_id = fp.floatplanId
-                          AND m.is_monitoring_enabled = 1
-                          AND UPPER(TRIM(m.monitor_state)) <> 'CLOSED'
-                        ORDER BY m.id DESC
-                        LIMIT 1
-                    ) AS expected_checkin_at,
-                    (
-                        SELECT
                             NULLIF(UPPER(TRIM(m.monitor_state)), '')
                         FROM floatplan_monitoring m
                         WHERE m.float_plan_id = fp.floatplanId
@@ -818,9 +800,6 @@
             }
             if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
                 checkedInAtVal = qPlan.checkedInAt[1];
-            }
-            if (!isNull(qPlan.expected_checkin_at[1]) AND isDate(qPlan.expected_checkin_at[1])) {
-                expectedCheckInDt = qPlan.expected_checkin_at[1];
             }
             hasOperationalCheckIn = (tripStarted AND isDate(checkedInAtVal));
             if (hasOperationalCheckIn AND isDate(scheduledDepartureRawDt)) {
@@ -1595,7 +1574,6 @@
             var statusLabel = "Status Unavailable";
             var statusVariant = "good";
             var checkedInAtVal = "";
-            var expectedCheckInDt = "";
             var actualCheckInLabel = "";
             var actualCheckInUtc = "";
             var checkInContextVal = "";
@@ -1708,23 +1686,6 @@
                         ORDER BY m.id DESC
                         LIMIT 1
                     ) AS last_checkin_status,
-                    (
-                        SELECT
-                            COALESCE(
-                                CONVERT_TZ(
-                                    m.expected_checkin_at,
-                                    'UTC',
-                                    NULLIF(COALESCE(NULLIF(floatplans.departureTZ, ''), NULLIF(floatplans.departTimezone, ''), 'UTC'), '')
-                                ),
-                                m.expected_checkin_at
-                            )
-                        FROM floatplan_monitoring m
-                        WHERE m.float_plan_id = floatplans.floatplanId
-                          AND m.is_monitoring_enabled = 1
-                          AND UPPER(TRIM(m.monitor_state)) <> 'CLOSED'
-                        ORDER BY m.id DESC
-                        LIMIT 1
-                    ) AS expected_checkin_at,
                     overnight_pause_minutes_total,
                     manual_delay_minutes_total
                  FROM floatplans
@@ -1796,9 +1757,6 @@
 
             if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
                 checkedInAtVal = qPlan.checkedInAt[1];
-            }
-            if (!isNull(qPlan.expected_checkin_at[1]) AND isDate(qPlan.expected_checkin_at[1])) {
-                expectedCheckInDt = qPlan.expected_checkin_at[1];
             }
             hasOperationalCheckIn = (tripStarted AND isDate(checkedInAtVal));
             if (hasOperationalCheckIn AND isDate(scheduledDepartureRawDt)) {
