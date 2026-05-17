@@ -1569,30 +1569,7 @@
                     etaUtc = followProjectionEtaUtc;
                     etaLabel = "";
                     followProjectionEtaLocalInput = replace(replace(followProjectionEtaUtc, "T", " ", "one"), "Z", "", "one");
-                    if (len(departureTimeZoneVal) AND isDate(followProjectionEtaLocalInput)) {
-                        try {
-                            qFollowProjectionEtaLocal = queryExecute(
-                                "SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime",
-                                {
-                                    utcDateTime = { value = followProjectionEtaLocalInput, cfsqltype = "cf_sql_timestamp" },
-                                    targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
-                                },
-                                { datasource = ds }
-                            );
-                            if (
-                                qFollowProjectionEtaLocal.recordCount GT 0
-                                AND !isNull(qFollowProjectionEtaLocal.localDateTime[1])
-                                AND isDate(qFollowProjectionEtaLocal.localDateTime[1])
-                            ) {
-                                etaLabel = dateTimeFormat(qFollowProjectionEtaLocal.localDateTime[1], "mmm d, yyyy h:nn tt");
-                            }
-                        } catch (any followProjectionEtaErr) {
-                            etaLabel = "";
-                        }
-                    }
-                    if (!len(etaLabel) AND isDate(followProjectionEtaLocalInput)) {
-                        etaLabel = dateTimeFormat(followProjectionEtaLocalInput, "mmm d, yyyy h:nn tt");
-                    }
+                    etaLabel = formatVoyageUtcDisplayLabel(followProjectionEtaUtc, departureTimeZoneVal);
                 }
                 if (
                     structKeyExists(followProjection, "currentLeg")
@@ -2727,30 +2704,7 @@
                 out.legArrivalUtc = activeCruiseProjectionEtaUtc;
                 out.heroEta = "";
                 activeCruiseProjectionEtaLocalInput = replace(replace(activeCruiseProjectionEtaUtc, "T", " ", "one"), "Z", "", "one");
-                if (len(departureTimeZoneVal) AND isDate(activeCruiseProjectionEtaLocalInput)) {
-                    try {
-                        qActiveCruiseProjectionEtaLocal = queryExecute(
-                            "SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime",
-                            {
-                                utcDateTime = { value = activeCruiseProjectionEtaLocalInput, cfsqltype = "cf_sql_timestamp" },
-                                targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
-                            },
-                            { datasource = ds }
-                        );
-                        if (
-                            qActiveCruiseProjectionEtaLocal.recordCount GT 0
-                            AND !isNull(qActiveCruiseProjectionEtaLocal.localDateTime[1])
-                            AND isDate(qActiveCruiseProjectionEtaLocal.localDateTime[1])
-                        ) {
-                            out.heroEta = dateTimeFormat(qActiveCruiseProjectionEtaLocal.localDateTime[1], "mmm d, yyyy h:nn tt");
-                        }
-                    } catch (any activeCruiseProjectionEtaErr) {
-                        out.heroEta = "";
-                    }
-                }
-                if (!len(out.heroEta) AND isDate(activeCruiseProjectionEtaLocalInput)) {
-                    out.heroEta = dateTimeFormat(activeCruiseProjectionEtaLocalInput, "mmm d, yyyy h:nn tt");
-                }
+                out.heroEta = formatVoyageUtcDisplayLabel(activeCruiseProjectionEtaUtc, departureTimeZoneVal);
             }
             if (awaitingDepartureState) {
                 out.heroEta = "--";
@@ -7409,6 +7363,92 @@
                 return "";
             }
             return formatUtcDate(arguments.value);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeVoyageDisplayTimezone" access="private" returntype="string" output="false">
+        <cfargument name="timeZoneId" type="string" required="false" default="">
+        <cfscript>
+            var tz = trim(toString(arguments.timeZoneId));
+            var tzKey = uCase(tz);
+
+            if (!len(tz)) {
+                return "";
+            }
+
+            switch (tzKey) {
+                case "US/EASTERN":
+                    return "America/New_York";
+                case "US/CENTRAL":
+                    return "America/Chicago";
+                case "US/MOUNTAIN":
+                    return "America/Denver";
+                case "US/PACIFIC":
+                    return "America/Los_Angeles";
+                case "US/ALASKA":
+                    return "America/Anchorage";
+                case "US/HAWAII":
+                    return "Pacific/Honolulu";
+                case "+00:00":
+                case "UTC":
+                case "ETC/UTC":
+                case "GMT":
+                    return "UTC";
+            }
+
+            try {
+                dateTimeFormat(now(), "yyyy-mm-dd HH:nn:ss", tz);
+                return tz;
+            } catch (any invalidVoyageDisplayTimezoneErr) {
+                return "";
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="formatVoyageUtcDisplayLabel" access="private" returntype="string" output="false">
+        <cfargument name="utcValue" type="any" required="false">
+        <cfargument name="timeZoneId" type="string" required="false" default="">
+        <cfscript>
+            var tz = normalizeVoyageDisplayTimezone(arguments.timeZoneId);
+            var raw = "";
+            var normalized = "";
+            var utcDt = "";
+
+            if (!len(tz) OR isNull(arguments.utcValue)) {
+                return "";
+            }
+
+            if (isDate(arguments.utcValue)) {
+                utcDt = arguments.utcValue;
+            } else {
+                raw = trim(toString(arguments.utcValue));
+                if (!len(raw)) {
+                    return "";
+                }
+                normalized = replace(raw, "T", " ", "one");
+                if (
+                    reFindNoCase("([+-][0-9]{2}:?[0-9]{2})$", normalized)
+                    AND !reFindNoCase("([+-]00:?00)$", normalized)
+                ) {
+                    return "";
+                }
+                normalized = reReplaceNoCase(normalized, "Z$", "", "one");
+                normalized = reReplaceNoCase(normalized, "([+-]00:?00)$", "", "one");
+                normalized = reReplace(normalized, "\.[0-9]+$", "", "one");
+                if (reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$", normalized)) {
+                    normalized &= ":00";
+                }
+                if (!isDate(normalized)) {
+                    return "";
+                }
+                utcDt = parseDateTime(normalized);
+            }
+
+            try {
+                return dateTimeFormat(utcDt, "mmm d, yyyy h:nn tt", tz);
+            } catch (any voyageUtcDisplayLabelErr) {
+                return "";
+            }
         </cfscript>
     </cffunction>
 
