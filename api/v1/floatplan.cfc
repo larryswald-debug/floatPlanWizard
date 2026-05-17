@@ -2681,6 +2681,8 @@
             var returningTo     = trim(pickValue(floatPlan, ["returningTo", "RETURNING_TO"], ""));
             var returnTime      = trim(pickValue(floatPlan, ["returnTime", "RETURN_TIME"], ""));
             var returnTz        = trim(pickValue(floatPlan, ["returnTimezone", "RETURN_TIMEZONE"], ""));
+            var departureTimeUtcInput = trim(pickValue(floatPlan, ["departureTimeUtc", "DEPARTURE_TIME_UTC"], ""));
+            var returnTimeUtcInput = trim(pickValue(floatPlan, ["returnTimeUtc", "RETURN_TIME_UTC"], ""));
             var foodDays        = trim(pickValue(floatPlan, ["foodDaysPerPerson", "FOOD_DAYS_PER_PERSON"], ""));
             var waterDays       = trim(pickValue(floatPlan, ["waterDaysPerPerson", "WATER_DAYS_PER_PERSON"], ""));
             var notes           = trim(pickValue(floatPlan, ["notes", "NOTES"], ""));
@@ -2826,11 +2828,7 @@
                     result.MESSAGE = "Departure time zone is required when departure time is provided.";
                     return result;
                 }
-                departureTimeUtc = toUtcTimestamp(
-                    localDateTime = departureTime,
-                    sourceTimeZone = departureTz,
-                    datasource = ds
-                );
+                departureTimeUtc = resolvePayloadUtcTimestamp(departureTime, departureTz, departureTimeUtcInput);
                 if (NOT isDate(departureTimeUtc)) {
                     result.ERROR = "VALIDATION";
                     result.MESSAGE = "Invalid departure time or timezone.";
@@ -2845,11 +2843,7 @@
                     result.MESSAGE = "Return time zone is required when return time is provided.";
                     return result;
                 }
-                returnTimeUtc = toUtcTimestamp(
-                    localDateTime = returnTime,
-                    sourceTimeZone = returnTz,
-                    datasource = ds
-                );
+                returnTimeUtc = resolvePayloadUtcTimestamp(returnTime, returnTz, returnTimeUtcInput);
                 if (NOT isDate(returnTimeUtc)) {
                     result.ERROR = "VALIDATION";
                     result.MESSAGE = "Invalid return time or timezone.";
@@ -3125,6 +3119,8 @@
             var returningTo     = basicDetails.LAUNCH_LOCATION;
             var returnTime      = trim(pickValue(floatPlan, ["returnTime", "RETURN_TIME"], ""));
             var returnTz        = trim(pickValue(floatPlan, ["returnTimezone", "RETURN_TIMEZONE"], ""));
+            var departureTimeUtcInput = trim(pickValue(floatPlan, ["departureTimeUtc", "DEPARTURE_TIME_UTC"], ""));
+            var returnTimeUtcInput = trim(pickValue(floatPlan, ["returnTimeUtc", "RETURN_TIME_UTC"], ""));
             var foodDays        = trim(pickValue(floatPlan, ["foodDaysPerPerson", "FOOD_DAYS_PER_PERSON"], ""));
             var waterDays       = trim(pickValue(floatPlan, ["waterDaysPerPerson", "WATER_DAYS_PER_PERSON"], ""));
             var notes           = trim(pickValue(floatPlan, ["notes", "NOTES"], ""));
@@ -3221,11 +3217,7 @@
                     result.MESSAGE = "Departure time zone is required when departure time is provided.";
                     return result;
                 }
-                departureTimeUtc = toUtcTimestamp(
-                    localDateTime = departureTime,
-                    sourceTimeZone = departureTz,
-                    datasource = ds
-                );
+                departureTimeUtc = resolvePayloadUtcTimestamp(departureTime, departureTz, departureTimeUtcInput);
                 if (NOT isDate(departureTimeUtc)) {
                     result.ERROR = "VALIDATION";
                     result.MESSAGE = "Invalid departure time or timezone.";
@@ -3240,11 +3232,7 @@
                     result.MESSAGE = "Return time zone is required when return time is provided.";
                     return result;
                 }
-                returnTimeUtc = toUtcTimestamp(
-                    localDateTime = returnTime,
-                    sourceTimeZone = returnTz,
-                    datasource = ds
-                );
+                returnTimeUtc = resolvePayloadUtcTimestamp(returnTime, returnTz, returnTimeUtcInput);
                 if (NOT isDate(returnTimeUtc)) {
                     result.ERROR = "VALIDATION";
                     result.MESSAGE = "Invalid return time or timezone.";
@@ -4842,9 +4830,6 @@
             var expectedCheckInDt = "";
             var overnightResumeDt = "";
             var isOvernightPauseActive = false;
-            var resumeTimeZone = "";
-            var resumeCalendar = "";
-            var localDayStartRule = {};
             var monitoringService = {};
             var monitoringResult = {};
             var monitoringStatusVal = "";
@@ -4961,30 +4946,12 @@
             if (!len(planNameVal)) {
                 planNameVal = "Float Plan";
             }
-            localDayStartRule = loadOvernightTimingRule(dailyStartLocalTimeVal);
             isOvernightTransition = (contextVal EQ "overnight" AND currentContextVal NEQ "overnight");
-            if (currentContextVal EQ "overnight" AND isDate(storedCheckInDt) AND len(departureTimeZoneVal)) {
+            if (currentContextVal EQ "overnight" AND isDate(storedCheckInDt)) {
                 if (isDate(expectedCheckInDt)) {
                     overnightResumeDt = expectedCheckInDt;
                     if (dateCompare(now(), overnightResumeDt, "s") LT 0) {
                         isOvernightPauseActive = true;
-                    }
-                } else {
-                    try {
-                        resumeTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(departureTimeZoneVal);
-                        resumeCalendar = createObject("java", "java.util.GregorianCalendar").init(resumeTimeZone);
-                        resumeCalendar.setTime(storedCheckInDt);
-                        resumeCalendar.add(5, 1);
-                        resumeCalendar.set(11, localDayStartRule.local_day_start_hour);
-                        resumeCalendar.set(12, localDayStartRule.local_day_start_minute);
-                        resumeCalendar.set(13, localDayStartRule.local_day_start_second);
-                        resumeCalendar.set(14, localDayStartRule.local_day_start_millisecond);
-                        overnightResumeDt = resumeCalendar.getTime();
-                        if (isDate(overnightResumeDt) AND dateCompare(now(), overnightResumeDt, "s") LT 0) {
-                            isOvernightPauseActive = true;
-                        }
-                    } catch (any overnightResumeErr) {
-                        isOvernightPauseActive = false;
                     }
                 }
             }
@@ -5140,21 +5107,6 @@
                     );
                     if (qUpdatedPlan.recordCount GT 0 AND !isNull(qUpdatedPlan.checkedInAt[1]) AND isDate(qUpdatedPlan.checkedInAt[1])) {
                         updatedCheckInDt = qUpdatedPlan.checkedInAt[1];
-                        overnightPauseMinutesToAdd = computeOvernightPauseMinutes(updatedCheckInDt, departureTimeZoneVal, dailyStartLocalTimeVal);
-                        if (overnightPauseMinutesToAdd GT 0) {
-                            queryExecute(
-                                "UPDATE floatplans
-                                 SET overnight_pause_minutes_total = overnight_pause_minutes_total + :pauseMinutes
-                                 WHERE floatplanId = :planId
-                                   AND userId = :userId",
-                                {
-                                    pauseMinutes = { value = overnightPauseMinutesToAdd, cfsqltype = "cf_sql_integer" },
-                                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
-                                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
-                                },
-                                { datasource = ds }
-                            );
-                        }
                     }
                 }
 
@@ -5217,6 +5169,47 @@
                         message = "Monitoring check-in failed.",
                         detail = serializeJSON(monitoringResult)
                     );
+                }
+                if (isOvernightTransition AND isDate(updatedCheckInDt)) {
+                    qUpdatedPlan = queryExecute(
+                        "SELECT expected_checkin_at, secure_for_night_until
+                         FROM floatplan_monitoring
+                         WHERE float_plan_id = :planId
+                         LIMIT 1",
+                        {
+                            planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+                        },
+                        { datasource = ds }
+                    );
+                    if (
+                        qUpdatedPlan.recordCount GT 0
+                        AND (
+                            (!isNull(qUpdatedPlan.secure_for_night_until[1]) AND isDate(qUpdatedPlan.secure_for_night_until[1]))
+                            OR (!isNull(qUpdatedPlan.expected_checkin_at[1]) AND isDate(qUpdatedPlan.expected_checkin_at[1]))
+                        )
+                    ) {
+                        overnightResumeDt = (
+                            !isNull(qUpdatedPlan.secure_for_night_until[1])
+                            AND isDate(qUpdatedPlan.secure_for_night_until[1])
+                        )
+                            ? qUpdatedPlan.secure_for_night_until[1]
+                            : qUpdatedPlan.expected_checkin_at[1];
+                        overnightPauseMinutesToAdd = computeOvernightPauseMinutes(updatedCheckInDt, overnightResumeDt);
+                        if (overnightPauseMinutesToAdd GT 0) {
+                            queryExecute(
+                                "UPDATE floatplans
+                                 SET overnight_pause_minutes_total = overnight_pause_minutes_total + :pauseMinutes
+                                 WHERE floatplanId = :planId
+                                   AND userId = :userId",
+                                {
+                                    pauseMinutes = { value = overnightPauseMinutesToAdd, cfsqltype = "cf_sql_integer" },
+                                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                                },
+                                { datasource = ds }
+                            );
+                        }
+                    }
                 }
             }
 
@@ -5485,32 +5478,14 @@
 
     <cffunction name="computeOvernightPauseMinutes" access="private" returntype="numeric" output="false">
         <cfargument name="checkInDt" type="any" required="false">
-        <cfargument name="timeZoneId" type="string" required="false" default="">
-        <cfargument name="dailyStartLocalTime" type="string" required="false" default="">
+        <cfargument name="resumeDt" type="any" required="false">
         <cfscript>
             var pauseMinutes = 0;
-            var nextMorningResumeDt = "";
-            var resumeTimeZone = "";
-            var resumeCalendar = "";
-            var localDayStartRule = loadOvernightTimingRule(arguments.dailyStartLocalTime);
-            if (!isDate(arguments.checkInDt) OR !len(trim(arguments.timeZoneId))) {
+            if (!isDate(arguments.checkInDt) OR !isDate(arguments.resumeDt)) {
                 return 0;
             }
-            try {
-                resumeTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(trim(arguments.timeZoneId));
-                resumeCalendar = createObject("java", "java.util.GregorianCalendar").init(resumeTimeZone);
-                resumeCalendar.setTime(arguments.checkInDt);
-                resumeCalendar.add(5, 1);
-                resumeCalendar.set(11, localDayStartRule.local_day_start_hour);
-                resumeCalendar.set(12, localDayStartRule.local_day_start_minute);
-                resumeCalendar.set(13, localDayStartRule.local_day_start_second);
-                resumeCalendar.set(14, localDayStartRule.local_day_start_millisecond);
-                nextMorningResumeDt = resumeCalendar.getTime();
-                pauseMinutes = dateDiff("n", arguments.checkInDt, nextMorningResumeDt);
-                if (pauseMinutes LT 0) {
-                    pauseMinutes = 0;
-                }
-            } catch (any overnightPauseErr) {
+            pauseMinutes = dateDiff("n", arguments.checkInDt, arguments.resumeDt);
+            if (pauseMinutes LT 0) {
                 pauseMinutes = 0;
             }
             return pauseMinutes;
@@ -6843,11 +6818,43 @@
                 return "";
             }
             normalized = replace(normalized, "T", " ", "all");
+            normalized = reReplace(normalized, "Z$", "", "one");
+            normalized = reReplace(normalized, "([+-]\d{2}:?\d{2})$", "", "one");
             normalized = reReplace(normalized, "\.\d+$", "", "one");
             if (reFind("^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$", normalized)) {
                 normalized &= ":00";
             }
             return normalized;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="parseUtcTimestampInput" access="private" returntype="any" output="false">
+        <cfargument name="value" required="true">
+        <cfscript>
+            var normalizedInput = normalizeTimestampInput(arguments.value);
+            if (!len(normalizedInput) OR !isDate(normalizedInput)) {
+                return "";
+            }
+            return parseDateTime(normalizedInput);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolvePayloadUtcTimestamp" access="private" returntype="any" output="false">
+        <cfargument name="localDateTime" type="string" required="true">
+        <cfargument name="sourceTimeZone" type="string" required="true">
+        <cfargument name="clientUtcDateTime" type="string" required="false" default="">
+        <cfscript>
+            var sourceZone = uCase(trim(arguments.sourceTimeZone));
+            var clientUtc = parseUtcTimestampInput(arguments.clientUtcDateTime);
+            var normalizedLocal = normalizeTimestampInput(arguments.localDateTime);
+
+            if (isDate(clientUtc)) {
+                return clientUtc;
+            }
+            if (listFindNoCase("UTC,Etc/UTC,GMT", sourceZone) AND len(normalizedLocal) AND isDate(normalizedLocal)) {
+                return parseDateTime(normalizedLocal);
+            }
+            return "";
         </cfscript>
     </cffunction>
 
@@ -6857,27 +6864,14 @@
         <cfargument name="datasource" type="string" required="true">
         <cfscript>
             var normalizedInput = normalizeTimestampInput(arguments.localDateTime);
-            var localDateTimeValue = "";
-            var sourceZone = "";
-            var utcZone = "";
-            var utcLocalDateTime = "";
             if (NOT len(normalizedInput) OR NOT len(trim(arguments.sourceTimeZone))) {
                 return "";
             }
 
-            localDateTimeValue = parseJavaLocalDateTime(normalizedInput);
-            sourceZone = resolveJavaZoneId(arguments.sourceTimeZone);
-            utcZone = resolveJavaZoneId("UTC");
-            if (isSimpleValue(localDateTimeValue) OR isSimpleValue(sourceZone) OR isSimpleValue(utcZone)) {
+            if (!isDate(normalizedInput)) {
                 return "";
             }
-
-            try {
-                utcLocalDateTime = localDateTimeValue.atZone(sourceZone).withZoneSameInstant(utcZone).toLocalDateTime();
-                return createObject("java", "java.sql.Timestamp").valueOf(utcLocalDateTime);
-            } catch (any convertError) {
-                return "";
-            }
+            return parseDateTime(normalizedInput);
         </cfscript>
     </cffunction>
 
@@ -6886,60 +6880,13 @@
         <cfargument name="targetTimeZone" type="string" required="true">
         <cfargument name="datasource" type="string" required="true">
         <cfscript>
-            var utcLocalDateTime = "";
-            var targetZone = "";
-            var utcZone = "";
-            var targetLocalDateTime = "";
             if (!isDate(arguments.utcDateTime) OR NOT len(trim(arguments.targetTimeZone))) {
                 return arguments.utcDateTime;
             }
-
-            utcLocalDateTime = parseJavaLocalDateTime(arguments.utcDateTime);
-            targetZone = resolveJavaZoneId(arguments.targetTimeZone);
-            utcZone = resolveJavaZoneId("UTC");
-            if (isSimpleValue(utcLocalDateTime) OR isSimpleValue(targetZone) OR isSimpleValue(utcZone)) {
-                return arguments.utcDateTime;
-            }
-
             try {
-                targetLocalDateTime = utcLocalDateTime.atZone(utcZone).withZoneSameInstant(targetZone).toLocalDateTime();
-                return createObject("java", "java.sql.Timestamp").valueOf(targetLocalDateTime);
+                return parseDateTime(dateTimeFormat(arguments.utcDateTime, "yyyy-mm-dd HH:nn:ss", trim(arguments.targetTimeZone)));
             } catch (any convertError) {
                 return arguments.utcDateTime;
-            }
-        </cfscript>
-    </cffunction>
-
-    <cffunction name="parseJavaLocalDateTime" access="private" returntype="any" output="false">
-        <cfargument name="value" required="true">
-        <cfscript>
-            var normalized = normalizeTimestampInput(arguments.value);
-            var formatter = "";
-            if (NOT len(normalized)) {
-                return "";
-            }
-
-            try {
-                formatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("yyyy-MM-dd HH:mm:ss");
-                return createObject("java", "java.time.LocalDateTime").parse(normalized, formatter);
-            } catch (any parseError) {
-                return "";
-            }
-        </cfscript>
-    </cffunction>
-
-    <cffunction name="resolveJavaZoneId" access="private" returntype="any" output="false">
-        <cfargument name="timeZoneId" type="string" required="true">
-        <cfscript>
-            var zoneId = trim(arguments.timeZoneId);
-            if (NOT len(zoneId)) {
-                return "";
-            }
-
-            try {
-                return createObject("java", "java.time.ZoneId").of(zoneId);
-            } catch (any zoneError) {
-                return "";
             }
         </cfscript>
     </cffunction>
@@ -6947,15 +6894,12 @@
     <cffunction name="currentTimestampForTimeZone" access="private" returntype="any" output="false">
         <cfargument name="timeZoneId" type="string" required="true">
         <cfscript>
-            var zoneId = resolveJavaZoneId(arguments.timeZoneId);
-            var localNow = "";
-            if (isSimpleValue(zoneId)) {
-                return "";
-            }
-
+            var utcNow = dateConvert("local2utc", now());
             try {
-                localNow = createObject("java", "java.time.ZonedDateTime").now(zoneId).toLocalDateTime();
-                return createObject("java", "java.sql.Timestamp").valueOf(localNow);
+                if (listFindNoCase("UTC,Etc/UTC,GMT", trim(arguments.timeZoneId))) {
+                    return utcNow;
+                }
+                return parseDateTime(dateTimeFormat(utcNow, "yyyy-mm-dd HH:nn:ss", trim(arguments.timeZoneId)));
             } catch (any nowError) {
                 return "";
             }
@@ -6970,21 +6914,12 @@
                 nowValue = now(),
                 returnValue = arguments.returnTime
             };
-            var returnTimeZoneVal = trim(arguments.returnTimeZone);
-            var returnTimeUtc = "";
             var nowUtc = "";
 
-            if (len(returnTimeZoneVal)) {
-                returnTimeUtc = toUtcTimestamp(
-                    localDateTime = arguments.returnTime,
-                    sourceTimeZone = returnTimeZoneVal,
-                    datasource = "fpw"
-                );
-                nowUtc = currentTimestampForTimeZone("UTC");
-                if (isDate(returnTimeUtc) AND isDate(nowUtc)) {
-                    comparison.nowValue = nowUtc;
-                    comparison.returnValue = returnTimeUtc;
-                }
+            nowUtc = currentTimestampForTimeZone("UTC");
+            if (isDate(arguments.returnTime) AND isDate(nowUtc)) {
+                comparison.nowValue = nowUtc;
+                comparison.returnValue = arguments.returnTime;
             }
             return comparison;
         </cfscript>

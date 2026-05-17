@@ -62,9 +62,11 @@
 
             <cffile action="append" file="#filePath#" output="#chr(10)#SET FOREIGN_KEY_CHECKS=1;#chr(10)#" charset="utf-8">
 
-            <cfset fileObj = createObject("java", "java.io.File").init(filePath)>
-            <cfset sizeBytes = javacast("long", fileObj.length())>
-            <cfset readable = fileObj.exists() AND fileObj.isFile() AND fileObj.canRead() AND sizeBytes GT 0>
+            <cfif fileExists(filePath)>
+                <cfset local.fileInfo = getFileInfo(filePath)>
+                <cfset sizeBytes = local.fileInfo.size>
+            </cfif>
+            <cfset readable = fileExists(filePath) AND sizeBytes GT 0>
 
             <cfif readable>
                 <cfset reader = fileOpen(filePath, "read", "utf-8")>
@@ -216,8 +218,7 @@
 
     <cffunction name="resolveBackupDirectory" access="private" returntype="string" output="false">
         <cfset var apiDir = getDirectoryFromPath(getCurrentTemplatePath())>
-        <cfset var repoDir = createObject("java", "java.io.File").init(apiDir & "../../").getCanonicalPath()>
-        <cfset var backupDir = createObject("java", "java.io.File").init(repoDir & "/.codex-db-backups").getCanonicalPath()>
+        <cfset var backupDir = apiDir & "../../.codex-db-backups">
         <cfreturn backupDir>
     </cffunction>
 
@@ -235,7 +236,6 @@
     </cffunction>
 
 </cfcomponent>
-
 
 
 

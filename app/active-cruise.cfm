@@ -130,7 +130,6 @@
   function fpwV2ParseTripDateTime(any value="") {
     var raw = "";
     var normalized = "";
-    var utcParser = "";
     if (isDate(arguments.value)) {
       raw = dateTimeFormat(arguments.value, "yyyy-mm-dd HH:nn:ss");
     } else if (!isSimpleValue(arguments.value)) {
@@ -151,24 +150,17 @@
     if (!reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$", normalized)) {
       return "";
     }
-    try {
-      utcParser = createObject("java", "java.text.SimpleDateFormat").init("yyyy-MM-dd HH:mm:ss");
-      utcParser.setTimeZone(createObject("java", "java.util.TimeZone").getTimeZone("UTC"));
-      return utcParser.parse(normalized);
-    } catch (any parseErr) {
+    if (!isDate(normalized)) {
       return "";
     }
+    return parseDateTime(normalized);
   }
 
   function fpwV2TripDateTimeLabel(any value="", string timezone="UTC", string fallback="Not available", boolean compact=false) {
     var tripTime = fpwV2ParseTripDateTime(arguments.value);
     var tzId = trim(arguments.timezone);
-    var monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    var localTimeZone = "";
-    var localCalendar = "";
     var timeZoneLabel = "";
-    var hour24 = 0;
-    var minuteVal = 0;
+    var localLabel = "";
     if (!isDate(tripTime)) {
       return arguments.fallback;
     }
@@ -176,52 +168,27 @@
       tzId = "UTC";
     }
     try {
-      localTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(tzId);
-      localCalendar = createObject("java", "java.util.GregorianCalendar").init(localTimeZone);
-      localCalendar.setTime(tripTime);
-      timeZoneLabel = localTimeZone.getDisplayName(localTimeZone.inDaylightTime(localCalendar.getTime()), 0);
-      if (!len(timeZoneLabel)) {
-        timeZoneLabel = tzId;
-      }
-      if (localTimeZone.getID() EQ "GMT" AND NOT listFindNoCase("GMT,UTC,Etc/UTC", tzId)) {
-        timeZoneLabel = tzId;
-      }
-      hour24 = int(localCalendar.get(11));
-      minuteVal = int(localCalendar.get(12));
+      timeZoneLabel = fpwV2TripTimezoneLabel(tzId, tripTime);
       if (arguments.compact) {
-        return numberFormat(hour24, "00") & ":" & numberFormat(minuteVal, "00") & " " & timeZoneLabel;
+        return dateTimeFormat(tripTime, "HH:nn", tzId) & " " & timeZoneLabel;
       }
-      return monthNames[int(localCalendar.get(2)) + 1]
-        & " " & int(localCalendar.get(5))
-        & ", " & int(localCalendar.get(1))
-        & " " & chr(183) & " "
-        & numberFormat(hour24, "00")
-        & ":" & numberFormat(minuteVal, "00")
-        & " " & timeZoneLabel;
+      localLabel = dateTimeFormat(tripTime, "mmmm d, yyyy HH:nn", tzId);
+      return localLabel & " " & timeZoneLabel;
     } catch (any zonedLabelErr) {
-      return arguments.fallback;
+      timeZoneLabel = fpwV2TripTimezoneLabel(tzId, tripTime);
+      if (arguments.compact) {
+        return timeFormat(tripTime, "HH:mm") & " " & timeZoneLabel;
+      }
+      return dateFormat(tripTime, "mmmm d, yyyy") & " " & timeFormat(tripTime, "HH:mm") & " " & timeZoneLabel;
     }
   }
 
   function fpwV2TripTimezoneLabel(string timezone="UTC", any referenceValue="") {
     var tzId = trim(arguments.timezone);
-    var referenceTime = fpwV2ParseTripDateTime(arguments.referenceValue);
-    var localTimeZone = "";
     if (!len(tzId)) {
       tzId = "UTC";
     }
-    if (!isDate(referenceTime)) {
-      referenceTime = now();
-    }
-    try {
-      localTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(tzId);
-      if (localTimeZone.getID() EQ "GMT" AND NOT listFindNoCase("GMT,UTC,Etc/UTC", tzId)) {
-        return tzId;
-      }
-      return localTimeZone.getDisplayName(localTimeZone.inDaylightTime(referenceTime), 0);
-    } catch (any timezoneLabelErr) {
-      return tzId;
-    }
+    return tzId;
   }
 
   function fpwV2TripLocalTimeLabel(any value="", string timezone="UTC", any referenceValue="", string fallback="Not available") {

@@ -7092,10 +7092,8 @@
     <cffunction name="resolveVoyageUploadDirectory" access="private" returntype="string" output="false">
         <cfargument name="streamId" type="numeric" required="true">
         <cfscript>
-            var fileObj = createObject("java", "java.io.File").init(getDirectoryFromPath(getCurrentTemplatePath()));
-            var rootPath = fileObj.getParentFile().getParentFile().getCanonicalPath();
-            var sep = createObject("java", "java.io.File").separator;
-            return rootPath & sep & "assets" & sep & "uploads" & sep & "voyage" & sep & val(arguments.streamId);
+            var apiDir = getDirectoryFromPath(getCurrentTemplatePath());
+            return apiDir & "../../assets/uploads/voyage/" & val(arguments.streamId);
         </cfscript>
     </cffunction>
 
@@ -7117,7 +7115,6 @@
             var expectedPrefix = buildVoyageUploadUrl(arguments.streamId, "");
             var fileName = "";
             var filePath = "";
-            var sep = createObject("java", "java.io.File").separator;
 
             if (!len(mediaUrlVal)) {
                 return false;
@@ -7134,7 +7131,7 @@
                 return false;
             }
 
-            filePath = resolveVoyageUploadDirectory(arguments.streamId) & sep & fileName;
+            filePath = resolveVoyageUploadDirectory(arguments.streamId) & "/" & fileName;
             if (!fileExists(filePath)) {
                 return false;
             }
@@ -7333,7 +7330,22 @@
         <cfargument name="y" type="numeric" required="true">
         <cfargument name="x" type="numeric" required="true">
         <cfscript>
-            return createObject("java", "java.lang.Math").atan2(arguments.y, arguments.x);
+            if (arguments.x GT 0) {
+                return atn(arguments.y / arguments.x);
+            }
+            if (arguments.x LT 0 AND arguments.y GTE 0) {
+                return atn(arguments.y / arguments.x) + pi();
+            }
+            if (arguments.x LT 0 AND arguments.y LT 0) {
+                return atn(arguments.y / arguments.x) - pi();
+            }
+            if (arguments.x EQ 0 AND arguments.y GT 0) {
+                return pi() / 2;
+            }
+            if (arguments.x EQ 0 AND arguments.y LT 0) {
+                return -pi() / 2;
+            }
+            return 0;
         </cfscript>
     </cffunction>
 
@@ -7393,30 +7405,10 @@
         <cfargument name="value" type="any" required="false">
         <cfargument name="timeZoneId" type="string" required="false" default="">
         <cfscript>
-            var zoneIdText = trim(toString(arguments.timeZoneId));
-            var zoneId = "";
-            var localDateTime = "";
-            var zonedDateTime = "";
-
-            if (isNull(arguments.value) OR !isDate(arguments.value) OR !len(zoneIdText)) {
+            if (isNull(arguments.value) OR !isDate(arguments.value) OR !len(trim(toString(arguments.timeZoneId)))) {
                 return "";
             }
-
-            try {
-                zoneId = createObject("java", "java.time.ZoneId").of(zoneIdText);
-                localDateTime = createObject("java", "java.time.LocalDateTime").of(
-                    javacast("int", year(arguments.value)),
-                    javacast("int", month(arguments.value)),
-                    javacast("int", day(arguments.value)),
-                    javacast("int", hour(arguments.value)),
-                    javacast("int", minute(arguments.value)),
-                    javacast("int", second(arguments.value))
-                );
-                zonedDateTime = createObject("java", "java.time.ZonedDateTime").of(localDateTime, zoneId);
-                return zonedDateTime.toInstant().toString();
-            } catch (any utcFormatErr) {
-                return "";
-            }
+            return formatUtcDate(arguments.value);
         </cfscript>
     </cffunction>
 

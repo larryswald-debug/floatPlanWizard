@@ -105,6 +105,71 @@
     return getUsPhoneDigits(raw).length === 10;
   }
 
+  function getTimeZoneOffset(timeZone, date) {
+    if (!timeZone || !date) return 0;
+    try {
+      var formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
+      });
+      var parts = formatter.formatToParts(date);
+      var values = {};
+      parts.forEach(function (part) {
+        if (part.type !== "literal") {
+          values[part.type] = part.value;
+        }
+      });
+      return Date.UTC(
+        parseInt(values.year, 10),
+        parseInt(values.month, 10) - 1,
+        parseInt(values.day, 10),
+        parseInt(values.hour, 10),
+        parseInt(values.minute, 10),
+        parseInt(values.second, 10)
+      ) - date.getTime();
+    } catch (err) {
+      return 0;
+    }
+  }
+
+  function parseDateTimeInTimeZone(value, timeZone) {
+    var raw = String(value || "").trim();
+    var match = null;
+    var utcDate = null;
+    var offset = 0;
+    if (!raw) return null;
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(raw)) {
+      raw = raw.replace(" ", "T");
+    }
+    match = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?/);
+    if (!match) {
+      utcDate = new Date(raw);
+      return Number.isNaN(utcDate.getTime()) ? null : utcDate;
+    }
+    utcDate = new Date(Date.UTC(
+      parseInt(match[1], 10),
+      parseInt(match[2], 10) - 1,
+      parseInt(match[3], 10),
+      parseInt(match[4] || "0", 10),
+      parseInt(match[5] || "0", 10),
+      parseInt(match[6] || "0", 10)
+    ));
+    if (!timeZone) return utcDate;
+    offset = getTimeZoneOffset(timeZone, utcDate);
+    return new Date(utcDate.getTime() - offset);
+  }
+
+  function toClientUtcIso(value, timeZone) {
+    var parsed = parseDateTimeInTimeZone(value, timeZone);
+    return parsed && !Number.isNaN(parsed.getTime()) ? parsed.toISOString() : "";
+  }
+
   function showUpgradeMessage(message, tone) {
     var el = document.getElementById("basicPremiumUpgradeMessage");
     if (el) {
@@ -837,6 +902,11 @@
   }
 
   function buildPayload() {
+    var departureTime = dom.departureTime ? dom.departureTime.value : "";
+    var departureTimezone = dom.departureTimezone ? dom.departureTimezone.value : "";
+    var returnTime = dom.returnTime ? dom.returnTime.value : "";
+    var returnTimezone = dom.returnTimezone ? dom.returnTimezone.value : "";
+
     return {
       action: "savebasic",
 	      FLOATPLAN: {
@@ -848,11 +918,13 @@
 	        EMAIL: dom.email ? dom.email.value.trim() : "",
 	        RESCUE_CENTERID: toInt(dom.authorityId ? dom.authorityId.value : 0),
 	        DEPARTING_FROM: dom.departingFrom ? dom.departingFrom.value.trim() : "",
-	        DEPARTURE_TIME: dom.departureTime ? dom.departureTime.value : "",
-	        DEPARTURE_TIMEZONE: dom.departureTimezone ? dom.departureTimezone.value : "",
+	        DEPARTURE_TIME: departureTime,
+	        DEPARTURE_TIMEZONE: departureTimezone,
+	        DEPARTURE_TIME_UTC: toClientUtcIso(departureTime, departureTimezone),
 	        RETURNING_TO: dom.departingFrom ? dom.departingFrom.value.trim() : "",
-	        RETURN_TIME: dom.returnTime ? dom.returnTime.value : "",
-	        RETURN_TIMEZONE: dom.returnTimezone ? dom.returnTimezone.value : "",
+	        RETURN_TIME: returnTime,
+	        RETURN_TIMEZONE: returnTimezone,
+	        RETURN_TIME_UTC: toClientUtcIso(returnTime, returnTimezone),
         FOOD_DAYS_PER_PERSON: "1",
         WATER_DAYS_PER_PERSON: "1",
 	        ROUTE_INSTANCE_ID: 0,

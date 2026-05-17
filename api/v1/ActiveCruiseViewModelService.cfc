@@ -2497,20 +2497,15 @@
     <cfargument name="value" type="any" required="true">
     <cfargument name="timezone" type="string" required="true">
     <cfscript>
-      var qLocal = queryNew("");
+      var tzId = len(safeString(arguments.timezone)) ? safeString(arguments.timezone) : "UTC";
       if (!isDate(arguments.value)) {
         return "";
       }
-      qLocal = queryExecute("
-        SELECT CONVERT_TZ(:utcValue, 'UTC', :tz) AS local_value
-      ", {
-        utcValue = { value = arguments.value, cfsqltype = "cf_sql_timestamp" },
-        tz = { value = arguments.timezone, cfsqltype = "cf_sql_varchar" }
-      }, { datasource = variables.datasource });
-      if (qLocal.recordCount AND isDate(qLocal.local_value[1])) {
-        return dateTimeFormat(qLocal.local_value[1], "yyyy-mm-dd HH:nn:ss");
+      try {
+        return dateTimeFormat(arguments.value, "yyyy-mm-dd HH:nn:ss", tzId);
+      } catch (any localFormatErr) {
+        return dateTimeFormat(arguments.value, "yyyy-mm-dd HH:nn:ss");
       }
-      return dateTimeFormat(arguments.value, "yyyy-mm-dd HH:nn:ss");
     </cfscript>
   </cffunction>
 
@@ -2518,20 +2513,15 @@
     <cfargument name="value" type="any" required="true">
     <cfargument name="timezone" type="string" required="true">
     <cfscript>
-      var qLocal = queryNew("");
+      var tzId = len(safeString(arguments.timezone)) ? safeString(arguments.timezone) : "UTC";
       if (!isDate(arguments.value)) {
         return "";
       }
-      qLocal = queryExecute("
-        SELECT CONVERT_TZ(:utcValue, 'UTC', :tz) AS local_value
-      ", {
-        utcValue = { value = arguments.value, cfsqltype = "cf_sql_timestamp" },
-        tz = { value = arguments.timezone, cfsqltype = "cf_sql_varchar" }
-      }, { datasource = variables.datasource });
-      if (qLocal.recordCount AND isDate(qLocal.local_value[1])) {
-        return dateTimeFormat(qLocal.local_value[1], "mmm d, yyyy h:nn tt");
+      try {
+        return dateTimeFormat(arguments.value, "mmm d, yyyy h:nn tt", tzId);
+      } catch (any localDisplayErr) {
+        return dateTimeFormat(arguments.value, "mmm d, yyyy h:nn tt");
       }
-      return dateTimeFormat(arguments.value, "mmm d, yyyy h:nn tt");
     </cfscript>
   </cffunction>
 
@@ -2542,10 +2532,9 @@
       var raw = safeString(arguments.utcValue);
       var normalized = "";
       var tzId = safeString(arguments.timezone);
-      var qLocal = queryNew("");
       var utcDt = "";
-      var localValue = "";
       var tzLabel = "";
+      var localLabel = "";
 
       if (!len(raw)) {
         return "";
@@ -2567,24 +2556,13 @@
 
       utcDt = parseDateTime(normalized);
       try {
-        qLocal = queryExecute("
-          SELECT CONVERT_TZ(:utcValue, 'UTC', :tz) AS local_value
-        ", {
-          utcValue = { value = utcDt, cfsqltype = "cf_sql_timestamp" },
-          tz = { value = tzId, cfsqltype = "cf_sql_varchar" }
-        }, { datasource = variables.datasource });
-        if (qLocal.recordCount AND isDate(qLocal.local_value[1])) {
-          localValue = qLocal.local_value[1];
-        }
+        localLabel = dateTimeFormat(utcDt, "mmm d, yyyy h:nn tt", tzId);
       } catch (any localLabelErr) {
-        localValue = "";
-      }
-      if (!isDate(localValue)) {
-        localValue = utcDt;
+        localLabel = dateTimeFormat(utcDt, "mmm d, yyyy h:nn tt");
       }
 
       tzLabel = publicFollowTimezoneLabel(tzId, utcDt);
-      return dateTimeFormat(localValue, "mmm d, yyyy h:nn tt") & (len(tzLabel) ? " " & tzLabel : "");
+      return localLabel & (len(tzLabel) ? " " & tzLabel : "");
     </cfscript>
   </cffunction>
 
@@ -2593,24 +2571,10 @@
     <cfargument name="referenceValue" type="any" required="true">
     <cfscript>
       var tzId = safeString(arguments.timezone);
-      var localTimeZone = "";
-      var out = "";
       if (!len(tzId)) {
         tzId = "UTC";
       }
-      if (!isDate(arguments.referenceValue)) {
-        return tzId;
-      }
-      try {
-        localTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(tzId);
-        out = localTimeZone.getDisplayName(localTimeZone.inDaylightTime(arguments.referenceValue), 0);
-        if (localTimeZone.getID() EQ "GMT" AND NOT listFindNoCase("GMT,UTC,Etc/UTC", tzId)) {
-          return tzId;
-        }
-        return (len(out) ? out : tzId);
-      } catch (any timezoneLabelErr) {
-        return tzId;
-      }
+      return tzId;
     </cfscript>
   </cffunction>
 

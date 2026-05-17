@@ -210,7 +210,7 @@
           fp.floatPlanName,
           fp.status,
           fp.departing,
-          fp.returning,
+          fp.`returning`,
           fp.departureTZ,
           fp.departTimezone,
           fp.returnTZ,
@@ -1181,20 +1181,14 @@
     <cfargument name="timezone" type="string" required="false" default="UTC">
     <cfscript>
       var tz = len(trim(arguments.timezone)) ? trim(arguments.timezone) : "UTC";
-      var qLocal = queryNew("");
       if (!isDate(arguments.value)) {
         return "";
       }
-      qLocal = queryExecute("
-        SELECT CONVERT_TZ(:utcValue, 'UTC', :tz) AS local_value
-      ", {
-        utcValue = { value = arguments.value, cfsqltype = "cf_sql_timestamp" },
-        tz = { value = tz, cfsqltype = "cf_sql_varchar" }
-      }, { datasource = variables.datasource });
-      if (qLocal.recordCount AND isDate(qLocal.local_value[1])) {
-        return dateTimeFormat(qLocal.local_value[1], "mmm d, yyyy h:nn tt");
+      try {
+        return dateTimeFormat(arguments.value, "mmm d, yyyy h:nn tt", tz);
+      } catch (any localLabelErr) {
+        return dateTimeFormat(arguments.value, "mmm d, yyyy h:nn tt");
       }
-      return dateTimeFormat(arguments.value, "mmm d, yyyy h:nn tt");
     </cfscript>
   </cffunction>
 

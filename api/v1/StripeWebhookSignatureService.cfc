@@ -111,13 +111,7 @@
     <cfargument name="message" type="string" required="true">
     <cfargument name="secret" type="string" required="true">
     <cfscript>
-      var mac = createObject("java", "javax.crypto.Mac").getInstance("HmacSHA256");
-      var keySpec = createObject("java", "javax.crypto.spec.SecretKeySpec")
-        .init(charsetDecode(arguments.secret, "utf-8"), "HmacSHA256");
-      var digest = "";
-      mac.init(keySpec);
-      digest = mac.doFinal(charsetDecode(arguments.message, "utf-8"));
-      return lCase(binaryEncode(digest, "hex"));
+      return lCase(hmac(arguments.message, arguments.secret, "HmacSHA256", "utf-8"));
     </cfscript>
   </cffunction>
 
@@ -139,7 +133,7 @@
 
   <cffunction name="currentEpochSeconds" access="private" returntype="numeric" output="false">
     <cfscript>
-      return int(createObject("java", "java.lang.System").currentTimeMillis() / 1000);
+      return dateDiff("s", createDateTime(1970, 1, 1, 0, 0, 0), dateConvert("local2utc", now()));
     </cfscript>
   </cffunction>
 

@@ -84,6 +84,48 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(result.payload.SUCCESS).toBeFalse(serializeJSON(result.payload));
         expect(result.payload.ERROR).toBe("UNAUTHORIZED");
       });
+
+      it("keeps production-facing runtime code free of createObject java calls", function() {
+        var repoRoot = getRepoRoot();
+        var scanRoots = [
+          "Application.cfc",
+          "application_prod.cfc",
+          "app",
+          "api/v1",
+          "includes"
+        ];
+        var violations = [];
+        var rootPath = "";
+        var files = [];
+        var filePath = "";
+        var content = "";
+        var i = 0;
+        var j = 0;
+
+        for (i = 1; i <= arrayLen(scanRoots); i++) {
+          rootPath = repoRoot & "/" & scanRoots[i];
+          if (fileExists(rootPath)) {
+            files = [rootPath];
+          } else if (directoryExists(rootPath)) {
+            files = directoryList(rootPath, true, "path");
+          } else {
+            files = [];
+          }
+
+          for (j = 1; j <= arrayLen(files); j++) {
+            filePath = files[j];
+            if (!fileExists(filePath) || !isScannedRuntimeFile(filePath)) {
+              continue;
+            }
+            content = lCase(fileRead(filePath));
+            if (find('createobject("java"', content) || find("createobject('java'", content)) {
+              arrayAppend(violations, replace(filePath, repoRoot & "/", "", "one"));
+            }
+          }
+        }
+
+        expect(arrayLen(violations)).toBe(0, "Production-facing Java object creation found: " & arrayToList(violations, ", "));
+      });
     });
   }
 
@@ -137,5 +179,15 @@ component extends="testbox.system.BaseSpec" output="false" {
       return val(arguments.userPayload.id);
     }
     return 0;
+  }
+
+  private string function getRepoRoot() {
+    var testsDir = getDirectoryFromPath(getCurrentTemplatePath());
+    return reReplace(testsDir, "/tests/integration/?$", "");
+  }
+
+  private boolean function isScannedRuntimeFile(required string filePath) {
+    var ext = lCase(listLast(arguments.filePath, "."));
+    return listFindNoCase("cfm,cfc,js,css", ext) GT 0;
   }
 }

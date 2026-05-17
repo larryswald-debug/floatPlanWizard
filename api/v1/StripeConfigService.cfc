@@ -2,7 +2,6 @@
 
   <cffunction name="init" access="public" returntype="any" output="false">
     <cfscript>
-      variables.env = createObject("java", "java.lang.System");
       return this;
     </cfscript>
   </cffunction>
@@ -68,11 +67,14 @@
   <cffunction name="getEnvValue" access="private" returntype="string" output="false">
     <cfargument name="name" type="string" required="true">
     <cfscript>
-      var value = variables.env.getenv(arguments.name);
-      if (isNull(value)) {
-        return "";
+      if (
+        structKeyExists(application, "settings")
+        AND isStruct(application.settings)
+        AND structKeyExists(application.settings, arguments.name)
+      ) {
+        return trim(toString(application.settings[arguments.name]));
       }
-      return trim(toString(value));
+      return "";
     </cfscript>
   </cffunction>
 

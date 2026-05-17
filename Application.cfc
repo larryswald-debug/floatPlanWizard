@@ -18,15 +18,13 @@
     </cfif>
     <cfset variables.applicationRootPath = getDirectoryFromPath(getCurrentTemplatePath())>
     <cfset this.mappings["/fpw"] = variables.applicationRootPath>
+    <cfif directoryExists(variables.applicationRootPath & "testbox")>
+        <cfset this.mappings["/testbox"] = variables.applicationRootPath & "testbox">
+    </cfif>
 
     <cffunction name="getEnvValue" access="private" returntype="string" output="false">
         <cfargument name="name" type="string" required="true">
-        <cfset var system = createObject("java", "java.lang.System")>
-        <cfset var value = system.getenv(arguments.name)>
-        <cfif isNull(value)>
-            <cfreturn "">
-        </cfif>
-        <cfreturn trim(toString(value))>
+        <cfreturn "">
     </cffunction>
 
     <cffunction name="onApplicationStart" access="public" returntype="boolean" output="false">

@@ -247,9 +247,11 @@
       DEPARTING_FROM: "",
       DEPARTURE_TIME: "",
       DEPARTURE_TIMEZONE: "",
+      DEPARTURE_TIME_UTC: "",
       RETURNING_TO: "",
       RETURN_TIME: "",
       RETURN_TIMEZONE: "",
+      RETURN_TIME_UTC: "",
       FOOD_DAYS_PER_PERSON: "",
       WATER_DAYS_PER_PERSON: "",
       NOTES: "",
@@ -711,6 +713,17 @@
     }
     var offset = getTimeZoneOffset(timeZone, utcDate);
     return new Date(utcDate.getTime() - offset);
+  }
+
+  function toClientUtcIso(value, timeZone) {
+    var parsed = parseDateTimeInTimeZone(value, timeZone);
+    return parsed && !isNaN(parsed.getTime()) ? parsed.toISOString() : "";
+  }
+
+  function applyClientUtcFields(plan) {
+    if (!plan) return;
+    plan.DEPARTURE_TIME_UTC = toClientUtcIso(plan.DEPARTURE_TIME, plan.DEPARTURE_TIMEZONE);
+    plan.RETURN_TIME_UTC = toClientUtcIso(plan.RETURN_TIME, plan.RETURN_TIMEZONE);
   }
 
   var STEP_VALIDATION_CONSTRAINTS = {
@@ -1551,6 +1564,7 @@
         if (!this.validateStep(this.totalSteps)) {
           return;
         }
+        applyClientUtcFields(this.fp.FLOATPLAN);
 
         this.isSaving = true;
         this.setStatus("Saving your float plan…", true);
@@ -1596,6 +1610,7 @@
           this.setStatus("Select at least one contact to send this float plan.", false);
           return;
         }
+        applyClientUtcFields(this.fp.FLOATPLAN);
 
         this.isSaving = true;
         this.setStatus("Saving and sending your float plan...", true);
