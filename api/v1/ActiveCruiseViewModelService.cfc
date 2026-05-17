@@ -377,7 +377,7 @@
           fp.departing,
           fp.departureLat,
           fp.departureLon,
-          fp.returning,
+          fp.`returning`,
           fp.returnLat,
           fp.returnLon,
           fp.departureTime,

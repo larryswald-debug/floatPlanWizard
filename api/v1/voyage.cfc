@@ -683,7 +683,7 @@
                     fp.departureTime,
                     fp.departTimezone,
                     fp.departureTZ,
-                    fp.returning,
+                    fp.`returning`,
                     fp.returnTime,
                     fp.route_instance_id,
                     fp.route_day_number,

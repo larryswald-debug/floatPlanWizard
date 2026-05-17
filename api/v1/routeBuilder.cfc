@@ -3361,7 +3361,7 @@
 
                     queryExecute(
                         "INSERT INTO floatplans
-                            (userId, floatPlanName, vesselId, departing, returning, notes, route_instance_id, route_day_number, status, dateCreated, lastUpdate)
+                            (userId, floatPlanName, vesselId, departing, `returning`, notes, route_instance_id, route_day_number, status, dateCreated, lastUpdate)
                          VALUES
                             (:userId, :planName, :vesselId, :departing, :returning, :notes, :routeInstanceId, :routeDayNumber, 'Draft', NOW(), NOW())",
                         {
