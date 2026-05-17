@@ -496,7 +496,6 @@
             var checkInContextVal = "";
             var isOvernightCheckIn = false;
             var actualResumeAt = "";
-            var actualResumeAtLocal = "";
             var hasActualResumeAt = false;
             var departureTimeZoneVal = "";
             var dailyStartLocalTimeVal = "";
@@ -517,30 +516,13 @@
             var qFollowProjectionEtaLocal = queryNew("");
             var elapsedCheckInLabel = "-- since last check-in";
             var nextStopLabelVal = "";
-            var nextStopEtaBaseDt = "";
-            var nextStopEtaDt = "";
-            var nextStopEtaMinutes = 0;
-            var nextStopCumulativeMinutes = 0;
-            var activeLegEtaBaseDt = "";
-            var activeLegEtaMinutes = 0;
-            var overnightPauseMinutes = 0;
-            var nextMorningResumeDt = "";
-            var resumeTimeZone = "";
-            var resumeCalendar = "";
             var localDayStartRule = loadOvernightTimingRule();
             var plannedNextStopEtaDt = "";
-            var nextStopLeg = {};
             var qTripStart = queryNew("");
             var journeyDepartedDt = "";
-            var qLegTiming = queryNew("");
             var qMilesTodayTiming = queryNew("");
-            var qActualResumeLocal = queryNew("");
-            var currentLegStartedAt = "";
-            var priorLegCompletedAt = "";
             var scheduledDepartureRawDt = "";
             var hasOperationalCheckIn = false;
-            var hasValidCurrentLegStart = false;
-            var hasValidPriorLegCompletion = false;
             var tripStartState = {};
             var tripStarted = true;
             var routeInstanceIdVal = 0;
@@ -637,7 +619,6 @@
             var routeMapActiveLegOrder = 0;
             var actualResumeLegOrder = 0;
             var awaitingDepartureState = false;
-            var usingActiveLegEta = false;
 
 	            if (!structCount(streamRow)) {
 	                out.MESSAGE = "Stream not found";
@@ -1066,256 +1047,6 @@
             }
 
             nextStopLabelVal = (len(routeMap.next_stop_label) ? trim(toString(routeMap.next_stop_label)) : "");
-            if (
-                qPlan.recordCount GT 0
-                AND !isNull(qPlan.departureTime[1])
-                AND isDate(qPlan.departureTime[1])
-                AND len(nextStopLabelVal)
-                AND (!tripStarted OR routeMapActiveLegOrder GT 0 OR hasActualResumeAt)
-                AND isStruct(followTimeline)
-                AND structKeyExists(followTimeline, "legs")
-                AND isArray(followTimeline.legs)
-            ) {
-                nextStopEtaBaseDt = qPlan.departureTime[1];
-                storedDepartureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
-                if (
-                    isDate(nextStopEtaBaseDt)
-                    AND ucase(storedDepartureTimeZoneVal) EQ "UTC"
-                    AND len(departureTimeZoneVal)
-                    AND ucase(departureTimeZoneVal) NEQ "UTC"
-                ) {
-                    qLocalDeparture = queryExecute("
-                        SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
-                    ", {
-                        utcDateTime = { value = nextStopEtaBaseDt, cfsqltype = "cf_sql_timestamp" },
-                        targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
-                    }, { datasource = ds });
-                    if (qLocalDeparture.recordCount GT 0 AND !isNull(qLocalDeparture.localDateTime[1])) {
-                        nextStopEtaBaseDt = qLocalDeparture.localDateTime[1];
-                    }
-                }
-                actualResumeAtLocal = "";
-                if (hasActualResumeAt AND isDate(actualResumeAt)) {
-                    actualResumeAtLocal = actualResumeAt;
-                    if (
-                        ucase(storedDepartureTimeZoneVal) EQ "UTC"
-                        AND len(departureTimeZoneVal)
-                        AND ucase(departureTimeZoneVal) NEQ "UTC"
-                    ) {
-                        qActualResumeLocal = queryExecute("
-                            SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
-                        ", {
-                            utcDateTime = { value = actualResumeAt, cfsqltype = "cf_sql_timestamp" },
-                            targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
-                        }, { datasource = ds });
-                        if (qActualResumeLocal.recordCount GT 0 AND !isNull(qActualResumeLocal.localDateTime[1]) AND isDate(qActualResumeLocal.localDateTime[1])) {
-                            actualResumeAtLocal = qActualResumeLocal.localDateTime[1];
-                        }
-                    }
-                }
-                for (i = 1; i LTE arrayLen(followTimeline.legs); i++) {
-                    nextStopLeg = followTimeline.legs[i];
-                    if (!isStruct(nextStopLeg)) {
-                        continue;
-                    }
-                    if (!structKeyExists(nextStopLeg, "end_name")) {
-                        continue;
-                    }
-                    if (
-                        tripStarted
-                        AND routeMapActiveLegOrder GT 0
-                        AND (
-                            !structKeyExists(nextStopLeg, "leg_order")
-                            OR !isNumeric(nextStopLeg.leg_order)
-                            OR val(nextStopLeg.leg_order) NEQ routeMapActiveLegOrder
-                        )
-                    ) {
-                        continue;
-                    }
-                    if (trim(toString(nextStopLeg.end_name)) NEQ nextStopLabelVal) {
-                        continue;
-                    }
-                    nextStopEtaMinutes = 0;
-                    nextStopCumulativeMinutes = 0;
-                    activeLegEtaMinutes = 0;
-                    activeLegEtaBaseDt = nextStopEtaBaseDt;
-
-                    if (structKeyExists(nextStopLeg, "cumulative_hours") AND isNumeric(nextStopLeg.cumulative_hours) AND val(nextStopLeg.cumulative_hours) GTE 0) {
-                        nextStopCumulativeMinutes = int(round(val(nextStopLeg.cumulative_hours) * 60));
-                    }
-                    if (structKeyExists(nextStopLeg, "hours") AND isNumeric(nextStopLeg.hours) AND val(nextStopLeg.hours) GTE 0) {
-                        activeLegEtaMinutes = int(round(val(nextStopLeg.hours) * 60));
-                    }
-                    currentLegStartedAt = "";
-                    currentLegStartedAtLocal = "";
-                    priorLegCompletedAt = "";
-                    priorLegCompletedAtLocal = "";
-                    if (structKeyExists(nextStopLeg, "leg_order") AND isNumeric(nextStopLeg.leg_order) AND val(nextStopLeg.leg_order) GT 0) {
-                        qLegTiming = queryExecute(
-                            "SELECT
-                                curr.leg_started_at AS current_leg_started_at,
-                                COALESCE(CONVERT_TZ(curr.leg_started_at, 'UTC', :targetTimeZone), curr.leg_started_at) AS current_leg_started_at_local,
-                                prev.completed_at AS prior_leg_completed_at,
-                                COALESCE(CONVERT_TZ(prev.completed_at, 'UTC', :targetTimeZone), prev.completed_at) AS prior_leg_completed_at_local
-                             FROM route_instance_leg_progress curr
-                             LEFT JOIN route_instance_leg_progress prev
-                               ON prev.route_instance_id = curr.route_instance_id
-                              AND prev.user_id = curr.user_id
-                              AND prev.leg_order = curr.leg_order - 1
-                             WHERE curr.route_instance_id = :routeInstanceId
-                               AND curr.user_id = :ownerUserId
-                               AND curr.leg_order = :legOrder
-                             LIMIT 1",
-                            {
-                                routeInstanceId = { value = routeInstanceIdVal, cfsqltype = "cf_sql_integer" },
-                                ownerUserId = { value = streamRow.owner_user_id, cfsqltype = "cf_sql_integer" },
-                                legOrder = { value = val(nextStopLeg.leg_order), cfsqltype = "cf_sql_integer" },
-                                targetTimeZone = { value = (len(departureTimeZoneVal) ? departureTimeZoneVal : "UTC"), cfsqltype = "cf_sql_varchar" }
-                            },
-                            { datasource = ds }
-                        );
-                        if (qLegTiming.recordCount GT 0) {
-                            if (!isNull(qLegTiming.current_leg_started_at[1]) AND isDate(qLegTiming.current_leg_started_at[1])) {
-                                currentLegStartedAt = qLegTiming.current_leg_started_at[1];
-                                currentLegStartedAtLocal = currentLegStartedAt;
-                                if (
-                                    ucase(storedDepartureTimeZoneVal) EQ "UTC"
-                                    AND len(departureTimeZoneVal)
-                                    AND ucase(departureTimeZoneVal) NEQ "UTC"
-                                    AND !isNull(qLegTiming.current_leg_started_at_local[1])
-                                    AND isDate(qLegTiming.current_leg_started_at_local[1])
-                                ) {
-                                    currentLegStartedAtLocal = qLegTiming.current_leg_started_at_local[1];
-                                }
-                            }
-                            if (!isNull(qLegTiming.prior_leg_completed_at[1]) AND isDate(qLegTiming.prior_leg_completed_at[1])) {
-                                priorLegCompletedAt = qLegTiming.prior_leg_completed_at[1];
-                                priorLegCompletedAtLocal = priorLegCompletedAt;
-                                if (
-                                    ucase(storedDepartureTimeZoneVal) EQ "UTC"
-                                    AND len(departureTimeZoneVal)
-                                    AND ucase(departureTimeZoneVal) NEQ "UTC"
-                                    AND !isNull(qLegTiming.prior_leg_completed_at_local[1])
-                                    AND isDate(qLegTiming.prior_leg_completed_at_local[1])
-                                ) {
-                                    priorLegCompletedAtLocal = qLegTiming.prior_leg_completed_at_local[1];
-                                }
-                            }
-                        }
-                    }
-
-                    if (nextStopCumulativeMinutes GT 0) {
-                        plannedNextStopEtaDt = dateAdd("n", nextStopCumulativeMinutes, nextStopEtaBaseDt);
-                        if (tripStarted AND storedOvernightPauseMinutes GT 0) {
-                            plannedNextStopEtaDt = dateAdd("n", storedOvernightPauseMinutes, plannedNextStopEtaDt);
-                        }
-                    }
-
-                    hasValidCurrentLegStart = (tripStarted AND isDate(currentLegStartedAt));
-                    if (hasValidCurrentLegStart AND isDate(scheduledDepartureRawDt)) {
-                        hasValidCurrentLegStart = (dateCompare(currentLegStartedAt, scheduledDepartureRawDt, "s") GTE 0);
-                    }
-                    hasValidPriorLegCompletion = (tripStarted AND isDate(priorLegCompletedAt));
-                    if (hasValidPriorLegCompletion AND isDate(scheduledDepartureRawDt)) {
-                        hasValidPriorLegCompletion = (dateCompare(priorLegCompletedAt, scheduledDepartureRawDt, "s") GTE 0);
-                    }
-
-                    resumeDayStartDt = "";
-                    resumeAnchorDt = "";
-                    useResumedDayStartEtaBase = false;
-                    if (tripStarted AND storedOvernightPauseMinutes GT 0 AND hasOperationalCheckIn AND !hasActualResumeAt AND isDate(checkedInAtVal)) {
-                        resumeDayStartDt = createDateTime(
-                            year(checkedInAtVal),
-                            month(checkedInAtVal),
-                            day(checkedInAtVal),
-                            localDayStartRule.local_day_start_hour,
-                            localDayStartRule.local_day_start_minute,
-                            localDayStartRule.local_day_start_second
-                        );
-                        if (hasValidCurrentLegStart) {
-                            resumeAnchorDt = currentLegStartedAtLocal;
-                        } else if (hasValidPriorLegCompletion) {
-                            resumeAnchorDt = priorLegCompletedAtLocal;
-                        }
-                        if (
-                            isDate(resumeAnchorDt)
-                            AND isDate(resumeDayStartDt)
-                            AND dateCompare(resumeAnchorDt, resumeDayStartDt, "s") LT 0
-                            AND dateCompare(checkedInAtVal, resumeDayStartDt, "s") GTE 0
-                        ) {
-                            activeLegEtaBaseDt = resumeDayStartDt;
-                            useResumedDayStartEtaBase = true;
-                        }
-                    }
-
-                    if (!useResumedDayStartEtaBase AND tripStarted AND isOvernightCheckIn AND hasOperationalCheckIn AND len(departureTimeZoneVal)) {
-                        try {
-                            if (isDate(expectedCheckInDt)) {
-                                nextMorningResumeDt = expectedCheckInDt;
-                            } else {
-                                nextMorningResumeDt = dateAdd("d", 1, checkedInAtVal);
-                                nextMorningResumeDt = createDateTime(
-                                    year(nextMorningResumeDt),
-                                    month(nextMorningResumeDt),
-                                    day(nextMorningResumeDt),
-                                    localDayStartRule.local_day_start_hour,
-                                    localDayStartRule.local_day_start_minute,
-                                    localDayStartRule.local_day_start_second
-                                );
-                            }
-                            if (isDate(nextMorningResumeDt)) {
-                                activeLegEtaBaseDt = nextMorningResumeDt;
-                            }
-                            if (isOvernightCheckIn AND hasOperationalCheckIn AND isDate(checkedInAtVal)) {
-                                overnightPauseMinutes = dateDiff("n", checkedInAtVal, nextMorningResumeDt);
-                                if (storedOvernightPauseMinutes LTE 0 AND isDate(plannedNextStopEtaDt) AND overnightPauseMinutes GT 0) {
-                                    plannedNextStopEtaDt = dateAdd("n", overnightPauseMinutes, plannedNextStopEtaDt);
-                                }
-                            }
-                        } catch (any overnightEtaErr) {
-                            if (hasValidCurrentLegStart) {
-                                activeLegEtaBaseDt = currentLegStartedAtLocal;
-                            } else if (hasValidPriorLegCompletion) {
-                                activeLegEtaBaseDt = priorLegCompletedAtLocal;
-                            }
-                        }
-                    } else if (
-                        !useResumedDayStartEtaBase
-                        AND hasActualResumeAt
-                        AND isDate(actualResumeAt)
-                        AND isDate(actualResumeAtLocal)
-                        AND (
-                            !hasValidCurrentLegStart
-                            OR !isDate(currentLegStartedAt)
-                            OR dateCompare(currentLegStartedAt, actualResumeAt, "s") LT 0
-                        )
-                    ) {
-                        activeLegEtaBaseDt = actualResumeAtLocal;
-                    } else if (!useResumedDayStartEtaBase AND hasValidCurrentLegStart) {
-                        activeLegEtaBaseDt = currentLegStartedAtLocal;
-                    } else if (!useResumedDayStartEtaBase AND hasValidPriorLegCompletion) {
-                        activeLegEtaBaseDt = priorLegCompletedAtLocal;
-                    }
-
-                    usingActiveLegEta = false;
-                    if (activeLegEtaMinutes GT 0 AND isDate(activeLegEtaBaseDt)) {
-                        usingActiveLegEta = true;
-                        nextStopEtaMinutes = activeLegEtaMinutes;
-                        nextStopEtaDt = dateAdd("n", activeLegEtaMinutes, activeLegEtaBaseDt);
-                    } else {
-                        nextStopEtaMinutes = nextStopCumulativeMinutes;
-                        nextStopEtaDt = plannedNextStopEtaDt;
-                    }
-                    if (usingActiveLegEta AND tripStarted AND storedManualDelayMinutes GT 0 AND isDate(nextStopEtaDt)) {
-                        nextStopEtaDt = dateAdd("n", storedManualDelayMinutes, nextStopEtaDt);
-                    }
-                    if (isDate(nextStopEtaDt)) {
-                        etaLabel = dateTimeFormat(nextStopEtaDt, "mmm d, yyyy h:nn tt");
-                        etaUtc = formatUtcInstantFromLocalTime(nextStopEtaDt, departureTimeZoneVal);
-                    }
-                    break;
-                }
-            }
 
             timelineSummary = (
                 isStruct(followTimeline) AND structKeyExists(followTimeline, "summary") AND isStruct(followTimeline.summary)
