@@ -1312,28 +1312,145 @@
         <cfargument name="asOfUtc" type="date" required="true">
         <cfargument name="timezone" type="string" required="true">
         <cfscript>
-            var qBounds = queryExecute("
-                SELECT
-                  DATE(CONVERT_TZ(:asOfUtc, 'UTC', :tz)) AS local_date,
-                  CONVERT_TZ(DATE(CONVERT_TZ(:asOfUtc, 'UTC', :tz)), :tz, 'UTC') AS day_start_utc,
-                  CONVERT_TZ(DATE_ADD(DATE(CONVERT_TZ(:asOfUtc, 'UTC', :tz)), INTERVAL 1 DAY), :tz, 'UTC') AS day_end_utc
-            ", {
-                asOfUtc = { value = arguments.asOfUtc, cfsqltype = "cf_sql_timestamp" },
-                tz = { value = arguments.timezone, cfsqltype = "cf_sql_varchar" }
-            }, { datasource = variables.datasource });
+            var tz = normalizeProjectionTimezone(arguments.timezone);
+            var localWall = "";
+            var localDate = "";
+            var dayStartLocal = "";
+            var dayEndLocal = "";
+            var dayStartLocalDt = "";
+            var dayStartUtc = "";
+            var dayEndUtc = "";
 
-            if (qBounds.recordCount GT 0 AND isDate(qBounds.day_start_utc[1]) AND isDate(qBounds.day_end_utc[1])) {
+            if (!len(tz)) {
+                return projectionDayBoundsUnavailable(arguments.asOfUtc);
+            }
+
+            if (tz EQ "UTC") {
+                dayStartUtc = createDateTime(year(arguments.asOfUtc), month(arguments.asOfUtc), day(arguments.asOfUtc), 0, 0, 0);
                 return {
-                    "localDate" = dateFormat(qBounds.local_date[1], "yyyy-mm-dd"),
-                    "startUtc" = qBounds.day_start_utc[1],
-                    "endUtc" = qBounds.day_end_utc[1]
+                    "localDate" = dateFormat(dayStartUtc, "yyyy-mm-dd"),
+                    "startUtc" = dayStartUtc,
+                    "endUtc" = dateAdd("d", 1, dayStartUtc)
                 };
             }
 
+            localWall = formatProjectionUtcAsLocalWall(arguments.asOfUtc, tz);
+            if (!len(localWall)) {
+                return projectionDayBoundsUnavailable(arguments.asOfUtc);
+            }
+
+            localDate = left(localWall, 10);
+            if (!reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", localDate)) {
+                return projectionDayBoundsUnavailable(arguments.asOfUtc);
+            }
+
+            dayStartLocal = localDate & " 00:00:00";
+            if (!isDate(dayStartLocal)) {
+                return projectionDayBoundsUnavailable(arguments.asOfUtc);
+            }
+
+            dayStartLocalDt = parseDateTime(dayStartLocal);
+            dayEndLocal = dateFormat(dateAdd("d", 1, dayStartLocalDt), "yyyy-mm-dd") & " 00:00:00";
+            dayStartUtc = convertProjectionLocalWallToUtc(dayStartLocal, tz);
+            dayEndUtc = convertProjectionLocalWallToUtc(dayEndLocal, tz);
+
+            if (!isDate(dayStartUtc) OR !isDate(dayEndUtc) OR dateCompare(dayEndUtc, dayStartUtc, "s") LTE 0) {
+                return projectionDayBoundsUnavailable(arguments.asOfUtc);
+            }
+
             return {
-                "localDate" = dateFormat(arguments.asOfUtc, "yyyy-mm-dd"),
-                "startUtc" = createDateTime(year(arguments.asOfUtc), month(arguments.asOfUtc), day(arguments.asOfUtc), 0, 0, 0),
-                "endUtc" = dateAdd("d", 1, createDateTime(year(arguments.asOfUtc), month(arguments.asOfUtc), day(arguments.asOfUtc), 0, 0, 0))
+                "localDate" = localDate,
+                "startUtc" = dayStartUtc,
+                "endUtc" = dayEndUtc
+            };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeProjectionTimezone" access="private" returntype="string" output="false">
+        <cfargument name="timezone" type="string" required="true">
+        <cfscript>
+            var tz = trim(arguments.timezone);
+            var tzKey = uCase(tz);
+
+            switch (tzKey) {
+                case "US/EASTERN":
+                    return "America/New_York";
+                case "US/CENTRAL":
+                    return "America/Chicago";
+                case "US/MOUNTAIN":
+                    return "America/Denver";
+                case "US/PACIFIC":
+                    return "America/Los_Angeles";
+                case "US/ALASKA":
+                    return "America/Anchorage";
+                case "US/HAWAII":
+                    return "Pacific/Honolulu";
+                case "+00:00":
+                case "UTC":
+                case "ETC/UTC":
+                case "GMT":
+                    return "UTC";
+            }
+
+            return tz;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="formatProjectionUtcAsLocalWall" access="private" returntype="string" output="false">
+        <cfargument name="utcValue" type="date" required="true">
+        <cfargument name="timezone" type="string" required="true">
+        <cfscript>
+            try {
+                return dateTimeFormat(arguments.utcValue, "yyyy-mm-dd HH:nn:ss", arguments.timezone);
+            } catch (any localFormatErr) {
+                return "";
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="convertProjectionLocalWallToUtc" access="private" returntype="any" output="false">
+        <cfargument name="localWall" type="string" required="true">
+        <cfargument name="timezone" type="string" required="true">
+        <cfscript>
+            var normalizedWall = trim(arguments.localWall);
+            var localDt = "";
+            var offsetMinutes = -840;
+            var candidateUtc = "";
+            var roundTripWall = "";
+            var matches = [];
+
+            if (!len(normalizedWall) OR !isDate(normalizedWall)) {
+                return "";
+            }
+
+            if (arguments.timezone EQ "UTC") {
+                return parseDateTime(normalizedWall);
+            }
+
+            localDt = parseDateTime(normalizedWall);
+            for (offsetMinutes = -840; offsetMinutes LTE 840; offsetMinutes += 15) {
+                candidateUtc = dateAdd("n", -offsetMinutes, localDt);
+                roundTripWall = formatProjectionUtcAsLocalWall(candidateUtc, arguments.timezone);
+                if (roundTripWall EQ normalizedWall) {
+                    arrayAppend(matches, candidateUtc);
+                }
+            }
+
+            if (arrayLen(matches) EQ 1) {
+                return matches[1];
+            }
+
+            return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="projectionDayBoundsUnavailable" access="private" returntype="struct" output="false">
+        <cfargument name="asOfUtc" type="date" required="true">
+        <cfscript>
+            return {
+                "localDate" = "",
+                "startUtc" = arguments.asOfUtc,
+                "endUtc" = arguments.asOfUtc
             };
         </cfscript>
     </cffunction>
