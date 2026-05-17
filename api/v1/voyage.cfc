@@ -1955,9 +1955,11 @@
                     status,
                     route_instance_id,
                     departureTime,
+                    departureTimeUTC,
                     departTimezone,
                     departureTZ,
                     returnTime,
+                    returnTimeUTC,
                     returnTimezone,
                     returnTZ,
                     checkedInAt,
@@ -2134,49 +2136,15 @@
             }
             storedReturnTimeZoneVal = (isNull(qPlan.returnTimezone[1]) ? "" : trim(toString(qPlan.returnTimezone[1])));
 
-            tripStartLocalDt = (isNull(qPlan.departureTime[1]) ? "" : qPlan.departureTime[1]);
-            if (
-                isDate(tripStartLocalDt)
-                AND ucase(storedDepartureTimeZoneVal) EQ "UTC"
-                AND len(departureTimeZoneVal)
-                AND ucase(departureTimeZoneVal) NEQ "UTC"
-            ) {
-                qLocalTripStart = queryExecute("
-                    SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
-                ", {
-                    utcDateTime = { value = tripStartLocalDt, cfsqltype = "cf_sql_timestamp" },
-                    targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
-                }, { datasource = ds });
-                if (qLocalTripStart.recordCount GT 0 AND !isNull(qLocalTripStart.localDateTime[1])) {
-                    tripStartLocalDt = qLocalTripStart.localDateTime[1];
-                }
-            }
-            if (isDate(tripStartLocalDt) AND len(departureTimeZoneVal)) {
-                heroTripStartUtc = formatUtcInstantFromLocalTime(tripStartLocalDt, departureTimeZoneVal);
+            if (!isNull(qPlan.departureTimeUTC[1]) AND isDate(qPlan.departureTimeUTC[1])) {
+                heroTripStartUtc = formatUtcDate(qPlan.departureTimeUTC[1]);
                 if (len(heroTripStartUtc)) {
                     out.heroTripStartUtc = heroTripStartUtc;
                 }
             }
 
-            legArrivalLocalDt = (isNull(qPlan.returnTime[1]) ? "" : qPlan.returnTime[1]);
-            if (
-                isDate(legArrivalLocalDt)
-                AND ucase(storedReturnTimeZoneVal) EQ "UTC"
-                AND len(returnTimeZoneVal)
-                AND ucase(returnTimeZoneVal) NEQ "UTC"
-            ) {
-                qLocalLegArrival = queryExecute("
-                    SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
-                ", {
-                    utcDateTime = { value = legArrivalLocalDt, cfsqltype = "cf_sql_timestamp" },
-                    targetTimeZone = { value = returnTimeZoneVal, cfsqltype = "cf_sql_varchar" }
-                }, { datasource = ds });
-                if (qLocalLegArrival.recordCount GT 0 AND !isNull(qLocalLegArrival.localDateTime[1])) {
-                    legArrivalLocalDt = qLocalLegArrival.localDateTime[1];
-                }
-            }
-            if (isDate(legArrivalLocalDt) AND len(returnTimeZoneVal)) {
-                legArrivalUtc = formatUtcInstantFromLocalTime(legArrivalLocalDt, returnTimeZoneVal);
+            if (!isNull(qPlan.returnTimeUTC[1]) AND isDate(qPlan.returnTimeUTC[1])) {
+                legArrivalUtc = formatUtcDate(qPlan.returnTimeUTC[1]);
                 if (len(legArrivalUtc)) {
                     out.legArrivalUtc = legArrivalUtc;
                 }
