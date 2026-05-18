@@ -710,6 +710,17 @@
       color: var(--muted);
       font-size: .9rem;
     }
+    .ac-weather-panel--not-checked .ac-weather-summary-row,
+    .ac-weather-panel--not-checked .weather-result,
+    .ac-weather-panel--not-checked .ac-weather-command-footer,
+    .ac-weather-panel--loading .ac-weather-summary-row,
+    .ac-weather-panel--loading .weather-result,
+    .ac-weather-panel--loading .ac-weather-command-footer,
+    .ac-weather-panel--error:not(.ac-weather-panel--has-data) .ac-weather-summary-row,
+    .ac-weather-panel--error:not(.ac-weather-panel--has-data) .weather-result,
+    .ac-weather-panel--error:not(.ac-weather-panel--has-data) .ac-weather-command-footer {
+      display: none !important;
+    }
     .ac-weather-summary-row strong {
       color: var(--text);
       font-weight: 700;
@@ -722,6 +733,44 @@
     .weather-result.is-empty .ac-weather-metric-value,
     .weather-result.is-empty .field-value {
       color: var(--muted);
+    }
+    .ac-weather-status-badge {
+      min-height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .ac-weather-status-badge[aria-busy="true"] {
+      border-color: rgba(67, 199, 255, .55);
+    }
+    .ac-weather-status-badge--loading {
+      background:
+        linear-gradient(90deg, rgba(67, 199, 255, .07), rgba(24, 242, 210, .12), rgba(67, 199, 255, .07));
+      background-size: 200% 100%;
+      animation: acWeatherBadgeShimmer 1.8s linear infinite;
+    }
+    .ac-weather-loader {
+      display: none;
+      inline-size: 18px;
+      block-size: 18px;
+      border: 2px solid rgba(210, 235, 255, .28);
+      border-top-color: rgba(24, 242, 210, .95);
+      border-radius: 999px;
+      flex: 0 0 auto;
+      animation: acWeatherSpin .9s linear infinite;
+    }
+    .ac-weather-status-badge--loading .ac-weather-loader {
+      display: inline-block;
+    }
+    .ac-weather-status-text {
+      color: inherit;
+    }
+    @keyframes acWeatherSpin {
+      to { transform: rotate(360deg); }
+    }
+    @keyframes acWeatherBadgeShimmer {
+      from { background-position: 200% 0; }
+      to { background-position: -200% 0; }
     }
     .ac-weather-metric-tile {
       border: 1px solid var(--line);
@@ -3620,7 +3669,7 @@
                 </div>
               </div>
 
-              <section class="mini-panel ac-weather-command-panel" id="acV2WeatherPanel" aria-label="Weather lookup">
+              <section class="mini-panel ac-weather-command-panel ac-weather-panel--not-checked" id="acV2WeatherPanel" aria-label="Weather lookup" data-weather-panel-state="not-checked">
                 <div id="fpwV2WeatherLookup" class="weather-lookup-layout" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#">
                   <div class="ac-weather-command-header">
                     <div class="ac-weather-command-title">
@@ -3646,9 +3695,9 @@
                   </div>
                 </div>
                 <cfif !weatherLookupAvailable>
-                  <div id="fpwV2WeatherFeedback" class="panel-note is-warning">#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "message"), "Weather lookup is not currently available."))#</div>
+                  <div id="fpwV2WeatherFeedback" class="panel-note is-warning ac-weather-status-badge" aria-live="polite" aria-busy="false"><span class="ac-weather-loader" aria-hidden="true"></span><span class="ac-weather-status-text">#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "message"), "Weather lookup is not currently available."))#</span></div>
                 <cfelse>
-                  <div id="fpwV2WeatherFeedback" class="panel-note">#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "message"), "Select a current-leg point and check conditions."))#</div>
+                  <div id="fpwV2WeatherFeedback" class="panel-note ac-weather-status-badge" aria-live="polite" aria-busy="false"><span class="ac-weather-loader" aria-hidden="true"></span><span class="ac-weather-status-text">#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "message"), "Select a current-leg point and check conditions."))#</span></div>
                 </cfif>
                 <div class="ac-weather-summary-row" aria-live="polite">
                   <span>Point: <strong data-weather-field="point">Not checked</strong></span>
@@ -4989,14 +5038,27 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
   const result = document.getElementById('fpwV2WeatherResult');
   const payloadEl = document.getElementById('fpwActiveCruiseV2WeatherPayload');
   const weatherPanel = document.getElementById('acV2WeatherPanel') || root;
+  const summaryRow = weatherPanel ? weatherPanel.querySelector('.ac-weather-summary-row') : null;
+  const commandFooter = weatherPanel ? weatherPanel.querySelector('.ac-weather-command-footer') : null;
   const applyButton = document.getElementById('fpwV2WeatherApplyBtn');
   const routeWeatherAssist = (window.FPW && window.FPW.RouteWeatherAssist) ? window.FPW.RouteWeatherAssist : null;
+  const weatherLoadingStages = [
+    'Checking current-leg weather...',
+    'Getting marine conditions...',
+    'Checking wind, waves, visibility, and alerts...',
+    'Calculating route weather factor...',
+    'Almost done - applying conditions to this leg...'
+  ];
   const weatherLookupState = {
     point: '',
     data: null,
     suggestedPct: null,
-    requestSeq: 0
+    requestSeq: 0,
+    hasSuccessfulData: false
   };
+  let weatherLoadingTimer = null;
+  let weatherLoadingStageIndex = 0;
+  let weatherCheckInFlight = false;
 
   if (!root || !form || !result || !payloadEl) {
     return;
@@ -5067,11 +5129,78 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
     if (!feedback) {
       return;
     }
-    feedback.textContent = message;
+    const statusText = feedback.querySelector('.ac-weather-status-text');
+    if (statusText) {
+      statusText.textContent = message;
+    } else {
+      feedback.textContent = message;
+    }
     feedback.classList.remove('is-warning', 'is-success', 'is-error');
     if (state) {
       feedback.classList.add(state);
     }
+  }
+
+  function setWeatherPanelState(state, message) {
+    if (!weatherPanel) {
+      return;
+    }
+    const panelState = state || 'notChecked';
+    const panelClassSuffix = panelState === 'notChecked' ? 'not-checked' : panelState;
+    const hasData = weatherLookupState.hasSuccessfulData === true;
+    const isLoading = panelState === 'loading';
+    const hideWeatherDetails = panelState === 'notChecked' || panelState === 'loading' || (panelState === 'error' && !hasData);
+
+    weatherPanel.classList.remove(
+      'ac-weather-panel--not-checked',
+      'ac-weather-panel--loading',
+      'ac-weather-panel--checked',
+      'ac-weather-panel--error',
+      'ac-weather-panel--has-data'
+    );
+    weatherPanel.classList.add('ac-weather-panel--' + panelClassSuffix);
+    weatherPanel.classList.toggle('ac-weather-panel--has-data', hasData);
+    weatherPanel.setAttribute('data-weather-panel-state', panelState);
+
+    if (summaryRow) {
+      summaryRow.hidden = hideWeatherDetails;
+    }
+    if (result) {
+      result.hidden = hideWeatherDetails;
+    }
+    if (commandFooter) {
+      commandFooter.hidden = hideWeatherDetails;
+    }
+    if (feedback) {
+      feedback.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+      feedback.classList.toggle('ac-weather-status-badge--loading', isLoading);
+    }
+    if (message !== undefined) {
+      if (panelState === 'checked') {
+        setFeedback(message, 'is-success');
+      } else if (panelState === 'error') {
+        setFeedback(message, 'is-error');
+      } else {
+        setFeedback(message, '');
+      }
+    }
+  }
+
+  function stopWeatherLoading() {
+    if (weatherLoadingTimer) {
+      window.clearInterval(weatherLoadingTimer);
+      weatherLoadingTimer = null;
+    }
+  }
+
+  function startWeatherLoading() {
+    stopWeatherLoading();
+    weatherLoadingStageIndex = 0;
+    setWeatherPanelState('loading', weatherLoadingStages[weatherLoadingStageIndex]);
+    weatherLoadingTimer = window.setInterval(function() {
+      weatherLoadingStageIndex = Math.min(weatherLoadingStageIndex + 1, weatherLoadingStages.length - 1);
+      setWeatherPanelState('loading', weatherLoadingStages[weatherLoadingStageIndex]);
+    }, 1800);
   }
 
   function setField(name, value) {
@@ -5415,28 +5544,39 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
   }
 
   setWeatherApplyButtonState({ disabled: true });
+  setWeatherPanelState('notChecked');
 
   form.addEventListener('submit', function(event) {
     event.preventDefault();
+
+    if (weatherCheckInFlight) {
+      return;
+    }
 
     const weatherModel = readWeatherModel();
     const lookup = weatherModel && typeof weatherModel === 'object' && weatherModel.lookup && typeof weatherModel.lookup === 'object' ? weatherModel.lookup : {};
     const endpoint = resolveEndpoint(lookup.endpoint || '');
     const selectedPoint = form.querySelector('input[name="fpwV2WeatherPoint"]:checked');
     const button = form.querySelector('button[type="submit"]');
+    const originalButtonLabel = button ? (button.getAttribute('data-original-label') || button.textContent || 'Check Conditions') : 'Check Conditions';
     const requestPayload = Object.assign({}, lookup.payload || {}, {
       point: selectedPoint ? selectedPoint.value : ''
     });
 
     if (!endpoint || !requestPayload.point) {
-      setFeedback('The view model did not return an executable weather lookup contract.', 'is-warning');
+      setWeatherPanelState('error', 'The view model did not return an executable weather lookup contract.');
       return;
     }
 
+    const seq = weatherLookupState.requestSeq + 1;
+    weatherLookupState.requestSeq = seq;
+    weatherCheckInFlight = true;
     if (button) {
+      button.setAttribute('data-original-label', originalButtonLabel);
       button.disabled = true;
+      button.textContent = 'Checking...';
     }
-    setFeedback('Checking conditions...', '');
+    startWeatherLoading();
 
     fetch(endpoint, {
       method: lookup.method || 'POST',
@@ -5465,16 +5605,24 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
         const success = resultPayload.ok && isTrueValue(getAny(responsePayload, ['success', 'SUCCESS'], false));
         const data = getAny(responsePayload, ['data', 'DATA'], {});
         const available = isTrueValue(getAny(data, ['available', 'AVAILABLE'], false));
-        const message = textValue(getAny(responsePayload, ['MESSAGE', 'message'], getAny(data, ['message', 'MESSAGE'], 'Weather lookup completed.')), 'Weather lookup completed.');
-        const seq = weatherLookupState.requestSeq + 1;
+        const message = textValue(
+          getAny(responsePayload, ['MESSAGE', 'message'], getAny(data, ['message', 'MESSAGE'], 'Weather check could not be completed. Please try again.')),
+          'Weather check could not be completed. Please try again.'
+        );
 
-        weatherLookupState.requestSeq = seq;
         weatherLookupState.point = requestPayload.point;
-        weatherLookupState.data = available ? data : null;
+        if (!success || !available) {
+          setWeatherPanelState('error', message);
+          setWeatherApplyButtonState({ disabled: weatherLookupState.suggestedPct === null });
+          return;
+        }
+
+        weatherLookupState.data = data;
         weatherLookupState.suggestedPct = null;
+        weatherLookupState.hasSuccessfulData = true;
         setWeatherApplyButtonState({ disabled: true });
         renderWeatherPayload(responsePayload);
-        setFeedback(message, success && available ? 'is-success' : 'is-warning');
+        setWeatherPanelState('checked', message);
 
         if (success && available && isApplyAvailable()) {
           setField('weatherFactorNote', 'Calculating route weather factor...');
@@ -5494,11 +5642,15 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
         }
       })
       .catch(function(error) {
-        setFeedback(error && error.message ? error.message : 'Weather lookup failed.', 'is-error');
+        setWeatherPanelState('error', error && error.message ? error.message : 'Weather check could not be completed. Please try again.');
+        setWeatherApplyButtonState({ disabled: weatherLookupState.suggestedPct === null });
       })
       .finally(function() {
+        stopWeatherLoading();
+        weatherCheckInFlight = false;
         if (button) {
           button.disabled = false;
+          button.textContent = originalButtonLabel;
         }
       });
   });
@@ -5508,7 +5660,11 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
       weatherLookupState.point = '';
       weatherLookupState.data = null;
       weatherLookupState.suggestedPct = null;
+      weatherLookupState.hasSuccessfulData = false;
       weatherLookupState.requestSeq += 1;
+      if (!weatherCheckInFlight) {
+        stopWeatherLoading();
+      }
       result.classList.add('is-empty');
       setField('point', 'Not checked');
       setField('summary', 'Not checked');
@@ -5523,6 +5679,7 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
       setChip('alerts', 'No alerts');
       setChip('factor', '0% factor');
       setWeatherApplyButtonState({ disabled: true });
+      setWeatherPanelState('notChecked', 'Select a current-leg point and check conditions.');
     });
   });
 
