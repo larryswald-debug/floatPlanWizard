@@ -19,6 +19,11 @@ docker/data/
 # ===== Environment =====
 .env
 .env.*
+/_fpw_private/
+/_fpw_private/*
+stripe-config.json
+.env.stripe.local
+*.stripe.local
 secrets/
 *.key
 git access token.txt

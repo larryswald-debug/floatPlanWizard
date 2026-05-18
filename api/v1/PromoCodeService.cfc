@@ -138,6 +138,7 @@
                   checkoutErrorCode = structKeyExists(checkoutResult, "ERROR") ? trim(toString(checkoutResult.ERROR)) : "STRIPE_CHECKOUT_FAILED";
                   logRedemptionAttempt(promoId, arguments.userId, codeHash, "rejected", checkoutErrorCode, 0, nowValue);
                   response = ineligibleResponse(checkoutErrorCode, structKeyExists(checkoutResult, "MESSAGE") ? trim(toString(checkoutResult.MESSAGE)) : "Stripe checkout session could not be created.", qPromo);
+                  copyCheckoutDebug(response, checkoutResult);
                 } else {
                   checkoutSessionId = structKeyExists(checkoutResult, "stripeCheckoutSessionId") ? trim(toString(checkoutResult.stripeCheckoutSessionId)) : "";
                   if (!len(checkoutSessionId) AND structKeyExists(checkoutResult, "STRIPE_CHECKOUT_SESSION_ID")) {
@@ -231,6 +232,7 @@
                     checkoutErrorCode = structKeyExists(checkoutResult, "ERROR") ? trim(toString(checkoutResult.ERROR)) : "STRIPE_CHECKOUT_FAILED";
                     logRedemptionAttempt(promoId, arguments.userId, codeHash, "rejected", checkoutErrorCode, 0, nowValue);
                     response = ineligibleResponse(checkoutErrorCode, structKeyExists(checkoutResult, "MESSAGE") ? trim(toString(checkoutResult.MESSAGE)) : "Stripe checkout session could not be created.", qPromo);
+                    copyCheckoutDebug(response, checkoutResult);
                   } else {
                     checkoutSessionId = structKeyExists(checkoutResult, "stripeCheckoutSessionId") ? trim(toString(checkoutResult.stripeCheckoutSessionId)) : "";
                     if (!len(checkoutSessionId) AND structKeyExists(checkoutResult, "STRIPE_CHECKOUT_SESSION_ID")) {
@@ -431,6 +433,42 @@
         out.promoType = lCase(trim(toString(arguments.qPromo.promo_type[1])));
       }
       return out;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="copyCheckoutDebug" access="private" returntype="void" output="false">
+    <cfargument name="response" type="struct" required="true">
+    <cfargument name="checkoutResult" type="struct" required="true">
+    <cfscript>
+      var debugKeys = [
+        "debugMessage",
+        "stripeDebugMessage",
+        "stripeStatusCode",
+        "stripeErrorType",
+        "stripeErrorCode",
+        "stripeErrorParam",
+        "stripeErrorMessage",
+        "stripeRawBody",
+        "stripeRequestUrl",
+        "stripeRequest_mode",
+        "stripeRequest_line_items[0][price]",
+        "stripeRequest_success_url",
+        "stripeRequest_cancel_url",
+        "stripeRequest_client_reference_id",
+        "stripeRequest_metadata[fpwUserId]",
+        "stripeRequest_metadata[fpwPromoType]",
+        "stripeRequest_metadata[fpwTrialDays]",
+        "stripeRequest_subscription_data[trial_period_days]",
+        "stripeRequest_subscription_data[trial_settings][end_behavior][missing_payment_method]",
+        "stripeRequest_payment_method_collection"
+      ];
+      var keyName = "";
+
+      for (keyName in debugKeys) {
+        if (structKeyExists(arguments.checkoutResult, keyName)) {
+          arguments.response[keyName] = arguments.checkoutResult[keyName];
+        }
+      }
     </cfscript>
   </cffunction>
 

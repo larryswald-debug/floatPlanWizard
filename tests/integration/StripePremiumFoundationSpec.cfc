@@ -155,17 +155,72 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(countEntitlementsBySubscription(unknownSubscriptionId)).toBe(0);
       });
 
-      it("accepts valid webhook signatures and rejects mutated payloads", function() {
+      it("accepts webhook signatures when timestamp equals server epoch seconds", function() {
         var rawBody = serializeJSON({ id = "evt_sig_valid", type = "customer.subscription.updated" });
         var secret = "whsec_test_secret";
-        var nowSeconds = int(createObject("java", "java.lang.System").currentTimeMillis() / 1000);
+        var nowSeconds = 1779074701;
         var header = variables.signatureService.createTestSignatureHeader(rawBody, secret, nowSeconds);
         var valid = variables.signatureService.verify(rawBody, header, secret, 300, nowSeconds);
-        var invalid = variables.signatureService.verify(rawBody & " ", header, secret, 300, nowSeconds);
 
         expect(valid.SUCCESS).toBeTrue(serializeJSON(valid));
-        expect(invalid.SUCCESS).toBeFalse(serializeJSON(invalid));
-        expect(invalid.ERROR).toBe("STRIPE_SIGNATURE_INVALID");
+      });
+
+      it("accepts webhook signatures at the 300 second tolerance boundary", function() {
+        var rawBody = serializeJSON({ id = "evt_sig_tolerance_boundary", type = "customer.subscription.updated" });
+        var secret = "whsec_test_secret";
+        var nowSeconds = 1779074701;
+        var boundarySeconds = nowSeconds - 300;
+        var header = variables.signatureService.createTestSignatureHeader(rawBody, secret, boundarySeconds);
+        var valid = variables.signatureService.verify(rawBody, header, secret, 300, nowSeconds);
+
+        expect(valid.SUCCESS).toBeTrue(serializeJSON(valid));
+      });
+
+      it("rejects webhook signatures older than tolerance", function() {
+        var rawBody = serializeJSON({ id = "evt_sig_old", type = "customer.subscription.updated" });
+        var secret = "whsec_test_secret";
+        var nowSeconds = 1779074701;
+        var oldSeconds = nowSeconds - 301;
+        var header = variables.signatureService.createTestSignatureHeader(rawBody, secret, oldSeconds);
+        var result = variables.signatureService.verify(rawBody, header, secret, 300, nowSeconds);
+
+        expect(result.SUCCESS).toBeFalse(serializeJSON(result));
+        expect(result.ERROR).toBe("STRIPE_SIGNATURE_TIMESTAMP_OUTSIDE_TOLERANCE");
+      });
+
+      it("rejects webhook signatures in the future beyond tolerance", function() {
+        var rawBody = serializeJSON({ id = "evt_sig_future", type = "customer.subscription.updated" });
+        var secret = "whsec_test_secret";
+        var nowSeconds = 1779074701;
+        var futureSeconds = nowSeconds + 301;
+        var header = variables.signatureService.createTestSignatureHeader(rawBody, secret, futureSeconds);
+        var result = variables.signatureService.verify(rawBody, header, secret, 300, nowSeconds);
+
+        expect(result.SUCCESS).toBeFalse(serializeJSON(result));
+        expect(result.ERROR).toBe("STRIPE_SIGNATURE_TIMESTAMP_OUTSIDE_TOLERANCE");
+      });
+
+      it("rejects bad HMAC signatures", function() {
+        var rawBody = serializeJSON({ id = "evt_sig_bad_hmac", type = "customer.subscription.updated" });
+        var secret = "whsec_test_secret";
+        var nowSeconds = currentStripeTimestampForTest();
+        var header = variables.signatureService.createTestSignatureHeader(rawBody, secret, nowSeconds);
+        var result = variables.signatureService.verify(rawBody & " ", header, secret, 300);
+
+        expect(result.SUCCESS).toBeFalse(serializeJSON(result));
+        expect(result.ERROR).toBe("STRIPE_SIGNATURE_INVALID");
+      });
+
+      it("rejects missing and malformed Stripe-Signature headers", function() {
+        var rawBody = serializeJSON({ id = "evt_sig_missing", type = "customer.subscription.updated" });
+        var secret = "whsec_test_secret";
+        var missing = variables.signatureService.verify(rawBody, "", secret, 300);
+        var malformed = variables.signatureService.verify(rawBody, "t=12345", secret, 300);
+
+        expect(missing.SUCCESS).toBeFalse(serializeJSON(missing));
+        expect(missing.ERROR).toBe("STRIPE_SIGNATURE_MISSING");
+        expect(malformed.SUCCESS).toBeFalse(serializeJSON(malformed));
+        expect(malformed.ERROR).toBe("STRIPE_SIGNATURE_MALFORMED");
       });
 
       it("does not grant Premium from checkout completion or browser success URL state alone", function() {
@@ -196,6 +251,11 @@ component extends="testbox.system.BaseSpec" output="false" {
 
   private string function uniqueEventId(required string prefix) {
     return arguments.prefix & "_" & replace(createUUID(), "-", "", "all");
+  }
+
+  private numeric function currentStripeTimestampForTest() {
+    var epochLocal = dateConvert("utc2local", createDateTime(1970, 1, 1, 0, 0, 0));
+    return dateDiff("s", epochLocal, now());
   }
 
   private struct function checkoutEvent(required string eventId, required numeric userId, required string checkoutSessionId, required string subscriptionId) {

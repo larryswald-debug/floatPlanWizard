@@ -455,7 +455,7 @@
             }
 
             try {
-                pointsObj = deserializeJSON(out.points_body, false, false, true);
+                pointsObj = deserializeJSON(out.points_body, false, false);
             } catch (any ePointsJson) {
                 out.note = "Invalid JSON";
                 return out;
@@ -628,7 +628,7 @@
                 return out;
             }
             try {
-                obj = deserializeJSON(arguments.body, false, false, true);
+                obj = deserializeJSON(arguments.body, false, false);
             } catch (any eJson) {
                 out.note = "Invalid JSON";
                 return out;

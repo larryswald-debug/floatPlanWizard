@@ -52,7 +52,9 @@
       requestPayload = buildStripeRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl);
       stripeResult = executeStripeCheckoutRequest(requestPayload, secretKey);
       if (!structKeyExists(stripeResult, "SUCCESS") OR stripeResult.SUCCESS NEQ true) {
-        return errorResponse("STRIPE_CHECKOUT_FAILED", "Stripe checkout session could not be created.");
+        response = errorResponse("STRIPE_CHECKOUT_FAILED", "Stripe checkout session could not be created.");
+        addStripeCheckoutDebug(response, stripeResult, requestPayload, "checkout_session", userIdValue, selectedPriceId);
+        return response;
       }
 
       stripePayload = normalizeStripePayload(stripeResult);
@@ -163,7 +165,9 @@
       requestPayload = buildStripeTrialRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl, trialDaysValue, arguments.promoMetadata);
       stripeResult = executeStripeCheckoutRequest(requestPayload, secretKey);
       if (!structKeyExists(stripeResult, "SUCCESS") OR stripeResult.SUCCESS NEQ true) {
-        return errorResponse("STRIPE_CHECKOUT_FAILED", "Stripe checkout session could not be created.");
+        response = errorResponse("STRIPE_CHECKOUT_FAILED", "Stripe checkout session could not be created.");
+        addStripeCheckoutDebug(response, stripeResult, requestPayload, "free_trial_checkout_session", userIdValue, selectedPriceId);
+        return response;
       }
 
       stripePayload = normalizeStripePayload(stripeResult);
@@ -507,6 +511,118 @@
       }
       return "";
     </cfscript>
+  </cffunction>
+
+  <cffunction name="addStripeCheckoutDebug" access="private" returntype="void" output="false">
+    <cfargument name="response" type="struct" required="true">
+    <cfargument name="stripeResult" type="struct" required="true">
+    <cfargument name="requestPayload" type="struct" required="true">
+    <cfargument name="operation" type="string" required="true">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="priceId" type="string" required="true">
+    <cfscript>
+      var statusCode = structKeyExists(arguments.stripeResult, "statusCode") ? val(arguments.stripeResult.statusCode) : 0;
+      var stripePayload = normalizeStripePayload(arguments.stripeResult);
+      var stripeError = {};
+      var debugParts = [];
+      var debugMessage = "";
+      var rawBody = structKeyExists(arguments.stripeResult, "rawBody") ? trim(toString(arguments.stripeResult.rawBody)) : "";
+      var stripeType = "";
+      var stripeCode = "";
+      var stripeParam = "";
+      var stripeMessage = "";
+      var fieldName = "";
+
+      arrayAppend(debugParts, "operation=" & arguments.operation);
+      arrayAppend(debugParts, "userId=" & int(val(arguments.userId)));
+      arrayAppend(debugParts, "priceId=" & sanitizeStripeDebugText(arguments.priceId));
+      if (structKeyExists(arguments.requestPayload, "url")) {
+        arguments.response["stripeRequestUrl"] = sanitizeStripeDebugText(toString(arguments.requestPayload.url));
+        arrayAppend(debugParts, "stripeRequestUrl=" & arguments.response["stripeRequestUrl"]);
+      }
+      if (structKeyExists(arguments.requestPayload, "formFields") AND isStruct(arguments.requestPayload.formFields)) {
+        for (fieldName in arguments.requestPayload.formFields) {
+          if (listFindNoCase("mode,line_items[0][price],success_url,cancel_url,client_reference_id,metadata[fpwUserId],metadata[fpwPromoType],metadata[fpwTrialDays],subscription_data[trial_period_days],subscription_data[trial_settings][end_behavior][missing_payment_method],payment_method_collection", fieldName)) {
+            arguments.response["stripeRequest_" & fieldName] = sanitizeStripeDebugText(toString(arguments.requestPayload.formFields[fieldName]));
+            arrayAppend(debugParts, fieldName & "=" & arguments.response["stripeRequest_" & fieldName]);
+          }
+        }
+      }
+      if (statusCode GT 0) {
+        arguments.response["stripeStatusCode"] = statusCode;
+        arrayAppend(debugParts, "status=" & statusCode);
+      }
+
+      if (structKeyExists(stripePayload, "error") AND isStruct(stripePayload.error)) {
+        stripeError = stripePayload.error;
+        stripeType = readString(stripeError, "type");
+        stripeCode = readString(stripeError, "code");
+        stripeParam = readString(stripeError, "param");
+        stripeMessage = readString(stripeError, "message");
+
+        if (len(stripeType)) {
+          arguments.response["stripeErrorType"] = stripeType;
+          arrayAppend(debugParts, "type=" & stripeType);
+        }
+        if (len(stripeCode)) {
+          arguments.response["stripeErrorCode"] = stripeCode;
+          arrayAppend(debugParts, "code=" & stripeCode);
+        }
+        if (len(stripeParam)) {
+          arguments.response["stripeErrorParam"] = stripeParam;
+          arrayAppend(debugParts, "param=" & stripeParam);
+        }
+        if (len(stripeMessage)) {
+          arguments.response["stripeErrorMessage"] = sanitizeStripeDebugText(stripeMessage);
+          arrayAppend(debugParts, "message=" & arguments.response["stripeErrorMessage"]);
+        }
+      }
+
+      if (len(rawBody)) {
+        arguments.response["stripeRawBody"] = left(sanitizeStripeDebugText(rawBody), 1500);
+        arrayAppend(debugParts, "raw=" & arguments.response["stripeRawBody"]);
+      }
+      if (!arrayLen(debugParts)) {
+        arrayAppend(debugParts, "Stripe request failed before a status or parseable error body was available.");
+      }
+
+      debugMessage = arrayToList(debugParts, "; ");
+      arguments.response["debugMessage"] = debugMessage;
+      arguments.response["stripeDebugMessage"] = debugMessage;
+      writeStripeCheckoutDebugLog(arguments.operation, arguments.userId, arguments.priceId, debugMessage);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="sanitizeStripeDebugText" access="private" returntype="string" output="false">
+    <cfargument name="value" type="string" required="true">
+    <cfscript>
+      var textValue = replace(replace(trim(arguments.value), chr(13), " ", "all"), chr(10), " ", "all");
+      textValue = reReplace(textValue, "sk_live_[A-Za-z0-9]+", "sk_live_[redacted]", "all");
+      textValue = reReplace(textValue, "sk_test_[A-Za-z0-9]+", "sk_test_[redacted]", "all");
+      textValue = reReplace(textValue, "whsec_[A-Za-z0-9]+", "whsec_[redacted]", "all");
+      return left(textValue, 1000);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="writeStripeCheckoutDebugLog" access="private" returntype="void" output="false">
+    <cfargument name="operation" type="string" required="true">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="priceId" type="string" required="true">
+    <cfargument name="debugMessage" type="string" required="true">
+    <cfscript>
+      var logDirectory = expandPath("/fpw/logs");
+      var logFile = logDirectory & "/stripe-checkout-debug.log";
+      var logLine = "STRIPE_CHECKOUT_DEBUG ts=#dateTimeFormat(now(), 'yyyy-mm-dd HH:nn:ss')# operation=#arguments.operation# userId=#int(val(arguments.userId))# priceId=#sanitizeStripeDebugText(arguments.priceId)# debug=#sanitizeStripeDebugText(arguments.debugMessage)#";
+    </cfscript>
+    <cftry>
+      <cfif NOT directoryExists(logDirectory)>
+        <cfdirectory action="create" directory="#logDirectory#">
+      </cfif>
+      <cffile action="append" file="#logFile#" output="#logLine#" addnewline="true" charset="utf-8">
+      <cfcatch type="any">
+        <cflog file="fpw-errors" type="error" text="STRIPE_CHECKOUT_DEBUG_LOG_FAILED message=#toString(cfcatch.message)# detail=#toString(cfcatch.detail)#">
+      </cfcatch>
+    </cftry>
   </cffunction>
 
   <cffunction name="errorResponse" access="private" returntype="struct" output="false">

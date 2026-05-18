@@ -1,3 +1,4 @@
+<cfprocessingdirective pageencoding="utf-8">
 <!DOCTYPE html>
 <!-- Updated to host the float plan wizard inside a Bootstrap modal. -->
 <html lang="en">

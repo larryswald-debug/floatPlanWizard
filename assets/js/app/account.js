@@ -269,7 +269,7 @@
   }
 
   async function loadMembershipBilling() {
-    if (!$("membershipBillingCard")) return;
+    if (!$("membershipBillingCard")) return null;
 
     try {
       var data = window.Api && typeof window.Api.getCurrentMemberAccess === "function"
@@ -277,21 +277,70 @@
         : await fetchJson(API_BASE + "/me.cfc?method=handle", { method: "GET" });
 
       if (!ensureAuth(data)) {
-        return;
+        return null;
       }
       if (!data || (data.SUCCESS !== true && data.success !== true)) {
         throw data || { MESSAGE: "Unable to load membership status." };
       }
 
-      renderMembershipBilling(getAccessFromPayload(data));
+      var access = getAccessFromPayload(data);
+      renderMembershipBilling(access);
+      return access;
     } catch (err) {
       if (handleAuthError(err)) {
-        return;
+        return null;
       }
       setBillingStatus("Unavailable", "unknown");
       setText("membershipBillingSummary", "Membership status is unavailable.");
       showBillingMessage("Unable to load membership status.", "error");
+      return null;
     }
+  }
+
+  function isStripeCheckoutReturn() {
+    var search = window.location.search || "";
+    if (!search) return false;
+
+    try {
+      var params = new URLSearchParams(search);
+      var stripeValue = String(params.get("stripe") || "").trim().toLowerCase();
+      var stripeCheckoutValue = String(params.get("stripe_checkout") || "").trim().toLowerCase();
+      var checkoutValue = String(params.get("checkout") || "").trim().toLowerCase();
+      return stripeValue === "success" || stripeCheckoutValue === "success" || checkoutValue === "success";
+    } catch (err) {
+      return /(?:[?&](stripe|stripe_checkout|checkout)=success)(?:&|$)/i.test(search);
+    }
+  }
+
+  function refreshMembershipAfterStripeReturn(initialAccess) {
+    var delays = [1000, 2500, 5000, 8000];
+
+    if (!isStripeCheckoutReturn()) return;
+    if (hasPremiumAccess(initialAccess)) {
+      showBillingMessage("Premium access confirmed.", "success");
+      return;
+    }
+
+    showBillingMessage("Confirming Premium access...", "info");
+
+    function scheduleRefresh(index) {
+      if (index >= delays.length) {
+        showBillingMessage("Checkout completed. Premium access is still being confirmed. Refresh shortly.", "info");
+        return;
+      }
+
+      window.setTimeout(async function () {
+        var access = await loadMembershipBilling();
+        if (hasPremiumAccess(access)) {
+          showBillingMessage("Premium access confirmed.", "success");
+          return;
+        }
+        showBillingMessage("Confirming Premium access...", "info");
+        scheduleRefresh(index + 1);
+      }, delays[index]);
+    }
+
+    scheduleRefresh(0);
   }
 
   async function startPremiumUpgrade(interval, trigger) {
@@ -906,7 +955,7 @@
     if (logoutBtn) logoutBtn.addEventListener("click", logout);
 
     loadProfile();
-    loadMembershipBilling();
+    loadMembershipBilling().then(refreshMembershipAfterStripeReturn);
     loadCompanionDevices();
   });
 

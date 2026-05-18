@@ -1,3 +1,4 @@
+<cfprocessingdirective pageencoding="utf-8">
 <div id="fpwRouteGen" class="fpw-routegen">
   <style>
     #fpwRouteGen {

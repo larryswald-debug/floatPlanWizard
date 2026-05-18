@@ -5,7 +5,7 @@
     <cfset this.name               = "FPW">
     <cfset this.applicationTimeout = createTimeSpan(7,0,0,0)>
     <cfset this.sessionManagement  = true>
-    <cfset this.sessionTimeout     = createTimeSpan(0,4,0,0)>
+    <cfset this.sessionTimeout     = createTimeSpan(0,3,0,0)>
     <cfset this.setClientCookies   = true>
     <cfset this.clientManagement   = false>
     <cfset this.sessionType        = "j2ee">
@@ -18,38 +18,29 @@
     </cfif>
     <cfset variables.applicationRootPath = getDirectoryFromPath(getCurrentTemplatePath())>
     <cfset this.mappings["/fpw"] = variables.applicationRootPath>
+    <cfset this.mappings["/_fpw_private"] = variables.applicationRootPath & "_fpw_private">
     <cfif directoryExists(variables.applicationRootPath & "testbox")>
         <cfset this.mappings["/testbox"] = variables.applicationRootPath & "testbox">
     </cfif>
 
-    <cffunction name="getEnvValue" access="private" returntype="string" output="false">
-        <cfargument name="name" type="string" required="true">
-        <cfreturn "">
-    </cffunction>
-
     <cffunction name="onApplicationStart" access="public" returntype="boolean" output="false">
-        <cfset application.env = "prod">
+        <cfset var stripeConfigPath = expandPath("/_fpw_private/stripe-config-prod.json")>
+        <cfset var stripeConfigService = new fpw.api.v1.StripeConfigService().init(stripeConfigPath)>
+        <cfset var stripeApplicationSettings = stripeConfigService.getApplicationSettings()>
+        <cfset application.stripeConfigPath = stripeConfigPath>
+        <cfset application.env = stripeConfigService.getFpwEnv()>
         <cfset application.DSN = "fpw">
-        <cfset application.monitorToken = "">
-        <cftry>
-            <cfset application.monitorToken = getEnvValue("FPW_MONITOR_TOKEN")>
-            <cfcatch type="any">
-                <cflog
-                    file="fpw-errors"
-                    type="error"
-                    text="FPW_MONITOR_TOKEN_READ_FAILED message=#toString(cfcatch.message)# detail=#toString(cfcatch.detail)#">
-            </cfcatch>
-        </cftry>
+        <cfset application.monitorToken = stripeConfigService.getMonitorToken()>
         <cfset application.debugRequestTrace = false>
-        <cfset application.settings = {
-            "monitorToken" = application.monitorToken,
-            "env" = application.env
-        }>
+        <cfset application.settings = stripeApplicationSettings>
 
         <cfreturn true>
     </cffunction>
 
     <cffunction name="onRequestStart" access="public" returntype="boolean" output="false">
+        <cfif structKeyExists(url, "appreload")>
+            <cfset onApplicationStart()>
+        </cfif>
         <cfreturn true>
     </cffunction>
 
@@ -87,3 +78,4 @@
     </cffunction>
 
 </cfcomponent>
+

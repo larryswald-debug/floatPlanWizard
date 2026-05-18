@@ -1,3 +1,4 @@
+<cfprocessingdirective pageencoding="utf-8">
 <cfscript>
 request.fpwBase = getDirectoryFromPath(cgi.script_name);
 request.fpwBase = reReplace(request.fpwBase, "/app/?$", "");

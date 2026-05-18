@@ -18,30 +18,16 @@
     </cfif>
     <cfset variables.applicationRootPath = getDirectoryFromPath(getCurrentTemplatePath())>
     <cfset this.mappings["/fpw"] = variables.applicationRootPath>
-
-    <cffunction name="getEnvValue" access="private" returntype="string" output="false">
-        <cfargument name="name" type="string" required="true">
-        <cfreturn "">
-    </cffunction>
+    <cfset this.mappings["/_fpw_private"] = variables.applicationRootPath & "_fpw_private">
 
     <cffunction name="onApplicationStart" access="public" returntype="boolean" output="false">
-        <cfset application.env = "prod">
+        <cfset var stripeConfigService = new fpw.api.v1.StripeConfigService().init()>
+        <cfset var stripeApplicationSettings = stripeConfigService.getApplicationSettings()>
+        <cfset application.env = stripeConfigService.getFpwEnv()>
         <cfset application.DSN = "fpw">
-        <cfset application.monitorToken = "">
-        <cftry>
-            <cfset application.monitorToken = getEnvValue("FPW_MONITOR_TOKEN")>
-            <cfcatch type="any">
-                <cflog
-                    file="fpw-errors"
-                    type="error"
-                    text="FPW_MONITOR_TOKEN_READ_FAILED message=#toString(cfcatch.message)# detail=#toString(cfcatch.detail)#">
-            </cfcatch>
-        </cftry>
+        <cfset application.monitorToken = stripeConfigService.getMonitorToken()>
         <cfset application.debugRequestTrace = false>
-        <cfset application.settings = {
-            "monitorToken" = application.monitorToken,
-            "env" = application.env
-        }>
+        <cfset application.settings = stripeApplicationSettings>
 
         <cfreturn true>
     </cffunction>

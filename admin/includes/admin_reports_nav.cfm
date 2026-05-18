@@ -35,6 +35,7 @@ adminReportPages = [
     { "file" = "fuel-calculator.cfm", "label" = "Fuel Calculator" },
     { "file" = "metar-seed-test.cfm", "label" = "METAR Seed Test" },
     { "file" = "monitoring-dashboard.cfm", "label" = "Monitoring Dashboard" },
+    { "file" = "user-manager.cfm", "label" = "User Manager" },
     { "file" = "operator-manager.cfm", "label" = "Operator Manager" },
     { "file" = "passenger-manager.cfm", "label" = "Passenger Manager" },
     { "file" = "port_state_backfill.cfm", "label" = "Port State Backfill" },

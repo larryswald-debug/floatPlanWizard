@@ -15,7 +15,10 @@
     <cfscript>
       var parsed = parseSignatureHeader(arguments.signatureHeader);
       var timestamp = 0;
-      var nowSeconds = arguments.nowEpochSeconds GT 0 ? arguments.nowEpochSeconds : currentEpochSeconds();
+      var timestampSkewSeconds = 0;
+      var serverEpochNow = 0;
+      var serverNowUtc = "";
+      var serverNowLocal = "";
       var expected = "";
       var signedPayload = "";
       var i = 0;
@@ -31,7 +34,22 @@
       if (timestamp LTE 0) {
         return errorResponse("STRIPE_SIGNATURE_TIMESTAMP_INVALID", "Stripe signature timestamp is invalid.");
       }
-      if (abs(nowSeconds - timestamp) GT arguments.toleranceSeconds) {
+
+      serverEpochNow = arguments.nowEpochSeconds GT 0 ? val(arguments.nowEpochSeconds) : currentStripeTimestampSeconds();
+      timestampSkewSeconds = abs(serverEpochNow - timestamp);
+      serverNowUtc = dateTimeFormat(dateConvert("local2utc", now()), "yyyy-mm-dd'T'HH:nn:ss");
+      serverNowLocal = dateTimeFormat(now(), "yyyy-mm-dd'T'HH:nn:ss");
+      if (timestampSkewSeconds GT arguments.toleranceSeconds) {
+        writeTimestampToleranceDebugLog(
+          stripeTimestamp = timestamp,
+          serverEpochNow = serverEpochNow,
+          deltaSeconds = timestampSkewSeconds,
+          toleranceSeconds = arguments.toleranceSeconds,
+          serverNowUtc = serverNowUtc,
+          serverNowLocal = serverNowLocal,
+          signatureHeaderPresent = len(trim(arguments.signatureHeader)) GT 0,
+          rawBodyLength = len(arguments.rawBody)
+        );
         return errorResponse("STRIPE_SIGNATURE_TIMESTAMP_OUTSIDE_TOLERANCE", "Stripe signature timestamp is outside tolerance.");
       }
 
@@ -58,7 +76,7 @@
     <cfargument name="endpointSecret" type="string" required="true">
     <cfargument name="timestamp" type="numeric" required="false" default="0">
     <cfscript>
-      var ts = arguments.timestamp GT 0 ? arguments.timestamp : currentEpochSeconds();
+      var ts = arguments.timestamp GT 0 ? arguments.timestamp : currentStripeTimestampSeconds();
       var signedPayload = toString(ts) & "." & arguments.rawBody;
       return "t=" & ts & ",v1=" & hmacSha256Hex(signedPayload, arguments.endpointSecret);
     </cfscript>
@@ -131,10 +149,44 @@
     </cfscript>
   </cffunction>
 
-  <cffunction name="currentEpochSeconds" access="private" returntype="numeric" output="false">
+  <cffunction name="currentStripeTimestampSeconds" access="private" returntype="numeric" output="false">
     <cfscript>
-      return dateDiff("s", createDateTime(1970, 1, 1, 0, 0, 0), dateConvert("local2utc", now()));
+      var epochLocal = dateConvert("utc2local", createDateTime(1970, 1, 1, 0, 0, 0));
+      return dateDiff("s", epochLocal, now());
     </cfscript>
+  </cffunction>
+
+  <cffunction name="writeTimestampToleranceDebugLog" access="private" returntype="void" output="false">
+    <cfargument name="stripeTimestamp" type="numeric" required="true">
+    <cfargument name="serverEpochNow" type="numeric" required="true">
+    <cfargument name="deltaSeconds" type="numeric" required="true">
+    <cfargument name="toleranceSeconds" type="numeric" required="true">
+    <cfargument name="serverNowUtc" type="string" required="true">
+    <cfargument name="serverNowLocal" type="string" required="true">
+    <cfargument name="signatureHeaderPresent" type="boolean" required="true">
+    <cfargument name="rawBodyLength" type="numeric" required="true">
+    <cfscript>
+      var logDirectory = expandPath("/fpw/logs");
+      var logFile = logDirectory & "/stripe-webhook-debug.log";
+      var logLine = "STRIPE_WEBHOOK_DEBUG stage=signature-timestamp"
+        & " stripeTimestamp=" & int(val(arguments.stripeTimestamp))
+        & " serverEpochNow=" & int(val(arguments.serverEpochNow))
+        & " deltaSeconds=" & int(val(arguments.deltaSeconds))
+        & " toleranceSeconds=" & int(val(arguments.toleranceSeconds))
+        & " serverNowUtc=" & replace(replace(arguments.serverNowUtc, chr(13), "", "all"), chr(10), "", "all")
+        & " serverNowLocal=" & replace(replace(arguments.serverNowLocal, chr(13), "", "all"), chr(10), "", "all")
+        & " signatureHeaderPresent=" & (arguments.signatureHeaderPresent ? "true" : "false")
+        & " rawBodyLength=" & int(val(arguments.rawBodyLength));
+    </cfscript>
+    <cftry>
+      <cfif NOT directoryExists(logDirectory)>
+        <cfdirectory action="create" directory="#logDirectory#">
+      </cfif>
+      <cffile action="append" file="#logFile#" output="#logLine#" addnewline="true" charset="utf-8">
+      <cfcatch type="any">
+        <cflog file="fpw-errors" type="error" text="STRIPE_WEBHOOK_TIMESTAMP_DEBUG_LOG_FAILED message=#toString(cfcatch.message)# detail=#toString(cfcatch.detail)#">
+      </cfcatch>
+    </cftry>
   </cffunction>
 
   <cffunction name="errorResponse" access="private" returntype="struct" output="false">
