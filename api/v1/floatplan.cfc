@@ -840,6 +840,788 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="buildFreshOperationalRouteCode" access="private" returntype="string" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var attempt = 0;
+            var candidate = "";
+            var qExists = queryNew("");
+
+            for (attempt = 1; attempt LTE 10; attempt++) {
+                candidate = left("FPWOP_" & arguments.floatPlanId & "_" & lCase(replace(createUUID(), "-", "", "all")), 40);
+                qExists = queryExecute(
+                    "SELECT
+                        (
+                            SELECT COUNT(*)
+                            FROM loop_routes
+                            WHERE code = :code
+                               OR short_code = :code
+                        ) +
+                        (
+                            SELECT COUNT(*)
+                            FROM route_instances
+                            WHERE generated_route_code = :code
+                        ) AS code_count",
+                    {
+                        code = { value = candidate, cfsqltype = "cf_sql_varchar" }
+                    },
+                    { datasource = "fpw" }
+                );
+                if (qExists.recordCount EQ 1 AND val(qExists.code_count[1]) EQ 0) {
+                    return candidate;
+                }
+            }
+
+            throw(type = "RouteActivationFreshRouteCode", message = "Unable to generate a unique operational route code.");
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="loadRouteInstanceActivationHistory" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                ROUTE_INSTANCE_ID = arguments.routeInstanceId,
+                ROUTE_LEG_COUNT = 0,
+                PROGRESS_ROW_COUNT = 0,
+                OPERATIONAL_PROGRESS_COUNT = 0,
+                VALID_MONITORING_FOR_PLAN_COUNT = 0,
+                OTHER_MONITORING_COUNT = 0,
+                ACTIVITY_SEGMENT_COUNT = 0,
+                ROUTE_EVENT_COUNT = 0,
+                HISTORICAL_PLAN_COUNT = 0,
+                HAS_OPERATIONAL_HISTORY = false
+            };
+            var qHistory = queryNew("");
+
+            if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0 OR arguments.routeInstanceId LTE 0) {
+                result.ERROR = "INVALID_ROUTE_HISTORY_INPUT";
+                result.MESSAGE = "A valid user, float plan, and route instance are required.";
+                return result;
+            }
+
+            qHistory = queryExecute(
+                "SELECT
+                    COUNT(DISTINCT ril.id) AS route_leg_count,
+                    COUNT(DISTINCT rilp.id) AS progress_row_count,
+                    SUM(
+                        CASE
+                            WHEN rilp.id IS NOT NULL
+                             AND (
+                                rilp.leg_started_at IS NOT NULL
+                                OR rilp.completed_at IS NOT NULL
+                                OR UPPER(TRIM(COALESCE(rilp.status, ''))) <> 'NOT_STARTED'
+                             )
+                            THEN 1 ELSE 0
+                        END
+                    ) AS operational_progress_count,
+                    (
+                        SELECT COUNT(*)
+                        FROM floatplan_monitoring fm
+                        INNER JOIN floatplans mfp
+                           ON mfp.floatPlanId = fm.float_plan_id
+                        WHERE mfp.userId = :userId
+                          AND mfp.route_instance_id = :routeInstanceId
+                          AND mfp.floatPlanId = :floatPlanId
+                          AND fm.monitor_state = 'ACTIVE'
+                          AND fm.is_monitoring_enabled = 1
+                          AND fm.closed_at IS NULL
+                    ) AS valid_monitoring_for_plan_count,
+                    (
+                        SELECT COUNT(*)
+                        FROM floatplan_monitoring fm
+                        INNER JOIN floatplans mfp
+                           ON mfp.floatPlanId = fm.float_plan_id
+                        WHERE mfp.userId = :userId
+                          AND mfp.route_instance_id = :routeInstanceId
+                          AND mfp.floatPlanId <> :floatPlanId
+                    ) AS other_monitoring_count,
+                    (
+                        SELECT COUNT(*)
+                        FROM floatplan_activity_segments fas
+                        WHERE fas.user_id = :userId
+                          AND fas.route_instance_id = :routeInstanceId
+                    ) AS activity_segment_count,
+                    (
+                        SELECT COUNT(*)
+                        FROM floatplan_events fe
+                        WHERE fe.user_id = :userId
+                          AND fe.route_instance_id = :routeInstanceId
+                    ) AS route_event_count,
+                    (
+                        SELECT COUNT(*)
+                        FROM floatplans hfp
+                        WHERE hfp.userId = :userId
+                          AND hfp.route_instance_id = :routeInstanceId
+                          AND hfp.floatPlanId <> :floatPlanId
+                          AND (
+                              hfp.activatedAt IS NOT NULL
+                              OR hfp.initialSentAt IS NOT NULL
+                              OR hfp.closedAt IS NOT NULL
+                              OR UPPER(TRIM(COALESCE(hfp.`status`, ''))) IN ('ACTIVE', 'CLOSED', 'CANCELLED', 'CANCELED')
+                          )
+                    ) AS historical_plan_count
+                 FROM route_instance_legs ril
+                 LEFT JOIN route_instance_leg_progress rilp
+                   ON rilp.route_instance_id = ril.route_instance_id
+                  AND rilp.leg_order = ril.leg_order
+                  AND rilp.user_id = :userId
+                 WHERE ril.route_instance_id = :routeInstanceId",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+
+            if (qHistory.recordCount NEQ 1) {
+                result.ERROR = "ROUTE_HISTORY_NOT_FOUND";
+                result.MESSAGE = "Route activation history could not be loaded.";
+                return result;
+            }
+
+            result.SUCCESS = true;
+            result.ROUTE_LEG_COUNT = val(qHistory.route_leg_count[1]);
+            result.PROGRESS_ROW_COUNT = val(qHistory.progress_row_count[1]);
+            result.OPERATIONAL_PROGRESS_COUNT = val(qHistory.operational_progress_count[1]);
+            result.VALID_MONITORING_FOR_PLAN_COUNT = val(qHistory.valid_monitoring_for_plan_count[1]);
+            result.OTHER_MONITORING_COUNT = val(qHistory.other_monitoring_count[1]);
+            result.ACTIVITY_SEGMENT_COUNT = val(qHistory.activity_segment_count[1]);
+            result.ROUTE_EVENT_COUNT = val(qHistory.route_event_count[1]);
+            result.HISTORICAL_PLAN_COUNT = val(qHistory.historical_plan_count[1]);
+            result.HAS_OPERATIONAL_HISTORY = (
+                result.OPERATIONAL_PROGRESS_COUNT GT 0
+                OR result.OTHER_MONITORING_COUNT GT 0
+                OR result.ACTIVITY_SEGMENT_COUNT GT 0
+                OR result.ROUTE_EVENT_COUNT GT 0
+                OR result.HISTORICAL_PLAN_COUNT GT 0
+            );
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="ensureRouteInstanceCleanProgressRows" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                ROUTE_INSTANCE_ID = arguments.routeInstanceId,
+                ROUTE_LEG_COUNT = 0,
+                PROGRESS_ROW_COUNT = 0,
+                NOT_STARTED_ROWS = 0,
+                OPERATIONAL_PROGRESS_COUNT = 0
+            };
+            var qCounts = queryNew("");
+
+            queryExecute(
+                "INSERT INTO route_instance_leg_progress
+                    (user_id, route_instance_id, leg_order, status, leg_started_at, completed_at)
+                 SELECT
+                    :userId,
+                    ril.route_instance_id,
+                    ril.leg_order,
+                    'NOT_STARTED',
+                    NULL,
+                    NULL
+                 FROM route_instance_legs ril
+                 WHERE ril.route_instance_id = :routeInstanceId
+                   AND NOT EXISTS (
+                       SELECT 1
+                       FROM route_instance_leg_progress existing
+                       WHERE existing.user_id = :userId
+                         AND existing.route_instance_id = ril.route_instance_id
+                         AND existing.leg_order = ril.leg_order
+                   )
+                 ORDER BY ril.leg_order ASC",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                    routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+
+            qCounts = queryExecute(
+                "SELECT
+                    COUNT(DISTINCT ril.id) AS route_leg_count,
+                    COUNT(DISTINCT rilp.id) AS progress_row_count,
+                    SUM(
+                        CASE
+                            WHEN rilp.id IS NOT NULL
+                             AND UPPER(TRIM(COALESCE(rilp.status, ''))) = 'NOT_STARTED'
+                             AND rilp.leg_started_at IS NULL
+                             AND rilp.completed_at IS NULL
+                            THEN 1 ELSE 0
+                        END
+                    ) AS not_started_rows,
+                    SUM(
+                        CASE
+                            WHEN rilp.id IS NOT NULL
+                             AND (
+                                rilp.leg_started_at IS NOT NULL
+                                OR rilp.completed_at IS NOT NULL
+                                OR UPPER(TRIM(COALESCE(rilp.status, ''))) <> 'NOT_STARTED'
+                             )
+                            THEN 1 ELSE 0
+                        END
+                    ) AS operational_progress_count
+                 FROM route_instance_legs ril
+                 LEFT JOIN route_instance_leg_progress rilp
+                   ON rilp.route_instance_id = ril.route_instance_id
+                  AND rilp.leg_order = ril.leg_order
+                  AND rilp.user_id = :userId
+                 WHERE ril.route_instance_id = :routeInstanceId",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                    routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+
+            result.ROUTE_LEG_COUNT = val(qCounts.route_leg_count[1]);
+            result.PROGRESS_ROW_COUNT = val(qCounts.progress_row_count[1]);
+            result.NOT_STARTED_ROWS = val(qCounts.not_started_rows[1]);
+            result.OPERATIONAL_PROGRESS_COUNT = val(qCounts.operational_progress_count[1]);
+
+            if (result.ROUTE_LEG_COUNT LTE 0) {
+                result.ERROR = "ROUTE_LEGS_REQUIRED";
+                result.MESSAGE = "Route legs are required before activating this float plan.";
+                return result;
+            }
+            if (
+                result.PROGRESS_ROW_COUNT NEQ result.ROUTE_LEG_COUNT
+                OR result.NOT_STARTED_ROWS NEQ result.ROUTE_LEG_COUNT
+                OR result.OPERATIONAL_PROGRESS_COUNT GT 0
+            ) {
+                result.ERROR = "ROUTE_PROGRESS_NOT_CLEAN";
+                result.MESSAGE = "Route progress must be clean before scheduled monitoring can be initialized.";
+                return result;
+            }
+
+            result.SUCCESS = true;
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="createFreshOperationalRouteInstanceFromTemplate" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="sourceRouteInstanceId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                SOURCE_ROUTE_INSTANCE_ID = arguments.sourceRouteInstanceId,
+                ROUTE_INSTANCE_ID = 0,
+                ROUTE_CODE = "",
+                GENERATED_ROUTE_ID = 0
+            };
+            var qSource = queryNew("");
+            var qSections = queryNew("");
+            var qLegs = queryNew("");
+            var routeCode = "";
+            var routeName = "";
+            var routeDescription = "";
+            var templateRouteCode = "";
+            var directionVal = "";
+            var tripTypeVal = "";
+            var startLocationVal = "";
+            var endLocationVal = "";
+            var inputsJson = "";
+            var sourceDescription = "";
+            var totalNmIsNull = true;
+            var totalLocksIsNull = true;
+            var totalNmVal = 0;
+            var totalLocksVal = 0;
+            var newRouteId = 0;
+            var newRouteInstanceId = 0;
+            var sectionIdBySource = {};
+            var sectionIndex = 0;
+            var legIndex = 0;
+            var sourceSectionId = 0;
+            var newSectionId = 0;
+            var segmentId = 0;
+            var sourceLoopSegmentId = 0;
+            var detourCode = "";
+            var startName = "";
+            var endName = "";
+            var startLatIsNull = true;
+            var startLngIsNull = true;
+            var endLatIsNull = true;
+            var endLngIsNull = true;
+            var baseDistIsNull = true;
+            var lockCountIsNull = true;
+            var notesVal = "";
+            var freshRouteInsertResult = {};
+            var freshInstanceInsertResult = {};
+            var freshSectionInsertResult = {};
+            var sourceInputs = {};
+            var sourceInputKeys = [];
+            var sourceInputIndex = 0;
+            var sourceInputKey = "";
+            var sourceGeneratedRouteId = 0;
+            var sourceRouteCode = "";
+            var sourceUserRouteId = 0;
+
+            try {
+                qSource = queryExecute(
+                    "SELECT
+                        ri.id,
+                        ri.generated_route_id,
+                        ri.generated_route_code,
+                        ri.template_route_code,
+                        ri.direction,
+                        ri.trip_type,
+                        ri.start_location,
+                        ri.end_location,
+                        ri.routegen_inputs_json,
+                        lr.short_code AS route_short_code,
+                        lr.name AS route_name,
+                        lr.description AS route_description,
+                        lr.total_nm,
+                        lr.total_locks
+                     FROM route_instances ri
+                     LEFT JOIN loop_routes lr
+                       ON lr.id = ri.generated_route_id
+                     WHERE ri.id = :routeInstanceId
+                       AND ri.user_id = :userId
+                     LIMIT 1",
+                    {
+                        routeInstanceId = { value = arguments.sourceRouteInstanceId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                    },
+                    { datasource = "fpw" }
+                );
+
+                if (qSource.recordCount NEQ 1) {
+                    result.ERROR = "SOURCE_ROUTE_INSTANCE_NOT_FOUND";
+                    result.MESSAGE = "The source route instance could not be found.";
+                    return result;
+                }
+
+                qSections = queryExecute(
+                    "SELECT id, section_order, name, phase_num, source_section_id
+                     FROM route_instance_sections
+                     WHERE route_instance_id = :routeInstanceId
+                     ORDER BY section_order ASC, id ASC",
+                    {
+                        routeInstanceId = { value = arguments.sourceRouteInstanceId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = "fpw" }
+                );
+
+                qLegs = queryExecute(
+                    "SELECT
+                        route_instance_section_id,
+                        leg_order,
+                        segment_id,
+                        source_loop_segment_id,
+                        is_reversed,
+                        is_optional,
+                        detour_code,
+                        start_name,
+                        end_name,
+                        start_lat,
+                        start_lng,
+                        end_lat,
+                        end_lng,
+                        base_dist_nm,
+                        lock_count,
+                        notes
+                     FROM route_instance_legs
+                     WHERE route_instance_id = :routeInstanceId
+                     ORDER BY leg_order ASC, id ASC",
+                    {
+                        routeInstanceId = { value = arguments.sourceRouteInstanceId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = "fpw" }
+                );
+
+                if (qLegs.recordCount LTE 0) {
+                    result.ERROR = "SOURCE_ROUTE_LEGS_REQUIRED";
+                    result.MESSAGE = "The source route instance has no normalized legs.";
+                    return result;
+                }
+
+                routeCode = buildFreshOperationalRouteCode(arguments.floatPlanId);
+                routeName = trim(toString(qSource.route_name[1]));
+                if (!len(routeName)) {
+                    routeName = "Float Plan Route";
+                }
+                sourceDescription = isNull(qSource.route_description[1]) ? "" : trim(toString(qSource.route_description[1]));
+                routeDescription = "Operational copy for float plan " & arguments.floatPlanId & " from route instance " & arguments.sourceRouteInstanceId;
+                if (len(sourceDescription)) {
+                    routeDescription = left(routeDescription & ". " & sourceDescription, 255);
+                }
+                templateRouteCode = trim(toString(qSource.template_route_code[1]));
+                directionVal = trim(toString(qSource.direction[1]));
+                if (!len(directionVal)) {
+                    directionVal = "CCW";
+                }
+                tripTypeVal = trim(toString(qSource.trip_type[1]));
+                if (!len(tripTypeVal)) {
+                    tripTypeVal = "POINT_TO_POINT";
+                }
+                startLocationVal = trim(toString(qSource.start_location[1]));
+                endLocationVal = isNull(qSource.end_location[1]) ? "" : trim(toString(qSource.end_location[1]));
+                inputsJson = isNull(qSource.routegen_inputs_json[1]) ? "" : toString(qSource.routegen_inputs_json[1]);
+                sourceInputs = parseRouteInputs(inputsJson);
+                sourceInputKeys = structKeyArray(sourceInputs);
+                for (sourceInputIndex = 1; sourceInputIndex LTE arrayLen(sourceInputKeys); sourceInputIndex++) {
+                    sourceInputKey = sourceInputKeys[sourceInputIndex];
+                    if (left(uCase(sourceInputKey), 12) EQ "ACTIVE_TRIP_") {
+                        structDelete(sourceInputs, sourceInputKey, false);
+                    }
+                }
+                sourceGeneratedRouteId = isNull(qSource.generated_route_id[1]) ? 0 : val(qSource.generated_route_id[1]);
+                sourceRouteCode = trim(toString(isNull(qSource.route_short_code[1]) ? "" : qSource.route_short_code[1]));
+                if (!len(sourceRouteCode)) {
+                    sourceRouteCode = trim(toString(isNull(qSource.generated_route_code[1]) ? "" : qSource.generated_route_code[1]));
+                }
+                sourceUserRouteId = structKeyExists(sourceInputs, "route_id") ? val(sourceInputs.route_id) : 0;
+                sourceInputs.source_route_instance_id = arguments.sourceRouteInstanceId;
+                if (sourceGeneratedRouteId GT 0) {
+                    sourceInputs.source_generated_route_id = sourceGeneratedRouteId;
+                }
+                if (len(sourceRouteCode)) {
+                    sourceInputs.source_route_code = sourceRouteCode;
+                }
+                if (sourceUserRouteId GT 0) {
+                    sourceInputs.source_user_route_id = sourceUserRouteId;
+                }
+                if (len(templateRouteCode)) {
+                    sourceInputs.source_template_route_code = templateRouteCode;
+                }
+                try {
+                    inputsJson = serializeJSON(sourceInputs);
+                } catch (any sourceInputsSerializeErr) {
+                    result.ERROR = "FRESH_ROUTE_SOURCE_METADATA_FAILED";
+                    result.MESSAGE = "Unable to prepare source metadata for this activation.";
+                    result.DETAIL = sourceInputsSerializeErr.message;
+                    return result;
+                }
+                totalNmIsNull = (isNull(qSource.total_nm[1]) OR !len(trim(toString(qSource.total_nm[1]))));
+                totalLocksIsNull = (isNull(qSource.total_locks[1]) OR !len(trim(toString(qSource.total_locks[1]))));
+                totalNmVal = totalNmIsNull ? 0 : val(qSource.total_nm[1]);
+                totalLocksVal = totalLocksIsNull ? 0 : val(qSource.total_locks[1]);
+
+                transaction {
+                    queryExecute(
+                        "INSERT INTO loop_routes
+                            (code, name, short_code, description, is_active, version, is_default, total_nm, total_locks)
+                         VALUES
+                            (:code, :name, :shortCode, :description, 1, 1, 0, :totalNm, :totalLocks)",
+                        {
+                            code = { value = routeCode, cfsqltype = "cf_sql_varchar" },
+                            name = { value = routeName, cfsqltype = "cf_sql_varchar" },
+                            shortCode = { value = routeCode, cfsqltype = "cf_sql_varchar" },
+                            description = { value = routeDescription, cfsqltype = "cf_sql_varchar", null = NOT len(routeDescription) },
+                            totalNm = { value = totalNmVal, cfsqltype = "cf_sql_decimal", null = totalNmIsNull },
+                            totalLocks = { value = totalLocksVal, cfsqltype = "cf_sql_integer", null = totalLocksIsNull }
+                        },
+                        { datasource = "fpw", result = "freshRouteInsertResult" }
+                    );
+                    newRouteId = val(freshRouteInsertResult.generatedKey);
+
+                    queryExecute(
+                        "INSERT INTO route_instances
+                            (user_id, template_route_code, generated_route_id, generated_route_code, direction, trip_type, start_location, end_location, routegen_inputs_json, status)
+                         VALUES
+                            (:userId, :templateRouteCode, :generatedRouteId, :generatedRouteCode, :direction, :tripType, :startLocation, :endLocation, :routegenInputsJson, 'PLANNED')",
+                        {
+                            userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" },
+                            templateRouteCode = { value = templateRouteCode, cfsqltype = "cf_sql_varchar" },
+                            generatedRouteId = { value = newRouteId, cfsqltype = "cf_sql_integer" },
+                            generatedRouteCode = { value = routeCode, cfsqltype = "cf_sql_varchar" },
+                            direction = { value = directionVal, cfsqltype = "cf_sql_varchar" },
+                            tripType = { value = tripTypeVal, cfsqltype = "cf_sql_varchar" },
+                            startLocation = { value = startLocationVal, cfsqltype = "cf_sql_varchar" },
+                            endLocation = { value = endLocationVal, cfsqltype = "cf_sql_varchar", null = NOT len(endLocationVal) },
+                            routegenInputsJson = { value = inputsJson, cfsqltype = "cf_sql_longvarchar", null = NOT len(inputsJson) }
+                        },
+                        { datasource = "fpw", result = "freshInstanceInsertResult" }
+                    );
+                    newRouteInstanceId = val(freshInstanceInsertResult.generatedKey);
+
+                    for (sectionIndex = 1; sectionIndex LTE qSections.recordCount; sectionIndex++) {
+                        queryExecute(
+                            "INSERT INTO route_instance_sections
+                                (route_instance_id, section_order, name, phase_num, source_section_id)
+                             VALUES
+                                (:routeInstanceId, :sectionOrder, :name, :phaseNum, :sourceSectionId)",
+                            {
+                                routeInstanceId = { value = newRouteInstanceId, cfsqltype = "cf_sql_integer" },
+                                sectionOrder = { value = val(qSections.section_order[sectionIndex]), cfsqltype = "cf_sql_integer" },
+                                name = { value = trim(toString(qSections.name[sectionIndex])), cfsqltype = "cf_sql_varchar" },
+                                phaseNum = {
+                                    value = (isNull(qSections.phase_num[sectionIndex]) ? 0 : val(qSections.phase_num[sectionIndex])),
+                                    cfsqltype = "cf_sql_integer",
+                                    null = isNull(qSections.phase_num[sectionIndex])
+                                },
+                                sourceSectionId = {
+                                    value = (isNull(qSections.source_section_id[sectionIndex]) ? 0 : val(qSections.source_section_id[sectionIndex])),
+                                    cfsqltype = "cf_sql_integer",
+                                    null = isNull(qSections.source_section_id[sectionIndex])
+                                }
+                            },
+                            { datasource = "fpw", result = "freshSectionInsertResult" }
+                        );
+                        sectionIdBySource[toString(qSections.id[sectionIndex])] = val(freshSectionInsertResult.generatedKey);
+                    }
+
+                    for (legIndex = 1; legIndex LTE qLegs.recordCount; legIndex++) {
+                        sourceSectionId = isNull(qLegs.route_instance_section_id[legIndex]) ? 0 : val(qLegs.route_instance_section_id[legIndex]);
+                        newSectionId = 0;
+                        if (sourceSectionId GT 0 AND structKeyExists(sectionIdBySource, toString(sourceSectionId))) {
+                            newSectionId = val(sectionIdBySource[toString(sourceSectionId)]);
+                        }
+                        segmentId = isNull(qLegs.segment_id[legIndex]) ? 0 : val(qLegs.segment_id[legIndex]);
+                        sourceLoopSegmentId = isNull(qLegs.source_loop_segment_id[legIndex]) ? 0 : val(qLegs.source_loop_segment_id[legIndex]);
+                        detourCode = isNull(qLegs.detour_code[legIndex]) ? "" : trim(toString(qLegs.detour_code[legIndex]));
+                        startName = isNull(qLegs.start_name[legIndex]) ? "" : trim(toString(qLegs.start_name[legIndex]));
+                        endName = isNull(qLegs.end_name[legIndex]) ? "" : trim(toString(qLegs.end_name[legIndex]));
+                        startLatIsNull = (isNull(qLegs.start_lat[legIndex]) OR !len(trim(toString(qLegs.start_lat[legIndex]))));
+                        startLngIsNull = (isNull(qLegs.start_lng[legIndex]) OR !len(trim(toString(qLegs.start_lng[legIndex]))));
+                        endLatIsNull = (isNull(qLegs.end_lat[legIndex]) OR !len(trim(toString(qLegs.end_lat[legIndex]))));
+                        endLngIsNull = (isNull(qLegs.end_lng[legIndex]) OR !len(trim(toString(qLegs.end_lng[legIndex]))));
+                        baseDistIsNull = (isNull(qLegs.base_dist_nm[legIndex]) OR !len(trim(toString(qLegs.base_dist_nm[legIndex]))));
+                        lockCountIsNull = (isNull(qLegs.lock_count[legIndex]) OR !len(trim(toString(qLegs.lock_count[legIndex]))));
+                        notesVal = isNull(qLegs.notes[legIndex]) ? "" : trim(toString(qLegs.notes[legIndex]));
+
+                        queryExecute(
+                            "INSERT INTO route_instance_legs
+                                (route_instance_id, route_instance_section_id, leg_order, segment_id, source_loop_segment_id, is_reversed, is_optional, detour_code, start_name, end_name, start_lat, start_lng, end_lat, end_lng, base_dist_nm, lock_count, notes)
+                             VALUES
+                                (:routeInstanceId, :sectionId, :legOrder, :segmentId, :sourceLoopSegmentId, :isReversed, :isOptional, :detourCode, :startName, :endName, :startLat, :startLng, :endLat, :endLng, :baseDistNm, :lockCount, :notes)",
+                            {
+                                routeInstanceId = { value = newRouteInstanceId, cfsqltype = "cf_sql_integer" },
+                                sectionId = { value = newSectionId, cfsqltype = "cf_sql_integer", null = (newSectionId LTE 0) },
+                                legOrder = { value = val(qLegs.leg_order[legIndex]), cfsqltype = "cf_sql_integer" },
+                                segmentId = { value = segmentId, cfsqltype = "cf_sql_integer", null = (segmentId LTE 0) },
+                                sourceLoopSegmentId = { value = sourceLoopSegmentId, cfsqltype = "cf_sql_integer", null = (sourceLoopSegmentId LTE 0) },
+                                isReversed = { value = val(qLegs.is_reversed[legIndex]), cfsqltype = "cf_sql_bit" },
+                                isOptional = { value = val(qLegs.is_optional[legIndex]), cfsqltype = "cf_sql_bit" },
+                                detourCode = { value = detourCode, cfsqltype = "cf_sql_varchar", null = NOT len(detourCode) },
+                                startName = { value = startName, cfsqltype = "cf_sql_varchar", null = NOT len(startName) },
+                                endName = { value = endName, cfsqltype = "cf_sql_varchar", null = NOT len(endName) },
+                                startLat = {
+                                    value = (startLatIsNull ? 0 : val(qLegs.start_lat[legIndex])),
+                                    cfsqltype = "cf_sql_decimal",
+                                    null = startLatIsNull
+                                },
+                                startLng = {
+                                    value = (startLngIsNull ? 0 : val(qLegs.start_lng[legIndex])),
+                                    cfsqltype = "cf_sql_decimal",
+                                    null = startLngIsNull
+                                },
+                                endLat = {
+                                    value = (endLatIsNull ? 0 : val(qLegs.end_lat[legIndex])),
+                                    cfsqltype = "cf_sql_decimal",
+                                    null = endLatIsNull
+                                },
+                                endLng = {
+                                    value = (endLngIsNull ? 0 : val(qLegs.end_lng[legIndex])),
+                                    cfsqltype = "cf_sql_decimal",
+                                    null = endLngIsNull
+                                },
+                                baseDistNm = {
+                                    value = (baseDistIsNull ? 0 : val(qLegs.base_dist_nm[legIndex])),
+                                    cfsqltype = "cf_sql_decimal",
+                                    null = baseDistIsNull
+                                },
+                                lockCount = {
+                                    value = (lockCountIsNull ? 0 : val(qLegs.lock_count[legIndex])),
+                                    cfsqltype = "cf_sql_integer",
+                                    null = lockCountIsNull
+                                },
+                                notes = { value = notesVal, cfsqltype = "cf_sql_varchar", null = NOT len(notesVal) }
+                            },
+                            { datasource = "fpw" }
+                        );
+                    }
+
+                    queryExecute(
+                        "INSERT INTO route_instance_leg_progress
+                            (user_id, route_instance_id, leg_order, status, leg_started_at, completed_at)
+                         SELECT
+                            :userId,
+                            :routeInstanceId,
+                            ril.leg_order,
+                            'NOT_STARTED',
+                            NULL,
+                            NULL
+                         FROM route_instance_legs ril
+                         WHERE ril.route_instance_id = :routeInstanceId
+                         ORDER BY ril.leg_order ASC",
+                        {
+                            userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                            routeInstanceId = { value = newRouteInstanceId, cfsqltype = "cf_sql_integer" }
+                        },
+                        { datasource = "fpw" }
+                    );
+                }
+
+                result.SUCCESS = true;
+                result.ROUTE_INSTANCE_ID = newRouteInstanceId;
+                result.ROUTE_CODE = routeCode;
+                result.GENERATED_ROUTE_ID = newRouteId;
+                return result;
+            } catch (any createFreshRouteErr) {
+                result.ERROR = "FRESH_ROUTE_INSTANCE_CREATE_FAILED";
+                result.MESSAGE = "Unable to create a fresh route instance for this activation.";
+                result.DETAIL = createFreshRouteErr.message;
+                return result;
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="ensureCleanRouteInstanceForActivation" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                ROUTE_INSTANCE_ID = arguments.routeInstanceId,
+                ORIGINAL_ROUTE_INSTANCE_ID = arguments.routeInstanceId,
+                CREATED_FRESH = false,
+                ROUTE_CODE = ""
+            };
+            var history = loadRouteInstanceActivationHistory(
+                userId = arguments.userId,
+                floatPlanId = arguments.floatPlanId,
+                routeInstanceId = arguments.routeInstanceId
+            );
+            var freshRoute = {};
+            var cleanProgress = {};
+            var qVerify = queryNew("");
+
+            if (!history.SUCCESS) {
+                return history;
+            }
+
+            if (history.HAS_OPERATIONAL_HISTORY AND history.VALID_MONITORING_FOR_PLAN_COUNT EQ 0) {
+                freshRoute = createFreshOperationalRouteInstanceFromTemplate(
+                    userId = arguments.userId,
+                    floatPlanId = arguments.floatPlanId,
+                    sourceRouteInstanceId = arguments.routeInstanceId
+                );
+                if (!freshRoute.SUCCESS) {
+                    return freshRoute;
+                }
+
+                queryExecute(
+                    "UPDATE floatplans
+                     SET route_instance_id = :routeInstanceId,
+                         lastUpdate = UTC_TIMESTAMP()
+                     WHERE floatPlanId = :floatPlanId
+                       AND userId = :userId
+                       AND UPPER(TRIM(`status`)) = 'DRAFT'",
+                    {
+                        routeInstanceId = { value = freshRoute.ROUTE_INSTANCE_ID, cfsqltype = "cf_sql_integer" },
+                        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = "fpw" }
+                );
+
+                qVerify = queryExecute(
+                    "SELECT route_instance_id, UPPER(TRIM(`status`)) AS status_value
+                     FROM floatplans
+                     WHERE floatPlanId = :floatPlanId
+                       AND userId = :userId
+                     LIMIT 1",
+                    {
+                        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = "fpw" }
+                );
+                if (
+                    qVerify.recordCount NEQ 1
+                    OR val(qVerify.route_instance_id[1]) NEQ freshRoute.ROUTE_INSTANCE_ID
+                    OR trim(toString(qVerify.status_value[1])) NEQ "DRAFT"
+                ) {
+                    result.ERROR = "FRESH_ROUTE_ASSIGNMENT_FAILED";
+                    result.MESSAGE = "The fresh route instance could not be assigned before activation.";
+                    return result;
+                }
+
+                cleanProgress = ensureRouteInstanceCleanProgressRows(arguments.userId, freshRoute.ROUTE_INSTANCE_ID);
+                if (!cleanProgress.SUCCESS) {
+                    return cleanProgress;
+                }
+
+                result.SUCCESS = true;
+                result.ROUTE_INSTANCE_ID = freshRoute.ROUTE_INSTANCE_ID;
+                result.ORIGINAL_ROUTE_INSTANCE_ID = arguments.routeInstanceId;
+                result.CREATED_FRESH = true;
+                result.ROUTE_CODE = freshRoute.ROUTE_CODE;
+                result.HISTORY = history;
+                result.CLEAN_PROGRESS = cleanProgress;
+                return result;
+            }
+
+            cleanProgress = ensureRouteInstanceCleanProgressRows(arguments.userId, arguments.routeInstanceId);
+            if (!cleanProgress.SUCCESS) {
+                return cleanProgress;
+            }
+
+            result.SUCCESS = true;
+            result.HISTORY = history;
+            result.CLEAN_PROGRESS = cleanProgress;
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="revertRouteActivationWithoutMonitoring" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var result = { SUCCESS = false, REVERTED = false };
+            var qMonitoring = queryExecute(
+                "SELECT COUNT(*) AS monitor_count
+                 FROM floatplan_monitoring
+                 WHERE float_plan_id = :floatPlanId
+                   AND monitor_state <> 'CLOSED'
+                   AND is_monitoring_enabled = 1",
+                {
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+
+            if (val(qMonitoring.monitor_count[1]) GT 0) {
+                result.SUCCESS = true;
+                result.REVERTED = false;
+                result.REASON = "MONITORING_ROW_EXISTS";
+                return result;
+            }
+
+            queryExecute(
+                "UPDATE floatplans
+                 SET `status` = 'DRAFT',
+                     activatedAt = NULL,
+                     initialSentAt = NULL,
+                     lastUpdateStatus = UTC_TIMESTAMP()
+                 WHERE floatPlanId = :floatPlanId
+                   AND userId = :userId
+                   AND UPPER(TRIM(`status`)) = 'ACTIVE'",
+                {
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+
+            result.SUCCESS = true;
+            result.REVERTED = true;
+            return result;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="countEffectivePayloadWaypoints" access="private" returntype="numeric" output="false">
         <cfargument name="selectedWaypoints" type="array" required="true">
         <cfscript>
@@ -6380,6 +7162,8 @@
             var currentGroup = {};
             var memberGateResult = {};
             var storedPlanTimes = {};
+            var routeActivationResult = {};
+            var monitoringInitError = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "MISSING_PLAN_ID";
@@ -6490,6 +7274,19 @@
                 return result;
             }
 
+            routeActivationResult = ensureCleanRouteInstanceForActivation(
+                userId = arguments.userId,
+                floatPlanId = arguments.floatPlanId,
+                routeInstanceId = routeInstanceId
+            );
+            if (!routeActivationResult.SUCCESS) {
+                result.ERROR = structKeyExists(routeActivationResult, "ERROR") ? routeActivationResult.ERROR : "ROUTE_REACTIVATION_PRECHECK_FAILED";
+                result.MESSAGE = structKeyExists(routeActivationResult, "MESSAGE") ? routeActivationResult.MESSAGE : "Route activation preflight failed.";
+                result.ROUTE_ACTIVATION_RESULT = routeActivationResult;
+                return result;
+            }
+            routeInstanceId = routeActivationResult.ROUTE_INSTANCE_ID;
+
             var floatPlanUtils = createObject("component", resolveFloatPlanUtilsComponentPath()).init();
             var pdfFileName = floatPlanUtils.createPDF(arguments.floatPlanId);
             if (!len(trim(pdfFileName))) {
@@ -6581,14 +7378,27 @@
             }
 
             monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
-            monitoringResult = monitoringService.startScheduledRouteMonitoringForFloatPlan(arguments.floatPlanId);
+            try {
+                monitoringResult = monitoringService.startScheduledRouteMonitoringForFloatPlan(arguments.floatPlanId);
+            } catch (any monitoringInitErr) {
+                monitoringInitError = monitoringInitErr;
+                monitoringResult = {
+                    SUCCESS = false,
+                    ERROR = "SCHEDULED_MONITORING_EXCEPTION",
+                    MESSAGE = monitoringInitErr.message
+                };
+            }
             if (
                 !structKeyExists(monitoringResult, "SUCCESS")
                 OR monitoringResult.SUCCESS NEQ true
             ) {
+                revertRouteActivationWithoutMonitoring(arguments.userId, arguments.floatPlanId);
                 result.ERROR = "SCHEDULED_MONITORING_INITIALIZATION_FAILED";
                 result.MESSAGE = "Scheduled monitoring initialization failed.";
                 result.MONITORING_RESULT = monitoringResult;
+                if (structKeyExists(monitoringInitError, "detail") AND len(trim(toString(monitoringInitError.detail)))) {
+                    result.MONITORING_DETAIL = monitoringInitError.detail;
+                }
                 return result;
             }
 

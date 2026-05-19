@@ -941,7 +941,15 @@
                           AND ri.user_id = :uid
                         ORDER BY ri.id DESC
                         LIMIT 1
-                    ) AS route_instance_id
+                    ) AS route_instance_id,
+                    (
+                        SELECT ri.routegen_inputs_json
+                        FROM route_instances ri
+                        WHERE ri.generated_route_id = lr.id
+                          AND ri.user_id = :uid
+                        ORDER BY ri.id DESC
+                        LIMIT 1
+                    ) AS routegen_inputs_json
                  FROM loop_routes lr
                  WHERE lr.short_code LIKE :prefix
                  ORDER BY lr.id DESC",
@@ -955,6 +963,8 @@
             var timeline = {};
             var routeInstanceIdVal = 0;
             var currentRouteGroup = {};
+            var activeRouteSource = {};
+            var savedRouteInputs = {};
 
             floatPlanService = getFloatPlanService();
             if (!isObject(floatPlanService)) {
@@ -994,6 +1004,9 @@
                     "IS_DRAFT"=currentGroup.IS_DRAFT,
                     "IS_ACTIVE"=currentGroup.IS_ACTIVE
                 };
+                if (currentGroup.IS_ACTIVE AND currentGroup.ROUTE_INSTANCE_ID GT 0) {
+                    activeRouteSource = loadActiveOperationalRouteSource(arguments.userId, currentGroup.ROUTE_INSTANCE_ID);
+                }
             }
 
             for (i = 1; i LTE qRoutes.recordCount; i++) {
@@ -1005,6 +1018,17 @@
                 currentRouteGroup = {};
                 if (currentGroup.SUCCESS AND currentGroup.HAS_CURRENT_GROUP AND routeInstanceIdVal GT 0 AND currentGroup.ROUTE_INSTANCE_ID EQ routeInstanceIdVal) {
                     currentRouteGroup = duplicate(out.CURRENT_GROUP);
+                } else if (currentGroup.SUCCESS AND currentGroup.HAS_CURRENT_GROUP AND currentGroup.IS_ACTIVE AND structCount(activeRouteSource) GT 0) {
+                    savedRouteInputs = routegenParseStoredInputs(isNull(qRoutes.routegen_inputs_json[i]) ? "" : qRoutes.routegen_inputs_json[i]);
+                    if (isSavedRouteSourceForActiveOperationalRoute(
+                        loopRouteId = val(qRoutes.id[i]),
+                        routeShortCode = qRoutes.short_code[i],
+                        routeInstanceId = routeInstanceIdVal,
+                        routeInputs = savedRouteInputs,
+                        activeRouteSource = activeRouteSource
+                    )) {
+                        currentRouteGroup = duplicate(out.CURRENT_GROUP);
+                    }
                 }
                 arrayAppend(out.ROUTES, {
                     "ID"=qRoutes.id[i],
@@ -1020,6 +1044,146 @@
             }
             out.ACTIVE_TRIP = resolveCanonicalDashboardActiveTrip(arguments.userId);
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="loadActiveOperationalRouteSource" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                "HAS_SOURCE"=false,
+                "SOURCE_ROUTE_INSTANCE_ID"=0,
+                "SOURCE_GENERATED_ROUTE_ID"=0,
+                "SOURCE_ROUTE_CODE"="",
+                "SOURCE_USER_ROUTE_ID"=0
+            };
+            var qRoute = queryNew("");
+            var routeInputs = {};
+            var routeCodeVal = "";
+            var templateCodeVal = "";
+            var explicitSourceFound = false;
+
+            if (arguments.userId LTE 0 OR arguments.routeInstanceId LTE 0) {
+                return result;
+            }
+
+            qRoute = queryExecute(
+                "SELECT
+                    ri.id,
+                    ri.template_route_code,
+                    ri.generated_route_code,
+                    ri.routegen_inputs_json
+                 FROM route_instances ri
+                 WHERE ri.id = :routeInstanceId
+                   AND ri.user_id = :userId
+                 LIMIT 1",
+                {
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" },
+                    userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
+                },
+                { datasource = application.dsn }
+            );
+
+            if (qRoute.recordCount EQ 0) {
+                return result;
+            }
+
+            routeCodeVal = trim(toString(isNull(qRoute.generated_route_code[1]) ? "" : qRoute.generated_route_code[1]));
+            templateCodeVal = uCase(trim(toString(isNull(qRoute.template_route_code[1]) ? "" : qRoute.template_route_code[1])));
+            routeInputs = routegenParseStoredInputs(isNull(qRoute.routegen_inputs_json[1]) ? "" : qRoute.routegen_inputs_json[1]);
+
+            result.SOURCE_ROUTE_INSTANCE_ID = (
+                structKeyExists(routeInputs, "source_route_instance_id")
+                    ? val(routeInputs.source_route_instance_id)
+                    : 0
+            );
+            result.SOURCE_GENERATED_ROUTE_ID = (
+                structKeyExists(routeInputs, "source_generated_route_id")
+                    ? val(routeInputs.source_generated_route_id)
+                    : 0
+            );
+            result.SOURCE_ROUTE_CODE = (
+                structKeyExists(routeInputs, "source_route_code")
+                    ? trim(toString(routeInputs.source_route_code))
+                    : ""
+            );
+            result.SOURCE_USER_ROUTE_ID = (
+                structKeyExists(routeInputs, "source_user_route_id")
+                    ? val(routeInputs.source_user_route_id)
+                    : 0
+            );
+
+            explicitSourceFound = (
+                result.SOURCE_ROUTE_INSTANCE_ID GT 0
+                OR result.SOURCE_GENERATED_ROUTE_ID GT 0
+                OR len(result.SOURCE_ROUTE_CODE)
+                OR result.SOURCE_USER_ROUTE_ID GT 0
+            );
+
+            if (!explicitSourceFound AND templateCodeVal EQ "MY_ROUTE" AND left(uCase(routeCodeVal), 6) EQ "FPWOP_" AND structKeyExists(routeInputs, "route_id")) {
+                result.SOURCE_USER_ROUTE_ID = val(routeInputs.route_id);
+            }
+
+            result.HAS_SOURCE = (
+                result.SOURCE_ROUTE_INSTANCE_ID GT 0
+                OR result.SOURCE_GENERATED_ROUTE_ID GT 0
+                OR len(result.SOURCE_ROUTE_CODE)
+                OR result.SOURCE_USER_ROUTE_ID GT 0
+            );
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="isSavedRouteSourceForActiveOperationalRoute" access="private" returntype="boolean" output="false">
+        <cfargument name="loopRouteId" type="numeric" required="true">
+        <cfargument name="routeShortCode" type="string" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="true">
+        <cfargument name="routeInputs" type="struct" required="true">
+        <cfargument name="activeRouteSource" type="struct" required="true">
+        <cfscript>
+            var sourceRouteInstanceId = (
+                structKeyExists(arguments.activeRouteSource, "SOURCE_ROUTE_INSTANCE_ID")
+                    ? val(arguments.activeRouteSource.SOURCE_ROUTE_INSTANCE_ID)
+                    : 0
+            );
+            var sourceGeneratedRouteId = (
+                structKeyExists(arguments.activeRouteSource, "SOURCE_GENERATED_ROUTE_ID")
+                    ? val(arguments.activeRouteSource.SOURCE_GENERATED_ROUTE_ID)
+                    : 0
+            );
+            var sourceRouteCode = (
+                structKeyExists(arguments.activeRouteSource, "SOURCE_ROUTE_CODE")
+                    ? trim(toString(arguments.activeRouteSource.SOURCE_ROUTE_CODE))
+                    : ""
+            );
+            var sourceUserRouteId = (
+                structKeyExists(arguments.activeRouteSource, "SOURCE_USER_ROUTE_ID")
+                    ? val(arguments.activeRouteSource.SOURCE_USER_ROUTE_ID)
+                    : 0
+            );
+            var savedRouteUserRouteId = (
+                structKeyExists(arguments.routeInputs, "route_id")
+                    ? val(arguments.routeInputs.route_id)
+                    : 0
+            );
+
+            if (!structKeyExists(arguments.activeRouteSource, "HAS_SOURCE") OR !arguments.activeRouteSource.HAS_SOURCE) {
+                return false;
+            }
+            if (sourceRouteInstanceId GT 0 AND arguments.routeInstanceId GT 0 AND sourceRouteInstanceId EQ arguments.routeInstanceId) {
+                return true;
+            }
+            if (sourceGeneratedRouteId GT 0 AND arguments.loopRouteId GT 0 AND sourceGeneratedRouteId EQ arguments.loopRouteId) {
+                return true;
+            }
+            if (len(sourceRouteCode) AND len(trim(arguments.routeShortCode)) AND compareNoCase(sourceRouteCode, trim(arguments.routeShortCode)) EQ 0) {
+                return true;
+            }
+            if (sourceUserRouteId GT 0 AND savedRouteUserRouteId GT 0 AND sourceUserRouteId EQ savedRouteUserRouteId) {
+                return true;
+            }
+            return false;
         </cfscript>
     </cffunction>
 
@@ -12544,5 +12708,4 @@
     </cffunction>
 
 </cfcomponent>
-
 
