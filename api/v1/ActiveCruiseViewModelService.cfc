@@ -2014,6 +2014,11 @@
       var currentSegmentType = "";
       var routeTimelineAuthority = (structKeyExists(arguments.routeTimeline, "authority") ? safeString(arguments.routeTimeline.authority) : "");
       var routeTimelineAvailable = (structKeyExists(arguments.routeTimeline, "available") AND arguments.routeTimeline.available EQ true);
+      var openStartedLegOrder = (structKeyExists(arguments.progressSummary, "firstOpenStartedLegOrder") ? safeNumber(arguments.progressSummary.firstOpenStartedLegOrder) : 0);
+      var startedStatusRows = (structKeyExists(arguments.progressSummary, "startedStatusRows") ? safeNumber(arguments.progressSummary.startedStatusRows) : 0);
+      var completedRows = (structKeyExists(arguments.progressSummary, "completedRows") ? safeNumber(arguments.progressSummary.completedRows) : 0);
+      var notStartedRows = (structKeyExists(arguments.progressSummary, "notStartedRows") ? safeNumber(arguments.progressSummary.notStartedRows) : 0);
+      var hasCurrentUnderwayProof = false;
 
       if (planStatus EQ "CLOSED" OR isDate(arguments.qPlan.closedAt[1]) OR monitorState EQ "CLOSED") {
         return "closed";
@@ -2036,8 +2041,13 @@
       if (structKeyExists(arguments.projection, "currentLegProgress") AND isStruct(arguments.projection.currentLegProgress) AND structKeyExists(arguments.projection.currentLegProgress, "paused") AND arguments.projection.currentLegProgress.paused EQ true) {
         return "paused_overnight";
       }
-      if (currentSegmentType EQ "UNDERWAY" OR arguments.explicitStartProof) {
+      hasCurrentUnderwayProof = (currentSegmentType EQ "UNDERWAY" OR openStartedLegOrder GT 0 OR startedStatusRows GT 0);
+
+      if (hasCurrentUnderwayProof) {
         return "underway";
+      }
+      if (arguments.explicitStartProof AND completedRows GT 0 AND notStartedRows GT 0) {
+        return "awaiting_next_leg";
       }
       if (routeTimelineAvailable AND routeTimelineAuthority EQ "scheduled_projection") {
         return "scheduled";
@@ -2085,7 +2095,7 @@
       if (listFindNoCase("assistance_needed,escalated,missed,late", arguments.safetyState)) {
         return arguments.safetyState;
       }
-      if (listFindNoCase("scheduled,underway,paused_overnight,paused_delayed,arrived,closed", arguments.motionState)) {
+      if (listFindNoCase("scheduled,underway,awaiting_next_leg,paused_overnight,paused_delayed,arrived,closed", arguments.motionState)) {
         return arguments.motionState;
       }
       return "unknown_error";
@@ -2302,6 +2312,7 @@
       switch (arguments.state) {
         case "scheduled": return "Scheduled";
         case "underway": return "Underway";
+        case "awaiting_next_leg": return "Awaiting Next Leg";
         case "paused_overnight": return "Secure for the Night";
         case "paused_delayed": return "Delayed";
         case "late": return "Late";
@@ -2331,6 +2342,9 @@
       }
       if (arguments.motionState EQ "scheduled") {
         return "Scheduled departure is pending and no explicit start proof exists.";
+      }
+      if (arguments.motionState EQ "awaiting_next_leg") {
+        return "Trip progress is paused until Start Next Leg is selected.";
       }
       if (arguments.motionState EQ "paused_overnight") {
         return "Trip progress is paused for secure overnight.";
@@ -2422,11 +2436,15 @@
           return "The trip is scheduled and has not started yet.";
         case "underway":
           return "The trip is underway on the active route.";
+        case "awaiting_next_leg":
+          return "Trip progress is paused until the next route leg is started.";
       }
 
       switch (safeString(arguments.motionState)) {
         case "underway":
           return "The trip is underway on the active route.";
+        case "awaiting_next_leg":
+          return "Trip progress is paused until the next route leg is started.";
         case "scheduled":
           return "The trip is scheduled and has not started yet.";
       }

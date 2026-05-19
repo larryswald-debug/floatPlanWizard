@@ -214,7 +214,7 @@
         <cfargument name="endpointResult" type="struct" required="false" default="#structNew()#">
         <cfargument name="payload" type="struct" required="false" default="#structNew()#">
         <cfscript>
-            var out = { SUCCESS = false, EVENTS = [], EVENT_ID = 0 };
+            var out = { SUCCESS = false, EVENTS = [], SEGMENTS = [], EVENT_ID = 0 };
             var eventTypeVal = uCase(trim(arguments.eventType));
             var planCtx = {};
             var routeCtx = {
@@ -226,6 +226,10 @@
             var endpointResultVal = duplicate(arguments.endpointResult);
             var eventStatusVal = "";
             var eventId = 0;
+            var openSegments = [];
+            var currentSegmentType = "";
+            var currentSegmentRouteInstanceId = 0;
+            var currentSegmentLegOrder = 0;
 
             if (arguments.floatPlanId LTE 0 OR arguments.userId LTE 0) {
                 out.ERROR = "INVALID_ID";
@@ -306,22 +310,65 @@
             }
 
             try {
-                eventId = insertEvent(
-                    planCtx = planCtx,
-                    routeCtx = routeCtx,
-                    eventType = eventTypeVal,
-                    eventStatus = eventStatusVal,
-                    occurredAtUtc = arguments.occurredAtUtc,
-                    source = "active_cruise_route_action",
-                    actorUserId = arguments.userId,
-                    sourceMonitoringId = planCtx.monitoringId,
-                    sourcePostId = 0,
-                    idempotencyKey = buildIdempotencyKey("route_action", arguments.floatPlanId, eventTypeVal & ":" & routeCtx.routeLegOrder, arguments.occurredAtUtc),
-                    payload = payloadVal
-                );
-                out.SUCCESS = true;
-                out.EVENT_ID = eventId;
-                arrayAppend(out.EVENTS, eventTypeVal);
+                transaction {
+                    if (listFindNoCase("ROUTE_LEG_COMPLETED,ROUTE_LEG_STARTED", eventTypeVal)) {
+                        openSegments = getOpenSegmentsForUpdate(arguments.floatPlanId);
+                        if (arrayLen(openSegments) GT 1) {
+                            throw(
+                                message = "Multiple open canonical activity segments were detected.",
+                                detail = "floatPlanId=" & arguments.floatPlanId
+                            );
+                        }
+                        if (arrayLen(openSegments) EQ 1) {
+                            currentSegmentType = openSegments[1].segmentType;
+                            currentSegmentRouteInstanceId = openSegments[1].routeInstanceId;
+                            currentSegmentLegOrder = openSegments[1].routeLegOrder;
+                        }
+                    }
+
+                    eventId = insertEvent(
+                        planCtx = planCtx,
+                        routeCtx = routeCtx,
+                        eventType = eventTypeVal,
+                        eventStatus = eventStatusVal,
+                        occurredAtUtc = arguments.occurredAtUtc,
+                        source = "active_cruise_route_action",
+                        actorUserId = arguments.userId,
+                        sourceMonitoringId = planCtx.monitoringId,
+                        sourcePostId = 0,
+                        idempotencyKey = buildIdempotencyKey("route_action", arguments.floatPlanId, eventTypeVal & ":" & routeCtx.routeLegOrder, arguments.occurredAtUtc),
+                        payload = payloadVal
+                    );
+                    out.SUCCESS = true;
+                    out.EVENT_ID = eventId;
+                    arrayAppend(out.EVENTS, eventTypeVal);
+
+                    if (
+                        eventTypeVal EQ "ROUTE_LEG_COMPLETED"
+                        AND arrayLen(openSegments) EQ 1
+                        AND currentSegmentType EQ "UNDERWAY"
+                        AND currentSegmentRouteInstanceId EQ routeCtx.routeInstanceId
+                        AND currentSegmentLegOrder EQ routeCtx.routeLegOrder
+                    ) {
+                        closeSegment(openSegments[1].id, arguments.occurredAtUtc, eventId);
+                        arrayAppend(out.SEGMENTS, "CLOSED_UNDERWAY");
+                    } else if (eventTypeVal EQ "ROUTE_LEG_STARTED") {
+                        if (arrayLen(openSegments) EQ 0) {
+                            openSegment(planCtx, routeCtx, "UNDERWAY", arguments.occurredAtUtc, "", "", eventId);
+                            arrayAppend(out.SEGMENTS, "OPENED_UNDERWAY");
+                        } else if (currentSegmentType EQ "UNDERWAY" AND (currentSegmentRouteInstanceId NEQ routeCtx.routeInstanceId OR currentSegmentLegOrder NEQ routeCtx.routeLegOrder)) {
+                            closeSegment(openSegments[1].id, arguments.occurredAtUtc, eventId);
+                            openSegment(planCtx, routeCtx, "UNDERWAY", arguments.occurredAtUtc, "", "", eventId);
+                            arrayAppend(out.SEGMENTS, "CLOSED_UNDERWAY");
+                            arrayAppend(out.SEGMENTS, "OPENED_UNDERWAY");
+                        } else if (isResumeEligiblePauseSegment(currentSegmentType)) {
+                            closeSegment(openSegments[1].id, arguments.occurredAtUtc, eventId);
+                            openSegment(planCtx, routeCtx, "UNDERWAY", arguments.occurredAtUtc, "", arguments.occurredAtUtc, eventId);
+                            arrayAppend(out.SEGMENTS, "CLOSED_" & currentSegmentType);
+                            arrayAppend(out.SEGMENTS, "OPENED_UNDERWAY");
+                        }
+                    }
+                }
             } catch (any writeErr) {
                 out.SUCCESS = false;
                 out.ERROR = "CANONICAL_ROUTE_ACTION_WRITE_FAILED";
@@ -586,7 +633,7 @@
             var segments = [];
             var i = 0;
             var qSegments = queryExecute("
-                SELECT id, segment_type
+                SELECT id, route_instance_id, route_leg_order, segment_type
                 FROM floatplan_activity_segments
                 WHERE floatplan_id = :floatPlanId
                   AND ended_at_utc IS NULL
@@ -598,6 +645,8 @@
             for (i = 1; i <= qSegments.recordCount; i++) {
                 arrayAppend(segments, {
                     "id" = val(qSegments.id[i]),
+                    "routeInstanceId" = val(qSegments.route_instance_id[i]),
+                    "routeLegOrder" = val(qSegments.route_leg_order[i]),
                     "segmentType" = uCase(trim(toString(qSegments.segment_type[i])))
                 });
             }

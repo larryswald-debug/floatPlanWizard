@@ -658,20 +658,44 @@ component extends="testbox.system.BaseSpec" output="false" {
         var completeResult = {};
         var model = {};
         var completeRoutePayload = {};
+        var openSegmentBeforeComplete = {};
+        var closedSegment = {};
+        var firstLegState = {};
+        var secondLegState = {};
 
         try {
           url.testUserId = variables.sessionApiUser.userId;
           asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
           checkinResult = postActiveCruiseCheckinWithApi(sessionApi, asset.floatPlanId, "On Track");
           startedModel = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          openSegmentBeforeComplete = findOpenActivitySegment(asset.floatPlanId);
           completeResult = postCompleteLegWithApi(sessionApi, asset.floatPlanId, startedModel.currentLeg.order);
           model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          closedSegment = findLatestActivitySegmentForLeg(asset.floatPlanId, startedModel.currentLeg.order, "UNDERWAY");
+          firstLegState = loadRouteProgressLegState(asset.floatPlanId, startedModel.currentLeg.order);
+          secondLegState = loadRouteProgressLegState(asset.floatPlanId, startedModel.currentLeg.order + 1);
 
           expect(isSuccessPayload(checkinResult)).toBeTrue(serializeJSON(checkinResult));
+          expect(openSegmentBeforeComplete.found).toBeTrue(serializeJSON(openSegmentBeforeComplete));
+          expect(openSegmentBeforeComplete.segmentType).toBe("UNDERWAY", serializeJSON(openSegmentBeforeComplete));
+          expect(openSegmentBeforeComplete.routeLegOrder).toBe(startedModel.currentLeg.order, serializeJSON(openSegmentBeforeComplete));
           expect(isSuccessPayload(completeResult)).toBeTrue(serializeJSON(completeResult));
           expect(completeResult.COMPLETED ?: false).toBeTrue(serializeJSON(completeResult));
+          expect(firstLegState.status).toBe("COMPLETED", serializeJSON(firstLegState));
+          expect(firstLegState.completedAtPresent).toBeTrue(serializeJSON(firstLegState));
+          expect(secondLegState.status).toBe("NOT_STARTED", serializeJSON(secondLegState));
+          expect(secondLegState.startedAtPresent).toBeFalse(serializeJSON(secondLegState));
+          expect(closedSegment.found).toBeTrue(serializeJSON(closedSegment));
+          expect(closedSegment.endedAtPresent).toBeTrue(serializeJSON(closedSegment));
+          expect(findOpenActivitySegmentType(asset.floatPlanId)).toBe("");
           expect(model.success).toBeTrue(serializeJSON(model));
+          expect(model.motionState).toBe("awaiting_next_leg", serializeJSON(model));
+          expect(model.tripState).toBe("awaiting_next_leg", serializeJSON(model));
+          expect(model.hero.status).toBe("Awaiting Next Leg", serializeJSON(model.hero));
+          expect(model.hero.statusDetail).toBe("Trip progress is paused until Start Next Leg is selected.", serializeJSON(model.hero));
           expect(model.routeTimeline.available).toBeTrue(serializeJSON(model.routeTimeline));
+          expect(model.actions.completeLeg.enabled).toBeFalse(serializeJSON(model.actions.completeLeg));
+          expect(model.actions.completeLeg.reason).toBe("Complete Current Leg is available after the cruise is underway.", serializeJSON(model.actions.completeLeg));
           expect(model.actions.startNextLeg.enabled).toBeTrue(serializeJSON(model.actions.startNextLeg));
           expect(findNoCase("action=startnextleg", model.actions.startNextLeg.endpoint)).toBeGT(0, serializeJSON(model.actions.startNextLeg));
           expect(model.actions.startNextLeg.payload.floatPlanId).toBe(asset.floatPlanId);
@@ -702,6 +726,10 @@ component extends="testbox.system.BaseSpec" output="false" {
         var model = {};
         var startedPayload = {};
         var startedTimeline = {};
+        var openSegmentAfterComplete = {};
+        var openSegmentAfterStart = {};
+        var completedSegment = {};
+        var secondLegState = {};
 
         try {
           url.testUserId = variables.sessionApiUser.userId;
@@ -709,13 +737,24 @@ component extends="testbox.system.BaseSpec" output="false" {
           checkinResult = postActiveCruiseCheckinWithApi(sessionApi, asset.floatPlanId, "On Track", "merged timeline check-in");
           startedModel = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
           completeResult = postCompleteLegWithApi(sessionApi, asset.floatPlanId, startedModel.currentLeg.order);
+          openSegmentAfterComplete = findOpenActivitySegment(asset.floatPlanId);
+          completedSegment = findLatestActivitySegmentForLeg(asset.floatPlanId, startedModel.currentLeg.order, "UNDERWAY");
           startResult = postStartNextLegWithApi(sessionApi, asset.floatPlanId);
           model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          openSegmentAfterStart = findOpenActivitySegment(asset.floatPlanId);
+          secondLegState = loadRouteProgressLegState(asset.floatPlanId, startResult.LEG_ORDER);
 
           expect(isSuccessPayload(checkinResult)).toBeTrue(serializeJSON(checkinResult));
           expect(isSuccessPayload(completeResult)).toBeTrue(serializeJSON(completeResult));
+          expect(openSegmentAfterComplete.found).toBeFalse(serializeJSON(openSegmentAfterComplete));
+          expect(completedSegment.endedAtPresent).toBeTrue(serializeJSON(completedSegment));
           expect(isSuccessPayload(startResult)).toBeTrue(serializeJSON(startResult));
           expect(startResult.STARTED ?: false).toBeTrue(serializeJSON(startResult));
+          expect(secondLegState.status).toBe("STARTED", serializeJSON(secondLegState));
+          expect(secondLegState.startedAtPresent).toBeTrue(serializeJSON(secondLegState));
+          expect(openSegmentAfterStart.found).toBeTrue(serializeJSON(openSegmentAfterStart));
+          expect(openSegmentAfterStart.segmentType).toBe("UNDERWAY", serializeJSON(openSegmentAfterStart));
+          expect(openSegmentAfterStart.routeLegOrder).toBe(startResult.LEG_ORDER, serializeJSON(openSegmentAfterStart));
           expect(countRouteActionEvents(asset.floatPlanId, "ROUTE_LEG_STARTED")).toBe(1);
           startedPayload = findRouteActionEventPayload(asset.floatPlanId, "ROUTE_LEG_STARTED");
           expect(startedPayload.leg_order).toBe(startResult.LEG_ORDER, serializeJSON(startedPayload));
@@ -1930,8 +1969,25 @@ component extends="testbox.system.BaseSpec" output="false" {
   }
 
   private string function findOpenActivitySegmentType(required numeric floatPlanId) {
+    var segment = findOpenActivitySegment(arguments.floatPlanId);
+    if (!segment.found) {
+      return "";
+    }
+    return segment.segmentType;
+  }
+
+  private struct function findOpenActivitySegment(required numeric floatPlanId) {
+    var out = {
+      "found" = false,
+      "segmentType" = "",
+      "routeInstanceId" = 0,
+      "routeLegOrder" = 0,
+      "endedAtPresent" = false,
+      "sourceStartEventId" = 0,
+      "sourceEndEventId" = 0
+    };
     var qSegment = queryExecute(
-      "SELECT segment_type
+      "SELECT segment_type, route_instance_id, route_leg_order, ended_at_utc, source_start_event_id, source_end_event_id
 	       FROM floatplan_activity_segments
 	       WHERE floatplan_id = :floatPlanId
 	         AND ended_at_utc IS NULL
@@ -1943,9 +1999,88 @@ component extends="testbox.system.BaseSpec" output="false" {
       { datasource = "fpw" }
     );
     if (qSegment.recordCount EQ 0) {
-      return "";
+      return out;
     }
-    return uCase(trim(toString(qSegment.segment_type[1])));
+    out.found = true;
+    out.segmentType = uCase(trim(toString(qSegment.segment_type[1])));
+    out.routeInstanceId = val(qSegment.route_instance_id[1]);
+    out.routeLegOrder = val(qSegment.route_leg_order[1]);
+    out.endedAtPresent = isDate(qSegment.ended_at_utc[1]);
+    out.sourceStartEventId = val(qSegment.source_start_event_id[1]);
+    out.sourceEndEventId = val(qSegment.source_end_event_id[1]);
+    return out;
+  }
+
+  private struct function findLatestActivitySegmentForLeg(required numeric floatPlanId, required numeric legOrder, required string segmentType) {
+    var out = {
+      "found" = false,
+      "segmentType" = "",
+      "routeInstanceId" = 0,
+      "routeLegOrder" = 0,
+      "startedAtPresent" = false,
+      "endedAtPresent" = false,
+      "sourceStartEventId" = 0,
+      "sourceEndEventId" = 0
+    };
+    var qSegment = queryExecute(
+      "SELECT segment_type, route_instance_id, route_leg_order, started_at_utc, ended_at_utc, source_start_event_id, source_end_event_id
+	       FROM floatplan_activity_segments
+	       WHERE floatplan_id = :floatPlanId
+	         AND route_leg_order = :legOrder
+	         AND segment_type = :segmentType
+	       ORDER BY started_at_utc DESC, id DESC
+	       LIMIT 1",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+        legOrder = { value = arguments.legOrder, cfsqltype = "cf_sql_integer" },
+        segmentType = { value = uCase(trim(arguments.segmentType)), cfsqltype = "cf_sql_varchar" }
+      },
+      { datasource = "fpw" }
+    );
+    if (qSegment.recordCount EQ 0) {
+      return out;
+    }
+    out.found = true;
+    out.segmentType = uCase(trim(toString(qSegment.segment_type[1])));
+    out.routeInstanceId = val(qSegment.route_instance_id[1]);
+    out.routeLegOrder = val(qSegment.route_leg_order[1]);
+    out.startedAtPresent = isDate(qSegment.started_at_utc[1]);
+    out.endedAtPresent = isDate(qSegment.ended_at_utc[1]);
+    out.sourceStartEventId = val(qSegment.source_start_event_id[1]);
+    out.sourceEndEventId = val(qSegment.source_end_event_id[1]);
+    return out;
+  }
+
+  private struct function loadRouteProgressLegState(required numeric floatPlanId, required numeric legOrder) {
+    var out = {
+      "found" = false,
+      "status" = "",
+      "startedAtPresent" = false,
+      "completedAtPresent" = false
+    };
+    var qProgress = queryExecute(
+      "SELECT rilp.status, rilp.leg_started_at, rilp.completed_at
+       FROM route_instance_leg_progress rilp
+       INNER JOIN floatplans fp
+          ON fp.route_instance_id = rilp.route_instance_id
+         AND fp.userId = rilp.user_id
+       WHERE fp.floatPlanId = :floatPlanId
+         AND rilp.leg_order = :legOrder
+       LIMIT 1",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+        legOrder = { value = arguments.legOrder, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    if (qProgress.recordCount EQ 0) {
+      return out;
+    }
+    out.found = true;
+    out.status = uCase(trim(toString(qProgress.status[1])));
+    out.startedAtPresent = isDate(qProgress.leg_started_at[1]);
+    out.completedAtPresent = isDate(qProgress.completed_at[1]);
+    return out;
   }
 
   private struct function findCheckinEventPayload(required numeric floatPlanId, required string statusValue) {
