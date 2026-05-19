@@ -170,6 +170,24 @@
     return base + "/api/v1/voyage.cfc?method=handle&action=" + encodeURIComponent(action) + "&returnFormat=json";
   }
 
+  function apiDownloadUrl(action, params) {
+    var base = getBasePath();
+    var query = new URLSearchParams();
+    var values = params && typeof params === "object" ? params : {};
+
+    query.set("method", "handle");
+    query.set("action", action);
+    query.set("returnFormat", "json");
+
+    Object.keys(values).forEach(function (key) {
+      var value = values[key];
+      if (value === undefined || value === null || value === "") return;
+      query.set(key, String(value));
+    });
+
+    return base + "/api/v1/voyage.cfc?" + query.toString();
+  }
+
   function readSlugTokenFromUrl() {
     var params = new URLSearchParams(window.location.search || "");
     var slug = (params.get("slug") || "").trim();
@@ -862,6 +880,8 @@
     renderPhase5StreamShell(payload);
     renderPhase6LowerCards(payload, state.posts);
     renderPhase7TimelineSummary(payload);
+    renderTrackLog(payload);
+    renderFloatPlanDownload(payload);
 
     if (dom.shareTitle) dom.shareTitle.textContent = title;
     if (dom.tripTitle) dom.tripTitle.textContent = title;
@@ -920,6 +940,142 @@
     var n = safeNum(value);
     if (n === null) return "--";
     return n.toFixed(5);
+  }
+
+  function formatTrackLogCount(count) {
+    var n = toInt(count, 0);
+    return n + " " + (n === 1 ? "check-in" : "check-ins");
+  }
+
+  function buildFloatPlanPdfDownloadUrl(payload) {
+    var stream = payload && payload.stream && typeof payload.stream === "object" ? payload.stream : {};
+    var slug = String(stream.slug || state.slug || "").trim();
+    var streamId = toInt(stream.id || stream.stream_id || state.streamId, 0);
+    var params = {};
+
+    if (slug) {
+      params.slug = slug;
+    } else if (streamId > 0) {
+      params.stream_id = streamId;
+    } else {
+      return "";
+    }
+
+    if (state.token) {
+      params.t = state.token;
+    }
+
+    return apiDownloadUrl("downloadFloatPlanPdf", params);
+  }
+
+  function renderFloatPlanDownload(payload) {
+    var link = getHookField("float-plan-download-action");
+    var meta = getHookField("float-plan-meta");
+    var href = buildFloatPlanPdfDownloadUrl(payload);
+
+    if (!link) return;
+
+    link.removeAttribute("href");
+    link.removeAttribute("download");
+    link.classList.add("is-disabled");
+    link.setAttribute("aria-disabled", "true");
+    link.textContent = "Float plan PDF unavailable";
+    if (meta) {
+      meta.textContent = "PDF unavailable";
+    }
+
+    if (!href) return;
+
+    link.href = href;
+    link.setAttribute("download", "");
+    link.classList.remove("is-disabled");
+    link.removeAttribute("aria-disabled");
+    link.textContent = "Download PDF";
+    if (meta) {
+      meta.textContent = "PDF";
+    }
+  }
+
+  function appendTrackLogText(parent, className, value) {
+    var el = document.createElement("span");
+    el.className = className;
+    el.textContent = String(value || "");
+    parent.appendChild(el);
+    return el;
+  }
+
+  function focusTrackLogEntry(row, lat, lng, label) {
+    var api = window.FPWFollowMap;
+    var list = getHookField("track-log-list");
+    var focused = false;
+
+    if (!api || typeof api.focusPoint !== "function") return;
+
+    focused = api.focusPoint(lat, lng, label);
+    if (!focused || !list) return;
+
+    list.querySelectorAll(".follow-track-log-row.is-selected").forEach(function (el) {
+      el.classList.remove("is-selected");
+    });
+    row.classList.add("is-selected");
+  }
+
+  function renderTrackLog(payload) {
+    var trackLog = (payload && payload.trackLog && typeof payload.trackLog === "object") ? payload.trackLog : {};
+    var entries = Array.isArray(trackLog.entries) ? trackLog.entries : [];
+    var list = getHookField("track-log-list");
+    var countEl = getHookField("track-log-count");
+    var count = toInt(trackLog.count, entries.length);
+
+    if (countEl) {
+      countEl.textContent = formatTrackLogCount(count || entries.length);
+    }
+    if (!list) return;
+
+    while (list.firstChild) {
+      list.removeChild(list.firstChild);
+    }
+
+    if (!entries.length) {
+      var empty = document.createElement("div");
+      empty.className = "follow-track-log-empty";
+      empty.textContent = "No check-ins shared yet.";
+      list.appendChild(empty);
+      return;
+    }
+
+    entries.forEach(function (entry, index) {
+      var rowData = (entry && typeof entry === "object") ? entry : {};
+      var statusLabel = String(rowData.statusLabel || rowData.status || "Check-in").trim();
+      var occurredLabel = String(rowData.occurredAtLocalLabel || rowData.occurredAtUtc || "").trim();
+      var sourceLabel = String(rowData.sourceLabel || "").trim();
+      var lat = safeNum(rowData.latitude);
+      var lng = safeNum(rowData.longitude);
+      var hasGps = !!rowData.hasGps && lat !== null && lng !== null;
+      var coordLabel = String(rowData.coordinateLabel || "").trim() || (hasGps ? (formatCoord(lat) + ", " + formatCoord(lng)) : "No GPS attached");
+      var row = document.createElement(hasGps ? "button" : "div");
+      var mapLabel = statusLabel + (occurredLabel ? (" check-in from " + occurredLabel) : " check-in");
+
+      row.className = "follow-track-log-row " + (hasGps ? "has-gps" : "no-gps");
+      row.setAttribute("data-track-log-index", String(index));
+
+      if (hasGps) {
+        row.type = "button";
+        row.setAttribute("aria-label", "Show " + mapLabel + " on map");
+        row.addEventListener("click", function () {
+          focusTrackLogEntry(row, lat, lng, mapLabel);
+        });
+      }
+
+      appendTrackLogText(row, "follow-track-log-status", statusLabel);
+      appendTrackLogText(row, "follow-track-log-time", occurredLabel || "Time unavailable");
+      appendTrackLogText(row, "follow-track-log-coords", hasGps ? coordLabel : "No GPS attached");
+      if (sourceLabel) {
+        appendTrackLogText(row, "follow-track-log-source", sourceLabel);
+      }
+
+      list.appendChild(row);
+    });
   }
 
   function renderLegLockDetailsHtml(leg) {

@@ -87,8 +87,21 @@
     <cfscript>
       var userId = resolveUserIdFromCheckoutSession(arguments.sessionObject);
       var identifiers = extractReferences("checkout.session.completed", arguments.sessionObject);
+      var passResult = {};
       if (userId LTE 0) {
         return ignoredResponse("STRIPE_USER_MAPPING_NOT_FOUND", "Checkout session did not map to one valid FPW user.", identifiers);
+      }
+
+      if (isThreeDayPassCheckout(arguments.sessionObject, identifiers)) {
+        if (lCase(readString(arguments.sessionObject, "payment_status")) NEQ "paid") {
+          return ignoredResponse("STRIPE_THREE_DAY_PASS_PAYMENT_PENDING", "3-Day Pass checkout has not been paid yet.", identifiers, userId);
+        }
+        passResult = new fpw.api.v1.MemberEntitlementService().init(variables.datasource)
+          .createThreeDayPassEntitlement(userId);
+        if (!structKeyExists(passResult, "SUCCESS") OR passResult.SUCCESS NEQ true) {
+          return errorResponse("THREE_DAY_PASS_ENTITLEMENT_FAILED", "3-Day Pass entitlement could not be activated.");
+        }
+        return successResponse("3-Day Pass entitlement activated.", userId, identifiers);
       }
 
       upsertStripeEntitlement(
@@ -101,6 +114,28 @@
       markPromoCheckoutCompleted(userId, identifiers);
 
       return successResponse("Checkout session mapping recorded without granting Premium.", userId, identifiers);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="isThreeDayPassCheckout" access="private" returntype="boolean" output="false">
+    <cfargument name="sessionObject" type="struct" required="true">
+    <cfargument name="identifiers" type="struct" required="true">
+    <cfscript>
+      var configuredPriceId = new fpw.api.v1.StripeConfigService().init().getThreeDayPassPriceId();
+      var sessionPriceId = readString(arguments.identifiers, "stripePriceId");
+      var modeValue = lCase(readString(arguments.sessionObject, "mode"));
+      var productValue = lCase(readMetadataString(arguments.sessionObject, "fpwProduct"));
+      var sourceValue = lCase(readMetadataString(arguments.sessionObject, "fpwEntitlementSource"));
+      if (len(readString(arguments.identifiers, "stripeSubscriptionId"))) {
+        return false;
+      }
+      if (len(modeValue) AND modeValue NEQ "payment") {
+        return false;
+      }
+      if (productValue EQ "three_day_pass" OR sourceValue EQ "three_day_pass") {
+        return true;
+      }
+      return len(configuredPriceId) AND len(sessionPriceId) AND compareNoCase(configuredPriceId, sessionPriceId) EQ 0;
     </cfscript>
   </cffunction>
 

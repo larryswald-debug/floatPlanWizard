@@ -407,7 +407,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(len(model.actions.checkIn.endpoint)).toBeGT(0);
           expect(model.actions.checkIn.payload.floatPlanId).toBe(asset.floatPlanId);
           expect(model.actions.completeLeg.enabled).toBeTrue(serializeJSON(model.actions.completeLeg));
-          expect(model.actions.completeLeg.payload.routeLegOrder).toBe(model.currentLeg.order);
+          expect(model.actions.completeLeg.payload.expectedLegOrder).toBe(model.currentLeg.order);
           expect(model.actions.startNextLeg.enabled).toBeFalse(serializeJSON(model.actions.startNextLeg));
           expect(model.actions.startNextLeg.reason).toBe("A route leg is already underway.");
           expect(findStatusOption(model, "Secure for the Night").enabled).toBeTrue(serializeJSON(model.checkIn.allowedStatusOptions));
@@ -757,19 +757,34 @@ component extends="testbox.system.BaseSpec" output="false" {
         var sessionApi = buildSessionApiSupport();
         var localCreated = newCreatedTracker();
         var asset = {};
+        var preCloseModel = {};
         var closeResult = {};
         var closePayload = {};
+        var closeState = {};
+        var progressCounts = {};
         var model = {};
 
         try {
           url.testUserId = variables.sessionApiUser.userId;
           asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
           markAllLegsCompleted(asset.floatPlanId);
-          closeResult = postActiveCruiseCheckinWithApi(sessionApi, asset.floatPlanId, "Arrived");
+          preCloseModel = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          closeResult = sessionApi.postJson(preCloseModel.actions.closeFloatPlan.endpoint, preCloseModel.actions.closeFloatPlan.payload);
           model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          closeState = loadFinalCloseState(asset.floatPlanId);
+          progressCounts = loadRouteProgressCounts(asset.floatPlanId);
 
+          expect(preCloseModel.success).toBeTrue(serializeJSON(preCloseModel));
+          expect(preCloseModel.actions.closeFloatPlan.enabled).toBeTrue(serializeJSON(preCloseModel.actions.closeFloatPlan));
+          expect(findNoCase("action=checkin", preCloseModel.actions.closeFloatPlan.endpoint)).toBeGT(0, serializeJSON(preCloseModel.actions.closeFloatPlan));
+          expect(preCloseModel.actions.closeFloatPlan.payload.status).toBe("Arrived", serializeJSON(preCloseModel.actions.closeFloatPlan.payload));
           expect(isSuccessPayload(closeResult)).toBeTrue(serializeJSON(closeResult));
           expect(closeResult.STATUS ?: "").toBe("CLOSED", serializeJSON(closeResult));
+          expect(closeState.status).toBe("CLOSED", serializeJSON(closeState));
+          expect(closeState.closed_at_present).toBeTrue(serializeJSON(closeState));
+          expect(closeState.monitor_state).toBe("CLOSED", serializeJSON(closeState));
+          expect(closeState.monitor_closed_at_present).toBeTrue(serializeJSON(closeState));
+          expect(progressCounts.completed_rows).toBe(progressCounts.progress_row_count, serializeJSON(progressCounts));
           expect(countRouteActionEvents(asset.floatPlanId, "FLOATPLAN_CLOSED")).toBe(1);
           closePayload = findRouteActionEventPayload(asset.floatPlanId, "FLOATPLAN_CLOSED");
           expect(closePayload.action_label).toBe("Close Float Plan", serializeJSON(closePayload));
@@ -1066,6 +1081,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var asset = {};
         var arrivedModel = {};
         var closedModel = {};
+        var cancelledModel = {};
 
         try {
           url.testUserId = variables.sessionApiUser.userId;
@@ -1080,9 +1096,19 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(arrivedModel.motionState).toBe("arrived", serializeJSON(arrivedModel));
           expect(arrivedModel.actions.startNextLeg.enabled).toBeFalse(serializeJSON(arrivedModel.actions.startNextLeg));
           expect(len(arrivedModel.actions.startNextLeg.reason)).toBeGT(0);
+          expect(arrivedModel.currentLeg.order).toBeLTE(arrivedModel.route.totalLegs, serializeJSON(arrivedModel.currentLeg));
+          expect(arrivedModel.currentLeg.order).toBe(arrivedModel.route.totalLegs, serializeJSON(arrivedModel.currentLeg));
+          expect(arrivedModel.actions.closeFloatPlan.enabled).toBeTrue(serializeJSON(arrivedModel.actions.closeFloatPlan));
+          expect(findNoCase("action=checkin", arrivedModel.actions.closeFloatPlan.endpoint)).toBeGT(0, serializeJSON(arrivedModel.actions.closeFloatPlan));
+          expect(arrivedModel.actions.closeFloatPlan.payload.status).toBe("Arrived", serializeJSON(arrivedModel.actions.closeFloatPlan.payload));
           expect(closedModel.success).toBeTrue(serializeJSON(closedModel));
           expect(closedModel.tripState).toBe("closed", serializeJSON(closedModel));
           expect(closedModel.motionState).toBe("closed", serializeJSON(closedModel));
+          expect(closedModel.actions.closeFloatPlan.enabled).toBeFalse(serializeJSON(closedModel.actions.closeFloatPlan));
+          markPlanCancelled(asset.floatPlanId);
+          cancelledModel = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          expect(cancelledModel.success).toBeTrue(serializeJSON(cancelledModel));
+          expect(cancelledModel.actions.closeFloatPlan.enabled).toBeFalse(serializeJSON(cancelledModel.actions.closeFloatPlan));
         } finally {
           cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
         }
@@ -1829,6 +1855,29 @@ component extends="testbox.system.BaseSpec" output="false" {
     );
   }
 
+  private void function markPlanCancelled(required numeric floatPlanId) {
+    queryExecute(
+      "UPDATE floatplans
+       SET status = 'CANCELLED',
+           closedAt = UTC_TIMESTAMP()
+       WHERE floatPlanId = :floatPlanId",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "UPDATE floatplan_monitoring
+       SET monitor_state = 'CLOSED',
+           closed_at = UTC_TIMESTAMP()
+       WHERE float_plan_id = :floatPlanId",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
   private void function deleteRouteLegRows(required numeric floatPlanId) {
     queryExecute(
       "DELETE ril
@@ -1974,6 +2023,33 @@ component extends="testbox.system.BaseSpec" output="false" {
       { datasource = "fpw" }
     );
     return val(qRows.row_count[1]);
+  }
+
+  private struct function loadFinalCloseState(required numeric floatPlanId) {
+    var qState = queryExecute(
+      "SELECT
+          UPPER(TRIM(COALESCE(fp.status, ''))) AS status_value,
+          fp.closedAt AS fp_closed_at,
+          UPPER(TRIM(COALESCE(m.monitor_state, ''))) AS monitor_state_value,
+          m.closed_at AS monitor_closed_at
+       FROM floatplans fp
+       LEFT JOIN floatplan_monitoring m
+         ON m.float_plan_id = fp.floatPlanId
+       WHERE fp.floatPlanId = :floatPlanId
+       ORDER BY m.id DESC
+       LIMIT 1",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    expect(qState.recordCount).toBe(1);
+    return {
+      status = trim(toString(qState.status_value[1])),
+      closed_at_present = isDate(qState.fp_closed_at[1]),
+      monitor_state = trim(toString(qState.monitor_state_value[1])),
+      monitor_closed_at_present = isDate(qState.monitor_closed_at[1])
+    };
   }
 
   private void function deleteMonitoringRows(required numeric floatPlanId) {

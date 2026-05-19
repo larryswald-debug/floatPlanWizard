@@ -402,7 +402,8 @@
       .marine-risk-recommendation { grid-column: 1 / -1; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(126, 178, 220, .18); color: var(--wx-muted); text-align: center; font-size: 13px; }
       .marine-risk-recommendation span:first-child { color: #fff; margin-right: 8px; }
 
-      .weather-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 14px; }
+      .weather-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: stretch; margin-bottom: 14px; }
+      .weather-summary-grid > .weather-panel { height: 100%; }
       .conditions-hero { display: grid; grid-template-columns: 58px 1fr auto; gap: 12px; align-items: center; padding: 8px 18px 14px; border-bottom: 1px solid rgba(126, 178, 220, .14); }
       .conditions-symbol { font-size: 42px; color: var(--wx-yellow); line-height: 1; }
       .condition-label { font-size: 14px; color: #fff; font-weight: 800; }
@@ -428,9 +429,72 @@
       .watched-conditions { padding: 0 18px 14px; color: var(--wx-muted); font-size: 13px; }
       .watched-title { margin-bottom: 8px; color: #cfe4ff; }
       .watched-conditions ul { list-style: none; padding: 0; }
+      .weather-alert-types-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
       .watched-conditions li { position: relative; padding: 4px 0 4px 18px; }
       .watched-conditions li::before { content: "*"; position: absolute; left: 0; color: #cfe4ff; font-size: 10px; }
       .panel-link { display: block; margin: 0 18px 18px; padding-top: 13px; border-top: 1px solid rgba(126, 178, 220, .13); font-size: 13px; }
+      .weather-alerts-action { width: calc(100% - 36px); text-align: left; border: 0; border-top: 1px solid rgba(126, 178, 220, .13); background: transparent; color: var(--wx-teal); font: inherit; font-weight: 800; cursor: pointer; }
+      .weather-alerts-action:focus-visible { outline: 2px solid rgba(52, 210, 200, .7); outline-offset: 3px; }
+      .weather-alert-highest { margin-top: 5px; color: var(--wx-orange); font-size: 13px; font-weight: 800; }
+      .weather-alert-checked { margin: 0 18px 14px; padding: 9px 12px; border: 1px solid rgba(126, 178, 220, .15); border-radius: var(--wx-radius-sm); background: rgba(86, 168, 255, .08); color: var(--wx-muted); font-size: 13px; }
+      .weather-alert-active-now { padding: 0 18px 14px; color: var(--wx-muted); font-size: 13px; }
+      .weather-alert-active-now ul { list-style: none; margin: 0; padding: 0; }
+      .weather-alert-active-now li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 3px 0; }
+      .weather-alert-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--wx-blue); }
+      .weather-alert-dot.alert-risk-high { background: var(--wx-orange); }
+      .weather-alert-dot.alert-risk-caution { background: var(--wx-yellow); }
+      .weather-alert-dot.alert-risk-low { background: var(--wx-blue); }
+      .weather-alert-mini-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e9f4ff; }
+      .weather-alert-mini-expire { color: var(--wx-muted-2); white-space: nowrap; }
+      .weather-alert-source-note { margin: 0 18px 18px; color: var(--wx-muted-2); font-size: 12px; }
+      .weather-alerts-row { margin-bottom: 14px; }
+      .weather-alerts-card { width: 100%; }
+      .weather-alerts-card-inner { display: grid; grid-template-columns: minmax(220px, .9fr) minmax(280px, 1.3fr) minmax(260px, 1fr); gap: 18px; align-items: start; padding: 0 18px 18px; }
+      .weather-alerts-card-inner .alert-status-block,
+      .weather-alerts-card-inner .weather-alert-checked,
+      .weather-alerts-card-inner .watched-conditions,
+      .weather-alerts-card-inner .weather-alert-active-now,
+      .weather-alerts-card-inner .weather-alert-source-note { padding-left: 0; padding-right: 0; margin-left: 0; margin-right: 0; }
+      .weather-alerts-card-inner .alert-status-block { padding-top: 0; }
+      .weather-alerts-card-inner .weather-alerts-action { width: 100%; margin-left: 0; margin-right: 0; }
+
+      .weather-alerts-panel { margin-bottom: 14px; }
+      .weather-alerts-panel[hidden] { display: none !important; }
+      .weather-alerts-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 16px 18px 12px; border-bottom: 1px solid rgba(126, 178, 220, .13); cursor: pointer; }
+      .weather-alerts-panel-title { min-width: 0; flex: 1 1 auto; }
+      .weather-alerts-panel-toggle { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 1px solid rgba(126, 178, 220, .32); border-radius: 999px; background: rgba(86, 168, 255, .08); color: #dff8ff; font: inherit; font-size: 15px; font-weight: 900; line-height: 1; cursor: pointer; flex: 0 0 auto; }
+      .weather-alerts-panel-toggle:focus-visible { outline: 2px solid rgba(52, 210, 200, .7); outline-offset: 2px; }
+      .weather-alerts-panel-chevron { display: inline-block; transition: transform 150ms ease; }
+      .weather-alerts-panel-toggle[aria-expanded="true"] .weather-alerts-panel-chevron { transform: rotate(90deg); }
+      .weather-alerts-panel-body[hidden] { display: none !important; }
+      .weather-section-kicker { margin: 0 0 4px; color: var(--wx-blue); font-size: 12px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+      .weather-alerts-panel-header h2 { margin: 0; font-size: 16px; line-height: 1.3; }
+      .weather-alerts-count { display: inline-flex; align-items: center; justify-content: center; min-height: 24px; padding: 2px 9px; border: 1px solid rgba(126, 178, 220, .32); border-radius: var(--wx-radius-sm); background: rgba(86, 168, 255, .1); color: #fff; font-size: 12px; font-weight: 800; white-space: nowrap; }
+      .weather-alerts-panel-state { padding: 16px 18px; color: var(--wx-muted); }
+      .weather-alerts-panel-state strong { display: block; margin-bottom: 4px; color: #fff; }
+      .weather-alerts-list { display: grid; gap: 8px; padding: 12px 18px 18px; }
+      .weather-alert-row { overflow: hidden; border: 1px solid rgba(126, 178, 220, .18); border-radius: var(--wx-radius-sm); background: rgba(7, 35, 55, .72); }
+      .weather-alert-row__main { display: grid; grid-template-columns: minmax(220px, 1.15fr) minmax(380px, 2fr) auto; gap: 14px; align-items: start; padding: 12px 14px; border-left: 4px solid var(--wx-blue); }
+      .weather-alert-row.alert-risk-high .weather-alert-row__main { border-left-color: var(--wx-orange); }
+      .weather-alert-row.alert-risk-caution .weather-alert-row__main { border-left-color: var(--wx-yellow); }
+      .weather-alert-row h3 { margin: 0; color: #fff; font-size: 15px; }
+      .weather-alert-row p { margin: 5px 0 0; color: var(--wx-muted); font-size: 13px; line-height: 1.4; }
+      .weather-alert-meta-grid { display: grid; grid-template-columns: repeat(6, minmax(72px, 1fr)); gap: 10px; margin: 0; }
+      .weather-alert-meta-grid dt { color: var(--wx-muted-2); font-size: 11px; font-weight: 800; }
+      .weather-alert-meta-grid dd { margin: 2px 0 0; color: #fff; font-size: 12px; line-height: 1.3; }
+      .weather-alert-meta-grid .weather-alert-area { grid-column: span 2; }
+      .weather-alert-row__actions { display: flex; gap: 8px; justify-content: flex-end; white-space: nowrap; }
+      .weather-alert-detail-btn,
+      .weather-alert-official-link { display: inline-flex; align-items: center; justify-content: center; min-height: 31px; padding: 5px 10px; border: 1px solid rgba(126, 178, 220, .24); border-radius: var(--wx-radius-sm); background: rgba(255, 255, 255, .035); color: #e9f4ff; font: inherit; font-size: 12px; font-weight: 800; text-decoration: none; cursor: pointer; }
+      .weather-alert-official-link { color: var(--wx-blue); }
+      .weather-alert-detail-btn:focus-visible,
+      .weather-alert-official-link:focus-visible { outline: 2px solid rgba(52, 210, 200, .7); outline-offset: 2px; }
+      .weather-alert-detail { margin: 0 14px 14px; padding: 12px; border: 1px solid rgba(126, 178, 220, .14); border-radius: var(--wx-radius-sm); background: rgba(4, 19, 32, .55); }
+      .weather-alert-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .weather-alert-detail h4 { margin: 0 0 4px; color: #dff8ff; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
+      .weather-alert-detail p { margin: 0; color: var(--wx-muted); font-size: 13px; line-height: 1.45; }
+      .weather-alert-detail-wide { grid-column: 1 / -1; }
+      .weather-alert-disclaimer { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(126, 178, 220, .12); color: var(--wx-muted-2); font-size: 12px; }
 
       .weather-main-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(390px, 1fr); gap: 14px; margin-bottom: 14px; }
       .forecast-summary-line { color: var(--wx-muted); font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 500; }
@@ -449,7 +513,7 @@
 
       .tide-chart-header { justify-content: space-between; align-items: start; }
       .weather-toggle-group { display: inline-flex; border: 1px solid rgba(126, 178, 220, .2); border-radius: var(--wx-radius-sm); overflow: hidden; background: rgba(255, 255, 255, .04); }
-      .weather-toggle-group button { height: 32px; padding: 0 14px; border: 0; border-right: 1px solid rgba(126, 178, 220, .14); background: transparent; color: var(--wx-muted); font: inherit; font-size: 13px; cursor: default; }
+      .weather-toggle-group button { height: 32px; padding: 0 14px; border: 0; border-right: 1px solid rgba(126, 178, 220, .14); background: transparent; color: var(--wx-muted); font: inherit; font-size: 13px; cursor: pointer; }
       .weather-toggle-group button:last-child { border-right: 0; }
       .weather-toggle-group .toggle-active { background: rgba(86, 168, 255, .32); color: #fff; font-weight: 800; }
       .tide-chart-area { padding: 0 16px; }
@@ -477,7 +541,7 @@
       .tide-planning-note { margin-top: 0; }
       .tide-planning-note strong { display: block; margin-bottom: 4px; color: #8cc8ff; }
 
-      .weather-lower-grid { display: grid; grid-template-columns: 1.1fr .88fr .95fr; gap: 14px; margin-bottom: 14px; }
+      .weather-lower-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
       .source-detail-list { padding: 0 18px 18px; }
       .source-detail-list > div { display: grid; grid-template-columns: 160px 1fr; gap: 16px; padding: 5px 0; border-bottom: 1px solid rgba(126, 178, 220, .09); font-size: 13px; }
       .source-detail-list dt { color: var(--wx-muted); }
@@ -644,8 +708,12 @@
         .marine-risk-main { border-right: 0; border-bottom: 1px solid var(--wx-line-strong); padding: 0 0 18px; }
         .marine-risk-why { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .marine-risk-why-title { grid-column: 1 / -1; }
-        .weather-summary-grid { grid-template-columns: repeat(2, 1fr); }
+        .weather-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .weather-alerts-card-inner { grid-template-columns: 1fr 1fr; }
+        .weather-alerts-active-column { grid-column: 1 / -1; }
         .weather-main-grid { grid-template-columns: 1fr; }
+        .weather-alert-row__main { grid-template-columns: 1fr; }
+        .weather-alert-row__actions { justify-content: flex-start; }
         .weather-lower-grid { grid-template-columns: 1fr 1fr; }
         .best-window-panel { grid-column: 1 / -1; }
         .active-cruise-weather-grid { grid-template-columns: repeat(2, 1fr); }
@@ -671,6 +739,9 @@
         .marine-risk-recommendation { text-align: left; }
         .weather-summary-grid,
         .weather-lower-grid { grid-template-columns: 1fr; }
+        .weather-alerts-card-inner { grid-template-columns: 1fr; }
+        .weather-alert-types-list { grid-template-columns: 1fr; }
+        .weather-alerts-active-column { grid-column: auto; }
         .best-window-panel { grid-column: auto; }
         .conditions-hero { grid-template-columns: 52px 1fr; }
         .conditions-temp-block { grid-column: 1 / -1; text-align: left; }
@@ -690,6 +761,13 @@
         .weather-page-footer { display: block; line-height: 1.7; }
         .weather-page-footer .dot-separator { display: none; }
         .weather-version { display: block; margin-left: 0; margin-top: 8px; }
+        .weather-alerts-panel-header { flex-direction: column; }
+        .weather-alert-active-now li { grid-template-columns: auto minmax(0, 1fr); }
+        .weather-alert-mini-expire { grid-column: 2; }
+        .weather-alert-meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .weather-alert-meta-grid .weather-alert-area { grid-column: 1 / -1; }
+        .weather-alert-row__actions { flex-direction: column; }
+        .weather-alert-detail-grid { grid-template-columns: 1fr; }
       }
 
       @media (max-width: 460px) {
@@ -763,7 +841,7 @@
           <div class="weather-location-line">
             <span id="weatherResolvedLocation">—</span>
             <span class="dot-separator">&bull;</span>
-            <span>ZIP <span id="weatherZipDisplay">—</span></span>
+            <span><span id="weatherLocationDetailLabel">ZIP</span> <span id="weatherZipDisplay">—</span></span>
             <button type="button" class="weather-favorite-button" aria-label="Favorite location">☆</button>
           </div>
         </div>
@@ -882,15 +960,47 @@
       </dl>
     </article>
 
-    <article class="weather-panel marine-alerts-panel">
+  </section>
+
+  <section class="weather-alerts-row">
+    <article class="weather-panel marine-alerts-panel weather-alerts-card">
       <header class="weather-panel-header"><span class="panel-icon alert-icon">⚠</span><h2>Marine Alerts</h2></header>
-      <div class="alert-status-block"><div class="alert-check-icon" aria-hidden="true">✓</div><div><div class="alert-status-value" id="weatherAlertStatus">—</div><div class="muted" id="weatherAlertSummary">—</div></div></div>
-      <div class="watched-conditions">
-        <div class="watched-title">Watched Conditions:</div>
-        <ul><li>Small Craft Advisory</li><li>Gale Warning</li><li>Special Marine Warning</li><li>Thunderstorm Warning</li><li>Dense Fog Advisory</li><li>Coastal Flood Advisory</li></ul>
+      <div class="weather-alerts-card-inner">
+        <div class="weather-alerts-status-column">
+          <div class="alert-status-block"><div class="alert-check-icon" id="weatherAlertIcon" aria-hidden="true">✓</div><div><div class="alert-status-value" id="weatherAlertStatus">—</div><div class="muted" id="weatherAlertSummary">—</div><div class="weather-alert-highest" id="weatherAlertHighest">—</div></div></div>
+          <div class="weather-alert-checked">Last checked: <span id="weatherAlertsCheckedAt">—</span></div>
+        </div>
+        <div class="weather-alerts-watch-column">
+          <div class="watched-conditions">
+            <div class="watched-title">Alert Types Watched:</div>
+            <ul class="weather-alert-types-list"><li>Small Craft Advisory</li><li>Gale Warning</li><li>Special Marine Warning</li><li>Thunderstorm Warning</li><li>Dense Fog Advisory</li><li>Coastal Flood Advisory</li></ul>
+          </div>
+        </div>
+        <div class="weather-alerts-active-column">
+          <div class="weather-alert-active-now">
+            <div class="watched-title">Active Now:</div>
+            <ul id="weatherAlertsActiveNow"><li>—</li></ul>
+          </div>
+          <button type="button" id="weatherDetailsLink" class="panel-link weather-alerts-action" aria-controls="activeNoaaAlertsPanel" aria-expanded="false">View active NOAA alerts</button>
+          <div class="weather-alert-source-note">Data from NOAA/NWS. Review official alerts before departure.</div>
+        </div>
       </div>
-      <a href="#" id="weatherDetailsLink" class="panel-link">View all NOAA marine alerts</a>
     </article>
+  </section>
+
+  <section id="activeNoaaAlertsPanel" class="weather-panel weather-alerts-panel d-none" hidden>
+    <div class="weather-alerts-panel-header" id="activeNoaaAlertsHeader">
+      <button type="button" id="activeNoaaAlertsToggle" class="weather-alerts-panel-toggle" aria-expanded="false" aria-controls="activeNoaaAlertsBody" aria-label="Show active NOAA alerts"><span class="weather-alerts-panel-chevron" aria-hidden="true">&gt;</span></button>
+      <div class="weather-alerts-panel-title">
+        <p class="weather-section-kicker">NOAA / NWS Alert Details</p>
+        <h2 id="weatherAlertsPanelTitle">Active NOAA Alerts</h2>
+      </div>
+      <span id="weatherAlertsPanelBadge" class="weather-alerts-count">—</span>
+    </div>
+    <div id="activeNoaaAlertsBody" class="weather-alerts-panel-body" hidden>
+      <div id="weatherAlertsPanelState" class="weather-alerts-panel-state"></div>
+      <div id="activeNoaaAlertsList" class="weather-alerts-list"></div>
+    </div>
   </section>
 
   <section class="weather-main-grid">
@@ -907,7 +1017,7 @@
     <article class="weather-panel tide-chart-panel">
       <header class="weather-panel-header tide-chart-header">
         <div><h2>Tide &amp; Water Level</h2><div class="panel-subtitle">Station: <span id="weatherTideChartStation">—</span></div></div>
-        <div class="weather-toggle-group" aria-label="Tide chart range"><button type="button" class="toggle-active">Today</button><button type="button">Tomorrow</button></div>
+        <div class="weather-toggle-group" aria-label="Tide chart range"><button type="button" class="toggle-active" data-tide-range="today" aria-pressed="true">Today</button><button type="button" data-tide-range="tomorrow" aria-pressed="false">Tomorrow</button></div>
       </header>
       <div class="tide-chart-area" id="weatherTideChart">
         <div id="tideGraph" class="fpw-wx__tideGraph d-none" aria-label="Tide graph">
@@ -918,7 +1028,7 @@
         </div>
       </div>
       <div class="tide-summary-boxes">
-        <div><span>Current</span><strong id="weatherTideSummaryCurrent">—</strong><small id="weatherTideSummaryCurrentTrend">—</small></div>
+        <div><span id="weatherTideSummaryCurrentLabel">Current</span><strong id="weatherTideSummaryCurrent">—</strong><small id="weatherTideSummaryCurrentTrend">—</small></div>
         <div><span>High</span><strong id="weatherTideSummaryHighTime">—</strong><small id="weatherTideSummaryHighHeight">—</small></div>
         <div><span>Low</span><strong id="weatherTideSummaryLowTime">—</strong><small id="weatherTideSummaryLowHeight">—</small></div>
         <div><span>Next High</span><strong id="weatherTideSummaryNextHighTime">—</strong><small id="weatherTideSummaryNextHighHeight">—</small></div>
@@ -958,14 +1068,7 @@
         </span>
       </button>
     </article>
-
-    <article class="weather-panel best-window-panel">
-      <header class="weather-panel-header"><span class="panel-icon good-icon">✓</span><h2>Best Boating Window</h2></header>
-      <div class="best-window-time" id="weatherBestWindowTime">Based on current marine forecast</div>
-      <p id="weatherBestWindowSummary">Review the next 12 hours table before departure.</p>
-      <div class="best-window-divider"></div>
-      <div class="watch-after-block"><div><div class="watch-label">Watch after:</div><strong id="weatherWatchAfterTime">—</strong><p id="weatherWatchAfterSummary">Use the hourly forecast table for changing wind, rain, visibility, and marine risk.</p></div><div class="watch-icon" aria-hidden="true">◷</div></div>
-    </article>
+    <!-- Launch placeholder hidden. -->
   </section>
 
   <section class="weather-panel zone-forecast-panel" id="weatherZoneForecastPanel">
@@ -1025,7 +1128,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/fpw-weather-overlays.js?v=20260430a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260227c"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260510-weather-scan-a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260518-tide-tabs-a"></script>
 
 </body>
 </html>

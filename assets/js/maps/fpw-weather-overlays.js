@@ -49,15 +49,6 @@
       attribution: "NOAA/NDFD",
       modes: { weather: true, activeCruise: true }
     },
-    observedWind: {
-      label: "Observed Wind",
-      target: "fpw-observed-wind",
-      layers: "1,2,3,4,5,6",
-      styles: "",
-      opacity: 0.9,
-      attribution: "NOAA/NWS MADIS",
-      modes: { weather: true, activeCruise: true }
-    },
     satellite: {
       label: "Cloud / Satellite",
       target: "fpw-satellite",

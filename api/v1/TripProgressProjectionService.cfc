@@ -561,11 +561,18 @@
             var statusVal = "";
             var startedAt = "";
             var completedAt = "";
+            var finalLegOrder = 0;
 
             for (i = 1; i LTE arguments.qProgress.recordCount; i++) {
                 statusVal = safeString(arguments.qProgress.status_val[i]);
                 if (statusVal EQ "COMPLETED" AND safeNumber(arguments.qProgress.leg_order[i]) GT highestCompleted) {
                     highestCompleted = safeNumber(arguments.qProgress.leg_order[i]);
+                }
+            }
+
+            for (i = 1; i LTE arguments.qLegs.recordCount; i++) {
+                if (safeNumber(arguments.qLegs.leg_order[i]) GT finalLegOrder) {
+                    finalLegOrder = safeNumber(arguments.qLegs.leg_order[i]);
                 }
             }
 
@@ -588,8 +595,20 @@
             }
 
             if (activeOrder LTE 0) {
-                activeOrder = highestCompleted + 1;
-                row = { "status" = "NOT_STARTED", "startedAtUtc" = "", "completedAtUtc" = "" };
+                if (finalLegOrder GT 0 AND highestCompleted GTE finalLegOrder) {
+                    activeOrder = finalLegOrder;
+                    row = { "status" = "COMPLETED", "startedAtUtc" = "", "completedAtUtc" = "" };
+                    for (i = 1; i LTE arguments.qProgress.recordCount; i++) {
+                        if (safeNumber(arguments.qProgress.leg_order[i]) EQ finalLegOrder) {
+                            row.startedAtUtc = formatUtc(arguments.qProgress.leg_started_at[i]);
+                            row.completedAtUtc = formatUtc(arguments.qProgress.completed_at[i]);
+                            break;
+                        }
+                    }
+                } else {
+                    activeOrder = highestCompleted + 1;
+                    row = { "status" = "NOT_STARTED", "startedAtUtc" = "", "completedAtUtc" = "" };
+                }
             }
 
             legDetails = findLegDetails(arguments.qLegs, activeOrder);

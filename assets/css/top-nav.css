@@ -456,13 +456,12 @@
 
 .fpw-member-nav-link.is-active,
 .fpw-member-action-link.is-active {
-  color: #06111c;
-  background: #34fff1;
-  border-color: rgba(127, 252, 246, 0.9);
-  text-shadow: none;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.18) inset,
-    0 0 20px rgba(33, 243, 238, 0.28);
+  color: #28f3e8;
+  background: rgba(35, 215, 207, 0.08);
+  border-color: rgba(33, 243, 238, 0.22);
+  text-decoration: none;
+  text-shadow: 0 0 18px rgba(40, 243, 232, 0.55);
+  box-shadow: none;
 }
 
 .fpw-member-actions {
@@ -567,8 +566,10 @@
   }
 
   .fpw-member-site-header .fpw-member-nav-link.is-active {
-    color: #06111c;
-    background: #34fff1;
+    color: #28f3e8;
+    background: rgba(35, 215, 207, 0.08);
+    border-color: rgba(33, 243, 238, 0.22);
+    text-shadow: 0 0 18px rgba(40, 243, 232, 0.55);
   }
 
   .fpw-member-site-header .fpw-nav-actions {

@@ -38,8 +38,8 @@
       if (userIdValue LTE 0) {
         return errorResponse("INVALID_USER_ID", "Session user is invalid.");
       }
-      if (!listFindNoCase("monthly,yearly", intervalValue)) {
-        return errorResponse("INVALID_PRICE_SELECTOR", "Choose monthly or yearly Premium billing.");
+      if (!listFindNoCase("monthly,yearly,three_day_pass", intervalValue)) {
+        return errorResponse("INVALID_PRICE_SELECTOR", "Choose monthly, yearly, or 3-Day Pass Premium billing.");
       }
       secretKey = readConfigValue("secretKey", "getSecretKey");
       selectedPriceId = resolvePriceId(intervalValue);
@@ -49,7 +49,9 @@
         return errorResponse("STRIPE_CONFIG_MISSING", "Stripe checkout configuration is incomplete.");
       }
 
-      requestPayload = buildStripeRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl);
+      requestPayload = intervalValue EQ "three_day_pass"
+        ? buildStripeThreeDayPassRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl)
+        : buildStripeRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl);
       stripeResult = executeStripeCheckoutRequest(requestPayload, secretKey);
       if (!structKeyExists(stripeResult, "SUCCESS") OR stripeResult.SUCCESS NEQ true) {
         response = errorResponse("STRIPE_CHECKOUT_FAILED", "Stripe checkout session could not be created.");
@@ -260,6 +262,33 @@
           "client_reference_id" = toString(int(val(arguments.userId))),
           "metadata[fpwUserId]" = toString(int(val(arguments.userId))),
           "subscription_data[metadata][fpwUserId]" = toString(int(val(arguments.userId)))
+        }
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildStripeThreeDayPassRequestPayload" access="private" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="priceId" type="string" required="true">
+    <cfargument name="successUrl" type="string" required="true">
+    <cfargument name="cancelUrl" type="string" required="true">
+    <cfscript>
+      var userIdText = toString(int(val(arguments.userId)));
+      return {
+        "url" = "https://api.stripe.com/v1/checkout/sessions",
+        "formFields" = {
+          "mode" = "payment",
+          "line_items[0][price]" = trim(arguments.priceId),
+          "line_items[0][quantity]" = "1",
+          "success_url" = trim(arguments.successUrl),
+          "cancel_url" = trim(arguments.cancelUrl),
+          "client_reference_id" = userIdText,
+          "metadata[fpwUserId]" = userIdText,
+          "metadata[fpwProduct]" = "three_day_pass",
+          "metadata[fpwEntitlementSource]" = "three_day_pass",
+          "payment_intent_data[metadata][fpwUserId]" = userIdText,
+          "payment_intent_data[metadata][fpwProduct]" = "three_day_pass",
+          "payment_intent_data[metadata][fpwEntitlementSource]" = "three_day_pass"
         }
       };
     </cfscript>
@@ -482,6 +511,8 @@
           return readConfigValue("premiumMonthlyPriceId", "getPremiumMonthlyPriceId");
         case "yearly":
           return readConfigValue("premiumYearlyPriceId", "getPremiumYearlyPriceId");
+        case "three_day_pass":
+          return readConfigValue("threeDayPassPriceId", "getThreeDayPassPriceId");
         default:
           return "";
       }
@@ -542,7 +573,7 @@
       }
       if (structKeyExists(arguments.requestPayload, "formFields") AND isStruct(arguments.requestPayload.formFields)) {
         for (fieldName in arguments.requestPayload.formFields) {
-          if (listFindNoCase("mode,line_items[0][price],success_url,cancel_url,client_reference_id,metadata[fpwUserId],metadata[fpwPromoType],metadata[fpwTrialDays],subscription_data[trial_period_days],subscription_data[trial_settings][end_behavior][missing_payment_method],payment_method_collection", fieldName)) {
+          if (listFindNoCase("mode,line_items[0][price],success_url,cancel_url,client_reference_id,metadata[fpwUserId],metadata[fpwPromoType],metadata[fpwTrialDays],metadata[fpwProduct],metadata[fpwEntitlementSource],subscription_data[trial_period_days],subscription_data[trial_settings][end_behavior][missing_payment_method],payment_method_collection", fieldName)) {
             arguments.response["stripeRequest_" & fieldName] = sanitizeStripeDebugText(toString(arguments.requestPayload.formFields[fieldName]));
             arrayAppend(debugParts, fieldName & "=" & arguments.response["stripeRequest_" & fieldName]);
           }

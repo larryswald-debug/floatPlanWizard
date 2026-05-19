@@ -980,11 +980,20 @@
     <cfargument name="motionState" type="string" required="true">
     <cfargument name="progressSummary" type="struct" required="true">
     <cfscript>
-      var isClosed = isDate(arguments.qPlan.closedAt[1]) OR compareNoCase(safeString(arguments.qPlan.status[1]), "CLOSED") EQ 0 OR compareNoCase(arguments.tripState, "closed") EQ 0;
+      var planStatus = uCase(safeString(arguments.qPlan.status[1]));
+      var isClosed = isDate(arguments.qPlan.closedAt[1]) OR compareNoCase(planStatus, "CLOSED") EQ 0 OR compareNoCase(arguments.tripState, "closed") EQ 0;
       var isUnderway = compareNoCase(arguments.motionState, "underway") EQ 0;
       var hasCurrentLeg = structKeyExists(arguments.currentLeg, "order") AND safeNumber(arguments.currentLeg.order) GT 0;
       var completeLegReason = "";
       var startNextLegAvailability = buildStartNextLegAvailability(arguments.routeTimeline, arguments.progressSummary, isClosed);
+      var routeLegsComplete = (
+        structKeyExists(arguments.progressSummary, "totalRows")
+        AND safeNumber(arguments.progressSummary.totalRows) GT 0
+        AND structKeyExists(arguments.progressSummary, "completedRows")
+        AND safeNumber(arguments.progressSummary.completedRows) EQ safeNumber(arguments.progressSummary.totalRows)
+      );
+      var closeFloatPlanEnabled = (!isClosed AND planStatus EQ "ACTIVE" AND routeLegsComplete);
+      var closeFloatPlanReason = "";
 
       if (isClosed) {
         completeLegReason = "Float plan is closed.";
@@ -992,6 +1001,13 @@
         completeLegReason = "Current leg is not available.";
       } else if (!isUnderway) {
         completeLegReason = "Complete Current Leg is available after the cruise is underway.";
+      }
+      if (isClosed) {
+        closeFloatPlanReason = "Float plan is closed.";
+      } else if (planStatus NEQ "ACTIVE") {
+        closeFloatPlanReason = "Close Float Plan is available only for active float plans.";
+      } else if (!routeLegsComplete) {
+        closeFloatPlanReason = "Close Float Plan is available after all route legs are completed.";
       }
 
       return {
@@ -1019,10 +1035,10 @@
         "completeLeg" = {
           "enabled" = (!isClosed AND hasCurrentLeg AND isUnderway),
           "endpoint" = "/api/v1/floatplan.cfc?method=handle&action=completeleg&returnFormat=json",
-          "payload" = { "floatPlanId" = safeNumber(arguments.qPlan.floatPlanId[1]), "routeLegOrder" = (hasCurrentLeg ? safeNumber(arguments.currentLeg.order) : 0) },
+          "payload" = { "floatPlanId" = safeNumber(arguments.qPlan.floatPlanId[1]), "expectedLegOrder" = (hasCurrentLeg ? safeNumber(arguments.currentLeg.order) : 0) },
           "reason" = completeLegReason,
           "inputRequirements" = {
-            "routeLegOrder" = { "required" = true }
+            "expectedLegOrder" = { "required" = true }
           },
           "confirmationRequired" = true,
           "confirmationMessage" = "Confirm the current leg is complete."
@@ -1037,10 +1053,10 @@
           "confirmationMessage" = ""
         },
         "closeFloatPlan" = {
-          "enabled" = false,
-          "endpoint" = "/api/v1/floatplan.cfc?method=handle&action=close&returnFormat=json",
-          "payload" = { "floatPlanId" = safeNumber(arguments.qPlan.floatPlanId[1]) },
-          "reason" = "Close Float Plan requires final-leg and monitoring close rules.",
+          "enabled" = closeFloatPlanEnabled,
+          "endpoint" = "/api/v1/floatplan.cfc?method=handle&action=checkin&returnFormat=json",
+          "payload" = { "floatPlanId" = safeNumber(arguments.qPlan.floatPlanId[1]), "status" = "Arrived", "note" = "", "checkinContext" = "" },
+          "reason" = closeFloatPlanReason,
           "inputRequirements" = {},
           "confirmationRequired" = true,
           "confirmationMessage" = "Confirm the float plan can be closed."

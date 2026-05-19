@@ -54,6 +54,24 @@
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
+            <cfelseif act EQ "downloadfloatplanpdf">
+                <cfset slugVal = trim(toString(pickArg(body, "slug", "route_slug", arguments.slug)))>
+                <cfset tokenVal = trim(toString(pickArg(body, "t", "token", arguments.t)))>
+                <cfset streamIdVal = val(pickArg(body, "stream_id", "streamId", arguments.stream_id))>
+                <cfset payload = prepareFollowFloatPlanPdfDownload(slugVal, tokenVal, streamIdVal, currentUserId)>
+                <cfif NOT payload.SUCCESS>
+                    <cfif structKeyExists(payload, "STATUS_CODE")>
+                        <cfheader statuscode="#val(payload.STATUS_CODE)#">
+                    </cfif>
+                    <cfoutput>#serializeJSON(payload)#</cfoutput>
+                    <cfreturn>
+                </cfif>
+                <cfheader name="Content-Disposition" value="attachment; filename=""#payload.FILE_NAME#""">
+                <cfheader name="X-Content-Type-Options" value="nosniff">
+                <cfcontent type="application/pdf" file="#payload.FILE_PATH#" deletefile="false" reset="true">
+                <cfsetting enablecfoutputonly="false">
+                <cfreturn>
+
             <cfelseif act EQ "getactivecruiseweather">
                 <cfset floatPlanIdVal = val(pickArg(body, "floatPlanId", "float_plan_id", 0))>
                 <cfset pointVal = lCase(trim(toString(pickArg(body, "point", "leg_point", ""))))>
@@ -455,7 +473,8 @@
                 "pinned"={},
                 "timeline"={"summary"={}, "legs"=[], "meta"={}},
                 "body"={},
-                "publicAuthority"={}
+                "publicAuthority"={},
+                "trackLog"={"count"=0, "gpsCount"=0, "entries"=[]}
             };
             var streamRow = readStream(arguments.slug, arguments.streamId);
             var canRead = {};
@@ -503,6 +522,7 @@
             var followProjection = {};
             var publicAuthority = {};
             var publicAuthorityService = "";
+            var trackLog = {"count"=0, "gpsCount"=0, "entries"=[]};
             var useCanonicalFollowProjection = false;
             var canonicalFollowProjectionBlocked = false;
             var followProjectionWarningIndex = 0;
@@ -793,6 +813,7 @@
                 departureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
             }
             dailyStartLocalTimeVal = (isNull(qPlan.dailyStartLocalTime[1]) ? "" : trim(toString(qPlan.dailyStartLocalTime[1])));
+            trackLog = buildFollowTrackLog(streamRow, departureTimeZoneVal);
             localDayStartRule = loadOvernightTimingRule(dailyStartLocalTimeVal);
             if (!isNull(qPlan.departureTime[1]) AND isDate(qPlan.departureTime[1])) {
                 scheduledDepartureRawDt = qPlan.departureTime[1];
@@ -1484,6 +1505,7 @@
             out.timeline = followTimeline;
             out.body = body;
             out.publicAuthority = publicAuthority;
+            out.trackLog = trackLog;
             if (!tripStarted) {
                 out.stream.status = "Scheduled";
                 out.topCards.status = "Scheduled";
@@ -5740,6 +5762,186 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="prepareFollowFloatPlanPdfDownload" access="private" returntype="struct" output="false">
+        <cfargument name="slug" type="string" required="false" default="">
+        <cfargument name="shareToken" type="string" required="false" default="">
+        <cfargument name="streamId" type="numeric" required="false" default="0">
+        <cfargument name="currentUserId" type="numeric" required="false" default="0">
+        <cfscript>
+            var out = {
+                "SUCCESS"=false,
+                "AUTH"=(arguments.currentUserId GT 0),
+                "MESSAGE"="Float plan PDF unavailable"
+            };
+            var streamRow = readStream(arguments.slug, arguments.streamId);
+            var isOwner = false;
+            var canRead = {};
+            var memberGateResult = {};
+            var canonicalPlan = {};
+            var ds = resolveDatasource();
+            var qPlan = queryNew("");
+            var planName = "";
+            var floatPlanUtils = {};
+            var pdfFileName = "";
+            var pdfPath = "";
+
+            if (!structCount(streamRow)) {
+                out.MESSAGE = "Stream not found";
+                out.STATUS_CODE = 404;
+                out.ERROR = { "CODE"="STREAM_NOT_FOUND", "MESSAGE"="No voyage stream matched the provided slug or stream id." };
+                return out;
+            }
+
+            isOwner = (arguments.currentUserId GT 0 AND arguments.currentUserId EQ streamRow.owner_user_id);
+            canRead = canReadStream(streamRow, arguments.shareToken, isOwner);
+            if (!canRead.allowed) {
+                out.MESSAGE = "Forbidden";
+                out.STATUS_CODE = 403;
+                out.ERROR = { "CODE"=canRead.code, "MESSAGE"=canRead.message };
+                return out;
+            }
+
+            memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id);
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
+            }
+
+            if (streamRow.floatplan_id LTE 0) {
+                out.MESSAGE = "No active trip";
+                out.STATUS_CODE = 404;
+                out.ERROR = {
+                    "CODE"="INVALID_STREAM",
+                    "MESSAGE"="This Trip Page is not linked to an active trip."
+                };
+                return out;
+            }
+
+            qPlan = queryExecute(
+                "SELECT floatplanId, userId, floatPlanName, status
+                 FROM floatplans
+                 WHERE floatplanId = :planId
+                   AND userId = :ownerUserId
+                 LIMIT 1",
+                {
+                    planId = { value=streamRow.floatplan_id, cfsqltype="cf_sql_integer" },
+                    ownerUserId = { value=streamRow.owner_user_id, cfsqltype="cf_sql_integer" }
+                },
+                { datasource=ds }
+            );
+
+            if (qPlan.recordCount EQ 0) {
+                out.MESSAGE = "No active trip";
+                out.STATUS_CODE = 404;
+                out.ERROR = {
+                    "CODE"="FLOATPLAN_NOT_FOUND",
+                    "MESSAGE"="This Trip Page is not linked to an active trip."
+                };
+                return out;
+            }
+
+            canonicalPlan = resolveCanonicalActiveFloatPlan(streamRow.owner_user_id, streamRow.floatplan_id);
+            if (!canonicalPlan.SUCCESS) {
+                out.MESSAGE = canonicalPlan.MESSAGE;
+                out.STATUS_CODE = 403;
+                out.ERROR = {
+                    "CODE"=(structKeyExists(canonicalPlan, "ERROR") ? canonicalPlan.ERROR : "FOLLOW_UNAVAILABLE"),
+                    "MESSAGE"=canonicalPlan.MESSAGE
+                };
+                return out;
+            }
+
+            try {
+                floatPlanUtils = createObject("component", resolveFloatPlanUtilsComponentPath()).init();
+                pdfFileName = floatPlanUtils.createPDF(streamRow.floatplan_id);
+            } catch (any pdfErr) {
+                out.MESSAGE = "Unable to generate float plan PDF.";
+                out.STATUS_CODE = 500;
+                out.ERROR = { "CODE"="PDF_FAILED", "MESSAGE"="Unable to generate float plan PDF." };
+                return out;
+            }
+
+            if (!len(trim(pdfFileName))) {
+                out.MESSAGE = "Unable to generate float plan PDF.";
+                out.STATUS_CODE = 500;
+                out.ERROR = { "CODE"="PDF_FAILED", "MESSAGE"="Unable to generate float plan PDF." };
+                return out;
+            }
+
+            pdfPath = floatPlanUtils.getPdfPath(pdfFileName);
+            if (!fileExists(pdfPath)) {
+                out.MESSAGE = "Unable to locate generated float plan PDF.";
+                out.STATUS_CODE = 500;
+                out.ERROR = { "CODE"="PDF_FAILED", "MESSAGE"="Unable to locate generated float plan PDF." };
+                return out;
+            }
+
+            planName = trim(toString(isNull(qPlan.floatPlanName[1]) ? "" : qPlan.floatPlanName[1]));
+            out.SUCCESS = true;
+            out.MESSAGE = "OK";
+            out.FILE_PATH = pdfPath;
+            out.FILE_NAME = buildFollowPdfDownloadFileName(planName, streamRow.floatplan_id);
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildFollowPdfDownloadFileName" access="private" returntype="string" output="false">
+        <cfargument name="planName" type="string" required="false" default="">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var fileBase = trim(arguments.planName);
+            if (!len(fileBase)) {
+                fileBase = "float-plan-" & arguments.floatPlanId;
+            }
+
+            fileBase = reReplace(fileBase, "[^A-Za-z0-9._-]+", "-", "all");
+            fileBase = reReplace(fileBase, "-{2,}", "-", "all");
+            fileBase = reReplace(fileBase, "(^-|-$)", "", "all");
+
+            if (!len(fileBase)) {
+                fileBase = "float-plan-" & arguments.floatPlanId;
+            }
+
+            if (right(lCase(fileBase), 4) NEQ ".pdf") {
+                fileBase &= ".pdf";
+            }
+
+            return fileBase;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveFloatPlanUtilsComponentPath" access="private" returntype="string" output="false">
+        <cfscript>
+            var webRoot = "";
+            var templatePath = getCurrentTemplatePath();
+            var relativePath = "";
+            var firstSegment = "";
+            var prefix = "";
+            try {
+                webRoot = expandPath("/");
+            } catch (any e) {
+                webRoot = "";
+            }
+
+            if (len(webRoot)) {
+                relativePath = replaceNoCase(templatePath, webRoot, "", "one");
+            } else {
+                relativePath = templatePath;
+            }
+
+            relativePath = replace(relativePath, "\\", "/", "all");
+            if (left(relativePath, 1) EQ "/") {
+                relativePath = right(relativePath, len(relativePath) - 1);
+            }
+
+            firstSegment = listFirst(relativePath, "/");
+            if (len(firstSegment) AND firstSegment NEQ "api") {
+                prefix = firstSegment;
+            }
+
+            return (len(prefix) ? prefix & "." : "") & "api.api_assets.floatPlanUtils";
+        </cfscript>
+    </cffunction>
+
     <cffunction name="canReadStream" access="private" returntype="struct" output="false">
         <cfargument name="streamRow" type="struct" required="true">
         <cfargument name="shareToken" type="string" required="false" default="">
@@ -6547,6 +6749,194 @@
             if (s EQ "DRAFT") return "Draft";
             if (!len(s)) return "Status Unavailable";
             return s;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildFollowTrackLog" access="private" returntype="struct" output="false">
+        <cfargument name="streamRow" type="struct" required="true">
+        <cfargument name="timeZoneId" type="string" required="false" default="">
+        <cfscript>
+            var out = {"count"=0, "gpsCount"=0, "entries"=[]};
+            var ds = resolveDatasource();
+            var q = queryNew("");
+            var i = 0;
+            var rawPayload = "";
+            var payload = {};
+            var location = {};
+            var localLabel = "";
+            var occurredUtc = "";
+            var sourceVal = "";
+            var entry = {};
+
+            if (
+                !structKeyExists(arguments.streamRow, "floatplan_id")
+                OR !structKeyExists(arguments.streamRow, "owner_user_id")
+                OR val(arguments.streamRow.floatplan_id) LTE 0
+                OR val(arguments.streamRow.owner_user_id) LTE 0
+            ) {
+                return out;
+            }
+
+            try {
+                q = queryExecute(
+                    "SELECT event_status, occurred_at_utc, source, latitude, longitude, payload_json
+                     FROM floatplan_events
+                     WHERE floatplan_id = :floatPlanId
+                       AND user_id = :userId
+                       AND event_type = 'CHECKIN_RECEIVED'
+                       AND source = 'active_cruise_checkin'
+                       AND voided_at_utc IS NULL
+                     ORDER BY occurred_at_utc DESC, id DESC
+                     LIMIT 25",
+                    {
+                        floatPlanId = { value=val(arguments.streamRow.floatplan_id), cfsqltype="cf_sql_integer" },
+                        userId = { value=val(arguments.streamRow.owner_user_id), cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource=ds }
+                );
+            } catch (any trackLogQueryErr) {
+                return out;
+            }
+
+            for (i = 1; i LTE q.recordCount; i++) {
+                payload = {};
+                rawPayload = (isNull(q.payload_json[i]) ? "" : trim(toString(q.payload_json[i])));
+                if (len(rawPayload)) {
+                    try {
+                        payload = deserializeJSON(rawPayload, false);
+                        if (!isStruct(payload)) {
+                            payload = {};
+                        }
+                    } catch (any trackLogPayloadErr) {
+                        payload = {};
+                    }
+                }
+
+                location = buildFollowTrackLogLocation(payload, q.latitude[i], q.longitude[i]);
+                occurredUtc = (isNull(q.occurred_at_utc[i]) ? "" : formatUtcDate(q.occurred_at_utc[i]));
+                localLabel = (isNull(q.occurred_at_utc[i]) ? "" : formatVoyageUtcDisplayLabel(q.occurred_at_utc[i], arguments.timeZoneId));
+                if (!len(localLabel) AND !isNull(q.occurred_at_utc[i])) {
+                    localLabel = (isDate(q.occurred_at_utc[i]) ? dateTimeFormat(q.occurred_at_utc[i], "mmm d, yyyy h:nn tt") : trim(toString(q.occurred_at_utc[i])));
+                }
+                sourceVal = (isNull(q.source[i]) ? "" : trim(toString(q.source[i])));
+
+                entry = {
+                    "key"="checkin-" & i & "-" & reReplace(occurredUtc, "[^0-9A-Za-z]", "", "all"),
+                    "status"=(isNull(q.event_status[i]) ? "" : trim(toString(q.event_status[i]))),
+                    "statusLabel"=formatFollowTrackLogStatusLabel(q.event_status[i], payload),
+                    "occurredAtUtc"=occurredUtc,
+                    "occurredAtLocalLabel"=localLabel,
+                    "hasGps"=location.hasGps,
+                    "latitude"=location.latitude,
+                    "longitude"=location.longitude,
+                    "coordinateLabel"=location.coordinateLabel,
+                    "sourceLabel"=(sourceVal EQ "active_cruise_checkin" ? "Captain check-in" : "")
+                };
+                arrayAppend(out.entries, entry);
+                if (location.hasGps) {
+                    out.gpsCount = out.gpsCount + 1;
+                }
+            }
+
+            out.count = arrayLen(out.entries);
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildFollowTrackLogLocation" access="private" returntype="struct" output="false">
+        <cfargument name="payload" type="any" required="false" default="">
+        <cfargument name="latitude" type="any" required="false" default="">
+        <cfargument name="longitude" type="any" required="false" default="">
+        <cfscript>
+            var out = {"hasGps"=false, "latitude"="", "longitude"="", "coordinateLabel"=""};
+            var latVal = "";
+            var lngVal = "";
+            var location = {};
+
+            if (!isNull(arguments.latitude) AND !isNull(arguments.longitude) AND isNumeric(arguments.latitude) AND isNumeric(arguments.longitude)) {
+                latVal = val(arguments.latitude);
+                lngVal = val(arguments.longitude);
+            } else if (isStruct(arguments.payload)) {
+                if (structKeyExists(arguments.payload, "location") AND isStruct(arguments.payload["location"])) {
+                    location = arguments.payload["location"];
+                } else if (structKeyExists(arguments.payload, "LOCATION") AND isStruct(arguments.payload["LOCATION"])) {
+                    location = arguments.payload["LOCATION"];
+                }
+
+                if (isStruct(location)) {
+                    latVal = getFollowTrackLogStructNumber(location, ["latitude", "lat", "LATITUDE", "LAT"]);
+                    lngVal = getFollowTrackLogStructNumber(location, ["longitude", "lng", "lon", "LONGITUDE", "LNG", "LON"]);
+                }
+            }
+
+            if (
+                isNumeric(latVal)
+                AND isNumeric(lngVal)
+                AND abs(val(latVal)) LTE 90
+                AND abs(val(lngVal)) LTE 180
+            ) {
+                out.hasGps = true;
+                out.latitude = val(latVal);
+                out.longitude = val(lngVal);
+                out.coordinateLabel = numberFormat(out.latitude, "0.00000") & ", " & numberFormat(out.longitude, "0.00000");
+            }
+
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getFollowTrackLogStructNumber" access="private" returntype="any" output="false">
+        <cfargument name="source" type="struct" required="true">
+        <cfargument name="keys" type="array" required="true">
+        <cfscript>
+            var i = 0;
+            var key = "";
+            var value = "";
+
+            for (i = 1; i LTE arrayLen(arguments.keys); i++) {
+                key = arguments.keys[i];
+                if (structKeyExists(arguments.source, key)) {
+                    value = arguments.source[key];
+                    if (!isNull(value) AND isNumeric(value)) {
+                        return val(value);
+                    }
+                }
+            }
+
+            return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="formatFollowTrackLogStatusLabel" access="private" returntype="string" output="false">
+        <cfargument name="status" type="any" required="false" default="">
+        <cfargument name="payload" type="any" required="false" default="">
+        <cfscript>
+            var statusVal = (isNull(arguments.status) ? "" : trim(toString(arguments.status)));
+            var payloadLabel = "";
+
+            if (isStruct(arguments.payload) AND structKeyExists(arguments.payload, "status_label")) {
+                payloadLabel = trim(toString(arguments.payload["status_label"]));
+                if (len(payloadLabel)) {
+                    return payloadLabel;
+                }
+            }
+
+            switch (uCase(statusVal)) {
+                case "ON_TRACK":
+                    return "On Track";
+                case "DELAYED":
+                    return "Delayed";
+                case "CHANGED_PLAN":
+                    return "Changed Plan";
+                case "NEED_ATTENTION":
+                    return "Needs Attention";
+                case "SECURE_FOR_NIGHT":
+                    return "Secure for the Night";
+                case "ARRIVED":
+                    return "Arrived";
+            }
+
+            return (len(statusVal) ? replace(statusVal, "_", " ", "all") : "Check-in");
         </cfscript>
     </cffunction>
 

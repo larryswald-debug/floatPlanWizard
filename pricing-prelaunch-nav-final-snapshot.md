@@ -1,0 +1,108 @@
+- generic [ref=e1] [box=0,0,1687,1785]:
+  - banner [ref=e2] [box=0,0,1687,147]:
+    - link "FloatPlanWizard is now live. Start free. Premium available for advanced cruising tools." [ref=e4] [cursor=pointer] [box=0,1,1687,42]:
+      - /url: /fpw/app/join.cfm
+      - generic [ref=e6] [box=587,12,531,20]:
+        - strong [ref=e7] [box=587,12,73,20]: Now Live
+        - text: — Start Free • Premium available for advanced cruising tools
+    - generic [ref=e9] [box=184,44,1320,101]:
+      - link "FloatPlanWizard home" [ref=e10] [cursor=pointer] [box=184,68,450,52]:
+        - /url: /fpw/#top
+        - img [ref=e12] [box=184,74,42,42]
+        - generic [ref=e23] [box=244,68,354,52]
+      - navigation "Primary navigation" [ref=e26] [box=670,64,478,61]:
+        - generic [ref=e27] [box=670,64,478,24]
+        - generic "Popular pages" [ref=e35] [box=807,105,205,20]
+      - generic [ref=e39] [box=1185,71,318,48]:
+        - link "Start Free" [ref=e40] [cursor=pointer] [box=1185,71,152,48]:
+          - /url: /fpw/app/join.cfm
+        - button "Login" [ref=e43] [cursor=pointer] [box=1350,71,93,48]
+        - button "Toggle site menu" [ref=e46] [cursor=pointer] [box=1456,71,48,48]
+  - region [box=0,-69,1687,59]:
+    - generic [box=0,-69,1687,58]:
+      - generic [box=1075,-59,533,38]:
+        - generic [box=1075,-59,220,38]
+        - generic [box=1303,-59,220,38]
+        - button [box=1531,-58,77,36]: Sign In
+      - link [box=1618,-57,69,34]:
+        - /url: /fpw/app/forgot-password.cfm
+        - text: Forgot?
+  - main [ref=e57] [box=0,147,1687,1638]:
+    - generic [ref=e60] [box=184,201,1320,204]:
+      - heading "Membership Plans" [level=1] [ref=e61] [box=184,201,1320,68]
+      - paragraph [ref=e62] [box=464,287,760,57]: Free for simple same-day trips. Premium for route-based planning, Active Cruise, Follow pages, and companion check-ins.
+      - paragraph [ref=e63] [box=444,358,800,47]: All paid plans include the same Premium features. Choose Monthly, Annual, or a 3-Day Pass based on how you boat.
+    - region "Membership plans" [ref=e64] [box=184,428,1320,621]:
+      - article [ref=e65] [box=184,428,317,621]:
+        - img [ref=e67] [box=223,467,28,28]
+        - heading "Free" [level=2] [ref=e69] [box=211,525,263,23]
+        - generic [ref=e70] [box=211,562,263,39]: $0
+        - paragraph [ref=e71] [box=211,615,263,22]: Basic Float Plan
+        - paragraph [ref=e72] [box=211,656,263,62]: For simple local same-day boating trips.
+        - list [ref=e73] [box=211,738,263,116]
+        - link "Create Free Account" [ref=e82] [cursor=pointer] [box=211,980,263,46]:
+          - /url: /fpw/app/join.cfm
+      - article [ref=e83] [box=518,428,317,621]:
+        - img [ref=e85] [box=557,467,28,28]
+        - heading "Premium Monthly" [level=2] [ref=e87] [box=545,525,263,23]
+        - generic [ref=e88] [box=545,562,263,39]: $9.99 / month
+        - paragraph [ref=e89] [box=545,615,263,22]: Cancel anytime
+        - paragraph [ref=e90] [box=545,656,263,45]: For regular boating season use.
+        - list [ref=e91] [box=545,721,263,179]
+        - button "Start Monthly Premium" [ref=e104] [cursor=pointer] [box=545,980,263,46]
+      - article [ref=e105] [box=853,428,317,621]:
+        - generic [ref=e106] [box=953,415,116,33]: Best Value
+        - img [ref=e108] [box=892,467,28,28]
+        - heading "Premium Annual" [level=2] [ref=e110] [box=880,525,263,23]
+        - generic [ref=e111] [box=880,562,263,39]: $89 / year
+        - paragraph [ref=e112] [box=880,615,263,22]: Save about 25% vs monthly
+        - paragraph [ref=e113] [box=880,656,263,62]: For frequent boaters who want Premium all year.
+        - list [ref=e114] [box=880,738,263,179]
+        - button "Start Annual Premium" [ref=e127] [cursor=pointer] [box=880,980,263,46]
+      - article [ref=e128] [box=1187,428,317,621]:
+        - img [ref=e130] [box=1226,467,28,28]
+        - heading "3-Day Pass" [level=2] [ref=e132] [box=1214,525,263,23]
+        - generic [ref=e133] [box=1214,562,263,39]: $4.99
+        - paragraph [ref=e134] [box=1214,615,141,30]: No subscription
+        - paragraph [ref=e135] [box=1214,664,263,62]: Full Premium access for a weekend or short trip.
+        - list [ref=e136] [box=1214,746,263,210]
+        - button "Get 3-Day Pass" [ref=e151] [cursor=pointer] [box=1214,980,263,46]
+    - generic [ref=e152] [box=184,1067,1320,62]:
+      - strong [ref=e153] [box=209,1086,386,24]: All paid plans include the same Premium features.
+      - generic [ref=e154] [box=610,1086,723,24]: Premium Monthly and Annual renew automatically. Cancel anytime. The 3-Day Pass does not renew.
+    - generic [ref=e155] [box=184,1147,1320,84]:
+      - generic [ref=e156] [box=185,1148,186,82]: All Premium plans include
+      - generic [ref=e157] [box=370,1148,162,82]:
+        - img [ref=e158] [box=388,1174,30,30]
+        - generic [ref=e160] [box=430,1164,83,50]
+      - generic [ref=e161] [box=532,1148,162,82]:
+        - img [ref=e162] [box=550,1174,30,30]
+        - generic [ref=e164] [box=592,1172,42,33]
+      - generic [ref=e165] [box=694,1148,162,82]:
+        - img [ref=e166] [box=712,1174,30,30]
+        - generic [ref=e168] [box=754,1172,78,33]
+      - generic [ref=e169] [box=856,1148,162,82]:
+        - img [ref=e170] [box=874,1174,30,30]
+        - generic [ref=e172] [box=916,1172,74,33]
+      - generic [ref=e173] [box=1017,1148,162,82]:
+        - img [ref=e174] [box=1035,1174,30,30]
+        - generic [ref=e176] [box=1077,1164,83,50]
+      - generic [ref=e177] [box=1179,1148,162,82]:
+        - img [ref=e178] [box=1197,1174,30,30]
+        - generic [ref=e180] [box=1239,1172,70,33]
+      - generic [ref=e181] [box=1341,1148,162,82]:
+        - img [ref=e182] [box=1359,1174,30,30]
+        - generic [ref=e184] [box=1401,1164,83,50]
+    - generic [ref=e185] [box=184,1249,1320,536]:
+      - article [ref=e186] [box=184,1249,385,484]:
+        - heading "Premium includes" [level=2] [ref=e187] [box=209,1272,335,21]
+        - list [ref=e188] [box=209,1309,335,268]
+      - article [ref=e213] [box=587,1249,449,484]:
+        - heading "Free vs Premium" [level=2] [ref=e214] [box=612,1272,399,21]
+        - table [ref=e215] [box=612,1309,399,401]
+      - article [ref=e258] [box=1054,1249,449,484]:
+        - heading "FAQ" [level=2] [ref=e259] [box=1079,1272,399,21]
+        - group [ref=e260] [box=1079,1309,399,133]
+        - group [ref=e263] [box=1079,1451,399,54]
+        - group [ref=e265] [box=1079,1515,399,54]
+        - group [ref=e267] [box=1079,1579,399,54]

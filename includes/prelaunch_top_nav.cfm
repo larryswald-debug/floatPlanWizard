@@ -112,7 +112,7 @@ topNavIsProduction = !len(topNavBasePath)
                 </a>
               </div>
             </details>
-            <a href="#topNavBasePath#/##notify" hidden aria-hidden="true" data-nav-reserved="true">Pricing</a>
+            <a href="#topNavBasePath#/app/pricing.cfm">Pricing</a>
           </div>
 
           <div class="fpw-secondary-nav" aria-label="Popular pages">
@@ -285,3 +285,4 @@ topNavIsProduction = !len(topNavBasePath)
   <script src="#topNavBasePath#/assets/js/app/auth.js?v=20260305a"></script>
   <script src="#topNavBasePath#/assets/js/app/core.js"></script>
 </cfoutput>
+

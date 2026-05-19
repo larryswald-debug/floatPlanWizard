@@ -5,7 +5,7 @@
     <cfset this.name               = "FPW">
     <cfset this.applicationTimeout = createTimeSpan(7,0,0,0)>
     <cfset this.sessionManagement  = true>
-    <cfset this.sessionTimeout     = createTimeSpan(0,3,0,0)>
+    <cfset this.sessionTimeout     = createTimeSpan(0,4,0,0)>
     <cfset this.setClientCookies   = true>
     <cfset this.clientManagement   = false>
     <cfset this.sessionType        = "j2ee">
@@ -24,7 +24,9 @@
     </cfif>
 
     <cffunction name="onApplicationStart" access="public" returntype="boolean" output="false">
-        <cfset var stripeConfigPath = expandPath("/_fpw_private/stripe-config-prod.json")>
+         <!---  swithc for prod environment  
+        <cfset var stripeConfigPath = expandPath("/_fpw_private/stripe-config-prod.json")> --->
+        <cfset var stripeConfigPath = expandPath("/_fpw_private/stripe-config.json")>
         <cfset var stripeConfigService = new fpw.api.v1.StripeConfigService().init(stripeConfigPath)>
         <cfset var stripeApplicationSettings = stripeConfigService.getApplicationSettings()>
         <cfset application.stripeConfigPath = stripeConfigPath>
@@ -78,4 +80,3 @@
     </cffunction>
 
 </cfcomponent>
-

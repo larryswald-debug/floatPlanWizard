@@ -66,24 +66,37 @@
           <button class="btn ghost" id="privacyBtn" type="button" data-fpw-field="trip-card-privacy-action">Privacy</button>
         </div>
 
-        <div class="monitor-row">
+      </section>
+
+      <section class="sidebar-note follow-track-log-card" id="followTrackLogCard" data-fpw-region="track-log-card">
+        <div class="follow-track-log-header">
+          <div>
+            <h2>Track Log</h2>
+            <p>Check-ins shared during this voyage.</p>
+          </div>
+          <span class="follow-track-log-count" data-fpw-field="track-log-count">0 check-ins</span>
+        </div>
+        <div class="follow-track-log-list" id="followTrackLogList" data-fpw-field="track-log-list" aria-live="polite">
+          <div class="follow-track-log-empty">No check-ins shared yet.</div>
+        </div>
+      </section>
+
+      <section class="sidebar-note follow-float-plan-card" id="followFloatPlanCard" data-fpw-region="float-plan-card">
+        <div class="follow-float-plan-icon" aria-hidden="true">PDF</div>
+        <div class="follow-float-plan-body">
+          <h2>Float Plan</h2>
+          <p>Download the filed float plan for this voyage.</p>
+          <a class="follow-primary-action is-disabled" aria-disabled="true" data-fpw-field="float-plan-download-action">Float plan PDF unavailable</a>
+          <p class="follow-card-meta" data-fpw-field="float-plan-meta">PDF unavailable</p>
+        </div>
+      </section>
+
+      <section class="sidebar-note follow-monitoring-card" id="followMonitoringCard" data-fpw-region="monitoring-card">
+        <div class="follow-monitoring-header">
           <span data-fpw-field="trip-card-monitor-state-text"><strong>—</strong><br />—</span>
           <span class="pill good" data-fpw-field="trip-card-monitor-state-pill">—</span>
         </div>
       </section>
-
-      <nav class="side-nav" data-fpw-region="sidebar-nav">
-        <a class="side-link active" href="#"><span>Overview</span><span class="pill live">Live</span></a>
-        <a class="side-link" href="#followMap"><span>Map</span><span class="pill route">Route</span></a>
-        <a class="side-link" href="#"><span>Stream</span><span class="pill media">Posts</span></a>
-        <a class="side-link" href="#"><span>Photos</span><span class="pill media">Media</span></a>
-        <a class="side-link" href="#"><span>Trip Stats</span><span class="pill media">Summary</span></a>
-        <a class="side-link" href="#"><span>Timeline</span><span class="pill media">Milestones</span></a>
-      </nav>
-
-      <div class="sidebar-note">
-        This shared page turns route progress, check-ins, and updates into one clear live view for family and friends. If a required check-in is missed, designated contacts can be notified based on the monitoring rules for the trip.
-      </div>
     </aside>
 
     <main class="main">

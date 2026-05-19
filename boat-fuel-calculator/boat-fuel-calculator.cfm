@@ -922,6 +922,7 @@
   <link rel="canonical" href="https://www.floatplanwizard.com/boat-fuel-calculator/" />
 </head>
 <body class="fuelcalc-page">
+<cfset request.fpwTopNavActive = "fuel">
 <cfinclude template="../includes/top_nav.cfm">
   <main class="fpw-fuel-page fuelcalc-main">
     <section class="fpw-fuel-hero" aria-labelledby="fuel-calculator-title">

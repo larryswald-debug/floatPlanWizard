@@ -6440,13 +6440,14 @@
                 return result;
             }
 
-            if (NOT structKeyExists(plan, "RETURN_TIME") OR NOT isDate(plan.RETURN_TIME)) {
+            storedPlanTimes = loadStoredFloatPlanTimes(arguments.userId, arguments.floatPlanId);
+            if (NOT structKeyExists(storedPlanTimes, "returnTime") OR NOT isDate(storedPlanTimes.returnTime)) {
                 result.ERROR = "RETURN_TIME_REQUIRED";
                 result.MESSAGE = "Return time is required before sending a float plan.";
                 return result;
             }
 
-            var returnComparison = getReturnTimeComparisonValues(plan.RETURN_TIME, plan.RETURN_TIMEZONE);
+            var returnComparison = getReturnTimeComparisonValues(storedPlanTimes.returnTime, "UTC");
             var nowLocal = returnComparison.nowValue;
             var returnLocal = returnComparison.returnValue;
 
@@ -6464,7 +6465,6 @@
                 return memberGateResult.response;
             }
 
-            storedPlanTimes = loadStoredFloatPlanTimes(arguments.userId, arguments.floatPlanId);
             memberGateResult = getMemberAccessGateService().validateTripDurationLimit(
                 userId = arguments.userId,
                 departureAt = (structKeyExists(storedPlanTimes, "departureTime") ? storedPlanTimes.departureTime : ""),

@@ -277,11 +277,29 @@
     });
   }
 
+  function focusPoint(lat, lng, label) {
+    var p = normalizePoint({ lat: lat, lng: lng });
+    var currentZoom = 0;
+    var targetLabel = String(label || "").trim();
+
+    if (!state.map || !p) return false;
+
+    if (typeof state.map.getZoom === "function") {
+      currentZoom = state.map.getZoom();
+    }
+    state.map.setView([p.lat, p.lng], Math.max(currentZoom || 0, 11), { animate: true });
+    if (targetLabel && typeof state.map.openTooltip === "function") {
+      state.map.openTooltip(targetLabel, [p.lat, p.lng]);
+    }
+    return true;
+  }
+
   window.FPWFollowMap = {
     initFollowMap: initFollowMap,
     renderRoute: renderRoute,
     renderPins: renderPins,
     fitBoundsToRoute: fitBoundsToRoute,
-    updateBoatMarker: updateBoatMarker
+    updateBoatMarker: updateBoatMarker,
+    focusPoint: focusPoint
   };
 })(window);

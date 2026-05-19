@@ -157,14 +157,14 @@
 
     createPremiumCheckoutSession: function (interval) {
       var intervalValue = String(interval || "").trim().toLowerCase();
-      if (intervalValue !== "monthly" && intervalValue !== "yearly") {
+      if (intervalValue !== "monthly" && intervalValue !== "yearly" && intervalValue !== "three_day_pass") {
         return Promise.reject({
           SUCCESS: false,
           success: false,
           ERROR: "INVALID_PRICE_SELECTOR",
           errorCode: "INVALID_PRICE_SELECTOR",
-          MESSAGE: "Choose monthly or yearly Premium billing.",
-          message: "Choose monthly or yearly Premium billing."
+          MESSAGE: "Choose monthly, yearly, or 3-Day Pass Premium billing.",
+          message: "Choose monthly, yearly, or 3-Day Pass Premium billing."
         });
       }
       return request("/billing.cfc?method=handle&action=createcheckoutsession", {

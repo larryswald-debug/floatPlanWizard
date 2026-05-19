@@ -3936,6 +3936,16 @@
                     <cfset local.f = local.obj.features[local.i]>
                     <cfif structKeyExists(local.f,"properties")>
                         <cfset local.p = local.f.properties>
+                        <cfset local.alertSpecificUrl = "">
+                        <cfif structKeyExists(local.p,"@id") AND reFindNoCase("^https?://", trim(toString(structFind(local.p,"@id"))))>
+                            <cfset local.alertSpecificUrl = trim(toString(structFind(local.p,"@id")))>
+                        <cfelseif structKeyExists(local.f,"id") AND reFindNoCase("^https?://", trim(toString(local.f.id)))>
+                            <cfset local.alertSpecificUrl = trim(toString(local.f.id))>
+                        </cfif>
+                        <cfset local.alertWeb = local.alertSpecificUrl>
+                        <cfif NOT len(local.alertWeb) AND structKeyExists(local.p,"web")>
+                            <cfset local.alertWeb = local.p.web>
+                        </cfif>
                         <cfset arrayAppend(local.out.ALERTS, {
                             "event"=(structKeyExists(local.p,"event") ? local.p.event : ""),
                             "headline"=(structKeyExists(local.p,"headline") ? local.p.headline : ""),
@@ -3945,7 +3955,15 @@
                             "effective"=(structKeyExists(local.p,"effective") ? local.p.effective : ""),
                             "ends"=(structKeyExists(local.p,"ends") ? local.p.ends : ""),
                             "instruction"=(structKeyExists(local.p,"instruction") ? local.p.instruction : ""),
-                            "description"=(structKeyExists(local.p,"description") ? local.p.description : "")
+                            "description"=(structKeyExists(local.p,"description") ? local.p.description : ""),
+                            "id"=(structKeyExists(local.p,"id") ? local.p.id : (structKeyExists(local.f,"id") ? local.f.id : "")),
+                            "web"=local.alertWeb,
+                            "areaDesc"=(structKeyExists(local.p,"areaDesc") ? local.p.areaDesc : ""),
+                            "sender"=(structKeyExists(local.p,"sender") ? local.p.sender : ""),
+                            "senderName"=(structKeyExists(local.p,"senderName") ? local.p.senderName : ""),
+                            "expires"=(structKeyExists(local.p,"expires") ? local.p.expires : ""),
+                            "sent"=(structKeyExists(local.p,"sent") ? local.p.sent : ""),
+                            "onset"=(structKeyExists(local.p,"onset") ? local.p.onset : "")
                         })>
                     </cfif>
                 </cfloop>
