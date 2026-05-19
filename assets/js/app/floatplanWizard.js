@@ -57,7 +57,6 @@
   var wizardTemplateHtml = "";
 
   var DEFAULT_TIMEZONES = [
-    "UTC",
     "US/Eastern",
     "US/Central",
     "US/Mountain",
@@ -1111,10 +1110,10 @@
           plan.RETURNING_TO = defaults.RETURNING_TO_DEFAULT;
         }
         if (isEmptyValue(plan.DEPARTURE_TIMEZONE)) {
-          plan.DEPARTURE_TIMEZONE = this.homePortTimezone || "UTC";
+          plan.DEPARTURE_TIMEZONE = this.homePortTimezone || "";
         }
         if (isEmptyValue(plan.RETURN_TIMEZONE)) {
-          plan.RETURN_TIMEZONE = this.homePortTimezone || "UTC";
+          plan.RETURN_TIMEZONE = this.homePortTimezone || "";
         }
 
         if (numeric(plan.RESCUE_CENTERID) === 0) {

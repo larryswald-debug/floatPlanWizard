@@ -6523,11 +6523,17 @@
                 var departureDisplayTz = trim(toString(qPlan.departureTZ[1]));
                 if (!len(departureDisplayTz)) {
                     departureDisplayTz = trim(toString(qPlan.departTimezone[1]));
+                    if (ucase(departureDisplayTz) EQ "UTC") {
+                        departureDisplayTz = "";
+                    }
                 }
 
                 var returnDisplayTz = trim(toString(qPlan.returnTZ[1]));
                 if (!len(returnDisplayTz)) {
                     returnDisplayTz = trim(toString(qPlan.returnTimezone[1]));
+                    if (ucase(returnDisplayTz) EQ "UTC") {
+                        returnDisplayTz = "";
+                    }
                 }
 
                 var departureDisplayTime = qPlan.departureTime[1];
