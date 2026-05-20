@@ -129,6 +129,24 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( toLocalStamp( monitoringRow.grace_expires_at, "US/Eastern" ) ).toBe( "2026-04-09 16:00:00" );
       } );
 
+      it( "active_route uses next-morning planned return after evening leg-start proof when it is before morning checkpoint", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "active-route-next-morning-return-before-morning" );
+        var asset = createRouteLinkedDraft( prefix );
+        setPlanSchedule( asset.floatPlanId, "2026-04-09 19:00:00", "2026-04-10 04:00:00", "US/Eastern" );
+        ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+        setFirstLegStartedAt( asset.floatPlanId, "2026-04-09 19:00:00", "US/Eastern" );
+
+        var refreshResult = variables.monitorService.refreshActiveRouteCheckpointFromLegStart( asset.floatPlanId );
+        var monitoringRow = loadMonitoringRow( asset.floatPlanId );
+
+        expect( refreshResult.SUCCESS ).toBeTrue( serializeJSON( refreshResult ) );
+        expect( refreshResult.UPDATED ).toBeTrue( serializeJSON( refreshResult ) );
+        expect( toLocalStamp( monitoringRow.expected_checkin_at, "US/Eastern" ) ).toBe( "2026-04-10 04:00:00" );
+        expect( normalizeDbDateTime( monitoringRow.expected_checkin_at ) ).toBe( "2026-04-10 08:00:00" );
+        expect( normalizeDbDateTime( monitoringRow.expected_checkin_at ) EQ "2026-04-10 04:00:00" ).toBeFalse();
+        expect( toLocalStamp( monitoringRow.grace_expires_at, "US/Eastern" ) ).toBe( "2026-04-10 05:00:00" );
+      } );
+
       it( "active_route planned return checkpoint feeds the existing missed and escalated evaluator cycle", function() {
         var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "planned-return-evaluator-cycle" );
         var asset = createRouteLinkedDraft( prefix );

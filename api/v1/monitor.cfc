@@ -627,7 +627,10 @@
                         secure_for_night_until = secureUntil
                     });
                 } else {
-                    nextExpectedCheckin = computeNextExpectedCheckin(rowBeforeTransition, statusVal, { baseAt = nowTs });
+                    nextExpectedCheckin = computeNextExpectedCheckin(rowBeforeTransition, statusVal, {
+                        baseAt = nowTs,
+                        considerPlannedReturn = true
+                    });
                     if (!isDate(nextExpectedCheckin)) {
                         throw(message = "Unable to compute next expected monitoring checkpoint.", detail = "Expected monitoring checkpoint calculation failed.");
                     }
@@ -1106,6 +1109,7 @@
                     fm.last_contact_alert_at,
                     fm.created_at,
                     fm.updated_at,
+                    fp.returnTime AS return_time,
                     fp.dailyStartLocalTime AS daily_start_local_time,
                     CASE
                         WHEN fp.departureTZ IS NOT NULL AND LENGTH(TRIM(fp.departureTZ)) > 0 THEN TRIM(fp.departureTZ)
@@ -1153,6 +1157,7 @@
             result.last_contact_alert_at = isNull(qRow.last_contact_alert_at[1]) ? "" : qRow.last_contact_alert_at[1];
             result.created_at = isNull(qRow.created_at[1]) ? "" : qRow.created_at[1];
             result.updated_at = isNull(qRow.updated_at[1]) ? "" : qRow.updated_at[1];
+            result.return_time = isNull(qRow.return_time[1]) ? "" : qRow.return_time[1];
             result.daily_start_local_time = isNull(qRow.daily_start_local_time[1]) ? "" : trim(toString(qRow.daily_start_local_time[1]));
             result.departure_timezone = isNull(qRow.departure_timezone[1]) ? "" : trim(toString(qRow.departure_timezone[1]));
             return result;
@@ -1170,6 +1175,7 @@
             var activeRouteTimeZoneId = getActiveRouteTimeZoneId(arguments.monitoringRow);
             var baseAt = structKeyExists(arguments.options, "baseAt") AND isDate(arguments.options.baseAt) ? arguments.options.baseAt : getCurrentUtcTimestamp();
             var referenceAt = baseAt;
+            var expectedCheckinAt = "";
 
             if (statusVal EQ "SECURE_FOR_NIGHT") {
                 return computeSecureForNightUntil(arguments.monitoringRow, arguments.options);
@@ -1179,9 +1185,14 @@
             }
             if (modeVal EQ "active_route" AND len(activeRouteTimeZoneId)) {
                 if (structKeyExists(arguments.options, "forceNextMorning") AND arguments.options.forceNextMorning) {
-                    return computeActiveRouteCheckpoint(referenceAt, activeRouteTimeZoneId, true, arguments.monitoringRow);
+                    expectedCheckinAt = computeActiveRouteCheckpoint(referenceAt, activeRouteTimeZoneId, true, arguments.monitoringRow);
+                } else {
+                    expectedCheckinAt = computeActiveRouteCheckpoint(referenceAt, activeRouteTimeZoneId, false, arguments.monitoringRow);
                 }
-                return computeActiveRouteCheckpoint(referenceAt, activeRouteTimeZoneId, false, arguments.monitoringRow);
+                if (structKeyExists(arguments.options, "considerPlannedReturn") AND booleanValue(arguments.options.considerPlannedReturn)) {
+                    return selectEarlierPlannedReturnCheckpoint(arguments.monitoringRow, referenceAt, expectedCheckinAt);
+                }
+                return expectedCheckinAt;
             }
             return "";
         </cfscript>
@@ -1522,6 +1533,40 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="selectEarlierPlannedReturnCheckpoint" access="private" returntype="any" output="false">
+        <cfargument name="monitoringRow" type="struct" required="true">
+        <cfargument name="anchorUtc" required="true">
+        <cfargument name="normalCheckpointUtc" required="true">
+        <cfscript>
+            var modeVal = normalizeMonitoringMode(structKeyExists(arguments.monitoringRow, "monitoring_mode") ? arguments.monitoringRow.monitoring_mode : "");
+            var plannedReturnUtc = structKeyExists(arguments.monitoringRow, "return_time") ? arguments.monitoringRow.return_time : "";
+            var monitorState = structKeyExists(arguments.monitoringRow, "monitor_state") ? uCase(trim(toString(arguments.monitoringRow.monitor_state))) : "";
+
+            if (modeVal NEQ "active_route") {
+                return arguments.normalCheckpointUtc;
+            }
+            if (structKeyExists(arguments.monitoringRow, "is_monitoring_enabled") AND !booleanValue(arguments.monitoringRow.is_monitoring_enabled)) {
+                return arguments.normalCheckpointUtc;
+            }
+            if (monitorState EQ "CLOSED") {
+                return arguments.normalCheckpointUtc;
+            }
+            if (structKeyExists(arguments.monitoringRow, "secure_for_night") AND booleanValue(arguments.monitoringRow.secure_for_night)) {
+                return arguments.normalCheckpointUtc;
+            }
+            if (!isDate(plannedReturnUtc) OR !isDate(arguments.anchorUtc) OR !isDate(arguments.normalCheckpointUtc)) {
+                return arguments.normalCheckpointUtc;
+            }
+            if (dateCompare(plannedReturnUtc, arguments.anchorUtc, "s") LTE 0) {
+                return arguments.normalCheckpointUtc;
+            }
+            if (dateCompare(plannedReturnUtc, arguments.normalCheckpointUtc, "s") LT 0) {
+                return plannedReturnUtc;
+            }
+            return arguments.normalCheckpointUtc;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="refreshActiveRouteCheckpointFromLegStart" access="public" returntype="struct" output="false">
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfargument name="routeInstanceId" type="numeric" required="false" default="0">
@@ -1587,7 +1632,10 @@
                 return result;
             }
 
-            expectedCheckinAt = computeNextExpectedCheckin(monitoringRow, "", { baseAt = qLegStart.leg_started_at[1] });
+            expectedCheckinAt = computeNextExpectedCheckin(monitoringRow, "", {
+                baseAt = qLegStart.leg_started_at[1],
+                considerPlannedReturn = true
+            });
             if (!isDate(expectedCheckinAt)) {
                 result.ERROR = "EXPECTED_CHECKIN_UNAVAILABLE";
                 result.MESSAGE = "Unable to compute the updated active-route checkpoint.";
