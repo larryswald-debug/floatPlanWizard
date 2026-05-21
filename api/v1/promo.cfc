@@ -118,10 +118,33 @@
         AND lCase(toString(application.env)) EQ "dev"
         AND structKeyExists(application, "testPromoCodeService")
         AND (isObject(application.testPromoCodeService) OR isStruct(application.testPromoCodeService))
+        AND isTestPromoServiceRequest()
       ) {
         return application.testPromoCodeService;
       }
       return new fpw.api.v1.PromoCodeService().init("fpw");
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="isTestPromoServiceRequest" access="private" returntype="boolean" output="false">
+    <cfscript>
+      var httpData = getHttpRequestData();
+      var headers = structKeyExists(httpData, "headers") ? httpData.headers : {};
+      var headerName = "";
+      var headerValue = "";
+
+      if (!isStruct(headers)) {
+        return false;
+      }
+
+      for (headerName in headers) {
+        if (compareNoCase(headerName, "X-FPW-Test-UserId") EQ 0) {
+          headerValue = trim(toString(headers[headerName]));
+          break;
+        }
+      }
+
+      return len(headerValue) AND isNumeric(headerValue) AND val(headerValue) GT 0;
     </cfscript>
   </cffunction>
 

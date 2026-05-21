@@ -313,12 +313,42 @@ component extends="testbox.system.BaseSpec" output="false" {
   private struct function postPromo(required numeric userId, required string actionName, required struct body) {
     var httpResult = {};
     var raw = "";
+    var promoApi = {};
+    var hadSessionUser = false;
+    var priorSessionUser = {};
+
+    if (arguments.userId GT 0) {
+      hadSessionUser = structKeyExists(session, "user");
+      priorSessionUser = hadSessionUser ? duplicate(session.user) : {};
+      try {
+        session.user = {
+          id = arguments.userId,
+          userId = arguments.userId,
+          USERID = arguments.userId,
+          email = "promo-endpoint-" & arguments.userId & "@example.invalid",
+          EMAIL = "promo-endpoint-" & arguments.userId & "@example.invalid",
+          firstName = "Promo",
+          FIRSTNAME = "Promo",
+          lastName = "Endpoint",
+          LASTNAME = "Endpoint",
+          mobilePhone = "",
+          MOBILEPHONE = ""
+        };
+        promoApi = new fpw.tests.support.FpwApiSupport().init(
+          baseUrl = variables.baseUrl
+        );
+        return promoApi.postJson("/api/v1/promo.cfc?method=handle&action=" & encodeForURL(arguments.actionName), arguments.body);
+      } finally {
+        if (hadSessionUser) {
+          session.user = priorSessionUser;
+        } else {
+          structDelete(session, "user", false);
+        }
+      }
+    }
 
     cfhttp(url = variables.baseUrl & "/api/v1/promo.cfc?method=handle&action=" & encodeForURL(arguments.actionName), method = "post", result = "httpResult", charset = "utf-8") {
       cfhttpparam(type = "header", name = "Content-Type", value = "application/json");
-      if (arguments.userId GT 0) {
-        cfhttpparam(type = "header", name = "X-FPW-Test-UserId", value = toString(arguments.userId));
-      }
       cfhttpparam(type = "body", value = serializeJSON(arguments.body));
     }
 

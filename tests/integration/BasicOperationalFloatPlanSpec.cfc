@@ -116,7 +116,15 @@ component extends="testbox.system.BaseSpec" output="false" {
 
         var planId = val(saveRes.FLOATPLANID);
         var qPlan = queryExecute(
-          "SELECT departTimezone, departureTZ, returnTimezone, returnTZ
+          "SELECT
+              DATE_FORMAT(departureTime, '%Y-%m-%d %H:%i:%s') AS departure_time_local,
+              DATE_FORMAT(departureTimeUTC, '%Y-%m-%d %H:%i:%s') AS departure_time_utc,
+              departTimezone,
+              departureTZ,
+              DATE_FORMAT(returnTime, '%Y-%m-%d %H:%i:%s') AS return_time_local,
+              DATE_FORMAT(returnTimeUTC, '%Y-%m-%d %H:%i:%s') AS return_time_utc,
+              returnTimezone,
+              returnTZ
              FROM floatplans
             WHERE floatplanId = :planId
               AND userId = :userId",
@@ -127,9 +135,13 @@ component extends="testbox.system.BaseSpec" output="false" {
           { datasource = "fpw" }
         );
         expect(qPlan.recordCount).toBe(1);
-        expect(trim(qPlan.departTimezone[1])).toBe("UTC");
+        expect(trim(qPlan.departure_time_local[1])).toBe(payload.FLOATPLAN.departureTime);
+        expect(trim(qPlan.departure_time_utc[1])).toBe(utcIsoToSql(payload.FLOATPLAN.departureTimeUtc));
+        expect(trim(qPlan.departTimezone[1])).toBe("America/New_York");
         expect(trim(qPlan.departureTZ[1])).toBe("America/New_York");
-        expect(trim(qPlan.returnTimezone[1])).toBe("UTC");
+        expect(trim(qPlan.return_time_local[1])).toBe(payload.FLOATPLAN.returnTime);
+        expect(trim(qPlan.return_time_utc[1])).toBe(utcIsoToSql(payload.FLOATPLAN.returnTimeUtc));
+        expect(trim(qPlan.returnTimezone[1])).toBe("America/New_York");
         expect(trim(qPlan.returnTZ[1])).toBe("America/New_York");
 
         var sendRes = postAsUser(userId, "/api/v1/floatplan.cfc?method=handle&action=sendbasic", {
@@ -678,13 +690,13 @@ component extends="testbox.system.BaseSpec" output="false" {
 	            phone = "555-0103"
 	          }
 	        };
-	        var waypointPayload = {
-	          action = "save",
-	          waypoint = {
-	            name = "Allowed Basic Waypoint " & createUUID(),
-	            latitude = "28.01",
-	            longitude = "-82.01"
-	          }
+        var waypointPayload = {
+          action = "save",
+          waypoint = {
+            name = "Allowed Basic WP " & left(replace(createUUID(), "-", "", "all"), 24),
+            latitude = "28.01",
+            longitude = "-82.01"
+          }
 	        };
 
 	        var basicVessel = postAsUser(basicUserId, "/api/v1/vessel.cfc?method=handle", duplicate(vesselPayload));
@@ -785,10 +797,12 @@ component extends="testbox.system.BaseSpec" output="false" {
     };
   }
 
-	  private struct function buildBasicPayload(required struct fixtures, required array waypointIds, required any departureAt, required any returnAt, string timeZone = "+00:00") {
+	  private struct function buildBasicPayload(required struct fixtures, required array waypointIds, required any departureAt, required any returnAt, string timeZone = "US/Eastern") {
 	    var waypoints = [];
 	    var i = 0;
 	    var authority = getFirstRescueAuthority();
+	    var departureUtc = clientUtcIso(arguments.departureAt, arguments.timeZone);
+	    var returnUtc = clientUtcIso(arguments.returnAt, arguments.timeZone);
 	    for (i = 1; i <= arrayLen(arguments.waypointIds); i++) {
       arrayAppend(waypoints, {
         WAYPOINTID = arguments.waypointIds[i],
@@ -812,9 +826,11 @@ component extends="testbox.system.BaseSpec" output="false" {
 	        departingFrom = "Test Marina",
 	        departureTime = dtString(arguments.departureAt),
 	        departureTimezone = arguments.timeZone,
+	        departureTimeUtc = departureUtc,
         returningTo = "Test Marina",
         returnTime = dtString(arguments.returnAt),
 	        returnTimezone = arguments.timeZone,
+	        returnTimeUtc = returnUtc,
         foodDaysPerPerson = "1",
         waterDaysPerPerson = "1",
         notes = "Basic operational test",
@@ -855,22 +871,64 @@ component extends="testbox.system.BaseSpec" output="false" {
 	    };
 	  }
 
+  private string function clientUtcIso(required any localAt, required string timeZone) {
+    var normalizedTimeZone = trim(arguments.timeZone);
+    var localText = dtString(arguments.localAt);
+    if (!len(normalizedTimeZone) OR !len(localText)) {
+      return "";
+    }
+    try {
+      if (listFindNoCase("UTC,Etc/UTC,GMT", normalizedTimeZone)) {
+        return replace(localText, " ", "T", "one") & ".000Z";
+      }
+      var formatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("yyyy-MM-dd HH:mm:ss");
+      var localDateTime = createObject("java", "java.time.LocalDateTime").parse(localText, formatter);
+      var zoneId = createObject("java", "java.time.ZoneId").of(normalizedTimeZone);
+      return toString(localDateTime.atZone(zoneId).toInstant());
+    } catch (any utcErr) {
+      return "";
+    }
+  }
+
+  private string function utcIsoToSql(required string value) {
+    var raw = trim(arguments.value);
+    raw = replace(raw, "T", " ", "one");
+    raw = reReplace(raw, "Z$", "", "one");
+    raw = reReplace(raw, "\.[0-9]+$", "", "one");
+    if (len(raw) EQ 16) {
+      raw &= ":00";
+    }
+    return left(raw, 19);
+  }
+
   private struct function postAsUser(required numeric userId, required string path, required struct payload) {
-    url.testUserId = arguments.userId;
-    return variables.api.postJson(arguments.path, arguments.payload);
+    var authContext = applyTestSessionUser(arguments.userId);
+    try {
+      return variables.api.postJson(arguments.path, arguments.payload);
+    } finally {
+      restoreTestSessionUser(authContext);
+    }
   }
 
   private struct function getBasicCurrentAsUser(required numeric userId) {
-    url.testUserId = arguments.userId;
-    return variables.api.getJson("/api/v1/floatplan.cfc?method=handle&action=getbasiccurrent");
+    var authContext = applyTestSessionUser(arguments.userId);
+    try {
+      return variables.api.getJson("/api/v1/floatplan.cfc?method=handle&action=getbasiccurrent");
+    } finally {
+      restoreTestSessionUser(authContext);
+    }
   }
 
   private struct function closeBasicAsUser(required numeric userId, required numeric floatPlanId) {
-    url.testUserId = arguments.userId;
-    return variables.api.postJson("/api/v1/floatplan.cfc?method=handle&action=closebasic", {
-      action = "closebasic",
-      floatPlanId = arguments.floatPlanId
-    });
+    var authContext = applyTestSessionUser(arguments.userId);
+    try {
+      return variables.api.postJson("/api/v1/floatplan.cfc?method=handle&action=closebasic", {
+        action = "closebasic",
+        floatPlanId = arguments.floatPlanId
+      });
+    } finally {
+      restoreTestSessionUser(authContext);
+    }
   }
 
   private struct function getBasicPdfAsUser(required numeric userId, required numeric floatPlanId) {
@@ -892,16 +950,25 @@ component extends="testbox.system.BaseSpec" output="false" {
 
   private struct function getRawApi(required string path, boolean requireSession=true, numeric testUserId=0) {
     var httpResult = {};
+    var authContext = {};
+    if (arguments.requireSession AND arguments.testUserId GT 0) {
+      authContext = applyTestSessionUser(arguments.testUserId);
+    }
     if (arguments.requireSession) {
       variables.api.ensureApprovedSession();
     }
-
-    cfhttp(url = variables.api.getBaseUrl() & arguments.path, method = "get", result = "httpResult", charset = "utf-8") {
-      if (arguments.requireSession AND len(variables.api.getCookieHeader())) {
-        cfhttpparam(type = "header", name = "Cookie", value = variables.api.getCookieHeader());
+    try {
+      cfhttp(url = variables.api.getBaseUrl() & arguments.path, method = "get", result = "httpResult", charset = "utf-8") {
+        if (arguments.requireSession AND len(variables.api.getCookieHeader())) {
+          cfhttpparam(type = "header", name = "Cookie", value = variables.api.getCookieHeader());
+        }
+        if (arguments.testUserId GT 0) {
+          cfhttpparam(type = "header", name = "X-FPW-Test-UserId", value = arguments.testUserId);
+        }
       }
-      if (arguments.testUserId GT 0) {
-        cfhttpparam(type = "header", name = "X-FPW-Test-UserId", value = arguments.testUserId);
+    } finally {
+      if (structCount(authContext)) {
+        restoreTestSessionUser(authContext);
       }
     }
 
@@ -911,6 +978,36 @@ component extends="testbox.system.BaseSpec" output="false" {
       CONTENT_DISPOSITION = responseHeaderValue(httpResult, "Content-Disposition"),
       FILECONTENT = structKeyExists(httpResult, "fileContent") ? httpResult.fileContent : ""
     };
+  }
+
+  private struct function applyTestSessionUser(required numeric userId) {
+    var context = {
+      hadUrlUser = structKeyExists(url, "testUserId"),
+      priorUrlUser = structKeyExists(url, "testUserId") ? url.testUserId : "",
+      hadSessionUser = structKeyExists(session, "user"),
+      priorSessionUser = (structKeyExists(session, "user") AND isStruct(session.user)) ? duplicate(session.user) : {}
+    };
+    url.testUserId = arguments.userId;
+    if (!structKeyExists(session, "user") OR !isStruct(session.user)) {
+      session.user = {};
+    }
+    session.user.userId = arguments.userId;
+    session.user.id = arguments.userId;
+    session.user.USERID = arguments.userId;
+    return context;
+  }
+
+  private void function restoreTestSessionUser(required struct context) {
+    if (arguments.context.hadUrlUser) {
+      url.testUserId = arguments.context.priorUrlUser;
+    } else {
+      structDelete(url, "testUserId", false);
+    }
+    if (arguments.context.hadSessionUser) {
+      session.user = arguments.context.priorSessionUser;
+    } else {
+      structDelete(session, "user", false);
+    }
   }
 
   private string function responseHeaderValue(required struct httpResult, required string headerName) {

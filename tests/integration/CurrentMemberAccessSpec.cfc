@@ -4,6 +4,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.baseUrl = "http://localhost:8500/fpw";
     variables.service = new fpw.api.v1.MemberEntitlementService().init("fpw");
     variables.createdUserIds = [];
+    variables.createdUsers = {};
     variables.userSeed = 904000000 + randRange(1000, 99999);
     ensureMemberEntitlementsTable();
   }
@@ -117,9 +118,31 @@ component extends="testbox.system.BaseSpec" output="false" {
   }
 
   private numeric function nextTestUserId() {
-    variables.userSeed++;
-    arrayAppend(variables.createdUserIds, variables.userSeed);
-    return variables.userSeed;
+    var password = "TestPass123!";
+    var email = "fpw-current-member-" & replace(createUUID(), "-", "", "all") & "@example.com";
+    var signupApi = new fpw.tests.support.FpwApiSupport().init(
+      baseUrl = variables.baseUrl,
+      inheritCookie = false
+    );
+    var payload = signupApi.postJson("/api/v1/join.cfc?method=handle", {
+      firstName = "FPW",
+      lastName = "CurrentMember",
+      email = email,
+      password = password,
+      confirmPassword = password,
+      termsAccepted = true
+    }, false);
+    var userId = val(payload.USERID ?: 0);
+
+    expect(payload.SUCCESS).toBeTrue(serializeJSON(payload));
+    expect(userId).toBeGT(0, serializeJSON(payload));
+
+    arrayAppend(variables.createdUserIds, userId);
+    variables.createdUsers[toString(userId)] = {
+      email = email,
+      password = password
+    };
+    return userId;
   }
 
   private struct function getMeAsUser(required numeric userId) {
@@ -134,10 +157,39 @@ component extends="testbox.system.BaseSpec" output="false" {
     var httpResult = {};
     var raw = "";
 
-    cfhttp(url = variables.baseUrl & "/api/v1/me.cfc?method=handle", method = "get", result = "httpResult", charset = "utf-8") {
-      if (arguments.userId GT 0) {
-        cfhttpparam(type = "header", name = "X-FPW-Test-UserId", value = toString(arguments.userId));
+    if (arguments.userId GT 0) {
+      var userKey = toString(arguments.userId);
+      expect(structKeyExists(variables.createdUsers, userKey)).toBeTrue("Missing disposable user credentials for " & userKey);
+      var hadSessionUser = structKeyExists(session, "user");
+      var priorSessionUser = hadSessionUser ? duplicate(session.user) : {};
+      try {
+        session.user = {
+          id = arguments.userId,
+          userId = arguments.userId,
+          USERID = arguments.userId,
+          email = variables.createdUsers[userKey].email,
+          EMAIL = variables.createdUsers[userKey].email,
+          firstName = "FPW",
+          FIRSTNAME = "FPW",
+          lastName = "CurrentMember",
+          LASTNAME = "CurrentMember",
+          mobilePhone = "",
+          MOBILEPHONE = ""
+        };
+        savecontent variable="raw" {
+          new fpw.api.v1.me().handle();
+        }
+        return deserializeJSON(trim(raw), false);
+      } finally {
+        if (hadSessionUser) {
+          session.user = priorSessionUser;
+        } else {
+          structDelete(session, "user", false);
+        }
       }
+    }
+
+    cfhttp(url = variables.baseUrl & "/api/v1/me.cfc?method=handle", method = "get", result = "httpResult", charset = "utf-8") {
     }
 
     raw = structKeyExists(httpResult, "fileContent") ? trim(httpResult.fileContent) : "";
@@ -185,8 +237,23 @@ component extends="testbox.system.BaseSpec" output="false" {
         },
         { datasource = "fpw" }
       );
+      queryExecute(
+        "DELETE FROM users_address WHERE userId = :userId",
+        {
+          userId = { value = variables.createdUserIds[i], cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
+      queryExecute(
+        "DELETE FROM users WHERE userId = :userId",
+        {
+          userId = { value = variables.createdUserIds[i], cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
     }
     variables.createdUserIds = [];
+    variables.createdUsers = {};
   }
 
   private void function ensureMemberEntitlementsTable() {

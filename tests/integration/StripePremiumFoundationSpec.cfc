@@ -340,13 +340,35 @@ component extends="testbox.system.BaseSpec" output="false" {
   }
 
   private struct function getMeAsUser(required numeric userId) {
-    var httpResult = {};
     var raw = "";
-    cfhttp(url = variables.baseUrl & "/api/v1/me.cfc?method=handle", method = "get", result = "httpResult", charset = "utf-8") {
-      cfhttpparam(type = "header", name = "X-FPW-Test-UserId", value = toString(arguments.userId));
+    var hadSessionUser = structKeyExists(session, "user");
+    var priorSessionUser = hadSessionUser ? duplicate(session.user) : {};
+
+    try {
+      session.user = {
+        id = arguments.userId,
+        userId = arguments.userId,
+        USERID = arguments.userId,
+        email = "stripe-test-" & arguments.userId & "@example.invalid",
+        EMAIL = "stripe-test-" & arguments.userId & "@example.invalid",
+        firstName = "Stripe",
+        FIRSTNAME = "Stripe",
+        lastName = "Tester",
+        LASTNAME = "Tester",
+        mobilePhone = "",
+        MOBILEPHONE = ""
+      };
+      savecontent variable="raw" {
+        new fpw.api.v1.me().handle();
+      }
+      return deserializeJSON(trim(raw), false);
+    } finally {
+      if (hadSessionUser) {
+        session.user = priorSessionUser;
+      } else {
+        structDelete(session, "user", false);
+      }
     }
-    raw = structKeyExists(httpResult, "fileContent") ? trim(httpResult.fileContent) : "";
-    return len(raw) ? deserializeJSON(raw, false) : {};
   }
 
   private query function loadEntitlementBySubscription(required string subscriptionId) {

@@ -13,8 +13,11 @@ component extends="testbox.system.BaseSpec" output="false" {
       variables.entitlements = new fpw.api.v1.MemberEntitlementService().init("fpw");
       variables.hadOriginalTestUserId = structKeyExists(url, "testUserId");
     variables.originalTestUserId = variables.hadOriginalTestUserId ? url.testUserId : "";
+    variables.hadOriginalSessionUser = structKeyExists(session, "user");
+    variables.originalSessionUser = (variables.hadOriginalSessionUser && isStruct(session.user)) ? duplicate(session.user) : {};
     variables.sessionApiUser = createSessionApiUser();
     url.testUserId = variables.sessionApiUser.userId;
+    setCompanionSessionUser(variables.sessionApiUser.userId);
   }
 
   function afterAll() {
@@ -25,6 +28,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     } else {
       structDelete(url, "testUserId", false);
     }
+    restoreCompanionSessionUser();
   }
 
   function run() {
@@ -1236,6 +1240,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     }
 
   private struct function createRouteLinkedDraftForApi(required any apiSupport, required string prefix, required struct created) {
+    setCompanionSessionUser(resolveCurrentCompanionTestUserId());
     var cleanupSupport = new fpw.tests.support.FpwCleanupSupport().init(arguments.apiSupport);
     cleanupSupport.cleanupCurrentRouteFloatPlanGroup();
 
@@ -1290,6 +1295,31 @@ component extends="testbox.system.BaseSpec" output="false" {
       routeCode = routeCode,
       floatPlanId = floatPlanId
     };
+  }
+
+  private numeric function resolveCurrentCompanionTestUserId() {
+    if (structKeyExists(url, "testUserId") AND isNumeric(url.testUserId) AND val(url.testUserId) GT 0) {
+      return val(url.testUserId);
+    }
+    return variables.sessionApiUser.userId;
+  }
+
+  private void function setCompanionSessionUser(required numeric userId) {
+    url.testUserId = arguments.userId;
+    if (!structKeyExists(session, "user") OR !isStruct(session.user)) {
+      session.user = {};
+    }
+    session.user.userId = arguments.userId;
+    session.user.id = arguments.userId;
+    session.user.USERID = arguments.userId;
+  }
+
+  private void function restoreCompanionSessionUser() {
+    if (variables.hadOriginalSessionUser) {
+      session.user = variables.originalSessionUser;
+    } else {
+      structDelete(session, "user", false);
+    }
   }
 
   private void function attachContactToPlan(required any apiSupport, required numeric floatPlanId, required string prefix, required struct created) {

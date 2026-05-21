@@ -29,13 +29,38 @@ component extends="testbox.system.BaseSpec" output="false" {
       });
 
       it("rejects already-Premium users before Stripe checkout creation", function() {
-        var userId = nextTestUserId();
+        var billingUser = createDisposableBillingUser();
+        var billingApi = {};
+        var userId = billingUser.userId;
+        var hadOriginalSessionUser = structKeyExists(session, "user");
+        var originalSessionUser = (hadOriginalSessionUser && isStruct(session.user)) ? duplicate(session.user) : {};
+        var res = {};
         variables.accessService.createSubscriptionEntitlement(userId, {
           stripeSubscriptionId = "sub_checkout_existing_" & userId,
           stripeCustomerId = "cus_checkout_existing_" & userId
         });
 
-        var res = postBilling(userId, { interval = "monthly" });
+        try {
+          session.user = {
+            userId = userId,
+            id = userId,
+            USERID = userId
+          };
+          billingApi = new fpw.tests.support.FpwApiSupport().init(
+            baseUrl = variables.baseUrl,
+            authEmail = billingUser.email,
+            authPassword = billingUser.password
+          );
+          res = billingApi.postJson("/api/v1/billing.cfc?method=handle&action=createcheckoutsession", {
+            interval = "monthly"
+          });
+        } finally {
+          if (hadOriginalSessionUser) {
+            session.user = originalSessionUser;
+          } else {
+            structDelete(session, "user", false);
+          }
+        }
 
         expect(res.SUCCESS).toBeFalse(serializeJSON(res));
         expect(res.AUTH).toBeTrue(serializeJSON(res));
@@ -216,6 +241,31 @@ component extends="testbox.system.BaseSpec" output="false" {
     return variables.userSeed;
   }
 
+  private struct function createDisposableBillingUser() {
+    var signupApi = new fpw.tests.support.FpwApiSupport().init(
+      baseUrl = variables.baseUrl
+    );
+    var uniqueEmail = "fpw-billing-" & replace(createUUID(), "-", "", "all") & "@example.com";
+    var payload = signupApi.postJson("/api/v1/join.cfc?method=handle", {
+      firstName = "FPW",
+      lastName = "Billing",
+      email = uniqueEmail,
+      password = "changeIt",
+      confirmPassword = "changeIt",
+      termsAccepted = true
+    }, false);
+
+    expect(payload.SUCCESS).toBeTrue(serializeJSON(payload));
+    expect(val(payload.USERID ?: 0)).toBeGT(0, serializeJSON(payload));
+    arrayAppend(variables.createdUserIds, val(payload.USERID));
+
+    return {
+      userId = val(payload.USERID),
+      email = uniqueEmail,
+      password = "changeIt"
+    };
+  }
+
   private struct function buildFakeConfig() {
     return {
       secretKey = "sk_test_checkout_secret",
@@ -306,6 +356,20 @@ component extends="testbox.system.BaseSpec" output="false" {
     for (i = 1; i <= arrayLen(variables.createdUserIds); i++) {
       queryExecute(
         "DELETE FROM member_entitlements WHERE user_id = :userId",
+        {
+          userId = { value = variables.createdUserIds[i], cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
+      queryExecute(
+        "DELETE FROM users_address WHERE userId = :userId",
+        {
+          userId = { value = variables.createdUserIds[i], cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
+      queryExecute(
+        "DELETE FROM users WHERE userId = :userId",
         {
           userId = { value = variables.createdUserIds[i], cfsqltype = "cf_sql_integer" }
         },

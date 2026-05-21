@@ -42,7 +42,32 @@ component extends="testbox.system.BaseSpec" output="false" {
       });
 
       it("returns NO_BILLING_CUSTOMER when the user has no Stripe customer mapping", function() {
-        var res = postPortal(nextTestUserId());
+        var billingUser = createDisposableBillingUser();
+        var portalApi = {};
+        var userId = billingUser.userId;
+        var hadOriginalSessionUser = structKeyExists(session, "user");
+        var originalSessionUser = (hadOriginalSessionUser && isStruct(session.user)) ? duplicate(session.user) : {};
+        var res = {};
+
+        try {
+          session.user = {
+            userId = userId,
+            id = userId,
+            USERID = userId
+          };
+          portalApi = new fpw.tests.support.FpwApiSupport().init(
+            baseUrl = variables.baseUrl,
+            authEmail = billingUser.email,
+            authPassword = billingUser.password
+          );
+          res = portalApi.postJson("/api/v1/billing.cfc?method=handle&action=createportal", {});
+        } finally {
+          if (hadOriginalSessionUser) {
+            session.user = originalSessionUser;
+          } else {
+            structDelete(session, "user", false);
+          }
+        }
 
         expect(res.SUCCESS).toBeFalse(serializeJSON(res));
         expect(res.AUTH).toBeTrue(serializeJSON(res));
@@ -141,6 +166,31 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.userSeed++;
     arrayAppend(variables.createdUserIds, variables.userSeed);
     return variables.userSeed;
+  }
+
+  private struct function createDisposableBillingUser() {
+    var signupApi = new fpw.tests.support.FpwApiSupport().init(
+      baseUrl = variables.baseUrl
+    );
+    var uniqueEmail = "fpw-portal-" & replace(createUUID(), "-", "", "all") & "@example.com";
+    var payload = signupApi.postJson("/api/v1/join.cfc?method=handle", {
+      firstName = "FPW",
+      lastName = "Portal",
+      email = uniqueEmail,
+      password = "changeIt",
+      confirmPassword = "changeIt",
+      termsAccepted = true
+    }, false);
+
+    expect(payload.SUCCESS).toBeTrue(serializeJSON(payload));
+    expect(val(payload.USERID ?: 0)).toBeGT(0, serializeJSON(payload));
+    arrayAppend(variables.createdUserIds, val(payload.USERID));
+
+    return {
+      userId = val(payload.USERID),
+      email = uniqueEmail,
+      password = "changeIt"
+    };
   }
 
   private struct function buildFakeConfig() {
@@ -254,6 +304,20 @@ component extends="testbox.system.BaseSpec" output="false" {
     for (i = 1; i <= arrayLen(variables.createdUserIds); i++) {
       queryExecute(
         "DELETE FROM member_entitlements WHERE user_id = :userId",
+        {
+          userId = { value = variables.createdUserIds[i], cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
+      queryExecute(
+        "DELETE FROM users_address WHERE userId = :userId",
+        {
+          userId = { value = variables.createdUserIds[i], cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
+      queryExecute(
+        "DELETE FROM users WHERE userId = :userId",
         {
           userId = { value = variables.createdUserIds[i], cfsqltype = "cf_sql_integer" }
         },
