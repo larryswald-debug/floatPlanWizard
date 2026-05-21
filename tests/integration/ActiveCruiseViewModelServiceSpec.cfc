@@ -388,8 +388,10 @@ component extends="testbox.system.BaseSpec" output="false" {
         var checkinResult = {};
         var model = {};
         var noteText = "V2 check-in history note";
-        var displayUtc = "2026-05-20 22:01:55";
+        var displayUtc = "2026-05-21 02:35:59";
         var timelineCheckin = {};
+        var publicAuthority = {};
+        var followBootstrap = {};
 
         try {
           url.testUserId = variables.sessionApiUser.userId;
@@ -397,6 +399,8 @@ component extends="testbox.system.BaseSpec" output="false" {
           checkinResult = postActiveCruiseCheckinWithApi(sessionApi, asset.floatPlanId, "On Track", noteText);
           setActiveCruiseDisplayTimestampForTest(asset.floatPlanId, displayUtc);
           model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          publicAuthority = variables.viewModelService.getPublicFollowAuthority(variables.sessionApiUser.userId, asset.floatPlanId);
+          followBootstrap = loadFollowBootstrapForTest(sessionApi, asset.floatPlanId);
 
           expect(isSuccessPayload(checkinResult)).toBeTrue(serializeJSON(checkinResult));
           expect(model.success).toBeTrue(serializeJSON(model));
@@ -426,10 +430,25 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(model.privateTimeline.storageAuthority).toBe("floatplan_events", serializeJSON(model.privateTimeline));
           timelineCheckin = findTimelineItem(model, "CHECKIN_RECEIVED");
           expect(timelineCheckin.note).toBe(noteText, serializeJSON(model.privateTimeline));
-          expect(model.monitoring.lastCheckinAtUtc).toBe("2026-05-20T22:01:55Z", serializeJSON(model.monitoring));
-          expect(timelineCheckin.occurredAtUtc).toBe("2026-05-20T22:01:55Z", serializeJSON(timelineCheckin));
-          expect(findNoCase("6:01", timelineCheckin.occurredLocalLabel)).toBeGT(0, serializeJSON(timelineCheckin));
-          expect(findNoCase("2:01", timelineCheckin.occurredLocalLabel)).toBe(0, serializeJSON(timelineCheckin));
+          expect(model.monitoring.lastCheckinAtUtc).toBe("2026-05-21T02:35:59Z", serializeJSON(model.monitoring));
+          expect(timelineCheckin.occurredAtUtc).toBe("2026-05-21T02:35:59Z", serializeJSON(timelineCheckin));
+          expect(findNoCase("10:35 PM", timelineCheckin.occurredLocalLabel)).toBeGT(0, serializeJSON(timelineCheckin));
+          expect(findNoCase("2:35 AM", timelineCheckin.occurredLocalLabel)).toBe(0, serializeJSON(timelineCheckin));
+          expect(publicAuthority.monitoring.lastCheckinUtc).toBe("2026-05-21T02:35:59Z", serializeJSON(publicAuthority.monitoring));
+          expect(findNoCase("10:35 PM", publicAuthority.monitoring.lastCheckinLocalLabel)).toBeGT(0, serializeJSON(publicAuthority.monitoring));
+          expect(findNoCase("2:35 AM", publicAuthority.monitoring.lastCheckinLocalLabel)).toBe(0, serializeJSON(publicAuthority.monitoring));
+          expect(followBootstrap.publicAuthority.monitoring.lastCheckinUtc).toBe("2026-05-21T02:35:59Z", serializeJSON(followBootstrap.publicAuthority.monitoring));
+          expect(followBootstrap.topCards.last_checkin).toBe(publicAuthority.monitoring.lastCheckinLocalLabel, serializeJSON(followBootstrap.topCards));
+          expect(followBootstrap.topCards.last_checkin_utc).toBe(publicAuthority.monitoring.lastCheckinUtc, serializeJSON(followBootstrap.topCards));
+          expect(followBootstrap.sidebar.last_checkin).toBe(publicAuthority.monitoring.lastCheckinLocalLabel, serializeJSON(followBootstrap.sidebar));
+          expect(followBootstrap.sidebar.last_checkin_utc).toBe(publicAuthority.monitoring.lastCheckinUtc, serializeJSON(followBootstrap.sidebar));
+          expect(followBootstrap.topCards.status).toBe(publicAuthority.monitoring.publicHealthLabel, serializeJSON(followBootstrap.topCards));
+          expect(followBootstrap.stream.status).toBe(publicAuthority.monitoring.publicHealthLabel, serializeJSON(followBootstrap.stream));
+          expect(len(publicAuthority.timing.etaUtc ?: "")).toBeGT(0, serializeJSON(publicAuthority.timing));
+          expect(followBootstrap.topCards.eta_utc ?: "").toBe(publicAuthority.timing.etaUtc ?: "", serializeJSON(followBootstrap.topCards));
+          expect(followBootstrap.topCards.eta ?: "").toBe(publicAuthority.timing.etaLocalLabel ?: "", serializeJSON(followBootstrap.topCards));
+          expect(roundTo2Numeric(followBootstrap.publicAuthority.progress.legProgressPercent)).toBe(roundTo2Numeric(model.currentLeg.percentComplete), serializeJSON(followBootstrap.publicAuthority.progress));
+          expect(roundTo2Numeric(followBootstrap.publicAuthority.progress.routeProgressPercent)).toBe(roundTo2Numeric(publicAuthority.progress.routeProgressPercent), serializeJSON(followBootstrap.publicAuthority.progress));
           expect(roundTo2Numeric(model.currentLeg.percentComplete)).toBeLTE(5, serializeJSON(model.currentLeg));
           expect(hasLegacyRoutePlanAuthority(model)).toBeFalse(serializeJSON(model.displayAuthority));
         } finally {

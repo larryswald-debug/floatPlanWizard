@@ -2640,38 +2640,26 @@
     <cfargument name="timezone" type="string" required="true">
     <cfscript>
       var raw = safeString(arguments.utcValue);
-      var normalized = "";
+      var rawUtc = "";
       var tzId = safeString(arguments.timezone);
-      var utcDt = "";
       var tzLabel = "";
       var localLabel = "";
 
       if (!len(raw)) {
         return "";
       }
-      if (!len(tzId)) {
-        tzId = "UTC";
-      }
 
-      normalized = replace(raw, "T", " ", "one");
-      normalized = reReplace(normalized, "Z$", "", "one");
-      normalized = reReplace(normalized, "([+-][0-9]{2}:?[0-9]{2})$", "", "one");
-      normalized = reReplace(normalized, "\.[0-9]+$", "", "one");
-      if (reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$", normalized)) {
-        normalized &= ":00";
-      }
-      if (!isDate(normalized)) {
+      rawUtc = normalizeUtcSqlString(raw);
+      if (!len(rawUtc) OR !len(tzId)) {
         return "";
       }
 
-      utcDt = parseDateTime(normalized);
-      try {
-        localLabel = dateTimeFormat(utcDt, "mmm d, yyyy h:nn tt", tzId);
-      } catch (any localLabelErr) {
-        localLabel = dateTimeFormat(utcDt, "mmm d, yyyy h:nn tt");
+      localLabel = formatUtcSqlStringAsLocalDisplay(rawUtc, tzId);
+      if (!len(localLabel)) {
+        return "";
       }
 
-      tzLabel = publicFollowTimezoneLabel(tzId, utcDt);
+      tzLabel = publicFollowTimezoneLabel(tzId, rawUtc);
       return localLabel & (len(tzLabel) ? " " & tzLabel : "");
     </cfscript>
   </cffunction>

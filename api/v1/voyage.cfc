@@ -1559,6 +1559,7 @@
                 out.body.trip_summary_mode = "Trip mode: Awaiting departure";
                 out.body.timeline_next_update = "At next departure";
             }
+            out = applyPublicAuthorityToFollowBootstrap(out, publicAuthority);
 	            writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
 	            return out;
 	        </cfscript>
@@ -5941,6 +5942,167 @@
             }
 
             return (len(prefix) ? prefix & "." : "") & "api.api_assets.floatPlanUtils";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="applyPublicAuthorityToFollowBootstrap" access="private" returntype="struct" output="false">
+        <cfargument name="payload" type="struct" required="true">
+        <cfargument name="authority" type="any" required="false" default="">
+        <cfscript>
+            var out = duplicate(arguments.payload);
+            var monitoring = getPublicAuthoritySection(arguments.authority, "monitoring");
+            var timing = getPublicAuthoritySection(arguments.authority, "timing");
+            var progress = getPublicAuthoritySection(arguments.authority, "progress");
+            var currentLeg = getPublicAuthoritySection(arguments.authority, "currentLeg");
+            var tripState = getPublicAuthoritySection(arguments.authority, "tripState");
+            var statusLabel = "";
+            var statusVariant = "";
+            var tripStateLabel = "";
+            var tripStateHelper = "";
+            var lastCheckinUtc = "";
+            var lastCheckinLabel = "";
+            var nextExpectedLabel = "";
+            var etaUtc = "";
+            var etaLabel = "";
+            var locationLabel = "";
+            var nextStopLabel = "";
+            var milesToday = "";
+            var hoursToday = "";
+
+            if (!hasUsablePublicAuthority(arguments.authority)) {
+                return out;
+            }
+
+            if (!structKeyExists(out, "topCards") OR !isStruct(out.topCards)) out.topCards = {};
+            if (!structKeyExists(out, "stream") OR !isStruct(out.stream)) out.stream = {};
+            if (!structKeyExists(out, "sidebar") OR !isStruct(out.sidebar)) out.sidebar = {};
+            if (!structKeyExists(out, "pinned") OR !isStruct(out.pinned)) out.pinned = {};
+            if (!structKeyExists(out, "body") OR !isStruct(out.body)) out.body = {};
+
+            statusLabel = publicAuthorityText(monitoring, "publicHealthLabel");
+            if (!len(statusLabel)) {
+                statusLabel = publicAuthorityText(tripState, "label");
+            }
+            statusVariant = publicAuthorityText(monitoring, "publicHealthVariant");
+            tripStateLabel = publicAuthorityText(tripState, "label");
+            tripStateHelper = publicAuthorityText(tripState, "helperText");
+            lastCheckinUtc = publicAuthorityText(monitoring, "lastCheckinUtc");
+            lastCheckinLabel = publicAuthorityText(monitoring, "lastCheckinLocalLabel");
+            nextExpectedLabel = publicAuthorityText(monitoring, "nextExpectedCheckinLocalLabel");
+            etaUtc = publicAuthorityText(timing, "etaUtc");
+            etaLabel = publicAuthorityText(timing, "etaLocalLabel");
+            locationLabel = publicAuthorityText(currentLeg, "fromName");
+            nextStopLabel = publicAuthorityText(currentLeg, "toName");
+            milesToday = publicAuthorityText(timing, "milesTodayNm");
+            hoursToday = publicAuthorityText(timing, "hoursToday");
+
+            if (len(statusLabel)) {
+                out.stream.status = statusLabel;
+                out.topCards.status = statusLabel;
+                out.topCards.voyage_progress_status = statusLabel;
+                out.sidebar.monitoring_summary = statusLabel;
+                out.sidebar.monitor_state_label = statusLabel;
+                out.sidebar.monitor_state_text_html = "<strong>" & statusLabel & "</strong>" & (len(tripStateHelper) ? "<br />" & tripStateHelper : "");
+                out.body.card_status_copy = (len(tripStateHelper) ? tripStateHelper : statusLabel);
+                out.body.voyage_progress_status_copy = out.body.card_status_copy;
+            }
+            if (len(statusVariant)) {
+                out.topCards.voyage_progress_status_variant = statusVariant;
+            }
+            if (len(lastCheckinUtc)) {
+                out.topCards.last_checkin_utc = lastCheckinUtc;
+                out.sidebar.last_checkin_utc = lastCheckinUtc;
+            }
+            if (len(lastCheckinLabel)) {
+                out.topCards.last_checkin = lastCheckinLabel;
+                out.sidebar.last_checkin = lastCheckinLabel;
+                out.pinned.updated_label = lastCheckinLabel;
+                out.body.journey_checkin_value = "Checked in at " & lastCheckinLabel;
+            }
+            if (len(nextExpectedLabel)) {
+                out.body.journey_checkin_meta = "Next expected: " & nextExpectedLabel;
+            } else if (len(tripStateHelper)) {
+                out.body.journey_checkin_meta = tripStateHelper;
+            }
+            if (len(etaUtc)) {
+                out.topCards.eta_utc = etaUtc;
+            }
+            if (len(etaLabel)) {
+                out.topCards.eta = etaLabel;
+            }
+            if (len(locationLabel)) {
+                out.topCards.location_label = locationLabel;
+            }
+            if (len(nextStopLabel)) {
+                out.topCards.next_stop = nextStopLabel;
+            }
+            if (isNumeric(milesToday)) {
+                out.pinned.miles_today_nm = val(milesToday);
+            }
+            if (isNumeric(hoursToday)) {
+                out.pinned.hours_today = val(hoursToday);
+            }
+            if (len(tripStateLabel)) {
+                out.body.trip_summary_mode = "Trip state: " & tripStateLabel;
+            }
+
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="hasUsablePublicAuthority" access="private" returntype="boolean" output="false">
+        <cfargument name="authority" type="any" required="false" default="">
+        <cfscript>
+            var identity = getPublicAuthoritySection(arguments.authority, "identity");
+            var progress = getPublicAuthoritySection(arguments.authority, "progress");
+            var timing = getPublicAuthoritySection(arguments.authority, "timing");
+            var monitoring = getPublicAuthoritySection(arguments.authority, "monitoring");
+            var tripState = getPublicAuthoritySection(arguments.authority, "tripState");
+
+            if (!isStruct(arguments.authority)) {
+                return false;
+            }
+            if (len(publicAuthorityText(arguments.authority, "errorCode"))) {
+                return false;
+            }
+            if (val(publicAuthorityText(identity, "floatPlanId")) LTE 0) {
+                return false;
+            }
+            return (
+                structCount(progress) GT 0
+                AND structCount(timing) GT 0
+                AND structCount(monitoring) GT 0
+                AND structCount(tripState) GT 0
+            );
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getPublicAuthoritySection" access="private" returntype="struct" output="false">
+        <cfargument name="authority" type="any" required="false" default="">
+        <cfargument name="sectionName" type="string" required="true">
+        <cfscript>
+            if (
+                isStruct(arguments.authority)
+                AND structKeyExists(arguments.authority, arguments.sectionName)
+                AND isStruct(arguments.authority[arguments.sectionName])
+            ) {
+                return arguments.authority[arguments.sectionName];
+            }
+            return {};
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="publicAuthorityText" access="private" returntype="string" output="false">
+        <cfargument name="source" type="struct" required="true">
+        <cfargument name="keyName" type="string" required="true">
+        <cfscript>
+            if (!structKeyExists(arguments.source, arguments.keyName)) {
+                return "";
+            }
+            if (isNull(arguments.source[arguments.keyName])) {
+                return "";
+            }
+            return trim(toString(arguments.source[arguments.keyName]));
         </cfscript>
     </cffunction>
 
