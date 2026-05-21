@@ -191,6 +191,59 @@
     return tzId;
   }
 
+  function fpwV2TripScheduleDateTimeLabel(any value="", string timezone="UTC", string fallback="Not available", boolean compact=false) {
+    var raw = "";
+    var datePart = "";
+    var timePart = "";
+    var dateParts = [];
+    var timeParts = [];
+    var monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    var yearValue = 0;
+    var monthValue = 0;
+    var dayValue = 0;
+    var hourValue = 0;
+    var minuteValue = 0;
+    var timeLabel = "";
+    var zoneLabel = fpwV2TripTimezoneLabel(arguments.timezone, "");
+
+    if (!isSimpleValue(arguments.value)) {
+      return arguments.fallback;
+    }
+    raw = trim(toString(arguments.value));
+    if (reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}", raw)) {
+      raw = replace(raw, "T", " ", "one");
+    }
+    if (reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$", raw)) {
+      raw &= ":00";
+    }
+    if (!reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$", raw)) {
+      return arguments.fallback;
+    }
+
+    datePart = listFirst(raw, " ");
+    timePart = listGetAt(raw, 2, " ");
+    dateParts = listToArray(datePart, "-");
+    timeParts = listToArray(timePart, ":");
+    if (arrayLen(dateParts) NEQ 3 OR arrayLen(timeParts) LT 2) {
+      return arguments.fallback;
+    }
+
+    yearValue = val(dateParts[1]);
+    monthValue = val(dateParts[2]);
+    dayValue = val(dateParts[3]);
+    hourValue = val(timeParts[1]);
+    minuteValue = val(timeParts[2]);
+    if (yearValue LT 1000 OR monthValue LT 1 OR monthValue GT 12 OR dayValue LT 1 OR dayValue GT 31 OR hourValue LT 0 OR hourValue GT 23 OR minuteValue LT 0 OR minuteValue GT 59) {
+      return arguments.fallback;
+    }
+
+    timeLabel = numberFormat(hourValue, "00") & ":" & numberFormat(minuteValue, "00");
+    if (arguments.compact) {
+      return timeLabel & " " & zoneLabel;
+    }
+    return monthNames[monthValue] & " " & dayValue & ", " & yearValue & " " & timeLabel & " " & zoneLabel;
+  }
+
   function fpwV2TripLocalTimeLabel(any value="", string timezone="UTC", any referenceValue="", string fallback="Not available") {
     var raw = "";
     var normalized = "";
@@ -3548,7 +3601,7 @@
               <div class="header-stats">
                 <div class="metric">
                   <span>Scheduled Departure</span>
-                  <strong data-fpw-field="hero.tripStart">#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureUtc"), activeCruiseV2TripTimezone, "Not available"))#</strong>
+                  <strong data-fpw-field="hero.tripStart">#encodeForHTML(fpwV2TripScheduleDateTimeLabel(fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureLocalRaw", fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureLocal")), activeCruiseV2TripTimezone, "Not available"))#</strong>
                   <small>Planned trip start</small>
                 </div>
                 <div class="metric">
@@ -3797,7 +3850,7 @@
                   </div>
                   <div class="route-plan-departure">
                     <div class="route-plan-kicker">Scheduled Departure</div>
-                    <strong>#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureUtc"), activeCruiseV2TripTimezone, "Not available"))#</strong>
+                    <strong>#encodeForHTML(fpwV2TripScheduleDateTimeLabel(fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureLocalRaw", fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureLocal")), activeCruiseV2TripTimezone, "Not available"))#</strong>
                   </div>
                   <div class="route-plan-scroll" id="acV2RouteLegList">
                     <cfif structKeyExists(activeCruiseV2Model.routeTimeline, "available") AND activeCruiseV2Model.routeTimeline.available EQ true AND structKeyExists(activeCruiseV2Model.routeTimeline, "legs") AND arrayLen(activeCruiseV2Model.routeTimeline.legs)>
@@ -4209,7 +4262,7 @@
                   <cfset captainLogSaveEnabled = fpwV2ActionEnabled(captainLogSaveAction)>
                   <cfset captainLogSaveReason = fpwV2Text(fpwV2Get(captainLogSaveAction, "reason"), fpwV2Text(fpwV2Get(captainLogSaveAction, "disabledReason"), ""))>
                   <cfset captainLogTags = [ "All good", "Underway", "Weather delay", "Anchored", "Docking", "Fuel", "Mechanical", "Marina call" ]>
-                  <div class="captain-quick-note-form" id="fpwV2CaptainQuickNoteForm" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(captainLogSaveAction, "endpoint"), ""))#" data-method="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(captainLogSaveAction, "method"), "POST"))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(captainLogSaveAction, "payload", {})))#" data-enabled="#encodeForHTMLAttribute(captainLogSaveEnabled ? "true" : "false")#">
+                  <div class="captain-quick-note-form" id="fpwV2CaptainQuickNoteForm" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(captainLogSaveAction, "endpoint"), ""))#" data-method="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(captainLogSaveAction, "method"), "POST"))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(captainLogSaveAction, "payload", {})))#" data-enabled="#encodeForHTMLAttribute(captainLogSaveEnabled ? "true" : "false")#" data-trip-timezone="#encodeForHTMLAttribute(activeCruiseV2TripTimezone)#">
                     <label class="captain-note-label" for="fpwV2CaptainQuickNoteInput">
                       <span>Add captain note</span>
                       <small>Private by default</small>
@@ -5738,7 +5791,7 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
   const noteList = document.getElementById('fpwV2CaptainQuickNoteList');
   const emptyState = document.getElementById('fpwV2CaptainQuickNoteEmpty');
   const tagButtons = Array.from(form.querySelectorAll('[data-fpw-v2-captain-note-tag]'));
-  const tripTimeZone = '#encodeForJavaScript(activeCruiseV2TripTimezone)#' || 'UTC';
+  const tripTimeZone = form.getAttribute('data-trip-timezone') || 'UTC';
   let selectedTag = '';
 
   function setMessage(text, state) {
@@ -5795,7 +5848,7 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
   function formatTripDateTimeLabel(value, fallback) {
     const parsed = parseUtcDate(value);
     if (!parsed) {
-      return fallback || 'time unavailable';
+      return formatNoteTimeFallback(fallback || 'time unavailable');
     }
     try {
       const parts = new Intl.DateTimeFormat('en-US', {
@@ -5805,8 +5858,7 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-        hour12: false,
-        timeZoneName: 'short'
+        hourCycle: 'h23'
       }).formatToParts(parsed).reduce(function(acc, part) {
         acc[part.type] = part.value;
         return acc;
@@ -5814,13 +5866,51 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
       return (parts.month || '')
         + ' ' + (parts.day || '')
         + ', ' + (parts.year || '')
-        + ' \u00b7 '
+        + ' '
         + (parts.hour || '00')
         + ':' + (parts.minute || '00')
-        + ' ' + (parts.timeZoneName || tripTimeZone);
+        + ' ' + tripTimeZone;
     } catch (formatError) {
-      return fallback || 'time unavailable';
+      return formatNoteTimeFallback(fallback || 'time unavailable');
     }
+  }
+
+  function formatNoteTimeFallback(value) {
+    const raw = value ? String(value).trim() : '';
+    const match = raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    let hour = 0;
+    if (!match) {
+      return raw || 'time unavailable';
+    }
+    hour = parseInt(match[1], 10);
+    if (/PM/i.test(match[3]) && hour < 12) {
+      hour += 12;
+    }
+    if (/AM/i.test(match[3]) && hour === 12) {
+      hour = 0;
+    }
+    return String(hour).padStart(2, '0') + ':' + match[2];
+  }
+
+  function readNotePayloadValue(notePayload, fieldNames) {
+    if (!notePayload || !fieldNames || !fieldNames.length) {
+      return '';
+    }
+    for (let i = 0; i < fieldNames.length; i += 1) {
+      if (notePayload[fieldNames[i]] !== undefined && notePayload[fieldNames[i]] !== null) {
+        return notePayload[fieldNames[i]];
+      }
+    }
+    const normalizedNames = fieldNames.map(function(fieldName) {
+      return String(fieldName).toLowerCase();
+    });
+    const payloadKeys = Object.keys(notePayload);
+    for (let i = 0; i < payloadKeys.length; i += 1) {
+      if (normalizedNames.indexOf(payloadKeys[i].toLowerCase()) !== -1) {
+        return notePayload[payloadKeys[i]];
+      }
+    }
+    return '';
   }
 
   function updateSaveLabel() {
@@ -5864,8 +5954,9 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
     const noteBody = (notePayload && (notePayload.noteBody || notePayload.NOTEBODY || notePayload.note_body || notePayload.NOTE_BODY)) || fallbackNoteBody || 'No note text returned.';
     const noteTag = (notePayload && (notePayload.noteTag || notePayload.NOTETAG || notePayload.note_tag || notePayload.NOTE_TAG)) || fallbackTag || 'Captain note';
     const noteBadge = (notePayload && (notePayload.badge || notePayload.BADGE)) || (postedToStream ? 'POSTED' : 'PRIVATE');
-    const rawNoteTime = (notePayload && (notePayload.createdLabel || notePayload.CREATEDLABEL || notePayload.createdUtc || notePayload.CREATEDUTC || notePayload.created_utc || notePayload.CREATED_UTC)) || '';
-    const noteTime = formatTripDateTimeLabel(rawNoteTime, rawNoteTime || 'time unavailable');
+    const rawNoteTime = readNotePayloadValue(notePayload, [ 'createdUtc', 'createdUTC', 'created_utc' ]);
+    const fallbackNoteTime = readNotePayloadValue(notePayload, [ 'createdLabel', 'created_label' ]);
+    const noteTime = formatTripDateTimeLabel(rawNoteTime, fallbackNoteTime || 'time unavailable');
 
     row.className = 'log-row';
     meta.className = 'captain-note-meta';

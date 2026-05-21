@@ -1225,7 +1225,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260422b"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260513-basic-details"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260519-route-current-group-actions"></script>
 
 </body>
 </html>

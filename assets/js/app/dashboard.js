@@ -4907,12 +4907,17 @@
 
     function getRouteRenderMeta(route, activeCode) {
       var totals = route && route.TOTALS ? route.TOTALS : {};
-      var isRouteForActiveTrip = route && route.SHORT_CODE && activeCode && route.SHORT_CODE === activeCode;
       var currentRouteGroup = normalizeRouteCurrentGroup(route);
+      var activeTripFloatPlanId = normalizeActiveFloatPlanId(state.activeTripFloatPlanId);
+      var currentGroupFloatPlanId = currentRouteGroup
+        ? normalizeActiveFloatPlanId(currentRouteGroup.floatPlanId)
+        : 0;
+      var isRouteForActiveTrip = (route && route.SHORT_CODE && activeCode && route.SHORT_CODE === activeCode)
+        || (activeTripFloatPlanId > 0 && currentGroupFloatPlanId === activeTripFloatPlanId);
       var currentState = currentRouteGroup ? currentRouteGroup.currentState : "";
       var showActivateRouteAction = currentState !== "ACTIVE";
-      var showActiveCruiseAction = normalizeActiveFloatPlanId(state.activeTripFloatPlanId) > 0 && !!isRouteForActiveTrip;
-      var showTripPageAction = normalizeActiveFloatPlanId(state.activeTripFloatPlanId) > 0 && !!isRouteForActiveTrip;
+      var showActiveCruiseAction = activeTripFloatPlanId > 0 && !!isRouteForActiveTrip;
+      var showTripPageAction = activeTripFloatPlanId > 0 && !!isRouteForActiveTrip;
       var routeInstanceId = route && route.ROUTE_INSTANCE_ID !== undefined && route.ROUTE_INSTANCE_ID !== null
         ? parseInt(route.ROUTE_INSTANCE_ID, 10)
         : (route && route.route_instance_id !== undefined && route.route_instance_id !== null
