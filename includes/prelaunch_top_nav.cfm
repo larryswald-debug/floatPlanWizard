@@ -1,13 +1,15 @@
 <cfscript>
 topNavBasePath = "";
+topNavHasRequestBase = false;
 topNavHost = "";
 topNavIsProduction = false;
 
-if (structKeyExists(request, "fpwBase")) {
+if (structKeyExists(request, "fpwBase") AND !isNull(request.fpwBase)) {
+  topNavHasRequestBase = true;
   topNavBasePath = trim(toString(request.fpwBase));
 }
 
-if (!len(topNavBasePath) AND structKeyExists(cgi, "script_name")) {
+if (!topNavHasRequestBase AND !len(topNavBasePath) AND structKeyExists(cgi, "script_name")) {
   topNavScriptName = trim(toString(cgi.script_name));
   topNavBasePath = reReplace(topNavScriptName, "/boat-fuel-calculator/boat-fuel-calculator\.cfm$", "");
   topNavBasePath = reReplace(topNavBasePath, "/index\.cfm$", "");
@@ -285,4 +287,3 @@ topNavIsProduction = !len(topNavBasePath)
   <script src="#topNavBasePath#/assets/js/app/auth.js?v=20260305a"></script>
   <script src="#topNavBasePath#/assets/js/app/core.js"></script>
 </cfoutput>
-
