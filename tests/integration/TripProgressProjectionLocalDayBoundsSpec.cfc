@@ -72,6 +72,38 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(today.hoursToday).toBe(2);
         expect(today.milesTodayNm).toBe(20);
       });
+
+      it("keeps raw operational UTC timestamps unshifted for current leg projection math", function() {
+        var service = newProjectionService();
+        var out = { "authorityWarnings" = [] };
+        var legStartUtc = service.formatUtc("2026-05-20 22:01:55");
+        var projection = {};
+
+        expect(legStartUtc).toBe("2026-05-20T22:01:55Z");
+
+        projection = service.buildCurrentLegProgress(
+          {
+            "startedAtUtc" = legStartUtc,
+            "distanceNm" = 35
+          },
+          [
+            {
+              "segmentType" = "UNDERWAY",
+              "startedAtUtc" = legStartUtc,
+              "endedAtUtc" = "",
+              "expectedResumeAtUtc" = ""
+            }
+          ],
+          parseUtc("2026-05-20T22:15:16Z"),
+          5.5,
+          out
+        );
+
+        expect(projection.underwaySeconds).toBe(801);
+        expect(projection.completedNm).toBe(1.2);
+        expect(projection.remainingNm).toBe(33.8);
+        expect(projection.percentComplete).toBe(3.5);
+      });
     });
   }
 
@@ -79,6 +111,8 @@ component extends="testbox.system.BaseSpec" output="false" {
     var service = new fpw.api.v1.TripProgressProjectionService().init("fpw");
     makePublic(service, "getLocalDayBounds");
     makePublic(service, "buildTodayProgress");
+    makePublic(service, "buildCurrentLegProgress");
+    makePublic(service, "formatUtc");
     return service;
   }
 

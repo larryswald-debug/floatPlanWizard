@@ -13,8 +13,11 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.created = { vesselIds = [], routeCodes = [], floatPlanIds = [], contactIds = [] };
     variables.hadOriginalTestUserId = structKeyExists( url, "testUserId" );
     variables.originalTestUserId = variables.hadOriginalTestUserId ? url.testUserId : "";
+    variables.hadOriginalSessionUser = structKeyExists( session, "user" );
+    variables.originalSessionUser = ( variables.hadOriginalSessionUser && isStruct( session.user ) ) ? duplicate( session.user ) : {};
     variables.sessionApiUser = createSessionApiUser();
     url.testUserId = variables.sessionApiUser.userId;
+    setMonitoringSessionUser( variables.sessionApiUser.userId );
     variables.monitoringPremiumEntitlement = variables.entitlements.createAdminCompEntitlement(variables.sessionApiUser.userId);
   }
 
@@ -50,6 +53,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     } else {
       structDelete( url, "testUserId", false );
     }
+    restoreMonitoringSessionUser();
   }
 
   function run() {
@@ -923,6 +927,8 @@ component extends="testbox.system.BaseSpec" output="false" {
   }
 
   private struct function createRouteLinkedDraft( required string prefix ) {
+    url.testUserId = variables.sessionApiUser.userId;
+    setMonitoringSessionUser( variables.sessionApiUser.userId );
     variables.cleanup.cleanupCurrentRouteFloatPlanGroup();
     var vesselPayload = variables.api.saveVessel( {
       vesselId = 0,
@@ -974,18 +980,39 @@ component extends="testbox.system.BaseSpec" output="false" {
     };
   }
 
+  private void function setMonitoringSessionUser( required numeric userId ) {
+    if ( !structKeyExists( session, "user" ) || !isStruct( session.user ) ) {
+      session.user = {};
+    }
+    session.user.userId = arguments.userId;
+    session.user.id = arguments.userId;
+    session.user.USERID = arguments.userId;
+  }
+
+  private void function restoreMonitoringSessionUser() {
+    if ( variables.hadOriginalSessionUser ) {
+      session.user = variables.originalSessionUser;
+    } else {
+      structDelete( session, "user", false );
+    }
+  }
+
   private void function setPlanSchedule(
     required numeric floatPlanId,
     required string departureLocal,
     required string returnLocal,
     required string timeZoneId
   ) {
+    var departureUtc = localWallClockToUtcSql(arguments.departureLocal, arguments.timeZoneId);
+    var returnUtc = localWallClockToUtcSql(arguments.returnLocal, arguments.timeZoneId);
     queryExecute(
       "UPDATE floatplans
-       SET departureTime = CONVERT_TZ(:departureLocal, :timeZoneId, 'UTC'),
+       SET departureTime = :departureLocal,
+           departureTimeUTC = :departureUtc,
            departTimezone = :timeZoneId,
            departureTZ = :timeZoneId,
-           returnTime = CONVERT_TZ(:returnLocal, :timeZoneId, 'UTC'),
+           returnTime = :returnLocal,
+           returnTimeUTC = :returnUtc,
            returnTimezone = :timeZoneId,
            returnTZ = :timeZoneId,
            activatedAt = NULL,
@@ -996,14 +1023,53 @@ component extends="testbox.system.BaseSpec" output="false" {
            `status` = 'DRAFT'
        WHERE floatplanId = :floatPlanId",
       {
-        departureLocal = { value = arguments.departureLocal, cfsqltype = "cf_sql_timestamp" },
-        returnLocal = { value = arguments.returnLocal, cfsqltype = "cf_sql_timestamp" },
+        departureLocal = { value = normalizeSqlDateTimeString(arguments.departureLocal), cfsqltype = "cf_sql_varchar" },
+        departureUtc = { value = departureUtc, cfsqltype = "cf_sql_varchar" },
+        returnLocal = { value = normalizeSqlDateTimeString(arguments.returnLocal), cfsqltype = "cf_sql_varchar" },
+        returnUtc = { value = returnUtc, cfsqltype = "cf_sql_varchar" },
         timeZoneId = { value = arguments.timeZoneId, cfsqltype = "cf_sql_varchar" },
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
       },
       { datasource = "fpw" }
     );
     deleteMonitoringRows( arguments.floatPlanId );
+  }
+
+  private string function localWallClockToUtcSql(required string localDateTime, required string timeZoneId) {
+    var localText = normalizeSqlDateTimeString(arguments.localDateTime);
+    var zoneText = trim(arguments.timeZoneId);
+    if (!len(localText) OR !len(zoneText)) {
+      return "";
+    }
+    if (listFindNoCase("UTC,Etc/UTC,GMT,+00:00", zoneText)) {
+      return localText;
+    }
+    var formatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("yyyy-MM-dd HH:mm:ss");
+    var parsed = createObject("java", "java.time.LocalDateTime").parse(localText, formatter);
+    var zoneId = createObject("java", "java.time.ZoneId").of(zoneText);
+    return utcIsoToSql(toString(parsed.atZone(zoneId).toInstant()));
+  }
+
+  private string function utcIsoToSql(required string value) {
+    var raw = trim(arguments.value);
+    raw = replace(raw, "T", " ", "one");
+    raw = reReplace(raw, "Z$", "", "one");
+    raw = reReplace(raw, "\.[0-9]+$", "", "one");
+    if (len(raw) EQ 16) {
+      raw &= ":00";
+    }
+    return left(raw, 19);
+  }
+
+  private string function normalizeSqlDateTimeString(required string value) {
+    var raw = trim(arguments.value);
+    raw = replace(raw, "T", " ", "one");
+    raw = reReplace(raw, "\.[0-9]+$", "", "one");
+    raw = reReplace(raw, "Z$", "", "one");
+    if (len(raw) EQ 16) {
+      raw &= ":00";
+    }
+    return left(raw, 19);
   }
 
   private void function updateMonitoringTimes( required numeric floatPlanId, required struct updates ) {
@@ -1531,6 +1597,8 @@ component extends="testbox.system.BaseSpec" output="false" {
   }
 
   private struct function createRouteLinkedDraftForApi( required any apiSupport, required string prefix, required struct created ) {
+    url.testUserId = variables.sessionApiUser.userId;
+    setMonitoringSessionUser( variables.sessionApiUser.userId );
     var cleanupSupport = new fpw.tests.support.FpwCleanupSupport().init( arguments.apiSupport );
     cleanupSupport.cleanupCurrentRouteFloatPlanGroup();
     var vesselPayload = arguments.apiSupport.saveVessel( {

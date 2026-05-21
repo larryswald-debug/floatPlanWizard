@@ -955,6 +955,7 @@
             var result = { SUCCESS = false };
             var qPlan = queryNew("");
             var activeRouteTimeZoneId = "";
+            var returnTimeZoneId = "";
 
             qPlan = queryExecute(
                 "SELECT
@@ -962,8 +963,11 @@
                     fp.userId,
                     fp.floatPlanName,
                     fp.departureTime,
+                    fp.departureTimeUTC,
                     fp.returnTime,
+                    fp.returnTimeUTC,
                     fp.returnTimezone,
+                    fp.returnTZ,
                     fp.departTimezone,
                     fp.departureTZ,
                     fp.route_instance_id,
@@ -984,14 +988,18 @@
             }
 
             activeRouteTimeZoneId = trim(toString(qPlan.departureTZ[1] ?: qPlan.departTimezone[1] ?: ""));
+            returnTimeZoneId = isNull(qPlan.returnTZ[1]) ? "" : trim(toString(qPlan.returnTZ[1]));
+            if (!len(returnTimeZoneId)) {
+                returnTimeZoneId = isNull(qPlan.returnTimezone[1]) ? "" : trim(toString(qPlan.returnTimezone[1]));
+            }
 
             result.SUCCESS = true;
             result.float_plan_id = val(qPlan.floatplanId[1]);
             result.user_id = val(qPlan.userId[1]);
             result.float_plan_name = isNull(qPlan.floatPlanName[1]) ? "" : trim(toString(qPlan.floatPlanName[1]));
-            result.departure_time = isNull(qPlan.departureTime[1]) ? "" : qPlan.departureTime[1];
-            result.return_time = isNull(qPlan.returnTime[1]) ? "" : qPlan.returnTime[1];
-            result.return_timezone = isNull(qPlan.returnTimezone[1]) ? "" : trim(toString(qPlan.returnTimezone[1]));
+            result.departure_time = isNull(qPlan.departureTimeUTC[1]) ? "" : qPlan.departureTimeUTC[1];
+            result.return_time = isNull(qPlan.returnTimeUTC[1]) ? "" : qPlan.returnTimeUTC[1];
+            result.return_timezone = returnTimeZoneId;
             result.departure_timezone = activeRouteTimeZoneId;
             result.route_instance_id = isNull(qPlan.route_instance_id[1]) ? 0 : val(qPlan.route_instance_id[1]);
             result.current_leg_number = 0;
@@ -1012,7 +1020,7 @@
                 "SELECT
                     fp.floatplanId,
                     fp.userId,
-                    fp.departureTime,
+                    fp.departureTimeUTC,
                     fp.route_instance_id,
                     UPPER(TRIM(fp.`status`)) AS status_value,
                     (
@@ -1060,7 +1068,7 @@
                 result.MESSAGE = "Route legs are required before scheduled monitoring can start.";
                 return result;
             }
-            if (isNull(qPlan.departureTime[1]) OR !isDate(qPlan.departureTime[1])) {
+            if (isNull(qPlan.departureTimeUTC[1]) OR !isDate(qPlan.departureTimeUTC[1])) {
                 result.ERROR = "SCHEDULED_DEPARTURE_REQUIRED";
                 result.MESSAGE = "A valid scheduled departure is required before scheduled monitoring can start.";
                 return result;
@@ -1069,7 +1077,7 @@
             result.SUCCESS = true;
             result.float_plan_id = val(qPlan.floatplanId[1]);
             result.user_id = val(qPlan.userId[1]);
-            result.departure_time = qPlan.departureTime[1];
+            result.departure_time = qPlan.departureTimeUTC[1];
             result.route_instance_id = val(qPlan.route_instance_id[1]);
             result.route_leg_count = val(qPlan.route_leg_count[1]);
             result.started_progress_count = val(qPlan.started_progress_count[1]);
@@ -1109,7 +1117,7 @@
                     fm.last_contact_alert_at,
                     fm.created_at,
                     fm.updated_at,
-                    fp.returnTime AS return_time,
+                    fp.returnTimeUTC AS return_time,
                     fp.dailyStartLocalTime AS daily_start_local_time,
                     CASE
                         WHEN fp.departureTZ IS NOT NULL AND LENGTH(TRIM(fp.departureTZ)) > 0 THEN TRIM(fp.departureTZ)

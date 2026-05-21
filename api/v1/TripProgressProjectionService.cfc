@@ -113,7 +113,9 @@
 
             if (canonicalEventsTableExists) {
                 qCanonicalEvents = queryExecute("
-                    SELECT id, event_type, event_status, occurred_at_utc, source, source_monitoring_id, source_post_id
+                    SELECT id, event_type, event_status,
+                           DATE_FORMAT(occurred_at_utc, '%Y-%m-%d %H:%i:%s') AS occurred_at_utc,
+                           source, source_monitoring_id, source_post_id
                     FROM floatplan_events
                     WHERE floatplan_id = :floatPlanId
                       AND voided_at_utc IS NULL
@@ -138,8 +140,12 @@
 
             if (canonicalSegmentsTableExists) {
                 qCanonicalSegments = queryExecute("
-                    SELECT id, route_instance_id, route_leg_order, local_timezone, segment_type, started_at_utc, ended_at_utc,
-                           expected_resume_at_utc, actual_resume_at_utc, source_start_event_id, source_end_event_id
+                    SELECT id, route_instance_id, route_leg_order, local_timezone, segment_type,
+                           DATE_FORMAT(started_at_utc, '%Y-%m-%d %H:%i:%s') AS started_at_utc,
+                           DATE_FORMAT(ended_at_utc, '%Y-%m-%d %H:%i:%s') AS ended_at_utc,
+                           DATE_FORMAT(expected_resume_at_utc, '%Y-%m-%d %H:%i:%s') AS expected_resume_at_utc,
+                           DATE_FORMAT(actual_resume_at_utc, '%Y-%m-%d %H:%i:%s') AS actual_resume_at_utc,
+                           source_start_event_id, source_end_event_id
                     FROM floatplan_activity_segments
                     WHERE floatplan_id = :floatPlanId
                     ORDER BY started_at_utc ASC, id ASC
@@ -270,10 +276,15 @@
         <cfscript>
             return queryExecute("
                 SELECT fp.floatPlanId, fp.userId, fp.status, fp.route_instance_id, fp.departureTZ, fp.departTimezone,
-                       fp.dailyStartLocalTime, fp.departureTime, fp.departureTimeUTC, fp.checkedInAt,
+                       fp.dailyStartLocalTime, fp.departureTime,
+                       DATE_FORMAT(fp.departureTimeUTC, '%Y-%m-%d %H:%i:%s') AS departureTimeUTC,
+                       DATE_FORMAT(fp.checkedInAt, '%Y-%m-%d %H:%i:%s') AS checkedInAt,
                        fp.checkin_context, fp.overnight_pause_minutes_total, fp.manual_delay_minutes_total,
-                       fm.id AS monitoring_id, fm.monitor_state, fm.expected_checkin_at, fm.last_checkin_at,
-                       fm.last_checkin_status, fm.secure_for_night, fm.secure_for_night_until
+                       fm.id AS monitoring_id, fm.monitor_state,
+                       DATE_FORMAT(fm.expected_checkin_at, '%Y-%m-%d %H:%i:%s') AS expected_checkin_at,
+                       DATE_FORMAT(fm.last_checkin_at, '%Y-%m-%d %H:%i:%s') AS last_checkin_at,
+                       fm.last_checkin_status, fm.secure_for_night,
+                       DATE_FORMAT(fm.secure_for_night_until, '%Y-%m-%d %H:%i:%s') AS secure_for_night_until
                 FROM floatplans fp
                 LEFT JOIN floatplan_monitoring fm
                   ON fm.float_plan_id = fp.floatPlanId
@@ -289,7 +300,9 @@
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
             return queryExecute("
-                SELECT id, monitoring_id, event_type, event_at, checkin_status, actor_type, meta_json
+                SELECT id, monitoring_id, event_type,
+                       DATE_FORMAT(event_at, '%Y-%m-%d %H:%i:%s') AS event_at,
+                       checkin_status, actor_type, meta_json
                 FROM floatplan_monitor_events
                 WHERE float_plan_id = :floatPlanId
                 ORDER BY event_at ASC, id ASC
@@ -307,7 +320,11 @@
                 return queryNew("");
             }
             return queryExecute("
-                SELECT id, leg_order, UPPER(TRIM(status)) AS status_val, leg_started_at, completed_at, created_at, updated_at
+                SELECT id, leg_order, UPPER(TRIM(status)) AS status_val,
+                       DATE_FORMAT(leg_started_at, '%Y-%m-%d %H:%i:%s') AS leg_started_at,
+                       DATE_FORMAT(completed_at, '%Y-%m-%d %H:%i:%s') AS completed_at,
+                       DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+                       DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at
                 FROM route_instance_leg_progress
                 WHERE route_instance_id = :routeInstanceId
                   AND user_id = :userId
@@ -1607,9 +1624,6 @@
             if (isDate(arguments.qPlan.departureTimeUTC[1])) {
                 return arguments.qPlan.departureTimeUTC[1];
             }
-            if (isDate(arguments.qPlan.departureTime[1])) {
-                return arguments.qPlan.departureTime[1];
-            }
             return "";
         </cfscript>
     </cffunction>
@@ -1622,9 +1636,6 @@
             }
             if (isDate(arguments.qPlan.departureTimeUTC[1])) {
                 return "floatplans.departureTimeUTC";
-            }
-            if (isDate(arguments.qPlan.departureTime[1])) {
-                return "floatplans.departureTime";
             }
             return "";
         </cfscript>
@@ -1931,10 +1942,11 @@
     <cffunction name="normalizeAsOf" access="private" returntype="date" output="false">
         <cfargument name="asOfUtc" type="any" required="false" default="">
         <cfscript>
-            if (isDate(arguments.asOfUtc)) {
-                return arguments.asOfUtc;
+            var parsed = parseUtcMachineValue(arguments.asOfUtc);
+            if (isDate(parsed)) {
+                return parsed;
             }
-            return now();
+            return getDbUtcNow();
         </cfscript>
     </cffunction>
 
@@ -1960,6 +1972,10 @@
     <cffunction name="formatUtc" access="private" returntype="string" output="false">
         <cfargument name="value" type="any" required="true">
         <cfscript>
+            var raw = normalizeUtcMachineString(arguments.value);
+            if (len(raw)) {
+                return replace(raw, " ", "T", "one") & "Z";
+            }
             if (!isDate(arguments.value)) {
                 return "";
             }
@@ -1970,14 +1986,60 @@
     <cffunction name="parseIsoUtc" access="private" returntype="date" output="false">
         <cfargument name="value" type="any" required="true">
         <cfscript>
-            var s = trim(toString(arguments.value));
-            if (isDate(arguments.value)) {
-                return arguments.value;
+            var parsed = parseUtcMachineValue(arguments.value);
+            if (isDate(parsed)) {
+                return parsed;
+            }
+            return getDbUtcNow();
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeUtcMachineString" access="private" returntype="string" output="false">
+        <cfargument name="value" type="any" required="true">
+        <cfscript>
+            var s = "";
+            if (isNull(arguments.value)) {
+                return "";
+            }
+            s = trim(toString(arguments.value));
+            if (!len(s)) {
+                return "";
             }
             s = replace(s, "T", " ", "one");
             s = replace(s, "Z", "", "one");
-            if (isDate(s)) {
-                return parseDateTime(s);
+            if (len(s) GTE 19) {
+                s = left(s, 19);
+            }
+            if (reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$", s)) {
+                return s;
+            }
+            return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="parseUtcMachineValue" access="private" returntype="any" output="false">
+        <cfargument name="value" type="any" required="true">
+        <cfscript>
+            var raw = normalizeUtcMachineString(arguments.value);
+            if (len(raw) AND isDate(raw)) {
+                return parseDateTime(raw);
+            }
+            if (isDate(arguments.value)) {
+                return arguments.value;
+            }
+            return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getDbUtcNow" access="private" returntype="any" output="false">
+        <cfscript>
+            var qNow = queryExecute(
+                "SELECT DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-%d %H:%i:%s') AS utc_now",
+                {},
+                { datasource = variables.datasource }
+            );
+            if (qNow.recordCount GT 0 AND !isNull(qNow.utc_now[1]) AND isDate(qNow.utc_now[1])) {
+                return parseDateTime(qNow.utc_now[1]);
             }
             return now();
         </cfscript>

@@ -388,17 +388,21 @@ component extends="testbox.system.BaseSpec" output="false" {
         var checkinResult = {};
         var model = {};
         var noteText = "V2 check-in history note";
+        var displayUtc = "2026-05-20 22:01:55";
+        var timelineCheckin = {};
 
         try {
           url.testUserId = variables.sessionApiUser.userId;
           asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
           checkinResult = postActiveCruiseCheckinWithApi(sessionApi, asset.floatPlanId, "On Track", noteText);
+          setActiveCruiseDisplayTimestampForTest(asset.floatPlanId, displayUtc);
           model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
 
           expect(isSuccessPayload(checkinResult)).toBeTrue(serializeJSON(checkinResult));
           expect(model.success).toBeTrue(serializeJSON(model));
           expect(model.tripState).toBe("underway", serializeJSON(model.hero));
           expect(model.motionState).toBe("underway", serializeJSON(model));
+          expect(model.floatPlan.timezone).toBe("US/Eastern", serializeJSON(model.floatPlan));
           expect(model.hero.status).notToBe("Scheduled");
           expect(model.displayAuthority.primary).toBe("canonical_projection");
           expect(model.routeTimeline.authority).toBe("canonical_projection");
@@ -420,7 +424,13 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(model.checkInHistory.items[1].storageAuthority).toBe("floatplan_events", serializeJSON(model.checkInHistory.items[1]));
           expect(model.privateTimeline.available).toBeTrue(serializeJSON(model.privateTimeline));
           expect(model.privateTimeline.storageAuthority).toBe("floatplan_events", serializeJSON(model.privateTimeline));
-          expect(findTimelineItem(model, "CHECKIN_RECEIVED").note).toBe(noteText, serializeJSON(model.privateTimeline));
+          timelineCheckin = findTimelineItem(model, "CHECKIN_RECEIVED");
+          expect(timelineCheckin.note).toBe(noteText, serializeJSON(model.privateTimeline));
+          expect(model.monitoring.lastCheckinAtUtc).toBe("2026-05-20T22:01:55Z", serializeJSON(model.monitoring));
+          expect(timelineCheckin.occurredAtUtc).toBe("2026-05-20T22:01:55Z", serializeJSON(timelineCheckin));
+          expect(findNoCase("6:01", timelineCheckin.occurredLocalLabel)).toBeGT(0, serializeJSON(timelineCheckin));
+          expect(findNoCase("2:01", timelineCheckin.occurredLocalLabel)).toBe(0, serializeJSON(timelineCheckin));
+          expect(roundTo2Numeric(model.currentLeg.percentComplete)).toBeLTE(5, serializeJSON(model.currentLeg));
           expect(hasLegacyRoutePlanAuthority(model)).toBeFalse(serializeJSON(model.displayAuthority));
         } finally {
           cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
@@ -1542,12 +1552,16 @@ component extends="testbox.system.BaseSpec" output="false" {
     required string returnUtc,
     required string timeZoneId
   ) {
+    var departureUtcValue = localWallClockToUtcSql(arguments.departureUtc, arguments.timeZoneId);
+    var returnUtcValue = localWallClockToUtcSql(arguments.returnUtc, arguments.timeZoneId);
     queryExecute(
       "UPDATE floatplans
-       SET departureTime = CONVERT_TZ(:departureUtc, :timeZoneId, 'UTC'),
+       SET departureTime = :departureLocal,
+           departureTimeUTC = :departureUtc,
            departTimezone = :timeZoneId,
            departureTZ = :timeZoneId,
-           returnTime = CONVERT_TZ(:returnUtc, :timeZoneId, 'UTC'),
+           returnTime = :returnLocal,
+           returnTimeUTC = :returnUtc,
            returnTimezone = :timeZoneId,
            returnTZ = :timeZoneId,
            dailyStartLocalTime = '08:00:00',
@@ -1559,14 +1573,53 @@ component extends="testbox.system.BaseSpec" output="false" {
            `status` = 'DRAFT'
        WHERE floatplanId = :floatPlanId",
       {
-        departureUtc = { value = arguments.departureUtc, cfsqltype = "cf_sql_timestamp" },
-        returnUtc = { value = arguments.returnUtc, cfsqltype = "cf_sql_timestamp" },
+        departureLocal = { value = normalizeSqlDateTimeString(arguments.departureUtc), cfsqltype = "cf_sql_varchar" },
+        departureUtc = { value = departureUtcValue, cfsqltype = "cf_sql_varchar" },
+        returnLocal = { value = normalizeSqlDateTimeString(arguments.returnUtc), cfsqltype = "cf_sql_varchar" },
+        returnUtc = { value = returnUtcValue, cfsqltype = "cf_sql_varchar" },
         timeZoneId = { value = arguments.timeZoneId, cfsqltype = "cf_sql_varchar" },
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
       },
       { datasource = "fpw" }
     );
     deleteMonitoringRows(arguments.floatPlanId);
+  }
+
+  private string function localWallClockToUtcSql(required string localDateTime, required string timeZoneId) {
+    var localText = normalizeSqlDateTimeString(arguments.localDateTime);
+    var zoneText = trim(arguments.timeZoneId);
+    if (!len(localText) OR !len(zoneText)) {
+      return "";
+    }
+    if (listFindNoCase("UTC,Etc/UTC,GMT,+00:00", zoneText)) {
+      return localText;
+    }
+    var formatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("yyyy-MM-dd HH:mm:ss");
+    var parsed = createObject("java", "java.time.LocalDateTime").parse(localText, formatter);
+    var zoneId = createObject("java", "java.time.ZoneId").of(zoneText);
+    return utcIsoToSql(toString(parsed.atZone(zoneId).toInstant()));
+  }
+
+  private string function utcIsoToSql(required string value) {
+    var raw = trim(arguments.value);
+    raw = replace(raw, "T", " ", "one");
+    raw = reReplace(raw, "Z$", "", "one");
+    raw = reReplace(raw, "\.[0-9]+$", "", "one");
+    if (len(raw) EQ 16) {
+      raw &= ":00";
+    }
+    return left(raw, 19);
+  }
+
+  private string function normalizeSqlDateTimeString(required string value) {
+    var raw = trim(arguments.value);
+    raw = replace(raw, "T", " ", "one");
+    raw = reReplace(raw, "\.[0-9]+$", "", "one");
+    raw = reReplace(raw, "Z$", "", "one");
+    if (len(raw) EQ 16) {
+      raw &= ":00";
+    }
+    return left(raw, 19);
   }
 
   private struct function sendFloatPlanWithApi(required any apiSupport, required numeric floatPlanId) {
@@ -1759,6 +1812,53 @@ component extends="testbox.system.BaseSpec" output="false" {
         "note_body" = arguments.note,
         "source_post_id" = 0
       }
+    );
+  }
+
+  private void function setActiveCruiseDisplayTimestampForTest(required numeric floatPlanId, required string utcValue) {
+    queryExecute(
+      "UPDATE floatplans
+       SET departureTZ = 'US/Eastern',
+           departTimezone = 'US/Eastern',
+           returnTZ = 'US/Eastern',
+           returnTimezone = 'US/Eastern'
+       WHERE floatPlanId = :floatPlanId",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "UPDATE floatplan_monitoring
+       SET last_checkin_at = :utcValue
+       WHERE float_plan_id = :floatPlanId",
+      {
+        utcValue = { value = arguments.utcValue, cfsqltype = "cf_sql_varchar" },
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "UPDATE floatplan_events
+       SET occurred_at_utc = :utcValue
+       WHERE id = (
+         SELECT id
+         FROM (
+           SELECT id
+           FROM floatplan_events
+           WHERE floatplan_id = :floatPlanId
+             AND event_type = 'CHECKIN_RECEIVED'
+             AND source = 'active_cruise_checkin'
+             AND voided_at_utc IS NULL
+           ORDER BY id DESC
+           LIMIT 1
+         ) latest_checkin_event
+       )",
+      {
+        utcValue = { value = arguments.utcValue, cfsqltype = "cf_sql_varchar" },
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
     );
   }
 

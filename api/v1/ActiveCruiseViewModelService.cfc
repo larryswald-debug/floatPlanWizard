@@ -381,11 +381,15 @@
           fp.returnLat,
           fp.returnLon,
           fp.departureTime,
+          DATE_FORMAT(fp.departureTime, '%Y-%m-%d %H:%i:%s') AS departureTimeLocalRaw,
           fp.departureTimeUTC,
+          DATE_FORMAT(fp.departureTimeUTC, '%Y-%m-%d %H:%i:%s') AS departureTimeUtcRaw,
           fp.departureTZ,
           fp.departTimezone,
           fp.returnTime,
+          DATE_FORMAT(fp.returnTime, '%Y-%m-%d %H:%i:%s') AS returnTimeLocalRaw,
           fp.returnTimeUTC,
+          DATE_FORMAT(fp.returnTimeUTC, '%Y-%m-%d %H:%i:%s') AS returnTimeUtcRaw,
           fp.returnTZ,
           fp.returnTimezone,
           fp.dailyStartLocalTime,
@@ -555,6 +559,7 @@
           resolved_at,
           closed_at,
           last_checkin_at,
+          DATE_FORMAT(last_checkin_at, '%Y-%m-%d %H:%i:%s') AS last_checkin_at_raw,
           last_checkin_status,
           secure_for_night,
           secure_for_night_until,
@@ -665,8 +670,10 @@
         "id" = safeNumber(arguments.qPlan.floatPlanId[1]),
         "status" = safeString(arguments.qPlan.status[1]),
         "name" = safeString(arguments.qPlan.floatPlanName[1]),
-        "scheduledDepartureUtc" = formatUtc(firstDate(arguments.qPlan.departureTimeUTC[1], arguments.qPlan.departureTime[1])),
-        "scheduledDepartureLocal" = formatLocal(firstDate(arguments.qPlan.departureTimeUTC[1], arguments.qPlan.departureTime[1]), tz),
+        "scheduledDepartureUtc" = safeString(arguments.qPlan.departureTimeUtcRaw[1]),
+        "scheduledDepartureLocalRaw" = safeString(arguments.qPlan.departureTimeLocalRaw[1]),
+        "scheduledDepartureLocal" = safeString(arguments.qPlan.departureTimeLocalRaw[1]),
+        "scheduledDepartureTimezone" = tz,
         "timezone" = tz,
         "checkedInAtUtc" = formatUtc(arguments.qPlan.checkedInAt[1]),
         "checkinContext" = safeString(arguments.qPlan.checkin_context[1]),
@@ -727,7 +734,7 @@
         "graceExpiresAtUtc" = formatUtc(arguments.qMonitoring.grace_expires_at[1]),
         "nextMonitorEvalAtUtc" = formatUtc(arguments.qMonitoring.next_monitor_eval_at[1]),
         "lastMonitorEvalAtUtc" = formatUtc(arguments.qMonitoring.last_monitor_eval_at[1]),
-        "lastCheckinAtUtc" = formatUtc(arguments.qMonitoring.last_checkin_at[1]),
+        "lastCheckinAtUtc" = formatRawUtc(arguments.qMonitoring.last_checkin_at_raw[1]),
         "lastCheckinStatus" = safeString(arguments.qMonitoring.last_checkin_status[1]),
         "secureForNight" = (safeNumber(arguments.qMonitoring.secure_for_night[1]) EQ 1),
         "secureForNightUntilUtc" = formatUtc(arguments.qMonitoring.secure_for_night_until[1]),
@@ -1538,16 +1545,18 @@
           "location" = safeString(arguments.qPlan.departing[1]),
           "lat" = safeNumber(arguments.qPlan.departureLat[1]),
           "lon" = safeNumber(arguments.qPlan.departureLon[1]),
-          "scheduledUtc" = formatUtc(firstDate(arguments.qPlan.departureTimeUTC[1], arguments.qPlan.departureTime[1])),
-          "scheduledLocal" = formatLocal(firstDate(arguments.qPlan.departureTimeUTC[1], arguments.qPlan.departureTime[1]), resolveTimezone(arguments.qPlan)),
+          "scheduledUtc" = safeString(arguments.qPlan.departureTimeUtcRaw[1]),
+          "scheduledLocalRaw" = safeString(arguments.qPlan.departureTimeLocalRaw[1]),
+          "scheduledLocal" = safeString(arguments.qPlan.departureTimeLocalRaw[1]),
           "timezone" = resolveTimezone(arguments.qPlan)
         },
         "return" = {
           "location" = safeString(arguments.qPlan.returning[1]),
           "lat" = safeNumber(arguments.qPlan.returnLat[1]),
           "lon" = safeNumber(arguments.qPlan.returnLon[1]),
-          "scheduledUtc" = formatUtc(firstDate(arguments.qPlan.returnTimeUTC[1], arguments.qPlan.returnTime[1])),
-          "scheduledLocal" = formatLocal(firstDate(arguments.qPlan.returnTimeUTC[1], arguments.qPlan.returnTime[1]), resolveTimezone(arguments.qPlan)),
+          "scheduledUtc" = safeString(arguments.qPlan.returnTimeUtcRaw[1]),
+          "scheduledLocalRaw" = safeString(arguments.qPlan.returnTimeLocalRaw[1]),
+          "scheduledLocal" = safeString(arguments.qPlan.returnTimeLocalRaw[1]),
           "timezone" = resolveTimezone(arguments.qPlan)
         },
         "rescueAuthority" = {
@@ -1778,7 +1787,14 @@
       var toName = "";
 
       qTimeline = queryExecute("
-        SELECT id, event_type, event_status, occurred_at_utc, source, payload_json
+        SELECT
+          id,
+          event_type,
+          event_status,
+          occurred_at_utc,
+          DATE_FORMAT(occurred_at_utc, '%Y-%m-%d %H:%i:%s') AS occurred_at_utc_raw,
+          source,
+          payload_json
         FROM floatplan_events
         WHERE floatplan_id = :floatPlanId
           AND user_id = :userId
@@ -1836,8 +1852,8 @@
           "title" = (len(titleVal) ? titleVal : "Operational event"),
           "detail" = detailVal,
           "note" = noteBody,
-          "occurredAtUtc" = formatUtc(qTimeline.occurred_at_utc[i]),
-          "occurredLocalLabel" = formatLocalDisplay(qTimeline.occurred_at_utc[i], resolveTimezone(arguments.qPlan)),
+          "occurredAtUtc" = formatRawUtc(qTimeline.occurred_at_utc_raw[i]),
+          "occurredLocalLabel" = formatUtcSqlStringAsLocalDisplay(qTimeline.occurred_at_utc_raw[i], resolveTimezone(arguments.qPlan)),
           "storageAuthority" = "floatplan_events"
         });
       }
@@ -2159,7 +2175,7 @@
     <cfscript>
       var routeStatus = uCase(safeString(arguments.qPlan.route_status[1]));
       var routeTimelineAuthority = (structKeyExists(arguments.routeTimeline, "authority") ? safeString(arguments.routeTimeline.authority) : "");
-      var scheduledDeparture = firstDate(arguments.qPlan.departureTimeUTC[1], arguments.qPlan.departureTime[1]);
+      var scheduledDeparture = firstDate(arguments.qPlan.departureTimeUTC[1], "");
 
       if (arguments.explicitStartProof AND isDate(scheduledDeparture) AND dateCompare(scheduledDeparture, now(), "s") GT 0) {
         addWarning(arguments.model, "SCHEDULED_CLOCK_IGNORED_EXPLICIT_START", "Scheduled departure is still in the future, but explicit start proof exists. Display state must not remain scheduled.", "view_model");
@@ -2527,6 +2543,17 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="formatRawUtc" access="private" returntype="string" output="false">
+    <cfargument name="value" type="any" required="true">
+    <cfscript>
+      var rawUtc = normalizeUtcSqlString(arguments.value);
+      if (!len(rawUtc)) {
+        return "";
+      }
+      return replace(rawUtc, " ", "T", "one") & "Z";
+    </cfscript>
+  </cffunction>
+
   <cffunction name="formatLocal" access="private" returntype="string" output="false">
     <cfargument name="value" type="any" required="true">
     <cfargument name="timezone" type="string" required="true">
@@ -2555,6 +2582,55 @@
         return dateTimeFormat(arguments.value, "mmm d, yyyy h:nn tt", tzId);
       } catch (any localDisplayErr) {
         return dateTimeFormat(arguments.value, "mmm d, yyyy h:nn tt");
+      }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="normalizeUtcSqlString" access="private" returntype="string" output="false">
+    <cfargument name="value" type="any" required="true">
+    <cfscript>
+      var raw = trim(safeString(arguments.value));
+      if (!len(raw)) {
+        return "";
+      }
+      raw = replace(raw, "T", " ", "one");
+      raw = reReplace(raw, "Z$", "", "one");
+      raw = reReplace(raw, "\.[0-9]+$", "", "one");
+      if (reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$", raw)) {
+        raw &= ":00";
+      }
+      if (!reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$", raw)) {
+        return "";
+      }
+      return left(raw, 19);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatUtcSqlStringAsLocalDisplay" access="private" returntype="string" output="false">
+    <cfargument name="utcSqlValue" type="string" required="true">
+    <cfargument name="timezone" type="string" required="true">
+    <cfscript>
+      var rawUtc = normalizeUtcSqlString(arguments.utcSqlValue);
+      var tzId = trim(safeString(arguments.timezone));
+      var formatter = "";
+      var displayFormatter = "";
+      var localDateTime = "";
+      var zoneId = "";
+      var instant = "";
+      var zonedDateTime = "";
+      if (!len(rawUtc) OR !len(tzId)) {
+        return "";
+      }
+      try {
+        formatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("yyyy-MM-dd HH:mm:ss");
+        displayFormatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("MMM d, yyyy h:mm a");
+        localDateTime = createObject("java", "java.time.LocalDateTime").parse(rawUtc, formatter);
+        instant = localDateTime.atOffset(createObject("java", "java.time.ZoneOffset").UTC).toInstant();
+        zoneId = createObject("java", "java.time.ZoneId").of(tzId);
+        zonedDateTime = createObject("java", "java.time.ZonedDateTime").ofInstant(instant, zoneId);
+        return toString(displayFormatter.format(zonedDateTime));
+      } catch (any utcLocalDisplayErr) {
+        return "";
       }
     </cfscript>
   </cffunction>
