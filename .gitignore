@@ -74,10 +74,16 @@ node_modules/
 test-results/
 .codex-snapshots/
 .snapshots/
+.codex-db-backups/
+assets/v1/
 tmp/
 *.log
 *.bak
 *.snapshot-*
+prod-*.png
+prod-*.json
+prod-*.md
+phase3-prod-*
 
 # Local/dev cleanup
 .DS_Store

@@ -392,7 +392,7 @@
           DATE_FORMAT(fp.returnTimeUTC, '%Y-%m-%d %H:%i:%s') AS returnTimeUtcRaw,
           fp.returnTZ,
           fp.returnTimezone,
-          fp.dailyStartLocalTime,
+          TIME_FORMAT(fp.dailyStartLocalTime, '%H:%i:%s') AS dailyStartLocalTime,
           fp.manual_delay_minutes_total,
           fp.activatedAt,
           fp.checkedInAt,
@@ -553,7 +553,9 @@
           monitor_state,
           is_monitoring_enabled,
           expected_checkin_at,
+          DATE_FORMAT(expected_checkin_at, '%Y-%m-%d %H:%i:%s') AS expected_checkin_at_raw,
           grace_expires_at,
+          DATE_FORMAT(grace_expires_at, '%Y-%m-%d %H:%i:%s') AS grace_expires_at_raw,
           missed_at,
           escalated_at,
           resolved_at,
@@ -563,9 +565,11 @@
           last_checkin_status,
           secure_for_night,
           secure_for_night_until,
+          DATE_FORMAT(secure_for_night_until, '%Y-%m-%d %H:%i:%s') AS secure_for_night_until_raw,
           escalation_delay_minutes,
           grace_window_minutes,
           next_monitor_eval_at,
+          DATE_FORMAT(next_monitor_eval_at, '%Y-%m-%d %H:%i:%s') AS next_monitor_eval_at_raw,
           last_monitor_eval_at,
           last_captain_alert_at,
           last_contact_alert_at
@@ -717,27 +721,35 @@
     <cfscript>
       var timingFields = buildTimingFields(arguments.qPlan);
       var expectedCheckinLocalLabel = "";
+      var expectedCheckinRaw = "";
+      var graceExpiresRaw = "";
+      var secureForNightUntilRaw = "";
+      var nextMonitorEvalRaw = "";
       if (arguments.qMonitoring.recordCount EQ 0) {
         timingFields.available = false;
         timingFields.expectedCheckinLocalLabel = "";
         return timingFields;
       }
-      expectedCheckinLocalLabel = formatLocalDisplay(arguments.qMonitoring.expected_checkin_at[1], resolveTimezone(arguments.qPlan));
+      expectedCheckinRaw = safeString(arguments.qMonitoring.expected_checkin_at_raw[1]);
+      graceExpiresRaw = safeString(arguments.qMonitoring.grace_expires_at_raw[1]);
+      secureForNightUntilRaw = safeString(arguments.qMonitoring.secure_for_night_until_raw[1]);
+      nextMonitorEvalRaw = safeString(arguments.qMonitoring.next_monitor_eval_at_raw[1]);
+      expectedCheckinLocalLabel = formatUtcSqlStringAsLocalDisplay(expectedCheckinRaw, resolveTimezone(arguments.qPlan));
       return {
         "available" = true,
         "id" = safeNumber(arguments.qMonitoring.id[1]),
         "mode" = safeString(arguments.qMonitoring.monitoring_mode[1]),
         "state" = safeString(arguments.qMonitoring.monitor_state[1]),
         "isEnabled" = (safeNumber(arguments.qMonitoring.is_monitoring_enabled[1]) EQ 1),
-        "expectedCheckinAtUtc" = formatUtc(arguments.qMonitoring.expected_checkin_at[1]),
+        "expectedCheckinAtUtc" = formatRawUtc(expectedCheckinRaw),
         "expectedCheckinLocalLabel" = expectedCheckinLocalLabel,
-        "graceExpiresAtUtc" = formatUtc(arguments.qMonitoring.grace_expires_at[1]),
-        "nextMonitorEvalAtUtc" = formatUtc(arguments.qMonitoring.next_monitor_eval_at[1]),
+        "graceExpiresAtUtc" = formatRawUtc(graceExpiresRaw),
+        "nextMonitorEvalAtUtc" = formatRawUtc(nextMonitorEvalRaw),
         "lastMonitorEvalAtUtc" = formatUtc(arguments.qMonitoring.last_monitor_eval_at[1]),
         "lastCheckinAtUtc" = formatRawUtc(arguments.qMonitoring.last_checkin_at_raw[1]),
         "lastCheckinStatus" = safeString(arguments.qMonitoring.last_checkin_status[1]),
         "secureForNight" = (safeNumber(arguments.qMonitoring.secure_for_night[1]) EQ 1),
-        "secureForNightUntilUtc" = formatUtc(arguments.qMonitoring.secure_for_night_until[1]),
+        "secureForNightUntilUtc" = formatRawUtc(secureForNightUntilRaw),
         "missedAtUtc" = formatUtc(arguments.qMonitoring.missed_at[1]),
         "escalatedAtUtc" = formatUtc(arguments.qMonitoring.escalated_at[1]),
         "resolvedAtUtc" = formatUtc(arguments.qMonitoring.resolved_at[1]),
@@ -2433,8 +2445,9 @@
     <cfargument name="safetyState" type="string" required="true">
     <cfscript>
       switch (safeString(arguments.safetyState)) {
+        case "assistance_needed":
         case "needs_attention":
-          return "The latest public check-in reported assistance needed.";
+          return "Latest check-in reported Assistance Needed.";
         case "escalated":
           return "Monitoring status requires attention.";
       }

@@ -794,6 +794,96 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( monitoringRowAfterEval.monitor_state ).toBe( "ACTIVE" );
       } );
 
+      it( "SECURE_FOR_NIGHT stores EDT daily-start resume checkpoints as UTC DATETIME strings", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "secure-daily-start-edt" );
+        var asset = createRouteLinkedDraft( prefix );
+        var recordResult = {};
+        var monitoringRaw = {};
+
+        setPlanSchedule( asset.floatPlanId, "2026-05-20 19:00:00", "2026-05-21 17:00:00", "US/Eastern" );
+        setDailyStartLocalTime( asset.floatPlanId, "09:30:00" );
+        ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+
+        recordResult = variables.monitorService.recordMonitoringCheckin( asset.floatPlanId, "SECURE_FOR_NIGHT", {
+          baseAt = "2026-05-21 02:35:59"
+        } );
+        monitoringRaw = loadMonitoringRawTimestamps( asset.floatPlanId );
+
+        expect( recordResult.SUCCESS ).toBeTrue( serializeJSON( recordResult ) );
+        expect( monitoringRaw.expected_checkin_at_raw ).toBe( "2026-05-21 13:30:00" );
+        expect( monitoringRaw.secure_for_night_until_raw ).toBe( "2026-05-21 13:30:00" );
+        expect( monitoringRaw.next_monitor_eval_at_raw ).toBe( "2026-05-21 13:30:00" );
+        expect( monitoringRaw.grace_expires_at_raw ).toBe( "2026-05-21 14:30:00" );
+        expect( monitoringRaw.daily_start_local_time_raw ).toBe( "09:30:00" );
+      } );
+
+      it( "SECURE_FOR_NIGHT stores EST daily-start resume checkpoints as UTC DATETIME strings", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "secure-daily-start-est" );
+        var asset = createRouteLinkedDraft( prefix );
+        var recordResult = {};
+        var monitoringRaw = {};
+
+        setPlanSchedule( asset.floatPlanId, "2026-12-14 19:00:00", "2026-12-15 17:00:00", "US/Eastern" );
+        setDailyStartLocalTime( asset.floatPlanId, "09:30:00" );
+        ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+
+        recordResult = variables.monitorService.recordMonitoringCheckin( asset.floatPlanId, "SECURE_FOR_NIGHT", {
+          baseAt = "2026-12-15 02:35:59"
+        } );
+        monitoringRaw = loadMonitoringRawTimestamps( asset.floatPlanId );
+
+        expect( recordResult.SUCCESS ).toBeTrue( serializeJSON( recordResult ) );
+        expect( monitoringRaw.expected_checkin_at_raw ).toBe( "2026-12-15 14:30:00" );
+        expect( monitoringRaw.secure_for_night_until_raw ).toBe( "2026-12-15 14:30:00" );
+        expect( monitoringRaw.next_monitor_eval_at_raw ).toBe( "2026-12-15 14:30:00" );
+        expect( monitoringRaw.grace_expires_at_raw ).toBe( "2026-12-15 15:30:00" );
+        expect( monitoringRaw.daily_start_local_time_raw ).toBe( "09:30:00" );
+      } );
+
+      it( "SECURE_FOR_NIGHT preserves UTC daily-start resume checkpoints without offset", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "secure-daily-start-utc" );
+        var asset = createRouteLinkedDraft( prefix );
+        var recordResult = {};
+        var monitoringRaw = {};
+
+        setPlanSchedule( asset.floatPlanId, "2026-05-20 19:00:00", "2026-05-21 17:00:00", "UTC" );
+        setDailyStartLocalTime( asset.floatPlanId, "09:30:00" );
+        ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+
+        recordResult = variables.monitorService.recordMonitoringCheckin( asset.floatPlanId, "SECURE_FOR_NIGHT", {
+          baseAt = "2026-05-20 22:35:59"
+        } );
+        monitoringRaw = loadMonitoringRawTimestamps( asset.floatPlanId );
+
+        expect( recordResult.SUCCESS ).toBeTrue( serializeJSON( recordResult ) );
+        expect( monitoringRaw.expected_checkin_at_raw ).toBe( "2026-05-21 09:30:00" );
+        expect( monitoringRaw.secure_for_night_until_raw ).toBe( "2026-05-21 09:30:00" );
+        expect( monitoringRaw.next_monitor_eval_at_raw ).toBe( "2026-05-21 09:30:00" );
+        expect( monitoringRaw.grace_expires_at_raw ).toBe( "2026-05-21 10:30:00" );
+        expect( monitoringRaw.daily_start_local_time_raw ).toBe( "09:30:00" );
+      } );
+
+      it( "SECURE_FOR_NIGHT accepts UI-saved daily-start values without a test baseAt", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "secure-daily-start-prod-shape" );
+        var asset = createRouteLinkedDraft( prefix );
+        var recordResult = {};
+        var monitoringRaw = {};
+
+        setPlanSchedule( asset.floatPlanId, "2026-05-20 19:00:00", "2026-05-21 17:00:00", "US/Eastern" );
+        setDailyStartLocalTime( asset.floatPlanId, "09:30:00" );
+        ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+
+        recordResult = variables.monitorService.recordMonitoringCheckin( asset.floatPlanId, "SECURE_FOR_NIGHT" );
+        monitoringRaw = loadMonitoringRawTimestamps( asset.floatPlanId );
+
+        expect( recordResult.SUCCESS ).toBeTrue( serializeJSON( recordResult ) );
+        expect( isSqlDateTimeForTest( monitoringRaw.expected_checkin_at_raw ) ).toBeTrue( serializeJSON( monitoringRaw ) );
+        expect( monitoringRaw.secure_for_night_until_raw ).toBe( monitoringRaw.expected_checkin_at_raw );
+        expect( monitoringRaw.next_monitor_eval_at_raw ).toBe( monitoringRaw.expected_checkin_at_raw );
+        expect( minutesBetweenSqlForTest( monitoringRaw.expected_checkin_at_raw, monitoringRaw.grace_expires_at_raw ) ).toBe( 60 );
+        expect( monitoringRaw.daily_start_local_time_raw ).toBe( "09:30:00" );
+      } );
+
       it( "literal Secure for the Night Active Cruise status maps to SECURE_FOR_NIGHT and preserves overnight suppression", function() {
         var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "secure-for-night-literal-status" );
         var localSessionApiUser = {};
@@ -1038,27 +1128,46 @@ component extends="testbox.system.BaseSpec" output="false" {
   private string function localWallClockToUtcSql(required string localDateTime, required string timeZoneId) {
     var localText = normalizeSqlDateTimeString(arguments.localDateTime);
     var zoneText = trim(arguments.timeZoneId);
+    var offsetMinutes = 0;
     if (!len(localText) OR !len(zoneText)) {
       return "";
     }
     if (listFindNoCase("UTC,Etc/UTC,GMT,+00:00", zoneText)) {
       return localText;
     }
-    var formatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("yyyy-MM-dd HH:mm:ss");
-    var parsed = createObject("java", "java.time.LocalDateTime").parse(localText, formatter);
-    var zoneId = createObject("java", "java.time.ZoneId").of(zoneText);
-    return utcIsoToSql(toString(parsed.atZone(zoneId).toInstant()));
+    offsetMinutes = scheduleFixtureOffsetMinutes(localText, zoneText);
+    expect( offsetMinutes ).notToBe( -99999, "Unsupported test timezone/date fixture: " & zoneText & " " & localText );
+    return shiftSqlTimestampForTest(localText, offsetMinutes);
   }
 
-  private string function utcIsoToSql(required string value) {
-    var raw = trim(arguments.value);
-    raw = replace(raw, "T", " ", "one");
-    raw = reReplace(raw, "Z$", "", "one");
-    raw = reReplace(raw, "\.[0-9]+$", "", "one");
-    if (len(raw) EQ 16) {
-      raw &= ":00";
+  private numeric function scheduleFixtureOffsetMinutes(required string localDateTime, required string timeZoneId) {
+    var localText = normalizeSqlDateTimeString(arguments.localDateTime);
+    var zoneText = trim(arguments.timeZoneId);
+    var isEasternDaylight = (localText GTE "2026-03-08 02:00:00" AND localText LT "2026-11-01 02:00:00");
+
+    if (listFindNoCase("US/Eastern,America/New_York", zoneText)) {
+      return isEasternDaylight ? 240 : 300;
     }
-    return left(raw, 19);
+    if (listFindNoCase("US/Central,America/Chicago", zoneText)) {
+      return isEasternDaylight ? 300 : 360;
+    }
+    return -99999;
+  }
+
+  private string function shiftSqlTimestampForTest(required string sqlTimestamp, required numeric minutes) {
+    var raw = normalizeSqlDateTimeString(arguments.sqlTimestamp);
+    var minutesVal = int(val(arguments.minutes));
+    var qShifted = queryExecute(
+      "SELECT DATE_FORMAT(DATE_ADD(CAST(:raw AS DATETIME), INTERVAL #minutesVal# MINUTE), '%Y-%m-%d %H:%i:%s') AS shifted_at",
+      {
+        raw = { value = raw, cfsqltype = "cf_sql_varchar" }
+      },
+      { datasource = "fpw" }
+    );
+    if (qShifted.recordCount EQ 0 OR isNull(qShifted.shifted_at[1])) {
+      return "";
+    }
+    return trim(toString(qShifted.shifted_at[1]));
   }
 
   private string function normalizeSqlDateTimeString(required string value) {
@@ -1116,6 +1225,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     required string startedLocal,
     required string timeZoneId
   ) {
+    var startedUtc = localWallClockToUtcSql(arguments.startedLocal, arguments.timeZoneId);
     var qLeg = queryExecute(
       "SELECT fp.userId,
               fp.route_instance_id,
@@ -1136,14 +1246,13 @@ component extends="testbox.system.BaseSpec" output="false" {
     queryExecute(
       "UPDATE route_instance_leg_progress
        SET status = 'STARTED',
-           leg_started_at = CONVERT_TZ(:startedLocal, :timeZoneId, 'UTC'),
+           leg_started_at = :startedUtc,
            completed_at = NULL
        WHERE route_instance_id = :routeInstanceId
          AND user_id = :userId
          AND leg_order = :legOrder",
       {
-        startedLocal = { value = arguments.startedLocal, cfsqltype = "cf_sql_timestamp" },
-        timeZoneId = { value = arguments.timeZoneId, cfsqltype = "cf_sql_varchar" },
+        startedUtc = { value = startedUtc, cfsqltype = "cf_sql_varchar" },
         routeInstanceId = { value = val( qLeg.route_instance_id[ 1 ] ), cfsqltype = "cf_sql_integer" },
         userId = { value = val( qLeg.userId[ 1 ] ), cfsqltype = "cf_sql_integer" },
         legOrder = { value = val( qLeg.leg_order[ 1 ] ), cfsqltype = "cf_sql_integer" }
@@ -1174,21 +1283,81 @@ component extends="testbox.system.BaseSpec" output="false" {
     required string secureUntilLocal,
     required string timeZoneId
   ) {
+    var secureUntilUtc = localWallClockToUtcSql(arguments.secureUntilLocal, arguments.timeZoneId);
     queryExecute(
       "UPDATE floatplan_monitoring
        SET secure_for_night = 1,
-           secure_for_night_until = CONVERT_TZ(:secureUntilLocal, :timeZoneId, 'UTC'),
-           expected_checkin_at = CONVERT_TZ(:secureUntilLocal, :timeZoneId, 'UTC'),
-           grace_expires_at = DATE_ADD(CONVERT_TZ(:secureUntilLocal, :timeZoneId, 'UTC'), INTERVAL grace_window_minutes MINUTE),
-           next_monitor_eval_at = CONVERT_TZ(:secureUntilLocal, :timeZoneId, 'UTC')
+           secure_for_night_until = :secureUntilUtc,
+           expected_checkin_at = :secureUntilUtc,
+           grace_expires_at = DATE_ADD(CAST(:secureUntilUtcForGrace AS DATETIME), INTERVAL grace_window_minutes MINUTE),
+           next_monitor_eval_at = :secureUntilUtc
        WHERE float_plan_id = :floatPlanId",
       {
-        secureUntilLocal = { value = arguments.secureUntilLocal, cfsqltype = "cf_sql_timestamp" },
-        timeZoneId = { value = arguments.timeZoneId, cfsqltype = "cf_sql_varchar" },
+        secureUntilUtc = { value = secureUntilUtc, cfsqltype = "cf_sql_varchar" },
+        secureUntilUtcForGrace = { value = secureUntilUtc, cfsqltype = "cf_sql_varchar" },
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
       },
       { datasource = "fpw" }
     );
+  }
+
+  private void function setDailyStartLocalTime( required numeric floatPlanId, required string dailyStartLocalTime ) {
+    queryExecute(
+      "UPDATE floatplans
+       SET dailyStartLocalTime = :dailyStartLocalTime
+       WHERE floatPlanId = :floatPlanId",
+      {
+        dailyStartLocalTime = { value = arguments.dailyStartLocalTime, cfsqltype = "cf_sql_varchar" },
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
+  private struct function loadMonitoringRawTimestamps( required numeric floatPlanId ) {
+    var qRow = queryExecute(
+      "SELECT
+          DATE_FORMAT(expected_checkin_at, '%Y-%m-%d %H:%i:%s') AS expected_checkin_at_raw,
+          DATE_FORMAT(grace_expires_at, '%Y-%m-%d %H:%i:%s') AS grace_expires_at_raw,
+          DATE_FORMAT(secure_for_night_until, '%Y-%m-%d %H:%i:%s') AS secure_for_night_until_raw,
+          DATE_FORMAT(next_monitor_eval_at, '%Y-%m-%d %H:%i:%s') AS next_monitor_eval_at_raw,
+          TIME_FORMAT(fp.dailyStartLocalTime, '%H:%i:%s') AS daily_start_local_time_raw
+       FROM floatplan_monitoring
+       INNER JOIN floatplans fp ON fp.floatPlanId = floatplan_monitoring.float_plan_id
+       WHERE float_plan_id = :floatPlanId
+       LIMIT 1",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    expect( qRow.recordCount ).toBe( 1 );
+    return {
+      expected_checkin_at_raw = isNull( qRow.expected_checkin_at_raw[ 1 ] ) ? "" : trim( toString( qRow.expected_checkin_at_raw[ 1 ] ) ),
+      grace_expires_at_raw = isNull( qRow.grace_expires_at_raw[ 1 ] ) ? "" : trim( toString( qRow.grace_expires_at_raw[ 1 ] ) ),
+      secure_for_night_until_raw = isNull( qRow.secure_for_night_until_raw[ 1 ] ) ? "" : trim( toString( qRow.secure_for_night_until_raw[ 1 ] ) ),
+      next_monitor_eval_at_raw = isNull( qRow.next_monitor_eval_at_raw[ 1 ] ) ? "" : trim( toString( qRow.next_monitor_eval_at_raw[ 1 ] ) ),
+      daily_start_local_time_raw = isNull( qRow.daily_start_local_time_raw[ 1 ] ) ? "" : trim( toString( qRow.daily_start_local_time_raw[ 1 ] ) )
+    };
+  }
+
+  private boolean function isSqlDateTimeForTest( required string value ) {
+    return reFind( "^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$", trim( arguments.value ) ) EQ 1;
+  }
+
+  private numeric function minutesBetweenSqlForTest( required string startAt, required string endAt ) {
+    var qDiff = queryExecute(
+      "SELECT TIMESTAMPDIFF(MINUTE, CAST(:startAt AS DATETIME), CAST(:endAt AS DATETIME)) AS minutes_diff",
+      {
+        startAt = { value = arguments.startAt, cfsqltype = "cf_sql_varchar" },
+        endAt = { value = arguments.endAt, cfsqltype = "cf_sql_varchar" }
+      },
+      { datasource = "fpw" }
+    );
+    if (qDiff.recordCount EQ 0 OR isNull(qDiff.minutes_diff[1])) {
+      return -99999;
+    }
+    return val(qDiff.minutes_diff[1]);
   }
 
   private struct function loadMonitoringRow( required numeric floatPlanId ) {
@@ -1353,18 +1522,28 @@ component extends="testbox.system.BaseSpec" output="false" {
     if ( !isDate( arguments.utcDateTime ) ) {
       return "";
     }
-    var qLocal = queryExecute(
-      "SELECT CONVERT_TZ(:utcDateTime, 'UTC', :timeZoneId) AS localDateTime",
-      {
-        utcDateTime = { value = arguments.utcDateTime, cfsqltype = "cf_sql_timestamp" },
-        timeZoneId = { value = arguments.timeZoneId, cfsqltype = "cf_sql_varchar" }
-      },
-      { datasource = "fpw" }
-    );
-    if ( qLocal.recordCount EQ 0 OR isNull( qLocal.localDateTime[ 1 ] ) ) {
+    var utcText = normalizeDbDateTime( arguments.utcDateTime );
+    var offsetMinutes = utcFixtureOffsetMinutes( utcText, arguments.timeZoneId );
+    if ( offsetMinutes EQ -99999 ) {
       return "";
     }
-    return dateTimeFormat( qLocal.localDateTime[ 1 ], "yyyy-mm-dd HH:nn:ss" );
+    return shiftSqlTimestampForTest( utcText, -offsetMinutes );
+  }
+
+  private numeric function utcFixtureOffsetMinutes( required string utcDateTime, required string timeZoneId ) {
+    var utcText = normalizeSqlDateTimeString(arguments.utcDateTime);
+    var zoneText = trim(arguments.timeZoneId);
+
+    if (listFindNoCase("UTC,Etc/UTC,GMT,+00:00", zoneText)) {
+      return 0;
+    }
+    if (listFindNoCase("US/Eastern,America/New_York", zoneText)) {
+      return (utcText GTE "2026-03-08 07:00:00" AND utcText LT "2026-11-01 06:00:00") ? 240 : 300;
+    }
+    if (listFindNoCase("US/Central,America/Chicago", zoneText)) {
+      return (utcText GTE "2026-03-08 08:00:00" AND utcText LT "2026-11-01 07:00:00") ? 300 : 360;
+    }
+    return -99999;
   }
 
   private string function normalizeDbDateTime( required any value ) {

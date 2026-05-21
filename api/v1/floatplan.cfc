@@ -6418,7 +6418,7 @@
                      WHERE floatplanId = :planId
                        AND userId = :userId",
                     {
-                        dailyStartLocalTime = { value = normalizedDailyStart, cfsqltype = "cf_sql_time" },
+                        dailyStartLocalTime = { value = normalizedDailyStart, cfsqltype = "cf_sql_varchar" },
                         planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                         userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
                     },

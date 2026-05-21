@@ -1004,6 +1004,9 @@ component extends="testbox.system.BaseSpec" output="false" {
         var modelAfter = {};
         var invalidResult = {};
         var validResult = {};
+        var onTrackResult = {};
+        var secureResult = {};
+        var monitoringRaw = {};
 
         try {
           url.testUserId = variables.sessionApiUser.userId;
@@ -1020,14 +1023,65 @@ component extends="testbox.system.BaseSpec" output="false" {
           validResult = postActiveCruiseDailyStartWithApi(sessionApi, asset.floatPlanId, "09:30");
           expect(isSuccessPayload(validResult)).toBeTrue(serializeJSON(validResult));
           expect(normalizeDailyStartForTest(validResult.DAILYSTARTLOCALTIME ?: "")).toBe("09:30", serializeJSON(validResult));
-          expect(normalizeDailyStartForTest(loadDailyStartLocalTimeForFloatPlan(asset.floatPlanId))).toBe("09:30");
+          expect(loadDailyStartLocalTimeForFloatPlan(asset.floatPlanId)).toBe("09:30:00");
 
           modelAfter = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
           expect(modelAfter.success).toBeTrue(serializeJSON(modelAfter));
           expect(normalizeDailyStartForTest(modelAfter.monitoring.dailyStartLocalTime)).toBe("09:30", serializeJSON(modelAfter.monitoring));
+          expect(findNoCase("9:30", modelAfter.monitoring.dailyStartLabel)).toBeGT(0, serializeJSON(modelAfter.monitoring));
           expect(normalizeDailyStartForTest(modelAfter.actions.timing.updateDailyStart.payload.dailyStartLocalTime)).toBe("09:30", serializeJSON(modelAfter.actions.timing.updateDailyStart));
           expect(modelAfter.actions.timing.addDelay.endpoint).toBe(modelBefore.actions.timing.addDelay.endpoint, serializeJSON(modelAfter.actions.timing.addDelay));
           expect(modelAfter.actions.timing.clearDelay.endpoint).toBe(modelBefore.actions.timing.clearDelay.endpoint, serializeJSON(modelAfter.actions.timing.clearDelay));
+
+          onTrackResult = postActiveCruiseCheckinWithApi(sessionApi, asset.floatPlanId, "On Track", "daily start storage proof");
+          expect(isSuccessPayload(onTrackResult)).toBeTrue(serializeJSON(onTrackResult));
+          secureResult = postActiveCruiseCheckinWithApi(sessionApi, asset.floatPlanId, "Secure for the Night", "daily start secure proof");
+          expect(isSuccessPayload(secureResult)).toBeTrue(serializeJSON(secureResult));
+          monitoringRaw = loadActiveCruiseMonitoringRawTimestamps(asset.floatPlanId);
+          expect(monitoringRaw.daily_start_local_time_raw).toBe("09:30:00", serializeJSON(monitoringRaw));
+          expect(isSqlDateTimeForActiveCruiseTest(monitoringRaw.expected_checkin_at_raw)).toBeTrue(serializeJSON(monitoringRaw));
+          expect(monitoringRaw.secure_for_night_until_raw).toBe(monitoringRaw.expected_checkin_at_raw, serializeJSON(monitoringRaw));
+          expect(monitoringRaw.next_monitor_eval_at_raw).toBe(monitoringRaw.expected_checkin_at_raw, serializeJSON(monitoringRaw));
+          expect(minutesBetweenSqlForActiveCruiseTest(monitoringRaw.expected_checkin_at_raw, monitoringRaw.grace_expires_at_raw)).toBe(60, serializeJSON(monitoringRaw));
+        } finally {
+          cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+        }
+      });
+
+      it("renders Secure for Night expected checkpoint labels from raw UTC storage", function() {
+        var prefix = variables.naming.buildPrefix("active-cruise-v2", "secure-expected-raw-utc");
+        var sessionApi = buildSessionApiSupport();
+        var localCreated = newCreatedTracker();
+        var asset = {};
+        var sendResult = {};
+        var model = {};
+        var publicAuthority = {};
+
+        try {
+          url.testUserId = variables.sessionApiUser.userId;
+          asset = createRouteLinkedDraftForApi(sessionApi, prefix, localCreated);
+          attachContactToPlan(sessionApi, asset.floatPlanId, prefix, localCreated);
+          setPlanSchedule(asset.floatPlanId, "2026-05-20 19:00:00", "2026-05-21 17:00:00", "US/Eastern");
+          sendResult = sendFloatPlanWithApi(sessionApi, asset.floatPlanId);
+          expect(isSuccessPayload(sendResult)).toBeTrue(serializeJSON(sendResult));
+          expect(countMonitoringRows(asset.floatPlanId)).toBe(1);
+
+          markMonitoringSecureForNightAtUtc(asset.floatPlanId, "2026-05-21 13:30:00");
+
+          model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          publicAuthority = variables.viewModelService.getPublicFollowAuthority(variables.sessionApiUser.userId, asset.floatPlanId);
+
+          expect(model.success).toBeTrue(serializeJSON(model));
+          expect(model.monitoring.expectedCheckinAtUtc).toBe("2026-05-21T13:30:00Z", serializeJSON(model.monitoring));
+          expect(model.monitoring.secureForNightUntilUtc).toBe("2026-05-21T13:30:00Z", serializeJSON(model.monitoring));
+          expect(findNoCase("9:30 AM", model.monitoring.expectedCheckinLocalLabel)).toBeGT(0, serializeJSON(model.monitoring));
+          expect(findNoCase("1:30 PM", model.monitoring.expectedCheckinLocalLabel)).toBe(0, serializeJSON(model.monitoring));
+
+          expect(publicAuthority.monitoring.nextExpectedCheckinUtc).toBe("2026-05-21T13:30:00Z", serializeJSON(publicAuthority.monitoring));
+          expect(publicAuthority.monitoring.secureUntilUtc).toBe("2026-05-21T13:30:00Z", serializeJSON(publicAuthority.monitoring));
+          expect(findNoCase("9:30 AM", publicAuthority.monitoring.nextExpectedCheckinLocalLabel)).toBeGT(0, serializeJSON(publicAuthority.monitoring));
+          expect(findNoCase("US/Eastern", publicAuthority.monitoring.nextExpectedCheckinLocalLabel)).toBeGT(0, serializeJSON(publicAuthority.monitoring));
+          expect(findNoCase("1:30 PM", publicAuthority.monitoring.nextExpectedCheckinLocalLabel)).toBe(0, serializeJSON(publicAuthority.monitoring));
         } finally {
           cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
         }
@@ -1684,7 +1738,7 @@ component extends="testbox.system.BaseSpec" output="false" {
 
   private string function loadDailyStartLocalTimeForFloatPlan(required numeric floatPlanId) {
     var qDailyStart = queryExecute(
-      "SELECT dailyStartLocalTime
+      "SELECT TIME_FORMAT(dailyStartLocalTime, '%H:%i:%s') AS dailyStartLocalTime
        FROM floatplans
        WHERE floatPlanId = :floatPlanId
        LIMIT 1",
@@ -1697,6 +1751,52 @@ component extends="testbox.system.BaseSpec" output="false" {
       return "";
     }
     return normalizeDailyStartForTest(qDailyStart.dailyStartLocalTime[1]);
+  }
+
+  private struct function loadActiveCruiseMonitoringRawTimestamps(required numeric floatPlanId) {
+    var qRow = queryExecute(
+      "SELECT
+          TIME_FORMAT(fp.dailyStartLocalTime, '%H:%i:%s') AS daily_start_local_time_raw,
+          DATE_FORMAT(fm.expected_checkin_at, '%Y-%m-%d %H:%i:%s') AS expected_checkin_at_raw,
+          DATE_FORMAT(fm.secure_for_night_until, '%Y-%m-%d %H:%i:%s') AS secure_for_night_until_raw,
+          DATE_FORMAT(fm.next_monitor_eval_at, '%Y-%m-%d %H:%i:%s') AS next_monitor_eval_at_raw,
+          DATE_FORMAT(fm.grace_expires_at, '%Y-%m-%d %H:%i:%s') AS grace_expires_at_raw
+       FROM floatplan_monitoring fm
+       INNER JOIN floatplans fp ON fp.floatPlanId = fm.float_plan_id
+       WHERE fm.float_plan_id = :floatPlanId
+       LIMIT 1",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    expect(qRow.recordCount).toBe(1);
+    return {
+      daily_start_local_time_raw = isNull(qRow.daily_start_local_time_raw[1]) ? "" : trim(toString(qRow.daily_start_local_time_raw[1])),
+      expected_checkin_at_raw = isNull(qRow.expected_checkin_at_raw[1]) ? "" : trim(toString(qRow.expected_checkin_at_raw[1])),
+      secure_for_night_until_raw = isNull(qRow.secure_for_night_until_raw[1]) ? "" : trim(toString(qRow.secure_for_night_until_raw[1])),
+      next_monitor_eval_at_raw = isNull(qRow.next_monitor_eval_at_raw[1]) ? "" : trim(toString(qRow.next_monitor_eval_at_raw[1])),
+      grace_expires_at_raw = isNull(qRow.grace_expires_at_raw[1]) ? "" : trim(toString(qRow.grace_expires_at_raw[1]))
+    };
+  }
+
+  private boolean function isSqlDateTimeForActiveCruiseTest(required string value) {
+    return reFind("^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$", trim(arguments.value)) EQ 1;
+  }
+
+  private numeric function minutesBetweenSqlForActiveCruiseTest(required string startAt, required string endAt) {
+    var qDiff = queryExecute(
+      "SELECT TIMESTAMPDIFF(MINUTE, CAST(:startAt AS DATETIME), CAST(:endAt AS DATETIME)) AS minutes_diff",
+      {
+        startAt = { value = arguments.startAt, cfsqltype = "cf_sql_varchar" },
+        endAt = { value = arguments.endAt, cfsqltype = "cf_sql_varchar" }
+      },
+      { datasource = "fpw" }
+    );
+    if (qDiff.recordCount EQ 0 OR isNull(qDiff.minutes_diff[1])) {
+      return -99999;
+    }
+    return val(qDiff.minutes_diff[1]);
   }
 
   private string function normalizeDailyStartForTest(required any value) {
@@ -1938,6 +2038,26 @@ component extends="testbox.system.BaseSpec" output="false" {
            last_checkin_at = COALESCE(last_checkin_at, UTC_TIMESTAMP())
        WHERE float_plan_id = :floatPlanId",
       {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
+  private void function markMonitoringSecureForNightAtUtc(required numeric floatPlanId, required string secureUntilUtc) {
+    queryExecute(
+      "UPDATE floatplan_monitoring
+       SET secure_for_night = 1,
+           expected_checkin_at = :secureUntilUtc,
+           secure_for_night_until = :secureUntilUtc,
+           next_monitor_eval_at = :secureUntilUtc,
+           grace_expires_at = DATE_ADD(CAST(:secureUntilUtcForGrace AS DATETIME), INTERVAL grace_window_minutes MINUTE),
+           last_checkin_status = 'SECURE_FOR_NIGHT',
+           last_checkin_at = '2026-05-21 02:35:59'
+       WHERE float_plan_id = :floatPlanId",
+      {
+        secureUntilUtc = { value = arguments.secureUntilUtc, cfsqltype = "cf_sql_varchar" },
+        secureUntilUtcForGrace = { value = arguments.secureUntilUtc, cfsqltype = "cf_sql_varchar" },
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
       },
       { datasource = "fpw" }

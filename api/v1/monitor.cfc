@@ -589,10 +589,13 @@
 
                 if (statusVal EQ "SECURE_FOR_NIGHT") {
                     secureUntil = computeSecureForNightUntil(rowBeforeTransition, arguments.options);
-                    if (!isDate(secureUntil)) {
+                    if (!isUtcSqlTimestamp(secureUntil)) {
                         throw(message = "Unable to compute the secure-for-night checkpoint.", detail = "Expected monitoring checkpoint calculation failed.");
                     }
-                    graceExpiresAt = computeGraceExpiresAt(secureUntil, rowBeforeTransition.grace_window_minutes);
+                    graceExpiresAt = addMinutesToUtcSql(secureUntil, rowBeforeTransition.grace_window_minutes);
+                    if (!isUtcSqlTimestamp(graceExpiresAt)) {
+                        throw(message = "Unable to compute the secure-for-night grace window.", detail = "Monitoring grace checkpoint calculation failed.");
+                    }
                     queryExecute(
                         "UPDATE floatplan_monitoring
                          SET monitor_state = 'ACTIVE',
@@ -610,10 +613,10 @@
                              last_monitor_eval_at = :lastMonitorEvalAt
                          WHERE id = :monitoringId",
                         {
-                            expectedCheckinAt = { value = secureUntil, cfsqltype = "cf_sql_timestamp" },
-                            graceExpiresAt = { value = graceExpiresAt, cfsqltype = "cf_sql_timestamp" },
-                            secureForNightUntil = { value = secureUntil, cfsqltype = "cf_sql_timestamp" },
-                            nextMonitorEvalAt = { value = secureUntil, cfsqltype = "cf_sql_timestamp" },
+                            expectedCheckinAt = { value = secureUntil, cfsqltype = "cf_sql_varchar" },
+                            graceExpiresAt = { value = graceExpiresAt, cfsqltype = "cf_sql_varchar" },
+                            secureForNightUntil = { value = secureUntil, cfsqltype = "cf_sql_varchar" },
+                            nextMonitorEvalAt = { value = secureUntil, cfsqltype = "cf_sql_varchar" },
                             lastCheckinAt = { value = nowTs, cfsqltype = "cf_sql_timestamp" },
                             lastCheckinStatus = { value = statusVal, cfsqltype = "cf_sql_varchar" },
                             lastMonitorEvalAt = { value = nowTs, cfsqltype = "cf_sql_timestamp" },
@@ -971,7 +974,7 @@
                     fp.departTimezone,
                     fp.departureTZ,
                     fp.route_instance_id,
-                    fp.dailyStartLocalTime
+                    TIME_FORMAT(fp.dailyStartLocalTime, '%H:%i:%s') AS dailyStartLocalTime
                  FROM floatplans fp
                  WHERE fp.floatplanId = :floatPlanId
                  LIMIT 1",
@@ -1118,7 +1121,21 @@
                     fm.created_at,
                     fm.updated_at,
                     fp.returnTimeUTC AS return_time,
-                    fp.dailyStartLocalTime AS daily_start_local_time,
+                    DATE_FORMAT(fp.departureTime, '%Y-%m-%d %H:%i:%s') AS departure_time_local_raw,
+                    DATE_FORMAT(fp.departureTimeUTC, '%Y-%m-%d %H:%i:%s') AS departure_time_utc_raw,
+                    CASE
+                        WHEN fp.departureTime IS NOT NULL AND fp.departureTimeUTC IS NOT NULL
+                        THEN TIMESTAMPDIFF(MINUTE, fp.departureTime, fp.departureTimeUTC)
+                        ELSE NULL
+                    END AS departure_utc_offset_minutes,
+                    DATE_FORMAT(fp.returnTime, '%Y-%m-%d %H:%i:%s') AS return_time_local_raw,
+                    DATE_FORMAT(fp.returnTimeUTC, '%Y-%m-%d %H:%i:%s') AS return_time_utc_raw,
+                    CASE
+                        WHEN fp.returnTime IS NOT NULL AND fp.returnTimeUTC IS NOT NULL
+                        THEN TIMESTAMPDIFF(MINUTE, fp.returnTime, fp.returnTimeUTC)
+                        ELSE NULL
+                    END AS return_utc_offset_minutes,
+                    TIME_FORMAT(fp.dailyStartLocalTime, '%H:%i:%s') AS daily_start_local_time,
                     CASE
                         WHEN fp.departureTZ IS NOT NULL AND LENGTH(TRIM(fp.departureTZ)) > 0 THEN TRIM(fp.departureTZ)
                         WHEN fp.departTimezone IS NOT NULL AND LENGTH(TRIM(fp.departTimezone)) > 0 THEN TRIM(fp.departTimezone)
@@ -1166,6 +1183,12 @@
             result.created_at = isNull(qRow.created_at[1]) ? "" : qRow.created_at[1];
             result.updated_at = isNull(qRow.updated_at[1]) ? "" : qRow.updated_at[1];
             result.return_time = isNull(qRow.return_time[1]) ? "" : qRow.return_time[1];
+            result.departure_time_local_raw = isNull(qRow.departure_time_local_raw[1]) ? "" : trim(toString(qRow.departure_time_local_raw[1]));
+            result.departure_time_utc_raw = isNull(qRow.departure_time_utc_raw[1]) ? "" : trim(toString(qRow.departure_time_utc_raw[1]));
+            result.departure_utc_offset_minutes = isNull(qRow.departure_utc_offset_minutes[1]) ? "" : trim(toString(qRow.departure_utc_offset_minutes[1]));
+            result.return_time_local_raw = isNull(qRow.return_time_local_raw[1]) ? "" : trim(toString(qRow.return_time_local_raw[1]));
+            result.return_time_utc_raw = isNull(qRow.return_time_utc_raw[1]) ? "" : trim(toString(qRow.return_time_utc_raw[1]));
+            result.return_utc_offset_minutes = isNull(qRow.return_utc_offset_minutes[1]) ? "" : trim(toString(qRow.return_utc_offset_minutes[1]));
             result.daily_start_local_time = isNull(qRow.daily_start_local_time[1]) ? "" : trim(toString(qRow.daily_start_local_time[1]));
             result.departure_timezone = isNull(qRow.departure_timezone[1]) ? "" : trim(toString(qRow.departure_timezone[1]));
             return result;
@@ -1222,43 +1245,54 @@
         <cfargument name="options" type="struct" required="false" default="#structNew()#">
         <cfscript>
             var activeRouteTimeZoneId = getActiveRouteTimeZoneId(arguments.monitoringRow);
-            var referenceAt = structKeyExists(arguments.options, "baseAt") AND isDate(arguments.options.baseAt) ? arguments.options.baseAt : getCurrentUtcTimestamp();
+            var referenceUtc = structKeyExists(arguments.options, "baseAt") ? normalizeUtcSqlTimestamp(arguments.options.baseAt) : "";
             var allowSameDayFuture = structKeyExists(arguments.options, "allowSameDayFuture") AND booleanValue(arguments.options.allowSameDayFuture);
             var localReference = "";
             var targetLocal = "";
             var localDayStartRule = resolveMonitoringRowLocalDayStartRule(arguments.monitoringRow);
             var todayTarget = "";
+            var referenceOffset = {};
+            var targetOffset = {};
 
             if (!len(activeRouteTimeZoneId)) {
                 return "";
             }
+            if (!len(referenceUtc)) {
+                referenceUtc = getCurrentUtcSqlTimestamp();
+            }
+            if (!len(referenceUtc)) {
+                return "";
+            }
 
-            localReference = convertUtcToLocal(referenceAt, activeRouteTimeZoneId);
-            if (!isDate(localReference)) {
+            referenceOffset = resolveScheduleOffsetMinutesForUtcReference(arguments.monitoringRow, referenceUtc);
+            if (!referenceOffset.success) {
+                return "";
+            }
+
+            localReference = shiftSqlTimestampByMinutes(referenceUtc, -referenceOffset.minutes);
+            if (!isUtcSqlTimestamp(localReference)) {
                 return "";
             }
 
             if (allowSameDayFuture) {
-                todayTarget = buildLocalDateTime(
-                    localReference,
-                    localDayStartRule.local_day_start_hour,
-                    localDayStartRule.local_day_start_minute,
-                    localDayStartRule.local_day_start_second
-                );
-                if (isDate(todayTarget) AND dateCompare(todayTarget, localReference, "s") GT 0) {
+                todayTarget = buildLocalSqlDateTime(localReference, localDayStartRule);
+                if (isUtcSqlTimestamp(todayTarget) AND compare(todayTarget, localReference) GT 0) {
                     targetLocal = todayTarget;
                 }
             }
 
-            if (!isDate(targetLocal)) {
-                targetLocal = buildLocalDateTime(
-                    dateAdd("d", 1, localReference),
-                    localDayStartRule.local_day_start_hour,
-                    localDayStartRule.local_day_start_minute,
-                    localDayStartRule.local_day_start_second
-                );
+            if (!isUtcSqlTimestamp(targetLocal)) {
+                targetLocal = buildLocalSqlDateTime(shiftSqlTimestampByDays(localReference, 1), localDayStartRule);
             }
-            return convertLocalToUtc(targetLocal, activeRouteTimeZoneId);
+            if (!isUtcSqlTimestamp(targetLocal)) {
+                return "";
+            }
+
+            targetOffset = resolveScheduleOffsetMinutesForLocalTarget(arguments.monitoringRow, targetLocal);
+            if (!targetOffset.success) {
+                return "";
+            }
+            return shiftSqlTimestampByMinutes(targetLocal, targetOffset.minutes);
         </cfscript>
     </cffunction>
 
@@ -1822,10 +1856,11 @@
 
     <cffunction name="refreshSecureForNightCheckpoint" access="public" returntype="struct" output="false">
         <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="options" type="struct" required="false" default="#structNew()#">
         <cfscript>
             var result = { SUCCESS = false, UPDATED = false };
             var monitoringRow = {};
-            var nowTs = getCurrentUtcTimestamp();
+            var nowTs = structKeyExists(arguments.options, "baseAt") AND isDate(arguments.options.baseAt) ? arguments.options.baseAt : getCurrentUtcTimestamp();
             var secureUntil = "";
             var graceExpiresAt = "";
 
@@ -1854,12 +1889,17 @@
                 baseAt = nowTs,
                 allowSameDayFuture = true
             });
-            if (!isDate(secureUntil)) {
+            if (!isUtcSqlTimestamp(secureUntil)) {
                 result.ERROR = "EXPECTED_CHECKIN_UNAVAILABLE";
                 result.MESSAGE = "Unable to compute the updated secure-for-night resume time.";
                 return result;
             }
-            graceExpiresAt = computeGraceExpiresAt(secureUntil, monitoringRow.grace_window_minutes);
+            graceExpiresAt = addMinutesToUtcSql(secureUntil, monitoringRow.grace_window_minutes);
+            if (!isUtcSqlTimestamp(graceExpiresAt)) {
+                result.ERROR = "GRACE_WINDOW_UNAVAILABLE";
+                result.MESSAGE = "Unable to compute the updated secure-for-night grace window.";
+                return result;
+            }
 
             queryExecute(
                 "UPDATE floatplan_monitoring
@@ -1869,10 +1909,10 @@
                      next_monitor_eval_at = :nextMonitorEvalAt
                  WHERE id = :monitoringId",
                 {
-                    expectedCheckinAt = { value = secureUntil, cfsqltype = "cf_sql_timestamp" },
-                    graceExpiresAt = { value = graceExpiresAt, cfsqltype = "cf_sql_timestamp" },
-                    secureForNightUntil = { value = secureUntil, cfsqltype = "cf_sql_timestamp" },
-                    nextMonitorEvalAt = { value = secureUntil, cfsqltype = "cf_sql_timestamp" },
+                    expectedCheckinAt = { value = secureUntil, cfsqltype = "cf_sql_varchar" },
+                    graceExpiresAt = { value = graceExpiresAt, cfsqltype = "cf_sql_varchar" },
+                    secureForNightUntil = { value = secureUntil, cfsqltype = "cf_sql_varchar" },
+                    nextMonitorEvalAt = { value = secureUntil, cfsqltype = "cf_sql_varchar" },
                     monitoringId = { value = monitoringRow.id, cfsqltype = "cf_sql_integer" }
                 },
                 { datasource = variables.datasource }
@@ -1962,6 +2002,215 @@
             }
 
             return matches[1];
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveScheduleOffsetMinutesForUtcReference" access="private" returntype="struct" output="false">
+        <cfargument name="monitoringRow" type="struct" required="true">
+        <cfargument name="referenceUtcSql" type="string" required="true">
+        <cfscript>
+            var result = { success = false, minutes = 0, source = "" };
+            var rawUtc = normalizeUtcSqlTimestamp(arguments.referenceUtcSql);
+            var departureLocal = getMonitoringRowRawTimestamp(arguments.monitoringRow, "departure_time_local_raw");
+            var returnLocal = getMonitoringRowRawTimestamp(arguments.monitoringRow, "return_time_local_raw");
+            var departureOffset = getMonitoringRowOffsetMinutes(arguments.monitoringRow, "departure_utc_offset_minutes");
+            var returnOffset = getMonitoringRowOffsetMinutes(arguments.monitoringRow, "return_utc_offset_minutes");
+            var departureCandidateLocal = "";
+            var returnCandidateLocal = "";
+            var matchCount = 0;
+
+            if (!len(rawUtc)) {
+                return result;
+            }
+            if (departureOffset.success AND returnOffset.success AND departureOffset.minutes EQ returnOffset.minutes) {
+                result.success = true;
+                result.minutes = departureOffset.minutes;
+                result.source = "shared_schedule_offset";
+                return result;
+            }
+
+            if (departureOffset.success AND len(departureLocal)) {
+                departureCandidateLocal = shiftSqlTimestampByMinutes(rawUtc, -departureOffset.minutes);
+                if (isUtcSqlTimestamp(departureCandidateLocal) AND left(departureCandidateLocal, 10) EQ left(departureLocal, 10)) {
+                    result.success = true;
+                    result.minutes = departureOffset.minutes;
+                    result.source = "departure_schedule_offset";
+                    matchCount++;
+                }
+            }
+            if (returnOffset.success AND len(returnLocal)) {
+                returnCandidateLocal = shiftSqlTimestampByMinutes(rawUtc, -returnOffset.minutes);
+                if (isUtcSqlTimestamp(returnCandidateLocal) AND left(returnCandidateLocal, 10) EQ left(returnLocal, 10)) {
+                    result.success = true;
+                    result.minutes = returnOffset.minutes;
+                    result.source = "return_schedule_offset";
+                    matchCount++;
+                }
+            }
+
+            if (matchCount EQ 1) {
+                return result;
+            }
+            return { success = false, minutes = 0, source = "" };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveScheduleOffsetMinutesForLocalTarget" access="private" returntype="struct" output="false">
+        <cfargument name="monitoringRow" type="struct" required="true">
+        <cfargument name="targetLocalSql" type="string" required="true">
+        <cfscript>
+            var result = { success = false, minutes = 0, source = "" };
+            var targetLocal = normalizeUtcSqlTimestamp(arguments.targetLocalSql);
+            var targetLocalDate = "";
+            var departureLocal = getMonitoringRowRawTimestamp(arguments.monitoringRow, "departure_time_local_raw");
+            var returnLocal = getMonitoringRowRawTimestamp(arguments.monitoringRow, "return_time_local_raw");
+            var departureOffset = getMonitoringRowOffsetMinutes(arguments.monitoringRow, "departure_utc_offset_minutes");
+            var returnOffset = getMonitoringRowOffsetMinutes(arguments.monitoringRow, "return_utc_offset_minutes");
+
+            if (!len(targetLocal)) {
+                return result;
+            }
+            targetLocalDate = left(targetLocal, 10);
+
+            if (departureOffset.success AND len(departureLocal) AND left(departureLocal, 10) EQ targetLocalDate) {
+                result.success = true;
+                result.minutes = departureOffset.minutes;
+                result.source = "departure_schedule_offset";
+                return result;
+            }
+            if (returnOffset.success AND len(returnLocal) AND left(returnLocal, 10) EQ targetLocalDate) {
+                result.success = true;
+                result.minutes = returnOffset.minutes;
+                result.source = "return_schedule_offset";
+                return result;
+            }
+            if (departureOffset.success AND returnOffset.success AND departureOffset.minutes EQ returnOffset.minutes) {
+                result.success = true;
+                result.minutes = departureOffset.minutes;
+                result.source = "shared_schedule_offset";
+                return result;
+            }
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getMonitoringRowRawTimestamp" access="private" returntype="string" output="false">
+        <cfargument name="monitoringRow" type="struct" required="true">
+        <cfargument name="keyName" type="string" required="true">
+        <cfscript>
+            if (!structKeyExists(arguments.monitoringRow, arguments.keyName)) {
+                return "";
+            }
+            return normalizeUtcSqlTimestamp(arguments.monitoringRow[arguments.keyName]);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getMonitoringRowOffsetMinutes" access="private" returntype="struct" output="false">
+        <cfargument name="monitoringRow" type="struct" required="true">
+        <cfargument name="keyName" type="string" required="true">
+        <cfscript>
+            var result = { success = false, minutes = 0 };
+            var raw = "";
+            if (!structKeyExists(arguments.monitoringRow, arguments.keyName)) {
+                return result;
+            }
+            raw = trim(toString(arguments.monitoringRow[arguments.keyName]));
+            if (!len(raw) OR !isNumeric(raw)) {
+                return result;
+            }
+            result.success = true;
+            result.minutes = int(val(raw));
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildLocalSqlDateTime" access="private" returntype="string" output="false">
+        <cfargument name="localReferenceSql" type="string" required="true">
+        <cfargument name="localDayStartRule" type="struct" required="true">
+        <cfscript>
+            var localReference = normalizeUtcSqlTimestamp(arguments.localReferenceSql);
+            if (!len(localReference)) {
+                return "";
+            }
+            return left(localReference, 10) & " "
+                & twoDigitClockPart(arguments.localDayStartRule.local_day_start_hour) & ":"
+                & twoDigitClockPart(arguments.localDayStartRule.local_day_start_minute) & ":"
+                & twoDigitClockPart(arguments.localDayStartRule.local_day_start_second);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="twoDigitClockPart" access="private" returntype="string" output="false">
+        <cfargument name="value" type="numeric" required="true">
+        <cfscript>
+            return right("0" & int(val(arguments.value)), 2);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="shiftSqlTimestampByDays" access="private" returntype="string" output="false">
+        <cfargument name="sqlValue" required="true">
+        <cfargument name="days" type="numeric" required="true">
+        <cfscript>
+            return shiftSqlTimestampByMinutes(arguments.sqlValue, int(val(arguments.days)) * 1440);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="shiftSqlTimestampByMinutes" access="private" returntype="string" output="false">
+        <cfargument name="sqlValue" required="true">
+        <cfargument name="minutes" type="numeric" required="true">
+        <cfscript>
+            var raw = normalizeUtcSqlTimestamp(arguments.sqlValue);
+            var minutesVal = int(val(arguments.minutes));
+            var qShifted = queryNew("");
+            if (!len(raw)) {
+                return "";
+            }
+            qShifted = queryExecute(
+                "SELECT DATE_FORMAT(DATE_ADD(CAST(:raw AS DATETIME), INTERVAL #minutesVal# MINUTE), '%Y-%m-%d %H:%i:%s') AS shifted_at",
+                {
+                    raw = { value = raw, cfsqltype = "cf_sql_varchar" }
+                },
+                { datasource = variables.datasource }
+            );
+            if (qShifted.recordCount EQ 0 OR isNull(qShifted.shifted_at[1])) {
+                return "";
+            }
+            return trim(toString(qShifted.shifted_at[1]));
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="addMinutesToUtcSql" access="private" returntype="string" output="false">
+        <cfargument name="utcSqlValue" required="true">
+        <cfargument name="minutes" type="numeric" required="true">
+        <cfscript>
+            return shiftSqlTimestampByMinutes(arguments.utcSqlValue, arguments.minutes);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeUtcSqlTimestamp" access="private" returntype="string" output="false">
+        <cfargument name="value" required="true">
+        <cfscript>
+            var raw = trim(toString(arguments.value));
+            if (!len(raw)) {
+                return "";
+            }
+            raw = replace(raw, "T", " ", "one");
+            raw = reReplace(raw, "Z$", "", "one");
+            raw = reReplace(raw, "\.[0-9]+$", "", "one");
+            raw = reReplace(raw, "([+-]\d{2}:?\d{2})$", "", "one");
+            if (reFind("^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$", raw)) {
+                raw &= ":00";
+            }
+            if (!reFind("^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$", raw)) {
+                return "";
+            }
+            return left(raw, 19);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="isUtcSqlTimestamp" access="private" returntype="boolean" output="false">
+        <cfargument name="value" required="true">
+        <cfscript>
+            return len(normalizeUtcSqlTimestamp(arguments.value)) EQ 19;
         </cfscript>
     </cffunction>
 
@@ -2158,6 +2407,20 @@
                 return now();
             }
             return qNow.nowUtc[1];
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getCurrentUtcSqlTimestamp" access="private" returntype="string" output="false">
+        <cfscript>
+            var qNow = queryExecute(
+                "SELECT DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-%d %H:%i:%s') AS nowUtcRaw",
+                {},
+                { datasource = variables.datasource }
+            );
+            if (qNow.recordCount EQ 0 OR isNull(qNow.nowUtcRaw[1])) {
+                return "";
+            }
+            return trim(toString(qNow.nowUtcRaw[1]));
         </cfscript>
     </cffunction>
 
