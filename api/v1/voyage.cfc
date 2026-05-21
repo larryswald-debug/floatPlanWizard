@@ -2298,7 +2298,8 @@
                     lng,
                     media_url,
                     media_thumb_url,
-                    created_utc
+                    created_utc,
+                    DATE_FORMAT(created_utc, '%Y-%m-%d %H:%i:%s') AS created_utc_raw
                  FROM voyage_posts
                  WHERE stream_id = :streamId";
             params = {
@@ -2355,6 +2356,7 @@
                         vc.id,
                         vc.body,
                         vc.created_utc,
+                        DATE_FORMAT(vc.created_utc, '%Y-%m-%d %H:%i:%s') AS created_utc_raw,
                         vf.display_name
                      FROM voyage_comments vc
                      LEFT JOIN voyage_followers vf ON vf.id = vc.follower_id
@@ -2372,7 +2374,7 @@
                         "id"=val(qComments.id[j]),
                         "body"=(isNull(qComments.body[j]) ? "" : toString(qComments.body[j])),
                         "display_name"=(isNull(qComments.display_name[j]) ? "Viewer" : toString(qComments.display_name[j])),
-                        "created_utc"=formatUtcDate(qComments.created_utc[j])
+                        "created_utc"=formatRawUtcDate(qComments.created_utc_raw[j])
                     };
                     arrayAppend(comments, commentObj);
                 }
@@ -2392,7 +2394,7 @@
                     "lng"=(isNull(qPosts.lng[i]) ? "" : qPosts.lng[i]),
                     "media_url"=(isNull(qPosts.media_url[i]) ? "" : toString(qPosts.media_url[i])),
                     "media_thumb_url"=(isNull(qPosts.media_thumb_url[i]) ? "" : toString(qPosts.media_thumb_url[i])),
-                    "created_utc"=formatUtcDate(qPosts.created_utc[i]),
+                    "created_utc"=formatRawUtcDate(qPosts.created_utc_raw[i]),
                     "reaction_counts"=reactions,
                     "viewer_reactions"=viewerReactionMap,
                     "comments"=comments
@@ -7084,6 +7086,30 @@
                 return trim(toString(arguments.value));
             }
             return dateTimeFormat(arguments.value, "yyyy-mm-dd'T'HH:nn:ss'Z'");
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="formatRawUtcDate" access="private" returntype="string" output="false">
+        <cfargument name="value" type="any" required="false">
+        <cfscript>
+            var raw = "";
+            if (isNull(arguments.value)) return "";
+
+            raw = trim(toString(arguments.value));
+            if (!len(raw)) return "";
+
+            raw = replace(raw, "T", " ", "one");
+            raw = reReplaceNoCase(raw, "Z$", "", "one");
+            raw = reReplaceNoCase(raw, "([+-]00:?00)$", "", "one");
+            raw = reReplace(raw, "\.[0-9]+$", "", "one");
+            if (reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$", raw)) {
+                raw &= ":00";
+            }
+            if (!reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$", raw)) {
+                return "";
+            }
+
+            return replace(left(raw, 19), " ", "T", "one") & "Z";
         </cfscript>
     </cffunction>
 
