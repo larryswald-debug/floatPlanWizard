@@ -557,9 +557,12 @@
       .map-layer-header { justify-content: space-between; align-items: center; }
       .map-layers-panel p { padding: 2px 18px 12px; color: var(--wx-muted); line-height: 1.4; font-size: 14px; }
       .map-layer-section-label { padding: 0 18px 6px; color: #cfe4ff; font-size: 12px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
-      .map-layer-list { margin: 0 18px 14px; padding: 0; list-style: none; color: #eaf5ff; font-size: 14px; }
+      .map-layer-list { margin: 0 18px 14px; padding: 0; list-style: none; color: #eaf5ff; font-size: 14px; display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 18px; row-gap: 2px; }
       .map-layer-list li { position: relative; padding: 4px 0 4px 22px; }
       .map-layer-list li::before { content: "✓"; position: absolute; left: 0; color: var(--wx-green); }
+      @media (max-width: 640px) {
+        .map-layer-list { grid-auto-flow: row; grid-template-rows: none; grid-template-columns: 1fr; }
+      }
       .weather-map-preview-button {
         display: block;
         width: calc(100% - 36px);

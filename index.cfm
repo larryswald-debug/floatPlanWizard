@@ -2542,7 +2542,9 @@ if (isEarlyAccessPost) {
             <a href="app/join.cfm" class="btn btn-primary"><i class="bi bi-envelope-paper"></i>Join Now - Get 1 Month Free</a>
             <a href="#great-loop" class="btn btn-secondary"><i class="bi bi-signpost-2"></i>Explore Great Loop Features</a>
           </div>
-          <div class="micro">Built for Great Loopers and all serious recreational boaters.</div>
+          <div class="micro" style="text-align:center;">
+            Built for Great Loopers and all serious recreational boaters. No credit card required to join.
+          </div>
         </div>
 
         <div class="panel hero-visual" aria-hidden="true">
@@ -2938,7 +2940,7 @@ if (isEarlyAccessPost) {
             </a>
 
             <p class="fpw-live-builder-note">
-              Start free. Upgrade anytime. Cancel anytime on monthly Premium.
+              Start free. Upgrade anytime. Cancel anytime on monthly Premium. No credit card required to join.
             </p>
           </aside>
         </div>

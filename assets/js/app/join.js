@@ -64,6 +64,11 @@
       var website = websiteEl ? (websiteEl.value || "").trim() : "";
       var termsAccepted = !!termsAcceptedEl.checked;
 
+      if (!termsAccepted) {
+        showAlert("Agreeing to the Terms of Service is required.", "warning");
+        return;
+      }
+
       if (!firstName || !lastName || !email) {
         showAlert("First name, last name, and email are required.", "warning");
         return;
@@ -84,11 +89,6 @@
         return;
       }
 
-      if (!termsAccepted) {
-        showAlert("Agree to the Terms of Service and Privacy Policy to continue.", "warning");
-        return;
-      }
-
       btn.disabled = true;
       btn.textContent = "Creating...";
 
@@ -99,7 +99,7 @@
           email: email,
           password: password,
           confirmPassword: confirmPassword,
-          termsAccepted: true,
+          termsAccepted: termsAccepted,
           address: address,
           city: city,
           state: state,

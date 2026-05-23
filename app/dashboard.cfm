@@ -527,7 +527,7 @@
                             <input type="number" class="form-control" id="vesselMaxSpeed" min="0" step="0.01" inputmode="decimal">
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label class="form-label" for="vesselMostEfficientSpeed">Most Efficient Speed (KPH)</label>
+                            <label class="form-label" for="vesselMostEfficientSpeed">Most Efficient (KPH)</label>
                             <input type="number" class="form-control" id="vesselMostEfficientSpeed" min="0" step="0.01" inputmode="decimal">
                         </div>
                         <div class="col-md-3 mb-3">

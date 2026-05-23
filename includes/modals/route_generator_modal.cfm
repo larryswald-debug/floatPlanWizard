@@ -1454,6 +1454,14 @@
 
                   <div class="rg-myroutes-grid">
                     <div class="rg-field">
+                      <label for="routeGenMyRouteName">Create Route</label>
+                      <div class="rg-inline-actions">
+                        <input id="routeGenMyRouteName" type="text" class="form-control form-control-sm" placeholder="Route name">
+                        <button type="button" id="routeGenMyRouteCreateBtn" class="btn-secondary btn-sm">Create</button>
+                      </div>
+                    </div>
+
+                    <div class="rg-field">
                       <label for="routeGenMyRouteSelect">My Routes</label>
                       <div class="rg-inline-actions">
                         <select id="routeGenMyRouteSelect" class="form-select form-select-sm">
@@ -1461,14 +1469,6 @@
                         </select>
                         <button type="button" id="routeGenMyRouteLoadBtn" class="btn-secondary btn-sm">Load</button>
                         <button type="button" id="routeGenMyRouteDeleteBtn" class="btn-secondary btn-sm">Delete</button>
-                      </div>
-                    </div>
-
-                    <div class="rg-field">
-                      <label for="routeGenMyRouteName">Create Route</label>
-                      <div class="rg-inline-actions">
-                        <input id="routeGenMyRouteName" type="text" class="form-control form-control-sm" placeholder="Route name">
-                        <button type="button" id="routeGenMyRouteCreateBtn" class="btn-secondary btn-sm">Create</button>
                       </div>
                     </div>
 

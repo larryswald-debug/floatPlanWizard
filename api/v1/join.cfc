@@ -154,7 +154,7 @@
             <cfif NOT termsAccepted>
                 <cfset response = {
                     SUCCESS = false,
-                    MESSAGE = "Terms of Service and Privacy Policy acceptance is required.",
+                    MESSAGE = "Agreeing to the Terms of Service is required.",
                     ERROR   = "TERMS_REQUIRED"
                 }>
                 <cfoutput>#serializeJSON(response)#</cfoutput>

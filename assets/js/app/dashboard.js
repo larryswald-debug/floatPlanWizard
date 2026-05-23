@@ -2532,8 +2532,27 @@
     return layers.filter(function (layerName) { return !!weatherValue(layerName, ""); });
   }
 
+  function appendDefaultWeatherMapLayerLabels(layers) {
+    var requiredLayers = ["Radar", "Marine Warnings", "Wind Forecast", "Cloud / Satellite", "Surface Fronts"];
+    var existing = {};
+
+    layers.forEach(function (layerName) {
+      existing[String(layerName).toLowerCase()] = true;
+    });
+
+    requiredLayers.forEach(function (layerName) {
+      var key = layerName.toLowerCase();
+      if (!existing[key]) {
+        layers.push(layerName);
+        existing[key] = true;
+      }
+    });
+
+    return layers;
+  }
+
   function renderMapLayersPanel(data) {
-    var layers = normalizeWeatherMapLayers(data && (data.MAP_LAYERS || data.map_layers || data.mapLayers));
+    var layers = appendDefaultWeatherMapLayerLabels(normalizeWeatherMapLayers(data && (data.MAP_LAYERS || data.map_layers || data.mapLayers)));
     var listEl = document.getElementById("weatherMapLayerList");
     setWeatherText("weatherMapLayerCount", layers.length);
     if (!listEl) return;

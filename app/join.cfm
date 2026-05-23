@@ -16,9 +16,9 @@
         <div class="col-12 col-sm-10 col-md-7 col-lg-6">
             <div class="card shadow-sm">
                 <div class="card-body p-4">
-                    <h1 class="h4 mb-2 text-center">Create your FloatPlan Wizard account</h1>
+                    <h1 class="h4 mb-2 text-center">Create your Free FloatPlan Wizard account</h1>
                     <p class="text-muted small text-center mb-3">
-                        Start with a free Basic account. You can activate the Memorial Day Premium trial after signup. No credit card is required for the launch trial.
+                        You can activate the Free 1 month Premium trial after signup. <br>No credit card is required for the free trial.
                     </p>
 
                     <div id="joinAlert" class="alert d-none" role="alert"></div>
@@ -154,7 +154,7 @@
                                         required
                                     >
                                     <label class="form-check-label small" for="termsAccepted">
-                                        I agree to the <a href="#terms-placeholder">Terms of Service</a> and <a href="#privacy-placeholder">Privacy Policy</a>.
+                                        I agree to the <a href="../terms_of_service.cfm">Terms of Service</a> and <a href="../privacy_policy.cfm">Privacy Policy</a>.
                                     </label>
                                 </div>
                             </div>
@@ -176,7 +176,7 @@
 
 <cfinclude template="../includes/footer_scripts.cfm">
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth-utils.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/join.js?v=2"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/join.js?v=3"></script>
 
 </body>
 </html>
