@@ -232,7 +232,7 @@ if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
 
       <nav class="fpw-footer-col" aria-label="Legal and safety">
         <h3>Legal</h3>
-        <a href="##fpwFooterEmergencyNotice">Safety Notice</a>
+        <a href="../terms_of_service.cfm">Terms of Service</a>
       </nav>
     </div>
 

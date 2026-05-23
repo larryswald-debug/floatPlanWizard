@@ -1317,12 +1317,12 @@
         <p>Organize your route, float plan, and trusted-contact sharing with FloatPlanWizard.</p>
       </div>
 
-      <a class="fpw-fuel-cta__button" href="../index.cfm#notify">
-        <span>Join Prelaunch</span>
+      <a class="fpw-fuel-cta__button" href="../app/join.cfm">
+        <span>Join For Free</span>
         <span aria-hidden="true">&rarr;</span>
       </a>
 
-      <p class="fpw-fuel-cta__small">Be the first to know at launch.</p>
+      <p class="fpw-fuel-cta__small">No credit card required.</p>
     </section>
   </main>
 

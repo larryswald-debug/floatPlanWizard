@@ -50,6 +50,9 @@
             <cfif NOT structKeyExists(body, "termsAccepted") AND structKeyExists(form, "termsAccepted")>
                 <cfset body.termsAccepted = form.termsAccepted>
             </cfif>
+            <cfif NOT structKeyExists(body, "website") AND structKeyExists(form, "website")>
+                <cfset body.website = form.website>
+            </cfif>
 
             <cfset firstName = trim(body.firstName ?: body.fName ?: "")>
             <cfset lastName  = trim(body.lastName  ?: body.lName ?: "")>
@@ -59,6 +62,7 @@
             <cfset state     = trim(body.state     ?: "")>
             <cfset zip       = trim(body.zip       ?: "")>
             <cfset phone     = trim(body.phone     ?: "")>
+            <cfset website   = trim(body.website   ?: "")>
             <cfset password  = trim(body.password  ?: "")>
             <cfset confirmPassword = "">
             <cfif structKeyExists(body, "confirmPassword")>
@@ -75,6 +79,20 @@
                 <cfset termsValue = body.terms>
             </cfif>
             <cfset termsAccepted = isTruthy(termsValue)>
+
+            <cfif len(website)>
+                <cfset response = {
+                    SUCCESS = true,
+                    success = true,
+                    AUTH = false,
+                    auth = false,
+                    MESSAGE = "User created successfully."
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
             <cfset redirectUrl = resolveFpwBasePath() & "/app/start-trial.cfm?offer=launch_trial">
 
             <!-- Validate required fields -->

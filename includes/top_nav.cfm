@@ -233,10 +233,12 @@ topNavShowAppSubnav = topNavIsLoggedIn
 
           <div class="fpw-nav-actions">
             <cfif topNavIsLoggedIn>
-              <a class="fpw-nav-link fpw-dashboard-link<cfif topNavActive EQ 'dashboard'> is-active</cfif>" href="#topNavBasePath#/app/dashboard.cfm"<cfif topNavActive EQ 'dashboard'> aria-current="page"</cfif>>
-                <svg class="fpw-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="6" height="6"></rect><rect x="14" y="4" width="6" height="6"></rect><rect x="4" y="14" width="6" height="6"></rect><rect x="14" y="14" width="6" height="6"></rect></svg>
-                <span>Dashboard</span>
-              </a>
+              <cfif NOT topNavShowAppSubnav>
+                <a class="fpw-nav-link fpw-dashboard-link<cfif topNavActive EQ 'dashboard'> is-active</cfif>" href="#topNavBasePath#/app/dashboard.cfm"<cfif topNavActive EQ 'dashboard'> aria-current="page"</cfif>>
+                  <svg class="fpw-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="6" height="6"></rect><rect x="14" y="4" width="6" height="6"></rect><rect x="4" y="14" width="6" height="6"></rect><rect x="14" y="14" width="6" height="6"></rect></svg>
+                  <span>Dashboard</span>
+                </a>
+              </cfif>
               <div class="fpw-dropdown fpw-account-dropdown" data-fpw-dropdown>
                 <button class="fpw-nav-link fpw-dropdown-toggle<cfif topNavActive EQ 'account'> is-active</cfif>" type="button" aria-expanded="false" aria-haspopup="true" data-fpw-dropdown-toggle>
                   <svg class="fpw-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg>

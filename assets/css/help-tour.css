@@ -1,0 +1,176 @@
+.fpw-help-tour-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1450;
+  pointer-events: none;
+}
+
+.fpw-help-tour-layer[hidden] {
+  display: none;
+}
+
+.fpw-help-tour-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(1, 10, 17, 0.46);
+  pointer-events: none;
+}
+
+.fpw-help-tour-spotlight {
+  position: fixed;
+  border: 2px solid rgba(52, 243, 238, 0.9);
+  box-shadow:
+    0 0 0 4px rgba(52, 243, 238, 0.15),
+    0 0 32px rgba(52, 243, 238, 0.28);
+  pointer-events: none;
+  transition: left 160ms ease, top 160ms ease, width 160ms ease, height 160ms ease;
+}
+
+.fpw-help-tour-card {
+  position: fixed;
+  width: min(360px, calc(100vw - 32px));
+  padding: 18px;
+  color: #eff7fa;
+  background:
+    linear-gradient(180deg, rgba(14, 32, 41, 0.98), rgba(7, 21, 28, 0.98));
+  border: 1px solid rgba(52, 243, 238, 0.36);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.38),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+  pointer-events: auto;
+}
+
+.fpw-help-tour-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+}
+
+.fpw-help-tour-kicker {
+  margin: 0 34px 10px 0;
+  color: #35d0c6;
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.fpw-help-tour-title {
+  margin: 0 34px 8px 0;
+  color: #f7fbff;
+  font-size: 1.15rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.fpw-help-tour-copy {
+  margin: 0;
+  color: rgba(220, 234, 242, 0.86);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.fpw-help-tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.fpw-help-tour-action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+body.dashboard-body .fpw-help-tour-card button {
+  min-height: 34px;
+  padding: 0.45rem 0.72rem;
+  color: #eff7fa;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 850;
+  background: rgba(19, 43, 53, 0.9);
+  border: 1px solid rgba(82, 225, 231, 0.28);
+  border-radius: 0;
+  cursor: pointer;
+}
+
+body.dashboard-body .fpw-help-tour-card button:hover,
+body.dashboard-body .fpw-help-tour-card button:focus {
+  color: #f7ffff;
+  background: rgba(47, 184, 169, 0.18);
+  border-color: rgba(52, 243, 238, 0.56);
+  outline: none;
+}
+
+body.dashboard-body .fpw-help-tour-card .fpw-help-tour-primary {
+  color: #03151c;
+  background: linear-gradient(135deg, #34f3ee, #47b8ff);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+body.dashboard-body .fpw-help-tour-card .fpw-help-tour-primary:hover,
+body.dashboard-body .fpw-help-tour-card .fpw-help-tour-primary:focus {
+  color: #03151c;
+  filter: brightness(1.05);
+}
+
+.fpw-help-tour-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.fpw-help-tour-target {
+  outline: 2px solid rgba(52, 243, 238, 0.55);
+  outline-offset: 3px;
+}
+
+body.dashboard-body .fpw-dashboard-tour-trigger {
+  width: 100%;
+  font: inherit;
+  background: transparent;
+  border-color: transparent;
+  cursor: pointer;
+}
+
+body.dashboard-body .fpw-dashboard-tour-trigger:hover,
+body.dashboard-body .fpw-dashboard-tour-trigger:focus {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(91, 199, 255, 0.18);
+}
+
+@media (max-width: 640px) {
+  .fpw-help-tour-card {
+    left: 16px !important;
+    right: 16px;
+    width: auto;
+  }
+
+  .fpw-help-tour-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .fpw-help-tour-action-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  body.dashboard-body .fpw-help-tour-card button {
+    flex: 1 1 auto;
+  }
+}

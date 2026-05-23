@@ -107,9 +107,10 @@
         <li><span class="pricing-check"></span>Basic float plan</li>
         <li><span class="pricing-check"></span>Up to 2 waypoints</li>
         <li><span class="pricing-check"></span>Basic monitoring</li>
+        <li><span class="pricing-check"></span>NOOA NWS Marine Weather</li>
         <li><span class="pricing-check"></span>Same-day trip use</li>
       </ul>
-      <a class="pricing-btn pricing-btn-outline" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Create Free Account</a>
+      <a class="pricing-btn pricing-btn-outline" href="<cfoutput>#request.fpwBase#</cfoutput>/app/start-trial.cfm?offer=launch_trial">Create Free Account</a>
     </article>
 
     <article class="pricing-card">
@@ -124,9 +125,10 @@
         <li><span class="pricing-check"></span>Public Follow page</li>
         <li><span class="pricing-check"></span>Companion check-ins</li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
+        <li><span class="pricing-check"></span>NOOA NWS Marine Weather</li>
         <li><span class="pricing-check"></span>Premium route tools</li>
       </ul>
-      <button type="button" class="pricing-btn pricing-btn-primary" data-pricing-checkout="monthly">Start Monthly Premium</button>
+      <a class="pricing-btn pricing-btn-primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/start-trial.cfm?offer=launch_trial">Start Monthly Premium</a>
     </article>
 
     <article class="pricing-card pricing-card-featured">
@@ -142,9 +144,10 @@
         <li><span class="pricing-check"></span>Public Follow page</li>
         <li><span class="pricing-check"></span>Companion check-ins</li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
+        <li><span class="pricing-check"></span>NOOA NWS Marine Weather</li>
         <li><span class="pricing-check"></span>Premium route tools</li>
       </ul>
-      <button type="button" class="pricing-btn pricing-btn-primary" data-pricing-checkout="yearly">Start Annual Premium</button>
+      <a class="pricing-btn pricing-btn-primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/start-trial.cfm?offer=launch_trial">Start Annual Premium</a>
     </article>
 
     <article class="pricing-card">
@@ -159,10 +162,11 @@
         <li><span class="pricing-check"></span>Public Follow page</li>
         <li><span class="pricing-check"></span>Companion check-ins</li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
+        <li><span class="pricing-check"></span>NOOA NWS Marine Weather</li>
         <li><span class="pricing-check"></span>Premium route tools</li>
         <li><span class="pricing-muted-check"></span>Valid for 3 consecutive days</li>
       </ul>
-      <button type="button" class="pricing-btn pricing-btn-primary" data-pricing-checkout="three_day_pass">Get 3-Day Pass</button>
+      <a class="pricing-btn pricing-btn-primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/start-trial.cfm?offer=launch_trial">Get 3-Day Pass</a>
     </article>
   </section>
 

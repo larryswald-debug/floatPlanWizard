@@ -29,6 +29,7 @@
     var stateEl = $("state");
     var zipEl = $("zip");
     var phoneEl = $("phone");
+    var websiteEl = $("website");
     var termsAcceptedEl = $("termsAccepted");
     var btn = $("joinButton");
 
@@ -60,6 +61,7 @@
       var state = stateEl ? (stateEl.value || "").trim() : "";
       var zip = zipEl ? (zipEl.value || "").trim() : "";
       var phone = phoneEl ? (phoneEl.value || "").trim() : "";
+      var website = websiteEl ? (websiteEl.value || "").trim() : "";
       var termsAccepted = !!termsAcceptedEl.checked;
 
       if (!firstName || !lastName || !email) {
@@ -102,7 +104,8 @@
           city: city,
           state: state,
           zip: zip,
-          phone: phone
+          phone: phone,
+          website: website
         };
 
         var data = await fetchJson(API_BASE + "/join.cfc?method=handle", {

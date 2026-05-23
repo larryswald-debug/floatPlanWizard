@@ -210,7 +210,7 @@
 <cfinclude template="../includes/footer.cfm">
 
 <cfinclude template="../includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/account.js"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/account.js?v=20260522-launch-trial-offers"></script>
 
 </body>
 </html>

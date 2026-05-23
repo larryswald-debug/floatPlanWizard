@@ -24,6 +24,16 @@
                     <div id="joinAlert" class="alert d-none" role="alert"></div>
 
                     <form id="joinForm" novalidate>
+                        <div style="position:absolute; left:-10000px; top:auto; width:1px; height:1px; overflow:hidden;" aria-hidden="true">
+                            <label for="website">Website</label>
+                            <input
+                                type="text"
+                                id="website"
+                                name="website"
+                                tabindex="-1"
+                                autocomplete="off"
+                            >
+                        </div>
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label for="firstName" class="form-label">First Name</label>

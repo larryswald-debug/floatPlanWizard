@@ -4,6 +4,7 @@
 
   var BASE_PATH = window.FPW_BASE || "";
   var API_BASE = window.FPW_API_BASE || (BASE_PATH + "/api/v1");
+  var LAUNCH_TRIAL_PATH = BASE_PATH + "/app/start-trial.cfm?offer=launch_trial";
 
   function $(id) { return document.getElementById(id); }
 
@@ -345,43 +346,15 @@
 
   async function startPremiumUpgrade(interval, trigger) {
     var intervalValue = String(interval || "").trim().toLowerCase();
-    var originalText = trigger ? trigger.textContent : "";
     if (intervalValue !== "monthly" && intervalValue !== "yearly") {
       showBillingMessage("Choose monthly or yearly Premium billing.", "error");
-      return;
-    }
-    if (!window.Api || typeof window.Api.createPremiumCheckoutSession !== "function") {
-      showBillingMessage("Premium checkout is not available yet.", "error");
       return;
     }
 
     setBillingActionsBusy(true);
     if (trigger) trigger.textContent = "Opening...";
-    showBillingMessage("Opening Stripe-hosted checkout...", "info");
-
-    try {
-      var data = await window.Api.createPremiumCheckoutSession(intervalValue);
-      var checkoutUrl = getCheckoutUrl(data);
-      if (!data || (data.SUCCESS !== true && data.success !== true) || !checkoutUrl) {
-        throw data || { MESSAGE: "Premium checkout is not available right now." };
-      }
-      window.location.href = checkoutUrl;
-    } catch (err) {
-      var code = getErrorCode(err).toUpperCase();
-      if (code === "STRIPE_CONFIG_MISSING") {
-        showBillingMessage("Premium checkout is not available yet. Please contact FPW support.", "error");
-      } else if (code === "ALREADY_PREMIUM") {
-        showBillingMessage("Your account already has Premium access.", "success");
-        await loadMembershipBilling();
-      } else if (code === "INVALID_PRICE_SELECTOR") {
-        showBillingMessage("Choose monthly or yearly Premium billing.", "error");
-      } else {
-        showBillingMessage((err && (err.MESSAGE || err.message)) ? (err.MESSAGE || err.message) : "Premium checkout is not available right now.", "error");
-      }
-    } finally {
-      setBillingActionsBusy(false);
-      if (trigger) trigger.textContent = originalText || (intervalValue === "yearly" ? "Upgrade Yearly" : "Upgrade Monthly");
-    }
+    showBillingMessage("Opening Premium free trial...", "info");
+    window.location.href = LAUNCH_TRIAL_PATH;
   }
 
   async function openBillingPortal(trigger) {

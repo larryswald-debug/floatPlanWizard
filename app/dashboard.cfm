@@ -1223,7 +1223,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260426a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260426a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=202603191500a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20260513-basic-panel-lock"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20260522-launch-trial-offers"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260422b"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help-tour.js?v=20260521-dashboard-tour"></script>
 

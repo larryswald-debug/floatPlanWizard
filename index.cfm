@@ -1134,8 +1134,8 @@ if (isEarlyAccessPost) {
         radial-gradient(circle at 14% 22%, rgba(32, 188, 212, 0.16), transparent 30%),
         linear-gradient(90deg, rgba(4, 19, 31, 0.98) 0%, rgba(4, 19, 31, 0.9) 32%, rgba(4, 19, 31, 0.58) 58%, rgba(4, 19, 31, 0.88) 100%),
         var(--fpw-access-bg);
-      background-size: cover;
-      background-position: center center;
+      background-size: auto, auto, auto, 112% auto;
+      background-position: center center, center center, center center, calc(360% + 200px) center;
       box-shadow:
         0 0 0 1px rgba(255, 255, 255, 0.02) inset,
         0 26px 70px rgba(0, 0, 0, 0.42);
@@ -1486,7 +1486,8 @@ if (isEarlyAccessPost) {
       .fpw-home-access-inner {
         grid-template-columns: 1fr;
         min-height: 0;
-        background-position: center center;
+        background-size: auto, auto, auto, cover;
+        background-position: center center, center center, center center, center center;
       }
 
       .fpw-home-pricing-card {
@@ -2037,6 +2038,226 @@ if (isEarlyAccessPost) {
       line-height: 1.4;
     }
 
+    .fpw-live-builder-panel {
+      position: relative;
+      color: #eaf6ff;
+    }
+
+    .fpw-live-builder-inner {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1.55fr 0.95fr;
+      gap: 40px;
+      align-items: center;
+      overflow: hidden;
+      border: 1px solid rgba(42, 198, 224, 0.22);
+      border-radius: var(--radius-xl);
+      padding: 28px;
+      background:
+        radial-gradient(circle at 18% 12%, rgba(44, 214, 236, 0.13), transparent 30%),
+        radial-gradient(circle at 76% 62%, rgba(37, 158, 190, 0.14), transparent 34%),
+        linear-gradient(135deg, rgba(7, 25, 40, 0.98) 0%, rgba(8, 31, 49, 0.96) 42%, rgba(5, 22, 35, 0.98) 100%);
+      box-shadow:
+        0 26px 70px rgba(0, 0, 0, 0.38),
+        0 0 0 1px rgba(255, 255, 255, 0.025) inset;
+    }
+
+    .fpw-live-builder-inner::before {
+      content: "";
+      position: absolute;
+      inset: 12px;
+      border: 1px solid rgba(49, 193, 222, 0.18);
+      border-radius: 22px;
+      pointer-events: none;
+    }
+
+    .fpw-live-builder-copy,
+    .fpw-live-builder-cta {
+      position: relative;
+      z-index: 1;
+    }
+
+    .fpw-live-builder-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      margin-bottom: 12px;
+      padding: 8px 14px;
+      border: 1px solid rgba(42, 217, 237, 0.26);
+      border-radius: 999px;
+      background: rgba(9, 54, 72, 0.52);
+      color: #d8f7ff;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .fpw-live-builder-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #25e4f0;
+      box-shadow: 0 0 18px rgba(37, 228, 240, 0.8);
+    }
+
+    .fpw-live-builder-badge-separator {
+      width: 1px;
+      height: 16px;
+      background: rgba(210, 239, 248, 0.28);
+    }
+
+    .fpw-live-builder-title {
+      margin: 0;
+      color: #f2f8ff;
+      font-size: clamp(1.9rem, 3vw, 3rem);
+      line-height: 1.05;
+      font-weight: 700;
+      letter-spacing: -0.045em;
+      text-wrap: balance;
+      text-shadow: 0 4px 22px rgba(0, 0, 0, 0.38);
+    }
+
+    .fpw-live-builder-text {
+      max-width: 72ch;
+      margin: 16px 0 0;
+      color: var(--muted);
+      font-size: 1.02rem;
+      line-height: 1.75;
+      font-weight: 400;
+    }
+
+    .fpw-live-builder-text:last-child {
+      margin-bottom: 0;
+    }
+
+    .fpw-live-builder-cta {
+      border-left: 1px solid rgba(47, 190, 218, 0.32);
+      padding-left: 36px;
+    }
+
+    .fpw-live-builder-cta-eyebrow {
+      margin-bottom: 12px;
+      color: var(--accent-2);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .fpw-live-builder-cta-title {
+      margin: 0 0 12px;
+      color: #f6fbff;
+      font-size: clamp(1.45rem, 2vw, 1.9rem);
+      line-height: 1.12;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .fpw-live-builder-cta-copy {
+      margin: 0 0 18px;
+      max-width: 520px;
+      color: var(--muted);
+      font-size: 1.02rem;
+      line-height: 1.55;
+      font-weight: 400;
+    }
+
+    .fpw-live-builder-primary-cta,
+    .fpw-live-builder-secondary-cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      transition:
+        transform 160ms ease,
+        box-shadow 160ms ease,
+        border-color 160ms ease,
+        background 160ms ease;
+    }
+
+    .fpw-live-builder-primary-cta {
+      gap: 10px;
+      width: min(100%, 560px);
+      min-height: 50px;
+      border-radius: 16px;
+      background: linear-gradient(90deg, #27e1d1 0%, #4bc3ff 100%);
+      color: #031722;
+      font-size: 1rem;
+      font-weight: 700;
+      box-shadow: 0 16px 42px rgba(33, 219, 224, 0.2);
+    }
+
+    .fpw-live-builder-primary-cta:hover,
+    .fpw-live-builder-primary-cta:focus-visible {
+      transform: translateY(-1px);
+      color: #031722;
+      box-shadow: 0 20px 52px rgba(33, 219, 224, 0.3);
+    }
+
+    .fpw-live-builder-button-icon {
+      display: inline-flex;
+      width: 24px;
+      height: 24px;
+      flex: 0 0 24px;
+    }
+
+    .fpw-live-builder-button-icon svg,
+    .fpw-live-builder-trust-line svg {
+      width: 100%;
+      height: 100%;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .fpw-live-builder-arrow {
+      font-size: 1.3em;
+      line-height: 1;
+    }
+
+    .fpw-live-builder-trust-line {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 18px 0 14px;
+      color: #d7e8f2;
+      font-size: 0.95rem;
+      line-height: 1.45;
+    }
+
+    .fpw-live-builder-trust-line span {
+      display: inline-flex;
+      width: 28px;
+      height: 28px;
+      flex: 0 0 28px;
+      color: #43c7ff;
+    }
+
+    .fpw-live-builder-secondary-cta {
+      gap: 8px;
+      color: #27e9ef;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .fpw-live-builder-secondary-cta:hover,
+    .fpw-live-builder-secondary-cta:focus-visible {
+      color: #79f9ff;
+      transform: translateX(2px);
+    }
+
+    .fpw-live-builder-note {
+      margin: 12px 0 0;
+      color: #91aaba;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      font-weight: 400;
+    }
+
     .signup .btn.is-loading {
       display: inline-flex;
       align-items: center;
@@ -2191,6 +2412,15 @@ if (isEarlyAccessPost) {
       .waitlist-signup-panel .signup {
         justify-self: start;
       }
+      .fpw-live-builder-inner {
+        grid-template-columns: 1fr;
+      }
+      .fpw-live-builder-cta {
+        border-left: 0;
+        border-top: 1px solid rgba(47, 190, 218, 0.26);
+        padding-left: 0;
+        padding-top: 22px;
+      }
       .features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .quotes { grid-template-columns: 1fr; }
     }
@@ -2214,6 +2444,45 @@ if (isEarlyAccessPost) {
       .hero-copy, .hero-visual, .loop-card, .follower-card, .story-card, .cta-card { padding: 22px; }
       .waitlist-grid { padding: 22px 18px; gap: 18px; }
       .waitlist-signup-panel { padding: 16px; border-radius: 20px; }
+      .fpw-live-builder-inner {
+        border-radius: 22px;
+        padding: 22px;
+      }
+      .fpw-live-builder-inner::before {
+        inset: 8px;
+        border-radius: 16px;
+      }
+      .fpw-live-builder-badge {
+        gap: 8px;
+        min-height: 38px;
+        padding: 0 13px;
+        font-size: 11px;
+        letter-spacing: 0.11em;
+      }
+      .fpw-live-builder-badge-separator {
+        height: 16px;
+      }
+      .fpw-live-builder-title {
+        font-size: clamp(1.9rem, 9vw, 3rem);
+      }
+      .fpw-live-builder-text,
+      .fpw-live-builder-cta-copy {
+        font-size: 1.02rem;
+      }
+      .fpw-live-builder-primary-cta {
+        min-height: 50px;
+        gap: 10px;
+        font-size: 1rem;
+      }
+      .fpw-live-builder-button-icon {
+        width: 24px;
+        height: 24px;
+        flex-basis: 24px;
+      }
+      .fpw-live-builder-trust-line {
+        align-items: flex-start;
+        font-size: 0.95rem;
+      }
       .waitlist-proof { margin-top: 14px; flex-wrap: wrap; white-space: normal; justify-content: flex-start; }
       .hero-points,
       .stats-row,
@@ -2245,7 +2514,7 @@ if (isEarlyAccessPost) {
     <section class="hero">
       <div class="shell hero-grid">
         <div class="panel hero-copy">
-          <div class="eyebrow"><i class="bi bi-stars" aria-hidden="true"></i>Set Sail with FloatPlanWizard - Launching this spring</div>
+          <div class="eyebrow"><i class="bi bi-stars" aria-hidden="true"></i>Set Sail with FloatPlanWizard</div>
           <h1><span class="gradient-text">Plan smarter.</span><br />Cruise prepared.<br />Keep everyone informed.</h1>
           <ul class="lead lead-bullets">
             <li>Create clear float plans with key trip and emergency details.</li>
@@ -2270,7 +2539,7 @@ if (isEarlyAccessPost) {
           </div>
 
           <div class="hero-cta">
-            <a href="#notify" class="btn btn-primary"><i class="bi bi-envelope-paper"></i>Join the Early Notification List</a>
+            <a href="app/join.cfm" class="btn btn-primary"><i class="bi bi-envelope-paper"></i>Join Now - Get 1 Month Free</a>
             <a href="#great-loop" class="btn btn-secondary"><i class="bi bi-signpost-2"></i>Explore Great Loop Features</a>
           </div>
           <div class="micro">Built for Great Loopers and all serious recreational boaters.</div>
@@ -2280,7 +2549,7 @@ if (isEarlyAccessPost) {
           <div class="mockup">
             <div class="mockup-top">
               <div class="dots"><span></span><span></span><span></span></div>
-              <div>Voyage Command Center</div>
+              <div>Active Cruise Command Center</div>
             </div>
             <div class="mockup-body">
               <div class="stack">
@@ -2309,7 +2578,7 @@ if (isEarlyAccessPost) {
                   <div class="ring">
                     <div>
                       <strong>82%</strong>
-                      <span>voyage readiness</span>
+                      <span>Trip Progress</span>
                     </div>
                   </div>
                 </div>
@@ -2469,11 +2738,6 @@ if (isEarlyAccessPost) {
             </div>
 
             <div class="fpw-home-pricing-actions">
-              <a class="fpw-home-primary-cta" href="app/join.cfm">
-                <span>Start Free</span>
-                <span aria-hidden="true">&rarr;</span>
-              </a>
-
               <a class="fpw-home-secondary-cta" href="app/pricing.cfm">
                 <span>View Full Pricing</span>
                 <span aria-hidden="true">&rsaquo;</span>
@@ -2604,44 +2868,79 @@ if (isEarlyAccessPost) {
             </div>
           </div>
           <div class="hero-cta" style="margin-top:22px;">
-            <a href="#notify" class="btn btn-primary"><i class="bi bi-envelope-paper"></i>Join the Pre-Launch List</a>
+            <a href="app/join.cfm" class="btn btn-primary"><i class="bi bi-envelope-paper"></i>Join for Free</a>
           </div>
         </div>
       </div>
     </section>
 
-    <section id="story" class="section">
+    <section id="story" class="section fpw-live-builder-panel" aria-labelledby="fpwLiveBuilderTitle">
       <div class="shell">
-        <div class="panel story-card">
-          <div class="story-layout">
-            <div class="story-content">
-              <h2>Built by Boaters for Boaters</h2>
-              <p class="story-founder">
-                FloatPlanWizard was built by a boater who understands how much preparation matters before leaving the dock. The goal is simple: give recreational boaters a better way to organize trips, share plans, and keep family and friends informed with confidence.
-              </p>
-              <p class="story-notify">
-                Join the early notification list to be among the first to know when FloatPlanWizard opens to the public.
-              </p>
+        <div class="fpw-live-builder-inner">
+          <div class="fpw-live-builder-copy">
+            <div class="fpw-live-builder-badge">
+              <span class="fpw-live-builder-dot" aria-hidden="true"></span>
+              <span>LIVE NOW</span>
+              <span class="fpw-live-builder-badge-separator" aria-hidden="true"></span>
+              <span>2026 BOATING SEASON</span>
             </div>
-            <div class="story-signup signup-panel">
-              <div class="signup-form-state">
-                <div class="story-launch-callout">Going Live - Spring 2026</div>
-                <form class="signup story-signup-form" id="waitlistFormBottom" novalidate>
-                  <input id="emailInputBottom" name="email" type="email" placeholder="Email for going-live updates" autocomplete="email" required />
-                  <button class="btn btn-primary" type="submit"><i class="bi bi-bell"></i>Notify Me of Launch</button>
-                </form>
-                <div class="story-trust-line">No credit card required. Free version available at launch.</div>
-                <div class="status story-signup-status">No spam. Just launch updates and early access news.</div>
-                <div class="signup-feedback story-signup-status" id="signupStatusBottom"></div>
-              </div>
-              <div class="signup-success-state" id="signupSuccessBottom" aria-live="polite">
-                <h4>You're on the list</h4>
-                <p>Thanks for joining early access. You'll receive FloatPlanWizard launch updates and early access news.</p>
-                <div class="bonus">As a thank-you for signing up early, you'll receive 2 months of premium membership free - no strings attached.</div>
-                <div class="subtle">Watch your inbox for launch updates.</div>
-              </div>
-            </div>
+
+            <h2 id="fpwLiveBuilderTitle" class="fpw-live-builder-title">
+              Built by Boaters for Boaters
+            </h2>
+
+            <p class="fpw-live-builder-text">
+              FloatPlanWizard was built by a boater who understands how much preparation matters before leaving the dock. The goal is simple: give recreational boaters a better way to organize trips, share plans, and keep family and friends informed with confidence.
+            </p>
+
+            <p class="fpw-live-builder-text">
+              Create your free account and start with a simple same-day float plan, or upgrade when you need route-based planning, Active Cruise, Follow pages, and advanced monitoring tools.
+            </p>
           </div>
+
+          <aside class="fpw-live-builder-cta" aria-label="Get started with FloatPlanWizard">
+            <div class="fpw-live-builder-cta-eyebrow">LIVE NOW</div>
+
+            <h3 class="fpw-live-builder-cta-title">
+              Get started today.
+            </h3>
+
+            <p class="fpw-live-builder-cta-copy">
+              Create your first float plan in minutes and get the tools you need for safer, smarter boating.
+            </p>
+
+            <a class="fpw-live-builder-primary-cta" href="app/join.cfm">
+              <span class="fpw-live-builder-button-icon" aria-hidden="true">
+                <svg viewBox="0 0 48 48" focusable="false">
+                  <path d="M24 6v18"></path>
+                  <path d="M13 20h22l6 15H7z"></path>
+                  <path d="M16 35c3 0 3 3 6 3s3-3 6-3 3 3 6 3"></path>
+                  <path d="M18 20l3-8h6l3 8"></path>
+                </svg>
+              </span>
+              <span>Create Your Float Plan</span>
+              <span class="fpw-live-builder-arrow" aria-hidden="true">&rarr;</span>
+            </a>
+
+            <div class="fpw-live-builder-trust-line">
+              <span aria-hidden="true">
+                <svg viewBox="0 0 48 48" focusable="false">
+                  <path d="M24 5 40 12v11c0 10-6.5 17.5-16 20-9.5-2.5-16-10-16-20V12z"></path>
+                  <path d="m16 24 5 5 11-12"></path>
+                </svg>
+              </span>
+              <strong>Secure. Private. Built for boaters.</strong>
+            </div>
+
+            <a class="fpw-live-builder-secondary-cta" href="app/pricing.cfm">
+              <span>View plans and pricing</span>
+              <span aria-hidden="true">&rsaquo;</span>
+            </a>
+
+            <p class="fpw-live-builder-note">
+              Start free. Upgrade anytime. Cancel anytime on monthly Premium.
+            </p>
+          </aside>
         </div>
       </div>
     </section>
