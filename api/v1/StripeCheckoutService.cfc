@@ -111,6 +111,7 @@
       requestPayload = buildStripePortalRequestPayload(stripeCustomerId, returnUrl);
       stripeResult = executeStripePortalRequest(requestPayload, secretKey);
       if (!structKeyExists(stripeResult, "SUCCESS") OR stripeResult.SUCCESS NEQ true) {
+        addStripePortalDebug(stripeResult, "billing_portal_session_create", userIdValue, stripeCustomerId, returnUrl);
         return errorResponse("STRIPE_PORTAL_FAILED", "Stripe billing portal session could not be created.");
       }
 
@@ -628,11 +629,133 @@
     <cfargument name="value" type="string" required="true">
     <cfscript>
       var textValue = replace(replace(trim(arguments.value), chr(13), " ", "all"), chr(10), " ", "all");
-      textValue = reReplace(textValue, "sk_live_[A-Za-z0-9]+", "sk_live_[redacted]", "all");
-      textValue = reReplace(textValue, "sk_test_[A-Za-z0-9]+", "sk_test_[redacted]", "all");
-      textValue = reReplace(textValue, "whsec_[A-Za-z0-9]+", "whsec_[redacted]", "all");
+      textValue = reReplace(textValue, "sk_live_[A-Za-z0-9_]+", "sk_live_[redacted]", "all");
+      textValue = reReplace(textValue, "sk_test_[A-Za-z0-9_]+", "sk_test_[redacted]", "all");
+      textValue = reReplace(textValue, "rk_live_[A-Za-z0-9_]+", "rk_live_[redacted]", "all");
+      textValue = reReplace(textValue, "rk_test_[A-Za-z0-9_]+", "rk_test_[redacted]", "all");
+      textValue = reReplace(textValue, "whsec_[A-Za-z0-9_]+", "whsec_[redacted]", "all");
+      textValue = reReplace(textValue, "cus_[A-Za-z0-9_]+", "cus_[redacted]", "all");
+      textValue = reReplace(textValue, "bps_[A-Za-z0-9_]+", "bps_[redacted]", "all");
       return left(textValue, 1000);
     </cfscript>
+  </cffunction>
+
+  <cffunction name="addStripePortalDebug" access="private" returntype="void" output="false">
+    <cfargument name="stripeResult" type="struct" required="true">
+    <cfargument name="operation" type="string" required="true">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="stripeCustomerId" type="string" required="true">
+    <cfargument name="returnUrl" type="string" required="true">
+    <cfscript>
+      var statusCode = structKeyExists(arguments.stripeResult, "statusCode") ? val(arguments.stripeResult.statusCode) : 0;
+      var stripePayload = normalizeStripePayload(arguments.stripeResult);
+      var stripeError = {};
+      var debugParts = [];
+      var rawBody = structKeyExists(arguments.stripeResult, "rawBody") ? trim(toString(arguments.stripeResult.rawBody)) : "";
+      var stripeType = "";
+      var stripeCode = "";
+      var stripeParam = "";
+      var stripeMessage = "";
+      var requestLogUrl = "";
+      var rawBodyParseable = false;
+
+      arrayAppend(debugParts, "operation=" & sanitizeStripeDebugText(arguments.operation));
+      arrayAppend(debugParts, "userId=" & int(val(arguments.userId)));
+      arrayAppend(debugParts, "hasStoredStripeCustomerId=" & (len(trim(arguments.stripeCustomerId)) GT 0 ? "true" : "false"));
+      if (len(trim(arguments.stripeCustomerId))) {
+        arrayAppend(debugParts, "stripeCustomerId=" & redactStripeCustomerId(arguments.stripeCustomerId));
+      }
+      arrayAppend(debugParts, "returnUrlHost=" & sanitizeStripeDebugText(extractUrlHost(arguments.returnUrl)));
+      if (statusCode GT 0) {
+        arrayAppend(debugParts, "status=" & statusCode);
+      }
+
+      if (structKeyExists(stripePayload, "error") AND isStruct(stripePayload.error)) {
+        rawBodyParseable = true;
+        stripeError = stripePayload.error;
+        stripeType = readString(stripeError, "type");
+        stripeCode = readString(stripeError, "code");
+        stripeParam = readString(stripeError, "param");
+        stripeMessage = readString(stripeError, "message");
+        requestLogUrl = readString(stripeError, "request_log_url");
+
+        if (len(stripeType)) {
+          arrayAppend(debugParts, "type=" & sanitizeStripeDebugText(stripeType));
+        }
+        if (len(stripeCode)) {
+          arrayAppend(debugParts, "code=" & sanitizeStripeDebugText(stripeCode));
+        }
+        if (len(stripeParam)) {
+          arrayAppend(debugParts, "param=" & sanitizeStripeDebugText(stripeParam));
+        }
+        if (len(stripeMessage)) {
+          arrayAppend(debugParts, "message=" & sanitizeStripeDebugText(stripeMessage));
+        }
+        if (len(requestLogUrl)) {
+          arrayAppend(debugParts, "requestLogUrl=" & sanitizeStripeDebugText(requestLogUrl));
+        }
+      } else if (len(rawBody)) {
+        arrayAppend(debugParts, "rawBodyParseable=false");
+      } else {
+        arrayAppend(debugParts, "rawBodyPresent=false");
+      }
+
+      if (rawBodyParseable) {
+        arrayAppend(debugParts, "rawBodyParseable=true");
+      }
+
+      writeStripePortalDebugLog(arguments.operation, arguments.userId, arrayToList(debugParts, "; "));
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="redactStripeCustomerId" access="private" returntype="string" output="false">
+    <cfargument name="stripeCustomerId" type="string" required="true">
+    <cfscript>
+      var value = trim(arguments.stripeCustomerId);
+      if (!len(value)) {
+        return "";
+      }
+      if (len(value) LTE 12) {
+        return left(value, 4) & "...[redacted]";
+      }
+      return left(value, 8) & "..." & right(value, 4);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="extractUrlHost" access="private" returntype="string" output="false">
+    <cfargument name="url" type="string" required="true">
+    <cfscript>
+      var value = trim(arguments.url);
+      var match = {};
+      if (!len(value)) {
+        return "";
+      }
+      match = reFindNoCase("^https?://([^/?##:]+)", value, 1, true);
+      if (isStruct(match) AND arrayLen(match.pos) GTE 2 AND match.pos[2] GT 0) {
+        return mid(value, match.pos[2], match.len[2]);
+      }
+      return "";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="writeStripePortalDebugLog" access="private" returntype="void" output="false">
+    <cfargument name="operation" type="string" required="true">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="debugMessage" type="string" required="true">
+    <cfscript>
+      var logDirectory = expandPath("/fpw/logs");
+      var logFile = logDirectory & "/stripe-portal-debug.log";
+      var logLine = "STRIPE_PORTAL_DEBUG ts=#dateTimeFormat(now(), 'yyyy-mm-dd HH:nn:ss')# operation=#sanitizeStripeDebugText(arguments.operation)# userId=#int(val(arguments.userId))# debug=#arguments.debugMessage#";
+    </cfscript>
+    <cftry>
+      <cfif NOT directoryExists(logDirectory)>
+        <cfdirectory action="create" directory="#logDirectory#">
+      </cfif>
+      <cffile action="append" file="#logFile#" output="#logLine#" addnewline="true" charset="utf-8">
+      <cfcatch type="any">
+        <cflog file="fpw-errors" type="error" text="STRIPE_PORTAL_DEBUG_LOG_FAILED message=#toString(cfcatch.message)# detail=#toString(cfcatch.detail)#">
+      </cfcatch>
+    </cftry>
   </cffunction>
 
   <cffunction name="writeStripeCheckoutDebugLog" access="private" returntype="void" output="false">

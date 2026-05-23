@@ -28,7 +28,7 @@
         --wx-red: #f05b5b;
         --wx-radius: 8px;
         --wx-radius-sm: 5px;
-        --wx-max: 1330px;
+        --wx-max: 1480px;
       }
 
       .dashboard-main {
@@ -40,7 +40,7 @@
       }
 
       .fpw-weather-page {
-        width: min(var(--wx-max), calc(100vw - 40px));
+        width: min(var(--wx-max), calc(100% - 48px));
         margin: 0 auto;
         color: var(--wx-text);
         font-family: inherit;
@@ -722,7 +722,7 @@
       }
 
       @media (max-width: 760px) {
-        .fpw-weather-page { width: min(100% - 20px, var(--wx-max)); }
+        .fpw-weather-page { width: min(100% - 28px, var(--wx-max)); }
         .fpw-weather-page h1 { font-size: 25px; }
         .weather-title-row { align-items: flex-start; }
         .weather-title-icon { width: 36px; height: 36px; font-size: 28px; }
@@ -794,7 +794,7 @@
 <cfset request.fpwTopNavActive = "weather">
 <cfinclude template="../includes/top_nav.cfm">
 
-<main class="fpw-weather-page" id="fpwWeatherPage">
+<main class="fpw-weather-page fpw-layout-rail" id="fpwWeatherPage">
   <div id="weatherLoading" class="weather-scan-console d-none" aria-labelledby="weatherScanTitle">
     <div class="weather-scan-console__head">
       <div class="weather-scan-console__pulse" aria-hidden="true"></div>
@@ -1093,22 +1093,12 @@
     </div>
   </section>
 
-  <section class="weather-panel active-cruise-weather-panel">
-    <header class="active-cruise-weather-header"><div><h2>Active Cruise Weather <span>(Add-On)</span></h2></div><div class="active-route-label"><span>Current Route:</span><strong id="weatherActiveRouteName">—</strong><a href="<cfoutput>#request.fpwBase#</cfoutput>/app/active-cruise.cfm" class="mini-action-link" id="weatherManageRouteLink">Manage Route</a></div></header>
-    <div class="active-cruise-weather-grid" id="weatherActiveCruiseGrid">
-      <div class="active-weather-column"><div class="column-kicker">Current Leg Conditions</div><dl class="compact-detail-list"><div><dt>Wind</dt><dd id="weatherActiveWind">—</dd></div><div><dt>Gusts</dt><dd id="weatherActiveGusts">—</dd></div><div><dt>Seas</dt><dd id="weatherActiveSeas">—</dd></div><div><dt>Visibility</dt><dd id="weatherActiveVisibility">—</dd></div></dl></div>
-      <div class="active-weather-column active-weather-visual"><div class="muted">Updated <span id="weatherActiveUpdatedAt">—</span></div><div class="active-weather-sun" aria-hidden="true">☀</div></div>
-      <div class="active-weather-column"><div class="column-kicker">Next 6 Hours</div><ul class="impact-list" id="weatherActiveNextSix"><li>Weather context is loaded from this page only.</li></ul></div>
-      <div class="active-weather-column"><div class="column-kicker">Cruise Impact</div><p id="weatherActiveCruiseImpact">No active cruise weather context available on this page yet.</p></div>
-      <div class="active-weather-detail-card"><div>Want more detail?</div><a href="<cfoutput>#request.fpwBase#</cfoutput>/app/weather.cfm" class="weather-primary-button full-width-button">Open Full Marine Weather Forecast</a></div>
-    </div>
-    <div class="active-cruise-empty-state" id="weatherActiveCruiseEmpty">No active cruise weather context available on this page yet.</div>
-  </section>
-
   <footer class="weather-page-footer">
     <span>Weather data provided by NOAA/NWS</span><span class="dot-separator">&bull;</span><span>Marine forecasts and tides from NOAA nowCOAST</span><span class="dot-separator">&bull;</span><span>Times in <span id="weatherTimezoneLabel">—</span></span><span class="weather-version" id="weatherVersionLabel"></span>
   </footer>
 </main>
+
+<cfinclude template="../includes/footer.cfm">
 
 <div class="weather-map-modal" id="weatherMapModal" hidden aria-hidden="true">
   <div class="weather-map-modal__backdrop" data-weather-map-close></div>

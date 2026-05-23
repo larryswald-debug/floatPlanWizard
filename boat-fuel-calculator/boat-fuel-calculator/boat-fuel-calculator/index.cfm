@@ -356,37 +356,6 @@
     @media (max-width: 560px) {
       .promo-strip-copy { white-space: normal; }
     }
-    footer {
-      padding: 0 0 27px;
-    }
-    .footer-card {
-      padding: 26px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      flex-wrap: wrap;
-      background: rgba(8,19,28,0.95);
-    }
-    .footer-card p {
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.6;
-    }
-    .footer-card .footer-copyright {
-      display: block;
-      margin-top: 6px;
-      color: var(--soft);
-      font-size: 0.84rem;
-    }
-    .footer-links {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      color: var(--soft);
-      font-size: 0.9rem;
-      letter-spacing: 0.01em;
-    }
   </style>
 </head>
 <body class="fuelcalc-page">
@@ -546,17 +515,7 @@
     </div>
   </main>
 
-  <footer>
-    <div class="shell">
-      <div class="panel footer-card">
-        <p><strong>FloatPlanWizard</strong><br />Plan the voyage. Share the journey. Keep everyone informed.<br /><span class="footer-copyright">&copy; 2026 FloatPlanWizard. All rights reserved.</span></p>
-        <div class="footer-links">
-          <span>Launching Spring 2026</span>
-          <span>Built for Great Loopers and serious recreational boaters</span>
-        </div>
-      </div>
-    </div>
-  </footer>
+  <cfinclude template="../../../includes/footer.cfm">
 
   <script>
     (function () {

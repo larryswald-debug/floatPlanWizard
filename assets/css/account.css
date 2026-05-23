@@ -1,7 +1,7 @@
 /* /fpw/assets/css/account.css */
 
     .account-main {
-      max-width: 1120px;
+      width: min(1480px, calc(100% - 48px));
       margin: 0 auto;
       padding: 0.5rem 20px 1.5rem;
     }
@@ -258,6 +258,10 @@
     }
 
     @media (max-width: 760px) {
+      .account-main {
+        width: min(100% - 28px, 1480px);
+      }
+
       .account-body .companion-device-row {
         flex-direction: column;
       }

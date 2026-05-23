@@ -351,7 +351,7 @@ if (isEarlyAccessPost) {
       --radius-xl: 28px;
       --radius-lg: 20px;
       --radius-md: 14px;
-      --fpw-public-layout-max: 1320px;
+      --fpw-public-layout-max: 1480px;
       --max: var(--fpw-public-layout-max);
       --promo-strip-offset: 36px;
     }
@@ -374,7 +374,7 @@ if (isEarlyAccessPost) {
     img { max-width: 100%; display: block; }
 
     .shell {
-      width: min(calc(100% - 32px), var(--max));
+      width: min(calc(100% - 48px), var(--max));
       margin: 0 auto;
     }
 
@@ -1109,6 +1109,475 @@ if (isEarlyAccessPost) {
       white-space: nowrap;
     }
 
+    .fpw-home-access-section {
+      position: relative;
+      isolation: isolate;
+      margin: 28px auto 10px;
+      width: min(calc(100% - 48px), var(--max));
+      max-width: var(--max);
+      padding: 0;
+      color: #eaf6ff;
+    }
+
+    .fpw-home-access-inner {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(420px, 0.52fr);
+      gap: 24px;
+      min-height: 0;
+      overflow: hidden;
+      border: 1px solid rgba(42, 198, 224, 0.24);
+      border-radius: var(--radius-xl);
+      padding: 28px;
+      background:
+        radial-gradient(circle at 72% 55%, rgba(40, 206, 228, 0.24), transparent 34%),
+        radial-gradient(circle at 14% 22%, rgba(32, 188, 212, 0.16), transparent 30%),
+        linear-gradient(90deg, rgba(4, 19, 31, 0.98) 0%, rgba(4, 19, 31, 0.9) 32%, rgba(4, 19, 31, 0.58) 58%, rgba(4, 19, 31, 0.88) 100%),
+        var(--fpw-access-bg);
+      background-size: cover;
+      background-position: center center;
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.02) inset,
+        0 26px 70px rgba(0, 0, 0, 0.42);
+    }
+
+    .fpw-home-access-inner::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background:
+        linear-gradient(180deg, rgba(2, 16, 27, 0.18), rgba(2, 16, 27, 0.78)),
+        radial-gradient(circle at 58% 75%, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.62) 62%);
+      pointer-events: none;
+    }
+
+    .fpw-home-access-copy {
+      position: relative;
+      z-index: 1;
+      max-width: none;
+    }
+
+    .fpw-home-access-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 36px;
+      margin-bottom: 16px;
+      padding: 0 14px;
+      border: 1px solid rgba(42, 217, 237, 0.26);
+      border-radius: 999px;
+      background: rgba(9, 54, 72, 0.56);
+      color: #d8f7ff;
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.2);
+    }
+
+    .fpw-home-access-badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #25e4f0;
+      box-shadow: 0 0 18px rgba(37, 228, 240, 0.8);
+    }
+
+    .fpw-home-access-badge-separator {
+      width: auto;
+      height: auto;
+      background: transparent;
+      color: rgba(210, 239, 248, 0.7);
+    }
+
+    .fpw-home-access-title {
+      max-width: 920px;
+      margin: 0 0 14px;
+      color: #f2f8ff;
+      font-size: 35px;
+      line-height: 1.05;
+      font-weight: 950;
+      letter-spacing: 0;
+      text-wrap: balance;
+      text-shadow: 0 4px 22px rgba(0, 0, 0, 0.45);
+    }
+
+    .fpw-home-access-lede,
+    .fpw-home-access-text {
+      max-width: 72ch;
+      margin: 0 0 12px;
+      color: #bad1df;
+      font-size: 1.02rem;
+      line-height: 1.75;
+      font-weight: 600;
+    }
+
+    .fpw-home-access-text {
+      color: #a8c0d0;
+    }
+
+    .fpw-home-access-features {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: stretch;
+      gap: 0;
+      margin-top: 24px;
+    }
+
+    .fpw-home-access-feature {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 44px;
+      padding: 0 18px;
+      border-right: 1px solid rgba(164, 218, 232, 0.24);
+      color: #eff8ff;
+      font-size: 0.96rem;
+      font-weight: 900;
+      line-height: 1.15;
+      text-shadow: 0 3px 16px rgba(0, 0, 0, 0.38);
+    }
+
+    .fpw-home-access-feature:first-child {
+      padding-left: 0;
+    }
+
+    .fpw-home-access-feature:last-child {
+      border-right: 0;
+    }
+
+    .fpw-home-access-feature-icon {
+      display: inline-flex;
+      width: 34px;
+      height: 34px;
+      flex: 0 0 34px;
+      align-items: center;
+      justify-content: center;
+      color: #70f0ff;
+    }
+
+    .fpw-home-access-feature-icon svg,
+    .fpw-home-plan-icon svg,
+    .fpw-home-trust-badges svg {
+      width: 100%;
+      height: 100%;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .fpw-home-pricing-card {
+      position: relative;
+      z-index: 2;
+      align-self: center;
+      border: 1px solid rgba(42, 198, 224, 0.36);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      background:
+        linear-gradient(180deg, rgba(8, 31, 48, 0.94), rgba(5, 22, 35, 0.96)),
+        radial-gradient(circle at 16% 0%, rgba(38, 229, 225, 0.15), transparent 35%);
+      box-shadow:
+        0 24px 80px rgba(0, 0, 0, 0.52),
+        0 0 40px rgba(38, 216, 236, 0.1) inset;
+      backdrop-filter: blur(16px);
+    }
+
+    .fpw-home-pricing-eyebrow {
+      margin-bottom: 8px;
+      color: #28f0e6;
+      font-size: 0.78rem;
+      font-weight: 950;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .fpw-home-pricing-title {
+      margin: 0 0 14px;
+      color: #f4f8ff;
+      font-size: 1.02rem;
+      line-height: 1.75;
+      font-weight: 950;
+      letter-spacing: 0;
+    }
+
+    .fpw-home-plan-list {
+      display: grid;
+      gap: 8px;
+      margin: 0 0 16px;
+    }
+
+    .fpw-home-plan-row {
+      position: relative;
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      min-height: 50px;
+      border: 1px solid rgba(155, 205, 222, 0.15);
+      border-radius: 14px;
+      padding: 10px 14px 10px 8px;
+      background: rgba(4, 20, 34, 0.62);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+    }
+
+    .fpw-home-plan-row-featured {
+      border-color: rgba(21, 239, 225, 0.82);
+      background:
+        linear-gradient(90deg, rgba(10, 54, 70, 0.82), rgba(4, 22, 35, 0.72));
+      box-shadow:
+        0 0 0 1px rgba(21, 239, 225, 0.18) inset,
+        0 0 28px rgba(21, 239, 225, 0.08);
+    }
+
+    .fpw-home-plan-tag {
+      position: absolute;
+      top: -9px;
+      right: 18px;
+      border-radius: 4px;
+      padding: 3px 8px;
+      background: #18f5e9;
+      color: #031722;
+      font-size: 0.78rem;
+      font-weight: 950;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .fpw-home-plan-icon {
+      display: inline-flex;
+      width: 36px;
+      height: 36px;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(112, 240, 255, 0.14);
+      border-radius: 12px;
+      background: rgba(24, 65, 90, 0.42);
+      color: #9eddf0;
+    }
+
+    .fpw-home-plan-row-featured .fpw-home-plan-icon {
+      border-color: rgba(25, 242, 232, 0.28);
+      background: rgba(25, 242, 232, 0.12);
+      color: #1ff4e8;
+    }
+
+    .fpw-home-plan-copy {
+      display: grid;
+      gap: 3px;
+    }
+
+    .fpw-home-plan-copy strong {
+      color: #f3f8ff;
+      font-size: 0.95rem;
+      line-height: 1.05;
+      font-weight: 950;
+    }
+
+    .fpw-home-plan-copy span {
+      color: #b3c7d4;
+      font-size: 0.96rem;
+      line-height: 1.75;
+      font-weight: 650;
+    }
+
+    .fpw-home-plan-price {
+      white-space: nowrap;
+      color: #f7fbff;
+      font-size: 1.02rem;
+      line-height: 1.75;
+      font-weight: 950;
+      letter-spacing: 0;
+    }
+
+    .fpw-home-plan-price span {
+      margin-left: 2px;
+      color: #d4e5ee;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .fpw-home-plan-price-accent {
+      color: #20f2e6;
+    }
+
+    .fpw-home-pricing-actions {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .fpw-home-primary-cta,
+    .fpw-home-secondary-cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 42px;
+      border-radius: 14px;
+      text-decoration: none;
+      font-size: 0.96rem;
+      font-weight: 950;
+      transition:
+        transform 160ms ease,
+        box-shadow 160ms ease,
+        border-color 160ms ease,
+        background 160ms ease;
+    }
+
+    .fpw-home-primary-cta {
+      border: 0;
+      background: linear-gradient(90deg, #27e1d1 0%, #4bc3ff 100%);
+      color: #031722;
+      box-shadow: 0 14px 34px rgba(33, 219, 224, 0.18);
+    }
+
+    .fpw-home-primary-cta:hover,
+    .fpw-home-primary-cta:focus-visible {
+      transform: translateY(-1px);
+      color: #031722;
+      box-shadow: 0 18px 44px rgba(33, 219, 224, 0.26);
+    }
+
+    .fpw-home-secondary-cta {
+      border: 1px solid rgba(149, 200, 218, 0.17);
+      background: rgba(4, 20, 34, 0.52);
+      color: #23efe4;
+    }
+
+    .fpw-home-secondary-cta:hover,
+    .fpw-home-secondary-cta:focus-visible {
+      border-color: rgba(35, 239, 228, 0.46);
+      background: rgba(8, 42, 59, 0.74);
+      color: #69fbff;
+      transform: translateY(-1px);
+    }
+
+    .fpw-home-trust-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .fpw-home-trust-badges span {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 30px;
+      border: 1px solid rgba(178, 217, 230, 0.14);
+      border-radius: 999px;
+      padding: 0 10px;
+      background: rgba(255, 255, 255, 0.055);
+      color: #d7e5ed;
+      font-size: 0.78rem;
+      font-weight: 850;
+    }
+
+    .fpw-home-trust-badges svg {
+      width: 18px;
+      height: 18px;
+      color: #a3e6f2;
+    }
+
+    @media (max-width: 1180px) {
+      .fpw-home-access-inner {
+        grid-template-columns: 1fr;
+        min-height: 0;
+        background-position: center center;
+      }
+
+      .fpw-home-pricing-card {
+        max-width: 720px;
+        align-self: stretch;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .fpw-home-access-section {
+        width: min(calc(100% - 28px), var(--max));
+      }
+
+      .fpw-home-access-inner {
+        border-radius: 22px;
+        padding: 22px 18px;
+      }
+
+      .fpw-home-access-badge {
+        gap: 9px;
+        min-height: 40px;
+        padding: 0 14px;
+        font-size: 0.78rem;
+        letter-spacing: 0.12em;
+      }
+
+      .fpw-home-access-badge-separator {
+        height: 16px;
+      }
+
+      .fpw-home-access-title {
+        font-size: 35px;
+      }
+
+      .fpw-home-access-lede,
+      .fpw-home-access-text {
+        font-size: 1.02rem;
+      }
+
+      .fpw-home-access-features {
+        display: grid;
+        gap: 12px;
+        margin-top: 22px;
+      }
+
+      .fpw-home-access-feature {
+        min-height: 0;
+        border-right: 0;
+        padding: 0;
+        font-size: 0.96rem;
+      }
+
+      .fpw-home-access-feature-icon {
+        width: 34px;
+        height: 34px;
+        flex-basis: 34px;
+      }
+
+      .fpw-home-pricing-card {
+        border-radius: 24px;
+        padding: 20px;
+      }
+
+      .fpw-home-plan-row {
+        grid-template-columns: 48px minmax(0, 1fr);
+        gap: 12px;
+        padding: 13px;
+      }
+
+      .fpw-home-plan-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+      }
+
+      .fpw-home-plan-price {
+        grid-column: 2;
+        justify-self: start;
+        margin-top: 4px;
+      }
+
+      .fpw-home-plan-tag {
+        right: 16px;
+      }
+
+      .fpw-home-primary-cta,
+      .fpw-home-secondary-cta {
+        min-height: 46px;
+      }
+    }
+
     section.section {
       padding: 10px 0;
     }
@@ -1701,42 +2170,6 @@ if (isEarlyAccessPost) {
     .pill-track { background: rgba(71,199,255,0.12); color: var(--accent); }
     .pill-loop { background: rgba(255,200,92,0.12); color: var(--accent-3); }
 
-    footer {
-      padding: 0 0 54px;
-    }
-
-    .footer-card {
-      padding: 26px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      flex-wrap: wrap;
-      background: rgba(8,19,28,0.95);
-    }
-
-    .footer-card p {
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.6;
-    }
-
-    .footer-card .footer-copyright {
-      display: block;
-      margin-top: 6px;
-      color: var(--soft);
-      font-size: 0.84rem;
-    }
-
-    .footer-links {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      color: var(--soft);
-      font-size: 0.9rem;
-      letter-spacing: 0.01em;
-    }
-
     @media (max-width: 1120px) {
       .hero-grid,
       .grid-2,
@@ -1763,7 +2196,7 @@ if (isEarlyAccessPost) {
     }
 
     @media (max-width: 780px) {
-      .shell { width: min(calc(100% - 20px), var(--max)); }
+      .shell { width: min(calc(100% - 28px), var(--max)); }
       .topbar .shell { width: min(calc(100% - 28px), var(--fpw-public-layout-max)); }
       .topbar-inner { align-items: flex-start; flex-direction: column; }
       .nav { width: 100%; justify-content: flex-start; gap: 6px; }
@@ -1803,7 +2236,7 @@ if (isEarlyAccessPost) {
       }
     }
   </style>
-  <link rel="stylesheet" href="assets/css/prelaunch-top-nav.css?v=20260425-1739">
+<link rel="stylesheet" href="assets/css/top-nav.css?v=20260522-subnav-44">
 </head>
 <body id="top">
 <cfinclude template="includes/prelaunch_top_nav.cfm">
@@ -1895,56 +2328,160 @@ if (isEarlyAccessPost) {
         </div>
       </div>
 
-      <div class="shell">
-        <div id="notify" class="panel waitlist-card">
-          <div class="waitlist-grid">
-            <div class="waitlist-copy">
-              <div class="waitlist-copy-body">
-                <div class="waitlist-eyebrow"><span class="waitlist-eyebrow-dot" aria-hidden="true"></span>Going Live Spring 2026</div>
-                <h2>Be first to know when FloatPlanWizard goes live.</h2>
-                <p class="waitlist-primary">
-                  Join the pre-launch list for going-live updates, early access news, and launch announcements built for serious recreational boaters and Great Loop cruisers.
-                </p>
-                <p class="waitlist-secondary">
-                  From marina Wi-Fi and cellular to increasingly common Starlink-connected cruising, FloatPlanWizard is designed for modern boaters who want family and friends better informed while underway.
-                </p>
-                <p class="waitlist-secondary">
-                  Signing up for launch notifications is free and requires no credit card. FloatPlanWizard will offer a free version at launch, with optional paid memberships available for advanced tools and features.
-                </p>
+      <section id="notify" class="fpw-home-access-section" style="--fpw-access-bg: url('assets/images/home/pricing-access-boat-bg.png');" aria-labelledby="fpwAccessTitle">
+        <div class="fpw-home-access-inner">
+          <div class="fpw-home-access-copy">
+            <div class="fpw-home-access-badge">
+              <span class="fpw-home-access-badge-dot" aria-hidden="true"></span>
+              <span>NOW LIVE</span>
+              <span class="fpw-home-access-badge-separator" aria-hidden="true">&bull;</span>
+              <span>2026 BOATING SEASON</span>
+            </div>
+
+            <h2 id="fpwAccessTitle" class="fpw-home-access-title">
+              Start your first float plan free.<br>
+              Upgrade when you need live trip tools.
+            </h2>
+
+            <p class="fpw-home-access-lede">
+              FloatPlanWizard helps recreational boaters create float plans, share trip details, and keep family or contacts better informed while underway.
+            </p>
+
+            <p class="fpw-home-access-text">
+              Basic access is free for simple same-day trips. Premium unlocks route-based planning, Active Cruise, Follow pages, monitoring tools, and advanced trip visibility.
+            </p>
+
+            <p class="fpw-home-access-text">
+              Choose the plan that fits your trip. Upgrade anytime to get the live tools serious boaters trust on the water.
+            </p>
+
+            <div class="fpw-home-access-features" aria-label="FloatPlanWizard access highlights">
+              <div class="fpw-home-access-feature">
+                <span class="fpw-home-access-feature-icon" aria-hidden="true">
+                  <svg viewBox="0 0 48 48" focusable="false">
+                    <path d="M15 7h18l5 5v28a3 3 0 0 1-3 3H15a3 3 0 0 1-3-3V10a3 3 0 0 1 3-3Z"></path>
+                    <path d="M32 7v7h7"></path>
+                    <path d="M18 21h14"></path>
+                    <path d="M18 28h14"></path>
+                    <path d="M18 35h8"></path>
+                  </svg>
+                </span>
+                <span>Basic Float Plan</span>
               </div>
-              <div class="waitlist-proof" aria-label="Launch benefits">
-                <span class="waitlist-proof-pill"><i class="bi bi-eye waitlist-proof-icon" aria-hidden="true"></i><span>Better float-plan visibility</span></span>
-                <span class="waitlist-proof-pill"><i class="bi bi-geo-alt waitlist-proof-icon" aria-hidden="true"></i><span>Live trip updates</span></span>
-                <span class="waitlist-proof-pill"><i class="bi bi-router waitlist-proof-icon" aria-hidden="true"></i><span>Built for connected cruisers</span></span>
+
+              <div class="fpw-home-access-feature">
+                <span class="fpw-home-access-feature-icon" aria-hidden="true">
+                  <svg viewBox="0 0 48 48" focusable="false">
+                    <path d="M8 31c4 0 4 4 8 4s4-4 8-4 4 4 8 4 4-4 8-4"></path>
+                    <path d="M8 38c4 0 4 4 8 4s4-4 8-4 4 4 8 4 4-4 8-4"></path>
+                    <circle cx="24" cy="17" r="9"></circle>
+                    <path d="M24 10v7l5 3"></path>
+                  </svg>
+                </span>
+                <span>Active Cruise + Follow</span>
+              </div>
+
+              <div class="fpw-home-access-feature">
+                <span class="fpw-home-access-feature-icon" aria-hidden="true">
+                  <svg viewBox="0 0 48 48" focusable="false">
+                    <circle cx="18" cy="16" r="7"></circle>
+                    <path d="M6 39c1.7-8 6.3-12 12-12s10.3 4 12 12"></path>
+                    <path d="M32 14h6a4 4 0 0 1 4 4v12a4 4 0 0 1-4 4h-8"></path>
+                    <path d="M35 22v5"></path>
+                    <path d="M32.5 24.5h5"></path>
+                  </svg>
+                </span>
+                <span>Companion Check-Ins</span>
               </div>
             </div>
-            <aside class="waitlist-signup-panel signup-panel" aria-label="Launch signup panel">
-              <div class="signup-form-state">
-                <div class="section-kicker">Launch Notification</div>
-                <h3>Get notified the moment FPW opens.</h3>
-                <p>Designed for modern cruisers, including Great Loop boaters who rely on cellular and increasingly satellite connectivity like Starlink to stay connected underway.</p>
-                <form class="signup" id="waitlistForm" novalidate>
-                  <label class="sr-only" for="emailInput" style="position:absolute;left:-9999px;">Email address</label>
-                  <input id="emailInput" name="email" type="email" placeholder="Enter your email address" autocomplete="email" required />
-                  <button class="btn btn-primary" type="submit"><i class="bi bi-bell"></i>Notify Me of Launch</button>
-                </form>
-                <div class="status">No spam. Just launch updates and early access news.</div>
-                <div class="signup-feedback" id="signupStatus"></div>
-                <div class="waitlist-signup-tags" aria-label="Connectivity profile">
-                  <span class="waitlist-signup-tag">Great Loop Ready</span>
-                  <span class="waitlist-signup-tag">Cell + Starlink</span>
-                </div>
-              </div>
-              <div class="signup-success-state" id="signupSuccessPrimary" aria-live="polite">
-                <h4>You're on the list</h4>
-                <p>Thanks for joining early access. You'll receive FloatPlanWizard launch updates and early access news.</p>
-                <div class="bonus">As a thank-you for signing up early, you'll receive 2 months of premium membership free - no strings attached.</div>
-                <div class="subtle">Watch your inbox for launch updates.</div>
-              </div>
-            </aside>
           </div>
+
+          <aside class="fpw-home-pricing-card" aria-label="Choose your access">
+            <div class="fpw-home-pricing-eyebrow">CHOOSE YOUR ACCESS</div>
+            <h3 class="fpw-home-pricing-title">Simple pricing for every trip.</h3>
+
+            <div class="fpw-home-plan-list">
+              <article class="fpw-home-plan-row">
+                <div class="fpw-home-plan-icon" aria-hidden="true">
+                  <svg viewBox="0 0 48 48" focusable="false">
+                    <path d="M15 8h15l6 6v26H15z"></path>
+                    <path d="M30 8v8h7"></path>
+                    <path d="M20 24h12"></path>
+                    <path d="M20 31h12"></path>
+                  </svg>
+                </div>
+                <div class="fpw-home-plan-copy">
+                  <strong>Free Basic</strong>
+                  <span>Simple same-day float plan</span>
+                </div>
+                <div class="fpw-home-plan-price">$0</div>
+              </article>
+
+              <article class="fpw-home-plan-row">
+                <div class="fpw-home-plan-icon" aria-hidden="true">
+                  <svg viewBox="0 0 48 48" focusable="false">
+                    <path d="M24 6 41 17 24 42 7 17z"></path>
+                    <path d="M7 17h34"></path>
+                    <path d="M17 17 24 42l7-25"></path>
+                    <path d="M17 17 24 6l7 11"></path>
+                  </svg>
+                </div>
+                <div class="fpw-home-plan-copy">
+                  <strong>Premium Monthly</strong>
+                  <span>Cancel anytime</span>
+                </div>
+                <div class="fpw-home-plan-price">$9.99<span>/mo</span></div>
+              </article>
+
+              <article class="fpw-home-plan-row fpw-home-plan-row-featured">
+                <div class="fpw-home-plan-tag">BEST VALUE</div>
+                <div class="fpw-home-plan-icon" aria-hidden="true">
+                  <svg viewBox="0 0 48 48" focusable="false">
+                    <path d="m8 37 4-24 10 10 8-14 8 14 10-10-4 24z"></path>
+                    <path d="M10 42h28"></path>
+                  </svg>
+                </div>
+                <div class="fpw-home-plan-copy">
+                  <strong>Premium Annual</strong>
+                  <span>Best value</span>
+                </div>
+                <div class="fpw-home-plan-price fpw-home-plan-price-accent">$89<span>/yr</span></div>
+              </article>
+
+              <article class="fpw-home-plan-row">
+                <div class="fpw-home-plan-icon" aria-hidden="true">
+                  <svg viewBox="0 0 48 48" focusable="false">
+                    <rect x="9" y="11" width="30" height="29" rx="3"></rect>
+                    <path d="M16 7v8"></path>
+                    <path d="M32 7v8"></path>
+                    <path d="M9 20h30"></path>
+                    <path d="M17 27h5"></path>
+                    <path d="M26 27h5"></path>
+                    <path d="M17 34h5"></path>
+                  </svg>
+                </div>
+                <div class="fpw-home-plan-copy">
+                  <strong>3-Day Pass</strong>
+                  <span>Great for a weekend cruise</span>
+                </div>
+                <div class="fpw-home-plan-price">$4.99</div>
+              </article>
+            </div>
+
+            <div class="fpw-home-pricing-actions">
+              <a class="fpw-home-primary-cta" href="app/join.cfm">
+                <span>Start Free</span>
+                <span aria-hidden="true">&rarr;</span>
+              </a>
+
+              <a class="fpw-home-secondary-cta" href="app/pricing.cfm">
+                <span>View Full Pricing</span>
+                <span aria-hidden="true">&rsaquo;</span>
+              </a>
+            </div>
+          </aside>
         </div>
-      </div>
+      </section>
     </section>
 
     <section id="features" class="section">
@@ -2110,17 +2647,7 @@ if (isEarlyAccessPost) {
     </section>
   </main>
 
-  <footer>
-    <div class="shell">
-      <div class="panel footer-card">
-        <p><strong>FloatPlanWizard</strong><br />Plan the voyage. Share the journey. Keep everyone informed.<br /><span class="footer-copyright">&copy; 2026 FloatPlanWizard. All rights reserved.</span></p>
-        <div class="footer-links">
-          <span>Launching Spring 2026</span>
-          <span>Built for Great Loopers and serious recreational boaters</span>
-        </div>
-      </div>
-    </div>
-  </footer>
+  <cfinclude template="includes/footer.cfm">
 
   <script>
     (function () {

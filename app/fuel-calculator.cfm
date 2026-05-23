@@ -35,7 +35,7 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
     html { scroll-behavior: smooth; }
     a { color: inherit; text-decoration: none; }
     .shell {
-      width: min(calc(100% - 32px), 1200px);
+      width: min(calc(100% - 48px), 1480px);
       margin: 0 auto;
     }
     .topbar {
@@ -185,7 +185,7 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
     }
     .fuelcalc-main { padding: 10px 0 18px; }
     .fuelcalc-main .wrap {
-      max-width: 1240px;
+      max-width: none;
       margin: 0 auto;
       background: linear-gradient(180deg, rgba(9, 24, 42, 0.96), rgba(5, 17, 32, 0.96));
       border: 1px solid rgba(82, 132, 204, 0.45);
@@ -360,43 +360,12 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
       .fuelcalc-main .card .value { font-size: 34px; }
     }
     @media (max-width: 780px) {
-      .shell { width: min(calc(100% - 20px), 1200px); }
+      .shell { width: min(calc(100% - 28px), 1480px); }
       .topbar-inner { align-items: flex-start; flex-direction: column; }
       .nav { width: 100%; justify-content: flex-start; }
     }
     @media (max-width: 560px) {
       .promo-strip-copy { white-space: normal; }
-    }
-    footer {
-      padding: 0 0 27px;
-    }
-    .footer-card {
-      padding: 26px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      flex-wrap: wrap;
-      background: rgba(8,19,28,0.95);
-    }
-    .footer-card p {
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.6;
-    }
-    .footer-card .footer-copyright {
-      display: block;
-      margin-top: 6px;
-      color: var(--soft);
-      font-size: 0.84rem;
-    }
-    .footer-links {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      color: var(--soft);
-      font-size: 0.9rem;
-      letter-spacing: 0.01em;
     }
   </style>
 </head>
@@ -562,17 +531,7 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
     </div>
   </main>
 
-  <footer>
-    <div class="shell">
-      <div class="panel footer-card">
-        <p><strong>FloatPlanWizard</strong><br />Plan the voyage. Share the journey. Keep everyone informed.<br /><span class="footer-copyright">&copy; 2026 FloatPlanWizard. All rights reserved.</span></p>
-        <div class="footer-links">
-          <span>Launching Spring 2026</span>
-          <span>Built for Great Loopers and serious recreational boaters</span>
-        </div>
-      </div>
-    </div>
-  </footer>
+  <cfinclude template="../includes/footer.cfm">
 
   <script>
     (function () {

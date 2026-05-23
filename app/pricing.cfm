@@ -8,8 +8,7 @@
 
   <cfinclude template="../includes/fpw_base_path.cfm">
   <cfinclude template="../includes/header_styles.cfm">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/prelaunch-top-nav.css?v=20260425-1739">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/pricing.css?v=1">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/pricing.css?v=20260521-site-rail">
 </head>
 <body>
 
@@ -249,4 +248,3 @@
 
 </body>
 </html>
-

@@ -24,14 +24,14 @@ if (startTrialUserId LTE 0) {
 
   <cfinclude template="../includes/header_styles.cfm">
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=2">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/account.css?v=1">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/account.css?v=20260521-site-rail">
 </head>
 
 <body class="dashboard-body account-body">
 
 <cfinclude template="../includes/top_nav.cfm">
 
-<main class="account-main pb-5">
+<main class="account-main fpw-layout-rail pb-5">
   <div class="row justify-content-center">
     <div class="col-12 col-lg-7 col-xl-6">
       <div class="card shadow-sm" id="startTrialCard">

@@ -175,10 +175,12 @@ component extends="testbox.system.BaseSpec" output="false" {
           step2.FLOATPLAN.FLOATPLANID = planId;
           step2.FLOATPLAN.departingFrom = "Test Dock";
           step2.FLOATPLAN.departureTime = dtString( departDt );
-          step2.FLOATPLAN.departureTimezone = "America/New_York";
+          step2.FLOATPLAN.departureTimezone = "UTC";
+          step2.FLOATPLAN.departureTimeUtc = dtString( departDt );
           step2.FLOATPLAN.returningTo = "Test Dock";
           step2.FLOATPLAN.returnTime = dtString( returnDt );
-          step2.FLOATPLAN.returnTimezone = "America/New_York";
+          step2.FLOATPLAN.returnTimezone = "UTC";
+          step2.FLOATPLAN.returnTimeUtc = dtString( returnDt );
           var res2 = apiPostJson( variables.ctx.saveUrl, step2 );
           expect( pickBool( res2, "SUCCESS" ) ).toBeTrue( "Step 2 save failed: #serializeJSON(res2)#" );
           expect( extractId( res2 ) ).toBe( planId );

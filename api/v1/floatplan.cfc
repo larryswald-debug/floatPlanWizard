@@ -3621,7 +3621,7 @@
                     return result;
                 }
                 departureTimeLocal = normalizeLocalWallClockInput(departureTime);
-                departureTimeUtcStore = resolveServerAuthoritativeUtcTimestampString(departureTimeLocal, departureTz);
+                departureTimeUtcStore = normalizeTimestampInput(departureTimeUtcInput);
                 departureTimeUtc = parseUtcTimestampInput(departureTimeUtcStore);
                 if (!len(departureTimeLocal) OR !len(departureTimeUtcStore) OR NOT isDate(departureTimeUtc)) {
                     result.ERROR = "VALIDATION";
@@ -3638,7 +3638,7 @@
                     return result;
                 }
                 returnTimeLocal = normalizeLocalWallClockInput(returnTime);
-                returnTimeUtcStore = resolveServerAuthoritativeUtcTimestampString(returnTimeLocal, returnTz);
+                returnTimeUtcStore = normalizeTimestampInput(returnTimeUtcInput);
                 returnTimeUtc = parseUtcTimestampInput(returnTimeUtcStore);
                 if (!len(returnTimeLocal) OR !len(returnTimeUtcStore) OR NOT isDate(returnTimeUtc)) {
                     result.ERROR = "VALIDATION";
@@ -7749,40 +7749,6 @@
             }
 
             return yearVal & "-" & right("0" & monthVal, 2) & "-" & right("0" & dayVal, 2) & " " & right("0" & hourVal, 2) & ":" & right("0" & minuteVal, 2) & ":" & right("0" & secondVal, 2);
-        </cfscript>
-    </cffunction>
-
-    <cffunction name="resolveServerAuthoritativeUtcTimestampString" access="private" returntype="string" output="false">
-        <cfargument name="localDateTime" type="string" required="true">
-        <cfargument name="sourceTimeZone" type="string" required="true">
-        <cfscript>
-            var normalizedLocal = normalizeLocalWallClockInput(arguments.localDateTime);
-            var sourceZone = trim(arguments.sourceTimeZone);
-            var javaLocalDateTimeClass = "";
-            var javaZoneIdClass = "";
-            var javaZoneOffsetClass = "";
-            var javaDateTimeFormatterClass = "";
-            var localDateTimeObj = "";
-            var instant = "";
-
-            if (!len(normalizedLocal) OR !len(sourceZone)) {
-                return "";
-            }
-            if (listFindNoCase("UTC,Etc/UTC,GMT", sourceZone)) {
-                return normalizedLocal;
-            }
-
-            try {
-                javaLocalDateTimeClass = createObject("java", "java.time.LocalDateTime");
-                javaZoneIdClass = createObject("java", "java.time.ZoneId");
-                javaZoneOffsetClass = createObject("java", "java.time.ZoneOffset");
-                javaDateTimeFormatterClass = createObject("java", "java.time.format.DateTimeFormatter");
-                localDateTimeObj = javaLocalDateTimeClass.parse(replace(normalizedLocal, " ", "T", "one"));
-                instant = localDateTimeObj.atZone(javaZoneIdClass.of(sourceZone)).toInstant();
-                return javaDateTimeFormatterClass.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(javaZoneOffsetClass.UTC).format(instant);
-            } catch (any convertError) {
-                return "";
-            }
         </cfscript>
     </cffunction>
 

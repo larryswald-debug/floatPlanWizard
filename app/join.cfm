@@ -11,7 +11,7 @@
 </head>
 <body class="auth-page-body bg-light d-flex align-items-center justify-content-center">
 
-<div class="container join-wrapper">
+<div class="container fpw-layout-rail join-wrapper">
     <div class="row justify-content-center">
         <div class="col-12 col-sm-10 col-md-7 col-lg-6">
             <div class="card shadow-sm">

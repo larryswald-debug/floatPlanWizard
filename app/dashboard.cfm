@@ -8,9 +8,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <cfinclude template="../includes/header_styles.cfm">
+
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260513-basic-details">
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/help-tour.css?v=20260521-dashboard-tour">
 </head>
 <body class="dashboard-body" data-fpw-page="dashboard">
 
@@ -18,7 +20,7 @@
 <cfinclude template="../includes/top_nav.cfm">
 
 
-<div class="fpw-dashboard-shell">
+<div class="fpw-dashboard-shell fpw-layout-rail">
     <aside class="fpw-dashboard-sidebar" aria-label="Dashboard navigation">
         <a class="fpw-dashboard-brand" href="<cfoutput>#request.fpwBase#</cfoutput>/app/dashboard.cfm">
             <span class="fpw-dashboard-brand-mark" aria-hidden="true">
@@ -47,11 +49,9 @@
             <a class="fpw-dashboard-nav-item" href="#passengersPanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="8" cy="8" r="2.8"></circle><circle cx="16" cy="8" r="2.8"></circle><path d="M3 19a5 5 0 0 1 10 0M11 19a5 5 0 0 1 10 0"></path></svg></span><span>Crew</span></a>
             <a class="fpw-dashboard-nav-item" href="#operatorsPanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="7" r="3"></circle><path d="M6 20a6 6 0 0 1 12 0"></path><path d="M4 14a4 4 0 0 1 4-4M20 14a4 4 0 0 0-4-4"></path></svg></span><span>Operators</span></a>
             <a class="fpw-dashboard-nav-item" href="<cfoutput>#request.fpwBase#</cfoutput>/app/account.cfm"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="3"></circle><path d="M12 2.5v3M12 18.5v3M4.5 4.5l2.1 2.1M17.4 17.4l2.1 2.1M2.5 12h3M18.5 12h3M4.5 19.5l2.1-2.1M17.4 6.6l2.1-2.1"></path></svg></span><span>Settings</span></a>
-        </nav>
-
-        <div class="fpw-dashboard-sidebar-footer">
             <a class="fpw-dashboard-nav-item" href="#recommendedNextStepsPanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="9"></circle><path d="M9.8 9a2.3 2.3 0 1 1 3.8 1.8c-.9.6-1.6 1.2-1.6 2.4M12 17h.01"></path></svg></span><span>Help</span></a>
-        </div>
+            <button type="button" class="fpw-dashboard-nav-item fpw-dashboard-tour-trigger" data-tour-start="dashboard"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M5 5h9a5 5 0 0 1 0 10H9"></path><path d="M9 11 5 15l4 4"></path><path d="M17 5l2-2M20 9h3M18.5 13.5 21 16"></path></svg></span><span>Tour</span></button>
+        </nav>
     </aside>
 
     <main class="fpw-dashboard-main dashboard-main">
@@ -104,14 +104,14 @@
             </div>
         </section>
 
-        <section class="dashboard-card panel-floatlike expedition-panel fpw-dashboard-section" id="expeditionTimelinePanel" aria-labelledby="expeditionTimelineTitle">
+        <section class="dashboard-card panel-floatlike expedition-panel fpw-dashboard-section" id="expeditionTimelinePanel" aria-labelledby="expeditionTimelineTitle" data-tour-id="dashboard-route-workspace">
             <div class="card-header">
                 <div class="card-title">
                     <h2 id="expeditionTimelineTitle">Routes</h2>
                     <p class="fpw-routes-workspace-subtitle">Create and manage your saved boating routes.</p>
                 </div>
                 <div class="card-actions">
-                    <button type="button" class="btn-primary" id="openRouteBuilderBtn">+ Create Route</button>
+                    <button type="button" class="btn-primary" id="openRouteBuilderBtn" data-tour-id="dashboard-create-route">+ Create Route</button>
                 </div>
             </div>
             <div class="card-body fpw-dashboard-scroll-body">
@@ -182,7 +182,7 @@
         </section>
 
         <div class="fpw-dashboard-manage-grid">
-            <section class="dashboard-card panel-floatlike fpw-manage-panel" id="vesselsPanel">
+            <section class="dashboard-card panel-floatlike fpw-manage-panel" id="vesselsPanel" data-tour-id="dashboard-vessel-setup">
                 <div class="card-header">
                     <div class="card-title">
                         <h2>Saved Vessels</h2>
@@ -198,7 +198,7 @@
                 </div>
             </section>
 
-            <section class="dashboard-card panel-floatlike fpw-manage-panel" id="contactsPanel">
+            <section class="dashboard-card panel-floatlike fpw-manage-panel" id="contactsPanel" data-tour-id="dashboard-contacts-setup">
                 <div class="card-header">
                     <div class="card-title">
                         <h2>Trip Contacts</h2>
@@ -216,7 +216,7 @@
         </div>
 
         <div class="fpw-dashboard-manage-grid fpw-dashboard-manage-grid-secondary">
-            <section class="dashboard-card panel-floatlike fpw-manage-panel" id="passengersPanel">
+            <section class="dashboard-card panel-floatlike fpw-manage-panel" id="passengersPanel" data-tour-id="dashboard-passengers-setup">
                 <div class="card-header">
                     <div class="card-title">
                         <h2>Passengers &amp; Crew</h2>
@@ -232,7 +232,7 @@
                 </div>
             </section>
 
-            <section class="dashboard-card panel-floatlike fpw-manage-panel" id="operatorsPanel">
+            <section class="dashboard-card panel-floatlike fpw-manage-panel" id="operatorsPanel" data-tour-id="dashboard-operators-setup">
                 <div class="card-header">
                     <div class="card-title">
                         <h2>Operators</h2>
@@ -249,7 +249,7 @@
             </section>
         </div>
 
-        <section class="dashboard-card panel-floatlike fpw-manage-panel fpw-waypoints-panel" id="waypointsPanel">
+        <section class="dashboard-card panel-floatlike fpw-manage-panel fpw-waypoints-panel" id="waypointsPanel" data-tour-id="dashboard-waypoints">
             <div class="card-header">
                 <div class="card-title">
                     <h2>Waypoints</h2>
@@ -283,6 +283,8 @@
         </section>
     </main>
 </div>
+
+<cfinclude template="../includes/footer.cfm">
 
 <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-dialog-centered">
@@ -1223,6 +1225,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=202603191500a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20260513-basic-panel-lock"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260422b"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help-tour.js?v=20260521-dashboard-tour"></script>
 
 <!-- Dashboard-specific JS -->
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260519-route-current-group-actions"></script>

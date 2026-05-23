@@ -140,6 +140,58 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(findNoCase("sk_test_portal_secret", serializeJSON(res))).toBe(0);
       });
 
+      it("logs sanitized portal failure diagnostics without exposing secrets or full customer IDs", function() {
+        var userId = nextTestUserId();
+        var fullCustomerId = "cus_portal_sensitive_" & userId & "_abcdef123456";
+        var logFile = expandPath("/fpw/logs/stripe-portal-debug.log");
+        var beforeLog = fileExists(logFile) ? fileRead(logFile, "utf-8") : "";
+        var afterLog = "";
+        var newLogContent = "";
+        var rawBody = serializeJSON({
+          error = {
+            type = "invalid_request_error",
+            code = "resource_missing",
+            param = "customer",
+            message = "No such customer: " & fullCustomerId & " using sk_test_should_not_log",
+            request_log_url = "https://dashboard.stripe.com/test/workbench/logs?object=req_portal_diag"
+          }
+        });
+        var service = new fpw.api.v1.StripeCheckoutService().init(
+          datasource = "fpw",
+          configService = buildFakeConfig(),
+          stripeTransport = buildFakePortalFailureTransport(400, rawBody)
+        );
+        createStripeCustomerMapping(userId, fullCustomerId);
+
+        var res = service.createPortalSession(userId);
+
+        afterLog = fileExists(logFile) ? fileRead(logFile, "utf-8") : "";
+        newLogContent = (len(beforeLog) AND left(afterLog, len(beforeLog)) EQ beforeLog)
+          ? mid(afterLog, len(beforeLog) + 1, len(afterLog) - len(beforeLog))
+          : afterLog;
+
+        expect(res.SUCCESS).toBeFalse(serializeJSON(res));
+        expect(res.ERROR).toBe("STRIPE_PORTAL_FAILED");
+        expect(structKeyExists(res, "stripeErrorMessage")).toBeFalse(serializeJSON(res));
+        expect(structKeyExists(res, "stripeRawBody")).toBeFalse(serializeJSON(res));
+        expect(newLogContent).toInclude("operation=billing_portal_session_create");
+        expect(newLogContent).toInclude("userId=" & userId);
+        expect(newLogContent).toInclude("hasStoredStripeCustomerId=true");
+        expect(newLogContent).toInclude("stripeCustomerId=cus_port...3456");
+        expect(newLogContent).toInclude("returnUrlHost=example.invalid");
+        expect(newLogContent).toInclude("status=400");
+        expect(newLogContent).toInclude("type=invalid_request_error");
+        expect(newLogContent).toInclude("code=resource_missing");
+        expect(newLogContent).toInclude("param=customer");
+        expect(newLogContent).toInclude("message=No such customer: cus_[redacted] using sk_test_[redacted]");
+        expect(newLogContent).toInclude("requestLogUrl=https://dashboard.stripe.com/test/workbench/logs?object=req_portal_diag");
+        expect(newLogContent).toInclude("rawBodyParseable=true");
+        expect(findNoCase(fullCustomerId, newLogContent)).toBe(0);
+        expect(findNoCase("sk_test_should_not_log", newLogContent)).toBe(0);
+        expect(findNoCase(rawBody, newLogContent)).toBe(0);
+        expect(findNoCase(fullCustomerId, serializeJSON(res))).toBe(0);
+      });
+
       it("does not alter member_entitlements when creating a portal session", function() {
         var userId = nextTestUserId();
         var service = new fpw.api.v1.StripeCheckoutService().init(
@@ -219,6 +271,23 @@ component extends="testbox.system.BaseSpec" output="false" {
         success = true,
         statusCode = 200,
         body = duplicate(transport.portalResponseBody)
+      };
+    };
+    return transport;
+  }
+
+  private struct function buildFakePortalFailureTransport(required numeric statusCode, required string rawBody) {
+    var transport = { portalRequests = [] };
+    transport.createPortalSession = function(required struct requestPayload, required string secretKey) {
+      arrayAppend(transport.portalRequests, {
+        requestPayload = duplicate(arguments.requestPayload),
+        secretKey = arguments.secretKey
+      });
+      return {
+        SUCCESS = false,
+        success = false,
+        statusCode = statusCode,
+        rawBody = rawBody
       };
     };
     return transport;

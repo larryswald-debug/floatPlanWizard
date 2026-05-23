@@ -426,6 +426,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Active Cruise V2</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="<cfoutput>#activeCruiseV2BasePath#</cfoutput>/assets/css/top-nav.css?v=20260522-subnav-44">
   <style>
     :root {
       color-scheme: dark;
@@ -452,7 +453,7 @@
       line-height: 1.45;
     }
     main {
-      width: min(1320px, calc(100% - 28px));
+      width: min(1480px, calc(100% - 48px));
       margin: 0 auto;
       padding: 22px 0 42px;
     }
@@ -1292,7 +1293,7 @@
       padding: 22px 0 34px;
     }
     .shell {
-      width: min(calc(100% - 28px), var(--max));
+      width: min(calc(100% - 48px), var(--max));
       margin: 0 auto;
     }
     .topbar {
@@ -3296,7 +3297,7 @@
     }
     @media (max-width: 780px) {
       main.main { width: auto; }
-      .shell { width: min(calc(100% - 20px), var(--max)); }
+      .shell { width: min(calc(100% - 28px), var(--max)); }
       .identity-strip,
       .layout,
       .supporting-grid,
@@ -3329,7 +3330,7 @@
       }
     }
     @media (max-width: 860px) {
-      .shell { width: min(calc(100% - 18px), var(--max)); }
+      .shell { width: min(calc(100% - 28px), var(--max)); }
       .topbar-inner,
       .hero-main,
       .section-header,
@@ -3405,6 +3406,8 @@
   </style>
 </head>
 <body>
+<cfset request.fpwTopNavActive = "active-cruise">
+<cfinclude template="../includes/top_nav.cfm">
 <cfoutput>
   <header class="topbar" aria-label="Active Cruise V2 visual shell">
     <div class="shell topbar-inner">
@@ -4415,6 +4418,7 @@
   <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260430-radar-opacity-a"></script>
   <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/maps/fpw-weather-overlays.js?v=20260430a"></script>
 </cfoutput>
+<cfinclude template="../includes/footer.cfm">
 <script>
 (function() {
   const mapEl = document.getElementById('fpwActiveCruiseV2Map');

@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
     :root {
-      --fpw-public-layout-max: 1330px;
+      --fpw-public-layout-max: 1480px;
       --fuel-bg: #020914;
       --fuel-panel: rgba(7, 22, 38, 0.84);
       --fuel-panel-strong: rgba(4, 15, 28, 0.96);
@@ -55,7 +55,7 @@
 
     .fpw-fuel-page {
       position: relative;
-      width: min(100% - 48px, 1330px);
+      width: min(100% - 48px, 1480px);
       margin-inline: auto;
       padding: 28px 0 34px;
       overflow: hidden;
@@ -821,7 +821,7 @@
 
     @media (max-width: 900px) {
       .fpw-fuel-page {
-        width: min(100% - 32px, 1330px);
+        width: min(100% - 28px, 1480px);
       }
 
       .fpw-fuel-hero {
@@ -862,7 +862,7 @@
 
     @media (max-width: 640px) {
       .fpw-fuel-page {
-        width: min(100% - 20px, 1330px);
+        width: min(100% - 28px, 1480px);
         padding-top: 16px;
       }
 
@@ -918,7 +918,7 @@
       }
     }
   </style>
-  <link rel="stylesheet" href="../assets/css/top-nav.css?v=20260426-1721">
+<link rel="stylesheet" href="../assets/css/top-nav.css?v=20260522-subnav-44">
   <link rel="canonical" href="https://www.floatplanwizard.com/boat-fuel-calculator/" />
 </head>
 <body class="fuelcalc-page">

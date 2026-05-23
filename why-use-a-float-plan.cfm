@@ -60,7 +60,7 @@ fpwFloatPlanAppUrl = fpwFloatPlanBasePath & "/" & "app" & "/";
       --fpw-blue: #2087d9;
       --fpw-dark-blue: #04172b;
       --fpw-shadow: 0 24px 64px rgba(0, 0, 0, 0.42);
-      --fpw-public-layout-max: 1320px;
+      --fpw-public-layout-max: 1480px;
       --fpw-max: var(--fpw-public-layout-max);
     }
 
@@ -697,7 +697,7 @@ fpwFloatPlanAppUrl = fpwFloatPlanBasePath & "/" & "app" & "/";
       body.fpw-floatplan-public .shell,
       .fpw-floatplan-shell,
       .fpw-floatplan-footer__inner {
-        width: min(100% - 20px, var(--fpw-max));
+        width: min(100% - 28px, var(--fpw-max));
       }
 
       body.fpw-floatplan-public .topbar-inner {
@@ -762,7 +762,7 @@ fpwFloatPlanAppUrl = fpwFloatPlanBasePath & "/" & "app" & "/";
     }
   </style>
   <link rel="canonical" href="https://www.floatplanwizard.com/why-use-a-float-plan/" />
-  <cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/top-nav.css?v=20260425-1739"></cfoutput>
+<cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/top-nav.css?v=20260522-subnav-44"></cfoutput>
 </head>
 <body class="fpw-floatplan-public">
 <cfinclude template="includes/top_nav.cfm">
@@ -956,26 +956,7 @@ fpwFloatPlanAppUrl = fpwFloatPlanBasePath & "/" & "app" & "/";
   </div>
 </section>
 
-<footer class="fpw-floatplan-footer">
-  <div class="fpw-floatplan-footer__inner">
-    <div class="fpw-floatplan-footer__brand">
-      <i class="bi bi-compass" aria-hidden="true"></i>
-      <span>FloatPlanWizard<span class="fpw-floatplan-footer__tag">Plan Smart. Boat Safe.</span></span>
-    </div>
-    <nav class="fpw-floatplan-footer__links" aria-label="Footer">
-      <a href="<cfoutput>#fpwFloatPlanBasePath#</cfoutput>/index.cfm#story">About Us</a>
-      <a href="<cfoutput>#fpwFloatPlanBasePath#</cfoutput>/privacy_policy.cfm">Privacy Policy</a>
-      <a href="<cfoutput>#fpwFloatPlanBasePath#</cfoutput>/terms_of_service.cfm">Terms of Service</a>
-      <a href="<cfoutput>#fpwFloatPlanBasePath#</cfoutput>/index.cfm#notify">Contact Us</a>
-    </nav>
-    <div class="fpw-floatplan-footer__copy">&copy; 2026 FloatPlanWizard. All rights reserved.</div>
-    <div class="fpw-floatplan-footer__social" aria-hidden="true">
-      <span><i class="bi bi-facebook"></i></span>
-      <span><i class="bi bi-instagram"></i></span>
-      <span><i class="bi bi-youtube"></i></span>
-    </div>
-  </div>
-</footer>
+<cfinclude template="includes/footer.cfm">
 
 </body>
 </html>

@@ -4943,15 +4943,16 @@
       var list = Array.isArray(routes) ? routes.slice() : [];
       var activeTripRouteIndex = -1;
       var selectedRoute = null;
-      if (activeCode) {
-        activeTripRouteIndex = list.findIndex(function (route) {
-          return route && route.SHORT_CODE && route.SHORT_CODE === activeCode;
-        });
-        if (activeTripRouteIndex > 0) {
-          list = [list[activeTripRouteIndex]]
-            .concat(list.slice(0, activeTripRouteIndex))
-            .concat(list.slice(activeTripRouteIndex + 1));
-        }
+      activeTripRouteIndex = list.findIndex(function (route) {
+        if (!route) return false;
+        if (activeCode && route.SHORT_CODE && route.SHORT_CODE === activeCode) return true;
+        var routeMeta = getRouteRenderMeta(route, activeCode);
+        return routeMeta.isRouteForActiveTrip || routeMeta.currentState === "ACTIVE";
+      });
+      if (activeTripRouteIndex > 0) {
+        list = [list[activeTripRouteIndex]]
+          .concat(list.slice(0, activeTripRouteIndex))
+          .concat(list.slice(activeTripRouteIndex + 1));
       }
       if (!list.length) {
         dashboardSignals.routes.total = 0;

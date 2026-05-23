@@ -71,10 +71,6 @@ main: BEGIN
   ) ENGINE=MEMORY;
 
   INSERT INTO _fpw_prod_reset_wipe_tables (table_name) VALUES
-    ('backup_route_instance_legs_endpoint_norm_20260221_222027'),
-    ('backup_route_instance_legs_endpoint_norm_20260221_233840'),
-    ('backup_route_instance_legs_lockcount_20260221_093626'),
-    ('backup_route_instance_legs_lockcount_glreusev2_20260221_103545'),
     ('companion_pairing_codes'),
     ('companion_devices'),
     ('contacts'),
@@ -137,8 +133,6 @@ main: BEGIN
   ) ENGINE=MEMORY;
 
   INSERT INTO _fpw_prod_reset_preserve_tables (table_name) VALUES
-    ('backup_segment_library_lockcount_20260221_093626'),
-    ('backup_segment_library_lockcount_glreusev2_20260221_103545'),
     ('boat_mans'),
     ('canonical_locks'),
     ('fpw_promo_codes'),
@@ -150,16 +144,6 @@ main: BEGIN
     ('loop_segments'),
     ('loop_segments_backup_20260219_143430'),
     ('ports'),
-    ('ports_backup_20260219_165733'),
-    ('ports_backup_20260219_165815'),
-    ('rbk_loop_routes_20260213_154747_372853_s3'),
-    ('rbk_loop_routes_20260213_155058_984486_s3'),
-    ('rbk_ports_20260213_154507_135767_s1'),
-    ('rbk_ports_20260213_154747_372853_s1'),
-    ('rbk_ports_20260213_155058_984486_s1'),
-    ('rbk_route_template_segments_20260213_155058_984486_s4'),
-    ('rbk_segment_library_20260213_154747_372853_s2'),
-    ('rbk_segment_library_20260213_155058_984486_s2'),
     ('rescuecenters'),
     ('route_leg_locks'),
     ('route_template_detour_segments'),

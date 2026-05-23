@@ -1448,61 +1448,6 @@
 
                 <section class="rg-section">
                   <div class="rg-section-head">
-                    <div class="rg-section-title">Template</div>
-                    <div class="rg-section-note">Loaded from your FPW route library</div>
-                  </div>
-                  <div class="rg-field">
-                    <label for="routeGenTemplateSelect">Route Template</label>
-                    <select id="routeGenTemplateSelect" class="form-select form-select-sm" aria-label="Template selection"></select>
-                    <div id="routeGenTemplateMeta" class="rg-section-note mt-2"></div>
-                  </div>
-                </section>
-
-                <section class="rg-section">
-                  <div class="rg-section-head">
-                    <div class="rg-section-title">Trip Basics</div>
-                    <div class="rg-section-note">Core route settings</div>
-                  </div>
-                  <div class="rg-grid-1">
-                    <div class="rg-field">
-                      <label for="routeGenStartLocation">Start Location</label>
-                      <select id="routeGenStartLocation" class="form-select form-select-sm"></select>
-                    </div>
-                    <div class="rg-field">
-                      <label for="routeGenEndLocation">End Location</label>
-                      <select id="routeGenEndLocation" class="form-select form-select-sm"></select>
-                    </div>
-                    <div class="rg-grid-2">
-                      <div class="rg-field">
-                        <label for="routeGenStartDate">Start Date</label>
-                        <input id="routeGenStartDate" type="date" class="form-control form-control-sm">
-                      </div>
-                      <div class="rg-field">
-                        <label for="routeGenDirectionToggle">Direction</label>
-                        <div class="rg-switch-row">
-                          <div class="form-check form-switch rg-switch">
-                            <input id="routeGenDirectionToggle" class="form-check-input" type="checkbox" role="switch" aria-label="Reverse direction">
-                            <label class="form-check-label" for="routeGenDirectionToggle">Reverse</label>
-                          </div>
-                        </div>
-                        <input id="routeGenDirection" type="hidden" value="CCW">
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                <section class="rg-section">
-                  <div class="rg-section-head">
-                    <div class="rg-section-title">Optional Stops</div>
-                    <div class="rg-section-note">Include detours in preview/generate</div>
-                  </div>
-                  <div id="routeGenOptionalStops" class="fpw-routegen__stops">
-                    <div class="fpw-routegen__empty">No optional stops available for this template.</div>
-                  </div>
-                </section>
-
-                <section class="rg-section">
-                  <div class="rg-section-head">
                     <div class="rg-section-title">My Routes &amp; Waypoint Builder</div>
                     <div class="rg-section-note">Compact custom-route tools</div>
                   </div>
@@ -1556,6 +1501,61 @@
                   </div>
                   <div id="routeGenMyRouteLegList" class="fpw-routegen__myroutelegs">
                     <div class="fpw-routegen__empty">Create or select a My Route to manage legs.</div>
+                  </div>
+                </section>
+
+                <section class="rg-section">
+                  <div class="rg-section-head">
+                    <div class="rg-section-title">Template</div>
+                    <div class="rg-section-note">Loaded from your FPW route library</div>
+                  </div>
+                  <div class="rg-field">
+                    <label for="routeGenTemplateSelect">Route Template</label>
+                    <select id="routeGenTemplateSelect" class="form-select form-select-sm" aria-label="Template selection"></select>
+                    <div id="routeGenTemplateMeta" class="rg-section-note mt-2"></div>
+                  </div>
+                </section>
+
+                <section class="rg-section">
+                  <div class="rg-section-head">
+                    <div class="rg-section-title">Trip Basics</div>
+                    <div class="rg-section-note">Core route settings</div>
+                  </div>
+                  <div class="rg-grid-1">
+                    <div class="rg-field">
+                      <label for="routeGenStartLocation">Start Location</label>
+                      <select id="routeGenStartLocation" class="form-select form-select-sm"></select>
+                    </div>
+                    <div class="rg-field">
+                      <label for="routeGenEndLocation">End Location</label>
+                      <select id="routeGenEndLocation" class="form-select form-select-sm"></select>
+                    </div>
+                    <div class="rg-grid-2">
+                      <div class="rg-field">
+                        <label for="routeGenStartDate">Start Date</label>
+                        <input id="routeGenStartDate" type="date" class="form-control form-control-sm">
+                      </div>
+                      <div class="rg-field">
+                        <label for="routeGenDirectionToggle">Direction</label>
+                        <div class="rg-switch-row">
+                          <div class="form-check form-switch rg-switch">
+                            <input id="routeGenDirectionToggle" class="form-check-input" type="checkbox" role="switch" aria-label="Reverse direction">
+                            <label class="form-check-label" for="routeGenDirectionToggle">Reverse</label>
+                          </div>
+                        </div>
+                        <input id="routeGenDirection" type="hidden" value="CCW">
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="rg-section">
+                  <div class="rg-section-head">
+                    <div class="rg-section-title">Optional Stops</div>
+                    <div class="rg-section-note">Include detours in preview/generate</div>
+                  </div>
+                  <div id="routeGenOptionalStops" class="fpw-routegen__stops">
+                    <div class="fpw-routegen__empty">No optional stops available for this template.</div>
                   </div>
                 </section>
               </div>

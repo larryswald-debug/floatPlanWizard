@@ -15,7 +15,7 @@
 </head>
 <body class="auth-page-body bg-light d-flex align-items-center justify-content-center">
 
-<div class="container login-wrapper">
+<div class="container fpw-layout-rail login-wrapper">
     <div class="row justify-content-center">
         <div class="col-12 col-sm-10 col-md-6 col-lg-4">
             <div class="card shadow-sm">

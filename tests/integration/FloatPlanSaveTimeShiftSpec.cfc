@@ -122,7 +122,9 @@ component extends="testbox.system.BaseSpec" output="false" {
             "TestBox Time Shift Spec",
             vesselId,
             expectedDeparture,
-            expectedReturn
+            expectedReturn,
+            "2026-01-04 15:15:00",
+            "2026-01-04 20:45:00"
           );
 
           var saveRes = apiPostJson( variables.ctx.saveUrl, payload );
@@ -194,7 +196,9 @@ component extends="testbox.system.BaseSpec" output="false" {
               "TestBox Time Shift Edit Spec",
               vesselId,
               expectedDeparture,
-              expectedReturn
+              expectedReturn,
+              "2026-01-05 14:00:00",
+              "2026-01-05 18:30:00"
             )
           );
           var createSuccess = pickFirst( createRes, [ "success", "SUCCESS" ] );
@@ -210,7 +214,9 @@ component extends="testbox.system.BaseSpec" output="false" {
             "TestBox Time Shift Edit Spec",
             vesselId,
             expectedDeparture,
-            expectedReturn
+            expectedReturn,
+            "2026-01-05 14:00:00",
+            "2026-01-05 18:30:00"
           );
 
           var updateRes = apiPostJson( variables.ctx.saveUrl, updatePayload );
@@ -452,10 +458,14 @@ component extends="testbox.system.BaseSpec" output="false" {
     required string planName,
     required numeric vesselId,
     required any departure,
-    required any returnAt
+    required any returnAt,
+    required string departureUtc,
+    required string returnUtc
   ) {
     var departureString = dtString( arguments.departure );
     var returnString = dtString( arguments.returnAt );
+    var departureUtcString = arguments.departureUtc;
+    var returnUtcString = arguments.returnUtc;
     return {
       FLOATPLAN : {
         floatPlanId      : arguments.floatPlanId,
@@ -471,6 +481,10 @@ component extends="testbox.system.BaseSpec" output="false" {
         returnTime       : returnString,
         DEPARTURE_TIME   : departureString,
         RETURN_TIME      : returnString,
+        departureTimeUtc : departureUtcString,
+        returnTimeUtc    : returnUtcString,
+        DEPARTURE_TIME_UTC : departureUtcString,
+        RETURN_TIME_UTC    : returnUtcString,
         DEPARTURE_TIMEZONE : "America/New_York",
         RETURN_TIMEZONE    : "America/New_York"
       }

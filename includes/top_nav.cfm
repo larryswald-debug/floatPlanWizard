@@ -123,6 +123,8 @@ if (structKeyExists(cgi, "http_host")) {
 topNavHost = reReplace(topNavHost, ":\d+$", "");
 topNavIsProduction = !len(topNavBasePath)
   AND listFindNoCase("floatplanwizard.com,www.floatplanwizard.com", topNavHost) GT 0;
+topNavShowAppSubnav = topNavIsLoggedIn
+  AND listFindNoCase("dashboard,active-cruise,monitoring,weather,fuel", topNavActive) GT 0;
 </cfscript>
 
 <cfif topNavIsProduction>
@@ -138,12 +140,19 @@ topNavIsProduction = !len(topNavBasePath)
 </cfif>
 
 <cfoutput>
-<cfif topNavIsLoggedIn>
+  <header class="fpw-site-header<cfif topNavIsLoggedIn> fpw-site-header--logged-in</cfif><cfif topNavShowAppSubnav> fpw-site-header--app</cfif>" role="banner" data-fpw-nav>
+    <cfif NOT topNavIsLoggedIn>
+      <div class="fpw-prelaunch-strip">
+        <a class="fpw-prelaunch-strip__link" href="#topNavBasePath#/app/join.cfm" aria-label="FloatPlanWizard is now live. Start free. Premium available for advanced cruising tools.">
+          <span class="fpw-prelaunch-strip__icon fpw-prelaunch-strip__icon--live" aria-hidden="true"></span>
+          <span><strong>Now Live</strong> &mdash; Start Free <span aria-hidden="true">&bull;</span> Premium available for advanced cruising tools</span>
+        </a>
+      </div>
+    </cfif>
 
-  <header class="fpw-site-header fpw-member-site-header" role="banner" data-fpw-member-nav>
     <div class="fpw-nav-shell">
-      <div class="fpw-nav-inner fpw-member-nav-inner">
-        <a class="fpw-brand fpw-member-brand" href="#topNavBasePath#/index.cfm" aria-label="FloatPlanWizard home">
+      <div class="fpw-nav-inner">
+        <a class="fpw-brand" href="<cfif topNavIsLoggedIn>#topNavBasePath#/app/dashboard.cfm<cfelse>#topNavBasePath#/##top</cfif>" aria-label="FloatPlanWizard home">
           <span class="fpw-brand__mark" aria-hidden="true">
             <svg class="fpw-helm-icon" viewBox="0 0 64 64" focusable="false">
               <circle cx="32" cy="32" r="17"></circle>
@@ -165,68 +174,202 @@ topNavIsProduction = !len(topNavBasePath)
 
           <span class="fpw-brand__text">
             <span class="fpw-brand__name">FloatPlanWizard</span>
-            <span class="fpw-brand__tagline">Member workspace</span>
+            <span class="fpw-brand__tagline">Built for serious recreational boaters</span>
           </span>
         </a>
 
-        <nav class="fpw-primary-nav fpw-member-primary-nav" id="fpwMemberPrimaryNav" aria-label="Member navigation">
-          <div class="fpw-primary-nav__row fpw-member-primary-nav__row">
-            <a class="fpw-member-nav-link<cfif topNavActive EQ 'dashboard'> is-active</cfif>" href="#topNavBasePath#/app/dashboard.cfm"<cfif topNavActive EQ 'dashboard'> aria-current="page"</cfif>>Dashboard</a>
-            <a class="fpw-member-nav-link<cfif topNavActive EQ 'weather'> is-active</cfif>" href="#topNavBasePath#/app/weather.cfm"<cfif topNavActive EQ 'weather'> aria-current="page"</cfif>>Weather</a>
-            <a class="fpw-member-nav-link<cfif topNavActive EQ 'fuel'> is-active</cfif>" href="#topNavBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm"<cfif topNavActive EQ 'fuel'> aria-current="page"</cfif>>Fuel Calculator</a>
-            <cfif topNavHasPremium>
-              <a class="fpw-member-nav-link<cfif topNavActive EQ 'monitoring'> is-active</cfif>" href="#topNavBasePath#/app/monitoring.cfm"<cfif topNavActive EQ 'monitoring'> aria-current="page"</cfif>>Monitor</a>
+        <button
+          class="fpw-mobile-toggle"
+          type="button"
+          aria-label="Toggle site menu"
+          aria-controls="fpwPrimaryNav"
+          aria-expanded="false"
+          data-fpw-mobile-toggle>
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+
+        <div class="fpw-nav-menu" id="fpwPrimaryNav" data-fpw-nav-menu>
+          <nav class="fpw-primary-nav" aria-label="Primary navigation">
+            <a class="fpw-nav-link" href="#topNavBasePath#/how-it-works">
+              <svg class="fpw-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"></circle><path d="M14.5 7.5 10.8 13l-3.3 3.5 3.7-5.5z"></path></svg>
+              <span>How It Works</span>
+            </a>
+            <a class="fpw-nav-link" href="#topNavBasePath#/##features">
+              <svg class="fpw-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6-5.4-2.9-5.4 2.9 1-6-4.4-4.3 6.1-.9z"></path></svg>
+              <span>Features</span>
+            </a>
+            <a class="fpw-nav-link" href="#topNavBasePath#/##great-loop">
+              <svg class="fpw-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6.5 9 4l6 2.5 5-2.5v13.5L15 20l-6-2.5L4 20z"></path><path d="M9 4v13.5"></path><path d="M15 6.5V20"></path></svg>
+              <span>Great Loop</span>
+            </a>
+            <div class="fpw-dropdown" data-fpw-dropdown>
+              <button class="fpw-nav-link fpw-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true" data-fpw-dropdown-toggle>
+                <svg class="fpw-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m14.5 5 4.5 4.5-2.8 2.8-2-2-5.9 5.9v2.5H5.8v-2.5l5.9-5.9-2-2z"></path><path d="m16 6.5 1.5-1.5 1.5 1.5"></path></svg>
+                <span>Tools</span>
+                <svg class="fpw-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>
+              </button>
+              <div class="fpw-dropdown-menu" role="menu">
+                <a href="#topNavBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm" role="menuitem">
+                  <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20V4h9v16"></path><path d="M8 8h3"></path><path d="M14 9h2.5L19 12v6a2 2 0 0 0 4 0v-4"></path><path d="M3 20h13"></path></svg>
+                  <span><strong>Fuel Calculator</strong><small>Estimate fuel and range</small></span>
+                </a>
+                <a href="#topNavBasePath#/app/weather.cfm" role="menuitem">
+                  <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 18h9a4 4 0 0 0 .5-8 6 6 0 0 0-11-1.7A5 5 0 0 0 8 18z"></path><path d="M8 7V4"></path><path d="M4.5 8.5 2.5 6.5"></path><path d="M3 12H1"></path></svg>
+                  <span><strong>Weather</strong><small>Marine conditions and planning</small></span>
+                </a>
+                <a href="#topNavBasePath#/why-use-a-float-plan" role="menuitem">
+                  <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z"></path><path d="M8 7h8"></path><path d="M8 11h7"></path></svg>
+                  <span><strong>Float Plan Basics</strong><small>Learn how float plans work</small></span>
+                </a>
+              </div>
+            </div>
+            <a class="fpw-nav-link" href="#topNavBasePath#/app/pricing.cfm">
+              <svg class="fpw-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m20 12-8 8-8-8 8-8z"></path><path d="M12 4v16"></path></svg>
+              <span>Pricing</span>
+            </a>
+          </nav>
+
+          <div class="fpw-nav-actions">
+            <cfif topNavIsLoggedIn>
+              <a class="fpw-nav-link fpw-dashboard-link<cfif topNavActive EQ 'dashboard'> is-active</cfif>" href="#topNavBasePath#/app/dashboard.cfm"<cfif topNavActive EQ 'dashboard'> aria-current="page"</cfif>>
+                <svg class="fpw-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="6" height="6"></rect><rect x="14" y="4" width="6" height="6"></rect><rect x="4" y="14" width="6" height="6"></rect><rect x="14" y="14" width="6" height="6"></rect></svg>
+                <span>Dashboard</span>
+              </a>
+              <div class="fpw-dropdown fpw-account-dropdown" data-fpw-dropdown>
+                <button class="fpw-nav-link fpw-dropdown-toggle<cfif topNavActive EQ 'account'> is-active</cfif>" type="button" aria-expanded="false" aria-haspopup="true" data-fpw-dropdown-toggle>
+                  <svg class="fpw-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg>
+                  <span>Account</span>
+                  <svg class="fpw-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>
+                </button>
+                <div class="fpw-dropdown-menu fpw-dropdown-menu-right" role="menu">
+                  <a href="#topNavBasePath#/app/account.cfm" role="menuitem">
+                    <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg>
+                    <span><strong>My Account</strong><small>Profile and settings</small></span>
+                  </a>
+                  <a href="#topNavBasePath#/app/account.cfm##membershipBillingCard" role="menuitem">
+                    <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 10h18"></path><path d="M7 15h4"></path></svg>
+                    <span><strong>Membership &amp; Billing</strong><small>Manage plan access</small></span>
+                  </a>
+                  <a href="#topNavBasePath#/index.cfm" role="menuitem" data-fpw-member-logout>
+                    <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 17 15 12 10 7"></path><path d="M15 12H3"></path><path d="M21 4v16"></path></svg>
+                    <span><strong>Logout</strong><small>Sign out securely</small></span>
+                  </a>
+                </div>
+              </div>
+              <a class="fpw-nav-link fpw-logout-direct" href="#topNavBasePath#/index.cfm" data-fpw-member-logout>Logout</a>
+            <cfelse>
+              <a class="fpw-cta fpw-cta-primary" href="#topNavBasePath#/app/join.cfm">
+                <span>Start Free</span>
+                <span aria-hidden="true">&rarr;</span>
+              </a>
+              <button class="fpw-nav-link fpw-login-link" type="button" id="publicLoginToggle" aria-expanded="false" aria-controls="login">Login</button>
             </cfif>
-            <a class="fpw-member-nav-link fpw-member-mobile-only<cfif topNavActive EQ 'account'> is-active</cfif>" href="#topNavBasePath#/app/account.cfm"<cfif topNavActive EQ 'account'> aria-current="page"</cfif>>Account</a>
-            <a class="fpw-member-nav-link fpw-member-mobile-only" href="#topNavBasePath#/index.cfm" data-fpw-member-logout>Logout</a>
           </div>
-        </nav>
-
-        <div class="fpw-nav-actions fpw-member-actions">
-          <a class="fpw-member-action-link fpw-member-account-link<cfif topNavActive EQ 'account'> is-active</cfif>" href="#topNavBasePath#/app/account.cfm"<cfif topNavActive EQ 'account'> aria-current="page"</cfif>>
-            <span class="fpw-member-avatar" aria-hidden="true">#encodeForHTML(topNavMemberDisplayInitials)#</span>
-            <span>Account</span>
-          </a>
-          <a class="fpw-member-action-link fpw-member-logout-link" href="#topNavBasePath#/index.cfm" data-fpw-member-logout>Logout</a>
-
-          <button class="fpw-grid-button fpw-member-grid-button" type="button" aria-label="Toggle member menu" aria-controls="fpwMemberPrimaryNav" aria-expanded="false">
-            <svg class="fpw-grid-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <circle cx="6" cy="6" r="1.7"></circle>
-              <circle cx="12" cy="6" r="1.7"></circle>
-              <circle cx="18" cy="6" r="1.7"></circle>
-              <circle cx="6" cy="12" r="1.7"></circle>
-              <circle cx="12" cy="12" r="1.7"></circle>
-              <circle cx="18" cy="12" r="1.7"></circle>
-              <circle cx="6" cy="18" r="1.7"></circle>
-              <circle cx="12" cy="18" r="1.7"></circle>
-              <circle cx="18" cy="18" r="1.7"></circle>
-            </svg>
-            <svg class="fpw-hamburger-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M4 7h16"></path>
-              <path d="M4 12h16"></path>
-              <path d="M4 17h16"></path>
-            </svg>
-          </button>
         </div>
       </div>
     </div>
+
+    <cfif topNavShowAppSubnav>
+      <nav class="fpw-app-subnav" aria-label="Member workspace navigation">
+        <div class="fpw-app-subnav-inner">
+          <a class="fpw-app-link<cfif topNavActive EQ 'dashboard'> is-active</cfif>" href="#topNavBasePath#/app/dashboard.cfm"<cfif topNavActive EQ 'dashboard'> aria-current="page"</cfif>>
+            <svg class="fpw-subnav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="6" height="6"></rect><rect x="14" y="4" width="6" height="6"></rect><rect x="4" y="14" width="6" height="6"></rect><rect x="14" y="14" width="6" height="6"></rect></svg>
+            <span>Dashboard</span>
+          </a>
+          <a class="fpw-app-link<cfif topNavActive EQ 'active-cruise'> is-active</cfif>" href="#topNavBasePath#/app/active-cruise.cfm"<cfif topNavActive EQ 'active-cruise'> aria-current="page"</cfif>>
+            <svg class="fpw-subnav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19h16"></path><path d="M7 16h8l3-4H9z"></path><path d="M9 12V5l6 7"></path></svg>
+            <span>Active Cruise</span>
+          </a>
+          <a class="fpw-app-link<cfif topNavActive EQ 'monitoring'> is-active</cfif>" href="#topNavBasePath#/app/monitoring.cfm"<cfif topNavActive EQ 'monitoring'> aria-current="page"</cfif>>
+            <svg class="fpw-subnav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 17h16"></path><path d="M7 14l4-4 3 3 4-6"></path><path d="M6 21h12"></path></svg>
+            <span>Monitor</span>
+          </a>
+          <a class="fpw-app-link<cfif topNavActive EQ 'weather'> is-active</cfif>" href="#topNavBasePath#/app/weather.cfm"<cfif topNavActive EQ 'weather'> aria-current="page"</cfif>>
+            <svg class="fpw-subnav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 18h9a4 4 0 0 0 .5-8 6 6 0 0 0-11-1.7A5 5 0 0 0 8 18z"></path><path d="M8 7V4"></path></svg>
+            <span>Weather</span>
+          </a>
+          <a class="fpw-app-link<cfif topNavActive EQ 'fuel'> is-active</cfif>" href="#topNavBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm"<cfif topNavActive EQ 'fuel'> aria-current="page"</cfif>>
+            <svg class="fpw-subnav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20V4h9v16"></path><path d="M8 8h3"></path><path d="M14 9h2.5L19 12v6a2 2 0 0 0 4 0v-4"></path></svg>
+            <span>Fuel Calculator</span>
+          </a>
+        </div>
+      </nav>
+    </cfif>
   </header>
+
+  <cfif NOT topNavIsLoggedIn>
+    <section class="loginStrip fpw-prelaunch-login-strip" id="login" aria-label="Login" aria-hidden="true">
+      <div class="loginInner">
+        <form id="loginForm" novalidate>
+          <div id="loginAlert" class="alert d-none fpwLoginAlert" role="alert"></div>
+          <div class="field">
+            <label class="fpw-login-label" for="email">Email</label>
+            <input class="input fpwInput" type="email" id="email" name="email" required autocomplete="username" placeholder="Email">
+          </div>
+          <div class="field">
+            <label class="fpw-login-label" for="password">Password</label>
+            <input class="input fpwInput" type="password" id="password" name="password" required autocomplete="current-password" placeholder="Password">
+          </div>
+          <button type="submit" class="btn btnPrimary fpwBtn primary" id="loginButton">Sign In</button>
+        </form>
+        <a class="forgot" href="#topNavBasePath#/app/forgot-password.cfm">Forgot?</a>
+      </div>
+    </section>
+  </cfif>
 
   <script>
     (function () {
-      var header = document.querySelector("[data-fpw-member-nav]");
-      if (!header) {
+      var shell = document.querySelector("[data-fpw-nav]");
+      if (!shell || shell.getAttribute("data-fpw-nav-bound") === "true") {
         return;
       }
+      shell.setAttribute("data-fpw-nav-bound", "true");
 
-      var menuButton = header.querySelector(".fpw-grid-button");
-      var primaryNav = header.querySelector(".fpw-primary-nav");
-      var logoutLinks = header.querySelectorAll("[data-fpw-member-logout]");
+      var menuButton = shell.querySelector("[data-fpw-mobile-toggle]");
+      var navMenu = shell.querySelector("[data-fpw-nav-menu]");
+      var dropdowns = Array.prototype.slice.call(shell.querySelectorAll("[data-fpw-dropdown]"));
+      var logoutLinks = shell.querySelectorAll("[data-fpw-member-logout]");
+      var loginToggle = document.getElementById("publicLoginToggle");
+      var loginStrip = document.getElementById("login");
+
+      function closeDropdowns(exceptDropdown) {
+        dropdowns.forEach(function (dropdown) {
+          var toggle = dropdown.querySelector("[data-fpw-dropdown-toggle]");
+          if (dropdown !== exceptDropdown) {
+            dropdown.classList.remove("is-open");
+            if (toggle) {
+              toggle.setAttribute("aria-expanded", "false");
+            }
+          }
+        });
+      }
 
       function setMenuOpen(isOpen) {
-        header.classList.toggle("is-menu-open", isOpen);
+        shell.classList.toggle("is-menu-open", isOpen);
         if (menuButton) {
           menuButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        }
+        if (!isOpen) {
+          closeDropdowns();
+        }
+      }
+
+      function setLoginOpen(isOpen) {
+        if (!loginToggle || !loginStrip) {
+          return;
+        }
+        loginStrip.classList.toggle("is-open", isOpen);
+        loginStrip.setAttribute("aria-hidden", isOpen ? "false" : "true");
+        loginToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        if (isOpen) {
+          window.setTimeout(function () {
+            var emailInput = document.getElementById("email");
+            if (emailInput) {
+              emailInput.focus();
+            }
+          }, 0);
         }
       }
 
@@ -265,166 +408,69 @@ topNavIsProduction = !len(topNavBasePath)
           .finally(redirectAfterLogout);
       }
 
-      if (menuButton && primaryNav) {
+      if (menuButton && navMenu) {
         menuButton.addEventListener("click", function () {
-          setMenuOpen(!header.classList.contains("is-menu-open"));
+          setMenuOpen(!shell.classList.contains("is-menu-open"));
         });
+      }
 
-        primaryNav.addEventListener("click", function (event) {
-          if (event.target.closest("a") && window.matchMedia("(max-width: 760px)").matches) {
-            setMenuOpen(false);
-          }
+      dropdowns.forEach(function (dropdown) {
+        var toggle = dropdown.querySelector("[data-fpw-dropdown-toggle]");
+        if (!toggle) {
+          return;
+        }
+        toggle.addEventListener("click", function (event) {
+          event.preventDefault();
+          var isOpen = dropdown.classList.contains("is-open");
+          closeDropdowns(dropdown);
+          dropdown.classList.toggle("is-open", !isOpen);
+          toggle.setAttribute("aria-expanded", !isOpen ? "true" : "false");
         });
+      });
 
-        window.addEventListener("resize", function () {
-          if (window.matchMedia("(min-width: 761px)").matches) {
-            setMenuOpen(false);
-          }
+      if (loginToggle && loginStrip) {
+        loginToggle.addEventListener("click", function () {
+          setLoginOpen(!loginStrip.classList.contains("is-open"));
         });
       }
 
       Array.prototype.forEach.call(logoutLinks, function (logoutLink) {
         logoutLink.addEventListener("click", runLogout);
       });
-    })();
-  </script>
-<cfelse>
 
-  <header class="fpw-site-header" role="banner">
-    <div class="fpw-prelaunch-strip">
-      <a class="fpw-prelaunch-strip__link" href="#topNavBasePath#/##notify" aria-label="Join prelaunch and get 2 months of Premium free">
-        <span class="fpw-prelaunch-strip__icon" aria-hidden="true">&lsaquo;</span>
-        <span>Prelaunch offer &mdash; <strong>2 months</strong> of Premium free</span>
-      </a>
-    </div>
-
-    <div class="fpw-nav-shell">
-      <div class="fpw-nav-inner">
-        <a class="fpw-brand" href="#topNavBasePath#/##top" aria-label="FloatPlanWizard home">
-          <span class="fpw-brand__mark" aria-hidden="true">
-            <svg class="fpw-helm-icon" viewBox="0 0 64 64" focusable="false">
-              <circle cx="32" cy="32" r="17"></circle>
-              <circle cx="32" cy="32" r="6"></circle>
-              <path d="M32 4v12"></path>
-              <path d="M32 48v12"></path>
-              <path d="M4 32h12"></path>
-              <path d="M48 32h12"></path>
-              <path d="M12.2 12.2l8.5 8.5"></path>
-              <path d="M43.3 43.3l8.5 8.5"></path>
-              <path d="M51.8 12.2l-8.5 8.5"></path>
-              <path d="M20.7 43.3l-8.5 8.5"></path>
-              <circle cx="32" cy="4" r="2.5"></circle>
-              <circle cx="32" cy="60" r="2.5"></circle>
-              <circle cx="4" cy="32" r="2.5"></circle>
-              <circle cx="60" cy="32" r="2.5"></circle>
-            </svg>
-          </span>
-
-          <span class="fpw-brand__text">
-            <span class="fpw-brand__name">FloatPlanWizard</span>
-            <span class="fpw-brand__tagline">Built for serious recreational boaters</span>
-          </span>
-        </a>
-
-        <nav class="fpw-primary-nav" id="fpwPrimaryNav" aria-label="Primary navigation">
-          <div class="fpw-primary-nav__row">
-            <a href="#topNavBasePath#/how-it-works">How It Works</a>
-            <a href="#topNavBasePath#/##features">Features</a>
-            <a href="#topNavBasePath#/##great-loop">Great Loop</a>
-            <a href="#topNavBasePath#/##great-loop" class="fpw-nav-has-menu" hidden aria-hidden="true" data-nav-reserved="true" style="display: none;">
-              Explore
-              <span aria-hidden="true">&##8964;</span>
-            </a>
-            <details class="fpw-nav-dropdown">
-              <summary class="fpw-nav-has-menu">
-                Tools
-                <span aria-hidden="true">&##8964;</span>
-              </summary>
-              <div class="fpw-nav-dropdown__menu" aria-label="Tools menu">
-                <a href="#topNavBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm">
-                  <span class="fpw-nav-dropdown__item-title">Fuel Calculator</span>
-                  <span class="fpw-nav-dropdown__item-copy">Estimate route fuel before you leave.</span>
-                </a>
-                <a href="#topNavBasePath#/why-use-a-float-plan">
-                  <span class="fpw-nav-dropdown__item-title">Float Plans</span>
-                  <span class="fpw-nav-dropdown__item-copy">Learn why every boater should file one.</span>
-                </a>
-              </div>
-            </details>
-            <a href="#topNavBasePath#/app/pricing.cfm">Pricing</a>
-          </div>
-
-          <div class="fpw-secondary-nav" aria-label="Popular pages">
-            <a href="#topNavBasePath#/##followers">Share the Trip</a>
-            <span aria-hidden="true">&bull;</span>
-            <a href="#topNavBasePath#/why-use-a-float-plan">Float Plans</a>
-          </div>
-        </nav>
-
-        <div class="fpw-nav-actions">
-          <a class="fpw-join-button" href="#topNavBasePath#/##notify">
-            <span>Join Prelaunch</span>
-            <span aria-hidden="true">&rarr;</span>
-          </a>
-
-          <button class="fpw-grid-button" type="button" aria-label="Toggle site menu" aria-controls="fpwPrimaryNav" aria-expanded="false">
-            <svg class="fpw-grid-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <circle cx="6" cy="6" r="1.7"></circle>
-              <circle cx="12" cy="6" r="1.7"></circle>
-              <circle cx="18" cy="6" r="1.7"></circle>
-              <circle cx="6" cy="12" r="1.7"></circle>
-              <circle cx="12" cy="12" r="1.7"></circle>
-              <circle cx="18" cy="12" r="1.7"></circle>
-              <circle cx="6" cy="18" r="1.7"></circle>
-              <circle cx="12" cy="18" r="1.7"></circle>
-              <circle cx="18" cy="18" r="1.7"></circle>
-            </svg>
-            <svg class="fpw-hamburger-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M4 7h16"></path>
-              <path d="M4 12h16"></path>
-              <path d="M4 17h16"></path>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </div>
-  </header>
-
-  <script>
-    (function () {
-      var header = document.querySelector(".fpw-site-header");
-      if (!header) {
-        return;
-      }
-
-      var menuButton = header.querySelector(".fpw-grid-button");
-      var primaryNav = header.querySelector(".fpw-primary-nav");
-      if (!menuButton || !primaryNav) {
-        return;
-      }
-
-      function setMenuOpen(isOpen) {
-        header.classList.toggle("is-menu-open", isOpen);
-        menuButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
-      }
-
-      menuButton.addEventListener("click", function () {
-        setMenuOpen(!header.classList.contains("is-menu-open"));
+      document.addEventListener("click", function (event) {
+        if (!shell.contains(event.target)) {
+          setMenuOpen(false);
+          closeDropdowns();
+        }
+        if (loginStrip && loginToggle && !loginStrip.contains(event.target) && !loginToggle.contains(event.target)) {
+          setLoginOpen(false);
+        }
       });
 
-      primaryNav.addEventListener("click", function (event) {
-        if (event.target.closest("a") && window.matchMedia("(max-width: 760px)").matches) {
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") {
           setMenuOpen(false);
+          closeDropdowns();
+          setLoginOpen(false);
         }
       });
 
       window.addEventListener("resize", function () {
-        if (window.matchMedia("(min-width: 761px)").matches) {
+        if (window.matchMedia("(min-width: 1121px)").matches) {
           setMenuOpen(false);
         }
       });
     })();
   </script>
-</cfif>
-</cfoutput>
 
+  <cfif NOT topNavIsLoggedIn>
+    <script>
+      window.FPW_BASE = "#JSStringFormat(topNavBasePath)#";
+      window.FPW_API_BASE = "#JSStringFormat(topNavBasePath)#/api/v1";
+    </script>
+    <script src="#topNavBasePath#/assets/js/app/api.js?v=20260518-pricing-pass"></script>
+    <script src="#topNavBasePath#/assets/js/app/auth.js?v=20260305a"></script>
+    <script src="#topNavBasePath#/assets/js/app/core.js"></script>
+  </cfif>
+</cfoutput>

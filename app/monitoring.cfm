@@ -314,7 +314,7 @@
     }
 
     .fpw-monitoring-shell {
-      max-width: 1440px;
+      width: min(1480px, calc(100% - 48px));
       margin: 0 auto;
       padding: 1.5rem;
     }
@@ -692,7 +692,10 @@
     }
 
     @media (max-width: 767.98px) {
-      .fpw-monitoring-shell { padding: .85rem; }
+      .fpw-monitoring-shell {
+        width: min(100% - 28px, 1480px);
+        padding: .85rem;
+      }
       .fpw-monitoring-data-grid { grid-template-columns: 1fr; }
       .fpw-monitoring-audit-item { grid-template-columns: 1fr; }
       .fpw-monitoring-audit-head,
@@ -711,7 +714,7 @@
 <cfset request.fpwTopNavActive = "monitoring">
 <cfinclude template="../includes/top_nav.cfm">
 
-<main class="fpw-monitoring-shell" id="fpwMonitoringConsole">
+<main class="fpw-monitoring-shell fpw-layout-rail" id="fpwMonitoringConsole">
   <cfoutput>
   <cfif NOT monitoringShowConsole>
     <section class="fpw-monitoring-panel fpw-monitoring-empty">
@@ -1096,6 +1099,7 @@
   </cfif>
   </cfoutput>
 </main>
+<cfinclude template="../includes/footer.cfm">
 <cfinclude template="../includes/footer_scripts.cfm">
 <cfif monitoringShowConsole AND monitoringMapCanRender>
   <cfoutput>

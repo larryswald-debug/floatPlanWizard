@@ -121,10 +121,12 @@ component extends="testbox.system.BaseSpec" output="false" {
             vesselId = vesselId,
             departingFrom = "Test Dock",
             departureTime = dtString( departDt ),
-            departureTimezone = "America/New_York",
+            departureTimezone = "UTC",
+            departureTimeUtc = dtString( departDt ),
             returningTo = "Test Dock",
             returnTime = dtString( returnDt ),
-            returnTimezone = "America/New_York",
+            returnTimezone = "UTC",
+            returnTimeUtc = dtString( returnDt ),
             routeInstanceId = routeInstanceId,
             routeDayNumber = 1
           }

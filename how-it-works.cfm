@@ -56,7 +56,7 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
       --fpw-how-cyan: #23d7cf;
       --fpw-how-blue: #36bdf5;
       --fpw-how-radius: 18px;
-      --fpw-public-layout-max: 1320px;
+      --fpw-public-layout-max: 1480px;
     }
 
     * {
@@ -90,7 +90,7 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
 
     .fpw-how-page {
       position: relative;
-      width: min(1320px, calc(100% - 48px));
+      width: min(var(--fpw-public-layout-max), calc(100% - 48px));
       margin: 0 auto;
       padding: 42px 0 8px;
       overflow: hidden;
@@ -755,7 +755,7 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
 
     @media (max-width: 780px) {
       .fpw-how-page {
-        width: min(100% - 28px, 1320px);
+        width: min(100% - 28px, var(--fpw-public-layout-max));
         padding-top: 28px;
       }
 
@@ -819,7 +819,7 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
     }
   </style>
   <link rel="canonical" href="https://www.floatplanwizard.com/how-it-works/" />
-  <cfoutput><link rel="stylesheet" href="#fpwHowBasePath#/assets/css/top-nav.css"></cfoutput>
+<cfoutput><link rel="stylesheet" href="#fpwHowBasePath#/assets/css/top-nav.css?v=20260522-subnav-44"></cfoutput>
 </head>
 <body id="top" class="fpw-how-body">
 <cfinclude template="includes/top_nav.cfm">
