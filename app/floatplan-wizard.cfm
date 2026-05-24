@@ -311,6 +311,9 @@
                     </button>
                 </div>
                 <p class="small text-muted">Tap to include for notifications.</p>
+                <div class="invalid-feedback d-block mb-2" v-if="hasError('CONTACTS')">
+                    {{ getError('CONTACTS') }}
+                </div>
                 <div class="list-group">
                     <button
                         v-for="c in contacts"
@@ -400,7 +403,7 @@
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20251227b"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260523-contact-placeholder"></script>
 
 </body>
 </html>

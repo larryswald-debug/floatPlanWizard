@@ -791,24 +791,6 @@
                     response.FLOATPLAN.RETURNING_TO = routeDefaults.RETURNING_TO_DEFAULT;
                 }
 
-                if (!len(trim(toString(response.FLOATPLAN.RESCUE_AUTHORITY)))) {
-                    response.FLOATPLAN.RESCUE_AUTHORITY = "__USER_TO_SET__";
-                }
-                if (!len(trim(toString(response.FLOATPLAN.RESCUE_AUTHORITY_PHONE)))) {
-                    response.FLOATPLAN.RESCUE_AUTHORITY_PHONE = "__USER_TO_SET__";
-                }
-                if (val(response.FLOATPLAN.RESCUE_CENTERID) EQ 0) {
-                    response.FLOATPLAN.RESCUE_CENTERID = -1;
-                }
-                if (!arrayLen(response.PLAN_CONTACTS)) {
-                    response.PLAN_CONTACTS = [{
-                        CONTACTID = -1,
-                        SORT_ORDER = 1
-                    }];
-                }
-
-                response.CONTACTS = prependUserToSetContact(response.CONTACTS);
-                response.RESCUE_CENTERS = prependUserToSetRescueCenter(response.RESCUE_CENTERS);
             }
 
             return response;
@@ -2974,62 +2956,6 @@
             }
             cruiseCheckinResult.AUTH = true;
             return cruiseCheckinResult;
-        </cfscript>
-    </cffunction>
-
-    <cffunction name="prependUserToSetContact" access="private" returntype="array" output="false">
-        <cfargument name="contacts" type="array" required="true">
-        <cfscript>
-            var out = [];
-            var i = 0;
-            var found = false;
-            for (i = 1; i LTE arrayLen(arguments.contacts); i++) {
-                if (val(arguments.contacts[i].CONTACTID) EQ -1) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                arrayAppend(out, {
-                    CONTACTID = -1,
-                    CONTACTNAME = "User to Set",
-                    PHONE = "",
-                    EMAIL = ""
-                });
-            }
-            for (i = 1; i LTE arrayLen(arguments.contacts); i++) {
-                arrayAppend(out, arguments.contacts[i]);
-            }
-            return out;
-        </cfscript>
-    </cffunction>
-
-    <cffunction name="prependUserToSetRescueCenter" access="private" returntype="array" output="false">
-        <cfargument name="centers" type="array" required="true">
-        <cfscript>
-            var out = [];
-            var i = 0;
-            var found = false;
-            for (i = 1; i LTE arrayLen(arguments.centers); i++) {
-                if (val(arguments.centers[i].recId) EQ -1) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                arrayAppend(out, {
-                    recId = -1,
-                    rcName = "__USER_TO_SET__",
-                    rcPhone = "__USER_TO_SET__",
-                    rcDistrict = "",
-                    rcArea = "",
-                    rcLocation = ""
-                });
-            }
-            for (i = 1; i LTE arrayLen(arguments.centers); i++) {
-                arrayAppend(out, arguments.centers[i]);
-            }
-            return out;
         </cfscript>
     </cffunction>
 

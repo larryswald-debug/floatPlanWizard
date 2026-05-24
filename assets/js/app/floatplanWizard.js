@@ -344,7 +344,7 @@
   function normalizePassengerSelection(entry) {
     if (!entry) return null;
     var id = numeric(entry.PASSENGERID || entry.passengerId || entry.PASSID || entry.passId);
-    if (!id) return null;
+    if (id <= 0) return null;
     return {
       PASSENGERID: id,
       HAS_PFD: entry.HAS_PFD !== undefined ? !!entry.HAS_PFD : true,
@@ -355,7 +355,7 @@
   function normalizeContactSelection(entry) {
     if (!entry) return null;
     var id = numeric(entry.CONTACTID || entry.contactId);
-    if (!id) return null;
+    if (id <= 0) return null;
     return {
       CONTACTID: id,
       SORT_ORDER: numeric(entry.SORT_ORDER || entry.sortOrder)
@@ -487,8 +487,6 @@
     return parts.join(" ").toLowerCase();
   }
 
-  var USER_TO_SET_SENTINEL_VALUE = "__USER_TO_SET__";
-  var USER_TO_SET_SENTINEL_ID = -1;
   var RESCUE_AUTHORITY_SELECTION_FIELD = "RESCUE_AUTHORITY_SELECTION";
   var RESCUE_AUTHORITY_SELECTION_MESSAGE = "Select a rescue authority.";
 
@@ -515,10 +513,6 @@
     defaults.LEG_COUNT = numeric(defaults.LEG_COUNT);
     defaults.WAYPOINT_SELECTIONS = toArray(defaults.WAYPOINT_SELECTIONS);
     return defaults;
-  }
-
-  function isUserToSetSentinel(value) {
-    return String(value == null ? "" : value).trim().toUpperCase() === USER_TO_SET_SENTINEL_VALUE;
   }
 
   var FLOATPLAN_VALIDATION_RULES = {
@@ -994,7 +988,7 @@
 
         if (stepNumber === 3 || stepNumber === 6) {
           var rescueSelectedId = numeric(this.selectedRescueCenterId);
-          var rescueIsValid = rescueSelectedId > 0 || this.isUserToSetRescueSelection();
+          var rescueIsValid = rescueSelectedId > 0;
           if (!rescueIsValid) {
             if (!errors) errors = {};
             errors[RESCUE_AUTHORITY_SELECTION_FIELD] = [RESCUE_AUTHORITY_SELECTION_MESSAGE];
@@ -1002,7 +996,13 @@
         }
 
         if (needsContactValidation) {
-          var contactCount = (this.fp && this.fp.CONTACTS) ? this.fp.CONTACTS.length : 0;
+          var contactCount = 0;
+          var selectedContacts = (this.fp && Array.isArray(this.fp.CONTACTS)) ? this.fp.CONTACTS : [];
+          for (var contactIndex = 0; contactIndex < selectedContacts.length; contactIndex++) {
+            if (numeric(selectedContacts[contactIndex].CONTACTID) > 0) {
+              contactCount++;
+            }
+          }
           if (contactCount <= 0) {
             if (!errors) errors = {};
             errors.CONTACTS = ["Select at least one contact."];
@@ -1061,23 +1061,6 @@
         return numeric(this.fp && this.fp.FLOATPLAN ? this.fp.FLOATPLAN.ROUTE_INSTANCE_ID : 0) > 0;
       },
 
-      isUserToSetRescueSelection: function () {
-        var plan = this.fp && this.fp.FLOATPLAN ? this.fp.FLOATPLAN : {};
-        if (numeric(this.selectedRescueCenterId) === USER_TO_SET_SENTINEL_ID) {
-          return true;
-        }
-        if (isUserToSetSentinel(this.selectedRescueCenterId)) {
-          return true;
-        }
-        if (numeric(plan.RESCUE_CENTERID) === USER_TO_SET_SENTINEL_ID) {
-          return true;
-        }
-        if (isUserToSetSentinel(plan.RESCUE_CENTERID)) {
-          return true;
-        }
-        return isUserToSetSentinel(plan.RESCUE_AUTHORITY);
-      },
-
       applyRouteDefaults: function () {
         if (!this.isFromRoutePlan()) {
           return;
@@ -1114,23 +1097,6 @@
         }
         if (isEmptyValue(plan.RETURN_TIMEZONE)) {
           plan.RETURN_TIMEZONE = this.homePortTimezone || "";
-        }
-
-        if (numeric(plan.RESCUE_CENTERID) === 0) {
-          plan.RESCUE_CENTERID = USER_TO_SET_SENTINEL_ID;
-        }
-        if (isEmptyValue(plan.RESCUE_AUTHORITY) || String(plan.RESCUE_AUTHORITY).trim() === "User to Set") {
-          plan.RESCUE_AUTHORITY = USER_TO_SET_SENTINEL_VALUE;
-        }
-        if (isEmptyValue(plan.RESCUE_AUTHORITY_PHONE)) {
-          plan.RESCUE_AUTHORITY_PHONE = USER_TO_SET_SENTINEL_VALUE;
-        }
-
-        if (!Array.isArray(this.fp.CONTACTS) || !this.fp.CONTACTS.length) {
-          this.fp.CONTACTS = [{
-            CONTACTID: USER_TO_SET_SENTINEL_ID,
-            SORT_ORDER: 1
-          }];
         }
 
         if ((!Array.isArray(this.fp.WAYPOINTS) || !this.fp.WAYPOINTS.length) && Array.isArray(defaults.WAYPOINT_SELECTIONS) && defaults.WAYPOINT_SELECTIONS.length) {
@@ -1204,9 +1170,6 @@
         var selectedId = numeric(
           selectedRaw
         );
-        if (selectedId === 0 && isUserToSetSentinel(selectedRaw)) {
-          selectedId = USER_TO_SET_SENTINEL_ID;
-        }
         this.selectedRescueCenterId = selectedId;
         this.fp.FLOATPLAN.RESCUE_CENTERID = selectedId;
         var match = null;
@@ -1217,10 +1180,7 @@
           }
         }
 
-        if (selectedId === USER_TO_SET_SENTINEL_ID) {
-          this.fp.FLOATPLAN.RESCUE_AUTHORITY = USER_TO_SET_SENTINEL_VALUE;
-          this.fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE = USER_TO_SET_SENTINEL_VALUE;
-        } else if (match) {
+        if (match) {
           this.fp.FLOATPLAN.RESCUE_AUTHORITY = match.rcName || "";
           this.fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE = match.rcPhone || "";
         } else {
@@ -1236,13 +1196,6 @@
       formatRescueCenterLabel: function (center) {
         if (!center) {
           return "";
-        }
-        if (
-          numeric(center.recId) === USER_TO_SET_SENTINEL_ID ||
-          isUserToSetSentinel(center.recId) ||
-          isUserToSetSentinel(center.rcName)
-        ) {
-          return "User to Set";
         }
         var name = (center.rcName || "").trim();
         if (!name) {
@@ -1294,7 +1247,7 @@
 
         this.selectedRescueCenterId = matchId;
         this.fp.FLOATPLAN.RESCUE_CENTERID = matchId;
-        if (matchId > 0 || this.isUserToSetRescueSelection()) {
+        if (matchId > 0) {
           this.clearFieldError(RESCUE_AUTHORITY_SELECTION_FIELD);
         }
         this.rescueCenterSyncing = false;
@@ -1361,6 +1314,7 @@
 
       isContactSelected: function (id) {
         var target = numeric(id);
+        if (target <= 0) return false;
         return this.fp.CONTACTS.some(function (item) {
           return numeric(item.CONTACTID) === target;
         });
@@ -1368,10 +1322,11 @@
 
       toggleContact: function (contact) {
         var id = contact ? numeric(contact.CONTACTID) : 0;
-        if (!id) return;
+        if (id <= 0) return;
         for (var i = 0; i < this.fp.CONTACTS.length; i++) {
           if (numeric(this.fp.CONTACTS[i].CONTACTID) === id) {
             this.fp.CONTACTS.splice(i, 1);
+            this.clearFieldError("CONTACTS");
             return;
           }
         }
@@ -1379,6 +1334,7 @@
           CONTACTID: id,
           SORT_ORDER: this.fp.CONTACTS.length + 1
         });
+        this.clearFieldError("CONTACTS");
       },
 
       isWaypointSelected: function (id) {
@@ -1529,12 +1485,6 @@
           "SORT_ORDER"
         );
         this.fp.CONTACTS = savedContacts;
-        if (!this.fp.CONTACTS.length && this.isFromRoutePlan()) {
-          this.fp.CONTACTS = [{
-            CONTACTID: USER_TO_SET_SENTINEL_ID,
-            SORT_ORDER: 1
-          }];
-        }
         this.fp.WAYPOINTS = savedWaypoints;
         if (
           !this.fp.WAYPOINTS.length

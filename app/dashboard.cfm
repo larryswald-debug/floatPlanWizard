@@ -886,6 +886,9 @@
                                             Contacts
                                         </button>
                                     </div>
+                                    <div class="invalid-feedback d-block mb-2" v-if="hasError('CONTACTS')">
+                                        {{ getError('CONTACTS') }}
+                                    </div>
 
                                     <div v-if="manifestActiveTab === 'passengers'" class="fpw-manifest__tabpane" role="tabpanel" aria-label="Passengers list">
                                         <input
@@ -1212,7 +1215,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260416a"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js?v=20260227c"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260423a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260523-contact-placeholder"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260227c"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js?v=20260227c"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js?v=20260227c"></script>
