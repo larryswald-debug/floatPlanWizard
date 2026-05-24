@@ -1412,6 +1412,7 @@
       </div>
       <div class="rg-topbar-right">
         <span id="routeGenRouteCode" class="rg-pill">Draft</span>
+        <button type="button" id="routeGenTourBtn" class="btn-secondary btn-sm rg-tour-btn" data-tour-start="route-generator">Guide Tour</button>
         <button type="button" id="routeGenCloseBtn" class="rg-close" aria-label="Close">&times;</button>
       </div>
     </div>
@@ -1440,7 +1441,7 @@
                   <div class="rg-section-head">
                     <div class="rg-section-title">Route Name</div>
                   </div>
-                  <div class="rg-field">
+                  <div class="rg-field" data-tour="route-name">
                     <label for="routeGenRouteName">Route Name</label>
                     <input id="routeGenRouteName" type="text" class="form-control form-control-sm" required aria-required="true">
                   </div>
@@ -1457,7 +1458,7 @@
                       <label for="routeGenMyRouteName">Create Route</label>
                       <div class="rg-inline-actions">
                         <input id="routeGenMyRouteName" type="text" class="form-control form-control-sm" placeholder="Route name">
-                        <button type="button" id="routeGenMyRouteCreateBtn" class="btn-secondary btn-sm">Create</button>
+                        <button type="button" id="routeGenMyRouteCreateBtn" class="btn-secondary btn-sm" data-tour="route-create">Create</button>
                       </div>
                     </div>
 
@@ -1467,12 +1468,12 @@
                         <select id="routeGenMyRouteSelect" class="form-select form-select-sm">
                           <option value="">Select route</option>
                         </select>
-                        <button type="button" id="routeGenMyRouteLoadBtn" class="btn-secondary btn-sm">Load</button>
+                        <button type="button" id="routeGenMyRouteLoadBtn" class="btn-secondary btn-sm" data-tour="route-load">Load</button>
                         <button type="button" id="routeGenMyRouteDeleteBtn" class="btn-secondary btn-sm">Delete</button>
                       </div>
                     </div>
 
-                    <div class="rg-field">
+                    <div class="rg-field" data-tour="route-start-waypoint">
                       <label for="routeGenMyRouteStartWaypointSelect">Route Start Waypoint</label>
                       <div class="rg-inline-actions">
                         <select id="routeGenMyRouteStartWaypointSelect" class="form-select form-select-sm">
@@ -1482,7 +1483,7 @@
                       </div>
                     </div>
 
-                    <div class="rg-field">
+                    <div class="rg-field" data-tour="route-add-leg-waypoint">
                       <label for="routeGenMyRouteEndWaypointSelect">Add Leg by Waypoint</label>
                       <div class="rg-inline-actions">
                         <select id="routeGenMyRouteEndWaypointSelect" class="form-select form-select-sm">

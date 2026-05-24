@@ -5617,6 +5617,9 @@
             var shouldStartOperationallyForCheckin = false;
             var operationalStartResult = {};
             var activeCruiseLocation = {};
+            var activeCruiseCapturedAtRaw = "";
+            var activeCruiseCapturedAt = {};
+            var activeCruiseCapturedAtDriftMinutes = 0;
 
             if (arguments.floatPlanId LTE 0) {
                 result.SUCCESS = false;
@@ -6014,7 +6017,21 @@
                         AND structKeyExists(activeCruiseLocation, "location")
                         AND isStruct(activeCruiseLocation.location)
                     ) {
-                        canonicalPayload.location = activeCruiseLocation.location;
+                        canonicalPayload.location = duplicate(activeCruiseLocation.location);
+                        activeCruiseCapturedAtRaw = readActiveCruiseLocationString(canonicalPayload.location, "capturedAtUtc");
+                        if (len(activeCruiseCapturedAtRaw)) {
+                            activeCruiseCapturedAt = parseActiveCruiseUtcDate(activeCruiseCapturedAtRaw);
+                            if (
+                                structKeyExists(activeCruiseCapturedAt, "SUCCESS")
+                                AND activeCruiseCapturedAt.SUCCESS
+                                AND isDate(activeCruiseCapturedAt.value)
+                            ) {
+                                activeCruiseCapturedAtDriftMinutes = dateDiff("n", activeCruiseCapturedAt.value, updatedCheckInDt);
+                                if (activeCruiseCapturedAtDriftMinutes GT 1440 OR activeCruiseCapturedAtDriftMinutes LT -5) {
+                                    canonicalPayload.location.capturedAtUtc = dateTimeFormat(updatedCheckInDt, "yyyy-mm-dd'T'HH:nn:ss'Z'");
+                                }
+                            }
+                        }
                     }
                     canonicalActivityService = createObject("component", resolveApiV1ComponentPath("TripActivityWriterService")).init(ds);
                     canonicalActivityResult = canonicalActivityService.recordActiveCruiseCheckin(

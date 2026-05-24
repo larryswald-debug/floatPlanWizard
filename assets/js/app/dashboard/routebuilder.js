@@ -5047,7 +5047,9 @@
 
       return ''
         + '<div class="fpw-routegen__legwrap" data-leg-order="' + String(order) + '">'
-        + '  <div class="fpw-routegen__leg ' + (isSelected ? 'is-selected' : '') + ' ' + (isExpanded ? 'is-expanded' : '') + '" data-leg-order="' + String(order) + '" data-route-leg-id="' + String(routeLegId) + '" data-segment-id="' + String(segmentId) + '">'
+        + '  <div class="fpw-routegen__leg ' + (isSelected ? 'is-selected' : '') + ' ' + (isExpanded ? 'is-expanded' : '') + '"'
+        + (idx === 0 ? ' data-tour="route-cruise-timeline-leg"' : '')
+        + ' data-leg-order="' + String(order) + '" data-route-leg-id="' + String(routeLegId) + '" data-segment-id="' + String(segmentId) + '">'
         + '    <div class="fpw-routegen__legidx">' + String(order).padStart(2, "0") + '</div>'
         + '    <div class="fpw-routegen__legroute">'
         + '      <div class="fpw-routegen__legname">' + escapeHtml((startName || "Start") + " -> " + (endName || "End")) + flags + '</div>'

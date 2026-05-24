@@ -153,6 +153,23 @@ body.dashboard-body .fpw-dashboard-tour-trigger:focus {
   border-color: rgba(91, 199, 255, 0.18);
 }
 
+#fpwRouteGen .rg-tour-btn {
+  min-height: 34px;
+  padding: 0.35rem 0.8rem;
+  white-space: nowrap;
+}
+
+.fpw-help-tour-card.is-waiting {
+  border-color: rgba(255, 209, 138, 0.48);
+}
+
+.fpw-help-tour-wait {
+  margin: 0.65rem 0 0;
+  color: #ffd18a;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
 @media (max-width: 640px) {
   .fpw-help-tour-card {
     left: 16px !important;

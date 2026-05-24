@@ -1,0 +1,96 @@
+# FPW local dev .htaccess
+# Converted from Hostek IIS web.config rewrite rules.
+#
+# IMPORTANT:
+# This only works if Apache/mod_rewrite is actually serving the dev site.
+# ColdFusion/Tomcat alone will not read .htaccess files.
+#
+# Dev assumption:
+# Local site URL is /fpw/
+# Example: http://localhost:8500/fpw/
+
+RewriteEngine On
+RewriteBase /fpw/
+
+# ------------------------------------------------------------
+# DO NOT force www or HTTPS in local dev.
+# The Hostek web.config redirects floatplanwizard.com to
+# https://www.floatplanwizard.com and forces HTTPS.
+# Those rules are intentionally omitted here for localhost.
+# ------------------------------------------------------------
+
+
+# ------------------------------------------------------------
+# Redirect /index.cfm to local dev homepage
+# Only when directly requested by the browser.
+# Discard query string to match appendQueryString="false".
+# ------------------------------------------------------------
+RewriteCond %{THE_REQUEST} \s/+fpw/index\.cfm[\s?] [NC]
+RewriteRule ^index\.cfm$ /fpw/ [R=302,L,QSD]
+
+
+# ------------------------------------------------------------
+# Redirect archive URLs to homepage
+# Discard query string to match appendQueryString="false".
+# ------------------------------------------------------------
+RewriteRule ^archive(/.*)?$ /fpw/ [R=302,L,QSD]
+
+
+# ------------------------------------------------------------
+# Fuel Calculator canonical redirects
+# /boat-fuel-calculator/boat-fuel-calculator.cfm
+#   -> /boat-fuel-calculator/
+#
+# /boat-fuel-calculator
+#   -> /boat-fuel-calculator/
+#
+# /boat-fuel-calculator/
+#   -> internal rewrite to CFM file
+# ------------------------------------------------------------
+
+RewriteCond %{THE_REQUEST} \s/+fpw/boat-fuel-calculator/boat-fuel-calculator\.cfm[\s?] [NC]
+RewriteRule ^boat-fuel-calculator/boat-fuel-calculator\.cfm$ /fpw/boat-fuel-calculator/ [R=302,L]
+
+RewriteRule ^boat-fuel-calculator$ /fpw/boat-fuel-calculator/ [R=302,L]
+
+RewriteRule ^boat-fuel-calculator/$ boat-fuel-calculator/boat-fuel-calculator.cfm [L,QSA]
+
+
+# ------------------------------------------------------------
+# Why Use a Float Plan canonical redirects
+# /why-use-a-float-plan.cfm
+#   -> /why-use-a-float-plan/
+#
+# /why-use-a-float-plan
+#   -> /why-use-a-float-plan/
+#
+# /why-use-a-float-plan/
+#   -> internal rewrite to CFM file
+# ------------------------------------------------------------
+
+RewriteCond %{THE_REQUEST} \s/+fpw/why-use-a-float-plan\.cfm[\s?] [NC]
+RewriteRule ^why-use-a-float-plan\.cfm$ /fpw/why-use-a-float-plan/ [R=302,L]
+
+RewriteRule ^why-use-a-float-plan$ /fpw/why-use-a-float-plan/ [R=302,L]
+
+RewriteRule ^why-use-a-float-plan/$ why-use-a-float-plan.cfm [L,QSA]
+
+
+# ------------------------------------------------------------
+# How It Works canonical redirects
+# /how-it-works.cfm
+#   -> /how-it-works/
+#
+# /how-it-works
+#   -> /how-it-works/
+#
+# /how-it-works/
+#   -> internal rewrite to CFM file
+# ------------------------------------------------------------
+
+RewriteCond %{THE_REQUEST} \s/+fpw/how-it-works\.cfm[\s?] [NC]
+RewriteRule ^how-it-works\.cfm$ /fpw/how-it-works/ [R=302,L]
+
+RewriteRule ^how-it-works$ /fpw/how-it-works/ [R=302,L]
+
+RewriteRule ^how-it-works/$ how-it-works.cfm [L,QSA]

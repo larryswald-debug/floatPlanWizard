@@ -2980,7 +2980,6 @@
                 fileField="media_file"
                 destination="#uploadDir#"
                 nameConflict="makeunique"
-                accept="image/jpeg,image/pjpeg,image/png,image/webp,image/x-webp"
                 result="uploadResult">
             <cfcatch>
                 <cfset out.MESSAGE = "Invalid image upload">

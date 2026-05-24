@@ -1,0 +1,5 @@
+1. [GET] https://floatplanwizard.tmpsite.media3.us/app/weather.cfm => [200] OK
+6. [GET] https://unpkg.com/leaflet@1.9.4/dist/leaflet.css => [200] 
+10. [GET] https://unpkg.com/leaflet@1.9.4/dist/leaflet.js => [200] 
+11. [GET] https://floatplanwizard.tmpsite.media3.us/assets/js/maps/fpw-weather-overlays.js?v=20260430a => [200] OK
+14. [GET] https://floatplanwizard.tmpsite.media3.us/api/v1/me.cfc?method=handle&returnFormat=json => [200] OK

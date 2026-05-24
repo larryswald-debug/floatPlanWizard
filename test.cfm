@@ -1,8 +1,8 @@
+<cfscript>
+             apiDir = getDirectoryFromPath(getCurrentTemplatePath());
+             
 
-   <cfmail to="lswald@yahoo.com"
-           subject="Test Email"
-           from="info@floatplanwizard.com">
-       test
-    </cfmail>
+writeOutput(apiDir);
 
->
+
+</cfscript>
