@@ -4454,6 +4454,13 @@
     var retryBtn = null;
     var requestSeq = 0;
     var selectedRouteCode = "";
+    var followShareModalEl = null;
+    var followShareModal = null;
+    var followShareUrlEl = null;
+    var followShareOpenLink = null;
+    var followShareSmsLink = null;
+    var followShareCopyBtn = null;
+    var followShareStatusEl = null;
 
     function routeUrl(routeCode) {
       return BASE_PATH + "/api/v1/route.cfc?method=handle&action=getTimeline&routeCode=" + encodeURIComponent(routeCode || "") + "&returnformat=json";
@@ -4867,6 +4874,23 @@
       return '<span class="fpw-route-status-text fpw-route-status-text--' + escapeHtml(modifier) + '">' + escapeHtml(label) + '</span>';
     }
 
+    function buildActiveRouteSubRow(route, routeMeta) {
+      var currentGroup = routeMeta.currentRouteGroup;
+      var planId = currentGroup ? normalizePlanId(currentGroup.floatPlanId) : 0;
+      var title = currentGroup && currentGroup.floatPlanName ? currentGroup.floatPlanName : "active float plan";
+      if (!currentGroup || routeMeta.currentState !== "ACTIVE" || planId <= 0) {
+        return "";
+      }
+      return ""
+        + '<div class="expedition-route-card fpw-route-active-subrow"' + routeMeta.dataAttrs + '>'
+        + '  <div class="fpw-route-active-subrow-copy">'
+        + '    <strong>Float plan ready</strong>'
+        + '    <a href="#" class="fpw-route-active-link js-expedition-download-pdf" data-plan-id="' + planId + '" aria-label="Download PDF Float Plan for ' + escapeHtml(title) + '">Download PDF Float Plan</a>'
+        + '  </div>'
+        + '  <button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary fpw-route-share-btn js-expedition-share-follow" data-plan-id="' + planId + '">Share Follow Link</button>'
+        + '</div>';
+    }
+
     function buildRouteRow(route, routeMeta) {
       var totals = routeMeta.totals;
       var summary = getRouteSummaryValues(route, totals);
@@ -5003,7 +5027,7 @@
         + list.map(function (route) {
           var meta = getRouteRenderMeta(route, activeCode);
           meta.isSelected = !!(route && route.SHORT_CODE && route.SHORT_CODE === selectedRouteCode);
-          return buildRouteRow(route, meta);
+          return buildRouteRow(route, meta) + buildActiveRouteSubRow(route, meta);
         }).join("")
         + '    </div>'
         + '    <div class="fpw-routes-count">1-' + formatNumber(list.length, 0) + ' of ' + formatNumber(list.length, 0) + ' routes</div>'
@@ -5421,6 +5445,173 @@
       return "";
     }
 
+    function buildGeneratedFloatPlanPdfUrl(fileName) {
+      var safeName = String(fileName || "").trim();
+      if (!safeName) return "";
+      return BASE_PATH + "/api/api_assets/floatPlans/user_float_plans/" + encodeURIComponent(safeName) + "?t=" + encodeURIComponent(Date.now());
+    }
+
+    function triggerPdfDownload(url) {
+      var link = document.createElement("a");
+      link.href = url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.download = "";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function setActionBusy(actionEl, isBusy, busyText) {
+      if (!actionEl) return;
+      if (isBusy) {
+        if (!actionEl.dataset.originalText) {
+          actionEl.dataset.originalText = actionEl.textContent || "";
+        }
+        actionEl.setAttribute("aria-busy", "true");
+        actionEl.classList.add("is-loading");
+        if (busyText) actionEl.textContent = busyText;
+        return;
+      }
+      actionEl.removeAttribute("aria-busy");
+      actionEl.classList.remove("is-loading");
+      if (actionEl.dataset.originalText) {
+        actionEl.textContent = actionEl.dataset.originalText;
+        delete actionEl.dataset.originalText;
+      }
+    }
+
+    function openCurrentFloatPlanPdf(planId, actionEl) {
+      var id = normalizePlanId(planId);
+      if (id <= 0 || !window.Api || typeof window.Api.createFloatPlanPdf !== "function") {
+        if (utils && typeof utils.showAlertModal === "function") {
+          utils.showAlertModal("Unable to generate float plan PDF.");
+        } else {
+          window.alert("Unable to generate float plan PDF.");
+        }
+        return;
+      }
+      setActionBusy(actionEl, true, "Preparing PDF...");
+      window.Api.createFloatPlanPdf(id)
+        .then(function (fileName) {
+          var pdfUrl = buildGeneratedFloatPlanPdfUrl(fileName);
+          if (!pdfUrl) {
+            throw { MESSAGE: "Unable to generate float plan PDF." };
+          }
+          triggerPdfDownload(pdfUrl);
+        })
+        .catch(function (err) {
+          var message = (err && err.MESSAGE) ? err.MESSAGE : "Unable to generate float plan PDF.";
+          if (utils && typeof utils.showAlertModal === "function") {
+            utils.showAlertModal(message);
+          } else {
+            window.alert(message);
+          }
+        })
+        .then(function () {
+          setActionBusy(actionEl, false);
+        });
+    }
+
+    function normalizeFollowShareUrl(url) {
+      var value = String(url || "").trim();
+      if (!value) return "";
+      if (/^https?:\/\//i.test(value)) return value;
+      if (value.charAt(0) === "/") return window.location.origin + value;
+      return value;
+    }
+
+    function buildSmsHref(followUrl) {
+      return "sms:?&body=" + encodeURIComponent("Follow our trip: " + followUrl);
+    }
+
+    function setFollowShareStatus(message) {
+      if (followShareStatusEl) {
+        followShareStatusEl.textContent = message || "";
+      }
+    }
+
+    function ensureFollowShareModal() {
+      if (!followShareModalEl) {
+        followShareModalEl = document.getElementById("followShareModal");
+        if (followShareModalEl) {
+          followShareUrlEl = document.getElementById("followShareUrl");
+          followShareOpenLink = document.getElementById("followShareOpenLink");
+          followShareSmsLink = document.getElementById("followShareSmsLink");
+          followShareCopyBtn = document.getElementById("followShareCopyBtn");
+          followShareStatusEl = document.getElementById("followShareStatus");
+        }
+      }
+      if (followShareModalEl && !followShareModal && window.bootstrap && window.bootstrap.Modal) {
+        followShareModal = new window.bootstrap.Modal(followShareModalEl);
+      }
+      if (followShareCopyBtn && !followShareCopyBtn.dataset.listenersAttached) {
+        followShareCopyBtn.addEventListener("click", function () {
+          var url = followShareUrlEl ? String(followShareUrlEl.value || "").trim() : "";
+          if (!url) return;
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(function () {
+              setFollowShareStatus("Follow link copied.");
+            }).catch(function () {
+              window.prompt("Copy this link:", url);
+            });
+            return;
+          }
+          window.prompt("Copy this link:", url);
+        });
+        followShareCopyBtn.dataset.listenersAttached = "true";
+      }
+    }
+
+    function showFollowShareModal(followUrl) {
+      var url = normalizeFollowShareUrl(followUrl);
+      if (!url) return;
+      ensureFollowShareModal();
+      if (followShareUrlEl) followShareUrlEl.value = url;
+      if (followShareOpenLink) followShareOpenLink.href = url;
+      if (followShareSmsLink) followShareSmsLink.href = buildSmsHref(url);
+      setFollowShareStatus("");
+      if (followShareModalEl && followShareModal) {
+        followShareModalEl.style.zIndex = "2000";
+        followShareModal.show();
+        window.setTimeout(function () {
+          var backdrops = document.querySelectorAll(".modal-backdrop");
+          if (backdrops.length) {
+            backdrops[backdrops.length - 1].style.zIndex = "1990";
+          }
+        }, 0);
+        return;
+      }
+      window.prompt("Copy this link:", url);
+    }
+
+    function openFollowShare(actionEl) {
+      setActionBusy(actionEl, true, "Loading...");
+      return fetchJson(voyageUrl("ownerEnsureStream"))
+        .then(function (payload) {
+          var followTarget = "";
+          if (!payload || payload.SUCCESS === false || payload.success === false) {
+            throw { MESSAGE: "Unable to load Follow page link." };
+          }
+          followTarget = resolveFollowTarget(payload);
+          if (!followTarget) {
+            throw { MESSAGE: "Unable to load Follow page link." };
+          }
+          showFollowShareModal(followTarget);
+        })
+        .catch(function (err) {
+          var message = (err && err.MESSAGE) ? err.MESSAGE : "Unable to load Follow page link.";
+          if (utils && typeof utils.showAlertModal === "function") {
+            utils.showAlertModal(message);
+          } else {
+            window.alert(message);
+          }
+        })
+        .then(function () {
+          setActionBusy(actionEl, false);
+        });
+    }
+
     function openTripPage() {
       var popup = null;
       try {
@@ -5578,6 +5769,18 @@
           var routeInstanceId = parseInt(card.getAttribute("data-route-instance-id") || "0", 10);
           if (!Number.isFinite(routeInstanceId)) routeInstanceId = 0;
           if (!routeCode) return;
+          var pdfAction = target.closest(".js-expedition-download-pdf");
+          var shareFollowAction = target.closest(".js-expedition-share-follow");
+          if (pdfAction) {
+            event.preventDefault();
+            openCurrentFloatPlanPdf(normalizePlanId(pdfAction.getAttribute("data-plan-id")) || currentFloatPlanId, pdfAction);
+            return;
+          }
+          if (shareFollowAction) {
+            event.preventDefault();
+            openFollowShare(shareFollowAction);
+            return;
+          }
           if (!target.closest("button") && card.classList.contains("fpw-routes-table-row")) {
             selectRoute(routeCode);
             return;

@@ -11,7 +11,7 @@
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260513-basic-details">
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260523-route-share-subrow">
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/help-tour.css?v=20260521-dashboard-tour">
 </head>
 <body class="dashboard-body" data-fpw-page="dashboard">
@@ -316,6 +316,28 @@
             </div>
             <div class="modal-footer card-footer">
                 <button type="button" class="btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="followShareModal" tabindex="-1" aria-labelledby="followShareModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content dashboard-card fpw-follow-share-modal">
+            <div class="modal-header card-header">
+                <h5 class="modal-title card-title" id="followShareModalLabel">Share Follow Link</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body card-body">
+                <p class="fpw-follow-share-copy">Share this public Follow page link with family, friends, or trip contacts.</p>
+                <label class="fpw-follow-share-label" for="followShareUrl">Follow Page Link</label>
+                <input type="text" class="form-control fpw-follow-share-url" id="followShareUrl" readonly>
+                <p class="fpw-follow-share-status" id="followShareStatus" aria-live="polite"></p>
+            </div>
+            <div class="modal-footer card-footer fpw-follow-share-actions">
+                <a class="btn-secondary fpw-follow-share-open" id="followShareOpenLink" href="#" target="_blank" rel="noopener">Open Follow Page</a>
+                <a class="btn-secondary fpw-follow-share-sms" id="followShareSmsLink" href="#">Send by Text Message</a>
+                <button type="button" class="btn-primary" id="followShareCopyBtn">Copy Link</button>
             </div>
         </div>
     </div>
@@ -1231,7 +1253,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help-tour.js?v=20260521-dashboard-tour"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260519-route-current-group-actions"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260523-route-share-subrow"></script>
 
 </body>
 </html>
