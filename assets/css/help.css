@@ -1,0 +1,428 @@
+:root {
+  --fpw-help-bg: #02070d;
+  --fpw-help-bg-soft: #06131d;
+  --fpw-help-panel: rgba(7, 22, 35, 0.92);
+  --fpw-help-panel-soft: rgba(12, 33, 49, 0.78);
+  --fpw-help-border: rgba(126, 178, 220, 0.22);
+  --fpw-help-border-strong: rgba(33, 243, 238, 0.52);
+  --fpw-help-text: #f4f8fb;
+  --fpw-help-muted: #a7c0d5;
+  --fpw-help-cyan: #21f3ee;
+  --fpw-help-blue: #67d8ff;
+  --fpw-help-green: #6fe7b4;
+  --fpw-help-amber: #ffd18a;
+  --fpw-help-pink: #ff9db6;
+}
+
+.fpw-help-body {
+  min-height: 100vh;
+  margin: 0;
+  background: var(--fpw-help-bg);
+  color: var(--fpw-help-text);
+}
+
+.fpw-help,
+.fpw-help * {
+  box-sizing: border-box;
+}
+
+.fpw-help {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 14% 0%, rgba(33, 243, 238, 0.13), transparent 28%),
+    radial-gradient(circle at 84% 10%, rgba(103, 216, 255, 0.10), transparent 26%),
+    linear-gradient(180deg, #02070d 0%, #06131d 45%, #02070d 100%);
+  color: var(--fpw-help-text);
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.fpw-help a {
+  color: var(--fpw-help-blue);
+}
+
+.fpw-help-container {
+  width: min(1480px, calc(100% - 48px));
+  margin: 0 auto;
+}
+
+.fpw-help-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 64px 0 48px;
+  border-bottom: 1px solid rgba(126, 178, 220, 0.18);
+}
+
+.fpw-help-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, rgba(33, 243, 238, 0.10), transparent 38%),
+    linear-gradient(180deg, rgba(5, 18, 29, 0.20), rgba(2, 7, 13, 0.78));
+  pointer-events: none;
+}
+
+.fpw-help-hero__inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.62fr);
+  gap: 28px;
+  align-items: end;
+}
+
+.fpw-help-kicker,
+.fpw-help-section-label,
+.fpw-help-toc__title {
+  margin: 0;
+  color: var(--fpw-help-cyan);
+  font-size: 0.83rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.fpw-help h1,
+.fpw-help h2,
+.fpw-help h3,
+.fpw-help p {
+  margin-top: 0;
+}
+
+.fpw-help h1 {
+  margin-bottom: 18px;
+  color: #ffffff;
+  font-size: 4.1rem;
+  line-height: 0.98;
+  font-weight: 900;
+}
+
+.fpw-help-lede {
+  max-width: 800px;
+  margin-bottom: 0;
+  color: #d8e7fb;
+  font-size: 1.18rem;
+  line-height: 1.5;
+}
+
+.fpw-help-search {
+  border: 1px solid var(--fpw-help-border);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, rgba(33, 243, 238, 0.12), transparent 42%),
+    rgba(5, 18, 29, 0.88);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.32);
+  padding: 22px;
+}
+
+.fpw-help-search label {
+  display: block;
+  margin-bottom: 10px;
+  color: #ffffff;
+  font-weight: 850;
+}
+
+.fpw-help-search__control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.fpw-help-search input {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid rgba(126, 178, 220, 0.28);
+  border-radius: 12px;
+  background: rgba(2, 10, 18, 0.78);
+  color: #ffffff;
+  padding: 13px 14px;
+  font: inherit;
+}
+
+.fpw-help-search input:focus {
+  outline: 2px solid rgba(33, 243, 238, 0.55);
+  outline-offset: 2px;
+}
+
+.fpw-help-search button {
+  border: 1px solid rgba(33, 243, 238, 0.42);
+  border-radius: 12px;
+  background: rgba(33, 243, 238, 0.12);
+  color: #dffcff;
+  padding: 0 16px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.fpw-help-search button:hover,
+.fpw-help-search button:focus {
+  background: rgba(33, 243, 238, 0.22);
+}
+
+.fpw-help-search__status {
+  min-height: 1.35em;
+  margin: 12px 0 0;
+  color: var(--fpw-help-muted);
+  font-size: 0.94rem;
+}
+
+.fpw-help-shell {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 26px;
+  align-items: start;
+  padding: 34px 0 58px;
+}
+
+.fpw-help-toc {
+  position: sticky;
+  top: 18px;
+}
+
+.fpw-help-toc__panel {
+  border: 1px solid var(--fpw-help-border);
+  border-radius: 18px;
+  background: rgba(5, 18, 29, 0.88);
+  box-shadow: 0 18px 56px rgba(0, 0, 0, 0.24);
+  padding: 18px;
+}
+
+.fpw-help-toc nav {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.fpw-help-toc a {
+  display: block;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: #c6d9e8;
+  padding: 9px 10px;
+  text-decoration: none;
+  font-weight: 750;
+}
+
+.fpw-help-toc a:hover,
+.fpw-help-toc a:focus,
+.fpw-help-toc a.is-active {
+  border-color: rgba(33, 243, 238, 0.28);
+  background: rgba(33, 243, 238, 0.09);
+  color: #ffffff;
+}
+
+.fpw-help-content {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.fpw-help-card,
+.fpw-help-empty {
+  border: 1px solid var(--fpw-help-border);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(33, 243, 238, 0.08), transparent 34%),
+    linear-gradient(180deg, rgba(7, 22, 35, 0.94), rgba(3, 13, 22, 0.94));
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.28);
+}
+
+.fpw-help-card {
+  padding: 28px;
+}
+
+.fpw-help-card h2 {
+  margin: 8px 0 14px;
+  color: #ffffff;
+  font-size: 2rem;
+  line-height: 1.12;
+  font-weight: 900;
+}
+
+.fpw-help-card h3 {
+  margin-bottom: 8px;
+  color: #ffffff;
+  font-size: 1.05rem;
+  line-height: 1.25;
+  font-weight: 850;
+}
+
+.fpw-help-card p,
+.fpw-help-card li {
+  color: #c8d9e8;
+  line-height: 1.62;
+}
+
+.fpw-help-card > p {
+  max-width: 920px;
+}
+
+.fpw-help-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.fpw-help-grid article,
+.fpw-help-status-list div,
+.fpw-help-faq details {
+  border: 1px solid rgba(126, 178, 220, 0.18);
+  border-radius: 15px;
+  background: rgba(12, 33, 49, 0.62);
+  padding: 16px;
+}
+
+.fpw-help-grid article p {
+  margin-bottom: 0;
+}
+
+.fpw-help-steps {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 0;
+  padding-left: 1.4rem;
+}
+
+.fpw-help-callout {
+  margin-top: 18px;
+  border-radius: 16px;
+  padding: 16px 18px;
+}
+
+.fpw-help-callout strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #ffffff;
+}
+
+.fpw-help-callout p {
+  margin-bottom: 0;
+}
+
+.fpw-help-callout-example {
+  border: 1px solid rgba(103, 216, 255, 0.32);
+  background: rgba(103, 216, 255, 0.08);
+}
+
+.fpw-help-callout-tip {
+  border: 1px solid rgba(111, 231, 180, 0.32);
+  background: rgba(111, 231, 180, 0.08);
+}
+
+.fpw-help-callout-safety {
+  border: 1px solid rgba(255, 209, 138, 0.42);
+  background: rgba(255, 209, 138, 0.09);
+}
+
+.fpw-help-callout-safety strong {
+  color: var(--fpw-help-amber);
+}
+
+.fpw-help-status-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.fpw-help-status-list div {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 14px;
+  align-items: baseline;
+}
+
+.fpw-help-status-list strong {
+  color: #ffffff;
+}
+
+.fpw-help-status-list span {
+  color: #c8d9e8;
+  line-height: 1.5;
+}
+
+.fpw-help-faq {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.fpw-help-faq summary {
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.fpw-help-faq p {
+  margin: 10px 0 0;
+}
+
+.fpw-help-empty {
+  padding: 18px 20px;
+  color: var(--fpw-help-amber);
+}
+
+.fpw-help-section[hidden] {
+  display: none;
+}
+
+@media (max-width: 1040px) {
+  .fpw-help-hero__inner,
+  .fpw-help-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .fpw-help-toc {
+    position: static;
+  }
+
+  .fpw-help-toc nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .fpw-help-container {
+    width: min(100% - 28px, 1480px);
+  }
+
+  .fpw-help-hero {
+    padding: 42px 0 34px;
+  }
+
+  .fpw-help h1 {
+    font-size: 2.55rem;
+  }
+
+  .fpw-help-lede {
+    font-size: 1.04rem;
+  }
+
+  .fpw-help-search__control,
+  .fpw-help-grid,
+  .fpw-help-status-list div {
+    grid-template-columns: 1fr;
+  }
+
+  .fpw-help-search button {
+    min-height: 44px;
+  }
+
+  .fpw-help-toc nav {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .fpw-help-card {
+    padding: 22px;
+  }
+
+  .fpw-help-card h2 {
+    font-size: 1.65rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .fpw-help-toc nav {
+    grid-template-columns: 1fr;
+  }
+}
