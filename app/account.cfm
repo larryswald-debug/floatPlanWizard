@@ -1,4 +1,5 @@
 <cfprocessingdirective pageencoding="utf-8">
+<cfinclude template="../includes/require_auth.cfm">
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,8 +8,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <cfinclude template="../includes/header_styles.cfm">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=2">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/account.css?v=20260521-site-rail">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260526-cache-bump">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/account.css?v=20260526-cache-bump">
 </head>
 
 <body class="dashboard-body account-body">
@@ -210,7 +211,7 @@
 <cfinclude template="../includes/footer.cfm">
 
 <cfinclude template="../includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/account.js?v=20260522-launch-trial-offers"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/account.js?v=20260526-cache-bump"></script>
 
 </body>
 </html>

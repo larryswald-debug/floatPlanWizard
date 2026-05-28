@@ -81,11 +81,13 @@
 
       projection = loadProjection(arguments.floatPlanId, model);
       routeTimeline = extractRouteTimeline(projection);
+      routeTimeline = enrichRouteTimelineFuel(qPlan, routeTimeline);
       routeTimelineAvailable = structKeyExists(routeTimeline, "available") AND routeTimeline.available EQ true;
       routeTimelineAuthority = (structKeyExists(routeTimeline, "authority") ? safeString(routeTimeline.authority) : "unavailable");
 
       model.routeTimeline = routeTimeline;
       model.currentLeg = buildCurrentLegSection(qPlan, projection, routeTimeline);
+      model.currentLeg.fuel = buildCurrentLegFuelSection(qPlan, routeTimeline, model.currentLeg);
       model.weather = buildWeatherSection(qPlan, model.map, model.currentLeg);
       model.pace = buildPaceSection(qPlan, projection, routeTimeline);
 
@@ -889,6 +891,282 @@
         "statusLabel" = (structKeyExists(currentProgress, "statusLabel") ? safeString(currentProgress.statusLabel) : deriveLegStatusLabel(timelineLeg, currentLeg)),
         "authority" = "TripProgressProjectionService"
       };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildRouteTimelineLegFuelUnavailable" access="private" returntype="struct" output="false">
+    <cfargument name="reason" type="string" required="false" default="Fuel data is not available.">
+    <cfscript>
+      var cleanReason = trim(arguments.reason);
+      if (!len(cleanReason)) {
+        cleanReason = "Fuel data is not available.";
+      }
+      return {
+        "isAvailable" = false,
+        "unavailableReason" = cleanReason,
+        "authority" = "routeBuilder.routegenEstimateFuelForDistance",
+        "totalFuelGallons" = 0,
+        "totalFuelLabel" = "Not available",
+        "fuelWithReserveGallons" = 0,
+        "fuelWithReserveLabel" = "Not available",
+        "legFuelNeededGallons" = 0,
+        "legFuelNeededLabel" = "Not available"
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="assignRouteTimelineFuelUnavailable" access="private" returntype="struct" output="false">
+    <cfargument name="routeTimeline" type="struct" required="true">
+    <cfargument name="reason" type="string" required="true">
+    <cfscript>
+      var out = duplicate(arguments.routeTimeline);
+      var i = 0;
+      if (!structKeyExists(out, "legs") OR !isArray(out.legs)) {
+        return out;
+      }
+      for (i = 1; i LTE arrayLen(out.legs); i++) {
+        out.legs[i].fuel = buildRouteTimelineLegFuelUnavailable(arguments.reason);
+      }
+      return out;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="enrichRouteTimelineFuel" access="private" returntype="struct" output="false">
+    <cfargument name="qPlan" type="query" required="true">
+    <cfargument name="routeTimeline" type="struct" required="true">
+    <cfscript>
+      var out = duplicate(arguments.routeTimeline);
+      var routeInputs = {};
+      var routeSummary = {};
+      var totalDistanceNm = 0;
+      var routeBuilderService = "";
+      var totalFuelResult = {};
+      var totalEstimate = {};
+      var totalFuelGallons = 0;
+      var fuelWithReserveGallons = 0;
+      var baseFuel = {};
+      var legDistanceNm = 0;
+      var legFuelResult = {};
+      var legEstimate = {};
+      var legFuel = {};
+      var legFuelNeededGallons = 0;
+      var i = 0;
+
+      if (!structKeyExists(out, "legs") OR !isArray(out.legs) OR arrayLen(out.legs) EQ 0) {
+        return out;
+      }
+
+      routeInputs = parseRouteInputsFromPlan(arguments.qPlan);
+      if (!structCount(routeInputs)) {
+        return assignRouteTimelineFuelUnavailable(out, "Route generator fuel inputs are unavailable.");
+      }
+
+      routeSummary = (
+        structKeyExists(out, "summary")
+        AND isStruct(out.summary)
+        ? out.summary
+        : {}
+      );
+      totalDistanceNm = (structKeyExists(routeSummary, "totalNm") ? safeNumber(routeSummary.totalNm) : 0);
+      if (totalDistanceNm LTE 0) {
+        return assignRouteTimelineFuelUnavailable(out, "Route distance is unavailable.");
+      }
+
+      try {
+        routeBuilderService = createRouteBuilderService();
+        totalFuelResult = routeBuilderService.routegenEstimateFuelForDistance(routeInputs, totalDistanceNm, 0, true);
+      } catch (any totalFuelErr) {
+        return assignRouteTimelineFuelUnavailable(out, "Route generator fuel estimate failed.");
+      }
+
+      if (!structKeyExists(totalFuelResult, "SUCCESS") OR totalFuelResult.SUCCESS NEQ true) {
+        return assignRouteTimelineFuelUnavailable(out, (structKeyExists(totalFuelResult, "MESSAGE") ? safeString(totalFuelResult.MESSAGE) : "Route fuel estimate is unavailable."));
+      }
+
+      totalEstimate = (
+        structKeyExists(totalFuelResult, "FUEL_ESTIMATE")
+        AND isStruct(totalFuelResult.FUEL_ESTIMATE)
+        ? totalFuelResult.FUEL_ESTIMATE
+        : {}
+      );
+      totalFuelGallons = (structKeyExists(totalEstimate, "baseFuelGallons") ? safeNumber(totalEstimate.baseFuelGallons) : 0);
+      fuelWithReserveGallons = (structKeyExists(totalEstimate, "requiredFuelGallons") ? safeNumber(totalEstimate.requiredFuelGallons) : 0);
+      if (fuelWithReserveGallons LTE 0) {
+        return assignRouteTimelineFuelUnavailable(out, "Fuel burn inputs are unavailable for fuel estimation.");
+      }
+
+      baseFuel = buildRouteTimelineLegFuelUnavailable("");
+      baseFuel.totalFuelGallons = totalFuelGallons;
+      baseFuel.totalFuelLabel = formatFuelGallonsLabel(totalFuelGallons);
+      baseFuel.fuelWithReserveGallons = fuelWithReserveGallons;
+      baseFuel.fuelWithReserveLabel = formatFuelGallonsLabel(fuelWithReserveGallons);
+
+      for (i = 1; i LTE arrayLen(out.legs); i++) {
+        legFuel = duplicate(baseFuel);
+        legDistanceNm = (structKeyExists(out.legs[i], "distanceNm") ? safeNumber(out.legs[i].distanceNm) : 0);
+        if (legDistanceNm LTE 0) {
+          legFuel.unavailableReason = "Selected leg distance is unavailable.";
+          out.legs[i].fuel = legFuel;
+          continue;
+        }
+
+        try {
+          legFuelResult = routeBuilderService.routegenEstimateFuelForDistance(routeInputs, legDistanceNm, 0, false);
+        } catch (any legFuelErr) {
+          legFuel.unavailableReason = "Route generator fuel estimate failed.";
+          out.legs[i].fuel = legFuel;
+          continue;
+        }
+
+        if (!structKeyExists(legFuelResult, "SUCCESS") OR legFuelResult.SUCCESS NEQ true) {
+          legFuel.unavailableReason = (structKeyExists(legFuelResult, "MESSAGE") ? safeString(legFuelResult.MESSAGE) : "Selected leg fuel estimate is unavailable.");
+          out.legs[i].fuel = legFuel;
+          continue;
+        }
+
+        legEstimate = (
+          structKeyExists(legFuelResult, "FUEL_ESTIMATE")
+          AND isStruct(legFuelResult.FUEL_ESTIMATE)
+          ? legFuelResult.FUEL_ESTIMATE
+          : {}
+        );
+        legFuelNeededGallons = (structKeyExists(legEstimate, "requiredFuelGallons") ? safeNumber(legEstimate.requiredFuelGallons) : 0);
+        if (legFuelNeededGallons LTE 0) {
+          legFuel.unavailableReason = "Selected leg fuel estimate is unavailable.";
+          out.legs[i].fuel = legFuel;
+          continue;
+        }
+
+        legFuel.isAvailable = true;
+        legFuel.unavailableReason = "";
+        legFuel.legFuelNeededGallons = legFuelNeededGallons;
+        legFuel.legFuelNeededLabel = formatFuelGallonsLabel(legFuelNeededGallons);
+        out.legs[i].fuel = legFuel;
+      }
+
+      return out;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildCurrentLegFuelSection" access="private" returntype="struct" output="false">
+    <cfargument name="qPlan" type="query" required="true">
+    <cfargument name="routeTimeline" type="struct" required="true">
+    <cfargument name="currentLeg" type="struct" required="true">
+    <cfscript>
+      var out = {
+        "isAvailable" = false,
+        "unavailableReason" = "Fuel data is not available.",
+        "authority" = "routeBuilder.routegenEstimateFuelForDistance",
+        "totalFuelGallons" = 0,
+        "totalFuelLabel" = "Not available",
+        "fuelWithReserveGallons" = 0,
+        "fuelWithReserveLabel" = "Not available",
+        "legFuelNeededGallons" = 0,
+        "legFuelNeededLabel" = "Not available",
+        "fuelPricePerGallon" = 0,
+        "fuelPriceLabel" = "Not provided",
+        "fuelCost" = 0,
+        "fuelCostLabel" = "Not available",
+        "reservePercent" = 0,
+        "reserveGallons" = 0,
+        "reserveLabel" = "Not available"
+      };
+      var routeInputs = parseRouteInputsFromPlan(arguments.qPlan);
+      var routeSummary = (
+        structKeyExists(arguments.routeTimeline, "summary")
+        AND isStruct(arguments.routeTimeline.summary)
+        ? arguments.routeTimeline.summary
+        : {}
+      );
+      var totalDistanceNm = (structKeyExists(routeSummary, "totalNm") ? safeNumber(routeSummary.totalNm) : 0);
+      var legDistanceNm = (structKeyExists(arguments.currentLeg, "distanceNm") ? safeNumber(arguments.currentLeg.distanceNm) : 0);
+      var routeBuilderService = "";
+      var totalFuelResult = {};
+      var legFuelResult = {};
+      var totalEstimate = {};
+      var legEstimate = {};
+      var totalFuelGallons = 0;
+      var fuelWithReserveGallons = 0;
+      var legFuelNeededGallons = 0;
+      var fuelPricePerGallon = 0;
+      var fuelCost = 0;
+      var reservePercent = 0;
+      var reserveGallons = 0;
+
+      if (!structCount(routeInputs)) {
+        out.unavailableReason = "Route generator fuel inputs are unavailable.";
+        return out;
+      }
+      if (totalDistanceNm LTE 0) {
+        out.unavailableReason = "Route distance is unavailable.";
+        return out;
+      }
+      if (legDistanceNm LTE 0) {
+        out.unavailableReason = "Current leg distance is unavailable.";
+        return out;
+      }
+
+      try {
+        routeBuilderService = createRouteBuilderService();
+        totalFuelResult = routeBuilderService.routegenEstimateFuelForDistance(routeInputs, totalDistanceNm, 0, true);
+        legFuelResult = routeBuilderService.routegenEstimateFuelForDistance(routeInputs, legDistanceNm, 0, false);
+      } catch (any fuelErr) {
+        out.unavailableReason = "Route generator fuel estimate failed.";
+        return out;
+      }
+
+      if (!structKeyExists(totalFuelResult, "SUCCESS") OR totalFuelResult.SUCCESS NEQ true) {
+        out.unavailableReason = (structKeyExists(totalFuelResult, "MESSAGE") ? safeString(totalFuelResult.MESSAGE) : "Route fuel estimate is unavailable.");
+        return out;
+      }
+      if (!structKeyExists(legFuelResult, "SUCCESS") OR legFuelResult.SUCCESS NEQ true) {
+        out.unavailableReason = (structKeyExists(legFuelResult, "MESSAGE") ? safeString(legFuelResult.MESSAGE) : "Current leg fuel estimate is unavailable.");
+        return out;
+      }
+
+      totalEstimate = (
+        structKeyExists(totalFuelResult, "FUEL_ESTIMATE")
+        AND isStruct(totalFuelResult.FUEL_ESTIMATE)
+        ? totalFuelResult.FUEL_ESTIMATE
+        : {}
+      );
+      legEstimate = (
+        structKeyExists(legFuelResult, "FUEL_ESTIMATE")
+        AND isStruct(legFuelResult.FUEL_ESTIMATE)
+        ? legFuelResult.FUEL_ESTIMATE
+        : {}
+      );
+
+      totalFuelGallons = (structKeyExists(totalEstimate, "baseFuelGallons") ? safeNumber(totalEstimate.baseFuelGallons) : 0);
+      fuelWithReserveGallons = (structKeyExists(totalEstimate, "requiredFuelGallons") ? safeNumber(totalEstimate.requiredFuelGallons) : 0);
+      legFuelNeededGallons = (structKeyExists(legEstimate, "requiredFuelGallons") ? safeNumber(legEstimate.requiredFuelGallons) : 0);
+      fuelPricePerGallon = (structKeyExists(totalFuelResult, "FUEL_PRICE_PER_GALLON") ? safeNumber(totalFuelResult.FUEL_PRICE_PER_GALLON) : 0);
+      fuelCost = (structKeyExists(totalEstimate, "totalFuelCost") ? safeNumber(totalEstimate.totalFuelCost) : 0);
+      reservePercent = (structKeyExists(totalFuelResult, "RESERVE_PCT") ? safeNumber(totalFuelResult.RESERVE_PCT) : 0);
+      reserveGallons = (structKeyExists(totalEstimate, "reserveGallons") ? safeNumber(totalEstimate.reserveGallons) : 0);
+
+      if (fuelWithReserveGallons LTE 0 OR legFuelNeededGallons LTE 0) {
+        out.unavailableReason = "Fuel burn inputs are unavailable for fuel estimation.";
+        return out;
+      }
+
+      out.isAvailable = true;
+      out.unavailableReason = "";
+      out.totalFuelGallons = totalFuelGallons;
+      out.totalFuelLabel = formatFuelGallonsLabel(totalFuelGallons);
+      out.fuelWithReserveGallons = fuelWithReserveGallons;
+      out.fuelWithReserveLabel = formatFuelGallonsLabel(fuelWithReserveGallons);
+      out.legFuelNeededGallons = legFuelNeededGallons;
+      out.legFuelNeededLabel = formatFuelGallonsLabel(legFuelNeededGallons);
+      out.fuelPricePerGallon = fuelPricePerGallon;
+      out.fuelPriceLabel = formatFuelPriceLabel(fuelPricePerGallon);
+      out.fuelCost = fuelCost;
+      out.fuelCostLabel = formatFuelCostLabel(fuelCost);
+      out.reservePercent = reservePercent;
+      out.reserveGallons = reserveGallons;
+      out.reserveLabel = formatFuelReserveLabel(reservePercent, reserveGallons);
+
+      return out;
     </cfscript>
   </cffunction>
 
@@ -1954,6 +2232,16 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="createRouteBuilderService" access="private" returntype="any" output="false">
+    <cfscript>
+      try {
+        return createObject("component", "fpw.api.v1.routeBuilder");
+      } catch (any routeBuilderPathErr) {
+        return createObject("component", "api.v1.routeBuilder");
+      }
+    </cfscript>
+  </cffunction>
+
   <cffunction name="formatSpeedKnLabel" access="private" returntype="string" output="false">
     <cfargument name="value" type="any" required="true">
     <cfscript>
@@ -1971,6 +2259,47 @@
         return "0%";
       }
       return numberFormat(safeNumber(arguments.value), "0") & "%";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatFuelGallonsLabel" access="private" returntype="string" output="false">
+    <cfargument name="value" type="any" required="true">
+    <cfscript>
+      if (!isNumeric(arguments.value) OR safeNumber(arguments.value) LTE 0) {
+        return "Not available";
+      }
+      return numberFormat(safeNumber(arguments.value), "0.0") & " gal";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatFuelPriceLabel" access="private" returntype="string" output="false">
+    <cfargument name="value" type="any" required="true">
+    <cfscript>
+      if (!isNumeric(arguments.value) OR safeNumber(arguments.value) LTE 0) {
+        return "Not provided";
+      }
+      return "$" & numberFormat(safeNumber(arguments.value), "0.00") & "/gal";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatFuelCostLabel" access="private" returntype="string" output="false">
+    <cfargument name="value" type="any" required="true">
+    <cfscript>
+      if (!isNumeric(arguments.value) OR safeNumber(arguments.value) LTE 0) {
+        return "Not available";
+      }
+      return "$" & numberFormat(safeNumber(arguments.value), "0.00");
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatFuelReserveLabel" access="private" returntype="string" output="false">
+    <cfargument name="reservePercent" type="any" required="true">
+    <cfargument name="reserveGallons" type="any" required="true">
+    <cfscript>
+      if (!isNumeric(arguments.reservePercent) OR safeNumber(arguments.reservePercent) LTE 0) {
+        return formatFuelGallonsLabel(arguments.reserveGallons);
+      }
+      return numberFormat(safeNumber(arguments.reservePercent), "0") & "% / " & formatFuelGallonsLabel(arguments.reserveGallons);
     </cfscript>
   </cffunction>
 

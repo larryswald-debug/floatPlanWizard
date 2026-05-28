@@ -305,7 +305,7 @@ isAuthorized = isLoggedIn AND isAdmin;
     </script>
   </cfoutput>
   <cfif isAuthorized>
-    <script src="<cfoutput>#encodeForHTMLAttribute(request.fpwBase)#</cfoutput>/assets/js/app/admin/vessel-manager.js?v=20260328b"></script>
+    <script src="<cfoutput>#encodeForHTMLAttribute(request.fpwBase)#</cfoutput>/assets/js/app/admin/vessel-manager.js?v=20260526-cache-bump"></script>
   </cfif>
 </body>
 </html>

@@ -24,7 +24,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <cfinclude template="../includes/header_styles.cfm">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/auth-pages.css?v=1">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/auth-pages.css?v=20260526-cache-bump">
 </head>
 <body class="auth-page-body bg-light d-flex align-items-center justify-content-center">
 

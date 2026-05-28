@@ -8,7 +8,7 @@
 
   <cfinclude template="../includes/header_styles.cfm">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/follow.css?v=202604141447a" />
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/follow.css?v=20260526-cache-bump" />
   <style>
     body.follow-loading { overflow: hidden; }
     body.follow-loading .app { visibility: hidden; }
@@ -404,7 +404,7 @@
 
   <cfinclude template="../includes/footer_scripts.cfm">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/followMap.js?v=202604131858a"></script>
-  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/follow.js?v=20260510-public-authority"></script>
+  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/followMap.js?v=20260526-cache-bump"></script>
+  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/follow.js?v=20260526-cache-bump"></script>
 </body>
 </html>

@@ -310,6 +310,12 @@ component output=false {
       arrayAppend(queryPairs, "FORMAT=" & urlEncodedFormat("image/png"));
     }
 
+    // Some NOAA WMS endpoints require STYLES to be present even when blank.
+    if (requestType == "GETMAP" && !structKeyExists(emitted, "STYLES")) {
+      arrayAppend(queryPairs, "STYLES=");
+      emitted["STYLES"] = true;
+    }
+
     var queryString = arrayToList(queryPairs, "&");
     var upstreamUrl = upstreamBase & (len(queryString) ? "?" & queryString : "");
 
@@ -354,7 +360,7 @@ component output=false {
           cfhttpparam(type="header", name="User-Agent", value="FPW-WMSProxy/1.0");
           cfhttpparam(type="header", name="Accept", value="image/png,image/*,*/*");
           cfhttpparam(type="header", name="Accept-Language", value="en-US,en;q=0.9");
-          cfhttpparam(type="header", name="Connection", value="keep-alive");
+          cfhttpparam(type="header", name="Connection", value="close");
         };
       } catch (any e) {
         httpRes = { statusCode="0", mimeType="", responseHeader={} };

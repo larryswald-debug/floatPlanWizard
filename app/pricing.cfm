@@ -8,7 +8,7 @@
 
   <cfinclude template="../includes/fpw_base_path.cfm">
   <cfinclude template="../includes/header_styles.cfm">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/pricing.css?v=20260521-site-rail">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/pricing.css?v=20260526-cache-bump">
 </head>
 <body>
 
@@ -248,7 +248,7 @@
 </main>
 
 <cfinclude template="../includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/pricing.js?v=1"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/pricing.js?v=20260526-cache-bump"></script>
 
 </body>
 </html>

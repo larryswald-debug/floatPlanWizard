@@ -1,4 +1,5 @@
 <cfprocessingdirective pageencoding="utf-8">
+<cfinclude template="../includes/require_auth.cfm">
 <!DOCTYPE html>
 <!-- Updated to host the float plan wizard inside a Bootstrap modal. -->
 <html lang="en">
@@ -11,8 +12,8 @@
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260523-route-share-subrow">
-<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/help-tour.css?v=20260521-dashboard-tour">
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260527-routes-collapse-final">
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/help-tour.css?v=20260526-cache-bump">
 </head>
 <body class="dashboard-body" data-fpw-page="dashboard">
 
@@ -111,10 +112,11 @@
                     <p class="fpw-routes-workspace-subtitle">Create and manage your saved boating routes.</p>
                 </div>
                 <div class="card-actions">
+                    <button type="button" class="btn-secondary" id="toggleRoutesPanelBtn" aria-controls="expeditionTimelinePanelBody" aria-expanded="true">Collapse</button>
                     <button type="button" class="btn-primary" id="openRouteBuilderBtn" data-tour-id="dashboard-create-route">+ Create Route</button>
                 </div>
             </div>
-            <div class="card-body fpw-dashboard-scroll-body">
+            <div class="card-body fpw-dashboard-scroll-body" id="expeditionTimelinePanelBody">
                 <div id="expeditionTimelineLoading" class="expedition-state mb-3" role="status">Loading expedition timeline...</div>
 
                 <div id="expeditionTimelineUnauthorized" class="expedition-state d-none mb-3" role="alert">
@@ -1235,26 +1237,26 @@
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260416a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js?v=20260227c"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260523-contact-placeholder"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260227c"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js?v=20260227c"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js?v=20260227c"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20260423a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/vessels.js?v=20260426a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/contacts.js?v=20260426a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20260426a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260426a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260426a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=202603191500a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20260522-launch-trial-offers"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260422b"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/route-generator-tour.js?v=20260524-route-tour"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help-tour.js?v=20260521-dashboard-tour"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/vessels.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/contacts.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/route-generator-tour.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help-tour.js?v=20260526-cache-bump"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260523-route-share-subrow"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260527-routes-collapse-js"></script>
 
 </body>
 </html>

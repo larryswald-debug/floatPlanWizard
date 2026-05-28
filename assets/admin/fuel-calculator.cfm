@@ -171,7 +171,7 @@
     <pre id="calcJsonOut">{}</pre>
   </div>
 
-  <script src="../assets/js/app/shared/fuel-math.js?v=20260308a"></script>
+  <script src="../assets/js/app/shared/fuel-math.js?v=20260526-cache-bump"></script>
   <script>
     (function () {
       function q(id) {

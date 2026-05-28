@@ -2128,7 +2128,7 @@
             }
 
             try {
-                weatherPayload = weatherComponent.getWeatherForCoordinates(val(pointLat), val(pointLng));
+                weatherPayload = weatherComponent.getWeatherForCoordinates(val(pointLat), val(pointLng), "quick", false);
             } catch (any weatherLookupErr) {
                 return buildApiEnvelope(
                     success=false,

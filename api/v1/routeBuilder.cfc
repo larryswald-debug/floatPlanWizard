@@ -4595,6 +4595,7 @@
         <cfargument name="routeInputs" type="struct" required="true">
         <cfargument name="distanceNm" type="numeric" required="true">
         <cfargument name="idleFuelGallons" type="any" required="false" default="0">
+        <cfargument name="includeIdleFuelFromInputs" type="any" required="false" default="false">
         <cfscript>
             var out = {
                 "SUCCESS"=false,
@@ -4603,18 +4604,24 @@
                 "PERFORMANCE_META"={},
                 "ALLOW_ANCHORED_BURN"=false,
                 "DISTANCE_NM"=0,
+                "IDLE_FUEL_GALLONS"=0,
+                "FUEL_PRICE_PER_GALLON"=0,
                 "WEATHER_FACTOR_PCT"=0,
                 "RESERVE_PCT"=33
             };
             var effectiveInputs = (isStruct(arguments.routeInputs) ? duplicate(arguments.routeInputs) : {});
             var distanceVal = val(arguments.distanceNm);
             var idleFuelGallonsVal = val(arguments.idleFuelGallons);
+            var includeIdleFuelFromInputsVal = false;
+            var idleBurnVal = 0;
+            var idleHoursVal = 0;
             var paceVal = "";
             var paceDefaults = {};
             var performanceMeta = {};
             var allowAnchoredBurnVal = false;
             var weatherFactorPctVal = 0;
             var reservePctVal = 33;
+            var fuelPriceVal = 0;
             var maxSpeedVal = 0;
             var maxBurnForEstimateVal = 0;
             var fuelBurnGphVal = 0;
@@ -4627,6 +4634,11 @@
 
             if (distanceVal LT 0) distanceVal = 0;
             if (idleFuelGallonsVal LT 0) idleFuelGallonsVal = 0;
+            includeIdleFuelFromInputsVal = (
+                isBoolean(arguments.includeIdleFuelFromInputs)
+                    ? arguments.includeIdleFuelFromInputs
+                    : (val(arguments.includeIdleFuelFromInputs) EQ 1)
+            );
 
             paceVal = routegenNormalizePace(structKeyExists(effectiveInputs, "pace") ? effectiveInputs.pace : "");
             paceDefaults = routegenPaceDefaults(paceVal);
@@ -4641,6 +4653,24 @@
                 structKeyExists(effectiveInputs, "reserve_pct") ? effectiveInputs.reserve_pct : "",
                 33
             );
+            fuelPriceVal = routegenNormalizeFuelPricePerGal(
+                structKeyExists(effectiveInputs, "fuel_price_per_gal")
+                    ? effectiveInputs.fuel_price_per_gal
+                    : (structKeyExists(effectiveInputs, "fuelPricePerGal") ? effectiveInputs.fuelPricePerGal : "")
+            );
+            if (includeIdleFuelFromInputsVal AND idleFuelGallonsVal LTE 0) {
+                idleBurnVal = routegenNormalizeFuelBurnGph(
+                    structKeyExists(effectiveInputs, "idle_burn_gph")
+                        ? effectiveInputs.idle_burn_gph
+                        : (structKeyExists(effectiveInputs, "idleBurnGph") ? effectiveInputs.idleBurnGph : "")
+                );
+                idleHoursVal = routegenNormalizeIdleHoursTotal(
+                    structKeyExists(effectiveInputs, "idle_hours_total")
+                        ? effectiveInputs.idle_hours_total
+                        : (structKeyExists(effectiveInputs, "idleHoursTotal") ? effectiveInputs.idleHoursTotal : "")
+                );
+                idleFuelGallonsVal = (idleBurnVal GT 0 AND idleHoursVal GT 0 ? round((idleBurnVal * idleHoursVal) * 10) / 10 : 0);
+            }
             maxSpeedVal = routegenNormalizeCruisingSpeed(performanceMeta.max_speed_kn, paceDefaults.MAX_SPEED_KN);
             maxBurnForEstimateVal = routegenNormalizeFuelBurnGph(performanceMeta.max_burn_for_estimate);
             fuelBurnGphVal = routegenNormalizeFuelBurnGph(performanceMeta.fuel_burn_gph);
@@ -4648,6 +4678,8 @@
             out.PERFORMANCE_META = performanceMeta;
             out.ALLOW_ANCHORED_BURN = allowAnchoredBurnVal;
             out.DISTANCE_NM = roundTo2(distanceVal);
+            out.IDLE_FUEL_GALLONS = roundTo2(idleFuelGallonsVal);
+            out.FUEL_PRICE_PER_GALLON = fuelPriceVal;
             out.WEATHER_FACTOR_PCT = weatherFactorPctVal;
             out.RESERVE_PCT = reservePctVal;
 
@@ -4671,6 +4703,7 @@
                 "weatherPct"=weatherFactorPctVal,
                 "idleFuelGallons"=idleFuelGallonsVal,
                 "reservePct"=reservePctVal,
+                "fuelPricePerGallon"=fuelPriceVal,
                 "allowAnchoredBurn"=allowAnchoredBurnVal
             });
 
@@ -7393,6 +7426,125 @@
             } catch (any e) {
                 return "";
             }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="syncFuelPriceToActiveRouteSnapshot" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeId" type="numeric" required="true">
+        <cfargument name="sourceRouteInstanceId" type="numeric" required="true">
+        <cfargument name="fuelPricePerGal" type="any" required="false" default="">
+        <cfscript>
+            var out = {
+                "success"=true,
+                "updated_count"=0,
+                "updated_route_instance_ids"=[],
+                "skipped_count"=0
+            };
+            var normalizedFuelPrice = routegenNormalizeFuelPricePerGal(arguments.fuelPricePerGal);
+            var storedFuelPrice = (normalizedFuelPrice GT 0 ? normalizedFuelPrice : "");
+            var qCandidates = queryNew("");
+            var i = 0;
+            var routeInputs = {};
+            var activeRouteId = 0;
+            var activeFloatPlanId = 0;
+            var routeInputsJson = "";
+            var routeInstanceIdVal = 0;
+
+            if (
+                arguments.userId LTE 0
+                OR arguments.routeId LTE 0
+                OR arguments.sourceRouteInstanceId LTE 0
+                OR !routegenHasInputsJsonColumn()
+            ) {
+                return out;
+            }
+
+            try {
+                qCandidates = queryExecute(
+                    "SELECT
+                        fp.floatPlanId,
+                        ri.id AS route_instance_id,
+                        ri.routegen_inputs_json
+                     FROM floatplans fp
+                     INNER JOIN route_instances ri
+                       ON ri.id = fp.route_instance_id
+                     WHERE fp.userId = :userId
+                       AND ri.user_id = :routeUserId
+                       AND ri.id <> :sourceRouteInstanceId
+                       AND ri.routegen_inputs_json IS NOT NULL
+                       AND TRIM(ri.routegen_inputs_json) <> ''
+                       AND UPPER(TRIM(fp.status)) IN (
+                            'ACTIVE',
+                            'DUE_NOW',
+                            'OVERDUE',
+                            'OVERDUE_1H',
+                            'OVERDUE_2H',
+                            'OVERDUE_3H',
+                            'OVERDUE_4H',
+                            'OVERDUE_12H',
+                            'OVERDUE_24H'
+                       )
+                     ORDER BY fp.floatPlanId DESC, ri.id DESC",
+                    {
+                        userId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                        routeUserId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
+                        sourceRouteInstanceId = { value=arguments.sourceRouteInstanceId, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource = application.dsn }
+                );
+
+                for (i = 1; i LTE qCandidates.recordCount; i++) {
+                    routeInputs = routegenParseStoredInputs(qCandidates.routegen_inputs_json[i]);
+                    if (!structCount(routeInputs)) {
+                        out.skipped_count += 1;
+                        continue;
+                    }
+
+                    activeRouteId = val(structKeyExists(routeInputs, "route_id") ? routeInputs.route_id : 0);
+                    activeFloatPlanId = val(structKeyExists(routeInputs, "active_trip_floatplan_id") ? routeInputs.active_trip_floatplan_id : 0);
+                    routeInstanceIdVal = val(qCandidates.route_instance_id[i]);
+
+                    if (
+                        activeRouteId NEQ arguments.routeId
+                        OR activeFloatPlanId NEQ val(qCandidates.floatPlanId[i])
+                        OR routeInstanceIdVal LTE 0
+                    ) {
+                        out.skipped_count += 1;
+                        continue;
+                    }
+
+                    routeInputs.fuel_price_per_gal = storedFuelPrice;
+                    routeInputsJson = routegenSerializeInputsForInstance(routeInputs);
+                    if (!len(trim(routeInputsJson))) {
+                        out.skipped_count += 1;
+                        continue;
+                    }
+
+                    queryExecute(
+                        "UPDATE route_instances
+                         SET routegen_inputs_json = :routegenInputsJson,
+                             updated_at = NOW()
+                         WHERE id = :routeInstanceId
+                           AND user_id = :routeUserId",
+                        {
+                            routegenInputsJson = { value=routeInputsJson, cfsqltype="cf_sql_longvarchar" },
+                            routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" },
+                            routeUserId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
+                        },
+                        { datasource = application.dsn }
+                    );
+                    arrayAppend(out.updated_route_instance_ids, routeInstanceIdVal);
+                }
+
+                out.updated_count = arrayLen(out.updated_route_instance_ids);
+            } catch (any syncFuelPriceErr) {
+                out.success = false;
+                out.message = "Unable to sync fuel price to active route snapshot.";
+                out.detail = syncFuelPriceErr.message;
+            }
+
+            return out;
         </cfscript>
     </cffunction>
 
@@ -12294,6 +12446,11 @@
             var qInst = queryNew("");
             var qActiveLinkedPlans = queryNew("");
             var preserveProgressOnRebuild = false;
+            var activeFuelPriceSync = {
+                "success"=true,
+                "updated_count"=0,
+                "updated_route_instance_ids"=[]
+            };
 
             try {
                 transaction {
@@ -12482,6 +12639,15 @@
                 rethrow;
             }
 
+            if (isMyRouteUpdate AND inputRouteIdVal GT 0 AND hasInputsJsonCol) {
+                activeFuelPriceSync = syncFuelPriceToActiveRouteSnapshot(
+                    userId = arguments.userId,
+                    routeId = inputRouteIdVal,
+                    sourceRouteInstanceId = routeInstanceId,
+                    fuelPricePerGal = (structKeyExists(instanceInputs, "fuel_price_per_gal") ? instanceInputs.fuel_price_per_gal : "")
+                );
+            }
+
             out.SUCCESS = true;
             out.MESSAGE = "Route updated";
             out.DATA = {
@@ -12491,7 +12657,8 @@
                 "route_instance_id"=routeInstanceId,
                 "generated_leg_count"=arrayLen(legs),
                 "totals"=data.totals,
-                "template"=data.template
+                "template"=data.template,
+                "active_fuel_price_sync"=activeFuelPriceSync
             };
             out.ROUTE_ID = routeId;
             out.ROUTE_CODE = routeCodeVal;
@@ -12708,4 +12875,3 @@
     </cffunction>
 
 </cfcomponent>
-

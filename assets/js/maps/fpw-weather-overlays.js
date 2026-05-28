@@ -26,8 +26,17 @@
     return "/api/v1";
   }
 
+  var directNoaaWmsUrls = {
+    "nws-radar": "https://mapservices.weather.noaa.gov/eventdriven/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer",
+    "fpw-wind-forecast": "https://nowcoast.noaa.gov/geoserver/ows",
+    "fpw-satellite": "https://nowcoast.noaa.gov/geoserver/ows",
+    "fpw-surface-fronts": "https://mapservices.weather.noaa.gov/vector/services/outlooks/natl_fcst_wx_chart/MapServer/WMSServer",
+    "fpw-wwa": "https://mapservices.weather.noaa.gov/eventdriven/services/WWA/watch_warn_adv/MapServer/WMSServer",
+    "fpw-observed-wind": "https://mapservices.weather.noaa.gov/vector/services/obs/surface_obs/MapServer/WMSServer"
+  };
+
   function weatherWmsUrl(target) {
-    return getFpwApiBase() + "/wmsProxy.cfc?method=tile&target=" + encodeURIComponent(target);
+    return directNoaaWmsUrls[target] || "";
   }
 
   var overlayRegistry = {
@@ -84,8 +93,11 @@
   }
 
   function createWmsOverlay(definition) {
+    var url = "";
     if (!window.L || !definition) return null;
-    return window.L.tileLayer.wms(weatherWmsUrl(definition.target), {
+    url = weatherWmsUrl(definition.target);
+    if (!url) return null;
+    return window.L.tileLayer.wms(url, {
       layers: definition.layers,
       styles: definition.styles || "",
       format: "image/png",

@@ -23,8 +23,8 @@ if (startTrialUserId LTE 0) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <cfinclude template="../includes/header_styles.cfm">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=2">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/account.css?v=20260521-site-rail">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260526-cache-bump">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/account.css?v=20260526-cache-bump">
 </head>
 
 <body class="dashboard-body account-body">
@@ -50,7 +50,6 @@ if (startTrialUserId LTE 0) {
 
           <div class="d-flex flex-wrap gap-2 align-items-center">
             <button class="btn btn-primary" type="button" id="activateLaunchTrialBtn" disabled>Activate Free Trial</button>
-            <a class="btn btn-outline-primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/account.cfm">Go to Account</a>
           </div>
 
           <p class="small text-muted mt-3 mb-0" id="startTrialMessage" aria-live="polite">Checking your membership status...</p>
@@ -61,7 +60,7 @@ if (startTrialUserId LTE 0) {
 </main>
 
 <cfinclude template="../includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/start-trial.js?v=1"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/start-trial.js?v=20260526-cache-bump"></script>
 
 </body>
 </html>

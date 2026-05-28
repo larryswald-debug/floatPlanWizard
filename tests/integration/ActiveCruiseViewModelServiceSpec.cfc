@@ -76,6 +76,190 @@ component extends="testbox.system.BaseSpec" output="false" {
         }
       });
 
+      it("exposes route-generator fuel labels for the Active Cruise V2 current leg panel", function() {
+        var prefix = variables.naming.buildPrefix("active-cruise-v2", "fuel-summary");
+        var sessionApi = buildSessionApiSupport();
+        var localCreated = newCreatedTracker();
+        var asset = {};
+        var model = {};
+        var fuel = {};
+        var firstLeg = {};
+        var secondLeg = {};
+        var firstLegFuel = {};
+        var secondLegFuel = {};
+
+        try {
+          url.testUserId = variables.sessionApiUser.userId;
+          asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+          seedRouteInputsForPaceTest(asset.floatPlanId, {
+            "pace" = "BALANCED",
+            "cruising_speed" = 20,
+            "vessel_most_efficient_speed_kn" = 8,
+            "fuel_burn_gph" = 10,
+            "reserve_pct" = 33,
+            "fuel_price_per_gal" = 6.25,
+            "idle_burn_gph" = 1.5,
+            "idle_hours_total" = 2,
+            "underway_hours_per_day" = 6.5,
+            "weather_factor_pct" = 0
+          });
+
+          model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          expect(model.success).toBeTrue(serializeJSON(model));
+          expect(structKeyExists(model.currentLeg, "fuel")).toBeTrue(serializeJSON(model.currentLeg));
+          fuel = model.currentLeg.fuel;
+
+          expect(fuel.authority).toBe("routeBuilder.routegenEstimateFuelForDistance", serializeJSON(fuel));
+          expect(fuel.isAvailable).toBeTrue(serializeJSON(fuel));
+          expect(fuel.totalFuelGallons).toBeGT(0, serializeJSON(fuel));
+          expect(fuel.fuelWithReserveGallons).toBeGT(fuel.totalFuelGallons, serializeJSON(fuel));
+          expect(fuel.legFuelNeededGallons).toBeGT(0, serializeJSON(fuel));
+          expect(roundTo2Numeric(fuel.fuelPricePerGallon)).toBe(6.25, serializeJSON(fuel));
+          expect(fuel.fuelCost).toBeGT(0, serializeJSON(fuel));
+          expect(find("gal", fuel.legFuelNeededLabel)).toBeGT(0, serializeJSON(fuel));
+          expect(find("$", fuel.fuelPriceLabel)).toBe(1, serializeJSON(fuel));
+          expect(find("$", fuel.fuelCostLabel)).toBe(1, serializeJSON(fuel));
+
+          expect(model.routeTimeline.available).toBeTrue(serializeJSON(model.routeTimeline));
+          expect(arrayLen(model.routeTimeline.legs)).toBeGT(1, serializeJSON(model.routeTimeline));
+          firstLeg = model.routeTimeline.legs[1];
+          secondLeg = model.routeTimeline.legs[2];
+          expect(roundTo2Numeric(firstLeg.distanceNm)).notToBe(roundTo2Numeric(secondLeg.distanceNm), serializeJSON(model.routeTimeline.legs));
+          expect(structKeyExists(firstLeg, "fuel")).toBeTrue(serializeJSON(firstLeg));
+          expect(structKeyExists(secondLeg, "fuel")).toBeTrue(serializeJSON(secondLeg));
+          firstLegFuel = firstLeg.fuel;
+          secondLegFuel = secondLeg.fuel;
+          expect(firstLegFuel.authority).toBe("routeBuilder.routegenEstimateFuelForDistance", serializeJSON(firstLegFuel));
+          expect(firstLegFuel.isAvailable).toBeTrue(serializeJSON(firstLegFuel));
+          expect(secondLegFuel.isAvailable).toBeTrue(serializeJSON(secondLegFuel));
+          expect(firstLegFuel.totalFuelLabel).toBe(secondLegFuel.totalFuelLabel, serializeJSON(model.routeTimeline.legs));
+          expect(firstLegFuel.fuelWithReserveLabel).toBe(secondLegFuel.fuelWithReserveLabel, serializeJSON(model.routeTimeline.legs));
+          expect(firstLegFuel.legFuelNeededLabel).notToBe(secondLegFuel.legFuelNeededLabel, serializeJSON(model.routeTimeline.legs));
+          expect(find("gal", firstLegFuel.legFuelNeededLabel)).toBeGT(0, serializeJSON(firstLegFuel));
+          expect(find("gal", secondLegFuel.legFuelNeededLabel)).toBeGT(0, serializeJSON(secondLegFuel));
+        } finally {
+          cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+        }
+      });
+
+      it("marks selected-leg fuel labels unavailable when route fuel inputs are missing", function() {
+        var prefix = variables.naming.buildPrefix("active-cruise-v2", "fuel-missing");
+        var sessionApi = buildSessionApiSupport();
+        var localCreated = newCreatedTracker();
+        var asset = {};
+        var model = {};
+        var firstLegFuel = {};
+
+        try {
+          url.testUserId = variables.sessionApiUser.userId;
+          asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+          seedRouteInputsForPaceTest(asset.floatPlanId, {});
+
+          model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          expect(model.success).toBeTrue(serializeJSON(model));
+          expect(model.routeTimeline.available).toBeTrue(serializeJSON(model.routeTimeline));
+          expect(arrayLen(model.routeTimeline.legs)).toBeGT(0, serializeJSON(model.routeTimeline));
+          expect(structKeyExists(model.routeTimeline.legs[1], "fuel")).toBeTrue(serializeJSON(model.routeTimeline.legs[1]));
+          firstLegFuel = model.routeTimeline.legs[1].fuel;
+          expect(firstLegFuel.isAvailable).toBeFalse(serializeJSON(firstLegFuel));
+          expect(firstLegFuel.totalFuelLabel).toBe("Not available", serializeJSON(firstLegFuel));
+          expect(firstLegFuel.legFuelNeededLabel).toBe("Not available", serializeJSON(firstLegFuel));
+          expect(firstLegFuel.fuelWithReserveLabel).toBe("Not available", serializeJSON(firstLegFuel));
+          expect(firstLegFuel.unavailableReason).toBe("Route generator fuel inputs are unavailable.", serializeJSON(firstLegFuel));
+        } finally {
+          cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+        }
+      });
+
+      it("syncs saved My Route fuel price into the active operational snapshot", function() {
+        var prefix = variables.naming.buildPrefix("active-cruise-v2", "fuel-price-sync");
+        var sessionApi = buildSessionApiSupport();
+        var localCreated = newCreatedTracker();
+        var asset = {};
+        var activeRouteInstanceId = 0;
+        var activeBeforeInputs = {};
+        var activeAfterInputs = {};
+        var activeClearedInputs = {};
+        var sourceAfterInputs = {};
+        var shapeBefore = {};
+        var shapeAfter = {};
+        var progressBefore = [];
+        var progressAfter = [];
+        var editContext = {};
+        var updatePayload = {};
+        var updateResult = {};
+        var syncResult = {};
+        var model = {};
+        var fuel = {};
+        var clearedModel = {};
+        var clearedFuel = {};
+
+        try {
+          url.testUserId = variables.sessionApiUser.userId;
+          asset = createActivatedMyRouteTripWithOperationalCopy(sessionApi, prefix, localCreated);
+          activeRouteInstanceId = loadRouteInstanceIdForFloatPlan(asset.floatPlanId);
+          activeBeforeInputs = loadRouteInputsForFloatPlan(asset.floatPlanId);
+          shapeBefore = loadRouteInstanceShapeCounts(activeRouteInstanceId);
+          progressBefore = loadRouteProgressSnapshotForRouteInstance(activeRouteInstanceId);
+
+          expect(activeRouteInstanceId).toBeGT(0);
+          expect(activeRouteInstanceId).notToBe(asset.sourceRouteInstanceId);
+          expect(val(activeBeforeInputs.route_id)).toBe(asset.userRouteId, serializeJSON(activeBeforeInputs));
+          expect(val(activeBeforeInputs.active_trip_floatplan_id)).toBe(asset.floatPlanId, serializeJSON(activeBeforeInputs));
+          expect(trim(toString(structKeyExists(activeBeforeInputs, "fuel_price_per_gal") ? activeBeforeInputs.fuel_price_per_gal : ""))).toBe("", serializeJSON(activeBeforeInputs));
+
+          editContext = sessionApi.routeBuilder("routegen_geteditcontext", { "route_code" = asset.sourceRouteCode });
+          ensureSuccess(editContext, "load source My Route edit context");
+          updatePayload = duplicate(editContext.DATA.inputs);
+          updatePayload.route_code = asset.sourceRouteCode;
+          updatePayload.route_name = trim(toString(editContext.DATA.route.route_name));
+          updatePayload.fuel_price_per_gal = 6.99;
+
+          updateResult = sessionApi.routeBuilder("routegen_update", updatePayload);
+          ensureSuccess(updateResult, "routegen My Route fuel price update");
+          syncResult = updateResult.DATA.active_fuel_price_sync;
+          expect(syncResult.success).toBeTrue(serializeJSON(syncResult));
+          expect(syncResult.updated_count).toBe(1, serializeJSON(syncResult));
+          expect(syncResult.updated_route_instance_ids[1]).toBe(activeRouteInstanceId, serializeJSON(syncResult));
+
+          sourceAfterInputs = loadRouteInputsForRouteInstance(asset.sourceRouteInstanceId);
+          activeAfterInputs = loadRouteInputsForFloatPlan(asset.floatPlanId);
+          shapeAfter = loadRouteInstanceShapeCounts(activeRouteInstanceId);
+          progressAfter = loadRouteProgressSnapshotForRouteInstance(activeRouteInstanceId);
+
+          expect(roundTo2Numeric(sourceAfterInputs.fuel_price_per_gal)).toBe(6.99, serializeJSON(sourceAfterInputs));
+          expect(roundTo2Numeric(activeAfterInputs.fuel_price_per_gal)).toBe(6.99, serializeJSON(activeAfterInputs));
+          expect(activeAfterInputs.active_trip_pace).toBe(activeBeforeInputs.active_trip_pace, serializeJSON(activeAfterInputs));
+          expect(roundTo2Numeric(activeAfterInputs.active_trip_effective_speed_kn)).toBe(roundTo2Numeric(activeBeforeInputs.active_trip_effective_speed_kn), serializeJSON(activeAfterInputs));
+          expect(activeAfterInputs.active_trip_speed_source).toBe(activeBeforeInputs.active_trip_speed_source, serializeJSON(activeAfterInputs));
+          expect(serializeJSON(shapeAfter)).toBe(serializeJSON(shapeBefore), serializeJSON(shapeAfter));
+          expect(serializeJSON(progressAfter)).toBe(serializeJSON(progressBefore), serializeJSON(progressAfter));
+
+          model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          expect(model.success).toBeTrue(serializeJSON(model));
+          fuel = model.currentLeg.fuel;
+          expect(fuel.isAvailable).toBeTrue(serializeJSON(fuel));
+          expect(roundTo2Numeric(fuel.fuelPricePerGallon)).toBe(6.99, serializeJSON(fuel));
+          expect(fuel.fuelCost).toBeGT(0, serializeJSON(fuel));
+          expect(find("$", fuel.fuelPriceLabel)).toBe(1, serializeJSON(fuel));
+          expect(find("$", fuel.fuelCostLabel)).toBe(1, serializeJSON(fuel));
+
+          updatePayload.fuel_price_per_gal = "";
+          updateResult = sessionApi.routeBuilder("routegen_update", updatePayload);
+          ensureSuccess(updateResult, "routegen My Route fuel price clear");
+          activeClearedInputs = loadRouteInputsForFloatPlan(asset.floatPlanId);
+          expect(trim(toString(structKeyExists(activeClearedInputs, "fuel_price_per_gal") ? activeClearedInputs.fuel_price_per_gal : ""))).toBe("", serializeJSON(activeClearedInputs));
+          clearedModel = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          expect(clearedModel.success).toBeTrue(serializeJSON(clearedModel));
+          clearedFuel = clearedModel.currentLeg.fuel;
+          expect(clearedFuel.fuelPricePerGallon).toBe(0, serializeJSON(clearedFuel));
+          expect(clearedFuel.fuelPriceLabel).toBe("Not provided", serializeJSON(clearedFuel));
+          expect(clearedFuel.fuelCostLabel).toBe("Not available", serializeJSON(clearedFuel));
+        } finally {
+          cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+        }
+      });
+
       it("keeps persisted lock details visible without adding operational lock time to scheduled route timeline legs", function() {
         var prefix = variables.naming.buildPrefix("active-cruise-v2", "lock-detail");
         var sessionApi = buildSessionApiSupport();
@@ -1300,6 +1484,58 @@ component extends="testbox.system.BaseSpec" output="false" {
     return asset;
   }
 
+  private struct function createActivatedMyRouteTripWithOperationalCopy(required any apiSupport, required string prefix, required struct created) {
+    var asset = createMyRouteLinkedDraftForApi(arguments.apiSupport, arguments.prefix, arguments.created);
+    var firstDeparture = dateTimeFormat(dateAdd("h", 3, now()), "yyyy-mm-dd HH:nn:ss");
+    var firstReturn = dateTimeFormat(dateAdd("h", 9, now()), "yyyy-mm-dd HH:nn:ss");
+    var secondDeparture = dateTimeFormat(dateAdd("h", 4, now()), "yyyy-mm-dd HH:nn:ss");
+    var secondReturn = dateTimeFormat(dateAdd("h", 10, now()), "yyyy-mm-dd HH:nn:ss");
+    var sendResult = {};
+    var cancelResult = {};
+    var rebuildPayload = {};
+    var paceResult = {};
+    var activeRouteInstanceId = 0;
+    var activeRouteCode = "";
+
+    attachContactToPlan(arguments.apiSupport, asset.floatPlanId, arguments.prefix, arguments.created);
+    setPlanSchedule(asset.floatPlanId, firstDeparture, firstReturn, "UTC");
+    sendResult = sendFloatPlanWithApi(arguments.apiSupport, asset.floatPlanId);
+    expect(isSuccessPayload(sendResult)).toBeTrue(serializeJSON(sendResult));
+
+    cancelResult = cancelFloatPlanWithApi(arguments.apiSupport, asset.floatPlanId);
+    expect(isSuccessPayload(cancelResult)).toBeTrue(serializeJSON(cancelResult));
+
+    rebuildPayload = arguments.apiSupport.routeBuilder("buildFloatPlansFromRoute", {
+      routeCode = asset.sourceRouteCode,
+      mode = "DAILY",
+      vesselId = asset.vesselId,
+      rebuild = 1
+    });
+    ensureSuccess(rebuildPayload, "rebuild My Route-linked float plan");
+    asset.floatPlanId = val(rebuildPayload.FLOATPLAN_IDS[1] ?: 0);
+    expect(asset.floatPlanId).toBeGT(0, serializeJSON(rebuildPayload));
+    arrayAppend(arguments.created.floatPlanIds, asset.floatPlanId);
+
+    attachContactToPlan(arguments.apiSupport, asset.floatPlanId, arguments.prefix, arguments.created);
+    setPlanSchedule(asset.floatPlanId, secondDeparture, secondReturn, "UTC");
+    sendResult = sendFloatPlanWithApi(arguments.apiSupport, asset.floatPlanId);
+    expect(isSuccessPayload(sendResult)).toBeTrue(serializeJSON(sendResult));
+
+    paceResult = arguments.apiSupport.postJson("/api/v1/floatplan.cfc?method=handle&action=updateactivepace", {
+      floatPlanId = asset.floatPlanId,
+      pace = "BALANCED"
+    });
+    ensureSuccess(paceResult, "set active trip pace metadata");
+
+    activeRouteInstanceId = loadRouteInstanceIdForFloatPlan(asset.floatPlanId);
+    activeRouteCode = loadRouteCodeForRouteInstance(activeRouteInstanceId);
+    if (len(activeRouteCode) AND activeRouteCode NEQ asset.sourceRouteCode) {
+      arrayAppend(arguments.created.routeCodes, activeRouteCode);
+    }
+
+    return asset;
+  }
+
   private struct function createActivatedLockedScheduledTrip(required any apiSupport, required string prefix, required struct created) {
     var asset = createLockedRouteLinkedDraftForApi(arguments.apiSupport, arguments.prefix, arguments.created);
     var futureDeparture = dateTimeFormat(dateAdd("h", 3, now()), "yyyy-mm-dd HH:nn:ss");
@@ -1323,7 +1559,7 @@ component extends="testbox.system.BaseSpec" output="false" {
   }
 
   private struct function newCreatedTracker() {
-    return { vesselIds = [], routeCodes = [], floatPlanIds = [], contactIds = [] };
+    return { vesselIds = [], routeCodes = [], floatPlanIds = [], contactIds = [], userRouteIds = [], waypointIds = [] };
   }
 
   private struct function createSessionApiUser() {
@@ -1435,6 +1671,95 @@ component extends="testbox.system.BaseSpec" output="false" {
     };
   }
 
+  private struct function createMyRouteLinkedDraftForApi(required any apiSupport, required string prefix, required struct created) {
+    var cleanupSupport = new fpw.tests.support.FpwCleanupSupport().init(arguments.apiSupport);
+    cleanupSupport.cleanupCurrentRouteFloatPlanGroup();
+
+    var vesselPayload = arguments.apiSupport.saveVessel({
+      vesselId = 0,
+      vesselName = variables.naming.buildName(arguments.prefix, "AC V2 My Route Vessel"),
+      type = "Cruiser",
+      length = 34,
+      color = "White"
+    });
+    var vesselId = val(vesselPayload.VESSELID ?: 0);
+    var startWaypointId = createWaypointForActiveCruiseTest(arguments.apiSupport, arguments.prefix, arguments.created, "Start", "27.950575", "-82.457178");
+    var endWaypointId = createWaypointForActiveCruiseTest(arguments.apiSupport, arguments.prefix, arguments.created, "End", "27.771889", "-82.638611");
+    var createRoutePayload = {};
+    var userRouteId = 0;
+    var generate = {};
+    var sourceRouteCode = "";
+    var sourceRouteInstanceId = 0;
+    var buildPayload = {};
+    var floatPlanId = 0;
+
+    ensureSuccess(vesselPayload, "save My Route vessel");
+    expect(vesselId).toBeGT(0, serializeJSON(vesselPayload));
+    arrayAppend(arguments.created.vesselIds, vesselId);
+
+    createRoutePayload = arguments.apiSupport.routeBuilder("createUserRoute", {
+      route_name = variables.naming.buildName(arguments.prefix, "AC V2 My Route")
+    });
+    ensureSuccess(createRoutePayload, "create My Route");
+    userRouteId = val(createRoutePayload.DATA.route_id ?: 0);
+    expect(userRouteId).toBeGT(0, serializeJSON(createRoutePayload));
+    arrayAppend(arguments.created.userRouteIds, userRouteId);
+
+    ensureSuccess(arguments.apiSupport.routeBuilder("setUserRouteStartWaypoint", {
+      route_id = userRouteId,
+      start_waypoint_id = startWaypointId
+    }), "set My Route start waypoint");
+    ensureSuccess(arguments.apiSupport.routeBuilder("addWaypointLegToUserRoute", {
+      route_id = userRouteId,
+      end_waypoint_id = endWaypointId
+    }), "add My Route waypoint leg");
+
+    generate = arguments.apiSupport.routeBuilder("routegen_generate", {
+      route_name = variables.naming.buildName(arguments.prefix, "AC V2 Source My Route"),
+      route_type = "my_route",
+      route_id = userRouteId,
+      start_date = "2026-04-09",
+      pace = "BALANCED",
+      cruising_speed = 12,
+      vessel_max_speed_kn = 12,
+      vessel_most_efficient_speed_kn = 5,
+      vessel_gph_at_most_efficient_speed = 1,
+      fuel_burn_gph = 4,
+      fuel_burn_gph_input = 4,
+      fuel_burn_basis = "MAX_SPEED",
+      reserve_pct = 33,
+      fuel_price_per_gal = "",
+      weather_factor_pct = 0,
+      underway_hours_per_day = 6.5,
+      selected_vessel_id = vesselId
+    });
+    ensureSuccess(generate, "generate My Route route instance");
+    sourceRouteCode = trim(toString(generate.ROUTE_CODE ?: generate.DATA.route_code ?: ""));
+    sourceRouteInstanceId = val(generate.ROUTE_INSTANCE_ID ?: generate.DATA.route_instance_id ?: 0);
+    expect(len(sourceRouteCode)).toBeGT(0, serializeJSON(generate));
+    expect(sourceRouteInstanceId).toBeGT(0, serializeJSON(generate));
+    arrayAppend(arguments.created.routeCodes, sourceRouteCode);
+
+    buildPayload = arguments.apiSupport.routeBuilder("buildFloatPlansFromRoute", {
+      routeCode = sourceRouteCode,
+      mode = "DAILY",
+      vesselId = vesselId,
+      rebuild = 0
+    });
+    ensureSuccess(buildPayload, "build My Route-linked float plans");
+    floatPlanId = val(buildPayload.FLOATPLAN_IDS[1] ?: 0);
+    expect(floatPlanId).toBeGT(0, serializeJSON(buildPayload));
+    arrayAppend(arguments.created.floatPlanIds, floatPlanId);
+
+    return {
+      vesselId = vesselId,
+      userRouteId = userRouteId,
+      sourceRouteCode = sourceRouteCode,
+      sourceRouteInstanceId = sourceRouteInstanceId,
+      floatPlanId = floatPlanId
+    };
+  }
+
   private struct function createLockedRouteLinkedDraftForApi(required any apiSupport, required string prefix, required struct created) {
     var cleanupSupport = new fpw.tests.support.FpwCleanupSupport().init(arguments.apiSupport);
     cleanupSupport.cleanupCurrentRouteFloatPlanGroup();
@@ -1516,6 +1841,28 @@ component extends="testbox.system.BaseSpec" output="false" {
       },
       { datasource = "fpw" }
     );
+  }
+
+  private numeric function createWaypointForActiveCruiseTest(
+    required any apiSupport,
+    required string prefix,
+    required struct created,
+    required string label,
+    required string latitude,
+    required string longitude
+  ) {
+    var payload = arguments.apiSupport.saveWaypoint({
+      waypointId = 0,
+      name = variables.naming.buildName(arguments.prefix, "AC V2 " & arguments.label),
+      latitude = arguments.latitude,
+      longitude = arguments.longitude,
+      notes = arguments.label & " waypoint"
+    });
+    var waypointId = val(payload.WAYPOINTID ?: 0);
+    ensureSuccess(payload, "save " & arguments.label & " waypoint");
+    expect(waypointId).toBeGT(0, serializeJSON(payload));
+    arrayAppend(arguments.created.waypointIds, waypointId);
+    return waypointId;
   }
 
   private struct function loadFirstRouteMapOverrideContext(required numeric floatPlanId) {
@@ -1701,6 +2048,12 @@ component extends="testbox.system.BaseSpec" output="false" {
     });
   }
 
+  private struct function cancelFloatPlanWithApi(required any apiSupport, required numeric floatPlanId) {
+    return arguments.apiSupport.postJson("/api/v1/floatplan.cfc?method=handle&action=cancel", {
+      floatPlanId = arguments.floatPlanId
+    });
+  }
+
   private struct function postActiveCruiseCheckinWithApi(required any apiSupport, required numeric floatPlanId, required string statusValue, string note = "") {
     return arguments.apiSupport.postJson("/api/v1/floatplan.cfc?method=handle&action=checkin", {
       floatPlanId = arguments.floatPlanId,
@@ -1848,6 +2201,71 @@ component extends="testbox.system.BaseSpec" output="false" {
     return deserializeJSON(qInputs.routegen_inputs_json[1]);
   }
 
+  private struct function loadRouteInputsForRouteInstance(required numeric routeInstanceId) {
+    var qInputs = queryExecute(
+      "SELECT routegen_inputs_json
+       FROM route_instances
+       WHERE id = :routeInstanceId
+       LIMIT 1",
+      {
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    if (qInputs.recordCount EQ 0 OR isNull(qInputs.routegen_inputs_json[1]) OR !len(trim(toString(qInputs.routegen_inputs_json[1])))) {
+      return {};
+    }
+    return deserializeJSON(qInputs.routegen_inputs_json[1]);
+  }
+
+  private struct function loadRouteInstanceShapeCounts(required numeric routeInstanceId) {
+    var qShape = queryExecute(
+      "SELECT
+          (SELECT COUNT(*) FROM route_instance_sections WHERE route_instance_id = :routeInstanceId) AS section_count,
+          (SELECT COUNT(*) FROM route_instance_legs WHERE route_instance_id = :routeInstanceId) AS leg_count,
+          (SELECT COUNT(*) FROM route_instance_leg_progress WHERE route_instance_id = :routeInstanceId) AS progress_count,
+          COALESCE((SELECT ROUND(SUM(base_dist_nm), 2) FROM route_instance_legs WHERE route_instance_id = :routeInstanceId), 0) AS total_nm",
+      {
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    expect(qShape.recordCount).toBe(1);
+    return {
+      section_count = val(qShape.section_count[1]),
+      leg_count = val(qShape.leg_count[1]),
+      progress_count = val(qShape.progress_count[1]),
+      total_nm = roundTo2Numeric(qShape.total_nm[1])
+    };
+  }
+
+  private array function loadRouteProgressSnapshotForRouteInstance(required numeric routeInstanceId) {
+    var qProgress = queryExecute(
+      "SELECT
+          leg_order,
+          COALESCE(NULLIF(TRIM(status), ''), '') AS status,
+          DATE_FORMAT(leg_started_at, '%Y-%m-%d %H:%i:%s') AS leg_started_at_raw,
+          DATE_FORMAT(completed_at, '%Y-%m-%d %H:%i:%s') AS completed_at_raw
+       FROM route_instance_leg_progress
+       WHERE route_instance_id = :routeInstanceId
+       ORDER BY leg_order ASC, id ASC",
+      {
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    var rows = [];
+    for (var i = 1; i LTE qProgress.recordCount; i++) {
+      arrayAppend(rows, {
+        leg_order = val(qProgress.leg_order[i]),
+        status = trim(toString(qProgress.status[i])),
+        leg_started_at = (isNull(qProgress.leg_started_at_raw[i]) ? "" : trim(toString(qProgress.leg_started_at_raw[i]))),
+        completed_at = (isNull(qProgress.completed_at_raw[i]) ? "" : trim(toString(qProgress.completed_at_raw[i])))
+      });
+    }
+    return rows;
+  }
+
   private struct function loadActiveCruiseHeroForTest(required numeric floatPlanId) {
     var payload = variables.voyageService.getActiveCruiseHeroCanonical(variables.sessionApiUser.userId, arguments.floatPlanId);
     expect(payload.SUCCESS ?: false).toBeTrue(serializeJSON(payload));
@@ -1905,6 +2323,23 @@ component extends="testbox.system.BaseSpec" output="false" {
       return 0;
     }
     return val(qRoute.route_instance_id[1]);
+  }
+
+  private string function loadRouteCodeForRouteInstance(required numeric routeInstanceId) {
+    var qRoute = queryExecute(
+      "SELECT generated_route_code
+       FROM route_instances
+       WHERE id = :routeInstanceId
+       LIMIT 1",
+      {
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    if (qRoute.recordCount EQ 0 OR isNull(qRoute.generated_route_code[1])) {
+      return "";
+    }
+    return trim(toString(qRoute.generated_route_code[1]));
   }
 
   private struct function recordCanonicalCheckin(
@@ -2467,6 +2902,13 @@ component extends="testbox.system.BaseSpec" output="false" {
       } catch (any ignoredRouteCleanup) {}
       forceDeleteRouteInstanceRecords(arguments.created.routeCodes[j]);
     }
+    if (structKeyExists(arguments.created, "userRouteIds")) {
+      for (var u = arrayLen(arguments.created.userRouteIds); u GTE 1; u--) {
+        try {
+          cleanupSupport.cleanupUserRoute(arguments.created.userRouteIds[u]);
+        } catch (any ignoredUserRouteCleanup) {}
+      }
+    }
     for (var c = arrayLen(arguments.created.contactIds); c GTE 1; c--) {
       try {
         cleanupSupport.cleanupContact(arguments.created.contactIds[c]);
@@ -2484,6 +2926,13 @@ component extends="testbox.system.BaseSpec" output="false" {
       try {
         cleanupSupport.cleanupVessel(arguments.created.vesselIds[k]);
       } catch (any ignoredVesselCleanup) {}
+    }
+    if (structKeyExists(arguments.created, "waypointIds")) {
+      for (var w = arrayLen(arguments.created.waypointIds); w GTE 1; w--) {
+        try {
+          cleanupSupport.cleanupWaypoint(arguments.created.waypointIds[w]);
+        } catch (any ignoredWaypointCleanup) {}
+      }
     }
   }
 

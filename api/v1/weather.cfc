@@ -676,6 +676,7 @@
         }>
         <cfset local.bypassCache = shouldBypassWeatherCache()>
         <cfset local.noCache = ((isDefined("url.nocache") AND len(url.nocache) AND val(url.nocache) EQ 1) OR local.bypassCache)>
+        <cfset local.isQuickMarineMode = (lcase(trim(arguments.marineMode)) EQ "quick")>
         <cfset local.f = {} >
         <cfset local.a = {} >
         <cfset local.s = {} >
@@ -757,7 +758,11 @@
             <cfset local.out.MARINE = local.m>
         </cfif>
 
-        <cfset local.out.ZONE_FORECAST = getMarineZoneForecastCached(arguments.lat, arguments.lon, local.noCache)>
+        <cfif NOT local.isQuickMarineMode>
+            <cfset local.out.ZONE_FORECAST = getMarineZoneForecastCached(arguments.lat, arguments.lon, local.noCache)>
+        <cfelse>
+            <cfset local.out.ZONE_FORECAST = {} >
+        </cfif>
 
         <cfset local.out.META.anchor = { "lat"=arguments.lat, "lon"=arguments.lon }>
         <cfif len(arguments.requestZip)>
@@ -1643,7 +1648,7 @@
         <cfset local.tide = {} >
         <cfset local.wl = {} >
         <cfset local.fetchTrend = (lcase(arguments.marineMode) NEQ "quick")>
-        <cfset local.maxCandidateCount = (local.fetchTrend ? 10 : 4)>
+        <cfset local.maxCandidateCount = (local.fetchTrend ? 10 : 1)>
 
         <cfset local.tideStation = getNearestCoopsTideStation(arguments.lat, arguments.lon)>
         <cfif structKeyExists(local.tideStation, "SUCCESS") AND local.tideStation.SUCCESS>
@@ -2961,6 +2966,9 @@
         <cfset local.distance = 0>
         <cfset local.bearing = 0>
         <cfset local.point = {}>
+        <cfset local.lookupStartedAt = getTickCount()>
+        <cfset local.lookupBudgetMs = 12000>
+        <cfset local.zoneLookupTimeoutSeconds = 4>
 
         <cfif NOT arguments.noCache>
             <cfset local.cached = marineCacheGet(local.cacheKey, 21600)>
@@ -2969,7 +2977,7 @@
             </cfif>
         </cfif>
 
-        <cfset local.result = queryNoaaMarineZone(arguments.lat, arguments.lon, "direct", 0, "")>
+        <cfset local.result = queryNoaaMarineZone(arguments.lat, arguments.lon, "direct", 0, "", local.zoneLookupTimeoutSeconds)>
         <cfif structKeyExists(local.result, "found") AND local.result.found>
             <cfset marineCacheSet(local.cacheKey, local.result)>
             <cfreturn local.result>
@@ -2977,8 +2985,13 @@
 
         <cfloop array="#local.distances#" index="local.distance">
             <cfloop array="#local.bearings#" index="local.bearing">
+                <cfif (getTickCount() - local.lookupStartedAt) GTE local.lookupBudgetMs>
+                    <cfset local.result = { "found"=false, "reason"="NOAA coastal marine forecast zone lookup timed out", "lookup"={ "lat"=arguments.lat, "lon"=arguments.lon, "strategy"="timeout", "layer"="NOAA/NWS Reference Map Layer 5 Coastal Marine Zone Forecasts" } }>
+                    <cfset marineCacheSet(local.cacheKey, local.result)>
+                    <cfreturn local.result>
+                </cfif>
                 <cfset local.point = offsetCoordinateNm(arguments.lat, arguments.lon, local.distance, local.bearing)>
-                <cfset local.result = queryNoaaMarineZone(local.point.lat, local.point.lon, "offset", local.distance, local.bearing)>
+                <cfset local.result = queryNoaaMarineZone(local.point.lat, local.point.lon, "offset", local.distance, local.bearing, local.zoneLookupTimeoutSeconds)>
                 <cfif structKeyExists(local.result, "found") AND local.result.found>
                     <cfset marineCacheSet(local.cacheKey, local.result)>
                     <cfreturn local.result>
@@ -2997,12 +3010,14 @@
         <cfargument name="strategy" type="string" required="true">
         <cfargument name="offsetDistanceNm" type="any" required="false" default="">
         <cfargument name="offsetBearing" type="any" required="false" default="">
+        <cfargument name="httpTimeoutSeconds" type="numeric" required="false" default="5">
 
         <cfset local.out = { "found"=false, "reason"="No coastal marine forecast zone found for this location" }>
         <cfset local.ua = getNwsUserAgent()>
         <cfset local.endpoint = "https://mapservices.weather.noaa.gov/static/rest/services/nws_reference_maps/nws_reference_map/MapServer/5/query">
         <cfset local.geometry = arguments.lon & "," & arguments.lat>
         <cfset local.httpStatus = 0>
+        <cfset local.timeoutSeconds = int(val(arguments.httpTimeoutSeconds))>
         <cfset local.obj = {}>
         <cfset local.feature = {}>
         <cfset local.attrs = {}>
@@ -3012,8 +3027,15 @@
         <cfset local.zoneUrl = "">
         <cfset local.sourceUrl = "">
 
+        <cfif local.timeoutSeconds LT 1>
+            <cfset local.timeoutSeconds = 1>
+        </cfif>
+        <cfif local.timeoutSeconds GT 15>
+            <cfset local.timeoutSeconds = 15>
+        </cfif>
+
         <cftry>
-            <cfhttp url="#local.endpoint#" method="get" result="zoneRes" timeout="15">
+            <cfhttp url="#local.endpoint#" method="get" result="zoneRes" timeout="#local.timeoutSeconds#">
                 <cfhttpparam type="header" name="User-Agent" value="#local.ua#">
                 <cfhttpparam type="header" name="Accept" value="application/json">
                 <cfhttpparam type="url" name="f" value="json">

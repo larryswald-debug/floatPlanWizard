@@ -317,6 +317,11 @@ if (isEarlyAccessPost) {
     );
   }
 }
+
+fpwShowMemberRequiredNotice = (
+  structKeyExists(url, "notice")
+  AND lCase(trim(toString(url.notice))) EQ "member-required"
+);
 </cfscript>
 <!DOCTYPE html>
 <html lang="en">
@@ -2495,6 +2500,137 @@ if (isEarlyAccessPost) {
       .route-label { font-size: 0.74rem; }
     }
 
+    .fpw-member-required-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(2, 12, 20, 0.76);
+      backdrop-filter: blur(12px);
+    }
+
+    .fpw-member-required-modal[hidden] {
+      display: none !important;
+    }
+
+    body.fpw-member-required-open {
+      overflow: hidden;
+    }
+
+    .fpw-member-required-card {
+      width: min(100%, 520px);
+      overflow: hidden;
+      border: 1px solid rgba(42, 198, 224, 0.28);
+      border-radius: 28px;
+      background:
+        radial-gradient(circle at 16% 0%, rgba(37, 226, 230, 0.16), transparent 36%),
+        linear-gradient(180deg, rgba(9, 31, 48, 0.98), rgba(4, 18, 30, 0.98));
+      color: #eaf6ff;
+      box-shadow:
+        0 30px 90px rgba(0, 0, 0, 0.52),
+        0 0 0 1px rgba(255, 255, 255, 0.025) inset;
+    }
+
+    .fpw-member-required-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 24px 26px 0;
+    }
+
+    .fpw-member-required-eyebrow {
+      color: #28f0e6;
+      font-size: 0.82rem;
+      font-weight: 900;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .fpw-member-required-close {
+      display: inline-flex;
+      width: 40px;
+      height: 40px;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(164, 218, 232, 0.18);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      color: #d8eaf6;
+      font-size: 1.45rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .fpw-member-required-close:hover,
+    .fpw-member-required-close:focus-visible {
+      border-color: rgba(35, 239, 228, 0.5);
+      color: #ffffff;
+      outline: none;
+    }
+
+    .fpw-member-required-body {
+      padding: 22px 26px 28px;
+    }
+
+    .fpw-member-required-title {
+      margin: 0 0 14px;
+      color: #f2f8ff;
+      font-size: clamp(1.7rem, 5vw, 2.2rem);
+      line-height: 1.08;
+      font-weight: 950;
+      letter-spacing: -0.03em;
+    }
+
+    .fpw-member-required-message {
+      margin: 0 0 24px;
+      color: #b7ccda;
+      font-size: 1.08rem;
+      line-height: 1.45;
+      font-weight: 650;
+    }
+
+    .fpw-member-required-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .fpw-member-required-action {
+      display: inline-flex;
+      min-height: 48px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 14px;
+      padding: 0 18px;
+      text-decoration: none;
+      font-size: 1rem;
+      font-weight: 850;
+      cursor: pointer;
+    }
+
+    .fpw-member-required-action.primary {
+      border: 0;
+      background: linear-gradient(90deg, #27e1d1 0%, #4bc3ff 100%);
+      color: #031722;
+      box-shadow: 0 12px 30px rgba(33, 219, 224, 0.18);
+    }
+
+    .fpw-member-required-action.secondary {
+      border: 1px solid rgba(149, 200, 218, 0.18);
+      background: rgba(4, 20, 34, 0.52);
+      color: #23efe4;
+    }
+
+    .fpw-member-required-action:hover,
+    .fpw-member-required-action:focus-visible {
+      transform: translateY(-1px);
+      outline: none;
+    }
+
     @media (max-width: 560px) {
       :root {
         --promo-strip-offset: 52px;
@@ -2503,12 +2639,52 @@ if (isEarlyAccessPost) {
       .promo-strip-copy {
         white-space: normal;
       }
+
+      .fpw-member-required-modal {
+        align-items: flex-end;
+        padding: 16px;
+      }
+
+      .fpw-member-required-card {
+        border-radius: 22px;
+      }
+
+      .fpw-member-required-header,
+      .fpw-member-required-body {
+        padding-left: 20px;
+        padding-right: 20px;
+      }
+
+      .fpw-member-required-actions {
+        display: grid;
+      }
     }
   </style>
-<link rel="stylesheet" href="assets/css/top-nav.css?v=20260522-subnav-44">
+<link rel="stylesheet" href="assets/css/top-nav.css?v=20260526-cache-bump">
 </head>
 <body id="top">
 <cfinclude template="includes/prelaunch_top_nav.cfm">
+
+<cfif fpwShowMemberRequiredNotice>
+  <cfoutput>
+    <div class="fpw-member-required-modal" role="dialog" aria-modal="true" aria-labelledby="fpwMemberRequiredTitle" data-fpw-member-required-modal>
+      <div class="fpw-member-required-card">
+        <div class="fpw-member-required-header">
+          <div class="fpw-member-required-eyebrow">Member access</div>
+          <button type="button" class="fpw-member-required-close" aria-label="Close" data-fpw-member-required-close>&times;</button>
+        </div>
+        <div class="fpw-member-required-body">
+          <h2 id="fpwMemberRequiredTitle" class="fpw-member-required-title">FloatPlanWizard member page</h2>
+          <p class="fpw-member-required-message">You must be a member to view this page.</p>
+          <div class="fpw-member-required-actions">
+            <button type="button" class="fpw-member-required-action primary" data-fpw-member-required-login>Log In</button>
+            <a class="fpw-member-required-action secondary" href="#topNavBasePath#/app/join.cfm">Create Free Account</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </cfoutput>
+</cfif>
 
   <main>
     <section class="hero">
@@ -2951,6 +3127,76 @@ if (isEarlyAccessPost) {
   <cfinclude template="includes/footer.cfm">
 
   <script>
+    (function () {
+      var modal = document.querySelector('[data-fpw-member-required-modal]');
+      if (!modal) return;
+
+      var closeControls = Array.prototype.slice.call(modal.querySelectorAll('[data-fpw-member-required-close]'));
+      var loginControl = modal.querySelector('[data-fpw-member-required-login]');
+      var firstControl = closeControls[0] || loginControl;
+
+      function removeNoticeParam() {
+        if (!window.history || !window.history.replaceState || !window.URL) return;
+
+        var currentUrl = new URL(window.location.href);
+        if (currentUrl.searchParams.get('notice') !== 'member-required') return;
+
+        currentUrl.searchParams.delete('notice');
+        window.history.replaceState(
+          {},
+          document.title,
+          currentUrl.pathname + currentUrl.search + currentUrl.hash
+        );
+      }
+
+      function closeModal() {
+        modal.setAttribute('hidden', 'hidden');
+        document.body.classList.remove('fpw-member-required-open');
+        removeNoticeParam();
+      }
+
+      function openLoginStrip() {
+        closeModal();
+        var loginToggle = document.getElementById('publicLoginToggle');
+        if (loginToggle) {
+          loginToggle.click();
+          loginToggle.focus();
+        }
+      }
+
+      document.body.classList.add('fpw-member-required-open');
+
+      closeControls.forEach(function (control) {
+        control.addEventListener('click', closeModal);
+      });
+
+      if (loginControl) {
+        loginControl.addEventListener('click', function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          openLoginStrip();
+        });
+      }
+
+      modal.addEventListener('click', function (event) {
+        if (event.target === modal) {
+          closeModal();
+        }
+      });
+
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !modal.hasAttribute('hidden')) {
+          closeModal();
+        }
+      });
+
+      if (firstControl) {
+        window.setTimeout(function () {
+          firstControl.focus();
+        }, 0);
+      }
+    })();
+
     (function () {
       const forms = [document.getElementById('waitlistForm'), document.getElementById('waitlistFormBottom')].filter(Boolean);
       if (!forms.length) {

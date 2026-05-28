@@ -1,4 +1,5 @@
 <cfprocessingdirective pageencoding="utf-8">
+<cfinclude template="../includes/require_auth.cfm">
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <cfinclude template="../includes/header_styles.cfm">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/floatplan-wizard.css?v=1">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/floatplan-wizard.css?v=20260526-cache-bump">
 </head>
 <body class="wizard-body">
 
@@ -403,7 +404,7 @@
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260523-contact-placeholder"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260526-cache-bump"></script>
 
 </body>
 </html>

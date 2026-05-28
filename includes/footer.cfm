@@ -217,6 +217,7 @@ if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
       <nav class="fpw-footer-col" aria-label="FloatPlanWizard planning tools">
         <h3>Plan</h3>
         <a href="#footerBasePath#/app/dashboard.cfm">Dashboard</a>
+        <a href="#footerBasePath#/app/help.cfm">Help Center</a>
         <a href="#footerBasePath#/app/weather.cfm">Marine Weather</a>
         <a href="#footerBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm">Fuel Calculator</a>
         <a href="#footerBasePath#/app/pricing.cfm">Memberships</a>

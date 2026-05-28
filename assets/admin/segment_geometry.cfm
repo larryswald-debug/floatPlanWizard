@@ -378,7 +378,7 @@ isAuthorized = isLoggedIn AND isAdmin;
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <cfif isAuthorized>
-    <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/admin/segment_geometry.js?v=1"></script>
+    <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/admin/segment_geometry.js?v=20260526-cache-bump"></script>
 </cfif>
 
 </body>

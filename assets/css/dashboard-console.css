@@ -3778,6 +3778,16 @@ main.dashboard-main{
   min-width: 260px;
 }
 
+#expeditionTimelinePanel.is-collapsed {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+
+#expeditionTimelinePanel.is-collapsed > .card-body {
+  display: none;
+}
+
 .expedition-state {
   border: 1px solid var(--panel-border);
   background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
@@ -4781,6 +4791,25 @@ body.dashboard-body[data-fpw-page="dashboard"] h3{
 
 #expeditionTimelinePanel .card-actions{
   min-width: auto;
+}
+
+#expeditionTimelinePanel.is-collapsed .card-header{
+  min-height: 0;
+  padding: 10px 14px;
+  border-bottom: 0;
+}
+
+#expeditionTimelinePanel.is-collapsed .card-title{
+  gap: 8px;
+}
+
+#expeditionTimelinePanel.is-collapsed .card-title::before,
+#expeditionTimelinePanel.is-collapsed .fpw-routes-workspace-subtitle{
+  display: none;
+}
+
+#expeditionTimelinePanel.is-collapsed .card-title h2{
+  font-size: 1rem;
 }
 
 #expeditionTimelinePanel #openRouteBuilderBtn{
@@ -6727,6 +6756,39 @@ body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .card-bo
   padding: 0;
   overflow: visible;
   background: #05182c;
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel.is-collapsed .card-header{
+  min-height: 0;
+  padding: 8px 14px;
+  align-items: center;
+  border-bottom: 0;
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel.is-collapsed .card-title{
+  display: flex;
+  grid-template-columns: none;
+  grid-template-rows: none;
+  gap: 8px;
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel.is-collapsed .card-title::before,
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel.is-collapsed .fpw-routes-workspace-subtitle{
+  content: none;
+  display: none;
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel.is-collapsed .card-title h2{
+  grid-column: auto;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel.is-collapsed #openRouteBuilderBtn,
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel.is-collapsed #toggleRoutesPanelBtn{
+  min-height: 30px;
+  padding: 0.32rem 0.58rem;
+  font-size: 0.75rem;
 }
 
 body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .expedition-route-list{

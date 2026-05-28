@@ -32,6 +32,8 @@
   var tideSelectedRange = "today";
   var tideRangeControlsBound = false;
   var weatherRequestSeq = 0;
+  var weatherQuickAbortController = null;
+  var weatherHydrationAbortController = null;
   var weatherScanConsoleState = {
     active: false,
     failed: false,
@@ -57,6 +59,7 @@
   var WEATHER_SCAN_READY_MESSAGE = "Weather briefing ready.";
   var WEATHER_SCAN_ERROR_MESSAGE = "Weather data did not respond. Please try again, and always check official weather sources before departure.";
   var WEATHER_SCAN_HYDRATION_MESSAGE = "Updating detailed marine context…";
+  var WEATHER_HYDRATION_TIMEOUT_MS = 25000;
   var AUTO_LOAD_HOME_PORT_WEATHER = true;
   var weatherBriefingState = { data: {}, payload: null, location: null };
   var weatherMapInstance = null;
@@ -4202,21 +4205,98 @@
     return url;
   }
 
-  function fetchWeatherJson(url) {
-    return fetch(url, { credentials: "same-origin" })
-      .then(function (response) {
-        if (!response.ok) {
-          throw new Error("Request failed with status " + response.status);
+  function createWeatherAbortController() {
+    if (typeof window === "undefined" || !("AbortController" in window)) {
+      return null;
+    }
+    return new window.AbortController();
+  }
+
+  function abortWeatherController(controller) {
+    if (controller && typeof controller.abort === "function") {
+      try {
+        controller.abort();
+      } catch (err) {
+        // Ignore browser abort edge cases; the request sequence guard still applies.
+      }
+    }
+  }
+
+  function isWeatherAbortError(err) {
+    return !!(err && (err.name === "AbortError" || err.code === 20));
+  }
+
+  function createWeatherTimeoutError(message) {
+    var err = new Error(message || "Weather request timed out.");
+    err.name = "TimeoutError";
+    return err;
+  }
+
+  function isWeatherTimeoutError(err) {
+    return !!(err && err.name === "TimeoutError");
+  }
+
+  function fetchWeatherJson(url, options) {
+    var fetchOptions = { credentials: "same-origin" };
+    var timeoutMs = options && options.timeoutMs ? parseInt(options.timeoutMs, 10) : 0;
+    var timeoutTimer = 0;
+    var settled = false;
+
+    if (options && options.signal) {
+      fetchOptions.signal = options.signal;
+    }
+
+    return new Promise(function (resolve, reject) {
+      function finish(callback, value) {
+        if (settled) return;
+        settled = true;
+        if (timeoutTimer) {
+          window.clearTimeout(timeoutTimer);
+          timeoutTimer = 0;
         }
-        return response.json();
-      });
+        callback(value);
+      }
+
+      if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+        timeoutTimer = window.setTimeout(function () {
+          if (options && typeof options.onTimeout === "function") {
+            options.onTimeout();
+          }
+          finish(reject, createWeatherTimeoutError());
+        }, timeoutMs);
+      }
+
+      fetch(url, fetchOptions)
+        .then(function (response) {
+          if (!response.ok) {
+            throw new Error("Request failed with status " + response.status);
+          }
+          return response.json();
+        })
+        .then(function (payload) {
+          finish(resolve, payload);
+        })
+        .catch(function (err) {
+          finish(reject, err);
+        });
+    });
   }
 
   function hydrateMarineTrend(location, requestSeq) {
+    var hydrationController = null;
     if (requestSeq === weatherRequestSeq) {
       showMarineHydrationBadge();
     }
-    return fetchWeatherJson(weatherUrl(location, "&marineOnly=1&marineMode=full"))
+    abortWeatherController(weatherHydrationAbortController);
+    weatherHydrationAbortController = createWeatherAbortController();
+    hydrationController = weatherHydrationAbortController;
+    return fetchWeatherJson(weatherUrl(location, "&marineOnly=1&marineMode=full"), {
+      signal: hydrationController ? hydrationController.signal : null,
+      timeoutMs: WEATHER_HYDRATION_TIMEOUT_MS,
+      onTimeout: function () {
+        abortWeatherController(hydrationController);
+      }
+    })
       .then(function (payload) {
         if (requestSeq !== weatherRequestSeq) return;
         if (!payload || payload.SUCCESS === false) return;
@@ -4227,12 +4307,14 @@
           renderMarineWeatherBriefing(data, payload, location);
         }
       })
-      .catch(function () {
+      .catch(function (err) {
+        if (isWeatherAbortError(err) || isWeatherTimeoutError(err)) return;
         // Keep initial quick render if trend hydration fails.
       })
       .finally(function () {
         if (requestSeq === weatherRequestSeq) {
           hideMarineHydrationBadge();
+          weatherHydrationAbortController = null;
         }
       });
   }
@@ -4245,10 +4327,17 @@
     weatherRequestSeq += 1;
     var requestSeq = weatherRequestSeq;
 
+    abortWeatherController(weatherQuickAbortController);
+    abortWeatherController(weatherHydrationAbortController);
+    weatherQuickAbortController = createWeatherAbortController();
+    weatherHydrationAbortController = null;
+
     clearWeatherError();
     startWeatherScanConsole(location);
 
-    return fetchWeatherJson(weatherUrl(location, "&marineMode=quick"))
+    return fetchWeatherJson(weatherUrl(location, "&marineMode=quick"), {
+      signal: weatherQuickAbortController ? weatherQuickAbortController.signal : null
+    })
       .then(function (payload) {
         if (requestSeq !== weatherRequestSeq) return;
         if (!payload || payload.SUCCESS === false) {
@@ -4269,6 +4358,7 @@
         hydrateMarineTrend(location, requestSeq);
       })
       .catch(function (err) {
+        if (isWeatherAbortError(err)) return;
         if (requestSeq !== weatherRequestSeq) return;
         renderWeatherSummary("", "");
         renderWeatherAnchor(null);
@@ -4281,6 +4371,11 @@
         renderMarineWeatherBriefing({}, null, location);
         failWeatherScanConsole(WEATHER_SCAN_ERROR_MESSAGE);
         setWeatherError((err && err.message) ? err.message : null);
+      })
+      .finally(function () {
+        if (requestSeq === weatherRequestSeq) {
+          weatherQuickAbortController = null;
+        }
       });
   }
 
@@ -4442,6 +4537,7 @@
 
   modules.expeditionTimeline = (function () {
     var panel = null;
+    var collapseToggleBtn = null;
     var summaryEl = null;
     var loadingEl = null;
     var unauthorizedEl = null;
@@ -4464,6 +4560,45 @@
 
     function routeUrl(routeCode) {
       return BASE_PATH + "/api/v1/route.cfc?method=handle&action=getTimeline&routeCode=" + encodeURIComponent(routeCode || "") + "&returnformat=json";
+    }
+
+    function setRoutesPanelCollapsed(collapsed) {
+      if (!panel) return;
+      panel.classList.toggle("is-collapsed", !!collapsed);
+      if (collapseToggleBtn) {
+        collapseToggleBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+        collapseToggleBtn.textContent = collapsed ? "Expand" : "Collapse";
+      }
+    }
+
+    function ensureRoutesPanelCollapseControls() {
+      var panelBody = null;
+      var createRouteBtn = document.getElementById("openRouteBuilderBtn");
+      var i;
+
+      if (!panel) return;
+
+      for (i = 0; i < panel.children.length; i += 1) {
+        if (panel.children[i].classList && panel.children[i].classList.contains("card-body")) {
+          panelBody = panel.children[i];
+          break;
+        }
+      }
+      if (panelBody && !panelBody.id) {
+        panelBody.id = "expeditionTimelinePanelBody";
+      }
+
+      collapseToggleBtn = document.getElementById("toggleRoutesPanelBtn");
+      if (collapseToggleBtn || !createRouteBtn || !createRouteBtn.parentNode) return;
+
+      collapseToggleBtn = document.createElement("button");
+      collapseToggleBtn.type = "button";
+      collapseToggleBtn.className = "btn-secondary";
+      collapseToggleBtn.id = "toggleRoutesPanelBtn";
+      collapseToggleBtn.setAttribute("aria-controls", "expeditionTimelinePanelBody");
+      collapseToggleBtn.setAttribute("aria-expanded", "true");
+      collapseToggleBtn.textContent = "Collapse";
+      createRouteBtn.parentNode.insertBefore(collapseToggleBtn, createRouteBtn);
     }
 
     function routeBuilderUrl(action, params) {
@@ -5738,6 +5873,8 @@
     function init() {
       panel = document.getElementById("expeditionTimelinePanel");
       if (!panel) return;
+      collapseToggleBtn = document.getElementById("toggleRoutesPanelBtn");
+      ensureRoutesPanelCollapseControls();
       summaryEl = document.getElementById("expeditionTimelineSummary");
       loadingEl = document.getElementById("expeditionTimelineLoading");
       unauthorizedEl = document.getElementById("expeditionTimelineUnauthorized");
@@ -5753,6 +5890,12 @@
         retryBtn.addEventListener("click", function () {
           load();
         });
+      }
+      if (collapseToggleBtn) {
+        collapseToggleBtn.addEventListener("click", function () {
+          setRoutesPanelCollapsed(!panel.classList.contains("is-collapsed"));
+        });
+        setRoutesPanelCollapsed(panel.classList.contains("is-collapsed"));
       }
       if (routeListEl) {
         routeListEl.addEventListener("click", function (event) {

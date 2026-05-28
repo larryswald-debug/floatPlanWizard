@@ -1,3 +1,4 @@
+<cfinclude template="../includes/require_auth.cfm">
 <cfscript>
   function fpwMonitoringHookValue(required string key) {
     var raw = "";

@@ -1,3 +1,4 @@
+<cfinclude template="../includes/require_auth.cfm">
 <cfscript>
   function fpwV2HookValue(required string key) {
     var raw = "";
@@ -338,6 +339,7 @@
   activeCruiseV2CurrentGroup = {};
   activeCruiseV2Model = {};
   activeCruiseV2RouteProgressSummary = {};
+  activeCruiseV2CurrentLegFuel = {};
 
   if (isNumeric(fpwV2HookValue("floatPlanId"))) {
     activeCruiseV2RequestedFloatPlanId = val(fpwV2HookValue("floatPlanId"));
@@ -418,6 +420,15 @@
   ) {
     activeCruiseV2RouteProgressSummary = activeCruiseV2Model.routeTimeline.summary;
   }
+
+  if (
+    structKeyExists(activeCruiseV2Model, "currentLeg")
+    AND isStruct(activeCruiseV2Model.currentLeg)
+    AND structKeyExists(activeCruiseV2Model.currentLeg, "fuel")
+    AND isStruct(activeCruiseV2Model.currentLeg.fuel)
+  ) {
+    activeCruiseV2CurrentLegFuel = activeCruiseV2Model.currentLeg.fuel;
+  }
 </cfscript>
 <!doctype html>
 <html lang="en">
@@ -426,7 +437,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Active Cruise V2</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<link rel="stylesheet" href="<cfoutput>#activeCruiseV2BasePath#</cfoutput>/assets/css/top-nav.css?v=20260522-subnav-44">
+<link rel="stylesheet" href="<cfoutput>#activeCruiseV2BasePath#</cfoutput>/assets/css/top-nav.css?v=20260527-cache-bump">
   <style>
     :root {
       color-scheme: dark;
@@ -3303,6 +3314,7 @@
       .supporting-grid,
       .content-grid,
       .footer-band,
+      .hero,
       .hero-main,
       .hero-grid,
       .field-grid,
@@ -3365,6 +3377,8 @@
     @media (max-width: 640px) {
       .identity-strip,
       .hero-grid,
+      .header-stats,
+      .route-leg-estimate-metrics,
       .map-summary-grid,
       .field-grid,
       .data-grid,
@@ -3845,6 +3859,10 @@
               <cfset selectedRoutePlanArrivalLabel = fpwV2TripDateTimeLabel(fpwV2Text(fpwV2Get(selectedRoutePlanLeg, "etaUtc"), fpwV2Get(selectedRoutePlanLeg, "arrivalUtc")), activeCruiseV2TripTimezone, "Not available")>
               <cfset selectedRoutePlanEstimatedDurationLabel = fpwV2Text(fpwV2Get(selectedRoutePlanLeg, "estimatedDurationLabel"), "Not available")>
               <cfset selectedRoutePlanRemainingDurationLabel = fpwV2Text(fpwV2Get(selectedRoutePlanLeg, "remainingDurationLabel"), "Not available")>
+              <cfset selectedRoutePlanFuel = fpwV2Get(selectedRoutePlanLeg, "fuel", {})>
+              <cfset selectedRoutePlanTotalFuelLabel = fpwV2Text(fpwV2Get(selectedRoutePlanFuel, "totalFuelLabel"), "Not available")>
+              <cfset selectedRoutePlanLegFuelNeededLabel = fpwV2Text(fpwV2Get(selectedRoutePlanFuel, "legFuelNeededLabel"), "Not available")>
+              <cfset selectedRoutePlanFuelReserveLabel = fpwV2Text(fpwV2Get(selectedRoutePlanFuel, "fuelWithReserveLabel"), "Not available")>
               <div class="leg-grid">
                 <div class="route-box route-plan-box">
                   <div class="mini-head" style="margin-bottom:12px;">
@@ -3872,6 +3890,10 @@
                         <cfset routePlanArrivalLabel = fpwV2TripDateTimeLabel(fpwV2Text(fpwV2Get(routePlanLeg, "etaUtc"), fpwV2Get(routePlanLeg, "arrivalUtc")), activeCruiseV2TripTimezone, "Not available")>
                         <cfset routePlanEstimatedDurationLabel = fpwV2Text(fpwV2Get(routePlanLeg, "estimatedDurationLabel"), "Not available")>
                         <cfset routePlanRemainingDurationLabel = fpwV2Text(fpwV2Get(routePlanLeg, "remainingDurationLabel"), "Not available")>
+                        <cfset routePlanFuel = fpwV2Get(routePlanLeg, "fuel", {})>
+                        <cfset routePlanTotalFuelLabel = fpwV2Text(fpwV2Get(routePlanFuel, "totalFuelLabel"), "Not available")>
+                        <cfset routePlanLegFuelNeededLabel = fpwV2Text(fpwV2Get(routePlanFuel, "legFuelNeededLabel"), "Not available")>
+                        <cfset routePlanFuelReserveLabel = fpwV2Text(fpwV2Get(routePlanFuel, "fuelWithReserveLabel"), "Not available")>
                         <cfset routePlanLockSummary = fpwV2Get(routePlanLeg, "lockSummary", {})>
                         <cfset routePlanLocks = (structKeyExists(routePlanLeg, "locks") AND isArray(routePlanLeg.locks) ? routePlanLeg.locks : [])>
                         <cfset routePlanHasLocks = (structKeyExists(routePlanLockSummary, "hasLocks") AND routePlanLockSummary.hasLocks EQ true)>
@@ -3899,6 +3921,9 @@
                           data-leg-progress="#encodeForHTMLAttribute(routePlanProgressLabel)#"
                           data-leg-estimated-duration="#encodeForHTMLAttribute(routePlanEstimatedDurationLabel)#"
                           data-leg-remaining-duration="#encodeForHTMLAttribute(routePlanRemainingDurationLabel)#"
+                          data-leg-total-fuel="#encodeForHTMLAttribute(routePlanTotalFuelLabel)#"
+                          data-leg-fuel-needed="#encodeForHTMLAttribute(routePlanLegFuelNeededLabel)#"
+                          data-leg-fuel-reserve="#encodeForHTMLAttribute(routePlanFuelReserveLabel)#"
                           data-leg-status="#encodeForHTMLAttribute(routePlanStatusLabel)#"
                           data-leg-status-label="#encodeForHTMLAttribute(routePlanStatusLabel)#"
                           data-leg-departure="#encodeForHTMLAttribute(routePlanDepartureLabel)#"
@@ -4012,6 +4037,9 @@
                     <div class="data-item"><span>Progress</span><strong data-selected-leg-field="progress">#encodeForHTML(selectedRoutePlanProgressLabel)#</strong><small>Selected leg progress</small></div>
                     <div class="data-item"><span>Status</span><strong data-selected-leg-field="status">#encodeForHTML(selectedRoutePlanStatusLabel)#</strong><small>Selected leg status</small></div>
                     <div class="data-item"><span>Arrival</span><strong data-selected-leg-field="arrival">#encodeForHTML(selectedRoutePlanArrivalLabel)#</strong><small>ETA / arrival</small></div>
+                    <div class="data-item"><span>Total Fuel</span><strong data-selected-leg-field="totalFuel">#encodeForHTML(selectedRoutePlanTotalFuelLabel)#</strong><small>Route estimate</small></div>
+                    <div class="data-item"><span>Fuel + Reserve</span><strong data-selected-leg-field="fuelReserve">#encodeForHTML(selectedRoutePlanFuelReserveLabel)#</strong><small>Route estimate with reserve</small></div>
+                    <div class="data-item"><span>Leg Fuel Needed</span><strong data-selected-leg-field="legFuelNeeded">#encodeForHTML(selectedRoutePlanLegFuelNeededLabel)#</strong><small>Selected leg estimate</small></div>
                   </div>
                 </div>
               </div>
@@ -4413,10 +4441,10 @@
     <script id="fpwActiveCruiseV2WeatherPayload" type="application/json">#fpwV2JsonForScript(weatherModel)#</script>
   </cfif>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/app/follow/followMap.js?v=20260423a"></script>
-  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/app/shared/route-weather-assist.js?v=20260507b"></script>
-  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260430-radar-opacity-a"></script>
-  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/maps/fpw-weather-overlays.js?v=20260430a"></script>
+  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/app/follow/followMap.js?v=20260527-cache-bump"></script>
+  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/app/shared/route-weather-assist.js?v=20260527-cache-bump"></script>
+  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260527-cache-bump"></script>
+  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/maps/fpw-weather-overlays.js?v=20260527-cache-bump"></script>
 </cfoutput>
 <cfinclude template="../includes/footer.cfm">
 <script>
@@ -4974,7 +5002,10 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel = function() {
     completed: panel.querySelector('[data-selected-leg-field="completed"]'),
     progress: panel.querySelector('[data-selected-leg-field="progress"]'),
     status: panel.querySelector('[data-selected-leg-field="status"]'),
-    arrival: panel.querySelector('[data-selected-leg-field="arrival"]')
+    arrival: panel.querySelector('[data-selected-leg-field="arrival"]'),
+    totalFuel: panel.querySelector('[data-selected-leg-field="totalFuel"]'),
+    legFuelNeeded: panel.querySelector('[data-selected-leg-field="legFuelNeeded"]'),
+    fuelReserve: panel.querySelector('[data-selected-leg-field="fuelReserve"]')
   };
 
   function valueFrom(row, key, fallback) {
@@ -5039,6 +5070,9 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel = function() {
     if (fields.progress) fields.progress.textContent = valueFrom(row, 'legProgress');
     if (fields.status) fields.status.textContent = valueFrom(row, 'legStatusLabel');
     if (fields.arrival) fields.arrival.textContent = valueFrom(row, 'legArrivalLabel', valueFrom(row, 'legArrival'));
+    if (fields.totalFuel) fields.totalFuel.textContent = valueFrom(row, 'legTotalFuel');
+    if (fields.legFuelNeeded) fields.legFuelNeeded.textContent = valueFrom(row, 'legFuelNeeded');
+    if (fields.fuelReserve) fields.fuelReserve.textContent = valueFrom(row, 'legFuelReserve');
 
     if (settings.focus === true && typeof row.focus === 'function') {
       try {
@@ -5106,6 +5140,7 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
     'Calculating route weather factor...',
     'Almost done - applying conditions to this leg...'
   ];
+  const WEATHER_LOOKUP_TIMEOUT_MS = 25000;
   const weatherLookupState = {
     point: '',
     data: null,
@@ -5626,6 +5661,9 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
     }
 
     const seq = weatherLookupState.requestSeq + 1;
+    const weatherFetchController = typeof AbortController === 'function' ? new AbortController() : null;
+    let weatherLookupTimedOut = false;
+    let weatherLookupTimeoutId = 0;
     weatherLookupState.requestSeq = seq;
     weatherCheckInFlight = true;
     if (button) {
@@ -5634,6 +5672,12 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
       button.textContent = 'Checking...';
     }
     startWeatherLoading();
+    if (weatherFetchController) {
+      weatherLookupTimeoutId = window.setTimeout(function() {
+        weatherLookupTimedOut = true;
+        weatherFetchController.abort();
+      }, WEATHER_LOOKUP_TIMEOUT_MS);
+    }
 
     fetch(endpoint, {
       method: lookup.method || 'POST',
@@ -5642,6 +5686,7 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
+      signal: weatherFetchController ? weatherFetchController.signal : undefined,
       body: JSON.stringify(requestPayload)
     })
       .then(function(response) {
@@ -5699,10 +5744,16 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
         }
       })
       .catch(function(error) {
-        setWeatherPanelState('error', error && error.message ? error.message : 'Weather check could not be completed. Please try again.');
+        const message = weatherLookupTimedOut || (error && error.name === 'AbortError')
+          ? 'Weather check timed out. Please try again.'
+          : (error && error.message ? error.message : 'Weather check could not be completed. Please try again.');
+        setWeatherPanelState('error', message);
         setWeatherApplyButtonState({ disabled: weatherLookupState.suggestedPct === null });
       })
       .finally(function() {
+        if (weatherLookupTimeoutId) {
+          window.clearTimeout(weatherLookupTimeoutId);
+        }
         stopWeatherLoading();
         weatherCheckInFlight = false;
         if (button) {

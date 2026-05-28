@@ -432,6 +432,13 @@ topNavShowAppSubnav = topNavIsLoggedIn
 
       if (loginToggle && loginStrip) {
         loginToggle.addEventListener("click", function () {
+          if (shell.classList.contains("is-menu-open")
+            && window.matchMedia
+            && window.matchMedia("(max-width: 1120px)").matches) {
+            setLoginOpen(false);
+            window.location.href = "#JSStringFormat(topNavBasePath)#/app/login.cfm";
+            return;
+          }
           setLoginOpen(!loginStrip.classList.contains("is-open"));
         });
       }
@@ -471,8 +478,8 @@ topNavShowAppSubnav = topNavIsLoggedIn
       window.FPW_BASE = "#JSStringFormat(topNavBasePath)#";
       window.FPW_API_BASE = "#JSStringFormat(topNavBasePath)#/api/v1";
     </script>
-    <script src="#topNavBasePath#/assets/js/app/api.js?v=20260518-pricing-pass"></script>
-    <script src="#topNavBasePath#/assets/js/app/auth.js?v=20260305a"></script>
+    <script src="#topNavBasePath#/assets/js/app/api.js?v=20260526-cache-bump"></script>
+    <script src="#topNavBasePath#/assets/js/app/auth.js?v=20260526-cache-bump"></script>
     <script src="#topNavBasePath#/assets/js/app/core.js"></script>
   </cfif>
 </cfoutput>

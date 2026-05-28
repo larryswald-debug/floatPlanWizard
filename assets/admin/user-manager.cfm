@@ -300,7 +300,7 @@ isAuthorized = isLoggedIn AND isAdmin;
     </script>
   </cfoutput>
   <cfif isAuthorized>
-    <script src="<cfoutput>#encodeForHTMLAttribute(request.fpwBase)#</cfoutput>/assets/js/app/admin/user-manager.js?v=20260517a"></script>
+    <script src="<cfoutput>#encodeForHTMLAttribute(request.fpwBase)#</cfoutput>/assets/js/app/admin/user-manager.js?v=20260526-cache-bump"></script>
   </cfif>
 </body>
 </html>
