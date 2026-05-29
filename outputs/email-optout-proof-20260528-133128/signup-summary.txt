@@ -1,0 +1,6 @@
+http_status=200
+success=true
+auth=true
+user_id=6
+email=fpw-optout-proof-1779989488-13773@example.com
+redirect=/fpw/app/start-trial.cfm?offer=launch_trial
