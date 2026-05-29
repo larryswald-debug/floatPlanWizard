@@ -5,8 +5,91 @@
   var BASE_PATH = window.FPW_BASE || "";
   var API_BASE = window.FPW_API_BASE || (BASE_PATH + "/api/v1");
   var LAUNCH_TRIAL_PATH = BASE_PATH + "/app/start-trial.cfm?offer=launch_trial";
+  var PHONE_ERROR_MESSAGE = "Please enter a valid US phone number or leave the phone field blank.";
 
   function $(id) { return document.getElementById(id); }
+
+  function formatUsPhoneDigits(digits) {
+    digits = String(digits || "").slice(0, 10);
+    if (!digits.length) return "";
+    if (digits.length <= 3) return "(" + digits;
+    if (digits.length <= 6) return "(" + digits.slice(0, 3) + ") " + digits.slice(3);
+    return "(" + digits.slice(0, 3) + ") " + digits.slice(3, 6) + "-" + digits.slice(6);
+  }
+
+  function getUsPhoneDigits(value, rawDigitsOverride) {
+    var hasRawOverride = rawDigitsOverride !== undefined && String(rawDigitsOverride || "").length;
+    var digits = hasRawOverride
+      ? String(rawDigitsOverride || "").replace(/\D/g, "")
+      : String(value || "").replace(/\D/g, "");
+    if (digits.length === 11 && digits.charAt(0) === "1") {
+      digits = digits.slice(1);
+    }
+    return digits;
+  }
+
+  function normalizeOptionalUsPhone(value, rawDigitsOverride) {
+    var rawValue = String(value || "").trim();
+    var hasRawOverride = rawDigitsOverride !== undefined && String(rawDigitsOverride || "").length;
+    var rawDigits = hasRawOverride ? String(rawDigitsOverride || "").replace(/\D/g, "") : "";
+    var digits = getUsPhoneDigits(rawValue, rawDigitsOverride);
+
+    if (!rawValue.length && !rawDigits.length) {
+      return { valid: true, value: "" };
+    }
+    if (digits.length !== 10) {
+      return { valid: false, value: "" };
+    }
+    if (!/^[2-9]\d{2}[2-9]\d{6}$/.test(digits)) {
+      return { valid: false, value: "" };
+    }
+    return { valid: true, value: formatUsPhoneDigits(digits) };
+  }
+
+  function formatUsPhoneInputValue(value) {
+    var digits = String(value || "").replace(/\D/g, "");
+    if (digits.length > 10 && digits.charAt(0) === "1") {
+      digits = digits.slice(1);
+    }
+    return formatUsPhoneDigits(digits);
+  }
+
+  function setPhoneFieldError(inputEl, errorEl, message) {
+    if (inputEl) {
+      inputEl.classList.add("is-invalid");
+    }
+    if (errorEl) {
+      errorEl.textContent = message || "";
+    }
+  }
+
+  function clearPhoneFieldError(inputEl, errorEl) {
+    if (inputEl) {
+      inputEl.classList.remove("is-invalid");
+    }
+    if (errorEl) {
+      errorEl.textContent = "";
+    }
+  }
+
+  function bindOptionalUsPhoneInput(inputEl, errorEl) {
+    if (!inputEl) return;
+    inputEl.addEventListener("input", function () {
+      inputEl.dataset.phoneRawDigits = String(inputEl.value || "").replace(/\D/g, "");
+      inputEl.value = formatUsPhoneInputValue(inputEl.value);
+      if (!inputEl.value || normalizeOptionalUsPhone(inputEl.value, inputEl.dataset.phoneRawDigits).valid) {
+        clearPhoneFieldError(inputEl, errorEl);
+      }
+    });
+    inputEl.addEventListener("blur", function () {
+      var normalized = normalizeOptionalUsPhone(inputEl.value, inputEl.dataset.phoneRawDigits || "");
+      if (normalized.valid) {
+        inputEl.value = normalized.value;
+        inputEl.dataset.phoneRawDigits = "";
+        clearPhoneFieldError(inputEl, errorEl);
+      }
+    });
+  }
 
   function pick(obj, keys, fallback) {
     for (var i = 0; i < keys.length; i++) {
@@ -515,12 +598,27 @@
   async function saveProfile(evt) {
     evt.preventDefault();
 
+    var mobilePhoneEl = $("mobilePhone");
+    var mobilePhoneErrorEl = $("mobilePhoneError");
+    var mobilePhoneResult = normalizeOptionalUsPhone(
+      mobilePhoneEl ? mobilePhoneEl.value : "",
+      mobilePhoneEl ? (mobilePhoneEl.dataset.phoneRawDigits || "") : ""
+    );
+    if (!mobilePhoneResult.valid) {
+      setPhoneFieldError(mobilePhoneEl, mobilePhoneErrorEl, PHONE_ERROR_MESSAGE);
+      if (mobilePhoneEl) mobilePhoneEl.focus();
+      return;
+    }
+    if (mobilePhoneEl) {
+      mobilePhoneEl.value = mobilePhoneResult.value;
+    }
+
     var payload = {
       action: "update",
       // send camelCase; server currently accepts both and writes to fName/lName/mobilePhone
       fName: ($("fName").value || "").trim(),
       lName: ($("lName").value || "").trim(),
-      mobilePhone: ($("mobilePhone").value || "").trim()
+      mobilePhone: mobilePhoneResult.value
     };
 
     var btn = $("saveProfileBtn");
@@ -614,13 +712,25 @@
   async function saveHomePort(evt) {
     evt.preventDefault();
 
+    var homePhoneEl = $("homePhone");
+    var homePhoneErrorEl = $("homePhoneError");
+    var homePhoneResult = normalizeOptionalUsPhone(homePhoneEl ? homePhoneEl.value : "");
+    if (!homePhoneResult.valid) {
+      setPhoneFieldError(homePhoneEl, homePhoneErrorEl, PHONE_ERROR_MESSAGE);
+      if (homePhoneEl) homePhoneEl.focus();
+      return;
+    }
+    if (homePhoneEl) {
+      homePhoneEl.value = homePhoneResult.value;
+    }
+
     var payload = {
       action: "save",
       address: ($("homeAddress").value || "").trim(),
       city: ($("homeCity").value || "").trim(),
       state: ($("homeState").value || "").trim(),
       zip: ($("homeZip").value || "").trim(),
-      phone: ($("homePhone").value || "").trim(),
+      phone: homePhoneResult.value,
       lat: ($("homeLat").value || "").trim(),
       lng: ($("homeLng").value || "").trim()
     };
@@ -888,6 +998,9 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
+    bindOptionalUsPhoneInput($("mobilePhone"), $("mobilePhoneError"));
+    bindOptionalUsPhoneInput($("homePhone"), $("homePhoneError"));
+
     var profileForm = $("profileForm");
     if (profileForm) profileForm.addEventListener("submit", saveProfile);
 

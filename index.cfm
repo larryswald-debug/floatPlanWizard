@@ -2719,7 +2719,7 @@ fpwShowMemberRequiredNotice = (
             <a href="#great-loop" class="btn btn-secondary"><i class="bi bi-signpost-2"></i>Explore Great Loop Features</a>
           </div>
           <div class="micro" style="text-align:center;">
-            Built for Great Loopers and all serious recreational boaters. No credit card required to join.
+            Beta launch: Join free, try the tools, and help shape FloatPlanWizard with your feedback. Built for Great Loopers and serious recreational boaters. No credit card required.
           </div>
         </div>
 

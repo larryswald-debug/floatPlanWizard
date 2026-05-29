@@ -250,10 +250,6 @@ topNavShowAppSubnav = topNavIsLoggedIn
                     <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg>
                     <span><strong>My Account</strong><small>Profile and settings</small></span>
                   </a>
-                  <a href="#topNavBasePath#/app/account.cfm##membershipBillingCard" role="menuitem">
-                    <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 10h18"></path><path d="M7 15h4"></path></svg>
-                    <span><strong>Membership &amp; Billing</strong><small>Manage plan access</small></span>
-                  </a>
                   <a href="#topNavBasePath#/index.cfm" role="menuitem" data-fpw-member-logout>
                     <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 17 15 12 10 7"></path><path d="M15 12H3"></path><path d="M21 4v16"></path></svg>
                     <span><strong>Logout</strong><small>Sign out securely</small></span>

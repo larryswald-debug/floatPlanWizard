@@ -89,7 +89,8 @@
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 356px));
+  justify-content: center;
   gap: 18px;
   margin-top: -72px;
 }

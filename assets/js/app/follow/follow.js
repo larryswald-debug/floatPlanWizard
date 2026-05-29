@@ -987,13 +987,108 @@
     if (!href) return;
 
     link.href = href;
-    link.setAttribute("download", "");
     link.classList.remove("is-disabled");
     link.removeAttribute("aria-disabled");
     link.textContent = "Download PDF";
     if (meta) {
       meta.textContent = "PDF";
     }
+  }
+
+  function parsePdfErrorMessage(text) {
+    var fallback = "Unable to download float plan PDF.";
+    var parsed;
+
+    try {
+      parsed = text ? JSON.parse(text) : {};
+    } catch (ignoreErr) {
+      return fallback;
+    }
+
+    if (parsed && parsed.MESSAGE) {
+      return String(parsed.MESSAGE);
+    }
+
+    return fallback;
+  }
+
+  function getPdfDownloadFileName(disposition) {
+    var value = String(disposition || "");
+    var match = value.match(/filename\*?=(?:UTF-8'')?("?)([^";]+)\1/i);
+    var fileName = match && match[2] ? decodeURIComponent(match[2]) : "";
+
+    return fileName || "float-plan.pdf";
+  }
+
+  function triggerBlobDownload(blob, fileName) {
+    var objectUrl;
+    var link;
+
+    if (!window.URL || typeof window.URL.createObjectURL !== "function") {
+      window.alert("Unable to download float plan PDF.");
+      return;
+    }
+
+    objectUrl = window.URL.createObjectURL(blob);
+    link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = fileName || "float-plan.pdf";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    window.setTimeout(function () {
+      window.URL.revokeObjectURL(objectUrl);
+    }, 1000);
+  }
+
+  function handleFloatPlanPdfDownload(event) {
+    var link = event.currentTarget;
+    var href = link ? String(link.href || "") : "";
+    var originalText = link ? (link.textContent || "Download PDF") : "Download PDF";
+
+    if (!link || link.classList.contains("is-disabled") || link.getAttribute("aria-disabled") === "true") {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (!href) {
+      window.alert("Unable to download float plan PDF.");
+      return;
+    }
+
+    link.setAttribute("aria-busy", "true");
+    link.textContent = "Preparing PDF...";
+
+    fetch(href, {
+      method: "GET",
+      credentials: "same-origin",
+      headers: {
+        Accept: "application/pdf, application/json;q=0.9, */*;q=0.8"
+      }
+    })
+      .then(function (res) {
+        var contentType = String(res.headers.get("Content-Type") || "").toLowerCase();
+        var disposition = res.headers.get("Content-Disposition") || "";
+
+        if (!res.ok || contentType.indexOf("application/pdf") === -1) {
+          return res.text().then(function (text) {
+            throw new Error(parsePdfErrorMessage(text));
+          });
+        }
+
+        return res.blob().then(function (blob) {
+          triggerBlobDownload(blob, getPdfDownloadFileName(disposition));
+        });
+      })
+      .catch(function (err) {
+        window.alert((err && err.message) ? err.message : "Unable to download float plan PDF.");
+      })
+      .then(function () {
+        link.removeAttribute("aria-busy");
+        link.textContent = originalText;
+      });
   }
 
   function appendTrackLogText(parent, className, value) {
@@ -2074,6 +2169,11 @@
       dom.openFullMapBtn.addEventListener("click", function () {
         openFullMapWindow();
       });
+    }
+
+    dom.floatPlanDownloadAction = getHookField("float-plan-download-action");
+    if (dom.floatPlanDownloadAction) {
+      dom.floatPlanDownloadAction.addEventListener("click", handleFloatPlanPdfDownload);
     }
 
     if (dom.followActionBtn) {

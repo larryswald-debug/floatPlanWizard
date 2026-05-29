@@ -140,8 +140,11 @@
                                     class="form-control"
                                     id="phone"
                                     name="phone"
+                                    inputmode="tel"
                                     autocomplete="tel"
+                                    aria-describedby="phoneError"
                                 >
+                                <div class="invalid-feedback" id="phoneError">Please enter a valid US phone number or leave the phone field blank.</div>
                             </div>
                             <div class="col-12">
                                 <div class="form-check">
@@ -176,7 +179,7 @@
 
 <cfinclude template="../includes/footer_scripts.cfm">
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth-utils.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/join.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/join.js?v=20260528-phone-format"></script>
 
 </body>
 </html>

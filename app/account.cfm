@@ -49,7 +49,8 @@
               </div>
               <div class="col-12">
                 <label for="mobilePhone" class="form-label">Mobile Phone</label>
-                <input type="tel" class="form-control" id="mobilePhone" autocomplete="tel">
+                <input type="tel" class="form-control" id="mobilePhone" inputmode="tel" autocomplete="tel" aria-describedby="mobilePhoneError">
+                <div class="invalid-feedback" id="mobilePhoneError">Please enter a valid US phone number or leave the phone field blank.</div>
               </div>
             </div>
 
@@ -85,7 +86,8 @@
             <div class="row g-3 mt-1">
               <div class="col-md-6">
                 <label for="homePhone" class="form-label">Phone</label>
-                <input type="tel" class="form-control" id="homePhone" autocomplete="tel">
+                <input type="tel" class="form-control" id="homePhone" inputmode="tel" autocomplete="tel" aria-describedby="homePhoneError">
+                <div class="invalid-feedback" id="homePhoneError">Please enter a valid US phone number or leave the phone field blank.</div>
               </div>
               <div class="col-md-3">
                 <label for="homeLat" class="form-label">Latitude</label>
@@ -129,7 +131,7 @@
 
           <div class="membership-promo-panel mt-4" id="membershipPromoPanel">
             <h3 class="h6 mb-1">Redeem Launch or Founder Code</h3>
-            <p class="small text-muted mb-3">Enter a Memorial Day launch or Founder code. Launch trial codes open secure Stripe Checkout, and no credit card is required to start.</p>
+            <p class="small text-muted mb-3">Enter a Launch or Founder code. Promo codes opens a secure Stripe Checkout, and no credit card is required to start.</p>
             <form id="promoCodeForm" novalidate>
               <label class="visually-hidden" for="promoCodeInput">Launch or Founder code</label>
               <div class="membership-promo-input-group">
@@ -169,7 +171,7 @@
         <div class="card-body">
           <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
             <div>
-              <h2 class="h5 mb-1">Companion Devices</h2>
+              <h2 class="h5 mb-1">Companion Devices (coming soon)</h2>
               <p class="small text-muted mb-0">Pair and manage devices that can use the FPW Companion App.</p>
             </div>
             <div class="d-flex flex-wrap gap-2">
@@ -211,7 +213,7 @@
 <cfinclude template="../includes/footer.cfm">
 
 <cfinclude template="../includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/account.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/account.js?v=20260528-homeport-phone"></script>
 
 </body>
 </html>

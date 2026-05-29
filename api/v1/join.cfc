@@ -162,6 +162,19 @@
                 <cfabort>
             </cfif>
 
+            <cfset phoneValidation = normalizeOptionalUsPhone(phone)>
+            <cfif NOT phoneValidation.valid>
+                <cfset response = {
+                    SUCCESS = false,
+                    MESSAGE = "Please enter a valid US phone number or leave the phone field blank.",
+                    ERROR   = "INVALID_PHONE"
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+            <cfset phone = phoneValidation.value>
+
             <!-- Check for duplicate email -->
             <cfquery name="qExisting" datasource="fpw">
                 SELECT userId
@@ -269,6 +282,20 @@
                 lastLogin = nowStamp,
                 LASTLOGIN = nowStamp
             }>
+
+            <cftry>
+                <cfset createObject("component", "fpw.api.v1.email").init().sendWelcomeMemberEmail(
+                    userId = newUserId,
+                    toEmail = email,
+                    firstName = firstName
+                )>
+                <cfcatch type="any">
+                    <cflog
+                        file="fpw_email"
+                        type="error"
+                        text="join.cfc WELCOME_MEMBER_HOOK_FAILED | userId=#newUserId# | time=#now()#">
+                </cfcatch>
+            </cftry>
 
             <cfset response = {
                 SUCCESS = true,
@@ -457,6 +484,31 @@
         </cfif>
         <cfset var normalized = lcase(trim(toString(arguments.value)))>
         <cfreturn listFindNoCase("true,1,yes,on", normalized) GT 0>
+    </cffunction>
+
+    <cffunction name="normalizeOptionalUsPhone" access="private" returntype="struct" output="false">
+        <cfargument name="phone" type="string" required="true">
+
+        <cfset var rawValue = trim(toString(arguments.phone))>
+        <cfset var digits = reReplace(rawValue, "[^0-9]", "", "all")>
+
+        <cfif NOT len(rawValue)>
+            <cfreturn { valid = true, value = "" }>
+        </cfif>
+        <cfif len(digits) EQ 11 AND left(digits, 1) EQ "1">
+            <cfset digits = right(digits, 10)>
+        </cfif>
+        <cfif len(digits) NEQ 10 OR NOT reFind("^[2-9][0-9]{2}[2-9][0-9]{6}$", digits)>
+            <cfreturn { valid = false, value = "" }>
+        </cfif>
+
+        <cfreturn { valid = true, value = formatUsPhoneDigits(digits) }>
+    </cffunction>
+
+    <cffunction name="formatUsPhoneDigits" access="private" returntype="string" output="false">
+        <cfargument name="digits" type="string" required="true">
+
+        <cfreturn "(" & left(arguments.digits, 3) & ") " & mid(arguments.digits, 4, 3) & "-" & right(arguments.digits, 4)>
     </cffunction>
 
     <cffunction name="resolveFpwBasePath" access="private" returntype="string" output="false">

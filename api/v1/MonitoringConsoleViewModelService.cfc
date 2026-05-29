@@ -314,7 +314,7 @@
           AND event_type = 'CHECKIN'
           AND latitude IS NOT NULL
           AND longitude IS NOT NULL
-        ORDER BY COALESCE(location_captured_at_utc, received_at_utc, created_utc) DESC, id DESC
+        ORDER BY COALESCE(received_at_utc, created_utc, location_captured_at_utc) DESC, id DESC
         LIMIT 1
       ", {
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
@@ -351,7 +351,7 @@
         WHERE user_id = :userId
           AND floatplan_id = :floatPlanId
           AND event_type = 'CHECKIN'
-        ORDER BY COALESCE(location_captured_at_utc, received_at_utc, created_utc) DESC, id DESC
+        ORDER BY COALESCE(received_at_utc, created_utc, location_captured_at_utc) DESC, id DESC
         LIMIT :limitRows
       ", {
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
@@ -385,7 +385,7 @@
 
       for (i = 1; i LTE qHistory.recordCount; i++) {
         hasGps = isNumericValue(qHistory.latitude[i]) AND isNumericValue(qHistory.longitude[i]);
-        checkinAt = firstDate(qHistory.location_captured_at_utc[i], qHistory.received_at_utc[i], qHistory.created_utc[i]);
+        checkinAt = firstDate(qHistory.received_at_utc[i], qHistory.created_utc[i], qHistory.location_captured_at_utc[i]);
         statusCode = normalizeStatusCode(qHistory.canonical_status[i]);
         arrayAppend(items, {
           "id" = "companion-" & safeString(qHistory.id[i]),
@@ -428,7 +428,7 @@
         );
         capturedAt = parseStoredUtcDate(structKeyExists(location, "capturedAtUtc") ? location.capturedAtUtc : "");
         receivedAt = qCanonical.occurred_at_utc[i];
-        checkinAt = firstDate(capturedAt, receivedAt);
+        checkinAt = firstDate(receivedAt, capturedAt);
         statusCode = normalizeStatusCode(qCanonical.event_status[i]);
         arrayAppend(items, {
           "id" = "active-cruise-" & safeString(qCanonical.id[i]),
@@ -508,7 +508,7 @@
         WHERE user_id = :userId
           AND floatplan_id = :floatPlanId
           AND event_type = 'CHECKIN'
-        ORDER BY COALESCE(location_captured_at_utc, received_at_utc, created_utc) DESC, id DESC
+        ORDER BY COALESCE(received_at_utc, created_utc, location_captured_at_utc) DESC, id DESC
         LIMIT 10
       ", {
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
@@ -520,7 +520,7 @@
       var hasGps = false;
 
       for (i = 1; i LTE qEvents.recordCount; i++) {
-        occurredAt = firstDate(qEvents.location_captured_at_utc[i], qEvents.received_at_utc[i], qEvents.created_utc[i]);
+        occurredAt = firstDate(qEvents.received_at_utc[i], qEvents.created_utc[i], qEvents.location_captured_at_utc[i]);
         statusCode = normalizeStatusCode(qEvents.canonical_status[i]);
         hasGps = isNumericValue(qEvents.latitude[i]) AND isNumericValue(qEvents.longitude[i]);
         arrayAppend(arguments.items, buildAuditItem(
@@ -655,7 +655,7 @@
         if (hasGps) {
           arrayAppend(arguments.items, buildAuditItem(
             "active-cruise-gps-" & qEvents.id[i],
-            firstDate(parseStoredUtcDate(structKeyExists(location, "capturedAtUtc") ? location.capturedAtUtc : ""), qEvents.occurred_at_utc[i]),
+            firstDate(qEvents.occurred_at_utc[i], parseStoredUtcDate(structKeyExists(location, "capturedAtUtc") ? location.capturedAtUtc : "")),
             arguments.timezone,
             "GPS_CAPTURED",
             "GPS captured with check-in",

@@ -43,7 +43,7 @@
             <cftry>
                 <cfmail
                     to="support@floatplanwizard.com"
-                    from="no-reply@floatplanwizard.com"
+                    from="noreply@floatplanwizard.com"
                     replyto="#email#"
                     subject="Float Plan Wizard Contact Us: #firstName# #lastName#"
                     type="text">

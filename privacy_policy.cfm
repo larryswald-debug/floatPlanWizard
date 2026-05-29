@@ -198,8 +198,8 @@
       This Privacy Policy explains how FloatPlanWizard collects, uses, stores, shares, and protects information.
     </p>
     <div class="fpw-legal-meta" aria-label="Privacy Policy metadata">
-      <span class="fpw-legal-pill">Effective date: [Insert Effective Date]</span>
-      <span class="fpw-legal-pill">[Float Plan Wizard LLC]</span>
+      <span class="fpw-legal-pill">Effective date: May 28, 2026</span>
+      <span class="fpw-legal-pill">Float Plan Wizard LLC</span>
       <span class="fpw-legal-pill">FloatPlanWizard.com</span>
     </div>
   </div>

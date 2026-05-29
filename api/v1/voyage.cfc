@@ -5856,6 +5856,13 @@
                 floatPlanUtils = createObject("component", resolveFloatPlanUtilsComponentPath()).init();
                 pdfFileName = floatPlanUtils.createPDF(streamRow.floatplan_id);
             } catch (any pdfErr) {
+                try {
+                    writeLog(
+                        file="fpw_pdf",
+                        type="error",
+                        text="Follow PDF createPDF failed streamId=#streamRow.id# slug=#left(trim(toString(streamRow.slug)), 160)# floatPlanId=#streamRow.floatplan_id# ownerUserId=#streamRow.owner_user_id# msg=#left(trim(toString(pdfErr.message)), 500)# detail=#left(trim(toString(pdfErr.detail)), 1000)#"
+                    );
+                } catch (any logErr) {}
                 out.MESSAGE = "Unable to generate float plan PDF.";
                 out.STATUS_CODE = 500;
                 out.ERROR = { "CODE"="PDF_FAILED", "MESSAGE"="Unable to generate float plan PDF." };
