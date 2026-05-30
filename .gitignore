@@ -27,6 +27,7 @@ stripe-config.json
 secrets/
 *.key
 git access token.txt
+app/scheduled/Stipe_sklive_fpw_goLive.txt
 
 # ===== Node / Frontend (if added later) =====
 node_modules/
@@ -96,3 +97,4 @@ tmp/
 *.log
 *.bak
 *.snapshot-*
+

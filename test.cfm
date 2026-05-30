@@ -8,10 +8,12 @@
         }>
 
    
-
-        <cfmail attributeCollection="#mailAttrs#">
-            test email body`
-        </cfmail>
-
+<cfmail to="lswald@yahoo.com" 
+        from="noreply@floatplanwizard.com" 
+        subject="Test Email from Float Plan Wizard">
+    Email body goes here.
+</cfmail>
+<cfdump var="#mailAttrs#" label="Mail Attributes">
+<p>
 
         successfully sent test email. Check your inbox.

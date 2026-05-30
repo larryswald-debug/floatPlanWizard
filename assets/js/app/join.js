@@ -116,6 +116,7 @@
     var websiteEl = $("website");
     var termsAcceptedEl = $("termsAccepted");
     var btn = $("joinButton");
+    var btnLabel = btn ? btn.querySelector(".fpw-submit-label") : null;
 
     if (!form || !firstNameEl || !lastNameEl || !emailEl || !passwordEl || !confirmPasswordEl || !termsAcceptedEl || !btn) {
       console.error("join.js: required elements missing", {
@@ -184,7 +185,11 @@
       }
 
       btn.disabled = true;
-      btn.textContent = "Creating...";
+      if (btnLabel) {
+        btnLabel.textContent = "Creating...";
+      } else {
+        btn.textContent = "Creating...";
+      }
 
       try {
         var payload = {
@@ -222,7 +227,11 @@
         showAlert((err && err.MESSAGE) ? err.MESSAGE : "Request failed (see console).", "danger");
       } finally {
         btn.disabled = false;
-        btn.textContent = "Create Account";
+        if (btnLabel) {
+          btnLabel.textContent = "Start My Free Account";
+        } else {
+          btn.textContent = "Start My Free Account";
+        }
       }
     });
 

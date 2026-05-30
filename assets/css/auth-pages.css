@@ -8,3 +8,881 @@
 .join-wrapper {
   min-height: 100vh;
 }
+
+.fpw-auth-page {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(42, 232, 226, 0.1), transparent 34rem),
+    linear-gradient(180deg, #f6f9fb 0%, #edf4f7 100%);
+  color: #102033;
+}
+
+.fpw-auth-shell {
+  min-height: 100vh;
+  padding: 32px 16px;
+}
+
+.fpw-auth-card {
+  width: min(1280px, 100%);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(360px, 0.82fr) minmax(500px, 1fr);
+  background: #ffffff;
+  border: 1px solid rgba(16, 32, 51, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(16, 32, 51, 0.14);
+  overflow: hidden;
+}
+
+.fpw-auth-story {
+  min-height: 640px;
+  background:
+    linear-gradient(90deg,
+      rgba(3, 31, 58, 0.94) 0%,
+      rgba(4, 40, 73, 0.9) 34%,
+      rgba(8, 58, 95, 0.58) 64%,
+      rgba(10, 72, 114, 0.24) 100%
+    ),
+    url("../images/fpw-signup-boat-hero_w.png") calc(100% + 100px) bottom / auto calc(115% + 50px) no-repeat;
+  color: #ffffff;
+}
+
+.fpw-auth-story-overlay {
+  min-height: 100%;
+  padding: 52px 54px;
+  display: flex;
+  flex-direction: column;
+  gap: 42px;
+}
+
+.fpw-auth-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.fpw-auth-brand:hover,
+.fpw-auth-brand:focus-visible {
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.fpw-auth-story .fpw-brand__mark {
+  width: 58px;
+  height: 58px;
+  color: #63f2e8;
+  flex: 0 0 auto;
+}
+
+.fpw-auth-story .fpw-brand__name {
+  color: #ffffff;
+  font-size: clamp(2rem, 3.2vw, 2.75rem);
+  letter-spacing: -0.04em;
+}
+
+.fpw-auth-story .fpw-brand__tagline {
+  display: block;
+  color: #29f4e7;
+  font-size: clamp(0.68rem, 0.9vw, 0.88rem);
+  letter-spacing: 0.2em;
+}
+
+.fpw-auth-story-copy h1 {
+  margin: 0 0 18px;
+  font-size: clamp(2.4rem, 4vw, 4.1rem);
+  line-height: 1.07;
+  font-weight: 850;
+  letter-spacing: -0.03em;
+}
+
+.fpw-auth-story-copy p {
+  margin: 0;
+  max-width: 500px;
+  font-size: 1.18rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.fpw-auth-benefits {
+  display: grid;
+  gap: 20px;
+  padding-top: 8px;
+}
+
+.fpw-auth-benefit {
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.fpw-auth-benefit > span {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #45e0dc;
+  color: #031726;
+  font-weight: 900;
+}
+
+.fpw-auth-benefit strong {
+  display: block;
+  font-size: 1.1rem;
+  line-height: 1.25;
+}
+
+.fpw-auth-benefit small {
+  display: block;
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.96rem;
+  line-height: 1.35;
+}
+
+.fpw-auth-form-panel {
+  padding: 56px 56px 36px;
+}
+
+.fpw-auth-form-header {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 22px;
+  align-items: center;
+  padding-bottom: 26px;
+  border-bottom: 1px solid rgba(16, 32, 51, 0.14);
+}
+
+.fpw-auth-user-icon {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #ecfbf9;
+  border: 1px solid #c9efea;
+  color: #087c75;
+}
+
+.fpw-auth-user-icon svg,
+.fpw-input-icon svg {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.fpw-input-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.fpw-auth-form-header h2 {
+  margin: 0 0 8px;
+  font-size: clamp(2rem, 3vw, 3rem);
+  line-height: 1.08;
+  font-weight: 850;
+  color: #0c1f35;
+  letter-spacing: -0.035em;
+}
+
+.fpw-auth-form-header p {
+  margin: 0;
+  color: #536174;
+  font-size: 1.08rem;
+  line-height: 1.45;
+}
+
+.fpw-auth-form {
+  padding-top: 28px;
+}
+
+.fpw-login-form .fpw-input-wrap input {
+  min-height: 54px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  border-radius: 8px;
+  font-size: 1.04rem;
+}
+
+.fpw-auth-message {
+  margin: 12px 0;
+}
+
+.fpw-auth-submit {
+  width: 100%;
+  min-height: 56px;
+  border: 0;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #0877f2 0%, #005fd7 100%);
+  color: #ffffff;
+  font-size: 1.16rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 12px 22px rgba(8, 119, 242, 0.24);
+}
+
+.fpw-auth-submit:hover,
+.fpw-auth-submit:focus {
+  filter: brightness(1.03);
+}
+
+.fpw-auth-link-row {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 18px;
+  color: #536174;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.fpw-auth-link-row a {
+  color: #056fe5;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.fpw-login-note {
+  margin-top: 26px;
+  padding: 18px 20px;
+  border: 1px solid #bde9e5;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f0fffd 0%, #edf9ff 100%);
+}
+
+.fpw-login-note strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #102033;
+}
+
+.fpw-login-note p {
+  margin: 0;
+  color: #536174;
+  line-height: 1.45;
+}
+
+.fpw-auth-disclaimer {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 18px 56px;
+  background: #f3f8fc;
+  border-top: 1px solid rgba(16, 32, 51, 0.12);
+  color: #26384d;
+}
+
+.fpw-auth-disclaimer span {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(16, 32, 51, 0.35);
+  color: #26384d;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.fpw-auth-disclaimer p {
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 980px) {
+  .fpw-auth-card {
+    grid-template-columns: 1fr;
+  }
+
+  .fpw-auth-story {
+    min-height: auto;
+  }
+
+  .fpw-auth-story-overlay {
+    padding: 36px 32px;
+  }
+
+  .fpw-auth-form-panel {
+    padding: 36px 32px 30px;
+  }
+}
+
+@media (max-width: 620px) {
+  .fpw-auth-shell {
+    padding: 14px;
+  }
+
+  .fpw-auth-card {
+    border-radius: 10px;
+  }
+
+  .fpw-auth-story-overlay {
+    padding: 30px 22px;
+    gap: 28px;
+  }
+
+  .fpw-auth-story-copy h1 {
+    font-size: 2.25rem;
+  }
+
+  .fpw-auth-form-panel {
+    padding: 28px 20px 24px;
+  }
+
+  .fpw-auth-form-header {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .fpw-auth-user-icon {
+    width: 64px;
+    height: 64px;
+  }
+
+  .fpw-auth-form-header h2 {
+    font-size: 2rem;
+  }
+
+  .fpw-auth-link-row {
+    flex-wrap: wrap;
+  }
+
+  .fpw-auth-disclaimer {
+    padding: 16px 20px;
+  }
+}
+
+.fpw-signup-page {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(27, 118, 164, 0.12), transparent 32rem),
+    linear-gradient(180deg, #f6f9fb 0%, #eef4f7 100%);
+  color: #102033;
+}
+
+.fpw-signup-shell {
+  min-height: 100vh;
+  padding: 32px 16px;
+}
+
+.fpw-signup-card {
+  width: min(1480px, 100%);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(380px, 0.82fr) minmax(560px, 1.18fr);
+  background: #ffffff;
+  border: 1px solid rgba(16, 32, 51, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(16, 32, 51, 0.14);
+  overflow: hidden;
+}
+
+.fpw-signup-story {
+  min-height: 760px;
+  background:
+    linear-gradient(90deg,
+      rgba(3, 31, 58, 0.94) 0%,
+      rgba(4, 40, 73, 0.9) 34%,
+      rgba(8, 58, 95, 0.58) 64%,
+      rgba(10, 72, 114, 0.24) 100%
+    ),
+    url("../images/fpw-signup-boat-hero_w.png") calc(100% + 100px) bottom / cover no-repeat;
+  color: #ffffff;
+  position: relative;
+}
+
+.fpw-signup-story-overlay {
+  min-height: 100%;
+  padding: 56px 58px;
+  display: flex;
+  flex-direction: column;
+  gap: 42px;
+}
+
+.fpw-signup-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.fpw-signup-brand:hover,
+.fpw-signup-brand:focus-visible {
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.fpw-signup-story .fpw-brand__mark {
+  width: 58px;
+  height: 58px;
+  color: #63f2e8;
+  flex: 0 0 auto;
+}
+
+.fpw-signup-story .fpw-brand__name {
+  color: #ffffff;
+  font-size: clamp(2rem, 3.2vw, 2.8rem);
+  letter-spacing: -0.04em;
+}
+
+.fpw-signup-story .fpw-brand__tagline {
+  display: block;
+  color: #29f4e7;
+  font-size: clamp(0.68rem, 0.9vw, 0.88rem);
+  letter-spacing: 0.2em;
+}
+
+.fpw-signup-story-copy {
+  max-width: 500px;
+}
+
+.fpw-signup-story-copy h1 {
+  margin: 0 0 20px;
+  font-size: clamp(2.4rem, 4vw, 4.3rem);
+  line-height: 1.06;
+  font-weight: 850;
+}
+
+.fpw-signup-story-copy p {
+  margin: 0;
+  font-size: 1.23rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.fpw-signup-benefits {
+  display: grid;
+  gap: 22px;
+  padding-top: 8px;
+}
+
+.fpw-signup-benefit {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  align-items: start;
+  gap: 14px;
+}
+
+.fpw-signup-check {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #65d7cb;
+  color: #05324f;
+  font-weight: 900;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+}
+
+.fpw-signup-benefit strong {
+  display: block;
+  font-size: 1.22rem;
+  line-height: 1.25;
+}
+
+.fpw-signup-benefit span:last-child {
+  display: block;
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 1.02rem;
+  line-height: 1.35;
+}
+
+.fpw-signup-form-panel {
+  padding: 48px 54px 30px;
+}
+
+.fpw-signup-form-header {
+  display: grid;
+  grid-template-columns: 86px 1fr;
+  gap: 24px;
+  align-items: center;
+  padding-bottom: 26px;
+  border-bottom: 1px solid rgba(16, 32, 51, 0.14);
+}
+
+.fpw-signup-user-icon {
+  width: 82px;
+  height: 82px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #ecfbf9;
+  border: 1px solid #c9efea;
+  color: #087c75;
+  font-size: 34px;
+}
+
+.fpw-signup-form-header h2 {
+  margin: 0 0 10px;
+  font-size: clamp(2rem, 3vw, 3.15rem);
+  line-height: 1.08;
+  font-weight: 850;
+  color: #0c1f35;
+}
+
+.fpw-signup-form-header p {
+  margin: 0;
+  max-width: 720px;
+  font-size: 1.18rem;
+  line-height: 1.45;
+  color: #536174;
+}
+
+.fpw-signup-form {
+  padding-top: 24px;
+}
+
+.fpw-form-grid {
+  display: grid;
+  gap: 24px;
+}
+
+.fpw-form-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.fpw-form-row {
+  margin-bottom: 20px;
+}
+
+.fpw-form-row label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 1rem;
+  font-weight: 750;
+  color: #102033;
+}
+
+.fpw-input-wrap {
+  position: relative;
+}
+
+.fpw-input-icon {
+  position: absolute;
+  top: 50%;
+  left: 15px;
+  transform: translateY(-50%);
+  color: #66758a;
+  font-size: 1rem;
+  pointer-events: none;
+}
+
+.fpw-input-wrap input {
+  width: 100%;
+  min-height: 50px;
+  padding: 11px 14px 11px 44px;
+  border: 1px solid #cbd5df;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #102033;
+  font-size: 1.02rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fpw-input-wrap input:focus {
+  outline: none;
+  border-color: #168bdf;
+  box-shadow: 0 0 0 4px rgba(22, 139, 223, 0.16);
+}
+
+.fpw-field-help {
+  margin: 8px 0 0;
+  color: #5d6878;
+  font-size: 0.94rem;
+  line-height: 1.35;
+}
+
+.fpw-terms-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 6px 0 20px;
+  font-size: 1.02rem;
+  line-height: 1.45;
+}
+
+.fpw-terms-row input {
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+
+.fpw-terms-row a,
+.fpw-login-link a {
+  color: #056fe5;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.fpw-privacy-note {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  gap: 16px;
+  align-items: center;
+  margin: 0 0 18px;
+  padding: 17px 20px;
+  border: 1px solid #bde9e5;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f0fffd 0%, #edf9ff 100%);
+}
+
+.fpw-privacy-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #e2fbf8;
+  color: #087c75;
+  font-size: 24px;
+}
+
+.fpw-privacy-note strong {
+  display: block;
+  color: #102033;
+  font-size: 1.05rem;
+  margin-bottom: 4px;
+}
+
+.fpw-privacy-note p {
+  margin: 0;
+  color: #536174;
+  line-height: 1.4;
+}
+
+.fpw-signup-message {
+  margin: 12px 0;
+}
+
+.fpw-signup-submit {
+  width: 100%;
+  min-height: 56px;
+  border: 0;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #0877f2 0%, #005fd7 100%);
+  color: #ffffff;
+  font-size: 1.18rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 12px 22px rgba(8, 119, 242, 0.24);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.fpw-signup-submit:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.02);
+  box-shadow: 0 15px 28px rgba(8, 119, 242, 0.28);
+}
+
+.fpw-signup-submit:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(8, 119, 242, 0.2), 0 12px 22px rgba(8, 119, 242, 0.24);
+}
+
+.fpw-login-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 18px 0 0;
+  color: #536174;
+  text-align: center;
+}
+
+.fpw-login-link::before,
+.fpw-login-link::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  max-width: 180px;
+  background: rgba(16, 32, 51, 0.16);
+}
+
+.fpw-signup-trust-strip {
+  margin-top: 26px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(16, 32, 51, 0.14);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.fpw-signup-trust-strip > div {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  column-gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.fpw-signup-trust-strip span {
+  grid-row: span 2;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #ecfbf9;
+  color: #087c75;
+  border: 1px solid #c9efea;
+}
+
+.fpw-signup-trust-strip strong {
+  display: block;
+  color: #102033;
+  font-size: 0.9rem;
+  line-height: 1.18;
+}
+
+.fpw-signup-trust-strip small {
+  display: block;
+  color: #536174;
+  font-size: 0.82rem;
+  line-height: 1.18;
+}
+
+.fpw-signup-disclaimer {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 18px 56px;
+  background: #f3f8fc;
+  border-top: 1px solid rgba(16, 32, 51, 0.12);
+  color: #26384d;
+}
+
+.fpw-signup-disclaimer span {
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.fpw-signup-disclaimer p {
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 1100px) {
+  .fpw-signup-card {
+    grid-template-columns: 1fr;
+  }
+
+  .fpw-signup-story {
+    min-height: auto;
+  }
+
+  .fpw-signup-story-overlay {
+    padding: 36px 34px;
+  }
+
+  .fpw-signup-benefits {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fpw-signup-form-panel {
+    padding: 36px 34px 28px;
+  }
+}
+
+@media (max-width: 760px) {
+  .fpw-signup-shell {
+    padding: 14px;
+  }
+
+  .fpw-signup-card {
+    border-radius: 10px;
+  }
+
+  .fpw-signup-story-overlay {
+    padding: 30px 22px;
+    gap: 28px;
+  }
+
+  .fpw-signup-story-copy h1 {
+    font-size: 2.35rem;
+  }
+
+  .fpw-signup-story-copy p {
+    font-size: 1.05rem;
+  }
+
+  .fpw-signup-benefits {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .fpw-signup-form-panel {
+    padding: 28px 20px 24px;
+  }
+
+  .fpw-signup-form-header {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .fpw-signup-user-icon {
+    width: 64px;
+    height: 64px;
+    font-size: 26px;
+  }
+
+  .fpw-signup-form-header h2 {
+    font-size: 2rem;
+  }
+
+  .fpw-signup-form-header p {
+    font-size: 1.02rem;
+  }
+
+  .fpw-form-grid-2 {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .fpw-privacy-note {
+    grid-template-columns: 1fr;
+  }
+
+  .fpw-signup-trust-strip {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .fpw-signup-disclaimer {
+    padding: 16px 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .fpw-signup-trust-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .fpw-login-link::before,
+.fpw-login-link::after {
+    display: none;
+  }
+}
