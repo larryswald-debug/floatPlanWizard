@@ -63,6 +63,70 @@
         </cftry>
     </cffunction>
 
+    <cffunction name="sendPasswordResetEmail" access="public" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="toEmail" type="string" required="true">
+        <cfargument name="resetUrl" type="string" required="true">
+        <cfargument name="expiresMinutes" type="numeric" required="false" default="60">
+
+        <cfset var result = {
+            success = false,
+            messageType = "PASSWORD_RESET",
+            errorCode = "",
+            message = ""
+        }>
+        <cfset var toAddress = lcase(trim(arguments.toEmail))>
+        <cfset var resetUrlValue = trim(arguments.resetUrl)>
+        <cfset var emailMessage = {}>
+
+        <cfif int(arguments.userId) LTE 0>
+            <cfset result.errorCode = "INVALID_USER">
+            <cfset result.message = "Password reset email user is invalid.">
+            <cfreturn result>
+        </cfif>
+
+        <cfif NOT isValid("email", toAddress)>
+            <cfset result.errorCode = "INVALID_RECIPIENT">
+            <cfset result.message = "Password reset email recipient is invalid.">
+            <cfreturn result>
+        </cfif>
+
+        <cfif NOT len(resetUrlValue) OR NOT reFindNoCase("^https?://", resetUrlValue)>
+            <cfset result.errorCode = "INVALID_RESET_LINK">
+            <cfset result.message = "Password reset URL is invalid.">
+            <cfreturn result>
+        </cfif>
+
+        <cftry>
+            <cfset emailMessage = buildPasswordResetEmail(
+                resetUrl = resetUrlValue,
+                expiresMinutes = arguments.expiresMinutes
+            )>
+            <cfset sendMultipartEmail(
+                toEmail = toAddress,
+                subject = emailMessage.subject,
+                htmlBody = emailMessage.htmlBody,
+                textBody = emailMessage.textBody
+            )>
+
+            <cfset result.success = true>
+            <cfset result.message = "Password reset email sent.">
+            <cfreturn result>
+
+            <cfcatch type="any">
+                <cfset logSafeEmailFailure(
+                    messageType = "PASSWORD_RESET",
+                    userId = arguments.userId,
+                    toEmail = toAddress,
+                    exceptionType = (structKeyExists(cfcatch, "type") ? cfcatch.type : "any")
+                )>
+                <cfset result.errorCode = "SEND_FAILED">
+                <cfset result.message = "Password reset email could not be sent.">
+                <cfreturn result>
+            </cfcatch>
+        </cftry>
+    </cffunction>
+
     <cffunction name="buildWelcomeMemberEmail" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="toEmail" type="string" required="true">
@@ -126,6 +190,54 @@
 <p style="margin:0 0 16px 0; font-size:13px; line-height:1.5; color:##495057;"><strong>Safety notice:</strong> #encodeForHtml(safetyNotice)#</p>
 <p style="margin:0 0 24px 0;">Thank you,<br>The FloatPlanWizard.com Team</p>
 #complianceFooter.htmlBody#
+        </cfoutput></cfsavecontent>
+
+        <cfset htmlBody = renderBaseEmailLayout(
+            title = subject,
+            bodyHtml = htmlContent
+        )>
+
+        <cfreturn {
+            subject = subject,
+            htmlBody = htmlBody,
+            textBody = textBody
+        }>
+    </cffunction>
+
+    <cffunction name="buildPasswordResetEmail" access="private" returntype="struct" output="false">
+        <cfargument name="resetUrl" type="string" required="true">
+        <cfargument name="expiresMinutes" type="numeric" required="false" default="60">
+
+        <cfset var subject = "Reset your FloatPlanWizard password">
+        <cfset var resetUrlHtml = encodeForHtmlAttribute(arguments.resetUrl)>
+        <cfset var resetUrlTextHtml = encodeForHtml(arguments.resetUrl)>
+        <cfset var expiresText = int(arguments.expiresMinutes)>
+        <cfset var textBody = "">
+        <cfset var htmlContent = "">
+        <cfset var htmlBody = "">
+
+        <cfset textBody = arrayToList([
+            "Hello,",
+            "",
+            "We received a request to reset the password for your FloatPlanWizard account.",
+            "",
+            "Use the link below to choose a new password:",
+            "",
+            arguments.resetUrl,
+            "",
+            "This link expires in " & expiresText & " minutes. If you did not request a password reset, you can ignore this email and your password will remain unchanged.",
+            "",
+            "FloatPlanWizard"
+        ], chr(10))>
+
+        <cfsavecontent variable="htmlContent"><cfoutput>
+<p style="margin:0 0 16px 0;">Hello,</p>
+<p style="margin:0 0 16px 0;">We received a request to reset the password for your FloatPlanWizard account.</p>
+<p style="margin:0 0 16px 0;">Use the link below to choose a new password:</p>
+<p style="margin:0 0 22px 0;"><a href="#resetUrlHtml#" style="display:inline-block; background-color:##0d6efd; color:##ffffff; text-decoration:none; font-weight:600; padding:12px 18px; border-radius:6px;">Reset Your Password</a></p>
+<p style="margin:0 0 18px 0; word-break:break-all;"><a href="#resetUrlHtml#" style="color:##0d6efd;">#resetUrlTextHtml#</a></p>
+<p style="margin:0 0 16px 0;">This link expires in #expiresText# minutes. If you did not request a password reset, you can ignore this email and your password will remain unchanged.</p>
+<p style="margin:0;">FloatPlanWizard</p>
         </cfoutput></cfsavecontent>
 
         <cfset htmlBody = renderBaseEmailLayout(
@@ -484,7 +596,6 @@
     </cffunction>
 
 </cfcomponent>
-
 
 
 

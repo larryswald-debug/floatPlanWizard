@@ -15,17 +15,66 @@
     AuthUtils.showAlert("rpAlert", msg, type);
   };
   var fetchJson = AuthUtils.fetchJson;
+  var invalidLinkMessage = "This reset link is invalid or has expired. Please request a new password reset.";
+
+  function getResetToken() {
+    var params = new URLSearchParams(window.location.search || "");
+    return (params.get("token") || "").trim();
+  }
+
+  function setFormEnabled(enabled) {
+    var newPasswordEl = $("newPassword");
+    var confirmPasswordEl = $("confirmPassword");
+    var btn = $("resetBtn");
+
+    if (newPasswordEl) newPasswordEl.disabled = !enabled;
+    if (confirmPasswordEl) confirmPasswordEl.disabled = !enabled;
+    if (btn) btn.disabled = !enabled;
+  }
 
   document.addEventListener("DOMContentLoaded", function () {
-    $("resetForm").addEventListener("submit", async function (evt) {
+    var form = $("resetForm");
+    var newPasswordEl = $("newPassword");
+    var confirmPasswordEl = $("confirmPassword");
+    var btn = $("resetBtn");
+    var token = getResetToken();
+
+    if (!form || !newPasswordEl || !confirmPasswordEl || !btn) {
+      console.error("reset-password.js: required elements missing", {
+        resetForm: !!form,
+        newPassword: !!newPasswordEl,
+        confirmPassword: !!confirmPasswordEl,
+        resetBtn: !!btn
+      });
+      return;
+    }
+
+    if (!token) {
+      setFormEnabled(false);
+      showAlert(invalidLinkMessage, "danger");
+      return;
+    }
+
+    fetchJson(API_BASE + "/password_reset.cfc?method=handle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "validate",
+        token: token
+      })
+    }).catch(function (err) {
+      setFormEnabled(false);
+      showAlert((err && err.MESSAGE) ? err.MESSAGE : invalidLinkMessage, "danger");
+    });
+
+    form.addEventListener("submit", async function (evt) {
       evt.preventDefault();
 
-      var token = ($("token").value || "").trim();
-      var newPassword = ($("newPassword").value || "").trim();
-      var confirmPassword = ($("confirmPassword").value || "").trim();
+      var newPassword = (newPasswordEl.value || "").trim();
+      var confirmPassword = (confirmPasswordEl.value || "").trim();
 
       if (!token) {
-        showAlert("Missing reset token. Please request a new reset link.", "danger");
+        showAlert(invalidLinkMessage, "danger");
         return;
       }
       if (newPassword.length < 8) {
@@ -37,9 +86,8 @@
         return;
       }
 
-      var btn = $("resetBtn");
       btn.disabled = true;
-      btn.textContent = "Updating…";
+      btn.textContent = "Updating...";
 
       try {
         var data = await fetchJson(API_BASE + "/password_reset.cfc?method=handle", {
@@ -52,14 +100,13 @@
           })
         });
 
-        showAlert(data.MESSAGE || "Password updated. Redirecting to sign in…", "success");
+        showAlert(data.MESSAGE || "Your password has been reset. You can now sign in.", "success");
 
         setTimeout(function () {
           window.location.href = BASE_PATH + "/app/login.cfm";
-        }, 900);
+        }, 1200);
 
       } catch (err) {
-        console.error(err);
         showAlert((err && err.MESSAGE) ? err.MESSAGE : "Reset failed.", "danger");
       } finally {
         btn.disabled = false;
