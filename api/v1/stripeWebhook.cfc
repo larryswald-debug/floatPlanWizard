@@ -111,7 +111,8 @@
     <cfargument name="exceptionMessage" type="string" required="false" default="">
     <cfargument name="exceptionDetail" type="string" required="false" default="">
     <cfscript>
-      var logDirectory = expandPath("/fpw/logs");
+      var componentDir = replace(getDirectoryFromPath(getCurrentTemplatePath()), "\", "/", "all");
+      var logDirectory = reReplace(componentDir, "/api/v1/?$", "/logs", "one");
       var logFile = logDirectory & "/stripe-webhook-debug.log";
       var logParts = [];
       var logLine = "";

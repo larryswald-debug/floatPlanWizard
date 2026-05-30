@@ -364,17 +364,25 @@
   <cffunction name="base64UrlEncode" access="private" returntype="string" output="false">
     <cfargument name="value" type="string" required="true">
     <cfscript>
-      var encoder = createObject("java", "java.util.Base64").getUrlEncoder().withoutPadding();
-      return encoder.encodeToString(charsetDecode(arguments.value, "utf-8"));
+      var encodedValue = binaryEncode(charsetDecode(arguments.value, "utf-8"), "base64");
+      encodedValue = replace(encodedValue, "+", "-", "all");
+      encodedValue = replace(encodedValue, "/", "_", "all");
+      encodedValue = reReplace(encodedValue, "=+$", "", "all");
+      return encodedValue;
     </cfscript>
   </cffunction>
 
   <cffunction name="base64UrlDecode" access="private" returntype="string" output="false">
     <cfargument name="value" type="string" required="true">
     <cfscript>
-      var decoder = createObject("java", "java.util.Base64").getUrlDecoder();
-      var decodedBytes = decoder.decode(arguments.value);
-      return createObject("java", "java.lang.String").init(decodedBytes, "UTF-8");
+      var paddedValue = replace(arguments.value, "-", "+", "all");
+      paddedValue = replace(paddedValue, "_", "/", "all");
+
+      while (len(paddedValue) MOD 4 NEQ 0) {
+        paddedValue = paddedValue & "=";
+      }
+
+      return charsetEncode(binaryDecode(paddedValue, "base64"), "utf-8");
     </cfscript>
   </cffunction>
 

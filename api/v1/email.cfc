@@ -145,9 +145,20 @@
         <cfargument name="toEmail" type="string" required="true">
         <cfargument name="publicBaseUrl" type="string" required="true">
 
-        <cfreturn createObject("component", "api.v1.EmailOptOutService").init(
-            publicBaseUrl = arguments.publicBaseUrl
-        ).buildOptOutUrl(
+        <cfset var optOutService = "">
+
+        <cftry>
+            <cfset optOutService = createObject("component", "api.v1.EmailOptOutService").init(
+                publicBaseUrl = arguments.publicBaseUrl
+            )>
+            <cfcatch type="any">
+                <cfset optOutService = createObject("component", "fpw.api.v1.EmailOptOutService").init(
+                    publicBaseUrl = arguments.publicBaseUrl
+                )>
+            </cfcatch>
+        </cftry>
+
+        <cfreturn optOutService.buildOptOutUrl(
             email = arguments.toEmail,
             userId = arguments.userId,
             optOutType = "non_essential"
@@ -299,7 +310,7 @@
             </cfmail>
 
             <cftry>
-                <cfset var successLogPath = expandPath("/logs/email_success.log")>
+                <cfset var successLogPath = getAppLogDirectory() & "/email_success.log">
                 <cfset var successLogDirectory = getDirectoryFromPath(successLogPath)>
                 <cfset var successReplyTo = structKeyExists(mailAttrs, "replyto") ? mailAttrs.replyto : "">
                 <cfset var successLogEntry = dateTimeFormat(now(), "yyyy-mm-dd HH:nn:ss") & " sendMultipartEmail"
@@ -319,7 +330,7 @@
 
             <cfcatch type="any">
                 <cftry>
-                    <cfset var logPath = expandPath("/logs/email_error.log")>
+                    <cfset var logPath = getAppLogDirectory() & "/email_error.log">
                     <cfset var logDirectory = getDirectoryFromPath(logPath)>
                     <cfset var catchType = structKeyExists(cfcatch, "type") ? cfcatch.type : "any">
                     <cfset var catchDetail = structKeyExists(cfcatch, "detail") ? cfcatch.detail : "">
@@ -344,20 +355,101 @@
     <cffunction name="getEmailConfig" access="private" returntype="struct" output="false">
         <cfset var fromDisplayName = "FloatPlanWizard">
         <cfset var fromEmail = "noeply@floatplanwizard.com">
+        <cfset var fallbackPublicBaseUrl = "https://www.floatplanwizard.com">
+        <cfset var fallbackDashboardUrl = "https://www.floatplanwizard.com/app/dashboard.cfm">
+        <cfset var publicBaseUrl = resolvePublicBaseUrl(fallbackPublicBaseUrl)>
+        <cfset var dashboardUrl = publicBaseUrl & "/app/dashboard.cfm">
+        <cfif compareNoCase(publicBaseUrl, fallbackPublicBaseUrl) EQ 0>
+            <cfset dashboardUrl = fallbackDashboardUrl>
+        </cfif>
         <!--- TODO: Replace compliance footer mailing address placeholder when canonical FPW business address config exists. --->
         <cfset var config = {
             fromDisplayName = fromDisplayName,
             fromEmail = fromEmail,
             fromValue = fromDisplayName & " <" & fromEmail & ">",
             replyToEmail = "",
-            publicBaseUrl = "https://www.floatplanwizard.com",
-            dashboardUrl = "https://www.floatplanwizard.com/app/dashboard.cfm",
-            emailPreferencesUrl = "https://www.floatplanwizard.com/app/account.cfm##email-preferences",
-            unsubscribeUrl = "https://www.floatplanwizard.com/unsubscribe.cfm",
+            publicBaseUrl = publicBaseUrl,
+            dashboardUrl = dashboardUrl,
+            emailPreferencesUrl = publicBaseUrl & "/app/account.cfm##email-preferences",
+            unsubscribeUrl = publicBaseUrl & "/unsubscribe.cfm",
             businessMailingAddress = "[FloatPlanWizard.com Mailing Address]"
         }>
 
         <cfreturn config>
+    </cffunction>
+
+    <cffunction name="getAppLogDirectory" access="private" returntype="string" output="false">
+        <cfset var componentDir = replace(getDirectoryFromPath(getCurrentTemplatePath()), "\", "/", "all")>
+        <cfset var appRoot = reReplace(componentDir, "/api/v1/?$", "/", "one")>
+
+        <cfreturn appRoot & "logs">
+    </cffunction>
+
+    <cffunction name="resolvePublicBaseUrl" access="private" returntype="string" output="false">
+        <cfargument name="fallbackBaseUrl" type="string" required="true">
+
+        <cfset var host = "">
+        <cfset var scheme = "https">
+        <cfset var forwardedProto = "">
+        <cfset var basePath = resolveFpwBasePath()>
+
+        <cfif structKeyExists(cgi, "http_host")>
+            <cfset host = trim(toString(cgi.http_host))>
+        <cfelseif structKeyExists(cgi, "HTTP_HOST")>
+            <cfset host = trim(toString(cgi.HTTP_HOST))>
+        </cfif>
+
+        <cfif NOT len(host)>
+            <cfreturn reReplace(trim(arguments.fallbackBaseUrl), "/+$", "", "all")>
+        </cfif>
+
+        <cfif structKeyExists(cgi, "http_x_forwarded_proto")>
+            <cfset forwardedProto = lCase(trim(listFirst(toString(cgi.http_x_forwarded_proto), ",")))>
+        <cfelseif structKeyExists(cgi, "HTTP_X_FORWARDED_PROTO")>
+            <cfset forwardedProto = lCase(trim(listFirst(toString(cgi.HTTP_X_FORWARDED_PROTO), ",")))>
+        </cfif>
+
+        <cfif listFindNoCase("http,https", forwardedProto)>
+            <cfset scheme = forwardedProto>
+        <cfelseif structKeyExists(cgi, "https") AND listFindNoCase("on,1,true", trim(toString(cgi.https)))>
+            <cfset scheme = "https">
+        <cfelseif structKeyExists(cgi, "HTTPS") AND listFindNoCase("on,1,true", trim(toString(cgi.HTTPS)))>
+            <cfset scheme = "https">
+        <cfelseif findNoCase("localhost", host) OR left(host, 4) EQ "127.">
+            <cfset scheme = "http">
+        </cfif>
+
+        <cfreturn reReplace(scheme & "://" & host & basePath, "/+$", "", "all")>
+    </cffunction>
+
+    <cffunction name="resolveFpwBasePath" access="private" returntype="string" output="false">
+        <cfset var basePath = "">
+
+        <cfif structKeyExists(request, "fpwBase") AND NOT isNull(request.fpwBase)>
+            <cfset basePath = trim(toString(request.fpwBase))>
+        <cfelse>
+            <cfif structKeyExists(cgi, "script_name")>
+                <cfset basePath = trim(toString(cgi.script_name))>
+            <cfelseif structKeyExists(cgi, "SCRIPT_NAME")>
+                <cfset basePath = trim(toString(cgi.SCRIPT_NAME))>
+            </cfif>
+
+            <cfset basePath = reReplace(basePath, "[?##].*$", "")>
+            <cfset basePath = replace(basePath, "\", "/", "all")>
+            <cfset basePath = reReplaceNoCase(basePath, "/api/v1(/.*)?$", "")>
+            <cfset basePath = reReplaceNoCase(basePath, "/(app|admin|assets|tests)(/.*)?$", "")>
+            <cfset basePath = reReplaceNoCase(basePath, "/[^/]*\.(cfm|cfc)$", "")>
+        </cfif>
+
+        <cfset basePath = reReplace(basePath, "/$", "")>
+        <cfif basePath EQ "/">
+            <cfset basePath = "">
+        </cfif>
+        <cfif len(basePath) AND left(basePath, 1) NEQ "/">
+            <cfset basePath = "/" & basePath>
+        </cfif>
+
+        <cfreturn basePath>
     </cffunction>
 
     <cffunction name="normalizeDashboardUrl" access="private" returntype="string" output="false">

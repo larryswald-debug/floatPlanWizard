@@ -166,7 +166,8 @@
     <cfargument name="signatureHeaderPresent" type="boolean" required="true">
     <cfargument name="rawBodyLength" type="numeric" required="true">
     <cfscript>
-      var logDirectory = expandPath("/fpw/logs");
+      var componentDir = replace(getDirectoryFromPath(getCurrentTemplatePath()), "\", "/", "all");
+      var logDirectory = reReplace(componentDir, "/api/v1/?$", "/logs", "one");
       var logFile = logDirectory & "/stripe-webhook-debug.log";
       var logLine = "STRIPE_WEBHOOK_DEBUG stage=signature-timestamp"
         & " stripeTimestamp=" & int(val(arguments.stripeTimestamp))

@@ -738,12 +738,20 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="getAppLogDirectory" access="private" returntype="string" output="false">
+    <cfscript>
+      var componentDir = replace(getDirectoryFromPath(getCurrentTemplatePath()), "\", "/", "all");
+      var appRoot = reReplace(componentDir, "/api/v1/?$", "/", "one");
+      return appRoot & "logs";
+    </cfscript>
+  </cffunction>
+
   <cffunction name="writeStripePortalDebugLog" access="private" returntype="void" output="false">
     <cfargument name="operation" type="string" required="true">
     <cfargument name="userId" type="numeric" required="true">
     <cfargument name="debugMessage" type="string" required="true">
     <cfscript>
-      var logDirectory = expandPath("/fpw/logs");
+      var logDirectory = getAppLogDirectory();
       var logFile = logDirectory & "/stripe-portal-debug.log";
       var logLine = "STRIPE_PORTAL_DEBUG ts=#dateTimeFormat(now(), 'yyyy-mm-dd HH:nn:ss')# operation=#sanitizeStripeDebugText(arguments.operation)# userId=#int(val(arguments.userId))# debug=#arguments.debugMessage#";
     </cfscript>
@@ -764,7 +772,7 @@
     <cfargument name="priceId" type="string" required="true">
     <cfargument name="debugMessage" type="string" required="true">
     <cfscript>
-      var logDirectory = expandPath("/fpw/logs");
+      var logDirectory = getAppLogDirectory();
       var logFile = logDirectory & "/stripe-checkout-debug.log";
       var logLine = "STRIPE_CHECKOUT_DEBUG ts=#dateTimeFormat(now(), 'yyyy-mm-dd HH:nn:ss')# operation=#arguments.operation# userId=#int(val(arguments.userId))# priceId=#sanitizeStripeDebugText(arguments.priceId)# debug=#sanitizeStripeDebugText(arguments.debugMessage)#";
     </cfscript>

@@ -42,7 +42,7 @@
   inset: 0;
   background:
     linear-gradient(180deg, rgba(2,11,19,0.18), rgba(2,11,19,0.70)),
-    url("/fpw/assets/img/pricing-header-bg.svg") center center / cover no-repeat;
+    url("../img/pricing-header-bg.svg") center center / cover no-repeat;
   opacity: 0.96;
 }
 
