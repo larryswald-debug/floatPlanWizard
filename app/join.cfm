@@ -53,8 +53,8 @@
                     <div class="fpw-signup-benefit">
                         <span class="fpw-signup-check" aria-hidden="true">✓</span>
                         <div>
-                            <strong>Free premium account</strong>
-                            <span>Create a monitored float plan</span>
+                            <strong>Premium Route Builder included</strong>
+                            <span>Plan your route with waypoints, legs, fuel and time estimates during your free month of Premium.</span>
                         </div>
                     </div>
 
@@ -62,7 +62,7 @@
                         <span class="fpw-signup-check" aria-hidden="true">✓</span>
                         <div>
                             <strong>No credit card required</strong>
-                            <span>Try Premium free for 1 month</span>
+                            <span>New Members get 1 month of Premium Access free</span>
                         </div>
                     </div>
 
@@ -70,7 +70,17 @@
                         <span class="fpw-signup-check" aria-hidden="true">✓</span>
                         <div>
                             <strong>Mobile-friendly</strong>
-                            <span>No app required</span>
+                            <span>Works on your phone — no app required</span>
+                        </div>
+                    </div>
+
+
+
+                    <div class="fpw-signup-benefit">
+                        <span class="fpw-signup-check" aria-hidden="true">✓</span>
+                        <div>
+                            <strong>Share the plan</strong>
+                            <span>Let family and friends know where you are</span>
                         </div>
                     </div>
 
@@ -82,13 +92,6 @@
                         </div>
                     </div>
 
-                    <div class="fpw-signup-benefit">
-                        <span class="fpw-signup-check" aria-hidden="true">✓</span>
-                        <div>
-                            <strong>Your information is safe</strong>
-                            <span>We use it only to support your account and float plans.</span>
-                        </div>
-                    </div>
                 </div>
             </div>
         </aside>
@@ -97,10 +100,9 @@
             <div class="fpw-signup-form-header">
                 <div class="fpw-signup-user-icon" aria-hidden="true">👤</div>
                 <div>
-                    <h2>Create your free boating safety account</h2>
+                    <h2>Get your Free Month of Premium Access</h2>
                     <p>
-                        Start with a free FloatPlan Wizard account. No credit card required.
-                        You can activate your 1-month Premium beta trial after signup.
+                        You're free month gives you access to all custom route tools, Active Cruise pages and a Follow page for frends and family to track your trip.<p>After 1 month your membership will automatically convert to the Basic plan unless you choose to upgrade.
                     </p>
                 </div>
             </div>
