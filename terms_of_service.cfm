@@ -93,7 +93,7 @@
   padding: clamp(1.25rem, 3vw, 2.35rem);
 }
 
-/* Green legal notice — this is the shaded style */
+/* Green legal notice - this is the shaded style */
 .fpw-legal-notice {
   background: linear-gradient(180deg, #e8f8f3 0%, #f3fbf8 100%);
   border: 1px solid #b8e4d8;
@@ -342,9 +342,9 @@
       <p>
         These Terms of Use, together with any additional terms, policies, notices, disclosures,
         pricing terms, checkout terms, subscription terms, and privacy notices that apply to the
-        Service, form an agreement between you and [Float Plan Wizard LLC], doing business as
-        FloatPlanWizard.com, referred to in these Terms as “Float Plan Wizard,” the “Company,”
-        “we,” “us,” or “our.”
+        Service, form an agreement between you and Float Plan Wizard LLC, doing business as
+        FloatPlanWizard.com, referred to in these Terms as "Float Plan Wizard," the "Company,"
+        "we," "us," or "our."
       </p>
       <p>
         By accessing or using the Website, creating an account, purchasing a subscription or pass,
@@ -361,19 +361,19 @@
       <h2>2. Definitions</h2>
       <div class="fpw-legal-definition">
         <p>
-          <strong>“Service”</strong> means Float Plan Wizard and all related websites, applications,
+          <strong>"Service"</strong> means Float Plan Wizard and all related websites, applications,
           companion applications, account tools, route-planning tools, float plan tools, check-in
           features, monitoring features, weather tools, fuel-planning tools, downloadable float plan
           documents, public Follow pages, notifications, subscriptions, passes, trials, promotions,
           and other digital services provided by the Company.
         </p>
         <p>
-          <strong>“User,” “you,” and “your”</strong> mean any person or entity that accesses or uses
+          <strong>"User," "you," and "your"</strong> mean any person or entity that accesses or uses
           the Service, including free users, paid users, trial users, pass users, Founding Members,
           account holders, visitors, and users of the mobile or companion application.
         </p>
         <p>
-          <strong>“User Content”</strong> means information, data, text, route details, vessel details,
+          <strong>"User Content"</strong> means information, data, text, route details, vessel details,
           operator details, passenger details, contact details, float plan details, check-in details,
           GPS or location information, notes, files, or other materials that you submit, upload, enter,
           transmit, display, or otherwise provide through the Service.
@@ -438,7 +438,7 @@
       </p>
       <p>
         You are responsible for ensuring that you have the authority or consent needed to submit
-        another person’s information, including passenger, operator, captain, designated contact, or
+        another person's information, including passenger, operator, captain, designated contact, or
         emergency contact information.
       </p>
     </section>
@@ -503,17 +503,17 @@
 
       <p>
         Any route, waypoint, ETA, check-in, monitoring status, weather information, fuel estimate,
-        float plan document, GPS or location information, notification, or public Follow page
+        float plan document, GPS or location information, notification, or Private Trip
         information provided through the Service is for convenience and informational purposes
         only. Such information may be incomplete, delayed, inaccurate, unavailable, interrupted, or
         affected by user error, device settings, GPS limitations, internet service, cellular coverage,
         email delivery, third-party data providers, hosting providers, software errors, or other
-        conditions outside the Company’s control.
+        conditions outside the Company's control.
       </p>
 
       <p>
         You understand and agree that check-in reminders, missed check-in notices, monitoring
-        emails, public Follow page updates, and contact notifications are not emergency alerts and
+        emails, Private Trip updates, and contact notifications are not emergency alerts and
         do not guarantee that any person, designated contact, authority, towing provider, rescue
         provider, or emergency responder will receive, review, understand, act upon, or respond to
         any information. You are solely responsible for ensuring that appropriate people know the
@@ -569,7 +569,7 @@
       </p>
       <p>
         You are responsible for all activity that occurs under your account unless caused by the
-        Company’s own willful misconduct or as otherwise required by law. You agree to notify the
+        Company's own willful misconduct or as otherwise required by law. You agree to notify the
         Company promptly if you believe your account, password, device, companion app pairing, or
         payment-related access has been compromised.
       </p>
@@ -682,7 +682,7 @@
       <p>
         The Company does not store full credit card numbers or full payment card details on its own
         servers. Payment information is handled by the payment processor according to that
-        processor’s own terms, privacy policy, and security practices. The Company may store limited
+        processor's own terms, privacy policy, and security practices. The Company may store limited
         payment-related records, such as customer identifiers, subscription identifiers, transaction
         references, entitlement status, billing status, and related records needed to operate the
         Service, provide support, prevent fraud, and maintain account access.
@@ -707,7 +707,7 @@
       <h3>Cancellations</h3>
       <p>
         Users may cancel recurring subscriptions at any time through the account billing area, the
-        payment processor’s customer portal, or another cancellation method made available by the
+        payment processor's customer portal, or another cancellation method made available by the
         Company. For monthly subscriptions, cancellation means there is no annual contract and no
         future monthly renewal after the current paid period ends. For annual subscriptions,
         cancellation stops the next annual renewal after the current paid period ends.
@@ -720,7 +720,7 @@
       <p>
         Deleting an account, uninstalling the mobile application, failing to use the Service, failing to
         check in, or failing to access the Website does not automatically cancel a paid subscription
-        unless the Company’s billing system or payment processor confirms cancellation.
+        unless the Company's billing system or payment processor confirms cancellation.
       </p>
 
       <h3>Refunds</h3>
@@ -808,7 +808,7 @@
         Support is provided for the Service as offered by the Company. The Company is not
         responsible for supporting third-party devices, third-party software, third-party services,
         user-modified systems, unsupported browsers, unsupported operating systems, or conditions
-        outside the Company’s reasonable control.
+        outside the Company's reasonable control.
       </p>
     </section>
 
@@ -830,7 +830,7 @@
     <section id="warranties" class="fpw-legal-section">
       <h2>16. Disclaimers and Warranties</h2>
       <p>
-        The Service is provided on an “as is” and “as available” basis. To the fullest extent permitted
+        The Service is provided on an "as is" and "as available" basis. To the fullest extent permitted
         by law, the Company disclaims all warranties, whether express, implied, statutory, or otherwise,
         including warranties of merchantability, fitness for a particular purpose, title, non-infringement,
         accuracy, availability, reliability, security, uninterrupted operation, and error-free operation.
@@ -901,7 +901,7 @@
         relating to your use of or inability to use the Service.
       </p>
       <p>
-        To the fullest extent permitted by law, the Company’s total liability for any claim arising out
+        To the fullest extent permitted by law, the Company's total liability for any claim arising out
         of or relating to the Service or these Terms shall not exceed the greater of the amount you
         paid to the Company for the Service during the three (3) months before the event giving rise
         to the claim or one hundred dollars ($100).
@@ -918,10 +918,10 @@
         To the fullest extent permitted by law, you agree to indemnify, defend, and hold harmless
         the Company and its owners, officers, employees, contractors, affiliates, service providers,
         licensors, and agents from and against any claims, liabilities, damages, losses, costs, and
-        expenses, including reasonable attorney’s fees, arising out of or relating to your use or misuse
+        expenses, including reasonable attorney's fees, arising out of or relating to your use or misuse
         of the Service, your User Content, your violation of these Terms, your violation of law, your
         violation of any third-party right, your boating activities, your submitted trip or contact
-        information, or your failure to obtain required permission to submit another person’s
+        information, or your failure to obtain required permission to submit another person's
         information.
       </p>
     </section>
@@ -937,9 +937,10 @@
         Legal notices to the Company should be sent to:
       </p>
       <p>
-        <strong>[Float Plan Wizard LLC]</strong><br>
-        [Insert Mailing Address]<br>
-        [Insert Support or Legal Email Address]
+        <strong>Float Plan Wizard LLC</strong><br>
+        4347 Topsail Trail<br>
+        New Port Richey, FL 34652<br>
+        support@floatplanwizard.com
       </p>
     </section>
 
@@ -970,14 +971,14 @@
 
       <h3>No Waiver</h3>
       <p>
-        The Company’s failure to enforce any provision of these Terms does not waive the Company’s
+        The Company's failure to enforce any provision of these Terms does not waive the Company's
         right to enforce that provision or any other provision later.
       </p>
 
       <h3>Assignment</h3>
       <p>
         You may not assign or transfer your rights or obligations under these Terms without the
-        Company’s prior written consent. The Company may assign or transfer these Terms in
+        Company's prior written consent. The Company may assign or transfer these Terms in
         connection with a merger, acquisition, sale of assets, reorganization, change of control, or
         other business transaction.
       </p>

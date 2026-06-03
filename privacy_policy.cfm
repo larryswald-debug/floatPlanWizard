@@ -216,8 +216,8 @@
 <section class="fpw-legal-section" aria-label="Privacy Policy overview">
 
   <p>
-    This Privacy Policy explains how [Float Plan Wizard LLC], doing business as FloatPlanWizard.com
-    (“Float Plan Wizard,” “Company,” “we,” “us,” or “our”), collects, uses, stores, shares, and protects
+    This Privacy Policy explains how Float Plan Wizard LLC, doing business as FloatPlanWizard.com
+    ("Float Plan Wizard," "Company," "we," "us," or "our"), collects, uses, stores, shares, and protects
     information when you use Float Plan Wizard, including our website, mobile application, companion
     application, account features, route tools, float plan tools, check-in features, monitoring features,
     downloadable documents, public Follow pages, subscriptions, passes, trials, promotions, and related
@@ -360,14 +360,14 @@
   <h3>With People You Choose</h3>
   <p>
     Float Plan Wizard is designed to help users share boating trip information. If you create a float plan,
-    send a float plan, use monitoring features, submit check-ins, create a public Follow page, or designate
+    send a float plan, use monitoring features, submit check-ins, create a Private Trip page, or designate
     contacts, we may share relevant trip, vessel, route, passenger, contact, check-in, monitoring, and
     location information with the people or recipients you choose.
   </p>
 
   <p>
     You are responsible for ensuring that you have permission or authority to submit and share another
-    person’s information, including passenger information, operator information, designated contact
+    person's information, including passenger information, operator information, designated contact
     information, or emergency contact information.
   </p>
 
@@ -566,7 +566,7 @@
 </section>
 
 <section class="fpw-legal-section">
-  <h2>12. Children’s Privacy</h2>
+  <h2>12. Children's Privacy</h2>
 
   <p>
     Float Plan Wizard is not intended for children under eighteen (18) years old. We do not knowingly
@@ -634,9 +634,9 @@
   </p>
 
   <p>
-    <strong>[Float Plan Wizard LLC]</strong><br>
-    [Insert Mailing Address]<br>
-    [Insert Privacy/Support Email Address]<br>
+    <strong>Float Plan Wizard LLC</strong><br>
+    4347 Topsail Trail<br>
+    support@floatplanwizard.com<br>
     FloatPlanWizard.com
   </p>
 </section>
