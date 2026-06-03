@@ -143,9 +143,9 @@ topNavShowAppSubnav = topNavIsLoggedIn
   <header class="fpw-site-header<cfif topNavIsLoggedIn> fpw-site-header--logged-in</cfif><cfif topNavShowAppSubnav> fpw-site-header--app</cfif>" role="banner" data-fpw-nav>
     <cfif NOT topNavIsLoggedIn>
       <div class="fpw-prelaunch-strip">
-        <a class="fpw-prelaunch-strip__link" href="#topNavBasePath#/app/join.cfm" aria-label="FloatPlanWizard is now live. Start free. Premium available for advanced cruising tools.">
+        <a class="fpw-prelaunch-strip__link" href="#topNavBasePath#/app/join.cfm" aria-label="Launch Offer. 1 Month of Premium Free for New Members. No Credit Card Required.">
           <span class="fpw-prelaunch-strip__icon fpw-prelaunch-strip__icon--live" aria-hidden="true"></span>
-          <span><strong>Now Live</strong> &mdash; Start Free <span aria-hidden="true">&bull;</span> Premium available for advanced cruising tools</span>
+          <span><strong>Launch Offer</strong> &mdash; 1 Month of Premium Free for New Members <span aria-hidden="true">&bull;</span> No Credit Card Required</span>
         </a>
       </div>
     </cfif>
@@ -259,8 +259,8 @@ topNavShowAppSubnav = topNavIsLoggedIn
               <a class="fpw-nav-link fpw-logout-direct" href="#topNavBasePath#/index.cfm" data-fpw-member-logout>Logout</a>
             <cfelse>
               <a class="fpw-cta fpw-cta-primary" href="#topNavBasePath#/app/join.cfm">
-                <span>Start Free</span>
-                <span aria-hidden="true">&rarr;</span>
+                <span>Claim Your Free Month</span>
+                <span class="fpw-cta-arrow" aria-hidden="true">&rarr;</span>
               </a>
               <button class="fpw-nav-link fpw-login-link" type="button" id="publicLoginToggle" aria-expanded="false" aria-controls="login">Login</button>
             </cfif>

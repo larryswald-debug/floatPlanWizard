@@ -107,7 +107,7 @@
         <li><span class="pricing-check"></span>Basic float plan</li>
         <li><span class="pricing-check"></span>Up to 2 waypoints</li>
         <li><span class="pricing-check"></span>Basic monitoring</li>
-        <li><span class="pricing-check"></span>NOOA NWS Marine Weather</li>
+        <li><span class="pricing-check"></span>NOOA/NWS Marine Weather</li>
         <li><span class="pricing-check"></span>Same-day trip use</li>
       </ul>
       <a class="pricing-btn pricing-btn-outline" href="<cfoutput>#request.fpwBase#</cfoutput>/app/start-trial.cfm?offer=launch_trial">Create Free Account</a>
@@ -122,10 +122,10 @@
       <ul class="pricing-feature-list">
         <li><span class="pricing-check"></span>Route-based float plans</li>
         <li><span class="pricing-check"></span>Active Cruise</li>
-        <li><span class="pricing-check"></span>Public Follow page</li>
+        <li><span class="pricing-check"></span>Shareable Trip page</li>
         <li><span class="pricing-check"></span>Companion check-ins</li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
-        <li><span class="pricing-check"></span>NOOA NWS Marine Weather</li>
+        <li><span class="pricing-check"></span>NOOA/NWS Marine Weather</li>
         <li><span class="pricing-check"></span>Premium route tools</li>
       </ul>
       <a class="pricing-btn pricing-btn-primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/start-trial.cfm?offer=launch_trial">Start Monthly Premium</a>
@@ -141,10 +141,10 @@
       <ul class="pricing-feature-list">
         <li><span class="pricing-check"></span>Route-based float plans</li>
         <li><span class="pricing-check"></span>Active Cruise</li>
-        <li><span class="pricing-check"></span>Public Follow page</li>
+        <li><span class="pricing-check"></span>Shareable Trip page</li>
         <li><span class="pricing-check"></span>Companion check-ins</li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
-        <li><span class="pricing-check"></span>NOOA NWS Marine Weather</li>
+        <li><span class="pricing-check"></span>NOOA/NWS Marine Weather</li>
         <li><span class="pricing-check"></span>Premium route tools</li>
       </ul>
       <a class="pricing-btn pricing-btn-primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/start-trial.cfm?offer=launch_trial">Start Annual Premium</a>
@@ -159,10 +159,10 @@
       <ul class="pricing-feature-list">
         <li><span class="pricing-check"></span>Route-based float plans</li>
         <li><span class="pricing-check"></span>Active Cruise</li>
-        <li><span class="pricing-check"></span>Public Follow page</li>
+        <li><span class="pricing-check"></span>Shareable Trip page</li>
         <li><span class="pricing-check"></span>Companion check-ins</li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
-        <li><span class="pricing-check"></span>NOOA NWS Marine Weather</li>
+        <li><span class="pricing-check"></span>NOOA/NWS Marine Weather</li>
         <li><span class="pricing-check"></span>Premium route tools</li>
         <li><span class="pricing-muted-check"></span>Valid for 3 consecutive days</li>
       </ul>
@@ -192,7 +192,7 @@
       <ul>
         <li><svg><use href="#fpw-icon-route"></use></svg>Route-based float plans</li>
         <li><svg><use href="#fpw-icon-waves"></use></svg>Active Cruise trip dashboard</li>
-        <li><svg><use href="#fpw-icon-follow"></use></svg>Public Follow page for family and friends</li>
+        <li><svg><use href="#fpw-icon-follow"></use></svg>Shareable Trip page for family and friends</li>
         <li><svg><use href="#fpw-icon-phone"></use></svg>Companion app check-ins</li>
         <li><svg><use href="#fpw-icon-pin"></use></svg>GPS coordinates on check-ins</li>
         <li><svg><use href="#fpw-icon-route"></use></svg>Route progress and trip status</li>
@@ -216,7 +216,7 @@
           <tr><td>Same-day simple trip</td><td class="yes">✓</td><td class="yes">✓</td></tr>
           <tr><td>Route-based float plans</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>Active Cruise</td><td class="no">×</td><td class="yes">✓</td></tr>
-          <tr><td>Public Follow page</td><td class="no">×</td><td class="yes">✓</td></tr>
+          <tr><td>Shareable Trip page</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>Companion check-ins</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>GPS check-in coordinates</td><td class="limited">Limited</td><td class="yes">✓</td></tr>
           <tr><td>PDF float plan</td><td class="yes">✓</td><td class="yes">✓</td></tr>

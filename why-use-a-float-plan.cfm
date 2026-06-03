@@ -762,7 +762,7 @@ fpwFloatPlanAppUrl = fpwFloatPlanBasePath & "/" & "app" & "/";
     }
   </style>
   <link rel="canonical" href="https://www.floatplanwizard.com/why-use-a-float-plan/" />
-<cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/top-nav.css?v=20260522-subnav-44"></cfoutput>
+<cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/top-nav.css?v=20260530-nav-cta"></cfoutput>
 </head>
 <body class="fpw-floatplan-public">
 <cfinclude template="includes/top_nav.cfm">
@@ -792,7 +792,7 @@ fpwFloatPlanAppUrl = fpwFloatPlanBasePath & "/" & "app" & "/";
             Download Official USCG Float Plan PDF
           </a>
 
-          <a class="fpw-floatplan-btn fpw-floatplan-btn--primary" href="/">
+          <a class="fpw-floatplan-btn fpw-floatplan-btn--primary" href="app/join.cfm">
             <i class="bi bi-plus-circle" aria-hidden="true"></i>
             Create a Smarter Float Plan
           </a>

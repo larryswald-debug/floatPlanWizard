@@ -331,7 +331,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body card-body">
-                <p class="fpw-follow-share-copy">Share this public Follow page link with family, friends, or trip contacts.</p>
+                <p class="fpw-follow-share-copy">Share this Private Trip page link with family, friends, or trip contacts.</p>
                 <label class="fpw-follow-share-label" for="followShareUrl">Follow Page Link</label>
                 <input type="text" class="form-control fpw-follow-share-url" id="followShareUrl" readonly>
                 <p class="fpw-follow-share-status" id="followShareStatus" aria-live="polite"></p>

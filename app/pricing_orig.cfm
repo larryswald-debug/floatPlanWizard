@@ -122,7 +122,7 @@
       <ul class="pricing-feature-list">
         <li><span class="pricing-check"></span>Route-based float plans</li>
         <li><span class="pricing-check"></span>Active Cruise</li>
-        <li><span class="pricing-check"></span>Public Follow page</li>
+        <li><span class="pricing-check"></span>Private Trip</li>
         <li><span class="pricing-check"></span>Companion check-ins</li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
         <li><span class="pricing-check"></span>NOOA NWS Marine Weather</li>
@@ -141,7 +141,7 @@
       <ul class="pricing-feature-list">
         <li><span class="pricing-check"></span>Route-based float plans</li>
         <li><span class="pricing-check"></span>Active Cruise</li>
-        <li><span class="pricing-check"></span>Public Follow page</li>
+        <li><span class="pricing-check"></span>Private Trip</li>
         <li><span class="pricing-check"></span>Companion check-ins</li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
         <li><span class="pricing-check"></span>NOOA NWS Marine Weather</li>
@@ -159,7 +159,7 @@
       <ul class="pricing-feature-list">
         <li><span class="pricing-check"></span>Route-based float plans</li>
         <li><span class="pricing-check"></span>Active Cruise</li>
-        <li><span class="pricing-check"></span>Public Follow page</li>
+        <li><span class="pricing-check"></span>Private Trip</li>
         <li><span class="pricing-check"></span>Companion check-ins</li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
         <li><span class="pricing-check"></span>NOOA NWS Marine Weather</li>
@@ -192,7 +192,7 @@
       <ul>
         <li><svg><use href="#fpw-icon-route"></use></svg>Route-based float plans</li>
         <li><svg><use href="#fpw-icon-waves"></use></svg>Active Cruise trip dashboard</li>
-        <li><svg><use href="#fpw-icon-follow"></use></svg>Public Follow page for family and friends</li>
+        <li><svg><use href="#fpw-icon-follow"></use></svg>Private Trip for family and friends</li>
         <li><svg><use href="#fpw-icon-phone"></use></svg>Companion app check-ins</li>
         <li><svg><use href="#fpw-icon-pin"></use></svg>GPS coordinates on check-ins</li>
         <li><svg><use href="#fpw-icon-route"></use></svg>Route progress and trip status</li>
@@ -216,7 +216,7 @@
           <tr><td>Same-day simple trip</td><td class="yes">✓</td><td class="yes">✓</td></tr>
           <tr><td>Route-based float plans</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>Active Cruise</td><td class="no">×</td><td class="yes">✓</td></tr>
-          <tr><td>Public Follow page</td><td class="no">×</td><td class="yes">✓</td></tr>
+          <tr><td>Private Trip</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>Companion check-ins</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>GPS check-in coordinates</td><td class="limited">Limited</td><td class="yes">✓</td></tr>
           <tr><td>PDF float plan</td><td class="yes">✓</td><td class="yes">✓</td></tr>

@@ -13,10 +13,10 @@ Disallow: /includes/
 Disallow: /app/
 Disallow: /assets/
 Disallow: /downloads/
-Disallow: /admoin/
+Disallow: /admin/
 Disallow: /api/
 Disallow: /follow/
-Disallow: /drbu-test/
+Disallow: /debug-test/
 Disallow: /floatplans/
 Disallow: /fpw_great_loop_clockwise/
 Disallow: /logs/

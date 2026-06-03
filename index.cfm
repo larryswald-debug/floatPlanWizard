@@ -332,7 +332,20 @@ fpwShowMemberRequiredNotice = (
 
 <meta name="description" content="Plan safer boat trips with FloatPlanWizard. Create float plans, organize route details, estimate fuel needs, and share trip updates with family and friends. Join the prelaunch list.">
 
-<link rel="canonical" href="https://www.floatplanwizard.com/">
+<link rel="canonical" href="https://floatplanwizard.com/">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FloatPlanWizard">
+<meta property="og:url" content="https://floatplanwizard.com/">
+<meta property="og:title" content="FloatPlanWizard">
+<meta property="og:description" content="Boat trip planning, Monitored Float Plans, Active Cruise pages, and shared Trip pages.">
+
+<meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+<meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
 
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -697,6 +710,46 @@ fpwShowMemberRequiredNotice = (
 
     .hero-copy .hero-cta {
       justify-content: center;
+    }
+
+    .hero-cta .fpw-hero-primary-cta {
+      min-height: 46px;
+      padding: 0.78rem 1.35rem;
+      color: #ffffff;
+      background:
+        linear-gradient(180deg, rgba(8, 31, 52, 0.98) 0%, rgba(3, 18, 32, 0.98) 100%);
+      border: 1px solid rgba(69, 224, 220, 0.82);
+      font-weight: 850;
+      letter-spacing: 0.01em;
+      box-shadow:
+        0 0 0 1px rgba(69, 224, 220, 0.1) inset,
+        0 8px 22px rgba(0, 0, 0, 0.26),
+        0 0 24px rgba(69, 224, 220, 0.12);
+      transition:
+        background-color 0.18s ease,
+        border-color 0.18s ease,
+        box-shadow 0.18s ease,
+        color 0.18s ease,
+        transform 0.18s ease;
+    }
+
+    .hero-cta .fpw-hero-primary-cta:hover,
+    .hero-cta .fpw-hero-primary-cta:focus-visible {
+      color: #ffffff;
+      background:
+        linear-gradient(180deg, rgba(10, 42, 68, 1) 0%, rgba(4, 24, 42, 1) 100%);
+      border-color: #45e0dc;
+      box-shadow:
+        0 0 0 1px rgba(69, 224, 220, 0.18) inset,
+        0 10px 26px rgba(0, 0, 0, 0.3),
+        0 0 30px rgba(69, 224, 220, 0.2);
+      text-decoration: none;
+      transform: translateY(-1px);
+      outline: none;
+    }
+
+    .hero-cta .fpw-hero-primary-cta i {
+      color: #45e0dc;
     }
 
     .micro {
@@ -2186,19 +2239,38 @@ fpwShowMemberRequiredNotice = (
       gap: 10px;
       width: min(100%, 560px);
       min-height: 50px;
-      border-radius: 16px;
-      background: linear-gradient(90deg, #27e1d1 0%, #4bc3ff 100%);
-      color: #031722;
+      border-radius: 999px;
+      border: 1px solid rgba(69, 224, 220, 0.82);
+      background:
+        linear-gradient(180deg, rgba(8, 31, 52, 0.98) 0%, rgba(3, 18, 32, 0.98) 100%);
+      color: #ffffff;
       font-size: 1rem;
-      font-weight: 700;
-      box-shadow: 0 16px 42px rgba(33, 219, 224, 0.2);
+      font-weight: 850;
+      letter-spacing: 0.01em;
+      box-shadow:
+        0 0 0 1px rgba(69, 224, 220, 0.1) inset,
+        0 8px 22px rgba(0, 0, 0, 0.26),
+        0 0 24px rgba(69, 224, 220, 0.12);
     }
 
     .fpw-live-builder-primary-cta:hover,
     .fpw-live-builder-primary-cta:focus-visible {
       transform: translateY(-1px);
-      color: #031722;
-      box-shadow: 0 20px 52px rgba(33, 219, 224, 0.3);
+      color: #ffffff;
+      background:
+        linear-gradient(180deg, rgba(10, 42, 68, 1) 0%, rgba(4, 24, 42, 1) 100%);
+      border-color: #45e0dc;
+      box-shadow:
+        0 0 0 1px rgba(69, 224, 220, 0.18) inset,
+        0 10px 26px rgba(0, 0, 0, 0.3),
+        0 0 30px rgba(69, 224, 220, 0.2);
+      text-decoration: none;
+      outline: none;
+    }
+
+    .fpw-live-builder-primary-cta .fpw-live-builder-button-icon,
+    .fpw-live-builder-primary-cta .fpw-live-builder-arrow {
+      color: #45e0dc;
     }
 
     .fpw-live-builder-button-icon {
@@ -2660,7 +2732,7 @@ fpwShowMemberRequiredNotice = (
       }
     }
   </style>
-<link rel="stylesheet" href="assets/css/top-nav.css?v=20260526-cache-bump">
+<link rel="stylesheet" href="assets/css/top-nav.css?v=20260530-nav-cta">
 </head>
 <body id="top">
 <cfinclude template="includes/prelaunch_top_nav.cfm">
@@ -2693,19 +2765,19 @@ fpwShowMemberRequiredNotice = (
           <div class="eyebrow"><i class="bi bi-stars" aria-hidden="true"></i>Set Sail with FloatPlanWizard</div>
           <h1><span class="gradient-text">Plan smarter.</span><br />Cruise prepared.<br />Keep everyone informed.</h1>
           <ul class="lead lead-bullets">
+            <li>Shareable Trip page for family and friends</li>
+            <li>Custom Route Builder. Plan your trip. Estimate your time and fuel needs.</li>
             <li>Create clear float plans with key trip and emergency details.</li>
-            <li>Plan route legs, timing, fuel stops, and contingencies confidently.</li>
-            <li>Keep family and friends informed with private trip updates.</li>
             <li>Automatic overdue alerts help contacts act quickly if needed.</li>
           </ul>
 
           <div class="hero-points">
             <div class="hero-point">
-              <b><i class="bi bi-life-preserver"></i>Float Plans</b>
+              <b><i class="bi bi-life-preserver"></i>Smart Float Plans</b>
               <span>USCG-style float plans with automated monitoring. Critical information for emergencies.</span>
             </div>
             <div class="hero-point">
-              <b><i class="bi bi-diagram-3"></i>Route Builder</b>
+              <b><i class="bi bi-diagram-3"></i>Custom Route Builder</b>
               <span>Plan legs, pace, stops, timing, and fuel with tools built for real cruising.</span>
             </div>
             <div class="hero-point">
@@ -2715,11 +2787,12 @@ fpwShowMemberRequiredNotice = (
           </div>
 
           <div class="hero-cta">
-            <a href="app/join.cfm" class="btn btn-primary"><i class="bi bi-envelope-paper"></i>Join Now - Get 1 Month Free</a>
+            <a href="app/join.cfm" class="btn btn-primary fpw-hero-primary-cta">Claim Your Free Month <span class="fpw-cta-arrow" aria-hidden="true">&rarr;</span>
+              </a>
             <a href="#great-loop" class="btn btn-secondary"><i class="bi bi-signpost-2"></i>Explore Great Loop Features</a>
           </div>
           <div class="micro" style="text-align:center;">
-            Beta launch: Join free, try the tools, and help shape FloatPlanWizard with your feedback. Built for Great Loopers and serious recreational boaters. No credit card required.
+            Now live for beta launch. New members get 1 month of Premium free. No credit card required.
           </div>
         </div>
 
@@ -2780,26 +2853,23 @@ fpwShowMemberRequiredNotice = (
           <div class="fpw-home-access-copy">
             <div class="fpw-home-access-badge">
               <span class="fpw-home-access-badge-dot" aria-hidden="true"></span>
-              <span>NOW LIVE</span>
-              <span class="fpw-home-access-badge-separator" aria-hidden="true">&bull;</span>
-              <span>2026 BOATING SEASON</span>
+              <span>NOW LIVE for 2026 BOATING SEASON</span>
             </div>
 
             <h2 id="fpwAccessTitle" class="fpw-home-access-title">
-              Start your first float plan free.<br>
-              Upgrade when you need live trip tools.
+              Get 1 month of Premium for Free
             </h2>
 
             <p class="fpw-home-access-lede">
-              FloatPlanWizard helps recreational boaters create float plans, share trip details, and keep family or contacts better informed while underway.
+              Create your free FloatPlanWizard account and your first month of Premium is included — no credit card required.
             </p>
 
             <p class="fpw-home-access-text">
-              Basic access is free for simple same-day trips. Premium unlocks route-based planning, Active Cruise, Follow pages, monitoring tools, and advanced trip visibility.
+              During your free month of Premium, you'll have access to our Route Generator with Active Cruise, a private family and friends trip page with check-ins, delay updates, and trip status updates, and tools serious boaters can trust to cruise with confidence.
             </p>
 
             <p class="fpw-home-access-text">
-              Choose the plan that fits your trip. Upgrade anytime to get the live tools serious boaters trust on the water.
+              After your free month, you can stay on the free Basic plan for simple same-day float plans or upgrade only if you choose.
             </p>
 
             <div class="fpw-home-access-features" aria-label="FloatPlanWizard access highlights">
@@ -2813,7 +2883,7 @@ fpwShowMemberRequiredNotice = (
                     <path d="M18 35h8"></path>
                   </svg>
                 </span>
-                <span>Basic Float Plan</span>
+                <span>USCG Style Float Plan</span>
               </div>
 
               <div class="fpw-home-access-feature">
@@ -2825,7 +2895,7 @@ fpwShowMemberRequiredNotice = (
                     <path d="M24 10v7l5 3"></path>
                   </svg>
                 </span>
-                <span>Active Cruise + Follow</span>
+                <span>Active Cruise + Shareable Trip page</span>
               </div>
 
               <div class="fpw-home-access-feature">
@@ -2838,7 +2908,7 @@ fpwShowMemberRequiredNotice = (
                     <path d="M32.5 24.5h5"></path>
                   </svg>
                 </span>
-                <span>Companion Check-Ins</span>
+                <span>NOAA Marine Weather</span>
               </div>
             </div>
           </div>
@@ -3046,7 +3116,7 @@ fpwShowMemberRequiredNotice = (
             </div>
           </div>
           <div class="hero-cta" style="margin-top:22px;">
-            <a href="app/join.cfm" class="btn btn-primary"><i class="bi bi-envelope-paper"></i>Join for Free</a>
+            <a href="app/join.cfm" class="btn btn-primary fpw-hero-primary-cta">Claim Your Free Month <span class="fpw-cta-arrow" aria-hidden="true">&rarr;</span></a>
           </div>
         </div>
       </div>
@@ -3096,7 +3166,7 @@ fpwShowMemberRequiredNotice = (
                   <path d="M18 20l3-8h6l3 8"></path>
                 </svg>
               </span>
-              <span>Create Your Float Plan</span>
+              <span>Claim Your Free Month</span>
               <span class="fpw-live-builder-arrow" aria-hidden="true">&rarr;</span>
             </a>
 

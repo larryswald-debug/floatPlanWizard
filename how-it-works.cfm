@@ -28,7 +28,7 @@ if (len(fpwHowBasePath) AND left(fpwHowBasePath, 1) NEQ "/") {
 }
 
 request.fpwBase = fpwHowBasePath;
-fpwHowNotifyUrl = fpwHowBasePath & "/index.cfm" & chr(35) & "notify";
+fpwHowNotifyUrl = fpwHowBasePath & "/app/join.cfm" & chr(35) & "notify";
 fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm";
 </cfscript>
 
@@ -819,7 +819,7 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
     }
   </style>
   <link rel="canonical" href="https://www.floatplanwizard.com/how-it-works/" />
-<cfoutput><link rel="stylesheet" href="#fpwHowBasePath#/assets/css/top-nav.css?v=20260522-subnav-44"></cfoutput>
+<cfoutput><link rel="stylesheet" href="#fpwHowBasePath#/assets/css/top-nav.css?v=20260530-nav-cta"></cfoutput>
 </head>
 <body id="top" class="fpw-how-body">
 <cfinclude template="includes/top_nav.cfm">
@@ -834,8 +834,8 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
       </p>
 
       <div class="fpw-how-actions">
-        <a class="fpw-btn fpw-btn--primary" href="<cfoutput>#fpwHowNotifyUrl#</cfoutput>">
-          <span>Join the Prelaunch List</span>
+        <a class="fpw-btn fpw-btn--primary" href="<cfoutput>#fpwHowBasePath#/app/join.cfm</cfoutput>">
+          <span>Claim Your Free Account</span>
           <svg class="fpw-arrow-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path class="fpw-icon-stroke" d="M5 12h13M13 6l6 6-6 6" stroke-width="2"></path>
           </svg>
@@ -930,7 +930,7 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
           </div>
 
           <a class="fpw-trip-details__button" href="<cfoutput>#fpwHowNotifyUrl#</cfoutput>">
-            View Float Plan
+            Try it For Free
             <span aria-hidden="true">&nearr;</span>
           </a>
         </div>
@@ -1100,10 +1100,10 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
     </div>
     <div>
       <h2>Ready to plan safer, smarter boating trips?</h2>
-      <p>Be the first to know when FloatPlanWizard launches.</p>
+      <!---<p>Be the first to know when FloatPlanWizard launches.</p>--->
     </div>
     <a class="fpw-btn fpw-btn--primary" href="<cfoutput>#fpwHowNotifyUrl#</cfoutput>">
-      <span>Join the Prelaunch List</span>
+      <span>Claim Your Free Account</span>
       <svg class="fpw-arrow-icon" viewBox="0 0 24 24" aria-hidden="true">
         <path class="fpw-icon-stroke" d="M5 12h13M13 6l6 6-6 6" stroke-width="2"></path>
       </svg>
