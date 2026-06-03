@@ -437,7 +437,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Active Cruise V2</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<link rel="stylesheet" href="<cfoutput>#activeCruiseV2BasePath#</cfoutput>/assets/css/top-nav.css?v=20260527-cache-bump">
+<link rel="stylesheet" href="<cfoutput>#activeCruiseV2BasePath#</cfoutput>/assets/css/top-nav.css?v=20260530-nav-cta">
   <style>
     :root {
       color-scheme: dark;
@@ -1301,7 +1301,7 @@
     main.main {
       width: auto;
       margin: 0;
-      padding: 22px 0 34px;
+      padding: 22px 0 18px;
     }
     .shell {
       width: min(calc(100% - 48px), var(--max));
@@ -4392,33 +4392,29 @@
           </div>
         </section>
 
-        <section class="footer-band" aria-label="V1 visual footer placeholder">
-          <!-- AC-V2 visual placeholder: footer band copied as visual content only. -->
-          <div class="foot-card"><h3>Why this screen matters</h3><p>This is not just another dashboard. It is the private, active-trip view that gives the member the immediate operational context they need while underway or preparing for the next stop.</p></div>
-          <div class="foot-card"><h3>Best use case</h3><p>Ideal on a tablet in the cabin, at the helm before departure, or during long-distance cruising where route progress, float plan monitoring, and next actions all need to stay visible.</p></div>
-          <div class="foot-card"><h3>FPW fit</h3><p>This bridges the gap between route planning and follower sharing. It turns FPW into an actual in-trip companion, not just a pre-departure planning tool.</p></div>
-        </section>
-
-        <section class="warning-panel" aria-label="Warnings and authority diagnostics">
-          <div class="section-header">
-            <h2>Warnings / Diagnostics</h2>
-            <span class="authority-pill">#fpwV2WarningCount(activeCruiseV2Model)# warnings</span>
-          </div>
-          <p>Projection, view-model consistency, missing-authority, and contradiction warnings remain visible during development.</p>
-          <cfif structKeyExists(activeCruiseV2Model, "warnings") AND arrayLen(activeCruiseV2Model.warnings)>
-            <div class="warning-list">
-              <cfloop array="#activeCruiseV2Model.warnings#" item="warningItem">
-                <div class="warning-item">
-                  <h3>#encodeForHTML(fpwV2Text(fpwV2Get(warningItem, "code"), "Warning"))#</h3>
-                  <p>#encodeForHTML(fpwV2Text(fpwV2Get(warningItem, "message"), "No message returned."))#</p>
-                  <div class="warning-source">Source: #encodeForHTML(fpwV2Text(fpwV2Get(warningItem, "source"), "Not available"))#</div>
-                </div>
-              </cfloop>
+        <cfset showActiveCruiseDiagnosticsPanel = false>
+        <cfif showActiveCruiseDiagnosticsPanel>
+          <section class="warning-panel" aria-label="Warnings and authority diagnostics">
+            <div class="section-header">
+              <h2>Warnings / Diagnostics</h2>
+              <span class="authority-pill">#fpwV2WarningCount(activeCruiseV2Model)# warnings</span>
             </div>
-          <cfelse>
-            <p>No warnings returned by the view model.</p>
-          </cfif>
-        </section>
+            <p>Projection, view-model consistency, missing-authority, and contradiction warnings remain visible during development.</p>
+            <cfif structKeyExists(activeCruiseV2Model, "warnings") AND arrayLen(activeCruiseV2Model.warnings)>
+              <div class="warning-list">
+                <cfloop array="#activeCruiseV2Model.warnings#" item="warningItem">
+                  <div class="warning-item">
+                    <h3>#encodeForHTML(fpwV2Text(fpwV2Get(warningItem, "code"), "Warning"))#</h3>
+                    <p>#encodeForHTML(fpwV2Text(fpwV2Get(warningItem, "message"), "No message returned."))#</p>
+                    <div class="warning-source">Source: #encodeForHTML(fpwV2Text(fpwV2Get(warningItem, "source"), "Not available"))#</div>
+                  </div>
+                </cfloop>
+              </div>
+            <cfelse>
+              <p>No warnings returned by the view model.</p>
+            </cfif>
+          </section>
+        </cfif>
       </cfif>
     </div>
   </main>
