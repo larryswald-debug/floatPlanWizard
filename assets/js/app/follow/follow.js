@@ -749,7 +749,7 @@
     var effectiveSpeedKn = safeNum(summary.effective_speed_kn);
     var progressPct = safeNum(authorityProgress.routeProgressPercent);
     var legProgressPct = safeNum(authorityProgress.legProgressPercent);
-    var departedLocalMeta = formatSidebarLastCheckinLabel(body.journey_departed_meta_utc || "") || "—";
+    var departedLocalMeta = String(body.journey_departed_meta || "").trim() || formatSidebarLastCheckinLabel(body.journey_departed_meta_utc || "") || "—";
     var nextStopLocalEta = authorityLocalLabel(authorityTiming.etaLocalLabel, authorityTiming.etaUtc || topCards.eta_utc, "—");
     var finalArrivalLabel = authorityLocalLabel(authorityTiming.finalArrivalLocalLabel, authorityTiming.finalArrivalUtc, "");
     var routeProgressLabel = "";

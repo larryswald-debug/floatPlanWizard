@@ -794,7 +794,17 @@
         manifestSummaryOpen: true,
         waypointSearchQuery: "",
         mobileWaypointsSummaryOpen: true,
-        routeDefaults: normalizeRouteDefaults({})
+        routeDefaults: normalizeRouteDefaults({}),
+        routeReturnSuggestion: {
+          isLoading: false,
+          requestId: 0,
+          applying: false,
+          lastDepartureKey: "",
+          lastReturnTime: "",
+          lastReturnTimezone: "",
+          lastReturnUtc: "",
+          manualReturnEdited: false
+        }
       };
     },
 
@@ -940,6 +950,15 @@
       },
       "fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE": function () {
         this.syncRescueCenterSelection();
+      },
+      "fp.FLOATPLAN.DEPARTURE_TIME": function () {
+        this.requestRouteReturnSuggestion();
+      },
+      "fp.FLOATPLAN.DEPARTURE_TIMEZONE": function () {
+        this.requestRouteReturnSuggestion();
+      },
+      "fp.FLOATPLAN.RETURN_TIME": function (nextValue) {
+        this.handleReturnTimeChanged(nextValue);
       }
     },
 
@@ -1101,6 +1120,116 @@
             "SORT_ORDER"
           );
         }
+      },
+
+      handleReturnTimeChanged: function (nextValue) {
+        var state = this.routeReturnSuggestion;
+        if (!state || state.applying) {
+          return;
+        }
+        var normalizedValue = toDateTimeLocal(nextValue);
+        if (!normalizedValue) {
+          state.manualReturnEdited = false;
+          state.lastReturnTime = "";
+          state.lastReturnTimezone = "";
+          state.lastReturnUtc = "";
+          this.requestRouteReturnSuggestion();
+          return;
+        }
+        if (state.lastReturnTime && normalizedValue === state.lastReturnTime) {
+          return;
+        }
+        state.manualReturnEdited = true;
+      },
+
+      handleDepartureTimingChanged: function (field) {
+        this.clearFieldError(field);
+        this.$nextTick(this.requestRouteReturnSuggestion);
+      },
+
+      handleReturnTimeInput: function () {
+        var self = this;
+        this.clearFieldError("RETURN_TIME");
+        this.$nextTick(function () {
+          self.handleReturnTimeChanged(self.fp.FLOATPLAN.RETURN_TIME);
+        });
+      },
+
+      requestRouteReturnSuggestion: function () {
+        var state = this.routeReturnSuggestion;
+        var plan = this.fp && this.fp.FLOATPLAN ? this.fp.FLOATPLAN : {};
+        if (!state || this.isLoading || !this.isFromRoutePlan()) {
+          return;
+        }
+        if (!window.Api || typeof window.Api.suggestFloatPlanReturnTime !== "function") {
+          return;
+        }
+
+        var planId = numeric(plan.FLOATPLANID || this.initialPlanId);
+        var departureTime = toDateTimeLocal(plan.DEPARTURE_TIME);
+        var departureTimezone = (plan.DEPARTURE_TIMEZONE || "").toString().trim();
+        if (!(planId > 0) || !departureTime || !departureTimezone) {
+          return;
+        }
+
+        var currentReturnTime = toDateTimeLocal(plan.RETURN_TIME);
+        if (currentReturnTime && (!state.lastReturnTime || currentReturnTime !== state.lastReturnTime)) {
+          return;
+        }
+        if (state.manualReturnEdited && currentReturnTime !== state.lastReturnTime) {
+          return;
+        }
+
+        var departureKey = [planId, departureTime, departureTimezone].join("|");
+        state.requestId += 1;
+        var requestId = state.requestId;
+        state.lastDepartureKey = departureKey;
+        state.isLoading = true;
+
+        window.Api.suggestFloatPlanReturnTime({
+          floatPlanId: planId,
+          DEPARTURE_TIME: departureTime,
+          DEPARTURE_TIMEZONE: departureTimezone
+        })
+          .then(function (data) {
+            if (requestId !== state.requestId) {
+              return;
+            }
+            var suggestedReturnTime = toDateTimeLocal(data && data.SUGGESTED_RETURN_TIME);
+            if (!suggestedReturnTime) {
+              return;
+            }
+            var latestReturnTime = toDateTimeLocal(plan.RETURN_TIME);
+            if (latestReturnTime && (!state.lastReturnTime || latestReturnTime !== state.lastReturnTime)) {
+              return;
+            }
+            if (state.manualReturnEdited && latestReturnTime !== state.lastReturnTime) {
+              return;
+            }
+
+            var suggestedTimezone = (data.SUGGESTED_RETURN_TIMEZONE || departureTimezone || "").toString().trim();
+            state.applying = true;
+            try {
+              plan.RETURN_TIME = suggestedReturnTime;
+              if (suggestedTimezone && (isEmptyValue(plan.RETURN_TIMEZONE) || plan.RETURN_TIMEZONE === state.lastReturnTimezone)) {
+                plan.RETURN_TIMEZONE = suggestedTimezone;
+              }
+              state.lastReturnTime = suggestedReturnTime;
+              state.lastReturnTimezone = suggestedTimezone;
+              state.lastReturnUtc = (data.SUGGESTED_RETURN_TIME_UTC || "").toString();
+              state.manualReturnEdited = false;
+            } finally {
+              state.applying = false;
+            }
+          })
+          .catch(function () {
+            // Return-time suggestions are optional; existing validation still requires explicit timing before save/send.
+          })
+          .finally(function () {
+            if (requestId === state.requestId) {
+              state.isLoading = false;
+            }
+          });
       },
 
       nextStep: function () {
@@ -1417,6 +1546,7 @@
             self.initialPlanId = numeric(self.fp.FLOATPLAN.FLOATPLANID) || self.initialPlanId;
             self.isLoading = false;
             self.clearStatus();
+            self.requestRouteReturnSuggestion();
             if (self.step === self.totalSteps) {
               self.loadPdfPreview();
             }

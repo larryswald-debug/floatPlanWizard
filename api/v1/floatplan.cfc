@@ -82,6 +82,25 @@
                     <cfoutput>#serializeJSON(bootstrapData)#</cfoutput>
                 </cfcase>
 
+                <cfcase value="suggestreturntime">
+                    <cfset var suggestPlanId = 0>
+                    <cfif structKeyExists(body, "floatPlanId")>
+                        <cfset suggestPlanId = val(body.floatPlanId)>
+                    <cfelseif structKeyExists(body, "FLOATPLANID")>
+                        <cfset suggestPlanId = val(body.FLOATPLANID)>
+                    <cfelseif structKeyExists(url, "floatPlanId")>
+                        <cfset suggestPlanId = val(url.floatPlanId)>
+                    <cfelseif structKeyExists(url, "id")>
+                        <cfset suggestPlanId = val(url.id)>
+                    <cfelseif structKeyExists(arguments, "floatPlanId")>
+                        <cfset suggestPlanId = val(arguments.floatPlanId)>
+                    </cfif>
+
+                    <cfset var suggestResult = suggestRouteReturnTime(userId, suggestPlanId, body)>
+                    <cfset suggestResult.AUTH = true>
+                    <cfoutput>#serializeJSON(suggestResult)#</cfoutput>
+                </cfcase>
+
                 <cfcase value="save">
                     <cfset var saveResult = saveFloatPlan(userId, body)>
                     <cfset saveResult.AUTH = true>
@@ -788,6 +807,225 @@
             }
 
             return response;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="suggestRouteReturnTime" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="body" type="struct" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                MESSAGE = ""
+            };
+            var requestPayload = arguments.body;
+            var departureTimeRaw = "";
+            var departureTimezoneRaw = "";
+            var departureTimezone = "";
+            var departureLocal = "";
+            var departureStartDate = "";
+            var qPlanRoute = queryNew("");
+            var routeInstanceId = 0;
+            var routeId = 0;
+            var timelineService = {};
+            var timeline = {};
+            var days = [];
+            var finalDay = {};
+            var finalDayDate = "";
+            var finalDayEstHours = 0;
+            var suggestedReturnLocal = "";
+            var suggestedReturnUtc = "";
+
+            if (arguments.floatPlanId LTE 0) {
+                result.ERROR = "MISSING_PLAN_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            if (structKeyExists(requestPayload, "FLOATPLAN") AND isStruct(requestPayload.FLOATPLAN)) {
+                requestPayload = requestPayload.FLOATPLAN;
+            } else if (structKeyExists(requestPayload, "floatPlan") AND isStruct(requestPayload.floatPlan)) {
+                requestPayload = requestPayload.floatPlan;
+            }
+
+            departureTimeRaw = trim(toString(pickValue(requestPayload, ["DEPARTURE_TIME", "departureTime"], "")));
+            departureTimezoneRaw = trim(toString(pickValue(requestPayload, ["DEPARTURE_TIMEZONE", "departureTimezone"], "")));
+            departureLocal = normalizeLocalWallClockInput(departureTimeRaw);
+            departureTimezone = normalizeRouteSuggestionTimezone(departureTimezoneRaw);
+
+            if (!len(departureLocal) OR !len(departureTimezone)) {
+                result.ERROR = "INVALID_DEPARTURE_TIME";
+                result.MESSAGE = "A valid departure time and timezone are required.";
+                return result;
+            }
+            departureStartDate = left(departureLocal, 10);
+
+            qPlanRoute = queryExecute(
+                "SELECT
+                    fp.floatplanId,
+                    fp.route_instance_id,
+                    ri.generated_route_id,
+                    ri.generated_route_code
+                 FROM floatplans fp
+                 INNER JOIN route_instances ri
+                    ON ri.id = fp.route_instance_id
+                   AND ri.user_id = :routeUserId
+                 WHERE fp.floatplanId = :planId
+                   AND fp.userId = :userId
+                   AND fp.route_instance_id IS NOT NULL
+                 LIMIT 1",
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                    routeUserId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                },
+                { datasource = "fpw" }
+            );
+
+            if (qPlanRoute.recordCount EQ 0) {
+                result.ERROR = "ROUTE_LINK_NOT_FOUND";
+                result.MESSAGE = "Route-backed float plan not found.";
+                return result;
+            }
+
+            routeInstanceId = isNull(qPlanRoute.route_instance_id[1]) ? 0 : val(qPlanRoute.route_instance_id[1]);
+            routeId = isNull(qPlanRoute.generated_route_id[1]) ? 0 : val(qPlanRoute.generated_route_id[1]);
+            if (routeInstanceId LTE 0 OR routeId LTE 0) {
+                result.ERROR = "ROUTE_LINK_NOT_FOUND";
+                result.MESSAGE = "A generated route is required to suggest a return time.";
+                return result;
+            }
+
+            timelineService = createObject("component", resolveApiV1ComponentPath("RouteTimelineService")).init("fpw");
+            timeline = timelineService.generateCruiseTimeline(
+                userId = arguments.userId,
+                routeId = routeId,
+                startDate = departureStartDate,
+                maxHoursPerDay = 6.5,
+                routeType = "generated",
+                inputOverrides = {},
+                previewLegs = []
+            );
+
+            if (!structKeyExists(timeline, "success") OR timeline.success NEQ true) {
+                result.ERROR = "TIMELINE_UNAVAILABLE";
+                result.MESSAGE = structKeyExists(timeline, "message") ? trim(toString(timeline.message)) : "Route timeline unavailable.";
+                return result;
+            }
+
+            days = (structKeyExists(timeline, "days") AND isArray(timeline.days)) ? timeline.days : [];
+            if (!arrayLen(days)) {
+                result.ERROR = "TIMELINE_EMPTY";
+                result.MESSAGE = "Route timeline returned no cruise days.";
+                return result;
+            }
+
+            finalDay = days[arrayLen(days)];
+            finalDayDate = trim(toString(pickValue(finalDay, ["date", "DATE"], "")));
+            finalDayEstHours = val(pickValue(finalDay, ["est_hours", "EST_HOURS"], 0));
+            suggestedReturnLocal = addTimelineHoursToLocalDayStart(
+                departureLocal = departureLocal,
+                finalDayDate = finalDayDate,
+                finalDayEstHours = finalDayEstHours
+            );
+            suggestedReturnUtc = localWallClockToUtcString(suggestedReturnLocal, departureTimezone);
+
+            if (!len(suggestedReturnLocal) OR !len(suggestedReturnUtc)) {
+                result.ERROR = "RETURN_TIME_UNAVAILABLE";
+                result.MESSAGE = "Suggested return time could not be calculated.";
+                return result;
+            }
+
+            result.SUCCESS = true;
+            result.MESSAGE = "Suggested return time calculated.";
+            result.SUGGESTED_RETURN_TIME = suggestedReturnLocal;
+            result.SUGGESTED_RETURN_TIMEZONE = departureTimezone;
+            result.SUGGESTED_RETURN_TIME_UTC = suggestedReturnUtc;
+            result.TOTAL_DAYS = arrayLen(days);
+            result.FINAL_DAY_DATE = finalDayDate;
+            result.FINAL_DAY_EST_HOURS = finalDayEstHours;
+            result.ROUTE_INSTANCE_ID = routeInstanceId;
+            result.ROUTE_ID = routeId;
+            result.START_DATE_USED = departureStartDate;
+            result.SOURCE = "route_timeline";
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="addTimelineHoursToLocalDayStart" access="private" returntype="string" output="false">
+        <cfargument name="departureLocal" type="string" required="true">
+        <cfargument name="finalDayDate" type="string" required="true">
+        <cfargument name="finalDayEstHours" type="numeric" required="true">
+        <cfscript>
+            var departureClock = "";
+            var dayStart = "";
+            var returnLocal = "";
+            var minutesToAdd = int(round(val(arguments.finalDayEstHours) * 60));
+
+            if (
+                !reFind("^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$", arguments.departureLocal)
+                OR !reFind("^\d{4}-\d{2}-\d{2}$", arguments.finalDayDate)
+                OR minutesToAdd LT 0
+            ) {
+                return "";
+            }
+
+            departureClock = mid(arguments.departureLocal, 12, 8);
+            dayStart = parseDateTime(arguments.finalDayDate & " " & departureClock);
+            returnLocal = dateAdd("n", minutesToAdd, dayStart);
+            return dateFormat(returnLocal, "yyyy-mm-dd") & " " & timeFormat(returnLocal, "HH:mm:ss");
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeRouteSuggestionTimezone" access="private" returntype="string" output="false">
+        <cfargument name="timeZoneId" type="string" required="true">
+        <cfscript>
+            var tz = trim(arguments.timeZoneId);
+            if (!len(tz)) {
+                return "";
+            }
+            try {
+                createObject("java", "java.time.ZoneId").of(tz);
+                return tz;
+            } catch (any tzError) {
+                return "";
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="localWallClockToUtcString" access="private" returntype="string" output="false">
+        <cfargument name="localDateTime" type="string" required="true">
+        <cfargument name="timeZoneId" type="string" required="true">
+        <cfscript>
+            var normalizedLocal = normalizeLocalWallClockInput(arguments.localDateTime);
+            var tz = normalizeRouteSuggestionTimezone(arguments.timeZoneId);
+            var formatter = "";
+            var localDateTimeObj = "";
+            var zoneId = "";
+            var instant = "";
+            var utcDateTime = "";
+
+            if (!len(normalizedLocal) OR !len(tz)) {
+                return "";
+            }
+            if (listFindNoCase("UTC,Etc/UTC,GMT", tz)) {
+                return normalizedLocal;
+            }
+
+            try {
+                formatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("yyyy-MM-dd HH:mm:ss");
+                localDateTimeObj = createObject("java", "java.time.LocalDateTime").parse(normalizedLocal, formatter);
+                zoneId = createObject("java", "java.time.ZoneId").of(tz);
+                instant = localDateTimeObj.atZone(zoneId).toInstant();
+                utcDateTime = createObject("java", "java.time.LocalDateTime").ofInstant(
+                    instant,
+                    createObject("java", "java.time.ZoneOffset").UTC
+                );
+                return utcDateTime.format(formatter);
+            } catch (any convertError) {
+                return "";
+            }
         </cfscript>
     </cffunction>
 

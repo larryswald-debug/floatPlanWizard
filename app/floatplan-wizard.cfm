@@ -149,7 +149,7 @@
                         v-model="fp.FLOATPLAN.DEPARTURE_TIME"
                         :class="{ 'is-invalid': hasError('DEPARTURE_TIME') }"
                         :aria-invalid="hasError('DEPARTURE_TIME') ? 'true' : 'false'"
-                        @input="clearFieldError('DEPARTURE_TIME')"
+                        @input="handleDepartureTimingChanged('DEPARTURE_TIME')"
                         />
                     <div class="invalid-feedback" v-if="hasError('DEPARTURE_TIME')">{{ getError('DEPARTURE_TIME') }}</div>
                 </div>
@@ -163,7 +163,7 @@
                         v-model="fp.FLOATPLAN.DEPARTURE_TIMEZONE"
                         :class="{ 'is-invalid': hasError('DEPARTURE_TIMEZONE') }"
                         :aria-invalid="hasError('DEPARTURE_TIMEZONE') ? 'true' : 'false'"
-                        @change="clearFieldError('DEPARTURE_TIMEZONE')"
+                        @change="handleDepartureTimingChanged('DEPARTURE_TIMEZONE')"
                         required
                     >
                         <option value="">Select time zone</option>
@@ -198,7 +198,7 @@
                         v-model="fp.FLOATPLAN.RETURN_TIME"
                         :class="{ 'is-invalid': hasError('RETURN_TIME') }"
                         :aria-invalid="hasError('RETURN_TIME') ? 'true' : 'false'"
-                        @input="clearFieldError('RETURN_TIME')"
+                        @input="handleReturnTimeInput()"
                         />
                         <div class="invalid-feedback" v-if="hasError('RETURN_TIME')">{{ getError('RETURN_TIME') }}</div>
 
@@ -404,7 +404,7 @@
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260603-suggest-return"></script>
 
 </body>
 </html>

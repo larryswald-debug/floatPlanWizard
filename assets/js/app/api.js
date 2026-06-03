@@ -238,6 +238,13 @@
       return request(path, { method: "GET" });
     },
 
+    suggestFloatPlanReturnTime: function (payload) {
+      return request("/floatplan.cfc?method=handle&action=suggestReturnTime", {
+        method: "POST",
+        body: payload || {}
+      });
+    },
+
     getBasicFloatPlanDrafts: function () {
       return request("/floatplan.cfc?method=handle&action=listbasicdrafts", { method: "GET" });
     },

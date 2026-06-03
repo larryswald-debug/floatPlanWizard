@@ -503,7 +503,9 @@
                     <cfset cruisePreviewLegsRaw = body.legs_override />
                 </cfif>
                 <cfset var cruisePreviewLegs = (isArray(cruisePreviewLegsRaw) ? cruisePreviewLegsRaw : []) />
-                <cfset var cruiseTimeline = generateCruiseTimeline(
+                <cfset var cruiseTimelineService = getRouteTimelineService() />
+                <cfset var cruiseTimeline = cruiseTimelineService.generateCruiseTimeline(
+                    userId = userId,
                     routeId = cruiseRouteId,
                     startDate = cruiseStartDate,
                     maxHoursPerDay = cruiseMaxHoursPerDay,
@@ -5902,6 +5904,16 @@
             };
             out.days = days;
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getRouteTimelineService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.RouteTimelineService").init(application.dsn);
+            } catch (any primaryPathErr) {
+                return createObject("component", "api.v1.RouteTimelineService").init(application.dsn);
+            }
         </cfscript>
     </cffunction>
 

@@ -539,6 +539,7 @@
             var plannedNextStopEtaDt = "";
             var qTripStart = queryNew("");
             var journeyDepartedDt = "";
+            var journeyDepartedUtc = "";
             var qMilesTodayTiming = queryNew("");
             var scheduledDepartureRawDt = "";
             var hasOperationalCheckIn = false;
@@ -681,6 +682,7 @@
                     fp.status,
                     fp.departing,
                     fp.departureTime,
+                    fp.departureTimeUTC,
                     fp.departTimezone,
                     fp.departureTZ,
                     fp.`returning`,
@@ -818,6 +820,9 @@
             if (!isNull(qPlan.departureTime[1]) AND isDate(qPlan.departureTime[1])) {
                 scheduledDepartureRawDt = qPlan.departureTime[1];
                 journeyDepartedDt = qPlan.departureTime[1];
+            }
+            if (!isNull(qPlan.departureTimeUTC[1]) AND isDate(qPlan.departureTimeUTC[1])) {
+                journeyDepartedUtc = formatUtcDate(qPlan.departureTimeUTC[1]);
             }
             if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
                 checkedInAtVal = qPlan.checkedInAt[1];
@@ -1455,7 +1460,7 @@
                 "journey_subtitle"="Current leg is active.",
                 "journey_departed_value"=(qPlan.recordCount GT 0 AND !isNull(qPlan.departing[1]) ? trim(toString(qPlan.departing[1])) : ""),
                 "journey_departed_meta"=(isDate(journeyDepartedDt) ? dateTimeFormat(journeyDepartedDt, "mmm d, yyyy h:nn tt") : ""),
-                "journey_departed_meta_utc"=(isDate(journeyDepartedDt) ? formatUtcDate(journeyDepartedDt) : ""),
+                "journey_departed_meta_utc"=journeyDepartedUtc,
                 "journey_checkin_value"=(len(actualCheckInLabel) ? "Checked in at " & actualCheckInLabel : "Checked in at --"),
                 "journey_checkin_meta"=(isOvernightCheckIn ? "Arrived and secure for the night. Next update expected tomorrow morning." : elapsedCheckInLabel),
                 "card_status_copy"=voyageProgressStatusCopy,
