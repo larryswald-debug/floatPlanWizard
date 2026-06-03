@@ -778,12 +778,6 @@
                 if (val(response.FLOATPLAN.OPERATORID) LTE 0 AND val(routeDefaults.OPERATOR_ID) GT 0) {
                     response.FLOATPLAN.OPERATORID = val(routeDefaults.OPERATOR_ID);
                 }
-                if (!len(trim(toString(response.FLOATPLAN.DEPARTURE_TIME))) AND len(trim(toString(routeDefaults.DEPARTURE_TIME_DEFAULT)))) {
-                    response.FLOATPLAN.DEPARTURE_TIME = routeDefaults.DEPARTURE_TIME_DEFAULT;
-                }
-                if (!len(trim(toString(response.FLOATPLAN.RETURN_TIME))) AND len(trim(toString(routeDefaults.RETURN_TIME_DEFAULT)))) {
-                    response.FLOATPLAN.RETURN_TIME = routeDefaults.RETURN_TIME_DEFAULT;
-                }
                 if (!len(trim(toString(response.FLOATPLAN.DEPARTING_FROM))) AND len(trim(toString(routeDefaults.DEPARTING_FROM_DEFAULT)))) {
                     response.FLOATPLAN.DEPARTING_FROM = routeDefaults.DEPARTING_FROM_DEFAULT;
                 }

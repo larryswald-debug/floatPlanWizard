@@ -1080,12 +1080,6 @@
           }
         }
 
-        if (isEmptyValue(plan.DEPARTURE_TIME) && defaults.DEPARTURE_TIME_DEFAULT) {
-          plan.DEPARTURE_TIME = toDateTimeLocal(defaults.DEPARTURE_TIME_DEFAULT);
-        }
-        if (isEmptyValue(plan.RETURN_TIME) && defaults.RETURN_TIME_DEFAULT) {
-          plan.RETURN_TIME = toDateTimeLocal(defaults.RETURN_TIME_DEFAULT);
-        }
         if (isEmptyValue(plan.DEPARTING_FROM) && defaults.DEPARTING_FROM_DEFAULT) {
           plan.DEPARTING_FROM = defaults.DEPARTING_FROM_DEFAULT;
         }
