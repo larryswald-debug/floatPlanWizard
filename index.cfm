@@ -3050,6 +3050,9 @@ fpwShowMemberRequiredNotice = (
               <div><strong>Built for repeat use</strong><span>Perfect for boaters planning seasonal loops, regional expeditions, or major cruising goals.</span></div>
             </div>
           </div>
+          <div class="hero-cta" style="margin-top:22px;">
+            <a href="great-loop/locks/" class="btn btn-secondary"><i class="bi bi-door-open"></i>Explore Great Loop Locks</a>
+          </div>
         </div>
 
         <div class="panel map-card">

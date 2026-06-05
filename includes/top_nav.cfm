@@ -219,6 +219,10 @@ topNavShowAppSubnav = topNavIsLoggedIn
                   <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 18h9a4 4 0 0 0 .5-8 6 6 0 0 0-11-1.7A5 5 0 0 0 8 18z"></path><path d="M8 7V4"></path><path d="M4.5 8.5 2.5 6.5"></path><path d="M3 12H1"></path></svg>
                   <span><strong>Weather</strong><small>Marine conditions and planning</small></span>
                 </a>
+                <a href="#topNavBasePath#/great-loop/locks/" role="menuitem">
+                  <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6.5 9 4l6 2.5 5-2.5v13.5L15 20l-6-2.5L4 20z"></path><path d="M9 4v13.5"></path><path d="M15 6.5V20"></path></svg>
+                  <span><strong>Great Loop Lock Library</strong><small>Lock locations, VHF, phone, notes, and planning reference</small></span>
+                </a>
                 <a href="#topNavBasePath#/why-use-a-float-plan" role="menuitem">
                   <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z"></path><path d="M8 7h8"></path><path d="M8 11h7"></path></svg>
                   <span><strong>Float Plan Basics</strong><small>Learn how float plans work</small></span>

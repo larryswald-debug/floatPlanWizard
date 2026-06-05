@@ -37,6 +37,19 @@ RewriteRule ^archive(/.*)?$ /fpw/ [R=302,L,QSD]
 
 
 # ------------------------------------------------------------
+# Great Loop Lock Library clean route proof
+# ------------------------------------------------------------
+
+RewriteRule ^great-loop/locks/$ great-loop/locks/index.cfm [L,QSA]
+
+RewriteRule ^great-loop/locks/state/([^/]+)/$ great-loop/locks/index.cfm?stateSlug=$1 [L,QSA]
+
+RewriteRule ^great-loop/locks/waterway/([^/]+)/$ great-loop/locks/index.cfm?waterwaySlug=$1 [L,QSA]
+
+RewriteRule ^great-loop/locks/([^/]+)/$ great-loop/locks/index.cfm?slug=$1 [L,QSA]
+
+
+# ------------------------------------------------------------
 # Fuel Calculator canonical redirects
 # /boat-fuel-calculator/boat-fuel-calculator.cfm
 #   -> /boat-fuel-calculator/

@@ -77,39 +77,66 @@
             var insertedRows = 0;
             var safeSourceFilename = safeFilename(arguments.sourceFilename);
             var safeSourceSheet = trim(toString(arguments.sourceSheet));
+            var columnFlags = getColumnFlags([
+                "slug",
+                "waterway",
+                "lock_system",
+                "operating_authority",
+                "country",
+                "approach_notes",
+                "operating_notes",
+                "special_instructions",
+                "source_name",
+                "source_url",
+                "last_reviewed_at",
+                "is_public",
+                "sort_order"
+            ]);
+            var insertColumns = [
+                "lock_name",
+                "latitude",
+                "longitude",
+                "note",
+                "city",
+                "state",
+                "zip",
+                "phone",
+                "vhf"
+            ];
+            var insertValues = [
+                ":lock_name",
+                ":latitude",
+                ":longitude",
+                ":note",
+                ":city",
+                ":state",
+                ":zip",
+                ":phone",
+                ":vhf"
+            ];
+            var rowParams = {};
+            var publicColumnName = "";
 
             if (!validation.SUCCESS) {
                 return validation;
             }
 
+            for (publicColumnName in columnFlags) {
+                if (columnFlags[publicColumnName]) {
+                    arrayAppend(insertColumns, publicColumnName);
+                    arrayAppend(insertValues, ":" & publicColumnName);
+                }
+            }
+            arrayAppend(insertColumns, "source_filename");
+            arrayAppend(insertValues, ":source_filename");
+            arrayAppend(insertColumns, "source_sheet");
+            arrayAppend(insertValues, ":source_sheet");
+            arrayAppend(insertColumns, "import_batch_id");
+            arrayAppend(insertValues, ":import_batch_id");
+
             insertSql = "
-                INSERT INTO great_loop_locks (
-                    lock_name,
-                    latitude,
-                    longitude,
-                    note,
-                    city,
-                    state,
-                    zip,
-                    phone,
-                    vhf,
-                    source_filename,
-                    source_sheet,
-                    import_batch_id
-                ) VALUES (
-                    :lock_name,
-                    :latitude,
-                    :longitude,
-                    :note,
-                    :city,
-                    :state,
-                    :zip,
-                    :phone,
-                    :vhf,
-                    :source_filename,
-                    :source_sheet,
-                    :import_batch_id
-                )
+                INSERT INTO great_loop_locks (" & arrayToList(insertColumns, ", ") & ")
+                VALUES (" & arrayToList(insertValues, ", ") & ")
             ";
 
             try {
@@ -122,22 +149,37 @@
 
                     for (i = 1; i LTE arrayLen(arguments.rows); i++) {
                         row = arguments.rows[i];
+                        rowParams = {
+                            "lock_name" = sqlString(row.lock_name, "cf_sql_varchar"),
+                            "latitude" = sqlDecimal(row.latitude),
+                            "longitude" = sqlDecimal(row.longitude),
+                            "note" = sqlNullableString(row.note, "cf_sql_longvarchar"),
+                            "city" = sqlNullableString(row.city, "cf_sql_varchar"),
+                            "state" = sqlNullableString(row.state, "cf_sql_varchar"),
+                            "zip" = sqlNullableString(row.zip, "cf_sql_varchar"),
+                            "phone" = sqlNullableString(row.phone, "cf_sql_varchar"),
+                            "vhf" = sqlNullableString(row.vhf, "cf_sql_varchar"),
+                            "source_filename" = sqlString(safeSourceFilename, "cf_sql_varchar"),
+                            "source_sheet" = sqlString(safeSourceSheet, "cf_sql_varchar"),
+                            "import_batch_id" = sqlString(batchId, "cf_sql_char")
+                        };
+                        if (columnFlags.slug) rowParams.slug = sqlNullableString(optionalRowValue(row, "slug"), "cf_sql_varchar");
+                        if (columnFlags.waterway) rowParams.waterway = sqlNullableString(optionalRowValue(row, "waterway"), "cf_sql_varchar");
+                        if (columnFlags.lock_system) rowParams.lock_system = sqlNullableString(optionalRowValue(row, "lock_system"), "cf_sql_varchar");
+                        if (columnFlags.operating_authority) rowParams.operating_authority = sqlNullableString(optionalRowValue(row, "operating_authority"), "cf_sql_varchar");
+                        if (columnFlags.country) rowParams.country = sqlNullableString(optionalRowValue(row, "country"), "cf_sql_varchar");
+                        if (columnFlags.approach_notes) rowParams.approach_notes = sqlNullableString(optionalRowValue(row, "approach_notes"), "cf_sql_longvarchar");
+                        if (columnFlags.operating_notes) rowParams.operating_notes = sqlNullableString(optionalRowValue(row, "operating_notes"), "cf_sql_longvarchar");
+                        if (columnFlags.special_instructions) rowParams.special_instructions = sqlNullableString(optionalRowValue(row, "special_instructions"), "cf_sql_longvarchar");
+                        if (columnFlags.source_name) rowParams.source_name = sqlNullableString(optionalRowValue(row, "source_name"), "cf_sql_varchar");
+                        if (columnFlags.source_url) rowParams.source_url = sqlNullableString(optionalRowValue(row, "source_url"), "cf_sql_varchar");
+                        if (columnFlags.last_reviewed_at) rowParams.last_reviewed_at = sqlNullableDate(optionalRowValue(row, "last_reviewed_at"));
+                        if (columnFlags.is_public) rowParams.is_public = sqlBoolean(optionalRowValue(row, "is_public"));
+                        if (columnFlags.sort_order) rowParams.sort_order = sqlNullableInt(optionalRowValue(row, "sort_order"));
+
                         queryExecute(
                             insertSql,
-                            {
-                                "lock_name" = sqlString(row.lock_name, "cf_sql_varchar"),
-                                "latitude" = sqlDecimal(row.latitude),
-                                "longitude" = sqlDecimal(row.longitude),
-                                "note" = sqlNullableString(row.note, "cf_sql_longvarchar"),
-                                "city" = sqlNullableString(row.city, "cf_sql_varchar"),
-                                "state" = sqlNullableString(row.state, "cf_sql_varchar"),
-                                "zip" = sqlNullableString(row.zip, "cf_sql_varchar"),
-                                "phone" = sqlNullableString(row.phone, "cf_sql_varchar"),
-                                "vhf" = sqlNullableString(row.vhf, "cf_sql_varchar"),
-                                "source_filename" = sqlString(safeSourceFilename, "cf_sql_varchar"),
-                                "source_sheet" = sqlString(safeSourceSheet, "cf_sql_varchar"),
-                                "import_batch_id" = sqlString(batchId, "cf_sql_char")
-                            },
+                            rowParams,
                             { "datasource" = getDatasource() }
                         );
                         insertedRows++;
@@ -200,9 +242,11 @@
             var uniqueSeen = {};
             var nameSeen = {};
             var coordSeen = {};
+            var slugSeen = {};
             var uniqueKey = "";
             var nameKey = "";
             var coordKeyVal = "";
+            var slugKey = "";
             var i = 0;
             var fieldName = "";
 
@@ -263,6 +307,15 @@
                     } else {
                         coordSeen[coordKeyVal] = row.row_number;
                     }
+
+                    slugKey = lCase(trim(toString(row.slug)));
+                    if (len(slugKey)) {
+                        if (structKeyExists(slugSeen, slugKey)) {
+                            arrayAppend(result.ERRORS, issue(row.row_number, "slug", "Slug also appears on row " & slugSeen[slugKey] & "."));
+                        } else {
+                            slugSeen[slugKey] = row.row_number;
+                        }
+                    }
                 }
 
                 for (fieldName in [ "note", "city", "state", "zip", "phone", "vhf" ]) {
@@ -295,15 +348,28 @@
         <cfscript>
             var out = { "fields" = {}, "errors" = [] };
             var specs = [
-                { "field" = "lock_name", "headers" = [ "lock_name" ] },
-                { "field" = "latitude", "headers" = [ "latitude", "lat" ] },
-                { "field" = "longitude", "headers" = [ "longitude", "lng", "lon" ] },
-                { "field" = "note", "headers" = [ "notes", "note" ] },
-                { "field" = "city", "headers" = [ "city" ] },
-                { "field" = "state", "headers" = [ "state", "province" ] },
-                { "field" = "zip", "headers" = [ "zip", "postal_code", "postal" ] },
-                { "field" = "phone", "headers" = [ "phone" ] },
-                { "field" = "vhf", "headers" = [ "vhf_channel", "vhf" ] }
+                { "field" = "lock_name", "headers" = [ "lock_name" ], "required" = true },
+                { "field" = "latitude", "headers" = [ "latitude", "lat" ], "required" = true },
+                { "field" = "longitude", "headers" = [ "longitude", "lng", "lon" ], "required" = true },
+                { "field" = "note", "headers" = [ "notes", "note" ], "required" = true },
+                { "field" = "city", "headers" = [ "city" ], "required" = true },
+                { "field" = "state", "headers" = [ "state", "province" ], "required" = true },
+                { "field" = "zip", "headers" = [ "zip", "postal_code", "postal" ], "required" = true },
+                { "field" = "phone", "headers" = [ "phone" ], "required" = true },
+                { "field" = "vhf", "headers" = [ "vhf_channel", "vhf" ], "required" = true },
+                { "field" = "slug", "headers" = [ "slug", "url_slug" ], "required" = false },
+                { "field" = "waterway", "headers" = [ "waterway", "waterway_system" ], "required" = false },
+                { "field" = "lock_system", "headers" = [ "lock_system", "system" ], "required" = false },
+                { "field" = "operating_authority", "headers" = [ "operating_authority", "authority", "agency" ], "required" = false },
+                { "field" = "country", "headers" = [ "country" ], "required" = false },
+                { "field" = "approach_notes", "headers" = [ "approach_notes", "approach_note" ], "required" = false },
+                { "field" = "operating_notes", "headers" = [ "operating_notes", "operating_note" ], "required" = false },
+                { "field" = "special_instructions", "headers" = [ "special_instructions", "special_instruction", "special_notes" ], "required" = false },
+                { "field" = "source_name", "headers" = [ "source_name", "source" ], "required" = false },
+                { "field" = "source_url", "headers" = [ "source_url", "official_source_url", "url" ], "required" = false },
+                { "field" = "last_reviewed_at", "headers" = [ "last_reviewed_at", "last_reviewed", "reviewed_at" ], "required" = false },
+                { "field" = "is_public", "headers" = [ "is_public", "public", "published" ], "required" = false },
+                { "field" = "sort_order", "headers" = [ "sort_order", "order", "sequence" ], "required" = false }
             ];
             var i = 0;
             var j = 0;
@@ -321,7 +387,7 @@
                 }
                 if (found GT 0) {
                     out.fields[spec.field] = found;
-                } else {
+                } else if (spec.required) {
                     arrayAppend(out.errors, "Missing required header for " & spec.field & ".");
                 }
             }
@@ -346,7 +412,20 @@
                 "state" = cellByIndex(arguments.qSheet, arguments.columns, arguments.fieldMap.state, arguments.rowIndex),
                 "zip" = cellByIndex(arguments.qSheet, arguments.columns, arguments.fieldMap.zip, arguments.rowIndex),
                 "phone" = cellByIndex(arguments.qSheet, arguments.columns, arguments.fieldMap.phone, arguments.rowIndex),
-                "vhf" = cellByIndex(arguments.qSheet, arguments.columns, arguments.fieldMap.vhf, arguments.rowIndex)
+                "vhf" = cellByIndex(arguments.qSheet, arguments.columns, arguments.fieldMap.vhf, arguments.rowIndex),
+                "slug" = optionalCellByField(arguments.qSheet, arguments.columns, arguments.fieldMap, "slug", arguments.rowIndex),
+                "waterway" = optionalCellByField(arguments.qSheet, arguments.columns, arguments.fieldMap, "waterway", arguments.rowIndex),
+                "lock_system" = optionalCellByField(arguments.qSheet, arguments.columns, arguments.fieldMap, "lock_system", arguments.rowIndex),
+                "operating_authority" = optionalCellByField(arguments.qSheet, arguments.columns, arguments.fieldMap, "operating_authority", arguments.rowIndex),
+                "country" = optionalCellByField(arguments.qSheet, arguments.columns, arguments.fieldMap, "country", arguments.rowIndex),
+                "approach_notes" = optionalCellByField(arguments.qSheet, arguments.columns, arguments.fieldMap, "approach_notes", arguments.rowIndex),
+                "operating_notes" = optionalCellByField(arguments.qSheet, arguments.columns, arguments.fieldMap, "operating_notes", arguments.rowIndex),
+                "special_instructions" = optionalCellByField(arguments.qSheet, arguments.columns, arguments.fieldMap, "special_instructions", arguments.rowIndex),
+                "source_name" = optionalCellByField(arguments.qSheet, arguments.columns, arguments.fieldMap, "source_name", arguments.rowIndex),
+                "source_url" = optionalCellByField(arguments.qSheet, arguments.columns, arguments.fieldMap, "source_url", arguments.rowIndex),
+                "last_reviewed_at" = optionalCellByField(arguments.qSheet, arguments.columns, arguments.fieldMap, "last_reviewed_at", arguments.rowIndex),
+                "is_public" = optionalCellByField(arguments.qSheet, arguments.columns, arguments.fieldMap, "is_public", arguments.rowIndex),
+                "sort_order" = optionalCellByField(arguments.qSheet, arguments.columns, arguments.fieldMap, "sort_order", arguments.rowIndex)
             };
 
             row.lock_name = trimText(row.lock_name);
@@ -358,6 +437,19 @@
             row.zip = trimText(row.zip);
             row.phone = trimText(row.phone);
             row.vhf = trimText(row.vhf);
+            row.slug = normalizeSlug(row.slug);
+            row.waterway = trimText(row.waterway);
+            row.lock_system = trimText(row.lock_system);
+            row.operating_authority = trimText(row.operating_authority);
+            row.country = uCase(left(trimText(row.country), 2));
+            row.approach_notes = trimText(row.approach_notes);
+            row.operating_notes = trimText(row.operating_notes);
+            row.special_instructions = trimText(row.special_instructions);
+            row.source_name = trimText(row.source_name);
+            row.source_url = trimText(row.source_url);
+            row.last_reviewed_at = trimText(row.last_reviewed_at);
+            row.is_public = boolLike(row.is_public, true) ? "1" : "0";
+            row.sort_order = trimText(row.sort_order);
 
             if (isNumeric(row.latitude)) {
                 row.latitude = numberFormat(val(row.latitude), "0.000000");
@@ -418,6 +510,18 @@
             } else if (val(arguments.row.longitude) LT -180 OR val(arguments.row.longitude) GT 180) {
                 arrayAppend(arguments.errors, issue(rowNumber, "longitude", "Longitude must be between -180 and 180."));
             }
+            if (boolLike((structKeyExists(arguments.row, "is_public") ? arguments.row.is_public : ""), false)
+                AND !len(trim(toString(structKeyExists(arguments.row, "slug") ? arguments.row.slug : "")))) {
+                arrayAppend(arguments.errors, issue(rowNumber, "slug", "Slug is required when a row is marked public."));
+            }
+            if (len(trim(toString(structKeyExists(arguments.row, "last_reviewed_at") ? arguments.row.last_reviewed_at : "")))
+                AND !isDate(arguments.row.last_reviewed_at)) {
+                arrayAppend(arguments.errors, issue(rowNumber, "last_reviewed_at", "Last reviewed date must be a valid date."));
+            }
+            if (len(trim(toString(structKeyExists(arguments.row, "sort_order") ? arguments.row.sort_order : "")))
+                AND !isNumeric(arguments.row.sort_order)) {
+                arrayAppend(arguments.errors, issue(rowNumber, "sort_order", "Sort order must be numeric when provided."));
+            }
         </cfscript>
     </cffunction>
 
@@ -432,7 +536,34 @@
                 AND !len(arguments.row.state)
                 AND !len(arguments.row.zip)
                 AND !len(arguments.row.phone)
-                AND !len(arguments.row.vhf);
+                AND !len(arguments.row.vhf)
+                AND !len(arguments.row.slug)
+                AND !len(arguments.row.waterway)
+                AND !len(arguments.row.lock_system)
+                AND !len(arguments.row.operating_authority)
+                AND !len(arguments.row.country)
+                AND !len(arguments.row.approach_notes)
+                AND !len(arguments.row.operating_notes)
+                AND !len(arguments.row.special_instructions)
+                AND !len(arguments.row.source_name)
+                AND !len(arguments.row.source_url)
+                AND !len(arguments.row.last_reviewed_at)
+                AND !boolLike(arguments.row.is_public, false)
+                AND !len(arguments.row.sort_order);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="optionalCellByField" access="private" returntype="string" output="false">
+        <cfargument name="qSheet" type="query" required="true">
+        <cfargument name="columns" type="array" required="true">
+        <cfargument name="fieldMap" type="struct" required="true">
+        <cfargument name="fieldName" type="string" required="true">
+        <cfargument name="rowIndex" type="numeric" required="true">
+        <cfscript>
+            if (!structKeyExists(arguments.fieldMap, arguments.fieldName)) {
+                return "";
+            }
+            return cellByIndex(arguments.qSheet, arguments.columns, arguments.fieldMap[arguments.fieldName], arguments.rowIndex);
         </cfscript>
     </cffunction>
 
@@ -469,6 +600,31 @@
             txt = replace(txt, chr(13) & chr(10), chr(10), "all");
             txt = replace(txt, chr(13), chr(10), "all");
             return txt;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeSlug" access="private" returntype="string" output="false">
+        <cfargument name="value" type="any" required="false" default="">
+        <cfscript>
+            var slug = lCase(trimText(arguments.value));
+            slug = replace(slug, "&", " and ", "all");
+            slug = reReplace(slug, "[^a-z0-9]+", "-", "all");
+            slug = reReplace(slug, "-{2,}", "-", "all");
+            slug = reReplace(slug, "(^-|-$)", "", "all");
+            return left(slug, 180);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="boolLike" access="private" returntype="boolean" output="false">
+        <cfargument name="value" type="any" required="false" default="">
+        <cfargument name="defaultValue" type="boolean" required="false" default="false">
+        <cfscript>
+            var txt = lCase(trimText(arguments.value));
+            if (!len(txt)) return arguments.defaultValue;
+            if (listFindNoCase("1,true,yes,y,on", txt)) return true;
+            if (listFindNoCase("0,false,no,n,off", txt)) return false;
+            if (isNumeric(txt)) return (val(txt) NEQ 0);
+            return arguments.defaultValue;
         </cfscript>
     </cffunction>
 
@@ -538,6 +694,94 @@
                 "cfsqltype" = "cf_sql_decimal",
                 "scale" = 6
             };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="sqlNullableDate" access="private" returntype="struct" output="false">
+        <cfargument name="value" type="any" required="true">
+        <cfscript>
+            var txt = trimText(arguments.value);
+            if (!len(txt) OR !isDate(txt)) {
+                return {
+                    "value" = "",
+                    "cfsqltype" = "cf_sql_date",
+                    "null" = true
+                };
+            }
+            return {
+                "value" = dateFormat(txt, "yyyy-mm-dd"),
+                "cfsqltype" = "cf_sql_date"
+            };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="sqlNullableInt" access="private" returntype="struct" output="false">
+        <cfargument name="value" type="any" required="true">
+        <cfscript>
+            var txt = trimText(arguments.value);
+            if (!len(txt) OR !isNumeric(txt)) {
+                return {
+                    "value" = "",
+                    "cfsqltype" = "cf_sql_integer",
+                    "null" = true
+                };
+            }
+            return {
+                "value" = val(txt),
+                "cfsqltype" = "cf_sql_integer"
+            };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="sqlBoolean" access="private" returntype="struct" output="false">
+        <cfargument name="value" type="any" required="true">
+        <cfscript>
+            return {
+                "value" = boolLike(arguments.value, false) ? 1 : 0,
+                "cfsqltype" = "cf_sql_tinyint"
+            };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="optionalRowValue" access="private" returntype="string" output="false">
+        <cfargument name="row" type="struct" required="true">
+        <cfargument name="fieldName" type="string" required="true">
+        <cfscript>
+            if (!structKeyExists(arguments.row, arguments.fieldName) OR isNull(arguments.row[arguments.fieldName])) {
+                return "";
+            }
+            return trimText(arguments.row[arguments.fieldName]);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getColumnFlags" access="private" returntype="struct" output="false">
+        <cfargument name="columnNames" type="array" required="true">
+        <cfscript>
+            var out = {};
+            var qColumns = queryNew("");
+            var i = 0;
+            var columnName = "";
+
+            for (i = 1; i LTE arrayLen(arguments.columnNames); i++) {
+                out[arguments.columnNames[i]] = false;
+            }
+
+            qColumns = queryExecute(
+                "SELECT column_name
+                 FROM information_schema.columns
+                 WHERE table_schema = DATABASE()
+                   AND table_name = 'great_loop_locks'",
+                {},
+                { datasource = getDatasource() }
+            );
+
+            for (i = 1; i LTE qColumns.recordCount; i++) {
+                columnName = lCase(trim(toString(qColumns.column_name[i])));
+                if (structKeyExists(out, columnName)) {
+                    out[columnName] = true;
+                }
+            }
+            return out;
         </cfscript>
     </cffunction>
 

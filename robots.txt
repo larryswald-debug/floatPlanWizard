@@ -10,8 +10,8 @@ Disallow: /error.cfm
 Disallow: /BingSiteAuth.xml
 Disallow: /archive/
 Disallow: /includes/
-Disallow: /app/
-Disallow: /assets/
+
+
 Disallow: /downloads/
 Disallow: /admin/
 Disallow: /api/
@@ -24,4 +24,4 @@ Disallow: /scripts/
 Disallow: /tmp/
 Disallow: /_fpw_private/
 Disallow: /.settings/
-SITEMAP: https://www.floatplanwizard.com/sitemap.xml
+Sitemap: https://floatplanwizard.com/sitemap.xml

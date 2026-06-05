@@ -264,7 +264,7 @@ if (structKeyExists(session, sessionKey) AND isStruct(session[sessionKey])) {
           <div class="mb-3">
             <label for="locksFile" class="form-label">Great Loop locks XLSX</label>
             <input type="file" class="form-control" id="locksFile" name="locksFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
-            <div class="form-text">Required sheet: Locks. Maximum file size: 5 MB. The upload is parsed into a preview before any database write is available.</div>
+            <div class="form-text">Required sheet: Locks. Maximum file size: 5 MB. Optional public-library columns are previewed when present. The upload is parsed into a preview before any database write is available.</div>
           </div>
           <button type="submit" name="previewImport" value="1" class="btn btn-primary-dark">Preview Import</button>
         </form>
@@ -342,6 +342,16 @@ if (structKeyExists(session, sessionKey) AND isStruct(session[sessionKey])) {
                   <th>Zip</th>
                   <th>Phone</th>
                   <th>VHF</th>
+                  <th>Slug</th>
+                  <th>Waterway</th>
+                  <th>Lock System</th>
+                  <th>Authority</th>
+                  <th>Country</th>
+                  <th>Source</th>
+                  <th>Source URL</th>
+                  <th>Last Reviewed</th>
+                  <th>Public</th>
+                  <th>Sort</th>
                 </tr>
               </thead>
               <tbody>
@@ -358,6 +368,16 @@ if (structKeyExists(session, sessionKey) AND isStruct(session[sessionKey])) {
                       <td>#encodeForHtml(rowItem.zip)#</td>
                       <td>#encodeForHtml(rowItem.phone)#</td>
                       <td>#encodeForHtml(rowItem.vhf)#</td>
+                      <td>#encodeForHtml(structKeyExists(rowItem, "slug") ? rowItem.slug : "")#</td>
+                      <td>#encodeForHtml(structKeyExists(rowItem, "waterway") ? rowItem.waterway : "")#</td>
+                      <td>#encodeForHtml(structKeyExists(rowItem, "lock_system") ? rowItem.lock_system : "")#</td>
+                      <td>#encodeForHtml(structKeyExists(rowItem, "operating_authority") ? rowItem.operating_authority : "")#</td>
+                      <td>#encodeForHtml(structKeyExists(rowItem, "country") ? rowItem.country : "")#</td>
+                      <td>#encodeForHtml(structKeyExists(rowItem, "source_name") ? rowItem.source_name : "")#</td>
+                      <td>#encodeForHtml(structKeyExists(rowItem, "source_url") ? rowItem.source_url : "")#</td>
+                      <td>#encodeForHtml(structKeyExists(rowItem, "last_reviewed_at") ? rowItem.last_reviewed_at : "")#</td>
+                      <td>#encodeForHtml(structKeyExists(rowItem, "is_public") ? rowItem.is_public : "")#</td>
+                      <td>#encodeForHtml(structKeyExists(rowItem, "sort_order") ? rowItem.sort_order : "")#</td>
                     </tr>
                   </cfoutput>
                 </cfloop>
