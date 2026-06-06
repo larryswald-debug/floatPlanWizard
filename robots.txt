@@ -1,27 +1,86 @@
 User-agent: *
+Allow: /
+
+# Public SEO sections and assets
+Allow: /assets/
+Allow: /great-loop/
+Allow: /boat-fuel-calculator/
+Allow: /how-it-works/
+Allow: /why-use-a-float-plan/
+Allow: /app/pricing.cfm
+Allow: /app/join.cfm
+Allow: /app/contact.cfm
+Allow: /app/fuel-calculator.cfm
+
+# Archived and retired content
 Disallow: /scheduelTasks_admin/
 Disallow: /original_site/
 Disallow: /Archive_20220123/
 Disallow: /archive_09052021/
 Disallow: /archive_20210710/
 Disallow: /archive_20201227/
-Disallow: /test.cfm
-Disallow: /error.cfm
-Disallow: /BingSiteAuth.xml
 Disallow: /archive/
-Disallow: /includes/
+Disallow: /fpw_great_loop_clockwise/
 
-
-Disallow: /downloads/
+# Private/admin/application internals
 Disallow: /admin/
 Disallow: /api/
-Disallow: /follow/
+Disallow: /tests/
+Disallow: /testbox/
+Disallow: /dev/
 Disallow: /debug-test/
-Disallow: /floatplans/
-Disallow: /fpw_great_loop_clockwise/
+Disallow: /includes/
 Disallow: /logs/
 Disallow: /scripts/
+Disallow: /sql/
+Disallow: /db/
 Disallow: /tmp/
+Disallow: /downloads/
+Disallow: /documents/
+Disallow: /outputs/
+Disallow: /snapshots/
 Disallow: /_fpw_private/
+Disallow: /_codex_snapshots/
+Disallow: /.codex-db-backups/
+Disallow: /.codex-snapshots/
+Disallow: /.git/
+Disallow: /.github/
 Disallow: /.settings/
+Disallow: /test.cfm
+Disallow: /error.cfm
+
+# Authenticated/member-only app pages
+Disallow: /app/account.cfm
+Disallow: /app/dashboard.cfm
+Disallow: /app/active-cruise.cfm
+Disallow: /app/active-cruise-v2.cfm
+Disallow: /app/monitor.cfm
+Disallow: /app/monitoring.cfm
+Disallow: /app/floatplan-wizard.cfm
+Disallow: /app/follow.cfm
+Disallow: /app/follow-full-map.cfm
+Disallow: /app/reset.cfm
+Disallow: /app/reset-password.cfm
+Disallow: /app/forgot.cfm
+Disallow: /app/forgot-password.cfm
+Disallow: /app/login.cfm
+Disallow: /app/logout.cfm
+Disallow: /app/weather.cfm
+Disallow: /app/samples/
+Disallow: /app/scheduled/
+
+# Shared trip and generated float plan paths
+Disallow: /follow/
+Disallow: /floatplans/
+Disallow: /floatPlans/
+
+# Sensitive or tokenized URLs
+Disallow: /*?*token=
+Disallow: /*?*reset=
+Disallow: /*?*key=
+Disallow: /*?*session=
+Disallow: /*?*auth=
+Disallow: /*?*invite=
+Disallow: /*?*shareToken=
+
 Sitemap: https://floatplanwizard.com/sitemap.xml

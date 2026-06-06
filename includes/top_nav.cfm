@@ -1,5 +1,6 @@
 <cfscript>
 topNavBasePath = "";
+topNavHasRequestBase = false;
 topNavHost = "";
 topNavIsProduction = false;
 topNavActive = "";
@@ -13,14 +14,16 @@ topNavLastName = "";
 topNavEmail = "";
 
 if (structKeyExists(request, "fpwBase")) {
+  topNavHasRequestBase = true;
   topNavBasePath = trim(toString(request.fpwBase));
 }
 
-if (!len(topNavBasePath) AND structKeyExists(cgi, "script_name")) {
+if (!topNavHasRequestBase AND !len(topNavBasePath) AND structKeyExists(cgi, "script_name")) {
   topNavBasePath = trim(toString(cgi.script_name));
   topNavBasePath = reReplace(topNavBasePath, "[?##].*$", "");
   topNavBasePath = replace(topNavBasePath, "\\", "/", "all");
   topNavBasePath = reReplaceNoCase(topNavBasePath, "/api/v1(/.*)?$", "");
+  topNavBasePath = reReplaceNoCase(topNavBasePath, "/great-loop/locks(/.*)?$", "");
   topNavBasePath = reReplaceNoCase(topNavBasePath, "/(app|admin|assets|tests)(/.*)?$", "");
   topNavBasePath = reReplaceNoCase(topNavBasePath, "/boat-fuel-calculator/boat-fuel-calculator\.cfm$", "");
   topNavBasePath = reReplaceNoCase(topNavBasePath, "/[^/]*\.(cfm|cfc)$", "");

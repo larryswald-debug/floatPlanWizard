@@ -11,7 +11,23 @@
 
 <meta name="description" content="Use FloatPlanWizard's Boat Fuel Calculator to estimate fuel usage, reserve fuel, travel time, and trip cost for your next boating trip. Plan smarter and safer before you leave the dock.">
 
-<link rel="canonical" href="https://floatplanwizard.com/boat-fuel-calculator/boat-fuel-calculator.cfm">
+<link rel="canonical" href="https://floatplanwizard.com/boat-fuel-calculator/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FloatPlanWizard">
+<meta property="og:url" content="https://floatplanwizard.com/boat-fuel-calculator/">
+<meta property="og:title" content="Boat Fuel Calculator | Estimate Fuel Use for Your Next Trip | FloatPlanWizard">
+<meta property="og:description" content="Estimate boating fuel usage, reserve fuel, travel time, and trip cost with FloatPlanWizard's Boat Fuel Calculator.">
+<meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+<meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Boat Fuel Calculator | FloatPlanWizard">
+<meta name="twitter:description" content="Estimate boating fuel usage, reserve fuel, travel time, and trip cost with FloatPlanWizard's Boat Fuel Calculator.">
+<meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+<meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
     :root {

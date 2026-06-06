@@ -330,22 +330,27 @@ fpwShowMemberRequiredNotice = (
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FloatPlanWizard | Boat Trip Planner, Float Plans & Shared Trip Updates</title>
 
-<meta name="description" content="Plan safer boat trips with FloatPlanWizard. Create float plans, organize route details, estimate fuel needs, and share trip updates with family and friends. Join the prelaunch list.">
+<meta name="description" content="Plan safer boat trips with FloatPlanWizard: create float plans, map routes, estimate fuel, check marine weather, and share trip updates with family and friends.">
 
 <link rel="canonical" href="https://floatplanwizard.com/">
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="FloatPlanWizard">
 <meta property="og:url" content="https://floatplanwizard.com/">
-<meta property="og:title" content="FloatPlanWizard">
-<meta property="og:description" content="Boat trip planning, Monitored Float Plans, Active Cruise pages, and shared Trip pages.">
+<meta property="og:title" content="FloatPlanWizard | Boat Trip Planner, Float Plans & Shared Trip Updates">
+<meta property="og:description" content="Plan safer boat trips with FloatPlanWizard: create float plans, map routes, estimate fuel, check marine weather, and share trip updates with family and friends.">
 
 <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
 <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
-<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="FloatPlanWizard | Boat Trip Planner, Float Plans & Shared Trip Updates">
+<meta name="twitter:description" content="Plan safer boat trips with FloatPlanWizard: create float plans, map routes, estimate fuel, check marine weather, and share trip updates with family and friends.">
+<meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+<meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
 
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">

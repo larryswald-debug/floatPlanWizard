@@ -3,8 +3,26 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Create FloatPlan Wizard Account</title>
+    <title>Create Your Free FloatPlanWizard Account</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Create your free FloatPlanWizard account to build float plans, organize boat trips, plan routes, and share trip updates with trusted contacts.">
+    <link rel="canonical" href="https://floatplanwizard.com/app/join.cfm">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="FloatPlanWizard">
+    <meta property="og:url" content="https://floatplanwizard.com/app/join.cfm">
+    <meta property="og:title" content="Create Your Free FloatPlanWizard Account">
+    <meta property="og:description" content="Create your free FloatPlanWizard account to build float plans, organize boat trips, plan routes, and share trip updates.">
+    <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+    <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Create Your Free FloatPlanWizard Account">
+    <meta name="twitter:description" content="Create your free FloatPlanWizard account to build float plans, organize boat trips, plan routes, and share trip updates.">
+    <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+    <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
 
     <cfinclude template="../includes/header_styles.cfm">
     <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/auth-pages.css?v=20260530-signup-no-benefit-line">

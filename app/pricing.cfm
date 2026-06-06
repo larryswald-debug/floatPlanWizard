@@ -3,8 +3,26 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Membership Plans</title>
+  <title>Membership Plans | FloatPlanWizard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Compare FloatPlanWizard membership options for creating float plans, planning boat routes, sharing trip updates, and using premium boating tools.">
+  <link rel="canonical" href="https://floatplanwizard.com/app/pricing.cfm">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="FloatPlanWizard">
+  <meta property="og:url" content="https://floatplanwizard.com/app/pricing.cfm">
+  <meta property="og:title" content="Membership Plans | FloatPlanWizard">
+  <meta property="og:description" content="Compare FloatPlanWizard membership options for float plans, route planning, shared trip updates, and premium boating tools.">
+  <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+  <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Membership Plans | FloatPlanWizard">
+  <meta name="twitter:description" content="Compare FloatPlanWizard membership options for float plans, route planning, shared trip updates, and premium boating tools.">
+  <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+  <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
 
   <cfinclude template="../includes/fpw_base_path.cfm">
   <cfinclude template="../includes/header_styles.cfm">

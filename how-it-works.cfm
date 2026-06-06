@@ -39,6 +39,22 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>How It Works | FloatPlanWizard</title>
   <meta name="description" content="See how FloatPlanWizard helps boaters plan routes, create float plans, share trip details, and keep trusted contacts informed.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="FloatPlanWizard">
+  <meta property="og:url" content="https://floatplanwizard.com/how-it-works/">
+  <meta property="og:title" content="How It Works | FloatPlanWizard">
+  <meta property="og:description" content="See how FloatPlanWizard helps boaters plan routes, create float plans, share trip details, and keep trusted contacts informed.">
+  <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+  <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="How It Works | FloatPlanWizard">
+  <meta name="twitter:description" content="See how FloatPlanWizard helps boaters plan routes, create float plans, share trip details, and keep trusted contacts informed.">
+  <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+  <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
   
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -818,7 +834,7 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
       }
     }
   </style>
-  <link rel="canonical" href="https://www.floatplanwizard.com/how-it-works/" />
+<link rel="canonical" href="https://floatplanwizard.com/how-it-works/" />
 <cfoutput><link rel="stylesheet" href="#fpwHowBasePath#/assets/css/top-nav.css?v=20260530-nav-cta"></cfoutput>
 </head>
 <body id="top" class="fpw-how-body">

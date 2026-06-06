@@ -1201,11 +1201,65 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="normalizeFilesystemPath" access="private" returntype="string" output="false">
+        <cfargument name="path" type="string" required="true">
+        <cfscript>
+            var normalized = replace(trim(arguments.path), chr(92), "/", "all");
+            var prefix = "";
+            var parts = [];
+            var stack = [];
+            var part = "";
+            var i = 0;
+
+            if (left(normalized, 2) EQ "//") {
+                prefix = "//";
+                normalized = mid(normalized, 3, len(normalized));
+            } else if (len(normalized) GTE 2 AND mid(normalized, 2, 1) EQ ":") {
+                prefix = left(normalized, 2);
+                normalized = mid(normalized, 3, len(normalized));
+                if (left(normalized, 1) EQ "/") {
+                    normalized = mid(normalized, 2, len(normalized));
+                }
+            } else if (left(normalized, 1) EQ "/") {
+                prefix = "/";
+                normalized = mid(normalized, 2, len(normalized));
+            }
+
+            parts = listToArray(normalized, "/");
+            for (i = 1; i LTE arrayLen(parts); i++) {
+                part = parts[i];
+                if (!len(part) OR part EQ ".") {
+                    continue;
+                }
+                if (part EQ "..") {
+                    if (arrayLen(stack)) {
+                        arrayDeleteAt(stack, arrayLen(stack));
+                    } else if (!len(prefix)) {
+                        arrayAppend(stack, part);
+                    }
+                } else {
+                    arrayAppend(stack, part);
+                }
+            }
+
+            normalized = arrayToList(stack, "/");
+            if (prefix EQ "/") {
+                return "/" & normalized;
+            }
+            if (prefix EQ "//") {
+                return "//" & normalized;
+            }
+            if (len(prefix)) {
+                return prefix & (len(normalized) ? "/" & normalized : "");
+            }
+            return normalized;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="getLockImageRootPath" access="private" returntype="string" output="false">
         <cfscript>
             var serviceDir = getDirectoryFromPath(getCurrentTemplatePath());
-            var fileObj = createObject("java", "java.io.File").init(serviceDir & "../../assets/images/great-loop-locks");
-            return replace(fileObj.getCanonicalPath(), chr(92), "/", "all");
+            return normalizeFilesystemPath(serviceDir & "../../assets/images/great-loop-locks");
         </cfscript>
     </cffunction>
 
@@ -1219,7 +1273,7 @@
         <cfargument name="path" type="string" required="true">
         <cfscript>
             if (!directoryExists(arguments.path)) {
-                directoryCreate(arguments.path, true);
+                directoryCreate(arguments.path);
             }
         </cfscript>
     </cffunction>
@@ -1257,11 +1311,11 @@
             }
 
             try {
-                canonicalRoot = replace(createObject("java", "java.io.File").init(arguments.rootPath).getCanonicalPath(), chr(92), "/", "all");
-                canonicalFile = replace(createObject("java", "java.io.File").init(arguments.filePath).getCanonicalPath(), chr(92), "/", "all");
-                rootPrefix = reReplace(canonicalRoot, "/+$", "", "all") & "/";
+                canonicalRoot = reReplace(normalizeFilesystemPath(arguments.rootPath), "/+$", "", "all");
+                canonicalFile = normalizeFilesystemPath(arguments.filePath);
+                rootPrefix = canonicalRoot & "/";
 
-                if (left(canonicalFile, len(rootPrefix)) NEQ rootPrefix) {
+                if (find("/../", "/" & canonicalFile & "/") OR left(canonicalFile, len(rootPrefix)) NEQ rootPrefix) {
                     return false;
                 }
 

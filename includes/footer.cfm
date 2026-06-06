@@ -1,14 +1,19 @@
 <cfscript>
 footerBasePath = "";
+footerHasRequestBase = false;
 
 if (structKeyExists(request, "fpwBase")) {
+  footerHasRequestBase = true;
   footerBasePath = trim(toString(request.fpwBase));
 }
 
-if (!len(footerBasePath) AND structKeyExists(cgi, "script_name")) {
+if (!footerHasRequestBase AND !len(footerBasePath) AND structKeyExists(cgi, "script_name")) {
   footerScriptName = replace(trim(toString(cgi.script_name)), "\\", "/", "all");
   footerMarkerPos = findNoCase("/app/", footerScriptName);
 
+  if (!footerMarkerPos) {
+    footerMarkerPos = findNoCase("/great-loop/locks/", footerScriptName);
+  }
   if (!footerMarkerPos) {
     footerMarkerPos = findNoCase("/boat-fuel-calculator/", footerScriptName);
   }
@@ -234,8 +239,8 @@ if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
 
       <nav class="fpw-footer-col" aria-label="Legal and safety">
         <h3>Legal</h3>
-        <a href="../terms_of_service.cfm">Terms of Service</a>
-        <a href="../privacy_policy.cfm">Privacy Policy</a>
+        <a href="#footerBasePath#/terms_of_service.cfm">Terms of Service</a>
+        <a href="#footerBasePath#/privacy_policy.cfm">Privacy Policy</a>
       </nav>
     </div>
 
