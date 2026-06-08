@@ -241,6 +241,7 @@ if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
         <h3>Legal</h3>
         <a href="#footerBasePath#/terms_of_service.cfm">Terms of Service</a>
         <a href="#footerBasePath#/privacy_policy.cfm">Privacy Policy</a>
+        <a href="#footerBasePath#/press.cfm">Press &amp; Media</a>
       </nav>
     </div>
 
