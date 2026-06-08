@@ -11,7 +11,7 @@ if (!structKeyExists(request, "fpwBase") OR isNull(request.fpwBase)) {
   fpwBaseCandidate = reReplace(fpwBaseCandidate, "[?##].*$", "");
   fpwBaseCandidate = replace(fpwBaseCandidate, "\", "/", "all");
   fpwBaseCandidate = reReplaceNoCase(fpwBaseCandidate, "/api/v1(/.*)?$", "");
-  fpwBaseCandidate = reReplaceNoCase(fpwBaseCandidate, "/great-loop/locks(/.*)?$", "");
+  fpwBaseCandidate = reReplaceNoCase(fpwBaseCandidate, "/great-loop(/.*)?$", "");
   fpwBaseCandidate = reReplaceNoCase(fpwBaseCandidate, "/press(/.*)?$", "");
   fpwBaseCandidate = reReplaceNoCase(fpwBaseCandidate, "/(app|admin|assets|tests)(/.*)?$", "");
   fpwBaseCandidate = reReplaceNoCase(fpwBaseCandidate, "/[^/]*\.(cfm|cfc)$", "");

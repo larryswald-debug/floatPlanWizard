@@ -12,7 +12,7 @@ if (!footerHasRequestBase AND !len(footerBasePath) AND structKeyExists(cgi, "scr
   footerMarkerPos = findNoCase("/app/", footerScriptName);
 
   if (!footerMarkerPos) {
-    footerMarkerPos = findNoCase("/great-loop/locks/", footerScriptName);
+    footerMarkerPos = findNoCase("/great-loop/", footerScriptName);
   }
   if (!footerMarkerPos) {
     footerMarkerPos = findNoCase("/boat-fuel-calculator/", footerScriptName);
@@ -224,6 +224,7 @@ if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
         <a href="#footerBasePath#/app/dashboard.cfm">Dashboard</a>
         <a href="#footerBasePath#/app/help.cfm">Help Center</a>
         <a href="#footerBasePath#/great-loop/locks/">Great Loop Locks</a>
+        <a href="#footerBasePath#/great-loop/bridges.cfm">Great Loop Bridges</a>
         <a href="#footerBasePath#/app/weather.cfm">Marine Weather</a>
         <a href="#footerBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm">Fuel Calculator</a>
         <a href="#footerBasePath#/app/pricing.cfm">Memberships</a>

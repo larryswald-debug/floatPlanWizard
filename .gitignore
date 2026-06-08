@@ -49,6 +49,14 @@ temp/
 *.rollback-*
 *.bak*
 
+# ===== User-requested ignored file types =====
+*.jpg
+*.png
+*.jpeg
+*.xlsx
+*.sql
+*.csv
+
 # ===== Tests =====
 test*/
 .playwright-mcp/
@@ -97,4 +105,3 @@ tmp/
 *.log
 *.bak
 *.snapshot-*
-

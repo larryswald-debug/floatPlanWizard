@@ -773,6 +773,218 @@ fpwShowMemberRequiredNotice = (
         radial-gradient(circle at 70% 10%, rgba(71,199,255,0.1), transparent 0 30%);
     }
 
+    .fpw-hero-product-preview {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      isolation: isolate;
+    }
+
+    .fpw-hero-product-preview::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background:
+        radial-gradient(circle at 82% 4%, rgba(71, 199, 255, 0.16), transparent 0 28%),
+        radial-gradient(circle at 14% 78%, rgba(24, 242, 210, 0.08), transparent 0 26%);
+      pointer-events: none;
+    }
+
+    .fpw-preview-header {
+      display: grid;
+      gap: 9px;
+    }
+
+    .fpw-preview-eyebrow {
+      margin: 0;
+      color: #8ff3ff;
+      font-size: 0.74rem;
+      font-weight: 850;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .fpw-preview-header h2 {
+      margin: 0;
+      font-size: clamp(1.5rem, 2.2vw, 2.05rem);
+      line-height: 1.05;
+      letter-spacing: -0.035em;
+    }
+
+    .fpw-preview-header p:last-child {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.96rem;
+    }
+
+    .fpw-preview-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .fpw-preview-tab {
+      min-height: 42px;
+      border: 1px solid rgba(130, 186, 226, 0.2);
+      border-radius: 12px;
+      background: rgba(4, 18, 31, 0.72);
+      color: #d9e7f5;
+      font: inherit;
+      font-size: 0.86rem;
+      font-weight: 800;
+      line-height: 1.1;
+      cursor: pointer;
+      transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+    }
+
+    .fpw-preview-tab:hover,
+    .fpw-preview-tab:focus-visible {
+      color: #ffffff;
+      border-color: rgba(69, 224, 220, 0.74);
+      background: rgba(9, 36, 59, 0.86);
+      outline: none;
+    }
+
+    .fpw-preview-tab.is-active {
+      color: #ffffff;
+      border-color: rgba(69, 224, 220, 0.9);
+      background: linear-gradient(180deg, rgba(13, 57, 88, 0.92), rgba(4, 28, 48, 0.92));
+      box-shadow: 0 0 0 1px rgba(69, 224, 220, 0.12) inset, 0 10px 22px rgba(0, 0, 0, 0.22);
+    }
+
+    .fpw-preview-browser-frame {
+      display: flex;
+      flex: 1 1 auto;
+      min-height: 0;
+      flex-direction: column;
+      border-radius: 22px;
+      border: 1px solid rgba(130, 186, 226, 0.18);
+      background:
+        linear-gradient(180deg, rgba(3, 12, 18, 0.86), rgba(7, 19, 28, 0.9)),
+        radial-gradient(circle at 80% 10%, rgba(71, 199, 255, 0.08), transparent 0 30%);
+      overflow: hidden;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 30px 60px rgba(0, 0, 0, 0.34);
+    }
+
+    .fpw-preview-browser-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 0 16px;
+      border-bottom: 1px solid rgba(130, 186, 226, 0.13);
+      background: rgba(1, 9, 16, 0.54);
+    }
+
+    .fpw-preview-browser-bar span {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: rgba(130, 186, 226, 0.34);
+    }
+
+    .fpw-preview-browser-bar span:nth-child(1) {
+      background: #ff5f57;
+    }
+
+    .fpw-preview-browser-bar span:nth-child(2) {
+      background: #ffbd2e;
+    }
+
+    .fpw-preview-browser-bar span:nth-child(3) {
+      background: #28c840;
+    }
+
+    .fpw-preview-screen {
+      display: none;
+      flex: 1 1 auto;
+      min-height: 0;
+      flex-direction: column;
+    }
+
+    .fpw-preview-screen.is-active {
+      display: flex;
+    }
+
+    .fpw-preview-screen[hidden] {
+      display: none;
+    }
+
+    .fpw-preview-image-wrap {
+      position: relative;
+      aspect-ratio: 120 / 76;
+      min-height: 246px;
+      background: rgba(1, 10, 18, 0.75);
+      overflow: hidden;
+    }
+
+    .fpw-preview-image-wrap::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent 56%, rgba(2, 13, 23, 0.2) 100%);
+      pointer-events: none;
+    }
+
+    .fpw-preview-image-wrap img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: fill;
+      object-position: top left;
+    }
+
+    .fpw-preview-caption {
+      display: grid;
+      gap: 7px;
+      padding: 15px 16px 16px;
+      border-top: 1px solid rgba(130, 186, 226, 0.12);
+      background: rgba(3, 15, 26, 0.76);
+    }
+
+    .fpw-preview-caption h3 {
+      margin: 0;
+      font-size: 1.02rem;
+      letter-spacing: -0.015em;
+    }
+
+    .fpw-preview-caption p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    .fpw-preview-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .fpw-preview-actions .btn {
+      min-height: 44px;
+      padding: 0.72rem 1.18rem;
+      font-size: 0.94rem;
+    }
+
+    .fpw-preview-link {
+      color: #aeeefb;
+      font-size: 0.92rem;
+      font-weight: 750;
+      text-decoration: none;
+    }
+
+    .fpw-preview-link:hover,
+    .fpw-preview-link:focus-visible {
+      color: #ffffff;
+      text-decoration: underline;
+      outline: none;
+    }
+
     .mockup {
       position: relative;
       height: 100%;
@@ -2801,56 +3013,71 @@ fpwShowMemberRequiredNotice = (
           </div>
         </div>
 
-        <div class="panel hero-visual" aria-hidden="true">
-          <div class="mockup">
-            <div class="mockup-top">
-              <div class="dots"><span></span><span></span><span></span></div>
-              <div>Active Cruise Command Center</div>
-            </div>
-            <div class="mockup-body">
-              <div class="stack">
-                <div class="card">
-                  <h3>Upcoming Voyage</h3>
-                  <p>Organize the trip, route, departure timing, monitoring, and shared trip page access before leaving the dock.</p>
-                  <div class="route-lines">
-                    <div class="route-line"><i></i><div>Tarpon Springs Departure</div><small>08:00</small></div>
-                    <div class="route-line"><i></i><div>Fuel / Weather Check</div><small>10:30</small></div>
-                    <div class="route-line"><i></i><div>Overnight Anchorage</div><small>17:15</small></div>
-                    <div class="route-line"><i></i><div>Morning Leg Resume</div><small>07:00</small></div>
-                  </div>
-                </div>
-                <div class="card follower-view-card">
-                  <h3>Share the Trip</h3>
-                  <p>Private shared trip page for family and friends to see planned route, key stops, and progress updates.</p>
-                  <div class="follower-view-stats">
-                    <div class="stat"><strong>24/7</strong><span>peace of mind</span></div>
-                    <div class="stat"><strong>Loop</strong><span>friendly tools</span></div>
-                    <div class="stat"><strong>1 link</strong><span>easy to share</span></div>
-                  </div>
-                </div>
-              </div>
-              <div class="stack">
-                <div class="gauge">
-                  <div class="ring">
-                    <div>
-                      <strong>82%</strong>
-                      <span>Trip Progress</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="card">
-                  <h3>Route Builder Snapshot</h3>
-                  <p>Visual planning tools for pace, route timing, trip structure, and long-distance cruise organization.</p>
-                  <div class="signal-box">
-                    <div class="signal"><b>Float Plan Status</b><span class="pill pill-ready">On Time</span></div>
-                    <div class="signal"><b>Stream Enabled</b><span class="pill pill-track">Tracking</span></div>
-                    <div class="signal"><b>Current Route</b><span class="pill pill-loop">Great Loop</span></div>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <section class="panel hero-visual fpw-hero-product-preview" data-fpw-product-preview aria-label="FloatPlanWizard product preview">
+          <div class="fpw-preview-header">
+            <p class="fpw-preview-eyebrow">Product preview</p>
+            <h2>See FloatPlanWizard in action</h2>
+            <p>Build the route, monitor the trip, and share a private trip page with family or friends.</p>
           </div>
-        </div>
+
+          <div class="fpw-preview-tabs" role="tablist" aria-label="Product preview pages">
+            <button type="button" class="fpw-preview-tab is-active" id="fpw-preview-tab-route" data-preview-tab="route" role="tab" aria-selected="true" aria-controls="fpw-preview-panel-route">Route Generator</button>
+            <button type="button" class="fpw-preview-tab" id="fpw-preview-tab-active-cruise" data-preview-tab="active-cruise" role="tab" aria-selected="false" aria-controls="fpw-preview-panel-active-cruise">Active Cruise</button>
+            <button type="button" class="fpw-preview-tab" id="fpw-preview-tab-follow" data-preview-tab="follow" role="tab" aria-selected="false" aria-controls="fpw-preview-panel-follow">Shared Follow Page</button>
+          <button type="button" class="fpw-preview-tab" id="fpw-preview-tab-dashboard" data-preview-tab="dashboard" role="tab" aria-selected="false" aria-controls="fpw-preview-panel-dashboard">Dashboard</button>
+          </div>
+
+          <div class="fpw-preview-browser-frame">
+            <div class="fpw-preview-browser-bar" aria-hidden="true">
+              <span></span><span></span><span></span>
+            </div>
+
+            <article class="fpw-preview-screen is-active" id="fpw-preview-panel-route" data-preview-panel="route" role="tabpanel" aria-labelledby="fpw-preview-tab-route">
+              <div class="fpw-preview-image-wrap">
+                <img src="<cfoutput>#topNavBasePath#</cfoutput>/assets/images/home/preview-route-generator.jpg" width="1200" height="760" loading="eager" alt="FloatPlanWizard Route Generator screen">
+              </div>
+              <div class="fpw-preview-caption">
+                <h3>Route Generator</h3>
+                <p>Plan your route, estimate timing, organize waypoints, and prepare the trip before leaving the dock.</p>
+              </div>
+            </article>
+
+            <article class="fpw-preview-screen" id="fpw-preview-panel-active-cruise" data-preview-panel="active-cruise" role="tabpanel" aria-labelledby="fpw-preview-tab-active-cruise" hidden>
+              <div class="fpw-preview-image-wrap">
+                <img src="<cfoutput>#topNavBasePath#</cfoutput>/assets/images/home/preview-active-cruise.jpg" width="1200" height="760" loading="lazy" alt="FloatPlanWizard Active Cruise screen">
+              </div>
+              <div class="fpw-preview-caption">
+                <h3>Active Cruise</h3>
+                <p>Run the trip from one command page with progress, check-ins, monitoring status, weather, and fuel awareness.</p>
+              </div>
+            </article>
+
+            <article class="fpw-preview-screen" id="fpw-preview-panel-follow" data-preview-panel="follow" role="tabpanel" aria-labelledby="fpw-preview-tab-follow" hidden>
+              <div class="fpw-preview-image-wrap">
+                <img src="<cfoutput>#topNavBasePath#</cfoutput>/assets/images/home/preview-follow-page.jpg" width="1200" height="760" loading="lazy" alt="FloatPlanWizard shared Follow page screen">
+              </div>
+              <div class="fpw-preview-caption">
+                <h3>Shared Follow Page</h3>
+                <p>Give family or friends a private link so they can see planned route details, stops, and trip progress updates.</p>
+              </div>
+            </article>
+
+          <article class="fpw-preview-screen" id="fpw-preview-panel-dashboard" data-preview-panel="dashboard" role="tabpanel" aria-labelledby="fpw-preview-tab-dashboard" hidden>
+            <div class="fpw-preview-image-wrap">
+              <img src="<cfoutput>#topNavBasePath#</cfoutput>/assets/images/home/preview-dashboard.jpg" width="1200" height="760" loading="lazy" alt="FloatPlanWizard Dashboard screen">
+            </div>
+            <div class="fpw-preview-caption">
+              <h3>Dashboard</h3>
+              <p>Manage saved routes, review trip setup readiness, and open active cruise tools from one dashboard.</p>
+            </div>
+          </article>
+          </div>
+
+          <div class="fpw-preview-actions">
+            <a class="btn btn-primary fpw-preview-primary" href="<cfoutput>#topNavBasePath#</cfoutput>/app/join.cfm">Start Free</a>
+            <a class="fpw-preview-link" href="#notify">See what's included</a>
+          </div>
+        </section>
       </div>
 
       <section id="notify" class="fpw-home-access-section" style="--fpw-access-bg: url('assets/images/home/pricing-access-boat-bg.png');" aria-labelledby="fpwAccessTitle">
@@ -3504,6 +3731,44 @@ fpwShowMemberRequiredNotice = (
 
       forms.forEach(function (form) {
         form.addEventListener('submit', submitSignupForm);
+      });
+    })();
+
+    (function () {
+      const preview = document.querySelector('[data-fpw-product-preview]');
+      if (!preview) return;
+
+      const tabs = Array.from(preview.querySelectorAll('[data-preview-tab]'));
+      const panels = Array.from(preview.querySelectorAll('[data-preview-panel]'));
+
+      function activatePreview(previewName) {
+        tabs.forEach(function (tab) {
+          const isActive = tab.dataset.previewTab === previewName;
+          tab.classList.toggle('is-active', isActive);
+          tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+
+        panels.forEach(function (panel) {
+          const isActive = panel.dataset.previewPanel === previewName;
+          panel.classList.toggle('is-active', isActive);
+          if (isActive) {
+            panel.removeAttribute('hidden');
+          } else {
+            panel.setAttribute('hidden', '');
+          }
+        });
+      }
+
+      tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          activatePreview(tab.dataset.previewTab);
+        });
+
+        tab.addEventListener('keydown', function (event) {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          activatePreview(tab.dataset.previewTab);
+        });
       });
     })();
 </script>
