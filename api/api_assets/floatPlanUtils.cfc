@@ -13,20 +13,20 @@
             var templatePath = baseDir & "USCGFloatPlan_new.pdf";
             var outputDir = rootDir & "floatPlans/user_float_plans";
 
-            writeLog(file="fpw_pdf", text="createPDF start floatPlanId=#arguments.floatPlanId# baseDir=#baseDir# rootDir=#rootDir# templatePath=#templatePath# outputDir=#outputDir#", type="information");
+            appendFpwPdfLog("information", "createPDF start floatPlanId=#arguments.floatPlanId# baseDir=#baseDir# rootDir=#rootDir# templatePath=#templatePath# outputDir=#outputDir#");
 
             if (!directoryExists(outputDir)) {
-                writeLog(file="fpw_pdf", text="createPDF outputDir missing; creating #outputDir#", type="information");
+                appendFpwPdfLog("information", "createPDF outputDir missing; creating #outputDir#");
                 directoryCreate(outputDir);
             }
 
             if (!fileExists(templatePath)) {
-                writeLog(file="fpw_pdf", text="createPDF template missing at #templatePath#", type="error");
+                appendFpwPdfLog("error", "createPDF template missing at #templatePath#");
             }
 
             var plan = loadFloatPlan(arguments.floatPlanId, ds);
             if (structIsEmpty(plan)) {
-                writeLog(file="fpw_pdf", text="createPDF no plan found for floatPlanId=#arguments.floatPlanId#", type="error");
+                appendFpwPdfLog("error", "createPDF no plan found for floatPlanId=#arguments.floatPlanId#");
                 return false;
             }
 
@@ -48,7 +48,7 @@
 	            var waypoints = loadWaypoints(arguments.floatPlanId, ds);
 	            var basicDetails = loadBasicDetails(arguments.floatPlanId, ds);
 
-            writeLog(file="fpw_pdf", text="createPDF writing destinationPath=#destinationPath# readonlyPath=#readonlyPath#", type="information");
+            appendFpwPdfLog("information", "createPDF writing destinationPath=#destinationPath# readonlyPath=#readonlyPath#");
 
             // Plan values
             var tripDepartureDate = formatDate(getAny(plan, "departureTime", ""));
@@ -308,11 +308,11 @@
             permissions="AllowPrinting,AllowCopy,AllowScreenReaders">
 
         <cfscript>
-            writeLog(file="fpw_pdf", text="createPDF complete readonlyFile=#readonlyFileName# destExists=#fileExists(destinationPath)# readonlyExists=#fileExists(readonlyPath)#", type="information");
+            appendFpwPdfLog("information", "createPDF complete readonlyFile=#readonlyFileName# destExists=#fileExists(destinationPath)# readonlyExists=#fileExists(readonlyPath)#");
         </cfscript>
         <cfcatch type="any">
             <cfscript>
-                writeLog(file="fpw_pdf", text="createPDF ERROR floatPlanId=#arguments.floatPlanId# msg=#cfcatch.message# detail=#cfcatch.detail#", type="error");
+                appendFpwPdfLog("error", "createPDF ERROR floatPlanId=#arguments.floatPlanId# msg=#cfcatch.message# detail=#cfcatch.detail#");
             </cfscript>
             <cfthrow message="#cfcatch.message#" detail="#cfcatch.detail#">
         </cfcatch>
@@ -330,6 +330,26 @@
             var outputDir = rootDir & "floatPlans/user_float_plans/";
             return outputDir & arguments.fileName;
         </cfscript>
+    </cffunction>
+
+    <cffunction name="appendFpwPdfLog" access="private" output="false" returntype="void">
+        <cfargument name="type" type="string" required="true">
+        <cfargument name="text" type="string" required="true">
+        <cfscript>
+            var componentDir = replace(getDirectoryFromPath(getCurrentTemplatePath()), "\", "/", "all");
+            var logDirectory = reReplace(componentDir, "/api/api_assets/?$", "/logs", "one");
+            var logFile = logDirectory & "/fpw_pdf.log";
+            var logLine = "FPW_PDF_LOG ts=#dateTimeFormat(now(), 'yyyy-mm-dd HH:nn:ss')# type=#trim(arguments.type)# message=#trim(arguments.text)#";
+        </cfscript>
+        <cftry>
+            <cfif NOT directoryExists(logDirectory)>
+                <cfdirectory action="create" directory="#logDirectory#">
+            </cfif>
+            <cffile action="append" file="#logFile#" output="#logLine#" addnewline="true" charset="utf-8">
+            <cfcatch type="any">
+                <cflog file="fpw-errors" type="error" text="FPW_PDF_LOG_FAILED message=#toString(cfcatch.message)# detail=#toString(cfcatch.detail)# originalType=#arguments.type# originalText=#left(arguments.text, 1000)#">
+            </cfcatch>
+        </cftry>
     </cffunction>
 
 	    <cffunction name="loadFloatPlan" access="private" output="false" returntype="struct">

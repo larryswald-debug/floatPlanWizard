@@ -5861,13 +5861,10 @@
                 floatPlanUtils = createObject("component", resolveFloatPlanUtilsComponentPath()).init();
                 pdfFileName = floatPlanUtils.createPDF(streamRow.floatplan_id);
             } catch (any pdfErr) {
-                try {
-                    writeLog(
-                        file="fpw_pdf",
-                        type="error",
-                        text="Follow PDF createPDF failed streamId=#streamRow.id# slug=#left(trim(toString(streamRow.slug)), 160)# floatPlanId=#streamRow.floatplan_id# ownerUserId=#streamRow.owner_user_id# msg=#left(trim(toString(pdfErr.message)), 500)# detail=#left(trim(toString(pdfErr.detail)), 1000)#"
-                    );
-                } catch (any logErr) {}
+                appendFpwPdfLog(
+                    "error",
+                    "Follow PDF createPDF failed streamId=#streamRow.id# slug=#left(trim(toString(streamRow.slug)), 160)# floatPlanId=#streamRow.floatplan_id# ownerUserId=#streamRow.owner_user_id# msg=#left(trim(toString(pdfErr.message)), 500)# detail=#left(trim(toString(pdfErr.detail)), 1000)#"
+                );
                 out.MESSAGE = "Unable to generate float plan PDF.";
                 out.STATUS_CODE = 500;
                 out.ERROR = { "CODE"="PDF_FAILED", "MESSAGE"="Unable to generate float plan PDF." };
@@ -5942,7 +5939,7 @@
                 relativePath = templatePath;
             }
 
-            relativePath = replace(relativePath, "\\", "/", "all");
+            relativePath = replace(relativePath, chr(92), "/", "all");
             if (left(relativePath, 1) EQ "/") {
                 relativePath = right(relativePath, len(relativePath) - 1);
             }
@@ -7495,6 +7492,26 @@
             }
             return false;
         </cfscript>
+    </cffunction>
+
+    <cffunction name="appendFpwPdfLog" access="private" returntype="void" output="false">
+        <cfargument name="type" type="string" required="true">
+        <cfargument name="text" type="string" required="true">
+        <cfscript>
+            var componentDir = replace(getDirectoryFromPath(getCurrentTemplatePath()), "\", "/", "all");
+            var logDirectory = reReplace(componentDir, "/api/v1/?$", "/logs", "one");
+            var logFile = logDirectory & "/fpw_pdf.log";
+            var logLine = "FPW_PDF_LOG ts=#dateTimeFormat(now(), 'yyyy-mm-dd HH:nn:ss')# type=#trim(arguments.type)# message=#trim(arguments.text)#";
+        </cfscript>
+        <cftry>
+            <cfif NOT directoryExists(logDirectory)>
+                <cfdirectory action="create" directory="#logDirectory#">
+            </cfif>
+            <cffile action="append" file="#logFile#" output="#logLine#" addnewline="true" charset="utf-8">
+            <cfcatch type="any">
+                <cflog file="fpw-errors" type="error" text="FPW_PDF_LOG_FAILED message=#toString(cfcatch.message)# detail=#toString(cfcatch.detail)# originalType=#arguments.type# originalText=#left(arguments.text, 1000)#">
+            </cfcatch>
+        </cftry>
     </cffunction>
 
     <cffunction name="getBodyJson" access="private" returntype="struct" output="false">
