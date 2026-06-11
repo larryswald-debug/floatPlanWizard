@@ -2,25 +2,24 @@
 .DS_Store
 Thumbs.db
 
-# ===== ColdFusion =====
+# ===== ColdFusion / Runtime logs =====
 cfusion/logs/
 WEB-INF/cfusion/logs/
 *.log
 git_commands.txt
 prompts.txt
 .pw-home/.npm/
-/api/api_assets/floatPlans
+/api/api_assets/floatPlans/
 
-# ===== Docker =====
+# ===== Docker / Local data =====
 docker/volumes/
 docker/data/
 *.pid
 
-# ===== Environment =====
+# ===== Environment / Secrets =====
 .env
 .env.*
 /_fpw_private/
-/_fpw_private/*
 stripe-config.json
 .env.stripe.local
 *.stripe.local
@@ -29,25 +28,37 @@ secrets/
 git access token.txt
 app/scheduled/Stipe_sklive_fpw_goLive.txt
 
-# ===== Node / Frontend (if added later) =====
+# ===== Node / Frontend =====
 node_modules/
 
 # ===== IDE =====
 .vscode/
 .idea/
 
-# ===== Temp =====
+# ===== Temp / Local generated files =====
 tmp/
 temp/
-
-# ===== Runtime user uploads =====
-/assets/uploads/
-
-
-*.pdf
-*.psd
+.codex-db-backups/
+.codex-snapshots/
+.snapshots/
+_codex_snapshots/
+snapshots/
+snapshot*/
+*snapshot*/
+*.snapshot*
 *.rollback-*
 *.bak*
+error-context*
+assets/v1/
+prod-*.png
+prod-*.json
+prod-*.md
+phase3-prod-*
+
+# ===== Runtime user uploads and generated documents =====
+/assets/uploads/
+*.pdf
+*.psd
 
 # ===== User-requested ignored file types =====
 *.jpg
@@ -57,51 +68,17 @@ temp/
 *.sql
 *.csv
 
-# ===== Tests =====
-test*/
+# Keep repo-owned migrations trackable while ignoring ad-hoc SQL exports.
+!db/
+!db/migrations/
+!db/migrations/*.sql
+
+# ===== Test output only =====
 .playwright-mcp/
 playwright-report/
-
-# ===== Test Scripts =====
-test*/script/
-test*/scripts/
-
-# ===== Snapshots =====
-.codex-snapshots/
-.snapshots/
-snapshots/
-snapshot*/
-*snapshot*/
-*.snapshot*
-
-error-context*
-
-# Local/dev cleanup
-.DS_Store
-node_modules/
-.playwright-mcp/
 test-results/
-.codex-snapshots/
-.snapshots/
-.codex-db-backups/
-assets/v1/
-tmp/
-*.log
-*.bak
-*.snapshot-*
-prod-*.png
-prod-*.json
-prod-*.md
-phase3-prod-*
-
-# Local/dev cleanup
-.DS_Store
-node_modules/
-.playwright-mcp/
-test-results/
-.codex-snapshots/
-.snapshots/
-tmp/
-*.log
-*.bak
-*.snapshot-*
+tests/test-results/
+tests/**/test-results/
+tests/_tmp*
+testbox/api/
+testbox/**/results/
