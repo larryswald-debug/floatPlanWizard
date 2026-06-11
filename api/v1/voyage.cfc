@@ -1565,10 +1565,13 @@
                 out.body.timeline_next_update = "At next departure";
             }
             out = applyPublicAuthorityToFollowBootstrap(out, publicAuthority);
+            if (!tripStarted) {
+                out = applyScheduledFollowDisplayOverride(out);
+            }
 	            writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
 	            return out;
 	        </cfscript>
-		    </cffunction>
+    </cffunction>
 
     <cffunction name="getActiveCruiseHeroCanonical" access="public" returntype="struct" output="false">
         <cfargument name="currentUserId" type="numeric" required="true">
@@ -6052,6 +6055,120 @@
             }
             if (len(tripStateLabel)) {
                 out.body.trip_summary_mode = "Trip state: " & tripStateLabel;
+            }
+
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="applyScheduledFollowDisplayOverride" access="private" returntype="struct" output="false">
+        <cfargument name="payload" type="struct" required="true">
+        <cfscript>
+            var out = duplicate(arguments.payload);
+            var scheduledDepartureLabel = "";
+            var scheduledDepartureMeta = "Scheduled departure pending";
+            var firstFrom = "";
+            var firstTo = "";
+
+            if (!structKeyExists(out, "topCards") OR !isStruct(out.topCards)) out.topCards = {};
+            if (!structKeyExists(out, "stream") OR !isStruct(out.stream)) out.stream = {};
+            if (!structKeyExists(out, "sidebar") OR !isStruct(out.sidebar)) out.sidebar = {};
+            if (!structKeyExists(out, "pinned") OR !isStruct(out.pinned)) out.pinned = {};
+            if (!structKeyExists(out, "body") OR !isStruct(out.body)) out.body = {};
+            if (!structKeyExists(out, "publicAuthority") OR !isStruct(out.publicAuthority)) out.publicAuthority = {};
+
+            scheduledDepartureLabel = publicAuthorityText(out.body, "journey_departed_meta");
+            if (len(scheduledDepartureLabel)) {
+                scheduledDepartureMeta = (findNoCase("Scheduled departure:", scheduledDepartureLabel) EQ 1)
+                    ? scheduledDepartureLabel
+                    : "Scheduled departure: " & scheduledDepartureLabel;
+            }
+
+            firstFrom = publicAuthorityText(out.topCards, "location_label");
+            firstTo = publicAuthorityText(out.topCards, "next_stop");
+            if (
+                !len(firstFrom)
+                AND structKeyExists(out, "map")
+                AND isStruct(out.map)
+                AND structKeyExists(out.map, "current")
+                AND isStruct(out.map.current)
+            ) {
+                firstFrom = publicAuthorityText(out.map.current, "label");
+            }
+            if (!len(firstTo) AND structKeyExists(out, "map") AND isStruct(out.map)) {
+                firstTo = publicAuthorityText(out.map, "next_stop_label");
+            }
+
+            out.stream.status = "Scheduled";
+            out.topCards.status = "Scheduled";
+            out.topCards.voyage_progress_status = "Scheduled";
+            out.topCards.voyage_progress_status_variant = "good";
+            out.topCards.last_checkin = "";
+            out.topCards.last_checkin_utc = "";
+            out.topCards.eta = "";
+            out.topCards.eta_utc = "";
+            out.topCards.conditions = "Monitoring pending";
+            if (len(firstFrom)) out.topCards.location_label = firstFrom;
+            if (len(firstTo)) out.topCards.next_stop = firstTo;
+
+            out.pinned.updated_label = "";
+            out.pinned.miles_today_nm = "";
+            out.pinned.hours_today = "";
+
+            out.sidebar.last_checkin = "";
+            out.sidebar.last_checkin_utc = "";
+            out.sidebar.monitoring_summary = "Monitoring pending";
+            out.sidebar.monitor_state_text_html = "<strong>Monitoring pending</strong><br />Monitoring starts at scheduled departure.";
+            out.sidebar.monitor_state_label = "Pending";
+
+            out.body.page_subtitle = "Follow the scheduled departure and planned route timing before the trip is underway.";
+            out.body.journey_subtitle = "Scheduled departure pending.";
+            out.body.journey_departed_value = "Trip scheduled";
+            out.body.journey_departed_meta = scheduledDepartureMeta;
+            out.body.journey_checkin_value = "No check-ins yet";
+            out.body.journey_checkin_meta = "First check-in expected at scheduled departure.";
+            out.body.card_status_copy = "Monitoring starts at scheduled departure.";
+            out.body.voyage_progress_status_copy = out.body.card_status_copy;
+            out.body.card_location_copy = "Departure is scheduled and the trip has not started yet.";
+            out.body.card_destination_copy = "First planned stop after scheduled departure.";
+            out.body.card_arrival_copy = "Arrival estimates appear after the trip is underway.";
+            out.body.card_conditions_copy = "Monitoring starts at scheduled departure.";
+            out.body.trip_summary_confidence = "Tracking confidence: Scheduled departure pending";
+            out.body.trip_summary_mode = "Trip mode: Scheduled departure pending";
+            out.body.trip_summary_safety = "Safety state: Monitoring not started";
+            out.body.family_confidence_subtitle = "The trip is scheduled and has not started yet.";
+            out.body.timeline_next_update = "At scheduled departure";
+
+            if (!structKeyExists(out.publicAuthority, "monitoring") OR !isStruct(out.publicAuthority.monitoring)) {
+                out.publicAuthority.monitoring = {};
+            }
+            if (!structKeyExists(out.publicAuthority, "timing") OR !isStruct(out.publicAuthority.timing)) {
+                out.publicAuthority.timing = {};
+            }
+            if (!structKeyExists(out.publicAuthority, "tripState") OR !isStruct(out.publicAuthority.tripState)) {
+                out.publicAuthority.tripState = {};
+            }
+            out.publicAuthority.monitoring.publicHealthLabel = "Scheduled";
+            out.publicAuthority.monitoring.publicHealthVariant = "good";
+            out.publicAuthority.monitoring.lastCheckinUtc = "";
+            out.publicAuthority.monitoring.lastCheckinLocalLabel = "";
+            out.publicAuthority.monitoring.nextExpectedCheckinUtc = "";
+            out.publicAuthority.monitoring.nextExpectedCheckinLocalLabel = "";
+            out.publicAuthority.timing.etaUtc = "";
+            out.publicAuthority.timing.etaLocalLabel = "";
+            out.publicAuthority.timing.milesTodayNm = "";
+            out.publicAuthority.timing.hoursToday = "";
+            out.publicAuthority.tripState.code = "scheduled";
+            out.publicAuthority.tripState.label = "Scheduled";
+            out.publicAuthority.tripState.helperText = "The trip is scheduled and has not started yet.";
+
+            if (
+                structKeyExists(out, "timeline")
+                AND isStruct(out.timeline)
+                AND structKeyExists(out.timeline, "summary")
+                AND isStruct(out.timeline.summary)
+            ) {
+                out.timeline.summary.effective_speed_kn = "";
             }
 
             return out;

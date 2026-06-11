@@ -7,12 +7,23 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.createdUserIds = [];
     variables.createdPromoIds = [];
     variables.userSeed = 510000 + randRange(1000, 99999);
+    variables.hadOriginalApplicationEnv = structKeyExists(application, "env");
+    variables.originalApplicationEnv = variables.hadOriginalApplicationEnv ? application.env : "";
+    application.env = "dev";
     ensurePromoTables();
   }
 
   function afterEach() {
     structDelete(application, "testPromoCodeService", false);
     cleanupRows();
+  }
+
+  function afterAll() {
+    if (variables.hadOriginalApplicationEnv) {
+      application.env = variables.originalApplicationEnv;
+    } else {
+      structDelete(application, "env", false);
+    }
   }
 
   function run() {
@@ -135,7 +146,7 @@ component extends="testbox.system.BaseSpec" output="false" {
               eligible = false,
               ERROR = "LAUNCH_PROMO_AMBIGUOUS",
               errorCode = "LAUNCH_PROMO_AMBIGUOUS",
-              displayMessage = "Launch trial setup needs attention before checkout can start."
+              displayMessage = "Launch trial setup needs attention before the trial can start."
             };
           }
         };
@@ -146,7 +157,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(res.ERROR).toBe("LAUNCH_PROMO_AMBIGUOUS");
       });
 
-      it("starts server-side launch trial Checkout without accepting promo internals from the browser", function() {
+      it("starts server-side launch trial subscription without accepting promo internals from the browser", function() {
         var userId = createTestUser();
         application.testPromoCodeService = {
           startLaunchTrial = function(required numeric userId) {
@@ -155,16 +166,16 @@ component extends="testbox.system.BaseSpec" output="false" {
               success = true,
               eligible = true,
               promoType = "stripe_free_months",
-              nextAction = "stripe_trial_checkout",
-              displayMessage = "No-credit-card trial checkout is ready.",
-              CHECKOUT_URL = "https://checkout.stripe.com/c/pay/cs_test_endpoint_trial_" & arguments.userId & "_1",
-              checkoutUrl = "https://checkout.stripe.com/c/pay/cs_test_endpoint_trial_" & arguments.userId & "_1",
-              STRIPE_CHECKOUT_SESSION_ID = "cs_test_endpoint_trial_" & arguments.userId & "_1",
-              stripeCheckoutSessionId = "cs_test_endpoint_trial_" & arguments.userId & "_1",
+              nextAction = "stripe_trial_subscription",
+              displayMessage = "Your Premium trial has started. Activation may take a moment.",
+              STATUS = "trial_created",
+              status = "trial_created",
+              STRIPE_CUSTOMER_ID = "cus_endpoint_trial_" & arguments.userId,
+              stripeCustomerId = "cus_endpoint_trial_" & arguments.userId,
+              STRIPE_SUBSCRIPTION_ID = "sub_endpoint_trial_" & arguments.userId,
+              stripeSubscriptionId = "sub_endpoint_trial_" & arguments.userId,
               TRIAL_DAYS = 30,
-              trialDays = 30,
-              REUSED_CHECKOUT_SESSION = false,
-              reusedCheckoutSession = false
+              trialDays = 30
             };
           }
         };
@@ -174,18 +185,22 @@ component extends="testbox.system.BaseSpec" output="false" {
 
         expect(res.SUCCESS).toBeTrue(serializeJSON(res));
         expect(res.promoType).toBe("stripe_free_months");
-        expect(res.nextAction).toBe("stripe_trial_checkout");
-        expect(res.checkoutUrl).toBe("https://checkout.stripe.com/c/pay/cs_test_endpoint_trial_" & userId & "_1");
-        expect(res.stripeCheckoutSessionId).toBe("cs_test_endpoint_trial_" & userId & "_1");
+        expect(res.nextAction).toBe("stripe_trial_subscription");
+        expect(res.status).toBe("trial_created");
+        expect(res.checkoutRequired).toBeFalse(serializeJSON(res));
+        expect(res.stripeCustomerId).toBe("cus_endpoint_trial_" & userId);
+        expect(res.stripeSubscriptionId).toBe("sub_endpoint_trial_" & userId);
         expect(res.trialDays).toBe(30);
+        expect(res.redirectUrl).toBe("/fpw/app/dashboard.cfm");
         expect(access.hasPremium).toBeFalse(serializeJSON(access));
         expect(countPremiumEntitlements(userId)).toBe(0);
         expect(structKeyExists(res, "promoCodeId")).toBeFalse(serializeJSON(res));
         expect(structKeyExists(res, "codeHash")).toBeFalse(serializeJSON(res));
         expect(structKeyExists(res, "stripePromotionCodeId")).toBeFalse(serializeJSON(res));
+        expect(structKeyExists(res, "checkoutUrl")).toBeFalse(serializeJSON(res));
       });
 
-      it("reuses an open pending server-side launch trial Checkout", function() {
+      it("returns already-trialing launch trial state without a Checkout URL", function() {
         var userId = createTestUser();
         application.testPromoCodeService = {
           startLaunchTrial = function(required numeric userId) {
@@ -194,16 +209,14 @@ component extends="testbox.system.BaseSpec" output="false" {
               success = true,
               eligible = true,
               promoType = "stripe_free_months",
-              nextAction = "stripe_trial_checkout",
-              displayMessage = "Continue your free-trial checkout. No credit card is required to start.",
-              CHECKOUT_URL = "https://checkout.stripe.com/c/pay/cs_test_endpoint_trial_reused_" & arguments.userId,
-              checkoutUrl = "https://checkout.stripe.com/c/pay/cs_test_endpoint_trial_reused_" & arguments.userId,
-              STRIPE_CHECKOUT_SESSION_ID = "cs_test_endpoint_trial_reused_" & arguments.userId,
-              stripeCheckoutSessionId = "cs_test_endpoint_trial_reused_" & arguments.userId,
+              nextAction = "stripe_trial_subscription",
+              displayMessage = "Your Premium trial is already active.",
+              STATUS = "already_trialing",
+              status = "already_trialing",
+              STRIPE_SUBSCRIPTION_ID = "sub_endpoint_trial_reused_" & arguments.userId,
+              stripeSubscriptionId = "sub_endpoint_trial_reused_" & arguments.userId,
               TRIAL_DAYS = 30,
-              trialDays = 30,
-              REUSED_CHECKOUT_SESSION = true,
-              reusedCheckoutSession = true
+              trialDays = 30
             };
           }
         };
@@ -213,19 +226,21 @@ component extends="testbox.system.BaseSpec" output="false" {
 
         expect(first.SUCCESS).toBeTrue(serializeJSON(first));
         expect(second.SUCCESS).toBeTrue(serializeJSON(second));
-        expect(second.reusedCheckoutSession).toBeTrue(serializeJSON(second));
-        expect(second.checkoutUrl).toBe(first.checkoutUrl);
-        expect(second.stripeCheckoutSessionId).toBe(first.stripeCheckoutSessionId);
+        expect(second.status).toBe("already_trialing");
+        expect(second.stripeSubscriptionId).toBe(first.stripeSubscriptionId);
+        expect(structKeyExists(second, "checkoutUrl")).toBeFalse(serializeJSON(second));
       });
 
-      it("rejects launch trial activation for an already Premium user", function() {
+      it("routes already-Premium launch trial activation locally without creating a trial", function() {
         var userId = createTestUser();
         variables.memberService.createAdminCompEntitlement(userId);
 
         var res = postPromo(userId, "startlaunchtrial", {});
 
-        expect(res.SUCCESS).toBeFalse(serializeJSON(res));
-        expect(res.ERROR).toBe("ALREADY_PREMIUM");
+        expect(res.SUCCESS).toBeTrue(serializeJSON(res));
+        expect(res.nextAction).toBe("stripe_trial_subscription");
+        expect(res.status).toBe("already_premium");
+        expect(res.redirectUrl).toBe("/fpw/app/dashboard.cfm");
       });
 
       it("rejects launch trial activation after verified trial use", function() {

@@ -196,6 +196,107 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="startCustomNoCardTrialSubscription" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="trialDays" type="numeric" required="true">
+    <cfargument name="promoMetadata" type="struct" required="false" default="#structNew()#">
+    <cfscript>
+      var userIdValue = int(val(arguments.userId));
+      var trialDaysValue = int(val(arguments.trialDays));
+      var secretKey = "";
+      var selectedPriceId = "";
+      var qUser = queryNew("");
+      var customerResult = {};
+      var stripeCustomerId = "";
+      var duplicateCheck = {};
+      var requestPayload = {};
+      var stripeResult = {};
+      var stripePayload = {};
+      var subscriptionId = "";
+      var subscriptionStatus = "";
+      var response = {};
+
+      if (userIdValue LTE 0) {
+        return errorResponse("INVALID_USER_ID", "Session user is invalid.");
+      }
+      if (!listFind("30,60", toString(trialDaysValue))) {
+        return errorResponse("INVALID_TRIAL_DURATION", "Free trial duration is not supported.");
+      }
+
+      secretKey = readConfigValue("secretKey", "getSecretKey");
+      selectedPriceId = readConfigValue("premiumMonthlyPriceId", "getPremiumMonthlyPriceId");
+      if (!len(secretKey) OR !len(selectedPriceId)) {
+        return errorResponse("STRIPE_CONFIG_MISSING", "Stripe subscription configuration is incomplete.");
+      }
+
+      qUser = loadStripeUser(userIdValue);
+      if (qUser.recordCount EQ 0) {
+        return errorResponse("USER_NOT_FOUND", "Account could not be loaded for trial activation.");
+      }
+
+      duplicateCheck = findLocalTrialOrPremiumBlock(userIdValue);
+      if (structKeyExists(duplicateCheck, "blocked") AND duplicateCheck.blocked) {
+        return duplicateCheck.response;
+      }
+
+      customerResult = ensureStripeCustomerForUser(userIdValue, qUser, secretKey);
+      if (!structKeyExists(customerResult, "SUCCESS") OR customerResult.SUCCESS NEQ true) {
+        return customerResult;
+      }
+      stripeCustomerId = trim(toString(customerResult.stripeCustomerId));
+
+      duplicateCheck = findExistingTrialOrPremiumBlock(userIdValue, stripeCustomerId, selectedPriceId, secretKey);
+      if (structKeyExists(duplicateCheck, "blocked") AND duplicateCheck.blocked) {
+        return duplicateCheck.response;
+      }
+
+      requestPayload = buildStripeDirectTrialSubscriptionPayload(
+        userIdValue,
+        qUser,
+        stripeCustomerId,
+        selectedPriceId,
+        trialDaysValue,
+        arguments.promoMetadata
+      );
+      stripeResult = executeStripeSubscriptionCreateRequest(requestPayload, secretKey);
+      if (!structKeyExists(stripeResult, "SUCCESS") OR stripeResult.SUCCESS NEQ true) {
+        response = errorResponse("STRIPE_SUBSCRIPTION_FAILED", "Stripe trial subscription could not be created.");
+        addStripeCheckoutDebug(response, stripeResult, requestPayload, "custom_no_card_trial_subscription", userIdValue, selectedPriceId);
+        return response;
+      }
+
+      stripePayload = normalizeStripePayload(stripeResult);
+      subscriptionId = readString(stripePayload, "id");
+      subscriptionStatus = lCase(readString(stripePayload, "status"));
+      if (!len(subscriptionId) OR left(subscriptionId, 4) NEQ "sub_") {
+        return errorResponse("STRIPE_SUBSCRIPTION_FAILED", "Stripe subscription response was incomplete.");
+      }
+
+      response = structNew("ordered-casesensitive");
+      response["SUCCESS"] = true;
+      response["success"] = true;
+      response["MESSAGE"] = "Your Premium trial has started. Activation may take a moment.";
+      response["message"] = response["MESSAGE"];
+      response["STATUS"] = "trial_created";
+      response["status"] = "trial_created";
+      response["NEXT_ACTION"] = "stripe_trial_subscription";
+      response["nextAction"] = "stripe_trial_subscription";
+      response["STRIPE_CUSTOMER_ID"] = stripeCustomerId;
+      response["stripeCustomerId"] = stripeCustomerId;
+      response["STRIPE_SUBSCRIPTION_ID"] = subscriptionId;
+      response["stripeSubscriptionId"] = subscriptionId;
+      response["STRIPE_SUBSCRIPTION_STATUS"] = subscriptionStatus;
+      response["stripeSubscriptionStatus"] = subscriptionStatus;
+      response["TRIAL_DAYS"] = trialDaysValue;
+      response["trialDays"] = trialDaysValue;
+      if (structKeyExists(stripePayload, "trial_end") AND isNumeric(stripePayload.trial_end)) {
+        response["TRIAL_END_EPOCH"] = val(stripePayload.trial_end);
+        response["trialEndEpoch"] = val(stripePayload.trial_end);
+      }
+      return response;
+    </cfscript>
+  </cffunction>
+
   <cffunction name="retrieveCheckoutSession" access="public" returntype="struct" output="false">
     <cfargument name="checkoutSessionId" type="string" required="true">
     <cfscript>
@@ -331,6 +432,48 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="buildStripeDirectTrialSubscriptionPayload" access="private" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="qUser" type="query" required="true">
+    <cfargument name="stripeCustomerId" type="string" required="true">
+    <cfargument name="priceId" type="string" required="true">
+    <cfargument name="trialDays" type="numeric" required="true">
+    <cfargument name="promoMetadata" type="struct" required="false" default="#structNew()#">
+    <cfscript>
+      var userIdText = toString(int(val(arguments.userId)));
+      var trialDaysText = toString(int(val(arguments.trialDays)));
+      var emailValue = qUserEmail(arguments.qUser);
+      var sourceValue = structKeyExists(arguments.promoMetadata, "source")
+        ? trim(toString(arguments.promoMetadata.source))
+        : "fpw_custom_no_card_trial";
+      var offerValue = structKeyExists(arguments.promoMetadata, "offer")
+        ? trim(toString(arguments.promoMetadata.offer))
+        : "launch_trial";
+
+      if (!len(sourceValue)) {
+        sourceValue = "fpw_custom_no_card_trial";
+      }
+      if (!len(offerValue)) {
+        offerValue = "launch_trial";
+      }
+
+      return {
+        "url" = "https://api.stripe.com/v1/subscriptions",
+        "formFields" = {
+          "customer" = trim(arguments.stripeCustomerId),
+          "items[0][price]" = trim(arguments.priceId),
+          "trial_period_days" = trialDaysText,
+          "trial_settings[end_behavior][missing_payment_method]" = "pause",
+          "metadata[fpwUserId]" = userIdText,
+          "metadata[fpwMemberId]" = userIdText,
+          "metadata[fpwEmail]" = emailValue,
+          "metadata[source]" = sourceValue,
+          "metadata[offer]" = offerValue
+        }
+      };
+    </cfscript>
+  </cffunction>
+
   <cffunction name="buildStripePortalRequestPayload" access="private" returntype="struct" output="false">
     <cfargument name="stripeCustomerId" type="string" required="true">
     <cfargument name="returnUrl" type="string" required="true">
@@ -356,6 +499,63 @@
         return variables.stripeTransport.createCheckoutSession(arguments.requestPayload, arguments.secretKey);
       }
       return executeLiveStripeCheckoutRequest(arguments.requestPayload, arguments.secretKey);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="executeStripeCustomerCreateRequest" access="private" returntype="struct" output="false">
+    <cfargument name="requestPayload" type="struct" required="true">
+    <cfargument name="secretKey" type="string" required="true">
+    <cfscript>
+      if (isObject(variables.stripeTransport)) {
+        return invoke(variables.stripeTransport, "createCustomer", { requestPayload = arguments.requestPayload, secretKey = arguments.secretKey });
+      }
+      if (isStruct(variables.stripeTransport) AND structKeyExists(variables.stripeTransport, "createCustomer")) {
+        return variables.stripeTransport.createCustomer(arguments.requestPayload, arguments.secretKey);
+      }
+      return executeLiveStripeRequest(arguments.requestPayload, arguments.secretKey);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="executeStripeCustomerUpdateRequest" access="private" returntype="struct" output="false">
+    <cfargument name="requestPayload" type="struct" required="true">
+    <cfargument name="secretKey" type="string" required="true">
+    <cfscript>
+      if (isObject(variables.stripeTransport)) {
+        return invoke(variables.stripeTransport, "updateCustomer", { requestPayload = arguments.requestPayload, secretKey = arguments.secretKey });
+      }
+      if (isStruct(variables.stripeTransport) AND structKeyExists(variables.stripeTransport, "updateCustomer")) {
+        return variables.stripeTransport.updateCustomer(arguments.requestPayload, arguments.secretKey);
+      }
+      return executeLiveStripeRequest(arguments.requestPayload, arguments.secretKey);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="executeStripeSubscriptionCreateRequest" access="private" returntype="struct" output="false">
+    <cfargument name="requestPayload" type="struct" required="true">
+    <cfargument name="secretKey" type="string" required="true">
+    <cfscript>
+      if (isObject(variables.stripeTransport)) {
+        return invoke(variables.stripeTransport, "createSubscription", { requestPayload = arguments.requestPayload, secretKey = arguments.secretKey });
+      }
+      if (isStruct(variables.stripeTransport) AND structKeyExists(variables.stripeTransport, "createSubscription")) {
+        return variables.stripeTransport.createSubscription(arguments.requestPayload, arguments.secretKey);
+      }
+      return executeLiveStripeRequest(arguments.requestPayload, arguments.secretKey);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="executeStripeSubscriptionListRequest" access="private" returntype="struct" output="false">
+    <cfargument name="stripeCustomerId" type="string" required="true">
+    <cfargument name="secretKey" type="string" required="true">
+    <cfscript>
+      var requestUrl = "https://api.stripe.com/v1/subscriptions?customer=" & encodeForURL(trim(arguments.stripeCustomerId)) & "&status=all&limit=100";
+      if (isObject(variables.stripeTransport)) {
+        return invoke(variables.stripeTransport, "listSubscriptions", { requestUrl = requestUrl, stripeCustomerId = trim(arguments.stripeCustomerId), secretKey = arguments.secretKey });
+      }
+      if (isStruct(variables.stripeTransport) AND structKeyExists(variables.stripeTransport, "listSubscriptions")) {
+        return variables.stripeTransport.listSubscriptions(requestUrl, trim(arguments.stripeCustomerId), arguments.secretKey);
+      }
+      return executeLiveStripeGetRequest(requestUrl, arguments.secretKey);
     </cfscript>
   </cffunction>
 
@@ -450,7 +650,415 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="loadStripeUser" access="private" returntype="query" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      return queryExecute(
+        "SELECT userId, fName, lName, email
+         FROM users
+         WHERE userId = :userId
+         LIMIT 1",
+        {
+          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = variables.datasource }
+      );
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="ensureStripeCustomerForUser" access="private" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="qUser" type="query" required="true">
+    <cfargument name="secretKey" type="string" required="true">
+    <cfscript>
+      var mappedCustomerId = loadMappedStripeCustomerIdForUser(arguments.userId);
+      var fallbackCustomerId = "";
+      var requestPayload = {};
+      var stripeResult = {};
+      var stripePayload = {};
+      var stripeCustomerId = "";
+      var response = {};
+
+      if (len(mappedCustomerId)) {
+        requestPayload = buildStripeCustomerRequestPayload(arguments.userId, arguments.qUser, "https://api.stripe.com/v1/customers/" & encodeForURL(mappedCustomerId), "fpw_signup");
+        stripeResult = executeStripeCustomerUpdateRequest(requestPayload, arguments.secretKey);
+        if (!structKeyExists(stripeResult, "SUCCESS") OR stripeResult.SUCCESS NEQ true) {
+          response = errorResponse("STRIPE_CUSTOMER_UPDATE_FAILED", "Stripe customer could not be updated for this account.");
+          addStripeCheckoutDebug(response, stripeResult, requestPayload, "customer_update", arguments.userId, "");
+          return response;
+        }
+        storeUserStripeCustomerMapping(arguments.userId, mappedCustomerId, arguments.qUser, "fpw_signup");
+        return stripeCustomerResponse(mappedCustomerId, false);
+      }
+
+      fallbackCustomerId = loadLegacyStripeCustomerIdForUser(arguments.userId);
+      if (len(fallbackCustomerId)) {
+        if (!storeUserStripeCustomerMapping(arguments.userId, fallbackCustomerId, arguments.qUser, "fpw_signup_migrated")) {
+          return errorResponse("STRIPE_CUSTOMER_MAPPING_CONFLICT", "Stripe customer is already linked to a different account.");
+        }
+        requestPayload = buildStripeCustomerRequestPayload(arguments.userId, arguments.qUser, "https://api.stripe.com/v1/customers/" & encodeForURL(fallbackCustomerId), "fpw_signup_migrated");
+        stripeResult = executeStripeCustomerUpdateRequest(requestPayload, arguments.secretKey);
+        if (!structKeyExists(stripeResult, "SUCCESS") OR stripeResult.SUCCESS NEQ true) {
+          response = errorResponse("STRIPE_CUSTOMER_UPDATE_FAILED", "Stripe customer could not be updated for this account.");
+          addStripeCheckoutDebug(response, stripeResult, requestPayload, "customer_update", arguments.userId, "");
+          return response;
+        }
+        return stripeCustomerResponse(fallbackCustomerId, false);
+      }
+
+      requestPayload = buildStripeCustomerRequestPayload(arguments.userId, arguments.qUser, "https://api.stripe.com/v1/customers", "fpw_signup");
+      stripeResult = executeStripeCustomerCreateRequest(requestPayload, arguments.secretKey);
+      if (!structKeyExists(stripeResult, "SUCCESS") OR stripeResult.SUCCESS NEQ true) {
+        response = errorResponse("STRIPE_CUSTOMER_CREATE_FAILED", "Stripe customer could not be created for this account.");
+        addStripeCheckoutDebug(response, stripeResult, requestPayload, "customer_create", arguments.userId, "");
+        return response;
+      }
+      stripePayload = normalizeStripePayload(stripeResult);
+      stripeCustomerId = readString(stripePayload, "id");
+      if (!len(stripeCustomerId) OR left(stripeCustomerId, 4) NEQ "cus_") {
+        return errorResponse("STRIPE_CUSTOMER_CREATE_FAILED", "Stripe customer response was incomplete.");
+      }
+      if (!storeUserStripeCustomerMapping(arguments.userId, stripeCustomerId, arguments.qUser, "fpw_signup")) {
+        return errorResponse("STRIPE_CUSTOMER_MAPPING_CONFLICT", "Stripe customer is already linked to a different account.");
+      }
+      return stripeCustomerResponse(stripeCustomerId, true);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="findExistingTrialOrPremiumBlock" access="private" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="stripeCustomerId" type="string" required="true">
+    <cfargument name="priceId" type="string" required="true">
+    <cfargument name="secretKey" type="string" required="true">
+    <cfscript>
+      var stripeResult = {};
+      var stripePayload = {};
+      var stripeBlock = {};
+      var response = {};
+
+      stripeResult = executeStripeSubscriptionListRequest(arguments.stripeCustomerId, arguments.secretKey);
+      if (!structKeyExists(stripeResult, "SUCCESS") OR stripeResult.SUCCESS NEQ true) {
+        response = errorResponse("STRIPE_SUBSCRIPTION_LOOKUP_FAILED", "Existing Stripe subscriptions could not be checked.");
+        return { "blocked" = true, "response" = response };
+      }
+      stripePayload = normalizeStripePayload(stripeResult);
+      stripeBlock = findStripeSubscriptionBlock(stripePayload, arguments.priceId);
+      if (structKeyExists(stripeBlock, "blocked") AND stripeBlock.blocked) {
+        return { "blocked" = true, "response" = stripeBlock.response };
+      }
+      return { "blocked" = false };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="findLocalTrialOrPremiumBlock" access="private" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var localSubscription = findLocalStripeSubscriptionBlock(arguments.userId);
+      if (structKeyExists(localSubscription, "blocked") AND localSubscription.blocked) {
+        return localSubscription;
+      }
+      if (hasActiveLocalPremium(arguments.userId)) {
+        return { "blocked" = true, "response" = trialBlockResponse(true, "already_premium", "Your account already has Premium access.", "") };
+      }
+      if (hasUsedLocalStripeFreeTrial(arguments.userId)) {
+        return { "blocked" = true, "response" = trialBlockResponse(false, "not_eligible", "A free trial has already been used for this account.", "PROMO_FREE_TRIAL_ALREADY_USED") };
+      }
+      return { "blocked" = false };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildStripeCustomerRequestPayload" access="private" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="qUser" type="query" required="true">
+    <cfargument name="requestUrl" type="string" required="true">
+    <cfargument name="source" type="string" required="true">
+    <cfscript>
+      var userIdText = toString(int(val(arguments.userId)));
+      var userName = qUserName(arguments.qUser);
+      var formFields = {
+        "email" = qUserEmail(arguments.qUser),
+        "metadata[fpwUserId]" = userIdText,
+        "metadata[fpwMemberId]" = userIdText,
+        "metadata[source]" = trim(arguments.source),
+        "metadata[site]" = "floatplanwizard.com"
+      };
+      if (len(userName)) {
+        formFields["name"] = userName;
+      }
+      return {
+        "url" = trim(arguments.requestUrl),
+        "formFields" = formFields
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="stripeCustomerResponse" access="private" returntype="struct" output="false">
+    <cfargument name="stripeCustomerId" type="string" required="true">
+    <cfargument name="created" type="boolean" required="true">
+    <cfscript>
+      return {
+        "SUCCESS" = true,
+        "success" = true,
+        "stripeCustomerId" = trim(arguments.stripeCustomerId),
+        "STRIPE_CUSTOMER_ID" = trim(arguments.stripeCustomerId),
+        "stripeCustomerCreated" = arguments.created,
+        "STRIPE_CUSTOMER_CREATED" = arguments.created
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="trialBlockResponse" access="private" returntype="struct" output="false">
+    <cfargument name="success" type="boolean" required="true">
+    <cfargument name="status" type="string" required="true">
+    <cfargument name="message" type="string" required="true">
+    <cfargument name="errorCode" type="string" required="false" default="">
+    <cfargument name="stripeSubscriptionId" type="string" required="false" default="">
+    <cfscript>
+      var response = structNew("ordered-casesensitive");
+      response["SUCCESS"] = arguments.success;
+      response["success"] = arguments.success;
+      response["STATUS"] = trim(arguments.status);
+      response["status"] = trim(arguments.status);
+      response["MESSAGE"] = trim(arguments.message);
+      response["message"] = trim(arguments.message);
+      response["NEXT_ACTION"] = "stripe_trial_subscription";
+      response["nextAction"] = "stripe_trial_subscription";
+      response["ERROR"] = trim(arguments.errorCode);
+      response["errorCode"] = trim(arguments.errorCode);
+      if (len(trim(arguments.stripeSubscriptionId))) {
+        response["STRIPE_SUBSCRIPTION_ID"] = trim(arguments.stripeSubscriptionId);
+        response["stripeSubscriptionId"] = trim(arguments.stripeSubscriptionId);
+      }
+      return response;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="hasActiveLocalPremium" access="private" returntype="boolean" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var access = new fpw.api.v1.MemberEntitlementService().init(variables.datasource).getCurrentAccess(arguments.userId);
+      if (structKeyExists(access, "hasPremium") AND (access.hasPremium EQ true OR access.hasPremium EQ 1)) {
+        return true;
+      }
+      if (structKeyExists(access, "HASPREMIUM") AND (access.HASPREMIUM EQ true OR access.HASPREMIUM EQ 1)) {
+        return true;
+      }
+      return false;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="hasUsedLocalStripeFreeTrial" access="private" returntype="boolean" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var qExisting = queryExecute(
+        "SELECT COUNT(*) AS trial_count
+         FROM fpw_promo_redemptions r
+         INNER JOIN fpw_promo_codes p ON p.promo_code_id = r.promo_code_id
+         WHERE r.user_id = :userId
+           AND p.promo_type = 'stripe_free_months'
+           AND r.result = 'redeemed'",
+        {
+          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = variables.datasource }
+      );
+      return qExisting.recordCount GT 0 AND val(qExisting.trial_count[1]) GT 0;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="findLocalStripeSubscriptionBlock" access="private" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var qSub = queryExecute(
+        "SELECT stripe_subscription_id, stripe_subscription_status, status
+         FROM member_entitlements
+         WHERE user_id = :userId
+           AND entitlement_type = 'premium'
+           AND source = 'stripe_subscription'
+           AND stripe_subscription_id IS NOT NULL
+           AND stripe_subscription_id <> ''
+           AND (
+             status = 'active'
+             OR stripe_subscription_status IN ('trialing', 'active', 'past_due', 'incomplete', 'paused')
+           )
+         ORDER BY updated_utc DESC, id DESC
+         LIMIT 1",
+        {
+          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = variables.datasource }
+      );
+      var statusValue = "";
+      var subscriptionId = "";
+      if (qSub.recordCount EQ 0) {
+        return { "blocked" = false };
+      }
+      statusValue = lCase(trim(toString(qSub.stripe_subscription_status[1])));
+      subscriptionId = trim(toString(qSub.stripe_subscription_id[1]));
+      if (listFindNoCase("trialing", statusValue)) {
+        return { "blocked" = true, "response" = trialBlockResponse(true, "already_trialing", "Your Premium trial is already active.", "", subscriptionId) };
+      }
+      if (listFindNoCase("active,past_due", statusValue) OR lCase(trim(toString(qSub.status[1]))) EQ "active") {
+        return { "blocked" = true, "response" = trialBlockResponse(true, "already_premium", "Your account already has Premium access.", "", subscriptionId) };
+      }
+      return { "blocked" = true, "response" = trialBlockResponse(false, "not_eligible", "A free trial has already been used for this account.", "PROMO_FREE_TRIAL_ALREADY_USED", subscriptionId) };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="findStripeSubscriptionBlock" access="private" returntype="struct" output="false">
+    <cfargument name="stripePayload" type="struct" required="true">
+    <cfargument name="priceId" type="string" required="true">
+    <cfscript>
+      var stripeData = [];
+      var subscription = {};
+      var statusValue = "";
+      var subscriptionId = "";
+
+      if (structKeyExists(arguments.stripePayload, "data") AND isArray(arguments.stripePayload.data)) {
+        stripeData = arguments.stripePayload.data;
+      }
+      for (subscription in stripeData) {
+        if (!isStruct(subscription) OR !subscriptionHasPrice(subscription, arguments.priceId)) {
+          continue;
+        }
+        statusValue = lCase(readString(subscription, "status"));
+        subscriptionId = readString(subscription, "id");
+        if (statusValue EQ "trialing") {
+          return { "blocked" = true, "response" = trialBlockResponse(true, "already_trialing", "Your Premium trial is already active.", "", subscriptionId) };
+        }
+        if (listFindNoCase("active,past_due", statusValue)) {
+          return { "blocked" = true, "response" = trialBlockResponse(true, "already_premium", "Your account already has Premium access.", "", subscriptionId) };
+        }
+        if (listFindNoCase("incomplete,paused", statusValue)) {
+          return { "blocked" = true, "response" = trialBlockResponse(false, "not_eligible", "A free trial has already been used for this account.", "PROMO_FREE_TRIAL_ALREADY_USED", subscriptionId) };
+        }
+      }
+      return { "blocked" = false };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="subscriptionHasPrice" access="private" returntype="boolean" output="false">
+    <cfargument name="subscription" type="struct" required="true">
+    <cfargument name="priceId" type="string" required="true">
+    <cfscript>
+      var itemData = [];
+      var item = {};
+      var price = {};
+      if (
+        structKeyExists(arguments.subscription, "items")
+        AND isStruct(arguments.subscription.items)
+        AND structKeyExists(arguments.subscription.items, "data")
+        AND isArray(arguments.subscription.items.data)
+      ) {
+        itemData = arguments.subscription.items.data;
+      }
+      for (item in itemData) {
+        if (isStruct(item) AND structKeyExists(item, "price") AND isStruct(item.price)) {
+          price = item.price;
+          if (compareNoCase(readString(price, "id"), trim(arguments.priceId)) EQ 0) {
+            return true;
+          }
+        }
+      }
+      return false;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="loadMappedStripeCustomerIdForUser" access="private" returntype="string" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var qCustomer = queryExecute(
+        "SELECT stripe_customer_id
+         FROM user_stripe_customers
+         WHERE user_id = :userId
+         LIMIT 1",
+        {
+          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = variables.datasource }
+      );
+      return qCustomer.recordCount ? trim(toString(qCustomer.stripe_customer_id[1])) : "";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="storeUserStripeCustomerMapping" access="private" returntype="boolean" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="stripeCustomerId" type="string" required="true">
+    <cfargument name="qUser" type="query" required="true">
+    <cfargument name="source" type="string" required="true">
+    <cfscript>
+      if (stripeCustomerMappedToDifferentUser(arguments.stripeCustomerId, arguments.userId)) {
+        return false;
+      }
+      queryExecute(
+        "INSERT INTO user_stripe_customers (
+           user_id,
+           stripe_customer_id,
+           email_snapshot,
+           name_snapshot,
+           source,
+           created_at_utc,
+           updated_at_utc
+         ) VALUES (
+           :userId,
+           :stripeCustomerId,
+           :emailSnapshot,
+           :nameSnapshot,
+           :source,
+           UTC_TIMESTAMP(),
+           UTC_TIMESTAMP()
+         )
+         ON DUPLICATE KEY UPDATE
+           stripe_customer_id = VALUES(stripe_customer_id),
+           email_snapshot = VALUES(email_snapshot),
+           name_snapshot = VALUES(name_snapshot),
+           source = VALUES(source),
+           updated_at_utc = UTC_TIMESTAMP()",
+        {
+          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+          stripeCustomerId = { value = trim(arguments.stripeCustomerId), cfsqltype = "cf_sql_varchar" },
+          emailSnapshot = { value = qUserEmail(arguments.qUser), cfsqltype = "cf_sql_varchar", null = !len(qUserEmail(arguments.qUser)) },
+          nameSnapshot = { value = qUserName(arguments.qUser), cfsqltype = "cf_sql_varchar", null = !len(qUserName(arguments.qUser)) },
+          source = { value = trim(arguments.source), cfsqltype = "cf_sql_varchar" }
+        },
+        { datasource = variables.datasource }
+      );
+      return true;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="stripeCustomerMappedToDifferentUser" access="private" returntype="boolean" output="false">
+    <cfargument name="stripeCustomerId" type="string" required="true">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var qConflict = queryExecute(
+        "SELECT user_id
+         FROM user_stripe_customers
+         WHERE stripe_customer_id = :stripeCustomerId
+           AND user_id <> :userId
+         LIMIT 1",
+        {
+          stripeCustomerId = { value = trim(arguments.stripeCustomerId), cfsqltype = "cf_sql_varchar" },
+          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = variables.datasource }
+      );
+      return qConflict.recordCount GT 0;
+    </cfscript>
+  </cffunction>
+
   <cffunction name="loadStripeCustomerIdForUser" access="private" returntype="string" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var mappedCustomerId = loadMappedStripeCustomerIdForUser(arguments.userId);
+      if (len(mappedCustomerId)) {
+        return mappedCustomerId;
+      }
+      return loadLegacyStripeCustomerIdForUser(arguments.userId);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="loadLegacyStripeCustomerIdForUser" access="private" returntype="string" output="false">
     <cfargument name="userId" type="numeric" required="true">
     <cfscript>
       var qCustomer = queryExecute(
@@ -478,6 +1086,34 @@
         { datasource = variables.datasource }
       );
       return qCustomer.recordCount ? trim(toString(qCustomer.stripe_customer_id[1])) : "";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="qUserEmail" access="private" returntype="string" output="false">
+    <cfargument name="qUser" type="query" required="true">
+    <cfscript>
+      if (arguments.qUser.recordCount EQ 0 OR isNull(arguments.qUser.email[1])) {
+        return "";
+      }
+      return trim(toString(arguments.qUser.email[1]));
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="qUserName" access="private" returntype="string" output="false">
+    <cfargument name="qUser" type="query" required="true">
+    <cfscript>
+      var firstName = "";
+      var lastName = "";
+      if (arguments.qUser.recordCount EQ 0) {
+        return "";
+      }
+      if (!isNull(arguments.qUser.fName[1])) {
+        firstName = trim(toString(arguments.qUser.fName[1]));
+      }
+      if (!isNull(arguments.qUser.lName[1])) {
+        lastName = trim(toString(arguments.qUser.lName[1]));
+      }
+      return trim(firstName & " " & lastName);
     </cfscript>
   </cffunction>
 
@@ -574,7 +1210,7 @@
       }
       if (structKeyExists(arguments.requestPayload, "formFields") AND isStruct(arguments.requestPayload.formFields)) {
         for (fieldName in arguments.requestPayload.formFields) {
-          if (listFindNoCase("mode,line_items[0][price],success_url,cancel_url,client_reference_id,metadata[fpwUserId],metadata[fpwPromoType],metadata[fpwTrialDays],metadata[fpwProduct],metadata[fpwEntitlementSource],subscription_data[trial_period_days],subscription_data[trial_settings][end_behavior][missing_payment_method],payment_method_collection", fieldName)) {
+          if (listFindNoCase("mode,line_items[0][price],items[0][price],customer,success_url,cancel_url,client_reference_id,metadata[fpwUserId],metadata[fpwMemberId],metadata[fpwPromoType],metadata[fpwTrialDays],metadata[fpwProduct],metadata[fpwEntitlementSource],metadata[source],metadata[offer],trial_period_days,trial_settings[end_behavior][missing_payment_method],subscription_data[trial_period_days],subscription_data[trial_settings][end_behavior][missing_payment_method],payment_method_collection", fieldName)) {
             arguments.response["stripeRequest_" & fieldName] = sanitizeStripeDebugText(toString(arguments.requestPayload.formFields[fieldName]));
             arrayAppend(debugParts, fieldName & "=" & arguments.response["stripeRequest_" & fieldName]);
           }
@@ -635,6 +1271,7 @@
       textValue = reReplace(textValue, "rk_test_[A-Za-z0-9_]+", "rk_test_[redacted]", "all");
       textValue = reReplace(textValue, "whsec_[A-Za-z0-9_]+", "whsec_[redacted]", "all");
       textValue = reReplace(textValue, "cus_[A-Za-z0-9_]+", "cus_[redacted]", "all");
+      textValue = reReplace(textValue, "sub_[A-Za-z0-9_]+", "sub_[redacted]", "all");
       textValue = reReplace(textValue, "bps_[A-Za-z0-9_]+", "bps_[redacted]", "all");
       return left(textValue, 1000);
     </cfscript>

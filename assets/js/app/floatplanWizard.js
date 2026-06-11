@@ -1701,6 +1701,12 @@
         .then(function (response) {
           self.setStatus(response && response.MESSAGE ? response.MESSAGE : "Float plan sent to selected contacts.", true);
           self.isSaving = false;
+          if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+            window.FPWAnalytics.track("active_cruise_started", {
+              plan_type: "premium_route",
+              source: "float_plan_wizard"
+            });
+          }
           if (self.step === self.totalSteps) {
             self.loadPdfPreview();
           }

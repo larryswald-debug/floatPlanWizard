@@ -136,6 +136,23 @@ component extends="testbox.system.BaseSpec" output="false" {
         }
       });
 
+      it("handles subscription paused and resumed lifecycle events through the subscription upsert path", function() {
+        var userId = createTestUser();
+        var subscriptionId = "sub_pause_resume_" & userId;
+        var activeResult = variables.service.processVerifiedEvent(subscriptionEvent(uniqueEventId("evt_pause_seed"), "customer.subscription.created", userId, subscriptionId, "trialing"));
+        var pausedResult = variables.service.processVerifiedEvent(subscriptionEvent(uniqueEventId("evt_subscription_paused"), "customer.subscription.paused", userId, subscriptionId, "paused"));
+        var resumedResult = {};
+
+        expect(activeResult.SUCCESS).toBeTrue(serializeJSON(activeResult));
+        expect(pausedResult.SUCCESS).toBeTrue(serializeJSON(pausedResult));
+        expect(loadEntitlementBySubscription(subscriptionId).status[1]).toBe("inactive");
+        expect(variables.accessService.getCurrentAccess(userId).hasPremium).toBeFalse();
+        resumedResult = variables.service.processVerifiedEvent(subscriptionEvent(uniqueEventId("evt_subscription_resumed"), "customer.subscription.resumed", userId, subscriptionId, "active"));
+        expect(resumedResult.SUCCESS).toBeTrue(serializeJSON(resumedResult));
+        expect(loadEntitlementBySubscription(subscriptionId).status[1]).toBe("active");
+        expect(variables.accessService.getCurrentAccess(userId).hasPremium).toBeTrue();
+      });
+
       it("updates only known mapped subscriptions for invoice payment events", function() {
         var userId = createTestUser();
         var subscriptionId = "sub_invoice_known_" & userId;

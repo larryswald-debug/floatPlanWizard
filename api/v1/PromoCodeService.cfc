@@ -184,10 +184,11 @@
       var promoId = 0;
       var codeHash = "";
       var trialDays = 0;
-      var pendingCheckout = {};
-      var checkoutResult = {};
-      var checkoutErrorCode = "";
-      var checkoutSessionId = "";
+      var subscriptionResult = {};
+      var subscriptionErrorCode = "";
+      var subscriptionId = "";
+      var customerId = "";
+      var statusValue = "";
       var response = {};
 
       if (arguments.userId LTE 0) {
@@ -201,7 +202,7 @@
           if (qPromo.recordCount EQ 0) {
             response = ineligibleResponse("LAUNCH_PROMO_NOT_AVAILABLE", "The launch trial is not available right now.");
           } else if (qPromo.recordCount GT 1) {
-            response = ineligibleResponse("LAUNCH_PROMO_AMBIGUOUS", "Launch trial setup needs attention before checkout can start.");
+            response = ineligibleResponse("LAUNCH_PROMO_AMBIGUOUS", "Launch trial setup needs attention before the trial can start.");
           } else {
             codeHash = trim(toString(qPromo.code_hash[1]));
             validation = evaluatePromo(arguments.userId, codeHash, qPromo, nowValue);
@@ -216,41 +217,52 @@
                 logRedemptionAttempt(promoId, arguments.userId, codeHash, "rejected", "PROMO_INVALID_TRIAL_DURATION", 0, nowValue);
                 response = ineligibleResponse("PROMO_INVALID_TRIAL_DURATION", "Free trial duration is not supported.", qPromo);
               } else {
-                pendingCheckout = continuePendingFreeTrialCheckout(arguments.userId, nowValue);
-                if (structKeyExists(pendingCheckout, "response") AND isStruct(pendingCheckout.response)) {
-                  response = pendingCheckout.response;
+                subscriptionResult = getCheckoutService().startCustomNoCardTrialSubscription(
+                  arguments.userId,
+                  trialDays,
+                  {
+                    source = "fpw_custom_no_card_trial",
+                    offer = "launch_trial"
+                  }
+                );
+
+                if (!structKeyExists(subscriptionResult, "SUCCESS") OR subscriptionResult.SUCCESS NEQ true) {
+                  subscriptionErrorCode = structKeyExists(subscriptionResult, "ERROR") ? trim(toString(subscriptionResult.ERROR)) : "STRIPE_SUBSCRIPTION_FAILED";
+                  logRedemptionAttempt(promoId, arguments.userId, codeHash, "rejected", subscriptionErrorCode, 0, nowValue);
+                  response = ineligibleResponse(subscriptionErrorCode, structKeyExists(subscriptionResult, "MESSAGE") ? trim(toString(subscriptionResult.MESSAGE)) : "Stripe trial subscription could not be created.", qPromo);
+                  copyCheckoutDebug(response, subscriptionResult);
                 } else {
-                  checkoutResult = getCheckoutService().createFreeTrialCheckoutSession(
-                    arguments.userId,
-                    trialDays,
-                    {
-                      promoType = "stripe_free_months"
-                    }
-                  );
+                  statusValue = structKeyExists(subscriptionResult, "status") ? lCase(trim(toString(subscriptionResult.status))) : "";
+                  if (!len(statusValue) AND structKeyExists(subscriptionResult, "STATUS")) {
+                    statusValue = lCase(trim(toString(subscriptionResult.STATUS)));
+                  }
+                  subscriptionId = structKeyExists(subscriptionResult, "stripeSubscriptionId") ? trim(toString(subscriptionResult.stripeSubscriptionId)) : "";
+                  if (!len(subscriptionId) AND structKeyExists(subscriptionResult, "STRIPE_SUBSCRIPTION_ID")) {
+                    subscriptionId = trim(toString(subscriptionResult.STRIPE_SUBSCRIPTION_ID));
+                  }
+                  customerId = structKeyExists(subscriptionResult, "stripeCustomerId") ? trim(toString(subscriptionResult.stripeCustomerId)) : "";
+                  if (!len(customerId) AND structKeyExists(subscriptionResult, "STRIPE_CUSTOMER_ID")) {
+                    customerId = trim(toString(subscriptionResult.STRIPE_CUSTOMER_ID));
+                  }
 
-                  if (!structKeyExists(checkoutResult, "SUCCESS") OR checkoutResult.SUCCESS NEQ true) {
-                    checkoutErrorCode = structKeyExists(checkoutResult, "ERROR") ? trim(toString(checkoutResult.ERROR)) : "STRIPE_CHECKOUT_FAILED";
-                    logRedemptionAttempt(promoId, arguments.userId, codeHash, "rejected", checkoutErrorCode, 0, nowValue);
-                    response = ineligibleResponse(checkoutErrorCode, structKeyExists(checkoutResult, "MESSAGE") ? trim(toString(checkoutResult.MESSAGE)) : "Stripe checkout session could not be created.", qPromo);
-                    copyCheckoutDebug(response, checkoutResult);
+                  response = eligibleResponse(qPromo, "stripe_trial_subscription", structKeyExists(subscriptionResult, "MESSAGE") ? trim(toString(subscriptionResult.MESSAGE)) : "Your Premium trial has started. Activation may take a moment.");
+                  response.checkoutRequired = false;
+                  response.CHECKOUT_REQUIRED = false;
+                  response.status = statusValue;
+                  response.STATUS = statusValue;
+                  response.trialDays = trialDays;
+                  response.TRIAL_DAYS = trialDays;
+                  response.stripeSubscriptionId = subscriptionId;
+                  response.STRIPE_SUBSCRIPTION_ID = subscriptionId;
+                  response.stripeCustomerId = customerId;
+                  response.STRIPE_CUSTOMER_ID = customerId;
+
+                  if (statusValue EQ "trial_created") {
+                    incrementRedemptionCount(promoId);
+                    logRedemptionAttempt(promoId, arguments.userId, codeHash, "redeemed", "", 0, nowValue, "", customerId, subscriptionId);
+                    response.redeemed = true;
                   } else {
-                    checkoutSessionId = structKeyExists(checkoutResult, "stripeCheckoutSessionId") ? trim(toString(checkoutResult.stripeCheckoutSessionId)) : "";
-                    if (!len(checkoutSessionId) AND structKeyExists(checkoutResult, "STRIPE_CHECKOUT_SESSION_ID")) {
-                      checkoutSessionId = trim(toString(checkoutResult.STRIPE_CHECKOUT_SESSION_ID));
-                    }
-
-                    logRedemptionAttempt(promoId, arguments.userId, codeHash, "checkout_created", "", 0, nowValue, checkoutSessionId);
-                    response = eligibleResponse(qPromo, "stripe_trial_checkout", "No-credit-card trial checkout is ready.");
                     response.redeemed = false;
-                    response.checkoutRequired = true;
-                    response.reusedCheckoutSession = false;
-                    response.REUSED_CHECKOUT_SESSION = false;
-                    response.trialDays = trialDays;
-                    response.TRIAL_DAYS = trialDays;
-                    response.checkoutUrl = structKeyExists(checkoutResult, "checkoutUrl") ? trim(toString(checkoutResult.checkoutUrl)) : "";
-                    response.CHECKOUT_URL = structKeyExists(checkoutResult, "CHECKOUT_URL") ? trim(toString(checkoutResult.CHECKOUT_URL)) : response.checkoutUrl;
-                    response.stripeCheckoutSessionId = checkoutSessionId;
-                    response.STRIPE_CHECKOUT_SESSION_ID = checkoutSessionId;
                   }
                 }
               }
@@ -452,12 +464,19 @@
         "stripeRequestUrl",
         "stripeRequest_mode",
         "stripeRequest_line_items[0][price]",
+        "stripeRequest_items[0][price]",
+        "stripeRequest_customer",
         "stripeRequest_success_url",
         "stripeRequest_cancel_url",
         "stripeRequest_client_reference_id",
         "stripeRequest_metadata[fpwUserId]",
+        "stripeRequest_metadata[fpwMemberId]",
         "stripeRequest_metadata[fpwPromoType]",
         "stripeRequest_metadata[fpwTrialDays]",
+        "stripeRequest_metadata[source]",
+        "stripeRequest_metadata[offer]",
+        "stripeRequest_trial_period_days",
+        "stripeRequest_trial_settings[end_behavior][missing_payment_method]",
         "stripeRequest_subscription_data[trial_period_days]",
         "stripeRequest_subscription_data[trial_settings][end_behavior][missing_payment_method]",
         "stripeRequest_payment_method_collection"
@@ -693,6 +712,8 @@
     <cfargument name="entitlementId" type="numeric" required="true">
     <cfargument name="nowUtc" type="date" required="true">
     <cfargument name="stripeCheckoutSessionId" type="string" required="false" default="">
+    <cfargument name="stripeCustomerId" type="string" required="false" default="">
+    <cfargument name="stripeSubscriptionId" type="string" required="false" default="">
     <cfscript>
       queryExecute(
         "INSERT INTO fpw_promo_redemptions (
@@ -703,6 +724,8 @@
            error_code,
            entitlement_id,
            stripe_checkout_session_id,
+           stripe_customer_id,
+           stripe_subscription_id,
            attempted_at_utc,
            redeemed_at_utc,
            created_at_utc,
@@ -715,6 +738,8 @@
            :errorCode,
            :entitlementId,
            :stripeCheckoutSessionId,
+           :stripeCustomerId,
+           :stripeSubscriptionId,
            :attemptedAtUtc,
            :redeemedAtUtc,
            UTC_TIMESTAMP(),
@@ -728,6 +753,8 @@
           errorCode = { value = trim(arguments.errorCode), cfsqltype = "cf_sql_varchar", null = !len(trim(arguments.errorCode)) },
           entitlementId = { value = arguments.entitlementId, cfsqltype = "cf_sql_bigint", null = arguments.entitlementId LTE 0 },
           stripeCheckoutSessionId = { value = trim(arguments.stripeCheckoutSessionId), cfsqltype = "cf_sql_varchar", null = !len(trim(arguments.stripeCheckoutSessionId)) },
+          stripeCustomerId = { value = trim(arguments.stripeCustomerId), cfsqltype = "cf_sql_varchar", null = !len(trim(arguments.stripeCustomerId)) },
+          stripeSubscriptionId = { value = trim(arguments.stripeSubscriptionId), cfsqltype = "cf_sql_varchar", null = !len(trim(arguments.stripeSubscriptionId)) },
           attemptedAtUtc = { value = arguments.nowUtc, cfsqltype = "cf_sql_timestamp" },
           redeemedAtUtc = { value = arguments.nowUtc, cfsqltype = "cf_sql_timestamp", null = !listFindNoCase("redeemed", arguments.result) }
         },

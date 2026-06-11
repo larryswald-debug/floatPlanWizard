@@ -334,14 +334,17 @@ component extends="testbox.system.BaseSpec" output="false" {
         var access = variables.memberService.getCurrentAccess(userId);
 
         expect(result.SUCCESS).toBeTrue(serializeJSON(result));
-        expect(result.nextAction).toBe("stripe_trial_checkout");
+        expect(result.nextAction).toBe("stripe_trial_subscription");
+        expect(result.status).toBe("trial_created");
         expect(result.trialDays).toBe(30);
         expect(result.promoCodeId).toBe(launchPromoId);
-        expect(result.checkoutUrl).toBe("https://checkout.stripe.com/c/pay/cs_test_trial_" & userId & "_1");
-        expect(arrayLen(checkoutService.requests)).toBe(1);
+        expect(result.stripeSubscriptionId).toBe("sub_test_trial_" & userId & "_1");
+        expect(arrayLen(checkoutService.requests)).toBe(0);
+        expect(arrayLen(checkoutService.subscriptionRequests)).toBe(1);
         expect(access.hasPremium).toBeFalse(serializeJSON(access));
         expect(countPremiumEntitlements(userId)).toBe(0);
-        expect(countCheckoutCreatedRows(userId, launchPromoId)).toBe(1);
+        expect(countCheckoutCreatedRows(userId, launchPromoId)).toBe(0);
+        expect(countRedeemedRows(userId, launchCode)).toBe(1);
       });
 
       it("preserves existing Basic, Stripe, three_day_pass, admin_comp, and past_due access behavior", function() {
@@ -686,7 +689,7 @@ component extends="testbox.system.BaseSpec" output="false" {
   }
 
   private struct function buildFakeTrialCheckoutService() {
-    var service = { requests = [], sessionStatuses = {} };
+    var service = { requests = [], sessionStatuses = {}, subscriptionRequests = [] };
     service.createFreeTrialCheckoutSession = function(required numeric userId, required numeric trialDays, struct promoMetadata = {}) {
       var sessionId = "cs_test_trial_" & arguments.userId & "_" & (arrayLen(service.requests) + 1);
       arrayAppend(service.requests, {
@@ -702,6 +705,30 @@ component extends="testbox.system.BaseSpec" output="false" {
         checkoutUrl = "https://checkout.stripe.com/c/pay/" & sessionId,
         STRIPE_CHECKOUT_SESSION_ID = sessionId,
         stripeCheckoutSessionId = sessionId,
+        TRIAL_DAYS = arguments.trialDays,
+        trialDays = arguments.trialDays
+      };
+    };
+    service.startCustomNoCardTrialSubscription = function(required numeric userId, required numeric trialDays, struct promoMetadata = {}) {
+      var subscriptionId = "sub_test_trial_" & arguments.userId & "_" & (arrayLen(service.subscriptionRequests) + 1);
+      arrayAppend(service.subscriptionRequests, {
+        userId = arguments.userId,
+        trialDays = arguments.trialDays,
+        promoMetadata = duplicate(arguments.promoMetadata)
+      });
+      return {
+        SUCCESS = true,
+        success = true,
+        MESSAGE = "Your Premium trial has started. Activation may take a moment.",
+        message = "Your Premium trial has started. Activation may take a moment.",
+        STATUS = "trial_created",
+        status = "trial_created",
+        NEXT_ACTION = "stripe_trial_subscription",
+        nextAction = "stripe_trial_subscription",
+        STRIPE_CUSTOMER_ID = "cus_test_trial_" & arguments.userId,
+        stripeCustomerId = "cus_test_trial_" & arguments.userId,
+        STRIPE_SUBSCRIPTION_ID = subscriptionId,
+        stripeSubscriptionId = subscriptionId,
         TRIAL_DAYS = arguments.trialDays,
         trialDays = arguments.trialDays
       };

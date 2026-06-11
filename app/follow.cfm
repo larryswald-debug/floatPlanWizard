@@ -8,7 +8,7 @@
 
   <cfinclude template="../includes/header_styles.cfm">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/follow.css?v=20260526-cache-bump" />
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/follow.css?v=20260611-follow-card-surfaces" />
   <style>
     body.follow-loading { overflow: hidden; }
     body.follow-loading .app { visibility: hidden; }
@@ -197,7 +197,7 @@
 
             <article class="card mini-card">
               <h4>Trip Summary</h4>
-              <div class="metric" style="font-size:30px;" data-fpw-field="trip-summary-metric">—</div>
+              <div class="metric trip-summary-metric" data-fpw-field="trip-summary-metric">—</div>
               <div class="summary-list">
                 <div data-fpw-field="trip-summary-distance">—</div>
                 <div data-fpw-field="trip-summary-confidence">—</div>

@@ -325,7 +325,7 @@ if (isEarlyAccessPost) {
 
 <meta name="description" content="Plan safer boat trips with FloatPlanWizard. Create float plans, organize route details, estimate fuel needs, and share trip updates with family and friends. Join the prelaunch list.">
 
-<link rel="canonical" href="https://www.floatplanwizard.com/">
+<link rel="canonical" href="https://floatplanwizard.com/">
 
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">

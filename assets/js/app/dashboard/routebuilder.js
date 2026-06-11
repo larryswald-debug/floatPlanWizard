@@ -6281,6 +6281,14 @@
           utils.showDashboardAlert("Route generated successfully.", "success");
         }
 
+        if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+          window.FPWAnalytics.track("route_created", {
+            route_source: isMyRoute ? "my_route" : "route_generator",
+            source: "route_builder",
+            leg_count: Array.isArray(state.previewLegs) ? state.previewLegs.length : 0
+          });
+        }
+
         notifyRoutesUpdated(routeCode);
         buildCruiseTimeline(
           state.activeRouteId,
@@ -7013,6 +7021,13 @@
         0
       );
       setStatus("My Route created.");
+      if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+        window.FPWAnalytics.track("route_created", {
+          route_source: "my_route",
+          source: "route_builder",
+          leg_count: 0
+        });
+      }
       return loadMyRoutes({ routeId: createdRouteId > 0 ? createdRouteId : 0 });
     }).catch(function (err) {
       showError((err && err.message) ? err.message : "Unable to create My Route.");

@@ -69,6 +69,8 @@
           return processCheckoutSessionCompleted(arguments.eventObject);
         case "customer.subscription.created":
         case "customer.subscription.updated":
+        case "customer.subscription.paused":
+        case "customer.subscription.resumed":
           return processSubscriptionUpsert(arguments.eventObject, arguments.eventType);
         case "customer.subscription.deleted":
           return processSubscriptionDeleted(arguments.eventObject);
@@ -147,6 +149,14 @@
       var userId = resolveUserIdFromSubscription(arguments.subscriptionObject);
       var entitlementStatus = mapSubscriptionStatusToEntitlementStatus(subscriptionStatus);
       var identifiers = extractReferences(arguments.eventType, arguments.subscriptionObject);
+
+      if (arguments.eventType EQ "customer.subscription.paused") {
+        subscriptionStatus = "paused";
+        entitlementStatus = mapSubscriptionStatusToEntitlementStatus(subscriptionStatus);
+      } else if (arguments.eventType EQ "customer.subscription.resumed" AND !len(subscriptionStatus)) {
+        subscriptionStatus = "active";
+        entitlementStatus = mapSubscriptionStatusToEntitlementStatus(subscriptionStatus);
+      }
 
       if (userId LTE 0) {
         return ignoredResponse("STRIPE_USER_MAPPING_NOT_FOUND", "Subscription event did not map to one valid FPW user.", identifiers);

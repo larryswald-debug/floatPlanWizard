@@ -217,6 +217,12 @@
         var redirectUrl = data && (data.redirectUrl || data.REDIRECT_URL);
 
         showAlert(msg, "success");
+        if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+          window.FPWAnalytics.track("sign_up", {
+            method: "email",
+            source: "join_page"
+          });
+        }
         if (redirectUrl) {
           window.location.href = redirectUrl;
           return;

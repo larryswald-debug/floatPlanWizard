@@ -26,13 +26,40 @@
     return String(value).trim().toLowerCase() === "true" || String(value).trim() === "1";
   }
 
+  function buttonIconMarkup() {
+    return '<svg class="fpw-inline-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+      '<path d="M5 3v4"></path><path d="M3 5h4"></path><path d="M19 13v4"></path><path d="M17 15h4"></path>' +
+      '<path d="M11 6l1.5 3.5L16 11l-3.5 1.5L11 16l-1.5-3.5L6 11l3.5-1.5L11 6z"></path>' +
+      '</svg>';
+  }
+
+  function arrowIconMarkup() {
+    return '<svg class="fpw-inline-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+      '<path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path>' +
+      '</svg>';
+  }
+
+  function infoIconMarkup() {
+    return '<span class="fpw-status-info-icon" aria-hidden="true">' +
+      '<svg class="fpw-inline-icon" viewBox="0 0 24 24" focusable="false">' +
+      '<circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 7h.01"></path>' +
+      '</svg></span>';
+  }
+
   function setMessage(message, tone) {
     var el = $("startTrialMessage");
     if (!el) return;
-    el.textContent = message || "";
     el.classList.remove("membership-message-error", "membership-message-success");
     if (tone === "error" || tone === "danger") el.classList.add("membership-message-error");
     if (tone === "success") el.classList.add("membership-message-success");
+    el.innerHTML = infoIconMarkup() + '<span class="fpw-status-message-copy"></span>';
+    var copy = el.querySelector(".fpw-status-message-copy");
+    if (!copy) return;
+    if (message === "Ready to start. No payment information is required.") {
+      copy.innerHTML = 'Ready to start. <strong>No payment information</strong> is required.';
+      return;
+    }
+    copy.textContent = message || "";
   }
 
   function setBusy(isBusy) {
@@ -40,27 +67,41 @@
     if (!button) return;
     button.disabled = !!isBusy;
     button.setAttribute("aria-disabled", isBusy ? "true" : "false");
-    button.textContent = isBusy ? "Opening..." : "Activate Free Trial";
-  }
-
-  function checkoutUrlFrom(payload) {
-    return payload && (payload.checkoutUrl || payload.CHECKOUT_URL)
-      ? String(payload.checkoutUrl || payload.CHECKOUT_URL).trim()
-      : "";
+    button.innerHTML = buttonIconMarkup() + (isBusy ? "Starting trial..." : "Start Free Trial") + arrowIconMarkup();
   }
 
   function messageForError(error) {
     var code = getErrorCode(error).toUpperCase();
     if (code === "FREE_TRIAL_ALREADY_USED") return "A free trial has already been used for this account.";
     if (code === "LAUNCH_PROMO_NOT_AVAILABLE") return "The launch trial is not available right now.";
-    if (code === "LAUNCH_PROMO_AMBIGUOUS") return "Launch trial setup needs attention before checkout can start.";
+    if (code === "LAUNCH_PROMO_AMBIGUOUS") return "Launch trial setup needs attention before the trial can start.";
     if (code === "ALREADY_PREMIUM") return "Your account already has Premium access.";
-    if (code === "STRIPE_CONFIG_MISSING") return "Trial checkout is not available right now.";
-    if (code === "STRIPE_CHECKOUT_FAILED") return "Trial checkout could not be started.";
-    if (code === "STRIPE_CHECKOUT_LOOKUP_FAILED") return "Free-trial checkout could not be checked. Please try again shortly.";
-    if (code === "STRIPE_CHECKOUT_CONFIRMATION_PENDING") return "Free-trial checkout is being confirmed. Please refresh shortly.";
+    if (code === "STRIPE_CONFIG_MISSING") return "Trial activation is not available right now.";
+    if (code === "STRIPE_SUBSCRIPTION_FAILED") return "Trial subscription could not be started.";
+    if (code === "STRIPE_SUBSCRIPTION_LOOKUP_FAILED") return "Existing Stripe subscriptions could not be checked. Please try again shortly.";
+    if (code === "STRIPE_CUSTOMER_CREATE_FAILED" || code === "STRIPE_CUSTOMER_UPDATE_FAILED") return "Billing customer setup could not be completed.";
+    if (code === "STRIPE_CUSTOMER_MAPPING_CONFLICT") return "Billing customer setup needs account support.";
     if (code === "AUTH_REQUIRED") return "Log in to start the launch trial.";
     return (error && (error.MESSAGE || error.message)) ? (error.MESSAGE || error.message) : "Launch trial could not be started.";
+  }
+
+  function statusFrom(payload) {
+    return String((payload && (payload.status || payload.STATUS)) || "").trim().toLowerCase();
+  }
+
+  function redirectUrlFrom(payload) {
+    return payload && (payload.redirectUrl || payload.REDIRECT_URL)
+      ? String(payload.redirectUrl || payload.REDIRECT_URL).trim()
+      : "/app/dashboard.cfm";
+  }
+
+  function successMessageForStatus(payload) {
+    var status = statusFrom(payload);
+    if (status === "already_premium") return "Your account already has Premium access. Opening the dashboard...";
+    if (status === "already_trialing" || status === "already_active") return "Your Premium trial is already active. Opening the dashboard...";
+    return (payload && (payload.MESSAGE || payload.message))
+      ? (payload.MESSAGE || payload.message)
+      : "Your Premium trial has started. Activation may take a moment.";
   }
 
   async function loadStatus() {
@@ -82,7 +123,7 @@
         return;
       }
       setBusy(false);
-      setMessage("Ready to start your no-credit-card Premium trial.", "success");
+      setMessage("Ready to start. No payment information is required.", "success");
     } catch (err) {
       setBusy(true);
       setMessage(messageForError(err), "error");
@@ -96,21 +137,23 @@
     }
 
     setBusy(true);
-    setMessage("Opening secure Stripe Checkout...", "info");
+    setMessage("Starting your trial through Stripe. No payment information is required.", "info");
 
     try {
       var data = await window.Api.startLaunchTrial();
       var nextAction = String((data && (data.nextAction || data.NEXTACTION)) || "").trim().toLowerCase();
-      var checkoutUrl = checkoutUrlFrom(data);
 
       if (!data || (data.SUCCESS !== true && data.success !== true)) {
         throw data || { MESSAGE: "Launch trial could not be started." };
       }
-      if (nextAction !== "stripe_trial_checkout" || !checkoutUrl) {
-        throw { MESSAGE: "Trial checkout could not be started." };
+      if (nextAction !== "stripe_trial_subscription") {
+        throw { MESSAGE: "Trial subscription could not be started." };
       }
 
-      window.location.href = checkoutUrl;
+      setMessage(successMessageForStatus(data), "success");
+      window.setTimeout(function () {
+        window.location.href = redirectUrlFrom(data);
+      }, 1400);
     } catch (err) {
       setBusy(false);
       setMessage(messageForError(err), "error");

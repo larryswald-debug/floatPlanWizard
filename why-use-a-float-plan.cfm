@@ -777,7 +777,7 @@ fpwFloatPlanAppUrl = fpwFloatPlanBasePath & "/" & "app" & "/";
       }
     }
   </style>
-  <link rel="canonical" href="https://www.floatplanwizard.com/why-use-a-float-plan/" />
+  <link rel="canonical" href="https://floatplanwizard.com/why-use-a-float-plan/" />
 <cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/top-nav.css?v=20260530-nav-cta"></cfoutput>
 </head>
 <body class="fpw-floatplan-public">

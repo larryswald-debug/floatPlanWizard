@@ -118,29 +118,9 @@ if (topNavIsLoggedIn) {
   }
 }
 
-if (structKeyExists(cgi, "http_host")) {
-  topNavHost = lcase(trim(toString(cgi.http_host)));
-} else if (structKeyExists(cgi, "server_name")) {
-  topNavHost = lcase(trim(toString(cgi.server_name)));
-}
-topNavHost = reReplace(topNavHost, ":\d+$", "");
-topNavIsProduction = !len(topNavBasePath)
-  AND listFindNoCase("floatplanwizard.com,www.floatplanwizard.com", topNavHost) GT 0;
 topNavShowAppSubnav = topNavIsLoggedIn
   AND listFindNoCase("dashboard,active-cruise,monitoring,weather,fuel", topNavActive) GT 0;
 </cfscript>
-
-<cfif topNavIsProduction>
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-JJCH1QE0LH"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-
-    gtag('config', 'G-JJCH1QE0LH');
-  </script>
-</cfif>
 
 <cfoutput>
   <header class="fpw-site-header<cfif topNavIsLoggedIn> fpw-site-header--logged-in</cfif><cfif topNavShowAppSubnav> fpw-site-header--app</cfif>" role="banner" data-fpw-nav>

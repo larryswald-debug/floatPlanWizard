@@ -523,6 +523,13 @@
           return;
         }
         showPromoMessage("Opening secure Stripe Checkout...", "success");
+        if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+          window.FPWAnalytics.track("begin_checkout", {
+            checkout_type: "stripe_trial",
+            promo_type: promoType || "unknown",
+            source: "promo_code"
+          });
+        }
         window.location.href = checkoutUrl;
         return;
       }

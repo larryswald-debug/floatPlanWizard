@@ -169,6 +169,42 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(findNoCase("sk_test_checkout_secret", serializeJSON(res))).toBe(0);
       });
 
+      it("creates a no-card trial subscription directly without creating Checkout", function() {
+        var billingUser = createDisposableBillingUser();
+        var userId = billingUser.userId;
+        var transport = buildFakeTransport();
+        var service = new fpw.api.v1.StripeCheckoutService().init(
+          datasource = "fpw",
+          configService = buildFakeConfig(),
+          stripeTransport = transport
+        );
+        var res = service.startCustomNoCardTrialSubscription(userId, 30, {
+          source = "fpw_custom_no_card_trial",
+          offer = "launch_trial"
+        });
+        var fields = transport.subscriptionCreateRequests[1].requestPayload.formFields;
+
+        expect(res.SUCCESS).toBeTrue(serializeJSON(res));
+        expect(res.nextAction).toBe("stripe_trial_subscription");
+        expect(res.status).toBe("trial_created");
+        expect(res.stripeCustomerId).toBe("cus_test_direct_" & userId);
+        expect(res.stripeSubscriptionId).toBe("sub_test_direct_" & userId);
+        expect(arrayLen(transport.requests)).toBe(0);
+        expect(arrayLen(transport.customerCreateRequests)).toBe(1);
+        expect(arrayLen(transport.subscriptionListRequests)).toBe(1);
+        expect(arrayLen(transport.subscriptionCreateRequests)).toBe(1);
+        expect(fields.customer).toBe("cus_test_direct_" & userId);
+        expect(fields["items[0][price]"]).toBe("price_premium_monthly_test");
+        expect(fields.trial_period_days).toBe("30");
+        expect(fields["trial_settings[end_behavior][missing_payment_method]"]).toBe("pause");
+        expect(fields["metadata[fpwUserId]"]).toBe(toString(userId));
+        expect(fields["metadata[fpwMemberId]"]).toBe(toString(userId));
+        expect(fields["metadata[source]"]).toBe("fpw_custom_no_card_trial");
+        expect(fields["metadata[offer]"]).toBe("launch_trial");
+        expect(structKeyExists(fields, "default_payment_method")).toBeFalse(serializeJSON(fields));
+        expect(findNoCase("sk_test_checkout_secret", serializeJSON(res))).toBe(0);
+      });
+
       it("retrieves safe Checkout session status fields for pending trial reuse", function() {
         var transport = buildFakeTransport({
           id = "cs_test_reuse",
@@ -277,7 +313,14 @@ component extends="testbox.system.BaseSpec" output="false" {
   }
 
   private struct function buildFakeTransport(struct responseBody = {}) {
-    var transport = { requests = [], retrieveRequests = [] };
+    var transport = {
+      requests = [],
+      retrieveRequests = [],
+      customerCreateRequests = [],
+      customerUpdateRequests = [],
+      subscriptionListRequests = [],
+      subscriptionCreateRequests = []
+    };
     if (structIsEmpty(arguments.responseBody)) {
       arguments.responseBody = {
         id = "cs_test_checkout",
@@ -307,6 +350,72 @@ component extends="testbox.system.BaseSpec" output="false" {
         success = true,
         statusCode = 200,
         body = duplicate(transport.responseBody)
+      };
+    };
+    transport.createCustomer = function(required struct requestPayload, required string secretKey) {
+      var emailValue = structKeyExists(arguments.requestPayload.formFields, "email") ? arguments.requestPayload.formFields.email : "";
+      var userIdValue = structKeyExists(arguments.requestPayload.formFields, "metadata[fpwUserId]") ? arguments.requestPayload.formFields["metadata[fpwUserId]"] : "0";
+      arrayAppend(transport.customerCreateRequests, {
+        requestPayload = duplicate(arguments.requestPayload),
+        secretKey = arguments.secretKey
+      });
+      return {
+        SUCCESS = true,
+        success = true,
+        statusCode = 200,
+        body = {
+          id = "cus_test_direct_" & userIdValue,
+          email = emailValue
+        }
+      };
+    };
+    transport.updateCustomer = function(required struct requestPayload, required string secretKey) {
+      arrayAppend(transport.customerUpdateRequests, {
+        requestPayload = duplicate(arguments.requestPayload),
+        secretKey = arguments.secretKey
+      });
+      return {
+        SUCCESS = true,
+        success = true,
+        statusCode = 200,
+        body = {
+          id = "cus_test_updated"
+        }
+      };
+    };
+    transport.listSubscriptions = function(required string requestUrl, required string stripeCustomerId, required string secretKey) {
+      arrayAppend(transport.subscriptionListRequests, {
+        requestUrl = arguments.requestUrl,
+        stripeCustomerId = arguments.stripeCustomerId,
+        secretKey = arguments.secretKey
+      });
+      return {
+        SUCCESS = true,
+        success = true,
+        statusCode = 200,
+        body = {
+          object = "list",
+          data = []
+        }
+      };
+    };
+    transport.createSubscription = function(required struct requestPayload, required string secretKey) {
+      var customerIdValue = arguments.requestPayload.formFields.customer;
+      var userIdValue = structKeyExists(arguments.requestPayload.formFields, "metadata[fpwUserId]") ? arguments.requestPayload.formFields["metadata[fpwUserId]"] : "0";
+      arrayAppend(transport.subscriptionCreateRequests, {
+        requestPayload = duplicate(arguments.requestPayload),
+        secretKey = arguments.secretKey
+      });
+      return {
+        SUCCESS = true,
+        success = true,
+        statusCode = 200,
+        body = {
+          id = "sub_test_direct_" & userIdValue,
+          customer = customerIdValue,
+          status = "trialing",
+          trial_end = 1780960000
+        }
       };
     };
     return transport;
@@ -356,6 +465,13 @@ component extends="testbox.system.BaseSpec" output="false" {
     for (i = 1; i <= arrayLen(variables.createdUserIds); i++) {
       queryExecute(
         "DELETE FROM member_entitlements WHERE user_id = :userId",
+        {
+          userId = { value = variables.createdUserIds[i], cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
+      queryExecute(
+        "DELETE FROM user_stripe_customers WHERE user_id = :userId",
         {
           userId = { value = variables.createdUserIds[i], cfsqltype = "cf_sql_integer" }
         },

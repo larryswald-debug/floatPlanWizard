@@ -929,9 +929,7 @@
                 finalDayDate = finalDayDate,
                 finalDayEstHours = finalDayEstHours
             );
-            suggestedReturnUtc = localWallClockToUtcString(suggestedReturnLocal, departureTimezone);
-
-            if (!len(suggestedReturnLocal) OR !len(suggestedReturnUtc)) {
+            if (!len(suggestedReturnLocal)) {
                 result.ERROR = "RETURN_TIME_UNAVAILABLE";
                 result.MESSAGE = "Suggested return time could not be calculated.";
                 return result;
@@ -982,50 +980,15 @@
         <cfargument name="timeZoneId" type="string" required="true">
         <cfscript>
             var tz = trim(arguments.timeZoneId);
+            var allowedTimezones = "UTC,Etc/UTC,GMT,US/Eastern,US/Central,US/Mountain,US/Pacific,US/Alaska,US/Hawaii,America/New_York,America/Chicago,America/Denver,America/Los_Angeles,America/Phoenix,America/Anchorage,America/Detroit,America/Indiana/Indianapolis,America/Kentucky/Louisville,America/Puerto_Rico,Pacific/Honolulu";
+
             if (!len(tz)) {
                 return "";
             }
-            try {
-                createObject("java", "java.time.ZoneId").of(tz);
+            if (listFindNoCase(allowedTimezones, tz)) {
                 return tz;
-            } catch (any tzError) {
-                return "";
             }
-        </cfscript>
-    </cffunction>
-
-    <cffunction name="localWallClockToUtcString" access="private" returntype="string" output="false">
-        <cfargument name="localDateTime" type="string" required="true">
-        <cfargument name="timeZoneId" type="string" required="true">
-        <cfscript>
-            var normalizedLocal = normalizeLocalWallClockInput(arguments.localDateTime);
-            var tz = normalizeRouteSuggestionTimezone(arguments.timeZoneId);
-            var formatter = "";
-            var localDateTimeObj = "";
-            var zoneId = "";
-            var instant = "";
-            var utcDateTime = "";
-
-            if (!len(normalizedLocal) OR !len(tz)) {
-                return "";
-            }
-            if (listFindNoCase("UTC,Etc/UTC,GMT", tz)) {
-                return normalizedLocal;
-            }
-
-            try {
-                formatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("yyyy-MM-dd HH:mm:ss");
-                localDateTimeObj = createObject("java", "java.time.LocalDateTime").parse(normalizedLocal, formatter);
-                zoneId = createObject("java", "java.time.ZoneId").of(tz);
-                instant = localDateTimeObj.atZone(zoneId).toInstant();
-                utcDateTime = createObject("java", "java.time.LocalDateTime").ofInstant(
-                    instant,
-                    createObject("java", "java.time.ZoneOffset").UTC
-                );
-                return utcDateTime.format(formatter);
-            } catch (any convertError) {
-                return "";
-            }
+            return "";
         </cfscript>
     </cffunction>
 

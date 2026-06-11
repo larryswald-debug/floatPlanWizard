@@ -13,6 +13,8 @@
       <cfset var code = "">
       <cfset var promoService = "">
       <cfset var access = {}>
+      <cfset var existingPremiumStatus = "">
+      <cfset var existingPremiumMessage = "">
       <cfset var serviceResult = {}>
       <cfset var response = {}>
 
@@ -48,7 +50,19 @@
       <cfif act EQ "startlaunchtrial">
         <cfset access = new fpw.api.v1.MemberEntitlementService().init("fpw").getCurrentAccess(userId)>
         <cfif hasPremiumAccess(access)>
-          <cfset response = buildErrorResponse(false, true, "ALREADY_PREMIUM", "Your account already has Premium access.")>
+          <cfset existingPremiumStatus = resolveExistingPremiumStartTrialStatus(userId)>
+          <cfset existingPremiumMessage = existingPremiumStatus EQ "already_trialing" ? "Your Premium trial is already active." : "Your account already has Premium access.">
+          <cfset response = buildServiceResponse({
+            "SUCCESS" = true,
+            "success" = true,
+            "eligible" = true,
+            "promoType" = "stripe_free_months",
+            "nextAction" = "stripe_trial_subscription",
+            "STATUS" = existingPremiumStatus,
+            "status" = existingPremiumStatus,
+            "MESSAGE" = existingPremiumMessage,
+            "message" = existingPremiumMessage
+          }, act)>
           <cfoutput>#serializeJSON(response)#</cfoutput>
           <cfreturn>
         </cfif>
@@ -180,6 +194,39 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="resolveExistingPremiumStartTrialStatus" access="private" returntype="string" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var qStripe = queryExecute(
+        "SELECT stripe_subscription_status
+         FROM member_entitlements
+         WHERE user_id = :userId
+           AND entitlement_type = 'premium'
+           AND source = 'stripe_subscription'
+           AND status = 'active'
+           AND starts_at_utc <= UTC_TIMESTAMP()
+           AND (expires_at_utc IS NULL OR expires_at_utc >= UTC_TIMESTAMP())
+         ORDER BY updated_utc DESC, id DESC
+         LIMIT 1",
+        {
+          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = "fpw" }
+      );
+      var stripeStatus = "";
+
+      if (qStripe.recordCount AND !isNull(qStripe.stripe_subscription_status[1])) {
+        stripeStatus = lCase(trim(toString(qStripe.stripe_subscription_status[1])));
+      }
+
+      if (stripeStatus EQ "trialing") {
+        return "already_trialing";
+      }
+
+      return "already_premium";
+    </cfscript>
+  </cffunction>
+
   <cffunction name="buildServiceResponse" access="private" returntype="struct" output="false">
     <cfargument name="serviceResult" type="struct" required="true">
     <cfargument name="actionName" type="string" required="true">
@@ -217,6 +264,20 @@
         response["REUSED_CHECKOUT_SESSION"] = readServiceBoolean(arguments.serviceResult, "REUSED_CHECKOUT_SESSION", "reusedCheckoutSession");
         response["reusedCheckoutSession"] = response["REUSED_CHECKOUT_SESSION"];
       }
+      if (success AND nextAction EQ "stripe_trial_subscription") {
+        response["CHECKOUT_REQUIRED"] = false;
+        response["checkoutRequired"] = false;
+        response["STATUS"] = readServiceString(arguments.serviceResult, "STATUS", "status");
+        response["status"] = response["STATUS"];
+        response["STRIPE_CUSTOMER_ID"] = readServiceString(arguments.serviceResult, "STRIPE_CUSTOMER_ID", "stripeCustomerId");
+        response["stripeCustomerId"] = response["STRIPE_CUSTOMER_ID"];
+        response["STRIPE_SUBSCRIPTION_ID"] = readServiceString(arguments.serviceResult, "STRIPE_SUBSCRIPTION_ID", "stripeSubscriptionId");
+        response["stripeSubscriptionId"] = response["STRIPE_SUBSCRIPTION_ID"];
+        response["TRIAL_DAYS"] = readServiceNumeric(arguments.serviceResult, "TRIAL_DAYS", "trialDays");
+        response["trialDays"] = response["TRIAL_DAYS"];
+        response["REDIRECT_URL"] = resolveFpwBasePath() & "/app/dashboard.cfm";
+        response["redirectUrl"] = response["REDIRECT_URL"];
+      }
 
       return response;
     </cfscript>
@@ -240,7 +301,7 @@
       if (structKeyExists(arguments.serviceResult, "nextAction")) {
         nextAction = lCase(trim(toString(arguments.serviceResult.nextAction)));
       }
-      return listFindNoCase("redeem_founder_lifetime,founder_lifetime_redeemed,stripe_checkout_required,stripe_trial_checkout", nextAction) ? nextAction : "";
+      return listFindNoCase("redeem_founder_lifetime,founder_lifetime_redeemed,stripe_checkout_required,stripe_trial_checkout,stripe_trial_subscription", nextAction) ? nextAction : "";
     </cfscript>
   </cffunction>
 
@@ -258,6 +319,15 @@
           return trim(toString(arguments.serviceResult.displayMessage));
         }
         return "No-credit-card trial checkout is ready.";
+      }
+      if (arguments.success AND arguments.nextAction EQ "stripe_trial_subscription") {
+        if (structKeyExists(arguments.serviceResult, "displayMessage") AND len(trim(toString(arguments.serviceResult.displayMessage)))) {
+          return trim(toString(arguments.serviceResult.displayMessage));
+        }
+        if (structKeyExists(arguments.serviceResult, "MESSAGE") AND len(trim(toString(arguments.serviceResult.MESSAGE)))) {
+          return trim(toString(arguments.serviceResult.MESSAGE));
+        }
+        return "Your Premium trial has started. Activation may take a moment.";
       }
       if (arguments.success AND arguments.nextAction EQ "stripe_checkout_required") {
         return "Launch trial code recognized. Redeem to start cardless checkout.";
@@ -318,6 +388,16 @@
           return "STRIPE_CONFIG_MISSING";
         case "STRIPE_CHECKOUT_FAILED":
           return "STRIPE_CHECKOUT_FAILED";
+        case "STRIPE_SUBSCRIPTION_FAILED":
+          return "STRIPE_SUBSCRIPTION_FAILED";
+        case "STRIPE_SUBSCRIPTION_LOOKUP_FAILED":
+          return "STRIPE_SUBSCRIPTION_LOOKUP_FAILED";
+        case "STRIPE_CUSTOMER_CREATE_FAILED":
+          return "STRIPE_CUSTOMER_CREATE_FAILED";
+        case "STRIPE_CUSTOMER_UPDATE_FAILED":
+          return "STRIPE_CUSTOMER_UPDATE_FAILED";
+        case "STRIPE_CUSTOMER_MAPPING_CONFLICT":
+          return "STRIPE_CUSTOMER_MAPPING_CONFLICT";
         case "STRIPE_CHECKOUT_LOOKUP_FAILED":
           return "STRIPE_CHECKOUT_LOOKUP_FAILED";
         case "STRIPE_CHECKOUT_CONFIRMATION_PENDING":
@@ -362,6 +442,15 @@
           return "Trial checkout is not available right now.";
         case "STRIPE_CHECKOUT_FAILED":
           return "Trial checkout could not be started.";
+        case "STRIPE_SUBSCRIPTION_FAILED":
+          return "Trial subscription could not be started.";
+        case "STRIPE_SUBSCRIPTION_LOOKUP_FAILED":
+          return "Existing Stripe subscriptions could not be checked.";
+        case "STRIPE_CUSTOMER_CREATE_FAILED":
+        case "STRIPE_CUSTOMER_UPDATE_FAILED":
+          return "Billing customer setup could not be completed.";
+        case "STRIPE_CUSTOMER_MAPPING_CONFLICT":
+          return "Billing customer setup needs account support.";
         case "STRIPE_CHECKOUT_LOOKUP_FAILED":
           return "Free-trial checkout could not be checked. Please try again shortly.";
         case "STRIPE_CHECKOUT_CONFIRMATION_PENDING":
@@ -424,6 +513,25 @@
         return arguments.serviceResult[arguments.lowerKey] EQ true;
       }
       return false;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="resolveFpwBasePath" access="private" returntype="string" output="false">
+    <cfscript>
+      var basePath = "";
+      if (structKeyExists(request, "fpwBase") AND !isNull(request.fpwBase)) {
+        basePath = trim(toString(request.fpwBase));
+      }
+      if (!len(basePath)) {
+        basePath = getDirectoryFromPath(cgi.script_name);
+        basePath = reReplace(basePath, "/api/v1/?$", "", "one");
+        basePath = reReplace(basePath, "/$", "", "one");
+      }
+      if (basePath EQ "/") {
+        basePath = "";
+      }
+      request.fpwBase = basePath;
+      return basePath;
     </cfscript>
   </cffunction>
 

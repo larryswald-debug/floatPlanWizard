@@ -41,6 +41,12 @@
         if (!data || (data.SUCCESS !== true && data.success !== true) || !checkoutUrl) {
           throw data || { MESSAGE: "Premium checkout is not available right now." };
         }
+        if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+          window.FPWAnalytics.track("begin_checkout", {
+            checkout_type: checkoutType || "premium",
+            source: "pricing_page"
+          });
+        }
         window.location.href = checkoutUrl;
       })
       .catch(function (err) {

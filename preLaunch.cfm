@@ -1778,15 +1778,7 @@ if (isEarlyAccessPost) {
       }
     }
   </style>
-  <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-JJCH1QE0LH"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-JJCH1QE0LH');
-</script>
+<cfinclude template="includes/analytics_ga4.cfm">
 </head>
 
 <!--
@@ -2827,4 +2819,3 @@ if (isEarlyAccessPost) {
   </script>
 </body>
 </html>
-

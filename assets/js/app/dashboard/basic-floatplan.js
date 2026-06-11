@@ -991,6 +991,17 @@
           throw payload || { MESSAGE: "Unable to send Basic float plan." };
         }
         showSentState(payload);
+        if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+          window.FPWAnalytics.track("float_plan_created", {
+            plan_type: "basic",
+            source: "basic_float_plan",
+            sent: true
+          });
+          window.FPWAnalytics.track("active_cruise_started", {
+            plan_type: "basic",
+            source: "basic_float_plan"
+          });
+        }
       })
       .catch(function (err) {
         setMessage(getMessage(err, "Unable to send Basic float plan."), "danger");
@@ -1022,6 +1033,17 @@
         draftState.current = null;
         draftState.latest = null;
         loadDraftsForPanel();
+        if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+          window.FPWAnalytics.track("float_plan_created", {
+            plan_type: "basic",
+            source: "basic_saved_draft",
+            sent: true
+          });
+          window.FPWAnalytics.track("active_cruise_started", {
+            plan_type: "basic",
+            source: "basic_saved_draft"
+          });
+        }
       })
       .catch(function (err) {
         draftState.error = getMessage(err, "Unable to send Basic float plan.");

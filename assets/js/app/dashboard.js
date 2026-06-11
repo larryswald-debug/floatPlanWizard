@@ -5495,6 +5495,13 @@
             notifyFloatPlansUpdated(routeCode, payload.ROUTE_INSTANCE_ID || 0, createdCount);
             throw new Error("Draft float plan was created, but the wizard could not be opened.");
           }
+          if (createdCount > 0 && !(payload && payload.REUSED_EXISTING) && window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+            window.FPWAnalytics.track("float_plan_created", {
+              created_count: createdCount,
+              plan_type: "premium_route",
+              source: "route_activation"
+            });
+          }
           if (utils && typeof utils.showDashboardAlert === "function") {
             var successMessage = payload && payload.REUSED_EXISTING
               ? "Opened the existing draft route/float-plan group."
@@ -5733,6 +5740,11 @@
             throw { MESSAGE: "Unable to load Follow page link." };
           }
           showFollowShareModal(followTarget);
+          if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+            window.FPWAnalytics.track("follow_page_shared", {
+              source: "dashboard_share_button"
+            });
+          }
         })
         .catch(function (err) {
           var message = (err && err.MESSAGE) ? err.MESSAGE : "Unable to load Follow page link.";

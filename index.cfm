@@ -2950,6 +2950,7 @@ fpwShowMemberRequiredNotice = (
     }
   </style>
 <link rel="stylesheet" href="assets/css/top-nav.css?v=20260530-nav-cta">
+<cfinclude template="includes/analytics_ga4.cfm">
 </head>
 <body id="top">
 <cfinclude template="includes/prelaunch_top_nav.cfm">

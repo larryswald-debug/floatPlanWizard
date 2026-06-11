@@ -6707,6 +6707,7 @@ window.FPWActiveCruiseV2.bindActionPanel = function() {
   }
 
   function submitAction(endpoint, payload, buttons, actionName) {
+    const requestPayload = payload || {};
     fetch(endpoint, {
       method: 'POST',
       credentials: 'same-origin',
@@ -6714,7 +6715,7 @@ window.FPWActiveCruiseV2.bindActionPanel = function() {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(requestPayload)
     })
       .then(function(response) {
         return response.text().then(function(text) {
@@ -6734,6 +6735,16 @@ window.FPWActiveCruiseV2.bindActionPanel = function() {
         const success = result.ok && (payload.success === true || payload.SUCCESS === true);
         const message = responseMessage(payload, success ? 'Action completed.' : 'Action failed.');
         if (success) {
+          if (actionName === 'checkin' && window.FPWAnalytics && typeof window.FPWAnalytics.track === 'function') {
+            const checkInStatus = String(
+              requestPayload.status || requestPayload.tripStatus || requestPayload.currentState || 'checkin'
+            ).trim().toLowerCase().replace(/\s+/g, '_');
+            window.FPWAnalytics.track('check_in_submitted', {
+              check_in_type: checkInStatus || 'checkin',
+              has_location: !!requestPayload.location,
+              source: 'active_cruise'
+            });
+          }
           setFeedback(message + ' Refreshing view model...', 'is-success');
           const refreshSelectors = refreshSelectorsForAction(actionName);
           if (refreshSelectors.length && typeof window.FPWActiveCruiseV2.fetchAndRefresh === 'function') {
