@@ -458,6 +458,13 @@
                 }
 
                 if (eventType EQ "MONITORING_STARTED") {
+                    meta = parseJsonStruct(arguments.qEvents.meta_json[i]);
+                    if (
+                        structKeyExists(meta, "initialization_mode")
+                        AND compareNoCase(safeString(meta.initialization_mode), "scheduled_predeparture") EQ 0
+                    ) {
+                        continue;
+                    }
                     if (currentIndex EQ 0) {
                         arrayAppend(segments, newSegment("UNDERWAY", eventAt, "", "", "", arguments.timezone, arguments.routeInstanceId, arguments.userId, "legacy_diagnostic", arguments.qEvents.id[i], 0));
                         currentIndex = arrayLen(segments);

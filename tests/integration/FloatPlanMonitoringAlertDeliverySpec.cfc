@@ -44,7 +44,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         try {
           asset = createRouteLinkedDraftForApi( variables.api, prefix, localCreated );
           setPlanSchedule( asset.floatPlanId, '2026-04-09 09:00:00', '2026-04-10 20:00:00', 'US/Eastern' );
-          ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, 'active_route' ), 'start active_route monitor' );
+          ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), 'start active_route monitor' );
 
           expect( countSelectedContacts( asset.floatPlanId ) ).toBe( 0 );
 
@@ -87,7 +87,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         try {
           asset = createRouteLinkedDraftForApi( variables.api, prefix, localCreated );
           setPlanSchedule( asset.floatPlanId, '2026-04-09 09:00:00', '2026-04-10 20:00:00', 'US/Eastern' );
-          ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, 'active_route' ), 'start active_route monitor' );
+          ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), 'start active_route monitor' );
 
           updateMonitoringTimes( asset.floatPlanId, {
             monitor_state = 'LATE',
@@ -144,7 +144,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           sessionApi = buildSessionApiSupport( sessionUser );
           asset = createRouteLinkedDraftForApi( sessionApi, prefix, localCreated );
           setPlanSchedule( asset.floatPlanId, '2026-04-09 09:00:00', '2026-04-10 20:00:00', 'US/Eastern' );
-          ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, 'active_route' ), 'start active_route monitor' );
+          ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), 'start active_route monitor' );
 
           selectedContact = createSelectedContactForApi( sessionApi, asset.floatPlanId, prefix, localCreated.contactIds );
           expect( countSelectedContacts( asset.floatPlanId ) ).toBe( 1 );
@@ -194,7 +194,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           sessionApi = buildSessionApiSupport( sessionUser );
           asset = createRouteLinkedDraftForApi( sessionApi, prefix, localCreated );
           setPlanSchedule( asset.floatPlanId, '2026-04-09 09:00:00', '2026-04-10 20:00:00', 'US/Eastern' );
-          ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, 'active_route' ), 'start active_route monitor' );
+          ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), 'start active_route monitor' );
 
           updateUserEmail( sessionUser.userId, '' );
           updateMonitoringTimes( asset.floatPlanId, {
@@ -347,6 +347,75 @@ component extends="testbox.system.BaseSpec" output="false" {
       { datasource = 'fpw' }
     );
     deleteMonitoringRows( arguments.floatPlanId );
+  }
+
+  private struct function startActiveRouteMonitoringWithStartProof( required numeric floatPlanId ) {
+    var startedUtc = setFirstLegStartedAtFromPlanSchedule( arguments.floatPlanId );
+    return variables.monitorService.startMonitoringForFloatPlan( arguments.floatPlanId, 'active_route', {
+      baseAt = startedUtc
+    } );
+  }
+
+  private any function setFirstLegStartedAtFromPlanSchedule( required numeric floatPlanId ) {
+    var qLeg = queryExecute(
+      'SELECT fp.userId,
+              fp.route_instance_id,
+              COALESCE(fp.departureTimeUTC, fp.departureTime) AS start_at,
+              MIN(rilp.leg_order) AS leg_order
+       FROM floatplans fp
+       INNER JOIN route_instance_leg_progress rilp
+          ON rilp.route_instance_id = fp.route_instance_id
+         AND rilp.user_id = fp.userId
+       WHERE fp.floatplanId = :floatPlanId
+       GROUP BY fp.userId, fp.route_instance_id, fp.departureTimeUTC, fp.departureTime',
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = 'cf_sql_integer' }
+      },
+      { datasource = 'fpw' }
+    );
+    var startedUtc = '';
+
+    expect( qLeg.recordCount ).toBe( 1 );
+    expect( val( qLeg.leg_order[ 1 ] ) ).toBeGT( 0 );
+    expect( isDate( qLeg.start_at[ 1 ] ) ).toBeTrue( serializeJSON( qLeg ) );
+    startedUtc = qLeg.start_at[ 1 ];
+
+    queryExecute(
+      'UPDATE route_instance_leg_progress
+       SET status = CASE
+               WHEN UPPER(TRIM(COALESCE(status, ''''))) = ''NOT_STARTED'' THEN ''STARTED''
+               ELSE status
+           END,
+           leg_started_at = COALESCE(leg_started_at, :startedUtc)
+       WHERE route_instance_id = :routeInstanceId
+         AND user_id = :userId
+         AND leg_order = :legOrder',
+      {
+        startedUtc = { value = startedUtc, cfsqltype = 'cf_sql_timestamp' },
+        routeInstanceId = { value = val( qLeg.route_instance_id[ 1 ] ), cfsqltype = 'cf_sql_integer' },
+        userId = { value = val( qLeg.userId[ 1 ] ), cfsqltype = 'cf_sql_integer' },
+        legOrder = { value = val( qLeg.leg_order[ 1 ] ), cfsqltype = 'cf_sql_integer' }
+      },
+      { datasource = 'fpw' }
+    );
+    queryExecute(
+      'UPDATE route_instances
+       SET status = CASE
+               WHEN UPPER(TRIM(COALESCE(status, ''''))) = ''PLANNED'' THEN ''ACTIVE''
+               ELSE status
+           END,
+           started_at = COALESCE(started_at, :startedUtc)
+       WHERE id = :routeInstanceId
+         AND user_id = :userId',
+      {
+        startedUtc = { value = startedUtc, cfsqltype = 'cf_sql_timestamp' },
+        routeInstanceId = { value = val( qLeg.route_instance_id[ 1 ] ), cfsqltype = 'cf_sql_integer' },
+        userId = { value = val( qLeg.userId[ 1 ] ), cfsqltype = 'cf_sql_integer' }
+      },
+      { datasource = 'fpw' }
+    );
+
+    return startedUtc;
   }
 
   private void function updateMonitoringTimes( required numeric floatPlanId, required struct updates ) {

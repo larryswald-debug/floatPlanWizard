@@ -5803,12 +5803,10 @@
             var planStatusVal = "";
             var routeInstanceIdVal = 0;
             var departureTimeVal = "";
-            var scheduledStartState = {};
             var qRouteProgress = queryNew("");
             var routeProgressStarted = false;
             var isOperationallyUnstarted = false;
             var isPreDepartureUnstarted = false;
-            var scheduledMonitoringResult = {};
             var shouldStartOperationallyForCheckin = false;
             var operationalStartResult = {};
             var activeCruiseLocation = {};
@@ -5940,7 +5938,7 @@
                        AND (
                            leg_started_at IS NOT NULL
                            OR completed_at IS NOT NULL
-                           OR UPPER(TRIM(status)) <> 'NOT_STARTED'
+                           OR UPPER(TRIM(COALESCE(status, ''))) IN ('STARTED','IN_PROGRESS','COMPLETED')
                        )",
                     {
                         routeInstanceId = { value = routeInstanceIdVal, cfsqltype = "cf_sql_integer" },
@@ -5953,27 +5951,7 @@
                     AND val(qRouteProgress.started_count[1]) GT 0
                 );
                 isOperationallyUnstarted = !routeProgressStarted;
-
-                scheduledStartState = getScheduledStartStateForFloatPlan(arguments.userId, arguments.floatPlanId);
-                if (scheduledStartState.SUCCESS) {
-                    isPreDepartureUnstarted = (
-                        !booleanValue(scheduledStartState.TRIP_STARTED)
-                        AND isOperationallyUnstarted
-                    );
-                }
-
-                monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
-                scheduledMonitoringResult = monitoringService.startScheduledRouteMonitoringForFloatPlan(arguments.floatPlanId);
-                if (
-                    !structKeyExists(scheduledMonitoringResult, "SUCCESS")
-                    OR scheduledMonitoringResult.SUCCESS NEQ true
-                ) {
-                    result.SUCCESS = false;
-                    result.ERROR = "MONITORING_INIT_REQUIRED_DATA_MISSING";
-                    result.MESSAGE = "Scheduled monitoring could not be initialized for this active route-backed float plan.";
-                    result.MONITORING_RESULT = scheduledMonitoringResult;
-                    return result;
-                }
+                isPreDepartureUnstarted = isOperationallyUnstarted;
             }
 
             if (isPreDepartureUnstarted) {
@@ -5993,6 +5971,12 @@
                     result.SUCCESS = false;
                     result.ERROR = "PRE_DEPARTURE_SECURE_NOT_ALLOWED";
                     result.MESSAGE = "Secure for the Night is available after the cruise has started.";
+                    return result;
+                }
+                if (monitoringStatusVal EQ "NEED_ATTENTION") {
+                    result.SUCCESS = false;
+                    result.ERROR = "PRE_DEPARTURE_ASSISTANCE_REQUIRES_START";
+                    result.MESSAGE = "Assistance monitoring is available after the cruise has started.";
                     return result;
                 }
                 if (monitoringStatusVal EQ "ON_TRACK") {
@@ -7601,8 +7585,8 @@
                 MONITORING_STARTED = false
             };
             var startState = {};
-            var monitoringService = {};
-            var monitoringResult = {};
+            var qStartProof = queryNew("");
+            var hasStartProof = false;
 
             startState = getScheduledStartStateForFloatPlan(arguments.userId, arguments.floatPlanId);
             if (!startState.SUCCESS) {
@@ -7611,9 +7595,49 @@
 
             result = duplicate(startState);
             result.SUCCESS = true;
-            if (!result.TRIP_STARTED) {
+            qStartProof = queryExecute(
+                "SELECT
+                    fp.route_instance_id,
+                    ri.started_at AS route_started_at,
+                    (
+                        SELECT COUNT(*)
+                        FROM route_instance_leg_progress rilp
+                        WHERE rilp.route_instance_id = fp.route_instance_id
+                          AND rilp.user_id = fp.userId
+                          AND (
+                              rilp.leg_started_at IS NOT NULL
+                              OR rilp.completed_at IS NOT NULL
+                              OR UPPER(TRIM(COALESCE(rilp.status, ''))) IN ('STARTED','IN_PROGRESS','COMPLETED')
+                          )
+                    ) AS started_progress_count
+                 FROM floatplans fp
+                 LEFT JOIN route_instances ri
+                   ON ri.id = fp.route_instance_id
+                 WHERE fp.floatplanId = :floatPlanId
+                   AND fp.userId = :userId
+                 LIMIT 1",
+                {
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+            hasStartProof = (
+                qStartProof.recordCount EQ 1
+                AND (
+                    (
+                        !isNull(qStartProof.route_started_at[1])
+                        AND isDate(qStartProof.route_started_at[1])
+                    )
+                    OR val(qStartProof.started_progress_count[1]) GT 0
+                )
+            );
+
+            if (!hasStartProof) {
+                result.TRIP_STARTED = false;
                 result.PENDING_START = true;
-                result.MESSAGE = "Scheduled departure is still pending.";
+                result.MONITORING_STARTED = false;
+                result.MESSAGE = "Scheduled trip has not been started.";
                 return result;
             }
 
@@ -7622,19 +7646,10 @@
                 return result;
             }
 
-            monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
-            monitoringResult = monitoringService.startScheduledRouteMonitoringForFloatPlan(arguments.floatPlanId);
-            if (
-                !structKeyExists(monitoringResult, "SUCCESS")
-                OR monitoringResult.SUCCESS NEQ true
-            ) {
-                return monitoringResult;
-            }
-            result.MONITORING_STARTED = (
-                structKeyExists(monitoringResult, "SCHEDULED_MONITORING_STARTED")
-                AND booleanValue(monitoringResult.SCHEDULED_MONITORING_STARTED)
-            );
-            result.MESSAGE = "Scheduled departure is due; awaiting captain check-in.";
+            result.TRIP_STARTED = true;
+            result.PENDING_START = false;
+            result.MONITORING_STARTED = false;
+            result.MESSAGE = "Trip has operational start proof.";
             return result;
         </cfscript>
     </cffunction>
@@ -8133,7 +8148,9 @@
             );
             if (qMonitoring.recordCount EQ 0) {
                 monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
-                monitoringResult = monitoringService.startMonitoringForFloatPlan(arguments.floatPlanId, "active_route");
+                monitoringResult = monitoringService.startMonitoringForFloatPlan(arguments.floatPlanId, "active_route", {
+                    baseAt = operationalStartAtUtc
+                });
                 if (
                     !structKeyExists(monitoringResult, "SUCCESS")
                     OR monitoringResult.SUCCESS NEQ true

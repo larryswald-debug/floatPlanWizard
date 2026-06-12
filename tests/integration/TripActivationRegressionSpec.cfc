@@ -27,7 +27,7 @@ component extends="testbox.system.BaseSpec" output="false" {
 
   function run() {
     describe( "Trip activation regression contract", function() {
-      it( "route-backed send activation creates scheduled monitoring", function() {
+      it( "route-backed send activation defers monitoring until explicit start", function() {
         var prefix = variables.naming.buildPrefix( "trip-activation-regression", "send-scheduled" );
         var sessionApi = buildSessionApiSupport();
         var localCreated = newCreatedTracker();
@@ -35,7 +35,6 @@ component extends="testbox.system.BaseSpec" output="false" {
         var sendResult = {};
         var planState = {};
         var progressCounts = {};
-        var monitoringRow = {};
         var secondStartResult = {};
         var futureDeparture = dateTimeFormat( dateAdd( "h", 3, now() ), "yyyy-mm-dd HH:nn:ss" );
         var futureReturn = dateTimeFormat( dateAdd( "h", 9, now() ), "yyyy-mm-dd HH:nn:ss" );
@@ -49,7 +48,6 @@ component extends="testbox.system.BaseSpec" output="false" {
           sendResult = sendFloatPlanWithApi( sessionApi, asset.floatPlanId );
           planState = loadPlanState( asset.floatPlanId );
           progressCounts = loadRouteProgressCounts( asset.floatPlanId );
-          monitoringRow = loadMonitoringRow( asset.floatPlanId );
           secondStartResult = variables.monitorService.startScheduledRouteMonitoringForFloatPlan( asset.floatPlanId );
 
           expect( isSuccessPayload( sendResult ) ).toBeTrue( serializeJSON( sendResult ) );
@@ -60,15 +58,10 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect( progressCounts.progress_row_count ).toBe( progressCounts.route_leg_count );
           expect( progressCounts.not_started_rows ).toBe( progressCounts.progress_row_count );
           expect( progressCounts.started_rows ).toBe( 0 );
-          expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 1 );
-          expect( monitoringRow.monitoring_mode ).toBe( "active_route" );
-          expect( monitoringRow.monitor_state ).toBe( "ACTIVE" );
-          expect( val( monitoringRow.is_monitoring_enabled ) ).toBe( 1 );
-          expect( normalizeDbDateTime( monitoringRow.expected_checkin_at ) ).toBe( normalizeDbDateTime( planState.departureTime ) );
-          expect( normalizeDbDateTime( monitoringRow.next_monitor_eval_at ) ).toBe( normalizeDbDateTime( monitoringRow.expected_checkin_at ) );
-          expect( dateDiff( "n", monitoringRow.expected_checkin_at, monitoringRow.grace_expires_at ) ).toBe( val( monitoringRow.grace_window_minutes ) );
+          expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 0 );
           expect( isSuccessPayload( secondStartResult ) ).toBeTrue( serializeJSON( secondStartResult ) );
-          expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 1 );
+          expect( secondStartResult.DEFERRED ?: false ).toBeTrue( serializeJSON( secondStartResult ) );
+          expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 0 );
         } finally {
           cleanupRouteLinkedAssetsForApi( sessionApi, localCreated );
         }
@@ -148,7 +141,6 @@ component extends="testbox.system.BaseSpec" output="false" {
         var secondPlanState = {};
         var oldRouteProgressAfterSend = {};
         var newRouteProgressAfterSend = {};
-        var monitoringRow = {};
         var activeCruiseModel = {};
         var routesPayload = {};
         var projectedSourceRoute = {};
@@ -208,13 +200,12 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect( isSuccessPayload( cancelResult ) ).toBeTrue( serializeJSON( cancelResult ) );
           expect( secondDraftState.status ).toBe( "DRAFT", serializeJSON( secondDraftState ) );
           expect( secondDraftState.route_instance_id ).toBe( firstPlanState.route_instance_id, serializeJSON( secondDraftState ) );
-          expect( isSuccessPayload( oldBehaviorResult ) ).toBeFalse( serializeJSON( oldBehaviorResult ) );
-          expect( pickString( oldBehaviorResult, [ "ERROR", "error" ] ) ).toBe( "OPERATIONAL_ROUTE_PROGRESS_ALREADY_STARTED", serializeJSON( oldBehaviorResult ) );
+          expect( isSuccessPayload( oldBehaviorResult ) ).toBeTrue( serializeJSON( oldBehaviorResult ) );
+          expect( oldBehaviorResult.DEFERRED ?: false ).toBeTrue( serializeJSON( oldBehaviorResult ) );
           expect( oldBehaviorPlanState.status ).toBe( "ACTIVE", serializeJSON( oldBehaviorPlanState ) );
           expect( oldBehaviorMonitoringRows ).toBe( 0 );
 
           expect( isSuccessPayload( sendResult ) ).toBeTrue( serializeJSON( sendResult ) );
-          monitoringRow = loadMonitoringRow( secondFloatPlanId );
           expect( secondPlanState.status ).toBe( "ACTIVE", serializeJSON( secondPlanState ) );
           expect( secondPlanState.route_instance_id ).toBeGT( 0 );
           expect( secondPlanState.route_instance_id ).notToBe( firstPlanState.route_instance_id, serializeJSON( secondPlanState ) );
@@ -229,10 +220,9 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect( freshRouteInputs.source_route_code ?: "" ).toBe( asset.routeCode, serializeJSON( freshRouteInputs ) );
           expect( structKeyExists( freshRouteInputs, "ACTIVE_TRIP_FLOATPLAN_ID" ) ).toBeFalse( serializeJSON( freshRouteInputs ) );
           expect( structKeyExists( freshRouteInputs, "ACTIVE_TRIP_UPDATED_AT_UTC" ) ).toBeFalse( serializeJSON( freshRouteInputs ) );
-          expect( countMonitoringRows( secondFloatPlanId ) ).toBe( 1 );
-          expect( monitoringRow.monitoring_mode ).toBe( "active_route" );
-          expect( monitoringRow.monitor_state ).toBe( "ACTIVE" );
+          expect( countMonitoringRows( secondFloatPlanId ) ).toBe( 0 );
           expect( activeCruiseModel.success ).toBeTrue( serializeJSON( activeCruiseModel ) );
+          expect( activeCruiseModel.displayAuthority.monitoring ).toBe( "scheduled_not_started", serializeJSON( activeCruiseModel.displayAuthority ) );
           expect( structCount( projectedSourceRoute ) ).toBeGT( 0, serializeJSON( routesPayload ) );
           expect( val( projectedSourceRoute.ROUTE_INSTANCE_ID ?: 0 ) ).toBe( firstPlanState.route_instance_id, serializeJSON( projectedSourceRoute ) );
           expect( projectedSourceRoute.HAS_CURRENT_GROUP ?: false ).toBeTrue( serializeJSON( projectedSourceRoute ) );
@@ -286,7 +276,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect( dateCompare( bootstrap.FLOATPLAN.RETURN_TIME, probe.utcNow[ 1 ], "s" ) ).toBeLT( 0, serializeJSON( bootstrap.FLOATPLAN ) );
           expect( isSuccessPayload( sendResult ) ).toBeTrue( serializeJSON( sendResult ) );
           expect( planState.status ).toBe( "ACTIVE" );
-          expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 1 );
+          expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 0 );
         } finally {
           cleanupRouteLinkedAssetsForApi( sessionApi, localCreated );
         }
@@ -355,7 +345,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect( progressCounts.not_started_rows ).toBe( progressCounts.progress_row_count );
           expect( progressCounts.started_rows ).toBe( 0 );
           expect( progressCounts.completed_rows ).toBe( 0 );
-          expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 1 );
+          expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 0 );
         } finally {
           cleanupRouteLinkedAssetsForApi( sessionApi, localCreated );
         }
@@ -460,7 +450,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         }
       } );
 
-      it( "pre-departure Assistance Needed does not start the parent route instance", function() {
+      it( "pre-departure Assistance Needed returns a controlled start-required error", function() {
         var prefix = variables.naming.buildPrefix( "trip-activation-regression", "assistance-no-start" );
         var sessionApi = buildSessionApiSupport();
         var localCreated = newCreatedTracker();
@@ -479,6 +469,8 @@ component extends="testbox.system.BaseSpec" output="false" {
           progressCounts = loadRouteProgressCounts( asset.floatPlanId );
           planState = loadPlanState( asset.floatPlanId );
 
+          expect( isSuccessPayload( checkinResult ) ).toBeFalse( serializeJSON( checkinResult ) );
+          expect( pickString( checkinResult, [ "ERROR", "error" ] ) ).toBe( "PRE_DEPARTURE_ASSISTANCE_REQUIRES_START", serializeJSON( checkinResult ) );
           expect( pickString( checkinResult, [ "MESSAGE", "message" ] ) ).notToBe( "Float plan API error." );
           expect( progressCounts.started_rows ).toBe( 0, serializeJSON( checkinResult ) );
           expect( progressCounts.completed_rows ).toBe( 0, serializeJSON( checkinResult ) );

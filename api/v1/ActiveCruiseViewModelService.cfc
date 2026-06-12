@@ -91,7 +91,7 @@
       model.weather = buildWeatherSection(qPlan, model.map, model.currentLeg);
       model.pace = buildPaceSection(qPlan, projection, routeTimeline);
 
-      explicitStartProof = hasExplicitStartProof(projection, progressSummary);
+      explicitStartProof = hasExplicitStartProof(qPlan, projection, progressSummary);
       motionState = deriveMotionState(qPlan, qMonitoring, projection, routeTimeline, progressSummary, explicitStartProof);
       safetyState = deriveSafetyState(qMonitoring);
       tripState = deriveTripState(motionState, safetyState);
@@ -123,6 +123,8 @@
 
       if (model.monitoring.available) {
         model.displayAuthority.monitoring = "floatplan_monitoring";
+      } else if (motionState EQ "scheduled" AND !explicitStartProof) {
+        model.displayAuthority.monitoring = "scheduled_not_started";
       } else {
         model.displayAuthority.monitoring = "unavailable";
         addWarning(model, "ACTIVE_CRUISE_MONITORING_UNAVAILABLE", "Monitoring row is unavailable for this route-backed active float plan.", "floatplan_monitoring");
@@ -217,7 +219,7 @@
         : {}
       );
 
-      explicitStartProof = hasExplicitStartProof(projection, progressSummary);
+      explicitStartProof = hasExplicitStartProof(qPlan, projection, progressSummary);
       motionState = deriveMotionState(qPlan, qMonitoring, projection, routeTimeline, progressSummary, explicitStartProof);
       safetyState = deriveSafetyState(qMonitoring);
       tripState = deriveTripState(motionState, safetyState);
@@ -1183,6 +1185,7 @@
       var closedReason = "Float plan is closed.";
       var delayedReason = "Please provide a new expected departure time before marking the trip delayed.";
       var changedPlanReason = "Please update and resend the plan if the route or schedule changed.";
+      var assistanceReason = "Assistance monitoring is available after the cruise has started.";
       var secureReason = "Secure for the Night is available after the cruise has started.";
       var baseInputs = {
         "note" = { "required" = false },
@@ -1200,13 +1203,14 @@
           { "status" = "On Track", "enabled" = !isClosed, "disabledReason" = (isClosed ? closedReason : ""), "startsTripPreDeparture" = true, "validationError" = "", "inputRequirements" = baseInputs, "confirmationRequired" = false, "confirmationMessage" = "" },
           { "status" = "Delayed", "enabled" = (!isClosed AND !isScheduled), "disabledReason" = (isClosed ? closedReason : (isScheduled ? delayedReason : "")), "startsTripPreDeparture" = false, "validationError" = "PRE_DEPARTURE_DELAY_REQUIRES_NEW_TIME", "inputRequirements" = delayInputs, "confirmationRequired" = false, "confirmationMessage" = "" },
           { "status" = "Changed Plan", "enabled" = (!isClosed AND !isScheduled), "disabledReason" = (isClosed ? closedReason : (isScheduled ? changedPlanReason : "")), "startsTripPreDeparture" = false, "validationError" = "PRE_DEPARTURE_PLAN_CHANGE_REQUIRES_UPDATE", "inputRequirements" = baseInputs, "confirmationRequired" = true, "confirmationMessage" = changedPlanReason },
-          { "status" = "Assistance Needed", "enabled" = !isClosed, "disabledReason" = (isClosed ? closedReason : ""), "startsTripPreDeparture" = false, "validationError" = "", "inputRequirements" = baseInputs, "confirmationRequired" = true, "confirmationMessage" = "Assistance Needed may notify approved monitoring contacts." },
+          { "status" = "Assistance Needed", "enabled" = (!isClosed AND !isScheduled), "disabledReason" = (isClosed ? closedReason : (isScheduled ? assistanceReason : "")), "startsTripPreDeparture" = false, "validationError" = "PRE_DEPARTURE_ASSISTANCE_REQUIRES_START", "inputRequirements" = baseInputs, "confirmationRequired" = true, "confirmationMessage" = "Assistance Needed may notify approved monitoring contacts." },
           { "status" = "Secure for the Night", "enabled" = (!isClosed AND (isUnderway OR isDelayedPause)), "disabledReason" = (isClosed ? closedReason : ((isUnderway OR isDelayedPause) ? "" : secureReason)), "startsTripPreDeparture" = false, "validationError" = "PRE_DEPARTURE_SECURE_NOT_ALLOWED", "inputRequirements" = baseInputs, "confirmationRequired" = true, "confirmationMessage" = "Confirm the vessel is secure for the night." }
         ],
         "validationMessages" = {
           "PRE_DEPARTURE_DELAY_REQUIRES_NEW_TIME" = delayedReason,
           "PRE_DEPARTURE_PLAN_CHANGE_REQUIRES_UPDATE" = changedPlanReason,
-          "PRE_DEPARTURE_SECURE_NOT_ALLOWED" = secureReason
+          "PRE_DEPARTURE_SECURE_NOT_ALLOWED" = secureReason,
+          "PRE_DEPARTURE_ASSISTANCE_REQUIRES_START" = assistanceReason
         }
       };
     </cfscript>
@@ -2342,9 +2346,13 @@
   </cffunction>
 
   <cffunction name="hasExplicitStartProof" access="private" returntype="boolean" output="false">
+    <cfargument name="qPlan" type="query" required="true">
     <cfargument name="projection" type="struct" required="true">
     <cfargument name="progressSummary" type="struct" required="true">
     <cfscript>
+      if (arguments.qPlan.recordCount AND !isNull(arguments.qPlan.route_started_at[1]) AND isDate(arguments.qPlan.route_started_at[1])) {
+        return true;
+      }
       if (structKeyExists(arguments.projection, "activitySegments") AND isArray(arguments.projection.activitySegments) AND arrayLen(arguments.projection.activitySegments) GT 0) {
         return true;
       }

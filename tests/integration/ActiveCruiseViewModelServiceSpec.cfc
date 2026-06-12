@@ -62,7 +62,8 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(model.actions.startNextLeg.enabled).toBeFalse(serializeJSON(model.actions.startNextLeg));
           expect(model.actions.startNextLeg.reason).toBe("Start Next Leg is available after the current leg is completed.");
           expect(findStatusOption(model, "On Track").enabled).toBeTrue();
-          expect(findStatusOption(model, "Assistance Needed").enabled).toBeTrue();
+          expect(findStatusOption(model, "Assistance Needed").enabled).toBeFalse(serializeJSON(model.checkIn.allowedStatusOptions));
+          expect(findStatusOption(model, "Assistance Needed").validationError).toBe("PRE_DEPARTURE_ASSISTANCE_REQUIRES_START");
           expect(findStatusOption(model, "Delayed").enabled).toBeFalse(serializeJSON(model.checkIn.allowedStatusOptions));
           expect(findStatusOption(model, "Delayed").validationError).toBe("PRE_DEPARTURE_DELAY_REQUIRES_NEW_TIME");
           expect(len(findStatusOption(model, "Delayed").disabledReason)).toBeGT(0);
@@ -1019,6 +1020,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         try {
           url.testUserId = variables.sessionApiUser.userId;
           asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+          expect(startActiveRouteMonitoringWithStartProof(asset.floatPlanId).SUCCESS).toBeTrue();
           markAllLegsCompleted(asset.floatPlanId);
           preCloseModel = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
           closeResult = sessionApi.postJson(preCloseModel.actions.closeFloatPlan.endpoint, preCloseModel.actions.closeFloatPlan.payload);
@@ -1063,6 +1065,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         try {
           url.testUserId = variables.sessionApiUser.userId;
           asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+          expect(startActiveRouteMonitoringWithStartProof(asset.floatPlanId).SUCCESS).toBeTrue();
           model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
 
           expect(model.success).toBeTrue(serializeJSON(model));
@@ -1238,6 +1241,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var localCreated = newCreatedTracker();
         var asset = {};
         var sendResult = {};
+        var startMonitoringResult = {};
         var model = {};
         var publicAuthority = {};
 
@@ -1245,24 +1249,26 @@ component extends="testbox.system.BaseSpec" output="false" {
           url.testUserId = variables.sessionApiUser.userId;
           asset = createRouteLinkedDraftForApi(sessionApi, prefix, localCreated);
           attachContactToPlan(sessionApi, asset.floatPlanId, prefix, localCreated);
-          setPlanSchedule(asset.floatPlanId, "2026-05-20 19:00:00", "2026-05-21 17:00:00", "US/Eastern");
+          setPlanSchedule(asset.floatPlanId, "2027-05-20 19:00:00", "2027-05-21 17:00:00", "US/Eastern");
           sendResult = sendFloatPlanWithApi(sessionApi, asset.floatPlanId);
           expect(isSuccessPayload(sendResult)).toBeTrue(serializeJSON(sendResult));
+          startMonitoringResult = startActiveRouteMonitoringWithStartProof(asset.floatPlanId);
+          expect(startMonitoringResult.SUCCESS).toBeTrue(serializeJSON(startMonitoringResult));
           expect(countMonitoringRows(asset.floatPlanId)).toBe(1);
 
-          markMonitoringSecureForNightAtUtc(asset.floatPlanId, "2026-05-21 13:30:00");
+          markMonitoringSecureForNightAtUtc(asset.floatPlanId, "2027-05-21 13:30:00");
 
           model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
           publicAuthority = variables.viewModelService.getPublicFollowAuthority(variables.sessionApiUser.userId, asset.floatPlanId);
 
           expect(model.success).toBeTrue(serializeJSON(model));
-          expect(model.monitoring.expectedCheckinAtUtc).toBe("2026-05-21T13:30:00Z", serializeJSON(model.monitoring));
-          expect(model.monitoring.secureForNightUntilUtc).toBe("2026-05-21T13:30:00Z", serializeJSON(model.monitoring));
+          expect(model.monitoring.expectedCheckinAtUtc).toBe("2027-05-21T13:30:00Z", serializeJSON(model.monitoring));
+          expect(model.monitoring.secureForNightUntilUtc).toBe("2027-05-21T13:30:00Z", serializeJSON(model.monitoring));
           expect(findNoCase("9:30 AM", model.monitoring.expectedCheckinLocalLabel)).toBeGT(0, serializeJSON(model.monitoring));
           expect(findNoCase("1:30 PM", model.monitoring.expectedCheckinLocalLabel)).toBe(0, serializeJSON(model.monitoring));
 
-          expect(publicAuthority.monitoring.nextExpectedCheckinUtc).toBe("2026-05-21T13:30:00Z", serializeJSON(publicAuthority.monitoring));
-          expect(publicAuthority.monitoring.secureUntilUtc).toBe("2026-05-21T13:30:00Z", serializeJSON(publicAuthority.monitoring));
+          expect(publicAuthority.monitoring.nextExpectedCheckinUtc).toBe("2027-05-21T13:30:00Z", serializeJSON(publicAuthority.monitoring));
+          expect(publicAuthority.monitoring.secureUntilUtc).toBe("2027-05-21T13:30:00Z", serializeJSON(publicAuthority.monitoring));
           expect(findNoCase("9:30 AM", publicAuthority.monitoring.nextExpectedCheckinLocalLabel)).toBeGT(0, serializeJSON(publicAuthority.monitoring));
           expect(findNoCase("US/Eastern", publicAuthority.monitoring.nextExpectedCheckinLocalLabel)).toBeGT(0, serializeJSON(publicAuthority.monitoring));
           expect(findNoCase("1:30 PM", publicAuthority.monitoring.nextExpectedCheckinLocalLabel)).toBe(0, serializeJSON(publicAuthority.monitoring));
@@ -1322,40 +1328,31 @@ component extends="testbox.system.BaseSpec" output="false" {
         }
       });
 
-      it("overlays late missed and escalated monitoring states without changing scheduled motion", function() {
-        var prefix = variables.naming.buildPrefix("active-cruise-v2", "safety-overlay");
+      it("renders scheduled trips without monitoring rows as scheduled-not-started", function() {
+        var prefix = variables.naming.buildPrefix("active-cruise-v2", "scheduled-no-monitoring");
         var sessionApi = buildSessionApiSupport();
         var localCreated = newCreatedTracker();
         var asset = {};
-        var stateCase = {};
         var model = {};
-        var stateCases = [
-          { monitorState = "LATE", tripState = "late" },
-          { monitorState = "MISSED", tripState = "missed" },
-          { monitorState = "ESCALATED", tripState = "escalated" }
-        ];
 
         try {
           url.testUserId = variables.sessionApiUser.userId;
           asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+          model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
 
-          for (stateCase in stateCases) {
-            setMonitoringState(asset.floatPlanId, stateCase.monitorState);
-            model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
-
-            expect(model.success).toBeTrue(serializeJSON(model));
-            expect(model.tripState).toBe(stateCase.tripState, serializeJSON(model));
-            expect(model.safetyState).toBe(stateCase.tripState, serializeJSON(model));
-            expect(model.motionState).toBe("scheduled", serializeJSON(model));
-            expect(model.displayAuthority.monitoring).toBe("floatplan_monitoring");
-          }
+          expect(model.success).toBeTrue(serializeJSON(model));
+          expect(model.tripState).toBe("scheduled", serializeJSON(model));
+          expect(model.safetyState).toBe("normal", serializeJSON(model));
+          expect(model.motionState).toBe("scheduled", serializeJSON(model));
+          expect(model.displayAuthority.monitoring).toBe("scheduled_not_started");
+          expect(hasWarning(model, "ACTIVE_CRUISE_MONITORING_UNAVAILABLE")).toBeFalse(serializeJSON(model.warnings));
         } finally {
           cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
         }
       });
 
-      it("represents Assistance Needed as a safety overlay without starting route progress", function() {
-        var prefix = variables.naming.buildPrefix("active-cruise-v2", "assistance");
+      it("does not represent Assistance Needed before monitoring has started", function() {
+        var prefix = variables.naming.buildPrefix("active-cruise-v2", "assistance-no-monitoring");
         var sessionApi = buildSessionApiSupport();
         var localCreated = newCreatedTracker();
         var asset = {};
@@ -1370,9 +1367,10 @@ component extends="testbox.system.BaseSpec" output="false" {
           progressCounts = loadRouteProgressCounts(asset.floatPlanId);
 
           expect(model.success).toBeTrue(serializeJSON(model));
-          expect(model.tripState).toBe("assistance_needed", serializeJSON(model));
-          expect(model.safetyState).toBe("assistance_needed");
+          expect(model.tripState).toBe("scheduled", serializeJSON(model));
+          expect(model.safetyState).toBe("normal");
           expect(model.motionState).toBe("scheduled");
+          expect(model.displayAuthority.monitoring).toBe("scheduled_not_started");
           expect(progressCounts.started_rows).toBe(0);
           expect(progressCounts.completed_rows).toBe(0);
         } finally {
@@ -1480,7 +1478,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     setPlanSchedule(asset.floatPlanId, futureDeparture, futureReturn, "UTC");
     sendResult = sendFloatPlanWithApi(arguments.apiSupport, asset.floatPlanId);
     expect(isSuccessPayload(sendResult)).toBeTrue(serializeJSON(sendResult));
-    expect(countMonitoringRows(asset.floatPlanId)).toBe(1);
+    expect(countMonitoringRows(asset.floatPlanId)).toBe(0);
     return asset;
   }
 
@@ -1546,7 +1544,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     setPlanSchedule(asset.floatPlanId, futureDeparture, futureReturn, "UTC");
     sendResult = sendFloatPlanWithApi(arguments.apiSupport, asset.floatPlanId);
     expect(isSuccessPayload(sendResult)).toBeTrue(serializeJSON(sendResult));
-    expect(countMonitoringRows(asset.floatPlanId)).toBe(1);
+    expect(countMonitoringRows(asset.floatPlanId)).toBe(0);
     return asset;
   }
 
@@ -1851,9 +1849,10 @@ component extends="testbox.system.BaseSpec" output="false" {
     required string latitude,
     required string longitude
   ) {
+    var waypointName = left(variables.naming.buildName(arguments.prefix, "AC V2 " & arguments.label), 45);
     var payload = arguments.apiSupport.saveWaypoint({
       waypointId = 0,
-      name = variables.naming.buildName(arguments.prefix, "AC V2 " & arguments.label),
+      name = waypointName,
       latitude = arguments.latitude,
       longitude = arguments.longitude,
       notes = arguments.label & " waypoint"
@@ -2431,6 +2430,20 @@ component extends="testbox.system.BaseSpec" output="false" {
       },
       { datasource = "fpw" }
     );
+  }
+
+  private struct function startActiveRouteMonitoringWithStartProof(required numeric floatPlanId) {
+    var qClock = queryExecute(
+      "SELECT UTC_TIMESTAMP() AS started_at",
+      {},
+      { datasource = "fpw" }
+    );
+    var startedAt = qClock.started_at[1];
+
+    markFirstLegStarted(arguments.floatPlanId);
+    return new fpw.api.v1.monitor().init("fpw").startMonitoringForFloatPlan(arguments.floatPlanId, "active_route", {
+      baseAt = startedAt
+    });
   }
 
   private void function setActiveLegStartedAtForPaceTest(required numeric floatPlanId, required any startedAtUtc) {

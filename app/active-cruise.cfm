@@ -4928,6 +4928,16 @@ window.FPWActiveCruiseV2.refreshFromDocument = function(sourceDoc, options) {
     });
   });
 
+  const sourceHeroStatusField = sourceDoc.querySelector('[data-fpw-field="hero.voyageStatus"]');
+  const targetHeroStatusField = document.querySelector('[data-fpw-field="hero.voyageStatus"]');
+  if (sourceHeroStatusField && targetHeroStatusField) {
+    const sourceStatusPill = sourceHeroStatusField.closest('.status-pill');
+    const targetStatusPill = targetHeroStatusField.closest('.status-pill');
+    if (sourceStatusPill && targetStatusPill) {
+      targetStatusPill.className = sourceStatusPill.className;
+    }
+  }
+
   replaceSelectors.forEach(function(selector) {
     const sourceNode = sourceDoc.querySelector(selector);
     const targetNode = document.querySelector(selector);
