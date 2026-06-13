@@ -1,5 +1,6 @@
 <cfinclude template="fpw_base_path.cfm">
 <cfinclude template="analytics_ga4.cfm">
+<cfinclude template="analytics_clarity.cfm">
 
 <cfoutput>
 <script>

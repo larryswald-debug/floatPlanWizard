@@ -140,7 +140,8 @@
       typeof window.FPW.attachLeafletMarineLayers === "function"
     ) {
       window.FPW.attachLeafletMarineLayers({
-        map: state.mapInstance
+        map: state.mapInstance,
+        includeRadar: false
       });
       if (typeof window.FPW.attachLeafletWeatherOverlays === "function") {
         window.FPW.attachLeafletWeatherOverlays({

@@ -95,6 +95,7 @@ for (bridgeItem in bridgeRows) {
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-bridges.css?v=20260608-bridges">
   <cfinclude template="../includes/analytics_ga4.cfm">
+  <cfinclude template="../includes/analytics_clarity.cfm">
 </head>
 <body class="fpw-bridge-body">
 <cfinclude template="../includes/top_nav.cfm">

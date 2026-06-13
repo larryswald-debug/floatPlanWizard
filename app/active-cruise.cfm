@@ -438,6 +438,7 @@
   <title>Active Cruise V2</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <link rel="stylesheet" href="<cfoutput>#activeCruiseV2BasePath#</cfoutput>/assets/css/top-nav.css?v=20260530-nav-cta">
+  <cfinclude template="../includes/analytics_clarity.cfm">
   <style>
     :root {
       color-scheme: dark;
@@ -4634,7 +4635,8 @@
     mapInstance = window.FPWFollowMap.initFollowMap('fpwActiveCruiseV2Map', {});
     if (window.FPW && typeof window.FPW.attachLeafletMarineLayers === 'function') {
       window.FPW.attachLeafletMarineLayers({
-        map: mapInstance
+        map: mapInstance,
+        includeRadar: false
       });
     }
     if (window.FPW && typeof window.FPW.attachLeafletWeatherOverlays === 'function') {
@@ -4764,7 +4766,8 @@
     if (window.FPW && typeof window.FPW.attachLeafletMarineLayers === 'function') {
       window.FPW.attachLeafletMarineLayers({
         map: fullMapInstance,
-        baseLayer: baseLayer
+        baseLayer: baseLayer,
+        includeRadar: false
       });
     }
     if (window.FPW && typeof window.FPW.attachLeafletWeatherOverlays === 'function') {

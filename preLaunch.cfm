@@ -1779,6 +1779,7 @@ if (isEarlyAccessPost) {
     }
   </style>
 <cfinclude template="includes/analytics_ga4.cfm">
+<cfinclude template="includes/analytics_clarity.cfm">
 </head>
 
 <!--

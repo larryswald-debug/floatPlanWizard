@@ -47,7 +47,7 @@
       styles: "",
       opacity: 0.6,
       attribution: "NOAA/NWS",
-      modes: { weather: true, activeCruise: false }
+      modes: { weather: true, activeCruise: true }
     },
     windForecast: {
       label: "Wind Forecast",
