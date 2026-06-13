@@ -2752,6 +2752,10 @@
           }
       }
 
+      if (listFindNoCase("ESCALATED,MISSED,LATE", stateVal)) {
+        return out;
+      }
+
       switch (lastStatusVal) {
         case "DELAYED":
           out.label = "Delayed";

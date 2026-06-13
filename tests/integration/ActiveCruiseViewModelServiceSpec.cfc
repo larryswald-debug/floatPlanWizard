@@ -641,6 +641,43 @@ component extends="testbox.system.BaseSpec" output="false" {
         }
       });
 
+      it("keeps escalated public Follow status ahead of secure-for-night last check-in", function() {
+        var prefix = variables.naming.buildPrefix("active-cruise-v2", "follow-escalated-secure");
+        var sessionApi = buildSessionApiSupport();
+        var localCreated = newCreatedTracker();
+        var asset = {};
+        var startMonitoringResult = {};
+        var publicAuthority = {};
+        var followBootstrap = {};
+
+        try {
+          url.testUserId = variables.sessionApiUser.userId;
+          asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+          startMonitoringResult = startActiveRouteMonitoringWithStartProof(asset.floatPlanId);
+          expect(startMonitoringResult.SUCCESS).toBeTrue(serializeJSON(startMonitoringResult));
+
+          markMonitoringSecureForNight(asset.floatPlanId);
+          setMonitoringState(asset.floatPlanId, "ESCALATED");
+
+          publicAuthority = variables.viewModelService.getPublicFollowAuthority(variables.sessionApiUser.userId, asset.floatPlanId);
+          followBootstrap = loadFollowBootstrapForTest(sessionApi, asset.floatPlanId);
+
+          expect(publicAuthority.monitoring.state).toBe("ESCALATED", serializeJSON(publicAuthority.monitoring));
+          expect(publicAuthority.monitoring.lastCheckinStatus).toBe("SECURE_FOR_NIGHT", serializeJSON(publicAuthority.monitoring));
+          expect(publicAuthority.monitoring.secureForNight).toBeTrue(serializeJSON(publicAuthority.monitoring));
+          expect(publicAuthority.monitoring.publicHealthLabel).toBe("Escalated", serializeJSON(publicAuthority.monitoring));
+          expect(publicAuthority.monitoring.publicHealthVariant).toBe("danger", serializeJSON(publicAuthority.monitoring));
+          expect(publicAuthority.tripState.label).toBe("Escalated", serializeJSON(publicAuthority.tripState));
+          expect(followBootstrap.publicAuthority.monitoring.publicHealthLabel).toBe("Escalated", serializeJSON(followBootstrap.publicAuthority.monitoring));
+          expect(followBootstrap.publicAuthority.monitoring.publicHealthVariant).toBe("danger", serializeJSON(followBootstrap.publicAuthority.monitoring));
+          expect(followBootstrap.topCards.status).toBe("Escalated", serializeJSON(followBootstrap.topCards));
+          expect(followBootstrap.stream.status).toBe("Escalated", serializeJSON(followBootstrap.stream));
+          expect(followBootstrap.topCards.voyage_progress_status_variant).toBe("danger", serializeJSON(followBootstrap.topCards));
+        } finally {
+          cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+        }
+      });
+
       it("exposes shared route map geometry with saved leg overrides for AC-V2 map rendering", function() {
         var prefix = variables.naming.buildPrefix("active-cruise-v2", "map-override");
         var sessionApi = buildSessionApiSupport();
