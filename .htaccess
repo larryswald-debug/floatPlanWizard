@@ -37,8 +37,18 @@ RewriteRule ^archive(/.*)?$ /fpw/ [R=302,L,QSD]
 
 
 # ------------------------------------------------------------
-# Great Loop Lock Library clean route proof
+# Great Loop clean route proof
 # ------------------------------------------------------------
+
+RewriteRule ^great-loop/bridges/$ great-loop/bridges.cfm [L,QSA]
+
+RewriteRule ^great-loop/bridges/state/([^/]+)/$ great-loop/bridges.cfm?stateSlug=$1 [L,QSA]
+
+RewriteRule ^great-loop/bridges/waterway/([^/]+)/$ great-loop/bridges.cfm?waterwaySlug=$1 [L,QSA]
+
+RewriteRule ^great-loop/bridges/route/([^/]+)/$ great-loop/bridges.cfm?routeSlug=$1 [L,QSA]
+
+RewriteRule ^great-loop/bridges/([^/]+)/$ great-loop-bridge.cfm?slug=$1 [L,QSA]
 
 RewriteRule ^great-loop/locks/$ great-loop/locks/index.cfm [L,QSA]
 

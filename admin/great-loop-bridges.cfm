@@ -8,6 +8,11 @@ isLoggedIn = structCount(userStruct) GT 0;
 adminWhitelist = "admin@floatplanwizard.com,lswald@yahoo.com";
 isAdmin = false;
 isAuthorized = false;
+nonceKey = "greatLoopBridgesAdminNonce";
+flashKey = "greatLoopBridgesBulkFlash";
+adminNonce = "";
+messageType = "";
+messageText = "";
 
 function boolLike(any value, boolean defaultValue=false) {
   var txt = lCase(trim(toString(arguments.value)));
@@ -77,6 +82,19 @@ function structToQueryString(required struct values) {
   return arrayToList(parts, "&");
 }
 
+function cleanReturnQueryString(any value) {
+  var txt = trim(toString(arguments.value));
+  txt = replace(txt, chr(13), "", "all");
+  txt = replace(txt, chr(10), "", "all");
+  if (left(txt, 1) EQ "?") {
+    txt = len(txt) GT 1 ? mid(txt, 2, len(txt) - 1) : "";
+  }
+  if (find("://", txt) OR find("//", txt)) {
+    return "";
+  }
+  return txt;
+}
+
 if (isLoggedIn) {
   if (structKeyExists(userStruct, "isAdmin") AND boolLike(userStruct.isAdmin, false)) {
     isAdmin = true;
@@ -91,6 +109,18 @@ if (isLoggedIn) {
   }
 }
 isAuthorized = isLoggedIn AND isAdmin;
+
+if (isAuthorized) {
+  if (!structKeyExists(session, nonceKey) OR !len(trim(toString(session[nonceKey])))) {
+    session[nonceKey] = createUUID();
+  }
+  adminNonce = session[nonceKey];
+  if (structKeyExists(session, flashKey) AND isStruct(session[flashKey])) {
+    messageType = structKeyExists(session[flashKey], "type") ? trim(toString(session[flashKey].type)) : "";
+    messageText = structKeyExists(session[flashKey], "text") ? trim(toString(session[flashKey].text)) : "";
+    structDelete(session, flashKey);
+  }
+}
 
 filters = {
   "q" = urlValue("q"),
@@ -129,6 +159,29 @@ if (isAuthorized) {
     } catch (any svcPathError) {
       bridgeSvc = createObject("component", "fpw.api.v1.GreatLoopBridgesService").init();
     }
+
+    if (structKeyExists(form, "bulkUpdatePublicStatus")) {
+      returnQueryString = cleanReturnQueryString(structKeyExists(form, "returnQueryString") ? form.returnQueryString : "");
+      redirectUrl = request.fpwBase & "/admin/great-loop-bridges.cfm";
+      selectedBridgeIds = structKeyExists(form, "selectedBridgeIds") ? form.selectedBridgeIds : (structKeyExists(form, "selectedBridgeIds[]") ? form["selectedBridgeIds[]"] : "");
+      bulkPublicStatus = structKeyExists(form, "bulkPublicStatus") ? trim(toString(form.bulkPublicStatus)) : "";
+
+      if (!structKeyExists(form, "adminNonce") OR trim(toString(form.adminNonce)) NEQ adminNonce) {
+        session[flashKey] = { "type" = "error", "text" = "Bulk update rejected. Refresh the page and try again." };
+      } else {
+        bulkResult = bridgeSvc.bulkUpdatePublicStatus(selectedBridgeIds, bulkPublicStatus);
+        session[flashKey] = {
+          "type" = bulkResult.SUCCESS ? "success" : "error",
+          "text" = bulkResult.MESSAGE
+        };
+      }
+
+      if (len(returnQueryString)) {
+        redirectUrl &= "?" & returnQueryString;
+      }
+      location(url = redirectUrl, addToken = false);
+    }
+
     stats = bridgeSvc.getStats();
     facets = bridgeSvc.getAdminFacets();
     searchResult = bridgeSvc.searchAdminBridges(filters);
@@ -162,10 +215,17 @@ if (isAuthorized) {
     .check-row { display: flex; gap: 14px; flex-wrap: wrap; margin: 8px 0 14px; }
     .check-row label { font-size: 14px; color: #333; }
     .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .bulk-form { margin-top: 18px; }
+    .bulk-actions { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; padding: 12px; border: 1px solid #d8dee8; background: #f8fafc; border-radius: 6px; }
+    .bulk-actions .field { display: flex; flex-direction: column; gap: 6px; min-width: 220px; }
+    .bulk-actions label { font-weight: 700; font-size: 13px; color: #333; }
+    .bulk-actions select { border: 1px solid #bbb; border-radius: 4px; font-size: 14px; padding: 8px; }
+    .bulk-help { margin: 0; color: #526070; font-size: 13px; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
     th { background: #f0f0f0; }
     td.num { text-align: right; white-space: nowrap; font-family: Consolas, Menlo, Monaco, monospace; }
+    .select-cell { text-align: center; width: 42px; }
     .badge-soft { display: inline-block; border: 1px solid #c8d0db; border-radius: 999px; padding: 2px 8px; background: #f8fafc; font-size: 12px; }
     .badge-soft.ok { background: #e9f8ee; border-color: #9dd9ad; color: #0e5522; }
     .badge-soft.warn { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
@@ -175,6 +235,7 @@ if (isAuthorized) {
     .bridge-image-status { display: block; margin-top: 5px; color: #526070; font-size: 12px; white-space: nowrap; }
     .msg { margin-bottom: 12px; padding: 10px; border-radius: 4px; }
     .msg.error { background: #ffecec; border: 1px solid #ffb4b4; color: #7f1d1d; }
+    .msg.success { background: #e9f8ee; border: 1px solid #9dd9ad; color: #0e5522; }
     .pager { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 10px; }
     @media (max-width: 1100px) { .toolbar, .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 700px) { body { margin: 12px; } .wrap { padding: 14px; } .toolbar, .summary-grid { grid-template-columns: 1fr; } }
@@ -192,6 +253,9 @@ if (isAuthorized) {
     <cfelse>
       <cfif NOT searchResult.SUCCESS AND len(searchResult.MESSAGE)>
         <div class="msg error"><cfoutput>#encodeForHTML(searchResult.MESSAGE)#</cfoutput></div>
+      </cfif>
+      <cfif len(messageText)>
+        <div class="msg <cfoutput>#encodeForHTMLAttribute(messageType)#</cfoutput>"><cfoutput>#encodeForHTML(messageText)#</cfoutput></div>
       </cfif>
 
       <div class="actions">
@@ -264,10 +328,26 @@ if (isAuthorized) {
         </div>
       </form>
 
-      <div class="table-responsive">
+      <form class="bulk-form" method="post" action="<cfoutput>#request.fpwBase#</cfoutput>/admin/great-loop-bridges.cfm">
+        <input type="hidden" name="adminNonce" value="<cfoutput>#encodeForHTMLAttribute(adminNonce)#</cfoutput>">
+        <input type="hidden" name="returnQueryString" value="<cfoutput>#encodeForHTMLAttribute(structKeyExists(cgi, "query_string") ? cgi.query_string : "")#</cfoutput>">
+        <div class="bulk-actions">
+          <div class="field">
+            <label for="bulkPublicStatus">Set Public Status</label>
+            <select id="bulkPublicStatus" name="bulkPublicStatus">
+              <option value="">Choose status</option>
+              <cfloop array="#facets.publicStatuses#" index="opt"><cfoutput><option value="#encodeForHTMLAttribute(opt.value)#">#encodeForHTML(opt.label)#</option></cfoutput></cfloop>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-dark" name="bulkUpdatePublicStatus" value="1">Update Checked Rows</button>
+          <p class="bulk-help">Applies only to currently checked visible rows.</p>
+        </div>
+
+        <div class="table-responsive">
         <table>
           <thead>
             <tr>
+              <th class="select-cell"><input type="checkbox" data-bridge-select-all aria-label="Select all visible bridge rows"></th>
               <th>ID</th>
               <th>Image</th>
               <th>Bridge</th>
@@ -283,12 +363,13 @@ if (isAuthorized) {
           </thead>
           <tbody>
             <cfif NOT arrayLen(bridgeRows)>
-              <tr><td colspan="11">No bridge rows match the current filters.</td></tr>
+              <tr><td colspan="12">No bridge rows match the current filters.</td></tr>
             <cfelse>
               <cfloop array="#bridgeRows#" index="bridgeItem">
                 <cfset bridgeImage = bridgeSvc.getBridgeImageAsset(bridgeItem, request.fpwBase)>
                 <cfset bridgeImageAlt = displayText(bridgeItem.bridge_name, "Bridge") & " image thumbnail">
                 <tr>
+                  <td class="select-cell"><input type="checkbox" name="selectedBridgeIds[]" value="<cfoutput>#encodeForHTMLAttribute(bridgeItem.id)#</cfoutput>" data-bridge-row-checkbox aria-label="Select <cfoutput>#encodeForHTMLAttribute(displayText(bridgeItem.bridge_name, "bridge row " & bridgeItem.id))#</cfoutput>"></td>
                   <td class="num"><cfoutput>#encodeForHTML(bridgeItem.id)#</cfoutput></td>
                   <td class="bridge-image-cell">
                     <cfif bridgeImage.hasImage>
@@ -320,7 +401,8 @@ if (isAuthorized) {
             </cfif>
           </tbody>
         </table>
-      </div>
+        </div>
+      </form>
 
       <cfset prevOffset = max(0, val(searchResult.OFFSET) - val(searchResult.LIMIT))>
       <cfset nextOffset = val(searchResult.OFFSET) + val(searchResult.LIMIT)>
@@ -331,5 +413,40 @@ if (isAuthorized) {
       </div>
     </cfif>
   </div>
+  <script>
+    (function () {
+      var selectAll = document.querySelector('[data-bridge-select-all]');
+      var rowCheckboxes = Array.prototype.slice.call(document.querySelectorAll('[data-bridge-row-checkbox]'));
+
+      function updateSelectAllState() {
+        var checkedCount = rowCheckboxes.filter(function (checkbox) {
+          return checkbox.checked;
+        }).length;
+
+        if (!selectAll) {
+          return;
+        }
+        selectAll.checked = rowCheckboxes.length > 0 && checkedCount === rowCheckboxes.length;
+        selectAll.indeterminate = checkedCount > 0 && checkedCount < rowCheckboxes.length;
+      }
+
+      if (!selectAll || !rowCheckboxes.length) {
+        return;
+      }
+
+      selectAll.addEventListener('change', function () {
+        rowCheckboxes.forEach(function (checkbox) {
+          checkbox.checked = selectAll.checked;
+        });
+        updateSelectAllState();
+      });
+
+      rowCheckboxes.forEach(function (checkbox) {
+        checkbox.addEventListener('change', updateSelectAllState);
+      });
+
+      updateSelectAllState();
+    })();
+  </script>
 </body>
 </html>

@@ -52,6 +52,18 @@
     return el && el.checked ? "1" : "";
   }
 
+  function resetOtherDropdownFilters(sourceControl) {
+    if (!formEl || !sourceControl || sourceControl.tagName !== "SELECT") return;
+    Array.prototype.slice.call(formEl.querySelectorAll("select")).forEach(function (selectEl) {
+      if (selectEl !== sourceControl) {
+        selectEl.value = "";
+      }
+    });
+    Array.prototype.slice.call(formEl.querySelectorAll("input[type='checkbox']")).forEach(function (checkboxEl) {
+      checkboxEl.checked = false;
+    });
+  }
+
   function appendFilters(params, filters) {
     Object.keys(filters || {}).forEach(function (key) {
       if (filters[key]) {
@@ -216,6 +228,9 @@
   });
 
   Array.prototype.slice.call(formEl.querySelectorAll("select,input[type='checkbox']")).forEach(function (control) {
-    control.addEventListener("change", applyFilters);
+    control.addEventListener("change", function () {
+      resetOtherDropdownFilters(control);
+      applyFilters();
+    });
   });
 })(window, document);

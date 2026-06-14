@@ -13,12 +13,20 @@ body.fpw-bridge-body {
 }
 
 .fpw-bridge-shell {
-  width: min(1460px, calc(100% - 40px));
+  width: min(1249px, calc(100% - 40px));
   margin: 0 auto;
 }
 
 .fpw-bridge-hero {
-  padding: 76px 0 34px;
+  padding: 10px 0 34px;
+}
+
+.fpw-bridge-hero--detail {
+  padding-bottom: 18px;
+}
+
+.fpw-bridge-hero--library {
+  padding-bottom: 0;
 }
 
 .fpw-bridge-eyebrow {
@@ -34,7 +42,7 @@ body.fpw-bridge-body {
   margin: 0;
   max-width: 900px;
   color: #f7fbff;
-  font-size: clamp(2.5rem, 5vw, 5.5rem);
+  font-size: 40px;
   line-height: 0.95;
   letter-spacing: 0;
 }
@@ -61,7 +69,11 @@ body.fpw-bridge-body {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
-  margin: 26px 0;
+  margin: 26px auto 18px;
+}
+
+.fpw-bridge-hero--library + .fpw-bridge-stats {
+  margin-top: 10px;
 }
 
 .fpw-bridge-stat,
@@ -91,11 +103,143 @@ body.fpw-bridge-body {
   color: #bbcbdb;
 }
 
+.fpw-bridge-breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0 auto 18px;
+  color: #a9c6e6;
+  font-size: 0.9rem;
+}
+
 .fpw-bridge-layout {
   display: grid;
   grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
   gap: 22px;
   align-items: start;
+  padding-bottom: 64px;
+}
+
+.fpw-bridge-search-layout {
+  align-items: stretch;
+  padding-bottom: 26px;
+}
+
+.fpw-bridge-search-layout .fpw-bridge-main {
+  display: flex;
+  flex-direction: column;
+}
+
+.fpw-bridge-search-layout .fpw-bridge-main > .fpw-bridge-panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.fpw-bridge-search-layout .fpw-bridge-map {
+  flex: 1 1 auto;
+}
+
+.fpw-bridge-awareness {
+  margin-bottom: 26px;
+}
+
+.fpw-bridge-awareness .fpw-bridge-disclaimer {
+  margin-top: 0;
+}
+
+.fpw-bridge-awareness--detail {
+  margin-top: 26px;
+}
+
+.fpw-bridge-guide-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.fpw-bridge-guide-card {
+  min-height: 210px;
+  padding: 16px 16px 14px;
+  border: 1px solid rgba(58, 130, 168, 0.58);
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, rgba(9, 38, 61, 0.94), rgba(6, 25, 42, 0.96)),
+    rgba(7, 27, 44, 0.9);
+  box-shadow: inset 0 1px 0 rgba(125, 231, 239, 0.06);
+}
+
+.fpw-bridge-guide-icon {
+  display: inline-grid;
+  width: 43px;
+  height: 43px;
+  margin: 0 0 10px;
+  place-items: center;
+  border: 2px solid #18d6d2;
+  border-radius: 50%;
+  color: #18d6d2;
+}
+
+.fpw-bridge-guide-icon svg {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.3;
+}
+
+.fpw-bridge-guide-card h2 {
+  margin: 0 0 8px;
+  color: #f6fbff;
+  font-size: 1.05rem;
+  line-height: 1.12;
+}
+
+.fpw-bridge-guide-card ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 1rem;
+  color: #bccbd8;
+  font-size: 0.88rem;
+  line-height: 1.24;
+}
+
+.fpw-bridge-guide-card li::marker {
+  color: #b7c9d7;
+}
+
+.fpw-bridge-checklist {
+  padding-left: 0;
+  list-style: none;
+}
+
+.fpw-bridge-checklist li {
+  position: relative;
+  padding-left: 18px;
+}
+
+.fpw-bridge-checklist li::before {
+  position: absolute;
+  top: 0.1em;
+  left: 0;
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid #18d6d2;
+  border-radius: 50%;
+  color: #18d6d2;
+  content: "✓";
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 10px;
+  text-align: center;
+}
+
+.fpw-bridge-results {
   padding-bottom: 64px;
 }
 
@@ -417,15 +561,20 @@ body.fpw-bridge-body {
   .fpw-bridge-detail-layout {
     grid-template-columns: 1fr;
   }
+
+  .fpw-bridge-guide-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 680px) {
   .fpw-bridge-shell {
-    width: min(100% - 24px, 1460px);
+    width: min(100% - 24px, 1249px);
   }
 
   .fpw-bridge-card,
-  .fpw-bridge-detail-grid {
+  .fpw-bridge-detail-grid,
+  .fpw-bridge-guide-cards {
     grid-template-columns: 1fr;
   }
 

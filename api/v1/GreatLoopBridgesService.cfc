@@ -234,6 +234,57 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="getStateModel" access="public" returntype="struct" output="false">
+        <cfargument name="slug" type="string" required="true">
+        <cfscript>
+            var stateName = resolveFacetValueBySlug("state_province", arguments.slug);
+            var out = { "SUCCESS" = false, "STATE" = stateName, "BRIDGES" = [], "STATS" = getStats() };
+
+            if (!len(stateName)) {
+                out.MESSAGE = "State or province not found.";
+                return out;
+            }
+
+            out.BRIDGES = searchPublicBridges({ "stateProvince" = stateName, "limit" = 500 }).ROWS;
+            out.SUCCESS = true;
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getWaterwayModel" access="public" returntype="struct" output="false">
+        <cfargument name="slug" type="string" required="true">
+        <cfscript>
+            var waterwayName = resolveFacetValueBySlug("waterway", arguments.slug);
+            var out = { "SUCCESS" = false, "WATERWAY" = waterwayName, "BRIDGES" = [], "STATS" = getStats() };
+
+            if (!len(waterwayName)) {
+                out.MESSAGE = "Waterway not found.";
+                return out;
+            }
+
+            out.BRIDGES = searchPublicBridges({ "waterway" = waterwayName, "limit" = 500 }).ROWS;
+            out.SUCCESS = true;
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getRouteSegmentModel" access="public" returntype="struct" output="false">
+        <cfargument name="slug" type="string" required="true">
+        <cfscript>
+            var routeSegmentName = resolveFacetValueBySlug("route_segment", arguments.slug);
+            var out = { "SUCCESS" = false, "ROUTE_SEGMENT" = routeSegmentName, "BRIDGES" = [], "STATS" = getStats() };
+
+            if (!len(routeSegmentName)) {
+                out.MESSAGE = "Route segment not found.";
+                return out;
+            }
+
+            out.BRIDGES = searchPublicBridges({ "routeSegment" = routeSegmentName, "limit" = 500 }).ROWS;
+            out.SUCCESS = true;
+            return out;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="getBridgeById" access="public" returntype="struct" output="false">
         <cfargument name="bridgeId" type="numeric" required="true">
         <cfscript>
@@ -336,6 +387,108 @@
                 "MESSAGE" = "Bridge saved.",
                 "BRIDGE" = getBridgeById(row.id).BRIDGE
             };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="bulkUpdatePublicStatus" access="public" returntype="struct" output="false">
+        <cfargument name="bridgeIds" type="any" required="true">
+        <cfargument name="publicStatus" type="string" required="true">
+        <cfscript>
+            var out = { "SUCCESS" = false, "MESSAGE" = "", "UPDATED_COUNT" = 0, "ERRORS" = [] };
+            var allowedStatuses = "published,planning_only,admin_review,do_not_publish";
+            var statusValue = lCase(trim(arguments.publicStatus));
+            var rawIds = [];
+            var rawIdText = "";
+            var cleanIds = [];
+            var seenIds = {};
+            var placeholders = [];
+            var updateParams = {};
+            var i = 0;
+            var rawValue = "";
+            var idValue = 0;
+            var idKey = "";
+            var paramName = "";
+            var countQuery = queryNew("");
+
+            if (!hasBridgeSchema()) {
+                out.MESSAGE = "Great Loop bridge table is not available.";
+                arrayAppend(out.ERRORS, out.MESSAGE);
+                return out;
+            }
+            if (!listFindNoCase(allowedStatuses, statusValue)) {
+                out.MESSAGE = "Choose a valid Public Status.";
+                arrayAppend(out.ERRORS, out.MESSAGE);
+                return out;
+            }
+
+            if (isArray(arguments.bridgeIds)) {
+                rawIds = arguments.bridgeIds;
+            } else {
+                rawIdText = replace(trim(toString(arguments.bridgeIds)), chr(13), "", "all");
+                rawIdText = replace(rawIdText, chr(10), ",", "all");
+                rawIds = listToArray(rawIdText);
+            }
+
+            for (i = 1; i LTE arrayLen(rawIds); i++) {
+                rawValue = trim(toString(rawIds[i]));
+                if (!len(rawValue)) {
+                    continue;
+                }
+                if (!reFind("^[0-9]+$", rawValue)) {
+                    arrayAppend(out.ERRORS, "Bridge id '" & rawValue & "' is not valid.");
+                    continue;
+                }
+                idValue = val(rawValue);
+                if (idValue LTE 0) {
+                    arrayAppend(out.ERRORS, "Bridge id must be a positive integer.");
+                    continue;
+                }
+                idKey = toString(idValue);
+                if (!structKeyExists(seenIds, idKey)) {
+                    seenIds[idKey] = true;
+                    arrayAppend(cleanIds, idValue);
+                }
+            }
+
+            if (arrayLen(out.ERRORS)) {
+                out.MESSAGE = "Bulk update rejected. Check the selected bridge ids.";
+                return out;
+            }
+            if (!arrayLen(cleanIds)) {
+                out.MESSAGE = "Select at least one bridge row.";
+                arrayAppend(out.ERRORS, out.MESSAGE);
+                return out;
+            }
+
+            for (i = 1; i LTE arrayLen(cleanIds); i++) {
+                paramName = "bridgeId" & i;
+                arrayAppend(placeholders, ":" & paramName);
+                updateParams[paramName] = { value = cleanIds[i], cfsqltype = "cf_sql_bigint" };
+            }
+            updateParams.public_status = { value = statusValue, cfsqltype = "cf_sql_varchar" };
+
+            queryExecute(
+                "UPDATE great_loop_bridges
+                 SET public_status = :public_status,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id IN (" & arrayToList(placeholders, ",") & ")",
+                updateParams,
+                { datasource = getDatasource() }
+            );
+
+            countQuery = queryExecute(
+                "SELECT COUNT(*) AS row_count
+                 FROM great_loop_bridges
+                 WHERE public_status = :public_status
+                   AND id IN (" & arrayToList(placeholders, ",") & ")",
+                updateParams,
+                { datasource = getDatasource() }
+            );
+
+            out.SUCCESS = true;
+            out.UPDATED_COUNT = countQuery.recordCount ? val(countQuery.row_count[1]) : 0;
+            out.MESSAGE = "Set Public Status for " & numberFormat(out.UPDATED_COUNT) & " bridge row" & (out.UPDATED_COUNT EQ 1 ? "" : "s") & ".";
+            return out;
         </cfscript>
     </cffunction>
 
@@ -579,7 +732,8 @@
         <cfargument name="slug" type="any" required="true">
         <cfargument name="basePath" type="string" required="false" default="">
         <cfscript>
-            return arguments.basePath & "/great-loop-bridge.cfm?slug=" & urlEncodedFormat(toString(arguments.slug));
+            var slugPath = normalizeSlug(arguments.slug);
+            return arguments.basePath & "/great-loop/bridges/" & slugPath & "/";
         </cfscript>
     </cffunction>
 
@@ -847,6 +1001,27 @@
                 });
             }
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveFacetValueBySlug" access="public" returntype="string" output="false">
+        <cfargument name="fieldName" type="string" required="true">
+        <cfargument name="slug" type="string" required="true">
+        <cfscript>
+            var target = normalizeSlug(arguments.slug);
+            var facets = getFacets(arguments.fieldName);
+            var i = 0;
+
+            if (!len(target)) {
+                return "";
+            }
+
+            for (i = 1; i LTE arrayLen(facets); i++) {
+                if (normalizeSlug(facets[i].value) EQ target) {
+                    return facets[i].value;
+                }
+            }
+            return "";
         </cfscript>
     </cffunction>
 

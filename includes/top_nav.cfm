@@ -206,7 +206,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
                   <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6.5 9 4l6 2.5 5-2.5v13.5L15 20l-6-2.5L4 20z"></path><path d="M9 4v13.5"></path><path d="M15 6.5V20"></path></svg>
                   <span><strong>Great Loop Lock Library</strong><small>Lock locations, VHF, phone, notes, and planning reference</small></span>
                 </a>
-                <a href="#topNavBasePath#/great-loop/bridges.cfm" role="menuitem">
+                <a href="#topNavBasePath#/great-loop/bridges/" role="menuitem">
                   <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 12h16"></path><path d="M6 12l2-5h8l2 5"></path><path d="M7 12v6"></path><path d="M17 12v6"></path><path d="M3 18h18"></path></svg>
                   <span><strong>Great Loop Bridge Library</strong><small>Clearances, drawbridge contacts, schedules, and planning notes</small></span>
                 </a>

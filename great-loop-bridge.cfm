@@ -22,10 +22,10 @@ if (!bridgeResult.SUCCESS) {
 bridgeItem = bridgeResult.SUCCESS ? bridgeResult.BRIDGE : {};
 bridgeImage = bridgeResult.SUCCESS ? bridgeSvc.getBridgeImageAsset(bridgeItem, request.fpwBase) : {};
 canonicalUrl = bridgeResult.SUCCESS
-  ? "https://floatplanwizard.com/great-loop-bridge.cfm?slug=" & urlEncodedFormat(bridgeItem.slug)
-  : "https://floatplanwizard.com/great-loop/bridges.cfm";
+  ? "https://floatplanwizard.com/great-loop/bridges/" & bridgeSvc.normalizeSlug(bridgeItem.slug) & "/"
+  : "https://floatplanwizard.com/great-loop/bridges/";
 pageTitle = bridgeResult.SUCCESS
-  ? bridgeItem.bridge_name & " | Great Loop Bridge Library | FloatPlanWizard"
+  ? bridgeItem.bridge_name & " Guide | Great Loop Bridge Planning | FloatPlanWizard"
   : "Bridge Not Found | Great Loop Bridge Library | FloatPlanWizard";
 waterwayText = bridgeResult.SUCCESS AND len(trim(toString(bridgeItem.waterway))) ? bridgeItem.waterway : "its waterway";
 pageDescription = bridgeResult.SUCCESS
@@ -51,6 +51,81 @@ function clearanceText(any value) {
   var txt = isNull(arguments.value) ? "" : trim(toString(arguments.value));
   return len(txt) ? txt & " ft" : "Not verified";
 }
+
+schemaAtKey = chr(64);
+schemaTypeKey = schemaAtKey & "type";
+schemaIdKey = schemaAtKey & "id";
+schemaContextKey = schemaAtKey & "context";
+schemaGraphKey = schemaAtKey & "graph";
+
+function detailSchemaRef(required string idValue) {
+  var out = structNew("ordered");
+  structInsert(out, schemaIdKey, arguments.idValue, true);
+  return out;
+}
+
+function detailSchemaListItem(required numeric position, required string name, required string urlValue) {
+  var out = structNew("ordered");
+  var item = structNew("ordered");
+  structInsert(out, schemaTypeKey, "ListItem", true);
+  out["position"] = arguments.position;
+  structInsert(item, schemaIdKey, arguments.urlValue, true);
+  item["name"] = arguments.name;
+  out["item"] = item;
+  return out;
+}
+
+detailJsonLdText = "";
+if (bridgeResult.SUCCESS) {
+  detailSchemaGraph = [];
+  detailSchemaOrg = structNew("ordered");
+  detailSchemaWebsite = structNew("ordered");
+  detailSchemaPage = structNew("ordered");
+  detailSchemaBreadcrumb = structNew("ordered");
+  detailSchemaPosition = 1;
+
+  structInsert(detailSchemaOrg, schemaTypeKey, "Organization", true);
+  structInsert(detailSchemaOrg, schemaIdKey, "https://floatplanwizard.com/##organization", true);
+  detailSchemaOrg["name"] = "FloatPlanWizard";
+  detailSchemaOrg["url"] = "https://floatplanwizard.com/";
+  arrayAppend(detailSchemaGraph, detailSchemaOrg);
+
+  structInsert(detailSchemaWebsite, schemaTypeKey, "WebSite", true);
+  structInsert(detailSchemaWebsite, schemaIdKey, "https://floatplanwizard.com/##website", true);
+  detailSchemaWebsite["name"] = "FloatPlanWizard";
+  detailSchemaWebsite["url"] = "https://floatplanwizard.com/";
+  detailSchemaWebsite["publisher"] = detailSchemaRef("https://floatplanwizard.com/##organization");
+  arrayAppend(detailSchemaGraph, detailSchemaWebsite);
+
+  structInsert(detailSchemaBreadcrumb, schemaTypeKey, "BreadcrumbList", true);
+  structInsert(detailSchemaBreadcrumb, schemaIdKey, canonicalUrl & "##breadcrumb", true);
+  detailSchemaBreadcrumb["itemListElement"] = [];
+  arrayAppend(detailSchemaBreadcrumb["itemListElement"], detailSchemaListItem(detailSchemaPosition++, "FloatPlanWizard", "https://floatplanwizard.com/"));
+  arrayAppend(detailSchemaBreadcrumb["itemListElement"], detailSchemaListItem(detailSchemaPosition++, "Great Loop Bridges", "https://floatplanwizard.com/great-loop/bridges/"));
+  if (len(trim(toString(bridgeItem.state_province)))) {
+    arrayAppend(detailSchemaBreadcrumb["itemListElement"], detailSchemaListItem(detailSchemaPosition++, bridgeItem.state_province, "https://floatplanwizard.com/great-loop/bridges/state/" & bridgeSvc.normalizeSlug(bridgeItem.state_province) & "/"));
+  }
+  if (len(trim(toString(bridgeItem.waterway)))) {
+    arrayAppend(detailSchemaBreadcrumb["itemListElement"], detailSchemaListItem(detailSchemaPosition++, bridgeItem.waterway, "https://floatplanwizard.com/great-loop/bridges/waterway/" & bridgeSvc.normalizeSlug(bridgeItem.waterway) & "/"));
+  }
+  arrayAppend(detailSchemaBreadcrumb["itemListElement"], detailSchemaListItem(detailSchemaPosition, bridgeItem.bridge_name, canonicalUrl));
+  arrayAppend(detailSchemaGraph, detailSchemaBreadcrumb);
+
+  structInsert(detailSchemaPage, schemaTypeKey, "WebPage", true);
+  structInsert(detailSchemaPage, schemaIdKey, canonicalUrl & "##webpage", true);
+  detailSchemaPage["url"] = canonicalUrl;
+  detailSchemaPage["name"] = pageTitle;
+  detailSchemaPage["description"] = pageDescription;
+  detailSchemaPage["isPartOf"] = detailSchemaRef("https://floatplanwizard.com/##website");
+  detailSchemaPage["publisher"] = detailSchemaRef("https://floatplanwizard.com/##organization");
+  detailSchemaPage["breadcrumb"] = detailSchemaRef(canonicalUrl & "##breadcrumb");
+  arrayAppend(detailSchemaGraph, detailSchemaPage);
+
+  detailJsonLd = structNew("ordered");
+  structInsert(detailJsonLd, schemaContextKey, "https://schema.org", true);
+  structInsert(detailJsonLd, schemaGraphKey, detailSchemaGraph, true);
+  detailJsonLdText = replace(serializeJSON(detailJsonLd), "</", "<\/", "all");
+}
 </cfscript>
 
 <!doctype html>
@@ -71,9 +146,12 @@ function clearanceText(any value) {
   <meta name="twitter:title" content="<cfoutput>#encodeForHTMLAttribute(pageTitle)#</cfoutput>">
   <meta name="twitter:description" content="<cfoutput>#encodeForHTMLAttribute(pageDescription)#</cfoutput>">
   <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+  <cfif len(detailJsonLdText)>
+    <script type="application/ld+json"><cfoutput>#detailJsonLdText#</cfoutput></script>
+  </cfif>
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20260530-nav-cta">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-bridges.css?v=20260608-bridges">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-bridges.css?v=20260614-bridge-detail-breadcrumb-gap">
   <cfinclude template="includes/analytics_ga4.cfm">
   <cfinclude template="includes/analytics_clarity.cfm">
 </head>
@@ -91,15 +169,25 @@ function clearanceText(any value) {
         <h1>Bridge Not Found</h1>
         <p>The requested bridge is not currently available in the public Great Loop Bridge Library.</p>
       </cfif>
-      <div class="fpw-bridge-disclaimer">
-        <strong>Planning awareness only:</strong>
-        Bridge information is provided for planning awareness only. Always verify current bridge status, clearance, water levels, bridge schedules, opening restrictions, Local Notices to Mariners, bridge signage, and official charts before transit. FloatPlanWizard is not a navigation authority.
-      </div>
     </div>
   </section>
 
   <div class="fpw-bridge-shell">
-    <p class="fpw-bridge-backlink"><a href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase)#</cfoutput>/great-loop/bridges.cfm">&larr; Back to Bridge Library</a></p>
+    <nav class="fpw-bridge-breadcrumbs" aria-label="Breadcrumb">
+      <a href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & "/great-loop/bridges/")#</cfoutput>">Great Loop Bridges</a>
+      <cfif bridgeResult.SUCCESS AND len(trim(toString(bridgeItem.state_province)))>
+        <span>&rsaquo;</span>
+        <a href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & "/great-loop/bridges/state/" & bridgeSvc.normalizeSlug(bridgeItem.state_province) & "/")#</cfoutput>"><cfoutput>#encodeForHTML(bridgeItem.state_province)#</cfoutput></a>
+      </cfif>
+      <cfif bridgeResult.SUCCESS AND len(trim(toString(bridgeItem.waterway)))>
+        <span>&rsaquo;</span>
+        <a href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & "/great-loop/bridges/waterway/" & bridgeSvc.normalizeSlug(bridgeItem.waterway) & "/")#</cfoutput>"><cfoutput>#encodeForHTML(bridgeItem.waterway)#</cfoutput></a>
+      </cfif>
+      <cfif bridgeResult.SUCCESS>
+        <span>&rsaquo;</span>
+        <span><cfoutput>#encodeForHTML(bridgeItem.bridge_name)#</cfoutput></span>
+      </cfif>
+    </nav>
 
     <cfif NOT bridgeResult.SUCCESS>
       <section class="fpw-bridge-panel">
@@ -119,11 +207,9 @@ function clearanceText(any value) {
           </cfif>
 
           <div class="fpw-bridge-badges fpw-bridge-detail-badges">
-            <span class="fpw-bridge-badge"><cfoutput>#encodeForHTML(statusLabel(bridgeItem.public_status))#</cfoutput></span>
             <cfif val(bridgeItem.is_drawbridge) EQ 1><span class="fpw-bridge-badge fpw-bridge-badge--warn">Drawbridge / movable</span></cfif>
             <cfif val(bridgeItem.is_fixed) EQ 1><span class="fpw-bridge-badge">Fixed bridge</span></cfif>
             <cfif val(bridgeItem.is_railroad) EQ 1><span class="fpw-bridge-badge">Railroad bridge</span></cfif>
-            <cfif bridgeSvc.isAirDraftConcern(bridgeItem)><span class="fpw-bridge-badge fpw-bridge-badge--warn">Air draft concern</span></cfif>
           </div>
 
           <div class="fpw-bridge-detail-grid">
@@ -136,6 +222,9 @@ function clearanceText(any value) {
             <div><span>Bridge Type</span><strong><cfoutput>#encodeForHTML(displayText(bridgeItem.bridge_type))#</cfoutput></strong></div>
             <div><span>Source Confidence</span><strong><cfoutput>#encodeForHTML(displayText(bridgeItem.source_confidence))#</cfoutput></strong></div>
           </div>
+
+          <h2>What Boaters Should Know</h2>
+          <p><cfoutput>#encodeForHTML(displayText(bridgeItem.short_description, "Use this bridge record as a planning reference for location, clearance fields, bridge type, contact fields, and source notes. Verify current conditions before transit."))#</cfoutput></p>
 
           <h2>Clearance And Opening Details</h2>
           <div class="fpw-bridge-detail-grid">
@@ -154,41 +243,55 @@ function clearanceText(any value) {
             <div class="fpw-bridge-warning">Verify against current water level / bridge gauge before transit.</div>
           </cfif>
 
-          <h2>Planning Notes</h2>
+          <h2>Opening / Contact Notes</h2>
           <dl class="fpw-bridge-notes">
-            <dt>Air Draft Notes</dt>
-            <dd><cfoutput>#encodeForHTML(displayText(bridgeItem.air_draft_notes))#</cfoutput></dd>
             <dt>Opening Schedule</dt>
             <dd><cfoutput>#encodeForHTML(displayText(bridgeItem.opening_schedule))#</cfoutput></dd>
             <dt>Operator / Contact</dt>
             <dd><cfoutput>#encodeForHTML(displayText(bridgeItem.operator_contact))#</cfoutput></dd>
+          </dl>
+
+          <h2>Navigation And Regulatory Notes</h2>
+          <dl class="fpw-bridge-notes">
+            <dt>Air Draft Notes</dt>
+            <dd><cfoutput>#encodeForHTML(displayText(bridgeItem.air_draft_notes))#</cfoutput></dd>
             <dt>Navigation Notes</dt>
             <dd><cfoutput>#encodeForHTML(displayText(bridgeItem.navigation_notes))#</cfoutput></dd>
             <dt>Regulatory Notes</dt>
             <dd><cfoutput>#encodeForHTML(displayText(bridgeItem.regulatory_notes))#</cfoutput></dd>
           </dl>
+
+          <h2>Planning Considerations</h2>
+          <p>Confirm your vessel air draft, current water levels, bridge signage, official charts, bridge schedules, Local Notices to Mariners, and any VHF or phone procedures before approaching this bridge. If the bridge is movable, build extra time into your route plan for opening windows, traffic, restrictions, weather, and communication delays.</p>
         </article>
 
         <aside class="fpw-bridge-panel fpw-bridge-detail-side">
           <h2>Bridge Image</h2>
           <img class="fpw-bridge-detail-image fpw-bridge-detail-side-image" src="<cfoutput>#encodeForHTMLAttribute(bridgeImage.url)#</cfoutput>" alt="" loading="lazy" decoding="async">
 
-          <h2>Sources</h2>
+          <h2>Related Bridges</h2>
           <ul class="fpw-bridge-source-list">
-            <cfif len(trim(toString(bridgeItem.source_primary_url)))>
-              <li><a href="<cfoutput>#encodeForHTMLAttribute(bridgeItem.source_primary_url)#</cfoutput>" rel="nofollow noopener" target="_blank">Primary source</a></li>
+            <cfif len(trim(toString(bridgeItem.state_province)))>
+              <li><a href="<cfoutput>#request.fpwBase#/great-loop/bridges/state/#encodeForURL(bridgeSvc.normalizeSlug(bridgeItem.state_province))#/</cfoutput>"><cfoutput>#encodeForHTML(bridgeItem.state_province)#</cfoutput> bridges</a></li>
             </cfif>
-            <cfif len(trim(toString(bridgeItem.source_secondary_url)))>
-              <li><a href="<cfoutput>#encodeForHTMLAttribute(bridgeItem.source_secondary_url)#</cfoutput>" rel="nofollow noopener" target="_blank">Secondary source</a></li>
+            <cfif len(trim(toString(bridgeItem.waterway)))>
+              <li><a href="<cfoutput>#request.fpwBase#/great-loop/bridges/waterway/#encodeForURL(bridgeSvc.normalizeSlug(bridgeItem.waterway))#/</cfoutput>"><cfoutput>#encodeForHTML(bridgeItem.waterway)#</cfoutput> bridges</a></li>
             </cfif>
-            <cfif NOT len(trim(toString(bridgeItem.source_primary_url))) AND NOT len(trim(toString(bridgeItem.source_secondary_url)))>
-              <li>Source URL not verified.</li>
+            <cfif len(trim(toString(bridgeItem.route_segment)))>
+              <li><a href="<cfoutput>#request.fpwBase#/great-loop/bridges/route/#encodeForURL(bridgeSvc.normalizeSlug(bridgeItem.route_segment))#/</cfoutput>"><cfoutput>#encodeForHTML(bridgeItem.route_segment)#</cfoutput> bridges</a></li>
             </cfif>
           </ul>
         </aside>
       </section>
     </cfif>
   </div>
+
+  <section class="fpw-bridge-shell fpw-bridge-awareness fpw-bridge-awareness--detail" aria-label="Bridge planning awareness">
+    <div class="fpw-bridge-disclaimer">
+      <strong>Planning awareness only:</strong>
+      Bridge information is provided for planning awareness only. Always verify current bridge status, clearance, water levels, bridge schedules, opening restrictions, Local Notices to Mariners, bridge signage, and official charts before transit. FloatPlanWizard is not a navigation authority.
+    </div>
+  </section>
 </main>
 
 <cfinclude template="includes/footer.cfm">
