@@ -78,6 +78,8 @@ body.fpw-bridge-body {
 
 .fpw-bridge-stat,
 .fpw-bridge-panel,
+.fpw-bridge-cta,
+.fpw-bridge-browse-card,
 .fpw-bridge-card,
 .fpw-bridge-detail-card {
   border: 1px solid rgba(113, 165, 206, 0.28);
@@ -101,6 +103,48 @@ body.fpw-bridge-body {
   display: block;
   margin-top: 8px;
   color: #bbcbdb;
+}
+
+.fpw-bridge-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 auto 18px;
+  padding: 20px 22px;
+}
+
+.fpw-bridge-cta h2,
+.fpw-bridge-section-heading h2,
+.fpw-bridge-browse-card h2 {
+  margin: 0;
+  color: #f7fbff;
+  font-size: 1.55rem;
+}
+
+.fpw-bridge-cta p,
+.fpw-bridge-section-heading p {
+  margin: 8px 0 0;
+  color: #c9d7e8;
+  line-height: 1.45;
+}
+
+.fpw-bridge-cta .fpw-bridge-btn {
+  flex: 0 0 auto;
+}
+
+.fpw-bridge-helper-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 12px;
+}
+
+.fpw-bridge-helper-links a,
+.fpw-bridge-link-grid a {
+  color: #9ee8ef;
+  text-decoration: none;
+  font-weight: 800;
 }
 
 .fpw-bridge-breadcrumbs {
@@ -158,6 +202,26 @@ body.fpw-bridge-body {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 10px;
+}
+
+.fpw-bridge-browse {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.fpw-bridge-browse-card {
+  padding: 20px;
+}
+
+.fpw-bridge-link-grid {
+  display: grid;
+  gap: 9px;
+  margin-top: 14px;
+  max-height: 320px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .fpw-bridge-guide-card {
@@ -240,7 +304,15 @@ body.fpw-bridge-body {
 }
 
 .fpw-bridge-results {
-  padding-bottom: 64px;
+  padding-bottom: 26px;
+}
+
+.fpw-bridge-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
 }
 
 .fpw-bridge-panel {
@@ -363,6 +435,10 @@ body.fpw-bridge-body {
 .fpw-bridge-result-list {
   display: grid;
   gap: 14px;
+}
+
+.fpw-bridge-results--preview .fpw-bridge-result-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .fpw-bridge-card {
@@ -557,9 +633,15 @@ body.fpw-bridge-body {
 
 @media (max-width: 1100px) {
   .fpw-bridge-stats,
+  .fpw-bridge-browse,
   .fpw-bridge-layout,
   .fpw-bridge-detail-layout {
     grid-template-columns: 1fr;
+  }
+
+  .fpw-bridge-cta {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .fpw-bridge-guide-cards {
@@ -574,6 +656,7 @@ body.fpw-bridge-body {
 
   .fpw-bridge-card,
   .fpw-bridge-detail-grid,
+  .fpw-bridge-results--preview .fpw-bridge-result-list,
   .fpw-bridge-guide-cards {
     grid-template-columns: 1fr;
   }

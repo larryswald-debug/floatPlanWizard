@@ -1,22 +1,121 @@
 <cfsetting showdebugoutput="false">
 <cfcontent type="text/html; charset=utf-8">
 
+<cfscript>
+schemaAtKey = chr(64);
+schemaTypeKey = schemaAtKey & "type";
+schemaIdKey = schemaAtKey & "id";
+schemaContextKey = schemaAtKey & "context";
+schemaGraphKey = schemaAtKey & "graph";
+
+function fpwFuelSchemaRef(required string idValue) {
+  var out = structNew("ordered");
+  structInsert(out, schemaIdKey, arguments.idValue, true);
+  return out;
+}
+
+function fpwFuelSchemaListItem(required numeric position, required string name, required string urlValue) {
+  var out = structNew("ordered");
+  var item = structNew("ordered");
+  structInsert(out, schemaTypeKey, "ListItem", true);
+  out["position"] = arguments.position;
+  structInsert(item, schemaIdKey, arguments.urlValue, true);
+  item["name"] = arguments.name;
+  out["item"] = item;
+  return out;
+}
+
+function fpwFuelSchemaQuestion(required string questionText, required string answerText) {
+  var question = structNew("ordered");
+  var answer = structNew("ordered");
+  structInsert(question, schemaTypeKey, "Question", true);
+  question["name"] = arguments.questionText;
+  structInsert(answer, schemaTypeKey, "Answer", true);
+  answer["text"] = arguments.answerText;
+  question["acceptedAnswer"] = answer;
+  return question;
+}
+
+fpwFuelCanonicalUrl = "https://floatplanwizard.com/boat-fuel-calculator/";
+fpwFuelPageTitle = "Boat Fuel Calculator | Estimate Fuel Use, Range & Trip Cost";
+fpwFuelPageDescription = "Estimate boat fuel use, reserve fuel, travel time, and trip cost with a free planning calculator for recreational boating trips.";
+fpwFuelFaqId = fpwFuelCanonicalUrl & "##faq";
+fpwFuelJsonLdText = "";
+fpwFuelSchemaGraph = [];
+fpwFuelSchemaOrg = structNew("ordered");
+fpwFuelSchemaBreadcrumb = structNew("ordered");
+fpwFuelSchemaPage = structNew("ordered");
+fpwFuelSchemaFaq = structNew("ordered");
+fpwFuelJsonLd = structNew("ordered");
+
+structInsert(fpwFuelSchemaOrg, schemaTypeKey, "Organization", true);
+structInsert(fpwFuelSchemaOrg, schemaIdKey, "https://floatplanwizard.com/##organization", true);
+fpwFuelSchemaOrg["name"] = "FloatPlanWizard";
+fpwFuelSchemaOrg["url"] = "https://floatplanwizard.com/";
+fpwFuelSchemaOrg["logo"] = "https://floatplanwizard.com/assets/images/checkout/floatplanwizard-logo.jpg";
+arrayAppend(fpwFuelSchemaGraph, fpwFuelSchemaOrg);
+
+structInsert(fpwFuelSchemaBreadcrumb, schemaTypeKey, "BreadcrumbList", true);
+structInsert(fpwFuelSchemaBreadcrumb, schemaIdKey, fpwFuelCanonicalUrl & "##breadcrumb", true);
+fpwFuelSchemaBreadcrumb["itemListElement"] = [];
+arrayAppend(fpwFuelSchemaBreadcrumb["itemListElement"], fpwFuelSchemaListItem(1, "FloatPlanWizard", "https://floatplanwizard.com/"));
+arrayAppend(fpwFuelSchemaBreadcrumb["itemListElement"], fpwFuelSchemaListItem(2, "Boat Fuel Calculator", fpwFuelCanonicalUrl));
+arrayAppend(fpwFuelSchemaGraph, fpwFuelSchemaBreadcrumb);
+
+structInsert(fpwFuelSchemaPage, schemaTypeKey, "WebPage", true);
+structInsert(fpwFuelSchemaPage, schemaIdKey, fpwFuelCanonicalUrl & "##webpage", true);
+fpwFuelSchemaPage["url"] = fpwFuelCanonicalUrl;
+fpwFuelSchemaPage["name"] = fpwFuelPageTitle;
+fpwFuelSchemaPage["description"] = fpwFuelPageDescription;
+fpwFuelSchemaPage["isPartOf"] = fpwFuelSchemaRef("https://floatplanwizard.com/##website");
+fpwFuelSchemaPage["publisher"] = fpwFuelSchemaRef("https://floatplanwizard.com/##organization");
+fpwFuelSchemaPage["breadcrumb"] = fpwFuelSchemaRef(fpwFuelCanonicalUrl & "##breadcrumb");
+fpwFuelSchemaPage["mainEntity"] = fpwFuelSchemaRef(fpwFuelFaqId);
+arrayAppend(fpwFuelSchemaGraph, fpwFuelSchemaPage);
+
+structInsert(fpwFuelSchemaFaq, schemaTypeKey, "FAQPage", true);
+structInsert(fpwFuelSchemaFaq, schemaIdKey, fpwFuelFaqId, true);
+fpwFuelSchemaFaq["mainEntity"] = [
+  fpwFuelSchemaQuestion(
+    "How accurate is this calculator?",
+    "It provides an estimate based on your inputs. Actual fuel use can vary with conditions, load, speed, and engine performance."
+  ),
+  fpwFuelSchemaQuestion(
+    "What is a good reserve percentage?",
+    "Many boaters plan with a meaningful reserve such as the rule of thirds, but the right reserve depends on the trip and conditions."
+  ),
+  fpwFuelSchemaQuestion(
+    "Should I plan using max speed?",
+    "For conservative planning, compare efficient cruise numbers with higher burn scenarios so you understand your margin."
+  ),
+  fpwFuelSchemaQuestion(
+    "How does weather factor work?",
+    "The weather factor increases estimated fuel use to account for wind, current, chop, and less efficient real-world operation."
+  )
+];
+arrayAppend(fpwFuelSchemaGraph, fpwFuelSchemaFaq);
+
+structInsert(fpwFuelJsonLd, schemaContextKey, "https://schema.org", true);
+structInsert(fpwFuelJsonLd, schemaGraphKey, fpwFuelSchemaGraph, true);
+fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
+</cfscript>
+
 <!doctype html>
 <html lang="en">
 <head>
 
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Boat Fuel Calculator | Estimate Fuel Use for Your Next Trip | FloatPlanWizard</title>
+  <title>Boat Fuel Calculator | Estimate Fuel Use, Range & Trip Cost</title>
 
-<meta name="description" content="Use FloatPlanWizard's Boat Fuel Calculator to estimate fuel usage, reserve fuel, travel time, and trip cost for your next boating trip. Plan smarter and safer before you leave the dock.">
+<meta name="description" content="Estimate boat fuel use, reserve fuel, travel time, and trip cost with a free planning calculator for recreational boating trips.">
 
 <link rel="canonical" href="https://floatplanwizard.com/boat-fuel-calculator/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="FloatPlanWizard">
 <meta property="og:url" content="https://floatplanwizard.com/boat-fuel-calculator/">
-<meta property="og:title" content="Boat Fuel Calculator | Estimate Fuel Use for Your Next Trip | FloatPlanWizard">
-<meta property="og:description" content="Estimate boating fuel usage, reserve fuel, travel time, and trip cost with FloatPlanWizard's Boat Fuel Calculator.">
+<meta property="og:title" content="Boat Fuel Calculator | Estimate Fuel Use, Range & Trip Cost">
+<meta property="og:description" content="Estimate boat fuel use, reserve fuel, travel time, and trip cost with a free planning calculator for recreational boating trips.">
 <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
 <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
 <meta property="og:image:type" content="image/png">
@@ -24,10 +123,11 @@
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Boat Fuel Calculator | FloatPlanWizard">
-<meta name="twitter:description" content="Estimate boating fuel usage, reserve fuel, travel time, and trip cost with FloatPlanWizard's Boat Fuel Calculator.">
+<meta name="twitter:title" content="Boat Fuel Calculator | Estimate Fuel Use, Range & Trip Cost">
+<meta name="twitter:description" content="Estimate boat fuel use, reserve fuel, travel time, and trip cost with a free planning calculator for recreational boating trips.">
 <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
 <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
+  <script type="application/ld+json"><cfoutput>#fpwFuelJsonLdText#</cfoutput></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
     :root {
@@ -627,14 +727,14 @@
       list-style: none;
     }
 
-    .fpw-number-list li {
+    .fpw-number-list__item {
       display: grid;
       grid-template-columns: 24px minmax(0, 1fr);
       gap: 10px;
       align-items: start;
     }
 
-    .fpw-number-list span {
+    .fpw-number-list__badge {
       width: 20px;
       height: 20px;
       display: grid;
@@ -644,6 +744,10 @@
       background: var(--fuel-cyan);
       font-size: 0.78rem;
       font-weight: 900;
+    }
+
+    .fpw-fuel-cta--midpage {
+      margin-top: 20px;
     }
 
     .fpw-info-card ul {
@@ -935,7 +1039,6 @@
     }
   </style>
 <link rel="stylesheet" href="../assets/css/top-nav.css?v=20260530-nav-cta">
-  <link rel="canonical" href="https://www.floatplanwizard.com/boat-fuel-calculator/" />
 </head>
 <body class="fuelcalc-page">
 <cfset request.fpwTopNavActive = "fuel">
@@ -1019,6 +1122,27 @@
           </div>
         </article>
       </div>
+    </section>
+
+    <section class="fpw-fuel-cta fpw-fuel-cta--midpage" aria-labelledby="fuel-midpage-cta-title">
+      <div class="fpw-fuel-cta__icon" aria-hidden="true">
+        <svg viewBox="0 0 64 64" focusable="false">
+          <circle cx="32" cy="32" r="22"></circle>
+          <path d="M32 8 40 32 32 56 24 32z"></path>
+          <path d="M32 20v24"></path>
+          <path d="M20 32h24"></path>
+        </svg>
+      </div>
+
+      <div>
+        <h2 id="fuel-midpage-cta-title">Fuel is only one part of the plan.</h2>
+        <p>Create a free float plan, organize your route, and share trip details before leaving the dock.</p>
+      </div>
+
+      <a class="fpw-fuel-cta__button" href="../app/join.cfm">
+        <span>Create a Free Float Plan</span>
+        <span aria-hidden="true">&rarr;</span>
+      </a>
     </section>
 
     <section class="fpw-fuel-calculator-panel" aria-labelledby="fuel-planning-inputs-title">
@@ -1272,19 +1396,19 @@
           <tbody id="calcBreakdownBody"></tbody>
         </table>
 
-        <pre id="calcJsonOut">{}</pre>
+        <pre id="calcJsonOut" hidden></pre>
       </details>
     </section>
 
     <section class="fpw-fuel-education" aria-label="Boat fuel planning information">
       <article class="fpw-info-card">
         <h2>How to Estimate Boat Fuel Usage</h2>
-        <ol class="fpw-number-list">
-          <li><span>1</span>Enter your trip distance and select a pace.</li>
-          <li><span>2</span>Provide your boat&rsquo;s fuel burn at efficient speed.</li>
-          <li><span>3</span>Adjust for weather, idling, and reserve.</li>
-          <li><span>4</span>Review results and plan with confidence.</li>
-        </ol>
+        <div class="fpw-number-list" role="list">
+          <div class="fpw-number-list__item" role="listitem"><span class="fpw-number-list__badge" aria-hidden="true">1</span><span>Enter your trip distance and select a pace.</span></div>
+          <div class="fpw-number-list__item" role="listitem"><span class="fpw-number-list__badge" aria-hidden="true">2</span><span>Provide your boat&rsquo;s fuel burn at efficient speed.</span></div>
+          <div class="fpw-number-list__item" role="listitem"><span class="fpw-number-list__badge" aria-hidden="true">3</span><span>Adjust for weather, idling, and reserve.</span></div>
+          <div class="fpw-number-list__item" role="listitem"><span class="fpw-number-list__badge" aria-hidden="true">4</span><span>Review results and plan with confidence.</span></div>
+        </div>
       </article>
 
       <article class="fpw-info-card">
@@ -1443,6 +1567,7 @@
         BALANCED: { key: "BALANCED", label: "Efficient Speed", factor: 0.50 },
         AGGRESSIVE: { key: "AGGRESSIVE", label: "Max Speed", factor: 1.00 }
       };
+      var hasValidFuelJson = false;
 
       function q(id) {
         return document.getElementById(id);
@@ -1931,7 +2056,20 @@
       }
 
       function renderJson(model) {
-        q("calcJsonOut").textContent = JSON.stringify({
+        var output = q("calcJsonOut");
+        var inputs = model.inputs || {};
+        var derived = model.derived || {};
+        var hasDistance = safeNum(inputs.distanceNm) !== null && inputs.distanceNm > 0;
+
+        hasValidFuelJson = !!derived.canEstimateFuel && hasDistance;
+        if (!hasValidFuelJson) {
+          output.textContent = "";
+          output.hidden = true;
+          return;
+        }
+
+        output.hidden = false;
+        output.textContent = JSON.stringify({
           route_generator_source_of_truth: {
             pace_formula: "routegenNormalizePace + routegenPaceDefaults + routegenComputeEffectiveCruisingSpeed",
             burn_formula: "calculateFuelEstimate + routegenAnchoredBurnGph",
@@ -1979,6 +2117,9 @@
       q("resetBtn").addEventListener("click", resetInputs);
       q("copyJsonBtn").addEventListener("click", function () {
         var text = q("calcJsonOut").textContent || "";
+        if (!hasValidFuelJson || !text) {
+          return;
+        }
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(text);
         }

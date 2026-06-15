@@ -222,6 +222,33 @@
   color: #b8cbe0;
 }
 
+.fpw-lock-cta,
+.fpw-lock-featured {
+  max-width: var(--fpw-lock-page-max);
+  margin: 1rem auto 0;
+  padding: 1rem var(--fpw-lock-page-gutter);
+}
+
+.fpw-lock-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.fpw-lock-cta h2,
+.fpw-lock-featured h2 {
+  margin: 0;
+  color: #f4f9ff;
+}
+
+.fpw-lock-cta p:not(.fpw-lock-eyebrow),
+.fpw-lock-featured__header p:not(.fpw-lock-eyebrow) {
+  max-width: 720px;
+  margin: 0.35rem 0 0;
+  color: #b8cbe0;
+}
+
 .fpw-lock-shell {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr) 310px;
@@ -551,6 +578,87 @@
   margin: 0.15rem 0 0;
   color: #f4f9ff;
   font-weight: 800;
+}
+
+.fpw-lock-featured-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.fpw-lock-featured-card {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid rgba(145, 190, 255, 0.18);
+  border-radius: 0.7rem;
+  background: rgba(5, 18, 31, 0.55);
+}
+
+.fpw-lock-featured-card h3 {
+  margin: 0;
+  color: #ffffff;
+}
+
+.fpw-lock-featured-card h3 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.fpw-lock-featured-card h3 a:hover,
+.fpw-lock-featured-card h3 a:focus-visible {
+  color: #8ff4ff;
+}
+
+.fpw-lock-featured-card p {
+  margin: 0;
+  color: #b8cbe0;
+}
+
+.fpw-lock-featured-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.fpw-lock-featured-card dt {
+  color: #8fa9bc;
+  font-size: 0.78rem;
+}
+
+.fpw-lock-featured-card dd {
+  margin: 0.15rem 0 0;
+  color: #f4f9ff;
+  font-weight: 800;
+}
+
+.fpw-lock-hub-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(137, 184, 247, 0.16);
+}
+
+.fpw-lock-hub-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid rgba(82, 225, 231, 0.34);
+  border-radius: 999px;
+  color: #b8f7ff;
+  text-decoration: none;
+  background: rgba(5, 18, 31, 0.5);
+}
+
+.fpw-lock-hub-links a:hover,
+.fpw-lock-hub-links a:focus-visible {
+  border-color: rgba(69, 224, 220, 0.82);
+  color: #ffffff;
 }
 
 .fpw-lock-guides {
@@ -927,6 +1035,10 @@ body.is-lock-image-modal-open {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .fpw-lock-featured-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .fpw-lock-guides,
   .fpw-lock-learning {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -970,6 +1082,7 @@ body.is-lock-image-modal-open {
   }
 
   .fpw-lock-hero__actions,
+  .fpw-lock-cta,
   .fpw-lock-map-toolbar {
     flex-direction: column;
   }
@@ -980,6 +1093,8 @@ body.is-lock-image-modal-open {
   }
 
   .fpw-lock-shell,
+  .fpw-lock-cta,
+  .fpw-lock-featured,
   .fpw-lock-guides,
   .fpw-lock-learning,
   .fpw-lock-detail-preview,
@@ -995,6 +1110,7 @@ body.is-lock-image-modal-open {
   .fpw-lock-quick-grid,
   .fpw-lock-guides,
   .fpw-lock-learning,
+  .fpw-lock-featured-list,
   .fpw-lock-result-card {
     grid-template-columns: 1fr;
   }

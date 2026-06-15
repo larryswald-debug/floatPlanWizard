@@ -105,11 +105,15 @@ bridgeRows = model.BRIDGES;
 stats = model.STATS;
 facets = model.FACETS;
 mapRows = [];
+featuredBridgeRows = [];
+displayBridgeRows = [];
+schemaBridgeRows = [];
 pageTitle = "Great Loop Bridges | Clearances, Drawbridges & Route Planning";
 pageDescription = "Plan Great Loop bridge awareness with clearances, drawbridges, route segments, waterways, contact fields, and source-backed bridge notes. Always verify before transit.";
 pageHeading = "Great Loop Bridge Library";
 pageLede = "Search Great Loop bridge planning records by route segment, waterway, state, bridge type, drawbridge status, contact details, coordinates, and source-backed verification notes.";
 canonicalUrl = bridgeCanonicalUrl;
+isBridgeHubPage = taxonomyType EQ "";
 
 if (taxonomyType EQ "state" AND len(taxonomyName)) {
   pageTitle = taxonomyName & " Great Loop Bridges | Clearances, Drawbridges & Route Planning";
@@ -153,6 +157,37 @@ function bridgeStatusLabel(required any value) {
   if (txt EQ "published") return "Published";
   if (txt EQ "planning_only") return "Planning only";
   return len(txt) ? txt : "Planning only";
+}
+
+function bridgeLocationLine(required struct bridgeItem) {
+  var pieces = [];
+  if (len(trim(toString(arguments.bridgeItem.nearest_city)))) {
+    arrayAppend(pieces, trim(toString(arguments.bridgeItem.nearest_city)));
+  }
+  if (len(trim(toString(arguments.bridgeItem.state_province)))) {
+    arrayAppend(pieces, trim(toString(arguments.bridgeItem.state_province)));
+  }
+  return arrayLen(pieces) ? arrayToList(pieces, ", ") : "Location not verified";
+}
+
+function bridgeRouteLine(required struct bridgeItem) {
+  var pieces = [];
+  if (len(trim(toString(arguments.bridgeItem.waterway)))) {
+    arrayAppend(pieces, trim(toString(arguments.bridgeItem.waterway)));
+  }
+  if (len(trim(toString(arguments.bridgeItem.route_segment)))) {
+    arrayAppend(pieces, trim(toString(arguments.bridgeItem.route_segment)));
+  }
+  return arrayLen(pieces) ? arrayToList(pieces, " - ") : "Waterway not verified";
+}
+
+if (taxonomyType NEQ "not-found") {
+  previewLimit = arrayLen(bridgeRows) LT 6 ? arrayLen(bridgeRows) : 6;
+  for (previewIndex = 1; previewIndex LTE previewLimit; previewIndex++) {
+    arrayAppend(featuredBridgeRows, bridgeRows[previewIndex]);
+  }
+  displayBridgeRows = isBridgeHubPage ? featuredBridgeRows : bridgeRows;
+  schemaBridgeRows = isBridgeHubPage ? featuredBridgeRows : bridgeRows;
 }
 
 for (bridgeItem in bridgeRows) {
@@ -240,11 +275,11 @@ if (taxonomyType NEQ "not-found") {
   schemaItemList["name"] = pageHeading;
   schemaItemList["itemListOrder"] = "https://schema.org/ItemListOrderAscending";
   schemaItemList["itemListElement"] = [];
-  for (schemaBridgeIndex = 1; schemaBridgeIndex LTE arrayLen(bridgeRows); schemaBridgeIndex++) {
+  for (schemaBridgeIndex = 1; schemaBridgeIndex LTE arrayLen(schemaBridgeRows); schemaBridgeIndex++) {
     arrayAppend(schemaItemList["itemListElement"], bridgeSchemaListItem(
       schemaBridgeIndex,
-      bridgeRows[schemaBridgeIndex].bridge_name,
-      "https://floatplanwizard.com/great-loop/bridges/" & bridgeSvc.normalizeSlug(bridgeRows[schemaBridgeIndex].slug) & "/"
+      schemaBridgeRows[schemaBridgeIndex].bridge_name,
+      "https://floatplanwizard.com/great-loop/bridges/" & bridgeSvc.normalizeSlug(schemaBridgeRows[schemaBridgeIndex].slug) & "/"
     ));
   }
   arrayAppend(schemaGraph, schemaItemList);
@@ -279,7 +314,7 @@ if (taxonomyType NEQ "not-found") {
   </cfif>
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20260530-nav-cta">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-bridges.css?v=20260614-bridge-awareness-gap">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-bridges.css?v=20260615-bridge-hub">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
 </head>
@@ -300,6 +335,21 @@ if (taxonomyType NEQ "not-found") {
     <div class="fpw-bridge-stat"><strong><cfoutput>#numberFormat(stats.ROUTE_SEGMENT_COUNT)#</cfoutput></strong><span>Route segments</span></div>
     <div class="fpw-bridge-stat"><strong><cfoutput>#numberFormat(stats.WATERWAY_COUNT)#</cfoutput></strong><span>Waterways</span></div>
     <div class="fpw-bridge-stat"><strong><cfoutput>#numberFormat(stats.MISSING_COORDINATES_ROWS)#</cfoutput></strong><span>Rows missing coordinates</span></div>
+  </section>
+
+  <section class="fpw-bridge-shell fpw-bridge-cta" aria-label="Create a free float plan">
+    <div>
+      <h2>Planning a route with bridges?</h2>
+      <p>Check bridge clearance, drawbridge details, and route timing before departure. Create a free float plan for your trip.</p>
+      <div class="fpw-bridge-helper-links" aria-label="Bridge planning links">
+        <a href="<cfoutput>#request.fpwBase#</cfoutput>/great-loop/locks/">Great Loop Locks</a>
+        <a href="<cfoutput>#request.fpwBase#</cfoutput>/boat-fuel-calculator/">Boat Fuel Calculator</a>
+        <a href="<cfoutput>#request.fpwBase#</cfoutput>/why-use-a-float-plan/">Why use a float plan?</a>
+        <a href="#clearance-air-draft">Clearance basics</a>
+        <a href="#fixed-vs-drawbridges">Drawbridge planning</a>
+      </div>
+    </div>
+    <a class="fpw-bridge-btn fpw-bridge-btn--primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Create a Free Float Plan</a>
   </section>
 
   <nav class="fpw-bridge-shell fpw-bridge-breadcrumbs" aria-label="Breadcrumb">
@@ -374,13 +424,82 @@ if (taxonomyType NEQ "not-found") {
           </div>
         </div>
         <div id="fpwBridgeMap" class="fpw-bridge-map" aria-label="Great Loop bridge map"></div>
-        <p class="fpw-bridge-empty-map" data-bridge-empty-map<cfif arrayLen(mapRows)> hidden</cfif>>No bridge markers match the current filters.</p>
+        <p class="fpw-bridge-empty-map" data-bridge-empty-map<cfif arrayLen(bridgeRows)> hidden</cfif>>No reviewed bridge records match the current filters.</p>
       </section>
     </div>
   </section>
 
+  <section class="fpw-bridge-shell fpw-bridge-results<cfif isBridgeHubPage> fpw-bridge-results--preview</cfif>" aria-label="<cfoutput>#isBridgeHubPage ? 'Featured bridge references' : 'Bridge results'#</cfoutput>">
+    <div class="fpw-bridge-section-heading">
+      <div>
+        <h2><cfoutput>#isBridgeHubPage ? "Featured Bridge References" : pageHeading#</cfoutput></h2>
+        <p><cfoutput>#isBridgeHubPage ? "A limited sample from the public bridge library. Use the browse links or filters to explore by state, waterway, or route segment." : "Full filtered bridge references for this taxonomy page."#</cfoutput></p>
+      </div>
+    </div>
+    <div class="fpw-bridge-result-list" data-bridge-result-list<cfif !arrayLen(displayBridgeRows)> hidden</cfif>>
+      <cfloop array="#displayBridgeRows#" index="bridgeItem">
+        <cfset bridgeImage = bridgeSvc.getBridgeImageAsset(bridgeItem, request.fpwBase)>
+        <cfset bridgeUrl = bridgeSvc.buildPublicBridgeUrl(bridgeItem.slug, request.fpwBase)>
+        <cfset bridgeLocation = bridgeLocationLine(bridgeItem)>
+        <cfset bridgeRoute = bridgeRouteLine(bridgeItem)>
+        <cfset bridgeClearance = len(trim(toString(bridgeItem.vertical_clearance_closed_ft))) ? bridgeItem.vertical_clearance_closed_ft & " ft closed" : "Clearance not verified">
+        <article class="fpw-bridge-card">
+          <cfif bridgeImage.hasImage>
+            <img src="<cfoutput>#encodeForHTMLAttribute(bridgeImage.thumbnailUrl)#</cfoutput>" alt="" loading="lazy" decoding="async">
+          <cfelse>
+            <img src="<cfoutput>#encodeForHTMLAttribute(bridgeImage.url)#</cfoutput>" alt="" loading="lazy" decoding="async">
+          </cfif>
+          <div>
+            <h3><a href="<cfoutput>#encodeForHTMLAttribute(bridgeUrl)#</cfoutput>"><cfoutput>#encodeForHTML(bridgeItem.bridge_name)#</cfoutput></a></h3>
+            <p><cfoutput>#encodeForHTML(bridgeRoute)#</cfoutput></p>
+            <p><cfoutput>#encodeForHTML(bridgeLocation)#</cfoutput><cfif len(trim(toString(bridgeItem.mile_marker)))> - MM <cfoutput>#encodeForHTML(bridgeItem.mile_marker)#</cfoutput></cfif></p>
+            <p><cfoutput>#encodeForHTML(displayText(bridgeItem.bridge_type, "Bridge type not verified"))#</cfoutput> - <cfoutput>#encodeForHTML(bridgeClearance)#</cfoutput></p>
+            <div class="fpw-bridge-badges">
+              <cfif bridgeSvc.boolLike(bridgeItem.is_drawbridge, false)>
+                <span class="fpw-bridge-badge fpw-bridge-badge--warn">Drawbridge</span>
+              </cfif>
+              <cfif bridgeSvc.boolLike(bridgeItem.is_fixed, false)>
+                <span class="fpw-bridge-badge">Fixed bridge</span>
+              </cfif>
+            </div>
+          </div>
+        </article>
+      </cfloop>
+    </div>
+    <p class="fpw-bridge-empty-state" data-bridge-empty-list<cfif arrayLen(displayBridgeRows)> hidden</cfif>>No reviewed bridge records match the current filters.</p>
+  </section>
+
+  <cfif isBridgeHubPage>
+    <section class="fpw-bridge-shell fpw-bridge-browse" aria-label="Browse Great Loop bridges">
+      <article class="fpw-bridge-browse-card">
+        <h2>Browse by State / Province</h2>
+        <div class="fpw-bridge-link-grid">
+          <cfloop array="#facets.states#" index="opt">
+            <a href="<cfoutput>#encodeForHTMLAttribute(bridgeLibraryUrl & "state/" & bridgeSvc.normalizeSlug(opt.value) & "/")#</cfoutput>"><cfoutput>#encodeForHTML(opt.label)#</cfoutput></a>
+          </cfloop>
+        </div>
+      </article>
+      <article class="fpw-bridge-browse-card">
+        <h2>Browse by Waterway</h2>
+        <div class="fpw-bridge-link-grid">
+          <cfloop array="#facets.waterways#" index="opt">
+            <a href="<cfoutput>#encodeForHTMLAttribute(bridgeLibraryUrl & "waterway/" & bridgeSvc.normalizeSlug(opt.value) & "/")#</cfoutput>"><cfoutput>#encodeForHTML(opt.label)#</cfoutput></a>
+          </cfloop>
+        </div>
+      </article>
+      <article class="fpw-bridge-browse-card">
+        <h2>Browse by Route Segment</h2>
+        <div class="fpw-bridge-link-grid">
+          <cfloop array="#facets.routeSegments#" index="opt">
+            <a href="<cfoutput>#encodeForHTMLAttribute(bridgeLibraryUrl & "route/" & bridgeSvc.normalizeSlug(opt.value) & "/")#</cfoutput>"><cfoutput>#encodeForHTML(opt.label)#</cfoutput></a>
+          </cfloop>
+        </div>
+      </article>
+    </section>
+  </cfif>
+
   <section class="fpw-bridge-shell fpw-bridge-guide-cards" aria-label="Great Loop bridge planning guide">
-    <article class="fpw-bridge-guide-card">
+    <article class="fpw-bridge-guide-card" id="why-bridge-planning">
       <span class="fpw-bridge-guide-icon" aria-hidden="true">
         <svg viewBox="0 0 48 48" focusable="false">
           <path d="M24 7 36 12v9c0 8.2-4.8 15.4-12 20-7.2-4.6-12-11.8-12-20v-9z"></path>
@@ -394,7 +513,7 @@ if (taxonomyType NEQ "not-found") {
       </ul>
     </article>
 
-    <article class="fpw-bridge-guide-card">
+    <article class="fpw-bridge-guide-card" id="fixed-vs-drawbridges">
       <span class="fpw-bridge-guide-icon" aria-hidden="true">
         <svg viewBox="0 0 48 48" focusable="false">
           <path d="M9 31h30"></path>
@@ -412,7 +531,7 @@ if (taxonomyType NEQ "not-found") {
       </ul>
     </article>
 
-    <article class="fpw-bridge-guide-card">
+    <article class="fpw-bridge-guide-card" id="clearance-air-draft">
       <span class="fpw-bridge-guide-icon" aria-hidden="true">
         <svg viewBox="0 0 48 48" focusable="false">
           <path d="M17 9v30"></path>
@@ -431,7 +550,7 @@ if (taxonomyType NEQ "not-found") {
       </ul>
     </article>
 
-    <article class="fpw-bridge-guide-card">
+    <article class="fpw-bridge-guide-card" id="verify-openings">
       <span class="fpw-bridge-guide-icon" aria-hidden="true">
         <svg viewBox="0 0 48 48" focusable="false">
           <path d="M15 10h18a3 3 0 0 1 3 3v25a3 3 0 0 1-3 3H15a3 3 0 0 1-3-3V13a3 3 0 0 1 3-3z"></path>
@@ -447,7 +566,7 @@ if (taxonomyType NEQ "not-found") {
       </ul>
     </article>
 
-    <article class="fpw-bridge-guide-card">
+    <article class="fpw-bridge-guide-card" id="contact-vhf-planning">
       <span class="fpw-bridge-guide-icon" aria-hidden="true">
         <svg viewBox="0 0 48 48" focusable="false">
           <rect x="16" y="8" width="16" height="32" rx="3"></rect>
@@ -465,7 +584,7 @@ if (taxonomyType NEQ "not-found") {
       </ul>
     </article>
 
-    <article class="fpw-bridge-guide-card">
+    <article class="fpw-bridge-guide-card" id="timing-restrictions">
       <span class="fpw-bridge-guide-icon" aria-hidden="true">
         <svg viewBox="0 0 48 48" focusable="false">
           <circle cx="24" cy="24" r="16"></circle>
@@ -480,7 +599,7 @@ if (taxonomyType NEQ "not-found") {
       </ul>
     </article>
 
-    <article class="fpw-bridge-guide-card">
+    <article class="fpw-bridge-guide-card" id="bridge-planning-checklist">
       <span class="fpw-bridge-guide-icon" aria-hidden="true">
         <svg viewBox="0 0 48 48" focusable="false">
           <circle cx="16" cy="15" r="3"></circle>
@@ -502,7 +621,7 @@ if (taxonomyType NEQ "not-found") {
       </ul>
     </article>
 
-    <article class="fpw-bridge-guide-card">
+    <article class="fpw-bridge-guide-card" id="quick-bridge-faqs">
       <span class="fpw-bridge-guide-icon" aria-hidden="true">
         <svg viewBox="0 0 48 48" focusable="false">
           <circle cx="24" cy="24" r="16"></circle>
@@ -531,6 +650,6 @@ if (taxonomyType NEQ "not-found") {
 <cfinclude template="../includes/footer.cfm">
 <script id="fpwBridgeMapData" type="application/json"><cfoutput>#serializeJSON(mapRows)#</cfoutput></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/great-loop-bridges.js?v=20260614-filter-reset"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/great-loop-bridges.js?v=20260615-bridge-hub"></script>
 </body>
 </html>

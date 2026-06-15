@@ -166,6 +166,18 @@ function fpwSendPrelaunchWelcomeEmail(required string recipientEmail, required s
   }
 }
 
+schemaAtKey = chr(64);
+schemaTypeKey = schemaAtKey & "type";
+schemaIdKey = schemaAtKey & "id";
+schemaContextKey = schemaAtKey & "context";
+schemaGraphKey = schemaAtKey & "graph";
+
+function fpwHomeSchemaRef(required string idValue) {
+  var out = structNew("ordered");
+  structInsert(out, schemaIdKey, arguments.idValue, true);
+  return out;
+}
+
 // Welcome / Thank-you email configuration (prelaunch self-contained).
 // Replace unsubscribeBaseUrl with the live unsubscribe endpoint when ready.
 prelaunchWelcomeEmailConfig = {
@@ -322,6 +334,44 @@ fpwShowMemberRequiredNotice = (
   structKeyExists(url, "notice")
   AND lCase(trim(toString(url.notice))) EQ "member-required"
 );
+
+fpwHomeCanonicalUrl = "https://floatplanwizard.com/";
+fpwHomePageTitle = "FloatPlanWizard | Boat Trip Planner, Float Plans & Shared Trip Updates";
+fpwHomePageDescription = "Plan safer boat trips with float plans, route planning, check-ins, shared trip pages, and overdue monitoring for recreational boaters.";
+fpwHomeJsonLdText = "";
+fpwHomeSchemaGraph = [];
+fpwHomeSchemaOrg = structNew("ordered");
+fpwHomeSchemaWebsite = structNew("ordered");
+fpwHomeSchemaPage = structNew("ordered");
+fpwHomeJsonLd = structNew("ordered");
+
+structInsert(fpwHomeSchemaOrg, schemaTypeKey, "Organization", true);
+structInsert(fpwHomeSchemaOrg, schemaIdKey, "https://floatplanwizard.com/##organization", true);
+fpwHomeSchemaOrg["name"] = "FloatPlanWizard";
+fpwHomeSchemaOrg["url"] = "https://floatplanwizard.com/";
+fpwHomeSchemaOrg["logo"] = "https://floatplanwizard.com/assets/images/checkout/floatplanwizard-logo.jpg";
+arrayAppend(fpwHomeSchemaGraph, fpwHomeSchemaOrg);
+
+structInsert(fpwHomeSchemaWebsite, schemaTypeKey, "WebSite", true);
+structInsert(fpwHomeSchemaWebsite, schemaIdKey, "https://floatplanwizard.com/##website", true);
+fpwHomeSchemaWebsite["name"] = "FloatPlanWizard";
+fpwHomeSchemaWebsite["url"] = "https://floatplanwizard.com/";
+fpwHomeSchemaWebsite["description"] = fpwHomePageDescription;
+fpwHomeSchemaWebsite["publisher"] = fpwHomeSchemaRef("https://floatplanwizard.com/##organization");
+arrayAppend(fpwHomeSchemaGraph, fpwHomeSchemaWebsite);
+
+structInsert(fpwHomeSchemaPage, schemaTypeKey, "WebPage", true);
+structInsert(fpwHomeSchemaPage, schemaIdKey, fpwHomeCanonicalUrl & "##webpage", true);
+fpwHomeSchemaPage["url"] = fpwHomeCanonicalUrl;
+fpwHomeSchemaPage["name"] = fpwHomePageTitle;
+fpwHomeSchemaPage["description"] = fpwHomePageDescription;
+fpwHomeSchemaPage["isPartOf"] = fpwHomeSchemaRef("https://floatplanwizard.com/##website");
+fpwHomeSchemaPage["publisher"] = fpwHomeSchemaRef("https://floatplanwizard.com/##organization");
+arrayAppend(fpwHomeSchemaGraph, fpwHomeSchemaPage);
+
+structInsert(fpwHomeJsonLd, schemaContextKey, "https://schema.org", true);
+structInsert(fpwHomeJsonLd, schemaGraphKey, fpwHomeSchemaGraph, true);
+fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
 </cfscript>
 <!DOCTYPE html>
 <html lang="en">
@@ -330,7 +380,7 @@ fpwShowMemberRequiredNotice = (
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FloatPlanWizard | Boat Trip Planner, Float Plans & Shared Trip Updates</title>
 
-<meta name="description" content="Plan safer boat trips with FloatPlanWizard: create float plans, map routes, estimate fuel, check marine weather, and share trip updates with family and friends.">
+<meta name="description" content="Plan safer boat trips with float plans, route planning, check-ins, shared trip pages, and overdue monitoring for recreational boaters.">
 
 <link rel="canonical" href="https://floatplanwizard.com/">
 
@@ -338,7 +388,7 @@ fpwShowMemberRequiredNotice = (
 <meta property="og:site_name" content="FloatPlanWizard">
 <meta property="og:url" content="https://floatplanwizard.com/">
 <meta property="og:title" content="FloatPlanWizard | Boat Trip Planner, Float Plans & Shared Trip Updates">
-<meta property="og:description" content="Plan safer boat trips with FloatPlanWizard: create float plans, map routes, estimate fuel, check marine weather, and share trip updates with family and friends.">
+<meta property="og:description" content="Plan safer boat trips with float plans, route planning, check-ins, shared trip pages, and overdue monitoring for recreational boaters.">
 
 <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
 <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
@@ -348,9 +398,10 @@ fpwShowMemberRequiredNotice = (
 <meta property="og:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="FloatPlanWizard | Boat Trip Planner, Float Plans & Shared Trip Updates">
-<meta name="twitter:description" content="Plan safer boat trips with FloatPlanWizard: create float plans, map routes, estimate fuel, check marine weather, and share trip updates with family and friends.">
+<meta name="twitter:description" content="Plan safer boat trips with float plans, route planning, check-ins, shared trip pages, and overdue monitoring for recreational boaters.">
 <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
 <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
+<script type="application/ld+json"><cfoutput>#fpwHomeJsonLdText#</cfoutput></script>
 
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">

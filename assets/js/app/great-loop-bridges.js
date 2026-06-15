@@ -158,7 +158,6 @@
       markers.push(marker);
       bounds.push([lat, lng]);
     });
-    if (emptyMapEl) emptyMapEl.hidden = bounds.length !== 0;
     if (bounds.length) {
       map.fitBounds(bounds, { padding: [28, 28], maxZoom: 10 });
     } else {
@@ -171,6 +170,16 @@
     var total = Number(summary && summary.total ? summary.total : 0);
     var markers = Number(summary && summary.markers ? summary.markers : 0);
     summaryEl.textContent = total + " bridge planning record" + (total === 1 ? "" : "s") + " match, with " + markers + " map marker" + (markers === 1 ? "" : "s") + ".";
+  }
+
+  function renderEmptyMapState(summary, rows) {
+    var total = Number(summary && summary.total ? summary.total : 0);
+    if (!total && rows && rows.length) {
+      total = rows.length;
+    }
+    if (emptyMapEl) {
+      emptyMapEl.hidden = total !== 0;
+    }
   }
 
   function renderList(bridges) {
@@ -207,6 +216,7 @@
       renderMarkers(data.bridges || []);
       renderList(data.bridges || []);
       renderSummary(data.summary || {});
+      renderEmptyMapState(data.summary || {}, data.bridges || []);
       if (window.history && window.history.replaceState) {
         window.history.replaceState({}, "", pageUrl(filters));
       }

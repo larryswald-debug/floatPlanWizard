@@ -30,15 +30,16 @@ taxonomyType = structKeyExists(request, "fpwLockTaxonomyType") ? trim(toString(r
 taxonomyName = structKeyExists(request, "fpwLockTaxonomyName") ? trim(toString(request.fpwLockTaxonomyName)) : "";
 taxonomyCount = structKeyExists(request, "fpwLockTaxonomyCount") ? val(request.fpwLockTaxonomyCount) : arrayLen(lockRows);
 isTaxonomyRoute = len(taxonomyType) AND taxonomyType NEQ "not-found";
+isLockHubRoute = !len(taxonomyType);
 lockLibraryUrl = isCleanLockRoute
   ? request.fpwBase & "/great-loop/locks/"
   : request.fpwBase & "/app/great-loop-locks.cfm";
 lockCanonicalUrl = isCleanLockRoute
   ? "https://floatplanwizard.com/great-loop/locks/"
   : "https://floatplanwizard.com/app/great-loop-locks.cfm";
-pageTitle = "Great Loop Lock Reference Library | FloatPlanWizard";
-pageDescription = "Find Great Loop lock locations, phone numbers, VHF channels, boater notes, approach guidance, and planning context from FloatPlanWizard.";
-pageOgDescription = "Search Great Loop lock locations, phone numbers, VHF channels, notes, and boating guidance.";
+pageTitle = "Great Loop Lock Reference Library | VHF, Phone & Planning Notes";
+pageDescription = "Browse Great Loop lock locations, VHF channels, phone numbers, approach notes, and planning details for safer recreational cruising.";
+pageOgDescription = pageDescription;
 pageHeading = "Great Loop Lock Reference Library";
 pageLede = "Find lock locations, phone numbers, VHF channels, operating notes, approach details, and boater-friendly guidance for locks along the Great Loop.";
 
@@ -48,14 +49,14 @@ if (structKeyExists(request, "fpwLockTaxonomyCanonicalUrl") AND len(trim(toStrin
 
 if (taxonomyType EQ "state" AND len(taxonomyName)) {
   pageTitle = taxonomyName & " Great Loop Locks | Locations, VHF Channels & Notes";
-  pageDescription = "Browse " & taxonomyName & " Great Loop locks with lock locations, VHF channels, phone numbers, waterway notes, and boater planning details.";
-  pageOgDescription = "Browse " & taxonomyName & " Great Loop lock locations, VHF channels, phone numbers, and planning notes.";
+  pageDescription = "Browse " & taxonomyName & " Great Loop locks with VHF channels, phone numbers, approach notes, and planning details for safer cruising.";
+  pageOgDescription = pageDescription;
   pageHeading = taxonomyName & " Great Loop Locks";
   pageLede = "Explore " & taxonomyCount & " reviewed public Great Loop lock references in " & taxonomyName & ", including locations, VHF channels, phone numbers, waterways, and planning notes.";
 } else if (taxonomyType EQ "waterway" AND len(taxonomyName)) {
   pageTitle = taxonomyName & " Locks | Great Loop Lock Guide";
   pageDescription = "Browse " & taxonomyName & " locks with Great Loop lock locations, VHF channels, phone numbers, approach notes, and boater planning details.";
-  pageOgDescription = "Browse " & taxonomyName & " Great Loop lock locations, VHF channels, phone numbers, and planning notes.";
+  pageOgDescription = pageDescription;
   pageHeading = taxonomyName & " Locks";
   pageLede = "Explore " & taxonomyCount & " reviewed public lock references on the " & taxonomyName & ", including locations, VHF channels, phone numbers, and boater planning notes.";
 } else if (taxonomyType EQ "not-found") {
@@ -99,6 +100,20 @@ function libraryFilterUrl(required string keyName, required any keyValue) {
 
 function libraryAnchorUrl(required string anchorName) {
   return lockLibraryUrl & "##" & arguments.anchorName;
+}
+
+hubSampleLimit = 6;
+hubSampleLockRows = [];
+finderLockRows = lockRows;
+schemaLockRows = lockRows;
+
+if (isLockHubRoute) {
+  for (hubSampleIndex = 1; hubSampleIndex LTE min(hubSampleLimit, arrayLen(lockRows)); hubSampleIndex++) {
+    arrayAppend(hubSampleLockRows, lockRows[hubSampleIndex]);
+  }
+
+  finderLockRows = hubSampleLockRows;
+  schemaLockRows = hubSampleLockRows;
 }
 
 for (lockItem in lockRows) {
@@ -230,10 +245,10 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
   structInsert(schemaItemList, schemaTypeKey, "ItemList", true);
   structInsert(schemaItemList, schemaIdKey, lockCanonicalUrl & "##itemlist", true);
   schemaItemList["name"] = isTaxonomyRoute AND len(taxonomyName) ? "Locks in " & taxonomyName : "Great Loop lock references";
-  schemaItemList["numberOfItems"] = arrayLen(lockRows);
+  schemaItemList["numberOfItems"] = arrayLen(schemaLockRows);
   schemaItemList["itemListElement"] = [];
 
-  for (schemaLock in lockRows) {
+  for (schemaLock in schemaLockRows) {
     schemaListEntry = structNew("ordered");
     schemaLockPage = structNew("ordered");
     structInsert(schemaListEntry, schemaTypeKey, "ListItem", true);
@@ -287,7 +302,7 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
   </cfif>
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20260530-nav-cta">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260605-taxonomy-pages">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260615-lock-hub">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
 </head>
@@ -318,6 +333,17 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
     <div><strong><cfoutput>#encodeForHTML(stats.WATERWAY_COUNT)#</cfoutput></strong><span>Waterways</span></div>
     <div><strong><cfoutput>#encodeForHTML(stats.TOTAL_ROWS)#</cfoutput></strong><span>Total imported reference rows</span></div>
   </section>
+
+  <cfif isLockHubRoute>
+    <section class="fpw-lock-cta fpw-lock-panel" aria-labelledby="fpwLockCtaTitle">
+      <div>
+        <p class="fpw-lock-eyebrow">Plan With FPW</p>
+        <h2 id="fpwLockCtaTitle">Planning a route with locks?</h2>
+        <p>Add lock timing context to your route and create a free float plan before departure.</p>
+      </div>
+      <a class="fpw-lock-btn fpw-lock-btn--primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Create a Free Float Plan</a>
+    </section>
+  </cfif>
 
   <section class="fpw-lock-shell" id="fpwLockFinder" aria-labelledby="fpwLockFinderTitle">
     <aside class="fpw-lock-panel fpw-lock-filters">
@@ -369,8 +395,8 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
       </div>
 
       <div class="fpw-lock-list-view" data-lock-view-panel="list" hidden>
-        <div class="fpw-lock-result-list" data-lock-result-list<cfif NOT arrayLen(lockRows)> hidden</cfif>>
-          <cfloop array="#lockRows#" index="lockItem">
+        <div class="fpw-lock-result-list" data-lock-result-list<cfif NOT arrayLen(finderLockRows)> hidden</cfif>>
+          <cfloop array="#finderLockRows#" index="lockItem">
             <cfoutput>
               <article class="fpw-lock-result-card">
                 <div>
@@ -385,7 +411,7 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
             </cfoutput>
           </cfloop>
         </div>
-        <div class="fpw-lock-empty-state" data-lock-empty-list<cfif arrayLen(lockRows)> hidden</cfif>>
+        <div class="fpw-lock-empty-state" data-lock-empty-list<cfif arrayLen(finderLockRows)> hidden</cfif>>
           <h3>No reviewed public lock rows match this view yet.</h3>
           <p>The library only displays reviewed rows marked public. Imported rows remain hidden until reviewed.</p>
         </div>
@@ -432,6 +458,46 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
       </div>
     </aside>
   </section>
+
+  <cfif isLockHubRoute>
+    <section class="fpw-lock-panel fpw-lock-featured" aria-labelledby="fpwFeaturedLocksTitle">
+      <div class="fpw-lock-featured__header">
+        <div>
+          <p class="fpw-lock-eyebrow">Featured References</p>
+          <h2 id="fpwFeaturedLocksTitle">Featured Lock References</h2>
+          <p>Start with a small sample of reviewed public lock references, or browse by waterway and state above.</p>
+        </div>
+      </div>
+
+      <cfif arrayLen(hubSampleLockRows)>
+        <div class="fpw-lock-featured-list">
+          <cfloop array="#hubSampleLockRows#" index="lockItem">
+            <cfoutput>
+              <article class="fpw-lock-featured-card">
+                <h3><a href="#encodeForHTMLAttribute(libraryLockDetailUrl(lockItem.slug))#">#encodeForHTML(lockItem.lock_name)#</a></h3>
+                <p>#encodeForHTML(lockItem.city)#<cfif len(lockItem.city) AND len(lockItem.state)>, </cfif>#encodeForHTML(lockItem.state)#<cfif len(lockItem.waterway)> &bull; #encodeForHTML(lockItem.waterway)#</cfif></p>
+                <dl>
+                  <div><dt>VHF</dt><dd>#encodeForHTML(len(lockItem.vhf) ? lockItem.vhf : "Not listed")#</dd></div>
+                  <div><dt>Phone</dt><dd>#encodeForHTML(len(lockItem.phone) ? lockItem.phone : "Not listed")#</dd></div>
+                </dl>
+              </article>
+            </cfoutput>
+          </cfloop>
+        </div>
+      </cfif>
+
+      <nav class="fpw-lock-hub-links" aria-label="Related Great Loop planning links">
+        <a href="<cfoutput>#request.fpwBase#</cfoutput>/boat-fuel-calculator/">Boat Fuel Calculator</a>
+        <a href="<cfoutput>#request.fpwBase#</cfoutput>/why-use-a-float-plan/">Why Use a Float Plan</a>
+        <a href="<cfoutput>#request.fpwBase#</cfoutput>/great-loop/bridges/">Great Loop Bridge Library</a>
+        <a href="<cfoutput>#encodeForHTMLAttribute(libraryAnchorUrl("how-to-lock"))#</cfoutput>">How to Lock Through</a>
+        <a href="<cfoutput>#encodeForHTMLAttribute(libraryAnchorUrl("vhf-scripts"))#</cfoutput>">VHF Call Scripts</a>
+        <a href="<cfoutput>#encodeForHTMLAttribute(libraryAnchorUrl("lock-etiquette"))#</cfoutput>">Lock Etiquette</a>
+        <a href="<cfoutput>#encodeForHTMLAttribute(libraryAnchorUrl("gear-checklist"))#</cfoutput>">Gear Checklist</a>
+        <a href="<cfoutput>#encodeForHTMLAttribute(libraryAnchorUrl("common-mistakes"))#</cfoutput>">Common Mistakes</a>
+      </nav>
+    </section>
+  </cfif>
 
   <cfif isTaxonomyRoute>
     <section class="fpw-lock-panel fpw-lock-taxonomy-locks" aria-labelledby="fpwTaxonomyLocksTitle">
@@ -485,6 +551,6 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
 
 <script id="fpwLockMapData" type="application/json"><cfoutput>#serializeJSON(mapRows)#</cfoutput></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/great-loop-locks.js?v=20260605-clean-routes"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/great-loop-locks.js?v=20260615-lock-hub"></script>
 </body>
 </html>

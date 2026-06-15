@@ -3,6 +3,29 @@
 <cfcontent type="text/html; charset=utf-8">
 
 <cfscript>
+schemaAtKey = chr(64);
+schemaTypeKey = schemaAtKey & "type";
+schemaIdKey = schemaAtKey & "id";
+schemaContextKey = schemaAtKey & "context";
+schemaGraphKey = schemaAtKey & "graph";
+
+function fpwFloatPlanSchemaRef(required string idValue) {
+  var out = structNew("ordered");
+  structInsert(out, schemaIdKey, arguments.idValue, true);
+  return out;
+}
+
+function fpwFloatPlanSchemaListItem(required numeric position, required string name, required string urlValue) {
+  var out = structNew("ordered");
+  var item = structNew("ordered");
+  structInsert(out, schemaTypeKey, "ListItem", true);
+  out["position"] = arguments.position;
+  structInsert(item, schemaIdKey, arguments.urlValue, true);
+  item["name"] = arguments.name;
+  out["item"] = item;
+  return out;
+}
+
 fpwFloatPlanBasePath = "";
 fpwFloatPlanScriptName = structKeyExists(cgi, "script_name") ? trim(toString(cgi.script_name)) : "";
 
@@ -33,6 +56,44 @@ fpwFloatPlanHeroImage = fpwFloatPlanBasePath & "/assets/images/float-plan/float-
 fpwFloatPlanPreserverImage = fpwFloatPlanBasePath & "/assets/images/float-plan/life-preserver.png";
 fpwFloatPlanPdf = fpwFloatPlanBasePath & "/downloads/uscg-float-plan.pdf";
 fpwFloatPlanAppUrl = fpwFloatPlanBasePath & "/" & "app" & "/";
+
+fpwFloatPlanCanonicalUrl = "https://floatplanwizard.com/why-use-a-float-plan/";
+fpwFloatPlanPageTitle = "Why Every Boater Should Use a Float Plan | FPW";
+fpwFloatPlanPageDescription = "Learn what a float plan includes, when to use one, who should hold it, and how FPW helps keep trip details organized.";
+fpwFloatPlanJsonLdText = "";
+fpwFloatPlanSchemaGraph = [];
+fpwFloatPlanSchemaOrg = structNew("ordered");
+fpwFloatPlanSchemaBreadcrumb = structNew("ordered");
+fpwFloatPlanSchemaPage = structNew("ordered");
+fpwFloatPlanJsonLd = structNew("ordered");
+
+structInsert(fpwFloatPlanSchemaOrg, schemaTypeKey, "Organization", true);
+structInsert(fpwFloatPlanSchemaOrg, schemaIdKey, "https://floatplanwizard.com/##organization", true);
+fpwFloatPlanSchemaOrg["name"] = "FloatPlanWizard";
+fpwFloatPlanSchemaOrg["url"] = "https://floatplanwizard.com/";
+fpwFloatPlanSchemaOrg["logo"] = "https://floatplanwizard.com/assets/images/checkout/floatplanwizard-logo.jpg";
+arrayAppend(fpwFloatPlanSchemaGraph, fpwFloatPlanSchemaOrg);
+
+structInsert(fpwFloatPlanSchemaBreadcrumb, schemaTypeKey, "BreadcrumbList", true);
+structInsert(fpwFloatPlanSchemaBreadcrumb, schemaIdKey, fpwFloatPlanCanonicalUrl & "##breadcrumb", true);
+fpwFloatPlanSchemaBreadcrumb["itemListElement"] = [];
+arrayAppend(fpwFloatPlanSchemaBreadcrumb["itemListElement"], fpwFloatPlanSchemaListItem(1, "FloatPlanWizard", "https://floatplanwizard.com/"));
+arrayAppend(fpwFloatPlanSchemaBreadcrumb["itemListElement"], fpwFloatPlanSchemaListItem(2, "Why Use a Float Plan", fpwFloatPlanCanonicalUrl));
+arrayAppend(fpwFloatPlanSchemaGraph, fpwFloatPlanSchemaBreadcrumb);
+
+structInsert(fpwFloatPlanSchemaPage, schemaTypeKey, "WebPage", true);
+structInsert(fpwFloatPlanSchemaPage, schemaIdKey, fpwFloatPlanCanonicalUrl & "##webpage", true);
+fpwFloatPlanSchemaPage["url"] = fpwFloatPlanCanonicalUrl;
+fpwFloatPlanSchemaPage["name"] = fpwFloatPlanPageTitle;
+fpwFloatPlanSchemaPage["description"] = fpwFloatPlanPageDescription;
+fpwFloatPlanSchemaPage["isPartOf"] = fpwFloatPlanSchemaRef("https://floatplanwizard.com/##website");
+fpwFloatPlanSchemaPage["publisher"] = fpwFloatPlanSchemaRef("https://floatplanwizard.com/##organization");
+fpwFloatPlanSchemaPage["breadcrumb"] = fpwFloatPlanSchemaRef(fpwFloatPlanCanonicalUrl & "##breadcrumb");
+arrayAppend(fpwFloatPlanSchemaGraph, fpwFloatPlanSchemaPage);
+
+structInsert(fpwFloatPlanJsonLd, schemaContextKey, "https://schema.org", true);
+structInsert(fpwFloatPlanJsonLd, schemaGraphKey, fpwFloatPlanSchemaGraph, true);
+fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/", "all");
 </cfscript>
 
 <!doctype html>
@@ -40,14 +101,14 @@ fpwFloatPlanAppUrl = fpwFloatPlanBasePath & "/" & "app" & "/";
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Why You Need a Float Plan | Free USCG Float Plan PDF</title>
-  <meta name="description" content="Learn why boaters should use a float plan, what to include, who to leave it with, and download the official USCG Float Plan PDF.">
+  <title>Why Every Boater Should Use a Float Plan | FPW</title>
+  <meta name="description" content="Learn what a float plan includes, when to use one, who should hold it, and how FPW helps keep trip details organized.">
   <link rel="canonical" href="https://floatplanwizard.com/why-use-a-float-plan/">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="FloatPlanWizard">
   <meta property="og:url" content="https://floatplanwizard.com/why-use-a-float-plan/">
-  <meta property="og:title" content="Why You Need a Float Plan | Free USCG Float Plan PDF">
-  <meta property="og:description" content="Learn why boaters should use a float plan, what to include, who to leave it with, and download the official USCG Float Plan PDF.">
+  <meta property="og:title" content="Why Every Boater Should Use a Float Plan | FPW">
+  <meta property="og:description" content="Learn what a float plan includes, when to use one, who should hold it, and how FPW helps keep trip details organized.">
   <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
   <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
   <meta property="og:image:type" content="image/png">
@@ -55,10 +116,11 @@ fpwFloatPlanAppUrl = fpwFloatPlanBasePath & "/" & "app" & "/";
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Why You Need a Float Plan | FloatPlanWizard">
-  <meta name="twitter:description" content="Learn why boaters should use a float plan, what to include, who to leave it with, and download the official USCG Float Plan PDF.">
+  <meta name="twitter:title" content="Why Every Boater Should Use a Float Plan | FPW">
+  <meta name="twitter:description" content="Learn what a float plan includes, when to use one, who should hold it, and how FPW helps keep trip details organized.">
   <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
   <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
+  <script type="application/ld+json"><cfoutput>#fpwFloatPlanJsonLdText#</cfoutput></script>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
@@ -777,7 +839,6 @@ fpwFloatPlanAppUrl = fpwFloatPlanBasePath & "/" & "app" & "/";
       }
     }
   </style>
-  <link rel="canonical" href="https://floatplanwizard.com/why-use-a-float-plan/" />
 <cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/top-nav.css?v=20260530-nav-cta"></cfoutput>
 <cfinclude template="includes/analytics_clarity.cfm">
 </head>

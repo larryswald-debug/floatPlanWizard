@@ -97,7 +97,8 @@
   }
 
   function renderMarkers(nextLocks) {
-    var markerLocks = normalizeLocks(nextLocks).filter(function (lock) {
+    var normalizedLocks = normalizeLocks(nextLocks);
+    var markerLocks = normalizedLocks.filter(function (lock) {
       return Number.isFinite(Number(lock.lat)) && Number.isFinite(Number(lock.lng));
     });
 
@@ -112,7 +113,7 @@
 
     if (!markerLocks.length) {
       map.setView([39.5, -95.5], 4);
-      if (emptyMapEl) emptyMapEl.hidden = false;
+      if (emptyMapEl) emptyMapEl.hidden = normalizedLocks.length !== 0;
       return;
     }
 
