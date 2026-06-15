@@ -253,7 +253,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
                 <span>Claim Your Free Month</span>
                 <span class="fpw-cta-arrow" aria-hidden="true">&rarr;</span>
               </a>
-              <button class="fpw-nav-link fpw-login-link" type="button" id="publicLoginToggle" aria-expanded="false" aria-controls="login">Login</button>
+              <a class="fpw-nav-link fpw-login-link" href="#topNavBasePath#/app/login.cfm">Login</a>
             </cfif>
           </div>
         </div>
@@ -288,26 +288,6 @@ topNavShowAppSubnav = topNavIsLoggedIn
     </cfif>
   </header>
 
-  <cfif NOT topNavIsLoggedIn>
-    <section class="loginStrip fpw-prelaunch-login-strip" id="login" aria-label="Login" aria-hidden="true">
-      <div class="loginInner">
-        <form id="loginForm" novalidate>
-          <div id="loginAlert" class="alert d-none fpwLoginAlert" role="alert"></div>
-          <div class="field">
-            <label class="fpw-login-label" for="email">Email</label>
-            <input class="input fpwInput" type="email" id="email" name="email" required autocomplete="username" placeholder="Email">
-          </div>
-          <div class="field">
-            <label class="fpw-login-label" for="password">Password</label>
-            <input class="input fpwInput" type="password" id="password" name="password" required autocomplete="current-password" placeholder="Password">
-          </div>
-          <button type="submit" class="btn btnPrimary fpwBtn primary" id="loginButton">Sign In</button>
-        </form>
-        <a class="forgot" href="#topNavBasePath#/app/forgot-password.cfm">Forgot?</a>
-      </div>
-    </section>
-  </cfif>
-
   <script>
     (function () {
       var shell = document.querySelector("[data-fpw-nav]");
@@ -320,8 +300,6 @@ topNavShowAppSubnav = topNavIsLoggedIn
       var navMenu = shell.querySelector("[data-fpw-nav-menu]");
       var dropdowns = Array.prototype.slice.call(shell.querySelectorAll("[data-fpw-dropdown]"));
       var logoutLinks = shell.querySelectorAll("[data-fpw-member-logout]");
-      var loginToggle = document.getElementById("publicLoginToggle");
-      var loginStrip = document.getElementById("login");
 
       function closeDropdowns(exceptDropdown) {
         dropdowns.forEach(function (dropdown) {
@@ -342,23 +320,6 @@ topNavShowAppSubnav = topNavIsLoggedIn
         }
         if (!isOpen) {
           closeDropdowns();
-        }
-      }
-
-      function setLoginOpen(isOpen) {
-        if (!loginToggle || !loginStrip) {
-          return;
-        }
-        loginStrip.classList.toggle("is-open", isOpen);
-        loginStrip.setAttribute("aria-hidden", isOpen ? "false" : "true");
-        loginToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
-        if (isOpen) {
-          window.setTimeout(function () {
-            var emailInput = document.getElementById("email");
-            if (emailInput) {
-              emailInput.focus();
-            }
-          }, 0);
         }
       }
 
@@ -417,19 +378,6 @@ topNavShowAppSubnav = topNavIsLoggedIn
         });
       });
 
-      if (loginToggle && loginStrip) {
-        loginToggle.addEventListener("click", function () {
-          if (shell.classList.contains("is-menu-open")
-            && window.matchMedia
-            && window.matchMedia("(max-width: 1120px)").matches) {
-            setLoginOpen(false);
-            window.location.href = "#JSStringFormat(topNavBasePath)#/app/login.cfm";
-            return;
-          }
-          setLoginOpen(!loginStrip.classList.contains("is-open"));
-        });
-      }
-
       Array.prototype.forEach.call(logoutLinks, function (logoutLink) {
         logoutLink.addEventListener("click", runLogout);
       });
@@ -439,16 +387,12 @@ topNavShowAppSubnav = topNavIsLoggedIn
           setMenuOpen(false);
           closeDropdowns();
         }
-        if (loginStrip && loginToggle && !loginStrip.contains(event.target) && !loginToggle.contains(event.target)) {
-          setLoginOpen(false);
-        }
       });
 
       document.addEventListener("keydown", function (event) {
         if (event.key === "Escape") {
           setMenuOpen(false);
           closeDropdowns();
-          setLoginOpen(false);
         }
       });
 

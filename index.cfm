@@ -3462,13 +3462,9 @@ fpwShowMemberRequiredNotice = (
         removeNoticeParam();
       }
 
-      function openLoginStrip() {
+      function openLoginPage() {
         closeModal();
-        var loginToggle = document.getElementById('publicLoginToggle');
-        if (loginToggle) {
-          loginToggle.click();
-          loginToggle.focus();
-        }
+        window.location.href = '<cfoutput>#JSStringFormat(topNavBasePath)#</cfoutput>/app/login.cfm';
       }
 
       document.body.classList.add('fpw-member-required-open');
@@ -3481,7 +3477,7 @@ fpwShowMemberRequiredNotice = (
         loginControl.addEventListener('click', function (event) {
           event.preventDefault();
           event.stopPropagation();
-          openLoginStrip();
+          openLoginPage();
         });
       }
 
