@@ -1934,6 +1934,10 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
       margin-bottom: 28px;
     }
 
+    #features .section-head:empty {
+      margin-bottom: 0;
+    }
+
     .section-kicker {
       color: var(--accent-2);
       font-weight: 700;
