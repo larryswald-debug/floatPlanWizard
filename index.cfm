@@ -3127,7 +3127,7 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
           </div>
 
           <div class="fpw-preview-actions">
-            <a class="btn btn-primary fpw-preview-primary" href="<cfoutput>#topNavBasePath#</cfoutput>/app/join.cfm">Start Free</a>
+            <a class="fpw-cta fpw-cta-primary" href="<cfoutput>#topNavBasePath#</cfoutput>/app/join.cfm">Start Free</a>
             <a class="fpw-preview-link" href="#notify">See what's included</a>
           </div>
         </section>

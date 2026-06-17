@@ -55,6 +55,10 @@ body.fpw-bridge-body {
   line-height: 1.55;
 }
 
+.fpw-bridge-hero--library .fpw-bridge-eyebrow {
+  margin: 0 0 12px;
+}
+
 .fpw-bridge-disclaimer {
   margin-top: 28px;
   padding: 18px 20px;
@@ -106,6 +110,7 @@ body.fpw-bridge-body {
 }
 
 .fpw-bridge-cta {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -131,6 +136,25 @@ body.fpw-bridge-body {
 
 .fpw-bridge-cta .fpw-bridge-btn {
   flex: 0 0 auto;
+  height: 46px;
+  min-height: 46px;
+  padding-block: 0;
+}
+
+.fpw-bridge-cta .fpw-cta,
+.fpw-bridge-actions .fpw-cta {
+  flex: 0 0 auto;
+  height: 46px;
+  min-height: 46px;
+  padding-block: 0;
+}
+
+.fpw-bridge-actions .fpw-cta {
+  box-sizing: border-box;
+  width: 100%;
+  font-family: inherit;
+  cursor: pointer;
+  appearance: none;
 }
 
 .fpw-bridge-helper-links {
@@ -384,6 +408,17 @@ body.fpw-bridge-body {
   text-decoration: none;
   font-weight: 800;
   cursor: pointer;
+}
+
+.fpw-bridge-actions .fpw-bridge-btn {
+  box-sizing: border-box;
+  width: 100%;
+  height: 46px;
+  min-height: 46px;
+  padding: 0 18px;
+  font: inherit;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .fpw-bridge-btn--primary {

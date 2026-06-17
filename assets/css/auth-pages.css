@@ -1077,6 +1077,174 @@
   border-color: rgba(33, 215, 211, 0.34);
 }
 
+/* Login page dark theme color pass to match join.cfm. */
+.fpw-auth-page {
+  --fpw-dark-bg: #06131f;
+  --fpw-dark-panel: #081d2c;
+  --fpw-dark-panel-2: #0b2638;
+  --fpw-dark-border: rgba(92, 225, 230, 0.18);
+  --fpw-dark-border-strong: rgba(92, 225, 230, 0.34);
+  --fpw-text: #f4f8fb;
+  --fpw-muted: #b7c4cf;
+  --fpw-soft: #8fa3b3;
+  --fpw-teal: #21d7d3;
+  --fpw-teal-2: #17b7c8;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(33, 215, 211, 0.12), transparent 28rem),
+    radial-gradient(circle at 85% 12%, rgba(126, 167, 255, 0.08), transparent 30rem),
+    linear-gradient(135deg, #06131f 0%, #071827 45%, #05101b 100%);
+  color: var(--fpw-text);
+}
+
+.fpw-auth-page .fpw-auth-card {
+  background: linear-gradient(180deg, rgba(8, 29, 44, 0.98), rgba(6, 19, 31, 0.98));
+  border-color: var(--fpw-dark-border);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
+}
+
+.fpw-auth-page .fpw-auth-story {
+  background:
+    linear-gradient(90deg,
+      rgba(3, 18, 31, 0.97) 0%,
+      rgba(5, 28, 47, 0.92) 38%,
+      rgba(8, 44, 70, 0.66) 68%,
+      rgba(10, 72, 114, 0.30) 100%
+    ),
+    url("../images/fpw-signup-boat-hero_w.png") calc(100% + 100px) bottom / cover no-repeat;
+  color: var(--fpw-text);
+}
+
+.fpw-auth-page .fpw-auth-story-copy p,
+.fpw-auth-page .fpw-auth-benefit small {
+  color: rgba(244, 248, 251, 0.82);
+}
+
+.fpw-auth-page .fpw-auth-benefit > span {
+  background: var(--fpw-teal);
+  color: #031a20;
+  box-shadow: 0 10px 24px rgba(33, 215, 211, 0.18);
+}
+
+.fpw-auth-page .fpw-auth-form-panel {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(33, 215, 211, 0.08), transparent 24rem),
+    linear-gradient(180deg, rgba(8, 29, 44, 0.98), rgba(6, 19, 31, 0.98));
+  color: var(--fpw-text);
+}
+
+.fpw-auth-page .fpw-auth-form-header {
+  border-bottom-color: var(--fpw-dark-border);
+}
+
+.fpw-auth-page .fpw-auth-user-icon {
+  background: rgba(33, 215, 211, 0.12);
+  border-color: rgba(92, 225, 230, 0.26);
+  color: var(--fpw-teal);
+}
+
+.fpw-auth-page .fpw-auth-form-header h2,
+.fpw-auth-page .fpw-form-row label,
+.fpw-auth-page .fpw-login-note strong,
+.fpw-auth-page .fpw-auth-disclaimer strong {
+  color: var(--fpw-text);
+}
+
+.fpw-auth-page .fpw-auth-form-header p,
+.fpw-auth-page .fpw-auth-link-row,
+.fpw-auth-page .fpw-login-note p,
+.fpw-auth-page .fpw-auth-disclaimer,
+.fpw-auth-page .fpw-auth-disclaimer p {
+  color: var(--fpw-muted);
+}
+
+.fpw-auth-page .fpw-input-icon {
+  color: var(--fpw-soft);
+}
+
+.fpw-auth-page .fpw-input-wrap input {
+  background: rgba(3, 18, 30, 0.92);
+  color: var(--fpw-text);
+  border-color: rgba(183, 196, 207, 0.28);
+  caret-color: var(--fpw-teal);
+}
+
+.fpw-auth-page .fpw-input-wrap input::placeholder {
+  color: rgba(183, 196, 207, 0.68);
+}
+
+.fpw-auth-page .fpw-input-wrap input:focus {
+  background: rgba(4, 22, 36, 0.98);
+  color: var(--fpw-text);
+  border-color: rgba(33, 215, 211, 0.72);
+  box-shadow: 0 0 0 4px rgba(33, 215, 211, 0.16);
+}
+
+.fpw-auth-page .fpw-input-wrap input:-webkit-autofill {
+  -webkit-text-fill-color: #f4f8fb;
+  box-shadow: 0 0 0 1000px #06131f inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+.fpw-auth-page .fpw-auth-link-row a {
+  color: var(--fpw-teal);
+}
+
+.fpw-auth-page .fpw-auth-link-row a:hover,
+.fpw-auth-page .fpw-auth-link-row a:focus-visible {
+  color: #ffffff;
+}
+
+.fpw-auth-page .fpw-login-note {
+  background: rgba(33, 215, 211, 0.08);
+  border-color: rgba(92, 225, 230, 0.22);
+  color: #d9e6ef;
+}
+
+.fpw-auth-page .fpw-auth-submit {
+  color: #031a20;
+  background: linear-gradient(135deg, var(--fpw-teal), var(--fpw-teal-2));
+  box-shadow: 0 18px 46px rgba(23, 183, 200, 0.22);
+}
+
+.fpw-auth-page .fpw-auth-submit:hover,
+.fpw-auth-page .fpw-auth-submit:focus {
+  filter: brightness(1.02);
+  box-shadow: 0 22px 54px rgba(23, 183, 200, 0.3);
+}
+
+.fpw-auth-page .fpw-auth-submit:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(33, 215, 211, 0.2), 0 18px 46px rgba(23, 183, 200, 0.22);
+}
+
+.fpw-auth-page .fpw-auth-disclaimer {
+  background: #06131f;
+  border-top-color: var(--fpw-dark-border);
+}
+
+.fpw-auth-page .fpw-auth-disclaimer span {
+  border-color: rgba(92, 225, 230, 0.26);
+  color: var(--fpw-teal);
+}
+
+.fpw-auth-page .fpw-auth-message.alert-warning {
+  color: #ffe8ae;
+  background: rgba(255, 176, 32, 0.12);
+  border-color: rgba(255, 176, 32, 0.34);
+}
+
+.fpw-auth-page .fpw-auth-message.alert-danger {
+  color: #ffd7d7;
+  background: rgba(255, 123, 123, 0.12);
+  border-color: rgba(255, 123, 123, 0.34);
+}
+
+.fpw-auth-page .fpw-auth-message.alert-success {
+  color: #d7fff9;
+  background: rgba(33, 215, 211, 0.10);
+  border-color: rgba(33, 215, 211, 0.34);
+}
+
 .fpw-contact-page {
   min-height: 100vh;
   margin: 0;
@@ -1453,4 +1621,164 @@
   .fpw-contact-disclaimer {
     padding: 16px 20px;
   }
+}
+
+/* Contact page dark theme color pass to match join.cfm and login.cfm. */
+.fpw-contact-page {
+  --fpw-dark-bg: #06131f;
+  --fpw-dark-panel: #081d2c;
+  --fpw-dark-panel-2: #0b2638;
+  --fpw-dark-border: rgba(92, 225, 230, 0.18);
+  --fpw-dark-border-strong: rgba(92, 225, 230, 0.34);
+  --fpw-text: #f4f8fb;
+  --fpw-muted: #b7c4cf;
+  --fpw-soft: #8fa3b3;
+  --fpw-teal: #21d7d3;
+  --fpw-teal-2: #17b7c8;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(33, 215, 211, 0.12), transparent 28rem),
+    radial-gradient(circle at 85% 12%, rgba(126, 167, 255, 0.08), transparent 30rem),
+    linear-gradient(135deg, #06131f 0%, #071827 45%, #05101b 100%);
+  color: var(--fpw-text);
+}
+
+.fpw-contact-page .fpw-contact-card {
+  background: linear-gradient(180deg, rgba(8, 29, 44, 0.98), rgba(6, 19, 31, 0.98));
+  border-color: var(--fpw-dark-border);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
+}
+
+.fpw-contact-page .fpw-contact-story {
+  background:
+    linear-gradient(90deg,
+      rgba(3, 18, 31, 0.97) 0%,
+      rgba(5, 28, 47, 0.92) 46%,
+      rgba(8, 44, 70, 0.72) 100%
+    );
+  color: var(--fpw-text);
+}
+
+.fpw-contact-page .fpw-contact-story-copy p,
+.fpw-contact-page .fpw-contact-benefit small,
+.fpw-contact-page .fpw-contact-response-note span {
+  color: rgba(244, 248, 251, 0.82);
+}
+
+.fpw-contact-page .fpw-contact-benefit > span {
+  background: var(--fpw-teal);
+  color: #031a20;
+  box-shadow: 0 10px 24px rgba(33, 215, 211, 0.18);
+}
+
+.fpw-contact-page .fpw-contact-response-note {
+  background: rgba(33, 215, 211, 0.08);
+  border-color: rgba(92, 225, 230, 0.22);
+  color: #d9e6ef;
+}
+
+.fpw-contact-page .fpw-contact-form-panel {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(33, 215, 211, 0.08), transparent 24rem),
+    linear-gradient(180deg, rgba(8, 29, 44, 0.98), rgba(6, 19, 31, 0.98));
+  color: var(--fpw-text);
+}
+
+.fpw-contact-page .fpw-contact-form-header {
+  border-bottom-color: var(--fpw-dark-border);
+}
+
+.fpw-contact-page .fpw-contact-icon {
+  background: rgba(33, 215, 211, 0.12);
+  border-color: rgba(92, 225, 230, 0.26);
+  color: var(--fpw-teal);
+}
+
+.fpw-contact-page .fpw-contact-form-header h2,
+.fpw-contact-page .fpw-form-row label,
+.fpw-contact-page .fpw-contact-disclaimer strong {
+  color: var(--fpw-text);
+}
+
+.fpw-contact-page .fpw-contact-form-header p,
+.fpw-contact-page .fpw-contact-safe-note,
+.fpw-contact-page .fpw-contact-disclaimer,
+.fpw-contact-page .fpw-contact-disclaimer p,
+.fpw-contact-page .fpw-contact-footer {
+  color: var(--fpw-muted);
+}
+
+.fpw-contact-page .fpw-input-icon {
+  color: var(--fpw-soft);
+}
+
+.fpw-contact-page .fpw-contact-form .fpw-input-wrap input,
+.fpw-contact-page .fpw-contact-form .fpw-input-wrap textarea {
+  background: rgba(3, 18, 30, 0.92);
+  color: var(--fpw-text);
+  border-color: rgba(183, 196, 207, 0.28);
+  caret-color: var(--fpw-teal);
+}
+
+.fpw-contact-page .fpw-contact-form .fpw-input-wrap input::placeholder,
+.fpw-contact-page .fpw-contact-form .fpw-input-wrap textarea::placeholder {
+  color: rgba(183, 196, 207, 0.68);
+}
+
+.fpw-contact-page .fpw-contact-form .fpw-input-wrap input:focus,
+.fpw-contact-page .fpw-contact-form .fpw-input-wrap textarea:focus {
+  background: rgba(4, 22, 36, 0.98);
+  color: var(--fpw-text);
+  border-color: rgba(33, 215, 211, 0.72);
+  box-shadow: 0 0 0 4px rgba(33, 215, 211, 0.16);
+}
+
+.fpw-contact-page .fpw-contact-form .fpw-input-wrap input:-webkit-autofill {
+  -webkit-text-fill-color: #f4f8fb;
+  box-shadow: 0 0 0 1000px #06131f inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+.fpw-contact-page .fpw-contact-submit {
+  color: #031a20;
+  background: linear-gradient(135deg, var(--fpw-teal), var(--fpw-teal-2));
+  box-shadow: 0 18px 46px rgba(23, 183, 200, 0.22);
+}
+
+.fpw-contact-page .fpw-contact-submit:hover,
+.fpw-contact-page .fpw-contact-submit:focus {
+  filter: brightness(1.02);
+  box-shadow: 0 22px 54px rgba(23, 183, 200, 0.3);
+}
+
+.fpw-contact-page .fpw-contact-submit:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(33, 215, 211, 0.2), 0 18px 46px rgba(23, 183, 200, 0.22);
+}
+
+.fpw-contact-page .fpw-contact-disclaimer {
+  background: #06131f;
+  border-top-color: var(--fpw-dark-border);
+}
+
+.fpw-contact-page .fpw-contact-disclaimer span {
+  border-color: rgba(92, 225, 230, 0.26);
+  color: var(--fpw-teal);
+}
+
+.fpw-contact-page .fpw-contact-message.alert-warning {
+  color: #ffe8ae;
+  background: rgba(255, 176, 32, 0.12);
+  border-color: rgba(255, 176, 32, 0.34);
+}
+
+.fpw-contact-page .fpw-contact-message.alert-danger {
+  color: #ffd7d7;
+  background: rgba(255, 123, 123, 0.12);
+  border-color: rgba(255, 123, 123, 0.34);
+}
+
+.fpw-contact-page .fpw-contact-message.alert-success {
+  color: #d7fff9;
+  background: rgba(33, 215, 211, 0.10);
+  border-color: rgba(33, 215, 211, 0.34);
 }

@@ -302,7 +302,7 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
   </cfif>
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20260530-nav-cta">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260615-lock-hub">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260616-bridge-header-width">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
 </head>
@@ -318,11 +318,6 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
         <p class="fpw-lock-hero__lede">
           <cfoutput>#encodeForHTML(pageLede)#</cfoutput>
         </p>
-        <div class="fpw-lock-hero__actions">
-          <a class="fpw-lock-btn fpw-lock-btn--primary" href="#fpwLockFinder">Browse Locks by State</a>
-          <a class="fpw-lock-btn fpw-lock-btn--ghost" href="#fpwLockGuides">Learn How to Lock Through</a>
-          <a class="fpw-lock-btn fpw-lock-btn--ghost" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Plan a Float Plan</a>
-        </div>
       </div>
     </div>
   </section>
@@ -341,7 +336,7 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
         <h2 id="fpwLockCtaTitle">Planning a route with locks?</h2>
         <p>Add lock timing context to your route and create a free float plan before departure.</p>
       </div>
-      <a class="fpw-lock-btn fpw-lock-btn--primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Create a Free Float Plan</a>
+      <a class="fpw-lock-btn fpw-lock-btn--primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm"><span>Plan Your Route</span><span class="fpw-cta-arrow" aria-hidden="true">&rarr;</span></a>
     </section>
   </cfif>
 
@@ -370,8 +365,8 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
         </label>
 
         <div class="fpw-lock-filter-actions">
-          <button type="submit" class="fpw-lock-btn fpw-lock-btn--primary fpw-lock-btn--full" data-lock-apply>Apply Filters</button>
-          <a class="fpw-lock-btn fpw-lock-btn--muted fpw-lock-btn--full" href="<cfoutput>#encodeForHTMLAttribute(lockLibraryUrl)#</cfoutput>" data-lock-clear>Clear Filters</a>
+          <button type="submit" class="fpw-cta fpw-cta-primary" data-lock-apply><span>Apply Filters</span></button>
+          <a class="fpw-cta fpw-cta-primary" href="<cfoutput>#encodeForHTMLAttribute(lockLibraryUrl)#</cfoutput>" data-lock-clear><span>Clear Filters</span></a>
         </div>
         <p class="fpw-lock-filter-status" data-lock-filter-status aria-live="polite" hidden></p>
       </form>
@@ -459,46 +454,6 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
     </aside>
   </section>
 
-  <cfif isLockHubRoute>
-    <section class="fpw-lock-panel fpw-lock-featured" aria-labelledby="fpwFeaturedLocksTitle">
-      <div class="fpw-lock-featured__header">
-        <div>
-          <p class="fpw-lock-eyebrow">Featured References</p>
-          <h2 id="fpwFeaturedLocksTitle">Featured Lock References</h2>
-          <p>Start with a small sample of reviewed public lock references, or browse by waterway and state above.</p>
-        </div>
-      </div>
-
-      <cfif arrayLen(hubSampleLockRows)>
-        <div class="fpw-lock-featured-list">
-          <cfloop array="#hubSampleLockRows#" index="lockItem">
-            <cfoutput>
-              <article class="fpw-lock-featured-card">
-                <h3><a href="#encodeForHTMLAttribute(libraryLockDetailUrl(lockItem.slug))#">#encodeForHTML(lockItem.lock_name)#</a></h3>
-                <p>#encodeForHTML(lockItem.city)#<cfif len(lockItem.city) AND len(lockItem.state)>, </cfif>#encodeForHTML(lockItem.state)#<cfif len(lockItem.waterway)> &bull; #encodeForHTML(lockItem.waterway)#</cfif></p>
-                <dl>
-                  <div><dt>VHF</dt><dd>#encodeForHTML(len(lockItem.vhf) ? lockItem.vhf : "Not listed")#</dd></div>
-                  <div><dt>Phone</dt><dd>#encodeForHTML(len(lockItem.phone) ? lockItem.phone : "Not listed")#</dd></div>
-                </dl>
-              </article>
-            </cfoutput>
-          </cfloop>
-        </div>
-      </cfif>
-
-      <nav class="fpw-lock-hub-links" aria-label="Related Great Loop planning links">
-        <a href="<cfoutput>#request.fpwBase#</cfoutput>/boat-fuel-calculator/">Boat Fuel Calculator</a>
-        <a href="<cfoutput>#request.fpwBase#</cfoutput>/why-use-a-float-plan/">Why Use a Float Plan</a>
-        <a href="<cfoutput>#request.fpwBase#</cfoutput>/great-loop/bridges/">Great Loop Bridge Library</a>
-        <a href="<cfoutput>#encodeForHTMLAttribute(libraryAnchorUrl("how-to-lock"))#</cfoutput>">How to Lock Through</a>
-        <a href="<cfoutput>#encodeForHTMLAttribute(libraryAnchorUrl("vhf-scripts"))#</cfoutput>">VHF Call Scripts</a>
-        <a href="<cfoutput>#encodeForHTMLAttribute(libraryAnchorUrl("lock-etiquette"))#</cfoutput>">Lock Etiquette</a>
-        <a href="<cfoutput>#encodeForHTMLAttribute(libraryAnchorUrl("gear-checklist"))#</cfoutput>">Gear Checklist</a>
-        <a href="<cfoutput>#encodeForHTMLAttribute(libraryAnchorUrl("common-mistakes"))#</cfoutput>">Common Mistakes</a>
-      </nav>
-    </section>
-  </cfif>
-
   <cfif isTaxonomyRoute>
     <section class="fpw-lock-panel fpw-lock-taxonomy-locks" aria-labelledby="fpwTaxonomyLocksTitle">
       <h2 id="fpwTaxonomyLocksTitle"><cfoutput>Locks in #encodeForHTML(taxonomyName)#</cfoutput></h2>
@@ -522,16 +477,7 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
     </section>
   </cfif>
 
-  <section class="fpw-lock-guides" id="fpwLockGuides" aria-label="Learn and prepare">
-    <header>
-      <p class="fpw-lock-eyebrow">Learn &amp; Prepare</p>
-    </header>
-    <a href="<cfoutput>#encodeForHTMLAttribute(libraryAnchorUrl("how-to-lock"))#</cfoutput>"><strong>How to Lock</strong><span>Step-by-step guide</span></a>
-    <a href="<cfoutput>#encodeForHTMLAttribute(libraryAnchorUrl("vhf-scripts"))#</cfoutput>"><strong>VHF Call Scripts</strong><span>What to say</span></a>
-    <a href="<cfoutput>#encodeForHTMLAttribute(libraryAnchorUrl("lock-etiquette"))#</cfoutput>"><strong>Lock Etiquette</strong><span>Do's and don'ts</span></a>
-    <a href="<cfoutput>#encodeForHTMLAttribute(libraryAnchorUrl("gear-checklist"))#</cfoutput>"><strong>Gear Checklist</strong><span>What you need</span></a>
-    <a href="<cfoutput>#encodeForHTMLAttribute(libraryAnchorUrl("common-mistakes"))#</cfoutput>"><strong>Common Mistakes</strong><span>What to avoid</span></a>
-  </section>
+  <!--- fpw-lock-guides strip intentionally removed. --->
 
   <section class="fpw-lock-learning">
     <article id="how-to-lock" class="fpw-lock-panel"><h2>How to Lock Through</h2><p>Approach slowly, prepare lines and fenders before arrival, monitor the published VHF channel when available, and follow lockmaster instructions.</p></article>

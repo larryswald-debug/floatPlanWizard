@@ -182,12 +182,13 @@ function bridgeRouteLine(required struct bridgeItem) {
 }
 
 if (taxonomyType NEQ "not-found") {
-  previewLimit = arrayLen(bridgeRows) LT 6 ? arrayLen(bridgeRows) : 6;
-  for (previewIndex = 1; previewIndex LTE previewLimit; previewIndex++) {
-    arrayAppend(featuredBridgeRows, bridgeRows[previewIndex]);
+  if (isBridgeHubPage) {
+    displayBridgeRows = [];
+    schemaBridgeRows = [];
+  } else {
+    displayBridgeRows = bridgeRows;
+    schemaBridgeRows = bridgeRows;
   }
-  displayBridgeRows = isBridgeHubPage ? featuredBridgeRows : bridgeRows;
-  schemaBridgeRows = isBridgeHubPage ? featuredBridgeRows : bridgeRows;
 }
 
 for (bridgeItem in bridgeRows) {
@@ -270,19 +271,21 @@ if (taxonomyType NEQ "not-found") {
   schemaPage["breadcrumb"] = bridgeSchemaRef(canonicalUrl & "##breadcrumb");
   arrayAppend(schemaGraph, schemaPage);
 
-  structInsert(schemaItemList, schemaTypeKey, "ItemList", true);
-  structInsert(schemaItemList, schemaIdKey, canonicalUrl & "##bridges", true);
-  schemaItemList["name"] = pageHeading;
-  schemaItemList["itemListOrder"] = "https://schema.org/ItemListOrderAscending";
-  schemaItemList["itemListElement"] = [];
-  for (schemaBridgeIndex = 1; schemaBridgeIndex LTE arrayLen(schemaBridgeRows); schemaBridgeIndex++) {
-    arrayAppend(schemaItemList["itemListElement"], bridgeSchemaListItem(
-      schemaBridgeIndex,
-      schemaBridgeRows[schemaBridgeIndex].bridge_name,
-      "https://floatplanwizard.com/great-loop/bridges/" & bridgeSvc.normalizeSlug(schemaBridgeRows[schemaBridgeIndex].slug) & "/"
-    ));
+  if (arrayLen(schemaBridgeRows)) {
+    structInsert(schemaItemList, schemaTypeKey, "ItemList", true);
+    structInsert(schemaItemList, schemaIdKey, canonicalUrl & "##bridges", true);
+    schemaItemList["name"] = pageHeading;
+    schemaItemList["itemListOrder"] = "https://schema.org/ItemListOrderAscending";
+    schemaItemList["itemListElement"] = [];
+    for (schemaBridgeIndex = 1; schemaBridgeIndex LTE arrayLen(schemaBridgeRows); schemaBridgeIndex++) {
+      arrayAppend(schemaItemList["itemListElement"], bridgeSchemaListItem(
+        schemaBridgeIndex,
+        schemaBridgeRows[schemaBridgeIndex].bridge_name,
+        "https://floatplanwizard.com/great-loop/bridges/" & bridgeSvc.normalizeSlug(schemaBridgeRows[schemaBridgeIndex].slug) & "/"
+      ));
+    }
+    arrayAppend(schemaGraph, schemaItemList);
   }
-  arrayAppend(schemaGraph, schemaItemList);
 
   pageJsonLd = structNew("ordered");
   structInsert(pageJsonLd, schemaContextKey, "https://schema.org", true);
@@ -314,7 +317,7 @@ if (taxonomyType NEQ "not-found") {
   </cfif>
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20260530-nav-cta">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-bridges.css?v=20260615-bridge-hub">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-bridges.css?v=20260616-library-eyebrow-spacing">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
 </head>
@@ -349,7 +352,7 @@ if (taxonomyType NEQ "not-found") {
         <a href="#fixed-vs-drawbridges">Drawbridge planning</a>
       </div>
     </div>
-    <a class="fpw-bridge-btn fpw-bridge-btn--primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Create a Free Float Plan</a>
+    <a class="fpw-cta fpw-cta-primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm"><span>Plan Your Route</span><span class="fpw-cta-arrow" aria-hidden="true">&rarr;</span></a>
   </section>
 
   <nav class="fpw-bridge-shell fpw-bridge-breadcrumbs" aria-label="Breadcrumb">
@@ -408,8 +411,8 @@ if (taxonomyType NEQ "not-found") {
         <label class="fpw-bridge-check">Has VHF or phone <input type="checkbox" name="hasContact" value="1"<cfoutput>#checkedAttr(filters.hasContact)#</cfoutput>></label>
         <label class="fpw-bridge-check">Has coordinates <input type="checkbox" name="hasCoordinates" value="1"<cfoutput>#checkedAttr(filters.hasCoordinates)#</cfoutput>></label>
         <div class="fpw-bridge-actions">
-          <button type="submit" class="fpw-bridge-btn fpw-bridge-btn--primary">Apply Filters</button>
-          <a href="<cfoutput>#encodeForHTMLAttribute(bridgeLibraryUrl)#</cfoutput>" class="fpw-bridge-btn">Clear Filters</a>
+          <button type="submit" class="fpw-cta fpw-cta-primary"><span>Apply Filters</span></button>
+          <a href="<cfoutput>#encodeForHTMLAttribute(bridgeLibraryUrl)#</cfoutput>" class="fpw-cta fpw-cta-primary"><span>Clear Filters</span></a>
         </div>
       </form>
       <p class="fpw-bridge-filter-status" data-bridge-filter-status aria-live="polite" hidden></p>
@@ -429,13 +432,15 @@ if (taxonomyType NEQ "not-found") {
     </div>
   </section>
 
-  <section class="fpw-bridge-shell fpw-bridge-results<cfif isBridgeHubPage> fpw-bridge-results--preview</cfif>" aria-label="<cfoutput>#isBridgeHubPage ? 'Featured bridge references' : 'Bridge results'#</cfoutput>">
-    <div class="fpw-bridge-section-heading">
-      <div>
-        <h2><cfoutput>#isBridgeHubPage ? "Featured Bridge References" : pageHeading#</cfoutput></h2>
-        <p><cfoutput>#isBridgeHubPage ? "A limited sample from the public bridge library. Use the browse links or filters to explore by state, waterway, or route segment." : "Full filtered bridge references for this taxonomy page."#</cfoutput></p>
+  <section class="fpw-bridge-shell fpw-bridge-results" aria-label="Bridge results" data-bridge-results-shell<cfif isBridgeHubPage> hidden</cfif>>
+    <cfif !isBridgeHubPage>
+      <div class="fpw-bridge-section-heading">
+        <div>
+          <h2><cfoutput>#pageHeading#</cfoutput></h2>
+          <p>Full filtered bridge references for this taxonomy page.</p>
+        </div>
       </div>
-    </div>
+    </cfif>
     <div class="fpw-bridge-result-list" data-bridge-result-list<cfif !arrayLen(displayBridgeRows)> hidden</cfif>>
       <cfloop array="#displayBridgeRows#" index="bridgeItem">
         <cfset bridgeImage = bridgeSvc.getBridgeImageAsset(bridgeItem, request.fpwBase)>
@@ -466,7 +471,7 @@ if (taxonomyType NEQ "not-found") {
         </article>
       </cfloop>
     </div>
-    <p class="fpw-bridge-empty-state" data-bridge-empty-list<cfif arrayLen(displayBridgeRows)> hidden</cfif>>No reviewed bridge records match the current filters.</p>
+    <p class="fpw-bridge-empty-state" data-bridge-empty-list<cfif arrayLen(displayBridgeRows) OR isBridgeHubPage> hidden</cfif>>No reviewed bridge records match the current filters.</p>
   </section>
 
   <cfif isBridgeHubPage>
@@ -650,6 +655,6 @@ if (taxonomyType NEQ "not-found") {
 <cfinclude template="../includes/footer.cfm">
 <script id="fpwBridgeMapData" type="application/json"><cfoutput>#serializeJSON(mapRows)#</cfoutput></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/great-loop-bridges.js?v=20260615-bridge-hub"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/great-loop-bridges.js?v=20260615-remove-featured"></script>
 </body>
 </html>

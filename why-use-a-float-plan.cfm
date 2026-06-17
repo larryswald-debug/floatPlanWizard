@@ -987,8 +987,8 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
             <i class="bi bi-download" aria-hidden="true"></i>
             Download USCG Float Plan PDF
           </a>
-
-          <p class="fpw-download-card__source"><i class="bi bi-shield-check" aria-hidden="true"></i>Provided by the U.S. Coast Guard</p>
+<p/>
+          <p class="fpw-download-card__source" style="padding-top: 1rem;"><i class="bi bi-shield-check" aria-hidden="true"></i>Provided by the U.S. Coast Guard</p>
         </section>
 
         <section class="fpw-compare-card">

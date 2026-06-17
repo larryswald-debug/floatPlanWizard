@@ -195,64 +195,77 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
       z-index: 1;
     }
 
-    .fpw-fuel-hero {
-      min-height: 330px;
+    .fpw-compact-tool-hero {
+      position: relative;
+      min-height: 240px;
       display: grid;
-      align-items: center;
-      padding: clamp(34px, 5vw, 62px) clamp(24px, 4vw, 42px);
-      border-bottom: 1px solid rgba(126, 205, 220, 0.2);
+      grid-template-columns: minmax(0, 0.95fr) minmax(320px, 1.05fr);
+      align-items: stretch;
       overflow: hidden;
+      border: 1px solid rgba(47, 232, 226, 0.18);
       background:
-        linear-gradient(90deg, rgba(2, 10, 20, 0.98) 0%, rgba(3, 15, 29, 0.88) 43%, rgba(3, 15, 29, 0.22) 100%),
-        url("../assets/images/boat-fuel-calculator/Silent-voyage-on-calm-waters.png") center right / cover no-repeat;
+        linear-gradient(90deg, rgba(1, 12, 22, 0.98) 0%, rgba(3, 22, 37, 0.94) 42%, rgba(3, 28, 48, 0.72) 100%);
     }
 
-    .fpw-fuel-hero__content {
-      max-width: 640px;
+    .fpw-compact-tool-hero__content {
+      position: relative;
+      z-index: 2;
+      max-width: 720px;
+      padding: clamp(22px, 3vw, 34px);
     }
 
-    .fpw-fuel-hero h1 {
+    .fpw-compact-tool-hero__eyebrow {
+      margin: 0 0 8px;
+      color: #7ffaf5;
+      font-size: 0.86rem;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .fpw-compact-tool-hero h1 {
       margin: 0;
       color: #ffffff;
-      font-size: clamp(3.2rem, 6.1vw, 5.4rem);
-      line-height: 0.95;
+      font-size: clamp(2.25rem, 3.6vw, 3.1rem);
+      line-height: 0.98;
       letter-spacing: 0;
-      text-shadow: 0 16px 34px rgba(0, 0, 0, 0.42);
+      text-shadow: 0 12px 28px rgba(0, 0, 0, 0.38);
     }
 
-    .fpw-fuel-hero__lead {
-      max-width: 610px;
-      margin: 20px 0 0;
-      color: rgba(238, 247, 251, 0.88);
-      font-size: clamp(1.12rem, 1.7vw, 1.38rem);
-      line-height: 1.45;
+    .fpw-compact-tool-hero__intro {
+      max-width: 620px;
+      margin: 14px 0 0;
+      color: rgba(226, 236, 246, 0.86);
+      font-size: clamp(1.05rem, 1.45vw, 1.28rem);
+      line-height: 1.42;
     }
 
-    .fpw-fuel-hero__copy {
-      max-width: 610px;
+    .fpw-compact-tool-hero__accent {
       margin: 18px 0 0;
-      color: rgba(184, 199, 214, 0.9);
-      line-height: 1.62;
+      color: #39f4ee;
+      font-weight: 800;
     }
 
-    .fpw-fuel-hero__callout,
-    .fpw-mini-compass {
-      display: inline-flex;
-      align-items: center;
-    }
-
-    .fpw-fuel-hero__callout {
-      gap: 12px;
-      margin: 24px 0 0;
-      color: #28f3e8;
-      font-weight: 850;
-    }
-
-    .fpw-mini-compass {
-      width: 28px;
-      height: 28px;
-      color: #28f3e8;
-      filter: drop-shadow(0 0 12px rgba(40, 243, 232, 0.5));
+    .fpw-compact-tool-hero__image {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      min-height: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(90deg,
+          rgba(1, 12, 22, 1) 0%,
+          rgba(1, 12, 22, 1) 32%,
+          rgba(1, 12, 22, 0.88) 46%,
+          rgba(1, 12, 22, 0.52) 60%,
+          rgba(1, 12, 22, 0.18) 76%,
+          rgba(1, 12, 22, 0) 92%
+        ),
+        linear-gradient(180deg, rgba(1, 12, 22, 0.22), rgba(1, 12, 22, 0) 42%, rgba(1, 12, 22, 0.22)),
+        url("../assets/images/boat-fuel-calculator/Silent-voyage-on-calm-waters.png");
+      background-size: cover, cover, cover;
+      background-position: center right, center right, center right;
+      background-repeat: no-repeat;
     }
 
     .fpw-mini-compass svg,
@@ -944,10 +957,22 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
         width: min(100% - 28px, 1480px);
       }
 
-      .fpw-fuel-hero {
-        background:
-          linear-gradient(90deg, rgba(2, 10, 20, 0.98) 0%, rgba(3, 15, 29, 0.88) 100%),
-          url("../assets/images/boat-fuel-calculator/Silent-voyage-on-calm-waters.png") center right / cover no-repeat;
+      .fuel-compact-hero {
+        grid-template-columns: 1fr;
+        min-height: 230px;
+        background-image:
+          linear-gradient(90deg, rgba(1, 12, 22, 0.98), rgba(1, 12, 22, 0.78)),
+          url("../assets/images/boat-fuel-calculator/Silent-voyage-on-calm-waters.png");
+        background-size: cover;
+        background-position: center right;
+      }
+
+      .fpw-compact-tool-hero__image {
+        display: none;
+      }
+
+      .fpw-compact-tool-hero__content {
+        padding: 30px 24px;
       }
 
       .fpw-why-grid,
@@ -986,9 +1011,31 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
         padding-top: 16px;
       }
 
-      .fpw-fuel-hero {
-        min-height: auto;
-        padding: 30px 20px;
+      .fuel-compact-hero {
+        min-height: 220px;
+      }
+
+      .fpw-compact-tool-hero__content {
+        padding: 26px 20px;
+      }
+
+      .fpw-compact-tool-hero__eyebrow {
+        font-size: 0.74rem;
+        letter-spacing: 0.16em;
+      }
+
+      .fpw-compact-tool-hero h1 {
+        font-size: clamp(2.125rem, 9vw, 2.625rem);
+        line-height: 1;
+      }
+
+      .fpw-compact-tool-hero__intro {
+        margin-top: 12px;
+        font-size: 1rem;
+      }
+
+      .fpw-compact-tool-hero__accent {
+        margin-top: 14px;
       }
 
       .fpw-section-rule {
@@ -1044,33 +1091,16 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
 <cfset request.fpwTopNavActive = "fuel">
 <cfinclude template="../includes/top_nav.cfm">
   <main class="fpw-fuel-page fuelcalc-main">
-    <section class="fpw-fuel-hero" aria-labelledby="fuel-calculator-title">
-      <div class="fpw-fuel-hero__content">
+    <section class="fpw-compact-tool-hero fuel-compact-hero" aria-labelledby="fuel-calculator-title">
+      <div class="fpw-compact-tool-hero__content">
+        <p class="fpw-compact-tool-hero__eyebrow">BOAT PLANNING TOOL</p>
         <h1 id="fuel-calculator-title">Boat Fuel Calculator</h1>
-
-        <p class="fpw-fuel-hero__lead">
-          Estimate fuel needs for your next boating trip with a simple planning tool built for real recreational boaters.
+        <p class="fpw-compact-tool-hero__intro">
+          Estimate fuel needs, range, and reserve before your next boating trip.
         </p>
-
-        <p class="fpw-fuel-hero__copy">
-          Good fuel planning keeps you safe, extends your range, and gives you the confidence to enjoy the water.
-          Account for speed, conditions, and reserve so you arrive with options&mdash;not worries.
-        </p>
-
-        <p class="fpw-fuel-hero__callout">
-          <span class="fpw-mini-compass" aria-hidden="true">
-            <svg viewBox="0 0 24 24" focusable="false">
-              <circle cx="12" cy="12" r="7"></circle>
-              <path d="M12 2v3"></path>
-              <path d="M12 19v3"></path>
-              <path d="M2 12h3"></path>
-              <path d="M19 12h3"></path>
-              <path d="M14.8 9.2 13 13l-3.8 1.8L11 11z"></path>
-            </svg>
-          </span>
-          <span>Plan smarter. Leave with reserve.</span>
-        </p>
+        <p class="fpw-compact-tool-hero__accent">Plan smarter. Leave with reserve.</p>
       </div>
+      <div class="fpw-compact-tool-hero__image" aria-hidden="true"></div>
     </section>
 
     <section class="fpw-fuel-why" aria-labelledby="why-fuel-planning-title">
@@ -1139,7 +1169,7 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
         <p>Create a free float plan, organize your route, and share trip details before leaving the dock.</p>
       </div>
 
-      <a class="fpw-fuel-cta__button" href="../app/join.cfm">
+      <a class="fpw-cta fpw-cta-primary" href="../app/join.cfm">
         <span>Create a Free Float Plan</span>
         <span aria-hidden="true">&rarr;</span>
       </a>
@@ -1457,9 +1487,9 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
         <p>Organize your route, float plan, and trusted-contact sharing with FloatPlanWizard.</p>
       </div>
 
-      <a class="fpw-fuel-cta__button" href="../app/join.cfm">
+      <a class="fpw-cta fpw-cta-primary" href="../app/join.cfm">
         <span>Join For Free</span>
-        <span aria-hidden="true">&rarr;</span>
+        <span class="fpw-cta-arrow" aria-hidden="true">→</span>
       </a>
 
       <p class="fpw-fuel-cta__small">No credit card required.</p>
@@ -2147,6 +2177,6 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
 
       resetInputs();
     })();
-  </script>
+</script>
 </body>
 </html>

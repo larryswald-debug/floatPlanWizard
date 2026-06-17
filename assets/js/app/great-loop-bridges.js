@@ -2,6 +2,7 @@
   "use strict";
 
   var formEl = document.querySelector("[data-bridge-filter-form]");
+  var resultShellEl = document.querySelector("[data-bridge-results-shell]");
   var resultListEl = document.querySelector("[data-bridge-result-list]");
   var emptyListEl = document.querySelector("[data-bridge-empty-list]");
   var summaryEl = document.querySelector("[data-bridge-result-summary]");
@@ -185,6 +186,7 @@
   function renderList(bridges) {
     var html = "";
     if (!resultListEl || !emptyListEl) return;
+    if (resultShellEl) resultShellEl.hidden = false;
     (bridges || []).forEach(function (bridge) {
       var image = bridge.image || {};
       var location = [bridge.nearest_city, bridge.state_province].filter(Boolean).join(", ");

@@ -26,7 +26,7 @@
 
   <cfinclude template="../includes/fpw_base_path.cfm">
   <cfinclude template="../includes/header_styles.cfm">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/pricing.css?v=20260526-cache-bump">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/pricing.css?v=20260616-compact-hero">
 </head>
 <body>
 
@@ -110,7 +110,6 @@
     <div class="pricing-container pricing-hero-content">
       <h1>Membership Plans</h1>
       <p class="pricing-subtitle">Free for simple same-day trips. Premium for route-based planning, Active Cruise, Follow pages, and companion check-ins.</p>
-      <p class="pricing-subnote">All paid plans include the same Premium features. Choose Monthly, Annual, or a 3-Day Pass based on how you boat.</p>
     </div>
   </section>
 
