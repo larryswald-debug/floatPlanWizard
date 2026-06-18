@@ -117,3 +117,23 @@ RewriteRule ^how-it-works\.cfm$ /fpw/how-it-works/ [R=302,L]
 RewriteRule ^how-it-works$ /fpw/how-it-works/ [R=302,L]
 
 RewriteRule ^how-it-works/$ how-it-works.cfm [L,QSA]
+
+
+# ------------------------------------------------------------
+# FAQ canonical redirects
+# /faq
+#   -> /faq/
+#
+# /faq.cfm
+#   -> /faq/
+#
+# /faq/
+#   -> internal rewrite to FAQ index file
+# ------------------------------------------------------------
+
+RewriteCond %{THE_REQUEST} \s/+fpw/faq\.cfm[\s?] [NC]
+RewriteRule ^faq\.cfm$ /fpw/faq/ [R=302,L]
+
+RewriteRule ^faq$ /fpw/faq/ [R=302,L]
+
+RewriteRule ^faq/$ faq/index.cfm [L,QSA]

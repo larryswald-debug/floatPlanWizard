@@ -235,6 +235,7 @@ if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
         <a href="#footerBasePath#/app/account.cfm">My Account</a>
         <a href="#footerBasePath#/app/login.cfm">Log In</a>
         <a href="#footerBasePath#/app/join.cfm">Join Free</a>
+        <a href="#footerBasePath#/faq/">FAQ</a>
         <a href="#footerBasePath#/app/contact.cfm">Contact Support</a>
       </nav>
 

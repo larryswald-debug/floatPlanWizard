@@ -30,6 +30,89 @@ if (len(fpwHowBasePath) AND left(fpwHowBasePath, 1) NEQ "/") {
 request.fpwBase = fpwHowBasePath;
 fpwHowNotifyUrl = fpwHowBasePath & "/app/join.cfm" & chr(35) & "notify";
 fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm";
+
+
+fpwHowFaqItems = [
+  {
+    "id": "what-is-a-float-plan",
+    "question": "What is a float plan?",
+    "answer": [
+      "A float plan is a written record of your boating trip. It usually includes your vessel information, passengers, departure point, destination, expected return time, route notes, emergency contacts, and instructions for what someone should do if you are overdue.",
+      "FloatPlanWizard helps you create a more organized digital float plan that can be updated and shared with trusted family and friends."
+    ]
+  },
+  {
+    "id": "what-is-the-floatplanwizard-route-builder",
+    "question": "What is the FloatPlanWizard Route Builder?",
+    "answer": [
+      "The Route Builder helps you create a more complete boating trip plan by organizing your route, stops, timing, notes, and supporting float-plan details in one workflow.",
+      "Instead of only writing a destination and return time, you can build a route that better reflects how boat trips actually work: departure point, destination, possible stops, timing, fuel considerations, route notes, and information your family and friends may need while following the trip."
+    ]
+  },
+  {
+    "id": "do-my-contacts-need-an-account",
+    "question": "Do my contacts need an account?",
+    "answer": [
+      "No. Family and friends do not need a FloatPlanWizard account to view the trip information you share with them.",
+      "Only the captain or trip planner needs an account to create, manage, update, and share the float plan."
+    ]
+  },
+  {
+    "id": "can-i-use-it-for-local-trips",
+    "question": "Can I use it for local trips?",
+    "answer": [
+      "Yes. FloatPlanWizard works well for local trips because it helps you quickly organize the basic details: where you are leaving from, where you plan to go, who is with you, when you expect to return, and who should know about the trip.",
+      "Local trips are often the ones boaters take casually, which is exactly why having a simple plan can be helpful."
+    ]
+  },
+  {
+    "id": "what-if-my-plans-change",
+    "question": "What if my plans change?",
+    "answer": [
+      "You can update your float plan as your trip changes. Adjust your route details, timing, delay information, trip notes, or check-in status so your shared plan stays current.",
+      "If your plans change significantly, update the plan and let your contacts know to check the latest Follow page."
+    ]
+  },
+  {
+    "id": "how-much-does-floatplanwizard-cost",
+    "question": "How much does FloatPlanWizard cost?",
+    "answer": [
+      "Current access options, trial details, and membership pricing are shown on the pricing page. Because offers can change, the pricing page is the best place to confirm the latest details before signing up."
+    ]
+  }
+];
+
+function fpwHowFaqJoinParagraphs(required array paragraphs) {
+  var joinedText = "";
+  var paragraphIndex = 0;
+
+  for (paragraphIndex = 1; paragraphIndex LTE arrayLen(arguments.paragraphs); paragraphIndex++) {
+    if (len(joinedText)) {
+      joinedText &= chr(10) & chr(10);
+    }
+    joinedText &= arguments.paragraphs[paragraphIndex];
+  }
+
+  return joinedText;
+}
+
+fpwHowFaqSchemaMainEntity = [];
+for (fpwHowFaqItem in fpwHowFaqItems) {
+  fpwHowFaqQuestion = structNew("ordered");
+  fpwHowFaqAnswer = structNew("ordered");
+  structInsert(fpwHowFaqQuestion, "@type", "Question", true);
+  fpwHowFaqQuestion["name"] = fpwHowFaqItem.question;
+  structInsert(fpwHowFaqAnswer, "@type", "Answer", true);
+  fpwHowFaqAnswer["text"] = fpwHowFaqJoinParagraphs(fpwHowFaqItem.answer);
+  fpwHowFaqQuestion["acceptedAnswer"] = fpwHowFaqAnswer;
+  arrayAppend(fpwHowFaqSchemaMainEntity, fpwHowFaqQuestion);
+}
+
+fpwHowFaqSchema = structNew("ordered");
+structInsert(fpwHowFaqSchema, "@context", "https://schema.org", true);
+structInsert(fpwHowFaqSchema, "@type", "FAQPage", true);
+fpwHowFaqSchema["mainEntity"] = fpwHowFaqSchemaMainEntity;
+fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all");
 </cfscript>
 
 <!doctype html>
@@ -691,6 +774,20 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
       margin: 0;
     }
 
+    .fpw-faq-answer p + p {
+      margin-top: 12px;
+    }
+
+    .fpw-faq-full-link {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+    }
+
+    .fpw-faq-full-link .fpw-btn {
+      min-width: 280px;
+    }
+
     .fpw-how-final-cta {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
@@ -871,38 +968,7 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
   </style>
 <link rel="canonical" href="https://floatplanwizard.com/how-it-works/" />
 <cfoutput><link rel="stylesheet" href="#fpwHowBasePath#/assets/css/top-nav.css?v=20260530-nav-cta"></cfoutput>
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  "mainEntity": [
-    {
-      "@type": "Question",
-      "name": "Do my contacts need an account?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "No. Your contacts do not need a FloatPlanWizard account. They can view the trip information you choose to share from the secure Follow link you send them. Only the captain or trip planner needs an account to create, manage, and update the float plan."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Can I use it for local trips?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Yes. FloatPlanWizard works for short local trips, day trips, fuel runs, fishing trips, marina hops, and longer planned routes. Even a simple local trip is easier to share when someone ashore knows where you are going, when you expect to return, and how to follow your updates."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "What if my plans change?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "You can update your float plan as your trip changes. Adjust your route details, timing, delay information, trip notes, or check-in status so your shared plan stays current. If your plans change significantly, update the plan and let your contacts know to check the latest Follow page."
-      }
-    }
-  ]
-}
-</script>
+<script type="application/ld+json"><cfoutput>#fpwHowFaqJsonLdText#</cfoutput></script>
 </head>
 <body id="top" class="fpw-how-body">
 <cfinclude template="includes/top_nav.cfm">
@@ -1135,34 +1201,73 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
 
     <div class="fpw-faq-list" data-fpw-faq>
       <article class="fpw-faq-item">
-        <button class="fpw-faq-row" id="fpw-faq-question-contacts" type="button" aria-expanded="false" aria-controls="fpw-faq-answer-contacts">
+        <button class="fpw-faq-row" id="fpw-faq-question-what-is-a-float-plan" type="button" aria-expanded="false" aria-controls="fpw-faq-answer-what-is-a-float-plan">
+          <span>What is a float plan?</span>
+          <span class="fpw-faq-icon" aria-hidden="true">+</span>
+        </button>
+        <div class="fpw-faq-answer" id="fpw-faq-answer-what-is-a-float-plan" role="region" aria-labelledby="fpw-faq-question-what-is-a-float-plan" hidden>
+          <p>A float plan is a written record of your boating trip. It usually includes your vessel information, passengers, departure point, destination, expected return time, route notes, emergency contacts, and instructions for what someone should do if you are overdue.</p>
+          <p>FloatPlanWizard helps you create a more organized digital float plan that can be updated and shared with trusted family and friends.</p>
+        </div>
+      </article>
+
+      <article class="fpw-faq-item">
+        <button class="fpw-faq-row" id="fpw-faq-question-what-is-the-floatplanwizard-route-builder" type="button" aria-expanded="false" aria-controls="fpw-faq-answer-what-is-the-floatplanwizard-route-builder">
+          <span>What is the FloatPlanWizard Route Builder?</span>
+          <span class="fpw-faq-icon" aria-hidden="true">+</span>
+        </button>
+        <div class="fpw-faq-answer" id="fpw-faq-answer-what-is-the-floatplanwizard-route-builder" role="region" aria-labelledby="fpw-faq-question-what-is-the-floatplanwizard-route-builder" hidden>
+          <p>The Route Builder helps you create a more complete boating trip plan by organizing your route, stops, timing, notes, and supporting float-plan details in one workflow.</p>
+          <p>Instead of only writing a destination and return time, you can build a route that better reflects how boat trips actually work: departure point, destination, possible stops, timing, fuel considerations, route notes, and information your family and friends may need while following the trip.</p>
+        </div>
+      </article>
+
+      <article class="fpw-faq-item">
+        <button class="fpw-faq-row" id="fpw-faq-question-do-my-contacts-need-an-account" type="button" aria-expanded="false" aria-controls="fpw-faq-answer-do-my-contacts-need-an-account">
           <span>Do my contacts need an account?</span>
           <span class="fpw-faq-icon" aria-hidden="true">+</span>
         </button>
-        <div class="fpw-faq-answer" id="fpw-faq-answer-contacts" role="region" aria-labelledby="fpw-faq-question-contacts" hidden>
-          <p>No. Your contacts do not need a FloatPlanWizard account. They can view the trip information you choose to share from the secure Follow link you send them. Only the captain or trip planner needs an account to create, manage, and update the float plan.</p>
+        <div class="fpw-faq-answer" id="fpw-faq-answer-do-my-contacts-need-an-account" role="region" aria-labelledby="fpw-faq-question-do-my-contacts-need-an-account" hidden>
+          <p>No. Family and friends do not need a FloatPlanWizard account to view the trip information you share with them.</p>
+          <p>Only the captain or trip planner needs an account to create, manage, update, and share the float plan.</p>
         </div>
       </article>
 
       <article class="fpw-faq-item">
-        <button class="fpw-faq-row" id="fpw-faq-question-local-trips" type="button" aria-expanded="false" aria-controls="fpw-faq-answer-local-trips">
+        <button class="fpw-faq-row" id="fpw-faq-question-can-i-use-it-for-local-trips" type="button" aria-expanded="false" aria-controls="fpw-faq-answer-can-i-use-it-for-local-trips">
           <span>Can I use it for local trips?</span>
           <span class="fpw-faq-icon" aria-hidden="true">+</span>
         </button>
-        <div class="fpw-faq-answer" id="fpw-faq-answer-local-trips" role="region" aria-labelledby="fpw-faq-question-local-trips" hidden>
-          <p>Yes. FloatPlanWizard works for short local trips, day trips, fuel runs, fishing trips, marina hops, and longer planned routes. Even a simple local trip is easier to share when someone ashore knows where you are going, when you expect to return, and how to follow your updates.</p>
+        <div class="fpw-faq-answer" id="fpw-faq-answer-can-i-use-it-for-local-trips" role="region" aria-labelledby="fpw-faq-question-can-i-use-it-for-local-trips" hidden>
+          <p>Yes. FloatPlanWizard works well for local trips because it helps you quickly organize the basic details: where you are leaving from, where you plan to go, who is with you, when you expect to return, and who should know about the trip.</p>
+          <p>Local trips are often the ones boaters take casually, which is exactly why having a simple plan can be helpful.</p>
         </div>
       </article>
 
       <article class="fpw-faq-item">
-        <button class="fpw-faq-row" id="fpw-faq-question-plan-changes" type="button" aria-expanded="false" aria-controls="fpw-faq-answer-plan-changes">
+        <button class="fpw-faq-row" id="fpw-faq-question-what-if-my-plans-change" type="button" aria-expanded="false" aria-controls="fpw-faq-answer-what-if-my-plans-change">
           <span>What if my plans change?</span>
           <span class="fpw-faq-icon" aria-hidden="true">+</span>
         </button>
-        <div class="fpw-faq-answer" id="fpw-faq-answer-plan-changes" role="region" aria-labelledby="fpw-faq-question-plan-changes" hidden>
-          <p>You can update your float plan as your trip changes. Adjust your route details, timing, delay information, trip notes, or check-in status so your shared plan stays current. If your plans change significantly, update the plan and let your contacts know to check the latest Follow page.</p>
+        <div class="fpw-faq-answer" id="fpw-faq-answer-what-if-my-plans-change" role="region" aria-labelledby="fpw-faq-question-what-if-my-plans-change" hidden>
+          <p>You can update your float plan as your trip changes. Adjust your route details, timing, delay information, trip notes, or check-in status so your shared plan stays current.</p>
+          <p>If your plans change significantly, update the plan and let your contacts know to check the latest Follow page.</p>
         </div>
       </article>
+
+      <article class="fpw-faq-item">
+        <button class="fpw-faq-row" id="fpw-faq-question-how-much-does-floatplanwizard-cost" type="button" aria-expanded="false" aria-controls="fpw-faq-answer-how-much-does-floatplanwizard-cost">
+          <span>How much does FloatPlanWizard cost?</span>
+          <span class="fpw-faq-icon" aria-hidden="true">+</span>
+        </button>
+        <div class="fpw-faq-answer" id="fpw-faq-answer-how-much-does-floatplanwizard-cost" role="region" aria-labelledby="fpw-faq-question-how-much-does-floatplanwizard-cost" hidden>
+          <p>Current access options, trial details, and membership pricing are shown on the pricing page. Because offers can change, the pricing page is the best place to confirm the latest details before signing up.</p>
+        </div>
+      </article>
+    </div>
+
+    <div class="fpw-faq-full-link">
+      <a class="fpw-btn fpw-btn--secondary" href="<cfoutput>#fpwHowBasePath#/faq/</cfoutput>">View all frequently asked questions</a>
     </div>
   </section>
 
@@ -1213,6 +1318,15 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
           setFaqState(otherButton, false);
         });
         setFaqState(button, shouldOpen);
+      });
+
+      button.addEventListener("keydown", function (event) {
+        if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") {
+          return;
+        }
+
+        event.preventDefault();
+        button.click();
       });
     });
   })();

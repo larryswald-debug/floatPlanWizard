@@ -257,6 +257,10 @@
                     Already have an account?
                     <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/login.cfm">Log in</a>
                 </p>
+                <p class="fpw-login-link">
+                    Questions before joining?
+                    <a href="<cfoutput>#request.fpwBase#</cfoutput>/faq/">Read the FAQ</a>
+                </p>
             </form>
 
             <div class="fpw-signup-trust-strip" aria-label="Account trust information">
