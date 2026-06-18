@@ -236,8 +236,8 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
       grid-template-columns: minmax(0, 1fr) auto auto;
       gap: 14px;
       align-items: center;
-      min-height: 58px;
-      padding: 0 24px;
+      min-height: auto;
+      padding: 10px 24px 12px;
     }
 
     .fpw-trip-preview__header h2 {
@@ -283,6 +283,15 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
         radial-gradient(circle at 64% 84%, rgba(35, 215, 207, 0.2), transparent 18%),
         radial-gradient(circle at 18% 4%, rgba(54, 189, 245, 0.16), transparent 26%),
         linear-gradient(180deg, #041627, #02101d);
+    }
+
+    .fpw-map-card__image {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 292px;
+      object-fit: cover;
+      object-position: center;
     }
 
     .fpw-map-card__svg {
@@ -631,6 +640,10 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
       overflow: hidden;
     }
 
+    .fpw-faq-item + .fpw-faq-item {
+      border-top: 1px solid rgba(126, 205, 220, 0.18);
+    }
+
     .fpw-faq-row {
       width: 100%;
       min-height: 43px;
@@ -639,25 +652,43 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
       justify-content: space-between;
       gap: 20px;
       border: 0;
-      border-bottom: 1px solid rgba(126, 205, 220, 0.18);
       padding: 0 38px;
       color: #ffffff;
       background: transparent;
-      cursor: default;
+      cursor: pointer;
       font: inherit;
       font-size: 1rem;
       text-align: left;
     }
 
-    .fpw-faq-row:last-child {
-      border-bottom: 0;
+    .fpw-faq-row:focus-visible {
+      outline: 2px solid rgba(149, 248, 255, 0.8);
+      outline-offset: -4px;
     }
 
-    .fpw-faq-row span:last-child {
+    .fpw-faq-icon {
       color: #95f8ff;
       font-size: 1.65rem;
       font-weight: 300;
       line-height: 1;
+      transition: color 0.16s ease, transform 0.16s ease;
+    }
+
+    .fpw-faq-row[aria-expanded="true"] .fpw-faq-icon {
+      color: #ffffff;
+      transform: rotate(45deg);
+    }
+
+    .fpw-faq-answer {
+      padding: 0 38px 16px;
+      color: rgba(233, 243, 251, 0.76);
+      font-size: 0.96rem;
+      line-height: 1.55;
+    }
+
+    .fpw-faq-answer p {
+      max-width: 940px;
+      margin: 0;
     }
 
     .fpw-how-final-cta {
@@ -792,7 +823,7 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
       }
 
       .fpw-trip-preview__header {
-        padding: 0 16px;
+        padding: 10px 16px 12px;
       }
 
       .fpw-step-card {
@@ -805,6 +836,10 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
 
       .fpw-faq-row {
         padding: 0 18px;
+      }
+
+      .fpw-faq-answer {
+        padding: 0 18px 16px;
       }
 
       .fpw-how-final-cta {
@@ -836,6 +871,38 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
   </style>
 <link rel="canonical" href="https://floatplanwizard.com/how-it-works/" />
 <cfoutput><link rel="stylesheet" href="#fpwHowBasePath#/assets/css/top-nav.css?v=20260530-nav-cta"></cfoutput>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Do my contacts need an account?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. Your contacts do not need a FloatPlanWizard account. They can view the trip information you choose to share from the secure Follow link you send them. Only the captain or trip planner needs an account to create, manage, and update the float plan."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I use it for local trips?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. FloatPlanWizard works for short local trips, day trips, fuel runs, fishing trips, marina hops, and longer planned routes. Even a simple local trip is easier to share when someone ashore knows where you are going, when you expect to return, and how to follow your updates."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What if my plans change?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "You can update your float plan as your trip changes. Adjust your route details, timing, delay information, trip notes, or check-in status so your shared plan stays current. If your plans change significantly, update the plan and let your contacts know to check the latest Follow page."
+      }
+    }
+  ]
+}
+</script>
 </head>
 <body id="top" class="fpw-how-body">
 <cfinclude template="includes/top_nav.cfm">
@@ -876,32 +943,7 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
 
       <div class="fpw-trip-preview__body">
         <div class="fpw-map-card" aria-hidden="true">
-          <svg class="fpw-map-card__svg" viewBox="0 0 320 380" role="img">
-            <defs>
-              <filter id="fpwGlow">
-                <feGaussianBlur stdDeviation="4" result="coloredBlur"></feGaussianBlur>
-                <feMerge>
-                  <feMergeNode in="coloredBlur"></feMergeNode>
-                  <feMergeNode in="SourceGraphic"></feMergeNode>
-                </feMerge>
-              </filter>
-              <linearGradient id="fpwRouteGradient" x1="0" x2="1" y1="0" y2="1">
-                <stop offset="0%" stop-color="#9defff"></stop>
-                <stop offset="50%" stop-color="#2fd7e8"></stop>
-                <stop offset="100%" stop-color="#6fffdc"></stop>
-              </linearGradient>
-            </defs>
-            <path class="fpw-map-card__coast" d="M45 15 C80 70, 65 115, 95 160 C125 205, 105 250, 145 305 C170 340, 210 350, 260 365"></path>
-            <path class="fpw-map-card__grid" d="M15 90 H300 M25 170 H310 M35 250 H295 M80 20 V360 M165 15 V370 M245 25 V360"></path>
-            <path class="fpw-map-card__route" filter="url(#fpwGlow)" d="M122 58 C85 115, 115 160, 155 198 C198 239, 178 290, 214 326"></path>
-            <circle class="fpw-map-card__pin" cx="122" cy="58" r="8"></circle>
-            <circle class="fpw-map-card__pin fpw-map-card__pin--active" cx="214" cy="326" r="9"></circle>
-            <path class="fpw-map-card__spark" d="M260 252l4 4-4 4-4-4zM270 252l3 3-3 3-3-3z"></path>
-            <text class="fpw-map-card__label" x="142" y="82">Tarpon</text>
-            <text class="fpw-map-card__label" x="142" y="101">Springs</text>
-            <text class="fpw-map-card__label" x="150" y="315">Anclote</text>
-            <text class="fpw-map-card__label" x="150" y="334">Key</text>
-          </svg>
+          <cfoutput><img class="fpw-map-card__image" src="#fpwHowBasePath#/assets/images/anclote-key-route.png" alt=""></cfoutput>
         </div>
 
         <div class="fpw-trip-details">
@@ -1091,19 +1133,36 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
   <section class="fpw-how-section fpw-faq-section">
     <h2>Frequently Asked Questions</h2>
 
-    <div class="fpw-faq-list">
-      <button class="fpw-faq-row" type="button">
-        <span>Do my contacts need an account?</span>
-        <span aria-hidden="true">+</span>
-      </button>
-      <button class="fpw-faq-row" type="button">
-        <span>Can I use it for local trips?</span>
-        <span aria-hidden="true">+</span>
-      </button>
-      <button class="fpw-faq-row" type="button">
-        <span>What if my plans change?</span>
-        <span aria-hidden="true">+</span>
-      </button>
+    <div class="fpw-faq-list" data-fpw-faq>
+      <article class="fpw-faq-item">
+        <button class="fpw-faq-row" id="fpw-faq-question-contacts" type="button" aria-expanded="false" aria-controls="fpw-faq-answer-contacts">
+          <span>Do my contacts need an account?</span>
+          <span class="fpw-faq-icon" aria-hidden="true">+</span>
+        </button>
+        <div class="fpw-faq-answer" id="fpw-faq-answer-contacts" role="region" aria-labelledby="fpw-faq-question-contacts" hidden>
+          <p>No. Your contacts do not need a FloatPlanWizard account. They can view the trip information you choose to share from the secure Follow link you send them. Only the captain or trip planner needs an account to create, manage, and update the float plan.</p>
+        </div>
+      </article>
+
+      <article class="fpw-faq-item">
+        <button class="fpw-faq-row" id="fpw-faq-question-local-trips" type="button" aria-expanded="false" aria-controls="fpw-faq-answer-local-trips">
+          <span>Can I use it for local trips?</span>
+          <span class="fpw-faq-icon" aria-hidden="true">+</span>
+        </button>
+        <div class="fpw-faq-answer" id="fpw-faq-answer-local-trips" role="region" aria-labelledby="fpw-faq-question-local-trips" hidden>
+          <p>Yes. FloatPlanWizard works for short local trips, day trips, fuel runs, fishing trips, marina hops, and longer planned routes. Even a simple local trip is easier to share when someone ashore knows where you are going, when you expect to return, and how to follow your updates.</p>
+        </div>
+      </article>
+
+      <article class="fpw-faq-item">
+        <button class="fpw-faq-row" id="fpw-faq-question-plan-changes" type="button" aria-expanded="false" aria-controls="fpw-faq-answer-plan-changes">
+          <span>What if my plans change?</span>
+          <span class="fpw-faq-icon" aria-hidden="true">+</span>
+        </button>
+        <div class="fpw-faq-answer" id="fpw-faq-answer-plan-changes" role="region" aria-labelledby="fpw-faq-question-plan-changes" hidden>
+          <p>You can update your float plan as your trip changes. Adjust your route details, timing, delay information, trip notes, or check-in status so your shared plan stays current. If your plans change significantly, update the plan and let your contacts know to check the latest Follow page.</p>
+        </div>
+      </article>
     </div>
   </section>
 
@@ -1126,6 +1185,38 @@ fpwHowFuelUrl = fpwHowBasePath & "/boat-fuel-calculator/boat-fuel-calculator.cfm
     </a>
   </section>
 </main>
+
+<script>
+  (function () {
+    var faqList = document.querySelector("[data-fpw-faq]");
+    if (!faqList) {
+      return;
+    }
+
+    var faqButtons = Array.prototype.slice.call(faqList.querySelectorAll(".fpw-faq-row"));
+
+    function setFaqState(button, isOpen) {
+      var panelId = button.getAttribute("aria-controls");
+      var panel = panelId ? document.getElementById(panelId) : null;
+
+      button.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      if (panel) {
+        panel.hidden = !isOpen;
+      }
+    }
+
+    faqButtons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        var shouldOpen = button.getAttribute("aria-expanded") !== "true";
+
+        faqButtons.forEach(function (otherButton) {
+          setFaqState(otherButton, false);
+        });
+        setFaqState(button, shouldOpen);
+      });
+    });
+  })();
+</script>
 
 <cfinclude template="includes/footer.cfm">
 </body>

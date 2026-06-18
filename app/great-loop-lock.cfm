@@ -215,6 +215,7 @@ if (isCleanLockRoute AND detailModel.SUCCESS) {
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260604-lock-images">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
+  <cfinclude template="../includes/trustedsite.cfm">
 </head>
 <body id="top" class="fpw-lock-body">
 <cfinclude template="../includes/top_nav.cfm">

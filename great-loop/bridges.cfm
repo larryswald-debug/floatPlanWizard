@@ -320,6 +320,7 @@ if (taxonomyType NEQ "not-found") {
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-bridges.css?v=20260616-library-eyebrow-spacing">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
+  <cfinclude template="../includes/trustedsite.cfm">
 </head>
 <body class="fpw-bridge-body">
 <cfinclude template="../includes/top_nav.cfm">

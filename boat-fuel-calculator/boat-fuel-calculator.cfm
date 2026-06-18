@@ -1086,6 +1086,7 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
     }
   </style>
 <link rel="stylesheet" href="../assets/css/top-nav.css?v=20260530-nav-cta">
+<cfinclude template="../includes/trustedsite.cfm">
 </head>
 <body class="fuelcalc-page">
 <cfset request.fpwTopNavActive = "fuel">

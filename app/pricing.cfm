@@ -137,7 +137,7 @@
       <p class="pricing-kicker">Cancel anytime</p>
       <p class="pricing-desc">For regular boating season use.</p>
       <ul class="pricing-feature-list">
-        <li><span class="pricing-check"></span>Route-based float plans</li>
+        <li><span class="pricing-check"></span>Custom Route Generator</li>
         <li><span class="pricing-check"></span>Active Cruise</li>
         <li><span class="pricing-check"></span>Shareable Trip page</li>
         <li><span class="pricing-check"></span>Companion check-ins</li>
@@ -156,7 +156,7 @@
       <p class="pricing-kicker">Save about 25% vs monthly</p>
       <p class="pricing-desc">For frequent boaters who want Premium all year.</p>
       <ul class="pricing-feature-list">
-        <li><span class="pricing-check"></span>Route-based float plans</li>
+        <li><span class="pricing-check"></span>Custom Route Generator</li>
         <li><span class="pricing-check"></span>Active Cruise</li>
         <li><span class="pricing-check"></span>Shareable Trip page</li>
         <li><span class="pricing-check"></span>Companion check-ins</li>
@@ -174,7 +174,7 @@
       <p class="pricing-kicker pricing-pill">No subscription</p>
       <p class="pricing-desc">Full Premium access for a weekend or short trip.</p>
       <ul class="pricing-feature-list">
-        <li><span class="pricing-check"></span>Route-based float plans</li>
+        <li><span class="pricing-check"></span>Custom Route Generator</li>
         <li><span class="pricing-check"></span>Active Cruise</li>
         <li><span class="pricing-check"></span>Shareable Trip page</li>
         <li><span class="pricing-check"></span>Companion check-ins</li>
@@ -207,7 +207,7 @@
     <article class="pricing-panel pricing-premium-includes">
       <h2>Premium includes</h2>
       <ul>
-        <li><svg><use href="#fpw-icon-route"></use></svg>Route-based float plans</li>
+        <li><svg><use href="#fpw-icon-route"></use></svg>Custom Route Generator</li>
         <li><svg><use href="#fpw-icon-waves"></use></svg>Active Cruise trip dashboard</li>
         <li><svg><use href="#fpw-icon-follow"></use></svg>Shareable Trip page for family and friends</li>
         <li><svg><use href="#fpw-icon-phone"></use></svg>Companion app check-ins</li>
@@ -231,7 +231,7 @@
         <tbody>
           <tr><td>Basic float plan</td><td class="yes">✓</td><td class="yes">✓</td></tr>
           <tr><td>Same-day simple trip</td><td class="yes">✓</td><td class="yes">✓</td></tr>
-          <tr><td>Route-based float plans</td><td class="no">×</td><td class="yes">✓</td></tr>
+          <tr><td>Custom Route Generator</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>Active Cruise</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>Shareable Trip page</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>Companion check-ins</td><td class="no">×</td><td class="yes">✓</td></tr>

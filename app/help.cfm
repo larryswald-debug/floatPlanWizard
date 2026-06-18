@@ -71,7 +71,7 @@
             </article>
             <article>
               <h3>Premium route trips</h3>
-              <p>Premium adds saved routes, route-based float plans, Active Cruise, Follow Page sharing, companion check-ins, multi-day trips, and advanced monitoring.</p>
+              <p>Premium adds saved routes, Custom Route Generator, Active Cruise, Follow Page sharing, companion check-ins, multi-day trips, and advanced monitoring.</p>
             </article>
           </div>
 
@@ -115,7 +115,7 @@
             </article>
             <article>
               <h3>Routes and saved trips</h3>
-              <p>Premium route tools let you create and reuse boating routes, review legs, and prepare route-based float plans.</p>
+              <p>Premium route tools let you create and reuse boating routes, review legs, and prepare Custom Route Generator.</p>
             </article>
             <article>
               <h3>Basic Float Plan</h3>
