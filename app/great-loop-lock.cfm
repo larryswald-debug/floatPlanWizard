@@ -376,7 +376,7 @@ if (isCleanLockRoute AND detailModel.SUCCESS) {
         <section class="fpw-lock-panel">
           <h3>Plan With FPW</h3>
           <p>Add lock planning context to your route and account for lock delays in your float plan.</p>
-          <a class="fpw-lock-btn fpw-lock-btn--primary fpw-lock-btn--full" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Plan a Float Plan</a>
+          <a class="fpw-lock-btn fpw-lock-btn--primary fpw-lock-btn--full" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Plan Your Route</a>
         </section>
 
         <section class="fpw-lock-panel">

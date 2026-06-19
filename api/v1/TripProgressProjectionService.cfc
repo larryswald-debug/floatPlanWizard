@@ -689,7 +689,8 @@
             var completedNm = 0;
             var remainingNm = 0;
             var pct = 0;
-            var openSegments = getOpenSegments(arguments.segments);
+            var currentLegSegments = filterSegmentsForCurrentLeg(arguments.segments, arguments.currentLeg, arguments.out);
+            var openSegments = getOpenSegments(currentLegSegments);
             var openType = "";
             var isPaused = false;
             var expectedResumeAtUtc = "";
@@ -732,7 +733,7 @@
                 };
             }
             legStart = parseIsoUtc(arguments.currentLeg.startedAtUtc);
-            seconds = sumUnderwayOverlapSeconds(arguments.segments, legStart, arguments.asOfUtc);
+            seconds = sumUnderwayOverlapSeconds(currentLegSegments, legStart, arguments.asOfUtc);
             hours = seconds / 3600;
             if (arguments.progressSpeedKn GT 0) {
                 completedNm = min(safeNumber(arguments.currentLeg.distanceNm), hours * arguments.progressSpeedKn);
@@ -758,6 +759,52 @@
                 "statusDetail" = statusDetail,
                 "usesLatestCheckinAsAnchor" = false
             };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="filterSegmentsForCurrentLeg" access="private" returntype="array" output="false">
+        <cfargument name="segments" type="array" required="true">
+        <cfargument name="currentLeg" type="struct" required="true">
+        <cfargument name="out" type="struct" required="true">
+        <cfscript>
+            var filtered = [];
+            var hasRouteAwareSegments = false;
+            var currentLegOrder = (structKeyExists(arguments.currentLeg, "routeLegOrder") ? safeNumber(arguments.currentLeg.routeLegOrder) : 0);
+            var currentRouteInstanceId = (structKeyExists(arguments.out, "routeInstanceId") ? safeNumber(arguments.out.routeInstanceId) : 0);
+            var i = 0;
+            var segmentRouteInstanceId = 0;
+            var segmentLegOrder = 0;
+
+            for (i = 1; i LTE arrayLen(arguments.segments); i++) {
+                if (
+                    (structKeyExists(arguments.segments[i], "routeInstanceId") AND safeNumber(arguments.segments[i].routeInstanceId) GT 0)
+                    OR (structKeyExists(arguments.segments[i], "routeLegOrder") AND safeNumber(arguments.segments[i].routeLegOrder) GT 0)
+                ) {
+                    hasRouteAwareSegments = true;
+                    break;
+                }
+            }
+
+            if (!hasRouteAwareSegments OR currentLegOrder LTE 0) {
+                return arguments.segments;
+            }
+
+            for (i = 1; i LTE arrayLen(arguments.segments); i++) {
+                segmentRouteInstanceId = (structKeyExists(arguments.segments[i], "routeInstanceId") ? safeNumber(arguments.segments[i].routeInstanceId) : 0);
+                segmentLegOrder = (structKeyExists(arguments.segments[i], "routeLegOrder") ? safeNumber(arguments.segments[i].routeLegOrder) : 0);
+                if (
+                    segmentLegOrder EQ currentLegOrder
+                    AND (
+                        currentRouteInstanceId LTE 0
+                        OR segmentRouteInstanceId LTE 0
+                        OR segmentRouteInstanceId EQ currentRouteInstanceId
+                    )
+                ) {
+                    arrayAppend(filtered, arguments.segments[i]);
+                }
+            }
+
+            return filtered;
         </cfscript>
     </cffunction>
 

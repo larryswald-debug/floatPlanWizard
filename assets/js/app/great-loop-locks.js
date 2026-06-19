@@ -285,14 +285,17 @@
   function collectFilters() {
     var stateSelect = getControl("[data-lock-state-select]");
     var waterwaySelect = getControl("[data-lock-waterway-select]");
+    var searchInput = getControl("[data-lock-search-input]");
 
     return {
+      q: searchInput ? searchInput.value.trim() : "",
       state: stateSelect ? stateSelect.value : "",
       waterway: waterwaySelect ? waterwaySelect.value : ""
     };
   }
 
   function appendFilters(params, filters) {
+    if (filters.q) params.set("q", filters.q);
     if (filters.state) params.set("state", filters.state);
     if (filters.waterway) params.set("waterway", filters.waterway);
   }
@@ -490,8 +493,10 @@
   function clearFilters() {
     var stateSelect = getControl("[data-lock-state-select]");
     var waterwaySelect = getControl("[data-lock-waterway-select]");
+    var searchInput = getControl("[data-lock-search-input]");
     var emptyFilters = {};
 
+    if (searchInput) searchInput.value = "";
     if (stateSelect) stateSelect.value = "";
     if (waterwaySelect) waterwaySelect.value = "";
     setActiveWaterwayShortcut("");
@@ -539,6 +544,7 @@
 
   var stateSelect = getControl("[data-lock-state-select]");
   var waterwaySelect = getControl("[data-lock-waterway-select]");
+  var searchInput = getControl("[data-lock-search-input]");
   var clearLink = getControl("[data-lock-clear]");
 
   function applyWaterwayShortcut(link) {
@@ -547,6 +553,7 @@
       return;
     }
 
+    if (searchInput) searchInput.value = "";
     if (stateSelect) stateSelect.value = "";
     if (waterwaySelect) waterwaySelect.value = "";
     setActiveWaterwayShortcut(waterwayValue);
@@ -561,8 +568,7 @@
 
   if (window.history && window.history.replaceState) {
     var currentParams = new URLSearchParams(window.location.search);
-    if (currentParams.has("q")
-      || currentParams.has("hasVhf")
+    if (currentParams.has("hasVhf")
       || currentParams.has("hasPhone")
       || currentParams.has("hasNotes")
       || currentParams.has("lockSystem")

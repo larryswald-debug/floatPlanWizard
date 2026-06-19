@@ -6,6 +6,7 @@
 <cfscript>
 request.fpwTopNavActive = "great-loop-locks";
 filters = {
+  "q" = structKeyExists(url, "q") ? trim(toString(url.q)) : "",
   "state" = structKeyExists(url, "state") ? trim(toString(url.state)) : "",
   "waterway" = structKeyExists(url, "waterway") ? trim(toString(url.waterway)) : "",
   "limit" = "300"
@@ -363,6 +364,11 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
               <cfoutput><option value="#encodeForHTMLAttribute(facet.value)#"#selectedAttr(filters.waterway, facet.value)#>#encodeForHTML(facet.label)#</option></cfoutput>
             </cfloop>
           </select>
+        </label>
+
+        <label class="fpw-lock-field">
+          <span>Search Locks</span>
+          <input type="search" name="q" value="<cfoutput>#encodeForHTMLAttribute(filters.q)#</cfoutput>" placeholder="Lock name, city, waterway, or VHF" data-lock-search-input>
         </label>
 
         <div class="fpw-lock-filter-actions">
