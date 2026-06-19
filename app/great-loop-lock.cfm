@@ -421,7 +421,8 @@ if (isCleanLockRoute AND detailModel.SUCCESS) {
 <cfinclude template="../includes/footer.cfm">
 <cfif detailModel.SUCCESS>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/great-loop-locks.js?v=20260604-lock-images"></script>
+  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260619-nautical-charts"></script>
+  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/great-loop-locks.js?v=20260619-noaa-charts"></script>
 </cfif>
 </body>
 </html>

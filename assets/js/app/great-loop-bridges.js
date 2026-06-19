@@ -113,6 +113,21 @@
     statusEl.classList.toggle("is-error", !!isError);
   }
 
+  function addBaseLayer(targetMap) {
+    var baseLayer = window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: "&copy; OpenStreetMap"
+    }).addTo(targetMap);
+
+    if (window.FPW && typeof window.FPW.attachLeafletMarineLayers === "function") {
+      window.FPW.attachLeafletMarineLayers({
+        map: targetMap,
+        baseLayer: baseLayer,
+        includeRadar: false
+      });
+    }
+  }
+
   function initMap() {
     var dataNode = document.getElementById("fpwBridgeMapData");
     var initialRows = [];
@@ -123,10 +138,7 @@
       initialRows = [];
     }
     map = window.L.map(mapEl, { scrollWheelZoom: false });
-    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 18,
-      attribution: "&copy; OpenStreetMap"
-    }).addTo(map);
+    addBaseLayer(map);
     renderMarkers(initialRows);
   }
 
@@ -137,10 +149,7 @@
     var name = detailMapEl.getAttribute("data-name") || "Bridge location";
     if (isNaN(lat) || isNaN(lng)) return;
     var detailMap = window.L.map(detailMapEl, { scrollWheelZoom: false }).setView([lat, lng], 13);
-    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 18,
-      attribution: "&copy; OpenStreetMap"
-    }).addTo(detailMap);
+    addBaseLayer(detailMap);
     window.L.marker([lat, lng]).addTo(detailMap).bindPopup(escapeHtml(name));
   }
 

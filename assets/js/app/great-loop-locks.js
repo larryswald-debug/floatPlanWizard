@@ -90,10 +90,18 @@
   }
 
   function addBaseLayer(targetMap) {
-    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    var baseLayer = window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: "&copy; OpenStreetMap contributors"
     }).addTo(targetMap);
+
+    if (window.FPW && typeof window.FPW.attachLeafletMarineLayers === "function") {
+      window.FPW.attachLeafletMarineLayers({
+        map: targetMap,
+        baseLayer: baseLayer,
+        includeRadar: false
+      });
+    }
   }
 
   function renderMarkers(nextLocks) {
