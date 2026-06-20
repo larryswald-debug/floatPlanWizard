@@ -1,0 +1,47 @@
+/* /fpw/assets/css/layout.css */
+
+:root {
+  --fpw-page-max: 1200px;
+  --fpw-wide-max: 1320px;
+  --fpw-narrow-max: 860px;
+  --fpw-form-max: 680px;
+  --fpw-page-gutter: 32px;
+}
+
+@media (max-width: 1024px) {
+  :root {
+    --fpw-page-gutter: 24px;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --fpw-page-gutter: 16px;
+  }
+}
+
+.fpw-container,
+.fpw-container-wide,
+.fpw-container-narrow,
+.fpw-container-form,
+.fpw-layout-rail {
+  width: min(var(--fpw-current-container-max), calc(100% - (var(--fpw-page-gutter) * 2)));
+  margin-inline: auto;
+}
+
+.fpw-container {
+  --fpw-current-container-max: var(--fpw-page-max);
+}
+
+.fpw-container-wide,
+.fpw-layout-rail {
+  --fpw-current-container-max: var(--fpw-wide-max);
+}
+
+.fpw-container-narrow {
+  --fpw-current-container-max: var(--fpw-narrow-max);
+}
+
+.fpw-container-form {
+  --fpw-current-container-max: var(--fpw-form-max);
+}

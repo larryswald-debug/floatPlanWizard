@@ -1,7 +1,7 @@
 /* /fpw/assets/css/account.css */
 
     .account-main {
-      width: min(1480px, calc(100% - 48px));
+      width: min(var(--fpw-wide-max, 1320px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       margin: 0 auto;
       padding: 0.5rem 20px 1.5rem;
     }
@@ -259,7 +259,7 @@
 
     @media (max-width: 760px) {
       .account-main {
-        width: min(100% - 28px, 1480px);
+        width: min(var(--fpw-wide-max, 1320px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       }
 
       .account-body .companion-device-row {

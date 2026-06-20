@@ -7,7 +7,7 @@
 
 .fpw-site-header,
 .fpw-prelaunch-login-strip {
-  --fpw-nav-layout-max: 1480px;
+  --fpw-nav-layout-max: var(--fpw-wide-max, 1320px);
   --fpw-nav-bg: rgba(2, 15, 24, 0.97);
   --fpw-nav-bg-strong: rgba(3, 22, 34, 0.98);
   --fpw-nav-panel: rgba(8, 31, 45, 0.94);
@@ -51,7 +51,7 @@
 }
 
 .fpw-layout-rail {
-  width: min(var(--fpw-nav-layout-max, 1480px), calc(100% - 48px));
+  width: min(var(--fpw-nav-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
   margin-inline: auto;
 }
 
@@ -101,7 +101,7 @@
 }
 
 .fpw-nav-inner {
-  width: min(var(--fpw-nav-layout-max), calc(100% - 48px));
+  width: min(var(--fpw-nav-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
   min-height: 92px;
   margin: 0 auto;
   display: flex;
@@ -397,7 +397,7 @@
 }
 
 .fpw-app-subnav-inner {
-  width: min(var(--fpw-nav-layout-max), calc(100% - 48px));
+  width: min(var(--fpw-nav-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
   height: 44px;
   min-height: 44px;
   margin: 0 auto;
@@ -483,7 +483,7 @@
 }
 
 .fpw-prelaunch-login-strip .loginInner {
-  width: min(var(--fpw-nav-layout-max), calc(100% - 48px));
+  width: min(var(--fpw-nav-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
   min-height: 76px;
   margin: 0 auto;
   display: flex;
@@ -572,11 +572,11 @@
 
 @media (max-width: 1120px) {
   .fpw-layout-rail {
-    width: min(100% - 28px, var(--fpw-nav-layout-max, 1480px));
+    width: min(var(--fpw-nav-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
   }
 
   .fpw-nav-inner {
-    width: min(100% - 28px, var(--fpw-nav-layout-max));
+    width: min(var(--fpw-nav-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
     min-height: 76px;
   }
 
@@ -680,7 +680,7 @@
   }
 
   .fpw-prelaunch-login-strip .loginInner {
-    width: min(100% - 28px, var(--fpw-nav-layout-max));
+    width: min(var(--fpw-nav-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
   }
 
   .fpw-prelaunch-login-strip .field {

@@ -4121,10 +4121,10 @@ body.dashboard-body[data-fpw-page="dashboard"]::before{
 }
 
 .fpw-dashboard-main.dashboard-main{
-  width: 100%;
+  width: min(var(--fpw-wide-max, 1320px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
   max-width: none;
-  margin: 0;
-  padding: 26px var(--fpw-dashboard-gutter) 34px;
+  margin: 0 auto;
+  padding: 26px 0 34px;
 }
 
 .fpw-dashboard-header{
@@ -6270,7 +6270,7 @@ body.dashboard-body[data-fpw-page="dashboard"] h3{
   }
 
   .fpw-dashboard-main.dashboard-main{
-    padding: 20px 16px 28px;
+    padding: 20px 0 28px;
   }
 
   .fpw-dashboard-hero{
@@ -6297,7 +6297,7 @@ body.dashboard-body[data-fpw-page="dashboard"] h3{
 
 @media (max-width: 680px){
   .fpw-dashboard-main.dashboard-main{
-    padding: 16px 10px 24px;
+    padding: 16px 0 24px;
   }
 
   .fpw-dashboard-header,

@@ -29,7 +29,7 @@
         --wx-red: #f05b5b;
         --wx-radius: 8px;
         --wx-radius-sm: 5px;
-        --wx-max: 1480px;
+        --wx-max: var(--fpw-wide-max, 1320px);
       }
 
       .dashboard-main {
@@ -41,7 +41,7 @@
       }
 
       .fpw-weather-page {
-        width: min(var(--wx-max), calc(100% - 48px));
+        width: min(var(--wx-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
         margin: 0 auto;
         color: var(--wx-text);
         font-family: inherit;
@@ -703,7 +703,7 @@
       .weather-version { margin-left: auto; }
 
       @media (max-width: 1180px) {
-        .fpw-weather-page { width: min(100% - 28px, var(--wx-max)); }
+        .fpw-weather-page { width: min(var(--wx-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2))); }
         .weather-briefing-header { grid-template-columns: 1fr; }
         .weather-location-controls { min-width: 0; }
         .weather-control-row,
@@ -726,7 +726,7 @@
       }
 
       @media (max-width: 760px) {
-        .fpw-weather-page { width: min(100% - 28px, var(--wx-max)); }
+        .fpw-weather-page { width: min(var(--wx-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2))); }
         .fpw-weather-page h1 { font-size: 25px; }
         .weather-title-row { align-items: flex-start; }
         .weather-title-icon { width: 36px; height: 36px; font-size: 28px; }

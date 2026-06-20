@@ -13,7 +13,7 @@ body.fpw-bridge-body {
 }
 
 .fpw-bridge-shell {
-  width: min(1249px, calc(100% - 40px));
+  width: min(var(--fpw-wide-max, 1320px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
   margin: 0 auto;
 }
 
@@ -686,7 +686,7 @@ body.fpw-bridge-body {
 
 @media (max-width: 680px) {
   .fpw-bridge-shell {
-    width: min(100% - 24px, 1249px);
+    width: min(var(--fpw-wide-max, 1320px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
   }
 
   .fpw-bridge-card,

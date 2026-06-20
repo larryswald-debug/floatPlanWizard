@@ -329,6 +329,7 @@ if (isEarlyAccessPost) {
   
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="assets/css/layout.css?v=20260620-page-width">
   <style>
     :root {
       --bg: #07131c;
@@ -349,7 +350,7 @@ if (isEarlyAccessPost) {
       --radius-xl: 28px;
       --radius-lg: 20px;
       --radius-md: 14px;
-      --max: 1200px;
+      --max: var(--fpw-page-max, 1200px);
       --promo-strip-offset: 36px;
     }
 
@@ -371,7 +372,7 @@ if (isEarlyAccessPost) {
     img { max-width: 100%; display: block; }
 
     .shell {
-      width: min(calc(100% - 32px), var(--max));
+      width: min(var(--max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       margin: 0 auto;
     }
 
@@ -1744,7 +1745,7 @@ if (isEarlyAccessPost) {
     }
 
     @media (max-width: 780px) {
-      .shell { width: min(calc(100% - 20px), var(--max)); }
+      .shell { width: min(var(--max), calc(100% - (var(--fpw-page-gutter, 32px) * 2))); }
       .topbar-inner { align-items: flex-start; flex-direction: column; }
       .nav { width: 100%; justify-content: flex-start; }
       .hero { padding-top: 26px; }

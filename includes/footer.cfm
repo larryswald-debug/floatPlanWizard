@@ -46,7 +46,7 @@ if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
   }
 
   .fpw-site-footer {
-    --fpw-footer-layout-max: var(--fpw-nav-layout-max, var(--fpw-public-layout-max, var(--fpw-max, 1480px)));
+    --fpw-footer-layout-max: var(--fpw-wide-max, 1320px);
     width: 100vw;
     max-width: 100vw;
     margin-left: calc(50% - 50vw);
@@ -58,7 +58,7 @@ if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
   }
 
   .fpw-footer-shell {
-    width: min(var(--fpw-footer-layout-max), calc(100% - 48px));
+    width: min(var(--fpw-footer-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
     margin: 0 auto;
     border: 1px solid rgba(89, 132, 160, 0.35);
     border-radius: 28px;
@@ -166,7 +166,7 @@ if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
 
   @media (max-width: 860px) {
     .fpw-footer-shell {
-      width: min(100% - 28px, var(--fpw-footer-layout-max));
+      width: min(var(--fpw-footer-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       padding: 24px;
       border-radius: 22px;
     }

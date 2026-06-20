@@ -1019,6 +1019,7 @@ fpwFaqJsonLdText = replace(serializeJSON(fpwFaqSchema), "</", "<\/", "all");
   <meta name="twitter:description" content="In-depth answers about FloatPlanWizard float plans, Route Builder, secure Follow links, Active Cruise, membership, Stripe billing, TrustedSite, and boating safety.">
   <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
   <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
+  <cfoutput><link rel="stylesheet" href="#fpwFaqBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwFaqBasePath#/assets/css/top-nav.css?v=20260530-nav-cta"></cfoutput>
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
@@ -1038,7 +1039,7 @@ fpwFaqJsonLdText = replace(serializeJSON(fpwFaqSchema), "</", "<\/", "all");
       --fpw-faq-cyan: #7ffaf5;
       --fpw-faq-blue: #36bdf5;
       --fpw-faq-radius: 18px;
-      --fpw-public-layout-max: 1480px;
+      --fpw-public-layout-max: var(--fpw-page-max, 1200px);
     }
 
     * {
@@ -1065,7 +1066,7 @@ fpwFaqJsonLdText = replace(serializeJSON(fpwFaqSchema), "</", "<\/", "all");
     }
 
     .fpw-faq-page {
-      width: min(var(--fpw-public-layout-max), calc(100% - 40px));
+      width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       margin: 0 auto;
       padding: 18px 0 clamp(44px, 6vw, 82px);
     }
@@ -1398,7 +1399,7 @@ fpwFaqJsonLdText = replace(serializeJSON(fpwFaqSchema), "</", "<\/", "all");
 
     @media (max-width: 560px) {
       .fpw-faq-page {
-        width: min(100% - 28px, var(--fpw-public-layout-max));
+        width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
         padding-top: 18px;
       }
 

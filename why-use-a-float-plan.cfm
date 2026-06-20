@@ -138,7 +138,7 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
       --fpw-blue: #2087d9;
       --fpw-dark-blue: #04172b;
       --fpw-shadow: 0 24px 64px rgba(0, 0, 0, 0.42);
-      --fpw-public-layout-max: 1480px;
+      --fpw-public-layout-max: var(--fpw-page-max, 1200px);
       --fpw-max: var(--fpw-public-layout-max);
     }
 
@@ -172,7 +172,7 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
     }
 
     body.fpw-floatplan-public .shell {
-      width: min(calc(100% - 48px), var(--fpw-max));
+      width: min(var(--fpw-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       margin: 0 auto;
     }
 
@@ -279,7 +279,7 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
     }
 
     .fpw-floatplan-shell {
-      width: min(var(--fpw-max), calc(100% - 48px));
+      width: min(var(--fpw-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       margin: 0 auto;
       padding: 22px 0 18px;
       display: grid;
@@ -654,7 +654,7 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
     }
 
     .fpw-floatplan-footer__inner {
-      width: min(var(--fpw-max), calc(100% - 48px));
+      width: min(var(--fpw-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       margin: 0 auto;
       min-height: 64px;
       display: flex;
@@ -749,7 +749,7 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
       body.fpw-floatplan-public .shell,
       .fpw-floatplan-shell,
       .fpw-floatplan-footer__inner {
-        width: min(calc(100% - 28px), var(--fpw-max));
+        width: min(var(--fpw-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       }
 
       .fpw-floatplan-card-grid {
@@ -775,7 +775,7 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
       body.fpw-floatplan-public .shell,
       .fpw-floatplan-shell,
       .fpw-floatplan-footer__inner {
-        width: min(100% - 28px, var(--fpw-max));
+        width: min(var(--fpw-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       }
 
       body.fpw-floatplan-public .topbar-inner {
@@ -839,6 +839,7 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
       }
     }
   </style>
+<cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
 <cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/top-nav.css?v=20260530-nav-cta"></cfoutput>
 <cfinclude template="includes/analytics_clarity.cfm">
 <cfinclude template="includes/trustedsite.cfm">

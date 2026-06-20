@@ -1,6 +1,6 @@
 .fpw-site-header,
 .fpw-site-header * {
-  --fpw-public-layout-max: 1320px;
+  --fpw-public-layout-max: var(--fpw-page-max, 1200px);
   box-sizing: border-box;
 }
 
@@ -87,7 +87,7 @@
 }
 
 .fpw-nav-inner {
-  width: min(calc(100% - 48px), var(--fpw-public-layout-max));
+  width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
   margin: 0 auto;
   padding: 20px 0;
   display: grid;
@@ -477,7 +477,7 @@
 }
 
 .loginInner {
-  width: min(calc(100% - 48px), var(--fpw-public-layout-max));
+  width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
   margin: 0 auto;
   padding: 10px 0;
   display: flex;
@@ -645,7 +645,7 @@
   }
 
   .fpw-nav-inner {
-    width: min(calc(100% - 28px), var(--fpw-public-layout-max));
+    width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -790,7 +790,7 @@
   }
 
   .loginInner {
-    width: min(calc(100% - 28px), var(--fpw-public-layout-max));
+    width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
     padding: 12px 0;
     display: grid;
     grid-template-columns: 1fr;

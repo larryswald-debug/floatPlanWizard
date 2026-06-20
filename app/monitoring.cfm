@@ -315,7 +315,7 @@
     }
 
     .fpw-monitoring-shell {
-      width: min(1480px, calc(100% - 48px));
+      width: min(var(--fpw-wide-max, 1320px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       margin: 0 auto;
       padding: 1.5rem;
     }
@@ -694,7 +694,7 @@
 
     @media (max-width: 767.98px) {
       .fpw-monitoring-shell {
-        width: min(100% - 28px, 1480px);
+        width: min(var(--fpw-wide-max, 1320px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
         padding: .85rem;
       }
       .fpw-monitoring-data-grid { grid-template-columns: 1fr; }

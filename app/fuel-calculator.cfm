@@ -19,6 +19,7 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fuel Calculator</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/layout.css?v=20260620-page-width">
   <style>
     :root {
       --panel: rgba(11, 29, 43, 0.78);
@@ -35,7 +36,7 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
     html { scroll-behavior: smooth; }
     a { color: inherit; text-decoration: none; }
     .shell {
-      width: min(calc(100% - 48px), 1480px);
+      width: min(var(--fpw-wide-max, 1320px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       margin: 0 auto;
     }
     .topbar {
@@ -360,7 +361,7 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
       .fuelcalc-main .card .value { font-size: 34px; }
     }
     @media (max-width: 780px) {
-      .shell { width: min(calc(100% - 28px), 1480px); }
+      .shell { width: min(var(--fpw-wide-max, 1320px), calc(100% - (var(--fpw-page-gutter, 32px) * 2))); }
       .topbar-inner { align-items: flex-start; flex-direction: column; }
       .nav { width: 100%; justify-content: flex-start; }
     }

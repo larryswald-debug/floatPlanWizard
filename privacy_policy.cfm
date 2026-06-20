@@ -30,10 +30,14 @@
 }
 
 .fpw-legal-container {
-  width: min(var(--fpw-nav-layout-max, 1480px), calc(100% - 48px));
+  width: min(var(--fpw-page-max, 1200px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
   max-width: none;
   margin: 0 auto;
   padding: 0;
+}
+
+.fpw-legal-main .fpw-legal-container {
+  width: min(var(--fpw-narrow-max, 860px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
 }
 
 .fpw-legal-kicker {
@@ -159,12 +163,12 @@
 
 .fpw-legal-page .container,
 .fpw-legal-page .fpw-container {
-  max-width: var(--fpw-nav-layout-max, 1480px);
+  max-width: var(--fpw-page-max, 1200px);
 }
 
 @media (max-width: 760px) {
   .fpw-legal-container {
-    width: min(100% - 28px, var(--fpw-nav-layout-max, 1480px));
+    width: min(var(--fpw-page-max, 1200px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
   }
 
   .fpw-legal-hero {

@@ -25,7 +25,7 @@
 }
 
 .pricing-container {
-  width: min(1480px, calc(100% - 48px));
+  width: min(var(--fpw-page-max, 1200px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
   margin: 0 auto;
 }
 
@@ -470,7 +470,7 @@
 
 @media (max-width: 720px) {
   .pricing-container {
-    width: min(100% - 28px, 1480px);
+    width: min(var(--fpw-page-max, 1200px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
   }
 
   .pricing-hero {

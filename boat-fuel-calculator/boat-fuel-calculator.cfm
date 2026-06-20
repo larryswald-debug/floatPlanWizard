@@ -131,7 +131,7 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
     :root {
-      --fpw-public-layout-max: 1480px;
+      --fpw-public-layout-max: var(--fpw-wide-max, 1320px);
       --fuel-bg: #020914;
       --fuel-panel: rgba(7, 22, 38, 0.84);
       --fuel-panel-strong: rgba(4, 15, 28, 0.96);
@@ -171,7 +171,7 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
 
     .fpw-fuel-page {
       position: relative;
-      width: min(100% - 48px, 1480px);
+      width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       margin-inline: auto;
       padding: 28px 0 34px;
       overflow: hidden;
@@ -954,7 +954,7 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
 
     @media (max-width: 900px) {
       .fpw-fuel-page {
-        width: min(100% - 28px, 1480px);
+        width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       }
 
       .fuel-compact-hero {
@@ -1007,7 +1007,7 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
 
     @media (max-width: 640px) {
       .fpw-fuel-page {
-        width: min(100% - 28px, 1480px);
+        width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
         padding-top: 16px;
       }
 
@@ -1085,6 +1085,7 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
       }
     }
   </style>
+<link rel="stylesheet" href="../assets/css/layout.css?v=20260620-page-width">
 <link rel="stylesheet" href="../assets/css/top-nav.css?v=20260530-nav-cta">
 <cfinclude template="../includes/trustedsite.cfm">
 </head>

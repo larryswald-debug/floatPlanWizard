@@ -437,6 +437,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Active Cruise V2</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="<cfoutput>#activeCruiseV2BasePath#</cfoutput>/assets/css/layout.css?v=20260620-page-width">
 <link rel="stylesheet" href="<cfoutput>#activeCruiseV2BasePath#</cfoutput>/assets/css/top-nav.css?v=20260530-nav-cta">
   <cfinclude template="../includes/analytics_clarity.cfm">
   <style>
@@ -465,7 +466,7 @@
       line-height: 1.45;
     }
     main {
-      width: min(1480px, calc(100% - 48px));
+      width: min(var(--fpw-wide-max, 1320px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       margin: 0 auto;
       padding: 22px 0 42px;
     }
@@ -1286,7 +1287,7 @@
       --radius-xl: 28px;
       --radius-lg: 22px;
       --radius-md: 16px;
-      --max: 1480px;
+      --max: var(--fpw-wide-max, 1320px);
     }
 
     html { scroll-behavior: smooth; }
@@ -1305,7 +1306,7 @@
       padding: 22px 0 18px;
     }
     .shell {
-      width: min(calc(100% - 48px), var(--max));
+      width: min(var(--max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       margin: 0 auto;
     }
     .topbar {
@@ -3309,7 +3310,7 @@
     }
     @media (max-width: 780px) {
       main.main { width: auto; }
-      .shell { width: min(calc(100% - 28px), var(--max)); }
+      .shell { width: min(var(--max), calc(100% - (var(--fpw-page-gutter, 32px) * 2))); }
       .identity-strip,
       .layout,
       .supporting-grid,
@@ -3343,7 +3344,7 @@
       }
     }
     @media (max-width: 860px) {
-      .shell { width: min(calc(100% - 28px), var(--max)); }
+      .shell { width: min(var(--max), calc(100% - (var(--fpw-page-gutter, 32px) * 2))); }
       .topbar-inner,
       .hero-main,
       .section-header,

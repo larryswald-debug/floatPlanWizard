@@ -155,7 +155,7 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
       --fpw-how-cyan: #23d7cf;
       --fpw-how-blue: #36bdf5;
       --fpw-how-radius: 18px;
-      --fpw-public-layout-max: 1480px;
+      --fpw-public-layout-max: var(--fpw-page-max, 1200px);
     }
 
     * {
@@ -189,7 +189,7 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
 
     .fpw-how-page {
       position: relative;
-      width: min(var(--fpw-public-layout-max), calc(100% - 48px));
+      width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       margin: 0 auto;
       padding: 42px 0 8px;
       overflow: hidden;
@@ -899,7 +899,7 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
 
     @media (max-width: 780px) {
       .fpw-how-page {
-        width: min(100% - 28px, var(--fpw-public-layout-max));
+        width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
         padding-top: 28px;
       }
 
@@ -967,6 +967,7 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
     }
   </style>
 <link rel="canonical" href="https://floatplanwizard.com/how-it-works/" />
+<cfoutput><link rel="stylesheet" href="#fpwHowBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
 <cfoutput><link rel="stylesheet" href="#fpwHowBasePath#/assets/css/top-nav.css?v=20260530-nav-cta"></cfoutput>
 <script type="application/ld+json"><cfoutput>#fpwHowFaqJsonLdText#</cfoutput></script>
 </head>

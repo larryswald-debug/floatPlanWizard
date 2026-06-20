@@ -425,7 +425,7 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
       --radius-xl: 28px;
       --radius-lg: 20px;
       --radius-md: 14px;
-      --fpw-public-layout-max: 1480px;
+      --fpw-public-layout-max: var(--fpw-page-max, 1200px);
       --max: var(--fpw-public-layout-max);
       --promo-strip-offset: 36px;
     }
@@ -448,12 +448,12 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
     img { max-width: 100%; display: block; }
 
     .shell {
-      width: min(calc(100% - 48px), var(--max));
+      width: min(var(--max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       margin: 0 auto;
     }
 
     .topbar .shell {
-      width: min(calc(100% - 48px), var(--fpw-public-layout-max));
+      width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
     }
 
     .topbar {
@@ -1439,7 +1439,7 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
       position: relative;
       isolation: isolate;
       margin: 28px auto 10px;
-      width: min(calc(100% - 48px), var(--max));
+      width: min(var(--max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       max-width: var(--max);
       padding: 0;
       color: #eaf6ff;
@@ -1824,7 +1824,7 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
 
     @media (max-width: 760px) {
       .fpw-home-access-section {
-        width: min(calc(100% - 28px), var(--max));
+        width: min(var(--max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       }
 
       .fpw-home-access-inner {
@@ -2775,8 +2775,8 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
     }
 
     @media (max-width: 780px) {
-      .shell { width: min(calc(100% - 28px), var(--max)); }
-      .topbar .shell { width: min(calc(100% - 28px), var(--fpw-public-layout-max)); }
+      .shell { width: min(var(--max), calc(100% - (var(--fpw-page-gutter, 32px) * 2))); }
+      .topbar .shell { width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2))); }
       .topbar-inner { align-items: flex-start; flex-direction: column; }
       .nav { width: 100%; justify-content: flex-start; gap: 6px; }
       .nav a,
@@ -3004,6 +3004,7 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
       }
     }
   </style>
+<link rel="stylesheet" href="assets/css/layout.css?v=20260620-page-width">
 <link rel="stylesheet" href="assets/css/top-nav.css?v=20260530-nav-cta">
 <cfinclude template="includes/analytics_ga4.cfm">
 <cfinclude template="includes/analytics_clarity.cfm">

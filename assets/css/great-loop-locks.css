@@ -12,8 +12,8 @@
 }
 
 .fpw-lock-library-page {
-  --fpw-lock-page-max: 1440px;
-  --fpw-lock-page-gutter: clamp(1rem, 3vw, 2rem);
+  --fpw-lock-page-max: var(--fpw-wide-max, 1320px);
+  --fpw-lock-page-gutter: var(--fpw-page-gutter, 32px);
   min-height: 100vh;
   background:
     radial-gradient(circle at top right, rgba(54, 213, 226, 0.16), transparent 34rem),
@@ -35,9 +35,9 @@
 }
 
 .fpw-lock-compact-hero {
-  max-width: 1440px;
+  max-width: var(--fpw-lock-page-max);
   margin: 0 auto;
-  padding: 3.4rem clamp(1rem, 3vw, 2rem) 2rem;
+  padding: 3.4rem var(--fpw-lock-page-gutter) 2rem;
 }
 
 .fpw-lock-hero__inner {
@@ -48,7 +48,7 @@
 }
 
 .fpw-lock-library-hero .fpw-lock-hero__inner {
-  width: min(calc(var(--fpw-lock-page-max) - (var(--fpw-lock-page-gutter) * 2)), calc(100% - 40px));
+  width: min(var(--fpw-lock-page-max), calc(100% - (var(--fpw-lock-page-gutter) * 2)));
   max-width: none;
   padding: 0;
 }
@@ -149,7 +149,7 @@
 }
 
 .fpw-lock-stats {
-  width: min(calc(var(--fpw-lock-page-max) - (var(--fpw-lock-page-gutter) * 2)), calc(100% - 40px));
+  width: min(var(--fpw-lock-page-max), calc(100% - (var(--fpw-lock-page-gutter) * 2)));
   margin: 10px auto 18px;
   padding: 0;
   display: grid;
@@ -222,9 +222,10 @@
   grid-template-columns: 280px minmax(0, 1fr) 310px;
   gap: 1rem;
   align-items: start;
-  max-width: var(--fpw-lock-page-max);
+  width: min(var(--fpw-lock-page-max), calc(100% - (var(--fpw-lock-page-gutter) * 2)));
+  max-width: none;
   margin: 0 auto;
-  padding: 0 var(--fpw-lock-page-gutter);
+  padding: 0;
 }
 
 .fpw-lock-filters,
@@ -644,9 +645,9 @@
 .fpw-lock-guides {
   display: grid;
   grid-template-columns: 180px repeat(5, minmax(0, 1fr));
-  max-width: 1440px;
+  max-width: var(--fpw-lock-page-max);
   margin: 1rem auto 0;
-  padding: 0 clamp(1rem, 3vw, 2rem);
+  padding: 0 var(--fpw-lock-page-gutter);
 }
 
 .fpw-lock-guides header,
@@ -684,9 +685,9 @@
 }
 
 .fpw-lock-learning {
-  max-width: 1440px;
+  max-width: var(--fpw-lock-page-max);
   margin: 1rem auto 0;
-  padding: 0 clamp(1rem, 3vw, 2rem);
+  padding: 0 var(--fpw-lock-page-gutter);
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
@@ -700,9 +701,9 @@
 .fpw-lock-browse-page,
 .fpw-lock-taxonomy-locks,
 .fpw-lock-safety-note {
-  max-width: 1440px;
+  max-width: var(--fpw-lock-page-max);
   margin: 0 auto;
-  padding: 1rem clamp(1rem, 3vw, 2rem);
+  padding: 1rem var(--fpw-lock-page-gutter);
 }
 
 .fpw-lock-detail-preview {
@@ -1030,7 +1031,7 @@ body.is-lock-image-modal-open {
 @media (max-width: 760px) {
   .fpw-lock-library-hero .fpw-lock-hero__inner,
   .fpw-lock-stats {
-    width: min(100% - 24px, 1249px);
+    width: min(var(--fpw-lock-page-max), calc(100% - (var(--fpw-lock-page-gutter) * 2)));
   }
 
   .fpw-lock-cta,
