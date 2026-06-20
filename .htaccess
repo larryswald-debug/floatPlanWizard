@@ -137,3 +137,23 @@ RewriteRule ^faq\.cfm$ /fpw/faq/ [R=302,L]
 RewriteRule ^faq$ /fpw/faq/ [R=302,L]
 
 RewriteRule ^faq/$ faq/index.cfm [L,QSA]
+
+
+# ------------------------------------------------------------
+# Boating Guides: Nautical Charts canonical redirects
+# /boating-guides/nautical-charts/index.cfm
+#   -> /boating-guides/nautical-charts/
+#
+# /boating-guides/nautical-charts
+#   -> /boating-guides/nautical-charts/
+#
+# /boating-guides/nautical-charts/
+#   -> internal rewrite to guide index file
+# ------------------------------------------------------------
+
+RewriteCond %{THE_REQUEST} \s/+fpw/boating-guides/nautical-charts/index\.cfm[\s?] [NC]
+RewriteRule ^boating-guides/nautical-charts/index\.cfm$ /fpw/boating-guides/nautical-charts/ [R=302,L]
+
+RewriteRule ^boating-guides/nautical-charts$ /fpw/boating-guides/nautical-charts/ [R=302,L]
+
+RewriteRule ^boating-guides/nautical-charts/$ boating-guides/nautical-charts/index.cfm [L,QSA]
