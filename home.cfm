@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FloatPlanWizard — Route Builder + Follower Pages for Great Loopers</title>
   <meta name="description" content="Plan your route, share a follower page, and keep your crew/family in the loop. Great Loop templates included." />
-  <link rel="stylesheet" href="assets/css/layout.css?v=20260620-page-width">
+  <link rel="stylesheet" href="assets/css/layout.css?v=20260621-home-width">
 
   <style>
     :root{
@@ -45,7 +45,7 @@
     }
 
     a{ color:inherit; }
-    .container{ width: min(var(--fpw-page-max, 1200px), calc(100% - (var(--fpw-page-gutter, 32px) * 2))); max-width:none; margin:0 auto; padding:0; }
+    .container{ width: min(var(--fpw-wide-max, 1320px), calc(100% - (var(--fpw-page-gutter, 32px) * 2))); max-width:none; margin:0 auto; padding:0; }
 
     /* Top nav */
     .topbar{
@@ -1344,3 +1344,5 @@
   </script>
 </body>
 </html>
+
+

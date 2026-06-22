@@ -210,6 +210,10 @@ topNavShowAppSubnav = topNavIsLoggedIn
                   <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 12h16"></path><path d="M6 12l2-5h8l2 5"></path><path d="M7 12v6"></path><path d="M17 12v6"></path><path d="M3 18h18"></path></svg>
                   <span><strong>Great Loop Bridge Library</strong><small>Clearances, drawbridge contacts, schedules, and planning notes</small></span>
                 </a>
+                <a href="#topNavBasePath#/great-loop/anchorages/" role="menuitem">
+                  <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v18"></path><path d="M5 10h14"></path><path d="M8 21h8"></path><path d="M7 14a5 5 0 0 0 10 0"></path><circle cx="12" cy="7" r="2"></circle></svg>
+                  <span><strong>Great Loop Anchorage Library</strong><small>Published anchorages, maps, filters, and planning notes</small></span>
+                </a>
                 <a href="#topNavBasePath#/why-use-a-float-plan" role="menuitem">
                   <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z"></path><path d="M8 7h8"></path><path d="M8 11h7"></path></svg>
                   <span><strong>Float Plan Basics</strong><small>Learn how float plans work</small></span>

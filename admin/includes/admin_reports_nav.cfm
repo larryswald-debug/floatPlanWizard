@@ -33,6 +33,7 @@ if (!len(currentAdminFile) AND structKeyExists(cgi, "CF_TEMPLATE_PATH")) {
 adminReportPages = [
     { "file" = "floatplan-cleanup.cfm", "label" = "FloatPlan Cleanup" },
     { "file" = "fuel-calculator.cfm", "label" = "Fuel Calculator" },
+    { "file" = "great-loop-anchorages.cfm", "label" = "Great Loop Anchorages" },
     { "file" = "great-loop-bridges.cfm", "label" = "Great Loop Bridges" },
     { "file" = "great-loop-bridge-import.cfm", "label" = "Great Loop Bridges Import" },
     { "file" = "great-loop-locks.cfm", "label" = "Great Loop Locks" },
