@@ -37,7 +37,8 @@
 .fpw-lock-compact-hero {
   max-width: var(--fpw-lock-page-max);
   margin: 0 auto;
-  padding: 3.4rem var(--fpw-lock-page-gutter) 2rem;
+  padding: 10px var(--fpw-lock-page-gutter);
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 .fpw-lock-hero__inner {
@@ -88,10 +89,11 @@
 
 .fpw-lock-compact-hero h1 {
   margin: 0;
-  color: #f4f9ff;
-  font-size: clamp(2.45rem, 5vw, 5rem);
-  line-height: 0.98;
-  letter-spacing: -0.045em;
+  max-width: 900px;
+  color: #f7fbff;
+  font-size: 40px;
+  line-height: 0.95;
+  letter-spacing: 0;
 }
 
 .fpw-lock-hero__lede {
@@ -103,10 +105,10 @@
 }
 
 .fpw-lock-compact-hero p {
-  max-width: 780px;
-  margin: 1.2rem 0 0;
-  color: #d6e8f8;
-  font-size: clamp(1.05rem, 1.6vw, 1.25rem);
+  max-width: 880px;
+  margin: 22px 0 0;
+  color: #c9d7e8;
+  font-size: clamp(1.05rem, 1.4vw, 1.35rem);
   line-height: 1.55;
 }
 
@@ -196,7 +198,7 @@
 }
 
 .fpw-lock-cta {
-  max-width: calc(var(--fpw-lock-page-max) - (var(--fpw-lock-page-gutter) * 2));
+  width: min(var(--fpw-lock-page-max), calc(100% - (var(--fpw-lock-page-gutter) * 2)));
   margin-bottom: 1rem;
   display: flex;
   align-items: center;

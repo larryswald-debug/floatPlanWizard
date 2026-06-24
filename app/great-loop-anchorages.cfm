@@ -35,6 +35,23 @@ facets = model.FACETS;
 mapRows = [];
 isHubRoute = !len(taxonomyType);
 isTaxonomyRoute = len(taxonomyType) AND taxonomyType NEQ "not-found";
+taxonomyParentLocationGroup = "";
+taxonomyParentLocationCanonicalUrl = "";
+if (taxonomyType EQ "waterway" AND arrayLen(anchorageRows)) {
+  taxonomyLocationGroups = [];
+  taxonomyLocationGroupSeen = {};
+  for (taxonomyRow in anchorageRows) {
+    taxonomyRowLocationGroup = trim(toString(isNull(taxonomyRow.location_group) ? "" : taxonomyRow.location_group));
+    if (len(taxonomyRowLocationGroup) AND !structKeyExists(taxonomyLocationGroupSeen, lCase(taxonomyRowLocationGroup))) {
+      taxonomyLocationGroupSeen[lCase(taxonomyRowLocationGroup)] = true;
+      arrayAppend(taxonomyLocationGroups, taxonomyRowLocationGroup);
+    }
+  }
+  if (arrayLen(taxonomyLocationGroups) EQ 1) {
+    taxonomyParentLocationGroup = taxonomyLocationGroups[1];
+    taxonomyParentLocationCanonicalUrl = canonicalBase & "location/" & anchorageSvc.normalizeSlug(taxonomyParentLocationGroup) & "/";
+  }
+}
 pageTitle = "Great Loop and Eastern U.S. Anchorages | FloatPlanWizard";
 pageDescription = "Explore Great Loop and Eastern U.S. anchorage reference points for recreational boating trip planning, including ICW, Chesapeake, Florida, Gulf Coast, Great Lakes, and inland river anchorages. Verify current charts and local rules before anchoring.";
 pageHeading = "Great Loop and Eastern U.S. Anchorages";
@@ -122,6 +139,8 @@ function taxonomyUrl(required string typeName, required string value) {
   return libraryUrl & normalizedType & "/" & slug & "/";
 }
 
+taxonomyParentLocationUrl = len(taxonomyParentLocationGroup) ? taxonomyUrl("location", taxonomyParentLocationGroup) : "";
+
 function locationLine(required struct anchorageItem) {
   var pieces = [];
   if (len(trim(toString(arguments.anchorageItem.nearest_city)))) arrayAppend(pieces, trim(toString(arguments.anchorageItem.nearest_city)));
@@ -182,10 +201,21 @@ arrayAppend(schemaGraph, webSiteSchema);
 
 breadcrumbSchema = structNew("ordered");
 structInsert(breadcrumbSchema, schemaTypeKey, "BreadcrumbList", true);
+structInsert(breadcrumbSchema, schemaIdKey, canonicalUrl & "##breadcrumb", true);
 breadcrumbItems = [
-  { "position" = 1, "name" = "Home", "item" = "https://floatplanwizard.com/" },
-  { "position" = 2, "name" = "Great Loop Anchorages", "item" = canonicalUrl }
+  { "position" = 1, "name" = "FloatPlanWizard", "item" = "https://floatplanwizard.com/" },
+  { "position" = 2, "name" = "Great Loop Anchorages", "item" = canonicalBase }
 ];
+if (isTaxonomyRoute AND len(taxonomyName)) {
+  if (taxonomyType EQ "waterway" AND len(taxonomyParentLocationGroup) AND len(taxonomyParentLocationCanonicalUrl)) {
+    arrayAppend(breadcrumbItems, {
+      "position" = arrayLen(breadcrumbItems) + 1,
+      "name" = taxonomyParentLocationGroup,
+      "item" = taxonomyParentLocationCanonicalUrl
+    });
+  }
+  arrayAppend(breadcrumbItems, { "position" = arrayLen(breadcrumbItems) + 1, "name" = taxonomyName, "item" = canonicalUrl });
+}
 breadcrumbSchema["itemListElement"] = [];
 for (crumb in breadcrumbItems) {
   crumbItem = structNew("ordered");
@@ -204,6 +234,7 @@ pageSchema["name"] = pageTitle;
 pageSchema["description"] = pageDescription;
 pageSchema["url"] = canonicalUrl;
 pageSchema["isPartOf"] = schemaRef("https://floatplanwizard.com/##website");
+pageSchema["breadcrumb"] = schemaRef(canonicalUrl & "##breadcrumb");
 arrayAppend(schemaGraph, pageSchema);
 
 itemListSchema = structNew("ordered");
@@ -280,6 +311,18 @@ pageJsonLdText = serializeJSON(schemaRoot);
     </div>
     <a class="fpw-anchorage-btn fpw-anchorage-btn--primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Create a Float Plan</a>
   </section>
+
+  <nav class="fpw-anchorage-breadcrumbs fpw-anchorage-shell" aria-label="Breadcrumb">
+    <a href="<cfoutput>#encodeForHTMLAttribute(libraryUrl)#</cfoutput>">Great Loop Anchorages</a>
+    <cfif isTaxonomyRoute AND len(taxonomyName)>
+      <cfif taxonomyType EQ "waterway" AND len(taxonomyParentLocationGroup) AND len(taxonomyParentLocationUrl)>
+        <span aria-hidden="true">&rsaquo;</span>
+        <a href="<cfoutput>#encodeForHTMLAttribute(taxonomyParentLocationUrl)#</cfoutput>"><cfoutput>#encodeForHTML(taxonomyParentLocationGroup)#</cfoutput></a>
+      </cfif>
+      <span aria-hidden="true">&rsaquo;</span>
+      <span><cfoutput>#encodeForHTML(taxonomyName)#</cfoutput></span>
+    </cfif>
+  </nav>
 
   <section class="fpw-anchorage-finder fpw-anchorage-shell" id="fpwAnchorageFinder" aria-labelledby="fpwAnchorageFinderTitle">
     <aside class="fpw-anchorage-panel fpw-anchorage-filters">

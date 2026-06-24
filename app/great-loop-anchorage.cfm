@@ -70,6 +70,25 @@ function detailUrl(required string slugValue) {
   return libraryUrl & slug & "/";
 }
 
+function taxonomyUrl(required string typeName, required string value) {
+  var slug = anchorageSvc.normalizeSlug(arguments.value);
+  var taxonomyParams = {
+    "location" = "locationSlug",
+    "waterway" = "waterwaySlug"
+  };
+  var normalizedType = lCase(trim(arguments.typeName));
+  if (!len(slug)) {
+    return libraryUrl;
+  }
+  if (isLocalDevHost() AND structKeyExists(taxonomyParams, normalizedType)) {
+    return libraryUrl & "index.cfm?" & taxonomyParams[normalizedType] & "=" & urlEncodedFormat(slug);
+  }
+  return libraryUrl & normalizedType & "/" & slug & "/";
+}
+
+detailLocationUrl = detailModel.SUCCESS AND hasText(anchorageItem.location_group) ? taxonomyUrl("location", anchorageItem.location_group) : "";
+detailWaterwayUrl = detailModel.SUCCESS AND hasText(anchorageItem.waterway) ? taxonomyUrl("waterway", anchorageItem.waterway) : "";
+
 schemaAtKey = chr(64);
 schemaTypeKey = schemaAtKey & "type";
 schemaIdKey = schemaAtKey & "id";
@@ -100,26 +119,35 @@ arrayAppend(schemaGraph, webSiteSchema);
 
 breadcrumbSchema = structNew("ordered");
 structInsert(breadcrumbSchema, schemaTypeKey, "BreadcrumbList", true);
-breadcrumbSchema["itemListElement"] = [];
-crumbHome = structNew("ordered");
-structInsert(crumbHome, schemaTypeKey, "ListItem", true);
-crumbHome["position"] = 1;
-crumbHome["name"] = "Home";
-crumbHome["item"] = "https://floatplanwizard.com/";
-arrayAppend(breadcrumbSchema["itemListElement"], crumbHome);
-crumbHub = structNew("ordered");
-structInsert(crumbHub, schemaTypeKey, "ListItem", true);
-crumbHub["position"] = 2;
-crumbHub["name"] = "Great Loop Anchorages";
-crumbHub["item"] = canonicalBase;
-arrayAppend(breadcrumbSchema["itemListElement"], crumbHub);
+structInsert(breadcrumbSchema, schemaIdKey, canonicalUrl & "##breadcrumb", true);
+breadcrumbItems = [
+  { "name" = "FloatPlanWizard", "item" = "https://floatplanwizard.com/" },
+  { "name" = "Great Loop Anchorages", "item" = canonicalBase }
+];
 if (detailModel.SUCCESS) {
-  crumbDetail = structNew("ordered");
-  structInsert(crumbDetail, schemaTypeKey, "ListItem", true);
-  crumbDetail["position"] = 3;
-  crumbDetail["name"] = anchorageItem.anchorage_name;
-  crumbDetail["item"] = canonicalUrl;
-  arrayAppend(breadcrumbSchema["itemListElement"], crumbDetail);
+  if (hasText(anchorageItem.location_group)) {
+    arrayAppend(breadcrumbItems, {
+      "name" = anchorageItem.location_group,
+      "item" = canonicalBase & "location/" & anchorageSvc.normalizeSlug(anchorageItem.location_group) & "/"
+    });
+  }
+  if (hasText(anchorageItem.waterway)) {
+    arrayAppend(breadcrumbItems, {
+      "name" = anchorageItem.waterway,
+      "item" = canonicalBase & "waterway/" & anchorageSvc.normalizeSlug(anchorageItem.waterway) & "/"
+    });
+  }
+  arrayAppend(breadcrumbItems, { "name" = anchorageItem.anchorage_name, "item" = canonicalUrl });
+}
+breadcrumbSchema["itemListElement"] = [];
+for (crumbIndex = 1; crumbIndex LTE arrayLen(breadcrumbItems); crumbIndex++) {
+  crumb = breadcrumbItems[crumbIndex];
+  crumbItem = structNew("ordered");
+  structInsert(crumbItem, schemaTypeKey, "ListItem", true);
+  crumbItem["position"] = crumbIndex;
+  crumbItem["name"] = crumb.name;
+  crumbItem["item"] = crumb.item;
+  arrayAppend(breadcrumbSchema["itemListElement"], crumbItem);
 }
 arrayAppend(schemaGraph, breadcrumbSchema);
 
@@ -130,6 +158,7 @@ pageSchema["name"] = pageTitle;
 pageSchema["description"] = pageDescription;
 pageSchema["url"] = canonicalUrl;
 pageSchema["isPartOf"] = schemaRef("https://floatplanwizard.com/##website");
+pageSchema["breadcrumb"] = schemaRef(canonicalUrl & "##breadcrumb");
 arrayAppend(schemaGraph, pageSchema);
 
 if (detailModel.SUCCESS AND hasValidCoordinates) {
@@ -190,6 +219,22 @@ pageJsonLdText = serializeJSON(schemaRoot);
       </cfif>
     </div>
   </section>
+
+  <nav class="fpw-anchorage-breadcrumbs fpw-anchorage-shell" aria-label="Breadcrumb">
+    <a href="<cfoutput>#encodeForHTMLAttribute(libraryUrl)#</cfoutput>">Great Loop Anchorages</a>
+    <cfif detailModel.SUCCESS>
+      <cfif hasText(anchorageItem.location_group)>
+        <span aria-hidden="true">&rsaquo;</span>
+        <a href="<cfoutput>#encodeForHTMLAttribute(detailLocationUrl)#</cfoutput>"><cfoutput>#encodeForHTML(anchorageItem.location_group)#</cfoutput></a>
+      </cfif>
+      <cfif hasText(anchorageItem.waterway)>
+        <span aria-hidden="true">&rsaquo;</span>
+        <a href="<cfoutput>#encodeForHTMLAttribute(detailWaterwayUrl)#</cfoutput>"><cfoutput>#encodeForHTML(anchorageItem.waterway)#</cfoutput></a>
+      </cfif>
+      <span aria-hidden="true">&rsaquo;</span>
+      <span><cfoutput>#encodeForHTML(anchorageItem.anchorage_name)#</cfoutput></span>
+    </cfif>
+  </nav>
 
   <cfif NOT detailModel.SUCCESS>
     <section class="fpw-anchorage-panel fpw-anchorage-shell">

@@ -319,6 +319,15 @@
     });
   }
 
+  function resetOtherSelects(activeSelect) {
+    if (!formEl || !activeSelect) return;
+    Array.prototype.slice.call(formEl.querySelectorAll("select")).forEach(function (selectEl) {
+      if (selectEl !== activeSelect) {
+        selectEl.value = "";
+      }
+    });
+  }
+
   function clearFilters(event) {
     if (event) event.preventDefault();
     if (!formEl) return;
@@ -351,7 +360,10 @@
       applyFilters();
     });
     Array.prototype.slice.call(formEl.querySelectorAll("select")).forEach(function (selectEl) {
-      selectEl.addEventListener("change", applyFilters);
+      selectEl.addEventListener("change", function () {
+        resetOtherSelects(selectEl);
+        applyFilters();
+      });
     });
     var clearLink = formEl.querySelector("[data-anchorage-clear]");
     if (clearLink) clearLink.addEventListener("click", clearFilters);
