@@ -48,18 +48,18 @@
 
 .fpw-anchorage-hero h1 {
   margin: 0;
-  max-width: 960px;
+  max-width: 900px;
   color: #f7fbff;
   font-size: 40px;
-  line-height: 1;
+  line-height: 0.95;
   letter-spacing: 0;
 }
 
 .fpw-anchorage-hero p:not(.fpw-anchorage-eyebrow) {
-  max-width: 940px;
-  margin: 18px 0 0;
+  max-width: 880px;
+  margin: 22px 0 0;
   color: #c9d7e8;
-  font-size: clamp(1.05rem, 1.4vw, 1.32rem);
+  font-size: clamp(1.05rem, 1.4vw, 1.35rem);
   line-height: 1.55;
 }
 
@@ -279,6 +279,11 @@
   min-height: 430px;
 }
 
+.fpw-anchorage-map .leaflet-control-zoom a,
+.fpw-anchorage-detail-map .leaflet-control-zoom a {
+  color: #000;
+}
+
 .fpw-anchorage-empty-map,
 .fpw-anchorage-empty-state {
   margin: 12px 0 0;
@@ -441,10 +446,6 @@
 @media (max-width: 760px) {
   .fpw-anchorage-page {
     --fpw-anchorage-page-gutter: 18px;
-  }
-
-  .fpw-anchorage-hero h1 {
-    font-size: 2.35rem;
   }
 
   .fpw-anchorage-stats,

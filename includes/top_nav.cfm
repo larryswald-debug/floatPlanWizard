@@ -118,6 +118,97 @@ if (topNavIsLoggedIn) {
   }
 }
 
+function renderFpwNavIcon(required string name, string extraClass = "") output=false {
+  var iconName = lCase(trim(arguments.name));
+  var iconClass = "fpw-svg-icon";
+  var iconViewBox = "0 0 48 48";
+  var iconPaths = "";
+
+  if (len(trim(arguments.extraClass))) {
+    iconClass = iconClass & " " & trim(arguments.extraClass);
+  }
+
+  switch (iconName) {
+    case "brand-wheel":
+      iconClass = iconClass & " fpw-icon-brand-wheel";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<circle cx="32" cy="32" r="13"></circle><circle cx="32" cy="32" r="5"></circle><path d="M32 4v10"></path><path d="M32 50v10"></path><path d="M4 32h10"></path><path d="M50 32h10"></path><path d="M12.2 12.2l7.1 7.1"></path><path d="M44.7 44.7l7.1 7.1"></path><path d="M51.8 12.2l-7.1 7.1"></path><path d="M19.3 44.7l-7.1 7.1"></path><circle cx="32" cy="4" r="2.6"></circle><circle cx="32" cy="60" r="2.6"></circle><circle cx="4" cy="32" r="2.6"></circle><circle cx="60" cy="32" r="2.6"></circle><circle cx="12.2" cy="12.2" r="2.3"></circle><circle cx="51.8" cy="12.2" r="2.3"></circle><circle cx="12.2" cy="51.8" r="2.3"></circle><circle cx="51.8" cy="51.8" r="2.3"></circle>';
+      break;
+    case "how":
+      iconClass = iconClass & " fpw-icon-how";
+      iconPaths = '<circle cx="24" cy="24" r="15"></circle><path d="M14 34L34 14"></path><path d="M19 16h7"></path><path d="M22 32h7"></path>';
+      break;
+    case "route":
+      iconClass = iconClass & " fpw-icon-route";
+      iconPaths = '<path d="M14 38c8-8 13 6 22-3"></path><path d="M16 13c0 5-6 8-6 8s-6-3-6-8a6 6 0 0 1 12 0z"></path><circle cx="10" cy="13" r="2"></circle><path d="M44 17c0 5-6 8-6 8s-6-3-6-8a6 6 0 0 1 12 0z"></path><circle cx="38" cy="17" r="2"></circle><path d="M18 25h5"></path><path d="M27 25h3"></path>';
+      break;
+    case "map":
+      iconClass = iconClass & " fpw-icon-map";
+      iconPaths = '<path d="M7 12l10-4 14 4 10-4v28l-10 4-14-4-10 4z"></path><path d="M17 8v28"></path><path d="M31 12v28"></path>';
+      break;
+    case "tools":
+      iconClass = iconClass & " fpw-icon-tools";
+      iconPaths = '<path d="M31 6a10 10 0 0 0 11 13L20 41a6 6 0 0 1-8-8l22-22A10 10 0 0 0 31 6z"></path><circle cx="16" cy="36" r="2"></circle>';
+      break;
+    case "pricing":
+      iconClass = iconClass & " fpw-icon-pricing";
+      iconPaths = '<path d="M8 21L21 8h17v17L25 38z"></path><circle cx="32" cy="16" r="3"></circle>';
+      break;
+    case "user":
+      iconClass = iconClass & " fpw-icon-user";
+      iconPaths = '<circle cx="24" cy="24" r="18"></circle><circle cx="24" cy="18" r="6"></circle><path d="M13 36c3-7 19-7 22 0"></path>';
+      break;
+    case "lock":
+      iconClass = iconClass & " fpw-icon-lock-library";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<path d="M22 30v-8a10 10 0 0 1 20 0v8"></path><path d="M16 30h32v18H16z"></path><path d="M24 30v-8"></path><path d="M40 30v-8"></path><path d="M12 48c4 0 4 3 8 3s4-3 8-3 4 3 8 3 4-3 8-3 4 3 8 3"></path><path d="M12 56c4 0 4 3 8 3s4-3 8-3 4 3 8 3 4-3 8-3 4 3 8 3"></path>';
+      break;
+    case "bridge":
+      iconClass = iconClass & " fpw-icon-bridge-library";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<path d="M10 42h44"></path><path d="M16 42c5-14 27-14 32 0"></path><path d="M20 42V28"></path><path d="M32 42V22"></path><path d="M44 42V28"></path><path d="M14 34h36"></path><path d="M8 50c4 0 4 3 8 3s4-3 8-3 4 3 8 3 4-3 8-3 4 3 8 3 4-3 8-3"></path>';
+      break;
+    case "anchor":
+      iconClass = iconClass & " fpw-icon-anchor-library";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<circle cx="32" cy="12" r="5"></circle><path d="M32 17v32"></path><path d="M22 25h20"></path><path d="M16 38c0 10 7 18 16 18s16-8 16-18"></path><path d="M10 42l6-4 5 6"></path><path d="M54 42l-6-4-5 6"></path>';
+      break;
+    case "compass":
+      iconClass = iconClass & " fpw-icon-compass";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<circle cx="32" cy="32" r="24"></circle><path d="M40 20l-6 18-18 6 6-18z"></path><circle cx="32" cy="32" r="2"></circle>';
+      break;
+    case "fuel":
+      iconClass = iconClass & " fpw-icon-fuel";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<path d="M16 10h24v44H16z"></path><path d="M22 16h12v12H22z"></path><path d="M40 20h5l7 7v20a5 5 0 0 1-10 0v-9h-2"></path><path d="M45 20v10h7"></path><path d="M12 54h32"></path>';
+      break;
+    case "weather":
+      iconClass = iconClass & " fpw-icon-weather";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<path d="M20 42h28a9 9 0 0 0 0-18 14 14 0 0 0-27-4A11 11 0 0 0 20 42z"></path><path d="M16 16l-4-4"></path><path d="M28 10V4"></path><path d="M8 28H2"></path><path d="M12 44l-4 4"></path>';
+      break;
+    case "checklist":
+      iconClass = iconClass & " fpw-icon-checklist";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<path d="M18 12h28v44H18z"></path><path d="M26 12a6 6 0 0 1 12 0"></path><path d="M24 26l4 4 8-9"></path><path d="M24 40h16"></path><path d="M24 48h12"></path>';
+      break;
+    case "route-cta":
+      iconClass = iconClass & " fpw-icon-route-cta";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<path d="M14 44c12-14 22 10 36-8"></path><path d="M18 18c0 7-8 12-8 12s-8-5-8-12a8 8 0 0 1 16 0z"></path><circle cx="10" cy="18" r="2.5"></circle><path d="M60 24c0 7-8 12-8 12s-8-5-8-12a8 8 0 0 1 16 0z"></path><circle cx="52" cy="24" r="2.5"></circle><path d="M24 34h6"></path><path d="M36 34h3"></path>';
+      break;
+    case "launch":
+      iconClass = iconClass & " fpw-icon-launch";
+      iconPaths = '<path d="M29 5c6 2 11 7 14 14L30 32 16 18z"></path><path d="M16 18l-8 3-4 9 10-4"></path><path d="M30 32l-3 8-9 4 4-10"></path><circle cx="31" cy="17" r="3"></circle><path d="M12 34l-6 6"></path><path d="M18 38l-4 4"></path>';
+      break;
+    default:
+      return "";
+  }
+
+  return '<svg class="' & iconClass & '" viewBox="' & iconViewBox & '" aria-hidden="true" focusable="false">' & iconPaths & '</svg>';
+}
+
 topNavShowAppSubnav = topNavIsLoggedIn
   AND listFindNoCase("dashboard,active-cruise,monitoring,weather,fuel", topNavActive) GT 0;
 </cfscript>
@@ -125,11 +216,12 @@ topNavShowAppSubnav = topNavIsLoggedIn
 <cfoutput>
   <header class="fpw-site-header<cfif topNavIsLoggedIn> fpw-site-header--logged-in</cfif><cfif topNavShowAppSubnav> fpw-site-header--app</cfif>" role="banner" data-fpw-nav>
     <cfif NOT topNavIsLoggedIn>
-      <div class="fpw-prelaunch-strip">
-        <a class="fpw-prelaunch-strip__link" href="#topNavBasePath#/app/join.cfm" aria-label="Launch Offer. 1 Month of Premium Free for New Members. No Credit Card Required.">
-          <span class="fpw-prelaunch-strip__icon fpw-prelaunch-strip__icon--live" aria-hidden="true"></span>
-          <span><strong>Launch Offer</strong> &mdash; 1 Month of Premium Free for New Members <span aria-hidden="true">&bull;</span> No Credit Card Required</span>
-        </a>
+      <div class="fpw-launch-strip">
+        <div class="fpw-launch-inner">
+          <span class="fpw-launch-icon" aria-hidden="true">#renderFpwNavIcon("launch", "fpw-launch-svg")#</span>
+          <span class="fpw-launch-copy"><strong>Launch Offer</strong> &mdash; 1 Month of Premium Free for New Members <span aria-hidden="true">&bull;</span> No Credit Card Required</span>
+          <a class="fpw-launch-link" href="#topNavBasePath#/app/join.cfm">Learn More <span aria-hidden="true">&rarr;</span></a>
+        </div>
       </div>
     </cfif>
 
@@ -137,22 +229,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
       <div class="fpw-nav-inner">
         <a class="fpw-brand" href="<cfif topNavIsLoggedIn>#topNavBasePath#/app/dashboard.cfm<cfelse>#topNavBasePath#/##top</cfif>" aria-label="FloatPlanWizard home">
           <span class="fpw-brand__mark" aria-hidden="true">
-            <svg class="fpw-helm-icon" viewBox="0 0 64 64" focusable="false">
-              <circle cx="32" cy="32" r="17"></circle>
-              <circle cx="32" cy="32" r="6"></circle>
-              <path d="M32 4v12"></path>
-              <path d="M32 48v12"></path>
-              <path d="M4 32h12"></path>
-              <path d="M48 32h12"></path>
-              <path d="M12.2 12.2l8.5 8.5"></path>
-              <path d="M43.3 43.3l8.5 8.5"></path>
-              <path d="M51.8 12.2l-8.5 8.5"></path>
-              <path d="M20.7 43.3l-8.5 8.5"></path>
-              <circle cx="32" cy="4" r="2.5"></circle>
-              <circle cx="32" cy="60" r="2.5"></circle>
-              <circle cx="4" cy="32" r="2.5"></circle>
-              <circle cx="60" cy="32" r="2.5"></circle>
-            </svg>
+            #renderFpwNavIcon("brand-wheel", "fpw-helm-icon")#
           </span>
 
           <span class="fpw-brand__text">
@@ -164,7 +241,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
         <button
           class="fpw-mobile-toggle"
           type="button"
-          aria-label="Toggle site menu"
+          aria-label="Open menu"
           aria-controls="fpwPrimaryNav"
           aria-expanded="false"
           data-fpw-mobile-toggle>
@@ -174,54 +251,110 @@ topNavShowAppSubnav = topNavIsLoggedIn
         </button>
 
         <div class="fpw-nav-menu" id="fpwPrimaryNav" data-fpw-nav-menu>
+          <div class="fpw-mobile-drawer-head">
+            <a class="fpw-mobile-brand" href="<cfif topNavIsLoggedIn>#topNavBasePath#/app/dashboard.cfm<cfelse>#topNavBasePath#/##top</cfif>" aria-label="FloatPlanWizard home">
+              <span class="fpw-brand__mark" aria-hidden="true">
+                #renderFpwNavIcon("brand-wheel", "fpw-helm-icon")#
+              </span>
+              <span>FPW</span>
+            </a>
+            <button class="fpw-mobile-close" type="button" aria-label="Close menu" data-fpw-mobile-close>&times;</button>
+          </div>
+
           <nav class="fpw-primary-nav" aria-label="Primary navigation">
-            <a class="fpw-nav-link" href="#topNavBasePath#/how-it-works">
-              <svg class="fpw-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"></circle><path d="M14.5 7.5 10.8 13l-3.3 3.5 3.7-5.5z"></path></svg>
+            <a class="fpw-nav-link" href="#topNavBasePath#/how-it-works.cfm">
+              #renderFpwNavIcon("how", "fpw-nav-icon")#
               <span>How It Works</span>
             </a>
-            <a class="fpw-nav-link" href="#topNavBasePath#/##features">
-              <svg class="fpw-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6-5.4-2.9-5.4 2.9 1-6-4.4-4.3 6.1-.9z"></path></svg>
-              <span>Features</span>
+            <a class="fpw-nav-link" href="#topNavBasePath#/app/dashboard.cfm">
+              #renderFpwNavIcon("route", "fpw-nav-icon")#
+              <span>Route Builder</span>
             </a>
-            <a class="fpw-nav-link" href="#topNavBasePath#/##great-loop">
-              <svg class="fpw-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6.5 9 4l6 2.5 5-2.5v13.5L15 20l-6-2.5L4 20z"></path><path d="M9 4v13.5"></path><path d="M15 6.5V20"></path></svg>
-              <span>Great Loop</span>
-            </a>
-            <div class="fpw-dropdown" data-fpw-dropdown>
-              <button class="fpw-nav-link fpw-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true" data-fpw-dropdown-toggle>
-                <svg class="fpw-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m14.5 5 4.5 4.5-2.8 2.8-2-2-5.9 5.9v2.5H5.8v-2.5l5.9-5.9-2-2z"></path><path d="m16 6.5 1.5-1.5 1.5 1.5"></path></svg>
-                <span>Tools</span>
+            <div class="fpw-dropdown fpw-dropdown--mega" data-fpw-dropdown>
+              <button class="fpw-nav-link fpw-dropdown-toggle" type="button" aria-expanded="false" aria-controls="fpwGreatLoopMenu" data-fpw-dropdown-toggle>
+                #renderFpwNavIcon("map", "fpw-nav-icon")#
+                <span class="fpw-nav-label-desktop">Great Loop</span>
+                <span class="fpw-nav-label-mobile">Great Loop Libraries</span>
                 <svg class="fpw-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>
               </button>
-              <div class="fpw-dropdown-menu" role="menu">
-                <a href="#topNavBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm" role="menuitem">
-                  <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20V4h9v16"></path><path d="M8 8h3"></path><path d="M14 9h2.5L19 12v6a2 2 0 0 0 4 0v-4"></path><path d="M3 20h13"></path></svg>
-                  <span><strong>Fuel Calculator</strong><small>Estimate fuel and range</small></span>
+              <div class="fpw-dropdown-menu fpw-mega-menu" id="fpwGreatLoopMenu" role="menu">
+                <div class="fpw-menu-header">
+                  #renderFpwNavIcon("map", "fpw-menu-header-icon")#
+                  <div>
+                    <h2>Great Loop Libraries</h2>
+                    <p>Essential information for planning your Great Loop adventure</p>
+                  </div>
+                </div>
+                <div class="fpw-library-grid">
+                  <a class="fpw-library-card" href="#topNavBasePath#/great-loop/locks/" role="menuitem">
+                    #renderFpwNavIcon("lock", "fpw-card-icon")#
+                    <strong>Lock Library</strong>
+                    <span>Lock locations, VHF channels, phone numbers, and notes for 275+ locks.</span>
+                    <em aria-hidden="true">&rarr;</em>
+                  </a>
+                  <a class="fpw-library-card" href="#topNavBasePath#/great-loop/bridges/" role="menuitem">
+                    #renderFpwNavIcon("bridge", "fpw-card-icon")#
+                    <strong>Bridge Library</strong>
+                    <span>Bridge clearances, drawbridge schedules, contacts, and restrictions.</span>
+                    <em aria-hidden="true">&rarr;</em>
+                  </a>
+                  <a class="fpw-library-card" href="#topNavBasePath#/great-loop/anchorages/" role="menuitem">
+                    #renderFpwNavIcon("anchor", "fpw-card-icon")#
+                    <strong>Anchorage Library</strong>
+                    <span>Published anchorages, maps, filters, and planning notes.</span>
+                    <em aria-hidden="true">&rarr;</em>
+                  </a>
+                  <a class="fpw-library-card" href="#topNavBasePath#/##great-loop" role="menuitem">
+                    #renderFpwNavIcon("compass", "fpw-card-icon")#
+                    <strong>Great Loop Planning</strong>
+                    <span>Routes, planning tips, resources, and float plan basics.</span>
+                    <em aria-hidden="true">&rarr;</em>
+                  </a>
+                </div>
+                <div class="fpw-mega-cta">
+                  #renderFpwNavIcon("route-cta", "fpw-cta-icon")#
+                  <div>
+                    <strong>Planning your Great Loop?</strong>
+                    <span>Use our Route Builder to plan smarter, safer trips.</span>
+                  </div>
+                  <a class="fpw-secondary-cta" href="#topNavBasePath#/app/dashboard.cfm">Open Route Builder <span aria-hidden="true">&rarr;</span></a>
+                </div>
+              </div>
+            </div>
+            <div class="fpw-dropdown fpw-dropdown--tools" data-fpw-dropdown>
+              <button class="fpw-nav-link fpw-dropdown-toggle" type="button" aria-expanded="false" aria-controls="fpwToolsMenu" data-fpw-dropdown-toggle>
+                #renderFpwNavIcon("tools", "fpw-nav-icon")#
+                <span class="fpw-nav-label-desktop">Tools</span>
+                <span class="fpw-nav-label-mobile">Trip Tools</span>
+                <svg class="fpw-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>
+              </button>
+              <div class="fpw-dropdown-menu fpw-tools-menu" id="fpwToolsMenu" role="menu">
+                <div class="fpw-menu-header">
+                  #renderFpwNavIcon("tools", "fpw-menu-header-icon")#
+                  <div>
+                    <h2>Trip Tools</h2>
+                    <p>Practical tools for every boat trip</p>
+                  </div>
+                </div>
+                <a class="fpw-tool-row" href="#topNavBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm" role="menuitem">
+                  #renderFpwNavIcon("fuel", "fpw-tool-icon")#
+                  <span><strong>Fuel Calculator</strong><em>Estimate fuel usage, range, and costs.</em></span>
+                  <b aria-hidden="true">&rarr;</b>
                 </a>
-                <a href="#topNavBasePath#/app/weather.cfm" role="menuitem">
-                  <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 18h9a4 4 0 0 0 .5-8 6 6 0 0 0-11-1.7A5 5 0 0 0 8 18z"></path><path d="M8 7V4"></path><path d="M4.5 8.5 2.5 6.5"></path><path d="M3 12H1"></path></svg>
-                  <span><strong>Weather</strong><small>Marine conditions and planning</small></span>
+                <a class="fpw-tool-row" href="#topNavBasePath#/app/weather.cfm" role="menuitem">
+                  #renderFpwNavIcon("weather", "fpw-tool-icon")#
+                  <span><strong>Marine Weather</strong><em>Current conditions and extended forecasts.</em></span>
+                  <b aria-hidden="true">&rarr;</b>
                 </a>
-                <a href="#topNavBasePath#/great-loop/locks/" role="menuitem">
-                  <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6.5 9 4l6 2.5 5-2.5v13.5L15 20l-6-2.5L4 20z"></path><path d="M9 4v13.5"></path><path d="M15 6.5V20"></path></svg>
-                  <span><strong>Great Loop Lock Library</strong><small>Lock locations, VHF, phone, notes, and planning reference</small></span>
-                </a>
-                <a href="#topNavBasePath#/great-loop/bridges/" role="menuitem">
-                  <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 12h16"></path><path d="M6 12l2-5h8l2 5"></path><path d="M7 12v6"></path><path d="M17 12v6"></path><path d="M3 18h18"></path></svg>
-                  <span><strong>Great Loop Bridge Library</strong><small>Clearances, drawbridge contacts, schedules, and planning notes</small></span>
-                </a>
-                <a href="#topNavBasePath#/great-loop/anchorages/" role="menuitem">
-                  <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v18"></path><path d="M5 10h14"></path><path d="M8 21h8"></path><path d="M7 14a5 5 0 0 0 10 0"></path><circle cx="12" cy="7" r="2"></circle></svg>
-                  <span><strong>Great Loop Anchorage Library</strong><small>Published anchorages, maps, filters, and planning notes</small></span>
-                </a>
-                <a href="#topNavBasePath#/why-use-a-float-plan" role="menuitem">
-                  <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z"></path><path d="M8 7h8"></path><path d="M8 11h7"></path></svg>
-                  <span><strong>Float Plan Basics</strong><small>Learn how float plans work</small></span>
+                <a class="fpw-tool-row" href="#topNavBasePath#/why-use-a-float-plan.cfm" role="menuitem">
+                  #renderFpwNavIcon("checklist", "fpw-tool-icon")#
+                  <span><strong>Float Plan Basics</strong><em>Learn what to include in your float plan.</em></span>
+                  <b aria-hidden="true">&rarr;</b>
                 </a>
               </div>
             </div>
             <a class="fpw-nav-link" href="#topNavBasePath#/app/pricing.cfm">
-              <svg class="fpw-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m20 12-8 8-8-8 8-8z"></path><path d="M12 4v16"></path></svg>
+              #renderFpwNavIcon("pricing", "fpw-nav-icon")#
               <span>Pricing</span>
             </a>
           </nav>
@@ -236,13 +369,13 @@ topNavShowAppSubnav = topNavIsLoggedIn
               </cfif>
               <div class="fpw-dropdown fpw-account-dropdown" data-fpw-dropdown>
                 <button class="fpw-nav-link fpw-dropdown-toggle<cfif topNavActive EQ 'account'> is-active</cfif>" type="button" aria-expanded="false" aria-haspopup="true" data-fpw-dropdown-toggle>
-                  <svg class="fpw-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg>
+                  #renderFpwNavIcon("user", "fpw-nav-icon")#
                   <span>Account</span>
                   <svg class="fpw-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>
                 </button>
                 <div class="fpw-dropdown-menu fpw-dropdown-menu-right" role="menu">
                   <a href="#topNavBasePath#/app/account.cfm" role="menuitem">
-                    <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg>
+                    #renderFpwNavIcon("user", "fpw-dropdown-icon")#
                     <span><strong>My Account</strong><small>Profile and settings</small></span>
                   </a>
                   <a href="#topNavBasePath#/index.cfm" role="menuitem" data-fpw-member-logout>
@@ -254,15 +387,20 @@ topNavShowAppSubnav = topNavIsLoggedIn
               <a class="fpw-nav-link fpw-logout-direct" href="#topNavBasePath#/index.cfm" data-fpw-member-logout>Logout</a>
             <cfelse>
               <a class="fpw-cta fpw-cta-primary" href="#topNavBasePath#/app/join.cfm">
-                <span>Claim Your Free Month</span>
+                <span>Start Free</span>
                 <span class="fpw-cta-arrow" aria-hidden="true">&rarr;</span>
               </a>
-              <a class="fpw-nav-link fpw-login-link" href="#topNavBasePath#/app/login.cfm">Login</a>
+              <a class="fpw-nav-link fpw-login-link" href="#topNavBasePath#/app/login.cfm">
+                #renderFpwNavIcon("user", "fpw-nav-icon")#
+                <span>Login</span>
+              </a>
             </cfif>
           </div>
         </div>
       </div>
     </div>
+
+    <div class="fpw-mobile-backdrop" data-fpw-mobile-backdrop hidden></div>
 
     <cfif topNavShowAppSubnav>
       <nav class="fpw-app-subnav" aria-label="Member workspace navigation">
@@ -301,29 +439,80 @@ topNavShowAppSubnav = topNavIsLoggedIn
       shell.setAttribute("data-fpw-nav-bound", "true");
 
       var menuButton = shell.querySelector("[data-fpw-mobile-toggle]");
+      var closeButton = shell.querySelector("[data-fpw-mobile-close]");
+      var backdrop = shell.querySelector("[data-fpw-mobile-backdrop]");
       var navMenu = shell.querySelector("[data-fpw-nav-menu]");
       var dropdowns = Array.prototype.slice.call(shell.querySelectorAll("[data-fpw-dropdown]"));
       var logoutLinks = shell.querySelectorAll("[data-fpw-member-logout]");
+      var mobileQuery = window.matchMedia("(max-width: 1023px)");
+      var previousBodyOverflow = "";
+
+      function isMobileNav() {
+        return mobileQuery.matches;
+      }
+
+      function setBodyLock(isOpen) {
+        if (!document.body) {
+          return;
+        }
+        document.body.classList.toggle("fpw-nav-open", isOpen);
+        if (isOpen) {
+          if (!previousBodyOverflow) {
+            previousBodyOverflow = document.body.style.overflow || "";
+          }
+          document.body.style.overflow = "hidden";
+        } else {
+          document.body.style.overflow = previousBodyOverflow;
+          previousBodyOverflow = "";
+        }
+      }
+
+      function setDropdownOpen(dropdown, isOpen, source) {
+        var toggle = dropdown ? dropdown.querySelector("[data-fpw-dropdown-toggle]") : null;
+        if (!dropdown || !toggle) {
+          return;
+        }
+        dropdown.classList.toggle("is-open", isOpen);
+        toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        if (isOpen && source === "click") {
+          dropdown.setAttribute("data-fpw-click-open", "true");
+        } else if (!isOpen) {
+          dropdown.removeAttribute("data-fpw-click-open");
+        }
+      }
 
       function closeDropdowns(exceptDropdown) {
         dropdowns.forEach(function (dropdown) {
-          var toggle = dropdown.querySelector("[data-fpw-dropdown-toggle]");
           if (dropdown !== exceptDropdown) {
-            dropdown.classList.remove("is-open");
-            if (toggle) {
-              toggle.setAttribute("aria-expanded", "false");
-            }
+            setDropdownOpen(dropdown, false);
           }
         });
+      }
+
+      function openDropdown(dropdown) {
+        closeDropdowns(dropdown);
+        setDropdownOpen(dropdown, true);
       }
 
       function setMenuOpen(isOpen) {
         shell.classList.toggle("is-menu-open", isOpen);
         if (menuButton) {
           menuButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
+          menuButton.setAttribute("aria-label", isOpen ? "Close menu" : "Open menu");
         }
+        if (backdrop) {
+          backdrop.hidden = !isOpen;
+        }
+        setBodyLock(isOpen);
         if (!isOpen) {
           closeDropdowns();
+        }
+      }
+
+      function blurActiveNavElement() {
+        var activeElement = document.activeElement;
+        if (activeElement && shell.contains(activeElement) && typeof activeElement.blur === "function") {
+          activeElement.blur();
         }
       }
 
@@ -368,19 +557,72 @@ topNavShowAppSubnav = topNavIsLoggedIn
         });
       }
 
+      if (closeButton) {
+        closeButton.addEventListener("click", function () {
+          setMenuOpen(false);
+        });
+      }
+
+      if (backdrop) {
+        backdrop.addEventListener("click", function () {
+          setMenuOpen(false);
+        });
+      }
+
       dropdowns.forEach(function (dropdown) {
         var toggle = dropdown.querySelector("[data-fpw-dropdown-toggle]");
         if (!toggle) {
           return;
         }
+
+        dropdown.addEventListener("mouseenter", function () {
+          if (!isMobileNav()) {
+            openDropdown(dropdown);
+          }
+        });
+
+        dropdown.addEventListener("mouseleave", function () {
+          if (!isMobileNav()) {
+            setDropdownOpen(dropdown, false);
+          }
+        });
+
+        dropdown.addEventListener("focusin", function () {
+          if (!isMobileNav()) {
+            openDropdown(dropdown);
+          }
+        });
+
+        dropdown.addEventListener("focusout", function () {
+          window.setTimeout(function () {
+            if (!isMobileNav() && !dropdown.contains(document.activeElement)) {
+              setDropdownOpen(dropdown, false);
+            }
+          }, 0);
+        });
+
         toggle.addEventListener("click", function (event) {
           event.preventDefault();
           var isOpen = dropdown.classList.contains("is-open");
-          closeDropdowns(dropdown);
-          dropdown.classList.toggle("is-open", !isOpen);
-          toggle.setAttribute("aria-expanded", !isOpen ? "true" : "false");
+          var isClickOpen = dropdown.getAttribute("data-fpw-click-open") === "true";
+          if (isMobileNav()) {
+            setDropdownOpen(dropdown, !isOpen, "click");
+          } else {
+            closeDropdowns(dropdown);
+            setDropdownOpen(dropdown, !isClickOpen, "click");
+          }
         });
       });
+
+      if (navMenu) {
+        Array.prototype.forEach.call(navMenu.querySelectorAll("a"), function (link) {
+          link.addEventListener("click", function () {
+            if (isMobileNav()) {
+              setMenuOpen(false);
+            }
+          });
+        });
+      }
 
       Array.prototype.forEach.call(logoutLinks, function (logoutLink) {
         logoutLink.addEventListener("click", runLogout);
@@ -397,11 +639,12 @@ topNavShowAppSubnav = topNavIsLoggedIn
         if (event.key === "Escape") {
           setMenuOpen(false);
           closeDropdowns();
+          blurActiveNavElement();
         }
       });
 
       window.addEventListener("resize", function () {
-        if (window.matchMedia("(min-width: 1121px)").matches) {
+        if (!isMobileNav()) {
           setMenuOpen(false);
         }
       });

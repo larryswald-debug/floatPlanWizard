@@ -425,7 +425,7 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
       --radius-xl: 28px;
       --radius-lg: 20px;
       --radius-md: 14px;
-      --fpw-public-layout-max: var(--fpw-page-max, 1200px);
+      --fpw-public-layout-max: var(--fpw-wide-max, 1320px);
       --max: var(--fpw-public-layout-max);
       --promo-strip-offset: 36px;
     }

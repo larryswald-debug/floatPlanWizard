@@ -138,7 +138,7 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
       --fpw-blue: #2087d9;
       --fpw-dark-blue: #04172b;
       --fpw-shadow: 0 24px 64px rgba(0, 0, 0, 0.42);
-      --fpw-public-layout-max: var(--fpw-page-max, 1200px);
+      --fpw-public-layout-max: var(--fpw-wide-max, 1320px);
       --fpw-max: var(--fpw-public-layout-max);
     }
 

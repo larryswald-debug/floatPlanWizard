@@ -47,7 +47,7 @@ body.fpw-bridge-body {
   letter-spacing: 0;
 }
 
-.fpw-bridge-hero p {
+.fpw-bridge-hero p:not(.fpw-bridge-eyebrow) {
   max-width: 880px;
   margin: 22px 0 0;
   color: #c9d7e8;

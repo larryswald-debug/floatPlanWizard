@@ -28,6 +28,7 @@
 .fpw-lock-hero {
   padding: 10px 0 0;
   background: transparent;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 .fpw-lock-library-hero {
@@ -69,13 +70,6 @@
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-}
-
-.fpw-lock-library-hero .fpw-lock-eyebrow {
-  color: #c9d7e8;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: clamp(1.05rem, 1.4vw, 1.35rem);
-  line-height: 1.55;
 }
 
 .fpw-lock-hero h1 {

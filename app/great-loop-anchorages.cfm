@@ -278,7 +278,7 @@ pageJsonLdText = serializeJSON(schemaRoot);
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/layout.css?v=20260620-page-width">
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20260530-nav-cta">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-anchorages.css?v=20260622-anchorages">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-anchorages.css?v=20260624-library-map-zoom">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
   <cfinclude template="../includes/trustedsite.cfm">
@@ -287,12 +287,11 @@ pageJsonLdText = serializeJSON(schemaRoot);
 <cfinclude template="../includes/top_nav.cfm">
 
 <main class="fpw-anchorage-page">
-  <section class="fpw-anchorage-hero">
+  <section class="fpw-anchorage-hero fpw-anchorage-hero--library">
     <div class="fpw-anchorage-shell">
       <p class="fpw-anchorage-eyebrow">Public Anchorage Reference</p>
       <h1><cfoutput>#encodeForHTML(pageHeading)#</cfoutput></h1>
       <p><cfoutput>#encodeForHTML(pageLede)#</cfoutput></p>
-      <p class="fpw-anchorage-note">This is a planning reference only and is not a navigation product.</p>
     </div>
   </section>
 
