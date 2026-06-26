@@ -317,7 +317,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
                     <strong>Planning your Great Loop?</strong>
                     <span>Use our Route Builder to plan smarter, safer trips.</span>
                   </div>
-                  <a class="fpw-secondary-cta" href="#topNavBasePath#/app/dashboard.cfm">Open Route Builder <span aria-hidden="true">&rarr;</span></a>
+                  <a class="fpw-secondary-cta" href="#topNavBasePath#/app/join.cfm">Start Free <span aria-hidden="true">&rarr;</span></a>
                 </div>
               </div>
             </div>

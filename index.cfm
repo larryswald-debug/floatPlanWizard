@@ -3006,6 +3006,7 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
   </style>
 <link rel="stylesheet" href="assets/css/layout.css?v=20260620-page-width">
 <link rel="stylesheet" href="assets/css/top-nav.css?v=20260530-nav-cta">
+<link rel="stylesheet" href="assets/css/home-visual-tour.css?v=20260625-visual-tour-fullshots">
 <cfinclude template="includes/analytics_ga4.cfm">
 <cfinclude template="includes/analytics_clarity.cfm">
 <cfinclude template="includes/trustedsite.cfm">
@@ -3134,6 +3135,7 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
 
           <div class="fpw-preview-actions">
             <a class="fpw-cta fpw-cta-primary" href="<cfoutput>#topNavBasePath#</cfoutput>/app/join.cfm">Start Free</a>
+            <button type="button" class="fpw-visual-tour-trigger" data-fpw-visual-tour-open>Take the visual tour</button>
             <a class="fpw-preview-link" href="#notify">See what's included</a>
           </div>
         </section>
@@ -3827,5 +3829,6 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
       });
     })();
 </script>
+<script src="<cfoutput>#topNavBasePath#</cfoutput>/assets/js/app/home-visual-tour.js?v=20260625-visual-tour-fullshots"></script>
 </body>
 </html>

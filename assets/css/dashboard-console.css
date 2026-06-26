@@ -6803,6 +6803,15 @@ body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .expedit
   min-height: 640px;
 }
 
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .fpw-route-workspace{
+  min-height: 0;
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .fpw-routes-table-pane{
+  max-height: 487px;
+  overflow-y: auto;
+}
+
 .fpw-routes-table-pane{
   min-width: 0;
   padding: 20px;
