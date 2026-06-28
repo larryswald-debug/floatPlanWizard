@@ -2993,16 +2993,24 @@
         <cfset local.parsedCached = "">
         <cfset local.product = {}>
         <cfset local.parsed = {}>
+        <cfset local.startedAt = getTickCount()>
+        <cfset local.sectionStartedAt = 0>
+        <cfset local.timing = { "lookup_ms"=0, "product_ms"=0, "parse_ms"=0, "total_ms"=0, "cache_hit"=false }>
 
         <cfif NOT arguments.noCache>
             <cfset local.cached = marineCacheGet(local.cacheKey, 900)>
             <cfif isStruct(local.cached) AND structKeyExists(local.cached, "available")>
                 <cfset local.cached.cache_meta = marineCacheMeta(local.cacheKey, 900)>
+                <cfset local.cached.timing = (structKeyExists(local.cached, "timing") AND isStruct(local.cached.timing) ? local.cached.timing : {})>
+                <cfset local.cached.timing.cache_hit = true>
+                <cfset local.cached.timing.total_ms = getTickCount() - local.startedAt>
                 <cfreturn local.cached>
             </cfif>
         </cfif>
 
+        <cfset local.sectionStartedAt = getTickCount()>
         <cfset local.lookupResult = resolveMarineZoneForPoint(arguments.lat, arguments.lon, arguments.noCache)>
+        <cfset local.timing.lookup_ms = getTickCount() - local.sectionStartedAt>
         <cfif NOT structKeyExists(local.lookupResult, "found") OR NOT local.lookupResult.found>
             <cfset local.parsed = getMarineZoneUnavailable(
                 (structKeyExists(local.lookupResult, "reason") AND len(local.lookupResult.reason) ? local.lookupResult.reason : "No coastal marine forecast zone found for this location"),
@@ -3012,6 +3020,8 @@
                 "",
                 ""
             )>
+            <cfset local.timing.total_ms = getTickCount() - local.startedAt>
+            <cfset local.parsed.timing = local.timing>
             <cfset local.parsed.cache_meta = marineCacheFreshMeta(local.cacheKey, 900, false, false)>
             <cfset marineCacheSet(local.cacheKey, local.parsed)>
             <cfreturn local.parsed>
@@ -3024,12 +3034,18 @@
                 <cfset local.parsed = duplicate(local.parsedCached)>
                 <cfset local.parsed.lookup = local.lookupResult.lookup>
                 <cfset local.parsed.cache_meta = marineCacheMeta(local.parsedCacheKey, 900)>
+                <cfset local.parsed.timing = (structKeyExists(local.parsed, "timing") AND isStruct(local.parsed.timing) ? local.parsed.timing : {})>
+                <cfset local.parsed.timing.lookup_ms = local.timing.lookup_ms>
+                <cfset local.parsed.timing.cache_hit = true>
+                <cfset local.parsed.timing.total_ms = getTickCount() - local.startedAt>
                 <cfset marineCacheSet(local.cacheKey, local.parsed)>
                 <cfreturn local.parsed>
             </cfif>
         </cfif>
 
+        <cfset local.sectionStartedAt = getTickCount()>
         <cfset local.product = getCwfProductCached(local.lookupResult.office, arguments.noCache)>
+        <cfset local.timing.product_ms = (isStruct(local.product) AND structKeyExists(local.product, "meta") AND isStruct(local.product.meta) AND structKeyExists(local.product.meta, "total_ms") ? val(local.product.meta.total_ms) : (getTickCount() - local.sectionStartedAt))>
         <cfif NOT structKeyExists(local.product, "success") OR NOT local.product.success>
             <cfset local.parsed = getMarineZoneUnavailable(
                 (structKeyExists(local.product, "reason") AND len(local.product.reason) ? local.product.reason : "NOAA Coastal Waters Forecast product is unavailable"),
@@ -3042,11 +3058,14 @@
             <cfset local.parsed.zone_id = local.lookupResult.zone_id>
             <cfset local.parsed.zone_name = local.lookupResult.zone_name>
             <cfset local.parsed.office = local.lookupResult.office>
+            <cfset local.parsed.product_meta = (structKeyExists(local.product, "meta") AND isStruct(local.product.meta) ? local.product.meta : {})>
+            <cfset local.timing.total_ms = getTickCount() - local.startedAt>
+            <cfset local.parsed.timing = local.timing>
             <cfset local.parsed.cache_meta = marineCacheFreshMeta(local.cacheKey, 900, false, false)>
-            <cfset marineCacheSet(local.cacheKey, local.parsed)>
             <cfreturn local.parsed>
         </cfif>
 
+        <cfset local.sectionStartedAt = getTickCount()>
         <cfset local.parsed = parseCwfZoneForecast(
             local.product.text,
             local.lookupResult.zone_id,
@@ -3056,6 +3075,10 @@
             local.lookupResult.zone_url,
             local.lookupResult.lookup
         )>
+        <cfset local.timing.parse_ms = getTickCount() - local.sectionStartedAt>
+        <cfset local.timing.total_ms = getTickCount() - local.startedAt>
+        <cfset local.parsed.timing = local.timing>
+        <cfset local.parsed.product_meta = (structKeyExists(local.product, "meta") AND isStruct(local.product.meta) ? local.product.meta : {})>
 
         <cfset local.parsed.cache_meta = marineCacheFreshMeta(local.parsedCacheKey, 900, false, false)>
         <cfset marineCacheSet(local.parsedCacheKey, local.parsed)>
@@ -3206,17 +3229,29 @@
         <cfargument name="noCache" type="boolean" required="false" default="false">
 
         <cfset local.office = ucase(trim(arguments.office))>
-        <cfset local.cacheKey = "marine_cwf_product:" & local.office>
+        <cfset local.cacheKey = "marine_cwf_product_api_v1:" & local.office>
         <cfset local.cached = "">
-        <cfset local.out = { "success"=false, "reason"="NOAA Coastal Waters Forecast product is unavailable", "text"="", "source_url"="" }>
+        <cfset local.out = { "success"=false, "reason"="NOAA Coastal Waters Forecast product is unavailable", "text"="", "source_url"="", "meta"={} }>
         <cfset local.ua = getNwsUserAgent()>
+        <cfset local.listUrl = "">
+        <cfset local.productUrl = "">
         <cfset local.httpStatus = 0>
+        <cfset local.productStatus = 0>
+        <cfset local.listObj = {}>
+        <cfset local.productObj = {}>
+        <cfset local.items = []>
+        <cfset local.latest = {}>
+        <cfset local.startedAt = getTickCount()>
+        <cfset local.listMs = 0>
+        <cfset local.productMs = 0>
 
         <cfif NOT len(local.office)>
             <cfreturn local.out>
         </cfif>
 
-        <cfset local.out.source_url = "https://forecast.weather.gov/product.php?issuedby=" & local.office & "&product=CWF&site=NWS">
+        <cfset local.listUrl = "https://api.weather.gov/products/types/CWF/locations/" & local.office>
+        <cfset local.out.source_url = local.listUrl>
+        <cfset local.out.meta = { "provider"="api.weather.gov", "list_url"=local.listUrl, "product_url"="", "list_ms"=0, "product_ms"=0, "total_ms"=0 }>
 
         <cfif NOT arguments.noCache>
             <cfset local.cached = marineCacheGet(local.cacheKey, 900)>
@@ -3226,17 +3261,61 @@
         </cfif>
 
         <cftry>
-            <cfhttp url="#local.out.source_url#" method="get" result="cwfRes" timeout="15">
+            <cfset local.startedAt = getTickCount()>
+            <cfhttp url="#local.listUrl#" method="get" result="cwfListRes" timeout="8">
                 <cfhttpparam type="header" name="User-Agent" value="#local.ua#">
-                <cfhttpparam type="header" name="Accept" value="text/plain,text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8">
+                <cfhttpparam type="header" name="Accept" value="application/geo+json, application/json">
             </cfhttp>
-            <cfset local.httpStatus = val(cwfRes.statusCode)>
-            <cfif local.httpStatus GTE 200 AND local.httpStatus LT 300 AND len(trim(toString(cwfRes.fileContent)))>
-                <cfset local.out.success = true>
-                <cfset local.out.reason = "">
-                <cfset local.out.text = normalizeNoaaProductText(cwfRes.fileContent)>
+            <cfset local.listMs = getTickCount() - local.startedAt>
+            <cfset local.httpStatus = val(cwfListRes.statusCode)>
+            <cfset local.out.meta.list_ms = local.listMs>
+            <cfif local.httpStatus GTE 200 AND local.httpStatus LT 300 AND len(trim(toString(cwfListRes.fileContent)))>
+                <cfset local.listObj = deserializeJSON(cwfListRes.fileContent)>
+                <cfif structKeyExists(local.listObj, "@graph") AND isArray(structFind(local.listObj, "@graph"))>
+                    <cfset local.items = structFind(local.listObj, "@graph")>
+                </cfif>
+                <cfif arrayLen(local.items) GT 0 AND isStruct(local.items[1])>
+                    <cfset local.latest = local.items[1]>
+                    <cfif structKeyExists(local.latest, "@id")>
+                        <cfset local.productUrl = trim(toString(structFind(local.latest, "@id")))>
+                    <cfelseif structKeyExists(local.latest, "id")>
+                        <cfset local.productUrl = "https://api.weather.gov/products/" & trim(toString(local.latest.id))>
+                    </cfif>
+                </cfif>
+                <cfif NOT len(local.productUrl)>
+                    <cfset local.out.reason = "NOAA Coastal Waters Forecast product list did not include a latest product for " & local.office>
+                <cfelse>
+                    <cfset local.out.source_url = local.productUrl>
+                    <cfset local.out.meta.product_url = local.productUrl>
+                    <cfset local.startedAt = getTickCount()>
+                    <cfhttp url="#local.productUrl#" method="get" result="cwfProductRes" timeout="8">
+                        <cfhttpparam type="header" name="User-Agent" value="#local.ua#">
+                        <cfhttpparam type="header" name="Accept" value="application/geo+json, application/json">
+                    </cfhttp>
+                    <cfset local.productMs = getTickCount() - local.startedAt>
+                    <cfset local.productStatus = val(cwfProductRes.statusCode)>
+                    <cfset local.out.meta.product_ms = local.productMs>
+                    <cfif local.productStatus GTE 200 AND local.productStatus LT 300 AND len(trim(toString(cwfProductRes.fileContent)))>
+                        <cfset local.productObj = deserializeJSON(cwfProductRes.fileContent)>
+                        <cfif structKeyExists(local.productObj, "productText") AND len(trim(toString(local.productObj.productText)))>
+                            <cfset local.out.success = true>
+                            <cfset local.out.reason = "">
+                            <cfset local.out.text = normalizeNoaaProductText(local.productObj.productText)>
+                            <cfif structKeyExists(local.productObj, "issuanceTime")>
+                                <cfset local.out.meta.issuance_time = toString(local.productObj.issuanceTime)>
+                            </cfif>
+                            <cfif structKeyExists(local.productObj, "id")>
+                                <cfset local.out.meta.product_id = toString(local.productObj.id)>
+                            </cfif>
+                        <cfelse>
+                            <cfset local.out.reason = "NOAA Coastal Waters Forecast product response did not include product text for " & local.office>
+                        </cfif>
+                    <cfelse>
+                        <cfset local.out.reason = "NOAA Coastal Waters Forecast product returned HTTP " & local.productStatus>
+                    </cfif>
+                </cfif>
             <cfelse>
-                <cfset local.out.reason = "NOAA Coastal Waters Forecast product returned HTTP " & local.httpStatus>
+                <cfset local.out.reason = "NOAA Coastal Waters Forecast product list returned HTTP " & local.httpStatus>
             </cfif>
             <cfcatch>
                 <cfset local.out.success = false>
@@ -3245,7 +3324,10 @@
             </cfcatch>
         </cftry>
 
-        <cfset marineCacheSet(local.cacheKey, local.out)>
+        <cfset local.out.meta.total_ms = local.out.meta.list_ms + local.out.meta.product_ms>
+        <cfif local.out.success>
+            <cfset marineCacheSet(local.cacheKey, local.out)>
+        </cfif>
         <cfreturn local.out>
     </cffunction>
 

@@ -2730,11 +2730,15 @@
     var periods = weatherPick(zone, ["periods", "PERIODS"], []);
     var cacheReport = getWeatherCacheReport(data);
     var cacheBlock = (cacheReport && (cacheReport.zone_forecast || cacheReport.ZONE_FORECAST)) || {};
-    var unavailableMessage = "NOAA coastal marine zone forecast is not available for this location.";
+    var zoneReason = weatherValue(weatherPick(zone, ["reason", "REASON"], ""), "");
+    var zoneTiming = weatherPick(zone, ["timing", "TIMING"], {});
+    var zoneTimingMs = weatherPick(zoneTiming, ["total_ms", "TOTAL_MS", "totalMs", "TOTALMS"], "");
+    var zoneTimingText = zoneTimingMs !== "" && zoneTimingMs !== null && zoneTimingMs !== undefined ? " • Zone: " + zoneTimingMs + "ms" : "";
+    var unavailableMessage = zoneReason ? "NOAA coastal marine zone forecast is not available for this location. " + zoneReason : "NOAA coastal marine zone forecast is not available for this location.";
 
     setWeatherText("weatherZoneForecastMeta", available && zoneId ? zoneId + (zoneName ? " · " + zoneName : "") : "—");
     setWeatherText("weatherZoneForecastOffice", available && office ? "Issued by NWS " + office : "Source: " + source);
-    setWeatherText("weatherZoneForecastCacheMeta", "Provider updated: " + formatWeatherCacheTime(weatherPick(cacheBlock, ["provider_time_display", "PROVIDER_TIME_DISPLAY", "provider_time_utc", "PROVIDER_TIME_UTC"], "")) + " • Cache: " + weatherCacheStatusLabel(weatherPick(cacheBlock, ["status", "STATUS"], "")) + " • Expires: " + formatWeatherCacheTime(weatherPick(cacheBlock, ["expires_at_utc", "EXPIRES_AT_UTC"], "")));
+    setWeatherText("weatherZoneForecastCacheMeta", "Provider updated: " + formatWeatherCacheTime(weatherPick(cacheBlock, ["provider_time_display", "PROVIDER_TIME_DISPLAY", "provider_time_utc", "PROVIDER_TIME_UTC"], "")) + " • Cache: " + weatherCacheStatusLabel(weatherPick(cacheBlock, ["status", "STATUS"], "")) + " • Expires: " + formatWeatherCacheTime(weatherPick(cacheBlock, ["expires_at_utc", "EXPIRES_AT_UTC"], "")) + zoneTimingText);
 
     if (!available) {
       if (unavailableEl) {
