@@ -49,8 +49,8 @@
           <p>Create a free float plan with your route, passengers, boat details, emergency contacts, and return time — then download it, print it, or send it to someone you trust.</p>
 
           <div class="fpw-hero-actions">
-            <a class="fpw-btn fpw-btn-primary" href="<cfoutput>#landingBasePath#</cfoutput>/app/join.cfm"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-pencil"></use></svg>Create My Free Float Plan</a>
-            <a class="fpw-btn fpw-btn-secondary" href="#fpwProductPreview"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-play"></use></svg>See a Sample Trip Page</a>
+            <a class="fpw-btn fpw-btn-primary" href="<cfoutput>#landingBasePath#</cfoutput>/app/join.cfm" data-fpw-track="homepage_hero_primary_cta_click" data-fpw-track-label="Create My Free Float Plan" data-fpw-track-section="hero"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-pencil"></use></svg>Create My Free Float Plan</a>
+            <a class="fpw-btn fpw-btn-secondary" href="#fpwProductPreview" data-fpw-track="homepage_hero_secondary_cta_click" data-fpw-track-label="See a Sample Trip Page" data-fpw-track-section="hero"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-play"></use></svg>See a Sample Trip Page</a>
           </div>
 
           <div class="fpw-trust-row" aria-label="Quick trust points">
@@ -126,12 +126,13 @@
       <div class="fpw-container">
         <div class="fpw-preview-shell">
           <div class="fpw-preview-head">
-            <h2 class="fpw-section-title" id="fpwPreviewTitle">See Float Plan Wizard in action.</h2>
+            <h2 class="fpw-section-title" id="fpwPreviewTitle">See how a float plan becomes a live trip plan.</h2>
+            <p class="fpw-section-intro fpw-preview-intro">Plan the route, create the float plan, share a private trip page, and keep the trip current as conditions or timing change.</p>
             <div class="fpw-tabs" role="tablist" aria-label="Product preview tabs">
-              <button class="fpw-tab" type="button" role="tab" aria-selected="true" data-preview-tab="route">Route Builder</button>
-              <button class="fpw-tab" type="button" role="tab" aria-selected="false" data-preview-tab="floatplan">Float Plan</button>
-              <button class="fpw-tab" type="button" role="tab" aria-selected="false" data-preview-tab="active">Active Cruise</button>
-              <button class="fpw-tab" type="button" role="tab" aria-selected="false" data-preview-tab="follow">Follow Page</button>
+              <button class="fpw-tab" type="button" role="tab" aria-selected="true" data-preview-tab="route" data-fpw-track="homepage_demo_tab_click" data-fpw-track-label="Route Builder" data-fpw-track-section="product_demo">Route Builder</button>
+              <button class="fpw-tab" type="button" role="tab" aria-selected="false" data-preview-tab="floatplan" data-fpw-track="homepage_demo_tab_click" data-fpw-track-label="Float Plan" data-fpw-track-section="product_demo">Float Plan</button>
+              <button class="fpw-tab" type="button" role="tab" aria-selected="false" data-preview-tab="active" data-fpw-track="homepage_demo_tab_click" data-fpw-track-label="Active Cruise" data-fpw-track-section="product_demo">Active Cruise</button>
+              <button class="fpw-tab" type="button" role="tab" aria-selected="false" data-preview-tab="follow" data-fpw-track="homepage_demo_tab_click" data-fpw-track-label="Follow Page" data-fpw-track-section="product_demo">Follow Page</button>
             </div>
           </div>
 
@@ -157,13 +158,12 @@
             </div>
 
             <aside class="fpw-preview-copy" aria-live="polite">
-              <h3 data-preview-title>Build your route</h3>
-              <p data-preview-body>Plan your trip with waypoints, estimated timing, and important details — all on an easy-to-use map.</p>
+              <h3 data-preview-title>Build the route before you go.</h3>
+              <p data-preview-body>Add waypoints, estimate timing, and turn the trip into a plan someone ashore can actually follow.</p>
               <ul class="fpw-check-list" data-preview-list>
-                <li><span class="fpw-check-dot">✓</span><span>Real destinations &amp; waypoints</span></li>
-                <li><span class="fpw-check-dot">✓</span><span>Estimated arrival times</span></li>
-                <li><span class="fpw-check-dot">✓</span><span>Distance &amp; duration estimates</span></li>
-                <li><span class="fpw-check-dot">✓</span><span>Save and adjust anytime</span></li>
+                <li><span class="fpw-check-dot">✓</span><span>Plan by route legs and stops</span></li>
+                <li><span class="fpw-check-dot">✓</span><span>Estimate distance and timing</span></li>
+                <li><span class="fpw-check-dot">✓</span><span>Use the route inside your float plan</span></li>
               </ul>
               <a class="fpw-product-link" data-preview-link href="#fpwProductPreview">Try the Route Builder <svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-arrow"></use></svg></a>
             </aside>
@@ -174,38 +174,42 @@
 
     <section class="fpw-compare" aria-labelledby="fpwCompareTitle">
       <div class="fpw-container">
-        <h2 class="fpw-section-title" id="fpwCompareTitle">Why boaters choose more than a blank float plan.</h2>
-        <div class="fpw-compare-table" role="table" aria-label="Blank float plan compared with FPW">
-          <div class="fpw-compare-grid">
-            <div class="fpw-compare-col">
-              <div class="fpw-compare-head">A BLANK FLOAT PLAN</div>
-              <div class="fpw-compare-row"><span class="fpw-x">×</span><span>Static document</span></div>
-              <div class="fpw-compare-row"><span class="fpw-x">×</span><span>Easy to forget after departure</span></div>
-              <div class="fpw-compare-row"><span class="fpw-x">×</span><span>Hard for shore contacts to interpret</span></div>
-              <div class="fpw-compare-row"><span class="fpw-x">×</span><span>Manual updates by text/call</span></div>
-              <div class="fpw-compare-row"><span class="fpw-x">×</span><span>Often lives in a drawer</span></div>
-            </div>
-            <div class="fpw-compare-col">
-              <div class="fpw-compare-head fpw-win">FPW</div>
-              <div class="fpw-compare-row"><span class="fpw-yes">✓</span><span>Route-based trip workflow</span></div>
-              <div class="fpw-compare-row"><span class="fpw-yes">✓</span><span>Active Cruise keeps the trip current</span></div>
-              <div class="fpw-compare-row"><span class="fpw-yes">✓</span><span>Private follow page they can understand</span></div>
-              <div class="fpw-compare-row"><span class="fpw-yes">✓</span><span>Structured check-ins and status</span></div>
-              <div class="fpw-compare-row"><span class="fpw-yes">✓</span><span>Built around the trip itself</span></div>
-            </div>
-          </div>
+        <h2 class="fpw-section-title" id="fpwCompareTitle">A PDF is a start. FPW keeps the plan alive.</h2>
+        <p class="fpw-section-intro fpw-compare-intro">A blank float plan is better than nothing. FPW helps turn that plan into a route-based trip workflow your shore contact can actually use.</p>
+        <div class="fpw-compare-panels" aria-label="Blank float plan compared with FloatPlanWizard">
+          <article class="fpw-compare-card fpw-compare-card-muted">
+            <h3>Blank Float Plan</h3>
+            <ul>
+              <li><span class="fpw-x">×</span><span>Static document</span></li>
+              <li><span class="fpw-x">×</span><span>Easy to forget or leave incomplete</span></li>
+              <li><span class="fpw-x">×</span><span>Usually shared once</span></li>
+              <li><span class="fpw-x">×</span><span>Hard to update underway</span></li>
+              <li><span class="fpw-x">×</span><span>Depends on someone remembering the details</span></li>
+            </ul>
+          </article>
+          <article class="fpw-compare-card fpw-compare-card-strong">
+            <h3>FloatPlanWizard</h3>
+            <ul>
+              <li><span class="fpw-yes">✓</span><span>Route-based trip plan</span></li>
+              <li><span class="fpw-yes">✓</span><span>Guided fields for the details that matter</span></li>
+              <li><span class="fpw-yes">✓</span><span>Shareable trip page for your shore contact</span></li>
+              <li><span class="fpw-yes">✓</span><span>Active Cruise keeps timing and status current</span></li>
+              <li><span class="fpw-yes">✓</span><span>Organizes route, vessel, passengers, contacts, and return time</span></li>
+            </ul>
+          </article>
         </div>
       </div>
     </section>
 
     <section class="fpw-use-cases" aria-labelledby="fpwUseTitle">
       <div class="fpw-container">
-        <h2 class="fpw-section-title" id="fpwUseTitle">Built for the trips boaters actually take.</h2>
+        <h2 class="fpw-section-title" id="fpwUseTitle">Built for the way real boaters actually use the water.</h2>
+        <p class="fpw-section-intro fpw-use-intro">Whether it is a short local run, a fishing trip, a weekend cruise, or a longer route, FPW helps turn the trip into a plan someone ashore can understand.</p>
         <div class="fpw-use-grid">
-          <article class="fpw-use-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-boat"></use></svg><div><h3>Local Day Trips</h3><p>Sandbars, fishing trips, short cruises, and family days on the water.</p></div></article>
-          <article class="fpw-use-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-wheel"></use></svg><div><h3>Great Loop Planning</h3><p>Organize longer route segments, locks, bridges, stops, and details.</p></div></article>
-          <article class="fpw-use-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-anchor"></use></svg><div><h3>Weekend Cruising</h3><p>Create a plan your shore contact can understand before you leave.</p></div></article>
-          <article class="fpw-use-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-user"></use></svg><div><h3>Solo or Small Crew</h3><p>Give someone on shore a better way to know where you planned to go.</p></div></article>
+          <article class="fpw-use-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-boat"></use></svg><div><h3>Local Day Trips</h3><p>Quick runs still need a clear return time, passenger list, and shore contact.</p></div></article>
+          <article class="fpw-use-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-pin"></use></svg><div><h3>Fishing Trips</h3><p>Share where you are headed, when you expect to return, and who is aboard before you head offshore or into open water.</p></div></article>
+          <article class="fpw-use-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-anchor"></use></svg><div><h3>Weekend Cruising</h3><p>Organize stops, timing, contacts, and overnight plans in one place.</p></div></article>
+          <article class="fpw-use-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-wheel"></use></svg><div><h3>Great Loop &amp; Longer Routes</h3><p>Use route planning and shared trip updates for more complex cruising days.</p></div></article>
         </div>
       </div>
     </section>
@@ -213,38 +217,40 @@
     <section class="fpw-trust-band" aria-labelledby="fpwTrustTitle">
       <div class="fpw-container">
         <h2 class="fpw-section-title" id="fpwTrustTitle">Private by default. Shared only when you choose.</h2>
+        <p class="fpw-section-intro fpw-trust-intro">FPW helps you organize and share your boating plan. It does not replace calling the Coast Guard, 911, local authorities, or emergency services.</p>
         <div class="fpw-trust-grid">
-          <article class="fpw-trust-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-user"></use></svg><div><h3>Shore contacts don’t need an account</h3><p>They get a simple, private follow page.</p></div></article>
-          <article class="fpw-trust-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-lock"></use></svg><div><h3>Your follow page is not public</h3><p>Share directly with the people you trust.</p></div></article>
-          <article class="fpw-trust-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-shield"></use></svg><div><h3>You control when a trip starts &amp; ends</h3><p>Start, update, pause or close anytime.</p></div></article>
-          <article class="fpw-trust-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-card"></use></svg><div><h3>No credit card required to start</h3><p>Create your first plan for free.</p></div></article>
-          <article class="fpw-trust-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-life"></use></svg><div><h3>Safety first</h3><p>FPW organizes trip info. Not an emergency response service.</p></div></article>
+          <article class="fpw-trust-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-user"></use></svg><div><h3>Shore contacts do not need an account</h3><p>They can view the private trip page you share with them.</p></div></article>
+          <article class="fpw-trust-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-shield"></use></svg><div><h3>You choose who gets the trip page</h3><p>Share the plan directly with the people you trust.</p></div></article>
+          <article class="fpw-trust-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-lock"></use></svg><div><h3>Your plan is not public</h3><p>The trip page is meant for the contacts you choose.</p></div></article>
+          <article class="fpw-trust-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-life"></use></svg><div><h3>FPW is not an emergency response service</h3><p>Use official emergency channels when immediate help is needed.</p></div></article>
         </div>
       </div>
     </section>
 
     <section class="fpw-pricing" id="fpwPricing" aria-labelledby="fpwPricingTitle">
       <div class="fpw-container">
-        <h2 class="fpw-section-title" id="fpwPricingTitle">Start free. Upgrade when you want more.</h2>
+        <h2 class="fpw-section-title" id="fpwPricingTitle">Start with a free float plan. Upgrade when you want live trip tools.</h2>
+        <p class="fpw-section-intro fpw-pricing-intro">Create a simple float plan first. Add route planning, Active Cruise, shared trip updates, and monitoring tools when you need more than a printable plan.</p>
         <div class="fpw-price-grid">
-          <article class="fpw-price-card"><h3>Free</h3><div class="fpw-price"></div><p class="fpw-price-note">Basic USCG Float Plan</p><p>For simple local same-day boating trips.</p><ul><li>No accout needed.</li><li>USCG Float Plans</li><li>Email to your shore contact</li><li>Download and Print</li></ul><a class="fpw-card-link" href="<cfoutput>#landingBasePath#</cfoutput>/app/start-trial.cfm?offer=launch_trial">Create Float Plan →</a></article>
-          <article class="fpw-price-card"><h3>Premium Monthly</h3><div class="fpw-price">$9.99 <span>/ month</span></div><p class="fpw-price-note">Cancel anytime</p><p>For regular boating season use.</p><ul><li>Custom Route Generator</li><li>Active Cruise</li><li>Shareable Trip page</li><li>Companion check-ins</li><li>GPS check-in support</li><li>NOOA/NWS Marine Weather</li><li>Premium route tools</li></ul><a class="fpw-card-link" href="<cfoutput>#landingBasePath#</cfoutput>/app/start-trial.cfm?offer=launch_trial">Start Monthly Premium →</a></article>
-          <article class="fpw-price-card popular"><div class="fpw-price-ribbon">BEST VALUE</div><h3>Premium Annual</h3><div class="fpw-price">$89 <span>/ year</span></div><p class="fpw-price-note">Save about 25% vs monthly</p><p>For frequent boaters who want Premium all year.</p><ul><li>Custom Route Generator</li><li>Active Cruise</li><li>Shareable Trip page</li><li>Companion check-ins</li><li>GPS check-in support</li><li>NOOA/NWS Marine Weather</li><li>Premium route tools</li></ul><a class="fpw-card-link" href="<cfoutput>#landingBasePath#</cfoutput>/app/start-trial.cfm?offer=launch_trial">Start Annual Premium →</a></article>
-          <article class="fpw-price-card"><h3>3-Day Pass</h3><div class="fpw-price">$4.99</div><p class="fpw-price-note">No subscription</p><p>Full Premium access for a weekend or short trip.</p><ul><li>Custom Route Generator</li><li>Active Cruise</li><li>Shareable Trip page</li><li>Companion check-ins</li><li>GPS check-in support</li><li>NOOA/NWS Marine Weather</li><li>Premium route tools</li><li>Valid for 3 consecutive days</li></ul><a class="fpw-card-link" href="<cfoutput>#landingBasePath#</cfoutput>/app/start-trial.cfm?offer=launch_trial">Get 3-Day Pass →</a></article>
+          <article class="fpw-price-card fpw-price-card-free"><h3>Free</h3><div class="fpw-price">$0</div><p>For simple day trips and printable float plans.</p><ul><li>Create a basic float plan</li><li>Download or print your plan</li><li>Send it to a shore contact</li><li>No credit card required</li></ul><a class="fpw-card-link" href="<cfoutput>#landingBasePath#</cfoutput>/app/start-trial.cfm?offer=launch_trial" data-fpw-track="homepage_pricing_cta_click" data-fpw-track-label="Create Free Plan" data-fpw-track-plan="Free" data-fpw-track-section="pricing">Create Free Plan</a></article>
+          <article class="fpw-price-card"><h3>Premium Monthly</h3><div class="fpw-price">$9.99 <span>/ month</span></div><p class="fpw-price-note">Cancel anytime</p><p>For boaters who want route planning, Active Cruise, check-ins, and shared trip updates.</p><ul><li>Route planning tools</li><li>Active Cruise updates</li><li>Private Follow Page</li><li>Check-ins and status updates</li><li>Weather-aware planning tools where available</li></ul><a class="fpw-card-link" href="<cfoutput>#landingBasePath#</cfoutput>/app/start-trial.cfm?offer=launch_trial" data-fpw-track="homepage_pricing_cta_click" data-fpw-track-label="Start Monthly Premium" data-fpw-track-plan="Premium Monthly" data-fpw-track-section="pricing">Start Monthly Premium</a></article>
+          <article class="fpw-price-card popular"><div class="fpw-price-ribbon">BEST VALUE</div><h3>Premium Annual</h3><div class="fpw-price">$89 <span>/ year</span></div><p class="fpw-price-note">Save about 25% vs monthly</p><p>For regular boaters who want FPW available all season.</p><ul><li>Best value for frequent use</li><li>Premium planning and trip tools</li><li>Active Cruise and shared updates</li><li>Built for repeat boating trips</li></ul><a class="fpw-card-link" href="<cfoutput>#landingBasePath#</cfoutput>/app/start-trial.cfm?offer=launch_trial" data-fpw-track="homepage_pricing_cta_click" data-fpw-track-label="Start Annual Premium" data-fpw-track-plan="Premium Annual" data-fpw-track-section="pricing">Start Annual Premium</a></article>
+          <article class="fpw-price-card"><h3>3-Day Pass</h3><div class="fpw-price">$4.99</div><p class="fpw-price-note">No subscription</p><p>For a short trip, weekend cruise, or one-time planned outing.</p><ul><li>Short-term access to premium trip tools</li><li>Useful for weekend cruising</li><li>Good for occasional boaters</li><li>No long-term commitment</li></ul><a class="fpw-card-link" href="<cfoutput>#landingBasePath#</cfoutput>/app/start-trial.cfm?offer=launch_trial" data-fpw-track="homepage_pricing_cta_click" data-fpw-track-label="Get 3-Day Pass" data-fpw-track-plan="3-Day Pass" data-fpw-track-section="pricing">Get 3-Day Pass</a></article>
         </div>
       </div>
     </section>
 
     <section class="fpw-faq" aria-labelledby="fpwFaqTitle">
       <div class="fpw-container">
-        <h2 class="fpw-section-title" id="fpwFaqTitle">Common questions from boaters.</h2>
+        <h2 class="fpw-section-title" id="fpwFaqTitle">Questions boaters ask before using FPW.</h2>
+        <p class="fpw-section-intro fpw-faq-intro">FPW is built to help you create and share a better boating plan. It does not replace emergency services, but it can give your shore contact clearer information if something changes.</p>
         <div class="fpw-faq-grid">
-          <div class="fpw-faq-item"><button class="fpw-faq-question" type="button">Do shore contacts need an account?<svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-chevron"></use></svg></button><div class="fpw-faq-answer">No. FPW is designed so you can share trip information with a shore contact without making them sign up.</div></div>
-          <div class="fpw-faq-item"><button class="fpw-faq-question" type="button">Is FPW an emergency service?<svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-chevron"></use></svg></button><div class="fpw-faq-answer">No. FPW helps organize and share your boating trip information. In an emergency, contact the Coast Guard, local authorities, or emergency services directly.</div></div>
-          <div class="fpw-faq-item"><button class="fpw-faq-question" type="button">Can I print my float plan?<svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-chevron"></use></svg></button><div class="fpw-faq-answer">Yes. The design assumes a clean printable float plan option remains available from the app workflow.</div></div>
-          <div class="fpw-faq-item"><button class="fpw-faq-question" type="button">Can I use FPW for simple trips?<svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-chevron"></use></svg></button><div class="fpw-faq-answer">Yes. FPW should work for short recreational trips, fishing days, weekend cruises, and longer route planning.</div></div>
-          <div class="fpw-faq-item"><button class="fpw-faq-question" type="button">What happens if my trip changes?<svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-chevron"></use></svg></button><div class="fpw-faq-answer">You can update timing and trip status so your shore contact is not left with stale trip information.</div></div>
-          <div class="fpw-faq-item"><button class="fpw-faq-question" type="button">What devices and browsers work?<svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-chevron"></use></svg></button><div class="fpw-faq-answer">The landing page is responsive and should be wired/tested across modern desktop and mobile browsers.</div></div>
+          <div class="fpw-faq-item"><button class="fpw-faq-question" type="button" aria-expanded="false" aria-controls="fpwFaqShoreContacts" data-fpw-track-label="Do shore contacts need an account?">Do shore contacts need an account?<svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-chevron"></use></svg></button><div class="fpw-faq-answer" id="fpwFaqShoreContacts">No. A shore contact can view the shared trip information you choose to send without creating an FPW account.</div></div>
+          <div class="fpw-faq-item"><button class="fpw-faq-question" type="button" aria-expanded="false" aria-controls="fpwFaqEmergency" data-fpw-track-label="Is FPW an emergency response service?">Is FPW an emergency response service?<svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-chevron"></use></svg></button><div class="fpw-faq-answer" id="fpwFaqEmergency">No. FPW helps you organize and share your boating plan. In an emergency, contact the Coast Guard, 911, local authorities, or emergency services directly.</div></div>
+          <div class="fpw-faq-item"><button class="fpw-faq-question" type="button" aria-expanded="false" aria-controls="fpwFaqPrint" data-fpw-track-label="Can I print my float plan?">Can I print my float plan?<svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-chevron"></use></svg></button><div class="fpw-faq-answer" id="fpwFaqPrint">Yes. FPW should support a printable or downloadable float plan so you can keep a copy, email it, or hand it to someone before you leave.</div></div>
+          <div class="fpw-faq-item"><button class="fpw-faq-question" type="button" aria-expanded="false" aria-controls="fpwFaqDayTrips" data-fpw-track-label="Can I use FPW for simple day trips?">Can I use FPW for simple day trips?<svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-chevron"></use></svg></button><div class="fpw-faq-answer" id="fpwFaqDayTrips">Yes. FPW should be useful for short local trips, fishing runs, weekend cruising, and longer routes.</div></div>
+          <div class="fpw-faq-item"><button class="fpw-faq-question" type="button" aria-expanded="false" aria-controls="fpwFaqTripChanges" data-fpw-track-label="What happens if my trip changes?">What happens if my trip changes?<svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-chevron"></use></svg></button><div class="fpw-faq-answer" id="fpwFaqTripChanges">With FPW trip tools, you can update timing and status so the shared plan is not stuck with old information.</div></div>
+          <div class="fpw-faq-item"><button class="fpw-faq-question" type="button" aria-expanded="false" aria-controls="fpwFaqDevices" data-fpw-track-label="What devices does FPW work on?">What devices does FPW work on?<svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-chevron"></use></svg></button><div class="fpw-faq-answer" id="fpwFaqDevices">FPW is designed for modern desktop, tablet, and mobile browsers. Always test your device before relying on it for a trip.</div></div>
         </div>
       </div>
     </section>
@@ -253,10 +259,10 @@
       <div class="fpw-container fpw-final-inner">
         <div class="fpw-final-copy">
           <h2 id="fpwFinalTitle">Your next trip deserves more than a text message.</h2>
-          <p>Create a float plan, share it with someone you trust, and leave the dock with a clearer plan.</p>
+          <p>Create a real float plan, share it with someone you trust, and leave the dock with a clearer plan.</p>
         </div>
         <div class="fpw-final-action">
-          <a class="fpw-btn fpw-btn-primary" href="<cfoutput>#landingBasePath#</cfoutput>/app/join.cfm"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-pencil"></use></svg>Create My Free Float Plan</a>
+          <a class="fpw-btn fpw-btn-primary" href="<cfoutput>#landingBasePath#</cfoutput>/app/join.cfm" data-fpw-track="homepage_final_cta_click" data-fpw-track-label="Create My Free Float Plan" data-fpw-track-section="final_cta"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-pencil"></use></svg>Create My Free Float Plan</a>
           <p>No credit card required. Takes just a few minutes.</p>
         </div>
       </div>
