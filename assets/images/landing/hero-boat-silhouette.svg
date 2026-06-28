@@ -1,0 +1,22 @@
+<svg width="620" height="340" viewBox="0 0 620 340" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="water" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#0B315F" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#020B1D" stop-opacity="0.72"/>
+    </linearGradient>
+  </defs>
+  <rect width="620" height="340" fill="url(#water)"/>
+  <g opacity=".22" fill="#9CCBFF">
+    <path d="M54 247c55-22 95-23 143-3 55 24 101 24 161 1 52-20 95-17 154 7 31 12 68 15 108 5v83H0v-75c18-2 36-8 54-18Z"/>
+    <path d="M0 273c64-15 109-13 169 7 66 22 117 20 184-5 57-21 103-20 164 2 40 15 75 18 103 12v51H0v-67Z" opacity=".25"/>
+  </g>
+  <g transform="translate(70 105)" opacity=".56">
+    <path d="M24 115h168l34 42H56L24 115Z" fill="#0E274A" stroke="#89BAE8" stroke-width="3"/>
+    <path d="M70 114V47h87l33 67H70Z" fill="#12345F" stroke="#89BAE8" stroke-width="3"/>
+    <path d="M87 65h34v25H87zM135 65h28l13 25h-41z" fill="#80B5E8" opacity=".56"/>
+    <path d="M119 47V14" stroke="#CDE6FF" stroke-width="4" stroke-linecap="round"/>
+    <path d="M108 29h22" stroke="#CDE6FF" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="68" cy="157" r="9" fill="#89BAE8" opacity=".7"/>
+    <circle cx="184" cy="157" r="9" fill="#89BAE8" opacity=".7"/>
+  </g>
+</svg>
