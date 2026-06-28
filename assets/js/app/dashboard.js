@@ -1336,7 +1336,7 @@
     Object.keys(next).forEach(function (rawKey) {
       key = rawKey;
       if (next[key] === undefined || next[key] === null) return;
-      if (isMarineOnly && /^(SUMMARY|FORECAST|ALERTS|MAP_LAYERS|surface|SURFACE)$/.test(key) && isEmptyWeatherValue(next[key])) return;
+      if (isMarineOnly && /^(SUMMARY|FORECAST|ALERTS|MAP_LAYERS|surface|SURFACE|MARINE|marine|ZONE_FORECAST|zone_forecast|zoneForecast)$/.test(key) && isEmptyWeatherValue(next[key])) return;
       if (isMarineOnly && /^(META|meta)$/.test(key) && typeof next[key] === "object" && typeof weatherBriefingState.data[key] === "object") {
         var currentMeta = weatherBriefingState.data[key] || {};
         var nextMeta = next[key] || {};
@@ -4213,6 +4213,12 @@
   }
 
   function abortWeatherController(controller) {
+    if (Array.isArray(controller)) {
+      controller.forEach(function (childController) {
+        abortWeatherController(childController);
+      });
+      return;
+    }
     if (controller && typeof controller.abort === "function") {
       try {
         controller.abort();
@@ -4283,35 +4289,45 @@
   }
 
   function hydrateMarineTrend(location, requestSeq) {
-    var hydrationController = null;
+    var hydrationControllers = [];
     if (requestSeq === weatherRequestSeq) {
       showMarineHydrationBadge();
     }
     abortWeatherController(weatherHydrationAbortController);
-    weatherHydrationAbortController = createWeatherAbortController();
-    hydrationController = weatherHydrationAbortController;
-    return fetchWeatherJson(weatherUrl(location, "&marineOnly=1&marineMode=full"), {
-      signal: hydrationController ? hydrationController.signal : null,
-      timeoutMs: WEATHER_HYDRATION_TIMEOUT_MS,
-      onTimeout: function () {
-        abortWeatherController(hydrationController);
+    weatherHydrationAbortController = hydrationControllers;
+
+    function requestMarineDetail(detail) {
+      var hydrationController = createWeatherAbortController();
+      var detailMode = detail === "marine" ? "quick" : "full";
+      if (hydrationController) {
+        hydrationControllers.push(hydrationController);
       }
-    })
-      .then(function (payload) {
+
+      return fetchWeatherJson(weatherUrl(location, "&marineOnly=1&marineMode=" + encodeURIComponent(detailMode) + "&marineDetail=" + encodeURIComponent(detail)), {
+        signal: hydrationController ? hydrationController.signal : null,
+        timeoutMs: WEATHER_HYDRATION_TIMEOUT_MS,
+        onTimeout: function () {
+          abortWeatherController(hydrationController);
+        }
+      }).then(function (payload) {
         if (requestSeq !== weatherRequestSeq) return;
         if (!payload || payload.SUCCESS === false) return;
         var data = payload.DATA || {};
         if (data.MARINE) {
           renderTideGraph(data.MARINE);
           renderWaveHeight(data.MARINE);
-          renderMarineWeatherBriefing(data, payload, location);
         }
-      })
-      .catch(function (err) {
+        renderMarineWeatherBriefing(data, payload, location);
+      }).catch(function (err) {
         if (isWeatherAbortError(err) || isWeatherTimeoutError(err)) return;
         // Keep initial quick render if trend hydration fails.
-      })
-      .finally(function () {
+      });
+    }
+
+    return Promise.all([
+      requestMarineDetail("marine"),
+      requestMarineDetail("zoneForecast")
+    ]).finally(function () {
         if (requestSeq === weatherRequestSeq) {
           hideMarineHydrationBadge();
           weatherHydrationAbortController = null;
@@ -4331,6 +4347,10 @@
     abortWeatherController(weatherHydrationAbortController);
     weatherQuickAbortController = createWeatherAbortController();
     weatherHydrationAbortController = null;
+    weatherBriefingState.data = {};
+    weatherBriefingState.payload = null;
+    weatherBriefingState.location = location || null;
+    tideLastMarine = null;
 
     clearWeatherError();
     startWeatherScanConsole(location);

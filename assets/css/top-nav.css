@@ -415,7 +415,7 @@
 }
 
 .fpw-dropdown--mega > .fpw-dropdown-menu {
-  width: min(820px, calc(100vw - 32px));
+  width: min(660px, calc(100vw - 32px));
 }
 
 .fpw-dropdown--tools > .fpw-dropdown-menu {
@@ -466,7 +466,7 @@
 
 .fpw-library-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-top: 18px;
 }

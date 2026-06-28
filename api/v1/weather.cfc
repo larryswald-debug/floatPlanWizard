@@ -25,6 +25,7 @@
         <cfargument name="longitude" type="any" required="false">
         <cfargument name="marineMode" type="any" required="false">
         <cfargument name="marineOnly" type="any" required="false">
+        <cfargument name="marineDetail" type="any" required="false">
         <cfargument name="waveTestFt" type="any" required="false">
         <cfargument name="cache" type="any" required="false">
         <cfargument name="bypassCache" type="any" required="false">
@@ -55,6 +56,7 @@
             <cfset local.marineOnly = false>
             <cfset local.marineModeProvided = false>
             <cfset local.marineOnlyProvided = false>
+            <cfset local.marineDetail = "">
 
             <cfif structKeyExists(session, "user") AND isStruct(session.user)>
                 <cfset local.userStruct = session.user>
@@ -103,6 +105,14 @@
                 <cfset local.marineOnly = (val(url.marineOnly) EQ 1)>
                 <cfset local.marineOnlyProvided = true>
             </cfif>
+            <cfif structKeyExists(arguments, "marineDetail") AND len(trim(arguments.marineDetail))>
+                <cfset local.marineDetail = lcase(trim(arguments.marineDetail))>
+            <cfelseif isDefined("url.marineDetail") AND len(trim(url.marineDetail))>
+                <cfset local.marineDetail = lcase(trim(url.marineDetail))>
+            </cfif>
+            <cfif local.marineDetail NEQ "marine" AND local.marineDetail NEQ "zoneforecast">
+                <cfset local.marineDetail = "">
+            </cfif>
 
             <cfif local.act EQ "get">
 
@@ -126,7 +136,7 @@
                     <cfreturn>
                 </cfif>
 
-                <cfset local.data = getWeatherForFloatPlan(local.userId, local.fpId, local.marineMode, local.marineOnly)>
+                <cfset local.data = getWeatherForFloatPlan(local.userId, local.fpId, local.marineMode, local.marineOnly, local.marineDetail)>
 
                 <cfset local.resp.SUCCESS = local.data.SUCCESS>
                 <cfset local.resp.MESSAGE = local.data.MESSAGE>
@@ -167,7 +177,7 @@
                     "marineOnly"=(local.marineOnlyProvided ? (local.marineOnly ? "1" : "0") : "unknown")
                 }>
 
-                <cfset local.data = getWeatherForZip(local.zip, local.marineMode, local.marineOnly)>
+                <cfset local.data = getWeatherForZip(local.zip, local.marineMode, local.marineOnly, local.marineDetail)>
 
                 <cfset local.resp.SUCCESS = local.data.SUCCESS>
                 <cfset local.resp.MESSAGE = local.data.MESSAGE>
@@ -208,6 +218,9 @@
                     "marineMode"=local.marineMode,
                     "marineOnly"=(local.marineOnly ? 1 : 0)
                 }>
+                <cfif len(local.marineDetail)>
+                    <cfset local.searchRequestEcho.marineDetail = local.marineDetail>
+                </cfif>
 
                 <cfif local.searchHasLat XOR local.searchHasLon>
                     <cfset local.resp.SUCCESS = false>
@@ -244,7 +257,7 @@
                     <cfset local.searchRequestEcho.latitude = local.latParsed.VALUE>
                     <cfset local.searchRequestEcho.longitude = local.lonParsed.VALUE>
 
-                    <cfset local.data = getWeatherForCoordinates(local.latParsed.VALUE, local.lonParsed.VALUE, local.marineMode, local.marineOnly)>
+                    <cfset local.data = getWeatherForCoordinates(local.latParsed.VALUE, local.lonParsed.VALUE, local.marineMode, local.marineOnly, local.marineDetail)>
                     <cfset local.data = appendSearchResolutionMeta(
                         local.data,
                         "coords",
@@ -277,7 +290,7 @@
                     </cfif>
 
                     <cfset local.searchRequestEcho.zip = local.zip>
-                    <cfset local.data = getWeatherForZip(local.zip, local.marineMode, local.marineOnly)>
+                    <cfset local.data = getWeatherForZip(local.zip, local.marineMode, local.marineOnly, local.marineDetail)>
                     <cfset local.searchResolvedLat = "">
                     <cfset local.searchResolvedLon = "">
                     <cfif structKeyExists(local.data, "META")
@@ -331,7 +344,7 @@
                     </cfif>
 
                     <cfset local.searchRequestEcho.floatPlanId = local.fpId>
-                    <cfset local.data = getWeatherForFloatPlan(local.userId, local.fpId, local.marineMode, local.marineOnly)>
+                    <cfset local.data = getWeatherForFloatPlan(local.userId, local.fpId, local.marineMode, local.marineOnly, local.marineDetail)>
                     <cfset local.searchResolvedLat = "">
                     <cfset local.searchResolvedLon = "">
                     <cfif structKeyExists(local.data, "META")
@@ -398,6 +411,7 @@
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfargument name="marineMode" type="string" required="false" default="full">
         <cfargument name="marineOnly" type="boolean" required="false" default="false">
+        <cfargument name="marineDetail" type="string" required="false" default="">
 
         <cfset local.out = {
             "SUCCESS"=false,
@@ -429,6 +443,15 @@
         <cfset local.lat = local.anchor.LAT>
         <cfset local.lon = local.anchor.LON>
 
+        <cfif len(trim(arguments.marineDetail))>
+            <cfset local.out = assembleWeatherDetailResponse(
+                lat = local.lat,
+                lon = local.lon,
+                marineDetail = arguments.marineDetail
+            )>
+            <cfreturn local.out>
+        </cfif>
+
         <cfset local.out = assembleWeatherResponse(
             lat = local.lat,
             lon = local.lon,
@@ -443,13 +466,22 @@
         <cfargument name="lon" type="numeric" required="true">
         <cfargument name="marineMode" type="string" required="false" default="full">
         <cfargument name="marineOnly" type="boolean" required="false" default="false">
+        <cfargument name="marineDetail" type="string" required="false" default="">
 
-        <cfset local.out = assembleWeatherResponse(
-            lat = arguments.lat,
-            lon = arguments.lon,
-            marineMode = arguments.marineMode,
-            marineOnly = arguments.marineOnly
-        )>
+        <cfif len(trim(arguments.marineDetail))>
+            <cfset local.out = assembleWeatherDetailResponse(
+                lat = arguments.lat,
+                lon = arguments.lon,
+                marineDetail = arguments.marineDetail
+            )>
+        <cfelse>
+            <cfset local.out = assembleWeatherResponse(
+                lat = arguments.lat,
+                lon = arguments.lon,
+                marineMode = arguments.marineMode,
+                marineOnly = arguments.marineOnly
+            )>
+        </cfif>
         <cfreturn local.out>
     </cffunction>
 
@@ -586,6 +618,7 @@
         <cfargument name="zip" type="string" required="true">
         <cfargument name="marineMode" type="string" required="false" default="full">
         <cfargument name="marineOnly" type="boolean" required="false" default="false">
+        <cfargument name="marineDetail" type="string" required="false" default="">
 
         <cfset local.out = {
             "SUCCESS"=false,
@@ -620,16 +653,93 @@
         <cfset local.lat = local.geo.LAT>
         <cfset local.lon = local.geo.LON>
 
-        <cfset local.out = assembleWeatherResponse(
-            lat = local.lat,
-            lon = local.lon,
-            marineMode = arguments.marineMode,
-            marineOnly = arguments.marineOnly,
-            marineZip = arguments.zip,
-            requestZip = arguments.zip,
-            includeGeocodeSource = true,
-            geocodeSourceMeta = (structKeyExists(local.geo, "META") ? local.geo.META : {})
-        )>
+        <cfif len(trim(arguments.marineDetail))>
+            <cfset local.out = assembleWeatherDetailResponse(
+                lat = local.lat,
+                lon = local.lon,
+                marineDetail = arguments.marineDetail,
+                marineZip = arguments.zip,
+                requestZip = arguments.zip,
+                includeGeocodeSource = true,
+                geocodeSourceMeta = (structKeyExists(local.geo, "META") ? local.geo.META : {})
+            )>
+        <cfelse>
+            <cfset local.out = assembleWeatherResponse(
+                lat = local.lat,
+                lon = local.lon,
+                marineMode = arguments.marineMode,
+                marineOnly = arguments.marineOnly,
+                marineZip = arguments.zip,
+                requestZip = arguments.zip,
+                includeGeocodeSource = true,
+                geocodeSourceMeta = (structKeyExists(local.geo, "META") ? local.geo.META : {})
+            )>
+        </cfif>
+        <cfreturn local.out>
+    </cffunction>
+
+    <cffunction name="assembleWeatherDetailResponse" access="private" returntype="struct" output="false">
+        <cfargument name="lat" type="numeric" required="true">
+        <cfargument name="lon" type="numeric" required="true">
+        <cfargument name="marineDetail" type="string" required="true">
+        <cfargument name="marineZip" type="string" required="false" default="">
+        <cfargument name="requestZip" type="string" required="false" default="">
+        <cfargument name="includeGeocodeSource" type="boolean" required="false" default="false">
+        <cfargument name="geocodeSourceMeta" type="struct" required="false" default="#{}#">
+
+        <cfset local.detail = lcase(trim(arguments.marineDetail))>
+        <cfset local.bypassCache = shouldBypassWeatherCache()>
+        <cfset local.noCache = ((isDefined("url.nocache") AND len(url.nocache) AND val(url.nocache) EQ 1) OR local.bypassCache)>
+        <cfset local.m = {} >
+        <cfset local.zone = {} >
+        <cfset local.out = {
+            "SUCCESS"=true,
+            "MESSAGE"="OK",
+            "SUMMARY"="",
+            "FORECAST"=[],
+            "ALERTS"=[],
+            "surface"={
+                "pressure_inhg"="",
+                "visibility_mi"="",
+                "station_id"="",
+                "observation_time"="",
+                "dewpoint_f"="",
+                "humidity"=""
+            },
+            "MAP_LAYERS"=[],
+            "META"={
+                "anchor"={ "lat"=arguments.lat, "lon"=arguments.lon },
+                "request"={ "marineDetail"=local.detail, "marineOnly"=1, "marineMode"=(local.detail EQ "marine" ? "quick" : "full") },
+                "sources"={}
+            }
+        }>
+
+        <cfif len(arguments.requestZip)>
+            <cfset local.out.META.request.zip = arguments.requestZip>
+        </cfif>
+        <cfif arguments.includeGeocodeSource AND isStruct(arguments.geocodeSourceMeta)>
+            <cfset local.out.META.sources.geocode = arguments.geocodeSourceMeta>
+        </cfif>
+
+        <cfif local.detail EQ "marine">
+            <cfset local.m = getMarineDataCached(arguments.lat, arguments.lon, local.noCache, "quick", arguments.marineZip, { "bypassCache"=local.bypassCache, "ttlSeconds"=900 })>
+            <cfif isStruct(local.m) AND structCount(local.m) GT 0>
+                <cfset local.out.MARINE = local.m>
+            </cfif>
+            <cfset local.out.META.sources.marine = (isStruct(local.m) AND structKeyExists(local.m, "META") ? local.m.META : {})>
+        <cfelseif local.detail EQ "zoneforecast">
+            <cfset local.zone = getMarineZoneForecastCached(arguments.lat, arguments.lon, local.noCache)>
+            <cfif isStruct(local.zone) AND structCount(local.zone) GT 0>
+                <cfset local.out.ZONE_FORECAST = local.zone>
+            </cfif>
+            <cfset local.out.META.sources.zone_forecast = (isStruct(local.zone) ? local.zone : {})>
+        <cfelse>
+            <cfset local.out.SUCCESS = false>
+            <cfset local.out.MESSAGE = "Invalid marine detail request.">
+            <cfset local.out.ERROR = { "CODE"="INVALID_MARINE_DETAIL", "DETAIL"="Use marine or zoneForecast." }>
+        </cfif>
+
+        <cfset local.out.META.cache = buildWeatherCacheReport(local.out, {}, {}, {}, local.m, local.zone)>
         <cfreturn local.out>
     </cffunction>
 
@@ -1648,7 +1758,7 @@
         <cfset local.tide = {} >
         <cfset local.wl = {} >
         <cfset local.fetchTrend = (lcase(arguments.marineMode) NEQ "quick")>
-        <cfset local.maxCandidateCount = (local.fetchTrend ? 10 : 1)>
+        <cfset local.maxCandidateCount = (local.fetchTrend ? 2 : 1)>
 
         <cfset local.tideStation = getNearestCoopsTideStation(arguments.lat, arguments.lon)>
         <cfif structKeyExists(local.tideStation, "SUCCESS") AND local.tideStation.SUCCESS>

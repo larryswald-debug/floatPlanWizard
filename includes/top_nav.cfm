@@ -266,9 +266,9 @@ topNavShowAppSubnav = topNavIsLoggedIn
               #renderFpwNavIcon("how", "fpw-nav-icon")#
               <span>How It Works</span>
             </a>
-            <a class="fpw-nav-link" href="#topNavBasePath#/app/dashboard.cfm">
+            <a class="fpw-nav-link" href="#topNavBasePath#/index.cfm##features">
               #renderFpwNavIcon("route", "fpw-nav-icon")#
-              <span>Route Builder</span>
+              <span>Features</span>
             </a>
             <div class="fpw-dropdown fpw-dropdown--mega" data-fpw-dropdown>
               <button class="fpw-nav-link fpw-dropdown-toggle" type="button" aria-expanded="false" aria-controls="fpwGreatLoopMenu" data-fpw-dropdown-toggle>
@@ -302,12 +302,6 @@ topNavShowAppSubnav = topNavIsLoggedIn
                     #renderFpwNavIcon("anchor", "fpw-card-icon")#
                     <strong>Anchorage Library</strong>
                     <span>Published anchorages, maps, filters, and planning notes.</span>
-                    <em aria-hidden="true">&rarr;</em>
-                  </a>
-                  <a class="fpw-library-card" href="#topNavBasePath#/##great-loop" role="menuitem">
-                    #renderFpwNavIcon("compass", "fpw-card-icon")#
-                    <strong>Great Loop Planning</strong>
-                    <span>Routes, planning tips, resources, and float plan basics.</span>
                     <em aria-hidden="true">&rarr;</em>
                   </a>
                 </div>

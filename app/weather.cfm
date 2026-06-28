@@ -72,6 +72,7 @@
         align-items: start;
         margin-bottom: 18px;
       }
+      .weather-briefing-title-block { padding-top: 15px; }
       .weather-title-row { display: flex; align-items: center; gap: 14px; }
       .weather-title-icon {
         width: 42px;
@@ -103,7 +104,7 @@
         font-size: 22px;
         line-height: 1;
       }
-      .weather-location-controls { min-width: 430px; padding-top: 2px; }
+      .weather-location-controls { min-width: 430px; padding-top: 15px; }
       .weather-control-row { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
       .weather-control-row label { font-size: 14px; color: var(--wx-muted); }
       .weather-select,
@@ -1122,7 +1123,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/fpw-weather-overlays.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260526-cache-bump"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260627-weather-detail-split"></script>
 
 </body>
 </html>
