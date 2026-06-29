@@ -1782,3 +1782,329 @@
   background: rgba(33, 215, 211, 0.10);
   border-color: rgba(33, 215, 211, 0.34);
 }
+
+/* Public inner form light card shell for Join, Forgot Password, and Contact. */
+.fpw-public-form-page {
+  --fpw-public-shell: #06131f;
+  --fpw-public-shell-2: #071827;
+  --fpw-public-card: #f8fbff;
+  --fpw-public-card-2: #edf5fb;
+  --fpw-public-text: #0a2239;
+  --fpw-public-muted: #425a72;
+  --fpw-public-soft: #65788d;
+  --fpw-public-line: #cddcea;
+  --fpw-public-line-strong: #aabed1;
+  --fpw-public-blue: #0877f2;
+  --fpw-public-blue-dark: #005fc4;
+  --fpw-public-teal: #21d7d3;
+}
+
+.fpw-public-form-page .fpw-public-form-card {
+  background: linear-gradient(180deg, rgba(8, 29, 44, 0.98), rgba(6, 19, 31, 0.98));
+  border-color: rgba(92, 225, 230, 0.2);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.38);
+}
+
+.fpw-public-form-page .fpw-public-form-content-panel {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(33, 215, 211, 0.12), transparent 22rem),
+    linear-gradient(180deg, var(--fpw-public-card) 0%, var(--fpw-public-card-2) 100%);
+  color: var(--fpw-public-text);
+  box-shadow: inset 1px 0 0 rgba(130, 156, 180, 0.28);
+}
+
+.fpw-public-form-page .fpw-signup-form-header,
+.fpw-public-form-page .fpw-auth-form-header,
+.fpw-public-form-page .fpw-contact-form-header {
+  border-bottom-color: var(--fpw-public-line);
+  align-items: start;
+}
+
+.fpw-public-form-page .fpw-signup-form-header h2,
+.fpw-public-form-page .fpw-auth-form-header h2,
+.fpw-public-form-page .fpw-contact-form-header h2,
+.fpw-public-form-page .fpw-form-row label,
+.fpw-public-form-page .fpw-privacy-note strong,
+.fpw-public-form-page .fpw-login-note strong,
+.fpw-public-form-page .fpw-signup-trust-strip strong,
+.fpw-public-form-page .fpw-signup-disclaimer strong,
+.fpw-public-form-page .fpw-auth-disclaimer strong,
+.fpw-public-form-page .fpw-contact-disclaimer strong {
+  color: var(--fpw-public-text);
+}
+
+.fpw-public-form-page .fpw-signup-form-header p,
+.fpw-public-form-page .fpw-auth-form-header p,
+.fpw-public-form-page .fpw-contact-form-header p,
+.fpw-public-form-page .fpw-field-help,
+.fpw-public-form-page .fpw-terms-row,
+.fpw-public-form-page .fpw-privacy-note p,
+.fpw-public-form-page .fpw-login-note p,
+.fpw-public-form-page .fpw-login-link,
+.fpw-public-form-page .fpw-signup-trust-strip small,
+.fpw-public-form-page .fpw-contact-safe-note,
+.fpw-public-form-page .fpw-contact-footer {
+  color: var(--fpw-public-muted);
+}
+
+.fpw-public-form-page .fpw-signup-form-header .fpw-form-header-note {
+  margin-top: 10px;
+  color: var(--fpw-public-soft);
+  font-size: 1.02rem;
+  line-height: 1.5;
+}
+
+.fpw-public-form-page .fpw-signup-user-icon,
+.fpw-public-form-page .fpw-auth-user-icon,
+.fpw-public-form-page .fpw-contact-icon,
+.fpw-public-form-page .fpw-privacy-icon,
+.fpw-public-form-page .fpw-signup-trust-strip span {
+  background: #e6f7fa;
+  border-color: #b8dfe9;
+  color: #067e91;
+}
+
+.fpw-public-form-page .fpw-input-icon {
+  color: var(--fpw-public-soft);
+}
+
+.fpw-public-form-page .fpw-input-wrap input,
+.fpw-public-form-page .fpw-contact-form .fpw-input-wrap input,
+.fpw-public-form-page .fpw-contact-form .fpw-input-wrap textarea {
+  background: #ffffff;
+  color: var(--fpw-public-text);
+  border-color: var(--fpw-public-line-strong);
+  caret-color: var(--fpw-public-blue);
+  box-shadow: inset 0 1px 0 rgba(10, 34, 57, 0.04);
+}
+
+.fpw-public-form-page .fpw-input-wrap input::placeholder,
+.fpw-public-form-page .fpw-contact-form .fpw-input-wrap input::placeholder,
+.fpw-public-form-page .fpw-contact-form .fpw-input-wrap textarea::placeholder {
+  color: #74879c;
+}
+
+.fpw-public-form-page .fpw-input-wrap input:focus,
+.fpw-public-form-page .fpw-contact-form .fpw-input-wrap input:focus,
+.fpw-public-form-page .fpw-contact-form .fpw-input-wrap textarea:focus {
+  background: #ffffff;
+  color: var(--fpw-public-text);
+  border-color: var(--fpw-public-blue);
+  box-shadow: 0 0 0 4px rgba(8, 119, 242, 0.16);
+}
+
+.fpw-public-form-page .fpw-input-wrap input:-webkit-autofill,
+.fpw-public-form-page .fpw-contact-form .fpw-input-wrap input:-webkit-autofill {
+  -webkit-text-fill-color: var(--fpw-public-text);
+  box-shadow: 0 0 0 1000px #ffffff inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+.fpw-public-form-page .fpw-terms-row input {
+  accent-color: var(--fpw-public-blue);
+}
+
+.fpw-public-form-page .fpw-terms-row a,
+.fpw-public-form-page .fpw-login-link a,
+.fpw-public-form-page .fpw-auth-link-row a {
+  color: #075fbd;
+}
+
+.fpw-public-form-page .fpw-terms-row a:hover,
+.fpw-public-form-page .fpw-terms-row a:focus-visible,
+.fpw-public-form-page .fpw-login-link a:hover,
+.fpw-public-form-page .fpw-login-link a:focus-visible,
+.fpw-public-form-page .fpw-auth-link-row a:hover,
+.fpw-public-form-page .fpw-auth-link-row a:focus-visible {
+  color: #043a78;
+}
+
+.fpw-public-form-page .fpw-privacy-note,
+.fpw-public-form-page .fpw-login-note {
+  background: #eef9fb;
+  border-color: #c5e4eb;
+  color: var(--fpw-public-text);
+}
+
+.fpw-public-form-page .fpw-signup-trust-strip {
+  border-top-color: var(--fpw-public-line);
+}
+
+.fpw-public-form-page .fpw-signup-trust-strip > div {
+  padding: 10px;
+  border-radius: 8px;
+  background: #f6fbff;
+  box-shadow: inset 0 0 0 1px rgba(130, 156, 180, 0.22);
+}
+
+.fpw-public-form-page .fpw-login-link::before,
+.fpw-public-form-page .fpw-login-link::after {
+  background: var(--fpw-public-line);
+}
+
+.fpw-public-form-page .fpw-signup-submit,
+.fpw-public-form-page .fpw-auth-submit,
+.fpw-public-form-page .fpw-contact-submit {
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--fpw-public-blue), var(--fpw-public-blue-dark));
+  box-shadow: 0 16px 34px rgba(8, 119, 242, 0.24);
+}
+
+.fpw-public-form-page .fpw-signup-submit:hover,
+.fpw-public-form-page .fpw-auth-submit:hover,
+.fpw-public-form-page .fpw-contact-submit:hover,
+.fpw-public-form-page .fpw-signup-submit:focus,
+.fpw-public-form-page .fpw-auth-submit:focus,
+.fpw-public-form-page .fpw-contact-submit:focus {
+  filter: brightness(1.03);
+  box-shadow: 0 20px 42px rgba(8, 119, 242, 0.3);
+}
+
+.fpw-public-form-page .fpw-signup-submit:focus-visible,
+.fpw-public-form-page .fpw-auth-submit:focus-visible,
+.fpw-public-form-page .fpw-contact-submit:focus-visible {
+  outline: 3px solid rgba(33, 215, 211, 0.44);
+  outline-offset: 3px;
+}
+
+.fpw-public-form-page .fpw-signup-disclaimer,
+.fpw-public-form-page .fpw-auth-disclaimer,
+.fpw-public-form-page .fpw-contact-disclaimer {
+  background: #eaf3fa;
+  border-top-color: var(--fpw-public-line);
+  color: #29445f;
+}
+
+.fpw-public-form-page .fpw-signup-disclaimer p,
+.fpw-public-form-page .fpw-auth-disclaimer p,
+.fpw-public-form-page .fpw-contact-disclaimer p {
+  color: #29445f;
+}
+
+.fpw-public-form-page .fpw-auth-disclaimer span,
+.fpw-public-form-page .fpw-contact-disclaimer span {
+  border-color: #9eb4ca;
+  color: #29445f;
+}
+
+.fpw-public-form-page .fpw-signup-message.alert-warning,
+.fpw-public-form-page .fpw-auth-message.alert-warning,
+.fpw-public-form-page .fpw-contact-message.alert-warning {
+  color: #614400;
+  background: #fff5d1;
+  border-color: #f0d47a;
+}
+
+.fpw-public-form-page .fpw-signup-message.alert-danger,
+.fpw-public-form-page .fpw-auth-message.alert-danger,
+.fpw-public-form-page .fpw-contact-message.alert-danger {
+  color: #741b1b;
+  background: #ffe5e5;
+  border-color: #efb4b4;
+}
+
+.fpw-public-form-page .fpw-signup-message.alert-success,
+.fpw-public-form-page .fpw-auth-message.alert-success,
+.fpw-public-form-page .fpw-contact-message.alert-success {
+  color: #0d513c;
+  background: #dff8ee;
+  border-color: #a8dcc8;
+}
+
+.fpw-public-form-page .fpw-forgot-card {
+  width: min(1120px, 100%);
+  grid-template-columns: minmax(320px, 0.82fr) minmax(420px, 0.95fr);
+}
+
+.fpw-public-form-page .fpw-forgot-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fpw-public-form-page .fpw-forgot-card .fpw-auth-story {
+  min-height: 560px;
+}
+
+@media (max-width: 980px) {
+  .fpw-public-form-page .fpw-public-form-content-panel {
+    box-shadow: inset 0 1px 0 rgba(130, 156, 180, 0.28);
+  }
+
+  .fpw-public-form-page .fpw-forgot-card {
+    grid-template-columns: 1fr;
+  }
+
+  .fpw-public-form-page .fpw-forgot-card .fpw-auth-story {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .fpw-public-form-page .fpw-public-form-shell {
+    padding: 12px;
+  }
+
+  .fpw-public-form-page .fpw-signup-story-overlay,
+  .fpw-public-form-page .fpw-auth-story-overlay,
+  .fpw-public-form-page .fpw-contact-story-overlay {
+    padding: 24px 20px;
+    gap: 20px;
+  }
+
+  .fpw-public-form-page .fpw-signup-story-copy h1,
+  .fpw-public-form-page .fpw-auth-story-copy h1,
+  .fpw-public-form-page .fpw-contact-story-copy h1 {
+    font-size: clamp(1.85rem, 10vw, 2.25rem);
+  }
+
+  .fpw-public-form-page .fpw-signup-story-copy p,
+  .fpw-public-form-page .fpw-auth-story-copy p,
+  .fpw-public-form-page .fpw-contact-story-copy p {
+    font-size: 1rem;
+  }
+
+  .fpw-public-form-page .fpw-signup-benefits,
+  .fpw-public-form-page .fpw-auth-benefits,
+  .fpw-public-form-page .fpw-contact-benefits {
+    gap: 12px;
+  }
+
+  .fpw-public-form-page .fpw-public-form-content-panel {
+    order: 1;
+    padding: 24px 18px;
+  }
+
+  .fpw-public-form-page .fpw-public-form-brand-panel {
+    order: 2;
+  }
+
+  .fpw-public-form-page .fpw-signup-disclaimer,
+  .fpw-public-form-page .fpw-auth-disclaimer,
+  .fpw-public-form-page .fpw-contact-disclaimer {
+    order: 3;
+  }
+
+  .fpw-public-form-page .fpw-signup-form-header,
+  .fpw-public-form-page .fpw-auth-form-header,
+  .fpw-public-form-page .fpw-contact-form-header {
+    padding-bottom: 20px;
+  }
+
+  .fpw-public-form-page .fpw-signup-form-header h2,
+  .fpw-public-form-page .fpw-auth-form-header h2,
+  .fpw-public-form-page .fpw-contact-form-header h2 {
+    font-size: clamp(1.8rem, 9vw, 2.2rem);
+  }
+
+  .fpw-public-form-page .fpw-signup-trust-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .fpw-public-form-page .fpw-signup-disclaimer,
+  .fpw-public-form-page .fpw-auth-disclaimer,
+  .fpw-public-form-page .fpw-contact-disclaimer {
+    grid-template-columns: 28px 1fr;
+    padding: 16px 18px;
+  }
+}

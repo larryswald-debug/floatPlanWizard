@@ -42,13 +42,13 @@
     <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
 
     <cfinclude template="../includes/header_styles.cfm">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/auth-pages.css?v=20260617-contact-dark-theme">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/auth-pages.css?v=20260628-public-form-shell">
 </head>
-<body class="auth-page-body fpw-contact-page">
+<body class="auth-page-body fpw-public-form-page fpw-contact-page">
 
-<section class="fpw-contact-shell">
-    <div class="fpw-contact-card">
-        <aside class="fpw-contact-story" aria-label="FloatPlanWizard support information">
+<section class="fpw-public-form-shell fpw-contact-shell">
+    <div class="fpw-public-form-card fpw-contact-card">
+        <aside class="fpw-public-form-brand-panel fpw-contact-story" aria-label="FloatPlanWizard support information">
             <div class="fpw-contact-story-overlay">
                 <a class="fpw-brand fpw-contact-brand" href="<cfoutput>#request.fpwBase#</cfoutput>/" aria-label="FloatPlanWizard home">
                     <span class="fpw-brand__mark" aria-hidden="true">
@@ -79,8 +79,8 @@
                 <div class="fpw-contact-story-copy">
                     <h1>Boating support, not emergency dispatch.</h1>
                     <p>
-                        Use this form for account questions, feedback, billing questions,
-                        and general FloatPlanWizard support.
+                        Use this form for account help, float plan questions, Premium support,
+                        and launch feedback.
                     </p>
                 </div>
 
@@ -112,7 +112,7 @@
                     <div class="fpw-contact-benefit">
                         <span aria-hidden="true">&check;</span>
                         <div>
-                            <strong>Launch beta feedback</strong>
+                            <strong>Launch feedback</strong>
                             <small>Tell us what works and what could be better</small>
                         </div>
                     </div>
@@ -125,7 +125,7 @@
             </div>
         </aside>
 
-        <main class="fpw-contact-form-panel">
+        <main class="fpw-public-form-content-panel fpw-contact-form-panel">
             <div class="fpw-contact-form-header">
                 <div class="fpw-contact-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" focusable="false">
@@ -136,8 +136,7 @@
                 <div>
                     <h2>Contact FloatPlanWizard</h2>
                     <p>
-                        Have a question about your account, float plans, routes, Premium access,
-                        or launch beta feedback? Send us a message and we&rsquo;ll get back to you.
+                        Have a question about your account, float plans, routes, Premium access, or launch feedback? Send us a message and we&rsquo;ll get back to you.
                     </p>
                 </div>
             </div>
@@ -233,8 +232,7 @@
                 <button type="submit" id="contactButton" class="fpw-contact-submit">Send Message</button>
 
                 <p class="fpw-contact-safe-note">
-                    Please do not include sensitive information such as passwords, payment details,
-                    or emergency medical information.
+                    Please do not include passwords, payment details, or emergency medical information.
                 </p>
             </form>
         </main>

@@ -25,13 +25,13 @@
     <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
 
     <cfinclude template="../includes/header_styles.cfm">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/auth-pages.css?v=20260530-signup-no-benefit-line">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/auth-pages.css?v=20260628-public-form-shell">
 </head>
-<body class="auth-page-body fpw-signup-page">
+<body class="auth-page-body fpw-public-form-page fpw-signup-page">
 
-<section class="fpw-signup-shell">
-    <div class="fpw-signup-card">
-        <aside class="fpw-signup-story" aria-label="FloatPlan Wizard account benefits">
+<section class="fpw-public-form-shell fpw-signup-shell">
+    <div class="fpw-public-form-card fpw-signup-card">
+        <aside class="fpw-public-form-brand-panel fpw-signup-story" aria-label="FloatPlan Wizard account benefits">
             <div class="fpw-signup-story-overlay">
                 <a class="fpw-brand fpw-signup-brand" href="<cfoutput>#request.fpwBase#</cfoutput>/" aria-label="FloatPlanWizard home">
                     <span class="fpw-brand__mark" aria-hidden="true">
@@ -62,8 +62,8 @@
                 <div class="fpw-signup-story-copy">
                     <h1>Plan safer days on the water.</h1>
                     <p>
-                        FloatPlan Wizard helps you create and share a clear boating float plan
-                        with the people who need to know where you are going and when you'll return.
+                        Create and share a clear boating float plan with the people who need
+                        to know where you are going and when you expect to return.
                     </p>
                 </div>
 
@@ -71,8 +71,8 @@
                     <div class="fpw-signup-benefit">
                         <span class="fpw-signup-check" aria-hidden="true">✓</span>
                         <div>
-                            <strong>Premium Route Builder included</strong>
-                            <span>Plan your route with waypoints, legs, fuel and time estimates during your free month of Premium.</span>
+                            <strong>Premium route tools included for your first month</strong>
+                            <span>Plan with waypoints, routes, Active Cruise pages, and a private Follow page.</span>
                         </div>
                     </div>
 
@@ -80,47 +80,39 @@
                         <span class="fpw-signup-check" aria-hidden="true">✓</span>
                         <div>
                             <strong>No credit card required</strong>
-                            <span>New Members get 1 month of Premium Access free</span>
+                            <span>Start your account without entering payment details.</span>
                         </div>
                     </div>
 
                     <div class="fpw-signup-benefit">
                         <span class="fpw-signup-check" aria-hidden="true">✓</span>
                         <div>
-                            <strong>Mobile-friendly</strong>
-                            <span>Works on your phone — no app required</span>
-                        </div>
-                    </div>
-
-
-
-                    <div class="fpw-signup-benefit">
-                        <span class="fpw-signup-check" aria-hidden="true">✓</span>
-                        <div>
-                            <strong>Share the plan</strong>
-                            <span>Let family and friends know where you are</span>
+                            <strong>Mobile-friendly — no app required</strong>
+                            <span>Use FPW from a modern phone, tablet, or desktop browser.</span>
                         </div>
                     </div>
 
                     <div class="fpw-signup-benefit">
                         <span class="fpw-signup-check" aria-hidden="true">✓</span>
                         <div>
-                            <strong>Built for boaters</strong>
-                            <span>Designed by boaters, for boaters</span>
+                            <strong>Share your plan with a shore contact</strong>
+                            <span>Give trusted people clearer trip information before you leave.</span>
                         </div>
                     </div>
-
                 </div>
             </div>
         </aside>
 
-        <main class="fpw-signup-form-panel">
+        <main class="fpw-public-form-content-panel fpw-signup-form-panel">
             <div class="fpw-signup-form-header">
                 <div class="fpw-signup-user-icon" aria-hidden="true">👤</div>
                 <div>
-                    <h2>Get your Free Month of Premium Access</h2>
+                    <h2>Create your free FPW account</h2>
                     <p>
-                        You're free month gives you access to all custom route tools, Active Cruise pages and a Follow page for frends and family to track your trip.<p>After 1 month your membership will automatically convert to the Basic plan unless you choose to upgrade.
+                        Start with a free float plan and get one free month of Premium tools &mdash; no credit card required.
+                    </p>
+                    <p class="fpw-form-header-note">
+                        Your free month gives you access to custom route tools, Active Cruise pages, and a private Follow page for friends and family. After one month, your account automatically moves to the Basic plan unless you choose to upgrade.
                     </p>
                 </div>
             </div>

@@ -20,27 +20,6 @@
     <symbol id="fpw-i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   </svg>
 
-  <header class="fpw-site-header">
-    <div class="fpw-container fpw-nav">
-      <a class="fpw-logo-wrap" href="<cfoutput>#landingBasePath#</cfoutput>/" aria-label="Float Plan Wizard home">
-        <img src="<cfoutput>#landingBasePath#</cfoutput>/assets/images/landing/fpw-logo.svg" alt="FPW Float Plan Wizard">
-      </a>
-
-      <nav class="fpw-nav-links" aria-label="Primary navigation">
-        <a href="#fpwProductPreview">Product</a>
-        <a href="#fpwHowItWorks">How It Works</a>
-        <a href="#fpwProductPreview">Great Loop</a>
-        <a href="#fpwPricing">Pricing</a>
-        <a href="#fpwProductPreview">Resources⌄</a>
-      </nav>
-
-      <div class="fpw-nav-actions">
-        <a class="fpw-login-link" href="<cfoutput>#landingBasePath#</cfoutput>/app/login.cfm"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-clock"></use></svg>Log In</a>
-        <a class="fpw-btn fpw-btn-primary fpw-header-cta" href="<cfoutput>#landingBasePath#</cfoutput>/app/join.cfm">Create Free Plan</a>
-      </div>
-    </div>
-  </header>
-
   <main>
     <section class="fpw-hero" aria-labelledby="fpwHeroTitle">
       <div class="fpw-container fpw-hero-inner">

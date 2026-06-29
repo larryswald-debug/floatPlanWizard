@@ -6,13 +6,13 @@
   <title>Reset your password</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <cfinclude template="../includes/header_styles.cfm">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/auth-pages.css?v=20260530-forgot-auth-redesign">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/auth-pages.css?v=20260628-public-form-shell">
 </head>
-<body class="auth-page-body fpw-auth-page">
+<body class="auth-page-body fpw-public-form-page fpw-auth-page">
 
-<section class="fpw-auth-shell fpw-forgot-shell">
-  <div class="fpw-auth-card fpw-forgot-card">
-    <aside class="fpw-auth-story" aria-label="FloatPlanWizard account recovery">
+<section class="fpw-public-form-shell fpw-auth-shell fpw-forgot-shell">
+  <div class="fpw-public-form-card fpw-auth-card fpw-forgot-card">
+    <aside class="fpw-public-form-brand-panel fpw-auth-story" aria-label="FloatPlanWizard account recovery">
       <div class="fpw-auth-story-overlay">
         <a class="fpw-brand fpw-auth-brand" href="<cfoutput>#request.fpwBase#</cfoutput>/" aria-label="FloatPlanWizard home">
           <span class="fpw-brand__mark" aria-hidden="true">
@@ -75,7 +75,7 @@
       </div>
     </aside>
 
-    <main class="fpw-auth-form-panel">
+    <main class="fpw-public-form-content-panel fpw-auth-form-panel">
       <div class="fpw-auth-form-header">
         <div class="fpw-auth-user-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" focusable="false">
@@ -86,8 +86,7 @@
         <div>
           <h2>Reset your password</h2>
           <p>
-            Enter the email address for your FloatPlanWizard account and we&rsquo;ll send
-            you a secure password reset link.
+            Enter your email address and we&rsquo;ll send a secure reset link if an FPW account exists for that address.
           </p>
         </div>
       </div>

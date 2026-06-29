@@ -407,6 +407,7 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
 
   <link rel="icon" type="image/svg+xml" href="<cfoutput>#landingBasePath#</cfoutput>/assets/images/landing/fpw-logo.svg">
   <link rel="stylesheet" href="<cfoutput>#landingBasePath#</cfoutput>/assets/css/fpw-conversion-landing.css?v=20260628-phase3-conversion">
+  <link rel="stylesheet" href="<cfoutput>#landingBasePath#</cfoutput>/assets/css/top-nav.css?v=20260530-nav-cta">
   <style>
     .fpw-member-required-modal {
       position: fixed;
@@ -565,6 +566,8 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
 <cfinclude template="includes/trustedsite.cfm">
 </head>
 <body id="top">
+
+<cfinclude template="includes/prelaunch_top_nav.cfm">
 
 <cfif fpwShowMemberRequiredNotice>
   <cfoutput>

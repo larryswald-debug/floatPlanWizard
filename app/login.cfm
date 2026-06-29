@@ -6,18 +6,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <cfinclude template="../includes/header_styles.cfm">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/auth-pages.css?v=20260616-login-dark-theme">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/auth-pages.css?v=20260628-public-form-shell">
 
     <cfif structKeyExists(session, "authenticated") AND NOT isLoggedIn()>
         <cfset structClear(session)>
     </cfif>
 
 </head>
-<body class="auth-page-body fpw-auth-page">
+<body class="auth-page-body fpw-public-form-page fpw-auth-page">
 
-<section class="fpw-auth-shell fpw-login-shell">
-    <div class="fpw-auth-card fpw-login-card">
-        <aside class="fpw-auth-story" aria-label="FloatPlanWizard account benefits">
+<section class="fpw-public-form-shell fpw-auth-shell fpw-login-shell">
+    <div class="fpw-public-form-card fpw-auth-card fpw-login-card">
+        <aside class="fpw-public-form-brand-panel fpw-auth-story" aria-label="FloatPlanWizard account benefits">
             <div class="fpw-auth-story-overlay">
                 <a class="fpw-brand fpw-auth-brand" href="<cfoutput>#request.fpwBase#</cfoutput>/" aria-label="FloatPlanWizard home">
                     <span class="fpw-brand__mark" aria-hidden="true">
@@ -46,9 +46,9 @@
                 </a>
 
                 <div class="fpw-auth-story-copy">
-                    <h1>Plan safer days on the water.</h1>
+                    <h1>Your trip plans are waiting.</h1>
                     <p>
-                        Create, manage, and monitor boating float plans from your FPW account.
+                        Sign in to manage your float plans, update trip details, and keep your boating plans organized.
                     </p>
                 </div>
 
@@ -56,31 +56,31 @@
                     <div class="fpw-auth-benefit">
                         <span aria-hidden="true">&check;</span>
                         <div>
-                            <strong>Mobile-friendly</strong>
-                            <small>No app required</small>
+                            <strong>Manage your float plans</strong>
+                            <small>Create and update trip details</small>
                         </div>
                     </div>
 
                     <div class="fpw-auth-benefit">
                         <span aria-hidden="true">&check;</span>
                         <div>
-                            <strong>Built for boaters</strong>
-                            <small>Designed for serious recreational boating</small>
+                            <strong>Return to saved routes</strong>
+                            <small>Pick up where you left off</small>
                         </div>
                     </div>
 
                     <div class="fpw-auth-benefit">
                         <span aria-hidden="true">&check;</span>
                         <div>
-                            <strong>Float plans in one place</strong>
-                            <small>Routes, contacts, vessels, and trip tools</small>
+                            <strong>Use Active Cruise tools</strong>
+                            <small>Share updates with shore contacts</small>
                         </div>
                     </div>
                 </div>
             </div>
         </aside>
 
-        <main class="fpw-auth-form-panel">
+        <main class="fpw-public-form-content-panel fpw-auth-form-panel">
             <div class="fpw-auth-form-header">
                 <div class="fpw-auth-user-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" focusable="false">
@@ -89,9 +89,9 @@
                     </svg>
                 </div>
                 <div>
-                    <h2>Sign in to FloatPlanWizard</h2>
+                    <h2>Log in to FloatPlanWizard</h2>
                     <p>
-                        Access your float plans, routes, monitoring tools, and account settings.
+                        Access your float plans, routes, Active Cruise tools, and shared trip pages.
                     </p>
                 </div>
             </div>
@@ -135,11 +135,11 @@
                 <div id="loginAlert" class="alert d-none fpw-auth-message" role="alert" aria-live="polite"></div>
 
                 <button type="submit" class="fpw-auth-submit" id="loginButton">
-                    Sign In
+                    Log In
                 </button>
 
                 <div class="fpw-auth-link-row">
-                    <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/forgot-password.cfm">Forgot password?</a>
+                    <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/forgot-password.cfm">Forgot your password?</a>
                     <span aria-hidden="true">|</span>
                     <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Create free account</a>
                     <span aria-hidden="true">|</span>
