@@ -32,6 +32,7 @@
         <cfargument name="nocache" type="any" required="false">
         <cfargument name="token" type="any" required="false">
         <cfargument name="asUserId" type="any" required="false">
+        <cfargument name="viewModel" type="any" required="false">
 
         <cfsetting enablecfoutputonly="true" showdebugoutput="false">
         <cfcontent type="application/json; charset=utf-8">
@@ -57,6 +58,8 @@
             <cfset local.marineModeProvided = false>
             <cfset local.marineOnlyProvided = false>
             <cfset local.marineDetail = "">
+            <cfset local.viewModel = lcase(trim(readRequestParamValue(arguments, ["viewModel"])))>
+            <cfset local.useWeatherPageViewModel = (local.viewModel EQ "weatherpage")>
 
             <cfif structKeyExists(session, "user") AND isStruct(session.user)>
                 <cfset local.userStruct = session.user>
@@ -81,7 +84,7 @@
                 <cfset local.resp.SUCCESS = false>
                 <cfset local.resp.AUTH = false>
                 <cfset local.resp.MESSAGE = "Unauthorized">
-                <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
                 <cfreturn>
             </cfif>
 
@@ -119,7 +122,7 @@
                 <cfif NOT structKeyExists(application, "dsn") OR NOT len(trim(application.dsn))>
                     <cfset local.resp.SUCCESS = false>
                     <cfset local.resp.MESSAGE = "Application error: application.dsn is not set.">
-                    <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                    <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
                     <cfreturn>
                 </cfif>
 
@@ -132,7 +135,7 @@
                 <cfif local.fpId LTE 0>
                     <cfset local.resp.SUCCESS = false>
                     <cfset local.resp.MESSAGE = "Missing floatPlanId">
-                    <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                    <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
                     <cfreturn>
                 </cfif>
 
@@ -144,7 +147,7 @@
                 <cfset structDelete(local.data, "MESSAGE", false)>
                 <cfset local.resp.DATA = local.data>
 
-                <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
                 <cfreturn>
             </cfif>
 
@@ -162,7 +165,7 @@
                     <cfset local.resp.SUCCESS = false>
                     <cfset local.resp.MESSAGE = "Invalid ZIP">
                     <cfset local.resp.ERROR = { "CODE"="INVALID_ZIP", "DETAIL"="ZIP must be 5 digits." }>
-                    <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                    <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
                     <cfreturn>
                 </cfif>
 
@@ -203,7 +206,7 @@
                         text="weather_zip_summary zip=#(structKeyExists(local.summary,'zip') ? toString(local.summary.zip) : local.zip)# geocodeCache=#(structKeyExists(local.summary,'geocodeCache') ? toString(local.summary.geocodeCache) : 'none')# geocodeProvider=#(structKeyExists(local.summary,'geocodeProvider') ? toString(local.summary.geocodeProvider) : 'none')# ndbcBuoy=#(structKeyExists(local.summary,'ndbcBuoy') ? toString(local.summary.ndbcBuoy) : 'none')# ndbcStatus=#(structKeyExists(local.summary,'ndbcStatus') ? toString(local.summary.ndbcStatus) : 'none')# ndbcNegCache=#(structKeyExists(local.summary,'ndbcNegCache') ? toString(local.summary.ndbcNegCache) : 'none')# marineMode=#(structKeyExists(local.summary,'marineMode') ? toString(local.summary.marineMode) : 'unknown')# marineOnly=#(structKeyExists(local.summary,'marineOnly') ? toString(local.summary.marineOnly) : 'unknown')#">
                 </cfif>
 
-                <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
                 <cfreturn>
             </cfif>
 
@@ -229,7 +232,7 @@
                         "CODE"="PARTIAL_COORDINATES",
                         "DETAIL"="Provide both latitude and longitude."
                     }>
-                    <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                    <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
                     <cfreturn>
                 </cfif>
 
@@ -239,7 +242,7 @@
                         <cfset local.resp.SUCCESS = false>
                         <cfset local.resp.MESSAGE = local.latParsed.MESSAGE>
                         <cfset local.resp.ERROR = local.latParsed.ERROR>
-                        <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                        <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
                         <cfreturn>
                     </cfif>
 
@@ -248,7 +251,7 @@
                         <cfset local.resp.SUCCESS = false>
                         <cfset local.resp.MESSAGE = local.lonParsed.MESSAGE>
                         <cfset local.resp.ERROR = local.lonParsed.ERROR>
-                        <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                        <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
                         <cfreturn>
                     </cfif>
 
@@ -275,7 +278,7 @@
                     <cfset structDelete(local.data, "MESSAGE", false)>
                     <cfset structDelete(local.data, "ERROR", false)>
                     <cfset local.resp.DATA = local.data>
-                    <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                    <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
                     <cfreturn>
                 </cfif>
 
@@ -285,7 +288,7 @@
                         <cfset local.resp.SUCCESS = false>
                         <cfset local.resp.MESSAGE = "Invalid ZIP">
                         <cfset local.resp.ERROR = { "CODE"="INVALID_ZIP", "DETAIL"="ZIP must be 5 digits." }>
-                        <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                        <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
                         <cfreturn>
                     </cfif>
 
@@ -319,7 +322,7 @@
                     <cfset structDelete(local.data, "MESSAGE", false)>
                     <cfset structDelete(local.data, "ERROR", false)>
                     <cfset local.resp.DATA = local.data>
-                    <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                    <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
                     <cfreturn>
                 </cfif>
 
@@ -327,7 +330,7 @@
                     <cfif NOT structKeyExists(application, "dsn") OR NOT len(trim(application.dsn))>
                         <cfset local.resp.SUCCESS = false>
                         <cfset local.resp.MESSAGE = "Application error: application.dsn is not set.">
-                        <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                        <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
                         <cfreturn>
                     </cfif>
 
@@ -339,7 +342,7 @@
                             "CODE"="MISSING_FLOATPLAN_ID",
                             "DETAIL"="floatPlanId or id must be a positive integer."
                         }>
-                        <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                        <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
                         <cfreturn>
                     </cfif>
 
@@ -373,7 +376,7 @@
                     <cfset structDelete(local.data, "MESSAGE", false)>
                     <cfset structDelete(local.data, "ERROR", false)>
                     <cfset local.resp.DATA = local.data>
-                    <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                    <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
                     <cfreturn>
                 </cfif>
 
@@ -383,13 +386,13 @@
                     "CODE"="MISSING_LOCATION_INPUT",
                     "DETAIL"="Provide lat/lon, zip, or floatPlanId."
                 }>
-                <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
                 <cfreturn>
             </cfif>
 
             <cfset local.resp.SUCCESS = false>
             <cfset local.resp.MESSAGE = "Unknown action">
-            <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+            <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
 
             <cfcatch>
                 <cfset local.err = {
@@ -401,6 +404,24 @@
                 <cfoutput>#serializeJSON(local.err)#</cfoutput>
             </cfcatch>
         </cftry>
+    </cffunction>
+
+    <cffunction name="writeWeatherResponse" access="private" returntype="void" output="true">
+        <cfargument name="resp" type="struct" required="true">
+        <cfargument name="useWeatherPageViewModel" type="boolean" required="false" default="false">
+
+        <cfset local.out = arguments.resp>
+        <cfif arguments.useWeatherPageViewModel>
+            <cfset local.out = getWeatherPageViewModelService().normalize(arguments.resp)>
+        </cfif>
+        <cfoutput>#serializeJSON(local.out)#</cfoutput>
+    </cffunction>
+
+    <cffunction name="getWeatherPageViewModelService" access="private" returntype="any" output="false">
+        <cfif NOT structKeyExists(request, "_fpwWeatherPageViewModelService")>
+            <cfset request._fpwWeatherPageViewModelService = createObject("component", "fpw.api.v1.WeatherPageViewModelService").init()>
+        </cfif>
+        <cfreturn request._fpwWeatherPageViewModelService>
     </cffunction>
 
     <!--- =========================

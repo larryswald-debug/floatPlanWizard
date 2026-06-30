@@ -1,0 +1,124 @@
+{
+  "SUCCESS": true,
+  "MESSAGE": "OK",
+  "DATA": {
+    "SUMMARY": {
+      "condition": "Partly Cloudy",
+      "temp_f": 72,
+      "feels_like_f": 74,
+      "wind_mph": 12,
+      "wind_direction": "SW",
+      "gust_mph": 18
+    },
+    "FORECAST": {
+      "periods": [
+        {
+          "name": "This Hour",
+          "startTime": "2026-06-30T14:00:00Z",
+          "temperature": 72,
+          "windSpeed": "10 to 15 mph",
+          "windDirection": "SW",
+          "shortForecast": "Partly Cloudy",
+          "probabilityOfPrecipitation": {
+            "value": 20
+          }
+        },
+        {
+          "name": "Next Hour",
+          "startTime": "2026-06-30T15:00:00Z",
+          "temperature": 73,
+          "windSpeed": "12 mph",
+          "windDirection": "SW",
+          "shortForecast": "Mostly Sunny",
+          "probabilityOfPrecipitation": {
+            "value": 10
+          }
+        }
+      ]
+    },
+    "ALERTS": {
+      "features": [
+        {
+          "id": "fixture-alert-1",
+          "properties": {
+            "event": "Small Craft Advisory",
+            "headline": "Small Craft Advisory until 8 PM EDT",
+            "severity": "Moderate",
+            "urgency": "Expected",
+            "certainty": "Likely",
+            "effective": "2026-06-30T12:00:00Z",
+            "expires": "2026-07-01T00:00:00Z",
+            "areaDesc": "Boston Harbor",
+            "description": "Fixture alert for contract parity.",
+            "instruction": "Use caution on exposed waters."
+          }
+        }
+      ]
+    },
+    "MARINE": {
+      "wave_height_ft": 0,
+      "META": {
+        "summary": "Marine detail deferred for async hydration.",
+        "TIMING": {
+          "mode": "summary"
+        }
+      }
+    },
+    "surface": {
+      "station_id": "KBOS",
+      "observed_at_utc": "2026-06-30T13:54:00Z",
+      "temperature_f": 71,
+      "feels_like_f": 73,
+      "condition": "Partly Cloudy",
+      "wind_mph": 12,
+      "wind_direction": "SW",
+      "gust_mph": 18,
+      "pressure_inhg": 29.94,
+      "visibility_mi": 10,
+      "humidity_pct": 64,
+      "dewpoint_f": 59
+    },
+    "MAP_LAYERS": [
+      {
+        "key": "radar",
+        "label": "Radar",
+        "available": true
+      }
+    ],
+    "META": {
+      "request_id": "fixture-summary",
+      "generated_at_utc": "2026-06-30T14:00:00Z",
+      "provider": "NOAA/NWS",
+      "resolved_location": "Boston, MA",
+      "zip": "02110",
+      "timezone": "America/New_York",
+      "anchor": {
+        "lat": 42.3601,
+        "lon": -71.0589,
+        "label": "Boston Harbor"
+      },
+      "cache_report": {
+        "forecast": {
+          "status": "fresh",
+          "cached_at_utc": "2026-06-30T13:59:00Z"
+        },
+        "alerts": {
+          "status": "fresh",
+          "cached_at_utc": "2026-06-30T13:59:05Z"
+        },
+        "surface": {
+          "status": "fresh",
+          "cached_at_utc": "2026-06-30T13:59:10Z"
+        },
+        "marine": {
+          "status": "deferred"
+        }
+      }
+    },
+    "CACHE": {
+      "forecast": {
+        "status": "fresh"
+      }
+    }
+  }
+}

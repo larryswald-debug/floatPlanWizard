@@ -1,0 +1,43 @@
+{
+  "SUCCESS": true,
+  "MESSAGE": "Partial weather data available.",
+  "DATA": {
+    "SUMMARY": {
+      "condition": "Unavailable"
+    },
+    "FORECAST": {
+      "periods": []
+    },
+    "ALERTS": [],
+    "MARINE": {
+      "META": {
+        "summary": "Marine data unavailable for this point."
+      }
+    },
+    "ZONE_FORECAST": {
+      "available": false,
+      "reason": "No marine zone found for this point."
+    },
+    "META": {
+      "request_id": "fixture-degraded",
+      "generated_at_utc": "2026-06-30T14:04:00Z",
+      "resolved_location": "Inland Point",
+      "anchor": {
+        "lat": 39.1,
+        "lon": -84.5,
+        "label": "Inland Point"
+      },
+      "cache_report": {
+        "forecast": {
+          "status": "miss"
+        },
+        "marine": {
+          "status": "unavailable"
+        },
+        "zone_forecast": {
+          "status": "unavailable"
+        }
+      }
+    }
+  }
+}

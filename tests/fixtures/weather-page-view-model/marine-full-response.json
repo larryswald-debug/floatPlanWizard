@@ -1,0 +1,54 @@
+{
+  "SUCCESS": true,
+  "MESSAGE": "OK",
+  "DATA": {
+    "MARINE": {
+      "risk_level": "Moderate",
+      "risk_score": 2,
+      "recommendation": "Use caution in building afternoon seas.",
+      "wave_height_ft": 3.2,
+      "wave_period_sec": 8,
+      "wave_direction_deg": 135,
+      "visibility_mi": 9,
+      "tide": {
+        "current": {
+          "height_ft": 1.4,
+          "trend": "rising"
+        },
+        "next_high": {
+          "time_utc": "2026-06-30T18:20:00Z",
+          "height_ft": 2.7
+        },
+        "next_low": {
+          "time_utc": "2026-07-01T00:42:00Z",
+          "height_ft": 0.3
+        }
+      },
+      "tide_station": "Boston Harbor",
+      "water_level_station": "8443970",
+      "META": {
+        "TIMING": {
+          "mode": "full",
+          "coops_ms": 420
+        }
+      }
+    },
+    "META": {
+      "request_id": "fixture-marine-full",
+      "generated_at_utc": "2026-06-30T14:02:00Z",
+      "anchor": {
+        "lat": 42.3601,
+        "lon": -71.0589,
+        "label": "Boston Harbor"
+      },
+      "cache_report": {
+        "marine": {
+          "status": "fresh"
+        },
+        "tide": {
+          "status": "fresh"
+        }
+      }
+    }
+  }
+}

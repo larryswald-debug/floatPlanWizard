@@ -1,0 +1,33 @@
+{
+  "SUCCESS": true,
+  "MESSAGE": "OK",
+  "DATA": {
+    "ZONE_FORECAST": {
+      "available": true,
+      "zone_id": "ANZ230",
+      "zone_name": "Boston Harbor",
+      "office": "BOX",
+      "synopsis": "High pressure remains offshore through tonight.",
+      "periods": [
+        {
+          "name": "Tonight",
+          "forecast": "SW winds 5 to 10 kt. Waves 1 foot or less."
+        },
+        {
+          "name": "Wednesday",
+          "forecast": "S winds 10 to 15 kt. Waves around 2 ft."
+        }
+      ],
+      "source_url": "https://forecast.weather.gov/product.php?site=BOX&product=CWF"
+    },
+    "META": {
+      "request_id": "fixture-zone-full",
+      "generated_at_utc": "2026-06-30T14:03:00Z",
+      "cache_report": {
+        "zone_forecast": {
+          "status": "fresh"
+        }
+      }
+    }
+  }
+}
