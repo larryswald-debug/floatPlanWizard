@@ -19,6 +19,12 @@
                 "marine"=900,
                 "metar"=900
             };
+            variables.negativeTtl = {
+                "nwsForecast"=60,
+                "nwsAlerts"=60,
+                "marine"=60,
+                "metar"=60
+            };
             variables.maxEntries = {
                 "nwsForecast"=500,
                 "nwsAlerts"=500,
@@ -179,8 +185,8 @@
                 cachedEnvelope = cacheGetEnvelope("nwsForecast", cacheKey);
                 if (isStruct(cachedEnvelope) AND structCount(cachedEnvelope) GT 0) {
                     payload = (structKeyExists(cachedEnvelope, "data") AND isStruct(cachedEnvelope.data) ? cachedEnvelope.data : {});
-                    if (isUsableForecastPayload(payload)) {
-                        return mergePayloadWithCacheMeta(payload, cachedEnvelope, cacheKey, ttl, true, false);
+                    if (isUsableForecastPayload(payload) OR isNegativeCachePayload(payload)) {
+                        return mergePayloadWithCacheMeta(payload, cachedEnvelope, cacheKey, (isNegativeCachePayload(payload) ? negativeTtlSeconds("nwsForecast") : ttl), true, false);
                     }
                 }
             }
@@ -193,7 +199,14 @@
             if (!isStruct(payload)) payload = {};
 
             if (!isUsableForecastPayload(payload)) {
-                return mergePayloadWithCacheMeta(payload, {}, cacheKey, ttl, false, arguments.bypassCache);
+                payload = markNegativeCachePayload(payload, "forecast_not_usable");
+                if (!arguments.bypassCache) {
+                    httpMeta = deriveForecastHttpMeta(payload);
+                    envelope = buildEnvelope(cacheKey, "api.weather.gov", payload, negativeTtlSeconds("nwsForecast"), httpMeta);
+                    cacheSetEnvelope("nwsForecast", cacheKey, envelope, cacheTypeLimit("nwsForecast"));
+                    return mergePayloadWithCacheMeta(payload, envelope, cacheKey, negativeTtlSeconds("nwsForecast"), false, false);
+                }
+                return mergePayloadWithCacheMeta(payload, {}, cacheKey, negativeTtlSeconds("nwsForecast"), false, arguments.bypassCache);
             }
 
             httpMeta = deriveForecastHttpMeta(payload);
@@ -222,8 +235,8 @@
                 cachedEnvelope = cacheGetEnvelope("nwsAlerts", cacheKey);
                 if (isStruct(cachedEnvelope) AND structCount(cachedEnvelope) GT 0) {
                     payload = (structKeyExists(cachedEnvelope, "data") AND isStruct(cachedEnvelope.data) ? cachedEnvelope.data : {});
-                    if (isUsableAlertsPayload(payload)) {
-                        return mergePayloadWithCacheMeta(payload, cachedEnvelope, cacheKey, ttl, true, false);
+                    if (isUsableAlertsPayload(payload) OR isNegativeCachePayload(payload)) {
+                        return mergePayloadWithCacheMeta(payload, cachedEnvelope, cacheKey, (isNegativeCachePayload(payload) ? negativeTtlSeconds("nwsAlerts") : ttl), true, false);
                     }
                 }
             }
@@ -236,7 +249,14 @@
             if (!isStruct(payload)) payload = {};
 
             if (!isUsableAlertsPayload(payload)) {
-                return mergePayloadWithCacheMeta(payload, {}, cacheKey, ttl, false, arguments.bypassCache);
+                payload = markNegativeCachePayload(payload, "alerts_not_usable");
+                if (!arguments.bypassCache) {
+                    httpMeta = deriveAlertsHttpMeta(payload);
+                    envelope = buildEnvelope(cacheKey, "api.weather.gov", payload, negativeTtlSeconds("nwsAlerts"), httpMeta);
+                    cacheSetEnvelope("nwsAlerts", cacheKey, envelope, cacheTypeLimit("nwsAlerts"));
+                    return mergePayloadWithCacheMeta(payload, envelope, cacheKey, negativeTtlSeconds("nwsAlerts"), false, false);
+                }
+                return mergePayloadWithCacheMeta(payload, {}, cacheKey, negativeTtlSeconds("nwsAlerts"), false, arguments.bypassCache);
             }
 
             httpMeta = deriveAlertsHttpMeta(payload);
@@ -273,8 +293,8 @@
                 cachedEnvelope = cacheGetEnvelope("marine", cacheKey);
                 if (isStruct(cachedEnvelope) AND structCount(cachedEnvelope) GT 0) {
                     payload = (structKeyExists(cachedEnvelope, "data") AND isStruct(cachedEnvelope.data) ? cachedEnvelope.data : {});
-                    if (isUsableMarinePayload(payload)) {
-                        return mergePayloadWithCacheMeta(payload, cachedEnvelope, cacheKey, ttl, true, false);
+                    if (isUsableMarinePayload(payload) OR isNegativeCachePayload(payload)) {
+                        return mergePayloadWithCacheMeta(payload, cachedEnvelope, cacheKey, (isNegativeCachePayload(payload) ? negativeTtlSeconds("marine") : ttl), true, false);
                     }
                 }
             }
@@ -294,7 +314,18 @@
                     payload.META.cache.marine_cached = false;
                     payload.META.cache.marine_cache_reason = "not_usable";
                 }
-                return mergePayloadWithCacheMeta(payload, {}, cacheKey, ttl, false, arguments.bypassCache);
+                payload = markNegativeCachePayload(payload, "marine_not_usable");
+                if (!arguments.bypassCache) {
+                    if (structKeyExists(payload, "http_meta") AND isStruct(payload.http_meta)) {
+                        httpMeta = payload.http_meta;
+                    } else {
+                        httpMeta = { "status"=0 };
+                    }
+                    envelope = buildEnvelope(cacheKey, "marine", payload, negativeTtlSeconds("marine"), httpMeta);
+                    cacheSetEnvelope("marine", cacheKey, envelope, cacheTypeLimit("marine"));
+                    return mergePayloadWithCacheMeta(payload, envelope, cacheKey, negativeTtlSeconds("marine"), false, false);
+                }
+                return mergePayloadWithCacheMeta(payload, {}, cacheKey, negativeTtlSeconds("marine"), false, arguments.bypassCache);
             }
 
             if (structKeyExists(payload, "http_meta") AND isStruct(payload.http_meta)) {
@@ -312,6 +343,7 @@
         <cfargument name="variant" type="string" required="false" default="">
         <cfscript>
             var normalized = lcase(trim(toString(arguments.variant)));
+            if (normalized EQ "summary") return "summary";
             if (normalized EQ "quick") return "quick";
             if (normalized EQ "full") return "full";
             return "";
@@ -1298,6 +1330,45 @@
             if (status GTE 200 AND status LT 300) {
                 if (structKeyExists(arguments.payload, "forecast_body") AND len(trim(toString(arguments.payload.forecast_body)))) {
                     return true;
+                }
+            }
+            return false;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="negativeTtlSeconds" access="private" returntype="numeric" output="false">
+        <cfargument name="cacheType" type="string" required="true">
+        <cfscript>
+            var key = trim(toString(arguments.cacheType));
+            if (structKeyExists(variables, "negativeTtl") AND isStruct(variables.negativeTtl) AND structKeyExists(variables.negativeTtl, key)) {
+                return normalizeTtl(variables.negativeTtl[key], 60);
+            }
+            return 60;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="markNegativeCachePayload" access="private" returntype="struct" output="false">
+        <cfargument name="payload" type="any" required="true">
+        <cfargument name="reason" type="string" required="false" default="">
+        <cfscript>
+            var out = (isStruct(arguments.payload) ? cloneAny(arguments.payload) : {});
+            out.negative_cache = true;
+            if (len(trim(arguments.reason))) {
+                out.negative_cache_reason = trim(arguments.reason);
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="isNegativeCachePayload" access="private" returntype="boolean" output="false">
+        <cfargument name="payload" type="any" required="true">
+        <cfscript>
+            if (!isStruct(arguments.payload)) return false;
+            if (structKeyExists(arguments.payload, "negative_cache")) {
+                if (isBoolean(arguments.payload.negative_cache)) return arguments.payload.negative_cache;
+                if (isNumeric(arguments.payload.negative_cache)) return (val(arguments.payload.negative_cache) EQ 1);
+                if (isSimpleValue(arguments.payload.negative_cache)) {
+                    return (compareNoCase(trim(toString(arguments.payload.negative_cache)), "true") EQ 0);
                 }
             }
             return false;

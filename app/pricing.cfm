@@ -26,7 +26,7 @@
 
   <cfinclude template="../includes/fpw_base_path.cfm">
   <cfinclude template="../includes/header_styles.cfm">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/pricing.css?v=20260616-compact-hero">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/pricing.css?v=20260629-light-public-charts">
 </head>
 <body>
 
@@ -96,6 +96,11 @@
       <path d="M8 15h8M8 18h5M8 12h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
     </symbol>
 
+    <symbol id="fpw-icon-chart" viewBox="0 0 24 24">
+      <path d="M4 6l5-2 6 2 5-2v14l-5 2-6-2-5 2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M9 4v14M15 6v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+
     <symbol id="fpw-icon-check" viewBox="0 0 24 24">
       <path d="M20 6 9 17l-5-5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
     </symbol>
@@ -143,6 +148,7 @@
         <li><span class="pricing-check"></span>Companion check-ins</li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
         <li><span class="pricing-check"></span>NOOA/NWS Marine Weather</li>
+        <li><span class="pricing-check"></span>NOAA Nautical Charts</li>
         <li><span class="pricing-check"></span>Premium route tools</li>
       </ul>
       <a class="pricing-btn pricing-btn-primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/start-trial.cfm?offer=launch_trial">Start Monthly Premium</a>
@@ -162,6 +168,7 @@
         <li><span class="pricing-check"></span>Companion check-ins</li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
         <li><span class="pricing-check"></span>NOOA/NWS Marine Weather</li>
+        <li><span class="pricing-check"></span>NOAA Nautical Charts</li>
         <li><span class="pricing-check"></span>Premium route tools</li>
       </ul>
       <a class="pricing-btn pricing-btn-primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/start-trial.cfm?offer=launch_trial">Start Annual Premium</a>
@@ -180,6 +187,7 @@
         <li><span class="pricing-check"></span>Companion check-ins</li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
         <li><span class="pricing-check"></span>NOOA/NWS Marine Weather</li>
+        <li><span class="pricing-check"></span>NOAA Nautical Charts</li>
         <li><span class="pricing-check"></span>Premium route tools</li>
         <li><span class="pricing-muted-check"></span>Valid for 3 consecutive days</li>
       </ul>
@@ -199,6 +207,7 @@
     <div class="premium-strip-item"><svg><use href="#fpw-icon-follow"></use></svg><span>Public<br>Follow page</span></div>
     <div class="premium-strip-item"><svg><use href="#fpw-icon-phone"></use></svg><span>Companion<br>check-ins</span></div>
     <div class="premium-strip-item"><svg><use href="#fpw-icon-pin"></use></svg><span>GPS check-in<br>support</span></div>
+    <div class="premium-strip-item"><svg><use href="#fpw-icon-chart"></use></svg><span>NOAA<br>Nautical Charts</span></div>
     <div class="premium-strip-item"><svg><use href="#fpw-icon-tools"></use></svg><span>Premium<br>route tools</span></div>
     <div class="premium-strip-item"><svg><use href="#fpw-icon-pdf"></use></svg><span>PDF float plan<br>access</span></div>
   </section>
@@ -214,6 +223,7 @@
         <li><svg><use href="#fpw-icon-pin"></use></svg>GPS coordinates on check-ins</li>
         <li><svg><use href="#fpw-icon-route"></use></svg>Route progress and trip status</li>
         <li><svg><use href="#fpw-icon-waves"></use></svg>Weather-aware trip context</li>
+        <li><svg><use href="#fpw-icon-chart"></use></svg>NOAA Nautical Charts</li>
         <li><svg><use href="#fpw-icon-pdf"></use></svg>PDF float plan access</li>
       </ul>
     </article>
@@ -236,6 +246,7 @@
           <tr><td>Shareable Trip page</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>Companion check-ins</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>GPS check-in coordinates</td><td class="limited">Limited</td><td class="yes">✓</td></tr>
+          <tr><td>NOAA Nautical Charts</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>PDF float plan</td><td class="yes">✓</td><td class="yes">✓</td></tr>
           <tr><td>Saved route tools</td><td class="no">×</td><td class="yes">✓</td></tr>
         </tbody>

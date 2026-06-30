@@ -71,6 +71,27 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( code ).notToBe( "PARTIAL_COORDINATES" );
       } );
 
+      it( "accepts summary marine mode and defers marine detail", function() {
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+
+        var summaryUrl = variables.ctx.baseUrl
+          & "/fpw/api/v1/weather.cfc?method=handle&action=search&returnformat=json&marineMode=summary&marineOnly=1&lat=42.3601&lon=-71.0589";
+        var res = apiGetJson( summaryUrl );
+        var data = ( structKeyExists( res, "DATA" ) && isStruct( res.DATA ) ) ? res.DATA : {};
+        var marine = ( structKeyExists( data, "MARINE" ) && isStruct( data.MARINE ) ) ? data.MARINE : {};
+        var meta = ( structKeyExists( marine, "META" ) && isStruct( marine.META ) ) ? marine.META : {};
+        var timing = ( structKeyExists( meta, "TIMING" ) && isStruct( meta.TIMING ) ) ? meta.TIMING : {};
+
+        expect( !!res.SUCCESS ).toBeTrue( "Expected summary marine mode to succeed: #serializeJSON(res)#" );
+        expect( structKeyExists( marine, "wave_height_ft" ) ).toBeTrue( "Summary marine result missing wave_height_ft: #serializeJSON(res)#" );
+        expect( structKeyExists( timing, "mode" ) ).toBeTrue( "Summary marine timing missing mode: #serializeJSON(res)#" );
+        expect( toString( timing.mode ) ).toBe( "summary" );
+        expect( structKeyExists( data, "ZONE_FORECAST" ) && isStruct( data.ZONE_FORECAST ) && structCount( data.ZONE_FORECAST ) EQ 0 )
+          .toBeTrue( "Summary marine mode should not include full zone forecast: #serializeJSON(res)#" );
+      } );
+
       it( "returns INVALID_LATITUDE for out-of-range latitude", function() {
         if ( !variables.ctx.sessionReady ) {
           skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
@@ -374,7 +395,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( toString( firstRes.cache_meta.key ) ).toBe( toString( secondRes.cache_meta.key ) );
       } );
 
-      it( "does not cache failed forecast payloads", function() {
+      it( "short negative-caches failed forecast payloads", function() {
         clearUnifiedWeatherCacheStore();
         var weatherCache = newWeatherCacheService();
         var fetchCalls = 0;
@@ -396,14 +417,15 @@ component extends="testbox.system.BaseSpec" output="false" {
         var firstRes = weatherCache.getNwsForecastCached( 27.98144, -82.73144, 900, false, fetcher );
         var secondRes = weatherCache.getNwsForecastCached( 27.98144, -82.73144, 900, false, fetcher );
 
-        expect( fetchCalls ).toBe( 2 );
+        expect( fetchCalls ).toBe( 1 );
         expect( structKeyExists( firstRes, "cache_meta" ) ).toBeTrue( "First failed forecast result missing cache_meta: #serializeJSON(firstRes)#" );
         expect( structKeyExists( secondRes, "cache_meta" ) ).toBeTrue( "Second failed forecast result missing cache_meta: #serializeJSON(secondRes)#" );
-        expect( !!firstRes.cache_meta.hit ).toBeFalse( "Failed forecast should not be cached on first call: #serializeJSON(firstRes)#" );
-        expect( !!secondRes.cache_meta.hit ).toBeFalse( "Failed forecast should not be served from cache on second call: #serializeJSON(secondRes)#" );
+        expect( !!firstRes.cache_meta.hit ).toBeFalse( "First failed forecast call should be a fresh negative-cache write: #serializeJSON(firstRes)#" );
+        expect( !!secondRes.cache_meta.hit ).toBeTrue( "Second failed forecast call should be served from short negative cache: #serializeJSON(secondRes)#" );
+        expect( structKeyExists( secondRes, "negative_cache" ) && !!secondRes.negative_cache ).toBeTrue( "Second failed forecast result should carry negative_cache=true: #serializeJSON(secondRes)#" );
       } );
 
-      it( "does not cache failed alerts payloads", function() {
+      it( "short negative-caches failed alerts payloads", function() {
         clearUnifiedWeatherCacheStore();
         var weatherCache = newWeatherCacheService();
         var fetchCalls = 0;
@@ -422,11 +444,12 @@ component extends="testbox.system.BaseSpec" output="false" {
         var firstRes = weatherCache.getNwsAlertsCached( 27.98144, -82.73144, 300, false, fetcher );
         var secondRes = weatherCache.getNwsAlertsCached( 27.98144, -82.73144, 300, false, fetcher );
 
-        expect( fetchCalls ).toBe( 2 );
+        expect( fetchCalls ).toBe( 1 );
         expect( structKeyExists( firstRes, "cache_meta" ) ).toBeTrue( "First failed alerts result missing cache_meta: #serializeJSON(firstRes)#" );
         expect( structKeyExists( secondRes, "cache_meta" ) ).toBeTrue( "Second failed alerts result missing cache_meta: #serializeJSON(secondRes)#" );
-        expect( !!firstRes.cache_meta.hit ).toBeFalse( "Failed alerts should not be cached on first call: #serializeJSON(firstRes)#" );
-        expect( !!secondRes.cache_meta.hit ).toBeFalse( "Failed alerts should not be served from cache on second call: #serializeJSON(secondRes)#" );
+        expect( !!firstRes.cache_meta.hit ).toBeFalse( "First failed alerts call should be a fresh negative-cache write: #serializeJSON(firstRes)#" );
+        expect( !!secondRes.cache_meta.hit ).toBeTrue( "Second failed alerts call should be served from short negative cache: #serializeJSON(secondRes)#" );
+        expect( structKeyExists( secondRes, "negative_cache" ) && !!secondRes.negative_cache ).toBeTrue( "Second failed alerts result should carry negative_cache=true: #serializeJSON(secondRes)#" );
       } );
 
     } );

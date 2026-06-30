@@ -381,6 +381,7 @@ body {
 }
 
 .fpw-steps {
+  scroll-margin-top: 150px;
   padding: 34px 0 30px;
   background: #fff;
 }
@@ -720,6 +721,7 @@ body {
 }
 
 .fpw-compare {
+  scroll-margin-top: 150px;
   padding: 24px 0 44px;
   background: #fff;
 }

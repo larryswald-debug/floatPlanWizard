@@ -12,6 +12,7 @@ topNavMemberDisplayInitials = "FP";
 topNavFirstName = "";
 topNavLastName = "";
 topNavEmail = "";
+topNavHowHref = "";
 
 if (structKeyExists(request, "fpwBase")) {
   topNavHasRequestBase = true;
@@ -41,6 +42,8 @@ if (len(topNavBasePath) AND left(topNavBasePath, 1) NEQ "/") {
 if (structKeyExists(request, "fpwTopNavActive")) {
   topNavActive = lCase(trim(toString(request.fpwTopNavActive)));
 }
+
+topNavHowHref = topNavBasePath & "/##fpwHowItWorks";
 
 if (structKeyExists(session, "user") AND isStruct(session.user)) {
   if (structKeyExists(session.user, "firstName")) {
@@ -261,15 +264,17 @@ topNavShowAppSubnav = topNavIsLoggedIn
             <button class="fpw-mobile-close" type="button" aria-label="Close menu" data-fpw-mobile-close>&times;</button>
           </div>
 
-          <nav class="fpw-primary-nav" aria-label="Primary navigation">
-            <a class="fpw-nav-link" href="#topNavBasePath#/how-it-works.cfm">
-              #renderFpwNavIcon("how", "fpw-nav-icon")#
-              <span>How It Works</span>
-            </a>
-            <a class="fpw-nav-link" href="#topNavBasePath#/index.cfm##features">
-              #renderFpwNavIcon("route", "fpw-nav-icon")#
-              <span>Features</span>
-            </a>
+          <nav class="fpw-primary-nav<cfif topNavIsLoggedIn> fpw-primary-nav--member</cfif>" aria-label="Primary navigation">
+            <cfif NOT topNavIsLoggedIn>
+              <a class="fpw-nav-link" href="#topNavHowHref#">
+                #renderFpwNavIcon("how", "fpw-nav-icon")#
+                <span>How It Works</span>
+              </a>
+              <a class="fpw-nav-link" href="#topNavBasePath#/##fpwFeatures">
+                #renderFpwNavIcon("route", "fpw-nav-icon")#
+                <span>Features</span>
+              </a>
+            </cfif>
             <div class="fpw-dropdown fpw-dropdown--mega" data-fpw-dropdown>
               <button class="fpw-nav-link fpw-dropdown-toggle" type="button" aria-expanded="false" aria-controls="fpwGreatLoopMenu" data-fpw-dropdown-toggle>
                 #renderFpwNavIcon("map", "fpw-nav-icon")#
@@ -347,10 +352,12 @@ topNavShowAppSubnav = topNavIsLoggedIn
                 </a>
               </div>
             </div>
-            <a class="fpw-nav-link" href="#topNavBasePath#/app/pricing.cfm">
-              #renderFpwNavIcon("pricing", "fpw-nav-icon")#
-              <span>Pricing</span>
-            </a>
+            <cfif NOT topNavIsLoggedIn>
+              <a class="fpw-nav-link" href="#topNavBasePath#/app/pricing.cfm">
+                #renderFpwNavIcon("pricing", "fpw-nav-icon")#
+                <span>Pricing</span>
+              </a>
+            </cfif>
           </nav>
 
           <div class="fpw-nav-actions">

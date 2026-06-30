@@ -109,7 +109,7 @@
                 <div>
                     <h2>Create your free FPW account</h2>
                     <p>
-                        Start with a free float plan and get one free month of Premium tools &mdash; no credit card required.
+                        Start with one free month of Premium tools &mdash; no credit card required.
                     </p>
                     <p class="fpw-form-header-note">
                         Your free month gives you access to custom route tools, Active Cruise pages, and a private Follow page for friends and family. After one month, your account automatically moves to the Basic plan unless you choose to upgrade.

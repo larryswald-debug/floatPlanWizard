@@ -4302,7 +4302,7 @@
 
     function requestMarineDetail(detail) {
       var hydrationController = createWeatherAbortController();
-      var detailMode = detail === "marine" ? "quick" : "full";
+      var detailMode = "full";
       if (hydrationController) {
         hydrationControllers.push(hydrationController);
       }
@@ -4359,7 +4359,7 @@
     clearWeatherError();
     startWeatherScanConsole(location);
 
-    return fetchWeatherJson(weatherUrl(location, "&marineMode=quick"), {
+    return fetchWeatherJson(weatherUrl(location, "&marineMode=summary"), {
       signal: weatherQuickAbortController ? weatherQuickAbortController.signal : null
     })
       .then(function (payload) {

@@ -704,6 +704,34 @@ main.dashboard-main{
 
 .dashboard-body button:active{ transform: translateY(0px); }
 
+@media (min-width: 1024px){
+  .dashboard-body .fpw-site-header .fpw-primary-nav--member > .fpw-dropdown > .fpw-dropdown-toggle,
+  .dashboard-body .fpw-site-header .fpw-nav-actions .fpw-account-dropdown > .fpw-dropdown-toggle{
+    border: 0;
+    border-radius: 0;
+    padding: 8px 3px;
+    color: var(--fpw-nav-white);
+    background: transparent;
+    font-size: 15px;
+    transform: none;
+    transition: color 160ms ease, opacity 160ms ease;
+  }
+
+  .dashboard-body .fpw-site-header .fpw-primary-nav--member > .fpw-dropdown > .fpw-dropdown-toggle:hover,
+  .dashboard-body .fpw-site-header .fpw-primary-nav--member > .fpw-dropdown > .fpw-dropdown-toggle:focus-visible,
+  .dashboard-body .fpw-site-header .fpw-primary-nav--member > .fpw-dropdown > .fpw-dropdown-toggle[aria-expanded="true"],
+  .dashboard-body .fpw-site-header .fpw-primary-nav--member > .fpw-dropdown.is-open > .fpw-dropdown-toggle,
+  .dashboard-body .fpw-site-header .fpw-nav-actions .fpw-account-dropdown > .fpw-dropdown-toggle:hover,
+  .dashboard-body .fpw-site-header .fpw-nav-actions .fpw-account-dropdown > .fpw-dropdown-toggle:focus-visible,
+  .dashboard-body .fpw-site-header .fpw-nav-actions .fpw-account-dropdown > .fpw-dropdown-toggle[aria-expanded="true"],
+  .dashboard-body .fpw-site-header .fpw-nav-actions .fpw-account-dropdown.is-open > .fpw-dropdown-toggle{
+    border-color: transparent;
+    color: var(--fpw-nav-teal);
+    background: transparent;
+    transform: none;
+  }
+}
+
 .dashboard-body .btn-primary{
   background: rgba(53, 208, 198, 0.18);
   border-color: rgba(53, 208, 198, 0.35);

@@ -1020,7 +1020,7 @@ fpwFaqJsonLdText = replace(serializeJSON(fpwFaqSchema), "</", "<\/", "all");
   <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
   <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
   <cfoutput><link rel="stylesheet" href="#fpwFaqBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
-  <cfoutput><link rel="stylesheet" href="#fpwFaqBasePath#/assets/css/top-nav.css?v=20260530-nav-cta"></cfoutput>
+<cfoutput><link rel="stylesheet" href="#fpwFaqBasePath#/assets/css/top-nav.css?v=20260630-mega-weight-minus1"></cfoutput>
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
   <cfinclude template="../includes/trustedsite.cfm">

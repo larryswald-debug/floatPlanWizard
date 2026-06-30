@@ -132,7 +132,7 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
   <style>
     :root {
       --fpw-public-layout-max: var(--fpw-wide-max, 1320px);
-      --fuel-bg: #020914;
+      --fuel-bg: #061726;
       --fuel-panel: rgba(7, 22, 38, 0.84);
       --fuel-panel-strong: rgba(4, 15, 28, 0.96);
       --fuel-line: rgba(126, 205, 220, 0.28);
@@ -156,7 +156,7 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
       background:
         radial-gradient(circle at 15% 0%, rgba(35, 215, 207, 0.13), transparent 26rem),
         radial-gradient(circle at 85% 4%, rgba(56, 189, 248, 0.11), transparent 28rem),
-        linear-gradient(180deg, #02070f 0%, #03111f 48%, #020914 100%);
+        linear-gradient(180deg, #061726 0%, #082033 48%, #061726 100%);
     }
 
     .fuelcalc-page input,
@@ -1086,7 +1086,7 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
     }
   </style>
 <link rel="stylesheet" href="../assets/css/layout.css?v=20260620-page-width">
-<link rel="stylesheet" href="../assets/css/top-nav.css?v=20260530-nav-cta">
+<link rel="stylesheet" href="../assets/css/top-nav.css?v=20260630-mega-weight-minus1">
 <cfinclude template="../includes/trustedsite.cfm">
 </head>
 <body class="fuelcalc-page">

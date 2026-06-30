@@ -95,7 +95,7 @@
                 <cfset local.marineMode = lcase(trim(url.marineMode))>
                 <cfset local.marineModeProvided = true>
             </cfif>
-            <cfif local.marineMode NEQ "quick" AND local.marineMode NEQ "full">
+            <cfif local.marineMode NEQ "summary" AND local.marineMode NEQ "quick" AND local.marineMode NEQ "full">
                 <cfset local.marineMode = "full">
             </cfif>
             <cfif structKeyExists(arguments, "marineOnly")>
@@ -709,7 +709,7 @@
             "MAP_LAYERS"=[],
             "META"={
                 "anchor"={ "lat"=arguments.lat, "lon"=arguments.lon },
-                "request"={ "marineDetail"=local.detail, "marineOnly"=1, "marineMode"=(local.detail EQ "marine" ? "quick" : "full") },
+                "request"={ "marineDetail"=local.detail, "marineOnly"=1, "marineMode"="full" },
                 "sources"={}
             }
         }>
@@ -722,7 +722,7 @@
         </cfif>
 
         <cfif local.detail EQ "marine">
-            <cfset local.m = getMarineDataCached(arguments.lat, arguments.lon, local.noCache, "quick", arguments.marineZip, { "bypassCache"=local.bypassCache, "ttlSeconds"=900 })>
+            <cfset local.m = getMarineDataCached(arguments.lat, arguments.lon, local.noCache, "full", arguments.marineZip, { "bypassCache"=local.bypassCache, "ttlSeconds"=900 })>
             <cfif isStruct(local.m) AND structCount(local.m) GT 0>
                 <cfset local.out.MARINE = local.m>
             </cfif>
@@ -759,6 +759,7 @@
             var tForecast = 0;
             var tAlerts = 0;
             var tMetar = 0;
+            var tZoneForecast = 0;
             var marineCacheFlag = "";
             var forecastCacheFlag = "";
             var alertsCacheFlag = "";
@@ -786,7 +787,8 @@
         }>
         <cfset local.bypassCache = shouldBypassWeatherCache()>
         <cfset local.noCache = ((isDefined("url.nocache") AND len(url.nocache) AND val(url.nocache) EQ 1) OR local.bypassCache)>
-        <cfset local.isQuickMarineMode = (lcase(trim(arguments.marineMode)) EQ "quick")>
+        <cfset local.normalizedMarineMode = lcase(trim(arguments.marineMode))>
+        <cfset local.isQuickMarineMode = (local.normalizedMarineMode EQ "quick" OR local.normalizedMarineMode EQ "summary")>
         <cfset local.f = {} >
         <cfset local.a = {} >
         <cfset local.s = {} >
@@ -869,7 +871,9 @@
         </cfif>
 
         <cfif NOT local.isQuickMarineMode>
+            <cfset tSectionStart = getTickCount()>
             <cfset local.out.ZONE_FORECAST = getMarineZoneForecastCached(arguments.lat, arguments.lon, local.noCache)>
+            <cfset tZoneForecast = getTickCount() - tSectionStart>
         <cfelse>
             <cfset local.out.ZONE_FORECAST = {} >
         </cfif>
@@ -921,7 +925,8 @@
                 & " marine=" & tMarine & "ms"
                 & " forecast=" & tForecast & "ms"
                 & " alerts=" & tAlerts & "ms"
-                & " metar=" & tMetar & "ms";
+                & " metar=" & tMetar & "ms"
+                & " zoneForecast=" & tZoneForecast & "ms";
             if (len(marineCacheFlag)) weatherTimingLine &= " marineCache=" & marineCacheFlag;
             if (len(forecastCacheFlag)) weatherTimingLine &= " forecastCache=" & forecastCacheFlag;
             if (len(alertsCacheFlag)) weatherTimingLine &= " alertsCache=" & alertsCacheFlag;
@@ -1753,13 +1758,27 @@
 
         <cfset local.out = { "wave_height_ft" = 0 } >
         <cfset local.meta = {} >
+        <cfset local.marineModeNormalized = lcase(trim(arguments.marineMode))>
+        <cfset local.startedAt = getTickCount()>
+        <cfset local.phaseStartedAt = 0>
+        <cfset local.tideMs = 0>
+        <cfset local.waterLevelMs = 0>
+        <cfset local.ndbcMs = 0>
         <cfset local.maxLocalStationNm = 120>
         <cfset local.hasLocalTide = false>
         <cfset local.tide = {} >
         <cfset local.wl = {} >
-        <cfset local.fetchTrend = (lcase(arguments.marineMode) NEQ "quick")>
+        <cfset local.fetchTrend = (local.marineModeNormalized NEQ "quick" AND local.marineModeNormalized NEQ "summary")>
         <cfset local.maxCandidateCount = (local.fetchTrend ? 2 : 1)>
 
+        <cfif local.marineModeNormalized EQ "summary">
+            <cfset local.meta.summary = "Marine detail deferred for async hydration.">
+            <cfset local.meta.timing = { "mode"=local.marineModeNormalized, "tide_ms"=0, "water_level_ms"=0, "ndbc_ms"=0, "total_ms"=(getTickCount() - local.startedAt) }>
+            <cfset local.out.META = local.meta>
+            <cfreturn local.out>
+        </cfif>
+
+        <cfset local.phaseStartedAt = getTickCount()>
         <cfset local.tideStation = getNearestCoopsTideStation(arguments.lat, arguments.lon)>
         <cfif structKeyExists(local.tideStation, "SUCCESS") AND local.tideStation.SUCCESS>
             <cfset local.tideDistance = (structKeyExists(local.tideStation, "META") AND structKeyExists(local.tideStation.META, "distanceNm") ? val(local.tideStation.META.distanceNm) : 999999)>
@@ -1779,9 +1798,11 @@
         <cfelse>
             <cfset local.meta.tideUnavailable = "No tide station available for this location.">
         </cfif>
+        <cfset local.tideMs = getTickCount() - local.phaseStartedAt>
 
         <!--- Great Lakes and inland fallback: observed water level stations --->
         <cfif NOT local.hasLocalTide>
+            <cfset local.phaseStartedAt = getTickCount()>
             <cfset local.waterLevelCandidates = []>
             <cfif len(trim(arguments.zipHint)) EQ 5>
                 <cfset local.cachedZipStation = getCachedBestWaterLevelStationForZip(arguments.zipHint)>
@@ -1895,8 +1916,10 @@
             <cfelse>
                 <cfset local.meta.waterLevelUnavailable = "No local water level station within " & local.maxLocalStationNm & " nm.">
             </cfif>
+            <cfset local.waterLevelMs = getTickCount() - local.phaseStartedAt>
         </cfif>
 
+        <cfset local.phaseStartedAt = getTickCount()>
         <cfset local.buoy = getNearestNdbcBuoy(arguments.lat, arguments.lon)>
         <cfif structKeyExists(local.buoy, "SUCCESS") AND local.buoy.SUCCESS>
             <cfset local.waves = getNdbcWaveData(local.buoy.BUOY_ID, local.buoy.NAME)>
@@ -1905,6 +1928,7 @@
                 <cfset local.meta.waveBuoy = (structKeyExists(local.buoy,"META") ? local.buoy.META : {})>
             </cfif>
         </cfif>
+        <cfset local.ndbcMs = getTickCount() - local.phaseStartedAt>
 
         <cfif structKeyExists(local.out, "waves") AND isStruct(local.out.waves)>
             <cfset local.out.wave_height_ft = extractWaveHeightFt(local.out.waves)>
@@ -1912,9 +1936,8 @@
             <cfset local.out.wave_height_ft = extractWaveHeightFt(local.out)>
         </cfif>
 
-        <cfif structCount(local.meta) GT 0>
-            <cfset local.out.META = local.meta>
-        </cfif>
+        <cfset local.meta.timing = { "mode"=local.marineModeNormalized, "tide_ms"=local.tideMs, "water_level_ms"=local.waterLevelMs, "ndbc_ms"=local.ndbcMs, "total_ms"=(getTickCount() - local.startedAt) }>
+        <cfset local.out.META = local.meta>
 
         <cfreturn local.out>
     </cffunction>
@@ -3230,6 +3253,7 @@
 
         <cfset local.office = ucase(trim(arguments.office))>
         <cfset local.cacheKey = "marine_cwf_product_api_v1:" & local.office>
+        <cfset local.failureCacheKey = local.cacheKey & ":failure">
         <cfset local.cached = "">
         <cfset local.out = { "success"=false, "reason"="NOAA Coastal Waters Forecast product is unavailable", "text"="", "source_url"="", "meta"={} }>
         <cfset local.ua = getNwsUserAgent()>
@@ -3255,6 +3279,10 @@
 
         <cfif NOT arguments.noCache>
             <cfset local.cached = marineCacheGet(local.cacheKey, 900)>
+            <cfif isStruct(local.cached) AND structKeyExists(local.cached, "success")>
+                <cfreturn local.cached>
+            </cfif>
+            <cfset local.cached = marineCacheGet(local.failureCacheKey, 60)>
             <cfif isStruct(local.cached) AND structKeyExists(local.cached, "success")>
                 <cfreturn local.cached>
             </cfif>
@@ -3327,6 +3355,9 @@
         <cfset local.out.meta.total_ms = local.out.meta.list_ms + local.out.meta.product_ms>
         <cfif local.out.success>
             <cfset marineCacheSet(local.cacheKey, local.out)>
+        <cfelse>
+            <cfset local.out.meta.negative_ttl_seconds = 60>
+            <cfset marineCacheSet(local.failureCacheKey, local.out)>
         </cfif>
         <cfreturn local.out>
     </cffunction>
@@ -4276,12 +4307,12 @@
         <cftry>
             <cfset request._fpwWeatherCacheService = createObject("component", "fpw.api.services.weatherCache").init(
                 userAgent = local.userAgent,
-                httpTimeout = 15
+                httpTimeout = 8
             )>
             <cfcatch>
                 <cfset request._fpwWeatherCacheService = createObject("component", "api.services.weatherCache").init(
                     userAgent = local.userAgent,
-                    httpTimeout = 15
+                    httpTimeout = 8
                 )>
             </cfcatch>
         </cftry>

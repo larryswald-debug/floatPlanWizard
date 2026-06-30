@@ -438,7 +438,7 @@
   <title>Active Cruise V2</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <link rel="stylesheet" href="<cfoutput>#activeCruiseV2BasePath#</cfoutput>/assets/css/layout.css?v=20260620-page-width">
-<link rel="stylesheet" href="<cfoutput>#activeCruiseV2BasePath#</cfoutput>/assets/css/top-nav.css?v=20260530-nav-cta">
+<link rel="stylesheet" href="<cfoutput>#activeCruiseV2BasePath#</cfoutput>/assets/css/top-nav.css?v=20260630-mega-weight-minus1">
   <cfinclude template="../includes/analytics_clarity.cfm">
   <style>
     :root {
@@ -3410,8 +3410,15 @@
         min-height: 70vh;
       }
     }
-    body :where(:not(h1):not(h2):not(h3):not(h4):not(h5):not(h6):not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *)),
-    body :where(button:not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *),
+    .topbar :where(:not(h1):not(h2):not(h3):not(h4):not(h5):not(h6):not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *)),
+    .main :where(:not(h1):not(h2):not(h3):not(h4):not(h5):not(h6):not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *)),
+    .topbar :where(button:not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *),
+      a.btn:not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *),
+      .btn:not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *),
+      .ac-command-btn:not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *),
+      .ac-route-action-btn:not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *),
+      .ac-status-btn:not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *)),
+    .main :where(button:not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *),
       a.btn:not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *),
       .btn:not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *),
       .ac-command-btn:not(h1 *):not(h2 *):not(h3 *):not(h4 *):not(h5 *):not(h6 *),

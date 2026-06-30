@@ -918,7 +918,7 @@
       }
     }
   </style>
-<link rel="stylesheet" href="../assets/css/top-nav.css?v=20260530-nav-cta">
+<link rel="stylesheet" href="../assets/css/top-nav.css?v=20260630-mega-weight-minus1">
   <link rel="canonical" href="https://www.floatplanwizard.com/boat-fuel-calculator/" />
 </head>
 <body class="fuelcalc-page">
