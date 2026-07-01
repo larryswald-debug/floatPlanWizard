@@ -1,14 +1,15 @@
 (function (window, document) {
   "use strict";
 
-  var WEATHER_VERSION = "weather-rewrite-phase3";
+  var WEATHER_VERSION = "weather-rewrite-phase4";
   var state = {
     lastModel: null,
     loadingTimer: 0,
     loadingStartedAt: 0,
     abortController: null,
     map: null,
-    mapMarker: null
+    mapMarker: null,
+    tideRange: "today"
   };
 
   function byId(id) {
@@ -51,6 +52,14 @@
     var n = Number(value);
     var rounded = typeof digits === "number" ? n.toFixed(digits) : Math.round(n);
     return rounded + (unit ? " " + unit : "");
+  }
+
+  function hasNumber(value) {
+    return !(value === null || value === undefined || value === "" || !isFinite(Number(value)));
+  }
+
+  function numberTextOr(value, unit, digits, fallback) {
+    return hasNumber(value) ? numberText(value, unit, digits) : fallback;
   }
 
   function escapeHtml(value) {
@@ -127,6 +136,27 @@
         action.classList.add("d-none");
         action.setAttribute("hidden", "hidden");
       }
+    }
+    box.classList.remove("d-none");
+    box.removeAttribute("hidden");
+  }
+
+  function setApproxBox(target) {
+    var box = byId("weatherApproxBox");
+    if (!box) return;
+    target = target || {};
+    var warnings = safeArray(target.warnings);
+    var isApproximate = !!target.isApproximate || warnings.some(function (warning) {
+      return String(warning || "").toLowerCase().indexOf("zip-area coordinates are approximate") >= 0;
+    });
+    if (!isApproximate) {
+      box.classList.add("d-none");
+      box.setAttribute("hidden", "hidden");
+      return;
+    }
+    var message = byId("weatherApproxMessage");
+    if (message) {
+      message.textContent = "Approximate weather for ZIP area " + display(target.zip, "selected") + ". ZIP-area coordinates may not match exact marina or home-port location.";
     }
     box.classList.remove("d-none");
     box.removeAttribute("hidden");
@@ -234,6 +264,7 @@
   function renderWeather(model) {
     model = normalizeModel(model);
     renderPageState(model);
+    setApproxBox(model.target);
     renderHeader(model);
     renderRisk(model);
     renderCurrent(model.current || {});
@@ -283,6 +314,20 @@
       });
       return;
     }
+    if (reason === "ZIP_NOT_FOUND") {
+      setStateBox({
+        title: "ZIP was not found",
+        message: firstStatusMessage(model, "No approved ZIP-area coordinate was found for this ZIP code.")
+      });
+      return;
+    }
+    if (reason === "INVALID_ZIP") {
+      setStateBox({
+        title: "ZIP needs attention",
+        message: firstStatusMessage(model, "Enter a valid 5-digit ZIP code.")
+      });
+      return;
+    }
     if (reason === "INVALID_COORDINATES") {
       setStateBox({
         title: "Coordinates need attention",
@@ -316,7 +361,7 @@
     var current = model.current || {};
     var marine = model.marine || {};
     text("weatherResolvedLocation", target.displayName || target.zip || "Selected location");
-    text("weatherLocationDetailLabel", target.sourceType || "weather target");
+    text("weatherLocationDetailLabel", target.isApproximate ? "Approximate ZIP area" : (target.sourceType || "weather target"));
     text("weatherZipDisplay", target.zip || "");
     text("weatherProviderBadge", "NOAA/NWS");
     text("weatherUpdatedAt", model.generatedAtUtc ? "Updated " + formatTime(model.generatedAtUtc) : "Updated —");
@@ -340,7 +385,7 @@
     var current = model.current || {};
     var alerts = safeArray(model.alerts);
     var panel = byId("weatherMarineRiskPanel");
-    var risk = marine.riskLevel || "Unknown";
+    var risk = marine.riskLevel || marine.RISKLEVEL || "Unknown";
     if (panel) {
       panel.classList.remove("marine-risk-good", "marine-risk-caution", "marine-risk-high");
       panel.classList.add("marine-risk-" + risk.toLowerCase());
@@ -348,13 +393,13 @@
     text("weatherRiskValue", risk);
     text("weatherRiskSubtext", risk === "Unknown" ? "Weather data is not ready." : (risk === "Good" ? "Favorable for nearshore boating" : "Use caution for small craft"));
     text("weatherRiskWind", current.windMph ? "Wind " + numberText(current.windMph, "mph") : "Wind —");
-    text("weatherRiskGusts", current.gustMph ? "Gusts up to " + numberText(current.gustMph, "mph") : "Gusts —");
+    text("weatherRiskGusts", hasNumber(current.gustMph) ? "Gusts up to " + numberText(current.gustMph, "mph") : "Gusts not reported");
     text("weatherRiskSeas", marine.seasFt || marine.waveHeightFt ? "Seas " + numberText(marine.seasFt || marine.waveHeightFt, "ft", 1) : "Seas —");
     text("weatherRiskSeasNote", marine.wavePeriodSec ? "Period " + numberText(marine.wavePeriodSec, "sec") : "—");
     text("weatherRiskVisibility", current.visibilityMi ? "Visibility " + numberText(current.visibilityMi, "mi", 1) : "Visibility —");
     text("weatherRiskVisibilityNote", "—");
     text("weatherRiskAlerts", alerts.length ? alerts.length + " active" : "None active");
-    text("weatherRiskRecommendation", marine.recommendation || "Review official NOAA conditions before departure.");
+    text("weatherRiskRecommendation", marine.recommendation || marine.RECOMMENDATION || "Review official NOAA conditions before departure.");
   }
 
   function renderCurrent(current) {
@@ -363,7 +408,7 @@
     text("weatherCurrentTemp", numberText(current.tempF, "°F"));
     text("weatherFeelsLike", numberText(current.feelsLikeF, "°F"));
     text("weatherCurrentWind", current.windMph ? windText(current) : "—");
-    text("weatherCurrentGusts", numberText(current.gustMph, "mph"));
+    text("weatherCurrentGusts", numberTextOr(current.gustMph, "mph", undefined, "Not reported"));
     text("weatherPressure", numberText(current.pressureInHg, "inHg", 2));
     text("weatherVisibility", numberText(current.visibilityMi, "mi", 1));
     text("weatherHumidity", numberText(current.humidityPct, "%"));
@@ -378,7 +423,7 @@
     text("weatherWaveHeight", numberText(wave, "", 1));
     text("weatherWaveTrendTop", wave ? "Latest available" : "—");
     text("weatherWavePeriod", numberText(marine.wavePeriodSec, "sec"));
-    text("weatherWaveDirection", marine.waveDirectionDeg ? numberText(marine.waveDirectionDeg, "°") : "—");
+    text("weatherWaveDirection", marine.waveDirectionLabel || marine.WAVEDIRECTIONLABEL || (hasNumber(marine.waveDirectionDeg) ? numberText(marine.waveDirectionDeg, "°") : "Not issued"));
     text("weatherWaveLevel", waveLevel(wave));
     text("weatherWaveTrend", marine.available ? "Latest" : "—");
     text("weatherWaveNote", marine.available ? "Review latest local marine forecast before departure." : "Wave and sea details are temporarily unavailable from the current providers.");
@@ -428,38 +473,323 @@
     tbody.innerHTML = rows.map(function (row) {
       return "<tr>"
         + "<td>" + escapeHtml(formatHour(row.timeLabel)) + "</td>"
-        + "<td>" + escapeHtml(row.windMph ? row.windDirectionLabel + " " + numberText(row.windMph, "mph") : "—") + "</td>"
-        + "<td>" + escapeHtml(numberText(row.gustMph, "mph")) + "</td>"
+        + "<td>" + escapeHtml(hasNumber(row.windMph) ? row.windDirectionLabel + " " + numberText(row.windMph, "mph") : "Not reported") + "</td>"
+        + "<td>" + escapeHtml(numberTextOr(row.gustMph, "mph", undefined, "Not reported")) + "</td>"
         + "<td>" + escapeHtml(numberText(row.seasFt, "", 1)) + "</td>"
-        + "<td>" + escapeHtml(numberText(row.precipChancePct, "%")) + "</td>"
+        + "<td>" + escapeHtml(numberTextOr(row.precipChancePct, "%", undefined, "Not issued")) + "</td>"
         + "<td>" + escapeHtml(numberText(row.tempF, "°F")) + "</td>"
         + "<td>" + escapeHtml(row.condition || "—") + "</td>"
         + "<td><span class=\"status-badge " + riskBadgeClass(row.riskLabel) + "\">" + escapeHtml(row.riskLabel || "Unknown") + "</span></td>"
         + "</tr>";
     }).join("");
-    text("weatherHourlySummary", "Wind easing this evening. Gusts peak near " + maxValue(rows, "gustMph", "mph") + " • Rain risk up to " + maxValue(rows, "precipChancePct", "%"));
+    text("weatherHourlySummary", "Wind easing this evening. Gusts " + maxValueOr(rows, "gustMph", "mph", "not reported") + " • Rain risk up to " + maxValue(rows, "precipChancePct", "%"));
   }
 
   function renderTide(marine) {
     var tideWarning = safeArray(marine.warnings)[0] || "Tide data is temporarily unavailable for this location.";
+    var rangeItems = tideItemsForRange(marine, state.tideRange);
+    var hasTideSeries = rangeItems.length > 0;
+    var highItem = highestTide(rangeItems);
+    var lowItem = lowestTide(rangeItems);
+    var nextHigh = nextHighTide(rangeItems, state.tideRange) || highItem || marine.nextHigh;
+    var firstItem = rangeItems[0] || null;
+
     text("weatherTideChartStation", marine.tideStation || "—");
     text("tideGraphTitle", "Tide (ft)");
     text("tideGraphNowValue", "Now " + numberText(marine.tideLevelFt, "ft", 2));
     text("tideGraphStation", marine.tideStation || "");
-    text("tideGraphStart", tideTime(marine.nextLow || marine.nextHigh));
-    text("tideGraphEnd", tideTime(marine.nextHigh || marine.nextLow));
-    text("weatherTideSummaryCurrent", numberText(marine.tideLevelFt, "ft", 2));
-    text("weatherTideSummaryCurrentTrend", marine.tideTrend || "—");
-    text("weatherTideSummaryHighTime", tideTime(marine.nextHigh));
-    text("weatherTideSummaryHighHeight", tideHeight(marine.nextHigh));
-    text("weatherTideSummaryLowTime", tideTime(marine.nextLow));
-    text("weatherTideSummaryLowHeight", tideHeight(marine.nextLow));
-    text("weatherTideSummaryNextHighTime", tideTime(marine.nextHigh));
-    text("weatherTideSummaryNextHighHeight", tideHeight(marine.nextHigh));
-    text("weatherTidePlanningNote", marine.available ? "Review tide timing for shallow-water routes before departure." : tideWarning);
+    text("tideGraphStart", hasTideSeries ? tideTime(rangeItems[0]) : "—");
+    text("tideGraphEnd", hasTideSeries ? tideTime(rangeItems[rangeItems.length - 1]) : "—");
+    text("weatherTideSummaryCurrentLabel", state.tideRange === "tomorrow" ? "First" : "Current");
+    text("weatherTideSummaryCurrent", state.tideRange === "tomorrow" ? tideHeight(firstItem) : numberText(marine.tideLevelFt, "ft", 2));
+    text("weatherTideSummaryCurrentTrend", state.tideRange === "tomorrow" ? tideTime(firstItem) : (marine.tideTrend || "—"));
+    text("weatherTideSummaryHighTime", tideTime(highItem || marine.nextHigh));
+    text("weatherTideSummaryHighHeight", tideHeight(highItem || marine.nextHigh));
+    text("weatherTideSummaryLowTime", tideTime(lowItem || marine.nextLow));
+    text("weatherTideSummaryLowHeight", tideHeight(lowItem || marine.nextLow));
+    text("weatherTideSummaryNextHighTime", tideTime(nextHigh));
+    text("weatherTideSummaryNextHighHeight", tideHeight(nextHigh));
+    text("weatherTidePlanningNote", hasTideSeries ? tidePlanningNote(marine, highItem, lowItem) : tideWarning);
     text("tideGraphEmpty", tideWarning);
-    setHidden("tideGraph", !marine.available);
-    setHidden("tideGraphEmpty", marine.available);
+    updateTideRangeButtons();
+    setHidden("tideGraph", !hasTideSeries);
+    setHidden("tideGraphEmpty", hasTideSeries);
+    drawTideGraph(rangeItems, marine);
+  }
+
+  function tidePredictionItems(marine) {
+    marine = marine || {};
+    var raw = safeArray(marine.tidePredictions);
+    if (!raw.length) raw = safeArray(marine.TIDEPREDICTIONS);
+    if (!raw.length) {
+      raw = [marine.nextLow, marine.nextHigh].filter(Boolean);
+    }
+    return raw.map(function (item) {
+      item = item || {};
+      return {
+        timeUtc: item.timeUtc || item.TIMEUTC || item.t || item.T || "",
+        heightFt: item.heightFt !== undefined ? item.heightFt : (item.HEIGHTFT !== undefined ? item.HEIGHTFT : item.v),
+        type: item.type || item.TYPE || ""
+      };
+    }).filter(function (item) {
+      return item.timeUtc && hasNumber(item.heightFt);
+    }).sort(function (a, b) {
+      return tideDate(a).getTime() - tideDate(b).getTime();
+    });
+  }
+
+  function tideItemsForRange(marine, range) {
+    var items = tidePredictionItems(marine);
+    var target = new Date();
+    if (range === "tomorrow") {
+      target = new Date(target.getFullYear(), target.getMonth(), target.getDate() + 1);
+    }
+    var filtered = items.filter(function (item) {
+      var itemDate = tideDate(item);
+      return !isNaN(itemDate.getTime()) && sameDay(itemDate, target);
+    });
+    if (!filtered.length && range === "today" && items.length) {
+      return items.slice(0, Math.min(items.length, 4));
+    }
+    return filtered;
+  }
+
+  function tideDate(item) {
+    var value = item && item.timeUtc ? String(item.timeUtc) : "";
+    var date = new Date(value.replace(" ", "T"));
+    return date;
+  }
+
+  function sameDay(a, b) {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+
+  function highestTide(items) {
+    return tideExtreme(items, 1);
+  }
+
+  function lowestTide(items) {
+    return tideExtreme(items, -1);
+  }
+
+  function tideExtreme(items, direction) {
+    items = safeArray(items).filter(function (item) { return hasNumber(item.heightFt); });
+    if (!items.length) return null;
+    return items.reduce(function (best, item) {
+      return direction > 0
+        ? (Number(item.heightFt) > Number(best.heightFt) ? item : best)
+        : (Number(item.heightFt) < Number(best.heightFt) ? item : best);
+    }, items[0]);
+  }
+
+  function nextHighTide(items, range) {
+    var now = new Date();
+    var highs = safeArray(items).filter(function (item) {
+      return String(item.type || "").toUpperCase() === "H";
+    });
+    if (range === "today") {
+      var upcoming = highs.filter(function (item) {
+        return tideDate(item).getTime() >= now.getTime();
+      });
+      if (upcoming.length) return upcoming[0];
+    }
+    return highs.length ? highs[0] : null;
+  }
+
+  function tidePlanningNote(marine, highItem, lowItem) {
+    if (highItem && lowItem) {
+      return "Review low tide around " + tideTime(lowItem) + " and high tide around " + tideTime(highItem) + " before planning shallow-water routes.";
+    }
+    if (highItem) {
+      return "Review the next high tide around " + tideTime(highItem) + " before departure.";
+    }
+    if (lowItem) {
+      return "Review the next low tide around " + tideTime(lowItem) + " before departure.";
+    }
+    return marine.available ? "Review tide timing for shallow-water routes before departure." : "Tide data is temporarily unavailable for this location.";
+  }
+
+  function drawTideGraph(items, marine) {
+    var svg = byId("tideGraphSvg");
+    if (!svg) return;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    items = safeArray(items);
+    if (!items.length) return;
+
+    var rect = svg.getBoundingClientRect ? svg.getBoundingClientRect() : null;
+    var width = Math.round((rect && rect.width) ? rect.width : (svg.clientWidth || 320));
+    var height = Math.round((rect && rect.height) ? rect.height : (svg.clientHeight || 150));
+    if (width < 160) width = 320;
+    if (height < 80) height = 150;
+    svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+
+    var padLeft = 30;
+    var padRight = 30;
+    var padTop = 8;
+    var padBottom = 16;
+    var plotWidth = width - padLeft - padRight;
+    var plotHeight = height - padTop - padBottom;
+    var values = items.map(function (item) { return Number(item.heightFt); });
+    if (state.tideRange === "today" && hasNumber(marine.tideLevelFt)) {
+      values.push(Number(marine.tideLevelFt));
+    }
+    var min = Math.min.apply(Math, values);
+    var max = Math.max.apply(Math, values);
+    if (min === max) {
+      min -= 0.5;
+      max += 0.5;
+    }
+    var pad = Math.max(0.25, (max - min) * 0.15);
+    min -= pad;
+    max += pad;
+
+    var dx = items.length > 1 ? plotWidth / (items.length - 1) : 0;
+    function y(value) {
+      return padTop + plotHeight * (1 - ((Number(value) - min) / (max - min)));
+    }
+
+    var points = items.map(function (item, index) {
+      return {
+        item: item,
+        h: Number(item.heightFt),
+        dt: tideDate(item),
+        x: padLeft + (dx * index),
+        y: y(item.heightFt)
+      };
+    }).filter(function (point) {
+      return Number.isFinite(point.h);
+    });
+    if (!points.length) return;
+
+    function pathPoint(point, index) {
+      return (index === 0 ? "M" : "L") + roundSvg(point.x) + " " + roundSvg(point.y) + " ";
+    }
+    var path = points.map(pathPoint).join("");
+    var areaPath = path + "L " + roundSvg(points[points.length - 1].x) + " " + roundSvg(height - padBottom)
+      + " L " + roundSvg(points[0].x) + " " + roundSvg(height - padBottom) + " Z";
+
+    var defs = appendSvg(svg, "defs", {});
+    var gradient = appendSvg(defs, "linearGradient", { id: "weatherTideFill", x1: "0", y1: "0", x2: "0", y2: "1" });
+    appendSvg(gradient, "stop", { offset: "0%", "stop-color": "rgba(59,130,246,.45)" });
+    appendSvg(gradient, "stop", { offset: "100%", "stop-color": "rgba(59,130,246,0)" });
+
+    var xAxisY = height - padBottom;
+    appendSvg(svg, "line", { class: "fpw-wx__tideAxisLine", x1: padLeft, y1: padTop, x2: padLeft, y2: xAxisY });
+    appendSvg(svg, "line", { class: "fpw-wx__tideAxisLine", x1: padLeft, y1: xAxisY, x2: width - padRight, y2: xAxisY });
+
+    for (var yi = 0; yi <= 4; yi++) {
+      var fracY = yi / 4;
+      var yVal = max - ((max - min) * fracY);
+      var yPos = padTop + (plotHeight * fracY);
+      appendSvg(svg, "line", { class: "fpw-wx__tideAxisTick", x1: padLeft - 4, y1: yPos, x2: padLeft, y2: yPos });
+      appendSvg(svg, "text", { class: "fpw-wx__tideAxisLabel y", x: padLeft - 6, y: yPos + 3 }, yVal.toFixed(1));
+    }
+
+    var xTickCount = Math.min(5, points.length);
+    for (var xi = 0; xi < xTickCount; xi++) {
+      var pointIndex = Math.round((xi * (points.length - 1)) / Math.max(1, xTickCount - 1));
+      var tickPoint = points[Math.max(0, Math.min(points.length - 1, pointIndex))];
+      appendSvg(svg, "line", { class: "fpw-wx__tideAxisTick", x1: tickPoint.x, y1: xAxisY, x2: tickPoint.x, y2: xAxisY + 4 });
+      appendSvg(svg, "text", { class: "fpw-wx__tideAxisLabel x", x: tickPoint.x, y: height - 1 }, formatTideAxisHour(tickPoint.item));
+    }
+
+    appendSvg(svg, "path", { d: areaPath, fill: "url(#weatherTideFill)" });
+    appendSvg(svg, "path", { d: path, fill: "none", stroke: "rgba(59,130,246,.9)", "stroke-width": 2 });
+
+    if (state.tideRange === "today" && hasNumber(marine.tideLevelFt)) {
+      var currentPoint = tideCurrentPoint(points, marine.tideLevelFt);
+      if (currentPoint) {
+        appendSvg(svg, "line", {
+          class: "fpw-wx__tideGuide",
+          x1: padLeft,
+          y1: currentPoint.y,
+          x2: width - padRight,
+          y2: currentPoint.y
+        });
+        appendSvg(svg, "circle", { class: "fpw-wx__tideNowHalo", cx: currentPoint.x, cy: currentPoint.y, r: 6 });
+        appendSvg(svg, "circle", { class: "fpw-wx__tideNowDot", cx: currentPoint.x, cy: currentPoint.y, r: 3 });
+      }
+    }
+
+    var highPoint = points.reduce(function (best, point) {
+      return point.h > best.h ? point : best;
+    }, points[0]);
+    var lowPoint = points.reduce(function (best, point) {
+      return point.h < best.h ? point : best;
+    }, points[0]);
+    appendTideExtrema(svg, highPoint, "high", true, padLeft, width - padRight, padTop, height - padBottom);
+    appendTideExtrema(svg, lowPoint, "low", highPoint && Math.abs(highPoint.x - lowPoint.x) < 44, padLeft, width - padRight, padTop, height - padBottom);
+  }
+
+  function tideCurrentPoint(points, tideLevelFt) {
+    var nowMs = Date.now();
+    for (var i = 0; i < points.length - 1; i++) {
+      var a = points[i];
+      var b = points[i + 1];
+      if (!a.dt || !b.dt || isNaN(a.dt.getTime()) || isNaN(b.dt.getTime())) continue;
+      var aMs = a.dt.getTime();
+      var bMs = b.dt.getTime();
+      if (bMs <= aMs) continue;
+      if (nowMs >= aMs && nowMs <= bMs) {
+        var ratio = (nowMs - aMs) / (bMs - aMs);
+        return {
+          x: a.x + ((b.x - a.x) * ratio),
+          y: a.y + ((b.y - a.y) * ratio)
+        };
+      }
+    }
+    var nearest = null;
+    points.forEach(function (point) {
+      if (!point.dt || isNaN(point.dt.getTime())) return;
+      var diff = Math.abs(nowMs - point.dt.getTime());
+      if (!nearest || diff < nearest.diff) {
+        nearest = { diff: diff, point: point };
+      }
+    });
+    if (nearest) {
+      return {
+        x: nearest.point.x,
+        y: nearest.point.y
+      };
+    }
+    return null;
+  }
+
+  function appendTideExtrema(svg, point, type, preferAbove, minX, maxX, minY, maxY) {
+    if (!point) return;
+    var label = point.h.toFixed(1) + " ft";
+    var labelWidth = Math.max(46, label.length * 4.2);
+    var x = clampNumber(point.x - (labelWidth / 2), minX + 2, maxX - labelWidth - 2);
+    var y = point.y + (preferAbove ? -7 : 11);
+    if (preferAbove && y < minY + 7) y = point.y + 11;
+    if (!preferAbove && y > maxY - 2) y = point.y - 7;
+    appendSvg(svg, "circle", { class: "fpw-wx__tideExtDot " + type, cx: point.x, cy: point.y, r: 2.8 });
+    appendSvg(svg, "text", { class: "fpw-wx__tideExtLabel " + type, x: x, y: y }, label);
+  }
+
+  function formatTideAxisHour(item) {
+    var date = tideDate(item);
+    if (!date || isNaN(date.getTime())) return "";
+    var hour = date.getHours() % 12;
+    return String(hour === 0 ? 12 : hour);
+  }
+
+  function clampNumber(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function appendSvg(svg, tag, attrs, content) {
+    var node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    Object.keys(attrs || {}).forEach(function (key) {
+      node.setAttribute(key, attrs[key]);
+    });
+    if (content !== undefined) node.textContent = content;
+    svg.appendChild(node);
+    return node;
+  }
+
+  function roundSvg(value) {
+    return Math.round(Number(value) * 10) / 10;
   }
 
   function renderSources(model) {
@@ -537,9 +867,37 @@
         loadWeather(collectRequestParams());
       });
     }
+    bindTideRangeButtons();
     bindAlertsAccordion();
     bindMapModal();
     syncLocationMode();
+  }
+
+  function bindTideRangeButtons() {
+    var buttons = document.querySelectorAll("[data-tide-range]");
+    Array.prototype.forEach.call(buttons, function (button) {
+      button.addEventListener("click", function () {
+        var range = button.getAttribute("data-tide-range") || "today";
+        if (range !== "today" && range !== "tomorrow") {
+          return;
+        }
+        state.tideRange = range;
+        updateTideRangeButtons();
+        if (state.lastModel && state.lastModel.marine) {
+          renderTide(state.lastModel.marine);
+        }
+      });
+    });
+    updateTideRangeButtons();
+  }
+
+  function updateTideRangeButtons() {
+    var buttons = document.querySelectorAll("[data-tide-range]");
+    Array.prototype.forEach.call(buttons, function (button) {
+      var active = (button.getAttribute("data-tide-range") || "today") === state.tideRange;
+      button.classList.toggle("toggle-active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
   }
 
   function bindAlertsAccordion() {
@@ -697,9 +1055,14 @@
   }
 
   function maxValue(rows, key, unit) {
-    var values = rows.map(function (row) { return Number(row[key]); }).filter(function (value) { return isFinite(value); });
+    var values = rows.map(function (row) { return row[key]; }).filter(hasNumber).map(function (value) { return Number(value); });
     if (!values.length) return "—";
     return Math.max.apply(Math, values) + unit;
+  }
+
+  function maxValueOr(rows, key, unit, fallback) {
+    var value = maxValue(rows, key, unit);
+    return value === "—" ? fallback : "peak near " + value;
   }
 
   function init() {

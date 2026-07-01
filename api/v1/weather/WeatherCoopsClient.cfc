@@ -18,6 +18,7 @@ component output="false" {
       "tideTrend" = "",
       "nextHigh" = javacast("null", ""),
       "nextLow" = javacast("null", ""),
+      "tidePredictions" = [],
       "tideStation" = "",
       "waterLevelStation" = "",
       "warnings" = [],
@@ -37,17 +38,20 @@ component output="false" {
     out.tideStation = tideStation.name & " (" & tideStation.id & ")";
     arrayAppend(out.sources, { "provider" = "NOAA CO-OPS", "type" = "tide station", "id" = tideStation.id });
 
-    var predictionFetch = cachedProviderFetch(arguments.cache, "coops:predictions:" & tideStation.id & ":" & dateFormat(now(), "yyyymmdd"), 900, 45, function() {
+    var predictionFetch = cachedProviderFetch(arguments.cache, "coops:predictions:v2:" & tideStation.id & ":" & dateFormat(now(), "yyyymmdd"), 900, 45, function() {
       return fetchPredictions(tideStation.id);
     });
     arrayAppend(out._cacheEntries, predictionFetch.cache);
     if (predictionFetch.value.ok) {
       var tide = normalizePredictions(predictionFetch.value.data);
-      out.available = tide.available;
-      out.nextHigh = tide.nextHigh;
-      out.nextLow = tide.nextLow;
-      out.tideTrend = tide.tideTrend;
-      out.tideLevelFt = tide.tideLevelFt;
+      out.available = structKeyExists(tide, "available") && tide.available;
+      out.nextHigh = hasNonNullKey(tide, "nextHigh") ? tide["nextHigh"] : javacast("null", "");
+      out.nextLow = hasNonNullKey(tide, "nextLow") ? tide["nextLow"] : javacast("null", "");
+      out.tideTrend = structKeyExists(tide, "tideTrend") ? tide.tideTrend : "";
+      out.tidePredictions = structKeyExists(tide, "tidePredictions") && isArray(tide.tidePredictions) ? tide.tidePredictions : [];
+      if (hasNonNullKey(tide, "tideLevelFt")) {
+        out.tideLevelFt = tide["tideLevelFt"];
+      }
     } else {
       arrayAppend(out.warnings, predictionFetch.value.error);
     }
@@ -64,8 +68,8 @@ component output="false" {
       arrayAppend(out._cacheEntries, waterFetch.cache);
       if (waterFetch.value.ok) {
         var level = normalizeWaterLevel(waterFetch.value.data);
-        if (!isNull(level.tideLevelFt)) {
-          out.tideLevelFt = level.tideLevelFt;
+        if (hasNonNullKey(level, "tideLevelFt")) {
+          out.tideLevelFt = level["tideLevelFt"];
           out.available = true;
         }
       } else {
@@ -131,7 +135,7 @@ component output="false" {
   public struct function fetchPredictions(required string stationId) {
     var url = variables.dataUrl
       & "?product=predictions&application=FPW&begin_date=" & dateFormat(now(), "yyyymmdd")
-      & "&range=36&datum=MLLW&station=" & urlEncodedFormat(arguments.stationId)
+      & "&range=72&datum=MLLW&station=" & urlEncodedFormat(arguments.stationId)
       & "&time_zone=gmt&units=english&interval=hilo&format=json";
     return fetchJson(url, 3);
   }
@@ -232,7 +236,7 @@ component output="false" {
 
   public struct function normalizePredictions(struct payload = {}) {
     var predictions = arguments.payload.predictions ?: [];
-    var out = { "available" = false, "nextHigh" = javacast("null", ""), "nextLow" = javacast("null", ""), "tideTrend" = "", "tideLevelFt" = javacast("null", "") };
+    var out = { "available" = false, "nextHigh" = javacast("null", ""), "nextLow" = javacast("null", ""), "tideTrend" = "", "tideLevelFt" = javacast("null", ""), "tidePredictions" = [] };
     if (!isArray(predictions) || arrayLen(predictions) EQ 0) {
       return out;
     }
@@ -242,15 +246,18 @@ component output="false" {
         "heightFt" = isNumeric(row.v ?: "") ? val(row.v) : javacast("null", ""),
         "type" = row.type ?: ""
       };
-      if (item.type EQ "H" && isNull(out.nextHigh)) {
+      if (len(item.timeUtc) && hasNonNullKey(item, "heightFt") && len(item.type)) {
+        arrayAppend(out.tidePredictions, item);
+      }
+      if (item.type EQ "H" && !hasNonNullKey(out, "nextHigh")) {
         out.nextHigh = item;
       }
-      if (item.type EQ "L" && isNull(out.nextLow)) {
+      if (item.type EQ "L" && !hasNonNullKey(out, "nextLow")) {
         out.nextLow = item;
       }
     }
-    out.available = !isNull(out.nextHigh) || !isNull(out.nextLow);
-    out.tideTrend = (!isNull(out.nextHigh) && !isNull(out.nextLow)) ? "Mixed" : "";
+    out.available = arrayLen(out.tidePredictions) GT 0 || hasNonNullKey(out, "nextHigh") || hasNonNullKey(out, "nextLow");
+    out.tideTrend = (hasNonNullKey(out, "nextHigh") && hasNonNullKey(out, "nextLow")) ? "Mixed" : "";
     return out;
   }
 
@@ -261,6 +268,10 @@ component output="false" {
       out.tideLevelFt = val(rows[1].v);
     }
     return out;
+  }
+
+  private boolean function hasNonNullKey(required struct source, required string key) {
+    return structKeyExists(arguments.source, arguments.key) && !isNull(arguments.source[arguments.key]);
   }
 
   private numeric function haversineMiles(required numeric lat1, required numeric lon1, required numeric lat2, required numeric lon2) {

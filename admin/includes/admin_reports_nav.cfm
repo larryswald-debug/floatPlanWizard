@@ -39,6 +39,7 @@ adminReportPages = [
     { "file" = "great-loop-locks.cfm", "label" = "Great Loop Locks" },
     { "file" = "great-loop-locks-import.cfm", "label" = "Great Loop Locks Import" },
     { "file" = "metar-seed-test.cfm", "label" = "METAR Seed Test" },
+    { "file" = "raw-weather.cfm", "label" = "Raw Weather" },
     { "file" = "monitoring-dashboard.cfm", "label" = "Monitoring Dashboard" },
     { "file" = "user-manager.cfm", "label" = "User Manager" },
     { "file" = "operator-manager.cfm", "label" = "Operator Manager" },

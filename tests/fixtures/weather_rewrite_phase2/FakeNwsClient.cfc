@@ -93,31 +93,61 @@ component output="false" {
     return { "ok" = true, "statusCode" = 200, "url" = "fake:nws:zones", "data" = {} };
   }
 
+  public struct function getNearestMarineZone(required numeric lat, required numeric lon, string office = "") {
+    return { "ok" = true, "statusCode" = 200, "url" = "fake:nws:nearest-zone", "data" = {} };
+  }
+
   public struct function normalizeMarineZone(struct zonesPayload = {}) {
     return {
-      "available" = false,
-      "zoneId" = "",
-      "zoneName" = "",
-      "office" = "",
-      "sourceUrl" = "",
-      "reason" = "No fake marine zone."
+      "available" = true,
+      "zoneId" = "GMZ853",
+      "zoneName" = "Coastal waters from Englewood to Tarpon Springs FL out 20 NM",
+      "office" = "TBW",
+      "sourceUrl" = "fake:nws:zone/GMZ853",
+      "reason" = ""
     };
   }
 
   public struct function getZoneForecast(required string zoneId) {
-    return { "ok" = false, "statusCode" = 404, "url" = "fake:nws:zone-forecast", "data" = {}, "error" = "No fake zone forecast." };
+    return { "ok" = true, "statusCode" = 200, "url" = "fake:nws:zone-forecast", "data" = {} };
+  }
+
+  public struct function getCwfProduct(required string office) {
+    return {
+      "ok" = true,
+      "statusCode" = 200,
+      "url" = "fake:nws:cwf",
+      "data" = {
+        "@id" = "fake:nws:cwf/TBW",
+        "productText" = "GMZ853-011330-" & chr(10)
+          & "Coastal waters from Englewood to Tarpon Springs FL out 20 NM-" & chr(10)
+          & chr(10)
+          & ".TONIGHT...East winds 5 to 10 knots. Seas 2 to 3 feet. Wave Detail: East 3 feet at 4 seconds." & chr(10)
+          & "$$"
+      }
+    };
   }
 
   public struct function normalizeZoneForecast(struct zoneMeta = {}, struct forecastPayload = {}) {
     return {
-      "available" = false,
+      "available" = true,
       "zoneId" = zoneMeta.zoneId ?: "",
       "zoneName" = zoneMeta.zoneName ?: "",
       "office" = zoneMeta.office ?: "",
       "synopsis" = "",
-      "periods" = [],
+      "periods" = [{
+        "name" = "Tonight",
+        "forecast" = "East winds 5 to 10 knots. Seas 2 to 3 feet. Dominant period 4 seconds."
+      }],
       "sourceUrl" = zoneMeta.sourceUrl ?: "",
-      "reason" = zoneMeta.reason ?: "No fake marine zone."
+      "seasFt" = 3,
+      "waveHeightFt" = 3,
+      "wavePeriodSec" = 4,
+      "reason" = zoneMeta.reason ?: ""
     };
+  }
+
+  public struct function normalizeCwfZoneForecast(struct zoneMeta = {}, struct productPayload = {}) {
+    return normalizeZoneForecast(arguments.zoneMeta, arguments.productPayload);
   }
 }

@@ -7,6 +7,8 @@ component extends="testbox.system.BaseSpec" {
     variables.nws = new fpw.api.v1.weather.WeatherNwsClient().init();
     variables.coops = new fpw.api.v1.weather.WeatherCoopsClient().init();
     variables.risk = createObject("component", "fpw.api.v1.weather.WeatherRiskService").init();
+    variables.phase4ZipFixture = expandPath("/fpw/tests/fixtures/weather_rewrite_phase4/zcta-test-coordinates.csv");
+    variables.zipService = new fpw.api.v1.weather.WeatherZipCoordinateService().init(variables.phase4ZipFixture);
   }
 
   function afterAll() {
@@ -68,9 +70,9 @@ component extends="testbox.system.BaseSpec" {
         expect(arrayLen(model.cache.entries)).toBe(0);
       });
 
-      it("returns clear missing-coordinate copy for a home port without lat/lng", function() {
+      it("returns clear missing-coordinate copy for a home port without lat/lng or ZIP", function() {
         var userId = createWeatherTestUser();
-        insertWeatherHomePort(userId, "Madeira Beach", "FL", "33708", "", "");
+        insertWeatherHomePort(userId, "Madeira Beach", "FL", "", "", "");
 
         var service = new fpw.api.v1.WeatherPageService().init(variables.testDsn);
         var model = service.getPageWeather(userId, {});
@@ -82,30 +84,85 @@ component extends="testbox.system.BaseSpec" {
         expect(arrayLen(model.cache.entries)).toBe(0);
       });
 
-      it("prefers stored member home-port coordinates over explicit ZIP-only fallback", function() {
+      it("prefers explicit ZIP lookup over stored member home-port coordinates", function() {
         var userId = createWeatherTestUser();
         insertWeatherHomePort(userId, "Madeira Beach", "FL", "33708", "27.7856", "-82.7814");
 
-        var resolver = new fpw.api.v1.WeatherTargetResolver().init(variables.testDsn);
-        var target = resolver.resolve(userId, { "zip" = "99999" });
+        var resolver = new fpw.api.v1.WeatherTargetResolver().init(variables.testDsn, variables.zipService);
+        var target = resolver.resolve(userId, { "zip" = "34652" });
 
         expect(target.available).toBeTrue();
-        expect(target.sourceType).toBe("homeport");
-        expect(target.zip).toBe("33708");
-        expect(round(target.lat * 10000) / 10000).toBe(27.7856);
-        expect(round(target.lon * 10000) / 10000).toBe(-82.7814);
+        expect(target.sourceType).toBe("zip_zcta");
+        expect(target.zip).toBe("34652");
+        expect(round(target.lat * 1000000) / 1000000).toBe(28.240555);
+        expect(round(target.lon * 1000000) / 1000000).toBe(-82.744353);
       });
 
-      it("does not invent coordinates for ZIP-only requests without an approved resolver", function() {
-        var service = new fpw.api.v1.WeatherPageService().init("");
-        var model = service.getPageWeather(0, { "zip" = "33708" });
+      it("uses ZIP authority when saved home-port coordinates do not match the saved ZIP", function() {
+        var userId = createWeatherTestUser();
+        insertWeatherHomePort(userId, "New Port Richey", "FL", "34652", "41.505436", "-88.096043");
+
+        var resolver = new fpw.api.v1.WeatherTargetResolver().init(variables.testDsn, variables.zipService);
+        var target = resolver.resolve(userId, {});
+
+        expect(target.available).toBeTrue();
+        expect(target.sourceType).toBe("homeport_zip_zcta");
+        expect(target.displayName).toBe("New Port Richey, FL");
+        expect(target.zip).toBe("34652");
+        expect(target.isApproximate).toBeTrue();
+        expect(arrayToList(target.warnings, " ")).toInclude("Saved home-port coordinates did not match the ZIP area");
+        expect(round(target.lat * 1000000) / 1000000).toBe(28.240555);
+        expect(round(target.lon * 1000000) / 1000000).toBe(-82.744353);
+      });
+
+      it("resolves valid ZIP-only requests through approved approximate ZCTA coordinates", function() {
+        var resolver = new fpw.api.v1.WeatherTargetResolver().init("", variables.zipService);
+        var target = resolver.resolve(0, { "zip" = "34652" });
+
+        expect(target.available).toBeTrue();
+        expect(target.sourceType).toBe("zip_zcta");
+        expect(target.displayName).toBe("ZIP area 34652");
+        expect(target.zip).toBe("34652");
+        expect(target.isApproximate).toBeTrue();
+        expect(target.source).toBe("CENSUS_ZCTA_GAZETTEER");
+        expect(arrayToList(target.warnings, " ")).toInclude("ZIP-area coordinates are approximate");
+        expect(round(target.lat * 1000000) / 1000000).toBe(28.240555);
+        expect(round(target.lon * 1000000) / 1000000).toBe(-82.744353);
+      });
+
+      it("allows provider calls only after a valid ZIP authority coordinate resolves", function() {
+        var service = newPhase4WeatherService("fpwWeatherRewritePhase4ZipSuccess");
+        var model = service.getPageWeather(0, { "zip" = "34652" });
+
+        expect(model.ok).toBeTrue();
+        expect(model.target.sourceType).toBe("zip_zcta");
+        expect(model.target.displayName).toBe("ZIP area 34652");
+        expect(model.target.isApproximate).toBeTrue();
+        expect(arrayLen(model.forecast12h)).toBeGT(0);
+        expect(arrayLen(model.cache.entries)).toBeGT(0);
+      });
+
+      it("returns degraded contract data for invalid ZIP format without provider calls", function() {
+        var service = newPhase4WeatherService("fpwWeatherRewritePhase4InvalidZip");
+        var model = service.getPageWeather(0, { "zip" = "12ab3" });
 
         expect(model.ok).toBeFalse();
-        expect(model.status.reason).toBe("ZIP_COORDINATES_UNAVAILABLE");
-        expect(model.target.sourceType).toBe("manual ZIP");
-        expect(model.target.zip).toBe("33708");
+        expect(model.status.reason).toBe("INVALID_ZIP");
+        expect(model.target.sourceType).toBe("fallback");
         expect(arrayLen(model.cache.entries)).toBe(0);
-        expect(arrayToList(model.status.messages, " ")).toInclude("ZIP-only weather lookup is not enabled yet");
+        expect(arrayToList(model.status.messages, " ")).toInclude("valid 5-digit ZIP");
+      });
+
+      it("returns degraded contract data for unknown ZIP without provider calls", function() {
+        var service = newPhase4WeatherService("fpwWeatherRewritePhase4UnknownZip");
+        var model = service.getPageWeather(0, { "zip" = "99999" });
+
+        expect(model.ok).toBeFalse();
+        expect(model.status.reason).toBe("ZIP_NOT_FOUND");
+        expect(model.target.sourceType).toBe("zip_zcta");
+        expect(model.target.zip).toBe("99999");
+        expect(arrayLen(model.cache.entries)).toBe(0);
+        expect(arrayToList(model.status.messages, " ")).toInclude("No approved ZIP-area coordinate");
       });
 
       it("returns degraded contract data when required NWS point metadata fails", function() {
@@ -199,6 +256,10 @@ component extends="testbox.system.BaseSpec" {
         expect(model.cache.entries[1]).toHaveKey("key");
         expect(model.cache.entries[1]).toHaveKey("status");
         expect(model.cache.entries[1]).toHaveKey("durationMs");
+        expect(model.marine.seasFt).toBe(3);
+        expect(model.marine.waveHeightFt).toBe(3);
+        expect(model.marine.wavePeriodSec).toBe(4);
+        expect(model.forecast12h[1].seasFt).toBe(3);
         expect(model).notToHaveKey("SUCCESS");
         expect(model).notToHaveKey("DATA");
       });
@@ -234,6 +295,62 @@ component extends="testbox.system.BaseSpec" {
         expect(arrayLen(alerts)).toBe(1);
         expect(alerts[1].event).toBe("Small Craft Advisory");
         expect(alerts[1].severity).toBe("Moderate");
+      });
+
+      it("extracts seas and wave period from NWS marine zone forecast text", function() {
+        var zone = variables.nws.normalizeZoneForecast(
+          {
+            "available" = true,
+            "zoneId" = "GMZ853",
+            "zoneName" = "Coastal waters",
+            "office" = "TBW",
+            "sourceUrl" = "https://api.weather.gov/zones/marine/GMZ853"
+          },
+          {
+            "properties" = {
+              "periods" = [{
+                "name" = "Tonight",
+                "detailedForecast" = "East winds 5 to 10 knots. Seas 2 to 3 feet. Dominant period 4 seconds."
+              }]
+            }
+          }
+        );
+
+        expect(zone.available).toBeTrue();
+        expect(zone.seasFt).toBe(3);
+        expect(zone.waveHeightFt).toBe(3);
+        expect(zone.wavePeriodSec).toBe(4);
+      });
+
+      it("parses NOAA Coastal Waters Forecast text for the selected marine zone", function() {
+        var zone = variables.nws.normalizeCwfZoneForecast(
+          {
+            "available" = true,
+            "zoneId" = "GMZ850",
+            "zoneName" = "Coastal waters from Tarpon Springs to Suwannee River FL out 20 NM",
+            "office" = "TBW",
+            "sourceUrl" = "https://api.weather.gov/zones/marine/GMZ850"
+          },
+          {
+            "@id" = "https://api.weather.gov/products/fake-cwf",
+            "productText" =
+              "GMZ850-011330-" & chr(10)
+              & "Coastal waters from Tarpon Springs to Suwannee River FL out 20 NM-" & chr(10)
+              & "834 PM EDT Tue Jun 30 2026" & chr(10)
+              & chr(10)
+              & ".TONIGHT...East winds 5 to 10 knots. Seas 1 foot or less. Wave Detail: Northeast 1 foot at 2 seconds." & chr(10)
+              & ".WEDNESDAY...Northeast winds 5 to 10 knots. Seas 1 foot or less." & chr(10)
+              & "$$"
+          }
+        );
+
+        expect(zone.available).toBeTrue(serializeJSON(zone));
+        expect(zone.zoneId).toBe("GMZ850");
+        expect(arrayLen(zone.periods)).toBe(2);
+        expect(zone.periods[1].name).toBe("TONIGHT");
+        expect(zone.seasFt).toBe(1);
+        expect(zone.waveHeightFt).toBe(1);
+        expect(zone.wavePeriodSec).toBe(2);
       });
 
       it("normalizes CO-OPS tide predictions", function() {
@@ -279,6 +396,17 @@ component extends="testbox.system.BaseSpec" {
 
   private struct function readFixtureJson(required string name) {
     return deserializeJSON(fileRead(variables.fixtureRoot & "/" & arguments.name));
+  }
+
+  private any function newPhase4WeatherService(required string cachePrefix) {
+    return new fpw.api.v1.WeatherPageService().init(
+      "",
+      new fpw.api.v1.weather.WeatherCache().init(arguments.cachePrefix & replace(createUUID(), "-", "", "all")),
+      new fpw.api.v1.WeatherTargetResolver().init("", variables.zipService),
+      createObject("component", "fpw.tests.fixtures.weather_rewrite_phase2.FakeNwsClient").init(false),
+      createObject("component", "fpw.tests.fixtures.weather_rewrite_phase2.FakeCoopsClient").init(false),
+      variables.risk
+    );
   }
 
   private numeric function createWeatherTestUser() {
@@ -345,4 +473,3 @@ component extends="testbox.system.BaseSpec" {
     }
   }
 }
-

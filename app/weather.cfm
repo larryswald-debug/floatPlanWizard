@@ -410,6 +410,17 @@
       }
       .weather-state-action:hover,
       .weather-state-action:focus-visible { background: rgba(52, 210, 200, .16); text-decoration: none; outline: none; }
+      .weather-approx-box {
+        margin-bottom: 14px;
+        padding: 11px 13px;
+        border: 1px solid rgba(86, 168, 255, .28);
+        border-radius: var(--wx-radius-sm);
+        background: rgba(86, 168, 255, .08);
+        color: #d7e9fb;
+        font-size: 14px;
+        line-height: 1.45;
+      }
+      .weather-approx-box strong { color: #fff; margin-right: 6px; }
 
       .marine-risk-panel {
         display: grid;
@@ -549,21 +560,58 @@
       .weather-toggle-group button:last-child { border-right: 0; }
       .weather-toggle-group .toggle-active { background: rgba(86, 168, 255, .32); color: #fff; font-weight: 800; }
       .tide-chart-area { padding: 0 16px; }
-      .fpw-wx__tideGraph { display: block; border: 0; background: transparent; padding: 0; }
-      .fpw-wx__tideTitle { display: none; }
-      .fpw-wx__tideSvg { display: block; width: 100%; min-height: 230px; height: auto; background: rgba(2, 10, 18, .28); border: 1px solid rgba(126, 178, 220, .14); border-radius: var(--wx-radius-sm); }
-      .fpw-wx__tideAxis { display: flex; justify-content: space-between; color: var(--wx-muted); font-size: 12px; padding: 7px 2px 0; }
+      .fpw-wx__tideGraph {
+        display: block;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+      }
+      .fpw-wx__tideTitle {
+        display: none;
+      }
+      .fpw-wx__tideTitle > :first-child { justify-self: start; text-align: left; }
+      .fpw-wx__tideTitle > :nth-child(2) { justify-self: center; text-align: center; white-space: nowrap; }
+      .fpw-wx__tideTitle > :last-child { justify-self: end; max-width: 100%; overflow: hidden; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+      .fpw-wx__tideNow { color: rgba(165, 243, 252, .95); font-weight: 700; }
+      .fpw-wx__tideSvg {
+        display: block;
+        width: 100%;
+        min-height: 230px;
+        height: auto;
+        margin: 0;
+        background: rgba(2, 10, 18, .28);
+        border: 1px solid rgba(126, 178, 220, .14);
+        border-radius: var(--wx-radius-sm);
+      }
+      .fpw-wx__tideAxis {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        margin: 0;
+        padding: 7px 2px 0;
+        color: var(--wx-muted);
+        font-size: 12px;
+      }
+      .fpw-wx__tideAxis > :first-child { justify-self: start; text-align: left; }
+      .fpw-wx__tideAxis > :nth-child(2) { justify-self: center; min-width: 1px; text-align: center; }
+      .fpw-wx__tideAxis > :last-child { justify-self: end; text-align: right; }
       .fpw-wx__tideEmpty { color: var(--wx-muted); padding: 14px 0; }
-      .fpw-wx__tideAxisLine { stroke: rgba(214, 236, 255, .5); stroke-width: 1; }
-      .fpw-wx__tideAxisTick { stroke: rgba(214, 236, 255, .45); stroke-width: 1; }
-      .fpw-wx__tideAxisLabel { fill: #d4e6f8; font-size: 11px; }
+      .fpw-wx__tideAxisLine { stroke: rgba(148, 163, 184, .55); stroke-width: 1; }
+      .fpw-wx__tideAxisTick { stroke: rgba(148, 163, 184, .62); stroke-width: 1; }
+      .fpw-wx__tideAxisLabel { fill: rgba(203, 213, 225, .9); font-family: Arial, sans-serif; font-size: 9px; font-weight: 600; }
       .fpw-wx__tideAxisLabel.y { text-anchor: end; }
       .fpw-wx__tideAxisLabel.x { text-anchor: middle; }
-      .fpw-wx__tideGuide { stroke: rgba(52, 210, 200, .5); stroke-dasharray: 2 3; }
-      .fpw-wx__tideNowHalo { fill: rgba(52, 210, 200, .18); }
-      .fpw-wx__tideNowDot { fill: #b8f8ff; stroke: rgba(52, 210, 200, .85); }
-      .fpw-wx__tideExtDot { fill: #ffc24c; }
-      .fpw-wx__tideExtLabel { fill: #fff0b8; font-size: 11px; font-weight: 800; }
+      .fpw-wx__tideGuide { stroke: rgba(56, 189, 248, .4); stroke-width: 1.35; stroke-dasharray: 2 2; }
+      .fpw-wx__tideNowHalo { fill: rgba(56, 189, 248, .22); }
+      .fpw-wx__tideNowDot { fill: rgba(186, 230, 253, .98); stroke: rgba(14, 116, 144, .9); stroke-width: 1; }
+      .fpw-wx__tideExtDot { stroke-width: 1; }
+      .fpw-wx__tideExtDot.high { fill: rgba(253, 224, 71, .95); stroke: rgba(180, 83, 9, .9); }
+      .fpw-wx__tideExtDot.low { fill: rgba(147, 197, 253, .95); stroke: rgba(30, 64, 175, .9); }
+      .fpw-wx__tideExtLabel { font-family: Arial, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0; paint-order: normal; stroke: none; }
+      .fpw-wx__tideExtLabel.high { fill: rgba(253, 246, 178, .98); }
+      .fpw-wx__tideExtLabel.low { fill: rgba(191, 219, 254, .98); }
       .tide-summary-boxes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 0 18px 14px; }
       .tide-summary-boxes > div { padding: 12px 10px; border: 1px solid rgba(126, 178, 220, .14); border-radius: var(--wx-radius-sm); background: rgba(86, 168, 255, .07); text-align: center; }
       .tide-summary-boxes span,
@@ -879,6 +927,9 @@
     </div>
     <a id="weatherStateAction" class="weather-state-action d-none" href="<cfoutput>#request.fpwBase#</cfoutput>/app/account.cfm">Update Home Port</a>
   </div>
+  <div id="weatherApproxBox" class="weather-approx-box d-none" role="note" aria-live="polite">
+    <strong>Approximate ZIP-area weather.</strong><span id="weatherApproxMessage">ZIP-area coordinates may not match an exact marina or home-port location.</span>
+  </div>
 
   <section class="weather-briefing-header">
     <div class="weather-briefing-title-block">
@@ -1165,7 +1216,7 @@
 <cfinclude template="../includes/footer_scripts.cfm">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/fpw-weather-overlays.js?v=20260526-cache-bump"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/weather-page.js?v=20260630-weather-rewrite-phase3"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/weather-page.js?v=20260701-weather-tide-style-previous"></script>
 
 </body>
 </html>

@@ -14,6 +14,10 @@ component output="false" {
     return fetchJson(arguments.url, 5);
   }
 
+  public struct function getGridData(required string url) {
+    return fetchJson(arguments.url, 5);
+  }
+
   public struct function getObservationStations(required string url) {
     return fetchJson(arguments.url, 4);
   }
@@ -30,8 +34,102 @@ component output="false" {
     return fetchJson(variables.baseUrl & "/zones?type=marine&point=" & formatCoordinate(arguments.lat) & "," & formatCoordinate(arguments.lon), 4);
   }
 
+  public struct function getNearestMarineZone(required numeric lat, required numeric lon, string office = "") {
+    var result = {
+      "ok" = false,
+      "statusCode" = 0,
+      "url" = variables.baseUrl & "/zones?type=marine",
+      "data" = {},
+      "error" = "",
+      "fetchedAtUtc" = isoUtc(now())
+    };
+
+    var catalog = fetchJson(result.url, 5);
+    result.statusCode = catalog.statusCode;
+    if (!catalog.ok) {
+      result.error = catalog.error;
+      return result;
+    }
+
+    var features = catalog.data.features ?: [];
+    if (!isArray(features) || arrayLen(features) EQ 0) {
+      result.error = "NWS marine zone catalog returned no zones.";
+      return result;
+    }
+
+    var bestFeature = {};
+    var bestDistance = 999999;
+    var officeFilter = ucase(trim(arguments.office));
+
+    for (var feature in features) {
+      var props = feature.properties ?: {};
+      if (len(officeFilter) && !cwaContains(props.cwa ?: [], officeFilter)) {
+        continue;
+      }
+
+      var zoneUrl = props["@id"] ?: "";
+      if (!len(zoneUrl) && len(props.id ?: "")) {
+        zoneUrl = variables.baseUrl & "/zones/marine/" & urlEncodedFormat(props.id);
+      }
+      if (!len(zoneUrl)) {
+        continue;
+      }
+
+      var detail = fetchJson(zoneUrl, 4);
+      if (!detail.ok || !isStruct(detail.data) || !structKeyExists(detail.data, "geometry") || !isStruct(detail.data.geometry)) {
+        continue;
+      }
+
+      var distance = nearestGeometryDistanceMiles(arguments.lat, arguments.lon, detail.data.geometry);
+      if (!isNull(distance) && distance LT bestDistance) {
+        bestDistance = distance;
+        bestFeature = detail.data;
+      }
+    }
+
+    if (!structCount(bestFeature)) {
+      result.error = len(officeFilter)
+        ? "No NWS marine zone geometry matched office " & officeFilter & "."
+        : "No NWS marine zone geometry was available for nearest-zone matching.";
+      return result;
+    }
+
+    bestFeature.properties.nearestDistanceMiles = round(bestDistance * 10) / 10;
+    result.ok = true;
+    result.data = {
+      "type" = "FeatureCollection",
+      "features" = [ bestFeature ]
+    };
+    return result;
+  }
+
   public struct function getZoneForecast(required string zoneId) {
     return fetchJson(variables.baseUrl & "/zones/marine/" & urlEncodedFormat(arguments.zoneId) & "/forecast", 4);
+  }
+
+  public struct function getCwfProduct(required string office) {
+    var officeCode = ucase(trim(arguments.office));
+    var listUrl = variables.baseUrl & "/products/types/CWF/locations/" & urlEncodedFormat(officeCode);
+    var listResult = fetchJson(listUrl, 5);
+    if (!listResult.ok) {
+      return listResult;
+    }
+
+    var graph = listResult.data["@graph"] ?: [];
+    if (!isArray(graph) || arrayLen(graph) EQ 0) {
+      listResult.ok = false;
+      listResult.error = "NOAA Coastal Waters Forecast product list did not include a latest product for " & officeCode & ".";
+      return listResult;
+    }
+
+    var productUrl = graph[1]["@id"] ?: graph[1].id ?: "";
+    if (!len(productUrl)) {
+      listResult.ok = false;
+      listResult.error = "NOAA Coastal Waters Forecast product list did not include a product URL for " & officeCode & ".";
+      return listResult;
+    }
+
+    return fetchJson(productUrl, 5);
   }
 
   public struct function fetchJson(required string url, numeric timeoutSeconds = 4) {
@@ -73,6 +171,7 @@ component output="false" {
       "displayName" = trim((relProps.city ?: "") & (len(relProps.state ?: "") ? ", " & relProps.state : "")),
       "forecastHourlyUrl" = props.forecastHourly ?: "",
       "forecastUrl" = props.forecast ?: "",
+      "forecastGridDataUrl" = props.forecastGridData ?: "",
       "observationStationsUrl" = props.observationStations ?: "",
       "forecastZoneUrl" = props.forecastZone ?: "",
       "gridId" = props.gridId ?: "",
@@ -96,6 +195,7 @@ component output="false" {
       "feelsLikeF" = cToF(props.heatIndex.value ?: props.windChill.value ?: javacast("null", "")),
       "windMph" = kmhToMph(props.windSpeed.value ?: javacast("null", "")),
       "gustMph" = kmhToMph(props.windGust.value ?: javacast("null", "")),
+      "gustSource" = isNull(props.windGust.value ?: javacast("null", "")) ? "" : "NWS_OBSERVATION",
       "windDirectionDeg" = numericOrNull(props.windDirection.value ?: javacast("null", "")),
       "windDirectionLabel" = degreesToCompass(props.windDirection.value ?: javacast("null", "")),
       "pressureInHg" = paToInHg(props.barometricPressure.value ?: javacast("null", "")),
@@ -130,6 +230,9 @@ component output="false" {
         "tempF" = isNumeric(p.temperature ?: "") ? val(p.temperature) : javacast("null", ""),
         "windMph" = wind,
         "gustMph" = javacast("null", ""),
+        "gustSource" = "",
+        "startTime" = p.startTime ?: "",
+        "endTime" = p.endTime ?: "",
         "windDirectionLabel" = p.windDirection ?: "",
         "precipChancePct" = numericOrNull(p.probabilityOfPrecipitation.value ?: javacast("null", "")),
         "seasFt" = javacast("null", ""),
@@ -178,6 +281,7 @@ component output="false" {
         "zoneName" = props.name ?: "",
         "office" = props.cwa ?: "",
         "sourceUrl" = props["@id"] ?: "",
+        "nearestDistanceMiles" = props.nearestDistanceMiles ?: javacast("null", ""),
         "reason" = ""
       };
     }
@@ -188,6 +292,7 @@ component output="false" {
       "zoneName" = "",
       "office" = "",
       "sourceUrl" = "",
+      "nearestDistanceMiles" = javacast("null", ""),
       "reason" = "No NWS marine zone matched this point."
     };
   }
@@ -201,6 +306,10 @@ component output="false" {
       "synopsis" = "",
       "periods" = [],
       "sourceUrl" = zoneMeta.sourceUrl ?: "",
+      "seasFt" = javacast("null", ""),
+      "waveHeightFt" = javacast("null", ""),
+      "wavePeriodSec" = javacast("null", ""),
+      "waveDirectionLabel" = "",
       "reason" = zoneMeta.reason ?: ""
     };
 
@@ -219,17 +328,138 @@ component output="false" {
           "forecast" = periods[i].detailedForecast ?: periods[i].shortForecast ?: ""
         });
       }
+
+      var marineConditions = extractMarineConditionsFromZone(out);
+      if (marineConditions.available) {
+        out.seasFt = marineConditions.seasFt;
+        out.waveHeightFt = marineConditions.waveHeightFt;
+        if (structKeyExists(marineConditions, "wavePeriodSec") && !isNull(marineConditions["wavePeriodSec"])) {
+          out.wavePeriodSec = marineConditions["wavePeriodSec"];
+        }
+        if (len(marineConditions.waveDirectionLabel ?: "")) {
+          out.waveDirectionLabel = marineConditions.waveDirectionLabel;
+        }
+      }
+    }
+
+    return out;
+  }
+
+  public struct function normalizeCwfZoneForecast(struct zoneMeta = {}, struct productPayload = {}) {
+    var out = {
+      "available" = false,
+      "zoneId" = zoneMeta.zoneId ?: "",
+      "zoneName" = zoneMeta.zoneName ?: "",
+      "office" = normalizeOffice(zoneMeta.office ?: ""),
+      "synopsis" = "",
+      "periods" = [],
+      "sourceUrl" = arguments.productPayload["@id"] ?: arguments.productPayload.id ?: zoneMeta.sourceUrl ?: "",
+      "seasFt" = javacast("null", ""),
+      "waveHeightFt" = javacast("null", ""),
+      "wavePeriodSec" = javacast("null", ""),
+      "waveDirectionLabel" = "",
+      "reason" = zoneMeta.reason ?: ""
+    };
+
+    var productText = arguments.productPayload.productText ?: "";
+    if (!len(out.zoneId)) {
+      out.reason = "No NWS marine zone id was available for Coastal Waters Forecast parsing.";
+      return out;
+    }
+    if (!len(productText)) {
+      out.reason = "NOAA Coastal Waters Forecast product response did not include product text.";
+      return out;
+    }
+
+    var zoneBlock = extractCwfZoneBlock(productText, out.zoneId);
+    if (!len(zoneBlock)) {
+      out.reason = "NOAA Coastal Waters Forecast product did not contain zone " & out.zoneId & ".";
+      return out;
+    }
+
+    out.periods = parseCwfPeriods(zoneBlock);
+    if (arrayLen(out.periods) EQ 0) {
+      out.reason = "NOAA Coastal Waters Forecast product did not contain forecast periods for " & out.zoneId & ".";
+      return out;
+    }
+
+    out.available = true;
+    out.reason = "";
+    var marineConditions = extractMarineConditionsFromZone(out);
+    if (marineConditions.available) {
+      out.seasFt = marineConditions.seasFt;
+      out.waveHeightFt = marineConditions.waveHeightFt;
+      if (structKeyExists(marineConditions, "wavePeriodSec") && !isNull(marineConditions["wavePeriodSec"])) {
+        out.wavePeriodSec = marineConditions["wavePeriodSec"];
+      }
+      if (len(marineConditions.waveDirectionLabel ?: "")) {
+        out.waveDirectionLabel = marineConditions.waveDirectionLabel;
+      }
+    }
+
+    return out;
+  }
+
+  public struct function extractMarineConditionsFromZone(struct zoneForecast = {}) {
+    var out = {
+      "available" = false,
+      "seasFt" = javacast("null", ""),
+      "waveHeightFt" = javacast("null", ""),
+      "wavePeriodSec" = javacast("null", ""),
+      "waveDirectionLabel" = "",
+      "sourcePeriod" = ""
+    };
+    var periods = arguments.zoneForecast.periods ?: [];
+    if (!isArray(periods)) {
+      return out;
+    }
+
+    for (var period in periods) {
+      var forecastText = trim((period.name ?: "") & " " & (period.forecast ?: ""));
+      var wave = parseMarineFeet(forecastText);
+      if (!isNull(wave)) {
+        out.available = true;
+        out.seasFt = wave;
+        out.waveHeightFt = wave;
+        out.sourcePeriod = period.name ?: "";
+        var wavePeriod = parseWavePeriodSeconds(forecastText);
+        if (!isNull(wavePeriod)) {
+          out.wavePeriodSec = wavePeriod;
+        }
+        out.waveDirectionLabel = parseWaveDirectionLabel(forecastText);
+        return out;
+      }
     }
 
     return out;
   }
 
   public string function firstStationId(struct stationsPayload = {}) {
-    var features = arguments.stationsPayload.features ?: [];
-    if (!isArray(features) || arrayLen(features) EQ 0) {
+    var ids = stationIds(arguments.stationsPayload, 1);
+    if (!arrayLen(ids)) {
       return "";
     }
-    return features[1].properties.stationIdentifier ?: listLast(features[1].id ?: "", "/");
+    return ids[1];
+  }
+
+  public array function stationIds(struct stationsPayload = {}, numeric maxStations = 6) {
+    var ids = [];
+    var features = arguments.stationsPayload.features ?: [];
+    if (!isArray(features) || arrayLen(features) EQ 0) {
+      return ids;
+    }
+
+    for (var feature in features) {
+      var stationId = feature.properties.stationIdentifier ?: listLast(feature.id ?: "", "/");
+      if (len(stationId)) {
+        arrayAppend(ids, stationId);
+      }
+      if (arrayLen(ids) GTE arguments.maxStations) {
+        break;
+      }
+    }
+
+    return ids;
   }
 
   public any function numericOrNull(any value) {
@@ -275,6 +505,191 @@ component output="false" {
     return val(mid(arguments.text, match.pos[1], match.len[1]));
   }
 
+  private any function parseMarineFeet(required string text) {
+    var match = reFindNoCase("(seas|waves)[^0-9]*([0-9]+)([[:space:]]*(to|-)[[:space:]]*([0-9]+))?[[:space:]]*(foot|feet|ft)", arguments.text, 1, true);
+    if (arrayLen(match.len) LT 3 || match.len[1] LTE 0 || match.len[3] LTE 0) {
+      return javacast("null", "");
+    }
+    var firstValue = val(mid(arguments.text, match.pos[3], match.len[3]));
+    var secondValue = javacast("null", "");
+    if (arrayLen(match.len) GTE 6 && match.len[6] GT 0) {
+      secondValue = val(mid(arguments.text, match.pos[6], match.len[6]));
+    }
+    if (!isNull(secondValue) && secondValue GT firstValue) {
+      return secondValue;
+    }
+    return firstValue;
+  }
+
+  private any function parseWavePeriodSeconds(required string text) {
+    var match = reFindNoCase("(period|dominant period)[^0-9]*([0-9]+)[[:space:]]*(seconds|second|sec)", arguments.text, 1, true);
+    if (arrayLen(match.len) GTE 3 && match.len[1] GT 0 && match.len[3] GT 0) {
+      return val(mid(arguments.text, match.pos[3], match.len[3]));
+    }
+
+    match = reFindNoCase("at[[:space:]]*([0-9]+)[[:space:]]*(seconds|second|sec)", arguments.text, 1, true);
+    if (arrayLen(match.len) LT 2 || match.len[1] LTE 0 || match.len[2] LTE 0) {
+      return javacast("null", "");
+    }
+    return val(mid(arguments.text, match.pos[2], match.len[2]));
+  }
+
+  private string function parseWaveDirectionLabel(required string text) {
+    var match = reFindNoCase("Wave Detail:[[:space:]]*([A-Za-z]+)[[:space:]]+[0-9]+[[:space:]]*(foot|feet|ft)", arguments.text, 1, true);
+    if (arrayLen(match.len) LT 2 || match.len[1] LTE 0 || match.len[2] LTE 0) {
+      return "";
+    }
+    return normalizeWaveDirection(mid(arguments.text, match.pos[2], match.len[2]));
+  }
+
+  private string function normalizeWaveDirection(required string direction) {
+    var value = lcase(trim(arguments.direction));
+    var labels = {
+      "north" = "N",
+      "northeast" = "NE",
+      "east" = "E",
+      "southeast" = "SE",
+      "south" = "S",
+      "southwest" = "SW",
+      "west" = "W",
+      "northwest" = "NW"
+    };
+    return structKeyExists(labels, value) ? labels[value] : trim(arguments.direction);
+  }
+
+  private string function normalizeOffice(any value) {
+    if (isArray(arguments.value) && arrayLen(arguments.value) GT 0) {
+      return ucase(trim(arguments.value[1]));
+    }
+    return ucase(trim(toString(arguments.value)));
+  }
+
+  private boolean function cwaContains(any cwa, required string office) {
+    var targetOffice = ucase(trim(arguments.office));
+    if (!len(targetOffice)) {
+      return true;
+    }
+    if (isArray(arguments.cwa)) {
+      for (var item in arguments.cwa) {
+        if (ucase(trim(toString(item))) EQ targetOffice) {
+          return true;
+        }
+      }
+      return false;
+    }
+    return ucase(trim(toString(arguments.cwa))) EQ targetOffice;
+  }
+
+  private any function nearestGeometryDistanceMiles(required numeric lat, required numeric lon, required struct geometry) {
+    var coords = arguments.geometry.coordinates ?: [];
+    var baseLat = arguments.lat;
+    var baseLon = arguments.lon;
+    var best = 999999;
+    var found = false;
+
+    function walkCoords(required any node) {
+      if (!isArray(arguments.node)) {
+        return;
+      }
+      if (arrayLen(arguments.node) GTE 2 && isNumeric(arguments.node[1]) && isNumeric(arguments.node[2])) {
+        var distance = haversineMiles(baseLat, baseLon, val(arguments.node[2]), val(arguments.node[1]));
+        if (distance LT best) {
+          best = distance;
+          found = true;
+        }
+        return;
+      }
+      for (var child in arguments.node) {
+        walkCoords(child);
+      }
+    }
+
+    walkCoords(coords);
+    return found ? best : javacast("null", "");
+  }
+
+  private numeric function haversineMiles(required numeric lat1, required numeric lon1, required numeric lat2, required numeric lon2) {
+    var radiusMiles = 3958.7613;
+    var dLat = radians(arguments.lat2 - arguments.lat1);
+    var dLon = radians(arguments.lon2 - arguments.lon1);
+    var a = sin(dLat / 2) * sin(dLat / 2)
+      + cos(radians(arguments.lat1)) * cos(radians(arguments.lat2))
+      * sin(dLon / 2) * sin(dLon / 2);
+    return radiusMiles * 2 * atn2(sqr(a), sqr(1 - a));
+  }
+
+  private numeric function radians(required numeric value) {
+    return arguments.value * pi() / 180;
+  }
+
+  private numeric function atn2(required numeric y, required numeric x) {
+    if (arguments.x GT 0) {
+      return atn(arguments.y / arguments.x);
+    }
+    if (arguments.x LT 0 && arguments.y GTE 0) {
+      return atn(arguments.y / arguments.x) + pi();
+    }
+    if (arguments.x LT 0 && arguments.y LT 0) {
+      return atn(arguments.y / arguments.x) - pi();
+    }
+    if (arguments.x EQ 0 && arguments.y GT 0) {
+      return pi() / 2;
+    }
+    if (arguments.x EQ 0 && arguments.y LT 0) {
+      return -pi() / 2;
+    }
+    return 0;
+  }
+
+  private string function extractCwfZoneBlock(required string productText, required string zoneId) {
+    var text = replace(arguments.productText, chr(13), "", "all");
+    var marker = ucase(trim(arguments.zoneId)) & "-";
+    var startPos = findNoCase(marker, text);
+    if (startPos LTE 0) {
+      return "";
+    }
+    var endPos = find(chr(10) & "$$", text, startPos);
+    if (endPos LTE 0) {
+      endPos = len(text) + 1;
+    }
+    return mid(text, startPos, endPos - startPos);
+  }
+
+  private array function parseCwfPeriods(required string zoneBlock) {
+    var periods = [];
+    var lines = listToArray(replace(arguments.zoneBlock, chr(13), "", "all"), chr(10), true);
+    var current = {};
+
+    for (var line in lines) {
+      var cleanLine = trim(line);
+      if (!len(cleanLine)) {
+        continue;
+      }
+
+      var markerPos = find("...", cleanLine);
+      if (left(cleanLine, 1) EQ "." && markerPos GT 2) {
+        if (structCount(current)) {
+          arrayAppend(periods, current);
+        }
+        current = {
+          "name" = trim(mid(cleanLine, 2, markerPos - 2)),
+          "forecast" = trim(mid(cleanLine, markerPos + 3, len(cleanLine)))
+        };
+      } else if (structCount(current)) {
+        current.forecast = trim(current.forecast & " " & cleanLine);
+      }
+    }
+
+    if (structCount(current)) {
+      arrayAppend(periods, current);
+    }
+
+    if (arrayLen(periods) GT 6) {
+      return arraySlice(periods, 1, 6);
+    }
+    return periods;
+  }
+
   private string function degreesToCompass(any degrees) {
     if (isNull(arguments.degrees) || !isNumeric(arguments.degrees)) {
       return "";
@@ -292,5 +707,7 @@ component output="false" {
     return reReplace(trim(numberFormat(arguments.value, "0.0000")), ",", "", "all");
   }
 }
+
+
 
 

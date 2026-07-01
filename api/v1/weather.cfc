@@ -121,7 +121,15 @@
                 <cfset local.pageRequest = {
                     "zip" = readRequestParamValue(arguments, ["zip"]),
                     "lat" = readRequestParamValue(arguments, ["lat", "latitude"]),
-                    "lon" = readRequestParamValue(arguments, ["lon", "lng", "longitude"])
+                    "lon" = readRequestParamValue(arguments, ["lon", "lng", "longitude"]),
+                    "bypassCache" = (
+                        shouldBypassWeatherCache()
+                        OR (
+                            isDefined("url.nocache")
+                            AND len(trim(toString(url.nocache)))
+                            AND val(url.nocache) EQ 1
+                        )
+                    )
                 }>
                 <cfset local.pageWeather = getWeatherPageService().getPageWeather(local.userId, local.pageRequest)>
                 <cfoutput>#serializeJSON(local.pageWeather)#</cfoutput>
