@@ -380,6 +380,36 @@
         .weather-scan-console__skeletons { display: none; }
       }
       .weather-error-box { margin-bottom: 14px; padding: 12px 14px; border: 1px solid rgba(244, 197, 66, .55); border-radius: var(--wx-radius-sm); color: #ffe9a6; background: rgba(244, 197, 66, .12); }
+      .weather-state-box {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 14px;
+        padding: 14px 16px;
+        border: 1px solid rgba(244, 197, 66, .42);
+        border-radius: var(--wx-radius);
+        background: linear-gradient(135deg, rgba(244, 197, 66, .12), rgba(86, 168, 255, .06)), var(--wx-panel);
+        color: #f5e8bc;
+      }
+      .weather-state-box strong { display: block; margin-bottom: 4px; color: #fff; }
+      .weather-state-box span { color: #d7e9fb; font-size: 14px; line-height: 1.45; }
+      .weather-state-action {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 38px;
+        padding: 0 14px;
+        border: 1px solid rgba(52, 210, 200, .55);
+        border-radius: var(--wx-radius-sm);
+        background: rgba(52, 210, 200, .08);
+        color: #dff8ff;
+        font-weight: 850;
+        white-space: nowrap;
+      }
+      .weather-state-action:hover,
+      .weather-state-action:focus-visible { background: rgba(52, 210, 200, .16); text-decoration: none; outline: none; }
 
       .marine-risk-panel {
         display: grid;
@@ -584,6 +614,10 @@
         box-shadow: 0 0 0 3px rgba(86, 168, 255, .12);
         outline: none;
       }
+      .weather-map-preview-button:disabled {
+        opacity: .58;
+        cursor: not-allowed;
+      }
       .weather-map-preview {
         position: relative;
         display: grid;
@@ -773,6 +807,8 @@
         .weather-alert-meta-grid .weather-alert-area { grid-column: 1 / -1; }
         .weather-alert-row__actions { flex-direction: column; }
         .weather-alert-detail-grid { grid-template-columns: 1fr; }
+        .weather-state-box { align-items: stretch; flex-direction: column; }
+        .weather-state-action { width: 100%; }
       }
 
       @media (max-width: 460px) {
@@ -836,6 +872,13 @@
   </div>
   <div id="weatherMarineHydrationBadge" class="weather-marine-hydration-badge d-none" role="status" aria-live="polite">Updating detailed marine context…</div>
   <div id="weatherError" class="weather-error-box d-none" role="alert"></div>
+  <div id="weatherStateBox" class="weather-state-box d-none" role="status" aria-live="polite">
+    <div>
+      <strong id="weatherStateTitle">Weather needs a location</strong>
+      <span id="weatherStateMessage">Update your weather location to load local marine weather.</span>
+    </div>
+    <a id="weatherStateAction" class="weather-state-action d-none" href="<cfoutput>#request.fpwBase#</cfoutput>/app/account.cfm">Update Home Port</a>
+  </div>
 
   <section class="weather-briefing-header">
     <div class="weather-briefing-title-block">
@@ -1060,15 +1103,15 @@
 
     <article class="weather-panel map-layers-panel">
       <header class="weather-panel-header map-layer-header"><h2>NOAA Weather Map</h2></header>
-      <p>NOAA nowCOAST layers are available for this location.</p>
+      <p id="weatherMapPanelCopy">NOAA nowCOAST layers are available for this location.</p>
       <div class="map-layer-section-label">Available layers</div>
       <ul class="map-layer-list" id="weatherMapLayerList"><li>No map layers delivered for this location.</li></ul>
       <button type="button" class="weather-map-preview-button" id="weatherMapLayersButton" aria-label="Open NOAA map. View radar and marine warning layers in a full-screen map.">
         <span class="weather-map-preview" aria-hidden="true">
           <span class="weather-map-preview__icon"></span>
           <span class="weather-map-preview__copy">
-            <span class="weather-map-preview__label">Open NOAA Map</span>
-            <span class="weather-map-preview__helper">View radar and marine warning layers in a full-screen map.</span>
+            <span class="weather-map-preview__label" id="weatherMapPreviewLabel">Open NOAA Map</span>
+            <span class="weather-map-preview__helper" id="weatherMapPreviewHelper">View radar and marine warning layers in a full-screen map.</span>
           </span>
         </span>
       </button>
@@ -1122,7 +1165,7 @@
 <cfinclude template="../includes/footer_scripts.cfm">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/fpw-weather-overlays.js?v=20260526-cache-bump"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/weather-page.js?v=20260630-weather-rewrite-phase1"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/weather-page.js?v=20260630-weather-rewrite-phase3"></script>
 
 </body>
 </html>

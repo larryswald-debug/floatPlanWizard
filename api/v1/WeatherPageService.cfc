@@ -24,8 +24,8 @@ component output="false" {
       model.ok = false;
       model.status.ready = false;
       model.status.degraded = true;
-      arrayAppend(model.status.messages, "Weather target could not be resolved.");
-      arrayAppend(model.status.messages, target.warnings, true);
+      model.status.reason = target.reason ?: "NO_TARGET";
+      arrayAppend(model.status.messages, targetStatusMessage(target));
       arrayAppend(model.diagnostics.warnings, target.warnings, true);
       model.diagnostics.timingsMs.total = getTickCount() - started;
       model.cache.entries = cacheEntries;
@@ -41,7 +41,8 @@ component output="false" {
     if (!pointFetch.value.ok) {
       model.ok = false;
       model.status.degraded = true;
-      arrayAppend(model.status.messages, "NWS point metadata was unavailable.");
+      model.status.reason = "NWS_POINT_UNAVAILABLE";
+      arrayAppend(model.status.messages, "Weather data is temporarily unavailable for this location.");
       arrayAppend(model.diagnostics.warnings, pointFetch.value.error);
       model.diagnostics.timingsMs.total = getTickCount() - started;
       model.cache.entries = cacheEntries;
@@ -116,10 +117,11 @@ component output="false" {
       }
     } catch (any marineErr) {
       model.marine.available = false;
-      arrayAppend(model.marine.warnings, "CO-OPS tide data was unavailable.");
+      arrayAppend(model.marine.warnings, "Tide data is temporarily unavailable for this location.");
       arrayAppend(model.diagnostics.warnings, marineErr.message);
     }
     model.diagnostics.timingsMs.coopsMs = getTickCount() - marineStart;
+    normalizeMarineWarnings(model);
 
     var zoneFetch = cachedFetch("nws:marine-zones:" & target.lat & "," & target.lon, 21600, function() {
       return variables.nws.getMarineZones(target.lat, target.lon);
@@ -170,6 +172,7 @@ component output="false" {
     model.status.degraded = !model.current.available || !model.marine.available || !model.zoneForecast.available;
     model.ok = model.status.ready;
     if (model.status.degraded) {
+      model.status.reason = len(model.status.reason) ? model.status.reason : "PARTIAL_DATA";
       arrayAppend(model.status.messages, "Some optional marine or observation data is unavailable.");
     }
 
@@ -191,11 +194,13 @@ component output="false" {
         "lat" = javacast("null", ""),
         "lon" = javacast("null", ""),
         "timezone" = "",
+        "reason" = "",
         "warnings" = []
       },
       "status" = {
         "ready" = false,
         "degraded" = false,
+        "reason" = "",
         "messages" = []
       },
       "current" = {
@@ -270,7 +275,42 @@ component output="false" {
     arguments.model.target.lat = structKeyExists(arguments.target, "lat") ? arguments.target.lat : javacast("null", "");
     arguments.model.target.lon = structKeyExists(arguments.target, "lon") ? arguments.target.lon : javacast("null", "");
     arguments.model.target.timezone = structKeyExists(arguments.target, "timezone") ? arguments.target.timezone : "";
+    arguments.model.target.reason = structKeyExists(arguments.target, "reason") ? arguments.target.reason : "";
     arguments.model.target.warnings = structKeyExists(arguments.target, "warnings") ? duplicate(arguments.target.warnings) : [];
+  }
+
+  private string function targetStatusMessage(required struct target) {
+    var reason = arguments.target.reason ?: "";
+    if (reason EQ "HOMEPORT_NO_COORDINATES" || reason EQ "HOMEPORT_INVALID_COORDINATES" || reason EQ "NO_HOMEPORT") {
+      return "Weather needs a saved home-port location with coordinates.";
+    }
+    if (reason EQ "ZIP_COORDINATES_UNAVAILABLE") {
+      return "ZIP-only weather lookup is not enabled yet. Save a home port with coordinates to view local marine weather.";
+    }
+    if (reason EQ "INVALID_COORDINATES") {
+      return "The coordinates entered were not valid.";
+    }
+    if (reason EQ "INVALID_ZIP") {
+      return "Enter a valid 5-digit ZIP code.";
+    }
+    return "Weather needs a saved home-port location with coordinates.";
+  }
+
+  private void function normalizeMarineWarnings(required struct model) {
+    if (!structKeyExists(arguments.model, "marine")) {
+      return;
+    }
+    if (!structKeyExists(arguments.model.marine, "warnings") || !isArray(arguments.model.marine.warnings)) {
+      arguments.model.marine.warnings = [];
+    }
+    if (arrayLen(arguments.model.marine.warnings)) {
+      arrayAppend(arguments.model.diagnostics.warnings, arguments.model.marine.warnings, true);
+    }
+    if (!arguments.model.marine.available) {
+      arguments.model.marine.warnings = [ "Tide data is temporarily unavailable for this location." ];
+    } else if (arrayLen(arguments.model.marine.warnings)) {
+      arguments.model.marine.warnings = [ "Some optional tide or water-level details are temporarily unavailable." ];
+    }
   }
 
   private struct function cachedFetch(required string key, required numeric ttlSeconds, required any producer) {
@@ -370,4 +410,3 @@ component output="false" {
     return dateTimeFormat(dateConvert("local2Utc", arguments.value), "yyyy-mm-dd'T'HH:nn:ss'Z'");
   }
 }
-

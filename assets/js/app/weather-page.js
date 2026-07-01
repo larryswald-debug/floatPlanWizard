@@ -1,7 +1,7 @@
 (function (window, document) {
   "use strict";
 
-  var WEATHER_VERSION = "weather-rewrite-phase1";
+  var WEATHER_VERSION = "weather-rewrite-phase3";
   var state = {
     lastModel: null,
     loadingTimer: 0,
@@ -23,6 +23,7 @@
   function htmlList(id, items, emptyText) {
     var el = byId(id);
     if (!el) return;
+    items = safeArray(items);
     if (!items || !items.length) {
       el.innerHTML = "<li>" + escapeHtml(emptyText || "—") + "</li>";
       return;
@@ -37,6 +38,10 @@
       return fallback || "—";
     }
     return String(value);
+  }
+
+  function safeArray(value) {
+    return Array.isArray(value) ? value : [];
   }
 
   function numberText(value, unit, digits) {
@@ -97,6 +102,34 @@
       el.textContent = "";
       el.classList.add("d-none");
     }
+  }
+
+  function setStateBox(config) {
+    var box = byId("weatherStateBox");
+    if (!box) return;
+    if (!config) {
+      box.classList.add("d-none");
+      box.setAttribute("hidden", "hidden");
+      return;
+    }
+    var title = byId("weatherStateTitle");
+    var message = byId("weatherStateMessage");
+    var action = byId("weatherStateAction");
+    if (title) title.textContent = display(config.title, "Weather needs a location");
+    if (message) message.textContent = display(config.message, "Update your weather location to load local marine weather.");
+    if (action) {
+      if (config.actionHref) {
+        action.href = config.actionHref;
+        action.textContent = config.actionLabel || "Update Home Port";
+        action.classList.remove("d-none");
+        action.removeAttribute("hidden");
+      } else {
+        action.classList.add("d-none");
+        action.setAttribute("hidden", "hidden");
+      }
+    }
+    box.classList.remove("d-none");
+    box.removeAttribute("hidden");
   }
 
   function startLoading(label) {
@@ -173,12 +206,12 @@
         renderWeather(model || {});
       })
       .catch(function (error) {
+        var message = "Weather data is temporarily unavailable. Try again in a moment.";
         if (error && error.name === "AbortError") {
-          setError("Weather request timed out. Try again in a moment.");
-        } else {
-          setError(error && error.message ? error.message : "Weather data is unavailable.");
+          message = "Weather request timed out. Try again in a moment.";
         }
-        renderWeather(emptyModel());
+        setError(message);
+        renderWeather(emptyModel("REQUEST_FAILED", message));
       })
       .finally(function () {
         window.clearTimeout(timeoutId);
@@ -199,17 +232,83 @@
   }
 
   function renderWeather(model) {
+    model = normalizeModel(model);
+    renderPageState(model);
     renderHeader(model);
     renderRisk(model);
     renderCurrent(model.current || {});
     renderMarine(model.marine || {});
-    renderAlerts(model.alerts || [], model);
-    renderForecast(model.forecast12h || []);
+    renderAlerts(model.alerts, model);
+    renderForecast(model.forecast12h);
     renderTide(model.marine || {});
     renderSources(model);
     renderMap(model);
     renderZone(model.zoneForecast || {}, model);
     renderStatus(model);
+  }
+
+  function normalizeModel(model) {
+    model = model || {};
+    model.target = model.target || {};
+    model.status = model.status || { messages: [] };
+    model.current = model.current || {};
+    model.marine = model.marine || {};
+    model.forecast12h = safeArray(model.forecast12h);
+    model.alerts = safeArray(model.alerts);
+    model.zoneForecast = model.zoneForecast || {};
+    model.map = model.map || { layers: [] };
+    model.map.layers = safeArray(model.map.layers);
+    model.cache = model.cache || {};
+    model.diagnostics = model.diagnostics || {};
+    return model;
+  }
+
+  function renderPageState(model) {
+    var reason = statusReason(model);
+    if (reason === "HOMEPORT_NO_COORDINATES" || reason === "HOMEPORT_INVALID_COORDINATES" || reason === "NO_HOMEPORT") {
+      setStateBox({
+        title: "Weather needs home-port coordinates",
+        message: "Weather needs a saved home-port location with coordinates. Open your account page and update the Home Port latitude and longitude fields.",
+        actionHref: fpwBase() + "/app/account.cfm",
+        actionLabel: "Update Home Port"
+      });
+      return;
+    }
+    if (reason === "ZIP_COORDINATES_UNAVAILABLE") {
+      setStateBox({
+        title: "ZIP-only weather is not enabled",
+        message: "ZIP-only weather lookup is not enabled yet. Save a home port with coordinates to view local marine weather.",
+        actionHref: fpwBase() + "/app/account.cfm",
+        actionLabel: "Update Home Port"
+      });
+      return;
+    }
+    if (reason === "INVALID_COORDINATES") {
+      setStateBox({
+        title: "Coordinates need attention",
+        message: "The coordinates entered were not valid. Enter latitude and longitude in decimal degrees, then update the briefing."
+      });
+      return;
+    }
+    if (!model.ok && reason) {
+      setStateBox({
+        title: "Weather is temporarily unavailable",
+        message: firstStatusMessage(model, "Weather data is temporarily unavailable for this location.")
+      });
+      return;
+    }
+    setStateBox(null);
+  }
+
+  function statusReason(model) {
+    var status = model.status || {};
+    var target = model.target || {};
+    return String(status.reason || target.reason || "").toUpperCase();
+  }
+
+  function firstStatusMessage(model, fallback) {
+    var messages = safeArray(model && model.status ? model.status.messages : []);
+    return messages.length ? messages[0] : fallback;
   }
 
   function renderHeader(model) {
@@ -239,7 +338,7 @@
   function renderRisk(model) {
     var marine = model.marine || {};
     var current = model.current || {};
-    var alerts = model.alerts || [];
+    var alerts = safeArray(model.alerts);
     var panel = byId("weatherMarineRiskPanel");
     var risk = marine.riskLevel || "Unknown";
     if (panel) {
@@ -247,7 +346,7 @@
       panel.classList.add("marine-risk-" + risk.toLowerCase());
     }
     text("weatherRiskValue", risk);
-    text("weatherRiskSubtext", risk === "Good" ? "Favorable for nearshore boating" : "Use caution for small craft");
+    text("weatherRiskSubtext", risk === "Unknown" ? "Weather data is not ready." : (risk === "Good" ? "Favorable for nearshore boating" : "Use caution for small craft"));
     text("weatherRiskWind", current.windMph ? "Wind " + numberText(current.windMph, "mph") : "Wind —");
     text("weatherRiskGusts", current.gustMph ? "Gusts up to " + numberText(current.gustMph, "mph") : "Gusts —");
     text("weatherRiskSeas", marine.seasFt || marine.waveHeightFt ? "Seas " + numberText(marine.seasFt || marine.waveHeightFt, "ft", 1) : "Seas —");
@@ -259,7 +358,7 @@
   }
 
   function renderCurrent(current) {
-    text("weatherConditionText", current.condition || "Weather unavailable");
+    text("weatherConditionText", current.available ? (current.condition || "Current conditions available") : "Current conditions temporarily unavailable.");
     text("weatherConditionIcon", conditionIcon(current.condition));
     text("weatherCurrentTemp", numberText(current.tempF, "°F"));
     text("weatherFeelsLike", numberText(current.feelsLikeF, "°F"));
@@ -275,13 +374,14 @@
 
   function renderMarine(marine) {
     var wave = marine.seasFt || marine.waveHeightFt;
+    var marineWarning = safeArray(marine.warnings)[0] || "Tide data is temporarily unavailable for this location.";
     text("weatherWaveHeight", numberText(wave, "", 1));
     text("weatherWaveTrendTop", wave ? "Latest available" : "—");
     text("weatherWavePeriod", numberText(marine.wavePeriodSec, "sec"));
     text("weatherWaveDirection", marine.waveDirectionDeg ? numberText(marine.waveDirectionDeg, "°") : "—");
     text("weatherWaveLevel", waveLevel(wave));
     text("weatherWaveTrend", marine.available ? "Latest" : "—");
-    text("weatherWaveNote", marine.available ? "Review latest local marine forecast before departure." : "Wave data unavailable from selected providers.");
+    text("weatherWaveNote", marine.available ? "Review latest local marine forecast before departure." : "Wave and sea details are temporarily unavailable from the current providers.");
     text("weatherCurrentTide", numberText(marine.tideLevelFt, "", 2));
     text("weatherTideDirection", marine.tideTrend || "—");
     text("weatherNextHighTideHeight", tideHeight(marine.nextHigh));
@@ -290,30 +390,39 @@
     text("weatherNextLowTideTime", tideTime(marine.nextLow));
     text("weatherTideTrend", marine.tideTrend || "—");
     text("weatherTideStation", marine.tideStation || "—");
+    if (!marine.available) {
+      text("weatherTideDirection", "Unavailable");
+      text("weatherTideTrend", "Unavailable");
+      text("weatherTideStation", "—");
+      text("weatherCurrentTide", "—");
+      text("weatherTidePlanningNote", marineWarning);
+    }
   }
 
   function renderAlerts(alerts, model) {
+    alerts = safeArray(alerts);
     var count = alerts.length;
     text("weatherAlertStatus", count ? count + " Active" : "No Active Alerts");
-    text("weatherAlertSummary", count ? "Review active NOAA marine alerts" : "No active NOAA alerts for this location.");
+    text("weatherAlertSummary", count ? "Review active NOAA marine alerts" : "No active weather alerts for this location.");
     text("weatherAlertHighest", count ? highestSeverity(alerts) : "—");
     text("weatherAlertsCheckedAt", model.generatedAtUtc ? formatTime(model.generatedAtUtc) : "—");
-    htmlList("weatherAlertsActiveNow", alerts.map(function (a) { return a.event || a.headline || "NOAA alert"; }), "No active NOAA alerts.");
+    htmlList("weatherAlertsActiveNow", alerts.map(function (a) { return a.event || a.headline || "NOAA alert"; }), "No active weather alerts for this location.");
     text("weatherAlertsPanelTitle", count ? "Active NOAA Alerts" : "No Active NOAA Alerts");
     text("weatherAlertsPanelBadge", count ? count + " Active" : "No Active Alerts");
     var list = byId("activeNoaaAlertsList");
     if (list) {
       list.innerHTML = count ? alerts.map(renderAlertCard).join("") : "";
     }
-    text("weatherAlertsPanelState", count ? "" : "No active NOAA alerts returned for this location.");
+    text("weatherAlertsPanelState", count ? "" : "No active weather alerts for this location.");
   }
 
   function renderForecast(rows) {
+    rows = safeArray(rows);
     var tbody = byId("weatherHourlyRows");
     if (!tbody) return;
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="8">Weather forecast unavailable.</td></tr>';
-      text("weatherHourlySummary", "Weather forecast unavailable.");
+      tbody.innerHTML = '<tr><td colspan="8">Hourly forecast is temporarily unavailable.</td></tr>';
+      text("weatherHourlySummary", "Hourly forecast is temporarily unavailable.");
       return;
     }
     tbody.innerHTML = rows.map(function (row) {
@@ -332,6 +441,7 @@
   }
 
   function renderTide(marine) {
+    var tideWarning = safeArray(marine.warnings)[0] || "Tide data is temporarily unavailable for this location.";
     text("weatherTideChartStation", marine.tideStation || "—");
     text("tideGraphTitle", "Tide (ft)");
     text("tideGraphNowValue", "Now " + numberText(marine.tideLevelFt, "ft", 2));
@@ -346,7 +456,8 @@
     text("weatherTideSummaryLowHeight", tideHeight(marine.nextLow));
     text("weatherTideSummaryNextHighTime", tideTime(marine.nextHigh));
     text("weatherTideSummaryNextHighHeight", tideHeight(marine.nextHigh));
-    text("weatherTidePlanningNote", marine.available ? "Review tide timing for shallow-water routes before departure." : "Tide data unavailable for this location.");
+    text("weatherTidePlanningNote", marine.available ? "Review tide timing for shallow-water routes before departure." : tideWarning);
+    text("tideGraphEmpty", tideWarning);
     setHidden("tideGraph", !marine.available);
     setHidden("tideGraphEmpty", marine.available);
   }
@@ -367,8 +478,30 @@
   }
 
   function renderMap(model) {
-    var layers = model.map && model.map.layers ? model.map.layers : [];
+    var target = model.target || {};
+    var map = model.map || {};
+    var layers = safeArray(map.layers);
+    var hasMapCenter = hasCoords(target) && map.center && hasCoords(map.center);
+    var button = byId("weatherMapLayersButton");
+    if (!hasMapCenter) {
+      htmlList("weatherMapLayerList", [], "Map unavailable until a weather location with coordinates is available.");
+      text("weatherMapPanelCopy", "Map layers need a weather location with valid coordinates.");
+      text("weatherMapPreviewLabel", "Map Unavailable");
+      text("weatherMapPreviewHelper", "Save a home port with coordinates or use coordinate mode to enable the map.");
+      if (button) {
+        button.disabled = true;
+        button.setAttribute("aria-label", "NOAA map unavailable until valid coordinates are available.");
+      }
+      return;
+    }
     htmlList("weatherMapLayerList", layers.filter(function (l) { return l.available; }).map(function (l) { return l.label; }), "No map layers delivered for this location.");
+    text("weatherMapPanelCopy", "NOAA nowCOAST layers are available for this location.");
+    text("weatherMapPreviewLabel", "Open NOAA Map");
+    text("weatherMapPreviewHelper", "View radar and marine warning layers in a full-screen map.");
+    if (button) {
+      button.disabled = false;
+      button.setAttribute("aria-label", "Open NOAA map. View radar and marine warning layers in a full-screen map.");
+    }
   }
 
   function renderZone(zone, model) {
@@ -388,8 +521,8 @@
   }
 
   function renderStatus(model) {
-    if (model.status && model.status.messages && model.status.messages.length) {
-      setError(model.status.messages.join(" "));
+    if (model && model.ok) {
+      setError("");
     }
   }
 
@@ -433,8 +566,14 @@
     if (!openBtn || !modal) return;
     openBtn.addEventListener("click", function () {
       var target = state.lastModel && state.lastModel.target ? state.lastModel.target : {};
+      if (openBtn.disabled) {
+        return;
+      }
       if (!hasCoords(target)) {
-        setError("Map requires valid coordinates.");
+        setStateBox({
+          title: "Map unavailable",
+          message: "Map layers need a weather location with valid coordinates."
+        });
         return;
       }
       modal.hidden = false;
@@ -469,12 +608,27 @@
     window.setTimeout(function () { state.map.invalidateSize(); }, 50);
   }
 
-  function emptyModel() {
-    return { target: {}, status: { messages: [] }, current: {}, marine: {}, forecast12h: [], alerts: [], zoneForecast: {}, map: { layers: [] }, cache: {}, diagnostics: {} };
+  function emptyModel(reason, message) {
+    return {
+      ok: false,
+      target: {},
+      status: { ready: false, degraded: true, reason: reason || "", messages: message ? [message] : [] },
+      current: {},
+      marine: {},
+      forecast12h: [],
+      alerts: [],
+      zoneForecast: {},
+      map: { layers: [] },
+      cache: {},
+      diagnostics: {}
+    };
   }
 
   function hasCoords(target) {
-    return target && isFinite(Number(target.lat)) && isFinite(Number(target.lon));
+    if (!target) return false;
+    if (target.lat === null || target.lat === undefined || target.lon === null || target.lon === undefined) return false;
+    if (String(target.lat).trim() === "" || String(target.lon).trim() === "") return false;
+    return isFinite(Number(target.lat)) && isFinite(Number(target.lon));
   }
 
   function windText(current) {

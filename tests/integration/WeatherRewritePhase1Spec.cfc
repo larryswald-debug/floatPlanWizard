@@ -49,7 +49,10 @@ component extends="testbox.system.BaseSpec" {
 
         expect(model.ok).toBeFalse();
         expect(model.status.degraded).toBeTrue();
+        expect(model.status.reason).toBe("INVALID_COORDINATES");
         expect(model.target.sourceType).toBe("fallback");
+        expect(arrayLen(model.cache.entries)).toBe(0);
+        expect(arrayToList(model.status.messages, " ")).toInclude("coordinates entered were not valid");
         expect(arrayLen(model.diagnostics.warnings)).toBeGT(0);
       });
 
@@ -59,7 +62,23 @@ component extends="testbox.system.BaseSpec" {
 
         expect(model.ok).toBeFalse();
         expect(model.status.degraded).toBeTrue();
+        expect(model.status.reason).toBe("NO_TARGET");
+        expect(arrayToList(model.status.messages, " ")).toInclude("home-port location with coordinates");
         expect(model.cache.summary).toInclude("No provider requests");
+        expect(arrayLen(model.cache.entries)).toBe(0);
+      });
+
+      it("returns clear missing-coordinate copy for a home port without lat/lng", function() {
+        var userId = createWeatherTestUser();
+        insertWeatherHomePort(userId, "Madeira Beach", "FL", "33708", "", "");
+
+        var service = new fpw.api.v1.WeatherPageService().init(variables.testDsn);
+        var model = service.getPageWeather(userId, {});
+
+        expect(model.ok).toBeFalse();
+        expect(model.status.reason).toBe("HOMEPORT_NO_COORDINATES");
+        expect(model.target.reason).toBe("HOMEPORT_NO_COORDINATES");
+        expect(arrayToList(model.status.messages, " ")).toInclude("Weather needs a saved home-port location with coordinates");
         expect(arrayLen(model.cache.entries)).toBe(0);
       });
 
@@ -82,10 +101,11 @@ component extends="testbox.system.BaseSpec" {
         var model = service.getPageWeather(0, { "zip" = "33708" });
 
         expect(model.ok).toBeFalse();
+        expect(model.status.reason).toBe("ZIP_COORDINATES_UNAVAILABLE");
         expect(model.target.sourceType).toBe("manual ZIP");
         expect(model.target.zip).toBe("33708");
         expect(arrayLen(model.cache.entries)).toBe(0);
-        expect(arrayToList(model.status.messages, " ")).toInclude("ZIP-only weather lookup needs an approved coordinate source");
+        expect(arrayToList(model.status.messages, " ")).toInclude("ZIP-only weather lookup is not enabled yet");
       });
 
       it("returns degraded contract data when required NWS point metadata fails", function() {
@@ -120,7 +140,43 @@ component extends="testbox.system.BaseSpec" {
         expect(model.current.available).toBeTrue();
         expect(arrayLen(model.forecast12h)).toBeGT(0);
         expect(model.marine.available).toBeFalse();
-        expect(arrayToList(model.marine.warnings, " ")).toInclude("CO-OPS tide data was unavailable");
+        expect(arrayToList(model.marine.warnings, " ")).toInclude("Tide data is temporarily unavailable");
+        expect(findNoCase("fake failure", arrayToList(model.marine.warnings, " "))).toBe(0);
+        expect(arrayToList(model.status.messages, " ")).toInclude("optional marine or observation data");
+      });
+
+      it("keeps the response renderable when alerts are empty", function() {
+        var service = new fpw.api.v1.WeatherPageService().init(
+          "",
+          new fpw.api.v1.weather.WeatherCache().init("fpwWeatherRewritePhase3NoAlerts" & replace(createUUID(), "-", "", "all")),
+          createObject("component", "fpw.tests.fixtures.weather_rewrite_phase2.FakeResolver").init(true),
+          createObject("component", "fpw.tests.fixtures.weather_rewrite_phase2.FakeNwsClient").init(false),
+          createObject("component", "fpw.tests.fixtures.weather_rewrite_phase2.FakeCoopsClient").init(false),
+          variables.risk
+        );
+        var model = service.getPageWeather(1, {});
+
+        expect(model.ok).toBeTrue();
+        expect(isArray(model.alerts)).toBeTrue();
+        expect(arrayLen(model.alerts)).toBe(0);
+        expect(model.status.ready).toBeTrue();
+      });
+
+      it("keeps the response renderable when forecast12h is empty", function() {
+        var service = new fpw.api.v1.WeatherPageService().init(
+          "",
+          new fpw.api.v1.weather.WeatherCache().init("fpwWeatherRewritePhase3EmptyForecast" & replace(createUUID(), "-", "", "all")),
+          createObject("component", "fpw.tests.fixtures.weather_rewrite_phase2.FakeResolver").init(true),
+          createObject("component", "fpw.tests.fixtures.weather_rewrite_phase2.FakeNwsClient").init(false, true),
+          createObject("component", "fpw.tests.fixtures.weather_rewrite_phase2.FakeCoopsClient").init(false),
+          variables.risk
+        );
+        var model = service.getPageWeather(1, {});
+
+        expect(model.ok).toBeTrue();
+        expect(isArray(model.forecast12h)).toBeTrue();
+        expect(arrayLen(model.forecast12h)).toBe(0);
+        expect(model.current.available).toBeTrue();
       });
 
       it("returns the clean contract with cache metadata for a successful normalized response", function() {
@@ -289,7 +345,4 @@ component extends="testbox.system.BaseSpec" {
     }
   }
 }
-
-
-
 

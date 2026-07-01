@@ -1,7 +1,8 @@
 component output="false" {
 
-  public any function init(boolean failPoint = false) {
+  public any function init(boolean failPoint = false, boolean emptyForecast = false) {
     variables.failPoint = arguments.failPoint;
+    variables.emptyForecast = arguments.emptyForecast;
     return this;
   }
 
@@ -32,6 +33,9 @@ component output="false" {
   }
 
   public array function normalizeForecast12h(struct forecastPayload = {}, any riskService = "") {
+    if (variables.emptyForecast) {
+      return [];
+    }
     return [{
       "timeLabel" = "2026-07-01T12:00:00-04:00",
       "condition" = "Partly Sunny",

@@ -15,7 +15,7 @@ component output="false" {
     if (len(latRaw) || len(lonRaw)) {
       if (!isValidCoordinatePair(latRaw, lonRaw)) {
         result.sourceType = "fallback";
-        arrayAppend(result.warnings, "Invalid coordinates supplied.");
+        arrayAppend(result.warnings, "The coordinates entered were not valid.");
         result.reason = "INVALID_COORDINATES";
         return result;
       }
@@ -99,14 +99,14 @@ component output="false" {
 
       if ((isNumeric(qHome.lat[1]) || isNumeric(qHome.lng[1])) && !isValidCoordinatePair(qHome.lat[1], qHome.lng[1])) {
         result.reason = "HOMEPORT_INVALID_COORDINATES";
-        arrayAppend(result.warnings, "Home-port row included invalid coordinates.");
+        arrayAppend(result.warnings, "Weather needs a saved home-port location with coordinates.");
         return result;
       }
 
       result.reason = "HOMEPORT_NO_COORDINATES";
-      arrayAppend(result.warnings, "Home-port row did not include usable latitude and longitude.");
+      arrayAppend(result.warnings, "Weather needs a saved home-port location with coordinates.");
       if (len(result.zip) EQ 5) {
-        arrayAppend(result.warnings, "ZIP-only weather lookup is disabled until an approved ZIP coordinate source is available.");
+        arrayAppend(result.warnings, "ZIP-only weather lookup is not enabled yet. Save a home port with coordinates to view local marine weather.");
       }
       return result;
     } catch (any err) {
@@ -129,7 +129,7 @@ component output="false" {
 
     result.sourceType = "manual ZIP";
     result.reason = "ZIP_COORDINATES_UNAVAILABLE";
-    arrayAppend(result.warnings, "ZIP-only weather lookup needs an approved coordinate source before providers can be called.");
+    arrayAppend(result.warnings, "ZIP-only weather lookup is not enabled yet. Save a home port with coordinates to view local marine weather.");
     return result;
   }
 
