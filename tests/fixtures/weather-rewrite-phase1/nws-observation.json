@@ -1,0 +1,17 @@
+{
+  "properties": {
+    "station": "https://api.weather.gov/stations/KPIE",
+    "timestamp": "2026-06-30T18:53:00+00:00",
+    "textDescription": "Partly Cloudy",
+    "temperature": { "value": 30.0, "unitCode": "wmoUnit:degC" },
+    "heatIndex": { "value": 32.0, "unitCode": "wmoUnit:degC" },
+    "windChill": { "value": null, "unitCode": "wmoUnit:degC" },
+    "windSpeed": { "value": 18.5, "unitCode": "wmoUnit:km_h-1" },
+    "windGust": { "value": 31.5, "unitCode": "wmoUnit:km_h-1" },
+    "windDirection": { "value": 90, "unitCode": "wmoUnit:degree_(angle)" },
+    "barometricPressure": { "value": 101658, "unitCode": "wmoUnit:Pa" },
+    "visibility": { "value": 16093, "unitCode": "wmoUnit:m" },
+    "relativeHumidity": { "value": 63, "unitCode": "wmoUnit:percent" },
+    "dewpoint": { "value": 22.0, "unitCode": "wmoUnit:degC" }
+  }
+}

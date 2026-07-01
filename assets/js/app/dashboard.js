@@ -6224,44 +6224,8 @@
     }
   }
 
-  function initWeatherStandalonePage() {
-    Api.getCurrentUser()
-      .then(function (data) {
-        if (utils.ensureAuthResponse && !utils.ensureAuthResponse(data)) {
-          return;
-        }
-
-        if (!data.USER) {
-          redirectToLogin();
-          return;
-        }
-
-        populateUserInfo(data.USER);
-        state.currentUser = data.USER;
-        if (utils.resolveHomePortLatLng) {
-          state.homePortLatLng = utils.resolveHomePortLatLng(data.USER);
-        }
-        var homePortZip = "";
-        if (utils.resolveHomePortZip) {
-          homePortZip = utils.resolveHomePortZip(data.USER);
-        }
-        initWeatherPanel(homePortZip, state.homePortLatLng || null);
-      })
-      .catch(function (err) {
-        console.error("Failed to load current user:", err);
-        redirectToLogin();
-      });
-
-    bindLogoutButton();
-  }
-
   window.FPW_DASHBOARD_VERSION = "20260211y";
   document.addEventListener("DOMContentLoaded", function () {
-    var pageName = document.body ? String(document.body.getAttribute("data-fpw-page") || "").toLowerCase() : "";
-    if (pageName === "weather") {
-      initWeatherStandalonePage();
-      return;
-    }
     initDashboard();
   });
 })(window, document);

@@ -1099,7 +1099,7 @@
   </section>
 
   <footer class="weather-page-footer">
-    <span>Weather data provided by NOAA/NWS</span><span class="dot-separator">&bull;</span><span>Marine forecasts and tides from NOAA nowCOAST</span><span class="dot-separator">&bull;</span><span>Times in <span id="weatherTimezoneLabel">—</span></span><span class="weather-version" id="weatherVersionLabel"></span>
+    <span>Weather data provided by NOAA/NWS</span><span class="dot-separator">&bull;</span><span>Tides and water levels from NOAA CO-OPS where available</span><span class="dot-separator">&bull;</span><span>Times in <span id="weatherTimezoneLabel">—</span></span><span class="weather-version" id="weatherVersionLabel"></span>
   </footer>
 </main>
 
@@ -1122,8 +1122,7 @@
 <cfinclude template="../includes/footer_scripts.cfm">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/fpw-weather-overlays.js?v=20260526-cache-bump"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260526-cache-bump"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260629-weather-summary-mode"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/weather-page.js?v=20260630-weather-rewrite-phase1"></script>
 
 </body>
 </html>

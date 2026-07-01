@@ -1,0 +1,15 @@
+{
+  "features": [
+    {
+      "properties": {
+        "event": "Small Craft Advisory",
+        "headline": "Small Craft Advisory issued June 30",
+        "severity": "Moderate",
+        "effective": "2026-06-30T18:00:00+00:00",
+        "expires": "2026-07-01T04:00:00+00:00",
+        "description": "Winds and seas may be hazardous to small craft.",
+        "instruction": "Inexperienced mariners should avoid navigating in these conditions."
+      }
+    }
+  ]
+}

@@ -117,6 +117,17 @@
                 <cfset local.marineDetail = "">
             </cfif>
 
+            <cfif local.act EQ "pageweather">
+                <cfset local.pageRequest = {
+                    "zip" = readRequestParamValue(arguments, ["zip"]),
+                    "lat" = readRequestParamValue(arguments, ["lat", "latitude"]),
+                    "lon" = readRequestParamValue(arguments, ["lon", "lng", "longitude"])
+                }>
+                <cfset local.pageWeather = getWeatherPageService().getPageWeather(local.userId, local.pageRequest)>
+                <cfoutput>#serializeJSON(local.pageWeather)#</cfoutput>
+                <cfreturn>
+            </cfif>
+
             <cfif local.act EQ "get">
 
                 <cfif NOT structKeyExists(application, "dsn") OR NOT len(trim(application.dsn))>
@@ -422,6 +433,13 @@
             <cfset request._fpwWeatherPageViewModelService = createObject("component", "fpw.api.v1.WeatherPageViewModelService").init()>
         </cfif>
         <cfreturn request._fpwWeatherPageViewModelService>
+    </cffunction>
+
+    <cffunction name="getWeatherPageService" access="private" returntype="any" output="false">
+        <cfif NOT structKeyExists(request, "_fpwWeatherPageService")>
+            <cfset request._fpwWeatherPageService = createObject("component", "fpw.api.v1.WeatherPageService").init()>
+        </cfif>
+        <cfreturn request._fpwWeatherPageService>
     </cffunction>
 
     <!--- =========================

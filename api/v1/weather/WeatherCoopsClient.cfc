@@ -1,0 +1,214 @@
+component output="false" {
+
+  public any function init(string userAgent = "FloatPlanWizard Weather Rewrite Phase 1 (https://floatplanwizard.com)") {
+    variables.userAgent = arguments.userAgent;
+    variables.dataUrl = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter";
+    variables.mdapiUrl = "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi";
+    return this;
+  }
+
+  public struct function getTideBundle(required numeric lat, required numeric lon, any cache = "") {
+    var out = {
+      "available" = false,
+      "seasFt" = javacast("null", ""),
+      "waveHeightFt" = javacast("null", ""),
+      "wavePeriodSec" = javacast("null", ""),
+      "waveDirectionDeg" = javacast("null", ""),
+      "tideLevelFt" = javacast("null", ""),
+      "tideTrend" = "",
+      "nextHigh" = javacast("null", ""),
+      "nextLow" = javacast("null", ""),
+      "tideStation" = "",
+      "waterLevelStation" = "",
+      "warnings" = [],
+      "sources" = []
+    };
+
+    var tideStation = nearestStation(arguments.lat, arguments.lon, "tidepredictions", arguments.cache);
+    if (!tideStation.available) {
+      arrayAppend(out.warnings, tideStation.reason);
+      return out;
+    }
+
+    out.tideStation = tideStation.name & " (" & tideStation.id & ")";
+    arrayAppend(out.sources, { "provider" = "NOAA CO-OPS", "type" = "tide station", "id" = tideStation.id });
+
+    var predictions = fetchPredictions(tideStation.id);
+    if (predictions.ok) {
+      var tide = normalizePredictions(predictions.data);
+      out.available = tide.available;
+      out.nextHigh = tide.nextHigh;
+      out.nextLow = tide.nextLow;
+      out.tideTrend = tide.tideTrend;
+      out.tideLevelFt = tide.tideLevelFt;
+    } else {
+      arrayAppend(out.warnings, predictions.error);
+    }
+
+    var waterStation = nearestStation(arguments.lat, arguments.lon, "waterlevels", arguments.cache);
+    if (waterStation.available) {
+      out.waterLevelStation = waterStation.name & " (" & waterStation.id & ")";
+      var water = fetchWaterLevel(waterStation.id);
+      if (water.ok) {
+        var level = normalizeWaterLevel(water.data);
+        if (!isNull(level.tideLevelFt)) {
+          out.tideLevelFt = level.tideLevelFt;
+          out.available = true;
+        }
+      }
+    }
+
+    return out;
+  }
+
+  public struct function nearestStation(required numeric lat, required numeric lon, string stationType = "tidepredictions", any cache = "") {
+    var out = { "available" = false, "id" = "", "name" = "", "lat" = javacast("null", ""), "lon" = javacast("null", ""), "distanceMiles" = javacast("null", ""), "reason" = "" };
+    var listResult = {};
+    var cacheKey = "coops:stations:" & arguments.stationType;
+    var stationTypeValue = arguments.stationType;
+
+    if (isObject(arguments.cache)) {
+      listResult = arguments.cache.remember(cacheKey, 86400, function() {
+        return fetchStations(stationTypeValue).data;
+      });
+    } else {
+      listResult = { "value" = fetchStations(arguments.stationType).data };
+    }
+
+    var stations = listResult.value.stations ?: [];
+    if (!isArray(stations) || arrayLen(stations) EQ 0) {
+      out.reason = "No CO-OPS stations returned for " & arguments.stationType & ".";
+      return out;
+    }
+
+    var best = {};
+    var bestDistance = 999999;
+    for (var station in stations) {
+      if (!isNumeric(station.lat ?: "") || !isNumeric(station.lng ?: "")) {
+        continue;
+      }
+      var miles = haversineMiles(arguments.lat, arguments.lon, val(station.lat), val(station.lng));
+      if (miles LT bestDistance) {
+        bestDistance = miles;
+        best = station;
+      }
+    }
+
+    if (!structCount(best)) {
+      out.reason = "No CO-OPS station had usable coordinates.";
+      return out;
+    }
+
+    out.available = true;
+    out.id = best.id ?: "";
+    out.name = best.name ?: out.id;
+    out.lat = val(best.lat);
+    out.lon = val(best.lng);
+    out.distanceMiles = round(bestDistance * 10) / 10;
+    return out;
+  }
+
+  public struct function fetchStations(required string stationType) {
+    return fetchJson(variables.mdapiUrl & "/stations.json?type=" & urlEncodedFormat(arguments.stationType), 5);
+  }
+
+  public struct function fetchPredictions(required string stationId) {
+    var url = variables.dataUrl
+      & "?product=predictions&application=FPW&begin_date=" & dateFormat(now(), "yyyymmdd")
+      & "&range=36&datum=MLLW&station=" & urlEncodedFormat(arguments.stationId)
+      & "&time_zone=gmt&units=english&interval=hilo&format=json";
+    return fetchJson(url, 5);
+  }
+
+  public struct function fetchWaterLevel(required string stationId) {
+    var url = variables.dataUrl
+      & "?product=water_level&application=FPW&date=latest&datum=MLLW&station=" & urlEncodedFormat(arguments.stationId)
+      & "&time_zone=gmt&units=english&format=json";
+    return fetchJson(url, 4);
+  }
+
+  public struct function fetchJson(required string url, numeric timeoutSeconds = 4) {
+    var result = { "ok" = false, "statusCode" = 0, "url" = arguments.url, "data" = {}, "error" = "" };
+    try {
+      cfhttp(method="GET", url=arguments.url, result="local.http", timeout=arguments.timeoutSeconds) {
+        cfhttpparam(type="header", name="User-Agent", value=variables.userAgent);
+        cfhttpparam(type="header", name="Accept", value="application/json");
+      }
+      result.statusCode = val(local.http.statusCode);
+      if (result.statusCode GTE 200 && result.statusCode LT 300 && len(trim(local.http.fileContent))) {
+        result.data = deserializeJSON(local.http.fileContent);
+        result.ok = true;
+      } else {
+        result.error = "CO-OPS request failed with HTTP " & local.http.statusCode;
+      }
+    } catch (any err) {
+      result.error = err.message;
+    }
+    return result;
+  }
+
+  public struct function normalizePredictions(struct payload = {}) {
+    var predictions = arguments.payload.predictions ?: [];
+    var out = { "available" = false, "nextHigh" = javacast("null", ""), "nextLow" = javacast("null", ""), "tideTrend" = "", "tideLevelFt" = javacast("null", "") };
+    if (!isArray(predictions) || arrayLen(predictions) EQ 0) {
+      return out;
+    }
+    for (var row in predictions) {
+      var item = {
+        "timeUtc" = row.t ?: "",
+        "heightFt" = isNumeric(row.v ?: "") ? val(row.v) : javacast("null", ""),
+        "type" = row.type ?: ""
+      };
+      if (item.type EQ "H" && isNull(out.nextHigh)) {
+        out.nextHigh = item;
+      }
+      if (item.type EQ "L" && isNull(out.nextLow)) {
+        out.nextLow = item;
+      }
+    }
+    out.available = !isNull(out.nextHigh) || !isNull(out.nextLow);
+    out.tideTrend = (!isNull(out.nextHigh) && !isNull(out.nextLow)) ? "Mixed" : "";
+    return out;
+  }
+
+  public struct function normalizeWaterLevel(struct payload = {}) {
+    var rows = arguments.payload.data ?: [];
+    var out = { "tideLevelFt" = javacast("null", "") };
+    if (isArray(rows) && arrayLen(rows) GT 0 && isNumeric(rows[1].v ?: "")) {
+      out.tideLevelFt = val(rows[1].v);
+    }
+    return out;
+  }
+
+  private numeric function haversineMiles(required numeric lat1, required numeric lon1, required numeric lat2, required numeric lon2) {
+    var radius = 3958.8;
+    var dLat = radians(arguments.lat2 - arguments.lat1);
+    var dLon = radians(arguments.lon2 - arguments.lon1);
+    var a = sin(dLat / 2) * sin(dLat / 2) + cos(radians(arguments.lat1)) * cos(radians(arguments.lat2)) * sin(dLon / 2) * sin(dLon / 2);
+    var c = 2 * atn2(sqr(a), sqr(1 - a));
+    return radius * c;
+  }
+
+  private numeric function radians(required numeric deg) {
+    return arguments.deg * pi() / 180;
+  }
+
+  private numeric function atn2(required numeric y, required numeric x) {
+    if (arguments.x GT 0) {
+      return atn(arguments.y / arguments.x);
+    }
+    if (arguments.x LT 0 && arguments.y GTE 0) {
+      return atn(arguments.y / arguments.x) + pi();
+    }
+    if (arguments.x LT 0 && arguments.y LT 0) {
+      return atn(arguments.y / arguments.x) - pi();
+    }
+    if (arguments.x EQ 0 && arguments.y GT 0) {
+      return pi() / 2;
+    }
+    if (arguments.x EQ 0 && arguments.y LT 0) {
+      return -pi() / 2;
+    }
+    return 0;
+  }
+}
