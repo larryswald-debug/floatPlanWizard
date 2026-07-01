@@ -228,7 +228,8 @@
     text("weatherVersionLabel", " • " + WEATHER_VERSION);
 
     var zipInput = byId("weatherZip");
-    if (zipInput && target.zip && !zipInput.value) zipInput.value = target.zip;
+    var sourceType = String(target.sourceType || "").toLowerCase();
+    if (zipInput && target.zip && !zipInput.value && sourceType.indexOf("zip") >= 0) zipInput.value = target.zip;
     var latInput = byId("weatherLat");
     var lonInput = byId("weatherLon");
     if (latInput && hasCoords(target)) latInput.value = String(target.lat);

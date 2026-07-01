@@ -21,10 +21,14 @@ component output="false" {
       "tideStation" = "",
       "waterLevelStation" = "",
       "warnings" = [],
-      "sources" = []
+      "sources" = [],
+      "_cacheEntries" = []
     };
 
     var tideStation = nearestStation(arguments.lat, arguments.lon, "tidepredictions", arguments.cache);
+    if (structKeyExists(tideStation, "cache")) {
+      arrayAppend(out._cacheEntries, tideStation.cache);
+    }
     if (!tideStation.available) {
       arrayAppend(out.warnings, tideStation.reason);
       return out;
@@ -33,28 +37,39 @@ component output="false" {
     out.tideStation = tideStation.name & " (" & tideStation.id & ")";
     arrayAppend(out.sources, { "provider" = "NOAA CO-OPS", "type" = "tide station", "id" = tideStation.id });
 
-    var predictions = fetchPredictions(tideStation.id);
-    if (predictions.ok) {
-      var tide = normalizePredictions(predictions.data);
+    var predictionFetch = cachedProviderFetch(arguments.cache, "coops:predictions:" & tideStation.id & ":" & dateFormat(now(), "yyyymmdd"), 900, 45, function() {
+      return fetchPredictions(tideStation.id);
+    });
+    arrayAppend(out._cacheEntries, predictionFetch.cache);
+    if (predictionFetch.value.ok) {
+      var tide = normalizePredictions(predictionFetch.value.data);
       out.available = tide.available;
       out.nextHigh = tide.nextHigh;
       out.nextLow = tide.nextLow;
       out.tideTrend = tide.tideTrend;
       out.tideLevelFt = tide.tideLevelFt;
     } else {
-      arrayAppend(out.warnings, predictions.error);
+      arrayAppend(out.warnings, predictionFetch.value.error);
     }
 
     var waterStation = nearestStation(arguments.lat, arguments.lon, "waterlevels", arguments.cache);
+    if (structKeyExists(waterStation, "cache")) {
+      arrayAppend(out._cacheEntries, waterStation.cache);
+    }
     if (waterStation.available) {
       out.waterLevelStation = waterStation.name & " (" & waterStation.id & ")";
-      var water = fetchWaterLevel(waterStation.id);
-      if (water.ok) {
-        var level = normalizeWaterLevel(water.data);
+      var waterFetch = cachedProviderFetch(arguments.cache, "coops:waterlevel:" & waterStation.id, 300, 45, function() {
+        return fetchWaterLevel(waterStation.id);
+      });
+      arrayAppend(out._cacheEntries, waterFetch.cache);
+      if (waterFetch.value.ok) {
+        var level = normalizeWaterLevel(waterFetch.value.data);
         if (!isNull(level.tideLevelFt)) {
           out.tideLevelFt = level.tideLevelFt;
           out.available = true;
         }
+      } else {
+        arrayAppend(out.warnings, waterFetch.value.error);
       }
     }
 
@@ -68,16 +83,17 @@ component output="false" {
     var stationTypeValue = arguments.stationType;
 
     if (isObject(arguments.cache)) {
-      listResult = arguments.cache.remember(cacheKey, 86400, function() {
-        return fetchStations(stationTypeValue).data;
+      listResult = cachedProviderFetch(arguments.cache, cacheKey, 86400, 45, function() {
+        return fetchStations(stationTypeValue);
       });
+      out.cache = listResult.cache;
     } else {
-      listResult = { "value" = fetchStations(arguments.stationType).data };
+      listResult = { "value" = fetchStations(arguments.stationType) };
     }
 
-    var stations = listResult.value.stations ?: [];
+    var stations = listResult.value.ok ? (listResult.value.data.stations ?: []) : [];
     if (!isArray(stations) || arrayLen(stations) EQ 0) {
-      out.reason = "No CO-OPS stations returned for " & arguments.stationType & ".";
+      out.reason = len(listResult.value.error ?: "") ? listResult.value.error : "No CO-OPS stations returned for " & arguments.stationType & ".";
       return out;
     }
 
@@ -109,7 +125,7 @@ component output="false" {
   }
 
   public struct function fetchStations(required string stationType) {
-    return fetchJson(variables.mdapiUrl & "/stations.json?type=" & urlEncodedFormat(arguments.stationType), 5);
+    return fetchJson(variables.mdapiUrl & "/stations.json?type=" & urlEncodedFormat(arguments.stationType), 3);
   }
 
   public struct function fetchPredictions(required string stationId) {
@@ -117,14 +133,14 @@ component output="false" {
       & "?product=predictions&application=FPW&begin_date=" & dateFormat(now(), "yyyymmdd")
       & "&range=36&datum=MLLW&station=" & urlEncodedFormat(arguments.stationId)
       & "&time_zone=gmt&units=english&interval=hilo&format=json";
-    return fetchJson(url, 5);
+    return fetchJson(url, 3);
   }
 
   public struct function fetchWaterLevel(required string stationId) {
     var url = variables.dataUrl
       & "?product=water_level&application=FPW&date=latest&datum=MLLW&station=" & urlEncodedFormat(arguments.stationId)
       & "&time_zone=gmt&units=english&format=json";
-    return fetchJson(url, 4);
+    return fetchJson(url, 2);
   }
 
   public struct function fetchJson(required string url, numeric timeoutSeconds = 4) {
@@ -145,6 +161,73 @@ component output="false" {
       result.error = err.message;
     }
     return result;
+  }
+
+  private struct function cachedProviderFetch(required any cache, required string key, required numeric ttlSeconds, required numeric failureTtlSeconds, required any producer) {
+    var started = getTickCount();
+    if (!isObject(arguments.cache)) {
+      return {
+        "value" = arguments.producer(),
+        "cache" = {
+          "key" = arguments.key,
+          "status" = "uncached",
+          "ageSeconds" = javacast("null", ""),
+          "createdAtUtc" = "",
+          "expiresAtUtc" = "",
+          "durationMs" = getTickCount() - started
+        }
+      };
+    }
+
+    var cached = arguments.cache.get(arguments.key);
+    if (cached.hit) {
+      return {
+        "value" = cached.value,
+        "cache" = {
+          "key" = arguments.key,
+          "status" = "hit",
+          "ageSeconds" = cached.ageSeconds,
+          "createdAtUtc" = cached.createdAtUtc,
+          "expiresAtUtc" = cached.expiresAtUtc,
+          "durationMs" = getTickCount() - started
+        }
+      };
+    }
+
+    var value = {};
+    try {
+      value = arguments.producer();
+    } catch (any err) {
+      value = { "ok" = false, "statusCode" = 0, "url" = "", "data" = {}, "error" = err.message };
+    }
+
+    if (cached.found && structKeyExists(value, "ok") && !value.ok) {
+      return {
+        "value" = cached.value,
+        "cache" = {
+          "key" = arguments.key,
+          "status" = "stale",
+          "ageSeconds" = cached.ageSeconds,
+          "createdAtUtc" = cached.createdAtUtc,
+          "expiresAtUtc" = cached.expiresAtUtc,
+          "durationMs" = getTickCount() - started
+        }
+      };
+    }
+
+    var ttl = (structKeyExists(value, "ok") && value.ok) ? arguments.ttlSeconds : arguments.failureTtlSeconds;
+    arguments.cache.put(arguments.key, value, ttl);
+    return {
+      "value" = value,
+      "cache" = {
+        "key" = arguments.key,
+        "status" = cached.found ? "stale-refresh" : "miss",
+        "ageSeconds" = 0,
+        "createdAtUtc" = isoUtc(now()),
+        "expiresAtUtc" = isoUtc(dateAdd("s", ttl, now())),
+        "durationMs" = getTickCount() - started
+      }
+    };
   }
 
   public struct function normalizePredictions(struct payload = {}) {
@@ -210,5 +293,9 @@ component output="false" {
       return -pi() / 2;
     }
     return 0;
+  }
+
+  private string function isoUtc(required date value) {
+    return dateTimeFormat(dateConvert("local2Utc", arguments.value), "yyyy-mm-dd'T'HH:nn:ss'Z'");
   }
 }

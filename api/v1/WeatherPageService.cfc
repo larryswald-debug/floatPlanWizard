@@ -1,12 +1,12 @@
 component output="false" {
 
-  public any function init(string dsn = "") {
+  public any function init(string dsn = "", any cache = "", any resolver = "", any nws = "", any coops = "", any risk = "") {
     variables.dsn = len(arguments.dsn) ? arguments.dsn : (structKeyExists(application, "dsn") ? application.dsn : "");
-    variables.cache = createObject("component", "fpw.api.v1.weather.WeatherCache").init();
-    variables.resolver = createObject("component", "fpw.api.v1.WeatherTargetResolver").init(variables.dsn);
-    variables.nws = createObject("component", "fpw.api.v1.weather.WeatherNwsClient").init();
-    variables.coops = createObject("component", "fpw.api.v1.weather.WeatherCoopsClient").init();
-    variables.risk = createObject("component", "fpw.api.v1.weather.WeatherRiskService").init();
+    variables.cache = isObject(arguments.cache) ? arguments.cache : createObject("component", "fpw.api.v1.weather.WeatherCache").init();
+    variables.resolver = isObject(arguments.resolver) ? arguments.resolver : createObject("component", "fpw.api.v1.WeatherTargetResolver").init(variables.dsn);
+    variables.nws = isObject(arguments.nws) ? arguments.nws : createObject("component", "fpw.api.v1.weather.WeatherNwsClient").init();
+    variables.coops = isObject(arguments.coops) ? arguments.coops : createObject("component", "fpw.api.v1.weather.WeatherCoopsClient").init();
+    variables.risk = isObject(arguments.risk) ? arguments.risk : createObject("component", "fpw.api.v1.weather.WeatherRiskService").init();
     return this;
   }
 
@@ -110,6 +110,10 @@ component output="false" {
     var marineStart = getTickCount();
     try {
       model.marine = variables.coops.getTideBundle(target.lat, target.lon, variables.cache);
+      if (structKeyExists(model.marine, "_cacheEntries") && isArray(model.marine._cacheEntries)) {
+        arrayAppend(cacheEntries, model.marine._cacheEntries, true);
+        structDelete(model.marine, "_cacheEntries", false);
+      }
     } catch (any marineErr) {
       model.marine.available = false;
       arrayAppend(model.marine.warnings, "CO-OPS tide data was unavailable.");
@@ -270,6 +274,7 @@ component output="false" {
   }
 
   private struct function cachedFetch(required string key, required numeric ttlSeconds, required any producer) {
+    var started = getTickCount();
     var cached = variables.cache.get(arguments.key);
     if (cached.hit) {
       return {
@@ -279,12 +284,36 @@ component output="false" {
           "status" = "hit",
           "ageSeconds" = cached.ageSeconds,
           "createdAtUtc" = cached.createdAtUtc,
-          "expiresAtUtc" = cached.expiresAtUtc
+          "expiresAtUtc" = cached.expiresAtUtc,
+          "durationMs" = getTickCount() - started
         }
       };
     }
 
-    var value = arguments.producer();
+    var value = {};
+    try {
+      value = arguments.producer();
+    } catch (any err) {
+      value = {
+        "ok" = false,
+        "statusCode" = 0,
+        "data" = {},
+        "error" = err.message
+      };
+    }
+    if (cached.found && structKeyExists(value, "ok") && !value.ok) {
+      return {
+        "value" = cached.value,
+        "cache" = {
+          "key" = arguments.key,
+          "status" = "stale",
+          "ageSeconds" = cached.ageSeconds,
+          "createdAtUtc" = cached.createdAtUtc,
+          "expiresAtUtc" = cached.expiresAtUtc,
+          "durationMs" = getTickCount() - started
+        }
+      };
+    }
     variables.cache.put(arguments.key, value, (structKeyExists(value, "ok") && value.ok) ? arguments.ttlSeconds : 45);
     return {
       "value" = value,
@@ -293,7 +322,8 @@ component output="false" {
         "status" = cached.found ? "stale-refresh" : "miss",
         "ageSeconds" = 0,
         "createdAtUtc" = isoUtc(now()),
-        "expiresAtUtc" = isoUtc(dateAdd("s", (structKeyExists(value, "ok") && value.ok) ? arguments.ttlSeconds : 45, now()))
+        "expiresAtUtc" = isoUtc(dateAdd("s", (structKeyExists(value, "ok") && value.ok) ? arguments.ttlSeconds : 45, now())),
+        "durationMs" = getTickCount() - started
       }
     };
   }
@@ -340,6 +370,4 @@ component output="false" {
     return dateTimeFormat(dateConvert("local2Utc", arguments.value), "yyyy-mm-dd'T'HH:nn:ss'Z'");
   }
 }
-
-
 

@@ -27,20 +27,25 @@ component output="false" {
       return result;
     }
 
-    if (len(zipRaw) EQ 5) {
-      result = resolveZip(zipRaw);
-      result.sourceType = "manual ZIP";
+    result = resolveHomePort(arguments.userId);
+    if (result.available) {
+      return result;
+    }
+    if (result.reason EQ "HOMEPORT_NO_COORDINATES" || result.reason EQ "HOMEPORT_INVALID_COORDINATES") {
+      if (len(zipRaw) EQ 5) {
+        result = resolveZip(zipRaw);
+      }
       return result;
     }
 
-    result = resolveHomePort(arguments.userId);
-    if (result.available) {
+    if (len(zipRaw) EQ 5) {
+      result = resolveZip(zipRaw);
       return result;
     }
 
     result.sourceType = "fallback";
     result.reason = "NO_TARGET";
-    arrayAppend(result.warnings, "No home-port, ZIP, or coordinate weather target was available.");
+    arrayAppend(result.warnings, "No home-port coordinates or explicit coordinate weather target was available.");
     return result;
   }
 
@@ -82,7 +87,7 @@ component output="false" {
       }
       result.displayName = arrayToList(nameParts, ", ");
 
-      if (isNumeric(qHome.lat[1]) && isNumeric(qHome.lng[1])) {
+      if (isValidCoordinatePair(qHome.lat[1], qHome.lng[1])) {
         result.lat = val(qHome.lat[1]);
         result.lon = val(qHome.lng[1]);
         result.available = true;
@@ -92,17 +97,17 @@ component output="false" {
         return result;
       }
 
-      if (len(result.zip) EQ 5) {
-        var zipTarget = resolveZip(result.zip);
-        zipTarget.sourceType = "homeport";
-        if (len(result.displayName)) {
-          zipTarget.displayName = result.displayName;
-        }
-        return zipTarget;
+      if ((isNumeric(qHome.lat[1]) || isNumeric(qHome.lng[1])) && !isValidCoordinatePair(qHome.lat[1], qHome.lng[1])) {
+        result.reason = "HOMEPORT_INVALID_COORDINATES";
+        arrayAppend(result.warnings, "Home-port row included invalid coordinates.");
+        return result;
       }
 
       result.reason = "HOMEPORT_NO_COORDINATES";
-      arrayAppend(result.warnings, "Home-port row did not include usable coordinates or ZIP.");
+      arrayAppend(result.warnings, "Home-port row did not include usable latitude and longitude.");
+      if (len(result.zip) EQ 5) {
+        arrayAppend(result.warnings, "ZIP-only weather lookup is disabled until an approved ZIP coordinate source is available.");
+      }
       return result;
     } catch (any err) {
       result.reason = "HOMEPORT_LOOKUP_FAILED";
@@ -122,45 +127,10 @@ component output="false" {
       return result;
     }
 
-    try {
-      var url = "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?format=json&benchmark=Public_AR_Current&address=" & urlEncodedFormat(result.zip);
-      cfhttp(method="GET", url=url, result="local.http", timeout=4) {
-        cfhttpparam(type="header", name="User-Agent", value=variables.userAgent);
-        cfhttpparam(type="header", name="Accept", value="application/json");
-      }
-
-      if (!structKeyExists(local, "http") || val(local.http.statusCode) LT 200 || val(local.http.statusCode) GTE 300) {
-        result.reason = "ZIP_GEOCODER_FAILED";
-        arrayAppend(result.warnings, "ZIP resolver did not return a usable response.");
-        return result;
-      }
-
-      var parsed = deserializeJSON(local.http.fileContent);
-      var matches = parsed.result.addressMatches ?: [];
-      if (!isArray(matches) || arrayLen(matches) EQ 0) {
-        result.reason = "ZIP_NOT_FOUND";
-        arrayAppend(result.warnings, "ZIP resolver did not find coordinates.");
-        return result;
-      }
-
-      var firstMatch = matches[1];
-      var coords = firstMatch.coordinates ?: {};
-      if (!isNumeric(coords.y ?: "") || !isNumeric(coords.x ?: "")) {
-        result.reason = "ZIP_NO_COORDINATES";
-        arrayAppend(result.warnings, "ZIP resolver result did not include coordinates.");
-        return result;
-      }
-
-      result.lat = val(coords.y);
-      result.lon = val(coords.x);
-      result.displayName = len(firstMatch.matchedAddress ?: "") ? firstMatch.matchedAddress : result.displayName;
-      result.available = true;
-      return result;
-    } catch (any err) {
-      result.reason = "ZIP_GEOCODER_ERROR";
-      arrayAppend(result.warnings, "ZIP resolver failed.");
-      return result;
-    }
+    result.sourceType = "manual ZIP";
+    result.reason = "ZIP_COORDINATES_UNAVAILABLE";
+    arrayAppend(result.warnings, "ZIP-only weather lookup needs an approved coordinate source before providers can be called.");
+    return result;
   }
 
   public struct function emptyTarget() {
@@ -192,6 +162,9 @@ component output="false" {
     }
     var lat = val(arguments.latRaw);
     var lon = val(arguments.lonRaw);
+    if (lat EQ 0 && lon EQ 0) {
+      return false;
+    }
     return lat GTE -90 && lat LTE 90 && lon GTE -180 && lon LTE 180;
   }
 
@@ -200,4 +173,3 @@ component output="false" {
     return len(zip) GTE 5 ? left(zip, 5) : "";
   }
 }
-
