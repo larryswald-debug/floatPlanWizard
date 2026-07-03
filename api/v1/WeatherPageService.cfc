@@ -109,6 +109,7 @@ component output="false" {
 
     var bestCurrent = {};
     var bestCurrentRank = -1;
+    var visibilityFallback = {};
     for (var candidateStationId in stationIds) {
       if (!len(candidateStationId)) {
         continue;
@@ -120,6 +121,15 @@ component output="false" {
       if (obsFetch.value.ok) {
         var candidateCurrent = variables.nws.normalizeCurrentObservation(obsFetch.value.data, candidateStationId);
         var candidateRank = currentObservationRank(candidateCurrent);
+        if (!structCount(visibilityFallback) AND currentObservationHasVisibility(candidateCurrent)) {
+          visibilityFallback = {
+            "available" = true,
+            "visibilityMi" = candidateCurrent.visibilityMi,
+            "stationId" = candidateCurrent.stationId ?: candidateStationId,
+            "stationName" = candidateCurrent.stationName ?: candidateStationId,
+            "observedAtUtc" = candidateCurrent.observedAtUtc ?: ""
+          };
+        }
         if (candidateRank GT bestCurrentRank) {
           bestCurrent = candidateCurrent;
           bestCurrentRank = candidateRank;
@@ -139,6 +149,9 @@ component output="false" {
       model.current.stationId = stationId;
       model.current.stationName = stationId;
     }
+    if (!currentObservationHasVisibility(model.current) AND structCount(visibilityFallback)) {
+      model.visibilityFallback = visibilityFallback;
+    }
     applyForecastGustFallback(model);
 
     var alertsFetch = cachedFetch("nws:alerts:" & target.lat & "," & target.lon, 180, function() {
@@ -153,7 +166,7 @@ component output="false" {
 
     var marineStart = getTickCount();
     try {
-      model.marine = variables.coops.getTideBundle(target.lat, target.lon, bypassCache ? "" : variables.cache);
+      model.marine = variables.coops.getTideBundle(target.lat, target.lon, bypassCache ? "" : variables.cache, model.target.timezone);
       if (structKeyExists(model.marine, "_cacheEntries") && isArray(model.marine._cacheEntries)) {
         arrayAppend(cacheEntries, model.marine._cacheEntries, true);
         structDelete(model.marine, "_cacheEntries", false);
@@ -282,6 +295,13 @@ component output="false" {
         "observedAtUtc" = "",
         "stationId" = "",
         "stationName" = ""
+      },
+      "visibilityFallback" = {
+        "available" = false,
+        "visibilityMi" = javacast("null", ""),
+        "stationId" = "",
+        "stationName" = "",
+        "observedAtUtc" = ""
       },
       "marine" = {
         "available" = false,
@@ -740,6 +760,13 @@ component output="false" {
       AND isNumeric(arguments.current["gustMph"]);
   }
 
+  private boolean function currentObservationHasVisibility(required struct current) {
+    return structKeyExists(arguments.current, "visibilityMi")
+      AND !isNull(arguments.current["visibilityMi"])
+      AND len(trim(toString(arguments.current["visibilityMi"])))
+      AND isNumeric(arguments.current["visibilityMi"]);
+  }
+
   private numeric function currentObservationScore(required struct current) {
     var score = 0;
     if (len(arguments.current.condition ?: "")) {
@@ -783,6 +810,12 @@ component output="false" {
     return dateTimeFormat(dateConvert("local2Utc", arguments.value), "yyyy-mm-dd'T'HH:nn:ss'Z'");
   }
 }
+
+
+
+
+
+
 
 
 

@@ -7,7 +7,7 @@
       body: 'Add waypoints, estimate timing, and turn the trip into a plan someone ashore can actually follow.',
       bullets: ['Plan by route legs and stops', 'Estimate distance and timing', 'Use the route inside your float plan'],
       link: 'Try the Route Builder',
-      href: '#fpwProductPreview'
+      href: '#Try the Route Builder'
     },
     floatplan: {
       title: 'Create the plan people may need later.',

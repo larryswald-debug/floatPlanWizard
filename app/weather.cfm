@@ -637,7 +637,7 @@
       .map-layer-header { justify-content: space-between; align-items: center; }
       .map-layers-panel p { padding: 2px 18px 12px; color: var(--wx-muted); line-height: 1.4; font-size: 14px; }
       .map-layer-section-label { padding: 0 18px 6px; color: #cfe4ff; font-size: 12px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
-      .map-layer-list { margin: 0 18px 14px; padding: 0; list-style: none; color: #eaf5ff; font-size: 14px; display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 18px; row-gap: 2px; }
+      .map-layer-list { margin: 0 18px 14px; padding: 0 0 0 28px; list-style: none; color: #eaf5ff; font-size: 14px; display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 18px; row-gap: 2px; }
       .map-layer-list li { position: relative; padding: 4px 0 4px 22px; }
       .map-layer-list li::before { content: "✓"; position: absolute; left: 0; color: var(--wx-green); }
       @media (max-width: 640px) {
@@ -1215,8 +1215,11 @@
 
 <cfinclude template="../includes/footer_scripts.cfm">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/fpw-weather-overlays.js?v=20260526-cache-bump"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/weather-page.js?v=20260701-weather-tide-style-previous"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/fpw-weather-overlays.js?v=20260702-satellite-single-image"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/weather-page.js?v=20260702-visibility-fallback"></script>
 
 </body>
 </html>
+
+
+

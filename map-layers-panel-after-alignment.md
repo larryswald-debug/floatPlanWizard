@@ -1,0 +1,12 @@
+- article [ref=f50e348] [box=727,1839,653,342]:
+  - heading "NOAA Weather Map" [level=2] [ref=f50e350] [box=746,1857,174,18]
+  - paragraph [ref=f50e351] [box=728,1887,651,34]: NOAA nowCOAST layers are available for this location.
+  - generic [ref=f50e352] [box=728,1921,651,24]: Available layers
+  - list [ref=f50e353] [box=728,1945,651,60]:
+    - listitem [ref=f50e553] [box=756,1945,196,29]: ✓ Radar
+    - listitem [ref=f50e554] [box=756,1976,196,29]: ✓ Active Alerts
+    - listitem [ref=f50e555] [box=970,1945,196,29]: ✓ Surface Fronts
+  - button "Open NOAA map. View radar and marine warning layers in a full-screen map." [ref=f50e355] [cursor=pointer] [box=746,2051,615,83]:
+    - generic [ref=f50e358] [box=835,2074,499,37]:
+      - generic [ref=f50e359] [box=835,2074,499,16]: Open NOAA Map
+      - generic [ref=f50e360] [box=835,2094,499,16]: View radar and marine warning layers in a full-screen map.

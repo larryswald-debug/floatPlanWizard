@@ -187,7 +187,7 @@ component output=false {
     };
     var allowedLayerRequests = {
       "fpw-wind-forecast"  = "ndfd_wind:wind_velocity",
-      "fpw-satellite"      = "satellite:goes_visible_imagery",
+      "fpw-satellite"      = "satellite:global_longwave_imagery_mosaic",
       "fpw-observed-wind"  = "1,2,3,4,5,6",
       "fpw-surface-fronts" = "34",
       "fpw-wwa"            = "0,1"
@@ -593,3 +593,4 @@ component output=false {
   }
 
 }
+

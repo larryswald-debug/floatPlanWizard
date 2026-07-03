@@ -170,10 +170,10 @@
             <h3>FloatPlanWizard</h3>
             <ul>
               <li><span class="fpw-yes">✓</span><span>Route-based trip plan</span></li>
-              <li><span class="fpw-yes">✓</span><span>Guided fields for the details that matter</span></li>
-              <li><span class="fpw-yes">✓</span><span>Shareable trip page for your shore contact</span></li>
+              <li><span class="fpw-yes">✓</span><span>Guided instructions for the details that matter</span></li>
+              <li><span class="fpw-yes">✓</span><span>Shareable trip page for family and friends</span></li>
               <li><span class="fpw-yes">✓</span><span>Active Cruise keeps timing and status current</span></li>
-              <li><span class="fpw-yes">✓</span><span>Organizes route, vessel, passengers, contacts, and return time</span></li>
+              <li><span class="fpw-yes">✓</span><span>Organizes route, vessel, passengers and contacts</span></li>
               <li><span class="fpw-yes">✓</span><span>Electronic arrival and departure monitoring</span></li>
               <li><span class="fpw-yes">✓</span><span>Trip updates sent to shore contact</span></li>
             </ul>

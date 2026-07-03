@@ -354,12 +354,22 @@ component extends="testbox.system.BaseSpec" {
       });
 
       it("normalizes CO-OPS tide predictions", function() {
-        var payload = readFixtureJson("coops-predictions.json");
+        var nowUtc = dateConvert("local2Utc", now());
+        var payload = {
+          "predictions" = [
+            { "t" = dateTimeFormat(dateAdd("h", -6, nowUtc), "yyyy-mm-dd HH:nn"), "v" = "2.12", "type" = "H" },
+            { "t" = dateTimeFormat(dateAdd("h", -3, nowUtc), "yyyy-mm-dd HH:nn"), "v" = "0.41", "type" = "L" },
+            { "t" = dateTimeFormat(dateAdd("h", 1, nowUtc), "yyyy-mm-dd HH:nn"), "v" = "3.21", "type" = "H" },
+            { "t" = dateTimeFormat(dateAdd("h", 2, nowUtc), "yyyy-mm-dd HH:nn"), "v" = "0.31", "type" = "L" }
+          ]
+        };
         var tide = variables.coops.normalizePredictions(payload);
 
         expect(tide.available).toBeTrue();
         expect(tide.nextHigh.type).toBe("H");
+        expect(tide.nextHigh.heightFt).toBe(3.21);
         expect(tide.nextLow.type).toBe("L");
+        expect(tide.nextLow.heightFt).toBe(0.31);
       });
 
       it("scores marine risk deterministically", function() {
@@ -473,3 +483,4 @@ component extends="testbox.system.BaseSpec" {
     }
   }
 }
+

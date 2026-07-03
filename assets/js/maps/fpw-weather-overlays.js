@@ -61,10 +61,11 @@
     satellite: {
       label: "Cloud / Satellite",
       target: "fpw-satellite",
-      layers: "satellite:goes_visible_imagery",
+      layers: "satellite:global_longwave_imagery_mosaic",
       styles: "",
       opacity: 0.48,
       attribution: "NOAA nowCOAST",
+      singleImage: true,
       modes: { weather: true, activeCruise: true }
     },
     surfaceFronts: {
@@ -92,11 +93,118 @@
     return modes[mode] === true;
   }
 
+  function buildSingleImageWmsUrl(url, definition, map) {
+    var size = map.getSize();
+    var bounds = map.getBounds();
+    var crs = window.L.CRS.EPSG3857;
+    var projectedSw = crs.project(bounds.getSouthWest());
+    var projectedNe = crs.project(bounds.getNorthEast());
+    var params = null;
+
+    if (!size || size.x < 1 || size.y < 1) return "";
+
+    params = {
+      service: "WMS",
+      request: "GetMap",
+      layers: definition.layers,
+      styles: definition.styles || "",
+      format: "image/png",
+      transparent: true,
+      version: "1.3.0",
+      width: Math.max(1, Math.round(size.x)),
+      height: Math.max(1, Math.round(size.y)),
+      crs: "EPSG:3857",
+      bbox: [projectedSw.x, projectedSw.y, projectedNe.x, projectedNe.y].join(",")
+    };
+
+    return url + window.L.Util.getParamString(params, url);
+  }
+
+  function createSingleImageWmsOverlay(definition, url) {
+    var SingleImageWmsOverlay = null;
+
+    if (!window.L || !definition || !url || !window.L.Layer || !window.L.imageOverlay) return null;
+
+    SingleImageWmsOverlay = window.L.Layer.extend({
+      initialize: function () {
+        this._map = null;
+        this._imageLayer = null;
+        this._pendingImageLayer = null;
+        this._refreshHandler = this._refresh.bind(this);
+      },
+
+      onAdd: function (map) {
+        this._map = map;
+        this._refresh();
+        map.on("moveend zoomend resize", this._refreshHandler, this);
+      },
+
+      onRemove: function (map) {
+        map.off("moveend zoomend resize", this._refreshHandler, this);
+        this._removeLayer(this._pendingImageLayer);
+        this._removeLayer(this._imageLayer);
+        this._pendingImageLayer = null;
+        this._imageLayer = null;
+        this._map = null;
+      },
+
+      getAttribution: function () {
+        return definition.attribution || "NOAA";
+      },
+
+      _removeLayer: function (layer) {
+        if (this._map && layer && this._map.hasLayer(layer)) {
+          this._map.removeLayer(layer);
+        }
+      },
+
+      _refresh: function () {
+        var map = this._map;
+        var imageUrl = "";
+        var nextImageLayer = null;
+
+        if (!map) return;
+        imageUrl = buildSingleImageWmsUrl(url, definition, map);
+        if (!imageUrl) return;
+
+        this._removeLayer(this._pendingImageLayer);
+        nextImageLayer = window.L.imageOverlay(imageUrl, map.getBounds(), {
+          opacity: definition.opacity,
+          interactive: false,
+          attribution: definition.attribution || "NOAA"
+        });
+        this._pendingImageLayer = nextImageLayer;
+
+        nextImageLayer.once("load", function () {
+          if (this._pendingImageLayer !== nextImageLayer) {
+            this._removeLayer(nextImageLayer);
+            return;
+          }
+          this._removeLayer(this._imageLayer);
+          this._imageLayer = nextImageLayer;
+          this._pendingImageLayer = null;
+        }, this);
+
+        nextImageLayer.once("error", function () {
+          if (this._pendingImageLayer === nextImageLayer) {
+            this._pendingImageLayer = null;
+          }
+          this._removeLayer(nextImageLayer);
+        }, this);
+
+        nextImageLayer.addTo(map);
+      }
+    });
+
+    return new SingleImageWmsOverlay();
+  }
+
   function createWmsOverlay(definition) {
     var url = "";
     if (!window.L || !definition) return null;
     url = weatherWmsUrl(definition.target);
     if (!url) return null;
+    if (definition.singleImage) return createSingleImageWmsOverlay(definition, url);
     return window.L.tileLayer.wms(url, {
       layers: definition.layers,
       styles: definition.styles || "",
@@ -160,3 +268,5 @@
     return map.__fpwWeatherOverlaysController;
   };
 })(window);
+
+

@@ -7,7 +7,7 @@ component output="false" {
     return this;
   }
 
-  public struct function getTideBundle(required numeric lat, required numeric lon, any cache = "") {
+  public struct function getTideBundle(required numeric lat, required numeric lon, any cache = "", string timezone = "") {
     var out = {
       "available" = false,
       "seasFt" = javacast("null", ""),
@@ -26,6 +26,7 @@ component output="false" {
       "_cacheEntries" = []
     };
 
+    var predictionStartDate = predictionBeginDate(arguments.timezone);
     var tideStation = nearestStation(arguments.lat, arguments.lon, "tidepredictions", arguments.cache);
     if (structKeyExists(tideStation, "cache")) {
       arrayAppend(out._cacheEntries, tideStation.cache);
@@ -38,8 +39,8 @@ component output="false" {
     out.tideStation = tideStation.name & " (" & tideStation.id & ")";
     arrayAppend(out.sources, { "provider" = "NOAA CO-OPS", "type" = "tide station", "id" = tideStation.id });
 
-    var predictionFetch = cachedProviderFetch(arguments.cache, "coops:predictions:v2:" & tideStation.id & ":" & dateFormat(now(), "yyyymmdd"), 900, 45, function() {
-      return fetchPredictions(tideStation.id);
+    var predictionFetch = cachedProviderFetch(arguments.cache, "coops:predictions:v2:" & tideStation.id & ":" & predictionStartDate, 900, 45, function() {
+      return fetchPredictions(tideStation.id, predictionStartDate);
     });
     arrayAppend(out._cacheEntries, predictionFetch.cache);
     if (predictionFetch.value.ok) {
@@ -132,9 +133,13 @@ component output="false" {
     return fetchJson(variables.mdapiUrl & "/stations.json?type=" & urlEncodedFormat(arguments.stationType), 3);
   }
 
-  public struct function fetchPredictions(required string stationId) {
+  public struct function fetchPredictions(required string stationId, string beginDate = "") {
+    var requestBeginDate = trim(arguments.beginDate);
+    if (!reFind("^[0-9]{8}$", requestBeginDate)) {
+      requestBeginDate = predictionBeginDate();
+    }
     var url = variables.dataUrl
-      & "?product=predictions&application=FPW&begin_date=" & dateFormat(now(), "yyyymmdd")
+      & "?product=predictions&application=FPW&begin_date=" & requestBeginDate
       & "&range=72&datum=MLLW&station=" & urlEncodedFormat(arguments.stationId)
       & "&time_zone=gmt&units=english&interval=hilo&format=json";
     return fetchJson(url, 3);
@@ -237,27 +242,49 @@ component output="false" {
   public struct function normalizePredictions(struct payload = {}) {
     var predictions = arguments.payload.predictions ?: [];
     var out = { "available" = false, "nextHigh" = javacast("null", ""), "nextLow" = javacast("null", ""), "tideTrend" = "", "tideLevelFt" = javacast("null", ""), "tidePredictions" = [] };
+    var nowUtcKey = dateTimeFormat(dateConvert("local2Utc", now()), "yyyy-mm-dd HH:nn");
     if (!isArray(predictions) || arrayLen(predictions) EQ 0) {
       return out;
     }
     for (var row in predictions) {
+      var timeInfo = normalizeCoopsPredictionUtc(toString(row.t ?: ""));
       var item = {
-        "timeUtc" = row.t ?: "",
+        "timeUtc" = timeInfo.iso,
         "heightFt" = isNumeric(row.v ?: "") ? val(row.v) : javacast("null", ""),
-        "type" = row.type ?: ""
+        "type" = ucase(row.type ?: "")
       };
       if (len(item.timeUtc) && hasNonNullKey(item, "heightFt") && len(item.type)) {
         arrayAppend(out.tidePredictions, item);
       }
-      if (item.type EQ "H" && !hasNonNullKey(out, "nextHigh")) {
-        out.nextHigh = item;
-      }
-      if (item.type EQ "L" && !hasNonNullKey(out, "nextLow")) {
-        out.nextLow = item;
+      if (timeInfo.valid && compare(timeInfo.sortKey, nowUtcKey) GTE 0) {
+        if (item.type EQ "H" && !hasNonNullKey(out, "nextHigh")) {
+          out.nextHigh = item;
+        }
+        if (item.type EQ "L" && !hasNonNullKey(out, "nextLow")) {
+          out.nextLow = item;
+        }
       }
     }
     out.available = arrayLen(out.tidePredictions) GT 0 || hasNonNullKey(out, "nextHigh") || hasNonNullKey(out, "nextLow");
     out.tideTrend = (hasNonNullKey(out, "nextHigh") && hasNonNullKey(out, "nextLow")) ? "Mixed" : "";
+    return out;
+  }
+
+  private struct function normalizeCoopsPredictionUtc(required string value) {
+    var raw = trim(arguments.value);
+    var out = { "valid" = false, "sortKey" = "", "iso" = raw };
+
+    if (!len(raw)) {
+      return out;
+    }
+
+    raw = replace(raw, "T", " ", "one");
+    raw = replace(raw, "Z", "", "one");
+    if (reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}", raw) EQ 1) {
+      out.valid = true;
+      out.sortKey = left(raw, 16);
+      out.iso = replace(out.sortKey, " ", "T", "one") & ":00Z";
+    }
     return out;
   }
 
@@ -268,6 +295,17 @@ component output="false" {
       out.tideLevelFt = val(rows[1].v);
     }
     return out;
+  }
+
+  private string function predictionBeginDate(string timezone = "") {
+    var tz = trim(arguments.timezone);
+    if (len(tz)) {
+      try {
+        return dateTimeFormat(now(), "yyyymmdd", tz);
+      } catch (any tzErr) {
+      }
+    }
+    return dateFormat(now(), "yyyymmdd");
   }
 
   private boolean function hasNonNullKey(required struct source, required string key) {
@@ -310,3 +348,9 @@ component output="false" {
     return dateTimeFormat(dateConvert("local2Utc", arguments.value), "yyyy-mm-dd'T'HH:nn:ss'Z'");
   }
 }
+
+
+
+
+
+

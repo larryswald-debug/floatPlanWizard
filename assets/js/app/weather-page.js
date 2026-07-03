@@ -9,6 +9,7 @@
     abortController: null,
     map: null,
     mapMarker: null,
+    mapOverlayController: null,
     tideRange: "today"
   };
 
@@ -283,6 +284,7 @@
     model.target = model.target || {};
     model.status = model.status || { messages: [] };
     model.current = model.current || {};
+    model.visibilityFallback = model.visibilityFallback || {};
     model.marine = model.marine || {};
     model.forecast12h = safeArray(model.forecast12h);
     model.alerts = safeArray(model.alerts);
@@ -396,8 +398,11 @@
     text("weatherRiskGusts", hasNumber(current.gustMph) ? "Gusts up to " + numberText(current.gustMph, "mph") : "Gusts not reported");
     text("weatherRiskSeas", marine.seasFt || marine.waveHeightFt ? "Seas " + numberText(marine.seasFt || marine.waveHeightFt, "ft", 1) : "Seas —");
     text("weatherRiskSeasNote", marine.wavePeriodSec ? "Period " + numberText(marine.wavePeriodSec, "sec") : "—");
-    text("weatherRiskVisibility", current.visibilityMi ? "Visibility " + numberText(current.visibilityMi, "mi", 1) : "Visibility —");
-    text("weatherRiskVisibilityNote", "—");
+    var visibilityFallback = model.visibilityFallback || {};
+    var visibilityValue = hasNumber(current.visibilityMi) ? current.visibilityMi : (hasNumber(visibilityFallback.visibilityMi) ? visibilityFallback.visibilityMi : null);
+    var visibilityFromFallback = !hasNumber(current.visibilityMi) && hasNumber(visibilityFallback.visibilityMi);
+    text("weatherRiskVisibility", hasNumber(visibilityValue) ? "Visibility " + numberText(visibilityValue, "mi", 1) : "Visibility —");
+    text("weatherRiskVisibilityNote", hasNumber(visibilityValue) ? (visibilityFromFallback ? "From " + (visibilityFallback.stationId || "nearby station") : "Station " + (current.stationId || "current")) : "Not reported");
     text("weatherRiskAlerts", alerts.length ? alerts.length + " active" : "None active");
     text("weatherRiskRecommendation", marine.recommendation || marine.RECOMMENDATION || "Review official NOAA conditions before departure.");
   }
@@ -445,20 +450,34 @@
   }
 
   function renderAlerts(alerts, model) {
-    alerts = safeArray(alerts);
+    alerts = sortAlertsForDisplay(safeArray(alerts));
     var count = alerts.length;
-    text("weatherAlertStatus", count ? count + " Active" : "No Active Alerts");
-    text("weatherAlertSummary", count ? "Review active NOAA marine alerts" : "No active weather alerts for this location.");
-    text("weatherAlertHighest", count ? highestSeverity(alerts) : "—");
-    text("weatherAlertsCheckedAt", model.generatedAtUtc ? formatTime(model.generatedAtUtc) : "—");
-    htmlList("weatherAlertsActiveNow", alerts.map(function (a) { return a.event || a.headline || "NOAA alert"; }), "No active weather alerts for this location.");
-    text("weatherAlertsPanelTitle", count ? "Active NOAA Alerts" : "No Active NOAA Alerts");
-    text("weatherAlertsPanelBadge", count ? count + " Active" : "No Active Alerts");
+    var icon = byId("weatherAlertIcon");
+    var activeList = byId("weatherAlertsActiveNow");
+    var highestEl = byId("weatherAlertHighest");
+    var stateEl = byId("weatherAlertsPanelState");
     var list = byId("activeNoaaAlertsList");
-    if (list) {
-      list.innerHTML = count ? alerts.map(renderAlertCard).join("") : "";
+
+    text("weatherAlertStatus", count ? count + " Active" : "No Active Alerts");
+    text("weatherAlertSummary", count ? "Review active NOAA marine alerts" : "No active NOAA alerts for this location.");
+    if (highestEl) {
+      highestEl.textContent = count ? "Highest Risk: " + alertName(alerts[0]) : "";
     }
-    text("weatherAlertsPanelState", count ? "" : "No active weather alerts for this location.");
+    text("weatherAlertsCheckedAt", model.generatedAtUtc ? formatTime(model.generatedAtUtc) : "—");
+    if (icon) {
+      icon.textContent = count ? "!" : "✓";
+    }
+    if (activeList) {
+      activeList.innerHTML = count ? alerts.slice(0, 4).map(renderAlertMiniRow).join("") : "<li>No active NOAA alerts.</li>";
+    }
+    text("weatherAlertsPanelTitle", count ? "Active NOAA Alerts for " + alertPanelLocation(model) : "No Active NOAA Alerts");
+    text("weatherAlertsPanelBadge", count ? count + " Active" : "No Active Alerts");
+    if (stateEl) {
+      stateEl.innerHTML = count ? "" : "<strong>No active NOAA alerts for this location.</strong><span>Conditions can change quickly. Review the latest marine forecast before departure.</span>";
+    }
+    if (list) {
+      list.innerHTML = count ? alerts.map(function (alert, index) { return renderAlertCard(alert, index + 1); }).join("") : "";
+    }
   }
 
   function renderForecast(rows) {
@@ -470,19 +489,22 @@
       text("weatherHourlySummary", "Hourly forecast is temporarily unavailable.");
       return;
     }
+    var maxGust = maxForecastNumber(rows, "gustMph");
+    var maxRain = maxForecastNumber(rows, "precipChancePct");
     tbody.innerHTML = rows.map(function (row) {
+      var riskLabel = riskBadgeDisplay(row.riskLabel || "Unknown");
       return "<tr>"
         + "<td>" + escapeHtml(formatHour(row.timeLabel)) + "</td>"
         + "<td>" + escapeHtml(hasNumber(row.windMph) ? row.windDirectionLabel + " " + numberText(row.windMph, "mph") : "Not reported") + "</td>"
         + "<td>" + escapeHtml(numberTextOr(row.gustMph, "mph", undefined, "Not reported")) + "</td>"
         + "<td>" + escapeHtml(numberText(row.seasFt, "", 1)) + "</td>"
-        + "<td>" + escapeHtml(numberTextOr(row.precipChancePct, "%", undefined, "Not issued")) + "</td>"
-        + "<td>" + escapeHtml(numberText(row.tempF, "°F")) + "</td>"
-        + "<td>" + escapeHtml(row.condition || "—") + "</td>"
-        + "<td><span class=\"status-badge " + riskBadgeClass(row.riskLabel) + "\">" + escapeHtml(row.riskLabel || "Unknown") + "</span></td>"
+        + "<td>" + escapeHtml(forecastPercentText(row.precipChancePct, "Not issued")) + "</td>"
+        + "<td>" + escapeHtml(forecastTempText(row.tempF)) + "</td>"
+        + "<td>" + escapeHtml(forecastSkyIcon(row.condition)) + "</td>"
+        + "<td><span class=\"risk-badge " + riskBadgeClass(riskLabel) + "\">" + escapeHtml(riskLabel) + "</span></td>"
         + "</tr>";
     }).join("");
-    text("weatherHourlySummary", "Wind easing this evening. Gusts " + maxValueOr(rows, "gustMph", "mph", "not reported") + " • Rain risk up to " + maxValue(rows, "precipChancePct", "%"));
+    text("weatherHourlySummary", "Wind easing this evening • Gusts peak near " + (hasNumber(maxGust) ? numberText(maxGust, "mph") : "—") + " • " + (hasNumber(maxRain) ? "Rain risk up to " + forecastPercentText(maxRain, "—") : "No rain expected"));
   }
 
   function renderTide(marine) {
@@ -491,7 +513,7 @@
     var hasTideSeries = rangeItems.length > 0;
     var highItem = highestTide(rangeItems);
     var lowItem = lowestTide(rangeItems);
-    var nextHigh = nextHighTide(rangeItems, state.tideRange) || highItem || marine.nextHigh;
+    var nextHigh = marine.nextHigh || nextHighTide(rangeItems, state.tideRange) || highItem;
     var firstItem = rangeItems[0] || null;
 
     text("weatherTideChartStation", marine.tideStation || "—");
@@ -502,14 +524,14 @@
     text("tideGraphEnd", hasTideSeries ? tideTime(rangeItems[rangeItems.length - 1]) : "—");
     text("weatherTideSummaryCurrentLabel", state.tideRange === "tomorrow" ? "First" : "Current");
     text("weatherTideSummaryCurrent", state.tideRange === "tomorrow" ? tideHeight(firstItem) : numberText(marine.tideLevelFt, "ft", 2));
-    text("weatherTideSummaryCurrentTrend", state.tideRange === "tomorrow" ? tideTime(firstItem) : (marine.tideTrend || "—"));
-    text("weatherTideSummaryHighTime", tideTime(highItem || marine.nextHigh));
+    text("weatherTideSummaryCurrentTrend", state.tideRange === "tomorrow" ? tideTimeOnly(firstItem) : (marine.tideTrend || "—"));
+    text("weatherTideSummaryHighTime", tideTimeOnly(highItem || marine.nextHigh));
     text("weatherTideSummaryHighHeight", tideHeight(highItem || marine.nextHigh));
-    text("weatherTideSummaryLowTime", tideTime(lowItem || marine.nextLow));
+    text("weatherTideSummaryLowTime", tideTimeOnly(lowItem || marine.nextLow));
     text("weatherTideSummaryLowHeight", tideHeight(lowItem || marine.nextLow));
-    text("weatherTideSummaryNextHighTime", tideTime(nextHigh));
+    text("weatherTideSummaryNextHighTime", tideTimeOnly(nextHigh));
     text("weatherTideSummaryNextHighHeight", tideHeight(nextHigh));
-    text("weatherTidePlanningNote", hasTideSeries ? tidePlanningNote(marine, highItem, lowItem) : tideWarning);
+    text("weatherTidePlanningNote", hasTideSeries ? tidePlanningNote(marine, nextHigh, lowItem) : tideWarning);
     text("tideGraphEmpty", tideWarning);
     updateTideRangeButtons();
     setHidden("tideGraph", !hasTideSeries);
@@ -562,6 +584,21 @@
 
   function sameDay(a, b) {
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+
+  function tideGraphSeriesBounds(items) {
+    var dates = safeArray(items).map(function (item) {
+      return tideDate(item);
+    }).filter(function (date) {
+      return date && !isNaN(date.getTime());
+    }).sort(function (a, b) {
+      return a.getTime() - b.getTime();
+    });
+    if (dates.length < 2) return null;
+    return {
+      startMs: dates[0].getTime(),
+      endMs: dates[dates.length - 1].getTime()
+    };
   }
 
   function highestTide(items) {
@@ -643,17 +680,24 @@
     min -= pad;
     max += pad;
 
+    var bounds = tideGraphSeriesBounds(items);
     var dx = items.length > 1 ? plotWidth / (items.length - 1) : 0;
     function y(value) {
       return padTop + plotHeight * (1 - ((Number(value) - min) / (max - min)));
     }
 
     var points = items.map(function (item, index) {
+      var date = tideDate(item);
+      var x = padLeft + (dx * index);
+      if (bounds && date && !isNaN(date.getTime()) && bounds.endMs > bounds.startMs) {
+        var ratio = (date.getTime() - bounds.startMs) / (bounds.endMs - bounds.startMs);
+        x = padLeft + (plotWidth * clampNumber(ratio, 0, 1));
+      }
       return {
         item: item,
         h: Number(item.heightFt),
-        dt: tideDate(item),
-        x: padLeft + (dx * index),
+        dt: date,
+        x: x,
         y: y(item.heightFt)
       };
     }).filter(function (point) {
@@ -770,8 +814,11 @@
   function formatTideAxisHour(item) {
     var date = tideDate(item);
     if (!date || isNaN(date.getTime())) return "";
-    var hour = date.getHours() % 12;
-    return String(hour === 0 ? 12 : hour);
+    var hour24 = date.getHours();
+    var hour = hour24 % 12;
+    var minute = date.getMinutes();
+    var minuteText = minute < 10 ? "0" + minute : String(minute);
+    return String(hour === 0 ? 12 : hour) + ":" + minuteText + (hour24 < 12 ? "a" : "p");
   }
 
   function clampNumber(value, min, max) {
@@ -834,16 +881,59 @@
     }
   }
 
+  function zoneForecastCacheEntry(model) {
+    var entries = safeArray(model && model.cache ? model.cache.entries : []);
+    for (var i = 0; i < entries.length; i += 1) {
+      var entry = entries[i] || {};
+      var key = entry.key || entry.KEY || "";
+      if (String(key).indexOf("nws:cwf:") === 0) {
+        return entry;
+      }
+    }
+    return {};
+  }
+
+  function zoneCacheStatusLabel(status) {
+    var value = String(status || "").toLowerCase();
+    if (value === "miss" || value === "fresh_fetch" || value === "stale-refresh") return "Live fetch";
+    if (value === "hit" || value === "cache_hit") return "Cached";
+    if (value === "bypass") return "Cache bypassed";
+    if (value === "error") return "Error";
+    return status ? display(status, "Unknown") : "Unknown";
+  }
+
+  function zoneProductUrl(office) {
+    var code = String(office || "").trim();
+    return code ? "https://forecast.weather.gov/product.php?issuedby=" + encodeURIComponent(code) + "&product=CWF&site=NWS" : "";
+  }
+
+  function zonePeriodTitle(value) {
+    return display(value, "Forecast").toLowerCase().replace(/(^|[\s/-])([a-z])/g, function (match, prefix, letter) {
+      return prefix + letter.toUpperCase();
+    });
+  }
+
   function renderZone(zone, model) {
-    text("weatherZoneForecastMeta", zone.available ? [zone.zoneId, zone.zoneName].filter(Boolean).join(" • ") : (zone.reason || "—"));
-    text("weatherZoneForecastOffice", zone.office ? "Source: NOAA/NWS " + zone.office : "Source: NOAA/NWS Coastal Waters Forecast");
+    var sourceLabel = "NOAA/NWS Coastal Waters Forecast";
+    var office = zone.office || "";
+    var cacheEntry = zoneForecastCacheEntry(model);
+    var expiresAt = cacheEntry.expiresAtUtc || cacheEntry.EXPIRESATUTC || "";
+    var sourceEl = byId("weatherZoneForecastSource");
+    var sourceUrl = zoneProductUrl(office);
+
+    text("weatherZoneForecastMeta", zone.available ? [zone.zoneId, zone.zoneName].filter(Boolean).join(" · ") : (zone.reason || "—"));
+    text("weatherZoneForecastOffice", zone.available && office ? "Issued by NWS " + office : "Source: " + sourceLabel);
     text("weatherZoneForecastSynopsis", zone.synopsis || "—");
-    text("weatherZoneForecastCacheMeta", "Provider updated: " + (model.generatedAtUtc ? formatTime(model.generatedAtUtc) : "—") + " • Cache: " + (model.cache && model.cache.summary ? model.cache.summary : "—"));
-    text("weatherZoneForecastSource", zone.sourceUrl || "Source: NOAA/NWS Coastal Waters Forecast");
+    text("weatherZoneForecastCacheMeta", "Provider updated: " + (zone.issuedAt || zone.updatedAt || (model.generatedAtUtc ? formatTime(model.generatedAtUtc) : "—")) + " • Cache: " + zoneCacheStatusLabel(cacheEntry.status || cacheEntry.STATUS || "") + " • Expires: " + (expiresAt ? formatTime(expiresAt) : "—"));
+    if (sourceEl) {
+      sourceEl.innerHTML = sourceUrl
+        ? "Source: <a href=\"" + escapeHtml(sourceUrl) + "\" target=\"_blank\" rel=\"noopener\">" + escapeHtml(sourceLabel) + "</a>"
+        : "Source: " + escapeHtml(sourceLabel);
+    }
     var periods = byId("weatherZoneForecastPeriods");
     if (periods) {
       periods.innerHTML = zone.available && zone.periods && zone.periods.length
-        ? zone.periods.map(function (p) { return "<article><h3>" + escapeHtml(p.name || "Forecast") + "</h3><p>" + escapeHtml(p.forecast || "") + "</p></article>"; }).join("")
+        ? zone.periods.map(function (p) { return "<article class=\"zone-forecast-period\"><h3>" + escapeHtml(zonePeriodTitle(p.name || "Forecast")) + "</h3><p>" + escapeHtml(p.forecast || "") + "</p></article>"; }).join("")
         : "";
     }
     setHidden("weatherZoneForecastUnavailable", zone.available);
@@ -900,21 +990,82 @@
     });
   }
 
-  function bindAlertsAccordion() {
-    var details = byId("weatherDetailsLink");
+  function setAlertsPanelExpanded(expanded) {
     var panel = byId("activeNoaaAlertsPanel");
     var body = byId("activeNoaaAlertsBody");
-    function toggle() {
-      if (!panel || !body) return;
-      var open = panel.classList.contains("d-none") || panel.hasAttribute("hidden");
-      panel.classList.toggle("d-none", !open);
-      body.hidden = !open;
-      panel.hidden = !open;
-      if (details) details.setAttribute("aria-expanded", open ? "true" : "false");
+    var toggle = byId("activeNoaaAlertsToggle");
+    var trigger = byId("weatherDetailsLink");
+    if (!panel || !body || !toggle) return;
+
+    body.hidden = !expanded;
+    toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+    toggle.setAttribute("aria-label", expanded ? "Hide active NOAA alerts" : "Show active NOAA alerts");
+    panel.classList.toggle("weather-alerts-panel--expanded", expanded);
+    panel.classList.toggle("weather-alerts-panel--collapsed", !expanded);
+    if (trigger) trigger.setAttribute("aria-expanded", expanded ? "true" : "false");
+  }
+
+  function showAlertsPanel() {
+    var panel = byId("activeNoaaAlertsPanel");
+    if (!panel) return;
+    panel.hidden = false;
+    panel.classList.remove("d-none");
+    setAlertsPanelExpanded(true);
+    if (typeof panel.scrollIntoView === "function") {
+      panel.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-    if (details) details.addEventListener("click", toggle);
-    var toggleBtn = byId("activeNoaaAlertsToggle");
-    if (toggleBtn) toggleBtn.addEventListener("click", toggle);
+  }
+
+  function bindAlertsAccordion() {
+    var trigger = byId("weatherDetailsLink");
+    var panel = byId("activeNoaaAlertsPanel");
+    var header = byId("activeNoaaAlertsHeader");
+    var toggle = byId("activeNoaaAlertsToggle");
+
+    if (trigger && trigger.dataset.bound !== "true") {
+      trigger.dataset.bound = "true";
+      trigger.addEventListener("click", function (event) {
+        event.preventDefault();
+        showAlertsPanel();
+      });
+    }
+
+    if (toggle && toggle.dataset.bound !== "true") {
+      toggle.dataset.bound = "true";
+      toggle.addEventListener("click", function (event) {
+        var expanded = toggle.getAttribute("aria-expanded") === "true";
+        event.preventDefault();
+        event.stopPropagation();
+        setAlertsPanelExpanded(!expanded);
+      });
+    }
+
+    if (header && header.dataset.bound !== "true") {
+      header.dataset.bound = "true";
+      header.addEventListener("click", function (event) {
+        var toggleButton = byId("activeNoaaAlertsToggle");
+        var expanded = toggleButton && toggleButton.getAttribute("aria-expanded") === "true";
+        if (event.target && event.target.closest && event.target.closest("button")) return;
+        setAlertsPanelExpanded(!expanded);
+      });
+    }
+
+    if (panel && panel.dataset.bound !== "true") {
+      panel.dataset.bound = "true";
+      panel.addEventListener("click", function (event) {
+        var button = event.target && event.target.closest ? event.target.closest("[data-weather-alert-detail]") : null;
+        var detailId = "";
+        var detail = null;
+        var isOpen = false;
+        if (!button) return;
+        detailId = button.getAttribute("aria-controls") || "";
+        detail = detailId ? byId(detailId) : null;
+        if (!detail) return;
+        isOpen = detail.hidden;
+        detail.hidden = !isOpen;
+        button.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      });
+    }
   }
 
   function bindMapModal() {
@@ -949,12 +1100,21 @@
   }
 
   function initMap(target) {
-    if (!window.L || !hasCoords(target)) return;
+    var mapEl = byId("weatherLeafletMap");
+    if (!window.L || !hasCoords(target) || !mapEl) return;
     if (!state.map) {
-      state.map = window.L.map("weatherLeafletMap").setView([target.lat, target.lon], 9);
+      state.map = window.L.map(mapEl).setView([target.lat, target.lon], 9);
       window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(state.map);
+      if (window.FPW && typeof window.FPW.attachLeafletWeatherOverlays === "function") {
+        state.mapOverlayController = window.FPW.attachLeafletWeatherOverlays({
+          map: state.map,
+          mode: "weather"
+        });
+      }
+      mapEl.__fpwWeatherMap = state.map;
+      mapEl.__fpwWeatherOverlayController = state.mapOverlayController;
     } else {
       state.map.setView([target.lat, target.lon], 9);
     }
@@ -1001,6 +1161,22 @@
     return "☀";
   }
 
+  function forecastSkyIcon(condition) {
+    condition = String(condition || "").toLowerCase();
+    if (condition.indexOf("rain") >= 0 || condition.indexOf("shower") >= 0 || condition.indexOf("storm") >= 0) return "☔";
+    if (condition.indexOf("cloud") >= 0 || condition.indexOf("overcast") >= 0) return "☁";
+    if (condition.indexOf("night") >= 0 || (condition.indexOf("clear") >= 0 && condition.indexOf("sun") < 0)) return "☾";
+    return "☀";
+  }
+
+  function forecastPercentText(value, fallback) {
+    return hasNumber(value) ? Math.round(Number(value)) + "%" : fallback;
+  }
+
+  function forecastTempText(value) {
+    return hasNumber(value) ? Math.round(Number(value)) + "°" : "—";
+  }
+
   function waveLevel(value) {
     if (!isFinite(Number(value))) return "—";
     value = Number(value);
@@ -1011,9 +1187,14 @@
 
   function riskBadgeClass(label) {
     label = String(label || "").toLowerCase();
-    if (label === "good") return "badge-good";
-    if (label === "high") return "badge-danger";
-    return "badge-caution";
+    if (label === "extreme" || label === "high") return "risk-high";
+    if (label === "caution" || label === "moderate") return "risk-caution";
+    if (label === "good" || label === "low") return "risk-good";
+    return "risk-low";
+  }
+
+  function riskBadgeDisplay(label) {
+    return String(label || "").toLowerCase() === "low" ? "Good" : display(label, "—");
   }
 
   function tideHeight(item) {
@@ -1024,20 +1205,190 @@
     return item && item.timeUtc ? formatTime(item.timeUtc) : "—";
   }
 
-  function highestSeverity(alerts) {
-    var order = ["Extreme", "Severe", "Moderate", "Minor", "Unknown"];
-    for (var i = 0; i < order.length; i++) {
-      if (alerts.some(function (a) { return a.severity === order[i]; })) {
-        return "Highest: " + order[i];
-      }
-    }
-    return "—";
+  function tideTimeOnly(item) {
+    if (!item || !item.timeUtc) return "—";
+    var date = new Date(String(item.timeUtc).replace(" ", "T"));
+    if (isNaN(date.getTime())) return item.timeUtc;
+    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   }
 
-  function renderAlertCard(alert) {
-    return "<article class=\"weather-alert-item\"><h3>" + escapeHtml(alert.event || alert.headline || "NOAA Alert") + "</h3>"
-      + "<p>" + escapeHtml(alert.headline || alert.description || "") + "</p>"
-      + "<small>" + escapeHtml(alert.severity || "Unknown") + " • Expires " + escapeHtml(formatTime(alert.expiresUtc)) + "</small></article>";
+  function alertField(alert, keys, fallback) {
+    alert = alert || {};
+    for (var i = 0; i < keys.length; i++) {
+      var value = alert[keys[i]];
+      if (value !== null && value !== undefined && value !== "") {
+        return String(value);
+      }
+    }
+    return fallback !== undefined ? fallback : "";
+  }
+
+  function alertName(alert) {
+    return alertField(alert, ["event", "EVENT", "name", "NAME", "headline", "HEADLINE"], "Marine alert");
+  }
+
+  function alertRiskRank(alert) {
+    var eventName = alertField(alert, ["event", "EVENT", "name", "NAME"], "").toLowerCase();
+    var order = [
+      "special marine warning",
+      "gale warning",
+      "storm warning",
+      "hurricane warning",
+      "tropical storm warning",
+      "small craft advisory",
+      "dense fog advisory",
+      "coastal flood warning",
+      "coastal flood advisory",
+      "thunderstorm warning",
+      "thunderstorm watch",
+      "special weather statement",
+      "marine weather statement"
+    ];
+    for (var i = 0; i < order.length; i++) {
+      if (eventName.indexOf(order[i]) >= 0) return i;
+    }
+    return order.length + 1;
+  }
+
+  function alertSeverityRank(alert) {
+    var severity = alertField(alert, ["severity", "SEVERITY"], "").toLowerCase();
+    if (severity === "extreme") return 0;
+    if (severity === "severe") return 1;
+    if (severity === "moderate") return 2;
+    if (severity === "minor") return 3;
+    return 4;
+  }
+
+  function alertUrgencyRank(alert) {
+    var urgency = alertField(alert, ["urgency", "URGENCY"], "").toLowerCase();
+    if (urgency === "immediate") return 0;
+    if (urgency === "expected") return 1;
+    if (urgency === "future") return 2;
+    if (urgency === "past") return 3;
+    return 4;
+  }
+
+  function alertEffectiveTime(alert) {
+    var raw = alertField(alert, ["effective", "EFFECTIVE", "onset", "ONSET", "sent", "SENT"], "");
+    var parsed = raw ? Date.parse(raw) : NaN;
+    return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+  }
+
+  function sortAlertsForDisplay(alerts) {
+    return safeArray(alerts).slice().sort(function (a, b) {
+      var rankDelta = alertRiskRank(a) - alertRiskRank(b);
+      var severityDelta = alertSeverityRank(a) - alertSeverityRank(b);
+      var urgencyDelta = alertUrgencyRank(a) - alertUrgencyRank(b);
+      if (rankDelta) return rankDelta;
+      if (severityDelta) return severityDelta;
+      if (urgencyDelta) return urgencyDelta;
+      return alertEffectiveTime(a) - alertEffectiveTime(b);
+    });
+  }
+
+  function alertRiskClass(alert) {
+    var rank = alertRiskRank(alert);
+    var severity = alertSeverityRank(alert);
+    if (rank <= 4 || severity <= 1) return "alert-risk-high";
+    if (rank <= 8 || severity === 2) return "alert-risk-caution";
+    return "alert-risk-low";
+  }
+
+  function alertExpiresValue(alert) {
+    return alertField(alert, ["expiresUtc", "EXPIRESUTC", "expires", "EXPIRES", "ends", "ENDS"], "");
+  }
+
+  function formatAlertShortTime(value) {
+    if (!value) return "—";
+    var date = new Date(String(value).replace(" ", "T"));
+    if (isNaN(date.getTime())) return value;
+    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+
+  function renderAlertMiniRow(alert) {
+    var expiresValue = alertExpiresValue(alert);
+    return "<li><span class=\"weather-alert-dot " + alertRiskClass(alert) + "\"></span>"
+      + "<span class=\"weather-alert-mini-name\">" + escapeHtml(alertName(alert)) + "</span>"
+      + "<span class=\"weather-alert-mini-expire\">" + escapeHtml(expiresValue ? "Expires " + formatAlertShortTime(expiresValue) : "Expires —") + "</span></li>";
+  }
+
+  function alertPanelLocation(model) {
+    var target = model && model.target ? model.target : {};
+    var name = String(target.displayName || target.DISPLAYNAME || "").trim();
+    var zip = String(target.zip || target.ZIP || "").trim();
+    if (name && zip && name.indexOf(zip) < 0) return name + " / ZIP " + zip;
+    if (name) return name;
+    return zip ? "ZIP " + zip : "selected location";
+  }
+
+  function alertWeb(alert) {
+    return alertField(alert, ["web", "WEB", "url", "URL"], "");
+  }
+
+  function alertEffectiveValue(alert) {
+    return alertField(alert, ["effective", "EFFECTIVE", "effectiveUtc", "EFFECTIVEUTC", "onset", "ONSET", "sent", "SENT"], "");
+  }
+
+  function formatAlertDetailTime(value) {
+    if (!value) return "—";
+    var date = new Date(String(value).replace(" ", "T"));
+    if (isNaN(date.getTime())) return value;
+    return date.toLocaleDateString([], { month: "short", day: "numeric" })
+      + " at " + date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+
+  function renderAlertMeta(label, value, className) {
+    return "<div" + (className ? " class=\"" + className + "\"" : "") + "><dt>" + escapeHtml(label) + "</dt><dd>" + escapeHtml(value || "—") + "</dd></div>";
+  }
+
+  function renderAlertDetailField(label, value, className) {
+    return "<div" + (className ? " class=\"" + className + "\"" : "") + "><h4>" + escapeHtml(label) + "</h4><p>" + escapeHtml(value || "—") + "</p></div>";
+  }
+
+  function renderAlertDetailBlock(alert, detailId) {
+    var description = alertField(alert, ["description", "DESCRIPTION"], "—");
+    var instruction = alertField(alert, ["instruction", "INSTRUCTION"], "—");
+    var headline = alertField(alert, ["headline", "HEADLINE"], alertName(alert));
+    var source = alertField(alert, ["senderName", "SENDERNAME", "sender", "SENDER"], "—");
+    var area = alertField(alert, ["areaDesc", "AREADESC"], "—");
+    return "<div class=\"weather-alert-detail\" id=\"" + escapeHtml(detailId) + "\" hidden>"
+      + "<div class=\"weather-alert-detail-grid\">"
+      + renderAlertDetailField("Headline", headline)
+      + renderAlertDetailField("Instruction", instruction)
+      + renderAlertDetailField("Source", source)
+      + renderAlertDetailField("Effective", formatAlertDetailTime(alertEffectiveValue(alert)))
+      + renderAlertDetailField("Expires", formatAlertDetailTime(alertExpiresValue(alert)))
+      + renderAlertDetailField("Area", area)
+      + renderAlertDetailField("Description", description, "weather-alert-detail-wide")
+      + "</div><div class=\"weather-alert-disclaimer\">Use official NOAA/NWS sources and local marine safety channels for final go/no-go decisions.</div>"
+      + "</div>";
+  }
+
+  function renderAlertCard(alert, index) {
+    var name = alertName(alert);
+    var headline = alertField(alert, ["headline", "HEADLINE", "description", "DESCRIPTION"], "");
+    var severity = alertField(alert, ["severity", "SEVERITY"], "Unknown");
+    var urgency = alertField(alert, ["urgency", "URGENCY"], "Unknown");
+    var certainty = alertField(alert, ["certainty", "CERTAINTY"], "Unknown");
+    var effective = formatAlertDetailTime(alertEffectiveValue(alert));
+    var expires = formatAlertDetailTime(alertExpiresValue(alert));
+    var area = alertField(alert, ["areaDesc", "AREADESC"], "—");
+    var web = alertWeb(alert);
+    var detailId = "weatherAlertDetail" + index;
+    return "<article class=\"weather-alert-row " + alertRiskClass(alert) + "\">"
+      + "<div class=\"weather-alert-row__main\"><div><h3>" + escapeHtml(name) + "</h3><p>" + escapeHtml(headline) + "</p></div>"
+      + "<dl class=\"weather-alert-meta-grid\">"
+      + renderAlertMeta("Severity", severity)
+      + renderAlertMeta("Urgency", urgency)
+      + renderAlertMeta("Certainty", certainty)
+      + renderAlertMeta("Effective", effective)
+      + renderAlertMeta("Expires", expires)
+      + renderAlertMeta("Area", area, "weather-alert-area")
+      + "</dl><div class=\"weather-alert-row__actions\"><button type=\"button\" class=\"weather-alert-detail-btn\" aria-expanded=\"false\" aria-controls=\"" + escapeHtml(detailId) + "\" data-weather-alert-detail=\"1\">Details</button>"
+      + (web ? "<a class=\"weather-alert-official-link\" href=\"" + escapeHtml(web) + "\" target=\"_blank\" rel=\"noopener noreferrer\" hidden aria-hidden=\"true\" tabindex=\"-1\">Official NOAA Alert</a>" : "")
+      + "</div></div>"
+      + renderAlertDetailBlock(alert, detailId)
+      + "</article>";
   }
 
   function formatTime(value) {
@@ -1052,6 +1403,11 @@
     var date = new Date(value);
     if (isNaN(date.getTime())) return value;
     return date.toLocaleTimeString([], { hour: "numeric" });
+  }
+
+  function maxForecastNumber(rows, key) {
+    var values = rows.map(function (row) { return row[key]; }).filter(hasNumber).map(function (value) { return Number(value); });
+    return values.length ? Math.max.apply(Math, values) : null;
   }
 
   function maxValue(rows, key, unit) {
@@ -1076,3 +1432,11 @@
 
   document.addEventListener("DOMContentLoaded", init);
 })(window, document);
+
+
+
+
+
+
+
+

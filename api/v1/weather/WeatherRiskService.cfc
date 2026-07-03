@@ -99,24 +99,33 @@
     <cfargument name="periodInput" type="any" required="true">
     <cfargument name="marineInput" type="any" required="false" default="">
 
-    <cfset var current = structNew()>
-    <cfset var emptyAlerts = arrayNew(1)>
-    <cfset var risk = structNew()>
+    <cfset var wind = 0>
+    <cfset var gust = 0>
+    <cfset var mph = 0>
 
     <cfif isStruct(arguments.periodInput)>
-      <cfif structKeyExists(arguments.periodInput, "windMph")>
-        <cfset current.windMph = arguments.periodInput.windMph>
+      <cfif structKeyExists(arguments.periodInput, "windMph") AND isNumeric(arguments.periodInput.windMph)>
+        <cfset wind = val(arguments.periodInput.windMph)>
       </cfif>
-      <cfif structKeyExists(arguments.periodInput, "gustMph")>
-        <cfset current.gustMph = arguments.periodInput.gustMph>
+      <cfif structKeyExists(arguments.periodInput, "gustMph") AND isNumeric(arguments.periodInput.gustMph)>
+        <cfset gust = val(arguments.periodInput.gustMph)>
       </cfif>
     </cfif>
 
-    <cfset current.visibilityMi = "">
-    <cfset risk = scoreConditions(current, arguments.marineInput, emptyAlerts)>
-    <cfreturn risk.riskLevel>
+    <cfset mph = gust GT 0 ? gust : wind>
+
+    <cfif mph GTE 20>
+      <cfreturn "Extreme">
+    <cfelseif mph GTE 15>
+      <cfreturn "High">
+    <cfelseif mph GTE 10>
+      <cfreturn "Caution">
+    </cfif>
+
+    <cfreturn "Good">
   </cffunction>
 
 </cfcomponent>
+
 
 

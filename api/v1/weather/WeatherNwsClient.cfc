@@ -257,14 +257,43 @@ component output="false" {
 
     for (var feature in features) {
       var props = feature.properties ?: {};
+      var alertWeb = "";
+      var alertId = "";
+
+      if (structKeyExists(props, "@id") && reFindNoCase("^https?://", trim(toString(structFind(props, "@id"))))) {
+        alertWeb = trim(toString(structFind(props, "@id")));
+      } else if (structKeyExists(feature, "id") && reFindNoCase("^https?://", trim(toString(feature.id)))) {
+        alertWeb = trim(toString(feature.id));
+      } else if (structKeyExists(props, "web")) {
+        alertWeb = props.web ?: "";
+      }
+
+      if (structKeyExists(props, "id")) {
+        alertId = props.id ?: "";
+      } else if (structKeyExists(feature, "id")) {
+        alertId = feature.id ?: "";
+      }
+
       arrayAppend(alerts, {
         "event" = props.event ?: "",
         "headline" = props.headline ?: "",
         "severity" = props.severity ?: "",
+        "urgency" = props.urgency ?: "",
+        "certainty" = props.certainty ?: "",
+        "effective" = props.effective ?: "",
         "effectiveUtc" = props.effective ?: "",
+        "expires" = props.expires ?: "",
         "expiresUtc" = props.expires ?: "",
-        "description" = left(props.description ?: "", 500),
-        "instruction" = left(props.instruction ?: "", 500)
+        "ends" = props.ends ?: "",
+        "description" = props.description ?: "",
+        "instruction" = props.instruction ?: "",
+        "id" = alertId,
+        "web" = alertWeb,
+        "areaDesc" = props.areaDesc ?: "",
+        "sender" = props.sender ?: "",
+        "senderName" = props.senderName ?: "",
+        "sent" = props.sent ?: "",
+        "onset" = props.onset ?: ""
       });
     }
 
@@ -352,6 +381,7 @@ component output="false" {
       "zoneName" = zoneMeta.zoneName ?: "",
       "office" = normalizeOffice(zoneMeta.office ?: ""),
       "synopsis" = "",
+      "issuedAt" = "",
       "periods" = [],
       "sourceUrl" = arguments.productPayload["@id"] ?: arguments.productPayload.id ?: zoneMeta.sourceUrl ?: "",
       "seasFt" = javacast("null", ""),
@@ -370,6 +400,9 @@ component output="false" {
       out.reason = "NOAA Coastal Waters Forecast product response did not include product text.";
       return out;
     }
+
+    out.synopsis = extractCwfSynopsis(productText);
+    out.issuedAt = extractCwfProductTimestamp(productText);
 
     var zoneBlock = extractCwfZoneBlock(productText, out.zoneId);
     if (!len(zoneBlock)) {
@@ -641,6 +674,53 @@ component output="false" {
     return 0;
   }
 
+  private string function extractCwfSynopsis(required string productText) {
+    var lines = listToArray(replace(arguments.productText, chr(13), "", "all"), chr(10), true);
+    var out = [];
+    var collecting = false;
+    var inlineText = "";
+
+    for (var line in lines) {
+      var cleanLine = trim(line);
+      if (!collecting && reFindNoCase("^\.[[:space:]]*SYNOPSIS[[:space:]]*\.\.\.", cleanLine)) {
+        inlineText = trim(reReplaceNoCase(cleanLine, "^\.[[:space:]]*SYNOPSIS[[:space:]]*\.\.\.", "", "one"));
+        if (len(inlineText)) {
+          arrayAppend(out, inlineText);
+        }
+        collecting = true;
+        continue;
+      }
+      if (collecting) {
+        if (cleanLine EQ "$$" || reFindNoCase("^\.[A-Z0-9 /-]+\.\.\.", cleanLine) || reFindNoCase("^[A-Z]{3}[0-9]{3}[-A-Z0-9]*-[0-9]{6}-?$", cleanLine)) {
+          break;
+        }
+        if (len(cleanLine)) {
+          arrayAppend(out, cleanLine);
+        }
+      }
+    }
+
+    return normalizeCwfText(arrayToList(out, " "));
+  }
+
+  private string function normalizeCwfText(required string text) {
+    var normalized = trim(arguments.text);
+    normalized = reReplace(normalized, "[\t ]+", " ", "all");
+    normalized = reReplace(normalized, "\s{2,}", " ", "all");
+    return trim(normalized);
+  }
+
+  private string function extractCwfProductTimestamp(required string productText) {
+    var lines = listToArray(replace(arguments.productText, chr(13), "", "all"), chr(10), true);
+    for (var line in lines) {
+      var cleanLine = trim(line);
+      if (reFindNoCase("^[0-9]{3,4} [AP]M [A-Z]{2,4} .*[0-9]{4}$", cleanLine)) {
+        return cleanLine;
+      }
+    }
+    return "";
+  }
+
   private string function extractCwfZoneBlock(required string productText, required string zoneId) {
     var text = replace(arguments.productText, chr(13), "", "all");
     var marker = ucase(trim(arguments.zoneId)) & "-";
@@ -684,8 +764,8 @@ component output="false" {
       arrayAppend(periods, current);
     }
 
-    if (arrayLen(periods) GT 6) {
-      return arraySlice(periods, 1, 6);
+    if (arrayLen(periods) GT 10) {
+      return arraySlice(periods, 1, 10);
     }
     return periods;
   }
@@ -707,7 +787,6 @@ component output="false" {
     return reReplace(trim(numberFormat(arguments.value, "0.0000")), ",", "", "all");
   }
 }
-
 
 
 

@@ -2207,7 +2207,7 @@
     }
     .leg-grid {
       display: grid;
-      grid-template-columns: 1.15fr 0.85fr;
+      grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
       gap: 16px;
     }
     .route-box,
@@ -6856,3 +6856,4 @@ window.FPWActiveCruiseV2.bindActionPanel();
 </script>
 </body>
 </html>
+

@@ -45,7 +45,7 @@ nowCoastUrl =
   "https://nowcoast.noaa.gov/geoserver/ows"
   & "?SERVICE=WMS"
   & "&REQUEST=GetMap"
-  & "&LAYERS=satellite:goes_visible_imagery"
+  & "&LAYERS=satellite:global_longwave_imagery_mosaic"
   & "&STYLES="
   & "&FORMAT=image/png"
   & "&TRANSPARENT=true"
