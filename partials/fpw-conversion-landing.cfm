@@ -103,48 +103,45 @@
 
     <section class="fpw-product-preview" id="fpwProductPreview" aria-labelledby="fpwPreviewTitle">
       <div class="fpw-container">
-        <div class="fpw-preview-shell">
+        <div class="fpw-preview-shell" data-preview-asset-base="<cfoutput>#landingBasePath#</cfoutput>/assets/images/home/">
           <div class="fpw-preview-head">
-            <h2 class="fpw-section-title" id="fpwPreviewTitle">See how a float plan becomes a live trip plan.</h2>
-            <p class="fpw-section-intro fpw-preview-intro">Plan the route, create the float plan, share a private trip page, and keep the trip current as conditions or timing change.</p>
-            <div class="fpw-tabs" role="tablist" aria-label="Product preview tabs">
-              <button class="fpw-tab" type="button" role="tab" aria-selected="true" data-preview-tab="route" data-fpw-track="homepage_demo_tab_click" data-fpw-track-label="Route Builder" data-fpw-track-section="product_demo">Route Builder</button>
-              <button class="fpw-tab" type="button" role="tab" aria-selected="false" data-preview-tab="floatplan" data-fpw-track="homepage_demo_tab_click" data-fpw-track-label="Float Plan" data-fpw-track-section="product_demo">Float Plan</button>
-              <button class="fpw-tab" type="button" role="tab" aria-selected="false" data-preview-tab="active" data-fpw-track="homepage_demo_tab_click" data-fpw-track-label="Active Cruise" data-fpw-track-section="product_demo">Active Cruise</button>
-              <button class="fpw-tab" type="button" role="tab" aria-selected="false" data-preview-tab="follow" data-fpw-track="homepage_demo_tab_click" data-fpw-track-label="Follow Page" data-fpw-track-section="product_demo">Follow Page</button>
+            <p class="fpw-preview-eyebrow">Product Preview</p>
+            <h2 class="fpw-section-title" id="fpwPreviewTitle">See FloatPlanWizard in action</h2>
+            <p class="fpw-section-intro fpw-preview-intro">Build the route, monitor the trip, and share a private trip page with family or friends.</p>
+            <div class="fpw-tabs" role="tablist" aria-label="FloatPlanWizard product preview">
+              <button class="fpw-tab" id="fpw-preview-tab-follow" type="button" role="tab" aria-selected="true" aria-controls="fpwPreviewPanel" data-preview-tab="follow" data-fpw-track="homepage_demo_tab_click" data-fpw-track-label="Shared Follow Page" data-fpw-track-section="product_demo">Shared Follow Page</button>
+              <button class="fpw-tab" id="fpw-preview-tab-route" type="button" role="tab" aria-selected="false" aria-controls="fpwPreviewPanel" data-preview-tab="route" data-fpw-track="homepage_demo_tab_click" data-fpw-track-label="Route Generator" data-fpw-track-section="product_demo">Route Generator</button>
+              <button class="fpw-tab" id="fpw-preview-tab-active" type="button" role="tab" aria-selected="false" aria-controls="fpwPreviewPanel" data-preview-tab="active" data-fpw-track="homepage_demo_tab_click" data-fpw-track-label="Active Cruise" data-fpw-track-section="product_demo">Active Cruise</button>
+              <button class="fpw-tab" id="fpw-preview-tab-dashboard" type="button" role="tab" aria-selected="false" aria-controls="fpwPreviewPanel" data-preview-tab="dashboard" data-fpw-track="homepage_demo_tab_click" data-fpw-track-label="Dashboard" data-fpw-track-section="product_demo">Dashboard</button>
             </div>
           </div>
 
           <div class="fpw-preview-body">
-            <div class="fpw-preview-visual" aria-label="Route builder preview">
-              <div class="fpw-route-list">
-                <div class="fpw-route-item"><span class="fpw-route-dot"></span><div><div class="fpw-route-name">St. Petersburg, FL</div><div class="fpw-route-time">Depart: May 12, 2026 8:00 AM</div></div><span>›</span></div>
-                <div class="fpw-route-item"><span class="fpw-route-dot"></span><div><div class="fpw-route-name">Egmont Key</div><div class="fpw-route-time">May 12, 2026 12:30 PM</div></div><span>›</span></div>
-                <div class="fpw-route-item"><span class="fpw-route-dot"></span><div><div class="fpw-route-name">Cayo Costa</div><div class="fpw-route-time">May 12, 2026 4:15 PM</div></div><span>›</span></div>
-                <div class="fpw-route-item"><span class="fpw-route-dot"></span><div><div class="fpw-route-name">Marathon, FL</div><div class="fpw-route-time">May 13, 2026 7:45 AM</div></div><span>›</span></div>
-                <div class="fpw-route-item"><span class="fpw-route-dot"></span><div><div class="fpw-route-name">Key West, FL</div><div class="fpw-route-time">Arrive: May 13, 2026 12:00 PM</div></div><span>›</span></div>
-                <div class="fpw-route-metrics"><div class="fpw-route-metric"><span>Est. Distance</span><strong>238 nm</strong></div><div class="fpw-route-metric"><span>Est. Duration</span><strong>1d 4h</strong></div></div>
-              </div>
-              <div class="fpw-product-preview-map-wrap">
+            <div class="fpw-preview-visual">
+              <div class="fpw-preview-browser">
+                <div class="fpw-preview-browser-chrome" aria-hidden="true">
+                  <span></span><span></span><span></span>
+                </div>
                 <img
-                  src="<cfoutput>#landingBasePath#</cfoutput>/assets/images/home/fpw-landing-route-map-preview-2x.png"
-                  alt="FPW route builder preview showing a planned boating route from St. Petersburg to Key West"
-                  class="fpw-product-preview-map"
-                  loading="lazy"
+                  src="<cfoutput>#landingBasePath#</cfoutput>/assets/images/home/preview-follow-page.jpg"
+                  alt="FloatPlanWizard shared follow page showing a private trip status view for family and friends."
+                  class="fpw-preview-image"
+                  data-preview-image
+                  loading="eager"
                   decoding="async"
                 >
               </div>
             </div>
 
-            <aside class="fpw-preview-copy" aria-live="polite">
-              <h3 data-preview-title>Build the route before you go.</h3>
-              <p data-preview-body>Add waypoints, estimate timing, and turn the trip into a plan someone ashore can actually follow.</p>
+            <aside class="fpw-preview-copy" id="fpwPreviewPanel" role="tabpanel" aria-live="polite" aria-labelledby="fpw-preview-tab-follow">
+              <h3 data-preview-title>Give family a private trip page.</h3>
+              <p data-preview-body>Share one private link so family or friends can see the plan, route, and trip status without needing an account.</p>
               <ul class="fpw-check-list" data-preview-list>
-                <li><span class="fpw-check-dot">✓</span><span>Plan by route legs and stops</span></li>
-                <li><span class="fpw-check-dot">✓</span><span>Estimate distance and timing</span></li>
-                <li><span class="fpw-check-dot">✓</span><span>Use the route inside your float plan</span></li>
+                <li><span class="fpw-check-dot">✓</span><span>Private trip-following page</span></li>
+                <li><span class="fpw-check-dot">✓</span><span>No login needed for followers</span></li>
+                <li><span class="fpw-check-dot">✓</span><span>Better than scattered text messages</span></li>
               </ul>
-              <a class="fpw-product-link" data-preview-link href="#fpwProductPreview">Try the Route Builder <svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-arrow"></use></svg></a>
+              <a class="fpw-product-link" data-preview-link href="<cfoutput>#landingBasePath#</cfoutput>/app/join.cfm">Share a Trip Page <svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-arrow"></use></svg></a>
             </aside>
           </div>
         </div>

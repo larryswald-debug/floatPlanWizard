@@ -406,7 +406,7 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
 <script type="application/ld+json"><cfoutput>#fpwHomeJsonLdText#</cfoutput></script>
 
   <link rel="icon" type="image/svg+xml" href="<cfoutput>#landingBasePath#</cfoutput>/assets/images/landing/fpw-logo.svg">
-  <link rel="stylesheet" href="<cfoutput>#landingBasePath#</cfoutput>/assets/css/fpw-conversion-landing.css?v=20260629-features-anchor">
+  <link rel="stylesheet" href="<cfoutput>#landingBasePath#</cfoutput>/assets/css/fpw-conversion-landing.css?v=20260703-preview-light">
   <link rel="stylesheet" href="<cfoutput>#landingBasePath#</cfoutput>/assets/css/top-nav.css?v=20260630-mega-weight-minus1">
   <style>
     .fpw-member-required-modal {
@@ -659,7 +659,7 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
       }
     })();
   </script>
-  <script src="<cfoutput>#landingBasePath#</cfoutput>/assets/js/fpw-conversion-landing.js?v=20260628-phase3-conversion"></script>
+  <script src="<cfoutput>#landingBasePath#</cfoutput>/assets/js/fpw-conversion-landing.js?v=20260703-preview-tabs"></script>
 
 </body>
 </html>

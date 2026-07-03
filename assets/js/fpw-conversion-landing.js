@@ -3,32 +3,36 @@
 
   var previews = {
     route: {
+      image: 'preview-route-generator.jpg',
+      alt: 'FloatPlanWizard route generator showing a planned boating route with waypoints.',
       title: 'Build the route before you go.',
-      body: 'Add waypoints, estimate timing, and turn the trip into a plan someone ashore can actually follow.',
-      bullets: ['Plan by route legs and stops', 'Estimate distance and timing', 'Use the route inside your float plan'],
-      link: 'Try the Route Builder',
-      href: '#Try the Route Builder'
-    },
-    floatplan: {
-      title: 'Create the plan people may need later.',
-      body: 'Capture the boat, passengers, contacts, route, and expected return in one organized plan.',
-      bullets: ['Boat and passenger details', 'Emergency contacts', 'Printable and shareable format'],
-      link: 'Create a Float Plan',
-      href: '#fpwProductPreview'
+      body: 'Add stops, estimate timing, and turn the trip into a plan someone ashore can actually follow.',
+      bullets: ['Plan by route legs and waypoints', 'Estimate distance and arrival times', 'Use the route inside your float plan'],
+      link: 'Start Planning'
     },
     active: {
-      title: 'Keep the plan current underway.',
-      body: 'Use check-ins and trip updates so the plan does not become stale once the boat leaves the dock.',
-      bullets: ['Update trip status', 'Track timing changes', 'Support overdue awareness'],
-      link: 'See Active Cruise',
-      href: '#fpwProductPreview'
+      image: 'preview-active-cruise.jpg',
+      alt: 'FloatPlanWizard Active Cruise screen showing live trip tools and monitoring controls.',
+      title: 'Keep the trip current while underway.',
+      body: 'When timing changes, update the active trip without rebuilding the plan from scratch.',
+      bullets: ['Track the active route', 'Adjust delays and timing', 'Keep monitoring aligned with the real trip'],
+      link: 'Start a Live Trip'
     },
     follow: {
-      title: 'Give your shore contact a private trip page.',
-      body: 'Share useful trip details without requiring your family or friend to create an account.',
-      bullets: ['No shore-contact account required', 'Private shareable access', 'Clear trip status and timing'],
-      link: 'View Sample Trip Page',
-      href: '#fpwProductPreview'
+      image: 'preview-follow-page.jpg',
+      alt: 'FloatPlanWizard shared follow page showing a private trip status view for family and friends.',
+      title: 'Give family a private trip page.',
+      body: 'Share one private link so family or friends can see the plan, route, and trip status without needing an account.',
+      bullets: ['Private trip-following page', 'No login needed for followers', 'Better than scattered text messages'],
+      link: 'Share a Trip Page'
+    },
+    dashboard: {
+      image: 'preview-dashboard.jpg',
+      alt: 'FloatPlanWizard dashboard showing saved routes, trip setup readiness, and boating tools.',
+      title: 'Manage the whole trip from one place.',
+      body: 'Review routes, float plans, trip setup, monitoring, weather, and cruise tools from one clean dashboard.',
+      bullets: ['Saved routes and float plans', 'Trip setup readiness', 'Weather and monitoring tools'],
+      link: 'Create Your Account'
     }
   };
 
@@ -69,18 +73,35 @@
     });
   });
 
+  function getPreviewImageSrc(root, imageName) {
+    var base = root.getAttribute('data-preview-asset-base') || '/assets/images/home/';
+    if (base.charAt(base.length - 1) !== '/') {
+      base += '/';
+    }
+    return base + imageName;
+  }
+
   function setPreview(root, key) {
     var data = previews[key] || previews.route;
     var title = root.querySelector('[data-preview-title]');
     var body = root.querySelector('[data-preview-body]');
     var list = root.querySelector('[data-preview-list]');
     var link = root.querySelector('[data-preview-link]');
+    var image = root.querySelector('[data-preview-image]');
+    var panel = root.querySelector('[role="tabpanel"]');
+    var selectedTab = root.querySelector('[data-preview-tab="' + key + '"]');
 
     if (title) title.textContent = data.title;
     if (body) body.textContent = data.body;
+    if (image) {
+      image.src = getPreviewImageSrc(root, data.image);
+      image.alt = data.alt;
+    }
     if (link) {
-      link.href = data.href;
       link.innerHTML = data.link + ' <svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-arrow"></use></svg>';
+    }
+    if (panel && selectedTab && selectedTab.id) {
+      panel.setAttribute('aria-labelledby', selectedTab.id);
     }
     if (list) {
       list.innerHTML = data.bullets.map(function (item) {
@@ -90,13 +111,30 @@
   }
 
   document.querySelectorAll('.fpw-preview-shell').forEach(function (root) {
-    root.querySelectorAll('[data-preview-tab]').forEach(function (button) {
+    var tabs = Array.prototype.slice.call(root.querySelectorAll('[data-preview-tab]'));
+
+    tabs.forEach(function (button) {
       button.addEventListener('click', function () {
-        root.querySelectorAll('[data-preview-tab]').forEach(function (tab) {
+        tabs.forEach(function (tab) {
           tab.setAttribute('aria-selected', 'false');
         });
         button.setAttribute('aria-selected', 'true');
         setPreview(root, button.getAttribute('data-preview-tab'));
+      });
+
+      button.addEventListener('keydown', function (event) {
+        var currentIndex = tabs.indexOf(button);
+        var nextIndex = currentIndex;
+
+        if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+        if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+        if (event.key === 'Home') nextIndex = 0;
+        if (event.key === 'End') nextIndex = tabs.length - 1;
+        if (nextIndex === currentIndex) return;
+
+        event.preventDefault();
+        tabs[nextIndex].focus();
+        tabs[nextIndex].click();
       });
     });
   });
