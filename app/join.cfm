@@ -72,7 +72,7 @@
                         <span class="fpw-signup-check" aria-hidden="true">✓</span>
                         <div>
                             <strong>Premium route tools included for your first month</strong>
-                            <span>Plan with waypoints, routes, Active Cruise pages, and a private Follow page.</span>
+                            <span>Plan with waypoints, routes, Active Cruise pages, and a private Trip status page.</span>
                         </div>
                     </div>
 
@@ -112,7 +112,7 @@
                         Start with one free month of Premium tools &mdash; no credit card required.
                     </p>
                     <p class="fpw-form-header-note">
-                        Your free month gives you access to custom route tools, Active Cruise pages, and a private Follow page for friends and family. After one month, your account automatically moves to the Basic plan unless you choose to upgrade.
+                        Your free month gives you access to custom route tools, Active Cruise pages, and a private Trip status page for friends and family. After one month, your account automatically moves to the Basic plan unless you choose to upgrade.
                     </p>
                 </div>
             </div>

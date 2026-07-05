@@ -224,7 +224,7 @@
     (“Float Plan Wizard,” “Company,” “we,” “us,” or “our”), collects, uses, stores, shares, and protects
     information when you use Float Plan Wizard, including our website, mobile application, companion
     application, account features, route tools, float plan tools, check-in features, monitoring features,
-    downloadable documents, public Follow pages, subscriptions, passes, trials, promotions, and related
+    downloadable documents, public Trip status pages, subscriptions, passes, trials, promotions, and related
     services.
   </p>
 
@@ -343,7 +343,7 @@
 
   <ul>
     <li>create, manage, secure, and support user accounts;</li>
-    <li>provide route-planning, float-plan, check-in, monitoring, companion app, and Follow page features;</li>
+    <li>provide route-planning, float-plan, check-in, monitoring, companion app, and Trip status page features;</li>
     <li>generate, store, display, send, and download float plans and related trip documents;</li>
     <li>send trip-related notifications, check-in notices, monitoring notices, account notices, and service emails;</li>
     <li>share float plan or trip information with designated contacts, passengers, operators, or other recipients chosen by the user;</li>
@@ -364,7 +364,7 @@
   <h3>With People You Choose</h3>
   <p>
     Float Plan Wizard is designed to help users share boating trip information. If you create a float plan,
-    send a float plan, use monitoring features, submit check-ins, create a public Follow page, or designate
+    send a float plan, use monitoring features, submit check-ins, create a public Trip status page, or designate
     contacts, we may share relevant trip, vessel, route, passenger, contact, check-in, monitoring, and
     location information with the people or recipients you choose.
   </p>
@@ -377,9 +377,9 @@
 
   <h3>Public Follow Pages and Shared Links</h3>
   <p>
-    Some features may allow trip information to be displayed through a public or shared Follow page.
+    Some features may allow trip information to be displayed through a public or shared Trip status page.
     Anyone with access to the link may be able to view the information shown on that page. You should
-    not share a Follow page link with anyone you do not want to see the displayed trip information.
+    not share a Trip status page link with anyone you do not want to see the displayed trip information.
   </p>
 
   <h3>Service Providers</h3>

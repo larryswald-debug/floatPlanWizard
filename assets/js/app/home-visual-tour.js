@@ -95,7 +95,7 @@
       title: "Share the Follow Page",
       summary: "Give family or friends one private page for route progress, check-ins, and trip context.",
       image: "tour-follow-page-full.png",
-      alt: "FloatPlanWizard shared Follow page full page",
+      alt: "FloatPlanWizard shared Trip status page full page",
       hotspots: [
         { id: "share-link", x: 9, y: 5, label: "Private share link", copy: "Family gets one private page for the trip." },
         { id: "voyage-progress", x: 50, y: 4, label: "Voyage progress", copy: "Status, current leg, check-in, and conditions are summarized." },

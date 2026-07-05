@@ -7,7 +7,7 @@
       alt: 'FloatPlanWizard route generator showing a planned boating route with waypoints.',
       title: 'Build the route before you go.',
       body: 'Add stops, estimate timing, and turn the trip into a plan someone ashore can actually follow.',
-      bullets: ['Plan by route legs and waypoints', 'Estimate distance and arrival times', 'Use the route inside your float plan'],
+      bullets: ['Plan by route legs and waypoints', 'Estimate distance and arrival times', 'Use the route inside your float plan', 'Estimate fuel usage and cost'],
       link: 'Start Planning'
     },
     active: {
@@ -20,10 +20,10 @@
     },
     follow: {
       image: 'preview-follow-page.jpg',
-      alt: 'FloatPlanWizard shared follow page showing a private trip status view for family and friends.',
+      alt: 'FloatPlanWizard shared trip status page showing a private trip status view for family and friends.',
       title: 'Give family a private trip page.',
       body: 'Share one private link so family or friends can see the plan, route, and trip status without needing an account.',
-      bullets: ['Private trip-following page', 'No login needed for followers', 'Better than scattered text messages'],
+      bullets: ['Private trip status page', 'No login needed for followers', 'Better than scattered text messages'],
       link: 'Share a Trip Page'
     },
     dashboard: {

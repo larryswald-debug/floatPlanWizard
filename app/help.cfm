@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <title>FloatPlanWizard Help Center</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Learn how to use FloatPlanWizard to plan a trip, send a float plan, monitor your cruise, share a Follow page, and check marine weather.">
+  <meta name="description" content="Learn how to use FloatPlanWizard to plan a trip, send a float plan, monitor your cruise, share a Trip status page, and check marine weather.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2306131d'/%3E%3Cpath d='M32 10v44M10 32h44M17 17l30 30M47 17 17 47' stroke='%2321f3ee' stroke-width='5' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='32' r='14' fill='none' stroke='%2367d8ff' stroke-width='5'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%23ffd18a'/%3E%3C/svg%3E">
 
   <cfinclude template="../includes/fpw_base_path.cfm">
@@ -22,7 +22,7 @@
       <div class="fpw-help-hero__copy">
         <p class="fpw-help-kicker">FloatPlanWizard guide</p>
         <h1 id="helpTitle">FloatPlanWizard Help Center</h1>
-        <p class="fpw-help-lede">Learn how to plan a trip, send a float plan, monitor your cruise, share your Follow page, and check boating weather.</p>
+        <p class="fpw-help-lede">Learn how to plan a trip, send a float plan, monitor your cruise, share your Trip status page, and check boating weather.</p>
       </div>
 
       <div class="fpw-help-search" role="search" aria-label="Search help topics">
@@ -71,7 +71,7 @@
             </article>
             <article>
               <h3>Premium route trips</h3>
-              <p>Premium adds saved routes, Custom Route Generator, Active Cruise, Follow Page sharing, companion check-ins, multi-day trips, and advanced monitoring.</p>
+              <p>Premium adds saved routes, Custom Route Generator, Active Cruise, Follow Page sharing, mobile check-ins, multi-day trips, and advanced monitoring.</p>
             </article>
           </div>
 
@@ -196,11 +196,11 @@
         </div>
       </section>
 
-      <section class="fpw-help-section" id="follow" data-help-section data-help-keywords="follow page share link family friends contacts public trip status progress privacy">
+      <section class="fpw-help-section" id="follow" data-help-section data-help-keywords="trip status page share link family friends contacts public trip status progress privacy">
         <div class="fpw-help-card">
           <p class="fpw-help-section-label">Sharing progress</p>
           <h2>Follow</h2>
-          <p>The Follow page is a shareable trip page for family, friends, and trip contacts. It lets them see trip status, progress, timing, updates, and check-in information without signing in.</p>
+          <p>The Trip status page is a shareable trip page for family, friends, and trip contacts. It lets them see trip status, progress, timing, updates, and check-in information without signing in.</p>
 
           <div class="fpw-help-grid">
             <article>
@@ -228,7 +228,7 @@
 
           <div class="fpw-help-callout fpw-help-callout-safety">
             <strong>Safety note</strong>
-            <p>The Follow page is informational. It is not an emergency dispatch service and may not reflect your current position.</p>
+            <p>The Trip status page is informational. It is not an emergency dispatch service and may not reflect your current position.</p>
           </div>
         </div>
       </section>
@@ -312,7 +312,7 @@
               <p>Active Cruise is for Premium route-based trips. Make sure you are signed in, your membership includes Active Cruise, and your route-based float plan is active.</p>
             </details>
             <details>
-              <summary>I do not see a Follow page.</summary>
+              <summary>I do not see a Trip status page.</summary>
               <p>Follow Page sharing is a Premium feature for route-based trips. Open your Dashboard and use the Follow sharing action when it is available for your active trip.</p>
             </details>
             <details>

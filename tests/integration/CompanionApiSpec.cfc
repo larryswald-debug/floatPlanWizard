@@ -288,7 +288,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           }
         });
 
-        it("records and deduplicates bearer-token companion check-ins through the canonical path", function() {
+        it("records and deduplicates bearer-token mobile check-ins through the canonical path", function() {
           var prefix = variables.naming.buildPrefix("companion", "bearer-checkin");
           var sessionApi = buildSessionApiSupport();
           var localCreated = newCreatedTracker();

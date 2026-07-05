@@ -42,7 +42,7 @@ body {
   position: relative;
   overflow: hidden;
   min-height: auto;
-  padding: 10px 0 94px;
+  padding: 40px 0 94px;
   border-bottom: 1px solid var(--fpw-pricing-border);
   background: linear-gradient(180deg, #ffffff, #f8fbff);
 }
@@ -502,7 +502,7 @@ body {
   }
 
   .pricing-hero {
-    padding: 10px 0 86px;
+    padding: 40px 0 86px;
   }
 
   .pricing-plans {

@@ -5757,11 +5757,11 @@
         .then(function (payload) {
           var followTarget = "";
           if (!payload || payload.SUCCESS === false || payload.success === false) {
-            throw { MESSAGE: "Unable to load Follow page link." };
+            throw { MESSAGE: "Unable to load Trip status page link." };
           }
           followTarget = resolveFollowTarget(payload);
           if (!followTarget) {
-            throw { MESSAGE: "Unable to load Follow page link." };
+            throw { MESSAGE: "Unable to load Trip status page link." };
           }
           showFollowShareModal(followTarget);
           if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
@@ -5771,7 +5771,7 @@
           }
         })
         .catch(function (err) {
-          var message = (err && err.MESSAGE) ? err.MESSAGE : "Unable to load Follow page link.";
+          var message = (err && err.MESSAGE) ? err.MESSAGE : "Unable to load Trip status page link.";
           if (utils && typeof utils.showAlertModal === "function") {
             utils.showAlertModal(message);
           } else {

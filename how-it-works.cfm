@@ -70,7 +70,7 @@ fpwHowFaqItems = [
     "question": "What if my plans change?",
     "answer": [
       "You can update your float plan as your trip changes. Adjust your route details, timing, delay information, trip notes, or check-in status so your shared plan stays current.",
-      "If your plans change significantly, update the plan and let your contacts know to check the latest Follow page."
+      "If your plans change significantly, update the plan and let your contacts know to check the latest Trip status page."
     ]
   },
   {
@@ -1091,7 +1091,7 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
           <svg viewBox="0 0 120 90"><circle cx="60" cy="30" r="13"></circle><circle cx="34" cy="38" r="11"></circle><circle cx="86" cy="38" r="11"></circle><path d="M36 78c1-19 9-30 24-30s23 11 24 30M15 78c1-15 7-24 19-24M86 54c12 0 18 9 19 24"></path></svg>
         </div>
         <h3>Share with Trusted Contacts</h3>
-        <p>Send a simple follow page to family or friends.</p>
+        <p>Send a simple trip status page to family or friends.</p>
       </article>
 
       <article class="fpw-step-card">
@@ -1171,7 +1171,7 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
         </div>
         <div>
           <h3>Simple for Non-Boaters</h3>
-          <p>Your contacts get an easy follow page&mdash;no account or app required.</p>
+          <p>Your contacts get an easy trip status page&mdash;no account or app required.</p>
         </div>
       </article>
 
@@ -1252,7 +1252,7 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
         </button>
         <div class="fpw-faq-answer" id="fpw-faq-answer-what-if-my-plans-change" role="region" aria-labelledby="fpw-faq-question-what-if-my-plans-change" hidden>
           <p>You can update your float plan as your trip changes. Adjust your route details, timing, delay information, trip notes, or check-in status so your shared plan stays current.</p>
-          <p>If your plans change significantly, update the plan and let your contacts know to check the latest Follow page.</p>
+          <p>If your plans change significantly, update the plan and let your contacts know to check the latest Trip status page.</p>
         </div>
       </article>
 

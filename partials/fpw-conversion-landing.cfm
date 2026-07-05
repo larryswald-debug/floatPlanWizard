@@ -34,7 +34,7 @@
 
           <div class="fpw-trust-row" aria-label="Quick trust points">
             <div class="fpw-trust-item"><span class="fpw-check-dot">✓</span><span>No credit card required</span></div>
-            <div class="fpw-trust-item"><span class="fpw-check-dot">✓</span><span>No account needed to start</span></div>
+            <div class="fpw-trust-item"><span class="fpw-check-dot">✓</span><span>Simple step-by-step setup</span></div>
             <div class="fpw-trust-item"><span class="fpw-check-dot">✓</span><span>Shareable trip page</span></div>
             <div class="fpw-trust-item"><span class="fpw-check-dot">✓</span><span>Built for real boating trips</span></div>
           </div>
@@ -74,7 +74,7 @@
             <span class="fpw-row-pill">ON SCHEDULE</span>
           </div>
 
-          <a class="fpw-btn fpw-brief-cta" href="#fpwProductPreview">View Sample Trip Page</a>
+          <a class="fpw-btn fpw-brief-cta" href="#fpwProductPreview">View Sample Trip Status Page</a>
         </aside>
       </div>
     </section>
@@ -90,7 +90,7 @@
           <div class="fpw-step-dash" aria-hidden="true"></div>
           <article class="fpw-step-card">
             <div class="fpw-step-icon"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-user"></use></svg></div>
-            <div class="fpw-step-body"><span class="fpw-step-number">2</span><h3>Share</h3><p>Send a private follow page to your shore contact.</p></div>
+            <div class="fpw-step-body"><span class="fpw-step-number">2</span><h3>Share</h3><p>Send a private trip status page to your shore contact.</p></div>
           </article>
           <div class="fpw-step-dash" aria-hidden="true"></div>
           <article class="fpw-step-card">
@@ -105,11 +105,10 @@
       <div class="fpw-container">
         <div class="fpw-preview-shell" data-preview-asset-base="<cfoutput>#landingBasePath#</cfoutput>/assets/images/home/">
           <div class="fpw-preview-head">
-            <p class="fpw-preview-eyebrow">Product Preview</p>
             <h2 class="fpw-section-title" id="fpwPreviewTitle">See FloatPlanWizard in action</h2>
             <p class="fpw-section-intro fpw-preview-intro">Build the route, monitor the trip, and share a private trip page with family or friends.</p>
             <div class="fpw-tabs" role="tablist" aria-label="FloatPlanWizard product preview">
-              <button class="fpw-tab" id="fpw-preview-tab-follow" type="button" role="tab" aria-selected="true" aria-controls="fpwPreviewPanel" data-preview-tab="follow" data-fpw-track="homepage_demo_tab_click" data-fpw-track-label="Shared Follow Page" data-fpw-track-section="product_demo">Shared Follow Page</button>
+              <button class="fpw-tab" id="fpw-preview-tab-follow" type="button" role="tab" aria-selected="true" aria-controls="fpwPreviewPanel" data-preview-tab="follow" data-fpw-track="homepage_demo_tab_click" data-fpw-track-label="Shared Follow Page" data-fpw-track-section="product_demo">Shared Trip Status Page</button>
               <button class="fpw-tab" id="fpw-preview-tab-route" type="button" role="tab" aria-selected="false" aria-controls="fpwPreviewPanel" data-preview-tab="route" data-fpw-track="homepage_demo_tab_click" data-fpw-track-label="Route Generator" data-fpw-track-section="product_demo">Route Generator</button>
               <button class="fpw-tab" id="fpw-preview-tab-active" type="button" role="tab" aria-selected="false" aria-controls="fpwPreviewPanel" data-preview-tab="active" data-fpw-track="homepage_demo_tab_click" data-fpw-track-label="Active Cruise" data-fpw-track-section="product_demo">Active Cruise</button>
               <button class="fpw-tab" id="fpw-preview-tab-dashboard" type="button" role="tab" aria-selected="false" aria-controls="fpwPreviewPanel" data-preview-tab="dashboard" data-fpw-track="homepage_demo_tab_click" data-fpw-track-label="Dashboard" data-fpw-track-section="product_demo">Dashboard</button>
@@ -124,7 +123,7 @@
                 </div>
                 <img
                   src="<cfoutput>#landingBasePath#</cfoutput>/assets/images/home/preview-follow-page.jpg"
-                  alt="FloatPlanWizard shared follow page showing a private trip status view for family and friends."
+                  alt="FloatPlanWizard shared trip status page showing a private trip status view for family and friends."
                   class="fpw-preview-image"
                   data-preview-image
                   loading="eager"
@@ -137,7 +136,7 @@
               <h3 data-preview-title>Give family a private trip page.</h3>
               <p data-preview-body>Share one private link so family or friends can see the plan, route, and trip status without needing an account.</p>
               <ul class="fpw-check-list" data-preview-list>
-                <li><span class="fpw-check-dot">✓</span><span>Private trip-following page</span></li>
+                <li><span class="fpw-check-dot">✓</span><span>Private trip status page</span></li>
                 <li><span class="fpw-check-dot">✓</span><span>No login needed for followers</span></li>
                 <li><span class="fpw-check-dot">✓</span><span>Better than scattered text messages</span></li>
               </ul>
@@ -195,7 +194,7 @@
     <section class="fpw-trust-band" aria-labelledby="fpwTrustTitle">
       <div class="fpw-container">
         <h2 class="fpw-section-title" id="fpwTrustTitle">Private by default. Shared only when you choose.</h2>
-        <p class="fpw-section-intro fpw-trust-intro">FPW helps you organize and share your boating plan. It does not replace calling the Coast Guard, 911, local authorities, or emergency services.</p>
+        <p class="fpw-section-intro fpw-trust-intro">FPW helps you organize and share your float plan. It does not replace calling the Coast Guard, 911, local authorities, or emergency services.</p>
         <div class="fpw-trust-grid">
           <article class="fpw-trust-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-user"></use></svg><div><h3>Shore contacts do not need an account</h3><p>They can view the private trip page you share with them.</p></div></article>
           <article class="fpw-trust-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-shield"></use></svg><div><h3>You choose who gets the trip page</h3><p>Share the plan directly with the people you trust.</p></div></article>
@@ -210,10 +209,10 @@
         <h2 class="fpw-section-title" id="fpwPricingTitle">Start with a free float plan. Upgrade when you want live trip tools.</h2>
         <p class="fpw-section-intro fpw-pricing-intro">Create a simple float plan first. Add route planning, Active Cruise, shared trip updates, and monitoring tools when you need more than a printable plan.</p>
         <div class="fpw-price-grid">
-          <article class="fpw-price-card fpw-price-card-free"><h3>Free</h3><div class="fpw-price">$0</div><p>For simple day trips and printable float plans.</p><ul><li>Basic float plan</li><li>Up to 2 waypoints</li><li>Basic monitoring</li><li>NOAA/NWS Marine Weather</li><li>Same-day trip use</li></ul><a class="fpw-card-link" href="<cfoutput>#landingBasePath#</cfoutput>/app/start-trial.cfm?offer=launch_trial" data-fpw-track="homepage_pricing_cta_click" data-fpw-track-label="Create Free Plan" data-fpw-track-plan="Free" data-fpw-track-section="pricing">Create Free Plan</a></article>
-          <article class="fpw-price-card"><h3>Premium Monthly</h3><div class="fpw-price">$9.99 <span>/ month</span></div><p class="fpw-price-note">Cancel anytime</p><p>For boaters who want route planning, Active Cruise, check-ins, and shared trip updates.</p><ul><li>Custom Route Generator</li><li>Active Cruise</li><li>Shareable Trip page</li><li>Companion check-ins</li><li>GPS check-in support</li><li>NOAA/NWS Marine Weather</li><li>NOAA Nautical Charts</li><li>Premium route tools</li></ul><a class="fpw-card-link" href="<cfoutput>#landingBasePath#</cfoutput>/app/start-trial.cfm?offer=launch_trial" data-fpw-track="homepage_pricing_cta_click" data-fpw-track-label="Start Monthly Premium" data-fpw-track-plan="Premium Monthly" data-fpw-track-section="pricing">Start Monthly Premium</a></article>
-          <article class="fpw-price-card popular"><div class="fpw-price-ribbon">BEST VALUE</div><h3>Premium Annual</h3><div class="fpw-price">$89 <span>/ year</span></div><p class="fpw-price-note">Save about 25% vs monthly</p><p>For regular boaters who want FPW available all season.</p><ul><li>Custom Route Generator</li><li>Active Cruise</li><li>Shareable Trip page</li><li>Companion check-ins</li><li>GPS check-in support</li><li>NOAA/NWS Marine Weather</li><li>NOAA Nautical Charts</li><li>Premium route tools</li></ul><a class="fpw-card-link" href="<cfoutput>#landingBasePath#</cfoutput>/app/start-trial.cfm?offer=launch_trial" data-fpw-track="homepage_pricing_cta_click" data-fpw-track-label="Start Annual Premium" data-fpw-track-plan="Premium Annual" data-fpw-track-section="pricing">Start Annual Premium</a></article>
-          <article class="fpw-price-card"><h3>3-Day Pass</h3><div class="fpw-price">$4.99</div><p class="fpw-price-note">No subscription</p><p>For a short trip, weekend cruise, or one-time planned outing.</p><ul><li>Custom Route Generator</li><li>Active Cruise</li><li>Shareable Trip page</li><li>Companion check-ins</li><li>GPS check-in support</li><li>NOAA/NWS Marine Weather</li><li>NOAA Nautical Charts</li><li>Premium route tools</li><li>Valid for 3 consecutive days</li></ul><a class="fpw-card-link" href="<cfoutput>#landingBasePath#</cfoutput>/app/start-trial.cfm?offer=launch_trial" data-fpw-track="homepage_pricing_cta_click" data-fpw-track-label="Get 3-Day Pass" data-fpw-track-plan="3-Day Pass" data-fpw-track-section="pricing">Get 3-Day Pass</a></article>
+          <article class="fpw-price-card fpw-price-card-free"><h3>Free</h3><div class="fpw-price">$0</div><p>For simple day trips and printable float plans.</p><ul><li>Basic float plan</li><li>Basic monitoring</li><li>NOAA/NWS Marine Weather</li><li>Same-day trip use</li></ul><a class="fpw-card-link" href="<cfoutput>#landingBasePath#</cfoutput>/app/start-trial.cfm?offer=launch_trial" data-fpw-track="homepage_pricing_cta_click" data-fpw-track-label="Create Free Plan" data-fpw-track-plan="Free" data-fpw-track-section="pricing">Create Free Plan</a></article>
+          <article class="fpw-price-card"><h3>Premium Monthly</h3><div class="fpw-price">$9.99 <span>/ month</span></div><p class="fpw-price-note">Cancel anytime</p><p>For boaters who want route planning, Active Cruise, check-ins, and shared trip updates.</p><ul><li>Custom Route Generator</li><li>Active Cruise</li><li>Shareable Trip page</li><li>Mobile check-ins</li><li>GPS check-in support</li> <li>Premium monitoring</li><li>NOAA/NWS Marine Weather</li><li>NOAA Nautical Charts</li><li>Premium route tools</li></ul><a class="fpw-card-link" href="<cfoutput>#landingBasePath#</cfoutput>/app/start-trial.cfm?offer=launch_trial" data-fpw-track="homepage_pricing_cta_click" data-fpw-track-label="Start Monthly Premium" data-fpw-track-plan="Premium Monthly" data-fpw-track-section="pricing">Start Monthly Premium</a></article>
+          <article class="fpw-price-card popular"><div class="fpw-price-ribbon">BEST VALUE</div><h3>Premium Annual</h3><div class="fpw-price">$89 <span>/ year</span></div><p class="fpw-price-note">Save about 25% vs monthly</p><p>For regular boaters who want FPW available all season.</p><ul><li>Custom Route Generator</li><li>Active Cruise</li><li>Shareable Trip page</li><li>Mobile check-ins</li><li>GPS check-in support</li><li>Premium Monitoring</li><li>NOAA/NWS Marine Weather</li><li>NOAA Nautical Charts</li><li>Premium route tools</li></ul><a class="fpw-card-link" href="<cfoutput>#landingBasePath#</cfoutput>/app/start-trial.cfm?offer=launch_trial" data-fpw-track="homepage_pricing_cta_click" data-fpw-track-label="Start Annual Premium" data-fpw-track-plan="Premium Annual" data-fpw-track-section="pricing">Start Annual Premium</a></article>
+          <article class="fpw-price-card"><h3>3-Day Pass</h3><div class="fpw-price">$4.99</div><p class="fpw-price-note">No subscription</p><p>For a short trip, weekend cruise, or one-time planned outing.</p><ul><li>Custom Route Generator</li><li>Active Cruise</li><li>Shareable Trip page</li><li>Mobile check-ins</li><li>GPS check-in support</li><li>Premium Monitoring</li><li>NOAA/NWS Marine Weather</li><li>NOAA Nautical Charts</li><li>Premium route tools</li><li>Valid for 3 consecutive days</li></ul><a class="fpw-card-link" href="<cfoutput>#landingBasePath#</cfoutput>/app/start-trial.cfm?offer=launch_trial" data-fpw-track="homepage_pricing_cta_click" data-fpw-track-label="Get 3-Day Pass" data-fpw-track-plan="3-Day Pass" data-fpw-track-section="pricing">Get 3-Day Pass</a></article>
         </div>
       </div>
     </section>
@@ -221,7 +220,7 @@
     <section class="fpw-faq" aria-labelledby="fpwFaqTitle">
       <div class="fpw-container">
         <h2 class="fpw-section-title" id="fpwFaqTitle">Questions boaters ask before using FPW.</h2>
-        <p class="fpw-section-intro fpw-faq-intro">FPW is built to help you create and share a better boating plan. It does not replace emergency services, but it can give your shore contact clearer information if something changes.</p>
+        <p class="fpw-section-intro fpw-faq-intro">FPW is built to help you create and share a better float plan. It does not replace emergency services, but it can give your shore contact clearer information if something changes.</p>
         <div class="fpw-faq-grid">
           <div class="fpw-faq-item"><button class="fpw-faq-question" type="button" aria-expanded="false" aria-controls="fpwFaqShoreContacts" data-fpw-track-label="Do shore contacts need an account?">Do shore contacts need an account?<svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-chevron"></use></svg></button><div class="fpw-faq-answer" id="fpwFaqShoreContacts">No. A shore contact can view the shared trip information you choose to send without creating an FPW account.</div></div>
           <div class="fpw-faq-item"><button class="fpw-faq-question" type="button" aria-expanded="false" aria-controls="fpwFaqEmergency" data-fpw-track-label="Is FPW an emergency response service?">Is FPW an emergency response service?<svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-chevron"></use></svg></button><div class="fpw-faq-answer" id="fpwFaqEmergency">No. FPW helps you organize and share your boating plan. In an emergency, contact the Coast Guard, 911, local authorities, or emergency services directly.</div></div>

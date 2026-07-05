@@ -560,12 +560,14 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
         display: grid;
       }
     }
+
+    /* Footer variant is selected in includes/footer.cfm. */
   </style>
 <cfinclude template="includes/analytics_ga4.cfm">
 <cfinclude template="includes/analytics_clarity.cfm">
 <cfinclude template="includes/trustedsite.cfm">
 </head>
-<body id="top">
+<body id="top" class="fpw-home-page">
 
 <cfinclude template="includes/prelaunch_top_nav.cfm">
 
@@ -591,6 +593,8 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
 </cfif>
 
 <cfinclude template="partials/fpw-conversion-landing.cfm">
+
+<cfinclude template="includes/footer.cfm">
 
   <script>
     (function () {

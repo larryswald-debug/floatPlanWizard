@@ -91,7 +91,7 @@
     <div class="pricing-hero-bg" aria-hidden="true"></div>
     <div class="pricing-container pricing-hero-content">
       <h1>Membership Plans</h1>
-      <p class="pricing-subtitle">Free for simple same-day trips. Premium for route-based planning, Active Cruise, Follow pages, and companion check-ins.</p>
+      <p class="pricing-subtitle">Free for simple same-day trips. Premium for route-based planning, Active Cruise, Trip status pages, and mobile check-ins.</p>
       <p class="pricing-subnote">All paid plans include the same Premium features. Choose Monthly, Annual, or a 3-Day Pass based on how you boat.</p>
     </div>
   </section>
@@ -123,7 +123,7 @@
         <li><span class="pricing-check"></span>Custom Route Generator</li>
         <li><span class="pricing-check"></span>Active Cruise</li>
         <li><span class="pricing-check"></span>Private Trip</li>
-        <li><span class="pricing-check"></span>Companion check-ins</li>
+        <li><span class="pricing-check"></span>Mobile check-ins</li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
         <li><span class="pricing-check"></span>NOOA NWS Marine Weather</li>
         <li><span class="pricing-check"></span>Premium route tools</li>
@@ -142,7 +142,7 @@
         <li><span class="pricing-check"></span>Custom Route Generator</li>
         <li><span class="pricing-check"></span>Active Cruise</li>
         <li><span class="pricing-check"></span>Private Trip</li>
-        <li><span class="pricing-check"></span>Companion check-ins</li>
+        <li><span class="pricing-check"></span>Mobile check-ins</li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
         <li><span class="pricing-check"></span>NOOA NWS Marine Weather</li>
         <li><span class="pricing-check"></span>Premium route tools</li>
@@ -160,7 +160,7 @@
         <li><span class="pricing-check"></span>Custom Route Generator</li>
         <li><span class="pricing-check"></span>Active Cruise</li>
         <li><span class="pricing-check"></span>Private Trip</li>
-        <li><span class="pricing-check"></span>Companion check-ins</li>
+        <li><span class="pricing-check"></span>Mobile check-ins</li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
         <li><span class="pricing-check"></span>NOOA NWS Marine Weather</li>
         <li><span class="pricing-check"></span>Premium route tools</li>
@@ -179,7 +179,7 @@
     <div class="premium-strip-title">All Premium plans include</div>
     <div class="premium-strip-item"><svg><use href="#fpw-icon-route"></use></svg><span>Route-based<br>float plans</span></div>
     <div class="premium-strip-item"><svg><use href="#fpw-icon-waves"></use></svg><span>Active<br>Cruise</span></div>
-    <div class="premium-strip-item"><svg><use href="#fpw-icon-follow"></use></svg><span>Public<br>Follow page</span></div>
+    <div class="premium-strip-item"><svg><use href="#fpw-icon-follow"></use></svg><span>Public<br>Trip status page</span></div>
     <div class="premium-strip-item"><svg><use href="#fpw-icon-phone"></use></svg><span>Companion<br>check-ins</span></div>
     <div class="premium-strip-item"><svg><use href="#fpw-icon-pin"></use></svg><span>GPS check-in<br>support</span></div>
     <div class="premium-strip-item"><svg><use href="#fpw-icon-tools"></use></svg><span>Premium<br>route tools</span></div>
@@ -217,7 +217,7 @@
           <tr><td>Custom Route Generator</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>Active Cruise</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>Private Trip</td><td class="no">×</td><td class="yes">✓</td></tr>
-          <tr><td>Companion check-ins</td><td class="no">×</td><td class="yes">✓</td></tr>
+          <tr><td>Mobile check-ins</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>GPS check-in coordinates</td><td class="limited">Limited</td><td class="yes">✓</td></tr>
           <tr><td>PDF float plan</td><td class="yes">✓</td><td class="yes">✓</td></tr>
           <tr><td>Saved route tools</td><td class="no">×</td><td class="yes">✓</td></tr>

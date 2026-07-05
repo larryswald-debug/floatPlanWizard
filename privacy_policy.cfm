@@ -1,3 +1,4 @@
+<cfsetting showdebugoutput="false" requesttimeout="30">
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,8 +14,8 @@
    ========================================================= */
 
 .fpw-legal-page {
-  background: #06131d;
-  color: #1f2933;
+  background: linear-gradient(180deg, #f7fbff 0%, #eef7fb 48%, #f7fbff 100%);
+  color: #102a43;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   line-height: 1.65;
   margin: 0;
@@ -22,11 +23,11 @@
 
 .fpw-legal-hero {
   background:
-    radial-gradient(circle at top right, rgba(71, 190, 168, 0.24), transparent 30rem),
-    linear-gradient(135deg, #102033 0%, #17324d 55%, #0f3d42 100%);
-  color: #ffffff;
-  padding: 3.75rem 1rem 3rem;
-  border-bottom: 4px solid #47bea8;
+    radial-gradient(circle at top right, rgba(43, 165, 154, 0.16), transparent 30rem),
+    linear-gradient(135deg, #ffffff 0%, #f8fcff 62%, #eef7fb 100%);
+  color: #102a43;
+  padding: 3.5rem 1rem 2.8rem;
+  border-bottom: 1px solid #cfe0ea;
 }
 
 .fpw-legal-container {
@@ -37,11 +38,11 @@
 }
 
 .fpw-legal-main .fpw-legal-container {
-  width: min(var(--fpw-narrow-max, 860px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
+  width: min(var(--fpw-page-max, 1200px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
 }
 
 .fpw-legal-kicker {
-  color: #82ead7;
+  color: #2ba59a;
   text-transform: uppercase;
   letter-spacing: 0.13em;
   font-size: 0.78rem;
@@ -50,7 +51,7 @@
 }
 
 .fpw-legal-hero h1 {
-  color: #ffffff;
+  color: #0d1b2a;
   font-size: clamp(2rem, 4vw, 3.2rem);
   line-height: 1.1;
   margin: 0 0 1rem;
@@ -58,8 +59,8 @@
 }
 
 .fpw-legal-hero p {
-  max-width: 780px;
-  color: rgba(255, 255, 255, 0.86);
+  max-width: 820px;
+  color: #41576a;
   font-size: 1.075rem;
   margin: 0;
 }
@@ -75,12 +76,13 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  background: rgba(255, 255, 255, 0.11);
-  border: 1px solid rgba(130, 234, 215, 0.32);
-  color: #ffffff;
+  background: #ffffff;
+  border: 1px solid #cfe0ea;
+  color: #102a43;
   padding: 0.48rem 0.78rem;
   border-radius: 999px;
   font-size: 0.9rem;
+  box-shadow: 0 10px 24px rgba(13, 27, 42, 0.06);
 }
 
 .fpw-legal-main {
@@ -88,10 +90,10 @@
 }
 
 .fpw-legal-card {
-  background: #ffffff;
-  border: 1px solid #d8e7e4;
-  border-radius: 1.15rem;
-  box-shadow: 0 18px 48px rgba(16, 32, 51, 0.1);
+  background: rgba(255, 254, 250, 0.96);
+  border: 1px solid #cfe0ea;
+  border-radius: 22px;
+  box-shadow: 0 18px 40px rgba(13, 27, 42, 0.12);
   padding: clamp(1.25rem, 3vw, 2.35rem);
 }
 
@@ -224,7 +226,7 @@
     ("Float Plan Wizard," "Company," "we," "us," or "our"), collects, uses, stores, shares, and protects
     information when you use Float Plan Wizard, including our website, mobile application, companion
     application, account features, route tools, float plan tools, check-in features, monitoring features,
-    downloadable documents, public Follow pages, subscriptions, passes, trials, promotions, and related
+    downloadable documents, public Trip status pages, subscriptions, passes, trials, promotions, and related
     services.
   </p>
 
@@ -343,7 +345,7 @@
 
   <ul>
     <li>create, manage, secure, and support user accounts;</li>
-    <li>provide route-planning, float-plan, check-in, monitoring, companion app, and Follow page features;</li>
+    <li>provide route-planning, float-plan, check-in, monitoring, companion app, and Trip status page features;</li>
     <li>generate, store, display, send, and download float plans and related trip documents;</li>
     <li>send trip-related notifications, check-in notices, monitoring notices, account notices, and service emails;</li>
     <li>share float plan or trip information with designated contacts, passengers, operators, or other recipients chosen by the user;</li>
@@ -377,9 +379,9 @@
 
   <h3>Public Follow Pages and Shared Links</h3>
   <p>
-    Some features may allow trip information to be displayed through a public or shared Follow page.
+    Some features may allow trip information to be displayed through a public or shared Trip status page.
     Anyone with access to the link may be able to view the information shown on that page. You should
-    not share a Follow page link with anyone you do not want to see the displayed trip information.
+    not share a Trip status page link with anyone you do not want to see the displayed trip information.
   </p>
 
   <h3>Service Providers</h3>
@@ -652,3 +654,12 @@
 <cfinclude template="includes/footer_scripts.cfm">
 </body>
 </html>
+
+
+
+
+
+
+
+
+

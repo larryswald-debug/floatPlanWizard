@@ -1,3 +1,4 @@
+<cfsetting showdebugoutput="false" requesttimeout="30">
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,8 +14,8 @@
    ========================================================= */
 
 .fpw-legal-page {
-  background: #06131d;
-  color: #1f2933;
+  background: linear-gradient(180deg, #f7fbff 0%, #eef7fb 48%, #f7fbff 100%);
+  color: #102a43;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   line-height: 1.65;
   margin: 0;
@@ -23,11 +24,11 @@
 /* Page header */
 .fpw-legal-hero {
   background:
-    radial-gradient(circle at top right, rgba(71, 190, 168, 0.24), transparent 30rem),
-    linear-gradient(135deg, #102033 0%, #17324d 55%, #0f3d42 100%);
-  color: #ffffff;
-  padding: 3.75rem 1rem 3rem;
-  border-bottom: 4px solid #47bea8;
+    radial-gradient(circle at top right, rgba(43, 165, 154, 0.16), transparent 30rem),
+    linear-gradient(135deg, #ffffff 0%, #f8fcff 62%, #eef7fb 100%);
+  color: #102a43;
+  padding: 3.5rem 1rem 2.8rem;
+  border-bottom: 1px solid #cfe0ea;
 }
 
 .fpw-legal-container {
@@ -38,11 +39,11 @@
 }
 
 .fpw-legal-main .fpw-legal-container {
-  width: min(var(--fpw-narrow-max, 860px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
+  width: min(var(--fpw-page-max, 1200px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
 }
 
 .fpw-legal-kicker {
-  color: #82ead7;
+  color: #2ba59a;
   text-transform: uppercase;
   letter-spacing: 0.13em;
   font-size: 0.78rem;
@@ -51,7 +52,7 @@
 }
 
 .fpw-legal-hero h1 {
-  color: #ffffff;
+  color: #0d1b2a;
   font-size: clamp(2rem, 4vw, 3.2rem);
   line-height: 1.1;
   margin: 0 0 1rem;
@@ -59,8 +60,8 @@
 }
 
 .fpw-legal-hero p {
-  max-width: 780px;
-  color: rgba(255, 255, 255, 0.86);
+  max-width: 820px;
+  color: #41576a;
   font-size: 1.075rem;
   margin: 0;
 }
@@ -76,12 +77,13 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  background: rgba(255, 255, 255, 0.11);
-  border: 1px solid rgba(130, 234, 215, 0.32);
-  color: #ffffff;
+  background: #ffffff;
+  border: 1px solid #cfe0ea;
+  color: #102a43;
   padding: 0.48rem 0.78rem;
   border-radius: 999px;
   font-size: 0.9rem;
+  box-shadow: 0 10px 24px rgba(13, 27, 42, 0.06);
 }
 
 /* Main layout */
@@ -90,10 +92,10 @@
 }
 
 .fpw-legal-card {
-  background: #ffffff;
-  border: 1px solid #d8e7e4;
-  border-radius: 1.15rem;
-  box-shadow: 0 18px 48px rgba(16, 32, 51, 0.1);
+  background: rgba(255, 254, 250, 0.96);
+  border: 1px solid #cfe0ea;
+  border-radius: 22px;
+  box-shadow: 0 18px 40px rgba(13, 27, 42, 0.12);
   padding: clamp(1.25rem, 3vw, 2.35rem);
 }
 
@@ -353,7 +355,7 @@
       <p>
         By accessing or using the Website, creating an account, purchasing a subscription or pass,
         accepting a trial or promotional offer, using the mobile application, using the companion
-        application, submitting a float plan, sending a check-in, sharing a Follow page, or otherwise
+        application, submitting a float plan, sending a check-in, sharing a Trip status page, or otherwise
         using the Service, you agree to these Terms.
       </p>
       <p>
@@ -368,7 +370,7 @@
           <strong>"Service"</strong> means Float Plan Wizard and all related websites, applications,
           companion applications, account tools, route-planning tools, float plan tools, check-in
           features, monitoring features, weather tools, fuel-planning tools, downloadable float plan
-          documents, public Follow pages, notifications, subscriptions, passes, trials, promotions,
+          documents, public Trip status pages, notifications, subscriptions, passes, trials, promotions,
           and other digital services provided by the Company.
         </p>
         <p>
@@ -554,7 +556,7 @@
         This includes using submitted information to create and store float plans, generate
         downloadable float plan documents, display route and trip information, process check-ins,
         provide account features, provide companion app features, send notifications, operate
-        public Follow pages, provide support, prevent abuse, maintain security, and comply with
+        public Trip status pages, provide support, prevent abuse, maintain security, and comply with
         applicable legal obligations.
       </p>
       <p>
@@ -593,7 +595,7 @@
       <p>
         The Company may offer a free tier or free membership level with limited access to certain
         features. Free access may include restrictions on saved routes, float plans, waypoints, trip
-        duration, monitoring features, Follow pages, Active Cruise features, companion app features,
+        duration, monitoring features, Trip status pages, Active Cruise features, companion app features,
         or other functionality. The Company may modify, limit, suspend, or discontinue free features
         at any time, subject to applicable law.
       </p>
@@ -1018,3 +1020,12 @@
 <cfinclude template="includes/footer_scripts.cfm">
 </body>
 </html>
+
+
+
+
+
+
+
+
+

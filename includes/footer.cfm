@@ -37,6 +37,38 @@ if (footerBasePath EQ "/") {
 if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
   footerBasePath = "/" & footerBasePath;
 }
+
+footerCurrentScriptName = "";
+footerCurrentPagePath = "";
+footerModernVariantClass = "";
+footerModernPagePaths = "/index.cfm,/app/pricing.cfm,/why-use-a-float-plan.cfm,/terms_of_service.cfm,/privacy_policy.cfm";
+
+if (structKeyExists(cgi, "script_name")) {
+  footerCurrentScriptName = "/" & reReplace(
+    replace(trim(toString(cgi.script_name)), "\\", "/", "all"),
+    "^/+",
+    ""
+  );
+  footerCurrentScriptName = lCase(footerCurrentScriptName);
+  footerCurrentPagePath = footerCurrentScriptName;
+
+  if (len(footerBasePath)) {
+    footerNormalizedBasePath = "/" & lCase(reReplace(footerBasePath, "^/+", ""));
+
+    if (left(footerCurrentPagePath, len(footerNormalizedBasePath & "/")) EQ footerNormalizedBasePath & "/") {
+      footerCurrentPagePath = mid(footerCurrentPagePath, len(footerNormalizedBasePath) + 1, len(footerCurrentPagePath));
+    }
+  }
+}
+
+for (footerModernPagePath in listToArray(footerModernPagePaths)) {
+  footerModernPagePath = "/" & lCase(reReplace(footerModernPagePath, "^/+", ""));
+
+  if (len(footerCurrentPagePath) AND footerCurrentPagePath EQ footerModernPagePath) {
+    footerModernVariantClass = " fpw-site-footer--modern";
+    break;
+  }
+}
 </cfscript>
 
 <style>
@@ -51,10 +83,33 @@ if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
     max-width: 100vw;
     margin-left: calc(50% - 50vw);
     margin-right: calc(50% - 50vw);
-    background: #06131d;
+    background: #061726;
     padding: 10px 0 34px;
     color: #dbe8f3;
     font-family: inherit;
+  }
+
+  .fpw-site-footer.fpw-site-footer--modern {
+    background:
+      radial-gradient(circle at 86% 50%, rgba(44, 122, 204, .28), transparent 34%),
+      linear-gradient(90deg, #031026, #08224a);
+    border-top: 1px solid rgba(68, 226, 235, 0.28);
+    padding: 44px 0 34px;
+  }
+
+  .fpw-site-footer--modern .fpw-footer-shell {
+    width: min(var(--fpw-footer-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  .fpw-site-footer--modern .fpw-footer-alert {
+    border-color: rgba(255, 184, 77, 0.24);
+    border-radius: 12px;
+    background: rgba(255, 184, 77, 0.055);
   }
 
   .fpw-footer-shell {
@@ -71,7 +126,7 @@ if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
 
   .fpw-footer-grid {
     display: grid;
-    grid-template-columns: minmax(280px, 1.7fr) repeat(3, minmax(150px, 1fr));
+    grid-template-columns: minmax(280px, 1.35fr) minmax(340px, 1.2fr) repeat(2, minmax(150px, 0.9fr));
     gap: 28px;
     align-items: start;
   }
@@ -133,6 +188,26 @@ if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
     transition: color 0.18s ease, transform 0.18s ease;
   }
 
+  .fpw-footer-plan-links {
+    display: grid;
+    grid-template-rows: repeat(4, max-content);
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    column-gap: 32px;
+    row-gap: 0;
+    align-items: start;
+  }
+
+  .fpw-footer-account-links {
+    display: grid;
+    grid-template-rows: repeat(4, max-content);
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    column-gap: 32px;
+    row-gap: 0;
+    align-items: start;
+  }
+
   .fpw-footer-col a:hover,
   .fpw-footer-col a:focus {
     color: #67d8ff;
@@ -180,6 +255,15 @@ if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
     }
   }
 
+  @media (max-width: 680px) {
+    .fpw-footer-plan-links,
+    .fpw-footer-account-links {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-columns: auto;
+      column-gap: 18px;
+    }
+  }
+
   @media (max-width: 560px) {
     .fpw-site-footer {
       padding: 10px 0 26px;
@@ -202,7 +286,7 @@ if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
 </style>
 
 <cfoutput>
-<footer class="fpw-site-footer">
+<footer class="fpw-site-footer#footerModernVariantClass#">
   <div class="fpw-footer-shell">
     <div class="fpw-footer-grid">
       <section class="fpw-footer-brand">
@@ -219,24 +303,29 @@ if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
         </p>
       </section>
 
-      <nav class="fpw-footer-col" aria-label="FloatPlanWizard planning tools">
+      <nav class="fpw-footer-col fpw-footer-plan" aria-label="FloatPlanWizard planning tools">
         <h3>Plan</h3>
-        <a href="#footerBasePath#/app/dashboard.cfm">Dashboard</a>
-        <a href="#footerBasePath#/app/help.cfm">Help Center</a>
-        <a href="#footerBasePath#/great-loop/locks/">Great Loop Locks</a>
-        <a href="#footerBasePath#/great-loop/bridges/">Great Loop Bridges</a>
-        <a href="#footerBasePath#/app/weather.cfm">Marine Weather</a>
-        <a href="#footerBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm">Fuel Calculator</a>
-        <a href="#footerBasePath#/app/pricing.cfm">Memberships</a>
+        <div class="fpw-footer-plan-links">
+          <a href="#footerBasePath#/app/dashboard.cfm">Dashboard</a>
+          <a href="#footerBasePath#/app/help.cfm">Help Center</a>
+          <a href="#footerBasePath#/great-loop/locks/">Great Loop Locks</a>
+          <a href="#footerBasePath#/great-loop/bridges/">Great Loop Bridges</a>
+          <a href="#footerBasePath#/great-loop/anchorages/">Great Loop Anchorages</a>
+          <a href="#footerBasePath#/app/weather.cfm">Marine Weather</a>
+          <a href="#footerBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm">Fuel Calculator</a>
+          <a href="#footerBasePath#/app/pricing.cfm">Memberships</a>
+        </div>
       </nav>
 
-      <nav class="fpw-footer-col" aria-label="Account and support">
+      <nav class="fpw-footer-col fpw-footer-account" aria-label="Account and support">
         <h3>Account</h3>
-        <a href="#footerBasePath#/app/account.cfm">My Account</a>
-        <a href="#footerBasePath#/app/login.cfm">Log In</a>
-        <a href="#footerBasePath#/app/join.cfm">Join Free</a>
-        <a href="#footerBasePath#/faq/">FAQ</a>
-        <a href="#footerBasePath#/app/contact.cfm">Contact Support</a>
+        <div class="fpw-footer-account-links">
+          <a href="#footerBasePath#/app/account.cfm">My Account</a>
+          <a href="#footerBasePath#/app/login.cfm">Log In</a>
+          <a href="#footerBasePath#/app/join.cfm">Join Free</a>
+          <a href="#footerBasePath#/faq/">FAQ</a>
+          <a href="#footerBasePath#/app/contact.cfm">Contact Support</a>
+        </div>
       </nav>
 
       <nav class="fpw-footer-col" aria-label="Legal and safety">
@@ -261,3 +350,21 @@ if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
 </footer>
 
 </cfoutput>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

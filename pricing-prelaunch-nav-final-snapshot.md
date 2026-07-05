@@ -30,7 +30,7 @@
   - main [ref=e57] [box=0,147,1687,1638]:
     - generic [ref=e60] [box=184,201,1320,204]:
       - heading "Membership Plans" [level=1] [ref=e61] [box=184,201,1320,68]
-      - paragraph [ref=e62] [box=464,287,760,57]: Free for simple same-day trips. Premium for route-based planning, Active Cruise, Follow pages, and companion check-ins.
+      - paragraph [ref=e62] [box=464,287,760,57]: Free for simple same-day trips. Premium for route-based planning, Active Cruise, Trip status pages, and mobile check-ins.
       - paragraph [ref=e63] [box=444,358,800,47]: All paid plans include the same Premium features. Choose Monthly, Annual, or a 3-Day Pass based on how you boat.
     - region "Membership plans" [ref=e64] [box=184,428,1320,621]:
       - article [ref=e65] [box=184,428,317,621]:

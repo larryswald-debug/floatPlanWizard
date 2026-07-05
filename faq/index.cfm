@@ -225,9 +225,9 @@ fpwFaqSections = [
     },
     {
       "id": "how-does-route-builder-connect-to-the-secure-follow-page",
-      "question": "How does Route Builder connect to the secure Follow page?",
+      "question": "How does Route Builder connect to the secure Trip status page?",
       "answer": [
-        "Route Builder helps organize the trip details. The secure Follow page helps you share selected trip information with family and friends.",
+        "Route Builder helps organize the trip details. The secure Trip status page helps you share selected trip information with family and friends.",
         "That connection is important: you build the plan in FloatPlanWizard, then share a secure Follow link so trusted people can view the current trip information without needing their own account."
       ],
       "links": [
@@ -356,9 +356,9 @@ fpwFaqSections = [
     "items": [
     {
       "id": "what-is-the-follow-page",
-      "question": "What is the Follow page?",
+      "question": "What is the Trip status page?",
       "answer": [
-        "The Follow page is a shared trip page for family and friends. It lets the people you choose view the float plan information you share with them through a secure Follow link.",
+        "The Trip status page is a shared trip page for family and friends. It lets the people you choose view the float plan information you share with them through a secure Follow link.",
         "It gives your trusted contacts one place to check trip details and updates instead of relying on scattered texts, calls, or screenshots."
       ],
       "links": [
@@ -380,7 +380,7 @@ fpwFaqSections = [
     },
     {
       "id": "who-can-see-my-follow-page",
-      "question": "Who can see my Follow page?",
+      "question": "Who can see my Trip status page?",
       "answer": [
         "Only people who have the secure Follow link can view the shared page. You control who receives that link.",
         "Do not post private Follow links publicly unless you are comfortable with the trip information being seen by others."
@@ -404,7 +404,7 @@ fpwFaqSections = [
       "id": "can-my-family-and-friends-track-my-boat-automatically",
       "question": "Can my family and friends track my boat automatically?",
       "answer": [
-        "FloatPlanWizard is not a live GPS tracking replacement unless a specific tracking feature is clearly enabled. The Follow page is primarily a shared trip-information page where family and friends can view the plan and updates you provide.",
+        "FloatPlanWizard is not a live GPS tracking replacement unless a specific tracking feature is clearly enabled. The Trip status page is primarily a shared trip-information page where family and friends can view the plan and updates you provide.",
         "Use proper marine navigation, communication, and safety equipment while underway."
       ],
       "links": [],
@@ -835,7 +835,7 @@ fpwFaqSections = [
     },
     {
       "id": "can-someone-access-my-follow-page-if-i-send-them-the-link",
-      "question": "Can someone access my Follow page if I send them the link?",
+      "question": "Can someone access my Trip status page if I send them the link?",
       "answer": [
         "Yes. A secure Follow link is meant to give access to the people you share it with. Treat it like a private trip link and send it only to trusted family and friends."
       ],
@@ -921,7 +921,7 @@ fpwFaqSections = [
       "id": "i-changed-my-plan-will-my-contacts-see-the-update",
       "question": "I changed my plan. Will my contacts see the update?",
       "answer": [
-        "Contacts viewing the Follow page should see the latest shared information available for that trip. If the change is important, also send your contacts a quick message so they know to check the updated plan."
+        "Contacts viewing the Trip status page should see the latest shared information available for that trip. If the change is important, also send your contacts a quick message so they know to check the updated plan."
       ],
       "links": [],
       "priority": "Medium"
@@ -1504,7 +1504,7 @@ fpwFaqJsonLdText = replace(serializeJSON(fpwFaqSchema), "</", "<\/", "all");
 
   <section class="fpw-faq-bottom-cta" aria-labelledby="fpwFaqBottomCtaTitle">
     <div>
-      <h2 id="fpwFaqBottomCtaTitle">Ready to build a better boating plan?</h2>
+      <h2 id="fpwFaqBottomCtaTitle">Ready to build a better float plan?</h2>
       <p>Use FloatPlanWizard to create a float plan, organize your route, share a secure Follow link with family and friends, and keep important trip details easier to update.</p>
     </div>
     <div class="fpw-faq-bottom-cta__actions">

@@ -26,9 +26,12 @@
 
   <cfinclude template="../includes/fpw_base_path.cfm">
   <cfinclude template="../includes/header_styles.cfm">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/pricing.css?v=20260629-light-public-charts">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/pricing.css?v=20260703-pricing-hero-pad">
+  <style>
+    /* Footer variant is selected in ../includes/footer.cfm. */
+  </style>
 </head>
-<body>
+<body class="fpw-pricing-page-body">
 
 <cfinclude template="../includes/prelaunch_top_nav.cfm">
 
@@ -114,7 +117,7 @@
     <div class="pricing-hero-bg" aria-hidden="true"></div>
     <div class="pricing-container pricing-hero-content">
       <h1>Membership Plans</h1>
-      <p class="pricing-subtitle">Free for simple same-day trips. Premium for route-based planning, Active Cruise, Follow pages, and companion check-ins.</p>
+      <p class="pricing-subtitle">Free for simple same-day trips. Premium for route-based planning, Active Cruise, Trip status pages, and mobile check-ins.</p>
     </div>
   </section>
 
@@ -127,7 +130,6 @@
       <p class="pricing-desc">For simple local same-day boating trips.</p>
       <ul class="pricing-feature-list">
         <li><span class="pricing-check"></span>Basic float plan</li>
-        <li><span class="pricing-check"></span>Up to 2 waypoints</li>
         <li><span class="pricing-check"></span>Basic monitoring</li>
         <li><span class="pricing-check"></span>NOOA/NWS Marine Weather</li>
         <li><span class="pricing-check"></span>Same-day trip use</li>
@@ -145,8 +147,9 @@
         <li><span class="pricing-check"></span>Custom Route Generator</li>
         <li><span class="pricing-check"></span>Active Cruise</li>
         <li><span class="pricing-check"></span>Shareable Trip page</li>
-        <li><span class="pricing-check"></span>Companion check-ins</li>
+        <li><span class="pricing-check"></span>Mobile check-ins</li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
+        <li><span class="pricing-check"></span>Premium monitoring</li>
         <li><span class="pricing-check"></span>NOOA/NWS Marine Weather</li>
         <li><span class="pricing-check"></span>NOAA Nautical Charts</li>
         <li><span class="pricing-check"></span>Premium route tools</li>
@@ -165,8 +168,9 @@
         <li><span class="pricing-check"></span>Custom Route Generator</li>
         <li><span class="pricing-check"></span>Active Cruise</li>
         <li><span class="pricing-check"></span>Shareable Trip page</li>
-        <li><span class="pricing-check"></span>Companion check-ins</li>
+        <li><span class="pricing-check"></span>Mobile check-ins</li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
+         <li><span class="pricing-check"></span>Premium monitoring</li>
         <li><span class="pricing-check"></span>NOOA/NWS Marine Weather</li>
         <li><span class="pricing-check"></span>NOAA Nautical Charts</li>
         <li><span class="pricing-check"></span>Premium route tools</li>
@@ -184,8 +188,9 @@
         <li><span class="pricing-check"></span>Custom Route Generator</li>
         <li><span class="pricing-check"></span>Active Cruise</li>
         <li><span class="pricing-check"></span>Shareable Trip page</li>
-        <li><span class="pricing-check"></span>Companion check-ins</li>
+        <li><span class="pricing-check"></span>Mobile check-ins </li>
         <li><span class="pricing-check"></span>GPS check-in support</li>
+        <li><span class="pricing-check"></span>Premium monitoring</li>
         <li><span class="pricing-check"></span>NOOA/NWS Marine Weather</li>
         <li><span class="pricing-check"></span>NOAA Nautical Charts</li>
         <li><span class="pricing-check"></span>Premium route tools</li>
@@ -204,12 +209,12 @@
     <div class="premium-strip-title">All Premium plans include</div>
     <div class="premium-strip-item"><svg><use href="#fpw-icon-route"></use></svg><span>Route-based<br>float plans</span></div>
     <div class="premium-strip-item"><svg><use href="#fpw-icon-waves"></use></svg><span>Active<br>Cruise</span></div>
-    <div class="premium-strip-item"><svg><use href="#fpw-icon-follow"></use></svg><span>Public<br>Follow page</span></div>
-    <div class="premium-strip-item"><svg><use href="#fpw-icon-phone"></use></svg><span>Companion<br>check-ins</span></div>
-    <div class="premium-strip-item"><svg><use href="#fpw-icon-pin"></use></svg><span>GPS check-in<br>support</span></div>
+    <div class="premium-strip-item"><svg><use href="#fpw-icon-follow"></use></svg><span>Trip status page</span></div>
+    <div class="premium-strip-item"><svg><use href="#fpw-icon-phone"></use></svg><span>Mobile<br>check-ins</span></div>
+    <div class="premium-strip-item"><svg><use href="#fpw-icon-pin"></use></svg><span>GPS check-in</span></div>
     <div class="premium-strip-item"><svg><use href="#fpw-icon-chart"></use></svg><span>NOAA<br>Nautical Charts</span></div>
-    <div class="premium-strip-item"><svg><use href="#fpw-icon-tools"></use></svg><span>Premium<br>route tools</span></div>
-    <div class="premium-strip-item"><svg><use href="#fpw-icon-pdf"></use></svg><span>PDF float plan<br>access</span></div>
+    <div class="premium-strip-item"><svg><use href="#fpw-icon-tools"></use></svg><span>Premium<br>route generator</span></div>
+    <div class="premium-strip-item"><svg><use href="#fpw-icon-pdf"></use></svg><span>PDF loat plan</span></div>
   </section>
 
   <section class="pricing-container pricing-lower-grid">
@@ -222,7 +227,7 @@
         <li><svg><use href="#fpw-icon-phone"></use></svg>Companion app check-ins</li>
         <li><svg><use href="#fpw-icon-pin"></use></svg>GPS coordinates on check-ins</li>
         <li><svg><use href="#fpw-icon-route"></use></svg>Route progress and trip status</li>
-        <li><svg><use href="#fpw-icon-waves"></use></svg>Weather-aware trip context</li>
+        <li><svg><use href="#fpw-icon-waves"></use></svg>NWS Weather-aware trip context</li>
         <li><svg><use href="#fpw-icon-chart"></use></svg>NOAA Nautical Charts</li>
         <li><svg><use href="#fpw-icon-pdf"></use></svg>PDF float plan access</li>
       </ul>
@@ -240,13 +245,13 @@
         </thead>
         <tbody>
           <tr><td>Basic float plan</td><td class="yes">✓</td><td class="yes">✓</td></tr>
-          <tr><td>Same-day simple trip</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>Longer multiple day trips</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>Custom Route Generator</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>Active Cruise</td><td class="no">×</td><td class="yes">✓</td></tr>
           <tr><td>Shareable Trip page</td><td class="no">×</td><td class="yes">✓</td></tr>
-          <tr><td>Companion check-ins</td><td class="no">×</td><td class="yes">✓</td></tr>
-          <tr><td>GPS check-in coordinates</td><td class="limited">Limited</td><td class="yes">✓</td></tr>
-          <tr><td>NOAA Nautical Charts</td><td class="no">×</td><td class="yes">✓</td></tr>
+          <tr><td>Mobile check-ins</td><td class="no">×</td><td class="yes">✓</td></tr>
+          <tr><td>GPS check-in coordinates</td><td class="no">×</td><td class="yes">✓</td></tr>
+          <tr><td>NOAA Nautical Charts</td><td class="yes">✓</td><td class="yes">✓</td></tr>
           <tr><td>PDF float plan</td><td class="yes">✓</td><td class="yes">✓</td></tr>
           <tr><td>Saved route tools</td><td class="no">×</td><td class="yes">✓</td></tr>
         </tbody>
@@ -274,6 +279,8 @@
     </article>
   </section>
 </main>
+
+<cfinclude template="../includes/footer.cfm">
 
 <cfinclude template="../includes/footer_scripts.cfm">
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/pricing.js?v=20260526-cache-bump"></script>

@@ -4315,7 +4315,7 @@
                     </div>
                     <label class="captain-note-post-option">
                       <input type="checkbox" id="fpwV2CaptainQuickNotePost"<cfif !captainLogSaveEnabled> disabled</cfif>>
-                      <span>Also post this note to the Follow page voyage stream.</span>
+                      <span>Also post this note to the Trip status page voyage stream.</span>
                     </label>
                     <div class="captain-note-help">Leave unchecked for a private captain log entry only.</div>
                     <div class="captain-note-message" id="fpwV2CaptainQuickNoteMessage" role="status" aria-live="polite"><cfif captainLogSaveEnabled>Ready to save a private captain note.<cfelse>#encodeForHTML(fpwV2Text(captainLogSaveReason, "Captain note writing is not available from the current view model."))#</cfif></div>
@@ -6157,7 +6157,7 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
           }
           setSelectedTag('');
           updateSaveLabel();
-          setMessage(postToFollowStream ? 'Saved and posted to the Follow page.' : 'Private captain note saved.', 'is-success');
+          setMessage(postToFollowStream ? 'Saved and posted to the Trip status page.' : 'Private captain note saved.', 'is-success');
         })
         .catch(function(error) {
           setMessage(error && error.message ? error.message : 'Captain note request failed.', 'is-error');
