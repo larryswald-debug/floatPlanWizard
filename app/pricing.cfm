@@ -154,7 +154,7 @@
         <li><span class="pricing-check"></span>NOAA Nautical Charts</li>
         <li><span class="pricing-check"></span>Premium route tools</li>
       </ul>
-      <a class="pricing-btn pricing-btn-primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/start-trial.cfm?offer=launch_trial">Start Monthly Premium</a>
+      <button class="pricing-btn pricing-btn-primary" type="button" data-pricing-checkout="monthly">Start Monthly Premium</button>
     </article>
 
     <article class="pricing-card pricing-card-featured">
@@ -175,7 +175,7 @@
         <li><span class="pricing-check"></span>NOAA Nautical Charts</li>
         <li><span class="pricing-check"></span>Premium route tools</li>
       </ul>
-      <a class="pricing-btn pricing-btn-primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/start-trial.cfm?offer=launch_trial">Start Annual Premium</a>
+      <button class="pricing-btn pricing-btn-primary" type="button" data-pricing-checkout="yearly">Start Annual Premium</button>
     </article>
 
     <article class="pricing-card">
@@ -196,7 +196,7 @@
         <li><span class="pricing-check"></span>Premium route tools</li>
         <li><span class="pricing-muted-check"></span>Valid for 3 consecutive days</li>
       </ul>
-      <a class="pricing-btn pricing-btn-primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/start-trial.cfm?offer=launch_trial">Get 3-Day Pass</a>
+      <button class="pricing-btn pricing-btn-primary" type="button" data-pricing-checkout="three_day_pass">Get 3-Day Pass</button>
     </article>
   </section>
 
@@ -287,3 +287,6 @@
 
 </body>
 </html>
+
+
+

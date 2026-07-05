@@ -428,16 +428,51 @@
   }
 
   async function startPremiumUpgrade(interval, trigger) {
+    var originalText = trigger ? trigger.textContent : "";
     var intervalValue = String(interval || "").trim().toLowerCase();
     if (intervalValue !== "monthly" && intervalValue !== "yearly") {
       showBillingMessage("Choose monthly or yearly Premium billing.", "error");
       return;
     }
+    if (!window.Api || typeof window.Api.createPremiumCheckoutSession !== "function") {
+      showBillingMessage("Premium checkout is not available right now.", "error");
+      return;
+    }
 
     setBillingActionsBusy(true);
     if (trigger) trigger.textContent = "Opening...";
-    showBillingMessage("Opening Premium free trial...", "info");
-    window.location.href = LAUNCH_TRIAL_PATH;
+    showBillingMessage("Opening secure Stripe Checkout...", "info");
+
+    try {
+      var data = await window.Api.createPremiumCheckoutSession(intervalValue);
+      var checkoutUrl = getCheckoutUrl(data);
+      if (!data || (data.SUCCESS !== true && data.success !== true) || !checkoutUrl) {
+        throw data || { MESSAGE: "Premium checkout is not available right now." };
+      }
+      if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+        window.FPWAnalytics.track("begin_checkout", {
+          checkout_type: intervalValue,
+          source: "account_page"
+        });
+      }
+      window.location.href = checkoutUrl;
+    } catch (err) {
+      if (handleAuthError(err)) {
+        return;
+      }
+      var code = getErrorCode(err).toUpperCase();
+      if (code === "ALREADY_PREMIUM") {
+        showBillingMessage("Your account already has Premium access.", "success");
+        await loadMembershipBilling();
+      } else if (code === "STRIPE_CONFIG_MISSING") {
+        showBillingMessage("Premium checkout is not available right now.", "error");
+      } else {
+        showBillingMessage((err && (err.MESSAGE || err.message)) ? (err.MESSAGE || err.message) : "Premium checkout is not available right now.", "error");
+      }
+    } finally {
+      setBillingActionsBusy(false);
+      if (trigger) trigger.textContent = originalText || (intervalValue === "yearly" ? "Upgrade Yearly" : "Upgrade Monthly");
+    }
   }
 
   async function openBillingPortal(trigger) {
@@ -1053,3 +1088,4 @@
   });
 
 })(window, document);
+
