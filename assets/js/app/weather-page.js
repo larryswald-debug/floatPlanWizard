@@ -2,10 +2,26 @@
   "use strict";
 
   var WEATHER_VERSION = "weather-rewrite-phase4";
+  var WEATHER_SCAN_STEP_LABELS = [
+    "Resolving weather location…",
+    "Checking cached marine conditions…",
+    "Requesting latest forecast…",
+    "Reading coastal forecast and marine conditions…",
+    "Checking advisories…",
+    "Loading wind, wave, and tide context…",
+    "Preparing your boating weather briefing…"
+  ];
+  var WEATHER_SCAN_SLOW_MESSAGE = "Fresh NOAA/NWS marine data can take a few seconds.";
+  var WEATHER_SCAN_EXTENDED_MESSAGE = "Still working. Your briefing will appear automatically when the weather data returns.";
   var state = {
     lastModel: null,
     loadingTimer: 0,
+    loadingStepTimer: 0,
+    loadingSlowTimer: 0,
+    loadingExtendedTimer: 0,
     loadingStartedAt: 0,
+    loadingStepIndex: 0,
+    loadingLastAnnouncedStep: -1,
     abortController: null,
     map: null,
     mapMarker: null,
@@ -163,26 +179,110 @@
     box.removeAttribute("hidden");
   }
 
-  function startLoading(label) {
-    var root = byId("weatherLoading");
-    var step = byId("weatherScanStep");
-    var location = byId("weatherScanLocation");
-    if (root) root.classList.remove("d-none");
-    if (step) step.textContent = "Building weather briefing…";
-    if (location) location.textContent = label || "Checking your selected weather location";
-    state.loadingStartedAt = Date.now();
+  function getWeatherScanConsoleEls() {
+    return {
+      root: byId("weatherLoading"),
+      elapsed: byId("weatherScanElapsed"),
+      step: byId("weatherScanStep"),
+      location: byId("weatherScanLocation"),
+      liveStatus: byId("weatherScanLiveStatus"),
+      slowMessage: byId("weatherScanSlowMessage"),
+      extendedMessage: byId("weatherScanExtendedMessage"),
+      checklistItems: document.querySelectorAll("[data-weather-scan-step]")
+    };
+  }
+
+  function clearLoadingTimers() {
     window.clearInterval(state.loadingTimer);
-    state.loadingTimer = window.setInterval(function () {
-      var elapsed = byId("weatherScanElapsed");
-      if (elapsed) elapsed.textContent = Math.max(0, Math.floor((Date.now() - state.loadingStartedAt) / 1000)) + "s";
-    }, 500);
+    window.clearInterval(state.loadingStepTimer);
+    window.clearTimeout(state.loadingSlowTimer);
+    window.clearTimeout(state.loadingExtendedTimer);
+    state.loadingTimer = 0;
+    state.loadingStepTimer = 0;
+    state.loadingSlowTimer = 0;
+    state.loadingExtendedTimer = 0;
+  }
+
+  function setWeatherScanMessage(el, message, visible) {
+    if (!el) return;
+    if (message) el.textContent = message;
+    el.classList.toggle("d-none", !visible);
+    if (visible) {
+      el.removeAttribute("hidden");
+    } else {
+      el.setAttribute("hidden", "hidden");
+    }
+  }
+
+  function updateLoadingElapsed() {
+    var els = getWeatherScanConsoleEls();
+    if (els.elapsed) {
+      els.elapsed.textContent = Math.max(0, Math.floor((Date.now() - state.loadingStartedAt) / 1000)) + "s";
+    }
+  }
+
+  function setWeatherScanStep(stepIndex, announce) {
+    var els = getWeatherScanConsoleEls();
+    var maxIndex = WEATHER_SCAN_STEP_LABELS.length - 1;
+    var boundedIndex = Math.max(0, Math.min(maxIndex, parseInt(stepIndex, 10) || 0));
+    var label = WEATHER_SCAN_STEP_LABELS[boundedIndex] || WEATHER_SCAN_STEP_LABELS[0];
+
+    state.loadingStepIndex = boundedIndex;
+    if (els.step) els.step.textContent = label;
+    if (els.liveStatus && announce && state.loadingLastAnnouncedStep !== boundedIndex) {
+      els.liveStatus.textContent = label;
+      state.loadingLastAnnouncedStep = boundedIndex;
+    }
+    Array.prototype.forEach.call(els.checklistItems || [], function (item) {
+      var itemIndex = parseInt(item.getAttribute("data-weather-scan-step"), 10);
+      item.classList.toggle("is-done", Number.isFinite(itemIndex) && itemIndex < boundedIndex);
+      item.classList.toggle("is-active", Number.isFinite(itemIndex) && itemIndex === boundedIndex);
+    });
+  }
+
+  function markWeatherScanSlow() {
+    var els = getWeatherScanConsoleEls();
+    if (!state.loadingStartedAt || !els.root || els.root.classList.contains("d-none")) return;
+    setWeatherScanMessage(els.slowMessage, WEATHER_SCAN_SLOW_MESSAGE, true);
+    if (els.liveStatus) els.liveStatus.textContent = WEATHER_SCAN_SLOW_MESSAGE;
+  }
+
+  function markWeatherScanExtendedWait() {
+    var els = getWeatherScanConsoleEls();
+    if (!state.loadingStartedAt || !els.root || els.root.classList.contains("d-none")) return;
+    setWeatherScanMessage(els.extendedMessage, WEATHER_SCAN_EXTENDED_MESSAGE, true);
+    if (els.liveStatus) els.liveStatus.textContent = WEATHER_SCAN_EXTENDED_MESSAGE;
+  }
+
+  function startLoading(label) {
+    var els = getWeatherScanConsoleEls();
+    clearLoadingTimers();
+    state.loadingStartedAt = Date.now();
+    state.loadingStepIndex = 0;
+    state.loadingLastAnnouncedStep = -1;
+    if (els.root) {
+      els.root.classList.remove("d-none");
+      els.root.removeAttribute("hidden");
+      els.root.classList.remove("is-error");
+    }
+    if (els.location) els.location.textContent = label || "Checking your selected weather location";
+    setWeatherScanMessage(els.slowMessage, WEATHER_SCAN_SLOW_MESSAGE, false);
+    setWeatherScanMessage(els.extendedMessage, WEATHER_SCAN_EXTENDED_MESSAGE, false);
+    updateLoadingElapsed();
+    setWeatherScanStep(0, true);
+    state.loadingTimer = window.setInterval(updateLoadingElapsed, 500);
+    state.loadingStepTimer = window.setInterval(function () {
+      setWeatherScanStep(state.loadingStepIndex + 1, true);
+    }, 1800);
+    state.loadingSlowTimer = window.setTimeout(markWeatherScanSlow, 5000);
+    state.loadingExtendedTimer = window.setTimeout(markWeatherScanExtendedWait, 10000);
   }
 
   function stopLoading() {
-    window.clearInterval(state.loadingTimer);
-    state.loadingTimer = 0;
-    var root = byId("weatherLoading");
-    if (root) root.classList.add("d-none");
+    var els = getWeatherScanConsoleEls();
+    clearLoadingTimers();
+    state.loadingStartedAt = 0;
+    if (els.root) els.root.classList.add("d-none");
   }
 
   function collectRequestParams() {
@@ -1432,11 +1532,3 @@
 
   document.addEventListener("DOMContentLoaded", init);
 })(window, document);
-
-
-
-
-
-
-
-

@@ -189,18 +189,12 @@
     function updateChartsZoomVisibility() {
       if (!map || !chartsOverlay) return;
       var zoom = map.getZoom();
-      if (chartsWanted && zoom <= chartsZoomThreshold) {
-        if (map.hasLayer(chartsOverlay)) {
-          map.removeLayer(chartsOverlay);
-        }
-        chartsVisible = false;
-        if (chartsZoomNoteControl) chartsZoomNoteControl.setVisible(true);
-      } else if (chartsWanted && zoom > chartsZoomThreshold) {
+      if (chartsWanted) {
         if (!map.hasLayer(chartsOverlay)) {
           chartsOverlay.addTo(map);
         }
-        chartsVisible = true;
-        if (chartsZoomNoteControl) chartsZoomNoteControl.setVisible(false);
+        chartsVisible = zoom > chartsZoomThreshold;
+        if (chartsZoomNoteControl) chartsZoomNoteControl.setVisible(zoom <= chartsZoomThreshold);
       } else {
         if (map.hasLayer(chartsOverlay)) {
           map.removeLayer(chartsOverlay);
@@ -615,18 +609,12 @@
     function updateChartsZoomVisibility() {
       if (!map || !chartsOverlay) return;
       var zoom = map.getZoom();
-      if (chartsWanted && zoom <= chartsZoomThreshold) {
-        if (map.hasLayer(chartsOverlay)) {
-          map.removeLayer(chartsOverlay);
-        }
-        chartsVisible = false;
-        if (chartsZoomNoteControl) chartsZoomNoteControl.setVisible(true);
-      } else if (chartsWanted && zoom > chartsZoomThreshold) {
+      if (chartsWanted) {
         if (!map.hasLayer(chartsOverlay)) {
           chartsOverlay.addTo(map);
         }
-        chartsVisible = true;
-        if (chartsZoomNoteControl) chartsZoomNoteControl.setVisible(false);
+        chartsVisible = zoom > chartsZoomThreshold;
+        if (chartsZoomNoteControl) chartsZoomNoteControl.setVisible(zoom <= chartsZoomThreshold);
       } else {
         if (map.hasLayer(chartsOverlay)) {
           map.removeLayer(chartsOverlay);
