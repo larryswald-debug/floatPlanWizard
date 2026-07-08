@@ -190,7 +190,7 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
 
   .fpw-footer-plan-links {
     display: grid;
-    grid-template-rows: repeat(4, max-content);
+    grid-template-rows: repeat(5, max-content);
     grid-auto-flow: column;
     grid-auto-columns: max-content;
     column-gap: 32px;
@@ -310,6 +310,7 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
           <a href="#footerBasePath#/app/help.cfm">Help Center</a>
           <a href="#footerBasePath#/great-loop/locks/">Great Loop Locks</a>
           <a href="#footerBasePath#/great-loop/bridges/">Great Loop Bridges</a>
+          <a href="#footerBasePath#/great-loop/ports/">Great Loop Ports</a>
           <a href="#footerBasePath#/great-loop/anchorages/">Great Loop Anchorages</a>
           <a href="#footerBasePath#/app/weather.cfm">Marine Weather</a>
           <a href="#footerBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm">Fuel Calculator</a>
@@ -350,7 +351,6 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
 </footer>
 
 </cfoutput>
-
 
 
 

@@ -6,6 +6,10 @@
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+.fpw-lock-body .fpw-site-header {
+  z-index: 2000;
+}
+
 .fpw-lock-library-page,
 .fpw-lock-library-page * {
   box-sizing: border-box;
@@ -1074,3 +1078,4 @@ body.is-lock-image-modal-open {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+

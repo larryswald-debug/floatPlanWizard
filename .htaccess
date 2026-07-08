@@ -60,6 +60,22 @@ RewriteRule ^great-loop/locks/([^/]+)/$ great-loop/locks/index.cfm?slug=$1 [L,QS
 
 
 # ------------------------------------------------------------
+# Great Loop Ports clean routes
+# ------------------------------------------------------------
+
+RewriteCond %{THE_REQUEST} \s/+fpw/great-loop/ports/index\.cfm[\s?] [NC]
+RewriteRule ^great-loop/ports/index\.cfm$ /fpw/great-loop/ports/ [R=302,L]
+
+RewriteRule ^great-loop/ports$ /fpw/great-loop/ports/ [R=302,L]
+
+RewriteRule ^great-loop/ports/([^/.]+)$ /fpw/great-loop/ports/$1/ [R=302,L]
+
+RewriteRule ^great-loop/ports/$ great-loop/ports/index.cfm [L,QSA]
+
+RewriteRule ^great-loop/ports/([^/]+)/$ great-loop/ports/index.cfm?slug=$1 [L,QSA]
+
+
+# ------------------------------------------------------------
 # Fuel Calculator canonical redirects
 # /boat-fuel-calculator/boat-fuel-calculator.cfm
 #   -> /boat-fuel-calculator/

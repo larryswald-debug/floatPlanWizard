@@ -278,7 +278,7 @@ pageJsonLdText = serializeJSON(schemaRoot);
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/layout.css?v=20260620-page-width">
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20260630-mega-weight-minus1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-anchorages.css?v=20260630-hero-top-padding">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-anchorages.css?v=20260707-noaa-layer-control">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
   <cfinclude template="../includes/trustedsite.cfm">
@@ -392,12 +392,7 @@ pageJsonLdText = serializeJSON(schemaRoot);
           <button type="button" data-anchorage-view-button="list">List</button>
         </div>
       </div>
-      <label class="fpw-anchorage-noaa-toggle">
-        <input type="checkbox" data-noaa-chart-toggle>
-        <span>Show NOAA nautical chart layer</span>
-      </label>
-      <p class="fpw-anchorage-noaa-help">NOAA chart layer is for planning context only and is not a substitute for official navigation.</p>
-
+      <!-- NOAA chart layer control is provided inside the Leaflet map. -->
       <div class="fpw-anchorage-map-view" data-anchorage-view-panel="map">
         <div id="fpwAnchorageMap" class="fpw-anchorage-map" aria-label="Great Loop and Eastern U.S. anchorage map"></div>
         <p class="fpw-anchorage-empty-map" data-anchorage-empty-map<cfif arrayLen(mapRows)> hidden</cfif>>No anchorage map markers match these filters.</p>
@@ -486,6 +481,10 @@ pageJsonLdText = serializeJSON(schemaRoot);
 
 <script id="fpwAnchorageMapData" type="application/json"><cfoutput>#serializeJSON(mapRows)#</cfoutput></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/great-loop-anchorages.js?v=20260622-anchorages"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260619-nautical-charts"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/great-loop-anchorages.js?v=20260707-noaa-layer-control"></script>
 </body>
 </html>
+
+
+

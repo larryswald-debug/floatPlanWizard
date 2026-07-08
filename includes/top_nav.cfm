@@ -303,6 +303,12 @@ topNavShowAppSubnav = topNavIsLoggedIn
                     <span>Bridge clearances, drawbridge schedules, contacts, and restrictions.</span>
                     <em aria-hidden="true">&rarr;</em>
                   </a>
+                  <a class="fpw-library-card" href="#topNavBasePath#/great-loop/ports/" role="menuitem">
+                    #renderFpwNavIcon("compass", "fpw-card-icon")#
+                    <strong>Ports Library</strong>
+                    <span>Great Loop ports, stopping points, maps, filters, and waypoint actions.</span>
+                    <em aria-hidden="true">&rarr;</em>
+                  </a>
                   <a class="fpw-library-card" href="#topNavBasePath#/great-loop/anchorages/" role="menuitem">
                     #renderFpwNavIcon("anchor", "fpw-card-icon")#
                     <strong>Anchorage Library</strong>
@@ -314,7 +320,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
                   #renderFpwNavIcon("route-cta", "fpw-cta-icon")#
                   <div>
                     <strong>Planning your Great Loop?</strong>
-                    <span>Use our Route Builder to plan smarter, safer trips.</span>
+                    <span>Use our Route Builder</span>
                   </div>
                   <a class="fpw-secondary-cta" href="#topNavBasePath#/app/join.cfm">Start Free <span aria-hidden="true">&rarr;</span></a>
                 </div>

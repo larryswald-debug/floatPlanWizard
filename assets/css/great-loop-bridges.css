@@ -5,6 +5,10 @@ body.fpw-bridge-body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+.fpw-bridge-body .fpw-site-header {
+  z-index: 2000;
+}
+
 .fpw-bridge-page {
   min-height: 100vh;
   background:
@@ -707,3 +711,4 @@ body.fpw-bridge-body {
     display: block;
   }
 }
+

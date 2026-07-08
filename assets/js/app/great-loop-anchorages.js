@@ -15,11 +15,7 @@
   var map = null;
   var markerLayer = null;
   var markerBySlug = {};
-  var noaaLayerByMap = new WeakMap();
-  var noaaWarned = false;
-  var noaaWmsUrl = "https://gis.charttools.noaa.gov/arcgis/rest/services/MCS/NOAAChartDisplay/MapServer/exts/MaritimeChartService/WMSServer";
-  var noaaLayerNames = "0,1,2,3,4,5,6,7,8,9,10,11,12";
-
+  // NOAA chart overlays are attached through the shared Leaflet marine-layer helper.
   function escapeHtml(value) {
     return String(value === null || value === undefined ? "" : value)
       .replace(/&/g, "&amp;")
@@ -106,44 +102,18 @@
   }
 
   function addBaseLayer(targetMap) {
-    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    var baseLayer = window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: "&copy; OpenStreetMap contributors"
     }).addTo(targetMap);
-  }
 
-  function getNoaaLayer(targetMap) {
-    var existing = noaaLayerByMap.get(targetMap);
-    if (existing) return existing;
-    var layer = window.L.tileLayer.wms(noaaWmsUrl, {
-      layers: noaaLayerNames,
-      format: "image/png",
-      transparent: true,
-      version: "1.3.0",
-      attribution: "NOAA"
-    });
-    layer.on("tileerror", function () {
-      if (!noaaWarned && window.console && typeof window.console.warn === "function") {
-        noaaWarned = true;
-        window.console.warn("NOAA nautical chart layer failed to load; base map and anchorage markers remain available.");
-      }
-    });
-    noaaLayerByMap.set(targetMap, layer);
-    return layer;
-  }
-
-  function bindNoaaToggle(targetMap, root) {
-    var scope = root || document;
-    var toggle = scope.querySelector("[data-noaa-chart-toggle]");
-    if (!targetMap || !toggle || !window.L) return;
-    toggle.addEventListener("change", function () {
-      var layer = getNoaaLayer(targetMap);
-      if (toggle.checked) {
-        layer.addTo(targetMap);
-      } else if (targetMap.hasLayer(layer)) {
-        targetMap.removeLayer(layer);
-      }
-    });
+    if (window.FPW && typeof window.FPW.attachLeafletMarineLayers === "function") {
+      window.FPW.attachLeafletMarineLayers({
+        map: targetMap,
+        baseLayer: baseLayer,
+        includeRadar: false
+      });
+    }
   }
 
   function normalizeAnchorage(row) {
@@ -222,7 +192,6 @@
     addBaseLayer(map);
     markerLayer = window.L.layerGroup().addTo(map);
     renderMarkers(parseMapData());
-    bindNoaaToggle(map, document);
   }
 
   function initDetailMap() {
@@ -243,7 +212,6 @@
     };
     addBaseLayer(detailMap);
     window.L.marker([lat, lng]).addTo(detailMap).bindPopup(popupHtml(item)).openPopup();
-    bindNoaaToggle(detailMap, detailMapEl.closest(".fpw-anchorage-panel") || document);
     window.setTimeout(function () { detailMap.invalidateSize(); }, 100);
   }
 
@@ -369,3 +337,8 @@
     if (clearLink) clearLink.addEventListener("click", clearFilters);
   }
 })(window, document);
+
+
+
+
+

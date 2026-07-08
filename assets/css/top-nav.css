@@ -425,7 +425,7 @@
 }
 
 .fpw-dropdown--mega > .fpw-dropdown-menu {
-  width: min(660px, calc(100vw - 32px));
+  width: min(380px, calc(100vw - 32px));
 }
 
 .fpw-dropdown--tools > .fpw-dropdown-menu {
@@ -476,35 +476,37 @@
 
 .fpw-library-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: 1fr;
+  gap: 0;
   margin-top: 18px;
 }
 
 .fpw-library-card {
   position: relative;
-  min-height: 188px;
-  display: flex;
-  flex-direction: column;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  padding: 16px 14px;
+  gap: 13px;
+  padding: 14px 10px;
   color: var(--fpw-nav-white);
-  text-align: center;
+  text-align: left;
   text-decoration: none;
-  background: linear-gradient(180deg, rgba(10, 31, 47, 0.92), rgba(7, 26, 41, 0.92));
-  border: 1px solid rgba(68, 226, 235, 0.22);
-  border-radius: 12px;
-  transition: border-color 160ms ease, color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.fpw-library-card + .fpw-library-card {
+  border-top: 1px solid rgba(169, 186, 203, 0.14);
 }
 
 .fpw-library-card:hover,
 .fpw-library-card:focus-visible {
-  color: var(--fpw-nav-white);
-  border-color: var(--fpw-nav-border-strong);
-  box-shadow: 0 0 26px rgba(25, 230, 238, 0.12);
+  color: var(--fpw-nav-teal);
+  background: rgba(25, 230, 238, 0.07);
   text-decoration: none;
-  transform: translateY(-1px);
   outline: none;
 }
 
@@ -514,6 +516,32 @@
 .fpw-cta-icon {
   color: var(--fpw-nav-teal);
   stroke-width: 2;
+}
+
+.fpw-library-card .fpw-card-icon {
+  width: 42px;
+  height: 42px;
+  flex-basis: 42px;
+  grid-row: 1 / span 2;
+}
+
+.fpw-library-card strong,
+.fpw-library-card span {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.fpw-library-card strong {
+  grid-row: 1;
+}
+
+.fpw-library-card span {
+  grid-row: 2;
+}
+
+.fpw-library-card em {
+  grid-column: 3;
+  grid-row: 1 / span 2;
 }
 
 .fpw-library-card strong {

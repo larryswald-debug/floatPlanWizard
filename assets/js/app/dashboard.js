@@ -4966,8 +4966,15 @@
       return '<div class="expedition-route-current-group ' + escapeHtml(extraClass || "") + '" data-plan-id="' + currentGroup.floatPlanId + '" data-plan-status="' + escapeHtml(currentGroup.status) + '" data-current-state="' + escapeHtml(currentGroup.currentState) + '">';
     }
 
+    function isDraftRouteGroup(currentGroup, currentState) {
+      var normalizedState = String(currentState || "").trim().toUpperCase();
+      var normalizedStatus = currentGroup && currentGroup.status ? String(currentGroup.status).trim().toUpperCase() : "";
+      return !!currentGroup && (currentGroup.isDraft === true || normalizedState === "DRAFT" || normalizedStatus === "DRAFT");
+    }
+
     function buildRouteTableActions(currentGroup, currentState, showActiveCruiseAction, showTripPageAction, showActivateRouteAction) {
       var html = buildActionContextOpen(currentGroup, "fpw-route-table-actions");
+      var isDraftGroup = isDraftRouteGroup(currentGroup, currentState);
       if (!currentGroup) html += '<div class="fpw-route-table-actions">';
       if (currentState === "ACTIVE" && currentGroup) {
         html += showActiveCruiseAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--cruise js-expedition-active-cruise" aria-label="Open Active Cruise" title="Open Active Cruise"></button>' : "";
@@ -4975,7 +4982,7 @@
         html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-route js-expedition-view-edit" aria-label="Edit Route" title="Edit Route"></button>';
         html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--cancel js-expedition-plan-cancel" data-action="cancel" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="Cancel" title="Cancel"></button>';
       } else if (currentGroup) {
-        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--send js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="View and Send Float Plan" title="View & Send Float Plan"></button>';
+        html += isDraftGroup ? "" : '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--send js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="View and Send Float Plan" title="View & Send Float Plan"></button>';
         html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-plan js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="Edit Float Plan" title="Edit Float Plan"></button>';
         html += showActivateRouteAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--activate js-expedition-build-floatplans" aria-label="Activate Route" title="Activate Route"></button>' : "";
         html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-route js-expedition-view-edit" aria-label="Edit Route" title="Edit Route"></button>';
@@ -4991,6 +4998,7 @@
 
     function buildRouteDetailActions(currentGroup, currentState, showActiveCruiseAction, showTripPageAction, showActivateRouteAction) {
       var html = buildActionContextOpen(currentGroup, "fpw-route-detail-actions");
+      var isDraftGroup = isDraftRouteGroup(currentGroup, currentState);
       if (!currentGroup) html += '<div class="fpw-route-detail-actions">';
       if (currentState === "ACTIVE" && currentGroup) {
         html += showActiveCruiseAction ? '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-active-cruise">Open Active Cruise</button>' : "";
@@ -4998,7 +5006,7 @@
         html += showTripPageAction ? '<button type="button" class="fpw-route-workspace-btn js-expedition-trip-page">Follow Page</button>' : "";
         html += '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--danger js-expedition-plan-cancel" data-action="cancel" data-plan-id="' + currentGroup.floatPlanId + '">Cancel</button>';
       } else if (currentGroup) {
-        html += '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '">View &amp; Send Float Plan</button>';
+        html += isDraftGroup ? "" : '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '">View &amp; Send Float Plan</button>';
         html += '<button type="button" class="fpw-route-workspace-btn js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '">Edit Float Plan</button>';
         html += showActivateRouteAction ? '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-build-floatplans">Activate Route</button>' : "";
         html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">Edit Route</button>';
