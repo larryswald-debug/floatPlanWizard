@@ -489,6 +489,8 @@
 
   var RESCUE_AUTHORITY_SELECTION_FIELD = "RESCUE_AUTHORITY_SELECTION";
   var RESCUE_AUTHORITY_SELECTION_MESSAGE = "Select a rescue authority.";
+  var NA_RESCUE_CENTER_ID = -1;
+  var NA_RESCUE_AUTHORITY_LABEL = "N/A - Not Applicable";
 
   function normalizeRouteDefaults(source) {
     var defaults = {
@@ -782,6 +784,7 @@
         homePort: null,
         homePortTimezone: "",
         selectedRescueCenterId: 0,
+        NA_RESCUE_CENTER_ID: NA_RESCUE_CENTER_ID,
         rescueCenterSyncing: false,
         pdfPreviewUrl: "",
         pdfPreviewLoading: false,
@@ -1007,7 +1010,14 @@
 
         if (stepNumber === 3 || stepNumber === 6) {
           var rescueSelectedId = numeric(this.selectedRescueCenterId);
-          var rescueIsValid = rescueSelectedId > 0;
+          var rescueIsNotApplicable = rescueSelectedId === NA_RESCUE_CENTER_ID;
+          var rescueIsValid = rescueSelectedId > 0 || rescueIsNotApplicable;
+          if (rescueIsNotApplicable && errors && errors.RESCUE_AUTHORITY_PHONE) {
+            delete errors.RESCUE_AUTHORITY_PHONE;
+            if (!Object.keys(errors).length) {
+              errors = null;
+            }
+          }
           if (!rescueIsValid) {
             if (!errors) errors = {};
             errors[RESCUE_AUTHORITY_SELECTION_FIELD] = [RESCUE_AUTHORITY_SELECTION_MESSAGE];
@@ -1303,7 +1313,10 @@
           }
         }
 
-        if (match) {
+        if (selectedId === NA_RESCUE_CENTER_ID) {
+          this.fp.FLOATPLAN.RESCUE_AUTHORITY = NA_RESCUE_AUTHORITY_LABEL;
+          this.fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE = "";
+        } else if (match) {
           this.fp.FLOATPLAN.RESCUE_AUTHORITY = match.rcName || "";
           this.fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE = match.rcPhone || "";
         } else {
@@ -1341,7 +1354,9 @@
         var storedCenterId = numeric(this.fp.FLOATPLAN.RESCUE_CENTERID);
         var matchId = 0;
 
-        if (storedCenterId !== 0) {
+        if (storedCenterId === NA_RESCUE_CENTER_ID || (authority === NA_RESCUE_AUTHORITY_LABEL && !phone)) {
+          matchId = NA_RESCUE_CENTER_ID;
+        } else if (storedCenterId !== 0) {
           for (var j = 0; j < this.rescueCenters.length; j++) {
             if (numeric(this.rescueCenters[j].recId) === storedCenterId) {
               matchId = storedCenterId;
@@ -1370,7 +1385,7 @@
 
         this.selectedRescueCenterId = matchId;
         this.fp.FLOATPLAN.RESCUE_CENTERID = matchId;
-        if (matchId > 0) {
+        if (matchId > 0 || matchId === NA_RESCUE_CENTER_ID) {
           this.clearFieldError(RESCUE_AUTHORITY_SELECTION_FIELD);
         }
         this.rescueCenterSyncing = false;

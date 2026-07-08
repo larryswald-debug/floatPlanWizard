@@ -451,7 +451,7 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
         <a href="<cfoutput>#request.fpwBase#</cfoutput>/great-loop/anchorages/">Great Loop Anchorages</a>
       </div>
     </article>
-    <article class="fpw-ports-panel">
+    <article class="fpw-ports-panel fpw-ports-planning-notice">
       <h2>Planning-Only Notice</h2>
       <p>Port information is provided for trip-planning awareness only. Always verify current charts, marina details, local conditions, and official notices before departure.</p>
     </article>
@@ -466,6 +466,7 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/ports-library.js?v=20260707-remove-tag-filter"></script>
 </body>
 </html>
+
 
 
 

@@ -620,6 +620,10 @@ body.is-ports-image-modal-open {
   padding: 18px 0 34px;
 }
 
+.fpw-ports-planning-notice {
+  grid-column: 1 / -1;
+}
+
 .fpw-ports-related-links {
   display: flex;
   flex-wrap: wrap;
@@ -815,6 +819,7 @@ body.is-ports-image-modal-open {
     margin-top: 16px;
   }
 }
+
 
 
 

@@ -249,6 +249,7 @@
                         required
                     >
                         <option :value="0">Select a rescue authority</option>
+                        <option :value="NA_RESCUE_CENTER_ID">N/A - Not Applicable</option>
                         <option v-for="center in rescueCenters" :key="'resc-'+center.recId" :value="center.recId">
                             {{ formatRescueCenterLabel(center) }}
                         </option>

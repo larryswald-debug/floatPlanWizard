@@ -2214,6 +2214,15 @@
             );
             var i = 0;
 
+            arrayAppend(result.AUTHORITIES, {
+                AUTHORITY_ID = -1,
+                NAME = "N/A - Not Applicable",
+                DISTRICT = "",
+                LOCATION = "",
+                AREA = "",
+                PHONE = ""
+            });
+
             for (i = 1; i LTE qAuthorities.recordCount; i++) {
                 arrayAppend(result.AUTHORITIES, {
                     AUTHORITY_ID = val(qAuthorities.recId[i]),
@@ -2235,6 +2244,14 @@
         <cfscript>
             var result = { SUCCESS = false };
             var qAuthority = queryNew("");
+
+            if (arguments.authorityId EQ -1) {
+                result.SUCCESS = true;
+                result.AUTHORITY_ID = -1;
+                result.AUTHORITY_NAME = "N/A - Not Applicable";
+                result.AUTHORITY_PHONE = "";
+                return result;
+            }
 
             if (arguments.authorityId LTE 0) {
                 result.ERROR = "VALIDATION";
@@ -2307,6 +2324,7 @@
                 ["DESTINATION_LOCATION", "Destination / turnaround point is required."]
             ];
             var i = 0;
+            var authorityId = val(arguments.details.AUTHORITY_ID);
 
             for (i = 1; i LTE arrayLen(requiredFields); i++) {
                 if (!len(trim(toString(arguments.details[requiredFields[i][1]])))) {
@@ -2324,7 +2342,7 @@
             if (!isValid("email", arguments.details.NOTIFICATION_CONTACT_EMAIL)) {
                 return { SUCCESS = false, ERROR = "VALIDATION", MESSAGE = "Notification contact email is invalid." };
             }
-            if (val(arguments.details.AUTHORITY_ID) LTE 0) {
+            if (authorityId LTE 0 AND authorityId NEQ -1) {
                 return { SUCCESS = false, ERROR = "VALIDATION", MESSAGE = "Official Emergency Authority is required." };
             }
 
@@ -7138,7 +7156,7 @@
                 captainEmail = { value = basicDetails.CAPTAIN_EMAIL, cfsqltype = "cf_sql_varchar" },
                 rescueAuthority = { value = authority.AUTHORITY_NAME, cfsqltype = "cf_sql_varchar" },
                 rescuePhone = { value = authority.AUTHORITY_PHONE, cfsqltype = "cf_sql_varchar" },
-                rescueCenterId = { value = authority.AUTHORITY_ID, cfsqltype = "cf_sql_integer" },
+                rescueCenterId = { value = authority.AUTHORITY_ID, cfsqltype = "cf_sql_integer", null = (authority.AUTHORITY_ID LTE 0) },
                 launchLocation = { value = basicDetails.LAUNCH_LOCATION, cfsqltype = "cf_sql_varchar" }
             }, { datasource = ds });
 
