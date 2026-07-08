@@ -302,7 +302,6 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
     </div>
     <div class="fpw-ports-cta-actions">
       <a class="fpw-ports-btn fpw-ports-btn--primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Create a free float plan</a>
-      <a class="fpw-ports-btn" href="<cfoutput>#request.fpwBase#</cfoutput>/app/login.cfm">Sign in</a>
     </div>
   </section>
 
@@ -434,16 +433,7 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
         </cfloop>
       </div>
     </article>
-    <article class="fpw-ports-panel">
-      <h2>Browse Ports by Candidate / Review Tag</h2>
-      <div class="fpw-ports-related-links">
-        <a href="<cfoutput>#encodeForHTMLAttribute(libraryUrl)#</cfoutput>?majorStop=1">Major stop candidates</a>
-        <cfloop array="#userFacingTags#" index="tagFacet">
-          <cfoutput><a href="#encodeForHTMLAttribute(portFilterUrl('tag', tagFacet))#">#encodeForHTML(tagLabel(tagFacet))#</a></cfoutput>
-        </cfloop>
-      </div>
-    </article>
-    <article class="fpw-ports-panel">
+    <article class="fpw-ports-panel fpw-ports-related-libraries-panel">
       <h2>Related Great Loop Libraries</h2>
       <div class="fpw-ports-related-links">
         <a href="<cfoutput>#request.fpwBase#</cfoutput>/great-loop/locks/">Great Loop Locks</a>
@@ -466,14 +456,6 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/ports-library.js?v=20260707-remove-tag-filter"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
 
 
 

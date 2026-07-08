@@ -244,6 +244,20 @@
   color: #b8cbe0;
 }
 
+.fpw-lock-plan-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.fpw-lock-plan-panel p {
+  margin: 1rem 0;
+}
+
+.fpw-lock-plan-panel .fpw-lock-btn {
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
 .fpw-lock-field {
   display: grid;
   gap: 0.35rem;
@@ -1078,4 +1092,3 @@ body.is-lock-image-modal-open {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-

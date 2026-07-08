@@ -213,7 +213,7 @@ if (isCleanLockRoute AND detailModel.SUCCESS) {
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/layout.css?v=20260620-page-width">
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20260630-mega-weight-minus1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260707-nav-map-zindex">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260708-lock-plan-spacing-balanced">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
   <cfinclude template="../includes/trustedsite.cfm">
@@ -374,7 +374,7 @@ if (isCleanLockRoute AND detailModel.SUCCESS) {
           </ul>
         </section>
 
-        <section class="fpw-lock-panel">
+        <section class="fpw-lock-panel fpw-lock-plan-panel">
           <h3>Plan With FPW</h3>
           <p>Add lock planning context to your route and account for lock delays in your float plan.</p>
           <a class="fpw-lock-btn fpw-lock-btn--primary fpw-lock-btn--full" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Plan Your Route</a>
@@ -427,4 +427,3 @@ if (isCleanLockRoute AND detailModel.SUCCESS) {
 </cfif>
 </body>
 </html>
-

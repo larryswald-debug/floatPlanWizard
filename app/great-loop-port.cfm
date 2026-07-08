@@ -497,7 +497,7 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
         <section class="fpw-ports-panel fpw-ports-add-waypoint-panel">
           <h2>Add to My Waypoints</h2>
           <button type="button" class="fpw-ports-btn fpw-ports-btn--primary fpw-ports-btn--full fpw-ports-member-only" data-port-add data-port-id="<cfoutput>#encodeForHTMLAttribute(portItem.ID)#</cfoutput>">Add to My Waypoints</button>
-          <p class="fpw-ports-anon-only">Sign in to add this port to your custom waypoints. <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/login.cfm">Log in</a> or <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">join FPW</a>.</p>
+          <p class="fpw-ports-anon-only">Sign in to save this port to your custom waypoints. <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/login.cfm">Log in</a> or <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">join FPW</a>.</p>
           <p class="fpw-ports-add-status" data-port-add-status="<cfoutput>#encodeForHTMLAttribute(portItem.ID)#</cfoutput>" aria-live="polite"></p>
         </section>
 
@@ -555,40 +555,4 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/ports-library.js?v=20260707-noaa-charts"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

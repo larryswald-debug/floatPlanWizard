@@ -359,6 +359,12 @@ body.is-ports-image-modal-open {
   margin: 20px auto 0;
 }
 
+.fpw-ports-add-waypoint-panel .fpw-ports-anon-only {
+  max-width: 280px;
+  margin: 20px auto 0;
+  text-align: center;
+}
+
 .fpw-ports-add-waypoint-panel .fpw-ports-add-status:empty {
   display: none;
 }
@@ -620,6 +626,7 @@ body.is-ports-image-modal-open {
   padding: 18px 0 34px;
 }
 
+.fpw-ports-related-libraries-panel,
 .fpw-ports-planning-notice {
   grid-column: 1 / -1;
 }
@@ -819,21 +826,6 @@ body.is-ports-image-modal-open {
     margin-top: 16px;
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
