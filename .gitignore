@@ -72,6 +72,8 @@ phase3-prod-*
 !db/
 !db/migrations/
 !db/migrations/*.sql
+!db/tools/
+!db/tools/*.sql
 
 # ===== Test output only =====
 .playwright-mcp/

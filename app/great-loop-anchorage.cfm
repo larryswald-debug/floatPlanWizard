@@ -213,7 +213,6 @@ pageJsonLdText = serializeJSON(schemaRoot);
       <h1><cfoutput>#encodeForHTML(pageHeading)#</cfoutput></h1>
       <cfif detailModel.SUCCESS>
         <p><cfoutput>#encodeForHTML(locationLine(anchorageItem))#<cfif hasText(anchorageItem.waterway)> on #encodeForHTML(anchorageItem.waterway)#</cfif></cfoutput></p>
-        <p class="fpw-anchorage-note">This is a planning reference only and is not a navigation product.</p>
       <cfelse>
         <p>The requested anchorage guide is not available as a published public reference.</p>
       </cfif>
@@ -349,6 +348,4 @@ pageJsonLdText = serializeJSON(schemaRoot);
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/great-loop-anchorages.js?v=20260707-noaa-layer-control"></script>
 </body>
 </html>
-
-
 

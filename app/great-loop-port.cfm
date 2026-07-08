@@ -25,6 +25,14 @@ if (portIdFromSlug GT 0) {
 if ((!structKeyExists(detailModel, "SUCCESS") OR !detailModel.SUCCESS) AND len(slugValue)) {
   detailModel = portsSvc.getPortBySlug(slugValue);
 }
+if ((!structKeyExists(detailModel, "SUCCESS") OR !detailModel.SUCCESS) AND len(slugValue)) {
+  redirectModel = portsSvc.getPortRedirectBySlug(slugValue);
+  if (structKeyExists(redirectModel, "SUCCESS") AND redirectModel.SUCCESS AND structKeyExists(redirectModel, "REDIRECT")) {
+    cfheader(statuscode = "301");
+    cfheader(name = "Location", value = request.fpwBase & "/great-loop/ports/" & redirectModel.REDIRECT.CANONICAL_SLUG & "/");
+    abort;
+  }
+}
 if (!structKeyExists(detailModel, "SUCCESS") OR !detailModel.SUCCESS) {
   cfheader(statuscode = "404");
 }
@@ -555,4 +563,3 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/ports-library.js?v=20260707-noaa-charts"></script>
 </body>
 </html>
-

@@ -67,6 +67,51 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="getPortRedirectBySlug" access="public" returntype="struct" output="false">
+    <cfargument name="slug" type="string" required="true">
+    <cfscript>
+      var cleanSlug = left(trim(arguments.slug), 220);
+      var response = structNew("ordered");
+      var q = "";
+
+      response["SUCCESS"] = false;
+      response["AUTH"] = true;
+
+      if (!len(cleanSlug)) {
+        return response;
+      }
+
+      try {
+        q = queryExecute(
+          "SELECT
+             old_port_id,
+             old_slug,
+             canonical_port_id,
+             canonical_slug
+           FROM port_slug_redirects
+           WHERE old_slug = :slug
+           LIMIT 1",
+          { slug = { value = cleanSlug, cfsqltype = "cf_sql_varchar" } },
+          { datasource = getDatasource() }
+        );
+      } catch (any redirectLookupError) {
+        return response;
+      }
+
+      if (q.recordCount EQ 1) {
+        response["SUCCESS"] = true;
+        response["REDIRECT"] = {
+          "OLD_PORT_ID" = val(q.old_port_id[1]),
+          "OLD_SLUG" = q.old_slug[1],
+          "CANONICAL_PORT_ID" = val(q.canonical_port_id[1]),
+          "CANONICAL_SLUG" = q.canonical_slug[1]
+        };
+      }
+
+      return response;
+    </cfscript>
+  </cffunction>
+
   <cffunction name="getFilters" access="public" returntype="struct" output="false">
     <cfscript>
       var response = structNew("ordered");
@@ -854,6 +899,3 @@
   </cffunction>
 
 </cfcomponent>
-
-
-
