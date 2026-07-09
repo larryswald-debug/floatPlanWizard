@@ -67,7 +67,7 @@
     if (!button) return;
     button.disabled = !!isBusy;
     button.setAttribute("aria-disabled", isBusy ? "true" : "false");
-    button.innerHTML = buttonIconMarkup() + (isBusy ? "Starting trial..." : "Start Free Trial") + arrowIconMarkup();
+    button.innerHTML = buttonIconMarkup() + (isBusy ? "Starting trial..." : "Start Your Free Trial") + arrowIconMarkup();
   }
 
   function messageForError(error) {
@@ -168,3 +168,12 @@
     loadStatus();
   });
 })(window, document);
+
+
+
+
+
+
+
+
+

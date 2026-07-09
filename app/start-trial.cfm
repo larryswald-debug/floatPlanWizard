@@ -658,13 +658,14 @@ if (startTrialUserId LTE 0) {
             <path d="M17 15h4"></path>
             <path d="M11 6l1.5 3.5L16 11l-3.5 1.5L11 16l-1.5-3.5L6 11l3.5-1.5L11 6z"></path>
           </svg>
-          Start Free Trial
+          Start Your Free Trial
           <svg class="fpw-inline-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M5 12h14"></path>
             <path d="M13 6l6 6-6 6"></path>
           </svg>
         </button>
 
+        <!---
         <a class="fpw-btn fpw-btn-secondary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/dashboard.cfm">
           <svg class="fpw-inline-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <rect x="3" y="3" width="7" height="7"></rect>
@@ -674,6 +675,7 @@ if (startTrialUserId LTE 0) {
           </svg>
           Continue to Dashboard
         </a>
+        --->
       </div>
 
       <div class="fpw-trial-status-panel" id="startTrialMessage" role="status" aria-live="polite">
@@ -839,7 +841,15 @@ if (startTrialUserId LTE 0) {
 </main>
 
 <cfinclude template="../includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/start-trial.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/start-trial.js?v=20260709-label"></script>
 
 </body>
 </html>
+
+
+
+
+
+
+
+
