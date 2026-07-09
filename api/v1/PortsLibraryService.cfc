@@ -14,6 +14,52 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="getLibraryModel" access="public" returntype="struct" output="false">
+    <cfargument name="filters" type="struct" required="false" default="#structNew()#">
+    <cfscript>
+      var normalized = normalizeFilters(arguments.filters);
+      var cached = {};
+      var listModel = {};
+      var filterModel = {};
+      var qualityModel = {};
+      var response = structNew("ordered");
+
+      if (isDefaultPublicLibraryFilters(normalized)) {
+        cached = getCachedPortLibraryModel();
+        if (isStruct(cached) AND structCount(cached) GT 0) {
+          return cached;
+        }
+      }
+
+      listModel = listPorts(normalized);
+      filterModel = getFilters();
+      qualityModel = getQualitySummary();
+
+      response["SUCCESS"] = listModel.SUCCESS AND filterModel.SUCCESS AND qualityModel.SUCCESS;
+      response["AUTH"] = true;
+      response["COUNT"] = listModel.SUCCESS ? listModel.COUNT : 0;
+      response["FILTERS"] = buildFilterStruct(normalized);
+      response["PORTS"] = listModel.SUCCESS ? listModel.PORTS : [];
+      response["FACETS"] = filterModel.SUCCESS ? filterModel.FILTERS : {};
+      response["QUALITY"] = qualityModel.SUCCESS ? qualityModel.QUALITY : {};
+
+      if (response.SUCCESS AND isDefaultPublicLibraryFilters(normalized)) {
+        putCachedPortLibraryModel(response);
+      }
+
+      return response;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="clearPortLibraryCache" access="public" returntype="void" output="false">
+    <cfscript>
+      try {
+        cacheRemove(buildPortLibraryCacheKey());
+      } catch (any cacheError) {
+      }
+    </cfscript>
+  </cffunction>
+
   <cffunction name="listPorts" access="public" returntype="struct" output="false">
     <cfargument name="filters" type="struct" required="false" default="#structNew()#">
     <cfscript>
@@ -889,6 +935,55 @@
     <cfargument name="path" type="string" required="true">
     <cfscript>
       return replace(arguments.path, "\", "/", "all");
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="isDefaultPublicLibraryFilters" access="private" returntype="boolean" output="false">
+    <cfargument name="filters" type="struct" required="true">
+    <cfscript>
+      return !len(arguments.filters.q)
+        AND !len(arguments.filters.state)
+        AND !len(arguments.filters.stateCode)
+        AND !len(arguments.filters.country)
+        AND !len(arguments.filters.loopSegment)
+        AND !len(arguments.filters.waterway)
+        AND !len(arguments.filters.tag)
+        AND !len(arguments.filters.major)
+        AND !len(arguments.filters.hiddenGem)
+        AND !len(arguments.filters.qualityStatus)
+        AND arguments.filters.mapReady;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildPortLibraryCacheKey" access="private" returntype="string" output="false">
+    <cfscript>
+      return "fpw:great-loop-ports:library:v1:" & hash(getDatasource());
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="getCachedPortLibraryModel" access="private" returntype="struct" output="false">
+    <cfscript>
+      var cached = "";
+      try {
+        cached = cacheGet(buildPortLibraryCacheKey());
+      } catch (any cacheError) {
+        return {};
+      }
+      if (isStruct(cached)) {
+        return duplicate(cached);
+      }
+      return {};
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="putCachedPortLibraryModel" access="private" returntype="void" output="false">
+    <cfargument name="model" type="struct" required="true">
+    <cfscript>
+      var ttl = createTimeSpan(0, 1, 0, 0);
+      try {
+        cachePut(buildPortLibraryCacheKey(), duplicate(arguments.model), ttl, ttl);
+      } catch (any cacheError) {
+      }
     </cfscript>
   </cffunction>
 

@@ -114,6 +114,32 @@ function locationLine(required struct item) {
   return arrayLen(pieces) ? arrayToList(pieces, ", ") : "Location not listed";
 }
 
+function getRandomInitialPorts(required array sourceRows, numeric limitRows = 10) {
+  var rows = [];
+  var out = [];
+  var i = 0;
+  var maxRows = min(max(0, val(arguments.limitRows)), arrayLen(arguments.sourceRows));
+  var swapIndex = 0;
+  var tempRow = {};
+
+  for (i = 1; i LTE arrayLen(arguments.sourceRows); i++) {
+    arrayAppend(rows, arguments.sourceRows[i]);
+  }
+
+  for (i = arrayLen(rows); i GT 1; i--) {
+    swapIndex = randRange(1, i);
+    tempRow = rows[i];
+    rows[i] = rows[swapIndex];
+    rows[swapIndex] = tempRow;
+  }
+
+  for (i = 1; i LTE maxRows; i++) {
+    arrayAppend(out, rows[i]);
+  }
+
+  return out;
+}
+
 filters = {
   "q" = structKeyExists(url, "q") ? trim(toString(url.q)) : "",
   "stateCode" = structKeyExists(url, "stateCode") ? trim(toString(url.stateCode)) : "",
@@ -134,18 +160,25 @@ pageDescription = "Explore Great Loop ports and stopping points on an interactiv
 pageHeading = "Great Loop Ports Library";
 pageLede = "Explore Great Loop ports and stopping points on an interactive map. Find useful route-planning locations, view port details, and add ports to your custom FPW waypoints.";
 
-listModel = portsSvc.listPorts(filters);
-filterModel = portsSvc.getFilters();
-qualityModel = portsSvc.getQualitySummary();
-portRows = listModel.SUCCESS ? listModel.PORTS : [];
-facets = filterModel.SUCCESS ? filterModel.FILTERS : {};
-quality = qualityModel.SUCCESS ? qualityModel.QUALITY : {};
+libraryModel = portsSvc.getLibraryModel(filters);
+portRows = libraryModel.SUCCESS ? libraryModel.PORTS : [];
+facets = libraryModel.SUCCESS ? libraryModel.FACETS : {};
+quality = libraryModel.SUCCESS ? libraryModel.QUALITY : {};
 stateCodes = structKeyExists(facets, "STATE_CODES") ? facets.STATE_CODES : [];
 loopSegments = structKeyExists(facets, "LOOP_SEGMENTS") ? facets.LOOP_SEGMENTS : [];
 tags = structKeyExists(facets, "TAGS") ? facets.TAGS : [];
 userFacingTags = [];
 mapRows = [];
+featuredPortRows = [];
+displayPortRows = [];
+mapSourcePortRows = [];
+schemaPortRows = [];
 schemaGraph = [];
+isDefaultPortsLibraryView = !len(filters.q)
+  AND !len(filters.stateCode)
+  AND !len(filters.loopSegment)
+  AND !len(filters.tag)
+  AND !len(filters.majorStop);
 
 for (tagItem in tags) {
   if (isUserFacingTag(tagItem)) {
@@ -153,7 +186,17 @@ for (tagItem in tags) {
   }
 }
 
-for (portItem in portRows) {
+featuredPortLimit = 10;
+displayPortRows = portRows;
+mapSourcePortRows = portRows;
+schemaPortRows = portRows;
+if (isDefaultPortsLibraryView) {
+  featuredPortRows = getRandomInitialPorts(portRows, featuredPortLimit);
+  displayPortRows = featuredPortRows;
+  mapSourcePortRows = featuredPortRows;
+}
+
+for (portItem in mapSourcePortRows) {
   if (structKeyExists(portItem, "MAP_READY") AND portItem.MAP_READY
       AND !isNull(portItem.LAT) AND !isNull(portItem.LNG)
       AND isNumeric(portItem.LAT) AND isNumeric(portItem.LNG)) {
@@ -229,15 +272,15 @@ structInsert(itemListSchema, schemaIdKey, canonicalUrl & "##itemlist", true);
 structInsert(itemListSchema, schemaTypeKey, "ItemList", true);
 itemListSchema["name"] = "Map-ready Great Loop ports";
 itemListSchema["itemListOrder"] = "https://schema.org/ItemListOrderAscending";
-itemListSchema["numberOfItems"] = arrayLen(mapRows);
+itemListSchema["numberOfItems"] = arrayLen(schemaPortRows);
 itemListSchema["itemListElement"] = [];
-schemaSampleLimit = min(arrayLen(mapRows), 20);
+schemaSampleLimit = min(arrayLen(schemaPortRows), 20);
 for (schemaIndex = 1; schemaIndex LTE schemaSampleLimit; schemaIndex++) {
   listItem = structNew("ordered");
   structInsert(listItem, schemaTypeKey, "ListItem", true);
   listItem["position"] = schemaIndex;
-  listItem["name"] = mapRows[schemaIndex].NAME;
-  listItem["url"] = "https://floatplanwizard.com/great-loop/ports/" & portDetailSegment(mapRows[schemaIndex]) & "/";
+  listItem["name"] = schemaPortRows[schemaIndex].NAME;
+  listItem["url"] = "https://floatplanwizard.com/great-loop/ports/" & portDetailSegment(schemaPortRows[schemaIndex]) & "/";
   arrayAppend(itemListSchema["itemListElement"], listItem);
 }
 arrayAppend(schemaGraph, itemListSchema);
@@ -361,7 +404,7 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
       <div class="fpw-ports-map-toolbar">
         <div>
           <h2>Ports Map</h2>
-          <p data-ports-result-summary><cfoutput>#arrayLen(portRows)#</cfoutput> ports match, with <cfoutput>#arrayLen(mapRows)#</cfoutput> map markers.</p>
+          <p data-ports-result-summary><cfif isDefaultPortsLibraryView><cfoutput>Showing #encodeForHTML(arrayLen(displayPortRows))# featured ports. Use search or filters to explore the full library.</cfoutput><cfelse><cfoutput>#arrayLen(portRows)# ports match, with #arrayLen(mapRows)# map markers.</cfoutput></cfif></p>
         </div>
         <div class="fpw-ports-view-toggle" role="group" aria-label="View type">
           <button type="button" class="is-active" data-ports-view-button="map">Map</button>
@@ -375,8 +418,8 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
       </div>
 
       <div class="fpw-ports-list-view" data-ports-view-panel="list" hidden>
-        <div class="fpw-ports-result-list" data-ports-result-list<cfif NOT arrayLen(portRows)> hidden</cfif>>
-          <cfloop array="#portRows#" index="portItem">
+        <div class="fpw-ports-result-list" data-ports-result-list<cfif NOT arrayLen(displayPortRows)> hidden</cfif>>
+          <cfloop array="#displayPortRows#" index="portItem">
             <cfoutput>
               <article class="fpw-ports-result-card" data-port-card data-port-id="#encodeForHTMLAttribute(portItem.ID)#">
                 <div>
@@ -408,7 +451,7 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
             </cfoutput>
           </cfloop>
         </div>
-        <div class="fpw-ports-empty-state" data-ports-empty-list<cfif arrayLen(portRows)> hidden</cfif>>
+        <div class="fpw-ports-empty-state" data-ports-empty-list<cfif arrayLen(displayPortRows)> hidden</cfif>>
           <h3>No ports match these filters.</h3>
           <p>Try a broader search, clear the tag filter, or reset all filters.</p>
         </div>
@@ -456,6 +499,3 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/ports-library.js?v=20260707-remove-tag-filter"></script>
 </body>
 </html>
-
-
-

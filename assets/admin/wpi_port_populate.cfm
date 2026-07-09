@@ -228,6 +228,16 @@ if (isAuthorized) {
                         },
                         { datasource = application.dsn }
                     );
+                    try {
+                        portLibrarySvc = "";
+                        try {
+                            portLibrarySvc = createObject("component", "fpw.api.v1.PortsLibraryService").init(application.dsn);
+                        } catch (any fpwSvcPathError) {
+                            portLibrarySvc = createObject("component", "api.v1.PortsLibraryService").init(application.dsn);
+                        }
+                        portLibrarySvc.clearPortLibraryCache();
+                    } catch (any cacheErr) {
+                    }
                     portMessageType = "success";
                     portMessage = "Port ##" & savePortId & " saved.";
                 } catch (any saveErr) {

@@ -90,6 +90,10 @@
                 }
             }
 
+            if (appliedCount GT 0) {
+                clearPortLibraryCache();
+            }
+
             summary = {
                 "SUCCESS" = true,
                 "mode" = (opts.apply ? "apply" : "dry-run"),
@@ -479,6 +483,26 @@
                 return arguments.source[arguments.key];
             }
             return arguments.defaultValue;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="clearPortLibraryCache" access="private" returntype="void" output="false">
+        <cfscript>
+            var portService = "";
+            try {
+                portService = createObject("component", "api.v1.PortsLibraryService").init(getDatasource());
+            } catch (any svcPathError) {
+                try {
+                    portService = createObject("component", "fpw.api.v1.PortsLibraryService").init(getDatasource());
+                } catch (any fallbackPathError) {
+                    return;
+                }
+            }
+
+            try {
+                portService.clearPortLibraryCache();
+            } catch (any cacheError) {
+            }
         </cfscript>
     </cffunction>
 

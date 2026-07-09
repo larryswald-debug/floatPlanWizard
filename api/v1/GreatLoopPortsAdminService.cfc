@@ -298,6 +298,7 @@
         }
       }
 
+      clearPortLibraryCache();
       savedResult = getPortById(payload.id, arguments.basePath);
       if (savedResult.SUCCESS) {
         out.SUCCESS = true;
@@ -405,6 +406,7 @@
         { datasource = getDatasource() }
       );
 
+      clearPortLibraryCache();
       portResult = getPortById(arguments.portId, arguments.basePath);
       out.SUCCESS = true;
       out.MESSAGE = "Image saved.";
@@ -457,6 +459,7 @@
         { datasource = getDatasource() }
       );
 
+      clearPortLibraryCache();
       portResult = getPortById(arguments.portId, arguments.basePath);
       out.SUCCESS = true;
       out.MESSAGE = "Image deleted.";
@@ -496,6 +499,7 @@
       }
 
       out.DELETED_FILES = deletePortImageFiles(portResult.PORT);
+      clearPortLibraryCache();
       out.SUCCESS = true;
       out.MESSAGE = "Port deleted.";
       out.PORT = portResult.PORT;
@@ -1120,6 +1124,26 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="clearPortLibraryCache" access="private" returntype="void" output="false">
+    <cfscript>
+      var portService = "";
+      try {
+        portService = createObject("component", "api.v1.PortsLibraryService").init(getDatasource());
+      } catch (any svcPathError) {
+        try {
+          portService = createObject("component", "fpw.api.v1.PortsLibraryService").init(getDatasource());
+        } catch (any fallbackPathError) {
+          return;
+        }
+      }
+
+      try {
+        portService.clearPortLibraryCache();
+      } catch (any cacheError) {
+      }
+    </cfscript>
+  </cffunction>
+
   <cffunction name="getDatasource" access="private" returntype="string" output="false">
     <cfscript>
       return variables.datasource;
@@ -1127,5 +1151,3 @@
   </cffunction>
 
 </cfcomponent>
-
-

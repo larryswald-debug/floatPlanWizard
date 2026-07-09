@@ -760,7 +760,6 @@
   }
 
   rememberRows(parseJsonElement(dataEl, []));
-  renderSummary(currentRows);
 
   if (detailDataEl) {
     var detailPort = normalizePort(parseJsonElement(detailDataEl, {}));
@@ -810,16 +809,7 @@
     }
     var clearLink = formEl.querySelector("[data-ports-clear]");
     if (clearLink) clearLink.addEventListener("click", clearFilters);
-    applyFilters(false);
   }
 })(window, document);
-
-
-
-
-
-
-
-
 
 

@@ -79,6 +79,9 @@
 
             if (opts.apply) {
                 appliedPortUpdates = applyPortUpdates(updates);
+                if (appliedPortUpdates GT 0) {
+                    clearPortLibraryCache();
+                }
                 if (!opts.noBackfill) {
                     backfillResult = backfillLoopSegments();
                 }
@@ -852,6 +855,26 @@
                 return arguments.source[arguments.key];
             }
             return arguments.defaultValue;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="clearPortLibraryCache" access="private" returntype="void" output="false">
+        <cfscript>
+            var portService = "";
+            try {
+                portService = createObject("component", "api.v1.PortsLibraryService").init(getDatasource());
+            } catch (any svcPathError) {
+                try {
+                    portService = createObject("component", "fpw.api.v1.PortsLibraryService").init(getDatasource());
+                } catch (any fallbackPathError) {
+                    return;
+                }
+            }
+
+            try {
+                portService.clearPortLibraryCache();
+            } catch (any cacheError) {
+            }
         </cfscript>
     </cffunction>
 
