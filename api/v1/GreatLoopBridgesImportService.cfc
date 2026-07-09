@@ -161,6 +161,9 @@
             }
 
             writeImportLog(out, safeFilename(arguments.sourceFilename), arguments.createdByUserId);
+            if ((out.INSERTED + out.UPDATED) GT 0) {
+                clearBridgeLibraryCache();
+            }
             if (out.ERRORED GT 0) {
                 out.MESSAGE = "Bridge import completed with skipped rows.";
             }
@@ -531,6 +534,15 @@
         <cfargument name="message" type="string" required="true">
         <cfscript>
             return { "row" = arguments.row, "field" = arguments.field, "message" = arguments.message };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="clearBridgeLibraryCache" access="private" returntype="void" output="false">
+        <cfscript>
+            try {
+                variables.bridgeService.clearBridgeLibraryCache();
+            } catch (any cacheError) {
+            }
         </cfscript>
     </cffunction>
 

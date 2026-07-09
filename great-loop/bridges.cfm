@@ -114,6 +114,19 @@ pageHeading = "Great Loop Bridge Library";
 pageLede = "Search Great Loop bridge planning records by route segment, waterway, state, bridge type, drawbridge status, contact details, coordinates, and source-backed verification notes.";
 canonicalUrl = bridgeCanonicalUrl;
 isBridgeHubPage = taxonomyType EQ "";
+isDefaultBridgeHubView = isBridgeHubPage
+  AND !len(filters.q)
+  AND !len(filters.routeSegment)
+  AND !len(filters.routeVariant)
+  AND !len(filters.waterway)
+  AND !len(filters.stateProvince)
+  AND !len(filters.bridgeType)
+  AND !len(filters.drawbridgeOnly)
+  AND !len(filters.airDraftConcern)
+  AND !len(filters.hasContact)
+  AND !len(filters.hasCoordinates)
+  AND !len(filters.verificationStatus)
+  AND !len(filters.publicStatus);
 
 if (taxonomyType EQ "state" AND len(taxonomyName)) {
   pageTitle = taxonomyName & " Great Loop Bridges | Clearances, Drawbridges & Route Planning";
@@ -181,8 +194,46 @@ function bridgeRouteLine(required struct bridgeItem) {
   return arrayLen(pieces) ? arrayToList(pieces, " - ") : "Waterway not verified";
 }
 
+function getRandomInitialBridges(required array sourceRows, numeric limitRows = 10) {
+  var rows = [];
+  var out = [];
+  var i = 0;
+  var maxRows = min(max(0, val(arguments.limitRows)), arrayLen(arguments.sourceRows));
+  var swapIndex = 0;
+  var tempRow = {};
+
+  for (i = 1; i LTE arrayLen(arguments.sourceRows); i++) {
+    arrayAppend(rows, arguments.sourceRows[i]);
+  }
+
+  for (i = arrayLen(rows); i GT 1; i--) {
+    swapIndex = randRange(1, i);
+    tempRow = rows[i];
+    rows[i] = rows[swapIndex];
+    rows[swapIndex] = tempRow;
+  }
+
+  for (i = 1; i LTE maxRows; i++) {
+    arrayAppend(out, rows[i]);
+  }
+
+  return out;
+}
+
+hubSampleLimit = 10;
+hubSchemaLimit = 6;
+mapSourceBridgeRows = bridgeRows;
+
 if (taxonomyType NEQ "not-found") {
-  if (isBridgeHubPage) {
+  if (isDefaultBridgeHubView) {
+    featuredBridgeRows = getRandomInitialBridges(bridgeRows, hubSampleLimit);
+    displayBridgeRows = featuredBridgeRows;
+    mapSourceBridgeRows = featuredBridgeRows;
+
+    for (hubSchemaIndex = 1; hubSchemaIndex LTE min(hubSchemaLimit, arrayLen(bridgeRows)); hubSchemaIndex++) {
+      arrayAppend(schemaBridgeRows, bridgeRows[hubSchemaIndex]);
+    }
+  } else if (isBridgeHubPage) {
     displayBridgeRows = [];
     schemaBridgeRows = [];
   } else {
@@ -191,7 +242,7 @@ if (taxonomyType NEQ "not-found") {
   }
 }
 
-for (bridgeItem in bridgeRows) {
+for (bridgeItem in mapSourceBridgeRows) {
   if (isNumeric(bridgeItem.latitude) AND isNumeric(bridgeItem.longitude)) {
     arrayAppend(mapRows, {
       "bridge_name" = bridgeItem.bridge_name,
@@ -425,7 +476,7 @@ if (taxonomyType NEQ "not-found") {
         <div class="fpw-bridge-map-toolbar">
           <div>
             <h2>Bridge Map</h2>
-            <p data-bridge-result-summary><cfoutput>#arrayLen(bridgeRows)# bridge planning record#arrayLen(bridgeRows) EQ 1 ? "" : "s"# match, with #arrayLen(mapRows)# map marker#arrayLen(mapRows) EQ 1 ? "" : "s"#.</cfoutput></p>
+            <p data-bridge-result-summary><cfif isDefaultBridgeHubView><cfoutput>Showing #encodeForHTML(arrayLen(displayBridgeRows))# featured bridges. Use search or filters to explore the full library.</cfoutput><cfelse><cfoutput>#arrayLen(bridgeRows)# bridge planning record#arrayLen(bridgeRows) EQ 1 ? "" : "s"# match, with #arrayLen(mapRows)# map marker#arrayLen(mapRows) EQ 1 ? "" : "s"#.</cfoutput></cfif></p>
           </div>
         </div>
         <div id="fpwBridgeMap" class="fpw-bridge-map" aria-label="Great Loop bridge map"></div>
@@ -434,7 +485,7 @@ if (taxonomyType NEQ "not-found") {
     </div>
   </section>
 
-  <section class="fpw-bridge-shell fpw-bridge-results" aria-label="Bridge results" data-bridge-results-shell<cfif isBridgeHubPage> hidden</cfif>>
+  <section class="fpw-bridge-shell fpw-bridge-results" aria-label="Bridge results" data-bridge-results-shell<cfif isBridgeHubPage AND !isDefaultBridgeHubView> hidden</cfif>>
     <cfif !isBridgeHubPage>
       <div class="fpw-bridge-section-heading">
         <div>
@@ -661,4 +712,3 @@ if (taxonomyType NEQ "not-found") {
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/great-loop-bridges.js?v=20260619-noaa-charts"></script>
 </body>
 </html>
-

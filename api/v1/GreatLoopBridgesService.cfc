@@ -18,7 +18,17 @@
         <cfargument name="filters" type="struct" required="false" default="#structNew()#">
         <cfscript>
             var normalized = normalizeFilters(arguments.filters);
-            var out = {
+            var cached = {};
+            var out = {};
+
+            if (isDefaultPublicLibraryFilters(normalized)) {
+                cached = getCachedBridgeLibraryModel();
+                if (isStruct(cached) AND structCount(cached) GT 0) {
+                    return cached;
+                }
+            }
+
+            out = {
                 "SUCCESS" = true,
                 "HAS_SCHEMA" = hasBridgeSchema(),
                 "FILTERS" = buildFilterStruct(normalized),
@@ -28,7 +38,21 @@
             };
 
             out.BRIDGES = searchPublicBridges(normalized).ROWS;
+
+            if (isDefaultPublicLibraryFilters(normalized)) {
+                putCachedBridgeLibraryModel(out);
+            }
+
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="clearBridgeLibraryCache" access="public" returntype="void" output="false">
+        <cfscript>
+            try {
+                cacheRemove(buildBridgeLibraryCacheKey());
+            } catch (any cacheError) {
+            }
         </cfscript>
     </cffunction>
 
@@ -382,6 +406,8 @@
                 { datasource = getDatasource() }
             );
 
+            clearBridgeLibraryCache();
+
             return {
                 "SUCCESS" = true,
                 "MESSAGE" = "Bridge saved.",
@@ -485,6 +511,7 @@
                 { datasource = getDatasource() }
             );
 
+            clearBridgeLibraryCache();
             out.SUCCESS = true;
             out.UPDATED_COUNT = countQuery.recordCount ? val(countQuery.row_count[1]) : 0;
             out.MESSAGE = "Set Public Status for " & numberFormat(out.UPDATED_COUNT) & " bridge row" & (out.UPDATED_COUNT EQ 1 ? "" : "s") & ".";
@@ -1560,6 +1587,57 @@
         <cfscript>
             var txt = lCase(trim(arguments.value));
             return find("http://", txt) EQ 1 OR find("https://", txt) EQ 1;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="isDefaultPublicLibraryFilters" access="private" returntype="boolean" output="false">
+        <cfargument name="filters" type="struct" required="true">
+        <cfscript>
+            return !len(arguments.filters.q)
+                AND !len(arguments.filters.routeSegment)
+                AND !len(arguments.filters.routeVariant)
+                AND !len(arguments.filters.waterway)
+                AND !len(arguments.filters.stateProvince)
+                AND !len(arguments.filters.bridgeType)
+                AND !len(arguments.filters.verificationStatus)
+                AND !len(arguments.filters.publicStatus)
+                AND !arguments.filters.drawbridgeOnly
+                AND !arguments.filters.airDraftConcern
+                AND !arguments.filters.hasContact
+                AND !arguments.filters.hasCoordinates
+                AND val(arguments.filters.limit) GTE 500;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildBridgeLibraryCacheKey" access="private" returntype="string" output="false">
+        <cfscript>
+            return "fpw:great-loop-bridges:library:v1:" & hash(getDatasource());
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getCachedBridgeLibraryModel" access="private" returntype="struct" output="false">
+        <cfscript>
+            var cached = "";
+            try {
+                cached = cacheGet(buildBridgeLibraryCacheKey());
+            } catch (any cacheError) {
+                return {};
+            }
+            if (isStruct(cached)) {
+                return duplicate(cached);
+            }
+            return {};
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="putCachedBridgeLibraryModel" access="private" returntype="void" output="false">
+        <cfargument name="model" type="struct" required="true">
+        <cfscript>
+            var ttl = createTimeSpan(0, 1, 0, 0);
+            try {
+                cachePut(buildBridgeLibraryCacheKey(), duplicate(arguments.model), ttl, ttl);
+            } catch (any cacheError) {
+            }
         </cfscript>
     </cffunction>
 
