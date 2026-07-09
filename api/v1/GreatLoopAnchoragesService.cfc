@@ -18,6 +18,7 @@
         <cfargument name="filters" type="struct" required="false" default="#structNew()#">
         <cfscript>
             var normalized = normalizeFilters(arguments.filters);
+            var cached = {};
             var out = {
                 "SUCCESS" = true,
                 "HAS_SCHEMA" = hasAnchorageSchema(),
@@ -27,8 +28,27 @@
                 "FACETS" = getFilterOptions(normalized)
             };
 
+            if (isDefaultPublicLibraryFilters(normalized)) {
+                cached = getCachedAnchorageLibraryModel();
+                if (isStruct(cached) AND structCount(cached) GT 0) {
+                    return cached;
+                }
+            }
+
             out.ANCHORAGES = searchPublicAnchorages(normalized).ROWS;
+            if (out.SUCCESS AND out.HAS_SCHEMA AND isDefaultPublicLibraryFilters(normalized)) {
+                putCachedAnchorageLibraryModel(out);
+            }
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="clearAnchorageLibraryCache" access="public" returntype="void" output="false">
+        <cfscript>
+            try {
+                cacheRemove(buildAnchorageLibraryCacheKey());
+            } catch (any cacheError) {
+            }
         </cfscript>
     </cffunction>
 
@@ -269,6 +289,7 @@
                         buildAdminAnchorageParams(payload),
                         { datasource = getDatasource() }
                     );
+                    clearAnchorageLibraryCache();
                     savedResult = getAdminAnchorageById(payload.anchorage_id, arguments.basePath);
                     if (savedResult.SUCCESS) {
                         out.SUCCESS = true;
@@ -351,6 +372,7 @@
                 { datasource = getDatasource() }
             );
 
+            clearAnchorageLibraryCache();
             savedResult = getAdminAnchorageById(payload.anchorage_id, arguments.basePath);
             if (savedResult.SUCCESS) {
                 out.SUCCESS = true;
@@ -388,6 +410,7 @@
                 { datasource = getDatasource() }
             );
 
+            clearAnchorageLibraryCache();
             out.SUCCESS = true;
             out.MESSAGE = "Anchorage deleted.";
             out.ANCHORAGE = existingResult.ANCHORAGE;
@@ -932,6 +955,52 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="isDefaultPublicLibraryFilters" access="private" returntype="boolean" output="false">
+        <cfargument name="filters" type="struct" required="true">
+        <cfscript>
+            return !len(arguments.filters.q)
+                AND !len(arguments.filters.locationGroup)
+                AND !len(arguments.filters.waterway)
+                AND !len(arguments.filters.stateProvince)
+                AND !len(arguments.filters.country)
+                AND !len(arguments.filters.anchorageType)
+                AND !len(arguments.filters.publicStatus)
+                AND val(arguments.filters.limit) EQ 300;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildAnchorageLibraryCacheKey" access="private" returntype="string" output="false">
+        <cfscript>
+            return "fpw:great-loop-anchorages:library:v1:" & hash(getDatasource());
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getCachedAnchorageLibraryModel" access="private" returntype="struct" output="false">
+        <cfscript>
+            var cached = "";
+            try {
+                cached = cacheGet(buildAnchorageLibraryCacheKey());
+            } catch (any cacheError) {
+                return {};
+            }
+            if (isStruct(cached)) {
+                return duplicate(cached);
+            }
+            return {};
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="putCachedAnchorageLibraryModel" access="private" returntype="void" output="false">
+        <cfargument name="model" type="struct" required="true">
+        <cfscript>
+            var ttl = createTimeSpan(0, 1, 0, 0);
+            try {
+                cachePut(buildAnchorageLibraryCacheKey(), duplicate(arguments.model), ttl, ttl);
+            } catch (any cacheError) {
+            }
+        </cfscript>
+    </cffunction>
+
     <cffunction name="normalizeAdminFilters" access="private" returntype="struct" output="false">
         <cfargument name="filters" type="struct" required="true">
         <cfscript>
@@ -1351,5 +1420,4 @@
             return arguments.fallback;
         </cfscript>
     </cffunction>
-
 </cfcomponent>

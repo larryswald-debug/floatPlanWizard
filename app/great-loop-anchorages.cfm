@@ -33,6 +33,9 @@ anchorageRows = model.ANCHORAGES;
 stats = model.STATS;
 facets = model.FACETS;
 mapRows = [];
+displayAnchorageRows = [];
+mapSourceAnchorageRows = [];
+featuredAnchorageLimit = 10;
 isHubRoute = !len(taxonomyType);
 isTaxonomyRoute = len(taxonomyType) AND taxonomyType NEQ "not-found";
 taxonomyParentLocationGroup = "";
@@ -149,7 +152,43 @@ function locationLine(required struct anchorageItem) {
   return arrayLen(pieces) ? arrayToList(pieces, ", ") : "Location not listed";
 }
 
-for (anchorageItem in anchorageRows) {
+function getRandomInitialAnchorages(required array sourceRows, numeric limitRows=10) {
+  var rows = duplicate(arguments.sourceRows);
+  var out = [];
+  var maxRows = max(0, val(arguments.limitRows));
+  var i = 0;
+  var swapIndex = 0;
+  var temp = {};
+
+  for (i = arrayLen(rows); i GT 1; i--) {
+    swapIndex = randRange(1, i);
+    temp = rows[i];
+    rows[i] = rows[swapIndex];
+    rows[swapIndex] = temp;
+  }
+
+  for (i = 1; i LTE min(arrayLen(rows), maxRows); i++) {
+    arrayAppend(out, rows[i]);
+  }
+  return out;
+}
+
+isDefaultAnchorageLibraryView = isHubRoute
+  AND !len(filters.q)
+  AND !len(filters.locationGroup)
+  AND !len(filters.waterway)
+  AND !len(filters.stateProvince)
+  AND !len(filters.country)
+  AND !len(filters.anchorageType)
+  AND !len(filters.publicStatus);
+displayAnchorageRows = anchorageRows;
+mapSourceAnchorageRows = anchorageRows;
+if (isDefaultAnchorageLibraryView) {
+  displayAnchorageRows = getRandomInitialAnchorages(anchorageRows, featuredAnchorageLimit);
+  mapSourceAnchorageRows = displayAnchorageRows;
+}
+
+for (anchorageItem in mapSourceAnchorageRows) {
   if (isNumeric(anchorageItem.latitude) AND isNumeric(anchorageItem.longitude)) {
     arrayAppend(mapRows, {
       "anchorage_id" = anchorageItem.anchorage_id,
@@ -385,7 +424,7 @@ pageJsonLdText = serializeJSON(schemaRoot);
       <div class="fpw-anchorage-map-toolbar">
         <div>
           <h2>Anchorage Map</h2>
-          <p data-anchorage-result-summary><cfoutput>#arrayLen(anchorageRows)#</cfoutput> published anchorage references match the current filters.</p>
+          <p data-anchorage-result-summary><cfif isDefaultAnchorageLibraryView><cfoutput>Showing #encodeForHTML(arrayLen(displayAnchorageRows))# featured anchorages. Use search or filters to explore the full library.</cfoutput><cfelse><cfoutput>#arrayLen(anchorageRows)# published anchorage references match the current filters.</cfoutput></cfif></p>
         </div>
         <div class="fpw-anchorage-view-toggle" role="group" aria-label="View type">
           <button type="button" class="is-active" data-anchorage-view-button="map">Map</button>
@@ -399,8 +438,8 @@ pageJsonLdText = serializeJSON(schemaRoot);
       </div>
 
       <div class="fpw-anchorage-list-view" data-anchorage-view-panel="list" hidden>
-        <div class="fpw-anchorage-result-list" data-anchorage-result-list<cfif NOT arrayLen(anchorageRows)> hidden</cfif>>
-          <cfloop array="#anchorageRows#" index="anchorageItem">
+        <div class="fpw-anchorage-result-list" data-anchorage-result-list<cfif NOT arrayLen(displayAnchorageRows)> hidden</cfif>>
+          <cfloop array="#displayAnchorageRows#" index="anchorageItem">
             <cfoutput>
               <article class="fpw-anchorage-result-card" data-anchorage-card data-slug="#encodeForHTMLAttribute(anchorageItem.slug)#">
                 <div>
@@ -418,7 +457,7 @@ pageJsonLdText = serializeJSON(schemaRoot);
             </cfoutput>
           </cfloop>
         </div>
-        <div class="fpw-anchorage-empty-state" data-anchorage-empty-list<cfif arrayLen(anchorageRows)> hidden</cfif>>
+        <div class="fpw-anchorage-empty-state" data-anchorage-empty-list<cfif arrayLen(displayAnchorageRows)> hidden</cfif>>
           <h3>No anchorages match these filters.</h3>
           <p>No anchorages match these filters. Try clearing the keyword or selecting a broader location.</p>
         </div>
@@ -485,6 +524,5 @@ pageJsonLdText = serializeJSON(schemaRoot);
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/great-loop-anchorages.js?v=20260707-noaa-layer-control"></script>
 </body>
 </html>
-
 
 
