@@ -18,11 +18,22 @@
     <cffunction name="getLibraryModel" access="public" returntype="struct" output="false">
         <cfargument name="filters" type="struct" required="false" default="#structNew()#">
         <cfscript>
-            var out = {
+            var normalized = normalizeFilters(arguments.filters);
+            var cached = {};
+            var out = {};
+
+            if (isDefaultPublicLibraryFilters(normalized)) {
+                cached = getCachedLockLibraryModel();
+                if (isStruct(cached) AND structCount(cached) GT 0) {
+                    return cached;
+                }
+            }
+
+            out = {
                 "SUCCESS" = true,
                 "HAS_PUBLIC_SCHEMA" = hasPublicSchema(),
                 "STATS" = getStats(),
-                "FILTERS" = normalizeFilters(arguments.filters),
+                "FILTERS" = normalized,
                 "LOCKS" = [],
                 "STATES" = [],
                 "WATERWAYS" = [],
@@ -33,7 +44,21 @@
             out.WATERWAYS = getFacets("waterway");
             out.LOCK_SYSTEMS = getFacets("lock_system");
             out.LOCKS = searchLocks(out.FILTERS).ROWS;
+
+            if (isDefaultPublicLibraryFilters(normalized)) {
+                putCachedLockLibraryModel(out);
+            }
+
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="clearLockLibraryCache" access="public" returntype="void" output="false">
+        <cfscript>
+            try {
+                cacheRemove(buildLockLibraryCacheKey());
+            } catch (any cacheError) {
+            }
         </cfscript>
     </cffunction>
 
@@ -307,6 +332,7 @@
                     arrayAppend(out.WARNINGS, renameResult.message);
                     savedResult = getLockById(payload.id, arguments.basePath);
                 }
+                clearLockLibraryCache();
                 out.SUCCESS = true;
                 out.MESSAGE = "Lock saved.";
                 out.LOCK = savedResult.LOCK;
@@ -1725,10 +1751,55 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="isDefaultPublicLibraryFilters" access="private" returntype="boolean" output="false">
+        <cfargument name="filters" type="struct" required="true">
+        <cfscript>
+            return !len(arguments.filters.q)
+                AND !len(arguments.filters.state)
+                AND !len(arguments.filters.waterway)
+                AND !len(arguments.filters.lockSystem)
+                AND !arguments.filters.hasVhf
+                AND !arguments.filters.hasPhone
+                AND !arguments.filters.hasNotes
+                AND val(arguments.filters.limit) GTE 300;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildLockLibraryCacheKey" access="private" returntype="string" output="false">
+        <cfscript>
+            return "fpw:great-loop-locks:library:v1:" & hash(getDatasource());
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getCachedLockLibraryModel" access="private" returntype="struct" output="false">
+        <cfscript>
+            var cached = "";
+            try {
+                cached = cacheGet(buildLockLibraryCacheKey());
+            } catch (any cacheError) {
+                return {};
+            }
+            if (isStruct(cached)) {
+                return duplicate(cached);
+            }
+            return {};
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="putCachedLockLibraryModel" access="private" returntype="void" output="false">
+        <cfargument name="model" type="struct" required="true">
+        <cfscript>
+            var ttl = createTimeSpan(0, 1, 0, 0);
+            try {
+                cachePut(buildLockLibraryCacheKey(), duplicate(arguments.model), ttl, ttl);
+            } catch (any cacheError) {
+            }
+        </cfscript>
+    </cffunction>
+
     <cffunction name="getDatasource" access="private" returntype="string" output="false">
         <cfscript>
             return variables.datasource;
         </cfscript>
     </cffunction>
-
 </cfcomponent>

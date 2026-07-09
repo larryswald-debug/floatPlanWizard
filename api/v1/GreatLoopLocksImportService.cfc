@@ -186,6 +186,8 @@
                     }
                 }
 
+                clearLockLibraryCache();
+
                 return {
                     "SUCCESS" = true,
                     "MESSAGE" = "Great Loop locks import completed.",
@@ -785,10 +787,30 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="clearLockLibraryCache" access="private" returntype="void" output="false">
+        <cfscript>
+            var lockService = "";
+
+            try {
+                lockService = createObject("component", "api.v1.GreatLoopLocksService").init(getDatasource());
+            } catch (any svcPathError) {
+                try {
+                    lockService = createObject("component", "fpw.api.v1.GreatLoopLocksService").init(getDatasource());
+                } catch (any fallbackSvcPathError) {
+                    return;
+                }
+            }
+
+            try {
+                lockService.clearLockLibraryCache();
+            } catch (any cacheError) {
+            }
+        </cfscript>
+    </cffunction>
+
     <cffunction name="getDatasource" access="private" returntype="string" output="false">
         <cfscript>
             return variables.datasource;
         </cfscript>
     </cffunction>
-
 </cfcomponent>

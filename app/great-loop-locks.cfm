@@ -32,6 +32,7 @@ taxonomyName = structKeyExists(request, "fpwLockTaxonomyName") ? trim(toString(r
 taxonomyCount = structKeyExists(request, "fpwLockTaxonomyCount") ? val(request.fpwLockTaxonomyCount) : arrayLen(lockRows);
 isTaxonomyRoute = len(taxonomyType) AND taxonomyType NEQ "not-found";
 isLockHubRoute = !len(taxonomyType);
+isDefaultLockHubView = isLockHubRoute AND !len(filters.q) AND !len(filters.state) AND !len(filters.waterway);
 lockLibraryUrl = isCleanLockRoute
   ? request.fpwBase & "/great-loop/locks/"
   : request.fpwBase & "/app/great-loop-locks.cfm";
@@ -71,7 +72,7 @@ if (taxonomyType EQ "state" AND len(taxonomyName)) {
 lockDetailBaseUrl = request.fpwBase & "/great-loop/locks/";
 lockDetailDataBaseUrl = isCleanLockRoute ? lockDetailBaseUrl : "";
 mapRows = [];
-waterwayThumbnailRows = lockSvc.searchLocks({ "limit" = "500" }).ROWS;
+waterwayThumbnailRows = isDefaultLockHubView ? lockRows : lockSvc.searchLocks({ "limit" = "500" }).ROWS;
 waterwayThumbnailMap = {};
 
 function libraryCleanLockSlug(required any value) {
@@ -103,21 +104,52 @@ function libraryAnchorUrl(required string anchorName) {
   return lockLibraryUrl & "##" & arguments.anchorName;
 }
 
-hubSampleLimit = 6;
+function getRandomInitialLocks(required array sourceRows, numeric limitRows = 10) {
+  var rows = [];
+  var out = [];
+  var i = 0;
+  var maxRows = min(max(0, val(arguments.limitRows)), arrayLen(arguments.sourceRows));
+  var swapIndex = 0;
+  var tempRow = {};
+
+  for (i = 1; i LTE arrayLen(arguments.sourceRows); i++) {
+    arrayAppend(rows, arguments.sourceRows[i]);
+  }
+
+  for (i = arrayLen(rows); i GT 1; i--) {
+    swapIndex = randRange(1, i);
+    tempRow = rows[i];
+    rows[i] = rows[swapIndex];
+    rows[swapIndex] = tempRow;
+  }
+
+  for (i = 1; i LTE maxRows; i++) {
+    arrayAppend(out, rows[i]);
+  }
+
+  return out;
+}
+
+hubSampleLimit = 10;
+hubSchemaLimit = 6;
 hubSampleLockRows = [];
+hubSchemaLockRows = [];
 finderLockRows = lockRows;
 schemaLockRows = lockRows;
+mapSourceLockRows = lockRows;
 
-if (isLockHubRoute) {
-  for (hubSampleIndex = 1; hubSampleIndex LTE min(hubSampleLimit, arrayLen(lockRows)); hubSampleIndex++) {
-    arrayAppend(hubSampleLockRows, lockRows[hubSampleIndex]);
+if (isDefaultLockHubView) {
+  hubSampleLockRows = getRandomInitialLocks(lockRows, hubSampleLimit);
+  for (hubSampleIndex = 1; hubSampleIndex LTE min(hubSchemaLimit, arrayLen(lockRows)); hubSampleIndex++) {
+    arrayAppend(hubSchemaLockRows, lockRows[hubSampleIndex]);
   }
 
   finderLockRows = hubSampleLockRows;
-  schemaLockRows = hubSampleLockRows;
+  schemaLockRows = hubSchemaLockRows;
+  mapSourceLockRows = hubSampleLockRows;
 }
 
-for (lockItem in lockRows) {
+for (lockItem in mapSourceLockRows) {
   if (isNumeric(lockItem.latitude) AND isNumeric(lockItem.longitude)) {
     arrayAppend(mapRows, {
       "name" = lockItem.lock_name,
@@ -384,7 +416,7 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
       <div class="fpw-lock-map-toolbar">
         <div>
           <h2>Lock Map</h2>
-          <p data-lock-result-summary>Search and browse reviewed Great Loop lock references.</p>
+          <p data-lock-result-summary><cfif isDefaultLockHubView><cfoutput>Showing #encodeForHTML(arrayLen(finderLockRows))# featured locks. Use search or filters to explore the full library.</cfoutput><cfelse>Search and browse reviewed Great Loop lock references.</cfif></p>
         </div>
         <div class="fpw-lock-view-toggle" role="group" aria-label="View type">
           <button type="button" class="is-active" data-lock-view-button="map">Map</button>
