@@ -1776,11 +1776,11 @@
             var cached = "";
             try {
                 cached = cacheGet(buildLockLibraryCacheKey());
+                if (isStruct(cached)) {
+                    return duplicate(cached);
+                }
             } catch (any cacheError) {
                 return {};
-            }
-            if (isStruct(cached)) {
-                return duplicate(cached);
             }
             return {};
         </cfscript>

@@ -966,11 +966,11 @@
       var cached = "";
       try {
         cached = cacheGet(buildPortLibraryCacheKey());
+        if (isStruct(cached)) {
+          return duplicate(cached);
+        }
       } catch (any cacheError) {
         return {};
-      }
-      if (isStruct(cached)) {
-        return duplicate(cached);
       }
       return {};
     </cfscript>
