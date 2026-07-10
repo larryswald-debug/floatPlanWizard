@@ -145,6 +145,7 @@
             var originalName = "";
             var ext = "";
             var uploadSize = 0;
+            var uploadTempDirectory = "";
             var svc = createLockService();
             var result = {};
 
@@ -157,7 +158,8 @@
         </cfscript>
 
         <cftry>
-            <cffile action="upload" filefield="imageFile" destination="#getTempDirectory()#" nameconflict="makeunique" result="uploadResult">
+            <cfset uploadTempDirectory = getLockUploadTempDirectory()>
+            <cffile action="upload" filefield="imageFile" destination="#uploadTempDirectory#" nameconflict="makeunique" result="uploadResult">
             <cfscript>
                 uploadPath = uploadResult.serverDirectory & "/" & uploadResult.serverFile;
                 originalName = structKeyExists(uploadResult, "clientFile") ? uploadResult.clientFile : uploadResult.serverFile;
@@ -187,6 +189,28 @@
             </cfscript>
             <cfcatch type="any">
                 <cfscript>
+                    try {
+                        var logDirectory = getDirectoryFromPath(getCurrentTemplatePath()) & "../../logs";
+                        var logFile = logDirectory & "/fpw-lock-image-upload.log";
+                        var logLine = "FPW_LOCK_IMAGE_UPLOAD_ERROR"
+                            & " ts=" & dateTimeFormat(now(), "yyyy-mm-dd HH:nn:ss")
+                            & " method=" & (structKeyExists(cgi, "REQUEST_METHOD") ? replace(toString(cgi.REQUEST_METHOD), chr(10), " ", "all") : "-")
+                            & " scriptName=" & (structKeyExists(cgi, "SCRIPT_NAME") ? replace(toString(cgi.SCRIPT_NAME), chr(10), " ", "all") : "-")
+                            & " queryString=" & (structKeyExists(cgi, "QUERY_STRING") ? replace(toString(cgi.QUERY_STRING), chr(10), " ", "all") : "-")
+                            & " lockId=" & lockId
+                            & " originalName=" & replace(replace(originalName, chr(13), " ", "all"), chr(10), " ", "all")
+                            & " uploadPath=" & replace(replace(uploadPath, chr(13), " ", "all"), chr(10), " ", "all")
+                            & " exceptionType=" & (structKeyExists(cfcatch, "type") ? replace(toString(cfcatch.type), chr(10), " ", "all") : "-")
+                            & " message=" & replace(replace(cfcatch.message, chr(13), " ", "all"), chr(10), " ", "all")
+                            & " detail=" & replace(replace(cfcatch.detail, chr(13), " ", "all"), chr(10), " ", "all");
+
+                        if (!directoryExists(logDirectory)) {
+                            directoryCreate(logDirectory);
+                        }
+                        fileAppend(logFile, logLine & chr(10), "utf-8");
+                    } catch (any logError) {
+                    }
+
                     safeDelete(uploadPath);
                     return buildResponse(false, true, "Upload failed", {}, "The image could not be uploaded.");
                 </cfscript>
@@ -417,6 +441,16 @@
             request.fpwBase = basePath;
             request.fpwApiBase = basePath & "/api/v1";
             return basePath;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getLockUploadTempDirectory" access="private" returntype="string" output="false">
+        <cfscript>
+            var tempDirectory = getDirectoryFromPath(getCurrentTemplatePath()) & "../../logs/fpw-lock-upload-temp";
+            if (!directoryExists(tempDirectory)) {
+                directoryCreate(tempDirectory);
+            }
+            return tempDirectory;
         </cfscript>
     </cffunction>
 
