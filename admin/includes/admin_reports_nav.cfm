@@ -42,6 +42,8 @@ adminReportPages = [
     { "file" = "metar-seed-test.cfm", "label" = "METAR Seed Test" },
     { "file" = "raw-weather.cfm", "label" = "Raw Weather" },
     { "file" = "monitoring-dashboard.cfm", "label" = "Monitoring Dashboard" },
+    { "file" = "promo-codes.cfm", "label" = "Promo Codes" },
+    { "file" = "member-entitlements.cfm", "label" = "Member Entitlements" },
     { "file" = "user-manager.cfm", "label" = "User Manager" },
     { "file" = "operator-manager.cfm", "label" = "Operator Manager" },
     { "file" = "passenger-manager.cfm", "label" = "Passenger Manager" },
