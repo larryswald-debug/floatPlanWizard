@@ -682,6 +682,7 @@
                 },
                 { datasource = getDatasource() }
             );
+            getVesselImageService().deleteVesselImageFiles(arguments.vesselId, val(userIdTxt));
 
             outcome.success = true;
             outcome.message = "Vessel deleted.";
@@ -926,6 +927,15 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="getVesselImageService" access="private" returntype="any" output="false">
+        <cftry>
+            <cfreturn createObject("component", "fpw.api.v1.VesselImageService").init(getDatasource())>
+            <cfcatch>
+                <cfreturn createObject("component", "api.v1.VesselImageService").init(getDatasource())>
+            </cfcatch>
+        </cftry>
+    </cffunction>
+
     <cffunction name="getDatasource" access="private" returntype="string" output="false">
         <cfscript>
             if (structKeyExists(application, "dsn") AND len(trim(toString(application.dsn)))) {
@@ -936,3 +946,6 @@
     </cffunction>
 
 </cfcomponent>
+
+
+

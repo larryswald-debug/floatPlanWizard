@@ -7988,3 +7988,52 @@ body.dashboard-body[data-fpw-page="dashboard"] .fpw-basic-lock-note{
     grid-template-columns: 1fr;
   }
 }
+
+.fpw-vessel-image-editor{
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.fpw-vessel-image-preview{
+  width: 160px;
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgba(91, 184, 231, 0.32);
+  border-radius: 8px;
+  background: rgba(7, 24, 37, 0.72);
+  color: rgba(203, 220, 228, 0.76);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.fpw-vessel-image-preview img,
+.fpw-vessel-thumb.has-image img{
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.fpw-vessel-thumb.has-image{
+  background: rgba(7, 24, 37, 0.72);
+}
+
+.fpw-vessel-thumb.has-image::before{
+  display: none;
+}
+
+@media (max-width: 575px){
+  .fpw-vessel-image-editor{
+    grid-template-columns: 1fr;
+  }
+
+  .fpw-vessel-image-preview{
+    width: min(100%, 240px);
+  }
+}
+

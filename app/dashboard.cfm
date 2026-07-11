@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260629-nav-style">
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260711-vessel-images">
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/help-tour.css?v=20260526-cache-bump">
 </head>
 <body class="dashboard-body" data-fpw-page="dashboard">
@@ -509,6 +509,21 @@
             <div class="modal-body card-body">
                 <form id="vesselForm" novalidate>
                     <input type="hidden" id="vesselId" value="0">
+                    <div class="mb-3">
+                        <label class="form-label" for="vesselImage">Vessel Image</label>
+                        <div class="fpw-vessel-image-editor">
+                            <div class="fpw-vessel-image-preview" id="vesselImagePreview">
+                                <img class="d-none" id="vesselImagePreviewImg" alt="Vessel image preview">
+                                <span id="vesselImagePreviewEmpty">No image selected</span>
+                            </div>
+                            <div>
+                                <input type="file" class="form-control" id="vesselImage" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
+                                <div class="form-text">Public/shareable. JPG, PNG, or WebP up to 5MB.</div>
+                                <div class="invalid-feedback" id="vesselImageError"></div>
+                                <button type="button" class="btn-secondary mt-2 d-none" id="removeVesselImageBtn">Remove image</button>
+                            </div>
+                        </div>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label" for="vesselName">Vessel Name *</label>
                         <input type="text" class="form-control" id="vesselName" required>
@@ -1245,7 +1260,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20260526-cache-bump"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/vessels.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/vessels.js?v=20260711-vessel-image-id-fix"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/contacts.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260526-cache-bump"></script>
@@ -1261,3 +1276,7 @@
 
 </body>
 </html>
+
+
+
+

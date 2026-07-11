@@ -13,6 +13,19 @@ function uniqueSuffix() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function vesselImageFile(name) {
+  return {
+    name,
+    mimeType: "image/png",
+    buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z4xkAAAAASUVORK5CYII=", "base64")
+  };
+}
+
+async function expectImageUnavailable(page, imageUrl) {
+  const response = await page.request.get(new URL(imageUrl, page.url()).href);
+  expect(response.status()).toBe(404);
+}
+
 async function loginToDashboard(page) {
   await loginApprovedUser(page);
   await expect(page.locator("#addVesselBtn")).toBeVisible({ timeout: 30000 });
@@ -61,28 +74,75 @@ test("Dashboard Vessels CRUD flow works end-to-end", async ({ page }) => {
   await modal.locator("#vesselModel").fill("Playwright");
   await modal.locator("#vesselColor").fill("Blue");
   await modal.locator("#vesselHomePort").fill("Chicago");
+  await modal.locator("#vesselImage").setInputFiles(vesselImageFile("vessel-original.png"));
+  await expect(modal.locator("#vesselImagePreviewImg")).toBeVisible();
+  const initialUploadRequestPromise = page.waitForRequest((request) =>
+    request.method() === "POST" && request.url().includes("/api/v1/vesselImageUpload.cfm")
+  );
   await modal.locator("#saveVesselBtn").click();
+  const initialUploadRequest = await initialUploadRequestPromise;
+  const initialUploadVesselId = new URL(initialUploadRequest.url()).searchParams.get("vessel_id");
+  expect(Number(initialUploadVesselId)).toBeGreaterThan(0);
   await expect(modal).toBeHidden({ timeout: 20000 });
 
   const vesselRows = page.locator("#vesselsList .list-item", { hasText: vesselName });
   await expect(vesselRows.first()).toBeVisible({ timeout: 20000 });
   await expect(page.locator("#vesselsSummary")).toContainText(/total|No vessels yet/i);
+  const initialImage = vesselRows.first().locator(".fpw-vessel-thumb.has-image img");
+  await expect(initialImage).toBeVisible({ timeout: 20000 });
+  const initialImageUrl = await initialImage.getAttribute("src");
+  expect(initialImageUrl).toContain("/assets/uploads/vessels/");
 
   await vesselRows.first().locator('button[data-action="edit"]').click();
   await expect(modal).toBeVisible({ timeout: 15000 });
   await expect(modal.locator("#vesselName")).toHaveValue(vesselName);
+  await expect(modal.locator("#vesselImagePreviewImg")).toBeVisible();
+  await expect(modal.locator("#removeVesselImageBtn")).toBeVisible();
+  await modal.locator("#vesselImage").setInputFiles(vesselImageFile("vessel-replacement.png"));
   await modal.locator("#vesselName").fill(vesselNameUpdated);
   await modal.locator("#vesselColor").fill("Silver");
+  const editedVesselId = await modal.locator("#vesselId").inputValue();
+  expect(Number(editedVesselId)).toBeGreaterThan(0);
+  const replacementUploadRequestPromise = page.waitForRequest((request) =>
+    request.method() === "POST" && request.url().includes("/api/v1/vesselImageUpload.cfm")
+  );
   await modal.locator("#saveVesselBtn").click();
+  const replacementUploadRequest = await replacementUploadRequestPromise;
+  const replacementUploadVesselId = new URL(replacementUploadRequest.url()).searchParams.get("vessel_id");
+  expect(replacementUploadVesselId).toBe(editedVesselId);
   await expect(modal).toBeHidden({ timeout: 20000 });
 
   const updatedRows = page.locator("#vesselsList .list-item", { hasText: vesselNameUpdated });
   await expect(updatedRows.first()).toBeVisible({ timeout: 20000 });
+  const replacementImage = updatedRows.first().locator(".fpw-vessel-thumb.has-image img");
+  await expect(replacementImage).toBeVisible({ timeout: 20000 });
+  const replacementImageUrl = await replacementImage.getAttribute("src");
+  expect(replacementImageUrl).not.toBe(initialImageUrl);
+  await expectImageUnavailable(page, initialImageUrl);
+
+  await updatedRows.first().locator('button[data-action="edit"]').click();
+  await expect(modal).toBeVisible({ timeout: 15000 });
+  await modal.locator("#removeVesselImageBtn").click();
+  await expect(modal.locator("#vesselImagePreviewImg")).toBeHidden();
+  await modal.locator("#saveVesselBtn").click();
+  await expect(modal).toBeHidden({ timeout: 20000 });
+  await expect(updatedRows.first().locator(".fpw-vessel-thumb img")).toHaveCount(0);
+  await expectImageUnavailable(page, replacementImageUrl);
+
+  await updatedRows.first().locator('button[data-action="edit"]').click();
+  await expect(modal).toBeVisible({ timeout: 15000 });
+  await modal.locator("#vesselImage").setInputFiles(vesselImageFile("vessel-final.png"));
+  await modal.locator("#saveVesselBtn").click();
+  await expect(modal).toBeHidden({ timeout: 20000 });
+  const finalImage = updatedRows.first().locator(".fpw-vessel-thumb.has-image img");
+  await expect(finalImage).toBeVisible({ timeout: 20000 });
+  const finalImageUrl = await finalImage.getAttribute("src");
 
   await updatedRows.first().locator('button[data-action="delete"]').click();
   await confirmDelete(page);
   await expect(page.locator("#vesselsList .list-item", { hasText: vesselNameUpdated })).toHaveCount(0, { timeout: 20000 });
   await expect(page.locator("#vesselsSummary")).toContainText(/total|No vessels yet/i);
+  await expectImageUnavailable(page, finalImageUrl);
 });
 
 test("Dashboard Operators CRUD flow works end-to-end", async ({ page }) => {
@@ -130,3 +190,9 @@ test("Dashboard Operators CRUD flow works end-to-end", async ({ page }) => {
   await expect(page.locator("#operatorsList .list-item", { hasText: operatorNameUpdated })).toHaveCount(0, { timeout: 20000 });
   await expect(page.locator("#operatorsSummary")).toContainText(/total|No operators yet/i);
 });
+
+
+
+
+
+
