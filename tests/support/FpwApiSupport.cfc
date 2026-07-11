@@ -1,11 +1,11 @@
 component output="false" {
 
   variables.baseUrl = "http://localhost:8500/fpw";
-  variables.authEmail = "lswald@yahoo.com";
-  variables.authPassword = "rIhnyc-garhab-neqbu2";
+  variables.authEmail = "";
+  variables.authPassword = "";
   variables.cookieHeader = "";
 
-  public any function init(string baseUrl="http://localhost:8500/fpw", string authEmail="lswald@yahoo.com", string authPassword="rIhnyc-garhab-neqbu2", boolean inheritCookie=true) output="false" {
+  public any function init(string baseUrl="http://localhost:8500/fpw", string authEmail="", string authPassword="", boolean inheritCookie=true) output="false" {
     variables.baseUrl = reReplace(arguments.baseUrl, "/+$", "", "all");
     variables.authEmail = arguments.authEmail;
     variables.authPassword = arguments.authPassword;
@@ -16,6 +16,9 @@ component output="false" {
   public struct function ensureApprovedSession() output="false" {
     if (len(variables.cookieHeader)) {
       return { SUCCESS = true, COOKIE = variables.cookieHeader };
+    }
+    if (!len(trim(variables.authEmail)) OR !len(trim(variables.authPassword))) {
+      throw(message = "No inherited session or explicit disposable test credentials were provided.");
     }
     var loginPayload = postJson("/api/v1/auth.cfc?method=handle", {
       action = "login",
@@ -51,11 +54,11 @@ component output="false" {
     return structKeyExists(httpResult, "fileContent") ? trim(httpResult.fileContent) : "";
   }
 
-  public struct function postJson(required string path, struct payload={}, boolean requireSession=true) output="false" {
+  public struct function postJson(required string path, struct payload={}, boolean requireSession=true, boolean includeCsrf=true) output="false" {
     if (arguments.requireSession) {
       ensureApprovedSession();
     }
-    return sendJsonRequest("POST", arguments.path, arguments.payload);
+    return sendJsonRequest("POST", arguments.path, arguments.payload, arguments.includeCsrf);
   }
 
   public struct function listVessels(numeric limit=100) output="false" {
@@ -241,11 +244,12 @@ component output="false" {
     return variables.cookieHeader;
   }
 
-  private struct function sendJsonRequest(required string method, required string path, struct payload={}) output="false" {
+  private struct function sendJsonRequest(required string method, required string path, struct payload={}, boolean includeCsrf=true) output="false" {
     var httpResult = {};
     var fullUrl = buildUrl(arguments.path);
     var response = {};
     var testUserIdHeader = resolveTestUserIdHeader();
+    var adminCsrfToken = arguments.includeCsrf AND structKeyExists(session, "fpwAdminCsrfToken") ? trim(toString(session.fpwAdminCsrfToken)) : "";
 
     if (arguments.method EQ "GET") {
       cfhttp(url = fullUrl, method = "get", result = "httpResult", charset = "utf-8") {
@@ -264,6 +268,9 @@ component output="false" {
         }
         if (len(testUserIdHeader)) {
           cfhttpparam(type = "header", name = "X-FPW-Test-UserId", value = testUserIdHeader);
+        }
+        if (len(adminCsrfToken)) {
+          cfhttpparam(type = "header", name = "X-CSRF-Token", value = adminCsrfToken);
         }
         cfhttpparam(type = "body", value = serializeJSON(arguments.payload));
       }
@@ -395,3 +402,11 @@ component output="false" {
     }
   }
 }
+
+
+
+
+
+
+
+

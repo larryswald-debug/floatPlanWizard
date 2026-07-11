@@ -4,7 +4,7 @@
 userStruct = (structKeyExists(session, "user") AND isStruct(session.user)) ? session.user : {};
 isLoggedIn = structCount(userStruct) GT 0;
 isAdmin = false;
-adminWhitelist = "admin@floatplanwizard.com,lswald@yahoo.com";
+// Authorization is enforced centrally by Application.cfc.
 roleValue = "";
 emailValue = "";
 adminNonce = "";
@@ -18,35 +18,7 @@ function boolLike(any value, boolean defaultValue=false) {
     return arguments.defaultValue;
 }
 
-if (isLoggedIn) {
-    if (structKeyExists(userStruct, "isAdmin") AND boolLike(userStruct.isAdmin, false)) {
-        isAdmin = true;
-    } else if (structKeyExists(userStruct, "ISADMIN") AND boolLike(userStruct.ISADMIN, false)) {
-        isAdmin = true;
-    } else if (structKeyExists(userStruct, "is_admin") AND boolLike(userStruct.is_admin, false)) {
-        isAdmin = true;
-    } else {
-        if (structKeyExists(userStruct, "role")) {
-            roleValue = lCase(trim(toString(userStruct.role)));
-        } else if (structKeyExists(userStruct, "ROLE")) {
-            roleValue = lCase(trim(toString(userStruct.ROLE)));
-        }
-        if (roleValue EQ "admin") {
-            isAdmin = true;
-        } else {
-            if (structKeyExists(userStruct, "email")) {
-                emailValue = lCase(trim(toString(userStruct.email)));
-            } else if (structKeyExists(userStruct, "EMAIL")) {
-                emailValue = lCase(trim(toString(userStruct.EMAIL)));
-            }
-            if (len(emailValue) AND listFindNoCase(adminWhitelist, emailValue)) {
-                isAdmin = true;
-            }
-        }
-    }
-}
-
-isAuthorized = isLoggedIn AND isAdmin;
+isAuthorized = structKeyExists(request, "fpwAdminAuthorization") AND request.fpwAdminAuthorization.authorized;
 if (isAuthorized) {
     if (!structKeyExists(session, "greatLoopAnchoragesAdminNonce") OR !len(trim(toString(session.greatLoopAnchoragesAdminNonce)))) {
         session.greatLoopAnchoragesAdminNonce = createUUID();
@@ -374,6 +346,11 @@ if (isAuthorized) {
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="<cfoutput>#encodeForHTMLAttribute(request.fpwBase)#</cfoutput>/assets/js/app/admin/great-loop-anchorages.js?v=20260622-admin-crud"></script>
+  <script src="<cfoutput>#encodeForHTMLAttribute(request.fpwBase)#</cfoutput>/assets/js/app/admin/great-loop-anchorages.js?v=<cfoutput>#encodeForHTMLAttribute(request.fpwAdminAssetVersion)#</cfoutput>"></script>
 </body>
 </html>
+
+
+
+
+

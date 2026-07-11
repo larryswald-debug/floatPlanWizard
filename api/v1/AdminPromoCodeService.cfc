@@ -658,23 +658,16 @@
     <cfargument name="newValues" type="struct" required="true">
     <cfargument name="reason" type="string" required="true">
     <cfscript>
-      queryExecute(
-        "INSERT INTO fpw_admin_audit_log
-           (admin_user_id, admin_email, action, entity_type, entity_id,
-            previous_values_json, new_values_json, reason, created_at_utc)
-         VALUES (:adminUserId, :adminEmail, :actionValue, :entityType, :entityId,
-                 :previousJson, :newJson, :reasonValue, UTC_TIMESTAMP())",
-        {
-          adminUserId = { value = arguments.adminUserId, cfsqltype = "cf_sql_integer" },
-          adminEmail = { value = left(arguments.adminEmail, 255), cfsqltype = "cf_sql_varchar", null = !len(arguments.adminEmail) },
-          actionValue = { value = left(arguments.action, 80), cfsqltype = "cf_sql_varchar" },
-          entityType = { value = left(arguments.entityType, 80), cfsqltype = "cf_sql_varchar" },
-          entityId = { value = left(arguments.entityId, 80), cfsqltype = "cf_sql_varchar" },
-          previousJson = { value = serializeJSON(arguments.previousValues), cfsqltype = "cf_sql_longvarchar", null = !structCount(arguments.previousValues) },
-          newJson = { value = serializeJSON(arguments.newValues), cfsqltype = "cf_sql_longvarchar", null = !structCount(arguments.newValues) },
-          reasonValue = { value = left(arguments.reason, 500), cfsqltype = "cf_sql_varchar", null = !len(arguments.reason) }
-        },
-        { datasource = variables.datasource }
+      new fpw.api.v1.AdminAuditService().init(variables.datasource).record(
+        actorUserId = arguments.adminUserId,
+        action = arguments.action,
+        targetType = arguments.entityType,
+        targetId = arguments.entityId,
+        success = true,
+        requestId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : "",
+        previousValues = arguments.previousValues,
+        newValues = arguments.newValues,
+        reason = arguments.reason
       );
     </cfscript>
   </cffunction>
@@ -788,3 +781,4 @@
   </cffunction>
 
 </cfcomponent>
+

@@ -18,10 +18,10 @@
         <cfset var reader = "">
 
         <cftry>
-            <cfif NOT isAuthorizedRequest()>
+            <cfif NOT structKeyExists(request, "fpwAdminAuthorization") OR request.fpwAdminAuthorization.authorized NEQ true>
                 <cfset response.ERROR = {
-                    "CODE" = "UNAUTHORIZED",
-                    "MESSAGE" = "A valid backup token is required."
+                    "CODE" = "FORBIDDEN",
+                    "MESSAGE" = "Interactive ADMIN authorization is required."
                 }>
                 <cfset writeJsonResponse(response)>
                 <cfreturn>
@@ -78,7 +78,7 @@
 
             <cfset response.SUCCESS = readable>
             <cfset response.DATA = {
-                "METHOD" = "cfml_sql_export_via_mcpcfc_endpoint",
+                "METHOD" = "cfml_sql_export_via_admin_endpoint",
                 "DATABASE_NAME" = dbName,
                 "TABLE_COUNT" = qTables.recordCount,
                 "BACKUP_FILE" = filePath,
@@ -114,22 +114,7 @@
         </cftry>
     </cffunction>
 
-    <cffunction name="isAuthorizedRequest" access="private" returntype="boolean" output="false">
-        <cfset var token = "">
-        <cfif structKeyExists(url, "token")>
-            <cfset token = trim(toString(url.token))>
-        </cfif>
-
-        <cfif NOT structKeyExists(application, "monitorToken") OR NOT len(trim(toString(application.monitorToken)))>
-            <cfreturn false>
-        </cfif>
-
-        <cfif NOT structKeyExists(application, "env") OR lCase(toString(application.env)) NEQ "dev">
-            <cfreturn false>
-        </cfif>
-
-        <cfreturn len(token) GT 0 AND token EQ toString(application.monitorToken)>
-    </cffunction>
+    <!--- Authentication and CSRF are enforced centrally by Application.cfc. --->
 
     <cffunction name="resolveDatasourceName" access="private" returntype="string" output="false">
         <cfif structKeyExists(application, "DSN") AND len(trim(toString(application.DSN)))>
@@ -236,6 +221,9 @@
     </cffunction>
 
 </cfcomponent>
+
+
+
 
 
 

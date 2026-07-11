@@ -4,7 +4,7 @@
 <cfscript>
 userStruct = (structKeyExists(session, "user") AND isStruct(session.user)) ? session.user : {};
 isLoggedIn = structCount(userStruct) GT 0;
-adminWhitelist = "admin@floatplanwizard.com,lswald@yahoo.com"; // TODO: move to app config.
+// Authorization is enforced centrally by Application.cfc.
 
 function boolLike(any value, boolean defaultValue=false) {
     var txt = lCase(trim(toString(arguments.value)));
@@ -27,22 +27,7 @@ function roleFromUser(required struct u) {
     return "";
 }
 
-isAdmin = false;
-if (isLoggedIn) {
-    if (structKeyExists(userStruct, "isAdmin") AND boolLike(userStruct.isAdmin, false)) {
-        isAdmin = true;
-    } else if (structKeyExists(userStruct, "ISADMIN") AND boolLike(userStruct.ISADMIN, false)) {
-        isAdmin = true;
-    } else if (structKeyExists(userStruct, "is_admin") AND boolLike(userStruct.is_admin, false)) {
-        isAdmin = true;
-    } else if (roleFromUser(userStruct) EQ "admin") {
-        isAdmin = true;
-    } else if (len(emailFromUser(userStruct)) AND listFindNoCase(adminWhitelist, emailFromUser(userStruct))) {
-        isAdmin = true;
-    }
-}
-
-isAuthorized = isLoggedIn AND isAdmin;
+isAuthorized = structKeyExists(request, "fpwAdminAuthorization") AND request.fpwAdminAuthorization.authorized;
 </cfscript>
 
 <!doctype html>
@@ -378,8 +363,13 @@ isAuthorized = isLoggedIn AND isAdmin;
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <cfif isAuthorized>
-    <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/admin/segment_geometry.js?v=1"></script>
+    <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/admin/segment_geometry.js?v=<cfoutput>#encodeForHTMLAttribute(request.fpwAdminAssetVersion)#</cfoutput>"></script>
 </cfif>
 
 </body>
 </html>
+
+
+
+
+

@@ -5,7 +5,7 @@
 <cfscript>
 userStruct = (structKeyExists(session, "user") AND isStruct(session.user)) ? session.user : {};
 isLoggedIn = structCount(userStruct) GT 0;
-adminWhitelist = "admin@floatplanwizard.com,lswald@yahoo.com";
+// Authorization is enforced centrally by Application.cfc.
 isAdmin = false;
 isAuthorized = false;
 nonceKey = "greatLoopBridgesAdminNonce";
@@ -79,20 +79,7 @@ function safeDeleteUpload(required string filePath) {
   }
 }
 
-if (isLoggedIn) {
-  if (structKeyExists(userStruct, "isAdmin") AND boolLike(userStruct.isAdmin, false)) {
-    isAdmin = true;
-  } else if (structKeyExists(userStruct, "ISADMIN") AND boolLike(userStruct.ISADMIN, false)) {
-    isAdmin = true;
-  } else if (structKeyExists(userStruct, "is_admin") AND boolLike(userStruct.is_admin, false)) {
-    isAdmin = true;
-  } else if (roleFromUser(userStruct) EQ "admin") {
-    isAdmin = true;
-  } else if (len(emailFromUser(userStruct)) AND listFindNoCase(adminWhitelist, emailFromUser(userStruct))) {
-    isAdmin = true;
-  }
-}
-isAuthorized = isLoggedIn AND isAdmin;
+isAuthorized = structKeyExists(request, "fpwAdminAuthorization") AND request.fpwAdminAuthorization.authorized;
 
 if (isAuthorized) {
   if (!structKeyExists(session, nonceKey) OR !len(trim(toString(session[nonceKey])))) {
@@ -382,3 +369,7 @@ longFields = [
   </div>
 </body>
 </html>
+
+
+
+

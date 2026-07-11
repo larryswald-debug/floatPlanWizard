@@ -4,21 +4,9 @@
 userStruct = (structKeyExists(session, "user") AND isStruct(session.user)) ? session.user : {};
 isLoggedIn = structCount(userStruct) GT 0;
 isAdmin = false;
-adminWhitelist = "admin@floatplanwizard.com,lswald@yahoo.com";
+// Authorization is enforced centrally by Application.cfc.
 function boolLike(any value, boolean defaultValue=false) { var txt=lCase(trim(toString(arguments.value))); if (!len(txt)) return arguments.defaultValue; if (listFindNoCase("1,true,yes,y,on",txt)) return true; if (listFindNoCase("0,false,no,n,off",txt)) return false; if (isNumeric(txt)) return val(txt) NEQ 0; return arguments.defaultValue; }
-if (isLoggedIn) {
-  if ((structKeyExists(userStruct,"isAdmin") AND boolLike(userStruct.isAdmin)) OR (structKeyExists(userStruct,"ISADMIN") AND boolLike(userStruct.ISADMIN)) OR (structKeyExists(userStruct,"is_admin") AND boolLike(userStruct.is_admin))) isAdmin=true;
-  else {
-    roleValue = "";
-    emailValue = "";
-    if (structKeyExists(userStruct, "role")) roleValue = lCase(trim(toString(userStruct.role)));
-    else if (structKeyExists(userStruct, "ROLE")) roleValue = lCase(trim(toString(userStruct.ROLE)));
-    if (structKeyExists(userStruct, "email")) emailValue = lCase(trim(toString(userStruct.email)));
-    else if (structKeyExists(userStruct, "EMAIL")) emailValue = lCase(trim(toString(userStruct.EMAIL)));
-    isAdmin = roleValue EQ "admin" OR (len(emailValue) AND listFindNoCase(adminWhitelist, emailValue));
-  }
-}
-isAuthorized=isLoggedIn AND isAdmin;
+isAuthorized=structKeyExists(request, "fpwAdminAuthorization") AND request.fpwAdminAuthorization.authorized;
 if (isAuthorized AND !structKeyExists(session,"adminMemberEntitlementsNonce")) session.adminMemberEntitlementsNonce=createUUID();
 </cfscript>
 <cfinclude template="../includes/fpw_base_path.cfm">
@@ -35,4 +23,9 @@ body{margin:24px;background:#f7f7f7;color:#111;font-family:Arial,sans-serif}.adm
 <div class="modal fade" id="memberDetailModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h2 class="modal-title h5" id="memberDetailTitle">Member Entitlement Detail</h2><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><div id="memberSummary"></div><div id="effectiveAccessSummary" class="alert alert-info"></div><h3 class="h6">All entitlement records</h3><div class="detail-panel"><table class="table table-sm mb-0"><thead><tr><th>ID</th><th>Status</th><th>Source</th><th>Dates</th><th>Notes</th><th>Actions</th></tr></thead><tbody id="memberEntitlementRows"></tbody></table></div><h3 class="h6 mt-3">Promo redemption history</h3><div class="detail-panel"><table class="table table-sm mb-0"><tbody id="memberRedemptionRows"></tbody></table></div><h3 class="h6 mt-3">Admin audit history</h3><div class="detail-panel"><table class="table table-sm mb-0"><tbody id="memberAuditRows"></tbody></table></div></div><div class="modal-footer"><button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Close</button></div></div></div></div>
 <div class="modal fade" id="entitlementActionModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><form id="entitlementActionForm" novalidate><div class="modal-header"><h2 class="modal-title h5" id="entitlementActionTitle">Entitlement Action</h2><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><input type="hidden" id="entitlementActionId" value="0"><input type="hidden" id="entitlementActionUserId" value="0"><div id="entitlementActionContext" class="alert alert-info py-2"></div><div id="entitlementActionError" class="alert alert-danger py-2 d-none"></div><div id="entitlementActionExpiresWrap" class="mb-3 d-none"><label class="form-label" for="entitlementActionExpires">New expiration (UTC)</label><input class="form-control" id="entitlementActionExpires" type="datetime-local"></div><div id="entitlementActionNotesWrap" class="mb-3 d-none"><label class="form-label" for="entitlementActionNotes">Administrative notes</label><textarea class="form-control" id="entitlementActionNotes" rows="4"></textarea></div><div id="entitlementActionConfirmationWrap" class="mb-3 d-none"><label class="form-label" for="entitlementActionConfirmation">Confirmation</label><input class="form-control" id="entitlementActionConfirmation" autocomplete="off"><div id="entitlementActionConfirmationHint" class="form-text"></div></div><div><label class="form-label" for="entitlementActionReason">Reason</label><input class="form-control" id="entitlementActionReason" maxlength="500" required></div></div><div class="modal-footer"><button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" id="entitlementActionSubmit" type="submit">Save</button></div></form></div></div></div>
 </cfif>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script><cfif isAuthorized><cfoutput><script>window.FPW_ADMIN_ENTITLEMENT_CONFIG={endpoint:#serializeJSON(request.fpwApiBase & "/adminMemberEntitlements.cfc?method=handle")#,nonce:#serializeJSON(session.adminMemberEntitlementsNonce)#};</script></cfoutput><script src="<cfoutput>#encodeForHtmlAttribute(request.fpwBase)#</cfoutput>/assets/js/app/admin/member-entitlements.js?v=20260711-action-modal"></script></cfif></body></html>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script><cfif isAuthorized><cfoutput><script>window.FPW_ADMIN_ENTITLEMENT_CONFIG={endpoint:#serializeJSON(request.fpwApiBase & "/adminMemberEntitlements.cfc?method=handle")#,nonce:#serializeJSON(session.adminMemberEntitlementsNonce)#};</script></cfoutput><script src="<cfoutput>#encodeForHtmlAttribute(request.fpwBase)#</cfoutput>/assets/js/app/admin/member-entitlements.js?v=<cfoutput>#encodeForHtmlAttribute(request.fpwAdminAssetVersion)#</cfoutput>"></script></cfif></body></html>
+
+
+
+
+

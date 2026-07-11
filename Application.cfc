@@ -9,6 +9,13 @@
     <cfset this.setClientCookies   = true>
     <cfset this.clientManagement   = false>
     <cfset this.sessionType        = "j2ee">
+    <cfset this.sessionCookie = {
+        httpOnly = true,
+        sameSite = "Lax",
+        secure = (structKeyExists(server, "coldfusion")
+            AND structKeyExists(server.coldfusion, "productLevel")
+            AND compareNoCase(toString(server.coldfusion.productLevel), "Developer") NEQ 0)
+    }>
     <cfset this.datasource         = "fpw">
     <cfset this.DSN                = "fpw">
 
@@ -39,14 +46,151 @@
         <cfreturn true>
     </cffunction>
 
-    <cffunction name="onRequestStart" access="public" returntype="boolean" output="false">
+    <cffunction name="onRequestStart" access="public" returntype="boolean" output="true">
+        <cfset var scriptName = structKeyExists(cgi, "script_name") ? lCase(toString(cgi.script_name)) : "">
+        <cfset var requestMethod = structKeyExists(cgi, "request_method") ? uCase(trim(toString(cgi.request_method))) : "GET">
+        <cfset var componentMethod = structKeyExists(url, "method") ? lCase(trim(toString(url.method))) : "">
+        <cfset var isAdminPage = findNoCase("/admin/", scriptName) GT 0>
+        <cfset var isNamedAdminApi = reFindNoCase("/api/v1/admin[^/]*\.cfc$", scriptName) GT 0>
+        <cfset var isSegmentGeometryApi = reFindNoCase("/api/v1/segmentgeometry\.cfc$", scriptName) GT 0>
+        <cfset var isDatabaseBackup = reFindNoCase("/api/v1/dbbackup\.(cfc|cfm)$", scriptName) GT 0>
+        <cfset var isStripeConfigProof = reFindNoCase("/api/v1/stripeconfigproof\.cfm$", scriptName) GT 0>
+        <cfset var isWmsAdminStats = reFindNoCase("/api/v1/wmsproxy\.cfc$", scriptName) GT 0 AND componentMethod EQ "stats">
+        <cfset var isAdminApi = isNamedAdminApi OR isSegmentGeometryApi OR isDatabaseBackup OR isStripeConfigProof OR isWmsAdminStats>
+        <cfset var userStruct = (structKeyExists(session, "user") AND isStruct(session.user)) ? session.user : {}>
+        <cfset var adminAuthService = "">
+        <cfset var adminAuthorization = {}>
+        <cfset var csrfCandidate = "">
+        <cfset var isWmsReset = isWmsAdminStats AND structKeyExists(url, "reset") AND trim(toString(url.reset)) EQ "1">
+
         <cfif NOT structKeyExists(request, "fpwRequestId")>
             <cfset request.fpwRequestId = createUUID()>
         </cfif>
+
+        <!--- Public URL-driven application reloads are intentionally disabled. --->
         <cfif structKeyExists(url, "appreload")>
-            <cfset onApplicationStart()>
+            <cfreturn stopAdminRequest(405, "METHOD_NOT_ALLOWED", "Application reload is not available through GET.", false)>
         </cfif>
+
+        <cfif isAdminPage OR isAdminApi>
+            <cfset adminAuthService = new fpw.api.v1.AdminAuthorizationService().init("fpw")>
+            <cfset adminAuthorization = adminAuthService.authorizeCurrentSession(userStruct)>
+            <cfif NOT adminAuthorization.authenticated>
+                <cfreturn stopAdminRequest(401, "AUTH_REQUIRED", "Authentication is required.", isAdminApi)>
+            </cfif>
+            <cfif NOT adminAuthorization.authorized>
+                <cfreturn stopAdminRequest(403, "FORBIDDEN", "Administrative access is required.", isAdminApi)>
+            </cfif>
+
+            <cfset request.fpwAdminAuthorization = adminAuthorization>
+            <cfset request.fpwAdminCsrfToken = adminAuthService.getOrCreateCsrfToken()>
+            <cfset request.fpwAdminRequest = {
+                "scriptName" = scriptName,
+                "requestMethod" = requestMethod,
+                "componentMethod" = componentMethod,
+                "isAdminPage" = isAdminPage,
+                "isAdminApi" = isAdminApi
+            }>
+
+            <cfif isAdminPage>
+                <cfif NOT listFindNoCase("GET,HEAD,POST", requestMethod)>
+                    <cfreturn stopAdminRequest(405, "METHOD_NOT_ALLOWED", "The administrative page does not support this method.", false)>
+                </cfif>
+                <cfif requestMethod EQ "POST">
+                    <cfset csrfCandidate = adminAuthService.resolveRequestCsrfToken()>
+                    <cfif NOT adminAuthService.isValidCsrfToken(csrfCandidate)>
+                        <cfreturn stopAdminRequest(403, "CSRF_INVALID", "The administrative request token is invalid or expired.", false)>
+                    </cfif>
+                </cfif>
+            <cfelseif isStripeConfigProof>
+                <cfif NOT listFindNoCase("GET,HEAD", requestMethod)>
+                    <cfreturn stopAdminRequest(405, "METHOD_NOT_ALLOWED", "Use GET for this read-only administrative diagnostic.", true)>
+                </cfif>
+            <cfelseif isWmsAdminStats AND NOT isWmsReset AND listFindNoCase("GET,HEAD", requestMethod)>
+                <!--- Authorized read-only WMS statistics request. --->
+            <cfelse>
+                <cfif requestMethod NEQ "POST">
+                    <cfreturn stopAdminRequest(405, "METHOD_NOT_ALLOWED", "Use POST for administrative API requests.", true)>
+                </cfif>
+                <cfset csrfCandidate = adminAuthService.resolveRequestCsrfToken()>
+                <cfif NOT adminAuthService.isValidCsrfToken(csrfCandidate)>
+                    <cfreturn stopAdminRequest(403, "CSRF_INVALID", "The administrative request token is invalid or expired.", true)>
+                </cfif>
+            </cfif>
+        </cfif>
+
         <cfreturn true>
+    </cffunction>
+
+    <cffunction name="onRequestEnd" access="public" returntype="void" output="false">
+        <cfargument name="targetPage" type="string" required="true">
+        <cfif structKeyExists(request, "fpwAdminRequest")
+            AND isStruct(request.fpwAdminRequest)
+            AND structKeyExists(request.fpwAdminRequest, "requestMethod")
+            AND request.fpwAdminRequest.requestMethod EQ "POST">
+            <cfset recordAdminRequestAudit(true, "admin_request_completed")>
+        </cfif>
+    </cffunction>
+
+    <cffunction name="recordAdminRequestAudit" access="private" returntype="void" output="false">
+        <cfargument name="success" type="boolean" required="true">
+        <cfargument name="action" type="string" required="true">
+        <cfset var auditService = "">
+        <cfset var requestDetails = {}>
+        <cftry>
+            <cfif NOT structKeyExists(request, "fpwAdminAuthorization")
+                OR NOT isStruct(request.fpwAdminAuthorization)
+                OR NOT structKeyExists(request.fpwAdminAuthorization, "userId")
+                OR val(request.fpwAdminAuthorization.userId) LTE 0
+                OR NOT structKeyExists(request, "fpwAdminRequest")
+                OR NOT isStruct(request.fpwAdminRequest)>
+                <cfreturn>
+            </cfif>
+            <cfset requestDetails = {
+                "requestMethod" = structKeyExists(request.fpwAdminRequest, "requestMethod") ? request.fpwAdminRequest.requestMethod : "",
+                "componentMethod" = structKeyExists(request.fpwAdminRequest, "componentMethod") ? request.fpwAdminRequest.componentMethod : ""
+            }>
+            <cfset auditService = new fpw.api.v1.AdminAuditService().init("fpw")>
+            <cfset auditService.record(
+                actorUserId = val(request.fpwAdminAuthorization.userId),
+                action = arguments.action,
+                targetType = "admin_endpoint",
+                targetId = structKeyExists(request.fpwAdminRequest, "scriptName") ? request.fpwAdminRequest.scriptName : "",
+                success = arguments.success,
+                requestId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : "",
+                newValues = requestDetails
+            )>
+            <cfcatch type="any">
+                <cflog file="fpw-admin-audit" type="error" text="ADMIN_AUDIT_WRITE_FAILED requestId=#structKeyExists(request, 'fpwRequestId') ? toString(request.fpwRequestId) : ''# message=#toString(cfcatch.message)#">
+            </cfcatch>
+        </cftry>
+    </cffunction>
+
+    <cffunction name="stopAdminRequest" access="private" returntype="boolean" output="true">
+        <cfargument name="statusCode" type="numeric" required="true">
+        <cfargument name="code" type="string" required="true">
+        <cfargument name="message" type="string" required="true">
+        <cfargument name="asJson" type="boolean" required="true">
+        <cfsetting showdebugoutput="false">
+        <cfheader statuscode="#arguments.statusCode#">
+        <cfheader name="Cache-Control" value="no-store, no-cache, must-revalidate">
+        <cfif arguments.asJson>
+            <cfcontent type="application/json; charset=utf-8" reset="true">
+            <cfoutput>#serializeJSON({
+                "SUCCESS" = false,
+                "AUTH" = arguments.statusCode NEQ 401,
+                "MESSAGE" = arguments.message,
+                "DATA" = {},
+                "ERROR" = {
+                    "CODE" = arguments.code,
+                    "MESSAGE" = arguments.message
+                }
+            })#</cfoutput>
+        <cfelse>
+            <cfcontent type="text/plain; charset=utf-8" reset="true">
+            <cfoutput>#encodeForHTML(arguments.message)#</cfoutput>
+        </cfif>
+        <cfreturn false>
     </cffunction>
 
     <cffunction name="onError" access="public" returntype="void" output="true">
@@ -59,6 +203,13 @@
         <cfset var rootLogMessage = sanitizeLogText(arguments.exception.message)>
         <cfset var rootLogDetail = sanitizeLogText(arguments.exception.detail)>
         <cfset var rootLogLine = "FPW_ERROR ts=#dateTimeFormat(now(), 'yyyy-mm-dd HH:nn:ss')# #rootLogContext# message=#rootLogMessage# detail=#rootLogDetail#">
+
+        <cfif structKeyExists(request, "fpwAdminRequest")
+            AND isStruct(request.fpwAdminRequest)
+            AND structKeyExists(request.fpwAdminRequest, "requestMethod")
+            AND request.fpwAdminRequest.requestMethod EQ "POST">
+            <cfset recordAdminRequestAudit(false, "admin_request_error")>
+        </cfif>
 
         <cftry>
             <cfif NOT directoryExists(rootLogDirectory)>
@@ -246,3 +397,11 @@
     </cffunction>
 
 </cfcomponent>
+
+
+
+
+
+
+
+

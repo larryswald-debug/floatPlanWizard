@@ -4,7 +4,7 @@
 userStruct = (structKeyExists(session, "user") AND isStruct(session.user)) ? session.user : {};
 isLoggedIn = structCount(userStruct) GT 0;
 isAdmin = false;
-adminWhitelist = "admin@floatplanwizard.com,lswald@yahoo.com";
+// Authorization is enforced centrally by Application.cfc.
 
 function boolLike(any value, boolean defaultValue=false) {
   var txt = lCase(trim(toString(arguments.value)));
@@ -15,18 +15,7 @@ function boolLike(any value, boolean defaultValue=false) {
   return arguments.defaultValue;
 }
 
-if (isLoggedIn) {
-  if ((structKeyExists(userStruct, "isAdmin") AND boolLike(userStruct.isAdmin))
-      OR (structKeyExists(userStruct, "ISADMIN") AND boolLike(userStruct.ISADMIN))
-      OR (structKeyExists(userStruct, "is_admin") AND boolLike(userStruct.is_admin))) {
-    isAdmin = true;
-  } else {
-    roleValue = structKeyExists(userStruct, "role") ? lCase(trim(toString(userStruct.role))) : (structKeyExists(userStruct, "ROLE") ? lCase(trim(toString(userStruct.ROLE))) : "");
-    emailValue = structKeyExists(userStruct, "email") ? lCase(trim(toString(userStruct.email))) : (structKeyExists(userStruct, "EMAIL") ? lCase(trim(toString(userStruct.EMAIL))) : "");
-    isAdmin = roleValue EQ "admin" OR (len(emailValue) AND listFindNoCase(adminWhitelist, emailValue));
-  }
-}
-isAuthorized = isLoggedIn AND isAdmin;
+isAuthorized = structKeyExists(request, "fpwAdminAuthorization") AND request.fpwAdminAuthorization.authorized;
 if (isAuthorized AND !structKeyExists(session, "adminPromoCodesNonce")) session.adminPromoCodesNonce = createUUID();
 </cfscript>
 <cfinclude template="../includes/fpw_base_path.cfm">
@@ -153,7 +142,12 @@ if (isAuthorized AND !structKeyExists(session, "adminPromoCodesNonce")) session.
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
   <cfif isAuthorized>
     <cfoutput><script>window.FPW_ADMIN_PROMO_CONFIG={endpoint:#serializeJSON(request.fpwApiBase & "/adminPromoCodes.cfc?method=handle")#,nonce:#serializeJSON(session.adminPromoCodesNonce)#};</script></cfoutput>
-    <script src="<cfoutput>#encodeForHtmlAttribute(request.fpwBase)#</cfoutput>/assets/js/app/admin/promo-codes.js?v=20260711-action-modal"></script>
+    <script src="<cfoutput>#encodeForHtmlAttribute(request.fpwBase)#</cfoutput>/assets/js/app/admin/promo-codes.js?v=<cfoutput>#encodeForHtmlAttribute(request.fpwAdminAssetVersion)#</cfoutput>"></script>
   </cfif>
 </body>
 </html>
+
+
+
+
+

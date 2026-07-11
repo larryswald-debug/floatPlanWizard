@@ -27,7 +27,7 @@
           writeOutput(serializeJSON(apiFailure(false, "AUTH_REQUIRED", "Authentication is required.")));
           return;
         }
-        if (!isAdminUser(userStruct)) {
+        if (!structKeyExists(request, "fpwAdminAuthorization") OR request.fpwAdminAuthorization.authorized NEQ true) {
           cfheader(statuscode = 403);
           writeOutput(serializeJSON(apiFailure(true, "FORBIDDEN", "Admin privileges are required.")));
           return;
@@ -89,16 +89,7 @@
     </cfscript>
   </cffunction>
 
-  <cffunction name="isAdminUser" access="private" returntype="boolean" output="false">
-    <cfargument name="userStruct" type="struct" required="true">
-    <cfscript>
-      var roleValue = lCase(trim(toString(readFirst(arguments.userStruct, [ "role", "ROLE" ], ""))));
-      var emailValue = lCase(trim(toString(readFirst(arguments.userStruct, [ "email", "EMAIL" ], ""))));
-      if (truthy(readFirst(arguments.userStruct, [ "isAdmin", "ISADMIN", "is_admin" ], false))) return true;
-      if (roleValue EQ "admin") return true;
-      return len(emailValue) AND listFindNoCase("admin@floatplanwizard.com,lswald@yahoo.com", emailValue) GT 0;
-    </cfscript>
-  </cffunction>
+  <!--- Authorization is enforced centrally by Application.cfc. --->
 
   <cffunction name="apiFailure" access="private" returntype="struct" output="false">
     <cfargument name="auth" type="boolean" required="true"><cfargument name="code" type="string" required="true"><cfargument name="message" type="string" required="true">
@@ -120,3 +111,6 @@
   </cffunction>
 
 </cfcomponent>
+
+
+

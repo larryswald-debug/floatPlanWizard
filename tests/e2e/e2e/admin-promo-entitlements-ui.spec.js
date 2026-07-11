@@ -5,7 +5,7 @@ const { test, expect } = require("@playwright/test");
 test.describe.configure({ timeout: 120000 });
 
 const ADMIN_USER = {
-  email: String(process.env.FPW_ADMIN_EMAIL || "lswald@yahoo.com").trim(),
+  email: String(process.env.FPW_ADMIN_EMAIL || "").trim(),
   password: String(process.env.FPW_ADMIN_PASSWORD || "").trim()
 };
 
@@ -42,7 +42,7 @@ test("unauthenticated visitors are rejected by both admin pages", async ({ page 
 });
 
 test("admin navigation and both management surfaces load live data", async ({ page }) => {
-  test.skip(!ADMIN_USER.password, "FPW_ADMIN_PASSWORD is required for authenticated admin UI coverage");
+  test.skip(!ADMIN_USER.email || !ADMIN_USER.password, "FPW_ADMIN_EMAIL and FPW_ADMIN_PASSWORD are required for authenticated admin UI coverage");
   await loginAdminUser(page);
 
   await page.goto("/fpw/admin/promo-codes.cfm", { waitUntil: "domcontentloaded" });
@@ -80,3 +80,5 @@ test("admin navigation and both management surfaces load live data", async ({ pa
   });
   await expect(page.locator("#entitlementSummary")).toContainText("of 0 entitlement(s)", { timeout: 30000 });
 });
+
+

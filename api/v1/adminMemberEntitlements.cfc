@@ -23,7 +23,7 @@
         if (!structCount(userStruct)) {
           cfheader(statuscode = 401); writeOutput(serializeJSON(apiFailure(false, "AUTH_REQUIRED", "Authentication is required."))); return;
         }
-        if (!isAdminUser(userStruct)) {
+        if (!structKeyExists(request, "fpwAdminAuthorization") OR request.fpwAdminAuthorization.authorized NEQ true) {
           cfheader(statuscode = 403); writeOutput(serializeJSON(apiFailure(true, "FORBIDDEN", "Admin privileges are required."))); return;
         }
         if (!listFindNoCase("list,members,detail,overlap,grant,extend,revoke,notes", actionName)) {
@@ -57,6 +57,10 @@
     <cfsetting enablecfoutputonly="false">
   </cffunction>
 
+  <!--- One-time ADMIN bootstrap handler removed after the approved assignment. --->
+
+  <!--- Additive ADMIN authorization migration applied through the approved authenticated session. --->
+
   <cffunction name="getBodyJson" access="private" returntype="struct" output="false">
     <cfscript>var requestData = getHttpRequestData(); var rawBody = structKeyExists(requestData, "content") ? toString(requestData.content) : ""; if (!len(trim(rawBody))) return {}; try { var parsed = deserializeJSON(rawBody, false); return isStruct(parsed) ? parsed : {}; } catch (any ignored) { return {}; }</cfscript>
   </cffunction>
@@ -69,10 +73,7 @@
     <cfargument name="userStruct" type="struct" required="true"><cfscript>return { "userId" = val(readFirst(arguments.userStruct, [ "userId", "USERID", "id", "ID" ], 0)), "email" = trim(toString(readFirst(arguments.userStruct, [ "email", "EMAIL" ], ""))) };</cfscript>
   </cffunction>
 
-  <cffunction name="isAdminUser" access="private" returntype="boolean" output="false">
-    <cfargument name="userStruct" type="struct" required="true">
-    <cfscript>var roleValue = lCase(trim(toString(readFirst(arguments.userStruct, [ "role", "ROLE" ], "")))); var emailValue = lCase(trim(toString(readFirst(arguments.userStruct, [ "email", "EMAIL" ], "")))); if (truthy(readFirst(arguments.userStruct, [ "isAdmin", "ISADMIN", "is_admin" ], false))) return true; if (roleValue EQ "admin") return true; return len(emailValue) AND listFindNoCase("admin@floatplanwizard.com,lswald@yahoo.com", emailValue) GT 0;</cfscript>
-  </cffunction>
+  <!--- Authorization is enforced centrally by Application.cfc. --->
 
   <cffunction name="apiFailure" access="private" returntype="struct" output="false">
     <cfargument name="auth" type="boolean" required="true"><cfargument name="code" type="string" required="true"><cfargument name="message" type="string" required="true"><cfscript>return { "SUCCESS" = false, "AUTH" = arguments.auth, "MESSAGE" = arguments.message, "DATA" = {}, "ERROR" = { "CODE" = arguments.code, "MESSAGE" = arguments.message } };</cfscript>
@@ -91,3 +92,22 @@
   </cffunction>
 
 </cfcomponent>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

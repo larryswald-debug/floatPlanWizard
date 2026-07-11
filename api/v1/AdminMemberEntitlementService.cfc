@@ -33,7 +33,7 @@
         "updated" = "me.updated_utc"
       };
       var orderSql = structKeyExists(orderMap, sortValue) ? orderMap[sortValue] : orderMap.updated;
-      var whereParts = [ "1=1" ];
+      var whereParts = [ "LOWER(me.entitlement_type) <> 'admin'" ];
       var params = {};
       var qRows = queryNew("");
       var qCount = queryNew("");
@@ -107,7 +107,7 @@
         "SELECT u.userId, u.fName, u.lName, u.email, u.created,
                 COUNT(me.id) AS entitlement_count
          FROM users u
-         LEFT JOIN member_entitlements me ON me.user_id = u.userId
+         LEFT JOIN member_entitlements me ON me.user_id = u.userId AND LOWER(me.entitlement_type) <> 'admin'
          WHERE LOWER(COALESCE(u.email, '')) LIKE :searchLike
             OR LOWER(CONCAT(COALESCE(u.fName, ''), ' ', COALESCE(u.lName, ''))) LIKE :searchLike
             OR CAST(u.userId AS CHAR) = :exactSearch
@@ -150,7 +150,7 @@
       if (qUser.recordCount EQ 0) return failure("MEMBER_NOT_FOUND", "Member was not found.");
       effectiveAccess = new fpw.api.v1.MemberEntitlementService().init(variables.datasource).getCurrentAccess(arguments.userId);
       qEntitlements = queryExecute(
-        entitlementSelectSql() & " WHERE me.user_id = :userId ORDER BY me.created_utc DESC, me.id DESC",
+        entitlementSelectSql() & " WHERE me.user_id = :userId AND LOWER(me.entitlement_type) <> 'admin' ORDER BY me.created_utc DESC, me.id DESC",
         { userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" } },
         { datasource = variables.datasource }
       );
@@ -175,7 +175,7 @@
                 previous_values_json, new_values_json, reason, created_at_utc
          FROM fpw_admin_audit_log
          WHERE (entity_type = 'member' AND entity_id = :userEntityId)
-            OR (entity_type = 'member_entitlement' AND entity_id IN (SELECT CAST(id AS CHAR) COLLATE utf8mb4_unicode_ci FROM member_entitlements WHERE user_id = :userId))
+            OR (entity_type = 'member_entitlement' AND entity_id IN (SELECT CAST(id AS CHAR) COLLATE utf8mb4_unicode_ci FROM member_entitlements WHERE user_id = :userId AND LOWER(entitlement_type) <> 'admin'))
          ORDER BY audit_id DESC LIMIT 500",
         {
           userEntityId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" },
@@ -535,7 +535,7 @@
     <cfargument name="forUpdate" type="boolean" required="false" default="false">
     <cfscript>
       return queryExecute(
-        entitlementSelectSql() & " WHERE me.id = :entitlementId LIMIT 1" & (arguments.forUpdate ? " FOR UPDATE" : ""),
+        entitlementSelectSql() & " WHERE me.id = :entitlementId AND LOWER(me.entitlement_type) <> 'admin' LIMIT 1" & (arguments.forUpdate ? " FOR UPDATE" : ""),
         { entitlementId = { value = arguments.entitlementId, cfsqltype = "cf_sql_bigint" } },
         { datasource = variables.datasource }
       );
@@ -695,23 +695,16 @@
     <cfargument name="newValues" type="struct" required="true">
     <cfargument name="reason" type="string" required="true">
     <cfscript>
-      queryExecute(
-        "INSERT INTO fpw_admin_audit_log
-           (admin_user_id, admin_email, action, entity_type, entity_id,
-            previous_values_json, new_values_json, reason, created_at_utc)
-         VALUES (:adminUserId, :adminEmail, :actionValue, :entityType, :entityId,
-                 :previousJson, :newJson, :reasonValue, UTC_TIMESTAMP())",
-        {
-          adminUserId = { value = arguments.adminUserId, cfsqltype = "cf_sql_integer" },
-          adminEmail = { value = arguments.adminEmail, cfsqltype = "cf_sql_varchar", null = !len(arguments.adminEmail) },
-          actionValue = { value = left(arguments.action, 80), cfsqltype = "cf_sql_varchar" },
-          entityType = { value = left(arguments.entityType, 80), cfsqltype = "cf_sql_varchar" },
-          entityId = { value = left(arguments.entityId, 80), cfsqltype = "cf_sql_varchar" },
-          previousJson = { value = serializeJSON(arguments.previousValues), cfsqltype = "cf_sql_longvarchar", null = !structCount(arguments.previousValues) },
-          newJson = { value = serializeJSON(arguments.newValues), cfsqltype = "cf_sql_longvarchar", null = !structCount(arguments.newValues) },
-          reasonValue = { value = left(arguments.reason, 500), cfsqltype = "cf_sql_varchar", null = !len(arguments.reason) }
-        },
-        { datasource = variables.datasource }
+      new fpw.api.v1.AdminAuditService().init(variables.datasource).record(
+        actorUserId = arguments.adminUserId,
+        action = arguments.action,
+        targetType = arguments.entityType,
+        targetId = arguments.entityId,
+        success = true,
+        requestId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : "",
+        previousValues = arguments.previousValues,
+        newValues = arguments.newValues,
+        reason = arguments.reason
       );
     </cfscript>
   </cffunction>
@@ -788,3 +781,9 @@
   </cffunction>
 
 </cfcomponent>
+
+
+
+
+
+

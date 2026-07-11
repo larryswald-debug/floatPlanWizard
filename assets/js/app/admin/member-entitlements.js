@@ -18,7 +18,8 @@
   function showMessage(message, type) { els.message.className = "admin-message" + (message ? " " + (type || "info") : ""); els.message.textContent = message || ""; }
   async function callApi(action, payload, write) {
     var body = Object.assign({ action: action }, payload || {}); if (write) body.nonce = config.nonce || "";
-    var response = await fetch(config.endpoint + "&action=" + encodeURIComponent(action), { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json; charset=utf-8", "Accept": "application/json" }, body: JSON.stringify(body) });
+    var response = await fetch(config.endpoint + "&action=" + encodeURIComponent(action), { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json; charset=utf-8", "Accept": "application/json",
+        "X-CSRF-Token": window.FPW_ADMIN_CSRF_TOKEN || "" }, body: JSON.stringify(body) });
     var data; try { data = await response.json(); } catch (err) { throw new Error("The server returned invalid JSON."); }
     if (!response.ok && (!data || data.SUCCESS !== false)) throw new Error("Request failed with HTTP " + response.status + "."); return data;
   }
@@ -146,3 +147,4 @@
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })(window, document);
+

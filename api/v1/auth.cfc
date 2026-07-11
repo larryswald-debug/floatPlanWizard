@@ -37,7 +37,7 @@
             <!-- LOGOUT                -->
             <!-- ===================== -->
             <cfif action EQ "logout">
-                <cfset structDelete( session, "user", false )>
+                <cfset sessionInvalidate()>
                 <cfset response = {
                     SUCCESS = true,
                     MESSAGE = "Logged out"
@@ -116,6 +116,7 @@
                 <cfset firstNameVal = qUser.fName ?: "">
                 <cfset lastNameVal  = qUser.lName ?: "">
 
+                <cfset sessionRotate()>
                 <cfset session.user = {
                     id          = qUser.userId,
                     userId      = qUser.userId,
@@ -169,3 +170,5 @@
     </cffunction>
 
 </cfcomponent>
+
+

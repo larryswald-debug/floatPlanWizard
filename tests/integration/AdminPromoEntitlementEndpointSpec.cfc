@@ -10,9 +10,10 @@ component extends="testbox.system.BaseSpec" output="false" {
   function beforeEach() {
     variables.hadSessionUser = structKeyExists(session, "user") AND isStruct(session.user);
     variables.priorSessionUser = variables.hadSessionUser ? duplicate(session.user) : {};
-    session.user = { userId = 187, id = 187, USERID = 187, email = "lswald@yahoo.com", EMAIL = "lswald@yahoo.com", isAdmin = true };
+    session.user = { userId = 1, id = 1, USERID = 1 };
     session.adminPromoCodesNonce = "endpoint-promo-" & createUUID();
     session.adminMemberEntitlementsNonce = "endpoint-entitlement-" & createUUID();
+    session.fpwAdminCsrfToken = lCase(replace(createUUID(), "-", "", "all")) & lCase(replace(createUUID(), "-", "", "all"));
     variables.api = new fpw.tests.support.FpwApiSupport().init(baseUrl = variables.baseUrl);
   }
 
@@ -22,6 +23,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     else structDelete(session, "user", false);
     structDelete(session, "adminPromoCodesNonce", false);
     structDelete(session, "adminMemberEntitlementsNonce", false);
+    structDelete(session, "fpwAdminCsrfToken", false);
   }
 
   function afterAll() {
@@ -49,9 +51,27 @@ component extends="testbox.system.BaseSpec" output="false" {
 
       it("rejects writes without the matching CSRF nonce", function() {
         setupAdmin();
-        var response = variables.api.postJson("/api/v1/adminPromoCodes.cfc?method=handle&action=save", promoPayload(uniqueCode("csrf")));
+        var response = variables.api.postJson("/api/v1/adminPromoCodes.cfc?method=handle&action=save", promoPayload(uniqueCode("csrf")), true, false);
         expect(response.SUCCESS).toBeFalse(serializeJSON(response));
         expect(response.ERROR.CODE).toBe("CSRF_INVALID");
+      });
+
+      it("rejects token-based database backup GET and requires centralized CSRF", function() {
+        setupAdmin();
+        var legacyGet = variables.api.getJson("/api/v1/dbBackup.cfc?method=exportLiveDatabase&token=legacy-token");
+        expect(legacyGet.SUCCESS).toBeFalse(serializeJSON(legacyGet));
+        expect(legacyGet.STATUS_CODE).toInclude("405");
+        expect(legacyGet.ERROR.CODE).toBe("METHOD_NOT_ALLOWED");
+
+        var missingCsrf = variables.api.postJson(
+          "/api/v1/dbBackup.cfc?method=exportLiveDatabase",
+          {},
+          true,
+          false
+        );
+        expect(missingCsrf.SUCCESS).toBeFalse(serializeJSON(missingCsrf));
+        expect(missingCsrf.STATUS_CODE).toInclude("403");
+        expect(missingCsrf.ERROR.CODE).toBe("CSRF_INVALID");
       });
 
       it("creates, searches, updates, and audits a promo through the protected endpoint", function() {
@@ -104,9 +124,10 @@ component extends="testbox.system.BaseSpec" output="false" {
   private void function setupAdmin() {
     variables.hadSessionUser = structKeyExists(session, "user") AND isStruct(session.user);
     variables.priorSessionUser = variables.hadSessionUser ? duplicate(session.user) : {};
-    session.user = { userId = 187, id = 187, USERID = 187, email = "lswald@yahoo.com", EMAIL = "lswald@yahoo.com", isAdmin = true };
+    session.user = { userId = 1, id = 1, USERID = 1 };
     session.adminPromoCodesNonce = "endpoint-promo-" & createUUID();
     session.adminMemberEntitlementsNonce = "endpoint-entitlement-" & createUUID();
+    session.fpwAdminCsrfToken = lCase(replace(createUUID(), "-", "", "all")) & lCase(replace(createUUID(), "-", "", "all"));
     variables.api = new fpw.tests.support.FpwApiSupport().init(baseUrl = variables.baseUrl);
   }
 
@@ -129,4 +150,9 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.createdPromoIds = [];
   }
 }
+
+
+
+
+
 

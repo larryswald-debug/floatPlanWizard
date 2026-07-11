@@ -1,4 +1,5 @@
 <cfscript>
+request.fpwAdminAssetVersion = "20260711-admin-csrf";
 adminNavBase = structKeyExists(request, "fpwBase") ? trim(toString(request.fpwBase)) : "";
 if (!structKeyExists(request, "fpwBase")) {
     if (structKeyExists(cgi, "SCRIPT_NAME")) {
@@ -118,3 +119,20 @@ adminReportPages = [
         </cfloop>
     </nav>
 </div>
+<cfif structKeyExists(request, "fpwAdminCsrfToken")>
+  <cfoutput><script>
+    window.FPW_ADMIN_CSRF_TOKEN = #serializeJSON(toString(request.fpwAdminCsrfToken))#;
+    document.addEventListener("submit", function (event) {
+      var form = event.target;
+      if (!form || String(form.method || "get").toLowerCase() !== "post") return;
+      if (form.querySelector('input[name="adminCsrfToken"]')) return;
+      var input = document.createElement("input");
+      input.type = "hidden";
+      input.name = "adminCsrfToken";
+      input.value = window.FPW_ADMIN_CSRF_TOKEN;
+      form.appendChild(input);
+    });
+  </script></cfoutput>
+</cfif>
+
+

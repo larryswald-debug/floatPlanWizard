@@ -68,7 +68,8 @@
       credentials: "same-origin",
       headers: {
         "Content-Type": "application/json; charset=utf-8",
-        "Accept": "application/json"
+        "Accept": "application/json",
+        "X-CSRF-Token": window.FPW_ADMIN_CSRF_TOKEN || ""
       },
       body: JSON.stringify(requestPayload)
     });
@@ -588,3 +589,4 @@
     init();
   }
 })(window, document);
+

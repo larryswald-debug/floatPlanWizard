@@ -29,7 +29,7 @@
           return;
         }
 
-        if (!isAdminUser(userStruct)) {
+        if (!structKeyExists(request, "fpwAdminAuthorization") OR request.fpwAdminAuthorization.authorized NEQ true) {
           response = buildResponse(false, true, "Forbidden", {}, "Admin privileges are required.");
           writeOutput(serializeJSON(response));
           return;
@@ -352,24 +352,7 @@
     </cfscript>
   </cffunction>
 
-  <cffunction name="isAdminUser" access="private" returntype="boolean" output="false">
-    <cfargument name="userStruct" type="struct" required="true">
-    <cfscript>
-      var adminWhitelist = "admin@floatplanwizard.com,lswald@yahoo.com";
-      var roleValue = "";
-      var emailValue = "";
-
-      if (structKeyExists(arguments.userStruct, "isAdmin") AND boolLike(arguments.userStruct.isAdmin, false)) return true;
-      if (structKeyExists(arguments.userStruct, "ISADMIN") AND boolLike(arguments.userStruct.ISADMIN, false)) return true;
-      if (structKeyExists(arguments.userStruct, "is_admin") AND boolLike(arguments.userStruct.is_admin, false)) return true;
-      if (structKeyExists(arguments.userStruct, "role")) roleValue = lCase(trim(toString(arguments.userStruct.role)));
-      if (!len(roleValue) AND structKeyExists(arguments.userStruct, "ROLE")) roleValue = lCase(trim(toString(arguments.userStruct.ROLE)));
-      if (roleValue EQ "admin") return true;
-      if (structKeyExists(arguments.userStruct, "email")) emailValue = lCase(trim(toString(arguments.userStruct.email)));
-      if (!len(emailValue) AND structKeyExists(arguments.userStruct, "EMAIL")) emailValue = lCase(trim(toString(arguments.userStruct.EMAIL)));
-      return len(emailValue) AND listFindNoCase(adminWhitelist, emailValue);
-    </cfscript>
-  </cffunction>
+  <!--- Authorization is enforced centrally by Application.cfc. --->
 
   <cffunction name="isValidNonce" access="private" returntype="boolean" output="false">
     <cfargument name="nonce" type="string" required="true">
@@ -442,6 +425,9 @@
   </cffunction>
 
 </cfcomponent>
+
+
+
 
 
 

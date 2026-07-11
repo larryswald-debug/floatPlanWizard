@@ -4,7 +4,7 @@
 userStruct = (structKeyExists(session, "user") AND isStruct(session.user)) ? session.user : {};
 isLoggedIn = structCount(userStruct) GT 0;
 isAdmin = false;
-adminWhitelist = "admin@floatplanwizard.com,lswald@yahoo.com";
+// Authorization is enforced centrally by Application.cfc.
 roleValue = "";
 emailValue = "";
 adminNonce = "";
@@ -18,35 +18,7 @@ function boolLike(any value, boolean defaultValue=false) {
     return arguments.defaultValue;
 }
 
-if (isLoggedIn) {
-    if (structKeyExists(userStruct, "isAdmin") AND boolLike(userStruct.isAdmin, false)) {
-        isAdmin = true;
-    } else if (structKeyExists(userStruct, "ISADMIN") AND boolLike(userStruct.ISADMIN, false)) {
-        isAdmin = true;
-    } else if (structKeyExists(userStruct, "is_admin") AND boolLike(userStruct.is_admin, false)) {
-        isAdmin = true;
-    } else {
-        if (structKeyExists(userStruct, "role")) {
-            roleValue = lCase(trim(toString(userStruct.role)));
-        } else if (structKeyExists(userStruct, "ROLE")) {
-            roleValue = lCase(trim(toString(userStruct.ROLE)));
-        }
-        if (roleValue EQ "admin") {
-            isAdmin = true;
-        } else {
-            if (structKeyExists(userStruct, "email")) {
-                emailValue = lCase(trim(toString(userStruct.email)));
-            } else if (structKeyExists(userStruct, "EMAIL")) {
-                emailValue = lCase(trim(toString(userStruct.EMAIL)));
-            }
-            if (len(emailValue) AND listFindNoCase(adminWhitelist, emailValue)) {
-                isAdmin = true;
-            }
-        }
-    }
-}
-
-isAuthorized = isLoggedIn AND isAdmin;
+isAuthorized = structKeyExists(request, "fpwAdminAuthorization") AND request.fpwAdminAuthorization.authorized;
 if (isAuthorized) {
     if (!structKeyExists(session, "greatLoopPortsAdminNonce") OR !len(trim(toString(session.greatLoopPortsAdminNonce)))) {
         session.greatLoopPortsAdminNonce = createUUID();
@@ -406,9 +378,14 @@ if (isAuthorized) {
     </script>
   </cfoutput>
   <cfif isAuthorized>
-    <script src="<cfoutput>#encodeForHTMLAttribute(request.fpwBase)#</cfoutput>/assets/js/app/admin/great-loop-ports.js?v=20260707-admin"></script>
+    <script src="<cfoutput>#encodeForHTMLAttribute(request.fpwBase)#</cfoutput>/assets/js/app/admin/great-loop-ports.js?v=<cfoutput>#encodeForHTMLAttribute(request.fpwAdminAssetVersion)#</cfoutput>"></script>
   </cfif>
 </body>
 </html>
+
+
+
+
+
 
 

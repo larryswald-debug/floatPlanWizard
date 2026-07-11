@@ -53,7 +53,8 @@
       credentials: "same-origin",
       headers: {
         "Content-Type": "application/json; charset=utf-8",
-        "Accept": "application/json"
+        "Accept": "application/json",
+        "X-CSRF-Token": window.FPW_ADMIN_CSRF_TOKEN || ""
       },
       body: JSON.stringify(requestPayload)
     });
@@ -327,7 +328,8 @@
     var response = await fetch(endpoint + "&action=uploadImage", {
       method: "POST",
       credentials: "same-origin",
-      headers: { "Accept": "application/json" },
+      headers: { "Accept": "application/json",
+        "X-CSRF-Token": window.FPW_ADMIN_CSRF_TOKEN || "" },
       body: formData
     });
 
@@ -500,3 +502,4 @@
     init();
   }
 })(window, document);
+

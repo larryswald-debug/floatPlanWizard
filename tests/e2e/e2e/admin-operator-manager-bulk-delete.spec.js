@@ -5,13 +5,13 @@ const { test, expect } = require("@playwright/test");
 test.describe.configure({ timeout: 120000 });
 
 const ADMIN_USER = {
-  email: String(process.env.FPW_ADMIN_EMAIL || "lswald@yahoo.com").trim(),
+  email: String(process.env.FPW_ADMIN_EMAIL || "").trim(),
   password: String(process.env.FPW_ADMIN_PASSWORD || "").trim()
 };
 const OWNER_USER_ID = "187";
 
-if (!ADMIN_USER.password) {
-  throw new Error("Missing FPW_ADMIN_PASSWORD env var");
+if (!ADMIN_USER.email || !ADMIN_USER.password) {
+  throw new Error("Missing FPW_ADMIN_EMAIL or FPW_ADMIN_PASSWORD env var");
 }
 
 function uniqueSuffix() {
@@ -159,3 +159,5 @@ test("Admin Operator Manager bulk deletes checked operators only", async ({ page
     await bulkDeleteOperatorsByApi(page, createdOperatorIds);
   }
 });
+
+

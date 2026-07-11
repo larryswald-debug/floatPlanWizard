@@ -33,7 +33,8 @@
     if (write) body.nonce = config.nonce || "";
     var response = await fetch(config.endpoint + "&action=" + encodeURIComponent(action), {
       method: "POST", credentials: "same-origin",
-      headers: { "Content-Type": "application/json; charset=utf-8", "Accept": "application/json" },
+      headers: { "Content-Type": "application/json; charset=utf-8", "Accept": "application/json",
+        "X-CSRF-Token": window.FPW_ADMIN_CSRF_TOKEN || "" },
       body: JSON.stringify(body)
     });
     var data;
@@ -214,3 +215,4 @@
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })(window, document);
+
