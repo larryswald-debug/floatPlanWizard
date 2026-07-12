@@ -11,6 +11,7 @@
             var apiDir = getDirectoryFromPath(baseDir);
             var rootDir = getDirectoryFromPath(apiDir);
             var templatePath = baseDir & "USCGFloatPlan_new.pdf";
+            var continuationTemplatePath = baseDir & "USCGFloatPlan_itinerary_continuation.pdf";
             var outputDir = rootDir & "floatPlans/user_float_plans";
 
             appendFpwPdfLog("information", "createPDF start floatPlanId=#arguments.floatPlanId# baseDir=#baseDir# rootDir=#rootDir# templatePath=#templatePath# outputDir=#outputDir#");
@@ -47,6 +48,16 @@
 	            var contacts = loadContacts(arguments.floatPlanId, ds);
 	            var waypoints = loadWaypoints(arguments.floatPlanId, ds);
 	            var basicDetails = loadBasicDetails(arguments.floatPlanId, ds);
+            var routeItinerary = {};
+            var itineraryFields = {};
+            var continuationPaths = [];
+            var continuationPageLegs = [];
+            var continuationFieldValues = {};
+            var continuationPageIndex = 0;
+            var cleanupIndex = 0;
+            var continuationPath = "";
+            var assembledPath = "";
+            var protectionSourcePath = destinationPath;
 
             appendFpwPdfLog("information", "createPDF writing destinationPath=#destinationPath# readonlyPath=#readonlyPath#");
 
@@ -152,6 +163,35 @@
 	                    }
 	                }
 	            }
+
+            try {
+                routeItinerary = createFloatPlanPdfItineraryService(ds).getItinerary(arguments.floatPlanId);
+            } catch (any itineraryErr) {
+                appendFpwPdfLog(
+                    "error",
+                    "createPDF itinerary ERROR floatPlanId=#arguments.floatPlanId# msg=#itineraryErr.message# detail=#itineraryErr.detail#"
+                );
+                rethrow;
+            }
+
+            for (var itineraryWarningIndex = 1; itineraryWarningIndex LTE arrayLen(routeItinerary.warnings); itineraryWarningIndex++) {
+                var itineraryWarning = routeItinerary.warnings[itineraryWarningIndex];
+                appendFpwPdfLog(
+                    "warning",
+                    "createPDF itinerary warning floatPlanId=#arguments.floatPlanId# routeInstanceId=#getNumeric(routeItinerary, 'routeInstanceId', 0)# code=#getString(itineraryWarning, 'code', '')# routeLegOrder=#getNumeric(itineraryWarning, 'routeLegOrder', 0)# message=#getString(itineraryWarning, 'message', '')#"
+                );
+            }
+
+            itineraryFields = buildOfficialItineraryFields(
+                routeItinerary = routeItinerary,
+                waypoints = waypoints,
+                tripDepartureDate = tripDepartureDate,
+                tripDepartTime = tripDepartTime,
+                tripDepartLocation = tripDepartLocation,
+                tripReturnDate = tripReturnDate,
+                tripReturnTime = tripReturnTime,
+                tripReturnLocation = tripReturnLocation
+            );
 	        </cfscript>
 
         <cftry>
@@ -271,44 +311,73 @@
             <cfpdfformparam name="RescueAuthority" value="#rescueAuthority#">
             <cfpdfformparam name="RescueAuthority-Phone" value="#rescueAuthorityPhone#">
 
-            <!-- Waypoints -->
-            <cfpdfformparam name="01DepartDate" value="#tripDepartureDate#">
-            <cfpdfformparam name="01DepartTime" value="#tripDepartTime#">
-            <cfpdfformparam name="01DepartLocation" value="#tripDepartLocation# - Start of Trip">
-            <cfpdfformparam name="01DepartMode" value="">
-
-            <cfset waypointCnt = 1>
-            <cfloop from="1" to="#arrayLen(waypoints)#" index="wIdx">
-                <cfset waypointCnt = waypointCnt + 1>
-                <cfset waypoint = waypoints[wIdx]>
-                <cfset wpNum = NumberFormat(waypointCnt, "00")>
-                <cfset arriveTime = formatTime(getAny(waypoint, "arrival", ""))>
-                <cfset departTime = formatTime(getAny(waypoint, "departure", ""))>
-                <cfpdfformparam name="#wpNum#ArriveDate" value="#formatDate(getAny(waypoint, 'arrival', ''))#">
-                <cfpdfformparam name="#wpNum#ArriveTime" value="#arriveTime#">
-                <cfpdfformparam name="#wpNum#DepartDate" value="#formatDate(getAny(waypoint, 'departure', ''))#">
-                <cfpdfformparam name="#wpNum#DepartTime" value="#departTime#">
-                <cfpdfformparam name="#wpNum#ArriveLocation" value="#getString(waypoint, 'name', '')#">
-                <cfpdfformparam name="#wpNum#DepartMode" value="#getString(waypoint, 'departType', '')#">
-                <cfpdfformparam name="#wpNum#ArriveReason" value="#getString(waypoint, 'reason', '')#">
+            <!-- Canonical itinerary fields are initialized blank before any route or legacy values are applied. -->
+            <cfloop collection="#itineraryFields#" item="itineraryFieldName">
+                <cfpdfformparam name="#itineraryFieldName#" value="#itineraryFields[itineraryFieldName]#">
             </cfloop>
-            <cfset waypointCnt = waypointCnt + 1>
-            <cfset endNum = NumberFormat(waypointCnt, "00")>
-            <cfpdfformparam name="#endNum#ArriveDate" value="#tripReturnDate#">
-            <cfpdfformparam name="#endNum#ArriveTime" value="#tripReturnTime#">
-            <cfpdfformparam name="#endNum#ArriveLocation" value="#tripReturnLocation# - End of Trip">
         </cfpdfform>
+
+        <cfif routeItinerary.isRouteBacked AND arrayLen(routeItinerary.continuationPages)>
+            <cfif NOT fileExists(continuationTemplatePath)>
+                <cfthrow
+                    type="FloatPlanPdfItinerary.ContinuationTemplateMissing"
+                    message="The itinerary continuation PDF template is missing."
+                    detail="templatePath=#continuationTemplatePath#">
+            </cfif>
+
+            <cfloop from="1" to="#arrayLen(routeItinerary.continuationPages)#" index="continuationPageIndex">
+                <cfset continuationPageLegs = routeItinerary.continuationPages[continuationPageIndex]>
+                <cfset continuationFieldValues = buildContinuationFieldValues(
+                    routeItinerary = routeItinerary,
+                    pageLegs = continuationPageLegs,
+                    pageNumber = continuationPageIndex,
+                    pageCount = arrayLen(routeItinerary.continuationPages)
+                )>
+                <cfset continuationPath = outputDir & "/." & safePlanName & "_" & replace(createUUID(), "-", "", "all") & "_continuation_" & continuationPageIndex & ".pdf">
+
+                <cfpdfform
+                    action="populate"
+                    source="#continuationTemplatePath#"
+                    destination="#continuationPath#"
+                    overwrite="true">
+                    <cfloop collection="#continuationFieldValues#" item="continuationFieldName">
+                        <cfpdfformparam name="#continuationFieldName#" value="#continuationFieldValues[continuationFieldName]#">
+                    </cfloop>
+                </cfpdfform>
+                <cfset arrayAppend(continuationPaths, continuationPath)>
+            </cfloop>
+
+            <cfset assembledPath = outputDir & "/." & safePlanName & "_" & replace(createUUID(), "-", "", "all") & "_assembled.pdf">
+            <cfpdf action="merge" destination="#assembledPath#" overwrite="true">
+                <cfpdfparam source="#destinationPath#" pages="1-2">
+                <cfloop from="1" to="#arrayLen(continuationPaths)#" index="continuationPageIndex">
+                    <cfpdfparam source="#continuationPaths[continuationPageIndex]#">
+                </cfloop>
+                <cfpdfparam source="#destinationPath#" pages="3">
+            </cfpdf>
+            <cfset protectionSourcePath = assembledPath>
+        </cfif>
 
         <cfpdf
             action="protect"
-            source="#destinationPath#"
+            source="#protectionSourcePath#"
             destination="#readonlyPath#"
             overwrite="true"
             newownerpassword="#createUUID()#"
             permissions="AllowPrinting,AllowCopy,AllowScreenReaders">
 
         <cfscript>
-            appendFpwPdfLog("information", "createPDF complete readonlyFile=#readonlyFileName# destExists=#fileExists(destinationPath)# readonlyExists=#fileExists(readonlyPath)#");
+            if (len(assembledPath) AND fileExists(assembledPath)) {
+                if (fileExists(destinationPath)) {
+                    fileDelete(destinationPath);
+                }
+                fileMove(assembledPath, destinationPath);
+                assembledPath = "";
+            }
+            appendFpwPdfLog(
+                "information",
+                "createPDF complete readonlyFile=#readonlyFileName# routeLegCount=#arrayLen(routeItinerary.legs)# continuationPageCount=#arrayLen(routeItinerary.continuationPages)# destExists=#fileExists(destinationPath)# readonlyExists=#fileExists(readonlyPath)#"
+            );
         </cfscript>
         <cfcatch type="any">
             <cfscript>
@@ -316,9 +385,177 @@
             </cfscript>
             <cfthrow message="#cfcatch.message#" detail="#cfcatch.detail#">
         </cfcatch>
+        <cffinally>
+            <cfif len(assembledPath) AND fileExists(assembledPath)>
+                <cffile action="delete" file="#assembledPath#">
+            </cfif>
+            <cfloop from="1" to="#arrayLen(continuationPaths)#" index="cleanupIndex">
+                <cfif fileExists(continuationPaths[cleanupIndex])>
+                    <cffile action="delete" file="#continuationPaths[cleanupIndex]#">
+                </cfif>
+            </cfloop>
+        </cffinally>
         </cftry>
 
         <cfreturn readonlyFileName>
+    </cffunction>
+
+    <cffunction name="createFloatPlanPdfItineraryService" access="private" output="false" returntype="any">
+        <cfargument name="datasource" type="string" required="true">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.api_assets.FloatPlanPdfItineraryService").init(arguments.datasource);
+            } catch (any primaryPathErr) {
+                return createObject("component", "api.api_assets.FloatPlanPdfItineraryService").init(arguments.datasource);
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildOfficialItineraryFields" access="private" output="false" returntype="struct">
+        <cfargument name="routeItinerary" type="struct" required="true">
+        <cfargument name="waypoints" type="array" required="true">
+        <cfargument name="tripDepartureDate" type="string" required="true">
+        <cfargument name="tripDepartTime" type="string" required="true">
+        <cfargument name="tripDepartLocation" type="string" required="true">
+        <cfargument name="tripReturnDate" type="string" required="true">
+        <cfargument name="tripReturnTime" type="string" required="true">
+        <cfargument name="tripReturnLocation" type="string" required="true">
+        <cfscript>
+            var fields = initializeOfficialItineraryFields();
+            var i = 0;
+            var stopNumber = 0;
+            var stopPrefix = "";
+            var leg = {};
+            var nextLeg = {};
+            var waypoint = {};
+            var lastStopNumber = 1;
+
+            if (
+                arguments.routeItinerary.isRouteBacked
+                AND arrayLen(arguments.routeItinerary.legs)
+            ) {
+                fields["01DepartDate"] = arguments.routeItinerary.legs[1].departureDate;
+                fields["01DepartTime"] = arguments.routeItinerary.legs[1].departureTime;
+                fields["01DepartLocation"] = arguments.routeItinerary.legs[1].origin;
+
+                for (i = 1; i LTE arrayLen(arguments.routeItinerary.officialLegs); i++) {
+                    leg = arguments.routeItinerary.officialLegs[i];
+                    stopNumber = i + 1;
+                    stopPrefix = numberFormat(stopNumber, "00");
+                    fields[stopPrefix & "ArriveDate"] = leg.arrivalDate;
+                    fields[stopPrefix & "ArriveTime"] = leg.arrivalTime;
+                    fields[stopPrefix & "ArriveLocation"] = leg.destination;
+
+                    if (
+                        stopNumber LTE 20
+                        AND i LT arrayLen(arguments.routeItinerary.legs)
+                    ) {
+                        nextLeg = arguments.routeItinerary.legs[i + 1];
+                        fields[stopPrefix & "DepartDate"] = nextLeg.departureDate;
+                        fields[stopPrefix & "DepartTime"] = nextLeg.departureTime;
+                    }
+                }
+                return fields;
+            }
+
+            fields["01DepartDate"] = arguments.tripDepartureDate;
+            fields["01DepartTime"] = arguments.tripDepartTime;
+            fields["01DepartLocation"] = arguments.tripDepartLocation & " - Start of Trip";
+
+            for (i = 1; i LTE min(19, arrayLen(arguments.waypoints)); i++) {
+                waypoint = arguments.waypoints[i];
+                stopNumber = i + 1;
+                stopPrefix = numberFormat(stopNumber, "00");
+                fields[stopPrefix & "ArriveDate"] = formatDate(getAny(waypoint, "arrival", ""));
+                fields[stopPrefix & "ArriveTime"] = formatTime(getAny(waypoint, "arrival", ""));
+                fields[stopPrefix & "ArriveLocation"] = getString(waypoint, "name", "");
+                fields[stopPrefix & "ArriveReason"] = getString(waypoint, "reason", "");
+                fields[stopPrefix & "DepartDate"] = formatDate(getAny(waypoint, "departure", ""));
+                fields[stopPrefix & "DepartTime"] = formatTime(getAny(waypoint, "departure", ""));
+                fields[stopPrefix & "DepartMode"] = getString(waypoint, "departType", "");
+                lastStopNumber = stopNumber;
+            }
+
+            if (lastStopNumber LT 21) {
+                stopNumber = lastStopNumber + 1;
+                stopPrefix = numberFormat(stopNumber, "00");
+                fields[stopPrefix & "ArriveDate"] = arguments.tripReturnDate;
+                fields[stopPrefix & "ArriveTime"] = arguments.tripReturnTime;
+                fields[stopPrefix & "ArriveLocation"] = arguments.tripReturnLocation & " - End of Trip";
+            }
+            return fields;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="initializeOfficialItineraryFields" access="private" output="false" returntype="struct">
+        <cfscript>
+            var fields = {
+                "01DepartDate" = "",
+                "01DepartTime" = "",
+                "01DepartLocation" = "",
+                "01DepartMode" = ""
+            };
+            var stopNumber = 0;
+            var stopPrefix = "";
+
+            for (stopNumber = 2; stopNumber LTE 21; stopNumber++) {
+                stopPrefix = numberFormat(stopNumber, "00");
+                fields[stopPrefix & "ArriveDate"] = "";
+                fields[stopPrefix & "ArriveTime"] = "";
+                fields[stopPrefix & "ArriveLocation"] = "";
+                fields[stopPrefix & "ArriveReason"] = "";
+                fields[stopPrefix & "ArriveCheckinTime"] = "";
+                if (stopNumber LTE 20) {
+                    fields[stopPrefix & "DepartDate"] = "";
+                    fields[stopPrefix & "DepartTime"] = "";
+                    fields[stopPrefix & "DepartMode"] = "";
+                }
+            }
+            return fields;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildContinuationFieldValues" access="private" output="false" returntype="struct">
+        <cfargument name="routeItinerary" type="struct" required="true">
+        <cfargument name="pageLegs" type="array" required="true">
+        <cfargument name="pageNumber" type="numeric" required="true">
+        <cfargument name="pageCount" type="numeric" required="true">
+        <cfscript>
+            var fields = {
+                "CONT-PlanName" = arguments.routeItinerary.planName,
+                "CONT-FloatPlanId" = toString(arguments.routeItinerary.floatPlanId),
+                "CONT-RouteInstanceId" = toString(arguments.routeItinerary.routeInstanceId),
+                "CONT-Timezone" = arguments.routeItinerary.timezone,
+                "CONT-PageNumber" = toString(arguments.pageNumber),
+                "CONT-PageCount" = toString(arguments.pageCount)
+            };
+            var rowIndex = 0;
+            var rowPrefix = "";
+            var leg = {};
+
+            for (rowIndex = 1; rowIndex LTE 20; rowIndex++) {
+                rowPrefix = "CONT-" & numberFormat(rowIndex, "00") & "-";
+                fields[rowPrefix & "Leg"] = "";
+                fields[rowPrefix & "Origin"] = "";
+                fields[rowPrefix & "DepartDate"] = "";
+                fields[rowPrefix & "DepartTime"] = "";
+                fields[rowPrefix & "Destination"] = "";
+                fields[rowPrefix & "ArriveDate"] = "";
+                fields[rowPrefix & "ArriveTime"] = "";
+
+                if (rowIndex LTE arrayLen(arguments.pageLegs)) {
+                    leg = arguments.pageLegs[rowIndex];
+                    fields[rowPrefix & "Leg"] = toString(leg.routeLegOrder);
+                    fields[rowPrefix & "Origin"] = leg.origin;
+                    fields[rowPrefix & "DepartDate"] = leg.departureDate;
+                    fields[rowPrefix & "DepartTime"] = leg.departureTime;
+                    fields[rowPrefix & "Destination"] = leg.destination;
+                    fields[rowPrefix & "ArriveDate"] = leg.arrivalDate;
+                    fields[rowPrefix & "ArriveTime"] = leg.arrivalTime;
+                }
+            }
+            return fields;
+        </cfscript>
     </cffunction>
 
     <cffunction name="getPdfPath" access="public" output="false" returntype="string" hint="Return absolute path to a generated float plan PDF">
@@ -623,3 +860,16 @@
         </cfscript>
     </cffunction>
 </cfcomponent>
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -260,11 +260,15 @@
         <cfargument name="options" type="any" required="false" default="">
         <cfscript>
             var out = {
-                "includeOperationalLockTime" = false
+                "includeOperationalLockTime" = false,
+                "allowDraftScheduledProjection" = false
             };
 
             if (isStruct(arguments.options) AND structKeyExists(arguments.options, "includeOperationalLockTime")) {
                 out.includeOperationalLockTime = (listFindNoCase("true,1,yes,y", trim(toString(arguments.options.includeOperationalLockTime))) GT 0);
+            }
+            if (isStruct(arguments.options) AND structKeyExists(arguments.options, "allowDraftScheduledProjection")) {
+                out.allowDraftScheduledProjection = (listFindNoCase("true,1,yes,y", trim(toString(arguments.options.allowDraftScheduledProjection))) GT 0);
             }
 
             return out;
@@ -963,7 +967,7 @@
                     OR safeNumber(arguments.out.eventLedger.count) LTE 0
                     OR arrayLen(arguments.canonicalSegments) EQ 0
                 )
-                AND canAttemptScheduledRouteTimeline(arguments.qPlan, arguments.qProgress, arguments.currentLeg, arguments.canonicalSegments, arguments.out)
+                AND canAttemptScheduledRouteTimeline(arguments.qPlan, arguments.qProgress, arguments.currentLeg, arguments.canonicalSegments, arguments.out, arguments.projectionOptions)
             ) {
                 return buildScheduledRouteTimelineProjection(arguments.qPlan, arguments.qLegs, arguments.qProgress, arguments.currentLeg, arguments.asOfUtc, arguments.speedKn, timeline, arguments.out, arguments.projectionOptions);
             }
@@ -1174,6 +1178,7 @@
         <cfargument name="currentLeg" type="struct" required="true">
         <cfargument name="canonicalSegments" type="array" required="true">
         <cfargument name="out" type="struct" required="true">
+        <cfargument name="projectionOptions" type="struct" required="true">
         <cfscript>
             var planStatus = "";
             var currentStatus = "";
@@ -1197,7 +1202,10 @@
             }
 
             planStatus = uCase(safeString(arguments.qPlan.status[1]));
-            if (!listFindNoCase("ACTIVE,SCHEDULED,PLANNED", planStatus)) {
+            if (
+                !listFindNoCase("ACTIVE,SCHEDULED,PLANNED", planStatus)
+                AND !(arguments.projectionOptions.allowDraftScheduledProjection AND planStatus EQ "DRAFT")
+            ) {
                 return false;
             }
             if (!structKeyExists(arguments.currentLeg, "routeLegOrder") OR safeNumber(arguments.currentLeg.routeLegOrder) LTE 0) {
@@ -2189,3 +2197,7 @@
     </cffunction>
 
 </cfcomponent>
+
+
+
+

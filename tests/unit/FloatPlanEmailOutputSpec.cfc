@@ -4,6 +4,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.hadOriginalTestUserId = structKeyExists( url, "testUserId" );
     variables.originalTestUserId = variables.hadOriginalTestUserId ? url.testUserId : "";
     variables.sessionApiUser = createSessionApiUser();
+    grantTestPremiumEntitlement( variables.sessionApiUser.userId );
     url.testUserId = variables.sessionApiUser.userId;
     variables.api = new fpw.tests.support.FpwApiSupport().init(
       authEmail = variables.sessionApiUser.email,
@@ -55,6 +56,32 @@ component extends="testbox.system.BaseSpec" output="false" {
         variables.created.floatPlanId = routePlan.planId;
         variables.created.routeCode = routePlan.routeCode;
         variables.created.pdfPrefix = rereplace( routePlan.planName, "[^A-Za-z0-9_-]+", "_", "all" );
+
+        var projectionService = new fpw.api.v1.TripProgressProjectionService().init( "fpw" );
+        var defaultDraftProjection = projectionService.getProjection(
+          variables.created.floatPlanId,
+          "",
+          { includeOperationalLockTime = false }
+        );
+        var pdfDraftProjection = projectionService.getProjection(
+          variables.created.floatPlanId,
+          "",
+          {
+            includeOperationalLockTime = false,
+            allowDraftScheduledProjection = true
+          }
+        );
+        expect( defaultDraftProjection.routeTimeline.available ).toBeFalse( serializeJSON( defaultDraftProjection.routeTimeline ) );
+        expect( pdfDraftProjection.routeTimeline.available ).toBeTrue( serializeJSON( pdfDraftProjection.routeTimeline ) );
+        expect( arrayLen( pdfDraftProjection.routeTimeline.legs ) ).toBeGT( 0 );
+
+        var draftItinerary = new fpw.api.api_assets.FloatPlanPdfItineraryService()
+          .init( "fpw" )
+          .getItinerary( variables.created.floatPlanId );
+        expect( draftItinerary.isRouteBacked ).toBeTrue( serializeJSON( draftItinerary ) );
+        expect( arrayLen( draftItinerary.legs ) ).toBe( arrayLen( pdfDraftProjection.routeTimeline.legs ) );
+        expect( len( draftItinerary.legs[ 1 ].departureDate ) ).toBeGT( 0 );
+        expect( len( draftItinerary.legs[ 1 ].departureTime ) ).toBeGT( 0 );
 
         var sendPayload = variables.api.sendFloatPlan( variables.created.floatPlanId );
         expect( sendPayload.SUCCESS ).toBeTrue( serializeJSON( sendPayload ) );
@@ -237,6 +264,8 @@ component extends="testbox.system.BaseSpec" output="false" {
     var planName = variables.naming.buildName( arguments.prefix, "Email Plan" );
     var departureTime = buildDateTimeLocal( 2, 9 );
     var returnTime = buildDateTimeLocal( 2, 18 );
+    var departureTimeUtc = buildUtcFromLocal( departureTime, "America/New_York" );
+    var returnTimeUtc = buildUtcFromLocal( returnTime, "America/New_York" );
     var savePayload = {};
 
     expect( options.SUCCESS ).toBeTrue( serializeJSON( options ) );
@@ -276,9 +305,11 @@ component extends="testbox.system.BaseSpec" output="false" {
         DEPARTING_FROM = "Email Dock",
         DEPARTURE_TIME = departureTime,
         DEPARTURE_TIMEZONE = "America/New_York",
+        DEPARTURE_TIME_UTC = departureTimeUtc,
         RETURNING_TO = "Email Dock",
         RETURN_TIME = returnTime,
         RETURN_TIMEZONE = "America/New_York",
+        RETURN_TIME_UTC = returnTimeUtc,
         EMAIL = arguments.contact.email,
         RESCUE_AUTHORITY = "USCG",
         RESCUE_AUTHORITY_PHONE = "5555551212",
@@ -324,6 +355,18 @@ component extends="testbox.system.BaseSpec" output="false" {
     return dateTimeFormat( value, "yyyy-mm-dd" ) & "T" & timeFormat( value, "HH:mm" );
   }
 
+  private string function buildUtcFromLocal( required string localValue, required string timezone ) {
+    var localFormatter = createObject( "java", "java.time.format.DateTimeFormatter" ).ofPattern( "yyyy-MM-dd'T'HH:mm" );
+    var utcFormatter = createObject( "java", "java.time.format.DateTimeFormatter" )
+      .ofPattern( "yyyy-MM-dd HH:mm:ss" )
+      .withZone( createObject( "java", "java.time.ZoneOffset" ).UTC );
+    var localDateTime = createObject( "java", "java.time.LocalDateTime" ).parse( arguments.localValue, localFormatter );
+    var instant = localDateTime
+      .atZone( createObject( "java", "java.time.ZoneId" ).of( arguments.timezone ) )
+      .toInstant();
+    return utcFormatter.format( instant );
+  }
+
   private struct function createSessionApiUser() {
     var signupApi = new fpw.tests.support.FpwApiSupport().init();
     var uniqueEmail = "fpw-email-output-" & replace( createUUID(), "-", "", "all" ) & "@example.com";
@@ -331,7 +374,9 @@ component extends="testbox.system.BaseSpec" output="false" {
       firstName = "FPW",
       lastName = "EmailOutput",
       email = uniqueEmail,
-      password = "changeIt"
+      password = "changeIt",
+      confirmPassword = "changeIt",
+      termsAccepted = true
     }, false );
 
     expect( payload.SUCCESS ).toBeTrue( serializeJSON( payload ) );
@@ -342,6 +387,34 @@ component extends="testbox.system.BaseSpec" output="false" {
       email = uniqueEmail,
       password = "changeIt"
     };
+  }
+
+  private void function grantTestPremiumEntitlement( required numeric userId ) {
+    queryExecute(
+      "INSERT INTO member_entitlements (
+         user_id,
+         entitlement_type,
+         source,
+         status,
+         starts_at_utc,
+         expires_at_utc,
+         created_utc,
+         updated_utc
+       ) VALUES (
+         :userId,
+         'premium',
+         'test_float_plan_pdf',
+         'active',
+         UTC_TIMESTAMP(),
+         NULL,
+         UTC_TIMESTAMP(),
+         UTC_TIMESTAMP()
+       )",
+      {
+        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
   }
 
   private void function cleanupSessionApiUser() {
@@ -356,6 +429,13 @@ component extends="testbox.system.BaseSpec" output="false" {
       return;
     }
 
+    queryExecute(
+      "DELETE FROM member_entitlements WHERE user_id = :userId",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
     queryExecute(
       "DELETE FROM users_address WHERE userId = :userId",
       {
@@ -372,3 +452,11 @@ component extends="testbox.system.BaseSpec" output="false" {
     );
   }
 }
+
+
+
+
+
+
+
+
