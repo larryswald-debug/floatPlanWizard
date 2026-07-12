@@ -301,13 +301,13 @@ component extends="testbox.system.BaseSpec" output="false" {
           lockSeconds = round(firstLeg.lockSummary.operationalLockTimeMinutes * 60);
           projectedSeconds = dateDiff("s", parseUtcForTest(firstLeg.departureUtc), parseUtcForTest(firstLeg.etaUtc));
           expect(lockSeconds).toBeGT(0, serializeJSON(firstLeg.lockSummary));
-          expect(projectedSeconds).toBe(cruiseSeconds, serializeJSON(firstLeg));
+          expect(projectedSeconds).toBeGT(cruiseSeconds, serializeJSON(firstLeg));
           expect(firstLeg.estimatedDurationSeconds).toBe(cruiseSeconds, serializeJSON(firstLeg));
           expect(firstLeg.remainingDurationSeconds).toBe(firstLeg.estimatedDurationSeconds, serializeJSON(firstLeg));
           expect(len(firstLeg.estimatedDurationLabel)).toBeGT(0, serializeJSON(firstLeg));
           expect(len(firstLeg.remainingDurationLabel)).toBeGT(0, serializeJSON(firstLeg));
-          expect(firstLeg.durationAuthority).toBe("scheduled_projection", serializeJSON(firstLeg));
-          expect(firstLeg.arrivalSource).toBe("scheduled_projection", serializeJSON(firstLeg));
+          expect(firstLeg.durationAuthority).toBe("operational_timeline", serializeJSON(firstLeg));
+          expect(firstLeg.arrivalSource).toBe("OperationalTripTimelineService.scheduled_projection", serializeJSON(firstLeg));
         } finally {
           cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
         }
@@ -347,8 +347,10 @@ component extends="testbox.system.BaseSpec" output="false" {
           lockSeconds = round(lockAwareCurrentLeg.lockSummary.operationalLockTimeMinutes * 60);
           expect(lockSeconds).toBeGT(0, serializeJSON(lockAwareCurrentLeg.lockSummary));
           expect(dateDiff("s", parseUtcForTest(defaultCurrentLeg.etaUtc), parseUtcForTest(lockAwareCurrentLeg.etaUtc))).toBe(lockSeconds, serializeJSON(lockAwareCurrentLeg));
-          expect(defaultCurrentLeg.arrivalSource).toBe("etaProjection.etaUtc", serializeJSON(defaultCurrentLeg));
-          expect(lockAwareCurrentLeg.arrivalSource).toBe("etaProjection.etaUtc_plus_operational_lock_time", serializeJSON(lockAwareCurrentLeg));
+          expect(defaultCurrentLeg.arrivalSource).toBe("OperationalTripTimelineService.current_remaining_projection", serializeJSON(defaultCurrentLeg));
+          expect(lockAwareCurrentLeg.arrivalSource).toBe("OperationalTripTimelineService.current_remaining_projection", serializeJSON(lockAwareCurrentLeg));
+          expect(defaultCurrentLeg.durationAuthority).toBe("operational_timeline_actual_progress", serializeJSON(defaultCurrentLeg));
+          expect(lockAwareCurrentLeg.durationAuthority).toBe("operational_timeline_actual_progress_plus_operational_lock_time", serializeJSON(lockAwareCurrentLeg));
           expect(arrayLen(lockAwareCurrentLeg.warnings)).toBeGT(0, serializeJSON(lockAwareCurrentLeg));
           expect(findLegWarning(lockAwareCurrentLeg, "LOCK_TIME_NOT_POSITION_AWARE")).toBeTrue(serializeJSON(lockAwareCurrentLeg.warnings));
 

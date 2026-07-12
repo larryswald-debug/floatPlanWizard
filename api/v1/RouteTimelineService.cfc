@@ -924,6 +924,8 @@
             var segmentLockAssigned = false;
             var sliceMeta = {};
             var sliceEpsilon = 0.0001;
+            var timelineMathService = createTripTimelineMathService();
+            var windowAllocation = {};
             if (userIdVal LTE 0) {
                 out.message = "Unauthorized";
                 out.error = { "message"="No logged-in user session." };
@@ -1379,10 +1381,11 @@
                     structKeyExists(exposureInfo, "level_used") ? val(exposureInfo.level_used) : 0
                 );
                 weatherAdjustedSpeedThisSegVal = routegenComputeWeatherAdjustedSpeedKn(effectiveSpeedVal, effectiveWeatherPctSegVal);
-                segHours = (segDistNm GT 0 ? (segDistNm / weatherAdjustedSpeedThisSegVal) : 0);
-                if (segLockTimeMin GT 0) {
-                    segHours += (segLockTimeMin / 60);
-                }
+                segHours = timelineMathService.calculateDurationSeconds(
+                    distanceNm = segDistNm,
+                    speedKn = weatherAdjustedSpeedThisSegVal,
+                    lockMinutes = segLockTimeMin
+                ) / 3600;
                 if (segHours LT 0) segHours = 0;
 
                 if (structKeyExists(exposureInfo, "level_used") AND val(exposureInfo.level_used) GT exposureMaxLevelVal) {
@@ -1456,17 +1459,18 @@
                         totalRequiredFuel += val(finalizedDay.required_fuel_gallons);
                         arrayAppend(days, finalizedDay);
 
-                        currentDate = dateAdd("d", 1, currentDate);
+                        currentDate = timelineMathService.advanceLocalDate(currentDate);
                         legIndex += 1;
                         currentDay = routegenBuildCruiseTimelineDay(currentDate, legIndex);
                     }
 
-                    remainingDayCapacity = maxHoursVal - val(currentDay.est_hours);
-                    if (remainingDayCapacity LT sliceEpsilon) {
-                        remainingDayCapacity = maxHoursVal;
-                    }
-
-                    sliceHoursVal = min(remainingSegHours, remainingDayCapacity);
+                    windowAllocation = timelineMathService.getWindowAllocation(
+                        remainingSeconds = remainingSegHours * 3600,
+                        usedSeconds = val(currentDay.est_hours) * 3600,
+                        maximumSeconds = maxHoursVal * 3600
+                    );
+                    remainingDayCapacity = windowAllocation.availableSeconds / 3600;
+                    sliceHoursVal = windowAllocation.sliceSeconds / 3600;
                     if (sliceHoursVal LT sliceEpsilon) {
                         sliceHoursVal = remainingSegHours;
                     }
@@ -1706,11 +1710,7 @@
 <cffunction name="routegenNormalizeUnderwayHours" access="private" returntype="numeric" output="false">
         <cfargument name="hours" type="any" required="false" default="6.5">
         <cfscript>
-            var v = val(arguments.hours);
-            if (v LTE 0) v = 6.5;
-            if (v LT 1) v = 1;
-            if (v GT 24) v = 24;
-            return v;
+            return createTripTimelineMathService().normalizeUnderwayHours(arguments.hours);
         </cfscript>
     </cffunction>
 
@@ -2290,6 +2290,16 @@
             </cfif>
         </cfif>
         <cfreturn uid />
+    </cffunction>
+
+<cffunction name="createTripTimelineMathService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.TripTimelineMathService").init();
+            } catch (any primaryPathError) {
+                return createObject("component", "api.v1.TripTimelineMathService").init();
+            }
+        </cfscript>
     </cffunction>
 
 <cffunction name="roundTo2" access="private" returntype="numeric" output="false">
