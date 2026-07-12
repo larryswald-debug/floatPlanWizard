@@ -1057,6 +1057,20 @@
         return false;
       },
 
+      validateStepsThrough: function (targetStep) {
+        var lastStep = Math.min(numeric(targetStep), this.totalSteps);
+        for (var stepNumber = 1; stepNumber <= lastStep; stepNumber++) {
+          if (!this.validateStep(stepNumber)) {
+            if (this.step !== stepNumber) {
+              this.step = stepNumber;
+            }
+            this.$nextTick(this.focusFirstError);
+            return false;
+          }
+        }
+        return true;
+      },
+
       clearFieldError: function (field) {
         if (this.fieldErrors && this.fieldErrors[field]) {
           delete this.fieldErrors[field];
@@ -1649,7 +1663,7 @@
           return;
         }
 
-        if (!this.validateStep(this.totalSteps)) {
+        if (!this.validateStepsThrough(this.step)) {
           return;
         }
         applyClientUtcFields(this.fp.FLOATPLAN);
@@ -1888,3 +1902,5 @@
     initWizard({ mountEl: autoMountEl });
   }
 })(window, document, window.Vue);
+
+

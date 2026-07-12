@@ -182,7 +182,7 @@ function buildBootstrapData(routeWaypoints) {
   };
 }
 
-async function openWaypointReview(page, bootstrapData) {
+async function openWaypointReview(page, bootstrapData, startStep = 5) {
   await page.route(`**${HARNESS_PATH}`, async (route) => {
     await route.fulfill({
       status: 200,
@@ -238,16 +238,18 @@ async function openWaypointReview(page, bootstrapData) {
     window.__fpwStep5Test.wizard = window.FloatPlanWizard.init({
       mountEl: document.getElementById("wizardApp"),
       planId: args.planId,
-      startStep: 5,
+      startStep: args.startStep,
       contactStep: 4
     });
     return !!window.__fpwStep5Test.wizard;
-  }, { data: bootstrapData, planId: PLAN_ID });
+  }, { data: bootstrapData, planId: PLAN_ID, startStep });
 
   expect(opened).toBe(true);
 
   const container = page.locator("#floatPlanWizardModal");
-  await expect(container.getByRole("heading", { name: "Step 5 – Waypoints" })).toBeVisible();
+  if (startStep === 5) {
+    await expect(container.getByRole("heading", { name: "Step 5 – Waypoints" })).toBeVisible();
+  }
   return container;
 }
 
@@ -336,3 +338,69 @@ test("Step 5 remains stable for a route with zero waypoints", async ({ page }) =
   await expect(modal.getByText("In Route (0)")).toBeVisible();
   await expect(modal.getByText("No waypoints selected.")).toBeVisible();
 });
+
+test("Save on step 1 persists a draft before future-step rescue fields are complete", async ({ page }) => {
+  const bootstrapData = buildBootstrapData([]);
+  bootstrapData.FLOATPLAN.RESCUE_AUTHORITY = "";
+  bootstrapData.FLOATPLAN.RESCUE_AUTHORITY_PHONE = "";
+  bootstrapData.FLOATPLAN.RESCUE_CENTERID = 0;
+
+  const modal = await openWaypointReview(page, bootstrapData, 1);
+  await expect(modal.getByRole("heading", { name: "Step 1 – Basics" })).toBeVisible();
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__fpwStep5Test.wizard.isLoading);
+  }).toBe(false);
+
+  await page.evaluate(() => {
+    window.__fpwStep5Test.wizard.submitPlan();
+  });
+
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__fpwStep5Test.saveCalls.length);
+  }).toBe(1);
+
+  const savedPayload = await page.evaluate(() => window.__fpwStep5Test.saveCalls[0]);
+  expect(savedPayload.FLOATPLAN.RESCUE_AUTHORITY).toBe("");
+  expect(savedPayload.FLOATPLAN.RESCUE_AUTHORITY_PHONE).toBe("");
+});
+
+test("Save on step 2 persists a draft and final save returns to the first incomplete step", async ({ page }) => {
+  const bootstrapData = buildBootstrapData([]);
+  bootstrapData.FLOATPLAN.RESCUE_AUTHORITY = "";
+  bootstrapData.FLOATPLAN.RESCUE_AUTHORITY_PHONE = "";
+  bootstrapData.FLOATPLAN.RESCUE_CENTERID = 0;
+
+  const modal = await openWaypointReview(page, bootstrapData, 2);
+  await expect(modal.getByRole("heading", { name: "Step 2 – Times & Route" })).toBeVisible();
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__fpwStep5Test.wizard.isLoading);
+  }).toBe(false);
+
+  await page.evaluate(() => {
+    window.__fpwStep5Test.wizard.submitPlan();
+  });
+
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__fpwStep5Test.saveCalls.length);
+  }).toBe(1);
+
+  await page.evaluate(() => {
+    window.__fpwStep5Test.wizard.step = 6;
+    window.__fpwStep5Test.wizard.submitPlan();
+  });
+
+  await expect(modal.getByRole("heading", { name: "Step 3 – People & Safety" })).toBeVisible();
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__fpwStep5Test.saveCalls.length);
+  }).toBe(1);
+
+  const fieldErrors = await page.evaluate(() => {
+    return Object.assign({}, window.__fpwStep5Test.wizard.fieldErrors);
+  });
+  expect(fieldErrors.RESCUE_AUTHORITY_SELECTION).toBe("Select a rescue authority.");
+});
+
+
+
+
+
