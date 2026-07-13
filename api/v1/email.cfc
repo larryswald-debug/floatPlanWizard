@@ -466,7 +466,7 @@
 
     <cffunction name="getEmailConfig" access="private" returntype="struct" output="false">
         <cfset var fromDisplayName = "FloatPlanWizard">
-        <cfset var fromEmail = "noeply@floatplanwizard.com">
+        <cfset var fromEmail = "info@floatplanwizard.com">
         <cfset var fallbackPublicBaseUrl = "https://www.floatplanwizard.com">
         <cfset var fallbackDashboardUrl = "https://www.floatplanwizard.com/app/dashboard.cfm">
         <cfset var publicBaseUrl = resolvePublicBaseUrl(fallbackPublicBaseUrl)>
@@ -479,7 +479,7 @@
             fromDisplayName = fromDisplayName,
             fromEmail = fromEmail,
             fromValue = fromDisplayName & " <" & fromEmail & ">",
-            replyToEmail = "",
+            replyToEmail = "info@floatplanwizard.com",
             publicBaseUrl = publicBaseUrl,
             dashboardUrl = dashboardUrl,
             emailPreferencesUrl = publicBaseUrl & "/app/account.cfm##email-preferences",

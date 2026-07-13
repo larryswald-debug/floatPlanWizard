@@ -21,6 +21,14 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( findNoCase( "smtp", result.message ) ).toBe( 0 );
       } );
 
+      it( "uses the approved transactional sender and reply-to in outbound mail attributes", function() {
+        expect( findNoCase( 'fromEmail = "info@floatplanwizard.com"', variables.source ) ).toBeGT( 0 );
+        expect( findNoCase( 'replyToEmail = "info@floatplanwizard.com"', variables.source ) ).toBeGT( 0 );
+        expect( findNoCase( 'from = config.fromValue', variables.source ) ).toBeGT( 0 );
+        expect( findNoCase( 'mailAttrs.replyto = config.replyToEmail', variables.source ) ).toBeGT( 0 );
+        expect( findNoCase( "noeply@floatplanwizard.com", variables.source ) ).toBe( 0 );
+      } );
+
       it( "contains the required welcome subject, bodies, CTA, and safety notice", function() {
         var requiredText = [
           "Welcome to FloatPlanWizard.com",
