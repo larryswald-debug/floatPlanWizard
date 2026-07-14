@@ -51,6 +51,7 @@
         <cfset var requestMethod = structKeyExists(cgi, "request_method") ? uCase(trim(toString(cgi.request_method))) : "GET">
         <cfset var componentMethod = structKeyExists(url, "method") ? lCase(trim(toString(url.method))) : "">
         <cfset var isAdminPage = findNoCase("/admin/", scriptName) GT 0>
+        <cfset var isApplicationReload = structKeyExists(url, "appreload")>
         <cfset var isNamedAdminApi = reFindNoCase("/api/v1/admin[^/]*\.cfc$", scriptName) GT 0>
         <cfset var isSegmentGeometryApi = reFindNoCase("/api/v1/segmentgeometry\.cfc$", scriptName) GT 0>
         <cfset var isDatabaseBackup = reFindNoCase("/api/v1/dbbackup\.(cfc|cfm)$", scriptName) GT 0>
@@ -67,12 +68,12 @@
             <cfset request.fpwRequestId = createUUID()>
         </cfif>
 
-        <!--- Public URL-driven application reloads are intentionally disabled. --->
-        <cfif structKeyExists(url, "appreload")>
-            <cfreturn stopAdminRequest(405, "METHOD_NOT_ALLOWED", "Application reload is not available through GET.", false)>
+        <!--- Application reloads are state-changing admin operations and must never run through GET. --->
+        <cfif isApplicationReload AND requestMethod NEQ "POST">
+            <cfreturn stopAdminRequest(405, "METHOD_NOT_ALLOWED", "Application reload requires an authenticated administrative POST request.", false)>
         </cfif>
 
-        <cfif isAdminPage OR isAdminApi>
+        <cfif isAdminPage OR isAdminApi OR isApplicationReload>
             <cfset adminAuthService = new fpw.api.v1.AdminAuthorizationService().init("fpw")>
             <cfset adminAuthorization = adminAuthService.authorizeCurrentSession(userStruct)>
             <cfif NOT adminAuthorization.authenticated>
@@ -89,7 +90,8 @@
                 "requestMethod" = requestMethod,
                 "componentMethod" = componentMethod,
                 "isAdminPage" = isAdminPage,
-                "isAdminApi" = isAdminApi
+                "isAdminApi" = isAdminApi,
+                "isApplicationReload" = isApplicationReload
             }>
 
             <cfif isAdminPage>
@@ -116,6 +118,13 @@
                 <cfif NOT adminAuthService.isValidCsrfToken(csrfCandidate)>
                     <cfreturn stopAdminRequest(403, "CSRF_INVALID", "The administrative request token is invalid or expired.", true)>
                 </cfif>
+            </cfif>
+
+            <cfif isApplicationReload>
+                <cflock scope="application" type="exclusive" timeout="10">
+                    <cfset onApplicationStart()>
+                </cflock>
+                <cfset request.fpwApplicationReloaded = true>
             </cfif>
         </cfif>
 

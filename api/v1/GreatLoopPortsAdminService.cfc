@@ -928,7 +928,7 @@
     <cfargument name="path" type="string" required="true">
     <cfscript>
       if (!directoryExists(arguments.path)) {
-        directoryCreate(arguments.path, true, true);
+        directoryCreate(arguments.path);
       }
     </cfscript>
   </cffunction>

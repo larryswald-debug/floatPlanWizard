@@ -23,6 +23,8 @@
       var qVessel = queryNew("");
       var qExisting = queryNew("");
       var ext = lCase(trim(listLast(arguments.originalFileName, ".")));
+      var vesselImageRoot = "";
+      var userImageRoot = "";
       var imageRoot = "";
       var fileKey = "";
       var fileName = "";
@@ -82,7 +84,11 @@
         { datasource = variables.datasource }
       );
 
+      vesselImageRoot = getVesselImageRootPath();
+      userImageRoot = joinPath(vesselImageRoot, toString(val(arguments.userId)));
       imageRoot = getVesselImageDirectory(arguments.userId, arguments.vesselId);
+      ensureDirectory(vesselImageRoot);
+      ensureDirectory(userImageRoot);
       ensureDirectory(imageRoot);
       fileKey = "vessel-" & dateTimeFormat(now(), "yyyymmddHHnnss") & "-" & lCase(left(replace(createUUID(), "-", "", "all"), 12));
       fileName = fileKey & "." & ext;
@@ -336,7 +342,7 @@
     <cfargument name="path" type="string" required="true">
     <cfscript>
       if (!directoryExists(arguments.path)) {
-        directoryCreate(arguments.path, true, true);
+        directoryCreate(arguments.path);
       }
     </cfscript>
   </cffunction>
