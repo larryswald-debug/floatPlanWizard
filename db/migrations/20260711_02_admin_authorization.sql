@@ -77,9 +77,8 @@ WHERE me.user_id = 1
     FROM fpw_admin_audit_log al
     WHERE al.action = 'initial_admin_bootstrap'
       AND al.entity_type = 'member_entitlement'
-      AND al.entity_id = CAST(me.id AS CHAR)
+      AND al.entity_id = CONVERT(CAST(me.id AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
   )
 ORDER BY me.id DESC
 LIMIT 1;
-
 

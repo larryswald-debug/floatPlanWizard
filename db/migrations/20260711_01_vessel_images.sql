@@ -13,5 +13,4 @@ CREATE TABLE IF NOT EXISTS vessel_images (
   CONSTRAINT fk_vessel_images_vessel
     FOREIGN KEY (vessel_id) REFERENCES vessels(vesselID)
     ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
