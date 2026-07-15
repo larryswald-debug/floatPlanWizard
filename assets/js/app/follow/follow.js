@@ -2013,7 +2013,7 @@
 
     if (mediaFile) {
       var formData = new FormData();
-      var uploadUrl = getBasePath() + "/api/v1/voyageUpload.cfm";
+      var uploadUrl = apiUrl("ownerCreatePostWithMedia") + "&stream_id=" + encodeURIComponent(state.streamId);
       formData.append("stream_id", String(state.streamId));
       formData.append("body", text);
       formData.append("media_file", mediaFile);
@@ -2314,3 +2314,4 @@
 
   document.addEventListener("DOMContentLoaded", init);
 })(window, document);
+

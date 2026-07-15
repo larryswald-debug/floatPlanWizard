@@ -126,6 +126,10 @@
         </cfif>
 
         <cfcatch>
+          <cflog
+            file="fpw-errors"
+            type="error"
+            text="VESSEL_IMAGE_UPLOAD_ERROR vesselId=#vesselId# userId=#userId# extension=#left(fileExtension, 20)# mime=#left(mimeType, 100)# size=#uploadSize# type=#left(toString(cfcatch.type), 100)# message=#left(toString(cfcatch.message), 500)# detail=#left(toString(cfcatch.detail), 1000)#">
           <cfset response = {
             "SUCCESS" = false,
             "AUTH" = true,
@@ -162,6 +166,7 @@
   <cfheader statuscode="#statusCode#">
 </cfif>
 <cfoutput>#serializeJSON(response)#</cfoutput>
+
 
 
 

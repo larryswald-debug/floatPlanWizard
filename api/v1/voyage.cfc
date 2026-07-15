@@ -5,6 +5,8 @@
         <cfargument name="slug" type="string" required="false" default="">
         <cfargument name="t" type="string" required="false" default="">
         <cfargument name="stream_id" type="numeric" required="false" default="0">
+        <cfargument name="body" type="string" required="false" default="">
+        <cfargument name="media_file" type="any" required="false" default="">
         <cfargument name="cursor" type="numeric" required="false" default="0">
         <cfargument name="limit" type="numeric" required="false" default="20">
         <cfargument name="routeCode" type="string" required="false" default="">
@@ -22,7 +24,7 @@
         <cftry>
             <cfset var contentTypeVal = structKeyExists(cgi, "content_type") ? lCase(toString(cgi.content_type)) : "">
             <cfset var isMultipartRequest = findNoCase("multipart/form-data", contentTypeVal) GT 0>
-            <cfset var body = isMultipartRequest ? {} : getBodyJson()>
+            <cfset local.body = isMultipartRequest ? {} : getBodyJson()>
             <cfset var act = lCase(trim(arguments.action))>
             <cfset var currentUserId = resolveSessionUserId()>
             <cfset var payload = {}>
