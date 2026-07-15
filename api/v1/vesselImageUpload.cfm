@@ -12,6 +12,9 @@
   <cfset vesselId = val(form.vessel_id)>
 </cfif>
 <cfset uploadPath = "">
+<cfset vesselImageRoot = "">
+<cfset userImageRoot = "">
+<cfset uploadDirectory = "">
 <cfset originalName = "">
 <cfset uploadSize = 0>
 <cfset fileExtension = "">
@@ -57,9 +60,21 @@
       <cfset statusCode = structKeyExists(response, "STATUS_CODE") ? val(response.STATUS_CODE) : 403>
     <cfelse>
       <cftry>
-        <cffile action="upload" filefield="image_file" destination="#getTempDirectory()#" nameconflict="makeunique" result="uploadResult">
+        <cfset vesselImageRoot = getDirectoryFromPath(getCurrentTemplatePath()) & "../../assets/uploads/vessels">
+        <cfset userImageRoot = vesselImageRoot & "/" & userId>
+        <cfset uploadDirectory = userImageRoot & "/" & vesselId>
+        <cfif NOT directoryExists(vesselImageRoot)>
+          <cfset directoryCreate(vesselImageRoot)>
+        </cfif>
+        <cfif NOT directoryExists(userImageRoot)>
+          <cfset directoryCreate(userImageRoot)>
+        </cfif>
+        <cfif NOT directoryExists(uploadDirectory)>
+          <cfset directoryCreate(uploadDirectory)>
+        </cfif>
+        <cffile action="upload" filefield="image_file" destination="#uploadDirectory#" nameconflict="makeunique" result="uploadResult">
         <cfscript>
-          uploadPath = replace(uploadResult.serverDirectory, "\\", "/", "all") & "/" & uploadResult.serverFile;
+          uploadPath = uploadResult.serverDirectory & "/" & uploadResult.serverFile;
           originalName = structKeyExists(uploadResult, "clientFile") ? uploadResult.clientFile : uploadResult.serverFile;
           uploadSize = (structKeyExists(uploadResult, "fileSize") AND isNumeric(uploadResult.fileSize)) ? val(uploadResult.fileSize) : 0;
           if (uploadSize LTE 0) {

@@ -283,8 +283,7 @@
 
   <cffunction name="getRepoRootPath" access="private" returntype="string" output="false">
     <cfscript>
-      var serviceDirectory = getDirectoryFromPath(getCurrentTemplatePath());
-      return reReplace(normalizeFilesystemPath(serviceDirectory & "../../"), "/+$", "/", "all");
+      return getDirectoryFromPath(getCurrentTemplatePath()) & "../../";
     </cfscript>
   </cffunction>
 
@@ -392,7 +391,7 @@
   <cffunction name="normalizeFilesystemPath" access="private" returntype="string" output="false">
     <cfargument name="path" type="string" required="true">
     <cfscript>
-      return replace(arguments.path, "\\", "/", "all");
+      return replace(arguments.path, "\", "/", "all");
     </cfscript>
   </cffunction>
 
