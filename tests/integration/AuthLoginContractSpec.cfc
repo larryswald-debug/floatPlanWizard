@@ -269,6 +269,13 @@ component extends="testbox.system.BaseSpec" output="false" {
     userIds = arrayToList( userIdValues );
 
     queryExecute(
+      "DELETE FROM product_events WHERE user_id IN (:userIds)",
+      {
+        userIds = { value = userIds, cfsqltype = "cf_sql_integer", list = true }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
       "DELETE FROM users_address WHERE userId IN (:userIds)",
       {
         userIds = { value = userIds, cfsqltype = "cf_sql_integer", list = true }
@@ -289,6 +296,11 @@ component extends="testbox.system.BaseSpec" output="false" {
       return;
     }
 
+    queryExecute(
+      "DELETE FROM product_events WHERE user_id IN (:userIds)",
+      { userIds = { value = arrayToList( variables.createdUserIds ), cfsqltype = "cf_sql_integer", list = true } },
+      { datasource = "fpw" }
+    );
     queryExecute(
       "DELETE FROM member_entitlements WHERE user_id IN (:userIds)",
       { userIds = { value = arrayToList( variables.createdUserIds ), cfsqltype = "cf_sql_integer", list = true } },

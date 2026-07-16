@@ -156,6 +156,13 @@ component output="false" {
       action = "delete",
       vesselId = arguments.vesselId
     }), "delete vessel");
+    queryExecute(
+      "DELETE FROM product_events WHERE entity_type = 'vessel' AND entity_id = :entityId",
+      {
+        entityId = { value = arguments.vesselId, cfsqltype = "cf_sql_bigint" }
+      },
+      { datasource = "fpw" }
+    );
   }
 
   public void function cleanupOperator(required numeric operatorId) output="false" {
@@ -177,6 +184,13 @@ component output="false" {
       action = "delete",
       contactId = arguments.contactId
     }), "delete contact");
+    queryExecute(
+      "DELETE FROM product_events WHERE entity_type = 'shore_contact' AND entity_id = :entityId",
+      {
+        entityId = { value = arguments.contactId, cfsqltype = "cf_sql_bigint" }
+      },
+      { datasource = "fpw" }
+    );
   }
 
   public void function cleanupWaypoint(required numeric waypointId) output="false" {
