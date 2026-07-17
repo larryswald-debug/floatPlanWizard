@@ -162,6 +162,74 @@ Each authoritative endpoint invokes the service after its business write succeed
 
 Instrumentation failure therefore does not roll back signup, authentication, vessel creation, or contact creation and is not returned to the customer as a business-operation failure. The service never silently swallows persistence failures.
 
+## Controlled Failure-Isolation Testing
+
+> **Never enable or test forced product-event failure in production.**
+
+The optional `FPW_PRODUCT_EVENTS_FORCE_FAILURE` setting provides a controlled way to prove that product-event persistence failures do not change successful customer actions.
+
+- The setting is absent or empty by default.
+- Only the exact value `true` requests activation. `false`, `0`, different casing, and every other value are disabled.
+- Activation is allowed only when `FPW_ENV` resolves to `dev` or `staging`.
+- Production and every unknown environment fail closed.
+- When activation is requested outside the allow-list, application startup disables it and writes one fixed warning to `fpw_product_events`.
+- The setting is loaded from the existing private JSON configuration during application startup. It is not exposed through HTTP, HTML, browser JavaScript, request input, session state, or public diagnostics.
+
+The controlled exception occurs in `ProductEventService.recordEvent()` after request validation and idempotency preparation, immediately before the `product_events` insert. It is outside the normal persistence catch so the existing endpoint-level isolation catches are exercised.
+
+Exception contract:
+
+```text
+Type: FPW.ProductEvent.ForcedTestFailure
+Message: Forced product-event failure for controlled staging validation.
+```
+
+The centralized forced-failure log contains only the allow-listed event name, event source, safe exception type, and fixed message. It excludes user and entity IDs, names, email addresses, phone numbers, vessel/contact data, metadata JSON, request bodies, sessions, authentication values, tokens, and Stripe identifiers.
+
+The automated service and endpoint contract tests use application-scoped test configuration, while service tests use a constructor-scoped log capture. Neither can be enabled through request input. The service repeats the `dev`/`staging` allow-list check at the pre-insert boundary, so a request cannot bypass the production guard.
+
+### Manual staging procedure
+
+Use disposable staging entities and a controlled test window. Do not perform these steps in production.
+
+#### Baseline
+
+1. Confirm the target application identifies itself as `staging`.
+2. Confirm `FPW_PRODUCT_EVENTS_FORCE_FAILURE` is absent, empty, or `false`.
+3. Reload the ColdFusion application if the private configuration changed.
+4. Create a disposable test vessel or shore contact.
+5. Confirm the normal business response succeeds.
+6. Confirm exactly one matching `vessel_created` or `shore_contact_created` row exists.
+
+#### Forced failure
+
+1. Set `FPW_PRODUCT_EVENTS_FORCE_FAILURE` to the exact string `true` in the staging private JSON configuration.
+2. Reload the ColdFusion application so startup configuration is refreshed.
+3. Confirm the application still identifies itself as `staging`.
+4. Create a different disposable vessel or shore contact.
+5. Confirm the normal business response succeeds and contains no analytics or instrumentation error.
+6. Confirm the business entity persists.
+7. Confirm no matching product-event row exists.
+8. Confirm one `FPW.ProductEvent.ForcedTestFailure` entry exists in `fpw_product_events`.
+9. Confirm the log contains only event name, event source, safe exception type, and the fixed message; verify that it contains no PII.
+
+#### Recovery
+
+1. Remove `FPW_PRODUCT_EVENTS_FORCE_FAILURE` or set it to `false`.
+2. Reload the ColdFusion application.
+3. Create another disposable test vessel or shore contact.
+4. Confirm the normal business response succeeds.
+5. Confirm exactly one matching product-event row is created.
+6. Remove or clearly mark all disposable test entities using the existing staging cleanup procedure.
+
+### Known limitations and removal
+
+- Forced failure applies centrally to every supported product-event attempt while enabled.
+- Configuration changes require application reload because the private JSON settings are loaded at startup.
+- The mechanism intentionally drops the product event; it does not add retry or outbox behavior.
+- Automated tests modify and restore application-scoped test state and must not run concurrently with unrelated requests in the same local test application.
+- Removing the hook later requires removing the optional configuration getter/application setting, startup validation, the pre-insert forced exception and constructor-scoped test log capture, the focused automated coverage, and this section. Remove or disable the private setting first and reload the application before deleting code.
+
 ## Query Examples
 
 Ordered internal history:

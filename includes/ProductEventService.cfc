@@ -2,11 +2,35 @@ component output="false" {
 
   variables.datasource = "fpw";
   variables.eventDefinitions = {};
+  variables.forcedFailureWarningLogged = false;
+  variables.captureTestLogs = false;
+  variables.testLogEntries = [];
 
-  public any function init(string datasource="fpw") output="false" {
+  public any function init(string datasource="fpw", struct testOptions={}) output="false" {
     variables.datasource = len(trim(arguments.datasource)) ? trim(arguments.datasource) : "fpw";
     variables.eventDefinitions = buildEventDefinitions();
+    variables.forcedFailureWarningLogged = false;
+    variables.captureTestLogs = structKeyExists(arguments.testOptions, "logEntries")
+      && isArray(arguments.testOptions.logEntries);
+    variables.testLogEntries = variables.captureTestLogs
+      ? arguments.testOptions.logEntries
+      : [];
     return this;
+  }
+
+  public struct function validateForcedFailureConfiguration() output="false" {
+    var config = resolveForcedFailureConfiguration();
+
+    if (config.WARNING_REQUIRED && !variables.forcedFailureWarningLogged) {
+      writeProductEventLog("warning", config.WARNING_MESSAGE);
+      variables.forcedFailureWarningLogged = true;
+    }
+
+    return config;
+  }
+
+  public array function getCapturedTestLogs() output="false" {
+    return variables.captureTestLogs ? duplicate(variables.testLogEntries) : [];
   }
 
   public struct function recordEvent(
@@ -36,6 +60,7 @@ component output="false" {
     var eventUuid = "";
     var resolvedIdempotencyKey = "";
     var qStored = "";
+    var forcedFailureConfig = {};
 
     if (!validation.SUCCESS) {
       logFailure(normalizedEventName, normalizedEventSource, validation.ERROR);
@@ -46,6 +71,15 @@ component output="false" {
     resolvedIdempotencyKey = len(trim(arguments.idempotencyKey))
       ? trim(arguments.idempotencyKey)
       : normalizedEventName & ":generated:" & eventUuid;
+
+    forcedFailureConfig = resolveForcedFailureConfiguration();
+    if (forcedFailureConfig.ENABLED) {
+      logForcedTestFailure(normalizedEventName, normalizedEventSource);
+      throw(
+        type = "FPW.ProductEvent.ForcedTestFailure",
+        message = "Forced product-event failure for controlled staging validation."
+      );
+    }
 
     try {
       queryExecute(
@@ -372,6 +406,75 @@ component output="false" {
     return dateTimeFormat(arguments.value, "yyyy-mm-dd'T'HH:nn:ss") & "Z";
   }
 
+  private struct function resolveForcedFailureConfiguration() output="false" {
+    var environment = "";
+    var settingValue = "";
+    var requested = false;
+    var allowedEnvironment = false;
+
+    if (isDefined("application") && structKeyExists(application, "env")) {
+      environment = lCase(trim(toString(application.env)));
+    }
+    if (
+      isDefined("application")
+      && structKeyExists(application, "settings")
+      && isStruct(application.settings)
+      && structKeyExists(application.settings, "FPW_PRODUCT_EVENTS_FORCE_FAILURE")
+      && !isNull(application.settings.FPW_PRODUCT_EVENTS_FORCE_FAILURE)
+    ) {
+      settingValue = trim(toString(application.settings.FPW_PRODUCT_EVENTS_FORCE_FAILURE));
+    }
+
+    requested = compare(settingValue, "true") EQ 0;
+    allowedEnvironment = listFind("dev,staging", environment) GT 0;
+
+    return {
+      REQUESTED = requested,
+      ENABLED = requested && allowedEnvironment,
+      WARNING_REQUIRED = requested && !allowedEnvironment,
+      WARNING_MESSAGE = "ProductEventService FORCED_TEST_FAILURE_DISABLED | reason=environment_not_allowed"
+    };
+  }
+
+  private void function logForcedTestFailure(
+    required string eventName,
+    required string eventSource
+  ) output="false" {
+    var safeEventName = left(reReplace(arguments.eventName, "[^A-Za-z0-9_-]", "", "all"), 64);
+    var safeEventSource = left(reReplace(arguments.eventSource, "[^A-Za-z0-9_-]", "", "all"), 64);
+
+    writeProductEventLog(
+      "error",
+      "ProductEventService FORCED_TEST_FAILURE"
+        & " | event=" & safeEventName
+        & " | source=" & safeEventSource
+        & " | type=FPW.ProductEvent.ForcedTestFailure"
+        & " | message=Forced product-event failure for controlled staging validation."
+    );
+  }
+
+  private void function writeProductEventLog(
+    required string logType,
+    required string logText
+  ) output="false" {
+    writeLog(
+      file = "fpw_product_events",
+      type = arguments.logType,
+      text = arguments.logText
+    );
+
+    if (variables.captureTestLogs) {
+      try {
+        arrayAppend(variables.testLogEntries, {
+          file = "fpw_product_events",
+          type = arguments.logType,
+          text = arguments.logText
+        });
+      } catch (any testLogCaptureError) {
+      }
+    }
+  }
+
   private void function logFailure(
     required string eventName,
     required string eventSource,
@@ -381,10 +484,9 @@ component output="false" {
     var safeEventSource = left(reReplace(arguments.eventSource, "[^A-Za-z0-9_-]", "", "all"), 64);
     var safeErrorCode = left(reReplace(arguments.errorCode, "[^A-Za-z0-9_-]", "", "all"), 80);
 
-    writeLog(
-      file = "fpw_product_events",
-      type = "error",
-      text = "ProductEventService RECORD_FAILED | event=" & safeEventName
+    writeProductEventLog(
+      "error",
+      "ProductEventService RECORD_FAILED | event=" & safeEventName
         & " | source=" & safeEventSource
         & " | error=" & safeErrorCode
     );

@@ -204,7 +204,221 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(result.SUCCESS).toBeFalse(serializeJSON(result));
         expect(result.ERROR).toBe("PRODUCT_EVENT_PERSIST_FAILED");
       });
+
+      it("enables forced failure only for the exact true setting in dev or staging", function() {
+        var originalState = snapshotProductEventTestState();
+        var disabledValue = "";
+        var config = {};
+        var service = {};
+
+        try {
+          setupProductEventTestState("dev", "");
+          service = new fpw.includes.ProductEventService().init("fpw", {
+            logEntries = application.testProductEventLogEntries
+          });
+          structDelete(application.settings, "FPW_PRODUCT_EVENTS_FORCE_FAILURE", false);
+          config = service.validateForcedFailureConfiguration();
+          expect(config.REQUESTED).toBeFalse(serializeJSON(config));
+          expect(config.ENABLED).toBeFalse(serializeJSON(config));
+
+          for (disabledValue in ["", "false", "0", "TRUE", "yes"]) {
+            application.settings.FPW_PRODUCT_EVENTS_FORCE_FAILURE = disabledValue;
+            config = service.validateForcedFailureConfiguration();
+            expect(config.ENABLED).toBeFalse(serializeJSON(config));
+          }
+
+          application.settings.FPW_PRODUCT_EVENTS_FORCE_FAILURE = "true";
+          config = service.validateForcedFailureConfiguration();
+          expect(config.REQUESTED).toBeTrue(serializeJSON(config));
+          expect(config.ENABLED).toBeTrue(serializeJSON(config));
+
+          application.env = "staging";
+          config = service.validateForcedFailureConfiguration();
+          expect(config.ENABLED).toBeTrue(serializeJSON(config));
+        } finally {
+          restoreProductEventTestState(originalState);
+        }
+      });
+
+      it("forces a safe pre-insert exception and resumes immediately when disabled", function() {
+        var originalState = snapshotProductEventTestState();
+        var forcedUserId = nextUserId();
+        var recoveryUserId = nextUserId();
+        var caught = {};
+        var threw = false;
+        var recovery = {};
+        var logText = "";
+        var service = {};
+
+        try {
+          setupProductEventTestState("dev", "true");
+          service = new fpw.includes.ProductEventService().init("fpw", {
+            logEntries = application.testProductEventLogEntries
+          });
+
+          try {
+            service.recordEvent(
+              userId = forcedUserId,
+              eventName = "sign_up",
+              entityType = "user",
+              entityId = forcedUserId,
+              eventSource = "member_signup",
+              metadata = { signup_method = "password" },
+              idempotencyKey = "forced:user:" & forcedUserId
+            );
+          } catch (any forcedError) {
+            threw = true;
+            caught = forcedError;
+          }
+
+          expect(threw).toBeTrue();
+          expect(caught.type).toBe("FPW.ProductEvent.ForcedTestFailure");
+          expect(caught.message).toBe("Forced product-event failure for controlled staging validation.");
+          expect(loadEvents(forcedUserId).recordCount).toBe(0);
+          expect(countTestLogs(service, "FORCED_TEST_FAILURE | event=sign_up")).toBe(1);
+
+          logText = service.getCapturedTestLogs()[1].text;
+          expect(find(toString(forcedUserId), logText)).toBe(0);
+          expect(find("@", logText)).toBe(0);
+          expect(findNoCase("555", logText)).toBe(0);
+          expect(findNoCase("password", logText)).toBe(0);
+          expect(findNoCase("token", logText)).toBe(0);
+          expect(findNoCase("stripe", logText)).toBe(0);
+
+          application.settings.FPW_PRODUCT_EVENTS_FORCE_FAILURE = "false";
+          recovery = service.recordEvent(
+            userId = recoveryUserId,
+            eventName = "sign_up",
+            entityType = "user",
+            entityId = recoveryUserId,
+            eventSource = "member_signup",
+            metadata = { signup_method = "password" },
+            idempotencyKey = "recovery:user:" & recoveryUserId
+          );
+
+          expect(recovery.SUCCESS).toBeTrue(serializeJSON(recovery));
+          expect(recovery.RECORDED).toBeTrue(serializeJSON(recovery));
+          expect(loadEvents(recoveryUserId).recordCount).toBe(1);
+        } finally {
+          restoreProductEventTestState(originalState);
+        }
+      });
+
+      it("fails closed in production, warns once, and preserves validation behavior", function() {
+        var originalState = snapshotProductEventTestState();
+        var productionUserId = nextUserId();
+        var invalidUserId = nextUserId();
+        var service = {};
+        var config = {};
+        var recorded = {};
+        var invalid = {};
+
+        try {
+          setupProductEventTestState("prod", "true");
+          service = new fpw.includes.ProductEventService().init("fpw", {
+            logEntries = application.testProductEventLogEntries
+          });
+          config = service.validateForcedFailureConfiguration();
+          service.validateForcedFailureConfiguration();
+
+          expect(config.REQUESTED).toBeTrue(serializeJSON(config));
+          expect(config.ENABLED).toBeFalse(serializeJSON(config));
+          expect(config.WARNING_REQUIRED).toBeTrue(serializeJSON(config));
+          expect(countTestLogs(service, "FORCED_TEST_FAILURE_DISABLED")).toBe(1);
+
+          recorded = service.recordEvent(
+            userId = productionUserId,
+            eventName = "sign_up",
+            entityType = "user",
+            entityId = productionUserId,
+            eventSource = "member_signup",
+            metadata = { signup_method = "password" },
+            idempotencyKey = "production-guard:user:" & productionUserId
+          );
+          expect(recorded.SUCCESS).toBeTrue(serializeJSON(recorded));
+          expect(loadEvents(productionUserId).recordCount).toBe(1);
+          expect(countTestLogs(service, "FORCED_TEST_FAILURE | event=")).toBe(0);
+
+          application.env = "dev";
+          invalid = service.recordEvent(
+            userId = invalidUserId,
+            eventName = "purchase",
+            entityType = "user",
+            entityId = invalidUserId,
+            eventSource = "member_signup",
+            idempotencyKey = "forced-invalid:user:" & invalidUserId
+          );
+          expect(invalid.SUCCESS).toBeFalse(serializeJSON(invalid));
+          expect(invalid.ERROR).toBe("UNKNOWN_EVENT_NAME");
+          expect(loadEvents(invalidUserId).recordCount).toBe(0);
+          expect(countTestLogs(service, "FORCED_TEST_FAILURE | event=")).toBe(0);
+        } finally {
+          restoreProductEventTestState(originalState);
+        }
+      });
     });
+  }
+
+  private struct function snapshotProductEventTestState() {
+    return {
+      envExists = structKeyExists(application, "env"),
+      env = structKeyExists(application, "env") ? application.env : "",
+      settingsExists = structKeyExists(application, "settings") && isStruct(application.settings),
+      settings = structKeyExists(application, "settings") && isStruct(application.settings)
+        ? duplicate(application.settings)
+        : {},
+      entriesExist = structKeyExists(application, "testProductEventLogEntries"),
+      entries = structKeyExists(application, "testProductEventLogEntries")
+        ? application.testProductEventLogEntries
+        : []
+    };
+  }
+
+  private void function setupProductEventTestState(
+    required string environment,
+    required any settingValue
+  ) {
+    application.env = arguments.environment;
+    if (!structKeyExists(application, "settings") || !isStruct(application.settings)) {
+      application.settings = {};
+    }
+    application.settings.FPW_PRODUCT_EVENTS_FORCE_FAILURE = arguments.settingValue;
+    application.testProductEventLogEntries = [];
+  }
+
+  private void function restoreProductEventTestState(required struct originalState) {
+    if (arguments.originalState.envExists) {
+      application.env = arguments.originalState.env;
+    } else {
+      structDelete(application, "env", false);
+    }
+
+    if (arguments.originalState.settingsExists) {
+      application.settings = arguments.originalState.settings;
+    } else {
+      structDelete(application, "settings", false);
+    }
+
+    if (arguments.originalState.entriesExist) {
+      application.testProductEventLogEntries = arguments.originalState.entries;
+    } else {
+      structDelete(application, "testProductEventLogEntries", false);
+    }
+  }
+
+  private numeric function countTestLogs(
+    required any service,
+    required string pattern
+  ) {
+    var entry = {};
+    var count = 0;
+
+    for (entry in arguments.service.getCapturedTestLogs()) {
+      if (findNoCase(arguments.pattern, toString(entry.text))) {
+        count++;
+      }
+    }
+    return count;
   }
 
   private numeric function nextUserId() {

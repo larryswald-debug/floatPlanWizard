@@ -6,10 +6,29 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.createdVesselIds = [];
     variables.createdContactIds = [];
     variables.createdEntitlementIds = [];
+    variables.originalProductEventTestState = snapshotProductEventTestState();
+    variables.configuredEnvironment = new fpw.api.v1.StripeConfigService().init().getFpwEnv();
+    variables.configuredForceFailureSetting = new fpw.api.v1.StripeConfigService().init().getProductEventsForceFailure();
+  }
+
+  function beforeEach() {
+    application.env = variables.configuredEnvironment;
+    if (!structKeyExists(application, "settings") || !isStruct(application.settings)) {
+      application.settings = {};
+    }
+    application.settings.FPW_PRODUCT_EVENTS_FORCE_FAILURE = "false";
   }
 
   function afterEach() {
     cleanupCreatedRows();
+  }
+
+  function afterAll() {
+    restoreProductEventTestState(variables.originalProductEventTestState);
+    if (!structKeyExists(application, "settings") || !isStruct(application.settings)) {
+      application.settings = {};
+    }
+    application.settings.FPW_PRODUCT_EVENTS_FORCE_FAILURE = variables.configuredForceFailureSetting;
   }
 
   function run() {
@@ -128,6 +147,113 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(countEntityEvents("shore_contact_created", "shore_contact", contactId)).toBe(1);
       });
 
+      it("keeps successful signup isolated from a forced product-event failure", function() {
+        var api = new fpw.tests.support.FpwApiSupport().init(inheritCookie = false);
+        var email = "fpw-product-events-forced-" & lCase(replace(createUUID(), "-", "", "all")) & "@example.test";
+        var password = "ProductEvent123!";
+        var signup = {};
+        var userId = 0;
+        var responseJson = "";
+
+        enableForcedProductEventFailure();
+        signup = api.postJson("/api/v1/join.cfc?method=handle", {
+          firstName = "Product",
+          lastName = "Event",
+          email = email,
+          password = password,
+          confirmPassword = password,
+          termsAccepted = true
+        }, false);
+        userId = val(signup.USERID ?: 0);
+        responseJson = serializeJSON(signup);
+
+        expect(signup.SUCCESS).toBeTrue(responseJson);
+        expect(signup.AUTH).toBeTrue(responseJson);
+        expect(userId).toBeGT(0, responseJson);
+        arrayAppend(variables.createdUserIds, userId);
+        expect(countUserRows(userId)).toBe(1);
+        expect(countUserEvents(userId, "sign_up")).toBe(0);
+        expect(findNoCase("FPW.ProductEvent.ForcedTestFailure", responseJson)).toBe(0);
+        expect(findNoCase("forced product-event", responseJson)).toBe(0);
+        expect(findNoCase("analytics", responseJson)).toBe(0);
+      });
+
+      it("keeps successful login isolated from a forced product-event failure", function() {
+        var signupState = createSignedUpMember();
+        var loginApi = new fpw.tests.support.FpwApiSupport().init(inheritCookie = false);
+        var wrongPassword = {};
+        var login = {};
+
+        enableForcedProductEventFailure();
+        wrongPassword = loginApi.postJson("/api/v1/auth.cfc?method=handle", {
+          action = "login",
+          email = signupState.email,
+          password = "WrongPass123!"
+        }, false);
+        expect(wrongPassword.SUCCESS).toBeFalse(serializeJSON(wrongPassword));
+        expect(countUserEvents(signupState.userId, "login")).toBe(0);
+
+        login = loginApi.postJson("/api/v1/auth.cfc?method=handle", {
+          action = "login",
+          email = signupState.email,
+          password = signupState.password
+        }, false);
+        expect(login.SUCCESS).toBeTrue(serializeJSON(login));
+        expect(isStruct(login.USER)).toBeTrue(serializeJSON(login));
+        expect(val(login.USER.userId ?: login.USER.USERID ?: 0)).toBe(signupState.userId);
+        expect(countUserEvents(signupState.userId, "login")).toBe(0);
+        expect(findNoCase("forced product-event", serializeJSON(login))).toBe(0);
+      });
+
+      it("keeps successful vessel creation isolated from a forced product-event failure", function() {
+        var userId = currentSessionUserId();
+        var memberApi = new fpw.tests.support.FpwApiSupport().init();
+        var created = {};
+        var vesselId = 0;
+
+        grantPremium(userId);
+        enableForcedProductEventFailure();
+        created = memberApi.saveVessel({
+          vesselId = 0,
+          vesselName = "Forced Failure Test Vessel",
+          type = "Cruiser",
+          length = 32,
+          color = "White"
+        });
+        vesselId = val(created.VESSELID ?: 0);
+        arrayAppend(variables.createdVesselIds, vesselId);
+
+        expect(created.SUCCESS).toBeTrue(serializeJSON(created));
+        expect(vesselId).toBeGT(0, serializeJSON(created));
+        expect(countVesselRows(vesselId)).toBe(1);
+        expect(countEntityEvents("vessel_created", "vessel", vesselId)).toBe(0);
+        expect(findNoCase("forced product-event", serializeJSON(created))).toBe(0);
+      });
+
+      it("keeps successful shore-contact creation isolated from a forced product-event failure", function() {
+        var userId = currentSessionUserId();
+        var memberApi = new fpw.tests.support.FpwApiSupport().init();
+        var created = {};
+        var contactId = 0;
+
+        grantPremium(userId);
+        enableForcedProductEventFailure();
+        created = memberApi.saveContact({
+          contactId = 0,
+          name = "Forced Failure Contact",
+          phone = "5555551212",
+          email = "forced-failure-contact@example.test"
+        });
+        contactId = val(created.CONTACTID ?: 0);
+        arrayAppend(variables.createdContactIds, contactId);
+
+        expect(created.SUCCESS).toBeTrue(serializeJSON(created));
+        expect(contactId).toBeGT(0, serializeJSON(created));
+        expect(countContactRows(contactId)).toBe(1);
+        expect(countEntityEvents("shore_contact_created", "shore_contact", contactId)).toBe(0);
+        expect(findNoCase("forced product-event", serializeJSON(created))).toBe(0);
+      });
+
       it("keeps instrumentation isolated and excludes administrative vessel creation", function() {
         var joinSource = fileRead(expandPath("/fpw/api/v1/join.cfc"), "utf-8");
         var authSource = fileRead(expandPath("/fpw/api/v1/auth.cfc"), "utf-8");
@@ -144,6 +270,72 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(findNoCase("ProductEventService", adminVesselSource)).toBe(0);
       });
     });
+  }
+
+  private struct function snapshotProductEventTestState() {
+    return {
+      envExists = structKeyExists(application, "env"),
+      env = structKeyExists(application, "env") ? application.env : "",
+      settingsExists = structKeyExists(application, "settings") && isStruct(application.settings),
+      settings = structKeyExists(application, "settings") && isStruct(application.settings)
+        ? duplicate(application.settings)
+        : {}
+    };
+  }
+
+  private void function restoreProductEventTestState(required struct originalState) {
+    if (arguments.originalState.envExists) {
+      application.env = arguments.originalState.env;
+    } else {
+      structDelete(application, "env", false);
+    }
+
+    if (arguments.originalState.settingsExists) {
+      application.settings = arguments.originalState.settings;
+    } else {
+      structDelete(application, "settings", false);
+    }
+  }
+
+  private void function enableForcedProductEventFailure() {
+    application.env = "dev";
+    if (!structKeyExists(application, "settings") || !isStruct(application.settings)) {
+      application.settings = {};
+    }
+    application.settings.FPW_PRODUCT_EVENTS_FORCE_FAILURE = "true";
+  }
+
+  private numeric function countUserRows(required numeric userId) {
+    var qCount = queryExecute(
+      "SELECT COUNT(*) AS row_count FROM users WHERE userId = :userId",
+      {
+        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    return val(qCount.row_count[1]);
+  }
+
+  private numeric function countVesselRows(required numeric vesselId) {
+    var qCount = queryExecute(
+      "SELECT COUNT(*) AS row_count FROM vessels WHERE vesselID = :vesselId",
+      {
+        vesselId = { value = arguments.vesselId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    return val(qCount.row_count[1]);
+  }
+
+  private numeric function countContactRows(required numeric contactId) {
+    var qCount = queryExecute(
+      "SELECT COUNT(*) AS row_count FROM contacts WHERE contactId = :contactId",
+      {
+        contactId = { value = arguments.contactId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    return val(qCount.row_count[1]);
   }
 
   private struct function createSignedUpMember() {

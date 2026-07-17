@@ -31,8 +31,21 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(service.getBillingPortalReturnUrl()).toBe("http://localhost:8500/fpw/app/account.cfm");
         expect(service.getFpwEnv()).toBe("dev");
         expect(service.getMonitorToken()).toBe("monitor_json_token");
+        expect(service.getProductEventsForceFailure()).toBe("");
+        expect(settings.FPW_PRODUCT_EVENTS_FORCE_FAILURE).toBe("");
         expect(settings.FPW_STRIPE_CHECKOUT_SUCCESS_URL).toBe(service.getCheckoutSuccessUrl());
         expect(settings.FPW_STRIPE_BILLING_PORTAL_RETURN_URL).toBe(service.getBillingPortalReturnUrl());
+      });
+
+      it("loads the optional product-event forced-failure setting without requiring it", function() {
+        var enabledService = new fpw.api.v1.StripeConfigService().init(writeConfig(validConfig({
+          FPW_PRODUCT_EVENTS_FORCE_FAILURE = "true"
+        })));
+        var enabledSettings = enabledService.getApplicationSettings();
+
+        expect(enabledService.getConfigStatus().SUCCESS).toBeTrue();
+        expect(enabledService.getProductEventsForceFailure()).toBe("true");
+        expect(enabledSettings.FPW_PRODUCT_EVENTS_FORCE_FAILURE).toBe("true");
       });
 
       it("fails safely when the JSON config file is missing", function() {
