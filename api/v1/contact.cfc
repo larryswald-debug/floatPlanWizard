@@ -126,6 +126,25 @@
                     <cfif structKeyExists(insertResult, "generatedKey")>
                         <cfset contactId = insertResult.generatedKey>
                     </cfif>
+                    <cfif contactId GT 0>
+                        <cftry>
+                            <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
+                                userId = userId,
+                                eventName = "shore_contact_created",
+                                entityType = "shore_contact",
+                                entityId = contactId,
+                                eventSource = "member_api",
+                                metadata = {
+                                    creation_source = "member"
+                                },
+                                idempotencyKey = "shore_contact_created:contact:" & contactId,
+                                requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
+                            )>
+                        <cfcatch type="any">
+                            <cflog file="fpw_product_events" type="error" text="contact.cfc PRODUCT_EVENT_CALL_FAILED | event=shore_contact_created">
+                        </cfcatch>
+                        </cftry>
+                    </cfif>
                 </cfif>
 
                 <cfset response = {

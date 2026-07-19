@@ -36,12 +36,15 @@
         <cfset var stripeConfigPath = expandPath("/_fpw_private/stripe-config.json")>
         <cfset var stripeConfigService = new fpw.api.v1.StripeConfigService().init(stripeConfigPath)>
         <cfset var stripeApplicationSettings = stripeConfigService.getApplicationSettings()>
+        <cfset var productEventFailureConfig = {}>
         <cfset application.stripeConfigPath = stripeConfigPath>
         <cfset application.env = stripeConfigService.getFpwEnv()>
         <cfset application.DSN = "fpw">
         <cfset application.monitorToken = stripeConfigService.getMonitorToken()>
         <cfset application.debugRequestTrace = false>
         <cfset application.settings = stripeApplicationSettings>
+        <cfset productEventFailureConfig = new fpw.includes.ProductEventService().init("fpw").validateForcedFailureConfiguration()>
+        <cfset application.productEventsForceFailure = productEventFailureConfig.ENABLED>
 
         <cfreturn true>
     </cffunction>

@@ -212,6 +212,25 @@
                     <cfif structKeyExists(insertResult, "generatedKey")>
                         <cfset vesselId = insertResult.generatedKey>
                     </cfif>
+                    <cfif vesselId GT 0>
+                        <cftry>
+                            <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
+                                userId = userId,
+                                eventName = "vessel_created",
+                                entityType = "vessel",
+                                entityId = vesselId,
+                                eventSource = "member_api",
+                                metadata = {
+                                    creation_source = "member"
+                                },
+                                idempotencyKey = "vessel_created:vessel:" & vesselId,
+                                requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
+                            )>
+                        <cfcatch type="any">
+                            <cflog file="fpw_product_events" type="error" text="vessel.cfc PRODUCT_EVENT_CALL_FAILED | event=vessel_created">
+                        </cfcatch>
+                        </cftry>
+                    </cfif>
                 </cfif>
 
                 <cfset response = {

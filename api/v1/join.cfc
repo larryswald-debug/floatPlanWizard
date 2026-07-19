@@ -238,6 +238,27 @@
             <cfset newIdQ = queryExecute("SELECT LAST_INSERT_ID() AS newId", {}, { datasource = "fpw" })>
             <cfset newUserId = val(newIdQ.newId[1])>
 
+            <cfif newUserId GT 0>
+                <cftry>
+                    <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
+                        userId = newUserId,
+                        eventName = "sign_up",
+                        entityType = "user",
+                        entityId = newUserId,
+                        eventSource = "member_signup",
+                        metadata = {
+                            signup_method = "password",
+                            account_tier = "basic"
+                        },
+                        idempotencyKey = "sign_up:user:" & newUserId,
+                        requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
+                    )>
+                <cfcatch type="any">
+                    <cflog file="fpw_product_events" type="error" text="join.cfc PRODUCT_EVENT_CALL_FAILED | event=sign_up">
+                </cfcatch>
+                </cftry>
+            </cfif>
+
             <!-- Optional address/phone insert -->
             <cfif len(address) OR len(city) OR len(state) OR len(zip) OR len(phone)>
                 <cfset addrValues = {}>

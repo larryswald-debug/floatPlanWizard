@@ -87,6 +87,12 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="getProductEventsForceFailure" access="public" returntype="string" output="false">
+    <cfscript>
+      return getOptionalValue("FPW_PRODUCT_EVENTS_FORCE_FAILURE");
+    </cfscript>
+  </cffunction>
+
   <cffunction name="getApplicationSettings" access="public" returntype="struct" output="false">
     <cfscript>
       return {
@@ -94,6 +100,7 @@
         "env" = getFpwEnv(),
         "FPW_ENV" = getFpwEnv(),
         "FPW_MONITOR_TOKEN" = getMonitorToken(),
+        "FPW_PRODUCT_EVENTS_FORCE_FAILURE" = getProductEventsForceFailure(),
         "FPW_STRIPE_SECRET_KEY" = getSecretKey(),
         "FPW_STRIPE_WEBHOOK_SECRET" = getWebhookSecret(),
         "FPW_STRIPE_PRICE_PREMIUM_MONTHLY" = getPremiumMonthlyPriceId(),
@@ -147,6 +154,17 @@
   </cffunction>
 
   <cffunction name="getRequiredValue" access="private" returntype="string" output="false">
+    <cfargument name="name" type="string" required="true">
+    <cfscript>
+      var loadResult = loadConfig();
+      if (!loadResult.SUCCESS) {
+        return "";
+      }
+      return readValue(loadResult.config, arguments.name);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="getOptionalValue" access="private" returntype="string" output="false">
     <cfargument name="name" type="string" required="true">
     <cfscript>
       var loadResult = loadConfig();
