@@ -51,11 +51,35 @@
             </cfif>
 
             <cfif listFindNoCase("checkin,savecaptainlogentry,updatedailystart,adddelay,cleardelay,updateactivepace,updatepace,completeleg,startnextleg", actionName) GT 0>
-                <cfset var activeCruiseAccessGate = getMemberAccessGateService().requirePremium(
-                    userId = userId,
-                    errorCode = "BASIC_ACTIVE_CRUISE_RESTRICTED",
-                    message = "Upgrade to Premium to use Active Cruise actions and route-backed cruise updates."
-                )>
+                <cfset var activeCruiseFloatPlanId = 0>
+                <cfif structKeyExists(body, "floatPlanId")>
+                    <cfset activeCruiseFloatPlanId = val(body.floatPlanId)>
+                <cfelseif structKeyExists(body, "FLOATPLANID")>
+                    <cfset activeCruiseFloatPlanId = val(body.FLOATPLANID)>
+                <cfelseif structKeyExists(url, "floatPlanId")>
+                    <cfset activeCruiseFloatPlanId = val(url.floatPlanId)>
+                <cfelseif structKeyExists(url, "id")>
+                    <cfset activeCruiseFloatPlanId = val(url.id)>
+                <cfelseif structKeyExists(arguments, "floatPlanId")>
+                    <cfset activeCruiseFloatPlanId = val(arguments.floatPlanId)>
+                <cfelseif structKeyExists(arguments, "id")>
+                    <cfset activeCruiseFloatPlanId = val(arguments.id)>
+                </cfif>
+                <cfset var activeCruiseAccessGate = {}>
+                <cfif activeCruiseFloatPlanId GT 0>
+                    <cfset activeCruiseAccessGate = getMemberAccessGateService().requirePremiumForTrip(
+                        userId = userId,
+                        canonicalTripId = activeCruiseFloatPlanId,
+                        errorCode = "BASIC_ACTIVE_CRUISE_RESTRICTED",
+                        message = "Premium access for this trip is required to use Active Cruise actions."
+                    )>
+                <cfelse>
+                    <cfset activeCruiseAccessGate = getMemberAccessGateService().requirePremium(
+                        userId = userId,
+                        errorCode = "BASIC_ACTIVE_CRUISE_RESTRICTED",
+                        message = "Premium access is required to use Active Cruise actions."
+                    )>
+                </cfif>
                 <cfif NOT activeCruiseAccessGate.allowed>
                     <cfoutput>#serializeJSON(activeCruiseAccessGate.response)#</cfoutput>
                     <cfsetting enablecfoutputonly="false">
@@ -5055,6 +5079,7 @@
             var hasOpenMonitoring = false;
             var closeCanonicalActivityService = {};
             var closeCanonicalActivityResult = {};
+            var premiumTripClosureResult = {};
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
                 result.MESSAGE = "Float plan id is required.";
@@ -5205,6 +5230,17 @@
                         detail = serializeJSON(monitoringResult)
                     );
                 }
+                premiumTripClosureResult = getPremiumTripEntitlementService().handleCanonicalTripClosure(
+                    userId = arguments.userId,
+                    canonicalTripId = arguments.floatPlanId,
+                    manageTransaction = false
+                );
+                if (!structKeyExists(premiumTripClosureResult, "SUCCESS") OR premiumTripClosureResult.SUCCESS NEQ true) {
+                    throw(
+                        message = "Premium Trip closure transition failed.",
+                        detail = serializeJSON(premiumTripClosureResult)
+                    );
+                }
             }
 
             result.SUCCESS = true;
@@ -5263,6 +5299,7 @@
             var currentGroup = {};
             var monitoringService = {};
             var monitoringResult = {};
+            var premiumTripClosureResult = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
@@ -5318,6 +5355,17 @@
                     throw(
                         message = "Monitoring close failed.",
                         detail = serializeJSON(monitoringResult)
+                    );
+                }
+                premiumTripClosureResult = getPremiumTripEntitlementService().handleCanonicalTripClosure(
+                    userId = arguments.userId,
+                    canonicalTripId = arguments.floatPlanId,
+                    manageTransaction = false
+                );
+                if (!structKeyExists(premiumTripClosureResult, "SUCCESS") OR premiumTripClosureResult.SUCCESS NEQ true) {
+                    throw(
+                        message = "Premium Trip cancellation transition failed.",
+                        detail = serializeJSON(premiumTripClosureResult)
                     );
                 }
             }
@@ -6967,6 +7015,20 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="getPremiumTripEntitlementService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", resolveApiV1ComponentPath("PremiumTripEntitlementService")).init("fpw");
+            } catch (any e1) {
+                try {
+                    return createObject("component", "fpw.api.v1.PremiumTripEntitlementService").init("fpw");
+                } catch (any e2) {
+                    return createObject("component", "api.v1.PremiumTripEntitlementService").init("fpw");
+                }
+            }
+        </cfscript>
+    </cffunction>
+
     <cffunction name="closeBasicFloatPlan" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
@@ -7439,10 +7501,11 @@
                 return memberGateResult.response;
             }
 
-            memberGateResult = getMemberAccessGateService().requirePremium(
+            memberGateResult = getMemberAccessGateService().requirePremiumForTrip(
                 userId = arguments.userId,
+                canonicalTripId = arguments.floatPlanId,
                 errorCode = "BASIC_ADVANCED_MONITORING_RESTRICTED",
-                message = "Upgrade to Premium to activate route-backed monitoring for this float plan."
+                message = "Premium access for this trip is required to activate route-backed monitoring."
             );
             if (!memberGateResult.allowed) {
                 return memberGateResult.response;
@@ -8038,6 +8101,7 @@
             var monitoringService = {};
             var monitoringResult = {};
             var operationalStartAtUtc = "";
+            var premiumTripActivationResult = {};
 
             qStartClock = queryExecute(
                 "SELECT UTC_TIMESTAMP() AS operational_start_at_utc",
@@ -8149,6 +8213,15 @@
                         }
                     }
                 }
+            }
+
+            premiumTripActivationResult = getPremiumTripEntitlementService().activateTripEntitlement(
+                userId = arguments.userId,
+                canonicalTripId = arguments.floatPlanId,
+                manageTransaction = false
+            );
+            if (!structKeyExists(premiumTripActivationResult, "SUCCESS") OR premiumTripActivationResult.SUCCESS NEQ true) {
+                return premiumTripActivationResult;
             }
 
             qMonitoring = queryExecute(

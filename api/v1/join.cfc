@@ -230,13 +230,19 @@
                 <cfabort>
             </cfif>
 
-            <cfset queryExecute(
-                userInsert.sql,
-                userInsert.params,
-                { datasource = "fpw" }
-            )>
-            <cfset newIdQ = queryExecute("SELECT LAST_INSERT_ID() AS newId", {}, { datasource = "fpw" })>
-            <cfset newUserId = val(newIdQ.newId[1])>
+            <cftransaction>
+                <cfset queryExecute(
+                    userInsert.sql,
+                    userInsert.params,
+                    { datasource = "fpw" }
+                )>
+                <cfset newIdQ = queryExecute("SELECT LAST_INSERT_ID() AS newId", {}, { datasource = "fpw" })>
+                <cfset newUserId = val(newIdQ.newId[1])>
+                <cfset introductoryTripResult = createObject("component", "fpw.api.v1.PremiumTripEntitlementService").init("fpw").grantIntroductoryTrip(newUserId)>
+                <cfif newUserId LTE 0 OR NOT structKeyExists(introductoryTripResult, "SUCCESS") OR introductoryTripResult.SUCCESS NEQ true>
+                    <cfthrow type="Join.IntroductoryPremiumTripFailed" message="Introductory Premium Trip could not be created.">
+                </cfif>
+            </cftransaction>
 
             <cfif newUserId GT 0>
                 <cftry>

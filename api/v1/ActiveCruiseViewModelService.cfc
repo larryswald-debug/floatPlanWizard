@@ -36,10 +36,11 @@
         return model;
       }
 
-      memberGateResult = getMemberAccessGateService().requirePremium(
+      memberGateResult = getMemberAccessGateService().requirePremiumForTrip(
         userId = arguments.userId,
+        canonicalTripId = arguments.floatPlanId,
         errorCode = "BASIC_ACTIVE_CRUISE_RESTRICTED",
-        message = "Upgrade to Premium to use Active Cruise."
+        message = "Premium access for this trip is required to use Active Cruise."
       );
       if (!memberGateResult.allowed) {
         model.message = memberGateResult.response.MESSAGE;
@@ -175,10 +176,11 @@
         return out;
       }
 
-      memberGateResult = getMemberAccessGateService().requirePremium(
+      memberGateResult = getMemberAccessGateService().requirePremiumForTrip(
         userId = arguments.userId,
+        canonicalTripId = arguments.floatPlanId,
         errorCode = "BASIC_FOLLOW_RESTRICTED",
-        message = "Upgrade to Premium to share a Follow Page."
+        message = "Premium access for this trip is required to share a Follow Page."
       );
       if (!memberGateResult.allowed) {
         out.errorCode = memberGateResult.response.ERROR.CODE;

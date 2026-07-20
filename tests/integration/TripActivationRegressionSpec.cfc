@@ -583,6 +583,32 @@ component extends="testbox.system.BaseSpec" output="false" {
     }
 
     queryExecute(
+      "DELETE FROM premium_trip_entitlement_events
+       WHERE premium_trip_entitlement_id IN (
+         SELECT premium_trip_entitlement_id
+         FROM member_premium_trip_entitlements
+         WHERE user_id = :userId
+       )",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "DELETE FROM premium_trip_creation_sessions WHERE user_id = :userId",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "DELETE FROM member_premium_trip_entitlements WHERE user_id = :userId",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
       "DELETE FROM users_address WHERE userId = :userId",
       {
         userId = { value = userId, cfsqltype = "cf_sql_integer" }

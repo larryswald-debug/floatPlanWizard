@@ -36,9 +36,24 @@
             </cfif>
 
             <cfset var act = lCase(trim(arguments.action)) />
+            <cfset var routeAccessContext = {} />
+            <cfset var routeMutationGate = {} />
 
             <cfif act EQ "gettimeline">
+                <cfset routeAccessContext = resolveRouteAccessContext(userId, arguments.routeCode) />
+                <cfif NOT routeAccessContext.owned>
+                    <cfset routeMutationGate = getMemberAccessGateService().requirePremium(
+                        userId = userId,
+                        errorCode = "BASIC_SAVED_ROUTE_RESTRICTED",
+                        message = "Basic members may view only their own previously saved routes."
+                    ) />
+                    <cfif NOT routeMutationGate.allowed>
+                        <cfoutput>#serializeJSON(routeMutationGate.response)#</cfoutput>
+                        <cfreturn>
+                    </cfif>
+                </cfif>
                 <cfset var payload = getTimeline(userId, arguments.routeCode) />
+                <cfset payload.READ_ONLY = true />
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
@@ -53,12 +68,33 @@
                     <cfreturn>
                 </cfif>
 
+                <cfset routeAccessContext = resolveSegmentAccessContext(userId, arguments.segmentId) />
+                <cfset routeMutationGate = requireRouteMutationAccess(
+                    userId = userId,
+                    routeAccessContext = routeAccessContext,
+                    requireActiveTrip = true
+                ) />
+                <cfif NOT routeMutationGate.allowed>
+                    <cfoutput>#serializeJSON(routeMutationGate.response)#</cfoutput>
+                    <cfreturn>
+                </cfif>
+
                 <cfset var result = completeSegment(userId, arguments.segmentId) />
                 <cfoutput>#serializeJSON(result)#</cfoutput>
                 <cfreturn>
 
             <cfelseif act EQ "resetprogress">
                 <!--- Optional testing helper --->
+                <cfset routeAccessContext = resolveRouteAccessContext(userId, arguments.routeCode) />
+                <cfset routeMutationGate = requireRouteMutationAccess(
+                    userId = userId,
+                    routeAccessContext = routeAccessContext,
+                    requireActiveTrip = true
+                ) />
+                <cfif NOT routeMutationGate.allowed>
+                    <cfoutput>#serializeJSON(routeMutationGate.response)#</cfoutput>
+                    <cfreturn>
+                </cfif>
                 <cfset var result2 = resetProgress(userId, arguments.routeCode) />
                 <cfoutput>#serializeJSON(result2)#</cfoutput>
                 <cfreturn>
@@ -497,6 +533,156 @@
     <!--- =========================
           Helpers
          ========================= --->
+    <cffunction name="resolveRouteAccessContext" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeCode" type="string" required="true">
+        <cfscript>
+            var qContext = queryExecute(
+                "SELECT ri.id AS route_instance_id,
+                        fp.floatPlanId,
+                        pte.status AS premium_trip_status
+                 FROM loop_routes lr
+                 INNER JOIN route_instances ri
+                    ON ri.generated_route_id = lr.id
+                   AND ri.user_id = :userIdText
+                 LEFT JOIN floatplans fp
+                    ON fp.route_instance_id = ri.id
+                   AND fp.userId = :userIdText
+                 LEFT JOIN member_premium_trip_entitlements pte
+                    ON pte.canonical_trip_id = fp.floatPlanId
+                   AND pte.user_id = :userId
+                 WHERE lr.short_code = :routeCode
+                 ORDER BY
+                   CASE WHEN pte.status IN ('ACTIVE','RESERVED') THEN 0 ELSE 1 END,
+                   ri.id DESC,
+                   fp.floatPlanId DESC
+                 LIMIT 1",
+                {
+                    userId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                    userIdText = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
+                    routeCode = { value=trim(arguments.routeCode), cfsqltype="cf_sql_varchar" }
+                },
+                { datasource=application.dsn }
+            );
+            if (!qContext.recordCount) {
+                return { owned=false, routeInstanceId=0, canonicalTripId=0, premiumTripStatus="" };
+            }
+            return {
+                owned=true,
+                routeInstanceId=val(qContext.route_instance_id[1]),
+                canonicalTripId=(isNull(qContext.floatPlanId[1]) ? 0 : val(qContext.floatPlanId[1])),
+                premiumTripStatus=(isNull(qContext.premium_trip_status[1]) ? "" : uCase(trim(qContext.premium_trip_status[1])))
+            };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveSegmentAccessContext" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="segmentId" type="numeric" required="true">
+        <cfscript>
+            var qContext = queryExecute(
+                "SELECT ri.id AS route_instance_id,
+                        fp.floatPlanId,
+                        pte.status AS premium_trip_status
+                 FROM route_instance_legs ril
+                 INNER JOIN route_instances ri
+                    ON ri.id = ril.route_instance_id
+                   AND ri.user_id = :userIdText
+                 LEFT JOIN floatplans fp
+                    ON fp.route_instance_id = ri.id
+                   AND fp.userId = :userIdText
+                 LEFT JOIN member_premium_trip_entitlements pte
+                    ON pte.canonical_trip_id = fp.floatPlanId
+                   AND pte.user_id = :userId
+                 WHERE ril.segment_id = :segmentId
+                    OR COALESCE(ril.source_loop_segment_id, ril.id) = :segmentId
+                 ORDER BY
+                   CASE WHEN pte.status IN ('ACTIVE','RESERVED') THEN 0 ELSE 1 END,
+                   ri.id DESC,
+                   fp.floatPlanId DESC
+                 LIMIT 1",
+                {
+                    userId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                    userIdText = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
+                    segmentId = { value=arguments.segmentId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource=application.dsn }
+            );
+            if (!qContext.recordCount) {
+                return { owned=false, routeInstanceId=0, canonicalTripId=0, premiumTripStatus="" };
+            }
+            return {
+                owned=true,
+                routeInstanceId=val(qContext.route_instance_id[1]),
+                canonicalTripId=(isNull(qContext.floatPlanId[1]) ? 0 : val(qContext.floatPlanId[1])),
+                premiumTripStatus=(isNull(qContext.premium_trip_status[1]) ? "" : uCase(trim(qContext.premium_trip_status[1])))
+            };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="requireRouteMutationAccess" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeAccessContext" type="struct" required="true">
+        <cfargument name="requireActiveTrip" type="boolean" required="false" default="false">
+        <cfscript>
+            var gate = {};
+            if (!structKeyExists(arguments.routeAccessContext, "owned") OR !arguments.routeAccessContext.owned) {
+                return {
+                    allowed=false,
+                    response=getMemberAccessGateService().buildDeniedResponse(
+                        errorCode="ROUTE_NOT_FOUND",
+                        message="The route was not found or is not owned by this member.",
+                        auth=true,
+                        statusCode=404,
+                        includeUpgradeOptions=false
+                    )
+                };
+            }
+            if (val(arguments.routeAccessContext.canonicalTripId) GT 0) {
+                gate = getMemberAccessGateService().requirePremiumForTrip(
+                    userId=arguments.userId,
+                    canonicalTripId=arguments.routeAccessContext.canonicalTripId,
+                    errorCode="BASIC_ROUTE_PROGRESS_RESTRICTED",
+                    message="Premium access for this trip is required to change route progress."
+                );
+                if (
+                    gate.allowed
+                    AND arguments.requireActiveTrip
+                    AND structKeyExists(gate.access, "tripPremium")
+                    AND gate.access.tripPremium
+                    AND uCase(trim(arguments.routeAccessContext.premiumTripStatus)) NEQ "ACTIVE"
+                ) {
+                    return {
+                        allowed=false,
+                        response=getMemberAccessGateService().buildDeniedResponse(
+                            errorCode="PREMIUM_TRIP_NOT_ACTIVE",
+                            message="Route progress cannot change before the assigned Premium Trip has started.",
+                            auth=true,
+                            statusCode=409,
+                            includeUpgradeOptions=false
+                        )
+                    };
+                }
+                return gate;
+            }
+            return getMemberAccessGateService().requirePremium(
+                userId=arguments.userId,
+                errorCode="BASIC_ROUTE_PROGRESS_RESTRICTED",
+                message="Account-wide Premium is required to change progress on an unassigned route."
+            );
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getMemberAccessGateService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.MemberAccessGateService").init("fpw");
+            } catch (any e1) {
+                return createObject("component", "api.v1.MemberAccessGateService").init("fpw");
+            }
+        </cfscript>
+    </cffunction>
+
     <cffunction name="resolveUserId" access="private" returntype="numeric" output="false">
         <cfargument name="userStruct" type="any" required="true">
         <cfset var uid = 0 />

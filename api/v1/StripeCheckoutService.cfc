@@ -38,20 +38,27 @@
       if (userIdValue LTE 0) {
         return errorResponse("INVALID_USER_ID", "Session user is invalid.");
       }
-      if (!listFindNoCase("monthly,yearly,three_day_pass", intervalValue)) {
-        return errorResponse("INVALID_PRICE_SELECTOR", "Choose monthly, yearly, or 3-Day Pass Premium billing.");
+      if (!listFindNoCase("monthly,yearly,premium_trip,three_day_pass", intervalValue)) {
+        return errorResponse("INVALID_PRICE_SELECTOR", "Choose monthly, yearly, Premium Trip, or legacy 3-Day Pass billing.");
       }
       secretKey = readConfigValue("secretKey", "getSecretKey");
       selectedPriceId = resolvePriceId(intervalValue);
       successUrl = readConfigValue("checkoutSuccessUrl", "getCheckoutSuccessUrl");
       cancelUrl = readConfigValue("checkoutCancelUrl", "getCheckoutCancelUrl");
+      if (intervalValue EQ "premium_trip" AND !len(selectedPriceId)) {
+        return errorResponse("STRIPE_PREMIUM_TRIP_PRICE_MISSING", "FPW_STRIPE_PRICE_PREMIUM_TRIP is required for Premium Trip Checkout.");
+      }
       if (!len(secretKey) OR !len(selectedPriceId) OR !len(successUrl) OR !len(cancelUrl)) {
         return errorResponse("STRIPE_CONFIG_MISSING", "Stripe checkout configuration is incomplete.");
       }
 
-      requestPayload = intervalValue EQ "three_day_pass"
-        ? buildStripeThreeDayPassRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl)
-        : buildStripeRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl);
+      if (intervalValue EQ "premium_trip") {
+        requestPayload = buildStripePremiumTripRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl);
+      } else if (intervalValue EQ "three_day_pass") {
+        requestPayload = buildStripeThreeDayPassRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl);
+      } else {
+        requestPayload = buildStripeRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl);
+      }
       stripeResult = executeStripeCheckoutRequest(requestPayload, secretKey);
       if (!structKeyExists(stripeResult, "SUCCESS") OR stripeResult.SUCCESS NEQ true) {
         response = errorResponse("STRIPE_CHECKOUT_FAILED", "Stripe checkout session could not be created.");
@@ -391,6 +398,33 @@
           "payment_intent_data[metadata][fpwUserId]" = userIdText,
           "payment_intent_data[metadata][fpwProduct]" = "three_day_pass",
           "payment_intent_data[metadata][fpwEntitlementSource]" = "three_day_pass"
+        }
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildStripePremiumTripRequestPayload" access="private" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="priceId" type="string" required="true">
+    <cfargument name="successUrl" type="string" required="true">
+    <cfargument name="cancelUrl" type="string" required="true">
+    <cfscript>
+      var userIdText = toString(int(val(arguments.userId)));
+      return {
+        "url" = "https://api.stripe.com/v1/checkout/sessions",
+        "formFields" = {
+          "mode" = "payment",
+          "line_items[0][price]" = trim(arguments.priceId),
+          "line_items[0][quantity]" = "1",
+          "success_url" = trim(arguments.successUrl),
+          "cancel_url" = trim(arguments.cancelUrl),
+          "client_reference_id" = userIdText,
+          "metadata[fpwUserId]" = userIdText,
+          "metadata[fpwProduct]" = "premium_trip",
+          "metadata[fpwEntitlementSource]" = "premium_trip",
+          "payment_intent_data[metadata][fpwUserId]" = userIdText,
+          "payment_intent_data[metadata][fpwProduct]" = "premium_trip",
+          "payment_intent_data[metadata][fpwEntitlementSource]" = "premium_trip"
         }
       };
     </cfscript>
@@ -1148,6 +1182,8 @@
           return readConfigValue("premiumMonthlyPriceId", "getPremiumMonthlyPriceId");
         case "yearly":
           return readConfigValue("premiumYearlyPriceId", "getPremiumYearlyPriceId");
+        case "premium_trip":
+          return readConfigValue("premiumTripPriceId", "getPremiumTripPriceId");
         case "three_day_pass":
           return readConfigValue("threeDayPassPriceId", "getThreeDayPassPriceId");
         default:
