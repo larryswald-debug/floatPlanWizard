@@ -5,6 +5,7 @@
     <cfscript>
       variables.datasource = len(trim(arguments.datasource)) ? trim(arguments.datasource) : "fpw";
       variables.entitlementService = "";
+      variables.premiumAccessService = "";
       return this;
     </cfscript>
   </cffunction>
@@ -23,10 +24,57 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="getEffectivePremiumAccess" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="canonicalTripId" type="numeric" required="false" default="0">
+    <cfscript>
+      return getPremiumAccessService().getEffectiveAccess(arguments.userId, arguments.canonicalTripId);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="hasPremiumForTrip" access="public" returntype="boolean" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="canonicalTripId" type="numeric" required="true">
+    <cfscript>
+      return getPremiumAccessService().hasPremiumForTrip(arguments.userId, arguments.canonicalTripId);
+    </cfscript>
+  </cffunction>
+
   <cffunction name="getFeatureLimits" access="public" returntype="struct" output="false">
     <cfargument name="userId" type="numeric" required="true">
     <cfscript>
       return getEntitlementService().getFeatureLimits(arguments.userId);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="requirePremiumForTrip" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="canonicalTripId" type="numeric" required="true">
+    <cfargument name="errorCode" type="string" required="false" default="PREMIUM_REQUIRED">
+    <cfargument name="message" type="string" required="false" default="">
+    <cfscript>
+      var access = getEffectivePremiumAccess(arguments.userId, arguments.canonicalTripId);
+      if (!structKeyExists(access, "authenticated") OR !access.authenticated) {
+        return denied(
+          errorCode = "AUTH_REQUIRED",
+          message = "Log in to continue.",
+          auth = false,
+          statusCode = 401,
+          includeUpgradeOptions = false,
+          access = access
+        );
+      }
+      if (structKeyExists(access, "hasPremiumForTrip") AND access.hasPremiumForTrip) {
+        return allowed(access);
+      }
+      return denied(
+        errorCode = arguments.errorCode,
+        message = len(trim(arguments.message)) ? arguments.message : defaultPremiumMessage(),
+        auth = true,
+        statusCode = 403,
+        includeUpgradeOptions = true,
+        access = access
+      );
     </cfscript>
   </cffunction>
 
@@ -160,10 +208,19 @@
   <cffunction name="validateMonitoringMode" access="public" returntype="struct" output="false">
     <cfargument name="userId" type="numeric" required="true">
     <cfargument name="monitoringMode" type="string" required="true">
+    <cfargument name="canonicalTripId" type="numeric" required="false" default="0">
     <cfscript>
       var modeValue = lCase(trim(arguments.monitoringMode));
       if (modeValue EQ "basic") {
         return requireAuthenticated(arguments.userId);
+      }
+      if (int(val(arguments.canonicalTripId)) GT 0) {
+        return requirePremiumForTrip(
+          userId = arguments.userId,
+          canonicalTripId = arguments.canonicalTripId,
+          errorCode = "BASIC_ADVANCED_MONITORING_RESTRICTED",
+          message = "Upgrade to Premium to use Active Cruise and advanced route monitoring."
+        );
       }
       return requirePremium(
         userId = arguments.userId,
@@ -273,6 +330,20 @@
         variables.entitlementService = createObject("component", "api.v1.MemberEntitlementService").init(variables.datasource);
       }
       return variables.entitlementService;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="getPremiumAccessService" access="private" returntype="any" output="false">
+    <cfscript>
+      if (isObject(variables.premiumAccessService)) {
+        return variables.premiumAccessService;
+      }
+      try {
+        variables.premiumAccessService = createObject("component", "fpw.api.v1.MemberPremiumAccessService").init(variables.datasource);
+      } catch (any primaryErr) {
+        variables.premiumAccessService = createObject("component", "api.v1.MemberPremiumAccessService").init(variables.datasource);
+      }
+      return variables.premiumAccessService;
     </cfscript>
   </cffunction>
 

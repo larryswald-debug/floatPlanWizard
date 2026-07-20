@@ -218,6 +218,8 @@
       var normalizedCode = len(codeInput) ? new fpw.api.v1.PromoCodeService().init(variables.datasource).normalizeCode(codeInput) : "";
       var codeHash = len(normalizedCode) ? new fpw.api.v1.PromoCodeService().init(variables.datasource).hashPromoCode(normalizedCode) : "";
       var promoType = lCase(left(trim(toString(readValue(arguments.payload, "promoType", ""))), 40));
+      var benefitType = lCase(left(trim(toString(readValue(arguments.payload, "benefitType", ""))), 40));
+      var benefitQuantity = val(readValue(arguments.payload, "benefitQuantity", 0));
       var statusValue = lCase(left(trim(toString(readValue(arguments.payload, "status", "active"))), 40));
       var internalName = left(trim(toString(readValue(arguments.payload, "internalName", ""))), 160);
       var publicDescription = left(trim(toString(readValue(arguments.payload, "publicDescription", ""))), 500);
@@ -276,7 +278,7 @@
         previous = promoSnapshot(qExisting, 1);
         existingType = lCase(trim(toString(qExisting.promo_type[1])));
         historyCount = redemptionHistoryCount(promoCodeId);
-        if (!listFindNoCase("founder_lifetime,stripe_free_months,admin_grant", promoType) AND promoType NEQ existingType) {
+        if (!listFindNoCase("founder_lifetime,stripe_free_months,premium_trip,admin_grant", promoType) AND promoType NEQ existingType) {
           return failure("PROMO_TYPE_UNSUPPORTED", "New promotion types are limited to the supported public types and admin_grant.");
         }
         if (!len(normalizedCode)) {
@@ -285,8 +287,8 @@
         } else if (compareNoCase(codeHash, trim(toString(qExisting.code_hash[1]))) NEQ 0 AND historyCount GT 0) {
           return failure("PROMO_CODE_IMMUTABLE", "A promotion code with redemption history cannot be changed.");
         }
-      } else if (!listFindNoCase("founder_lifetime,stripe_free_months,admin_grant", promoType)) {
-        return failure("PROMO_TYPE_UNSUPPORTED", "New promotion types are limited to founder_lifetime, stripe_free_months, and admin_grant.");
+      } else if (!listFindNoCase("founder_lifetime,stripe_free_months,premium_trip,admin_grant", promoType)) {
+        return failure("PROMO_TYPE_UNSUPPORTED", "New promotion types are limited to founder_lifetime, stripe_free_months, premium_trip, and admin_grant.");
       }
 
       if (promoType EQ "founder_lifetime") {
@@ -296,12 +298,25 @@
         grantExpiresValue = "";
         durationMonths = 0;
         entitlementSource = "founder_lifetime";
+        benefitType = "";
+        benefitQuantity = 0;
       } else if (promoType EQ "stripe_free_months") {
         if (!listFindNoCase("1,2", toString(durationMonths))) return failure("PROMO_TRIAL_DURATION_INVALID", "Stripe free-month promotions support one or two months.");
         grantKind = "trial";
         grantDurationDays = 0;
         grantExpiresInput = "";
         grantExpiresValue = "";
+        benefitType = "";
+        benefitQuantity = 0;
+      } else if (promoType EQ "premium_trip") {
+        if (benefitType NEQ "premium_trip") return failure("PROMO_BENEFIT_INVALID", "Premium Trip promotions require benefit_type premium_trip.");
+        if (benefitQuantity LT 1 OR benefitQuantity GT 100 OR benefitQuantity NEQ int(benefitQuantity)) return failure("PROMO_BENEFIT_QUANTITY_INVALID", "Premium Trip quantity must be a whole number between 1 and 100.");
+        grantKind = "";
+        grantDurationDays = 0;
+        grantExpiresInput = "";
+        grantExpiresValue = "";
+        durationMonths = 0;
+        entitlementSource = "premium_trip";
       } else if (promoType EQ "admin_grant") {
         if (!listFindNoCase("trial,fixed_duration,fixed_expiration,complimentary,lifetime,manual", grantKind)) return failure("PROMO_GRANT_KIND_INVALID", "Select a supported internal grant type.");
         if (listFindNoCase("trial,fixed_duration,complimentary", grantKind) AND grantDurationDays LTE 0) return failure("PROMO_GRANT_DURATION_REQUIRED", "This internal grant requires a positive duration in days.");
@@ -309,6 +324,8 @@
         if (grantKind EQ "lifetime" AND (grantDurationDays GT 0 OR len(grantExpiresInput))) return failure("PROMO_LIFETIME_CONFLICT", "Lifetime access cannot have a finite grant duration or expiration.");
         entitlementSource = grantKind EQ "lifetime" ? "founder_lifetime" : "admin_comp";
         durationMonths = 0;
+        benefitType = "";
+        benefitQuantity = 0;
       }
 
       qDuplicate = queryExecute(
@@ -327,6 +344,8 @@
         internalName = { value = internalName, cfsqltype = "cf_sql_varchar" },
         publicDescription = { value = publicDescription, cfsqltype = "cf_sql_varchar", null = !len(publicDescription) },
         promoType = { value = promoType, cfsqltype = "cf_sql_varchar" },
+        benefitType = { value = benefitType, cfsqltype = "cf_sql_varchar", null = !len(benefitType) },
+        benefitQuantity = { value = int(benefitQuantity), cfsqltype = "cf_sql_integer", null = benefitQuantity LTE 0 },
         statusValue = { value = statusValue, cfsqltype = "cf_sql_varchar" },
         startsAtUtc = { value = startsAtValue, cfsqltype = "cf_sql_timestamp" },
         expiresAtUtc = { value = expiresAtValue, cfsqltype = "cf_sql_timestamp", null = !len(expiresAtInput) },
@@ -353,7 +372,7 @@
               "UPDATE fpw_promo_codes SET
                  code_hash = :codeHash, code_normalized = :codeNormalized,
                  internal_name = :internalName, public_description = :publicDescription,
-                 promo_type = :promoType, status = :statusValue,
+                 promo_type = :promoType, benefit_type = :benefitType, benefit_quantity = :benefitQuantity, status = :statusValue,
                  starts_at_utc = :startsAtUtc, expires_at_utc = :expiresAtUtc,
                  max_redemptions = :maxRedemptions, one_per_user = :onePerUser,
                  duration_months = :durationMonths,
@@ -373,7 +392,7 @@
             queryExecute(
               "INSERT INTO fpw_promo_codes (
                  code_hash, code_normalized, internal_name, public_description,
-                 promo_type, status, starts_at_utc, expires_at_utc,
+                 promo_type, benefit_type, benefit_quantity, status, starts_at_utc, expires_at_utc,
                  max_redemptions, redemptions_count, one_per_user, duration_months,
                  stripe_promotion_code_id, stripe_coupon_id,
                  entitlement_type, entitlement_source,
@@ -382,7 +401,7 @@
                  archived_at_utc, archived_by_user_id, created_at_utc, updated_at_utc
                ) VALUES (
                  :codeHash, :codeNormalized, :internalName, :publicDescription,
-                 :promoType, :statusValue, :startsAtUtc, :expiresAtUtc,
+                 :promoType, :benefitType, :benefitQuantity, :statusValue, :startsAtUtc, :expiresAtUtc,
                  :maxRedemptions, 0, :onePerUser, :durationMonths,
                  :stripePromotionId, :stripeCouponId,
                  :entitlementType, :entitlementSource,
@@ -573,6 +592,8 @@
         "internalName" = valueOrEmpty(arguments.q, "internal_name", arguments.row),
         "publicDescription" = valueOrEmpty(arguments.q, "public_description", arguments.row),
         "promoType" = valueOrEmpty(arguments.q, "promo_type", arguments.row),
+        "benefitType" = valueOrEmpty(arguments.q, "benefit_type", arguments.row),
+        "benefitQuantity" = valueOrNull(arguments.q, "benefit_quantity", arguments.row),
         "status" = valueOrEmpty(arguments.q, "status", arguments.row),
         "effectiveStatus" = valueOrEmpty(arguments.q, "effective_status", arguments.row),
         "startsAtUtc" = valueOrNull(arguments.q, "starts_at_utc", arguments.row),
@@ -628,6 +649,7 @@
         "result" = valueOrEmpty(arguments.q, "result", arguments.row),
         "errorCode" = valueOrEmpty(arguments.q, "error_code", arguments.row),
         "entitlementId" = valueOrNull(arguments.q, "entitlement_id", arguments.row),
+        "premiumTripGrantCount" = valueOrNull(arguments.q, "premium_trip_grant_count", arguments.row),
         "entitlementStartsAtUtc" = valueOrNull(arguments.q, "entitlement_starts_at_utc", arguments.row),
         "entitlementExpiresAtUtc" = valueOrNull(arguments.q, "entitlement_expires_at_utc", arguments.row),
         "stripeCheckoutSessionId" = valueOrEmpty(arguments.q, "stripe_checkout_session_id", arguments.row),
@@ -642,7 +664,7 @@
   <cffunction name="runtimeSupport" access="private" returntype="string" output="false">
     <cfargument name="promoType" type="string" required="true">
     <cfscript>
-      if (listFindNoCase("founder_lifetime,stripe_free_months", arguments.promoType)) return "public_redemption";
+      if (listFindNoCase("founder_lifetime,stripe_free_months,premium_trip", arguments.promoType)) return "public_redemption";
       if (arguments.promoType EQ "admin_grant") return "admin_grant_only";
       return "legacy_unsupported";
     </cfscript>
@@ -781,4 +803,3 @@
   </cffunction>
 
 </cfcomponent>
-

@@ -224,6 +224,8 @@
       var expiresAtInput = trim(toString(readValue(arguments.payload, "expiresAtUtc", "")));
       var notes = left(trim(toString(readValue(arguments.payload, "adminNotes", ""))), 10000);
       var reason = left(trim(toString(readValue(arguments.payload, "reason", ""))), 500);
+      var tripQuantity = val(readValue(arguments.payload, "tripQuantity", readValue(arguments.payload, "quantity", 0)));
+      var adminReference = left(trim(toString(readValue(arguments.payload, "adminReference", ""))), 255);
       var confirmOverlap = truthy(readValue(arguments.payload, "confirmOverlap", false));
       var adminUserId = val(readValue(arguments.admin, "userId", 0));
       var adminEmail = left(trim(toString(readValue(arguments.admin, "email", ""))), 255);
@@ -239,11 +241,37 @@
       var qNewId = queryNew("");
       var entitlementId = 0;
       var current = {};
+      var tripGrantResult = {};
 
       if (adminUserId LTE 0) return failure("INVALID_ADMIN", "A valid administrator is required.");
       if (qUser.recordCount EQ 0) return failure("MEMBER_NOT_FOUND", "Member was not found.");
       if (!len(reason)) return failure("REASON_REQUIRED", "An administrative reason is required.");
-      if (!listFindNoCase("trial,fixed_duration,fixed_expiration,complimentary,lifetime,manual,promo", grantKind)) return failure("GRANT_KIND_INVALID", "Select a supported grant type.");
+      if (!listFindNoCase("trial,fixed_duration,fixed_expiration,complimentary,lifetime,manual,promo,premium_trip", grantKind)) return failure("GRANT_KIND_INVALID", "Select a supported grant type.");
+      if (grantKind EQ "premium_trip") {
+        if (tripQuantity LT 1 OR tripQuantity GT 100 OR tripQuantity NEQ int(tripQuantity)) return failure("TRIP_QUANTITY_INVALID", "Premium Trip quantity must be a whole number between 1 and 100.");
+        if (!len(adminReference)) return failure("ADMIN_REFERENCE_REQUIRED", "A durable administrative grant reference is required.");
+        tripGrantResult = new fpw.api.v1.PremiumTripEntitlementService().init(variables.datasource).grantAdminTrips(
+          userId=userId,
+          adminReference=adminReference,
+          quantity=int(tripQuantity),
+          actorUserId=adminUserId,
+          reason=reason
+        );
+        if (!structKeyExists(tripGrantResult,"SUCCESS") OR tripGrantResult.SUCCESS NEQ true) {
+          return failure(structKeyExists(tripGrantResult,"ERROR") ? tripGrantResult.ERROR : "PREMIUM_TRIP_GRANT_FAILED", structKeyExists(tripGrantResult,"MESSAGE") ? tripGrantResult.MESSAGE : "Premium Trip grant failed.");
+        }
+        writeAudit(
+          adminUserId,
+          adminEmail,
+          "premium_trip_grant",
+          "member_premium_trip_grant",
+          adminReference,
+          {},
+          {userId=userId,quantity=int(tripQuantity),adminReference=adminReference,createdCount=tripGrantResult.createdCount},
+          reason
+        );
+        return success("Premium Trip grant completed.",{grantKind="premium_trip",userId=userId,quantity=int(tripQuantity),adminReference=adminReference,grant=tripGrantResult});
+      }
       if (!len(startsAtInput)) startsAtInput = dateTimeFormat(dateConvert("local2utc", now()), "yyyy-mm-dd HH:nn:ss");
 
       if (grantKind EQ "promo") {
@@ -781,7 +809,6 @@
   </cffunction>
 
 </cfcomponent>
-
 
 
 

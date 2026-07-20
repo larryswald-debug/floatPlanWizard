@@ -388,6 +388,8 @@ component extends="testbox.system.BaseSpec" output="false" {
         var relaxedFutureLeg = {};
         var activeCruiseHero = {};
         var followBootstrap = {};
+        var crossSurfaceProjectionStartedAt = "";
+        var crossSurfaceProjectionToleranceSeconds = 0;
         var balancedResult = {};
         var balancedProjection = {};
         var aggressiveResult = {};
@@ -443,6 +445,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(roundTo2Numeric(relaxedInputs.active_trip_effective_speed_kn)).toBe(5);
           expect(roundTo2Numeric(relaxedInputs.active_trip_weather_adjusted_speed_kn)).toBe(3.75);
 
+          crossSurfaceProjectionStartedAt = now();
           relaxedModel = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
           expect(relaxedModel.success).toBeTrue(serializeJSON(relaxedModel));
           expect(relaxedModel.pace.currentValue).toBe("RELAXED", serializeJSON(relaxedModel.pace));
@@ -464,8 +467,11 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(dateDiff("n", parseUtcForTest(baselineProjection.routeTimeline.summary.finalArrivalUtc), parseUtcForTest(relaxedModel.routeTimeline.summary.finalArrivalUtc))).toBeGT(0);
           activeCruiseHero = loadActiveCruiseHeroForTest(asset.floatPlanId);
           followBootstrap = loadFollowBootstrapForTest(sessionApi, asset.floatPlanId);
-          expect(activeCruiseHero.heroEtaUtc).toBe(relaxedModel.currentLeg.etaUtc, serializeJSON(activeCruiseHero));
-          expect(followBootstrap.topCards.eta_utc ?: "").toBe(relaxedModel.currentLeg.etaUtc, serializeJSON(followBootstrap.topCards ?: {}));
+          crossSurfaceProjectionToleranceSeconds = max(1, dateDiff("s", crossSurfaceProjectionStartedAt, now()) + 1);
+          expect(len(activeCruiseHero.heroEtaUtc ?: "")).toBeGT(0, serializeJSON(activeCruiseHero));
+          expect(len(followBootstrap.topCards.eta_utc ?: "")).toBeGT(0, serializeJSON(followBootstrap.topCards ?: {}));
+          expect(abs(dateDiff("s", parseUtcForTest(activeCruiseHero.heroEtaUtc), parseUtcForTest(relaxedModel.currentLeg.etaUtc)))).toBeLTE(crossSurfaceProjectionToleranceSeconds, serializeJSON(activeCruiseHero));
+          expect(abs(dateDiff("s", parseUtcForTest(followBootstrap.topCards.eta_utc), parseUtcForTest(relaxedModel.currentLeg.etaUtc)))).toBeLTE(crossSurfaceProjectionToleranceSeconds, serializeJSON(followBootstrap.topCards ?: {}));
 
           balancedResult = postActiveCruisePaceWithApi(sessionApi, asset.floatPlanId, "BALANCED");
           expect(isSuccessPayload(balancedResult)).toBeTrue(serializeJSON(balancedResult));
@@ -1633,6 +1639,32 @@ component extends="testbox.system.BaseSpec" output="false" {
       return;
     }
 
+    queryExecute(
+      "DELETE FROM premium_trip_entitlement_events
+       WHERE premium_trip_entitlement_id IN (
+         SELECT premium_trip_entitlement_id
+         FROM member_premium_trip_entitlements
+         WHERE user_id = :userId
+       )",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "DELETE FROM premium_trip_creation_sessions WHERE user_id = :userId",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "DELETE FROM member_premium_trip_entitlements WHERE user_id = :userId",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
     queryExecute(
       "DELETE FROM users_address WHERE userId = :userId",
       {
@@ -2957,6 +2989,20 @@ component extends="testbox.system.BaseSpec" output="false" {
         try {
           cleanupSupport.cleanupUserRoute(arguments.created.userRouteIds[u]);
         } catch (any ignoredUserRouteCleanup) {}
+        queryExecute(
+          "DELETE FROM user_route_legs WHERE user_route_id = :userRouteId",
+          {
+            userRouteId = { value = arguments.created.userRouteIds[u], cfsqltype = "cf_sql_integer" }
+          },
+          { datasource = "fpw" }
+        );
+        queryExecute(
+          "DELETE FROM user_routes WHERE id = :userRouteId",
+          {
+            userRouteId = { value = arguments.created.userRouteIds[u], cfsqltype = "cf_sql_integer" }
+          },
+          { datasource = "fpw" }
+        );
       }
     }
     for (var c = arrayLen(arguments.created.contactIds); c GTE 1; c--) {

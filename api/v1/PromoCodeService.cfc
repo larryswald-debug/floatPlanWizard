@@ -71,6 +71,10 @@
       var checkoutErrorCode = "";
       var checkoutSessionId = "";
       var pendingCheckout = {};
+      var benefitType = "";
+      var benefitQuantity = 0;
+      var redemptionInsert = {};
+      var redemptionId = 0;
 
       if (arguments.userId LTE 0) {
         return ineligibleResponse("INVALID_USER_ID", "A valid user is required.");
@@ -99,8 +103,48 @@
           } else {
             promoId = val(validation.promoCodeId);
             promoType = lCase(trim(validation.promoType));
+            benefitType = lCase(trim(validation.benefitType));
+            benefitQuantity = int(val(validation.benefitQuantity));
 
-            if (promoType EQ "founder_lifetime") {
+            if (benefitType EQ "premium_trip") {
+              queryExecute(
+                "INSERT INTO fpw_promo_redemptions (
+                   promo_code_id,user_id,attempt_code_hash,result,error_code,entitlement_id,
+                   premium_trip_grant_count,attempted_at_utc,redeemed_at_utc,created_at_utc,updated_at_utc
+                 ) VALUES (
+                   :promoCodeId,:userId,:codeHash,'processing',NULL,NULL,NULL,:attemptedAtUtc,NULL,UTC_TIMESTAMP(),UTC_TIMESTAMP()
+                 )",
+                {
+                  promoCodeId={value=promoId,cfsqltype="cf_sql_bigint"},
+                  userId={value=arguments.userId,cfsqltype="cf_sql_integer"},
+                  codeHash={value=codeHash,cfsqltype="cf_sql_char"},
+                  attemptedAtUtc={value=nowValue,cfsqltype="cf_sql_timestamp"}
+                },
+                {datasource=variables.datasource,result="redemptionInsert"}
+              );
+              redemptionId=val(redemptionInsert.generatedKey);
+              entitlementResult=new fpw.api.v1.PremiumTripEntitlementService().init(variables.datasource)
+                .grantPromoTrips(arguments.userId,promoId,benefitQuantity,"promo-redemption:" & redemptionId);
+              if(!structKeyExists(entitlementResult,"SUCCESS") OR entitlementResult.SUCCESS NEQ true OR val(entitlementResult.grantCount) NEQ benefitQuantity) {
+                throw(type="PromoCodeService.PremiumTripGrantFailed",message="Premium Trip promo grant could not be created.");
+              }
+              queryExecute(
+                "UPDATE fpw_promo_redemptions
+                 SET result='redeemed',premium_trip_grant_count=:quantity,redeemed_at_utc=:redeemedAtUtc,updated_at_utc=UTC_TIMESTAMP()
+                 WHERE redemption_id=:redemptionId AND result='processing'",
+                {
+                  quantity={value=benefitQuantity,cfsqltype="cf_sql_integer"},
+                  redeemedAtUtc={value=nowValue,cfsqltype="cf_sql_timestamp"},
+                  redemptionId={value=redemptionId,cfsqltype="cf_sql_bigint"}
+                },
+                {datasource=variables.datasource}
+              );
+              incrementRedemptionCount(promoId);
+              response=eligibleResponse(qPromo,"premium_trip_redeemed","Premium Trip grant is available.");
+              response.redeemed=true;
+              response.premiumTripGrantCount=benefitQuantity;
+              response.entitlements=entitlementResult.entitlements;
+            } else if (promoType EQ "founder_lifetime") {
               entitlementId = findActiveFounderEntitlement(arguments.userId);
               if (entitlementId LTE 0) {
                 entitlementResult = new fpw.api.v1.MemberEntitlementService().init(variables.datasource)
@@ -286,6 +330,8 @@
             promo_code_id,
             code_hash,
             promo_type,
+            benefit_type,
+            benefit_quantity,
             status,
             starts_at_utc,
             expires_at_utc,
@@ -316,6 +362,8 @@
             promo_code_id,
             code_hash,
             promo_type,
+            benefit_type,
+            benefit_quantity,
             status,
             starts_at_utc,
             expires_at_utc,
@@ -356,6 +404,8 @@
       var hasMaxRedemptions = false;
       var redemptionCount = 0;
       var onePerUser = true;
+      var benefitType = "";
+      var benefitQuantity = 0;
 
       if (arguments.qPromo.recordCount EQ 0) {
         return ineligibleResponse("PROMO_CODE_NOT_FOUND", "Promo code was not found.");
@@ -367,6 +417,8 @@
       hasMaxRedemptions = !isNull(arguments.qPromo.max_redemptions[1]) AND maxRedemptions GT 0;
       redemptionCount = val(arguments.qPromo.redemptions_count[1]);
       onePerUser = truthy(arguments.qPromo.one_per_user[1]);
+    benefitType = lCase(trim(queryValueOrEmpty(arguments.qPromo, "benefit_type", 1)));
+    benefitQuantity = int(val(queryValueOrEmpty(arguments.qPromo, "benefit_quantity", 1)));
 
       if (statusValue NEQ "active") {
         return ineligibleResponse("PROMO_CODE_DISABLED", "Promo code is not active.", arguments.qPromo);
@@ -389,14 +441,17 @@
       if (promoType EQ "stripe_free_months" AND hasUserUsedStripeFreeTrial(arguments.userId)) {
         return ineligibleResponse("PROMO_FREE_TRIAL_ALREADY_USED", "A free trial has already been used for this account.", arguments.qPromo);
       }
-      if (!listFindNoCase("founder_lifetime,stripe_free_months", promoType)) {
+      if (benefitType EQ "premium_trip" AND (benefitQuantity LT 1 OR benefitQuantity GT 100)) {
+        return ineligibleResponse("PROMO_TRIP_QUANTITY_INVALID", "Premium Trip quantity must be between 1 and 100.", arguments.qPromo);
+      }
+      if (!listFindNoCase("founder_lifetime,stripe_free_months,premium_trip", promoType) AND benefitType NEQ "premium_trip") {
         return ineligibleResponse("PROMO_UNSUPPORTED_TYPE", "Promo code type is not supported.", arguments.qPromo);
       }
 
       return eligibleResponse(
         arguments.qPromo,
-        promoType EQ "founder_lifetime" ? "redeem_founder_lifetime" : "stripe_checkout_required",
-        promoType EQ "founder_lifetime" ? "Founders Lifetime Premium is available." : "Promo code is available for Stripe checkout."
+        benefitType EQ "premium_trip" ? "redeem_premium_trip" : (promoType EQ "founder_lifetime" ? "redeem_founder_lifetime" : "stripe_checkout_required"),
+        benefitType EQ "premium_trip" ? "Premium Trip grant is available." : (promoType EQ "founder_lifetime" ? "Founders Lifetime Premium is available." : "Promo code is available for Stripe checkout.")
       );
     </cfscript>
   </cffunction>
@@ -412,6 +467,8 @@
         "eligible" = true,
         "promoCodeId" = val(arguments.qPromo.promo_code_id[1]),
         "promoType" = lCase(trim(toString(arguments.qPromo.promo_type[1]))),
+      "benefitType" = lCase(trim(queryValueOrEmpty(arguments.qPromo, "benefit_type", 1))),
+      "benefitQuantity" = val(queryValueOrEmpty(arguments.qPromo, "benefit_quantity", 1)),
         "nextAction" = arguments.nextAction,
         "displayMessage" = arguments.displayMessage,
         "durationMonths" = queryValueOrNull(arguments.qPromo, "duration_months", 1),
@@ -799,6 +856,22 @@
         return arguments.q[arguments.column][arguments.row];
       }
       return javacast("null", "");
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="queryValueOrEmpty" access="private" returntype="string" output="false">
+    <cfargument name="q" type="query" required="true">
+    <cfargument name="column" type="string" required="true">
+    <cfargument name="row" type="numeric" required="true">
+    <cfscript>
+      if (
+        arguments.q.recordCount GTE arguments.row
+        AND listFindNoCase(arguments.q.columnList, arguments.column)
+        AND !isNull(arguments.q[arguments.column][arguments.row])
+      ) {
+        return toString(arguments.q[arguments.column][arguments.row]);
+      }
+      return "";
     </cfscript>
   </cffunction>
 

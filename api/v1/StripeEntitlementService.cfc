@@ -36,13 +36,15 @@
       }
 
       try {
-        result = dispatchEvent(eventType, eventObject);
+        result = dispatchEvent(eventType, eventObject, eventId);
         updateEventResult(
           stripeEventId = eventId,
           processingStatus = result.SUCCESS ? (structKeyExists(result, "ignored") AND result.ignored ? "ignored" : "processed") : "failed",
           errorMessage = result.SUCCESS ? "" : readString(result, "MESSAGE"),
           userId = structKeyExists(result, "userId") ? val(result.userId) : 0,
-          refs = mergeReferenceStructs(refs, result)
+          refs = mergeReferenceStructs(refs, result),
+          reviewRequired = structKeyExists(result, "reviewRequired") AND result.reviewRequired,
+          reviewReason = structKeyExists(result, "reviewReason") ? readString(result, "reviewReason") : ""
         );
         result.stripeEventId = eventId;
         result.eventType = eventType;
@@ -53,7 +55,9 @@
           processingStatus = "failed",
           errorMessage = err.message,
           userId = 0,
-          refs = refs
+          refs = refs,
+          reviewRequired = false,
+          reviewReason = ""
         );
         return errorResponse("STRIPE_EVENT_PROCESSING_FAILED", "Stripe event processing failed.");
       }
@@ -63,10 +67,18 @@
   <cffunction name="dispatchEvent" access="private" returntype="struct" output="false">
     <cfargument name="eventType" type="string" required="true">
     <cfargument name="eventObject" type="struct" required="true">
+    <cfargument name="eventId" type="string" required="true">
     <cfscript>
       switch (arguments.eventType) {
         case "checkout.session.completed":
-          return processCheckoutSessionCompleted(arguments.eventObject);
+        case "checkout.session.async_payment_succeeded":
+          return processCheckoutSessionEvent(arguments.eventObject, arguments.eventType, arguments.eventId);
+        case "checkout.session.async_payment_failed":
+          return processAsyncCheckoutFailed(arguments.eventObject);
+        case "charge.refunded":
+        case "charge.dispute.created":
+        case "charge.dispute.closed":
+          return processPaymentReversal(arguments.eventObject, arguments.eventType, arguments.eventId);
         case "customer.subscription.created":
         case "customer.subscription.updated":
         case "customer.subscription.paused":
@@ -84,18 +96,22 @@
     </cfscript>
   </cffunction>
 
-  <cffunction name="processCheckoutSessionCompleted" access="private" returntype="struct" output="false">
+  <cffunction name="processCheckoutSessionEvent" access="private" returntype="struct" output="false">
     <cfargument name="sessionObject" type="struct" required="true">
+    <cfargument name="eventType" type="string" required="true">
+    <cfargument name="eventId" type="string" required="true">
     <cfscript>
       var userId = resolveUserIdFromCheckoutSession(arguments.sessionObject);
-      var identifiers = extractReferences("checkout.session.completed", arguments.sessionObject);
+      var identifiers = extractReferences(arguments.eventType, arguments.sessionObject);
       var passResult = {};
+      var tripResult = {};
+      identifiers.stripeEventId = arguments.eventId;
       if (userId LTE 0) {
         return ignoredResponse("STRIPE_USER_MAPPING_NOT_FOUND", "Checkout session did not map to one valid FPW user.", identifiers);
       }
 
       if (isThreeDayPassCheckout(arguments.sessionObject, identifiers)) {
-        if (lCase(readString(arguments.sessionObject, "payment_status")) NEQ "paid") {
+        if (arguments.eventType EQ "checkout.session.completed" AND lCase(readString(arguments.sessionObject, "payment_status")) NEQ "paid") {
           return ignoredResponse("STRIPE_THREE_DAY_PASS_PAYMENT_PENDING", "3-Day Pass checkout has not been paid yet.", identifiers, userId);
         }
         passResult = new fpw.api.v1.MemberEntitlementService().init(variables.datasource)
@@ -104,6 +120,22 @@
           return errorResponse("THREE_DAY_PASS_ENTITLEMENT_FAILED", "3-Day Pass entitlement could not be activated.");
         }
         return successResponse("3-Day Pass entitlement activated.", userId, identifiers);
+      }
+
+      if (isPremiumTripCheckout(arguments.sessionObject, identifiers)) {
+        if (arguments.eventType EQ "checkout.session.completed" AND lCase(readString(arguments.sessionObject, "payment_status")) NEQ "paid") {
+          return ignoredResponse("STRIPE_PREMIUM_TRIP_PAYMENT_PENDING", "Premium Trip checkout has not been paid yet.", identifiers, userId);
+        }
+        tripResult = new fpw.api.v1.PremiumTripEntitlementService().init(variables.datasource)
+          .grantPurchasedTrip(userId, identifiers);
+        if (!structKeyExists(tripResult, "SUCCESS") OR tripResult.SUCCESS NEQ true) {
+          return errorResponse("PREMIUM_TRIP_ENTITLEMENT_FAILED", "Premium Trip entitlement could not be granted.");
+        }
+        return successResponse(
+          structKeyExists(tripResult, "duplicate") AND tripResult.duplicate ? "Premium Trip was already granted." : "Premium Trip entitlement granted.",
+          userId,
+          identifiers
+        );
       }
 
       upsertStripeEntitlement(
@@ -116,6 +148,79 @@
       markPromoCheckoutCompleted(userId, identifiers);
 
       return successResponse("Checkout session mapping recorded without granting Premium.", userId, identifiers);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="processAsyncCheckoutFailed" access="private" returntype="struct" output="false">
+    <cfargument name="sessionObject" type="struct" required="true">
+    <cfscript>
+      var identifiers = extractReferences("checkout.session.async_payment_failed", arguments.sessionObject);
+      var userId = resolveUserIdFromCheckoutSession(arguments.sessionObject);
+      return ignoredResponse("STRIPE_ASYNC_PAYMENT_FAILED", "Delayed Checkout payment failed; no entitlement was granted.", identifiers, userId);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="processPaymentReversal" access="private" returntype="struct" output="false">
+    <cfargument name="objectData" type="struct" required="true">
+    <cfargument name="eventType" type="string" required="true">
+    <cfargument name="eventId" type="string" required="true">
+    <cfscript>
+      var identifiers = extractReferences(arguments.eventType, arguments.objectData);
+      var disputeStatus = lCase(readString(arguments.objectData, "status"));
+      var reason = "Stripe payment reversal: " & arguments.eventType;
+      var reversal = {};
+      identifiers.stripeEventId = arguments.eventId;
+
+      if (arguments.eventType EQ "charge.dispute.closed" AND disputeStatus EQ "won") {
+        return ignoredResponse("STRIPE_DISPUTE_WON", "Closed dispute was won; no automatic entitlement change was made.", identifiers);
+      }
+      if (arguments.eventType EQ "charge.refunded" AND !isFullChargeRefund(arguments.objectData)) {
+        return ignoredResponse("STRIPE_PARTIAL_REFUND_REVIEW", "Partial refund requires administrative review; no automatic entitlement change was made.", identifiers);
+      }
+
+      reversal = new fpw.api.v1.PremiumTripEntitlementService().init(variables.datasource)
+        .reconcilePaymentReversal(identifiers, reason, arguments.eventId);
+      if (!structKeyExists(reversal, "SUCCESS") OR reversal.SUCCESS NEQ true) {
+        if (structKeyExists(reversal, "ERROR") AND reversal.ERROR EQ "PREMIUMTRIP.NOTFOUND") {
+          return ignoredResponse("PREMIUM_TRIP_NOT_FOUND", "Payment reversal did not match a Premium Trip entitlement.", identifiers);
+        }
+        return errorResponse("PREMIUM_TRIP_REVERSAL_FAILED", "Premium Trip payment reversal could not be reconciled.");
+      }
+      reversal.userId = structKeyExists(reversal, "userId") ? reversal.userId : 0;
+      reversal.stripeCheckoutSessionId = readString(identifiers, "stripeCheckoutSessionId");
+      reversal.stripePaymentIntentId = readString(identifiers, "stripePaymentIntentId");
+      reversal.stripeChargeId = readString(identifiers, "stripeChargeId");
+      reversal.stripePriceId = readString(identifiers, "stripePriceId");
+      reversal.reviewReason = structKeyExists(reversal, "reviewRequired") AND reversal.reviewRequired ? reason : "";
+      reversal.MESSAGE = structKeyExists(reversal, "reviewRequired") AND reversal.reviewRequired ? "Payment reversal flagged for administrative review." : "Unused Premium Trip revoked after payment reversal.";
+      return reversal;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="isFullChargeRefund" access="private" returntype="boolean" output="false">
+    <cfargument name="chargeObject" type="struct" required="true">
+    <cfscript>
+      if (structKeyExists(arguments.chargeObject, "refunded")) {
+        return arguments.chargeObject.refunded EQ true OR arguments.chargeObject.refunded EQ 1;
+      }
+      return val(readString(arguments.chargeObject, "amount")) GT 0
+        AND val(readString(arguments.chargeObject, "amount_refunded")) GTE val(readString(arguments.chargeObject, "amount"));
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="isPremiumTripCheckout" access="private" returntype="boolean" output="false">
+    <cfargument name="sessionObject" type="struct" required="true">
+    <cfargument name="identifiers" type="struct" required="true">
+    <cfscript>
+      var configuredPriceId = new fpw.api.v1.StripeConfigService().init().getPremiumTripPriceId();
+      var sessionPriceId = readString(arguments.identifiers, "stripePriceId");
+      var modeValue = lCase(readString(arguments.sessionObject, "mode"));
+      var productValue = lCase(readMetadataString(arguments.sessionObject, "fpwProduct"));
+      var sourceValue = lCase(readMetadataString(arguments.sessionObject, "fpwEntitlementSource"));
+      if (len(readString(arguments.identifiers, "stripeSubscriptionId"))) return false;
+      if (len(modeValue) AND modeValue NEQ "payment") return false;
+      if (productValue EQ "premium_trip" OR sourceValue EQ "premium_trip") return true;
+      return len(configuredPriceId) AND len(sessionPriceId) AND compareNoCase(configuredPriceId, sessionPriceId) EQ 0;
     </cfscript>
   </cffunction>
 
@@ -429,58 +534,67 @@
     <cfargument name="stripeEventId" type="string" required="true">
     <cfargument name="eventType" type="string" required="true">
     <cfargument name="refs" type="struct" required="true">
+    <cftry>
     <cfscript>
-      var qExisting = loadWebhookEvent(arguments.stripeEventId);
-      if (qExisting.recordCount GT 0) {
-        return {
-          "SUCCESS" = true,
-          "success" = true,
-          "duplicate" = true,
-          "processed" = false,
-          "stripeEventId" = arguments.stripeEventId,
-          "eventType" = arguments.eventType,
-          "processingStatus" = qExisting.processing_status[1],
-          "MESSAGE" = "Stripe event was already recorded."
-        };
+      var qExisting = queryNew("");
+      var currentStatus = "";
+      var returnValue = {};
+      transaction {
+        qExisting = loadWebhookEvent(arguments.stripeEventId, true);
+        if (qExisting.recordCount GT 0) {
+          currentStatus = lCase(trim(qExisting.processing_status[1]));
+          if (listFindNoCase("processed,ignored", currentStatus)) {
+            returnValue = {
+              SUCCESS=true, success=true, duplicate=true, processed=false,
+              ignored=(currentStatus EQ "ignored"), stripeEventId=arguments.stripeEventId,
+              eventType=arguments.eventType, processingStatus=currentStatus,
+              MESSAGE=currentStatus EQ "ignored" ? "Stripe event was already intentionally ignored." : "Stripe event was already processed."
+            };
+          } else if (currentStatus EQ "processing" AND val(qExisting.processing_is_stale[1]) NEQ 1) {
+            returnValue = errorResponse("STRIPE_EVENT_ALREADY_PROCESSING", "Stripe event is already being processed by another request.");
+          } else if (currentStatus EQ "failed" OR (currentStatus EQ "processing" AND val(qExisting.processing_is_stale[1]) EQ 1)) {
+            queryExecute(
+              "UPDATE stripe_webhook_events
+               SET event_type=:eventType,processing_status='processing',attempt_count=attempt_count+1,
+                   processing_started_at_utc=UTC_TIMESTAMP(),last_attempt_at_utc=UTC_TIMESTAMP(),
+                   processed_at_utc=NULL,error_message=NULL,updated_at_utc=UTC_TIMESTAMP()
+               WHERE stripe_event_id=:stripeEventId",
+              {eventType={value=arguments.eventType,cfsqltype="cf_sql_varchar"},stripeEventId={value=arguments.stripeEventId,cfsqltype="cf_sql_varchar"}},
+              {datasource=variables.datasource}
+            );
+            returnValue={SUCCESS=true,success=true,duplicate=false,processed=true,retried=true};
+          } else {
+            returnValue=errorResponse("STRIPE_EVENT_STATUS_INVALID", "Stripe event ledger status is invalid.");
+          }
+        } else {
+          queryExecute(
+            "INSERT INTO stripe_webhook_events (
+               stripe_event_id,event_type,processing_status,attempt_count,
+               processing_started_at_utc,last_attempt_at_utc,
+               stripe_customer_id,stripe_subscription_id,stripe_checkout_session_id,
+               stripe_invoice_id,stripe_payment_intent_id,stripe_price_id,
+               created_at_utc,updated_at_utc
+             ) VALUES (
+               :stripeEventId,:eventType,'processing',1,UTC_TIMESTAMP(),UTC_TIMESTAMP(),
+               :stripeCustomerId,:stripeSubscriptionId,:stripeCheckoutSessionId,
+               :stripeInvoiceId,:stripePaymentIntentId,:stripePriceId,
+               UTC_TIMESTAMP(),UTC_TIMESTAMP()
+             )",
+            buildEventParams(arguments.stripeEventId, arguments.eventType, 0, arguments.refs, "", ""),
+            {datasource=variables.datasource}
+          );
+          returnValue={SUCCESS=true,success=true,duplicate=false,processed=true,retried=false};
+        }
       }
-
-      queryExecute(
-        "INSERT INTO stripe_webhook_events (
-           stripe_event_id,
-           event_type,
-           processing_status,
-           stripe_customer_id,
-           stripe_subscription_id,
-           stripe_checkout_session_id,
-           stripe_invoice_id,
-           stripe_payment_intent_id,
-           stripe_price_id,
-           created_at_utc,
-           updated_at_utc
-         ) VALUES (
-           :stripeEventId,
-           :eventType,
-           'processing',
-           :stripeCustomerId,
-           :stripeSubscriptionId,
-           :stripeCheckoutSessionId,
-           :stripeInvoiceId,
-           :stripePaymentIntentId,
-           :stripePriceId,
-           UTC_TIMESTAMP(),
-           UTC_TIMESTAMP()
-         )",
-        buildEventParams(arguments.stripeEventId, arguments.eventType, 0, arguments.refs, "", ""),
-        { datasource = variables.datasource }
-      );
-
-      return {
-        "SUCCESS" = true,
-        "success" = true,
-        "duplicate" = false,
-        "processed" = true
-      };
+      return returnValue;
     </cfscript>
+    <cfcatch type="database">
+      <cfif structKeyExists(cfcatch,"nativeErrorCode") AND val(cfcatch.nativeErrorCode) EQ 1062>
+        <cfreturn errorResponse("STRIPE_EVENT_ALREADY_PROCESSING","Stripe event was claimed concurrently by another request.")>
+      </cfif>
+      <cfrethrow>
+    </cfcatch>
+    </cftry>
   </cffunction>
 
   <cffunction name="updateEventResult" access="private" returntype="void" output="false">
@@ -489,6 +603,8 @@
     <cfargument name="errorMessage" type="string" required="false" default="">
     <cfargument name="userId" type="numeric" required="false" default="0">
     <cfargument name="refs" type="struct" required="true">
+    <cfargument name="reviewRequired" type="boolean" required="false" default="false">
+    <cfargument name="reviewReason" type="string" required="false" default="">
     <cfscript>
       queryExecute(
         "UPDATE stripe_webhook_events
@@ -502,9 +618,24 @@
              stripe_price_id = COALESCE(:stripePriceId, stripe_price_id),
              processed_at_utc = UTC_TIMESTAMP(),
              error_message = :errorMessage,
+             review_required = :reviewRequired,
+             review_reason = :reviewReason,
              updated_at_utc = UTC_TIMESTAMP()
          WHERE stripe_event_id = :stripeEventId",
-        buildEventParams(arguments.stripeEventId, "", arguments.userId, arguments.refs, arguments.processingStatus, left(arguments.errorMessage, 500)),
+        {
+          stripeEventId={value=arguments.stripeEventId,cfsqltype="cf_sql_varchar"},
+          processingStatus={value=arguments.processingStatus,cfsqltype="cf_sql_varchar"},
+          userId={value=arguments.userId,cfsqltype="cf_sql_integer",null=arguments.userId LTE 0},
+          stripeCustomerId={value=readString(arguments.refs,"stripeCustomerId"),cfsqltype="cf_sql_varchar",null=!len(readString(arguments.refs,"stripeCustomerId"))},
+          stripeSubscriptionId={value=readString(arguments.refs,"stripeSubscriptionId"),cfsqltype="cf_sql_varchar",null=!len(readString(arguments.refs,"stripeSubscriptionId"))},
+          stripeCheckoutSessionId={value=readString(arguments.refs,"stripeCheckoutSessionId"),cfsqltype="cf_sql_varchar",null=!len(readString(arguments.refs,"stripeCheckoutSessionId"))},
+          stripeInvoiceId={value=readString(arguments.refs,"stripeInvoiceId"),cfsqltype="cf_sql_varchar",null=!len(readString(arguments.refs,"stripeInvoiceId"))},
+          stripePaymentIntentId={value=readString(arguments.refs,"stripePaymentIntentId"),cfsqltype="cf_sql_varchar",null=!len(readString(arguments.refs,"stripePaymentIntentId"))},
+          stripePriceId={value=readString(arguments.refs,"stripePriceId"),cfsqltype="cf_sql_varchar",null=!len(readString(arguments.refs,"stripePriceId"))},
+          errorMessage={value=left(arguments.errorMessage,500),cfsqltype="cf_sql_varchar",null=!len(trim(arguments.errorMessage))},
+          reviewRequired={value=arguments.reviewRequired?1:0,cfsqltype="cf_sql_tinyint"},
+          reviewReason={value=left(trim(arguments.reviewReason),500),cfsqltype="cf_sql_varchar",null=!len(trim(arguments.reviewReason))}
+        },
         { datasource = variables.datasource }
       );
     </cfscript>
@@ -512,12 +643,14 @@
 
   <cffunction name="loadWebhookEvent" access="private" returntype="query" output="false">
     <cfargument name="stripeEventId" type="string" required="true">
+    <cfargument name="forUpdate" type="boolean" required="false" default="false">
     <cfscript>
       return queryExecute(
-        "SELECT id, processing_status
+        "SELECT id, processing_status,
+                CASE WHEN processing_started_at_utc IS NULL OR processing_started_at_utc <= DATE_SUB(UTC_TIMESTAMP(),INTERVAL 10 MINUTE) THEN 1 ELSE 0 END AS processing_is_stale
          FROM stripe_webhook_events
          WHERE stripe_event_id = :stripeEventId
-         LIMIT 1",
+         LIMIT 1" & (arguments.forUpdate ? " FOR UPDATE" : ""),
         {
           stripeEventId = { value = arguments.stripeEventId, cfsqltype = "cf_sql_varchar" }
         },
@@ -633,10 +766,11 @@
         "stripeCheckoutSessionId" = "",
         "stripeInvoiceId" = "",
         "stripePaymentIntentId" = firstNonEmpty([ readString(arguments.objectData, "payment_intent"), readString(arguments.objectData, "paymentIntent") ]),
+        "stripeChargeId" = "",
         "stripePriceId" = extractPriceId(arguments.objectData)
       };
 
-      if (arguments.eventType EQ "checkout.session.completed") {
+      if (left(arguments.eventType, 17) EQ "checkout.session.") {
         out.stripeCheckoutSessionId = readString(arguments.objectData, "id");
         out.stripeSubscriptionId = readString(arguments.objectData, "subscription");
       } else if (left(arguments.eventType, 21) EQ "customer.subscription") {
@@ -647,6 +781,10 @@
           readString(arguments.objectData, "subscription"),
           readNestedString(arguments.objectData, [ "parent", "subscription_details", "subscription" ])
         ]);
+      } else if (arguments.eventType EQ "charge.refunded") {
+        out.stripeChargeId = readString(arguments.objectData, "id");
+      } else if (left(arguments.eventType, 15) EQ "charge.dispute.") {
+        out.stripeChargeId = readString(arguments.objectData, "charge");
       }
 
       return out;
