@@ -1,0 +1,52 @@
+-- Guarded rollback for FPW introductory Premium trip Phase 1 only.
+-- MySQL DDL implicitly commits. This procedure refuses all populated tables
+-- before issuing either DROP TABLE statement.
+
+USE `FPW`;
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `fpw_rollback_20260721_001`$$
+
+CREATE PROCEDURE `fpw_rollback_20260721_001`()
+BEGIN
+  DECLARE v_entitlement_table_exists INT DEFAULT 0;
+  DECLARE v_outbox_table_exists INT DEFAULT 0;
+  DECLARE v_entitlement_rows BIGINT DEFAULT 0;
+  DECLARE v_outbox_rows BIGINT DEFAULT 0;
+
+  SELECT COUNT(*) INTO v_entitlement_table_exists
+  FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'introductory_trip_entitlements';
+
+  SELECT COUNT(*) INTO v_outbox_table_exists
+  FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'floatplan_notification_outbox';
+
+  IF v_entitlement_table_exists = 1 THEN
+    SELECT COUNT(*) INTO v_entitlement_rows
+    FROM `introductory_trip_entitlements`;
+  END IF;
+
+  IF v_outbox_table_exists = 1 THEN
+    SELECT COUNT(*) INTO v_outbox_rows
+    FROM `floatplan_notification_outbox`;
+  END IF;
+
+  IF v_entitlement_rows > 0 OR v_outbox_rows > 0 THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'Rollback refused: Phase 1 tables contain application data.';
+  END IF;
+
+  DROP TABLE IF EXISTS `floatplan_notification_outbox`;
+  DROP TABLE IF EXISTS `introductory_trip_entitlements`;
+END$$
+
+CALL `fpw_rollback_20260721_001`()$$
+DROP PROCEDURE `fpw_rollback_20260721_001`$$
+
+DELIMITER ;
+
+

@@ -1,0 +1,59 @@
+-- FPW introductory Premium trip Phase 1 foundation.
+-- Local validation target only. Inspect before execution.
+
+USE `FPW`;
+
+CREATE TABLE IF NOT EXISTS `introductory_trip_entitlements` (
+  `introductory_trip_entitlement_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` INT NOT NULL,
+  `status` VARCHAR(16) NOT NULL,
+  `float_plan_id` INT NULL,
+  `granted_at_utc` DATETIME(6) NOT NULL,
+  `activated_at_utc` DATETIME(6) NULL,
+  `consumed_at_utc` DATETIME(6) NULL,
+  `created_at_utc` DATETIME(6) NOT NULL,
+  `updated_at_utc` DATETIME(6) NOT NULL,
+  PRIMARY KEY (`introductory_trip_entitlement_id`),
+  UNIQUE KEY `uq_intro_trip_entitlement_user` (`user_id`),
+  UNIQUE KEY `uq_intro_trip_entitlement_float_plan` (`float_plan_id`),
+  CONSTRAINT `fk_intro_trip_entitlement_user`
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`userId`)
+    ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT `fk_intro_trip_entitlement_float_plan`
+    FOREIGN KEY (`float_plan_id`) REFERENCES `floatplans` (`floatPlanId`)
+    ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT `chk_intro_trip_entitlement_status`
+    CHECK (`status` IN ('AVAILABLE', 'ACTIVE', 'CONSUMED')),
+  CONSTRAINT `chk_intro_trip_entitlement_state`
+    CHECK (
+      (`status` = 'AVAILABLE' AND `float_plan_id` IS NULL AND `activated_at_utc` IS NULL AND `consumed_at_utc` IS NULL)
+      OR (`status` = 'ACTIVE' AND `float_plan_id` IS NOT NULL AND `activated_at_utc` IS NOT NULL AND `consumed_at_utc` IS NULL)
+      OR (`status` = 'CONSUMED' AND `float_plan_id` IS NOT NULL AND `activated_at_utc` IS NOT NULL AND `consumed_at_utc` IS NOT NULL)
+    )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `floatplan_notification_outbox` (
+  `outbox_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `float_plan_id` INT NOT NULL,
+  `notification_type` VARCHAR(64) NOT NULL,
+  `recipient_key` VARCHAR(320) NOT NULL,
+  `idempotency_key` VARCHAR(191) NOT NULL,
+  `status` VARCHAR(16) NOT NULL,
+  `attempt_count` INT UNSIGNED NOT NULL DEFAULT 0,
+  `available_at_utc` DATETIME(6) NOT NULL,
+  `created_at_utc` DATETIME(6) NOT NULL,
+  `updated_at_utc` DATETIME(6) NOT NULL,
+  `sent_at_utc` DATETIME(6) NULL,
+  `last_error` VARCHAR(1000) NULL,
+  PRIMARY KEY (`outbox_id`),
+  UNIQUE KEY `uq_floatplan_notification_outbox_idempotency` (`idempotency_key`),
+  KEY `idx_floatplan_notification_outbox_dispatch` (`status`, `available_at_utc`, `outbox_id`),
+  KEY `idx_floatplan_notification_outbox_plan` (`float_plan_id`),
+  CONSTRAINT `fk_floatplan_notification_outbox_plan`
+    FOREIGN KEY (`float_plan_id`) REFERENCES `floatplans` (`floatPlanId`)
+    ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT `chk_floatplan_notification_outbox_status`
+    CHECK (`status` IN ('PENDING', 'PROCESSING', 'SENT', 'FAILED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+

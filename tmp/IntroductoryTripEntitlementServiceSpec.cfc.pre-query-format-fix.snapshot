@@ -1,0 +1,377 @@
+<cfcomponent output="false">
+
+  <cfset variables.datasource = "fpw">
+
+  <cffunction name="run" access="public" returntype="struct" output="false">
+    <cfscript>
+      var report = {
+        "success" = true,
+        "assertions" = [],
+        "errors" = [],
+        "evidence" = {},
+        "cleanup" = { "completed" = false, "remainingRows" = -1 }
+      };
+      var fixture = { "userIds" = [], "floatPlanIds" = [], "emails" = [] };
+      var service = createService();
+      var accessGate = createAccessGate();
+      var mainUser = 0;
+      var otherUser = 0;
+      var invalidUser = 0;
+      var activationRollbackUser = 0;
+      var consumptionRollbackUser = 0;
+      var paidUser = 0;
+      var mainPlan = 0;
+      var secondPlan = 0;
+      var invalidPlan = 0;
+      var activationRollbackPlan = 0;
+      var consumptionRollbackPlan = 0;
+      var result = {};
+      var retry = {};
+      var qState = queryNew("");
+      var qCount = queryNew("");
+      var checkRejected = false;
+      var forcedActivationResult = {};
+      var forcedConsumptionResult = {};
+      var cleanupResult = {};
+      var prefix = "fpw-intro-phase1-" & lCase(reReplace(createUUID(), "[^A-Za-z0-9]", "", "all"));
+
+      try {
+        mainUser = createDisposableUser(prefix & "-main@example.test", fixture);
+        otherUser = createDisposableUser(prefix & "-other@example.test", fixture);
+        invalidUser = createDisposableUser(prefix & "-invalid@example.test", fixture);
+        activationRollbackUser = createDisposableUser(prefix & "-activate-rollback@example.test", fixture);
+        consumptionRollbackUser = createDisposableUser(prefix & "-consume-rollback@example.test", fixture);
+        paidUser = createDisposableUser(prefix & "-paid@example.test", fixture);
+
+        mainPlan = createDisposablePlan(mainUser, "DRAFT", fixture);
+        secondPlan = createDisposablePlan(mainUser, "DRAFT", fixture);
+        invalidPlan = createDisposablePlan(invalidUser, "ACTIVE", fixture);
+        activationRollbackPlan = createDisposablePlan(activationRollbackUser, "DRAFT", fixture);
+        consumptionRollbackPlan = createDisposablePlan(consumptionRollbackUser, "DRAFT", fixture);
+
+        result = service.requirePlanningAccess(otherUser);
+        record(report, !result.success AND result.code EQ "INTRO_TRIP_NOT_FOUND", "missing entitlement fails planning access", result.code);
+
+        result = service.grantAvailable(mainUser);
+        report.evidence.grant = result;
+        record(report, result.success AND result.code EQ "INTRO_TRIP_AVAILABLE", "new grant returns AVAILABLE", result.code);
+        record(report, result.entitlement.exists AND result.entitlement.status EQ "AVAILABLE", "new grant has normalized AVAILABLE state", serializeJSON(result.entitlement));
+        record(report, result.entitlement.canPlan AND result.entitlement.canActivate AND !result.entitlement.isConsumed, "AVAILABLE capabilities are normalized", serializeJSON(result.entitlement));
+
+        retry = service.grantAvailable(mainUser);
+        qCount = queryExecute(
+          "SELECT COUNT(*) AS row_count FROM introductory_trip_entitlements WHERE user_id = :userId",
+          { userId = { value = mainUser, cfsqltype = "cf_sql_integer" } },
+          { datasource = variables.datasource }
+        );
+        record(report, retry.success AND retry.code EQ "INTRO_TRIP_ALREADY_GRANTED", "duplicate grant is idempotent", retry.code);
+        record(report, retry.entitlement.entitlementId EQ result.entitlement.entitlementId AND val(qCount.row_count[1]) EQ 1, "duplicate grant cannot create a second row", val(qCount.row_count[1]));
+
+        result = service.requirePlanningAccess(mainUser);
+        record(report, result.success AND result.code EQ "INTRO_TRIP_AVAILABLE", "AVAILABLE passes introductory planning access", result.code);
+
+        result = accessGate.requirePlanningAccess(mainUser);
+        record(report, result.allowed AND result.accessSource EQ "introductory_trip", "combined planning gate exposes a separate introductory decision", result.code);
+        record(report, !result.hasPremium AND !result.access.hasPremium, "introductory planning never sets general hasPremium", serializeJSON(result));
+
+        result = service.grantAvailable(otherUser);
+        record(report, result.success, "second disposable member receives AVAILABLE", result.code);
+        result = service.activateForPlan(otherUser, mainPlan);
+        record(report, !result.success AND result.code EQ "INTRO_TRIP_USER_MISMATCH", "cross-user activation is rejected", result.code);
+        result = service.activateForPlan(otherUser, 2147483647);
+        record(report, !result.success AND result.code EQ "INTRO_TRIP_FLOATPLAN_NOT_FOUND", "missing float plan is rejected", result.code);
+
+        result = service.grantAvailable(invalidUser);
+        record(report, result.success, "invalid-status test member receives AVAILABLE", result.code);
+        result = service.activateForPlan(invalidUser, invalidPlan);
+        record(report, !result.success AND result.code EQ "INTRO_TRIP_FLOATPLAN_INVALID_STATUS", "non-DRAFT activation is rejected", result.code);
+
+        result = service.activateForPlan(mainUser, mainPlan, "phase1-main-activation");
+        report.evidence.activation = result;
+        record(report, result.success AND result.code EQ "INTRO_TRIP_ACTIVE" AND result.entitlement.status EQ "ACTIVE", "AVAILABLE activates for the owned DRAFT plan", result.code);
+        record(report, val(result.entitlement.floatPlanId) EQ mainPlan AND !isNull(result.entitlement.activatedAtUtc), "activation binds the exact plan and timestamp", serializeJSON(result.entitlement));
+
+        retry = service.activateForPlan(mainUser, mainPlan, "phase1-main-activation");
+        record(report, retry.success AND retry.code EQ "INTRO_TRIP_ACTIVE_FOR_PLAN", "same-plan activation retry is idempotent", retry.code);
+        result = service.activateForPlan(mainUser, secondPlan, "phase1-other-plan");
+        record(report, !result.success AND result.code EQ "INTRO_TRIP_PLAN_MISMATCH", "different-plan activation retry is rejected", result.code);
+
+        result = service.grantAvailable(mainUser);
+        record(report, result.success AND result.code EQ "INTRO_TRIP_ALREADY_GRANTED" AND result.entitlement.status EQ "ACTIVE", "grant never resets ACTIVE to AVAILABLE", serializeJSON(result.entitlement));
+        result = service.requirePlanningAccess(mainUser);
+        record(report, !result.success AND result.code EQ "INTRO_TRIP_NOT_AVAILABLE", "ACTIVE does not pass AVAILABLE planning access", result.code);
+        result = service.requireTripAccess(mainUser, mainPlan);
+        record(report, result.success AND result.code EQ "INTRO_TRIP_ACTIVE_FOR_PLAN" AND result.entitlement.isActiveForPlan, "ACTIVE passes exact-plan trip access", result.code);
+        result = service.requireTripAccess(mainUser, secondPlan);
+        record(report, !result.success AND result.code EQ "INTRO_TRIP_PLAN_MISMATCH", "ACTIVE rejects another plan", result.code);
+        result = service.requireTripAccess(otherUser, mainPlan);
+        record(report, !result.success AND result.code EQ "INTRO_TRIP_USER_MISMATCH", "trip access rejects ownership tampering", result.code);
+
+        result = service.consumeForPlan(otherUser, mainPlan);
+        record(report, !result.success AND result.code EQ "INTRO_TRIP_USER_MISMATCH", "consumption rejects ownership tampering", result.code);
+        result = service.consumeForPlan(otherUser, secondPlan);
+        record(report, !result.success AND result.code EQ "INTRO_TRIP_USER_MISMATCH", "consumption rejects a plan owned by another member", result.code);
+        result = service.consumeForPlan(invalidUser, invalidPlan);
+        record(report, !result.success AND result.code EQ "INTRO_TRIP_NOT_AVAILABLE", "AVAILABLE cannot be consumed", result.code);
+
+        result = service.consumeForPlan(mainUser, mainPlan);
+        report.evidence.consumption = result;
+        record(report, result.success AND result.code EQ "INTRO_TRIP_CONSUMED" AND result.entitlement.status EQ "CONSUMED", "ACTIVE consumes for the bound plan", result.code);
+        record(report, !isNull(result.entitlement.consumedAtUtc), "consumption sets consumed_at_utc", serializeJSON(result.entitlement));
+        retry = service.consumeForPlan(mainUser, mainPlan);
+        record(report, retry.success AND retry.code EQ "INTRO_TRIP_CONSUMED", "same-plan consumption retry is idempotent", retry.code);
+        result = service.activateForPlan(mainUser, mainPlan);
+        record(report, !result.success AND result.code EQ "INTRO_TRIP_CONSUMED", "CONSUMED cannot activate", result.code);
+        result = service.grantAvailable(mainUser);
+        record(report, result.success AND result.entitlement.status EQ "CONSUMED", "grant never resets CONSUMED to AVAILABLE", serializeJSON(result.entitlement));
+        result = service.requirePlanningAccess(mainUser);
+        record(report, !result.success AND result.code EQ "INTRO_TRIP_CONSUMED", "CONSUMED fails planning access", result.code);
+
+        result = service.grantAvailable(activationRollbackUser);
+        record(report, result.success, "activation rollback member receives AVAILABLE", result.code);
+        try {
+          transaction {
+            forcedActivationResult = service.activateForPlan(activationRollbackUser, activationRollbackPlan);
+            if (!forcedActivationResult.success) {
+              throw(type = "Phase1Test.SetupFailure", message = "Activation did not reach the forced rollback point.");
+            }
+            throw(type = "Phase1Test.ForcedActivationRollback", message = "Forced activation transaction rollback.");
+          }
+        } catch (any forcedActivationError) {
+          if (forcedActivationError.type EQ "Phase1Test.SetupFailure") rethrow;
+        }
+        result = service.getForUser(activationRollbackUser);
+        record(report, result.entitlement.status EQ "AVAILABLE" AND isNull(result.entitlement.floatPlanId), "forced activation transaction failure leaves AVAILABLE unchanged", serializeJSON(result.entitlement));
+
+        result = service.grantAvailable(consumptionRollbackUser);
+        record(report, result.success, "consumption rollback member receives AVAILABLE", result.code);
+        result = service.activateForPlan(consumptionRollbackUser, consumptionRollbackPlan);
+        record(report, result.success AND result.entitlement.status EQ "ACTIVE", "consumption rollback setup activates", result.code);
+        try {
+          transaction {
+            forcedConsumptionResult = service.consumeForPlan(consumptionRollbackUser, consumptionRollbackPlan);
+            if (!forcedConsumptionResult.success) {
+              throw(type = "Phase1Test.SetupFailure", message = "Consumption did not reach the forced rollback point.");
+            }
+            throw(type = "Phase1Test.ForcedConsumptionRollback", message = "Forced consumption transaction rollback.");
+          }
+        } catch (any forcedConsumptionError) {
+          if (forcedConsumptionError.type EQ "Phase1Test.SetupFailure") rethrow;
+        }
+        result = service.getForUser(consumptionRollbackUser);
+        record(report, result.entitlement.status EQ "ACTIVE" AND isNull(result.entitlement.consumedAtUtc), "forced consumption transaction failure leaves ACTIVE unchanged", serializeJSON(result.entitlement));
+
+        checkRejected = false;
+        try {
+          queryExecute(
+            "UPDATE introductory_trip_entitlements SET status = 'ACTIVE' WHERE user_id = :userId",
+            { userId = { value = invalidUser, cfsqltype = "cf_sql_integer" } },
+            { datasource = variables.datasource }
+          );
+        } catch (any checkError) {
+          checkRejected = true;
+        }
+        record(report, checkRejected, "MySQL CHECK rejects an invalid state independent of the service", checkRejected);
+
+        result = service.createNotificationOutboxRecord(mainPlan, "SAVE_AND_SEND", "captain@example.test", prefix & "-recipient-1");
+        report.evidence.outboxCreate = result;
+        record(report, result.success AND result.code EQ "INTRO_TRIP_OUTBOX_CREATED" AND result.outbox.status EQ "PENDING", "outbox creates one PENDING record", result.code);
+        retry = service.createNotificationOutboxRecord(mainPlan, "SAVE_AND_SEND", "captain@example.test", prefix & "-recipient-1");
+        record(report, retry.success AND retry.code EQ "INTRO_TRIP_OUTBOX_EXISTS" AND retry.outbox.outboxId EQ result.outbox.outboxId, "outbox idempotency key returns the same row", retry.code);
+        result = service.createNotificationOutboxRecord(mainPlan, "SAVE_AND_SEND", "crew@example.test", prefix & "-recipient-2");
+        record(report, result.success AND result.code EQ "INTRO_TRIP_OUTBOX_CREATED", "a second recipient uses a distinct idempotency key", result.code);
+        qCount = queryExecute(
+          "SELECT COUNT(*) AS row_count FROM floatplan_notification_outbox WHERE idempotency_key LIKE :prefix",
+          { prefix = { value = prefix & "%", cfsqltype = "cf_sql_varchar" } },
+          { datasource = variables.datasource }
+        );
+        record(report, val(qCount.row_count[1]) EQ 2, "duplicate outbox request creates no extra row", val(qCount.row_count[1]));
+
+        queryExecute(
+          "INSERT INTO member_entitlements (
+             user_id, entitlement_type, source, status, starts_at_utc,
+             stripe_customer_id, created_utc, updated_utc
+           ) VALUES (
+             :userId, 'premium', 'stripe_subscription', 'active', UTC_TIMESTAMP(),
+             :customerId, UTC_TIMESTAMP(), UTC_TIMESTAMP()
+           )",
+          {
+            userId = { value = paidUser, cfsqltype = "cf_sql_integer" },
+            customerId = { value = prefix, cfsqltype = "cf_sql_varchar" }
+          },
+          { datasource = variables.datasource }
+        );
+        result = accessGate.requirePlanningAccess(paidUser);
+        record(report, result.allowed AND result.accessSource EQ "premium" AND result.hasPremium, "paid Premium retains precedence for planning", serializeJSON(result));
+        result = accessGate.requireTripAccess(paidUser, mainPlan);
+        record(report, result.allowed AND result.accessSource EQ "premium" AND result.hasPremium, "paid Premium retains precedence for trip access", serializeJSON(result));
+
+        qState = queryExecute(
+          "SELECT status, float_plan_id, granted_at_utc, activated_at_utc, consumed_at_utc
+           FROM introductory_trip_entitlements
+           WHERE user_id = :userId",
+          { userId = { value = mainUser, cfsqltype = "cf_sql_integer" } },
+          { datasource = variables.datasource }
+        );
+        report.evidence.finalDatabaseState = queryRowData(qState, 1);
+        record(report, qState.recordCount EQ 1 AND qState.status[1] EQ "CONSUMED" AND val(qState.float_plan_id[1]) EQ mainPlan, "database retains the canonical plan through CONSUMED", serializeJSON(report.evidence.finalDatabaseState));
+      } catch (any err) {
+        report.success = false;
+        arrayAppend(report.errors, { "type" = err.type, "message" = err.message, "detail" = err.detail });
+      } finally {
+        cleanupResult = cleanupFixtures(fixture);
+        report.cleanup = cleanupResult;
+        if (!cleanupResult.completed OR cleanupResult.remainingRows NEQ 0) report.success = false;
+      }
+
+      return report;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="createDisposableUser" access="private" returntype="numeric" output="false">
+    <cfargument name="email" type="string" required="true">
+    <cfargument name="fixture" type="struct" required="true">
+    <cfscript>
+      var qUser = queryNew("");
+      queryExecute(
+        "INSERT INTO users (email, password, passwordCreated)
+         VALUES (:email, :password, UTC_TIMESTAMP())",
+        {
+          email = { value = arguments.email, cfsqltype = "cf_sql_varchar" },
+          password = { value = "DISPOSABLE-PHASE-1-NOT-A-LOGIN", cfsqltype = "cf_sql_varchar" }
+        },
+        { datasource = variables.datasource }
+      );
+      qUser = queryExecute(
+        "SELECT userId FROM users WHERE email = :email LIMIT 1",
+        { email = { value = arguments.email, cfsqltype = "cf_sql_varchar" } },
+        { datasource = variables.datasource }
+      );
+      if (qUser.recordCount NEQ 1) throw(type = "Phase1Test.FixtureFailure", message = "Disposable user was not created.");
+      arrayAppend(arguments.fixture.userIds, val(qUser.userId[1]));
+      arrayAppend(arguments.fixture.emails, arguments.email);
+      return val(qUser.userId[1]);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="createDisposablePlan" access="private" returntype="numeric" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="status" type="string" required="true">
+    <cfargument name="fixture" type="struct" required="true">
+    <cfscript>
+      var qPlan = queryNew("");
+      queryExecute(
+        "INSERT INTO floatplans (userId, status) VALUES (:userId, :status)",
+        {
+          userId = { value = toString(val(arguments.userId)), cfsqltype = "cf_sql_varchar" },
+          status = { value = uCase(trim(arguments.status)), cfsqltype = "cf_sql_varchar" }
+        },
+        { datasource = variables.datasource }
+      );
+      qPlan = queryExecute(
+        "SELECT MAX(floatPlanId) AS floatPlanId FROM floatplans WHERE userId = :userId",
+        { userId = { value = toString(val(arguments.userId)), cfsqltype = "cf_sql_varchar" } },
+        { datasource = variables.datasource }
+      );
+      if (qPlan.recordCount NEQ 1 OR val(qPlan.floatPlanId[1]) LTE 0) throw(type = "Phase1Test.FixtureFailure", message = "Disposable float plan was not created.");
+      arrayAppend(arguments.fixture.floatPlanIds, val(qPlan.floatPlanId[1]));
+      return val(qPlan.floatPlanId[1]);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="cleanupFixtures" access="private" returntype="struct" output="false">
+    <cfargument name="fixture" type="struct" required="true">
+    <cfscript>
+      var userList = arrayLen(arguments.fixture.userIds) ? arrayToList(arguments.fixture.userIds) : "0";
+      var planList = arrayLen(arguments.fixture.floatPlanIds) ? arrayToList(arguments.fixture.floatPlanIds) : "0";
+      var qRemaining = queryNew("");
+      var result = { "completed" = false, "remainingRows" = -1 };
+
+      try {
+        transaction {
+          queryExecute(
+            "DELETE FROM floatplan_notification_outbox WHERE float_plan_id IN (:planIds)",
+            { planIds = { value = planList, cfsqltype = "cf_sql_integer", list = true } },
+            { datasource = variables.datasource }
+          );
+          queryExecute(
+            "DELETE FROM introductory_trip_entitlements WHERE user_id IN (:userIds)",
+            { userIds = { value = userList, cfsqltype = "cf_sql_integer", list = true } },
+            { datasource = variables.datasource }
+          );
+          queryExecute(
+            "DELETE FROM member_entitlements WHERE user_id IN (:userIds)",
+            { userIds = { value = userList, cfsqltype = "cf_sql_integer", list = true } },
+            { datasource = variables.datasource }
+          );
+          queryExecute(
+            "DELETE FROM floatplans WHERE floatPlanId IN (:planIds)",
+            { planIds = { value = planList, cfsqltype = "cf_sql_integer", list = true } },
+            { datasource = variables.datasource }
+          );
+          queryExecute(
+            "DELETE FROM users WHERE userId IN (:userIds)",
+            { userIds = { value = userList, cfsqltype = "cf_sql_integer", list = true } },
+            { datasource = variables.datasource }
+          );
+        }
+        qRemaining = queryExecute(
+          "SELECT
+             (SELECT COUNT(*) FROM users WHERE userId IN (:userIdsA))
+             + (SELECT COUNT(*) FROM floatplans WHERE floatPlanId IN (:planIdsA))
+             + (SELECT COUNT(*) FROM introductory_trip_entitlements WHERE user_id IN (:userIdsB))
+             + (SELECT COUNT(*) FROM floatplan_notification_outbox WHERE float_plan_id IN (:planIdsB)) AS remaining_rows",
+          {
+            userIdsA = { value = userList, cfsqltype = "cf_sql_integer", list = true },
+            planIdsA = { value = planList, cfsqltype = "cf_sql_integer", list = true },
+            userIdsB = { value = userList, cfsqltype = "cf_sql_integer", list = true },
+            planIdsB = { value = planList, cfsqltype = "cf_sql_integer", list = true }
+          },
+          { datasource = variables.datasource }
+        );
+        result.completed = true;
+        result.remainingRows = qRemaining.recordCount ? val(qRemaining.remaining_rows[1]) : -1;
+      } catch (any cleanupError) {
+        result.error = cleanupError.message;
+      }
+      return result;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="record" access="private" returntype="void" output="false">
+    <cfargument name="report" type="struct" required="true">
+    <cfargument name="condition" type="boolean" required="true">
+    <cfargument name="name" type="string" required="true">
+    <cfargument name="details" type="any" required="false" default="">
+    <cfscript>
+      arrayAppend(arguments.report.assertions, {
+        "name" = arguments.name,
+        "passed" = arguments.condition,
+        "details" = toString(arguments.details)
+      });
+      if (!arguments.condition) arguments.report.success = false;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="createService" access="private" returntype="any" output="false">
+    <cfscript>
+      try {
+        return createObject("component", "fpw.api.v1.IntroductoryTripEntitlementService").init(variables.datasource);
+      } catch (any primaryErr) {
+        return createObject("component", "api.v1.IntroductoryTripEntitlementService").init(variables.datasource);
+      }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="createAccessGate" access="private" returntype="any" output="false">
+    <cfscript>
+      try {
+        return createObject("component", "fpw.api.v1.MemberAccessGateService").init(variables.datasource);
+      } catch (any primaryErr) {
+        return createObject("component", "api.v1.MemberAccessGateService").init(variables.datasource);
+      }
+    </cfscript>
+  </cffunction>
+
+</cfcomponent>
+

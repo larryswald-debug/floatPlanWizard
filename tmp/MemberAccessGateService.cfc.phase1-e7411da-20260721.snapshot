@@ -5,94 +5,7 @@
     <cfscript>
       variables.datasource = len(trim(arguments.datasource)) ? trim(arguments.datasource) : "fpw";
       variables.entitlementService = "";
-      variables.introductoryTripEntitlementService = "";
       return this;
-    </cfscript>
-  </cffunction>
-
-  <cffunction name="getPlanningAccess" access="public" returntype="struct" output="false">
-    <cfargument name="userId" type="numeric" required="true">
-    <cfscript>
-      var access = getCurrentAccess(arguments.userId);
-      var introductoryDecision = {};
-
-      if (!structKeyExists(access, "authenticated") OR !access.authenticated) {
-        return introductoryAccessDecision(
-          allowed = false,
-          code = "AUTH_REQUIRED",
-          message = "Log in to continue.",
-          accessSource = "none",
-          access = access,
-          entitlement = {}
-        );
-      }
-      if (structKeyExists(access, "hasPremium") AND access.hasPremium) {
-        return introductoryAccessDecision(
-          allowed = true,
-          code = "PREMIUM_ACCESS",
-          message = "Premium planning access is available.",
-          accessSource = "premium",
-          access = access,
-          entitlement = {}
-        );
-      }
-
-      introductoryDecision = getIntroductoryTripEntitlementService().requirePlanningAccess(arguments.userId);
-      return introductoryAccessDecision(
-        allowed = introductoryDecision.success,
-        code = introductoryDecision.code,
-        message = introductoryDecision.message,
-        accessSource = introductoryDecision.success ? "introductory_trip" : "none",
-        access = access,
-        entitlement = introductoryDecision.entitlement
-      );
-    </cfscript>
-  </cffunction>
-
-  <cffunction name="requirePlanningAccess" access="public" returntype="struct" output="false">
-    <cfargument name="userId" type="numeric" required="true">
-    <cfscript>
-      return getPlanningAccess(arguments.userId);
-    </cfscript>
-  </cffunction>
-
-  <cffunction name="requireTripAccess" access="public" returntype="struct" output="false">
-    <cfargument name="userId" type="numeric" required="true">
-    <cfargument name="floatPlanId" type="numeric" required="true">
-    <cfscript>
-      var access = getCurrentAccess(arguments.userId);
-      var introductoryDecision = {};
-
-      if (!structKeyExists(access, "authenticated") OR !access.authenticated) {
-        return introductoryAccessDecision(
-          allowed = false,
-          code = "AUTH_REQUIRED",
-          message = "Log in to continue.",
-          accessSource = "none",
-          access = access,
-          entitlement = {}
-        );
-      }
-      if (structKeyExists(access, "hasPremium") AND access.hasPremium) {
-        return introductoryAccessDecision(
-          allowed = true,
-          code = "PREMIUM_ACCESS",
-          message = "Premium trip access is available.",
-          accessSource = "premium",
-          access = access,
-          entitlement = {}
-        );
-      }
-
-      introductoryDecision = getIntroductoryTripEntitlementService().requireTripAccess(arguments.userId, arguments.floatPlanId);
-      return introductoryAccessDecision(
-        allowed = introductoryDecision.success,
-        code = introductoryDecision.code,
-        message = introductoryDecision.message,
-        accessSource = introductoryDecision.success ? "introductory_trip" : "none",
-        access = access,
-        entitlement = introductoryDecision.entitlement
-      );
     </cfscript>
   </cffunction>
 
@@ -349,28 +262,6 @@
     </cfscript>
   </cffunction>
 
-  <cffunction name="introductoryAccessDecision" access="private" returntype="struct" output="false">
-    <cfargument name="allowed" type="boolean" required="true">
-    <cfargument name="code" type="string" required="true">
-    <cfargument name="message" type="string" required="true">
-    <cfargument name="accessSource" type="string" required="true">
-    <cfargument name="access" type="struct" required="true">
-    <cfargument name="entitlement" type="struct" required="true">
-    <cfscript>
-      return {
-        "allowed" = arguments.allowed,
-        "SUCCESS" = arguments.allowed,
-        "success" = arguments.allowed,
-        "code" = arguments.code,
-        "message" = arguments.message,
-        "accessSource" = arguments.accessSource,
-        "hasPremium" = structKeyExists(arguments.access, "hasPremium") AND arguments.access.hasPremium,
-        "access" = arguments.access,
-        "introductoryEntitlement" = arguments.entitlement
-      };
-    </cfscript>
-  </cffunction>
-
   <cffunction name="getEntitlementService" access="private" returntype="any" output="false">
     <cfscript>
       if (isObject(variables.entitlementService)) {
@@ -385,18 +276,5 @@
     </cfscript>
   </cffunction>
 
-  <cffunction name="getIntroductoryTripEntitlementService" access="private" returntype="any" output="false">
-    <cfscript>
-      if (isObject(variables.introductoryTripEntitlementService)) {
-        return variables.introductoryTripEntitlementService;
-      }
-      try {
-        variables.introductoryTripEntitlementService = createObject("component", "fpw.api.v1.IntroductoryTripEntitlementService").init(variables.datasource);
-      } catch (any primaryErr) {
-        variables.introductoryTripEntitlementService = createObject("component", "api.v1.IntroductoryTripEntitlementService").init(variables.datasource);
-      }
-      return variables.introductoryTripEntitlementService;
-    </cfscript>
-  </cffunction>
-
 </cfcomponent>
+

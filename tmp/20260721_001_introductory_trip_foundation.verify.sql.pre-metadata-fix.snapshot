@@ -1,0 +1,59 @@
+-- Deterministic verification for FPW introductory Premium trip Phase 1.
+
+USE `FPW`;
+
+SELECT DATABASE() AS selected_schema, VERSION() AS mysql_version;
+
+SELECT TABLE_NAME, ENGINE, TABLE_COLLATION
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME IN ('introductory_trip_entitlements', 'floatplan_notification_outbox')
+ORDER BY TABLE_NAME;
+
+SELECT TABLE_NAME, ORDINAL_POSITION, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME IN ('introductory_trip_entitlements', 'floatplan_notification_outbox')
+ORDER BY TABLE_NAME, ORDINAL_POSITION;
+
+SELECT TABLE_NAME, INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME
+FROM information_schema.STATISTICS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME IN ('introductory_trip_entitlements', 'floatplan_notification_outbox')
+ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX;
+
+SELECT TABLE_NAME, CONSTRAINT_NAME, REFERENCED_TABLE_NAME, COLUMN_NAME, REFERENCED_COLUMN_NAME
+FROM information_schema.KEY_COLUMN_USAGE
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME IN ('introductory_trip_entitlements', 'floatplan_notification_outbox')
+  AND REFERENCED_TABLE_NAME IS NOT NULL
+ORDER BY TABLE_NAME, CONSTRAINT_NAME, ORDINAL_POSITION;
+
+SELECT TABLE_NAME, CONSTRAINT_NAME, ENFORCED, CHECK_CLAUSE
+FROM information_schema.CHECK_CONSTRAINTS
+WHERE CONSTRAINT_SCHEMA = DATABASE()
+  AND CONSTRAINT_NAME IN (
+    'chk_intro_trip_entitlement_status',
+    'chk_intro_trip_entitlement_state',
+    'chk_floatplan_notification_outbox_status'
+  )
+ORDER BY CONSTRAINT_NAME;
+
+SELECT
+  (SELECT COUNT(*) FROM `introductory_trip_entitlements`) AS entitlement_rows,
+  (SELECT COUNT(*) FROM `floatplan_notification_outbox`) AS outbox_rows;
+
+SELECT CASE
+  WHEN (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('introductory_trip_entitlements', 'floatplan_notification_outbox') AND ENGINE = 'InnoDB') = 2
+   AND (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'introductory_trip_entitlements') = 9
+   AND (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'floatplan_notification_outbox') = 12
+   AND (SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('introductory_trip_entitlements', 'floatplan_notification_outbox') AND REFERENCED_TABLE_NAME IS NOT NULL) = 3
+   AND (SELECT COUNT(*) FROM information_schema.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME IN ('chk_intro_trip_entitlement_status', 'chk_intro_trip_entitlement_state', 'chk_floatplan_notification_outbox_status') AND ENFORCED = 'YES') = 3
+   AND (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'introductory_trip_entitlements' AND INDEX_NAME = 'uq_intro_trip_entitlement_user' AND NON_UNIQUE = 0) = 1
+   AND (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'introductory_trip_entitlements' AND INDEX_NAME = 'uq_intro_trip_entitlement_float_plan' AND NON_UNIQUE = 0) = 1
+   AND (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'floatplan_notification_outbox' AND INDEX_NAME = 'uq_floatplan_notification_outbox_idempotency' AND NON_UNIQUE = 0) = 1
+  THEN 'PASS'
+  ELSE 'FAIL'
+END AS phase_1_verification;
+
+

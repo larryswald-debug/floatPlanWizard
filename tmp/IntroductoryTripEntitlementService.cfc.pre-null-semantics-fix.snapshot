@@ -1,0 +1,626 @@
+<cfcomponent output="false">
+
+  <cfset variables.datasource = "fpw">
+
+  <cffunction name="init" access="public" returntype="any" output="false">
+    <cfargument name="datasource" type="string" required="false" default="fpw">
+    <cfscript>
+      variables.datasource = len(trim(arguments.datasource)) ? trim(arguments.datasource) : "fpw";
+      return this;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="getForUser" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var qEntitlement = queryNew("");
+
+      if (arguments.userId LTE 0) {
+        return failure("INTRO_TRIP_NOT_FOUND", "No introductory Premium trip is available.", emptyEntitlement(arguments.userId));
+      }
+
+      try {
+        qEntitlement = loadEntitlement(arguments.userId, false);
+        if (qEntitlement.recordCount EQ 0) {
+          return successResult("INTRO_TRIP_NOT_FOUND", "No introductory Premium trip is available.", emptyEntitlement(arguments.userId));
+        }
+        if (!isValidEntitlementState(qEntitlement)) {
+          logUnexpected("getForUser", "Stored entitlement violates the approved state invariant.");
+          return failure("INTRO_TRIP_INVALID_TRANSITION", "The introductory Premium trip is not in a usable state.", emptyEntitlement(arguments.userId));
+        }
+        return successResult(codeForStatus(qEntitlement.status[1]), messageForStatus(qEntitlement.status[1]), normalizeEntitlement(qEntitlement));
+      } catch (any err) {
+        logUnexpected("getForUser", err.message);
+        return failure("INTRO_TRIP_INTERNAL_ERROR", "The introductory Premium trip could not be loaded.", emptyEntitlement(arguments.userId));
+      }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="grantAvailable" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="metadata" type="struct" required="false" default="#structNew()#">
+    <cfscript>
+      var qUser = queryNew("");
+      var qEntitlement = queryNew("");
+
+      if (arguments.userId LTE 0) {
+        return failure("INTRO_TRIP_USER_MISMATCH", "A valid member is required.", emptyEntitlement(arguments.userId));
+      }
+
+      try {
+        transaction {
+          qUser = queryExecute(
+            "SELECT userId FROM users WHERE userId = :userId FOR UPDATE",
+            { userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" } },
+            { datasource = variables.datasource }
+          );
+          if (qUser.recordCount EQ 0) {
+            return failure("INTRO_TRIP_USER_MISMATCH", "The member was not found.", emptyEntitlement(arguments.userId));
+          }
+
+          qEntitlement = loadEntitlement(arguments.userId, true);
+          if (qEntitlement.recordCount GT 0) {
+            if (!isValidEntitlementState(qEntitlement)) {
+              return failure("INTRO_TRIP_INVALID_TRANSITION", "The introductory Premium trip is not in a usable state.", emptyEntitlement(arguments.userId));
+            }
+            return successResult("INTRO_TRIP_ALREADY_GRANTED", "The member already has an introductory Premium trip.", normalizeEntitlement(qEntitlement));
+          }
+
+          queryExecute(
+            "INSERT INTO introductory_trip_entitlements (
+               user_id, status, float_plan_id, granted_at_utc, activated_at_utc,
+               consumed_at_utc, created_at_utc, updated_at_utc
+             ) VALUES (
+               :userId, 'AVAILABLE', NULL, UTC_TIMESTAMP(6), NULL,
+               NULL, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6)
+             )",
+            { userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" } },
+            { datasource = variables.datasource }
+          );
+
+          qEntitlement = loadEntitlement(arguments.userId, true);
+          if (qEntitlement.recordCount NEQ 1 OR !isValidEntitlementState(qEntitlement)) {
+            throw(type = "IntroductoryTrip.GrantInvariant", message = "Grant did not create one valid entitlement.");
+          }
+        }
+        return successResult("INTRO_TRIP_AVAILABLE", "An introductory Premium trip is available.", normalizeEntitlement(qEntitlement));
+      } catch (any err) {
+        qEntitlement = loadEntitlement(arguments.userId, false);
+        if (qEntitlement.recordCount EQ 1 AND isValidEntitlementState(qEntitlement)) {
+          return successResult("INTRO_TRIP_ALREADY_GRANTED", "The member already has an introductory Premium trip.", normalizeEntitlement(qEntitlement));
+        }
+        logUnexpected("grantAvailable", err.message);
+        return failure("INTRO_TRIP_INTERNAL_ERROR", "The introductory Premium trip could not be granted.", emptyEntitlement(arguments.userId));
+      }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="requirePlanningAccess" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var result = getForUser(arguments.userId);
+      if (!result.entitlement.exists) {
+        return failure("INTRO_TRIP_NOT_FOUND", "No introductory Premium trip is available.", result.entitlement);
+      }
+      if (result.entitlement.status EQ "AVAILABLE") {
+        return successResult("INTRO_TRIP_AVAILABLE", "Introductory Premium trip planning is available.", result.entitlement);
+      }
+      if (result.entitlement.status EQ "CONSUMED") {
+        return failure("INTRO_TRIP_CONSUMED", "The introductory Premium trip has already been consumed.", result.entitlement);
+      }
+      return failure("INTRO_TRIP_NOT_AVAILABLE", "The introductory Premium trip is not available for planning.", result.entitlement);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="requireTripAccess" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="floatPlanId" type="numeric" required="true">
+    <cfscript>
+      var qPlan = queryNew("");
+      var result = {};
+
+      if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
+        return failure("INTRO_TRIP_FLOATPLAN_NOT_FOUND", "The requested float plan was not found.", emptyEntitlement(arguments.userId));
+      }
+
+      try {
+        qPlan = loadPlan(arguments.floatPlanId, false);
+        if (qPlan.recordCount EQ 0) {
+          return failure("INTRO_TRIP_FLOATPLAN_NOT_FOUND", "The requested float plan was not found.", emptyEntitlement(arguments.userId));
+        }
+        if (!planBelongsToUser(qPlan, arguments.userId)) {
+          return failure("INTRO_TRIP_USER_MISMATCH", "The requested float plan does not belong to this member.", emptyEntitlement(arguments.userId));
+        }
+
+        result = getForUser(arguments.userId);
+        if (!result.entitlement.exists) {
+          return failure("INTRO_TRIP_NOT_FOUND", "No introductory Premium trip is available.", result.entitlement);
+        }
+        if (result.entitlement.status EQ "ACTIVE" AND val(result.entitlement.floatPlanId) EQ val(arguments.floatPlanId)) {
+          result.entitlement.isActiveForPlan = true;
+          return successResult("INTRO_TRIP_ACTIVE_FOR_PLAN", "The introductory Premium trip is active for this float plan.", result.entitlement);
+        }
+        if (result.entitlement.status EQ "ACTIVE") {
+          return failure("INTRO_TRIP_PLAN_MISMATCH", "The introductory Premium trip is active for a different float plan.", result.entitlement);
+        }
+        if (result.entitlement.status EQ "CONSUMED") {
+          return failure("INTRO_TRIP_CONSUMED", "The introductory Premium trip has already been consumed.", result.entitlement);
+        }
+        return failure("INTRO_TRIP_NOT_AVAILABLE", "The introductory Premium trip is not active for this float plan.", result.entitlement);
+      } catch (any err) {
+        logUnexpected("requireTripAccess", err.message);
+        return failure("INTRO_TRIP_INTERNAL_ERROR", "Introductory trip access could not be verified.", emptyEntitlement(arguments.userId));
+      }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="activateForPlan" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="floatPlanId" type="numeric" required="true">
+    <cfargument name="idempotencyKey" type="string" required="false" default="">
+    <cfscript>
+      var qPlan = queryNew("");
+      var qEntitlement = queryNew("");
+      var updateMeta = {};
+
+      if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
+        return failure("INTRO_TRIP_FLOATPLAN_NOT_FOUND", "The requested float plan was not found.", emptyEntitlement(arguments.userId));
+      }
+
+      try {
+        transaction {
+          qPlan = loadPlan(arguments.floatPlanId, true);
+          if (qPlan.recordCount EQ 0) {
+            return failure("INTRO_TRIP_FLOATPLAN_NOT_FOUND", "The requested float plan was not found.", emptyEntitlement(arguments.userId));
+          }
+          if (!planBelongsToUser(qPlan, arguments.userId)) {
+            return failure("INTRO_TRIP_USER_MISMATCH", "The requested float plan does not belong to this member.", emptyEntitlement(arguments.userId));
+          }
+          if (uCase(trim(toString(qPlan.status[1]))) NEQ "DRAFT") {
+            return failure("INTRO_TRIP_FLOATPLAN_INVALID_STATUS", "The float plan is not eligible for introductory trip activation.", emptyEntitlement(arguments.userId));
+          }
+
+          qEntitlement = loadEntitlement(arguments.userId, true);
+          if (qEntitlement.recordCount EQ 0) {
+            return failure("INTRO_TRIP_NOT_FOUND", "No introductory Premium trip is available.", emptyEntitlement(arguments.userId));
+          }
+          if (!isValidEntitlementState(qEntitlement)) {
+            return failure("INTRO_TRIP_INVALID_TRANSITION", "The introductory Premium trip is not in a usable state.", emptyEntitlement(arguments.userId));
+          }
+
+          if (qEntitlement.status[1] EQ "ACTIVE") {
+            if (val(qEntitlement.float_plan_id[1]) EQ val(arguments.floatPlanId)) {
+              return successResult("INTRO_TRIP_ACTIVE_FOR_PLAN", "The introductory Premium trip is already active for this float plan.", normalizeEntitlement(qEntitlement, arguments.floatPlanId));
+            }
+            return failure("INTRO_TRIP_PLAN_MISMATCH", "The introductory Premium trip is active for a different float plan.", normalizeEntitlement(qEntitlement));
+          }
+          if (qEntitlement.status[1] EQ "CONSUMED") {
+            return failure("INTRO_TRIP_CONSUMED", "The introductory Premium trip has already been consumed.", normalizeEntitlement(qEntitlement));
+          }
+          if (qEntitlement.status[1] NEQ "AVAILABLE") {
+            return failure("INTRO_TRIP_INVALID_TRANSITION", "The introductory Premium trip cannot be activated.", normalizeEntitlement(qEntitlement));
+          }
+
+          queryExecute(
+            "UPDATE introductory_trip_entitlements
+             SET status = 'ACTIVE',
+                 float_plan_id = :floatPlanId,
+                 activated_at_utc = UTC_TIMESTAMP(6),
+                 consumed_at_utc = NULL,
+                 updated_at_utc = UTC_TIMESTAMP(6)
+             WHERE introductory_trip_entitlement_id = :entitlementId
+               AND user_id = :userId
+               AND status = 'AVAILABLE'
+               AND float_plan_id IS NULL
+               AND activated_at_utc IS NULL
+               AND consumed_at_utc IS NULL",
+            {
+              floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+              entitlementId = { value = qEntitlement.introductory_trip_entitlement_id[1], cfsqltype = "cf_sql_bigint" },
+              userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+            },
+            { datasource = variables.datasource, result = "updateMeta" }
+          );
+          if (!structKeyExists(updateMeta, "recordCount") OR val(updateMeta.recordCount) NEQ 1) {
+            throw(type = "IntroductoryTrip.ActivationAffectedRows", message = "Activation affected an unexpected row count.");
+          }
+
+          qEntitlement = loadEntitlement(arguments.userId, true);
+          if (qEntitlement.recordCount NEQ 1 OR !isValidEntitlementState(qEntitlement)) {
+            throw(type = "IntroductoryTrip.ActivationInvariant", message = "Activation did not produce a valid entitlement.");
+          }
+        }
+        return successResult("INTRO_TRIP_ACTIVE", "The introductory Premium trip is active.", normalizeEntitlement(qEntitlement, arguments.floatPlanId));
+      } catch (any err) {
+        logUnexpected("activateForPlan", err.message);
+        return failure("INTRO_TRIP_INVALID_TRANSITION", "The introductory Premium trip could not be activated.", getForUser(arguments.userId).entitlement);
+      }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="consumeForPlan" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="floatPlanId" type="numeric" required="true">
+    <cfscript>
+      var qPlan = queryNew("");
+      var qEntitlement = queryNew("");
+      var updateMeta = {};
+
+      if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
+        return failure("INTRO_TRIP_FLOATPLAN_NOT_FOUND", "The requested float plan was not found.", emptyEntitlement(arguments.userId));
+      }
+
+      try {
+        transaction {
+          qPlan = loadPlan(arguments.floatPlanId, true);
+          if (qPlan.recordCount EQ 0) {
+            return failure("INTRO_TRIP_FLOATPLAN_NOT_FOUND", "The requested float plan was not found.", emptyEntitlement(arguments.userId));
+          }
+          if (!planBelongsToUser(qPlan, arguments.userId)) {
+            return failure("INTRO_TRIP_USER_MISMATCH", "The requested float plan does not belong to this member.", emptyEntitlement(arguments.userId));
+          }
+
+          qEntitlement = loadEntitlement(arguments.userId, true);
+          if (qEntitlement.recordCount EQ 0) {
+            return failure("INTRO_TRIP_NOT_FOUND", "No introductory Premium trip is available.", emptyEntitlement(arguments.userId));
+          }
+          if (!isValidEntitlementState(qEntitlement)) {
+            return failure("INTRO_TRIP_INVALID_TRANSITION", "The introductory Premium trip is not in a usable state.", emptyEntitlement(arguments.userId));
+          }
+          if (qEntitlement.status[1] EQ "CONSUMED") {
+            if (val(qEntitlement.float_plan_id[1]) EQ val(arguments.floatPlanId)) {
+              return successResult("INTRO_TRIP_CONSUMED", "The introductory Premium trip is already consumed.", normalizeEntitlement(qEntitlement));
+            }
+            return failure("INTRO_TRIP_PLAN_MISMATCH", "The introductory Premium trip belongs to a different float plan.", normalizeEntitlement(qEntitlement));
+          }
+          if (qEntitlement.status[1] EQ "AVAILABLE") {
+            return failure("INTRO_TRIP_NOT_AVAILABLE", "The introductory Premium trip has not been activated.", normalizeEntitlement(qEntitlement));
+          }
+          if (qEntitlement.status[1] NEQ "ACTIVE") {
+            return failure("INTRO_TRIP_INVALID_TRANSITION", "The introductory Premium trip cannot be consumed.", normalizeEntitlement(qEntitlement));
+          }
+          if (val(qEntitlement.float_plan_id[1]) NEQ val(arguments.floatPlanId)) {
+            return failure("INTRO_TRIP_PLAN_MISMATCH", "The introductory Premium trip is active for a different float plan.", normalizeEntitlement(qEntitlement));
+          }
+
+          queryExecute(
+            "UPDATE introductory_trip_entitlements
+             SET status = 'CONSUMED',
+                 consumed_at_utc = UTC_TIMESTAMP(6),
+                 updated_at_utc = UTC_TIMESTAMP(6)
+             WHERE introductory_trip_entitlement_id = :entitlementId
+               AND user_id = :userId
+               AND status = 'ACTIVE'
+               AND float_plan_id = :floatPlanId
+               AND activated_at_utc IS NOT NULL
+               AND consumed_at_utc IS NULL",
+            {
+              entitlementId = { value = qEntitlement.introductory_trip_entitlement_id[1], cfsqltype = "cf_sql_bigint" },
+              userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+              floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+            },
+            { datasource = variables.datasource, result = "updateMeta" }
+          );
+          if (!structKeyExists(updateMeta, "recordCount") OR val(updateMeta.recordCount) NEQ 1) {
+            throw(type = "IntroductoryTrip.ConsumptionAffectedRows", message = "Consumption affected an unexpected row count.");
+          }
+
+          qEntitlement = loadEntitlement(arguments.userId, true);
+          if (qEntitlement.recordCount NEQ 1 OR !isValidEntitlementState(qEntitlement)) {
+            throw(type = "IntroductoryTrip.ConsumptionInvariant", message = "Consumption did not produce a valid entitlement.");
+          }
+        }
+        return successResult("INTRO_TRIP_CONSUMED", "The introductory Premium trip has been consumed.", normalizeEntitlement(qEntitlement));
+      } catch (any err) {
+        logUnexpected("consumeForPlan", err.message);
+        return failure("INTRO_TRIP_INVALID_TRANSITION", "The introductory Premium trip could not be consumed.", getForUser(arguments.userId).entitlement);
+      }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="createNotificationOutboxRecord" access="public" returntype="struct" output="false">
+    <cfargument name="floatPlanId" type="numeric" required="true">
+    <cfargument name="notificationType" type="string" required="true">
+    <cfargument name="recipientKey" type="string" required="true">
+    <cfargument name="idempotencyKey" type="string" required="true">
+    <cfargument name="availableAtUtc" type="any" required="false" default="">
+    <cfscript>
+      var typeValue = uCase(trim(arguments.notificationType));
+      var recipientValue = lCase(trim(arguments.recipientKey));
+      var keyValue = trim(arguments.idempotencyKey);
+      var qPlan = queryNew("");
+      var qOutbox = queryNew("");
+      var availableSql = isDate(arguments.availableAtUtc) ? ":availableAtUtc" : "UTC_TIMESTAMP(6)";
+      var params = {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+        notificationType = { value = typeValue, cfsqltype = "cf_sql_varchar" },
+        recipientKey = { value = recipientValue, cfsqltype = "cf_sql_varchar" },
+        idempotencyKey = { value = keyValue, cfsqltype = "cf_sql_varchar" }
+      };
+
+      if (arguments.floatPlanId LTE 0) {
+        return outboxFailure("INTRO_TRIP_FLOATPLAN_NOT_FOUND", "The requested float plan was not found.");
+      }
+      if (!len(typeValue) OR len(typeValue) GT 64 OR !len(recipientValue) OR len(recipientValue) GT 320 OR !len(keyValue) OR len(keyValue) GT 191) {
+        return outboxFailure("INTRO_TRIP_INVALID_TRANSITION", "The notification record is invalid.");
+      }
+      if (isDate(arguments.availableAtUtc)) {
+        params.availableAtUtc = { value = arguments.availableAtUtc, cfsqltype = "cf_sql_timestamp" };
+      }
+
+      try {
+        transaction {
+          qOutbox = loadOutbox(keyValue, true);
+          if (qOutbox.recordCount GT 0) {
+            return outboxSuccess("INTRO_TRIP_OUTBOX_EXISTS", "The notification record already exists.", qOutbox);
+          }
+
+          qPlan = loadPlan(arguments.floatPlanId, false);
+          if (qPlan.recordCount EQ 0) {
+            return outboxFailure("INTRO_TRIP_FLOATPLAN_NOT_FOUND", "The requested float plan was not found.");
+          }
+
+          queryExecute(
+            "INSERT INTO floatplan_notification_outbox (
+               float_plan_id, notification_type, recipient_key, idempotency_key,
+               status, attempt_count, available_at_utc, created_at_utc,
+               updated_at_utc, sent_at_utc, last_error
+             ) VALUES (
+               :floatPlanId, :notificationType, :recipientKey, :idempotencyKey,
+               'PENDING', 0, " & availableSql & ", UTC_TIMESTAMP(6),
+               UTC_TIMESTAMP(6), NULL, NULL
+             )",
+            params,
+            { datasource = variables.datasource }
+          );
+
+          qOutbox = loadOutbox(keyValue, true);
+          if (qOutbox.recordCount NEQ 1) {
+            throw(type = "IntroductoryTrip.OutboxInvariant", message = "Outbox insertion did not create one row.");
+          }
+        }
+        return outboxSuccess("INTRO_TRIP_OUTBOX_CREATED", "The notification record was created.", qOutbox);
+      } catch (any err) {
+        qOutbox = loadOutbox(keyValue, false);
+        if (qOutbox.recordCount EQ 1) {
+          return outboxSuccess("INTRO_TRIP_OUTBOX_EXISTS", "The notification record already exists.", qOutbox);
+        }
+        logUnexpected("createNotificationOutboxRecord", err.message);
+        return outboxFailure("INTRO_TRIP_INTERNAL_ERROR", "The notification record could not be created.");
+      }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="loadEntitlement" access="private" returntype="query" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="forUpdate" type="boolean" required="false" default="false">
+    <cfscript>
+      return queryExecute(
+        "SELECT introductory_trip_entitlement_id, user_id, status, float_plan_id,
+                granted_at_utc, activated_at_utc, consumed_at_utc, created_at_utc, updated_at_utc
+         FROM introductory_trip_entitlements
+         WHERE user_id = :userId
+         LIMIT 1" & (arguments.forUpdate ? " FOR UPDATE" : ""),
+        { userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" } },
+        { datasource = variables.datasource }
+      );
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="loadPlan" access="private" returntype="query" output="false">
+    <cfargument name="floatPlanId" type="numeric" required="true">
+    <cfargument name="forUpdate" type="boolean" required="false" default="false">
+    <cfscript>
+      return queryExecute(
+        "SELECT floatPlanId, userId, status
+         FROM floatplans
+         WHERE floatPlanId = :floatPlanId
+         LIMIT 1" & (arguments.forUpdate ? " FOR UPDATE" : ""),
+        { floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" } },
+        { datasource = variables.datasource }
+      );
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="loadOutbox" access="private" returntype="query" output="false">
+    <cfargument name="idempotencyKey" type="string" required="true">
+    <cfargument name="forUpdate" type="boolean" required="false" default="false">
+    <cfscript>
+      return queryExecute(
+        "SELECT outbox_id, float_plan_id, notification_type, recipient_key,
+                idempotency_key, status, attempt_count, available_at_utc,
+                created_at_utc, updated_at_utc, sent_at_utc, last_error
+         FROM floatplan_notification_outbox
+         WHERE idempotency_key = :idempotencyKey
+         LIMIT 1" & (arguments.forUpdate ? " FOR UPDATE" : ""),
+        { idempotencyKey = { value = arguments.idempotencyKey, cfsqltype = "cf_sql_varchar" } },
+        { datasource = variables.datasource }
+      );
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="planBelongsToUser" access="private" returntype="boolean" output="false">
+    <cfargument name="qPlan" type="query" required="true">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      return arguments.qPlan.recordCount EQ 1
+        AND trim(toString(arguments.qPlan.userId[1])) EQ toString(val(arguments.userId));
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="isValidEntitlementState" access="private" returntype="boolean" output="false">
+    <cfargument name="qEntitlement" type="query" required="true">
+    <cfscript>
+      var statusValue = "";
+      var hasPlan = false;
+      var hasActivatedAt = false;
+      var hasConsumedAt = false;
+
+      if (arguments.qEntitlement.recordCount NEQ 1) return false;
+      statusValue = uCase(trim(toString(arguments.qEntitlement.status[1])));
+      hasPlan = !isNull(arguments.qEntitlement.float_plan_id[1]);
+      hasActivatedAt = !isNull(arguments.qEntitlement.activated_at_utc[1]);
+      hasConsumedAt = !isNull(arguments.qEntitlement.consumed_at_utc[1]);
+
+      if (statusValue EQ "AVAILABLE") return !hasPlan AND !hasActivatedAt AND !hasConsumedAt;
+      if (statusValue EQ "ACTIVE") return hasPlan AND hasActivatedAt AND !hasConsumedAt;
+      if (statusValue EQ "CONSUMED") return hasPlan AND hasActivatedAt AND hasConsumedAt;
+      return false;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="normalizeEntitlement" access="private" returntype="struct" output="false">
+    <cfargument name="qEntitlement" type="query" required="true">
+    <cfargument name="requestedFloatPlanId" type="numeric" required="false" default="0">
+    <cfscript>
+      var statusValue = uCase(trim(toString(arguments.qEntitlement.status[1])));
+      var floatPlanValue = queryValueOrNull(arguments.qEntitlement, "float_plan_id", 1);
+      return {
+        "exists" = true,
+        "entitlementId" = val(arguments.qEntitlement.introductory_trip_entitlement_id[1]),
+        "userId" = val(arguments.qEntitlement.user_id[1]),
+        "status" = statusValue,
+        "floatPlanId" = floatPlanValue,
+        "grantedAtUtc" = queryValueOrNull(arguments.qEntitlement, "granted_at_utc", 1),
+        "activatedAtUtc" = queryValueOrNull(arguments.qEntitlement, "activated_at_utc", 1),
+        "consumedAtUtc" = queryValueOrNull(arguments.qEntitlement, "consumed_at_utc", 1),
+        "canPlan" = statusValue EQ "AVAILABLE",
+        "canActivate" = statusValue EQ "AVAILABLE",
+        "isActiveForPlan" = statusValue EQ "ACTIVE" AND arguments.requestedFloatPlanId GT 0 AND val(floatPlanValue) EQ val(arguments.requestedFloatPlanId),
+        "isConsumed" = statusValue EQ "CONSUMED"
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="emptyEntitlement" access="private" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="false" default="0">
+    <cfscript>
+      return {
+        "exists" = false,
+        "entitlementId" = 0,
+        "userId" = val(arguments.userId),
+        "status" = "",
+        "floatPlanId" = nullValue(),
+        "grantedAtUtc" = nullValue(),
+        "activatedAtUtc" = nullValue(),
+        "consumedAtUtc" = nullValue(),
+        "canPlan" = false,
+        "canActivate" = false,
+        "isActiveForPlan" = false,
+        "isConsumed" = false
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="successResult" access="private" returntype="struct" output="false">
+    <cfargument name="code" type="string" required="true">
+    <cfargument name="message" type="string" required="true">
+    <cfargument name="entitlement" type="struct" required="true">
+    <cfscript>
+      return { "success" = true, "code" = arguments.code, "message" = arguments.message, "entitlement" = arguments.entitlement };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="failure" access="private" returntype="struct" output="false">
+    <cfargument name="code" type="string" required="true">
+    <cfargument name="message" type="string" required="true">
+    <cfargument name="entitlement" type="struct" required="true">
+    <cfscript>
+      return { "success" = false, "code" = arguments.code, "message" = arguments.message, "entitlement" = arguments.entitlement };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="outboxSuccess" access="private" returntype="struct" output="false">
+    <cfargument name="code" type="string" required="true">
+    <cfargument name="message" type="string" required="true">
+    <cfargument name="qOutbox" type="query" required="true">
+    <cfscript>
+      return {
+        "success" = true,
+        "code" = arguments.code,
+        "message" = arguments.message,
+        "outbox" = normalizeOutbox(arguments.qOutbox)
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="outboxFailure" access="private" returntype="struct" output="false">
+    <cfargument name="code" type="string" required="true">
+    <cfargument name="message" type="string" required="true">
+    <cfscript>
+      return { "success" = false, "code" = arguments.code, "message" = arguments.message, "outbox" = {} };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="normalizeOutbox" access="private" returntype="struct" output="false">
+    <cfargument name="qOutbox" type="query" required="true">
+    <cfscript>
+      return {
+        "outboxId" = val(arguments.qOutbox.outbox_id[1]),
+        "floatPlanId" = val(arguments.qOutbox.float_plan_id[1]),
+        "notificationType" = toString(arguments.qOutbox.notification_type[1]),
+        "recipientKey" = toString(arguments.qOutbox.recipient_key[1]),
+        "idempotencyKey" = toString(arguments.qOutbox.idempotency_key[1]),
+        "status" = toString(arguments.qOutbox.status[1]),
+        "attemptCount" = val(arguments.qOutbox.attempt_count[1]),
+        "availableAtUtc" = queryValueOrNull(arguments.qOutbox, "available_at_utc", 1),
+        "createdAtUtc" = queryValueOrNull(arguments.qOutbox, "created_at_utc", 1),
+        "updatedAtUtc" = queryValueOrNull(arguments.qOutbox, "updated_at_utc", 1),
+        "sentAtUtc" = queryValueOrNull(arguments.qOutbox, "sent_at_utc", 1),
+        "lastError" = queryValueOrNull(arguments.qOutbox, "last_error", 1)
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="queryValueOrNull" access="private" returntype="any" output="false">
+    <cfargument name="q" type="query" required="true">
+    <cfargument name="column" type="string" required="true">
+    <cfargument name="row" type="numeric" required="true">
+    <cfscript>
+      if (arguments.q.recordCount GTE arguments.row AND listFindNoCase(arguments.q.columnList, arguments.column) AND !isNull(arguments.q[arguments.column][arguments.row])) {
+        return arguments.q[arguments.column][arguments.row];
+      }
+      return nullValue();
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="codeForStatus" access="private" returntype="string" output="false">
+    <cfargument name="status" type="string" required="true">
+    <cfscript>
+      if (uCase(arguments.status) EQ "AVAILABLE") return "INTRO_TRIP_AVAILABLE";
+      if (uCase(arguments.status) EQ "ACTIVE") return "INTRO_TRIP_ACTIVE";
+      if (uCase(arguments.status) EQ "CONSUMED") return "INTRO_TRIP_CONSUMED";
+      return "INTRO_TRIP_INVALID_TRANSITION";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="messageForStatus" access="private" returntype="string" output="false">
+    <cfargument name="status" type="string" required="true">
+    <cfscript>
+      if (uCase(arguments.status) EQ "AVAILABLE") return "An introductory Premium trip is available.";
+      if (uCase(arguments.status) EQ "ACTIVE") return "The introductory Premium trip is active.";
+      if (uCase(arguments.status) EQ "CONSUMED") return "The introductory Premium trip has been consumed.";
+      return "The introductory Premium trip is not in a usable state.";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="logUnexpected" access="private" returntype="void" output="false">
+    <cfargument name="operation" type="string" required="true">
+    <cfargument name="detail" type="string" required="false" default="">
+    <cfscript>
+      writeLog(
+        file = "fpw-errors",
+        type = "error",
+        text = "INTRODUCTORY_TRIP_SERVICE_FAILURE operation=" & reReplace(arguments.operation, "[^A-Za-z0-9_-]", "", "all") & " detail=" & left(reReplace(arguments.detail, "[\r\n\t]+", " ", "all"), 500)
+      );
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="nullValue" access="private" returntype="any" output="false">
+    <cfscript>
+      return javacast("null", "");
+    </cfscript>
+  </cffunction>
+
+</cfcomponent>
+
