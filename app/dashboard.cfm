@@ -612,7 +612,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body card-body wizard-body">
-                <div id="wizardApp" class="wizard-container" data-init="manual" data-contact-step="4">
+                <div id="wizardApp" class="wizard-container" data-init="manual" data-contact-step="4" data-total-steps="6">
 
                     <div v-if="isLoading" class="text-center py-5">
                         <div class="spinner-border text-primary" role="status"></div>
@@ -1047,9 +1047,28 @@
                             <button type="button" class="btn-primary w-100" @click="submitPlan" :disabled="isSaving">
                                 {{ isSaving ? 'Saving…' : 'Save Float Plan' }}
                             </button>
-                            <button type="button" class="btn-primary w-100 mt-2" @click="submitPlanAndSend" :disabled="isSaving">
-                                {{ isSaving ? 'Sending...' : 'Save &amp; Send' }}
+                            <div class="alert alert-info mt-3 mb-2">
+                                <h3 class="h6 mb-2">Premium Save &amp; Send</h3>
+                                <p class="small mb-2">Includes the Premium float-plan PDF, email delivery, Active Cruise, premium monitoring, and private Trip/Follow access for this exact float plan.</p>
+                                <p class="small mb-3">{{ premiumSendAvailabilityMessage }}</p>
+                                <button
+                                    v-if="canSendPremiumFloatPlan"
+                                    type="button"
+                                    class="btn-primary w-100"
+                                    @click="submitPlanAndSend"
+                                    :disabled="isSaving || checkoutBusy">
+                                    {{ isSaving ? 'Sending...' : (hasCommittedPremiumSend ? 'Show Original Premium Send Result' : 'Premium Save &amp; Send') }}
+                                </button>
+                                <div v-else class="d-grid gap-2">
+                                    <button type="button" class="btn-primary" @click="startPremiumCheckout('one_trip')" :disabled="isSaving || checkoutBusy">Buy One Trip</button>
+                                    <button type="button" class="btn-secondary" @click="startPremiumCheckout('monthly')" :disabled="isSaving || checkoutBusy">Monthly Membership</button>
+                                    <button type="button" class="btn-secondary" @click="startPremiumCheckout('yearly')" :disabled="isSaving || checkoutBusy">Annual Membership</button>
+                                </div>
+                            </div>
+                            <button type="button" class="btn-secondary w-100 mt-2" data-basic-floatplan-open :disabled="isSaving || checkoutBusy">
+                                Basic Save &amp; Send
                             </button>
+                            <p class="small text-muted mt-2 mb-0">Basic Save &amp; Send remains free and uses the separate Basic Float Plan flow. Your saved Draft is not removed.</p>
                         </section>
 
                         <div class="wizard-nav">
@@ -1084,7 +1103,7 @@
                 <div id="basicFloatPlanSentState" class="fpw-basic-sent-state d-none" aria-live="polite">
                     <h3>Basic Float Plan Sent</h3>
                     <p>Your one-day float plan has been sent. Basic monitoring is active.</p>
-                    <p class="fpw-basic-upgrade-note">Upgrade to Premium for saved routes, Active Cruise, Follow Page sharing, multi-day trips, and advanced monitoring.</p>
+                    <p class="fpw-basic-upgrade-note">Use Premium Save &amp; Send for a Premium PDF, email delivery, Active Cruise, premium monitoring, and private Trip/Follow access for that exact float plan.</p>
                 </div>
 
                 <form id="basicFloatPlanForm" class="fpw-basic-floatplan-form" novalidate>
@@ -1255,29 +1274,24 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js?v=20260526-cache-bump"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260712-cumulative-save-validation"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260721-premium-send-credits"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js?v=20260526-cache-bump"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20260721-premium-send-credits"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/vessels.js?v=20260711-vessel-image-id-fix"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/contacts.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=20260526-cache-bump"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20260721-premium-send-credits"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/route-generator-tour.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help-tour.js?v=20260526-cache-bump"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260629-weather-summary-mode"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260721-premium-send-credits"></script>
 
 </body>
 </html>
-
-
-
-
-

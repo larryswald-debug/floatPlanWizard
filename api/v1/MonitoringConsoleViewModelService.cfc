@@ -20,6 +20,7 @@
       var latestGps = {};
       var gpsHistory = [];
       var routeMap = {};
+      var tripAccessGate = {};
       var timezone = "UTC";
 
       dto.generatedAtUtc = formatUtc(nowUtc);
@@ -37,6 +38,15 @@
         if (!context.success) {
           dto.success = false;
           setEmptyState(dto, context.emptyStateCode);
+          return dto;
+        }
+
+        tripAccessGate = createApiComponent("MemberAccessGateService")
+          .init(variables.datasource)
+          .requireTripOperationalAccess(arguments.userId, context.floatPlanId);
+        if (!structKeyExists(tripAccessGate, "allowed") OR !tripAccessGate.allowed) {
+          dto.success = false;
+          setEmptyState(dto, "TRIP_OPERATION_ACCESS_REQUIRED");
           return dto;
         }
 
@@ -1059,6 +1069,10 @@
         case "NO_ACTIVE_FLOAT_PLAN":
           out.title = "No active monitored trip";
           out.message = "There is no active route-backed float plan available for the Monitoring Console.";
+          break;
+        case "TRIP_OPERATION_ACCESS_REQUIRED":
+          out.title = "Premium trip access required";
+          out.message = "This monitored trip requires an applied Premium Trip credit or active monthly or annual membership.";
           break;
         case "NO_ACTIVE_ROUTE":
           out.title = "No active route";

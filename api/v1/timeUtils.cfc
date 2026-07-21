@@ -13,7 +13,7 @@
          ============================== --->
 
 
-<cffunction name="checkOverdueFloatPlansMonitor" access="remote" returntype="any" output="true">
+<cffunction name="checkOverdueFloatPlansMonitor" access="private" returntype="any" output="true">
     <cfsetting enablecfoutputonly="true" showdebugoutput="false">
     <cfcontent type="application/json; charset=utf-8">
 
@@ -107,7 +107,7 @@
 
 
 
-    <cffunction name="checkOverdueFloatPlans" access="remote" returntype="any" output="true">
+    <cffunction name="checkOverdueFloatPlans" access="private" returntype="any" output="true">
     <cfsetting enablecfoutputonly="true" showdebugoutput="false">
     <cfcontent type="text/html; charset=utf-8">
 

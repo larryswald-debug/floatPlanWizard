@@ -50,11 +50,17 @@
                 <cfset actionName = lcase(trim(body.action))>
             </cfif>
 
-            <cfif listFindNoCase("checkin,savecaptainlogentry,updatedailystart,adddelay,cleardelay,updateactivepace,updatepace,completeleg,startnextleg", actionName) GT 0>
-                <cfset var activeCruiseAccessGate = getMemberAccessGateService().requirePremium(
-                    userId = userId,
-                    errorCode = "BASIC_ACTIVE_CRUISE_RESTRICTED",
-                    message = "Upgrade to Premium to use Active Cruise actions and route-backed cruise updates."
+            <cfif listFindNoCase("checkin,savecaptainlogentry,updatedailystart,adddelay,cleardelay,updateactivepace,updatepace,completeleg,startnextleg,cancel", actionName) GT 0>
+                <cfset var actionFloatPlanTarget = resolveCanonicalRequestFloatPlanId(arguments, url, body)>
+                <cfif NOT actionFloatPlanTarget.SUCCESS>
+                    <cfoutput>#serializeJSON(actionFloatPlanTarget.response)#</cfoutput>
+                    <cfsetting enablecfoutputonly="false">
+                    <cfreturn>
+                </cfif>
+                <cfset var actionFloatPlanId = actionFloatPlanTarget.floatPlanId>
+                <cfset var activeCruiseAccessGate = getMemberAccessGateService().requireTripOperationalAccess(
+                    userId,
+                    actionFloatPlanId
                 )>
                 <cfif NOT activeCruiseAccessGate.allowed>
                     <cfoutput>#serializeJSON(activeCruiseAccessGate.response)#</cfoutput>
@@ -164,6 +170,29 @@
                         <cfheader name="Content-Disposition" value="attachment; filename=""#downloadBasicResult.FILE_NAME#""">
                         <cfheader name="X-Content-Type-Options" value="nosniff">
                         <cfcontent type="application/pdf" file="#downloadBasicResult.FILE_PATH#" deletefile="false" reset="true">
+                        <cfsetting enablecfoutputonly="false">
+                        <cfreturn>
+                    </cfif>
+                </cfcase>
+
+                <cfcase value="previewpdf">
+                    <cfset var previewPdfId = 0>
+                    <cfif structKeyExists(body, "floatPlanId")>
+                        <cfset previewPdfId = val(body.floatPlanId)>
+                    <cfelseif structKeyExists(url, "floatPlanId")>
+                        <cfset previewPdfId = val(url.floatPlanId)>
+                    <cfelseif structKeyExists(url, "id")>
+                        <cfset previewPdfId = val(url.id)>
+                    </cfif>
+
+                    <cfset var previewPdfResult = prepareOwnedFloatPlanPdfPreview(userId, previewPdfId)>
+                    <cfif NOT previewPdfResult.SUCCESS>
+                        <cfset previewPdfResult.AUTH = true>
+                        <cfoutput>#serializeJSON(previewPdfResult)#</cfoutput>
+                    <cfelse>
+                        <cfheader name="Content-Disposition" value="inline; filename=""#previewPdfResult.FILE_NAME#""">
+                        <cfheader name="X-Content-Type-Options" value="nosniff">
+                        <cfcontent type="application/pdf" file="#previewPdfResult.FILE_PATH#" deletefile="true" reset="true">
                         <cfsetting enablecfoutputonly="false">
                         <cfreturn>
                     </cfif>
@@ -663,6 +692,53 @@
         <cfsetting enablecfoutputonly="false">
     </cffunction>
 
+    <cffunction name="resolveCanonicalRequestFloatPlanId" access="private" returntype="struct" output="false">
+        <cfargument name="argumentValues" type="struct" required="true">
+        <cfargument name="urlValues" type="struct" required="true">
+        <cfargument name="bodyValues" type="struct" required="true">
+        <cfscript>
+            var candidateList = "";
+            var candidateId = 0;
+            var sourceValues = [
+                arguments.argumentValues,
+                arguments.urlValues,
+                arguments.bodyValues
+            ];
+            var keyNames = ["floatPlanId", "id"];
+
+            for (var sourceValue in sourceValues) {
+                for (var keyName in keyNames) {
+                    if (!structKeyExists(sourceValue, keyName)) {
+                        continue;
+                    }
+                    candidateId = val(sourceValue[keyName]);
+                    if (candidateId GT 0 AND listFind(candidateList, toString(candidateId)) EQ 0) {
+                        candidateList = listAppend(candidateList, toString(candidateId));
+                    }
+                }
+            }
+
+            if (listLen(candidateList) GT 1) {
+                return {
+                    "SUCCESS" = false,
+                    "floatPlanId" = 0,
+                    "response" = {
+                        "SUCCESS" = false,
+                        "AUTH" = true,
+                        "ERROR" = "FLOAT_PLAN_TARGET_CONFLICT",
+                        "MESSAGE" = "Conflicting float plan identifiers were supplied."
+                    }
+                };
+            }
+
+            return {
+                "SUCCESS" = true,
+                "floatPlanId" = (listLen(candidateList) EQ 1 ? val(listFirst(candidateList)) : 0),
+                "response" = {}
+            };
+        </cfscript>
+    </cffunction>
+
     <cffunction name="resolveUserId" access="private" returntype="numeric" output="false">
         <cfargument name="userStruct" type="struct" required="true">
         <cfscript>
@@ -756,7 +832,13 @@
                 PLAN_PASSENGERS = [],
                 PLAN_CONTACTS   = [],
                 PLAN_WAYPOINTS  = [],
-                ROUTE_DEFAULTS  = {}
+                ROUTE_DEFAULTS  = {},
+                MEMBER_ACCESS   = getMemberAccessGateService().getCurrentAccess(arguments.userId),
+                PREMIUM_SEND_RECEIPT = {
+                    SUCCESS = true,
+                    success = true,
+                    found = false
+                }
             };
 
             if (arguments.floatPlanId GT 0) {
@@ -767,6 +849,10 @@
                     response.PLAN_PASSENGERS = selections.PASSENGERS;
                     response.PLAN_CONTACTS   = selections.CONTACTS;
                     response.PLAN_WAYPOINTS  = selections.WAYPOINTS;
+                    response.PREMIUM_SEND_RECEIPT = getPremiumSendCreditService().loadCompletedReceipt(
+                        arguments.userId,
+                        arguments.floatPlanId
+                    );
                 }
             }
 
@@ -1484,7 +1570,7 @@
                 totalNmVal = totalNmIsNull ? 0 : val(qSource.total_nm[1]);
                 totalLocksVal = totalLocksIsNull ? 0 : val(qSource.total_locks[1]);
 
-                transaction {
+                if (true) {
                     queryExecute(
                         "INSERT INTO loop_routes
                             (code, name, short_code, description, is_active, version, is_default, total_nm, total_locks)
@@ -2059,6 +2145,78 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="prepareOwnedFloatPlanPdfPreview" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                MESSAGE = ""
+            };
+            var ownershipResult = {};
+            var plan = {};
+            var planStatus = "";
+            var premiumPdfGate = {};
+            var floatPlanUtils = {};
+            var pdfFileName = "";
+            var pdfPath = "";
+
+            if (arguments.floatPlanId LTE 0) {
+                result.ERROR = "MISSING_PLAN_ID";
+                result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            ownershipResult = validateStoredPlanResourceOwnership(arguments.userId, arguments.floatPlanId);
+            if (!ownershipResult.SUCCESS) {
+                return ownershipResult;
+            }
+
+            plan = loadFloatPlan(arguments.userId, arguments.floatPlanId);
+            if (structIsEmpty(plan)) {
+                result.ERROR = "PLAN_NOT_FOUND";
+                result.MESSAGE = "Float plan not found.";
+                return result;
+            }
+            planStatus = uCase(trim(toString(pickValue(plan, ["STATUS", "status"], ""))));
+            if (planStatus NEQ "DRAFT") {
+                premiumPdfGate = getMemberAccessGateService().requireTripOperationalAccess(
+                    arguments.userId,
+                    arguments.floatPlanId
+                );
+                if (!premiumPdfGate.allowed) {
+                    return premiumPdfGate.response;
+                }
+            }
+
+            try {
+                floatPlanUtils = createObject("component", resolveFloatPlanUtilsComponentPath()).init();
+                pdfFileName = floatPlanUtils.createPDF(arguments.floatPlanId, arguments.userId);
+                if (!len(trim(pdfFileName))) {
+                    result.ERROR = "PDF_FAILED";
+                    result.MESSAGE = "Unable to generate float plan PDF.";
+                    return result;
+                }
+
+                pdfPath = floatPlanUtils.getPdfPath(pdfFileName);
+                if (!fileExists(pdfPath)) {
+                    result.ERROR = "PDF_FAILED";
+                    result.MESSAGE = "Unable to locate generated float plan PDF.";
+                    return result;
+                }
+            } catch (any pdfError) {
+                result.ERROR = "PDF_FAILED";
+                result.MESSAGE = "Unable to generate float plan PDF.";
+                return result;
+            }
+
+            result.SUCCESS = true;
+            result.FILE_PATH = pdfPath;
+            result.FILE_NAME = getFileFromPath(pdfFileName);
+            return result;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="prepareBasicOperationalPdfDownload" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
@@ -2069,6 +2227,7 @@
                 MESSAGE = ""
             };
             var scope = {};
+            var ownershipResult = {};
             var plan = {};
             var floatPlanUtils = {};
             var pdfFileName = "";
@@ -2104,9 +2263,14 @@
                 return result;
             }
 
+            ownershipResult = validateStoredPlanResourceOwnership(arguments.userId, arguments.floatPlanId);
+            if (!ownershipResult.SUCCESS) {
+                return ownershipResult;
+            }
+
             plan = loadFloatPlan(arguments.userId, arguments.floatPlanId);
             floatPlanUtils = createObject("component", resolveFloatPlanUtilsComponentPath()).init();
-            pdfFileName = floatPlanUtils.createPDF(arguments.floatPlanId);
+            pdfFileName = floatPlanUtils.createPDF(arguments.floatPlanId, arguments.userId);
             if (!len(trim(pdfFileName))) {
                 result.ERROR = "PDF_FAILED";
                 result.MESSAGE = "Unable to generate float plan PDF.";
@@ -2976,6 +3140,7 @@
             var qDraft = queryNew("");
             var qActive = queryNew("");
             var useRouteInstanceId = val(arguments.routeInstanceId);
+            var hasRelevantActive = false;
             var row = {};
 
             if (arguments.userId LTE 0) {
@@ -2984,34 +3149,38 @@
                 return result;
             }
 
-            qDraft = queryExecute(
-                "SELECT
-                    fp.floatplanId,
-                    fp.floatPlanName,
-                    fp.route_instance_id,
-                    fp.route_day_number,
-                    UPPER(TRIM(fp.`status`)) AS statusValue,
-                    COALESCE(NULLIF(TRIM(ri.generated_route_code), ''), NULLIF(TRIM(lr.short_code), '')) AS route_code,
-                    COALESCE(NULLIF(TRIM(lr.name), ''), NULLIF(TRIM(ri.generated_route_code), ''), CONCAT('Route ##', ri.id)) AS route_name
-                 FROM floatplans fp
-                 INNER JOIN route_instances ri
-                    ON ri.id = fp.route_instance_id
-                   AND ri.user_id = :routeUserId
-                 LEFT JOIN loop_routes lr ON lr.id = ri.generated_route_id
-                 WHERE fp.userId = :planUserId
-                   AND UPPER(TRIM(fp.`status`)) = 'DRAFT'
-                   AND fp.activatedAt IS NULL
-                   AND fp.initialSentAt IS NULL
-                   AND fp.checkedInAt IS NULL
-                   AND fp.closedAt IS NULL
-                 ORDER BY fp.floatplanId DESC
-                 LIMIT 2",
-                {
-                    planUserId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
-                    routeUserId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
-                },
-                { datasource = "fpw" }
-            );
+            if (useRouteInstanceId GT 0) {
+                qDraft = queryExecute(
+                    "SELECT
+                        fp.floatplanId,
+                        fp.floatPlanName,
+                        fp.route_instance_id,
+                        fp.route_day_number,
+                        UPPER(TRIM(fp.`status`)) AS statusValue,
+                        COALESCE(NULLIF(TRIM(ri.generated_route_code), ''), NULLIF(TRIM(lr.short_code), '')) AS route_code,
+                        COALESCE(NULLIF(TRIM(lr.name), ''), NULLIF(TRIM(ri.generated_route_code), ''), CONCAT('Route ##', ri.id)) AS route_name
+                     FROM floatplans fp
+                     INNER JOIN route_instances ri
+                        ON ri.id = fp.route_instance_id
+                       AND ri.user_id = :routeUserId
+                     LEFT JOIN loop_routes lr ON lr.id = ri.generated_route_id
+                     WHERE fp.userId = :planUserId
+                       AND fp.route_instance_id = :routeInstanceId
+                       AND UPPER(TRIM(fp.`status`)) = 'DRAFT'
+                       AND fp.activatedAt IS NULL
+                       AND fp.initialSentAt IS NULL
+                       AND fp.checkedInAt IS NULL
+                       AND fp.closedAt IS NULL
+                     ORDER BY fp.floatplanId DESC
+                     LIMIT 2",
+                    {
+                        planUserId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                        routeUserId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" },
+                        routeInstanceId = { value = useRouteInstanceId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = "fpw" }
+                );
+            }
 
             qActive = queryExecute(
                 "SELECT
@@ -3041,7 +3210,7 @@
 
             if (qDraft.recordCount GT 1) {
                 result.ERROR = "MULTIPLE_CURRENT_DRAFT_GROUPS";
-                result.MESSAGE = "Multiple current draft route/float-plan groups exist for this user.";
+                result.MESSAGE = "Multiple current draft route/float-plan groups exist for this route.";
                 return result;
             }
 
@@ -3051,13 +3220,24 @@
                 return result;
             }
 
-            if (qDraft.recordCount GT 0 AND qActive.recordCount GT 0) {
+            hasRelevantActive = (
+                qActive.recordCount EQ 1
+                AND (
+                    useRouteInstanceId LTE 0
+                    OR (
+                        !isNull(qActive.route_instance_id[1])
+                        AND val(qActive.route_instance_id[1]) EQ useRouteInstanceId
+                    )
+                )
+            );
+
+            if (qDraft.recordCount GT 0 AND hasRelevantActive) {
                 result.ERROR = "CURRENT_GROUP_CONFLICT";
-                result.MESSAGE = "A current draft group and an active group both exist for this user.";
+                result.MESSAGE = "A draft and active float plan both exist for this route.";
                 return result;
             }
 
-            if (qDraft.recordCount EQ 0 AND qActive.recordCount EQ 0) {
+            if (qDraft.recordCount EQ 0 AND !hasRelevantActive) {
                 return result;
             }
 
@@ -3146,6 +3326,7 @@
                     : (structKeyExists(arguments.payload, "checkin_context") ? toString(arguments.payload.checkin_context) : "")
             );
             var activeCruiseCheckinGuard = {};
+            var companionTripAccessGate = {};
             var cruiseCheckinResult = {};
 
             if (structKeyExists(arguments.payload, "floatPlanId")) {
@@ -3158,6 +3339,14 @@
             if (!activeCruiseCheckinGuard.SUCCESS) {
                 activeCruiseCheckinGuard.AUTH = true;
                 return activeCruiseCheckinGuard;
+            }
+
+            companionTripAccessGate = getMemberAccessGateService().requireTripOperationalAccess(
+                arguments.userId,
+                checkinId
+            );
+            if (!companionTripAccessGate.allowed) {
+                return companionTripAccessGate.response;
             }
 
             cruiseCheckinResult = submitActiveCruiseCheckIn(arguments.userId, checkinId, checkinStatus, checkinNote, checkinContext);
@@ -3631,6 +3820,7 @@
             var existingStatus = "";
             var currentGroup = {};
             var memberGateResult = {};
+            var lockedPlanRow = queryNew("");
 
             if (planId GT 0) {
                 existingPlanRow = queryExecute(
@@ -3750,6 +3940,7 @@
             }
 
             var ds = "fpw";
+            var submittedOwnershipResult = {};
 
             planName = ensureUniquePlanName(arguments.userId, planId, planName, ds);
 
@@ -3787,24 +3978,56 @@
                 returnTzStore = returnTz;
             }
 
-            memberGateResult = getMemberAccessGateService().validateWaypointLimit(
-                userId = arguments.userId,
-                waypointCount = countEffectivePayloadWaypoints(selectedWaypoints)
-            );
-            if (!memberGateResult.allowed) {
-                return memberGateResult.response;
-            }
-
-            memberGateResult = getMemberAccessGateService().validateTripDurationLimit(
-                userId = arguments.userId,
-                departureAt = departureTimeUtc,
-                returnAt = returnTimeUtc
-            );
-            if (!memberGateResult.allowed) {
-                return memberGateResult.response;
-            }
-
             transaction {
+                if (planId GT 0) {
+                    lockedPlanRow = queryExecute(
+                        "SELECT UPPER(TRIM(`status`)) AS statusValue
+                           FROM floatplans
+                          WHERE floatplanId = :planId
+                            AND userId = :userId
+                          LIMIT 1
+                          FOR UPDATE",
+                        {
+                            planId = { value = planId, cfsqltype = "cf_sql_integer" },
+                            userId = { value = toString(val(arguments.userId)), cfsqltype = "cf_sql_varchar" }
+                        },
+                        { datasource = ds }
+                    );
+                    if (lockedPlanRow.recordCount EQ 0) {
+                        result.ERROR = "NOT_FOUND";
+                        result.MESSAGE = "Float plan not found.";
+                        return result;
+                    }
+
+                    existingStatus = trim(toString(lockedPlanRow.statusValue[1]));
+                    if (existingStatus EQ "ACTIVE") {
+                        memberGateResult = getMemberAccessGateService().requireTripOperationalAccess(
+                            arguments.userId,
+                            planId
+                        );
+                        if (!memberGateResult.allowed) {
+                            return memberGateResult.response;
+                        }
+                    } else if (listFindNoCase("CLOSED,CANCELLED,CANCELED", existingStatus) GT 0) {
+                        result.ERROR = "HISTORICAL_GROUP_READ_ONLY";
+                        result.MESSAGE = "Closed or cancelled route-linked float plans are preserved as history and cannot be edited.";
+                        return result;
+                    }
+                }
+
+                submittedOwnershipResult = validateSubmittedPlanResourceOwnership(
+                    userId = arguments.userId,
+                    vesselId = vesselId,
+                    operatorId = operatorId,
+                    selectedPassengers = selectedPassengers,
+                    selectedContacts = selectedContacts,
+                    selectedWaypoints = selectedWaypoints,
+                    datasource = ds
+                );
+                if (!submittedOwnershipResult.SUCCESS) {
+                    return submittedOwnershipResult;
+                }
+
                 if (planId LTE 0) {
                     queryExecute("
                         INSERT INTO floatplans
@@ -4158,6 +4381,8 @@
             rescuePhone = authority.AUTHORITY_PHONE;
             basicDetails.AUTHORITY_ID = rescueCenterId;
 
+            var submittedOwnershipResult = {};
+
             planName = ensureUniquePlanName(arguments.userId, planId, planName, ds);
 
             if (len(departureTime)) {
@@ -4217,6 +4442,19 @@
             }
 
             transaction {
+                submittedOwnershipResult = validateSubmittedPlanResourceOwnership(
+                    userId = arguments.userId,
+                    vesselId = 0,
+                    operatorId = 0,
+                    selectedPassengers = selectedPassengers,
+                    selectedContacts = [],
+                    selectedWaypoints = selectedWaypoints,
+                    datasource = ds
+                );
+                if (!submittedOwnershipResult.SUCCESS) {
+                    return submittedOwnershipResult;
+                }
+
                 if (planId LTE 0) {
                     queryExecute("
                         INSERT INTO floatplans
@@ -5261,6 +5499,7 @@
         <cfscript>
             var result = { SUCCESS = false };
             var currentGroup = {};
+            var memberGateResult = {};
             var monitoringService = {};
             var monitoringResult = {};
 
@@ -5284,6 +5523,14 @@
                 result.EXISTING_ROUTE_INSTANCE_ID = currentGroup.ROUTE_INSTANCE_ID;
                 result.EXISTING_ROUTE_CODE = currentGroup.ROUTE_CODE;
                 return result;
+            }
+
+            memberGateResult = getMemberAccessGateService().requireTripOperationalAccess(
+                arguments.userId,
+                arguments.floatPlanId
+            );
+            if (!memberGateResult.allowed) {
+                return memberGateResult.response;
             }
 
             transaction {
@@ -6852,7 +7099,9 @@
                 SELECT c.contactId, c.name, c.email
                 FROM floatplan_contacts fc
                 INNER JOIN floatplans fp ON fp.floatplanId = fc.floatplanId
-                INNER JOIN contacts c ON c.contactId = fc.contactId
+                INNER JOIN contacts c
+                    ON c.contactId = fc.contactId
+                   AND c.userId = :userId
                 WHERE fp.userId = :userId
                   AND fp.floatplanId = :planId
                 ORDER BY fc.recId ASC
@@ -6950,6 +7199,231 @@
             }
 
             return (len(prefix) ? prefix & "." : "") & "api.v1." & arguments.componentName;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getPremiumSendCreditService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", resolveApiV1ComponentPath("PremiumSendCreditService")).init("fpw");
+            } catch (any e1) {
+                try {
+                    return createObject("component", "fpw.api.v1.PremiumSendCreditService").init("fpw");
+                } catch (any e2) {
+                    return createObject("component", "api.v1.PremiumSendCreditService").init("fpw");
+                }
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="validateSubmittedPlanResourceOwnership" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="vesselId" type="numeric" required="false" default="0">
+        <cfargument name="operatorId" type="numeric" required="false" default="0">
+        <cfargument name="selectedPassengers" type="array" required="false" default="#[]#">
+        <cfargument name="selectedContacts" type="array" required="false" default="#[]#">
+        <cfargument name="selectedWaypoints" type="array" required="false" default="#[]#">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var index = 0;
+            var resourceId = 0;
+
+            if (
+                arguments.vesselId GT 0
+                AND !submittedResourceBelongsToUser("vessel", arguments.vesselId, arguments.userId, arguments.datasource)
+            ) {
+                return invalidSubmittedPlanResourceResponse();
+            }
+
+            if (
+                arguments.operatorId GT 0
+                AND !submittedResourceBelongsToUser("operator", arguments.operatorId, arguments.userId, arguments.datasource)
+            ) {
+                return invalidSubmittedPlanResourceResponse();
+            }
+
+            for (index = 1; index LTE arrayLen(arguments.selectedPassengers); index++) {
+                resourceId = val(pickValue(arguments.selectedPassengers[index], ["PASSENGERID", "passengerId", "passId"], 0));
+                if (
+                    resourceId GT 0
+                    AND !submittedResourceBelongsToUser("passenger", resourceId, arguments.userId, arguments.datasource)
+                ) {
+                    return invalidSubmittedPlanResourceResponse();
+                }
+            }
+
+            for (index = 1; index LTE arrayLen(arguments.selectedContacts); index++) {
+                resourceId = val(pickValue(arguments.selectedContacts[index], ["CONTACTID", "contactId"], 0));
+                if (
+                    resourceId GT 0
+                    AND !submittedResourceBelongsToUser("contact", resourceId, arguments.userId, arguments.datasource)
+                ) {
+                    return invalidSubmittedPlanResourceResponse();
+                }
+            }
+
+            for (index = 1; index LTE arrayLen(arguments.selectedWaypoints); index++) {
+                resourceId = val(pickValue(arguments.selectedWaypoints[index], ["WAYPOINTID", "waypointId", "wpId"], 0));
+                if (
+                    resourceId GT 0
+                    AND !submittedResourceBelongsToUser("waypoint", resourceId, arguments.userId, arguments.datasource)
+                ) {
+                    return invalidSubmittedPlanResourceResponse();
+                }
+            }
+
+            return { SUCCESS = true, success = true };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="submittedResourceBelongsToUser" access="private" returntype="boolean" output="false">
+        <cfargument name="resourceType" type="string" required="true">
+        <cfargument name="resourceId" type="numeric" required="true">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var sql = "";
+            var normalizedType = lCase(trim(arguments.resourceType));
+            var qOwned = queryNew("");
+
+            switch (normalizedType) {
+                case "vessel":
+                    sql = "SELECT vesselId AS resource_id FROM vessels WHERE vesselId = :resourceId AND userId = :userId LIMIT 1 FOR UPDATE";
+                    break;
+                case "operator":
+                    sql = "SELECT opId AS resource_id FROM operators WHERE opId = :resourceId AND userId = :userId LIMIT 1 FOR UPDATE";
+                    break;
+                case "passenger":
+                    sql = "SELECT passId AS resource_id FROM passengers WHERE passId = :resourceId AND userId = :userId LIMIT 1 FOR UPDATE";
+                    break;
+                case "contact":
+                    sql = "SELECT contactId AS resource_id FROM contacts WHERE contactId = :resourceId AND userId = :userId LIMIT 1 FOR UPDATE";
+                    break;
+                case "waypoint":
+                    sql = "SELECT wpId AS resource_id FROM waypoints WHERE wpId = :resourceId AND userId = :userId LIMIT 1 FOR UPDATE";
+                    break;
+                default:
+                    return false;
+            }
+
+            qOwned = queryExecute(
+                sql,
+                {
+                    resourceId = { value = arguments.resourceId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                },
+                { datasource = arguments.datasource }
+            );
+            return qOwned.recordCount GT 0;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="invalidSubmittedPlanResourceResponse" access="private" returntype="struct" output="false">
+        <cfscript>
+            return {
+                SUCCESS = false,
+                success = false,
+                ERROR = "PLAN_RESOURCE_OWNERSHIP_INVALID",
+                errorCode = "PLAN_RESOURCE_OWNERSHIP_INVALID",
+                MESSAGE = "One or more selected float-plan resources do not belong to this member.",
+                message = "One or more selected float-plan resources do not belong to this member."
+            };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="validateStoredPlanResourceOwnership" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var qOwnership = queryExecute(
+                "SELECT
+                   fp.floatPlanId,
+                   CASE
+                     WHEN COALESCE(fp.vesselId, 0) = 0 THEN 0
+                     WHEN EXISTS (
+                       SELECT 1 FROM vessels v
+                       WHERE v.vesselID = fp.vesselId
+                         AND v.userId = :vesselUserId
+                     ) THEN 0 ELSE 1
+                   END AS invalid_vessel,
+                   CASE
+                     WHEN COALESCE(fp.operatorId, 0) = 0 THEN 0
+                     WHEN EXISTS (
+                       SELECT 1 FROM operators o
+                       WHERE o.opId = fp.operatorId
+                         AND o.userId = :operatorUserId
+                     ) THEN 0 ELSE 1
+                   END AS invalid_operator,
+                   (
+                     SELECT COUNT(*)
+                     FROM floatplan_passengers fpp
+                     LEFT JOIN passengers p
+                       ON p.passId = fpp.passId
+                      AND p.userId = :passengerUserId
+                     WHERE fpp.floatPlanId = fp.floatPlanId
+                       AND p.passId IS NULL
+                   ) AS invalid_passengers,
+                   (
+                     SELECT COUNT(*)
+                     FROM floatplan_contacts fpc
+                     LEFT JOIN contacts c
+                       ON c.contactId = fpc.contactId
+                      AND c.userId = :contactUserId
+                     WHERE fpc.floatPlanId = fp.floatPlanId
+                       AND c.contactId IS NULL
+                   ) AS invalid_contacts,
+                   (
+                     SELECT COUNT(*)
+                     FROM floatplan_waypoints fpw
+                     LEFT JOIN waypoints w
+                       ON w.wpId = fpw.wayPointId
+                      AND w.userId = :waypointUserId
+                     WHERE fpw.floatPlanId = fp.floatPlanId
+                       AND w.wpId IS NULL
+                   ) AS invalid_waypoints
+                 FROM floatplans fp
+                 WHERE fp.floatPlanId = :floatPlanId
+                   AND fp.userId = :planUserId
+                 LIMIT 1",
+                {
+                    vesselUserId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" },
+                    operatorUserId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" },
+                    passengerUserId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" },
+                    contactUserId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" },
+                    waypointUserId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" },
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    planUserId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                },
+                { datasource = "fpw" }
+            );
+
+            if (qOwnership.recordCount EQ 0) {
+                return {
+                    SUCCESS = false,
+                    success = false,
+                    ERROR = "PLAN_NOT_FOUND",
+                    errorCode = "PLAN_NOT_FOUND",
+                    MESSAGE = "Float plan not found.",
+                    message = "Float plan not found."
+                };
+            }
+            if (
+                val(qOwnership.invalid_vessel[1]) GT 0
+                OR val(qOwnership.invalid_operator[1]) GT 0
+                OR val(qOwnership.invalid_passengers[1]) GT 0
+                OR val(qOwnership.invalid_contacts[1]) GT 0
+                OR val(qOwnership.invalid_waypoints[1]) GT 0
+            ) {
+                return {
+                    SUCCESS = false,
+                    success = false,
+                    ERROR = "PLAN_RESOURCE_OWNERSHIP_INVALID",
+                    errorCode = "PLAN_RESOURCE_OWNERSHIP_INVALID",
+                    MESSAGE = "One or more selected float-plan resources do not belong to this member.",
+                    message = "One or more selected float-plan resources do not belong to this member."
+                };
+            }
+            return { SUCCESS = true, success = true };
         </cfscript>
     </cffunction>
 
@@ -7211,7 +7685,7 @@
             }
 
             var floatPlanUtils = createObject("component", resolveFloatPlanUtilsComponentPath()).init();
-            var pdfFileName = floatPlanUtils.createPDF(arguments.floatPlanId);
+            var pdfFileName = floatPlanUtils.createPDF(arguments.floatPlanId, arguments.userId);
             if (!len(trim(pdfFileName))) {
                 result.ERROR = "PDF_FAILED";
                 result.MESSAGE = "Unable to generate float plan PDF.";
@@ -7328,6 +7802,8 @@
     <cffunction name="sendFloatPlanToContacts" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
+        <cftry>
+        <cftransaction>
         <cfscript>
             var result = {
                 SUCCESS = false,
@@ -7345,12 +7821,70 @@
             var storedPlanTimes = {};
             var routeActivationResult = {};
             var monitoringInitError = {};
+            var premiumSendCreditService = getPremiumSendCreditService();
+            var completedReceipt = {};
+            var premiumAccess = {};
+            var selectedCredit = {};
+            var creditConsumption = {};
+            var receiptResult = {};
+            var creditId = 0;
+            var sendAccessSource = "none";
+            var qUserLock = queryNew("");
+            var qActivePlan = queryNew("");
+            var planUpdateResult = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "MISSING_PLAN_ID";
                 result.MESSAGE = "Float plan id is required.";
                 return result;
             }
+
+            qUserLock = queryExecute(
+                "SELECT userId
+                 FROM users
+                 WHERE userId = :userId
+                 LIMIT 1
+                 FOR UPDATE",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+            if (qUserLock.recordCount EQ 0) {
+                result.ERROR = "INVALID_USER_ID";
+                result.MESSAGE = "A valid member is required.";
+                return result;
+            }
+
+            completedReceipt = premiumSendCreditService.loadCompletedReceipt(
+                arguments.userId,
+                arguments.floatPlanId
+            );
+            if (structKeyExists(completedReceipt, "found") AND completedReceipt.found) {
+                result = duplicate(completedReceipt.originalResponse);
+                result.IDEMPOTENT_REPLAY = true;
+                result.idempotentReplay = true;
+                result.RECEIPT_ID = completedReceipt.receiptId;
+                result.receiptId = completedReceipt.receiptId;
+                return result;
+            }
+            if (!completedReceipt.SUCCESS) {
+                return completedReceipt;
+            }
+
+            queryExecute(
+                "SELECT floatPlanId
+                 FROM floatplans
+                 WHERE floatPlanId = :floatPlanId
+                   AND userId = :userId
+                 LIMIT 1
+                 FOR UPDATE",
+                {
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_varchar" }
+                },
+                { datasource = "fpw" }
+            );
 
             var plan = loadFloatPlan(arguments.userId, arguments.floatPlanId);
             if (structIsEmpty(plan)) {
@@ -7376,32 +7910,28 @@
                 return result;
             }
 
-            currentGroup = resolveCurrentRouteFloatPlanGroup(arguments.userId, routeInstanceId);
-            if (
-                structKeyExists(currentGroup, "ERROR")
-                AND listFindNoCase("MULTIPLE_CURRENT_DRAFT_GROUPS,MULTIPLE_ACTIVE_GROUPS,CURRENT_GROUP_CONFLICT", trim(toString(currentGroup.ERROR))) GT 0
-            ) {
-                return currentGroup;
-            }
-
-            if (!currentGroup.SUCCESS OR !currentGroup.HAS_CURRENT_GROUP) {
-                result.ERROR = "CURRENT_GROUP_REQUIRED";
-                result.MESSAGE = "Activate Route must open the current draft route/float-plan group before sending.";
-                return result;
-            }
-
-            if (currentGroup.FLOATPLANID NEQ arguments.floatPlanId) {
-                if (currentGroup.IS_ACTIVE) {
-                    result.ERROR = "ACTIVE_PLAN_EXISTS";
-                    result.MESSAGE = "Another active route/float-plan group is already open. End it before activating this route.";
-                } else {
-                    result.ERROR = "ANOTHER_CURRENT_GROUP_EXISTS";
-                    result.MESSAGE = "Another draft route/float-plan group already exists. Delete or finish it before activating a different route.";
-                }
-                result.EXISTING_FLOATPLANID = currentGroup.FLOATPLANID;
-                result.EXISTING_ROUTE_INSTANCE_ID = currentGroup.ROUTE_INSTANCE_ID;
-                result.EXISTING_ROUTE_CODE = currentGroup.ROUTE_CODE;
-                result.EXISTING_STATUS = currentGroup.STATUS;
+            qActivePlan = queryExecute(
+                "SELECT floatPlanId, route_instance_id
+                 FROM floatplans
+                 WHERE userId = :userId
+                   AND UPPER(TRIM(status)) = 'ACTIVE'
+                   AND floatPlanId <> :floatPlanId
+                 ORDER BY activatedAt DESC, floatPlanId DESC
+                 LIMIT 2
+                 FOR UPDATE",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_varchar" },
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+            if (qActivePlan.recordCount GT 0) {
+                result.ERROR = qActivePlan.recordCount GT 1 ? "MULTIPLE_ACTIVE_GROUPS" : "ACTIVE_PLAN_EXISTS";
+                result.MESSAGE = qActivePlan.recordCount GT 1
+                    ? "Multiple active route/float-plan groups exist for this member."
+                    : "Another active route/float-plan group is already open. End it before activating this route.";
+                result.EXISTING_FLOATPLANID = val(qActivePlan.floatPlanId[1]);
+                result.EXISTING_ROUTE_INSTANCE_ID = isNull(qActivePlan.route_instance_id[1]) ? 0 : val(qActivePlan.route_instance_id[1]);
                 return result;
             }
 
@@ -7422,30 +7952,24 @@
                 return result;
             }
 
-            memberGateResult = getMemberAccessGateService().validateWaypointLimit(
-                userId = arguments.userId,
-                waypointCount = countStoredFloatPlanWaypoints(arguments.floatPlanId)
+            memberGateResult = validateStoredPlanResourceOwnership(
+                arguments.userId,
+                arguments.floatPlanId
             );
-            if (!memberGateResult.allowed) {
-                return memberGateResult.response;
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
             }
 
-            memberGateResult = getMemberAccessGateService().validateTripDurationLimit(
-                userId = arguments.userId,
-                departureAt = (structKeyExists(storedPlanTimes, "departureTimeUTC") ? storedPlanTimes.departureTimeUTC : ""),
-                returnAt = (structKeyExists(storedPlanTimes, "returnTimeUTC") ? storedPlanTimes.returnTimeUTC : "")
-            );
-            if (!memberGateResult.allowed) {
-                return memberGateResult.response;
-            }
-
-            memberGateResult = getMemberAccessGateService().requirePremium(
-                userId = arguments.userId,
-                errorCode = "BASIC_ADVANCED_MONITORING_RESTRICTED",
-                message = "Upgrade to Premium to activate route-backed monitoring for this float plan."
-            );
-            if (!memberGateResult.allowed) {
-                return memberGateResult.response;
+            premiumAccess = getMemberAccessGateService().getCurrentAccess(arguments.userId);
+            if (structKeyExists(premiumAccess, "hasPremium") AND premiumAccess.hasPremium) {
+                sendAccessSource = "general_premium";
+            } else {
+                selectedCredit = premiumSendCreditService.lockNextAvailableCredit(arguments.userId);
+                if (!selectedCredit.SUCCESS) {
+                    return getMemberAccessGateService().requirePremiumSend(arguments.userId).response;
+                }
+                creditId = val(selectedCredit.creditId);
+                sendAccessSource = "premium_send_credit";
             }
 
             var contacts = loadPlanContactEmails(arguments.userId, arguments.floatPlanId);
@@ -7464,16 +7988,24 @@
                 result.ERROR = structKeyExists(routeActivationResult, "ERROR") ? routeActivationResult.ERROR : "ROUTE_REACTIVATION_PRECHECK_FAILED";
                 result.MESSAGE = structKeyExists(routeActivationResult, "MESSAGE") ? routeActivationResult.MESSAGE : "Route activation preflight failed.";
                 result.ROUTE_ACTIVATION_RESULT = routeActivationResult;
-                return result;
+                throw(
+                    type = "FPW.PremiumSendAbort",
+                    message = result.MESSAGE,
+                    detail = serializeJSON(result)
+                );
             }
             routeInstanceId = routeActivationResult.ROUTE_INSTANCE_ID;
 
             var floatPlanUtils = createObject("component", resolveFloatPlanUtilsComponentPath()).init();
-            var pdfFileName = floatPlanUtils.createPDF(arguments.floatPlanId);
+            var pdfFileName = floatPlanUtils.createPDF(arguments.floatPlanId, arguments.userId);
             if (!len(trim(pdfFileName))) {
                 result.ERROR = "PDF_FAILED";
                 result.MESSAGE = "Unable to generate float plan PDF.";
-                return result;
+                throw(
+                    type = "FPW.PremiumSendAbort",
+                    message = result.MESSAGE,
+                    detail = serializeJSON(result)
+                );
             }
 
             var pdfPath = floatPlanUtils.getPdfPath(pdfFileName);
@@ -7524,38 +8056,54 @@
             if (!sentCount) {
                 result.ERROR = "NO_EMAILS";
                 result.MESSAGE = "No contact emails were available.";
-                return result;
+                throw(
+                    type = "FPW.PremiumSendAbort",
+                    message = result.MESSAGE,
+                    detail = serializeJSON(result)
+                );
             }
-        </cfscript>
 
-        <cfloop list="#emailList#" index="emailAddr">
-            <cfmail
-                from="noreply@floatplanwizard.com"
-                to="#emailAddr#"
-                subject="#subject#"
-                type="html">
-                <cfmailparam type="application/pdf" file="#pdfPath#">
-                #message#
-            </cfmail>
-        </cfloop>
+            queryExecute("
+                UPDATE floatplans
+                SET
+                    `status` = 'ACTIVE',
+                    activatedAt = COALESCE(activatedAt, UTC_TIMESTAMP()),
+                    initialSentAt = COALESCE(initialSentAt, UTC_TIMESTAMP()),
+                    lastUpdateStatus = UTC_TIMESTAMP()
+                WHERE floatplanId = :planId
+                  AND userId = :userId
+                  AND UPPER(TRIM(`status`)) = 'DRAFT'
+            ", {
+                planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                userId = { value = arguments.userId, cfsqltype = "cf_sql_varchar" }
+            }, { datasource = "fpw", result = "local.planUpdateResult" });
 
-            <cfscript>
-            transaction {
-                queryExecute("
-                    UPDATE floatplans
-                    SET
-                        `status` = 'ACTIVE',
-                        activatedAt = COALESCE(activatedAt, UTC_TIMESTAMP()),
-                        initialSentAt = COALESCE(initialSentAt, UTC_TIMESTAMP()),
-                        lastUpdateStatus = UTC_TIMESTAMP()
-                    WHERE floatplanId = :planId
-                      AND userId = :userId
-                      AND UPPER(TRIM(`status`)) = 'DRAFT'
-                ", {
-                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
-                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
-                }, { datasource = "fpw" });
+            if (!structKeyExists(planUpdateResult, "recordCount") OR val(planUpdateResult.recordCount) NEQ 1) {
+                result.ERROR = "PLAN_ACTIVATION_CONFLICT";
+                result.errorCode = result.ERROR;
+                result.MESSAGE = "The float plan could not be activated from Draft.";
+                result.message = result.MESSAGE;
+                throw(
+                    type = "FPW.PremiumSendAbort",
+                    message = result.MESSAGE,
+                    detail = serializeJSON(result)
+                );
+            }
 
+            if (sendAccessSource EQ "premium_send_credit") {
+                creditConsumption = premiumSendCreditService.consumeLockedCredit(
+                    creditId = creditId,
+                    userId = arguments.userId,
+                    floatPlanId = arguments.floatPlanId
+                );
+                if (!creditConsumption.SUCCESS) {
+                    result = creditConsumption;
+                    throw(
+                        type = "FPW.PremiumSendAbort",
+                        message = result.MESSAGE,
+                        detail = serializeJSON(result)
+                    );
+                }
             }
 
             monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
@@ -7573,22 +8121,86 @@
                 !structKeyExists(monitoringResult, "SUCCESS")
                 OR monitoringResult.SUCCESS NEQ true
             ) {
-                revertRouteActivationWithoutMonitoring(arguments.userId, arguments.floatPlanId);
                 result.ERROR = "SCHEDULED_MONITORING_INITIALIZATION_FAILED";
+                result.errorCode = result.ERROR;
                 result.MESSAGE = "Scheduled monitoring initialization failed.";
+                result.message = result.MESSAGE;
                 result.MONITORING_RESULT = monitoringResult;
                 if (structKeyExists(monitoringInitError, "detail") AND len(trim(toString(monitoringInitError.detail)))) {
                     result.MONITORING_DETAIL = monitoringInitError.detail;
                 }
-                return result;
+                throw(
+                    type = "FPW.PremiumSendAbort",
+                    message = result.MESSAGE,
+                    detail = serializeJSON(result)
+                );
             }
 
             result.SUCCESS = true;
+            result.success = true;
             result.SENT_COUNT = sentCount;
+            result.sentCount = sentCount;
             result.SKIPPED_COUNT = skippedCount;
+            result.skippedCount = skippedCount;
+            result.FLOATPLANID = arguments.floatPlanId;
+            result.floatPlanId = arguments.floatPlanId;
+            result.ACCESS_SOURCE = sendAccessSource;
+            result.accessSource = sendAccessSource;
+            result.CREDIT_CONSUMED = sendAccessSource EQ "premium_send_credit";
+            result.creditConsumed = result.CREDIT_CONSUMED;
+            result.MONITORING_RESULT = monitoringResult;
             result.MESSAGE = "Float plan sent to " & sentCount & " contact" & (sentCount EQ 1 ? "" : "s") & ".";
+            result.message = result.MESSAGE;
+
+            receiptResult = premiumSendCreditService.recordCompletedReceipt(
+                userId = arguments.userId,
+                floatPlanId = arguments.floatPlanId,
+                creditId = creditId,
+                accessSource = sendAccessSource,
+                recipientCount = sentCount,
+                response = result
+            );
+            if (!receiptResult.SUCCESS) {
+                result = receiptResult;
+                throw(
+                    type = "FPW.PremiumSendAbort",
+                    message = result.MESSAGE,
+                    detail = serializeJSON(result)
+                );
+            }
+            result.RECEIPT_ID = receiptResult.receiptId;
+            result.receiptId = receiptResult.receiptId;
+        </cfscript>
+
+        <cfloop list="#emailList#" index="emailAddr">
+            <cfmail
+                from="noreply@floatplanwizard.com"
+                to="#emailAddr#"
+                subject="#subject#"
+                type="html">
+                <cfmailparam type="application/pdf" file="#pdfPath#">
+                #message#
+            </cfmail>
+        </cfloop>
+
+        <cfscript>
             return result;
         </cfscript>
+        </cftransaction>
+        <cfcatch type="FPW.PremiumSendAbort">
+            <cfif structKeyExists(cfcatch, "detail") AND len(trim(toString(cfcatch.detail)))>
+                <cfreturn deserializeJSON(cfcatch.detail)>
+            </cfif>
+            <cfreturn {
+                SUCCESS = false,
+                success = false,
+                ERROR = "PREMIUM_SEND_ABORTED",
+                errorCode = "PREMIUM_SEND_ABORTED",
+                MESSAGE = cfcatch.message,
+                message = cfcatch.message
+            }>
+        </cfcatch>
+        </cftry>
     </cffunction>
 
     <cffunction name="ensureOperationalStartForScheduledPlan" access="public" returntype="struct" output="false">

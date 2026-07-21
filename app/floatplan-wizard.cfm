@@ -25,7 +25,7 @@
 </header>
 
 <main>
-    <div id="wizardApp" class="wizard-container" data-contact-step="5">
+    <div id="wizardApp" class="wizard-container" data-contact-step="5" data-total-steps="7">
 
         <div v-if="isLoading" class="text-center py-5">
             <div class="spinner-border text-primary" role="status"></div>
@@ -385,6 +385,29 @@
                 <button type="button" class="btn btn-primary w-100" @click="submitPlan" :disabled="isSaving">
                     {{ isSaving ? 'Saving…' : 'Save Float Plan' }}
                 </button>
+
+                <div class="alert alert-info mt-3 mb-2">
+                    <h3 class="h6 mb-2">Premium Save &amp; Send</h3>
+                    <p class="small mb-2">Includes the Premium float-plan PDF, email delivery, Active Cruise, premium monitoring, and private Trip/Follow access for this exact float plan.</p>
+                    <p class="small mb-3">{{ premiumSendAvailabilityMessage }}</p>
+                    <button
+                        v-if="canSendPremiumFloatPlan"
+                        type="button"
+                        class="btn btn-primary w-100"
+                        @click="submitPlanAndSend"
+                        :disabled="isSaving || checkoutBusy">
+                        {{ isSaving ? 'Sending...' : (hasCommittedPremiumSend ? 'Show Original Premium Send Result' : 'Premium Save &amp; Send') }}
+                    </button>
+                    <div v-else class="d-grid gap-2">
+                        <button type="button" class="btn btn-primary" @click="startPremiumCheckout('one_trip')" :disabled="isSaving || checkoutBusy">Buy One Trip</button>
+                        <button type="button" class="btn btn-outline-primary" @click="startPremiumCheckout('monthly')" :disabled="isSaving || checkoutBusy">Monthly Membership</button>
+                        <button type="button" class="btn btn-outline-primary" @click="startPremiumCheckout('yearly')" :disabled="isSaving || checkoutBusy">Annual Membership</button>
+                    </div>
+                </div>
+                <a class="btn btn-outline-secondary w-100 mt-2" href="<cfoutput>#request.fpwBase#</cfoutput>/app/dashboard.cfm?openBasicFloatPlan=1">
+                    Basic Save &amp; Send
+                </a>
+                <p class="small text-muted mt-2 mb-0">Basic Save &amp; Send remains free and uses the separate Basic Float Plan flow. Your saved Draft is not removed.</p>
             </section>
 
             <div class="wizard-nav">
@@ -405,8 +428,7 @@
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260712-cumulative-save-validation"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260721-premium-send-credits"></script>
 
 </body>
 </html>
-

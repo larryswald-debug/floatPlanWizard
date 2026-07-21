@@ -407,6 +407,8 @@
       planId: planId,
       startStep: startStep,
       contactStep: 4,
+      totalSteps: 6,
+      memberAccess: state.memberAccess || {},
       onSaved: function () {
         if (hasStandaloneFloatPlansPanel()) {
           loadFloatPlans(FLOAT_PLAN_LIMIT);

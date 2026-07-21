@@ -42,25 +42,16 @@
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
-            <cfelseif act EQ "completesegment">
-                <cfif arguments.segmentId LTE 0>
-                    <cfoutput>#serializeJSON({
-                        "SUCCESS"=false,
-                        "AUTH"=true,
-                        "MESSAGE"="segmentId required",
-                        "ERROR"={"MESSAGE"="segmentId must be > 0"}
-                    })#</cfoutput>
-                    <cfreturn>
-                </cfif>
-
-                <cfset var result = completeSegment(userId, arguments.segmentId) />
-                <cfoutput>#serializeJSON(result)#</cfoutput>
-                <cfreturn>
-
-            <cfelseif act EQ "resetprogress">
-                <!--- Optional testing helper --->
-                <cfset var result2 = resetProgress(userId, arguments.routeCode) />
-                <cfoutput>#serializeJSON(result2)#</cfoutput>
+            <cfelseif listFindNoCase("completesegment,resetprogress", act) GT 0>
+                <cfoutput>#serializeJSON({
+                    "SUCCESS"=false,
+                    "AUTH"=true,
+                    "MESSAGE"="Legacy route-progress testing action is disabled.",
+                    "ERROR"={
+                        "CODE"="LEGACY_ACTION_DISABLED",
+                        "MESSAGE"="Use the canonical Active Cruise route-progress actions."
+                    }
+                })#</cfoutput>
                 <cfreturn>
 
             <cfelse>
@@ -411,7 +402,7 @@
     <!--- =========================
           TEMP: mark segment complete
          ========================= --->
-    <cffunction name="completeSegment" access="remote" returntype="struct" output="false">
+    <cffunction name="completeSegment" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="segmentId" type="numeric" required="true">
 
@@ -453,7 +444,7 @@
 
 
     <!--- Optional testing helper: clear this user's progress for this route --->
-    <cffunction name="resetProgress" access="public" returntype="struct" output="false">
+    <cffunction name="resetProgress" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="routeCode" type="string" required="true">
 

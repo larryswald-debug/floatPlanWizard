@@ -6180,16 +6180,7 @@
         }
         initWeatherPanel(homePortZip, state.homePortLatLng || null);
 
-        if (memberAccess && hasPremium === false && modules.expeditionTimeline && typeof modules.expeditionTimeline.renderBasicPanel === "function") {
-          modules.expeditionTimeline.renderBasicPanel({
-            SUCCESS: false,
-            ERROR: "BASIC_SAVED_ROUTE_RESTRICTED",
-            errorCode: "BASIC_SAVED_ROUTE_RESTRICTED",
-            MESSAGE: "Basic members use the Basic Float Plan flow.",
-            ACCESS: memberAccess,
-            access: memberAccess
-          });
-        } else if (modules.expeditionTimeline && typeof modules.expeditionTimeline.load === "function") {
+        if (modules.expeditionTimeline && typeof modules.expeditionTimeline.load === "function") {
           modules.expeditionTimeline.load();
         }
 

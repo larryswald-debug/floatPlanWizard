@@ -217,19 +217,36 @@
     return isNaN(num) ? 0 : num;
   }
 
+  function memberAccessValue(access, key, fallbackValue) {
+    var source = access && typeof access === "object" ? access : {};
+    var upperKey = String(key || "").toUpperCase();
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      return source[key];
+    }
+    if (upperKey && Object.prototype.hasOwnProperty.call(source, upperKey)) {
+      return source[upperKey];
+    }
+    return fallbackValue;
+  }
+
+  function truthyAccessValue(value) {
+    if (value === true || value === 1) {
+      return true;
+    }
+    var normalized = String(value == null ? "" : value).trim().toLowerCase();
+    return normalized === "true" || normalized === "1";
+  }
+
   function getAppPrefix() {
     return BASE_PATH;
   }
 
-  function buildPdfPreviewUrl(fileName, cacheBust) {
-    if (!fileName) {
+  function buildPdfPreviewUrl(floatPlanId) {
+    var planId = numeric(floatPlanId);
+    if (!planId) {
       return "";
     }
-    var url = getAppPrefix() + "/api/api_assets/floatPlans/user_float_plans/" + encodeURIComponent(fileName);
-    if (cacheBust) {
-      url += (url.indexOf("?") === -1 ? "?" : "&") + "t=" + encodeURIComponent(cacheBust);
-    }
-    return url;
+    return getAppPrefix() + "/api/v1/floatplan.cfc?method=handle&action=previewpdf&id=" + encodeURIComponent(planId);
   }
 
   function createEmptyFloatPlan() {
@@ -739,12 +756,15 @@
     options = options || {};
     var onSaved = options.onSaved;
     var onDeleted = options.onDeleted;
+    var initialMemberAccess = options.memberAccess && typeof options.memberAccess === "object"
+      ? options.memberAccess
+      : {};
     var initialPlanId = numeric(options.planId || 0);
     var contactStep = numeric(options.contactStep || 0);
     if (!initialPlanId) {
       initialPlanId = getPlanIdFromQuery();
     }
-    var totalSteps = 6;
+    var totalSteps = numeric(options.totalSteps || 0) || 6;
     var initialStep = numeric(options.startStep || 1);
     if (initialStep < 1) {
       initialStep = 1;
@@ -767,7 +787,10 @@
         totalSteps: totalSteps,
         isLoading: true,
         isSaving: false,
+        checkoutBusy: false,
         statusMessage: null,
+        memberAccess: initialMemberAccess,
+        premiumSendReceipt: { found: false },
         timezones: DEFAULT_TIMEZONES.slice(),
         fp: {
           FLOATPLAN: createEmptyFloatPlan(),
@@ -787,6 +810,7 @@
         NA_RESCUE_CENTER_ID: NA_RESCUE_CENTER_ID,
         rescueCenterSyncing: false,
         pdfPreviewUrl: "",
+        pdfPreviewObjectUrl: "",
         pdfPreviewLoading: false,
         pdfPreviewError: "",
         contactStep: contactStep,
@@ -812,6 +836,37 @@
     },
 
     computed: {
+      premiumSendCreditCount: function () {
+        return numeric(memberAccessValue(this.memberAccess, "premiumSendCreditCount", 0));
+      },
+
+      hasGeneralPremiumAccess: function () {
+        return truthyAccessValue(memberAccessValue(this.memberAccess, "hasGeneralPremium", false))
+          || truthyAccessValue(memberAccessValue(this.memberAccess, "hasPremium", false));
+      },
+
+      hasCommittedPremiumSend: function () {
+        return truthyAccessValue(memberAccessValue(this.premiumSendReceipt, "found", false));
+      },
+
+      canSendPremiumFloatPlan: function () {
+        return this.hasCommittedPremiumSend
+          || truthyAccessValue(memberAccessValue(this.memberAccess, "canSendPremiumFloatPlan", false));
+      },
+
+      premiumSendAvailabilityMessage: function () {
+        if (this.hasCommittedPremiumSend) {
+          return "Premium Save & Send is already committed for this float plan. Retrying returns the original result without another email or credit.";
+        }
+        if (this.hasGeneralPremiumAccess) {
+          return "Your active Premium membership includes Premium Save & Send. No credit will be consumed.";
+        }
+        if (this.premiumSendCreditCount > 0) {
+          return this.premiumSendCreditCount + " Premium Send Credit" + (this.premiumSendCreditCount === 1 ? "" : "s") + " available.";
+        }
+        return "Your Draft and planning work are preserved. Premium Save & Send requires one credit or an active membership.";
+      },
+
       currentVesselName: function () {
         return findName(this.vessels, "VESSELID", "VESSELNAME", this.fp.FLOATPLAN.VESSELID) || "(none selected)";
       },
@@ -1412,33 +1467,64 @@
       loadPdfPreview: function () {
         var self = this;
         var planId = this.getPlanId();
+        var previewRequestUrl = buildPdfPreviewUrl(planId);
         this.pdfPreviewError = "";
 
-        if (!planId) {
+        if (!planId || !previewRequestUrl) {
+          this.releasePdfPreviewObjectUrl();
           this.pdfPreviewUrl = "";
           this.pdfPreviewLoading = false;
           this.pdfPreviewError = "Save this float plan to generate a PDF preview.";
           return;
         }
 
-        if (!window.Api || typeof window.Api.createFloatPlanPdf !== "function") {
-          this.pdfPreviewUrl = "";
-          this.pdfPreviewLoading = false;
-          this.pdfPreviewError = "PDF preview service is unavailable.";
-          return;
-        }
-
+        this.releasePdfPreviewObjectUrl();
+        this.pdfPreviewUrl = "";
         this.pdfPreviewLoading = true;
-        window.Api.createFloatPlanPdf(planId)
-          .then(function (fileName) {
-            self.pdfPreviewUrl = buildPdfPreviewUrl(fileName, Date.now());
+
+        fetch(previewRequestUrl, {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            Accept: "application/pdf"
+          }
+        })
+          .then(function (response) {
+            var contentType = String(response.headers.get("content-type") || "").toLowerCase();
+            if (!response.ok || contentType.indexOf("application/pdf") === -1) {
+              return response.text().then(function (bodyText) {
+                var message = "Unable to generate PDF preview.";
+                try {
+                  var errorBody = JSON.parse(bodyText || "{}");
+                  if (errorBody && errorBody.MESSAGE) {
+                    message = errorBody.MESSAGE;
+                  }
+                } catch (parseError) {
+                  // Preserve the generic message for non-JSON failures.
+                }
+                throw { MESSAGE: message, status: response.status || 500 };
+              });
+            }
+            return response.blob();
+          })
+          .then(function (pdfBlob) {
+            self.pdfPreviewObjectUrl = window.URL.createObjectURL(pdfBlob);
+            self.pdfPreviewUrl = self.pdfPreviewObjectUrl;
             self.pdfPreviewLoading = false;
           })
           .catch(function (err) {
             self.pdfPreviewLoading = false;
+            self.releasePdfPreviewObjectUrl();
             self.pdfPreviewUrl = "";
             self.pdfPreviewError = (err && err.MESSAGE) ? err.MESSAGE : "Unable to generate PDF preview.";
           });
+      },
+
+      releasePdfPreviewObjectUrl: function () {
+        if (this.pdfPreviewObjectUrl && window.URL && typeof window.URL.revokeObjectURL === "function") {
+          window.URL.revokeObjectURL(this.pdfPreviewObjectUrl);
+        }
+        this.pdfPreviewObjectUrl = "";
       },
 
       isPassengerSelected: function (id) {
@@ -1543,6 +1629,8 @@
               return normalizeRescueCenter(center);
             });
             self.routeDefaults = normalizeRouteDefaults(data.ROUTE_DEFAULTS || {});
+            self.memberAccess = data.MEMBER_ACCESS || data.memberAccess || self.memberAccess || {};
+            self.premiumSendReceipt = data.PREMIUM_SEND_RECEIPT || data.premiumSendReceipt || { found: false };
 
             self.fp.FLOATPLAN = normalizeFloatPlan(data.FLOATPLAN);
             self.fp.PASSENGERS = sortByOrder(
@@ -1694,59 +1782,119 @@
         });
       },
 
-      submitPlanAndSend: function () {
+      startPremiumCheckout: function (priceSelector) {
         var self = this;
-        if (!window.Api || typeof window.Api.saveFloatPlan !== "function") {
-          this.handleError("API helper not available.", "Unable to save float plan.");
+        var selector = String(priceSelector || "").trim().toLowerCase();
+        if (this.checkoutBusy) {
           return;
         }
+        if (["one_trip", "monthly", "yearly"].indexOf(selector) === -1) {
+          this.setStatus("Choose Buy One Trip, Monthly Membership, or Annual Membership.", false);
+          return;
+        }
+        if (!window.Api || typeof window.Api.createPremiumCheckoutSession !== "function") {
+          this.setStatus("Premium checkout is not available right now.", false);
+          return;
+        }
+
+        this.checkoutBusy = true;
+        this.setStatus("Opening secure Stripe Checkout...", true);
+        window.Api.createPremiumCheckoutSession(selector)
+          .then(function (response) {
+            var checkoutUrl = response && (response.checkoutUrl || response.CHECKOUT_URL)
+              ? String(response.checkoutUrl || response.CHECKOUT_URL)
+              : "";
+            if (!checkoutUrl) {
+              throw response || { MESSAGE: "Premium checkout is not available right now." };
+            }
+            if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+              window.FPWAnalytics.track("begin_checkout", {
+                checkout_type: selector,
+                source: "premium_send_review"
+              });
+            }
+            window.location.href = checkoutUrl;
+          })
+          .catch(function (err) {
+            self.checkoutBusy = false;
+            self.handleError(err, "Premium checkout is not available right now.");
+          });
+      },
+
+      submitPlanAndSend: function () {
+        var self = this;
+        var wasCommitted = this.hasCommittedPremiumSend;
+        var sendPromise = null;
+
         if (!window.Api || typeof window.Api.sendFloatPlan !== "function") {
           this.handleError("API helper not available.", "Unable to send float plan.");
           return;
         }
-
-        if (!this.validateStep(this.totalSteps)) {
+        if (!this.canSendPremiumFloatPlan) {
+          this.setStatus("Premium Save & Send requires one Premium Send Credit or an active monthly or annual membership.", false);
           return;
         }
-        if (!this.fp || !Array.isArray(this.fp.CONTACTS) || this.fp.CONTACTS.length === 0) {
-          this.setStatus("Select at least one contact to send this float plan.", false);
-          return;
+
+        if (wasCommitted) {
+          this.isSaving = true;
+          this.setStatus("Loading the original committed Premium send result...", true);
+          sendPromise = Promise.resolve();
+        } else {
+          if (!window.Api || typeof window.Api.saveFloatPlan !== "function") {
+            this.handleError("API helper not available.", "Unable to save float plan.");
+            return;
+          }
+          if (!this.validateStepsThrough(this.totalSteps)) {
+            return;
+          }
+          if (!this.fp || !Array.isArray(this.fp.CONTACTS) || this.fp.CONTACTS.length === 0) {
+            this.setStatus("Select at least one contact to send this float plan.", false);
+            return;
+          }
+          applyClientUtcFields(this.fp.FLOATPLAN);
+          this.isSaving = true;
+          this.setStatus("Saving and sending your float plan...", true);
+          sendPromise = window.Api.saveFloatPlan({
+            FLOATPLAN: this.fp.FLOATPLAN,
+            PASSENGERS: this.fp.PASSENGERS,
+            CONTACTS: this.fp.CONTACTS,
+            WAYPOINTS: this.fp.WAYPOINTS
+          }).then(function (response) {
+            self.applySaveResponse(response);
+          });
         }
-        applyClientUtcFields(this.fp.FLOATPLAN);
 
-        this.isSaving = true;
-        this.setStatus("Saving and sending your float plan...", true);
-
-        window.Api.saveFloatPlan({
-          FLOATPLAN: this.fp.FLOATPLAN,
-          PASSENGERS: this.fp.PASSENGERS,
-          CONTACTS: this.fp.CONTACTS,
-          WAYPOINTS: this.fp.WAYPOINTS
-        })
-        .then(function (response) {
-          self.applySaveResponse(response);
-          return window.Api.sendFloatPlan(self.getPlanId());
-        })
-        .then(function (response) {
-          self.setStatus(response && response.MESSAGE ? response.MESSAGE : "Float plan sent to selected contacts.", true);
-          self.isSaving = false;
-          if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
-            window.FPWAnalytics.track("active_cruise_started", {
-              plan_type: "premium_route",
-              source: "float_plan_wizard"
-            });
-          }
-          if (self.step === self.totalSteps) {
-            self.loadPdfPreview();
-          }
-          if (typeof onSaved === "function") {
-            onSaved(response, self);
-          }
-        })
-        .catch(function (err) {
-          self.isSaving = false;
-          self.handleError(err, "Unable to save and send float plan.");
-        });
+        sendPromise
+          .then(function () {
+            return window.Api.sendFloatPlan(self.getPlanId());
+          })
+          .then(function (response) {
+            self.premiumSendReceipt = {
+              found: true,
+              originalResponse: response || {}
+            };
+            if (!wasCommitted && self.fp && self.fp.FLOATPLAN) {
+              self.fp.FLOATPLAN.STATUS = "ACTIVE";
+            }
+            self.setStatus(response && response.MESSAGE ? response.MESSAGE : "Float plan sent to selected contacts.", true);
+            self.isSaving = false;
+            if (!wasCommitted && window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+              window.FPWAnalytics.track("active_cruise_started", {
+                plan_type: "premium_route",
+                source: "float_plan_wizard"
+              });
+            }
+            if (self.step === self.totalSteps) {
+              self.loadPdfPreview();
+            }
+            if (typeof onSaved === "function") {
+              onSaved(response, self);
+            }
+          })
+          .catch(function (err) {
+            self.isSaving = false;
+            self.handleError(err, "Unable to save and send float plan.");
+          });
       },
 
       confirmDelete: function () {
@@ -1821,6 +1969,10 @@
       }
     },
 
+    beforeUnmount: function () {
+      this.releasePdfPreviewObjectUrl();
+    },
+
     watch: {
       isSaving: function (value) {
         setCloseDisabled(!!value);
@@ -1856,6 +2008,9 @@
     }
     if (options.contactStep == null && mountEl.dataset && mountEl.dataset.contactStep) {
       options.contactStep = mountEl.dataset.contactStep;
+    }
+    if (options.totalSteps == null && mountEl.dataset && mountEl.dataset.totalSteps) {
+      options.totalSteps = mountEl.dataset.totalSteps;
     }
 
     destroyWizard();
@@ -1902,5 +2057,3 @@
     initWizard({ mountEl: autoMountEl });
   }
 })(window, document, window.Vue);
-
-

@@ -66,6 +66,7 @@
     <cfscript>
       switch (arguments.eventType) {
         case "checkout.session.completed":
+        case "checkout.session.async_payment_succeeded":
           return processCheckoutSessionCompleted(arguments.eventObject);
         case "customer.subscription.created":
         case "customer.subscription.updated":
@@ -90,8 +91,38 @@
       var userId = resolveUserIdFromCheckoutSession(arguments.sessionObject);
       var identifiers = extractReferences("checkout.session.completed", arguments.sessionObject);
       var passResult = {};
+      var creditResult = {};
+      var checkoutSessionId = "";
+      var paymentIntentId = "";
+      var grantError = {};
       if (userId LTE 0) {
         return ignoredResponse("STRIPE_USER_MAPPING_NOT_FOUND", "Checkout session did not map to one valid FPW user.", identifiers);
+      }
+
+      if (isOneTripCheckout(arguments.sessionObject, identifiers)) {
+        if (lCase(readString(arguments.sessionObject, "payment_status")) NEQ "paid") {
+          return ignoredResponse("STRIPE_ONE_TRIP_PAYMENT_PENDING", "One-trip checkout has not been paid yet.", identifiers, userId);
+        }
+        checkoutSessionId = readString(identifiers, "stripeCheckoutSessionId");
+        paymentIntentId = readString(identifiers, "stripePaymentIntentId");
+        if (!len(checkoutSessionId)) {
+          grantError = errorResponse("STRIPE_ONE_TRIP_SESSION_ID_MISSING", "One-trip checkout did not include a Checkout Session id.");
+          grantError.userId = userId;
+          return grantError;
+        }
+        creditResult = new fpw.api.v1.PremiumSendCreditService().init(variables.datasource).grantCredit(
+          userId = userId,
+          source = "stripe_one_trip",
+          idempotencyKey = "stripe_one_trip:checkout_session:" & checkoutSessionId,
+          stripeCheckoutSessionId = checkoutSessionId,
+          stripePaymentIntentId = paymentIntentId
+        );
+        if (!structKeyExists(creditResult, "SUCCESS") OR creditResult.SUCCESS NEQ true) {
+          grantError = errorResponse("STRIPE_ONE_TRIP_CREDIT_GRANT_FAILED", "One-trip Premium Send Credit could not be granted.");
+          grantError.userId = userId;
+          return grantError;
+        }
+        return successResponse("One-trip Premium Send Credit granted.", userId, identifiers);
       }
 
       if (isThreeDayPassCheckout(arguments.sessionObject, identifiers)) {
@@ -116,6 +147,31 @@
       markPromoCheckoutCompleted(userId, identifiers);
 
       return successResponse("Checkout session mapping recorded without granting Premium.", userId, identifiers);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="isOneTripCheckout" access="private" returntype="boolean" output="false">
+    <cfargument name="sessionObject" type="struct" required="true">
+    <cfargument name="identifiers" type="struct" required="true">
+    <cfscript>
+      var configuredPriceId = new fpw.api.v1.StripeConfigService().init().getOneTripPriceId();
+      var sessionPriceId = readString(arguments.identifiers, "stripePriceId");
+      var modeValue = lCase(readString(arguments.sessionObject, "mode"));
+      var productValue = lCase(readMetadataString(arguments.sessionObject, "fpwProduct"));
+      var sourceValue = lCase(readMetadataString(arguments.sessionObject, "fpwCreditSource"));
+      if (len(readString(arguments.identifiers, "stripeSubscriptionId"))) {
+        return false;
+      }
+      if (len(modeValue) AND modeValue NEQ "payment") {
+        return false;
+      }
+      if (productValue EQ "one_trip" OR sourceValue EQ "stripe_one_trip") {
+        return true;
+      }
+      if (len(productValue) OR len(sourceValue)) {
+        return false;
+      }
+      return len(configuredPriceId) AND len(sessionPriceId) AND compareNoCase(configuredPriceId, sessionPriceId) EQ 0;
     </cfscript>
   </cffunction>
 
@@ -430,56 +486,91 @@
     <cfargument name="eventType" type="string" required="true">
     <cfargument name="refs" type="struct" required="true">
     <cfscript>
-      var qExisting = loadWebhookEvent(arguments.stripeEventId);
-      if (qExisting.recordCount GT 0) {
-        return {
-          "SUCCESS" = true,
-          "success" = true,
-          "duplicate" = true,
-          "processed" = false,
-          "stripeEventId" = arguments.stripeEventId,
-          "eventType" = arguments.eventType,
-          "processingStatus" = qExisting.processing_status[1],
-          "MESSAGE" = "Stripe event was already recorded."
-        };
+      var qExisting = queryNew("");
+      var response = {};
+
+      transaction {
+        qExisting = loadWebhookEvent(arguments.stripeEventId, true);
+        if (qExisting.recordCount GT 0) {
+          if (lCase(trim(qExisting.processing_status[1])) EQ "failed") {
+            queryExecute(
+              "UPDATE stripe_webhook_events
+               SET processing_status = 'processing',
+                   processed_at_utc = NULL,
+                   error_message = NULL,
+                   updated_at_utc = UTC_TIMESTAMP()
+               WHERE id = :id
+                 AND processing_status = 'failed'",
+              {
+                id = { value = qExisting.id[1], cfsqltype = "cf_sql_bigint" }
+              },
+              { datasource = variables.datasource }
+            );
+            response = {
+              "SUCCESS" = true,
+              "success" = true,
+              "duplicate" = false,
+              "processed" = true,
+              "retried" = true,
+              "stripeEventId" = arguments.stripeEventId,
+              "eventType" = arguments.eventType,
+              "processingStatus" = "processing",
+              "MESSAGE" = "Failed Stripe event was reopened for retry."
+            };
+          } else {
+            response = {
+              "SUCCESS" = true,
+              "success" = true,
+              "duplicate" = true,
+              "processed" = false,
+              "stripeEventId" = arguments.stripeEventId,
+              "eventType" = arguments.eventType,
+              "processingStatus" = qExisting.processing_status[1],
+              "MESSAGE" = "Stripe event was already recorded."
+            };
+          }
+        } else {
+          queryExecute(
+            "INSERT INTO stripe_webhook_events (
+               stripe_event_id,
+               event_type,
+               processing_status,
+               stripe_customer_id,
+               stripe_subscription_id,
+               stripe_checkout_session_id,
+               stripe_invoice_id,
+               stripe_payment_intent_id,
+               stripe_price_id,
+               created_at_utc,
+               updated_at_utc
+             ) VALUES (
+               :stripeEventId,
+               :eventType,
+               'processing',
+               :stripeCustomerId,
+               :stripeSubscriptionId,
+               :stripeCheckoutSessionId,
+               :stripeInvoiceId,
+               :stripePaymentIntentId,
+               :stripePriceId,
+               UTC_TIMESTAMP(),
+               UTC_TIMESTAMP()
+             )",
+            buildEventParams(arguments.stripeEventId, arguments.eventType, 0, arguments.refs, "", ""),
+            { datasource = variables.datasource }
+          );
+
+          response = {
+            "SUCCESS" = true,
+            "success" = true,
+            "duplicate" = false,
+            "processed" = true,
+            "retried" = false
+          };
+        }
       }
 
-      queryExecute(
-        "INSERT INTO stripe_webhook_events (
-           stripe_event_id,
-           event_type,
-           processing_status,
-           stripe_customer_id,
-           stripe_subscription_id,
-           stripe_checkout_session_id,
-           stripe_invoice_id,
-           stripe_payment_intent_id,
-           stripe_price_id,
-           created_at_utc,
-           updated_at_utc
-         ) VALUES (
-           :stripeEventId,
-           :eventType,
-           'processing',
-           :stripeCustomerId,
-           :stripeSubscriptionId,
-           :stripeCheckoutSessionId,
-           :stripeInvoiceId,
-           :stripePaymentIntentId,
-           :stripePriceId,
-           UTC_TIMESTAMP(),
-           UTC_TIMESTAMP()
-         )",
-        buildEventParams(arguments.stripeEventId, arguments.eventType, 0, arguments.refs, "", ""),
-        { datasource = variables.datasource }
-      );
-
-      return {
-        "SUCCESS" = true,
-        "success" = true,
-        "duplicate" = false,
-        "processed" = true
-      };
+      return response;
     </cfscript>
   </cffunction>
 
@@ -512,12 +603,17 @@
 
   <cffunction name="loadWebhookEvent" access="private" returntype="query" output="false">
     <cfargument name="stripeEventId" type="string" required="true">
+    <cfargument name="forUpdate" type="boolean" required="false" default="false">
     <cfscript>
+      var sql = "SELECT id, processing_status
+                 FROM stripe_webhook_events
+                 WHERE stripe_event_id = :stripeEventId
+                 LIMIT 1";
+      if (arguments.forUpdate) {
+        sql &= " FOR UPDATE";
+      }
       return queryExecute(
-        "SELECT id, processing_status
-         FROM stripe_webhook_events
-         WHERE stripe_event_id = :stripeEventId
-         LIMIT 1",
+        sql,
         {
           stripeEventId = { value = arguments.stripeEventId, cfsqltype = "cf_sql_varchar" }
         },
@@ -636,7 +732,10 @@
         "stripePriceId" = extractPriceId(arguments.objectData)
       };
 
-      if (arguments.eventType EQ "checkout.session.completed") {
+      if (
+        arguments.eventType EQ "checkout.session.completed"
+        OR arguments.eventType EQ "checkout.session.async_payment_succeeded"
+      ) {
         out.stripeCheckoutSessionId = readString(arguments.objectData, "id");
         out.stripeSubscriptionId = readString(arguments.objectData, "subscription");
       } else if (left(arguments.eventType, 21) EQ "customer.subscription") {

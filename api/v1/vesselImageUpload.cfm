@@ -41,17 +41,9 @@
     <cfset statusCode = 400>
   <cfelse>
     <cftry>
-      <cfset gateResult = createObject("component", "fpw.api.v1.MemberAccessGateService").init("fpw").requirePremium(
-        userId = userId,
-        errorCode = "BASIC_REUSABLE_VESSEL_RESTRICTED",
-        message = "Upgrade to Premium to save reusable vessels."
-      )>
+      <cfset gateResult = createObject("component", "fpw.api.v1.MemberAccessGateService").init("fpw").requirePlanningAccess(userId)>
       <cfcatch>
-        <cfset gateResult = createObject("component", "api.v1.MemberAccessGateService").init("fpw").requirePremium(
-          userId = userId,
-          errorCode = "BASIC_REUSABLE_VESSEL_RESTRICTED",
-          message = "Upgrade to Premium to save reusable vessels."
-        )>
+        <cfset gateResult = createObject("component", "api.v1.MemberAccessGateService").init("fpw").requirePlanningAccess(userId)>
       </cfcatch>
     </cftry>
 
@@ -181,7 +173,3 @@
   <cfheader statuscode="#statusCode#">
 </cfif>
 <cfoutput>#serializeJSON(response)#</cfoutput>
-
-
-
-

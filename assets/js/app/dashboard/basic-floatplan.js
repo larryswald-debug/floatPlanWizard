@@ -206,8 +206,8 @@
   function startPremiumCheckout(interval, trigger) {
     var originalText = trigger ? trigger.textContent : "";
     var intervalValue = String(interval || "").trim().toLowerCase();
-    if (intervalValue !== "monthly" && intervalValue !== "yearly") {
-      showUpgradeMessage("Choose monthly or yearly Premium billing.", "danger");
+    if (intervalValue !== "one_trip" && intervalValue !== "monthly" && intervalValue !== "yearly") {
+      showUpgradeMessage("Choose Buy One Trip, Monthly Membership, or Annual Membership.", "danger");
       return;
     }
     if (!window.Api || typeof window.Api.createPremiumCheckoutSession !== "function") {
@@ -248,7 +248,11 @@
       .finally(function () {
         setUpgradeButtonsBusy(false);
         if (trigger) {
-          trigger.textContent = originalText || (intervalValue === "yearly" ? "Upgrade Yearly" : "Upgrade Monthly");
+          trigger.textContent = originalText || (
+            intervalValue === "one_trip"
+              ? "Buy One Trip"
+              : (intervalValue === "yearly" ? "Annual Membership" : "Monthly Membership")
+          );
         }
       });
   }
@@ -495,16 +499,16 @@
       + '    </div>'
       + '  </div>'
       + '  <aside class="fpw-basic-upgrade-card" aria-label="Premium upgrade information">'
-      + '    <h4>Premium unlocks route-first cruising</h4>'
+      + '    <h4>Premium Save &amp; Send</h4>'
       + '    <ul>'
-      + '      <li>Saved routes and My Routes</li>'
-      + '      <li>Multi-day trips and expanded waypoints</li>'
-      + '      <li>Active Cruise and Follow Page sharing</li>'
-      + '      <li>Advanced monitoring</li>'
+      + '      <li>Premium float-plan PDF and email delivery</li>'
+      + '      <li>Active Cruise and premium monitoring</li>'
+      + '      <li>Private Trip/Follow access for that float plan</li>'
       + '    </ul>'
       + '    <div class="fpw-basic-draft-actions fpw-basic-upgrade-actions">'
-      + '      <button type="button" class="btn-primary" data-basic-premium-upgrade="monthly">Upgrade Monthly</button>'
-      + '      <button type="button" class="btn-secondary" data-basic-premium-upgrade="yearly">Upgrade Yearly</button>'
+      + '      <button type="button" class="btn-primary" data-basic-premium-upgrade="one_trip">Buy One Trip</button>'
+      + '      <button type="button" class="btn-secondary" data-basic-premium-upgrade="monthly">Monthly Membership</button>'
+      + '      <button type="button" class="btn-secondary" data-basic-premium-upgrade="yearly">Annual Membership</button>'
       + '    </div>'
       + '    <p id="basicPremiumUpgradeMessage" class="fpw-basic-upgrade-note" aria-live="polite"></p>'
       + '  </aside>'
@@ -1235,6 +1239,24 @@
 	    }
 	  }
 
+  function openFromQueryString() {
+    var params = null;
+    var nextUrl = "";
+
+    if (!window.location || !window.URLSearchParams) return;
+    params = new window.URLSearchParams(window.location.search || "");
+    if (params.get("openBasicFloatPlan") !== "1") return;
+
+    params.delete("openBasicFloatPlan");
+    nextUrl = window.location.pathname
+      + (params.toString() ? ("?" + params.toString()) : "")
+      + (window.location.hash || "");
+    if (window.history && typeof window.history.replaceState === "function") {
+      window.history.replaceState(window.history.state, "", nextUrl);
+    }
+    openModal(0);
+  }
+
   function init() {
     if (initialized) return;
     if (!cacheDom()) return;
@@ -1260,6 +1282,7 @@
     if (dom.sendBtn) {
       dom.sendBtn.addEventListener("click", saveAndSend);
     }
+    openFromQueryString();
   }
 
   window.FPW.DashboardModules.basicFloatPlan = {
@@ -1272,4 +1295,3 @@
     }
   };
 })(window, document);
-

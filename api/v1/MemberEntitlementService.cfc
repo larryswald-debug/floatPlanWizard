@@ -18,14 +18,30 @@
         "userId" = 0,
         "memberLevel" = "basic",
         "hasPremium" = false,
+        "hasGeneralPremium" = false,
         "premiumSource" = "none",
         "premiumExpiresAt" = nullValue(),
         "premiumEntitlementId" = 0,
         "premiumSources" = [],
         "hasStripeBilling" = false,
+        "canUsePlanningTools" = false,
+        "canSendBasicFloatPlan" = false,
+        "canSendPremiumFloatPlan" = false,
+        "premiumSendCreditCount" = 0,
+        "premiumSendAccessSource" = "none",
+        "premiumSendAuthority" = "none",
+        "canUseActiveCruise" = false,
+        "canUseMonitoring" = false,
+        "canUseTripPage" = false,
+        "canUseFollowPage" = false,
+        "activeTripOperationalFloatPlanId" = nullValue(),
+        "activeTripOperationalAccessSource" = "none",
+        "activeTripOperationalAmbiguous" = false,
+        "basicSendLimits" = getBasicSendLimits(),
         "limits" = getBasicLimits()
       };
       var qPremium = queryNew("");
+      var activeTripSummary = {};
 
       if (arguments.userId LTE 0) {
         return access;
@@ -33,6 +49,22 @@
 
       access.authenticated = true;
       access.userId = val(arguments.userId);
+      access.canUsePlanningTools = true;
+      access.canSendBasicFloatPlan = true;
+      access.premiumSendCreditCount = getPremiumSendCreditService().countAvailableCredits(arguments.userId);
+      access.canSendPremiumFloatPlan = access.premiumSendCreditCount GT 0;
+      access.premiumSendAccessSource = access.canSendPremiumFloatPlan ? "premium_send_credit" : "none";
+      access.premiumSendAuthority = access.premiumSendAccessSource;
+      activeTripSummary = getPremiumSendCreditService().getActiveTripOperationalSummary(arguments.userId);
+      access.activeTripOperationalAmbiguous = activeTripSummary.ambiguous;
+      if (activeTripSummary.hasActiveTripOperationalAccess) {
+        access.canUseActiveCruise = true;
+        access.canUseMonitoring = true;
+        access.canUseTripPage = true;
+        access.canUseFollowPage = true;
+        access.activeTripOperationalFloatPlanId = activeTripSummary.floatPlanId;
+        access.activeTripOperationalAccessSource = "premium_send_credit";
+      }
       access.premiumSources = loadCurrentPremiumSources(arguments.userId);
       access.hasStripeBilling = hasStripeBilling(arguments.userId);
 
@@ -40,9 +72,18 @@
       if (qPremium.recordCount GT 0) {
         access.memberLevel = "premium";
         access.hasPremium = true;
+        access.hasGeneralPremium = true;
         access.premiumSource = normalizeEntitlementSource(qPremium.source[1]);
         access.premiumExpiresAt = queryValueOrNull(qPremium, "expires_at_utc", 1);
         access.premiumEntitlementId = val(qPremium.id[1]);
+        access.canSendPremiumFloatPlan = true;
+        access.premiumSendAccessSource = "general_premium";
+        access.premiumSendAuthority = "general_premium";
+        access.canUseActiveCruise = true;
+        access.canUseMonitoring = true;
+        access.canUseTripPage = true;
+        access.canUseFollowPage = true;
+        access.activeTripOperationalAccessSource = "general_premium";
         access.limits = getPremiumLimits();
       }
 
@@ -67,15 +108,24 @@
   <cffunction name="getBasicLimits" access="public" returntype="struct" output="false">
     <cfscript>
       return {
-        "maxWaypoints" = 2,
-        "maxTripDays" = 1,
-        "canSaveRoutes" = false,
-        "canUseRouteLibrary" = false,
+        "maxWaypoints" = nullValue(),
+        "maxTripDays" = nullValue(),
+        "canSaveRoutes" = true,
+        "canUseRouteLibrary" = true,
         "canUseActiveCruise" = false,
         "canUseFollowPage" = false,
         "monitoringLevel" = "basic",
         "canUseAdvancedMonitoring" = false,
-        "canUseMultiDayTrips" = false
+        "canUseMultiDayTrips" = true
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="getBasicSendLimits" access="public" returntype="struct" output="false">
+    <cfscript>
+      return {
+        "maxWaypoints" = 2,
+        "maxTripDays" = 1
       };
     </cfscript>
   </cffunction>
@@ -442,6 +492,16 @@
         return arguments.q[arguments.column][arguments.row];
       }
       return nullValue();
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="getPremiumSendCreditService" access="private" returntype="any" output="false">
+    <cfscript>
+      try {
+        return createObject("component", "fpw.api.v1.PremiumSendCreditService").init(variables.datasource);
+      } catch (any e1) {
+        return createObject("component", "api.v1.PremiumSendCreditService").init(variables.datasource);
+      }
     </cfscript>
   </cffunction>
 

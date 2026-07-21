@@ -47,7 +47,6 @@
             <cfset var pointVal = "">
             <cfset var routeLegOrderVal = "">
             <cfset var asOfUtcVal = "">
-            <cfset var memberGateResult = {}>
             <cfif act EQ "getstreambootstrap">
                 <cfset slugVal = trim(toString(pickArg(body, "slug", "route_slug", arguments.slug)))>
                 <cfset tokenVal = trim(toString(pickArg(body, "t", "token", arguments.t)))>
@@ -78,11 +77,6 @@
                 <cfset floatPlanIdVal = val(pickArg(body, "floatPlanId", "float_plan_id", 0))>
                 <cfset pointVal = lCase(trim(toString(pickArg(body, "point", "leg_point", ""))))>
                 <cfset routeLegOrderVal = trim(toString(pickArg(body, "routeLegOrder", "route_leg_order", "")))>
-                <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_ACTIVE_CRUISE_RESTRICTED", "Upgrade to Premium to use Active Cruise weather.")>
-                <cfif NOT memberGateResult.SUCCESS>
-                    <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
-                    <cfreturn>
-                </cfif>
                 <cfset payload = getActiveCruiseWeatherCanonical(currentUserId, floatPlanIdVal, pointVal, routeLegOrderVal)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
@@ -91,11 +85,6 @@
                 <cfset streamIdVal = val(pickArg(body, "stream_id", "streamId", arguments.stream_id))>
                 <cfset floatPlanIdVal = val(pickArg(body, "floatplan_id", "floatPlanId", arguments.floatplan_id))>
                 <cfset asOfUtcVal = trim(toString(pickArg(body, "as_of_utc", "asOfUtc", arguments.as_of_utc)))>
-                <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_ACTIVE_CRUISE_RESTRICTED", "Upgrade to Premium to use Active Cruise trip projections.")>
-                <cfif NOT memberGateResult.SUCCESS>
-                    <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
-                    <cfreturn>
-                </cfif>
                 <cfset payload = getTripProgressProjectionDiagnostic(streamIdVal, floatPlanIdVal, asOfUtcVal, currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
@@ -140,11 +129,6 @@
                 <cfset streamIdVal = val(pickArg(body, "stream_id", "streamId", arguments.stream_id))>
                 <cfset bodyTextVal = trim(toString(pickArg(body, "body", "text", "")))>
                 <cfset mediaUrlVal = trim(toString(pickArg(body, "media_url", "mediaUrl", "")))>
-                <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_FOLLOW_RESTRICTED", "Upgrade to Premium to publish Follow Page updates.")>
-                <cfif NOT memberGateResult.SUCCESS>
-                    <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
-                    <cfreturn>
-                </cfif>
                 <cfset payload = ownerCreatePost(streamIdVal, bodyTextVal, mediaUrlVal, currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
@@ -152,54 +136,29 @@
             <cfelseif act EQ "ownercreatepostwithmedia">
                 <cfset streamIdVal = val(structKeyExists(form, "stream_id") ? form.stream_id : pickArg(body, "stream_id", "streamId", arguments.stream_id))>
                 <cfset bodyTextVal = trim(toString(structKeyExists(form, "body") ? form.body : pickArg(body, "body", "text", "")))>
-                <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_FOLLOW_RESTRICTED", "Upgrade to Premium to publish Follow Page updates.")>
-                <cfif NOT memberGateResult.SUCCESS>
-                    <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
-                    <cfreturn>
-                </cfif>
                 <cfset payload = ownerCreatePostWithMediaInternal(streamIdVal, bodyTextVal, currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
             <cfelseif act EQ "ownerdeletepost">
                 <cfset postIdVal = val(pickArg(body, "post_id", "postId", 0))>
-                <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_FOLLOW_RESTRICTED", "Upgrade to Premium to manage Follow Page posts.")>
-                <cfif NOT memberGateResult.SUCCESS>
-                    <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
-                    <cfreturn>
-                </cfif>
                 <cfset payload = ownerDeletePost(postIdVal, currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
             <cfelseif act EQ "ownerdeletecomment">
                 <cfset commentIdVal = val(pickArg(body, "comment_id", "commentId", 0))>
-                <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_FOLLOW_RESTRICTED", "Upgrade to Premium to manage Follow Page comments.")>
-                <cfif NOT memberGateResult.SUCCESS>
-                    <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
-                    <cfreturn>
-                </cfif>
                 <cfset payload = ownerDeleteComment(commentIdVal, currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
             <cfelseif act EQ "ownerblockfollower">
                 <cfset followerIdVal = val(pickArg(body, "follower_id", "followerId", 0))>
-                <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_FOLLOW_RESTRICTED", "Upgrade to Premium to manage Follow Page followers.")>
-                <cfif NOT memberGateResult.SUCCESS>
-                    <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
-                    <cfreturn>
-                </cfif>
                 <cfset payload = ownerBlockFollower(followerIdVal, currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
             <cfelseif act EQ "ownerensurestream">
-                <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_FOLLOW_RESTRICTED", "Upgrade to Premium to create or manage Follow Page streams.")>
-                <cfif NOT memberGateResult.SUCCESS>
-                    <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
-                    <cfreturn>
-                </cfif>
                 <cfset payload = ownerEnsureStream(currentUserId)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
@@ -239,7 +198,6 @@
         <cfset var streamIdVal = val(structKeyExists(form, "stream_id") ? form.stream_id : 0)>
         <cfset var bodyTextVal = trim(toString(structKeyExists(form, "body") ? form.body : ""))>
         <cfset var requestMethodVal = structKeyExists(cgi, "request_method") ? uCase(toString(cgi.request_method)) : "">
-        <cfset var memberGateResult = {}>
         <cfset var payload = {
             "SUCCESS"=false,
             "AUTH"=(currentUserId GT 0),
@@ -249,14 +207,6 @@
         }>
         <cfcontent type="application/json; charset=utf-8">
         <cfheader name="Cache-Control" value="no-store, no-cache, must-revalidate">
-        <cfset memberGateResult = requireMemberPremiumAccess(currentUserId, "BASIC_FOLLOW_RESTRICTED", "Upgrade to Premium to publish Follow Page updates.")>
-        <cfif NOT memberGateResult.SUCCESS>
-            <cfif structKeyExists(memberGateResult, "STATUS_CODE")>
-                <cfheader statuscode="#val(memberGateResult.STATUS_CODE)#">
-            </cfif>
-            <cfoutput>#serializeJSON(memberGateResult)#</cfoutput>
-            <cfreturn>
-        </cfif>
         <cfif requestMethodVal EQ "POST">
             <cfset payload = {
                 "SUCCESS"=false,
@@ -309,6 +259,10 @@
         <cfscript>
             var projectionService = "";
             var projection = {};
+            var ds = resolveDatasource();
+            var qTarget = queryNew("");
+            var targetFloatPlanId = 0;
+            var memberGateResult = {};
 
             if (!isLocalTripProjectionDiagnosticRequest()) {
                 return {
@@ -326,6 +280,63 @@
                     "message" = "stream_id or floatplan_id is required.",
                     "error" = { "message" = "Missing stream_id or floatplan_id." }
                 };
+            }
+
+            if (arguments.currentUserId LTE 0) {
+                return {
+                    "success" = false,
+                    "auth" = false,
+                    "message" = "Owner session required.",
+                    "error" = { "message" = "Owner session required." }
+                };
+            }
+
+            if (arguments.streamId GT 0) {
+                qTarget = queryExecute(
+                    "SELECT vs.floatplan_id
+                     FROM voyage_streams vs
+                     INNER JOIN floatplans fp ON fp.floatplanId = vs.floatplan_id
+                     WHERE vs.id = :streamId
+                       AND vs.owner_user_id = :userId
+                       AND fp.userId = :userId
+                     LIMIT 1",
+                    {
+                        streamId = { value=arguments.streamId, cfsqltype="cf_sql_integer" },
+                        userId = { value=arguments.currentUserId, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource=ds }
+                );
+            } else {
+                qTarget = queryExecute(
+                    "SELECT fp.floatplanId AS floatplan_id
+                     FROM floatplans fp
+                     WHERE fp.floatplanId = :floatPlanId
+                       AND fp.userId = :userId
+                     LIMIT 1",
+                    {
+                        floatPlanId = { value=arguments.floatPlanId, cfsqltype="cf_sql_integer" },
+                        userId = { value=arguments.currentUserId, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource=ds }
+                );
+            }
+
+            if (qTarget.recordCount EQ 0) {
+                return {
+                    "success" = false,
+                    "auth" = true,
+                    "message" = "Trip not found.",
+                    "error" = { "message" = "No owned trip matched the supplied identifier." }
+                };
+            }
+
+            targetFloatPlanId = val(qTarget.floatplan_id[1]);
+            memberGateResult = requireOwnerPremiumFollowAccess(
+                arguments.currentUserId,
+                targetFloatPlanId
+            );
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
             }
 
             try {
@@ -659,7 +670,7 @@
 	                return out;
 	            }
 
-            memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id);
+            memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id, streamRow.floatplan_id);
             if (!memberGateResult.SUCCESS) {
                 writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
                 return memberGateResult;
@@ -1991,6 +2002,7 @@
         <cfargument name="routeLegOrder" type="string" required="false" default="">
         <cfscript>
             var canonicalPlan = {};
+            var memberGateResult = {};
             var routeMap = {};
             var pointKey = lCase(trim(arguments.point));
             var routeLegOrderRaw = trim(toString(arguments.routeLegOrder));
@@ -2060,6 +2072,14 @@
                     data={},
                     auth=true
                 );
+            }
+
+            memberGateResult = requireOwnerPremiumFollowAccess(
+                arguments.currentUserId,
+                canonicalPlan.FLOATPLANID
+            );
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
             }
 
             if (routeLegOrderProvided) {
@@ -2279,7 +2299,7 @@
                 return out;
             }
 
-            memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id);
+            memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id, streamRow.floatplan_id);
             if (!memberGateResult.SUCCESS) {
                 return memberGateResult;
             }
@@ -2465,7 +2485,7 @@
                 return out;
             }
 
-            memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id);
+            memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id, streamRow.floatplan_id);
             if (!memberGateResult.SUCCESS) {
                 return memberGateResult;
             }
@@ -2829,6 +2849,7 @@
             var postIdVal = 0;
             var postTypeVal = "text";
             var titleVal = "";
+            var memberGateResult = {};
 
             if (arguments.currentUserId LTE 0) {
                 out.MESSAGE = "Unauthorized";
@@ -2858,6 +2879,14 @@
                 out.STATUS_CODE = 403;
                 out.ERROR = { "MESSAGE"="Only the stream owner can create posts." };
                 return out;
+            }
+
+            memberGateResult = requireOwnerPremiumFollowAccess(
+                streamRow.owner_user_id,
+                streamRow.floatplan_id
+            );
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
             }
 
             if (len(mediaUrlVal)) {
@@ -2945,6 +2974,7 @@
         <cfset var mimeVal = "">
         <cfset var mediaUrlVal = "">
         <cfset var createRes = {}>
+        <cfset var memberGateResult = {}>
         <cfset var maxBytes = 5 * 1024 * 1024>
         <cfif arguments.currentUserId LTE 0>
             <cfset out.MESSAGE = "Unauthorized">
@@ -2978,6 +3008,11 @@
             <cfset out.STATUS_CODE = 403>
             <cfset out.ERROR = { "MESSAGE"="Only the stream owner can create posts." }>
             <cfreturn out>
+        </cfif>
+
+        <cfset memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id, streamRow.floatplan_id)>
+        <cfif NOT memberGateResult.SUCCESS>
+            <cfreturn memberGateResult>
         </cfif>
 
         <cfset uploadDir = resolveVoyageUploadDirectory(streamIdVal)>
@@ -3053,6 +3088,7 @@
             var authorTypeVal = "";
             var postTypeVal = "";
             var eventTypeVal = "";
+            var memberGateResult = {};
 
             if (arguments.currentUserId LTE 0) {
                 out.MESSAGE = "Unauthorized";
@@ -3074,7 +3110,8 @@
                     vp.post_type,
                     vp.event_type,
                     vp.media_url,
-                    vs.owner_user_id
+                    vs.owner_user_id,
+                    vs.floatplan_id
                  FROM voyage_posts vp
                  INNER JOIN voyage_streams vs ON vs.id = vp.stream_id
                  WHERE vp.id = :postId
@@ -3095,6 +3132,14 @@
                 out.STATUS_CODE = 403;
                 out.ERROR = { "MESSAGE"="Only the stream owner can delete posts." };
                 return out;
+            }
+
+            memberGateResult = requireOwnerPremiumFollowAccess(
+                val(qCheck.owner_user_id[1]),
+                val(qCheck.floatplan_id[1])
+            );
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
             }
 
             authorTypeVal = lCase(trim(toString(qCheck.author_type[1])));
@@ -3157,6 +3202,7 @@
             var commentIdVal = val(arguments.commentId);
             var ds = resolveDatasource();
             var qCheck = queryNew("");
+            var memberGateResult = {};
 
             if (arguments.currentUserId LTE 0) {
                 out.MESSAGE = "Unauthorized";
@@ -3173,7 +3219,8 @@
             qCheck = queryExecute(
                 "SELECT
                     vc.id,
-                    vs.owner_user_id
+                    vs.owner_user_id,
+                    vs.floatplan_id
                  FROM voyage_comments vc
                  INNER JOIN voyage_posts vp ON vp.id = vc.post_id
                  INNER JOIN voyage_streams vs ON vs.id = vp.stream_id
@@ -3195,6 +3242,14 @@
                 out.STATUS_CODE = 403;
                 out.ERROR = { "MESSAGE"="Only the stream owner can delete comments." };
                 return out;
+            }
+
+            memberGateResult = requireOwnerPremiumFollowAccess(
+                val(qCheck.owner_user_id[1]),
+                val(qCheck.floatplan_id[1])
+            );
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
             }
 
             queryExecute(
@@ -3227,6 +3282,7 @@
             var followerIdVal = val(arguments.followerId);
             var ds = resolveDatasource();
             var qCheck = queryNew("");
+            var memberGateResult = {};
 
             if (arguments.currentUserId LTE 0) {
                 out.MESSAGE = "Unauthorized";
@@ -3243,7 +3299,8 @@
             qCheck = queryExecute(
                 "SELECT
                     vf.id,
-                    vs.owner_user_id
+                    vs.owner_user_id,
+                    vs.floatplan_id
                  FROM voyage_followers vf
                  INNER JOIN voyage_streams vs ON vs.id = vf.stream_id
                  WHERE vf.id = :followerId
@@ -3264,6 +3321,14 @@
                 out.STATUS_CODE = 403;
                 out.ERROR = { "MESSAGE"="Only the stream owner can block followers." };
                 return out;
+            }
+
+            memberGateResult = requireOwnerPremiumFollowAccess(
+                val(qCheck.owner_user_id[1]),
+                val(qCheck.floatplan_id[1])
+            );
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
             }
 
             queryExecute(
@@ -3290,6 +3355,7 @@
             var storageCheck = checkVoyageStorageReady();
             var userIdText = toString(arguments.currentUserId);
             var canonicalPlan = {};
+            var memberGateResult = {};
             var qInst = queryNew("");
             var qPlan = queryNew("");
             var qStream = queryNew("");
@@ -3344,6 +3410,14 @@
 
             floatPlanIdVal = canonicalPlan.FLOATPLANID;
             routeInstanceIdVal = canonicalPlan.ROUTE_INSTANCE_ID;
+
+            memberGateResult = requireOwnerPremiumFollowAccess(
+                arguments.currentUserId,
+                floatPlanIdVal
+            );
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
+            }
 
             qPlan = queryExecute(
                 "SELECT floatplanId, floatPlanName
@@ -5813,7 +5887,7 @@
                 return out;
             }
 
-            memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id);
+            memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id, streamRow.floatplan_id);
             if (!memberGateResult.SUCCESS) {
                 return memberGateResult;
             }
@@ -5864,7 +5938,7 @@
 
             try {
                 floatPlanUtils = createObject("component", resolveFloatPlanUtilsComponentPath()).init();
-                pdfFileName = floatPlanUtils.createPDF(streamRow.floatplan_id);
+                pdfFileName = floatPlanUtils.createPDF(streamRow.floatplan_id, streamRow.owner_user_id);
             } catch (any pdfErr) {
                 appendFpwPdfLog(
                     "error",
@@ -6307,6 +6381,7 @@
                         vp.id AS post_id,
                         vp.stream_id,
                         vs.owner_user_id,
+                        vs.floatplan_id,
                         vs.allow_interactions,
                         vf.id AS follower_id,
                         vf.display_name,
@@ -6343,7 +6418,7 @@
                     return out;
                 }
 
-                memberGateResult = requireOwnerPremiumFollowAccess(val(q.owner_user_id[1]));
+                memberGateResult = requireOwnerPremiumFollowAccess(val(q.owner_user_id[1]), val(q.floatplan_id[1]));
                 if (!memberGateResult.SUCCESS) {
                     return memberGateResult;
                 }
@@ -6374,7 +6449,8 @@
                     "SELECT
                         vp.id AS post_id,
                         vp.stream_id,
-                        vs.owner_user_id
+                        vs.owner_user_id,
+                        vs.floatplan_id
                      FROM voyage_posts vp
                      INNER JOIN voyage_streams vs ON vs.id = vp.stream_id
                      WHERE vp.id = :postId
@@ -6386,7 +6462,7 @@
                 );
 
                 if (q.recordCount GT 0 AND val(q.owner_user_id[1]) EQ arguments.currentUserId) {
-                    memberGateResult = requireOwnerPremiumFollowAccess(val(q.owner_user_id[1]));
+                    memberGateResult = requireOwnerPremiumFollowAccess(val(q.owner_user_id[1]), val(q.floatplan_id[1]));
                     if (!memberGateResult.SUCCESS) {
                         return memberGateResult;
                     }
@@ -7485,12 +7561,16 @@
 
     <cffunction name="requireOwnerPremiumFollowAccess" access="private" returntype="struct" output="false">
         <cfargument name="ownerUserId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
-            return requireMemberPremiumAccess(
+            var gateResult = getMemberAccessGateService().requireTripOperationalAccess(
                 userId = arguments.ownerUserId,
-                errorCode = "BASIC_FOLLOW_RESTRICTED",
-                message = "Upgrade to Premium to share a Follow Page."
+                floatPlanId = arguments.floatPlanId
             );
+            if (gateResult.allowed) {
+                return { "SUCCESS" = true, "success" = true, "AUTH" = true };
+            }
+            return gateResult.response;
         </cfscript>
     </cffunction>
 

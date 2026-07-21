@@ -133,7 +133,11 @@
             }
             context.monitoring_mode = modeVal;
 
-            memberGateResult = getMemberAccessGateService().validateMonitoringMode(context.user_id, modeVal);
+            memberGateResult = getMemberAccessGateService().validateMonitoringMode(
+                context.user_id,
+                modeVal,
+                arguments.floatPlanId
+            );
             if (!memberGateResult.allowed) {
                 return memberGateResult.response;
             }
@@ -311,10 +315,9 @@
                 return context;
             }
 
-            memberGateResult = getMemberAccessGateService().requirePremium(
-                userId = context.user_id,
-                errorCode = "BASIC_ADVANCED_MONITORING_RESTRICTED",
-                message = "Upgrade to Premium to use Active Cruise and scheduled route monitoring."
+            memberGateResult = getMemberAccessGateService().requireTripOperationalAccess(
+                context.user_id,
+                arguments.floatPlanId
             );
             if (!memberGateResult.allowed) {
                 return memberGateResult.response;

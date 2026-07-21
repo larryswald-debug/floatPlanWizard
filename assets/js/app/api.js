@@ -157,14 +157,14 @@
 
     createPremiumCheckoutSession: function (interval) {
       var intervalValue = String(interval || "").trim().toLowerCase();
-      if (intervalValue !== "monthly" && intervalValue !== "yearly" && intervalValue !== "three_day_pass") {
+      if (intervalValue !== "monthly" && intervalValue !== "yearly" && intervalValue !== "three_day_pass" && intervalValue !== "one_trip") {
         return Promise.reject({
           SUCCESS: false,
           success: false,
           ERROR: "INVALID_PRICE_SELECTOR",
           errorCode: "INVALID_PRICE_SELECTOR",
-          MESSAGE: "Choose monthly, yearly, or 3-Day Pass Premium billing.",
-          message: "Choose monthly, yearly, or 3-Day Pass Premium billing."
+          MESSAGE: "Choose monthly, yearly, one-trip, or 3-Day Pass Premium billing.",
+          message: "Choose monthly, yearly, one-trip, or 3-Day Pass Premium billing."
         });
       }
       return request("/billing.cfc?method=handle&action=createcheckoutsession", {
@@ -519,4 +519,3 @@
 
   console.log("Api methods:", Object.keys(window.Api));
 })();
-

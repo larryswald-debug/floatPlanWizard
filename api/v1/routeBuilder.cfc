@@ -31,11 +31,7 @@
             <cfset var memberGateResult = {} />
 
             <cfif shouldGateRouteBuilderAction(act, body)>
-                <cfset memberGateResult = getMemberAccessGateService().requirePremium(
-                    userId = userId,
-                    errorCode = "BASIC_SAVED_ROUTE_RESTRICTED",
-                    message = "Upgrade to Premium to save routes, use the route library, build route-backed float plans, and manage reusable routes."
-                ) />
+                <cfset memberGateResult = getMemberAccessGateService().requirePlanningAccess(userId) />
                 <cfif NOT memberGateResult.allowed>
                     <cfoutput>#serializeJSON(memberGateResult.response)#</cfoutput>
                     <cfreturn>
@@ -965,6 +961,7 @@
             var timeline = {};
             var routeInstanceIdVal = 0;
             var currentRouteGroup = {};
+            var routeScopedGroup = {};
             var activeRouteSource = {};
             var savedRouteInputs = {};
 
@@ -1018,8 +1015,36 @@
                 }
                 routeInstanceIdVal = (isNull(qRoutes.route_instance_id[i]) ? 0 : val(qRoutes.route_instance_id[i]));
                 currentRouteGroup = {};
-                if (currentGroup.SUCCESS AND currentGroup.HAS_CURRENT_GROUP AND routeInstanceIdVal GT 0 AND currentGroup.ROUTE_INSTANCE_ID EQ routeInstanceIdVal) {
-                    currentRouteGroup = duplicate(out.CURRENT_GROUP);
+                routeScopedGroup = {};
+                if (routeInstanceIdVal GT 0) {
+                    routeScopedGroup = floatPlanService.resolveCurrentRouteFloatPlanGroup(arguments.userId, routeInstanceIdVal);
+                    if (structKeyExists(routeScopedGroup, "ERROR")) {
+                        out.SUCCESS = false;
+                        out.MESSAGE = routeScopedGroup.MESSAGE;
+                        out.ERROR = {
+                            "CODE"=routeScopedGroup.ERROR,
+                            "MESSAGE"=routeScopedGroup.MESSAGE
+                        };
+                        return out;
+                    }
+                }
+                if (
+                    structKeyExists(routeScopedGroup, "SUCCESS")
+                    AND routeScopedGroup.SUCCESS
+                    AND routeScopedGroup.HAS_CURRENT_GROUP
+                ) {
+                    currentRouteGroup = {
+                        "HAS_CURRENT_GROUP"=true,
+                        "FLOATPLAN_ID"=routeScopedGroup.FLOATPLANID,
+                        "FLOATPLAN_NAME"=routeScopedGroup.FLOATPLAN_NAME,
+                        "STATUS"=routeScopedGroup.STATUS,
+                        "CURRENT_STATE"=routeScopedGroup.CURRENT_STATE,
+                        "ROUTE_INSTANCE_ID"=routeScopedGroup.ROUTE_INSTANCE_ID,
+                        "ROUTE_CODE"=routeScopedGroup.ROUTE_CODE,
+                        "ROUTE_NAME"=routeScopedGroup.ROUTE_NAME,
+                        "IS_DRAFT"=routeScopedGroup.IS_DRAFT,
+                        "IS_ACTIVE"=routeScopedGroup.IS_ACTIVE
+                    };
                 } else if (currentGroup.SUCCESS AND currentGroup.HAS_CURRENT_GROUP AND currentGroup.IS_ACTIVE AND structCount(activeRouteSource) GT 0) {
                     savedRouteInputs = routegenParseStoredInputs(isNull(qRoutes.routegen_inputs_json[i]) ? "" : qRoutes.routegen_inputs_json[i]);
                     if (isSavedRouteSourceForActiveOperationalRoute(
@@ -3619,11 +3644,12 @@
 	            var qFloatplanRouteCols = queryNew("");
 	            var hasFloatplanRouteCols = false;
                 var floatPlanService = "";
-                var currentGroup = {};
                 var qAttachedPlans = queryNew("");
                 var attachedPlanIds = [];
                 var attachedPlanId = 0;
                 var attachedPlanStatus = "";
+                var attachedPlanHasCredit = false;
+                var attachedPlanHasReceipt = false;
                 var deleteRouteDiag = {};
                 var deleteRouteTagContext = {};
 	            if (!isUserOwnedRoute(arguments.userId, code)) {
@@ -3688,24 +3714,22 @@
                         };
                     }
 
-                    currentGroup = floatPlanService.resolveCurrentRouteFloatPlanGroup(arguments.userId);
-                    if (
-                        structKeyExists(currentGroup, "ERROR")
-                        AND listFindNoCase("MULTIPLE_CURRENT_DRAFT_GROUPS,MULTIPLE_ACTIVE_GROUPS,CURRENT_GROUP_CONFLICT", trim(toString(currentGroup.ERROR))) GT 0
-                    ) {
-                        return {
-                            "SUCCESS"=false,
-                            "AUTH"=true,
-                            "MESSAGE"=currentGroup.MESSAGE,
-                            "ERROR"={
-                                "CODE"=currentGroup.ERROR,
-                                "MESSAGE"=currentGroup.MESSAGE
-                            }
-                        };
-                    }
+                    // Attached plans for this owned route are the deletion authority.
 
                     qAttachedPlans = queryExecute(
-                        "SELECT fp.floatplanId, UPPER(TRIM(fp.`status`)) AS statusValue
+                        "SELECT
+                            fp.floatplanId,
+                            UPPER(TRIM(fp.`status`)) AS statusValue,
+                            EXISTS (
+                                SELECT 1
+                                  FROM premium_send_credits psc
+                                 WHERE psc.consumed_float_plan_id = fp.floatplanId
+                            ) AS hasConsumedCredit,
+                            EXISTS (
+                                SELECT 1
+                                  FROM premium_send_receipts psr
+                                 WHERE psr.float_plan_id = fp.floatplanId
+                            ) AS hasPremiumSendReceipt
                            FROM floatplans fp
                            INNER JOIN route_instances ri ON ri.id = fp.route_instance_id
                           WHERE fp.userId = :userId
@@ -3724,25 +3748,28 @@
                         { datasource = application.dsn }
                     );
 
-                    if (currentGroup.SUCCESS AND currentGroup.HAS_CURRENT_GROUP AND currentGroup.IS_ROUTE_MATCH AND currentGroup.IS_ACTIVE) {
-                        return {
-                            "SUCCESS"=false,
-                            "AUTH"=true,
-                            "MESSAGE"="Route is attached to the active route/float-plan group.",
-                            "ERROR"={
-                                "CODE"="ACTIVE_ROUTE_DELETE_BLOCKED",
-                                "MESSAGE"="End the active route/float-plan group through Close or Cancel before deleting this route."
-                            },
-                            "FLOATPLANID"=currentGroup.FLOATPLANID,
-                            "ROUTE_CODE"=code
-                        };
-                    }
+                    // Every attached plan is evaluated directly below.
 
                     for (var attachedIndex = 1; attachedIndex LTE qAttachedPlans.recordCount; attachedIndex++) {
                         attachedPlanId = val(qAttachedPlans.floatplanId[attachedIndex]);
                         attachedPlanStatus = trim(toString(qAttachedPlans.statusValue[attachedIndex]));
+                        attachedPlanHasCredit = val(qAttachedPlans.hasConsumedCredit[attachedIndex]) GT 0;
+                        attachedPlanHasReceipt = val(qAttachedPlans.hasPremiumSendReceipt[attachedIndex]) GT 0;
                         if (attachedPlanId GT 0) {
                             arrayAppend(attachedPlanIds, attachedPlanId);
+                        }
+                        if (attachedPlanHasCredit OR attachedPlanHasReceipt) {
+                            return {
+                                "SUCCESS"=false,
+                                "AUTH"=true,
+                                "MESSAGE"="Route is attached to a completed Premium Send.",
+                                "ERROR"={
+                                    "CODE"="PREMIUM_SEND_HISTORY_DELETE_BLOCKED",
+                                    "MESSAGE"="Routes with consumed Premium Send Credit or completed-send history cannot be deleted."
+                                },
+                                "FLOATPLANID"=attachedPlanId,
+                                "ROUTE_CODE"=code
+                            };
                         }
                         if (attachedPlanStatus EQ "ACTIVE") {
                             return {
@@ -7460,6 +7487,7 @@
             var routeInputs = {};
             var activeRouteId = 0;
             var activeFloatPlanId = 0;
+            var candidateAccessGate = {};
             var routeInputsJson = "";
             var routeInstanceIdVal = 0;
 
@@ -7522,6 +7550,15 @@
                         OR activeFloatPlanId NEQ val(qCandidates.floatPlanId[i])
                         OR routeInstanceIdVal LTE 0
                     ) {
+                        out.skipped_count += 1;
+                        continue;
+                    }
+
+                    candidateAccessGate = getMemberAccessGateService().requireTripOperationalAccess(
+                        arguments.userId,
+                        activeFloatPlanId
+                    );
+                    if (!candidateAccessGate.allowed) {
                         out.skipped_count += 1;
                         continue;
                     }
@@ -12457,6 +12494,8 @@
             var routeInstanceId = 0;
             var qInst = queryNew("");
             var qActiveLinkedPlans = queryNew("");
+            var qUserMutationLock = queryNew("");
+            var routeMutationGate = {};
             var preserveProgressOnRebuild = false;
             var activeFuelPriceSync = {
                 "success"=true,
@@ -12466,6 +12505,76 @@
 
             try {
                 transaction {
+                    qUserMutationLock = queryExecute(
+                        "SELECT userId
+                         FROM users
+                         WHERE userId = :userId
+                         LIMIT 1
+                         FOR UPDATE",
+                        {
+                            userId = { value=arguments.userId, cfsqltype="cf_sql_integer" }
+                        },
+                        { datasource = application.dsn }
+                    );
+                    if (qUserMutationLock.recordCount EQ 0) {
+                        out.MESSAGE = "Member not found";
+                        out.ERROR = { "MESSAGE"="A valid member is required." };
+                        return out;
+                    }
+
+                    qInst = queryExecute(
+                        "SELECT id
+                         FROM route_instances
+                         WHERE generated_route_id = :rid
+                           AND user_id = :uid
+                         ORDER BY id DESC
+                         LIMIT 1
+                         FOR UPDATE",
+                        {
+                            rid = { value=routeId, cfsqltype="cf_sql_integer" },
+                            uid = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
+                        },
+                        { datasource = application.dsn }
+                    );
+                    if (qInst.recordCount GT 0) {
+                        routeInstanceId = val(qInst.id[1]);
+                        qActiveLinkedPlans = queryExecute(
+                            "SELECT floatplanId
+                             FROM floatplans
+                             WHERE userId = :userId
+                               AND route_instance_id = :routeInstanceId
+                               AND UPPER(TRIM(status)) IN (
+                                    'ACTIVE',
+                                    'DUE_NOW',
+                                    'OVERDUE',
+                                    'OVERDUE_1H',
+                                    'OVERDUE_2H',
+                                    'OVERDUE_3H',
+                                    'OVERDUE_4H',
+                                    'OVERDUE_12H',
+                                    'OVERDUE_24H'
+                               )
+                             ORDER BY floatplanId DESC
+                             LIMIT 1
+                             FOR UPDATE",
+                            {
+                                userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
+                                routeInstanceId = { value=routeInstanceId, cfsqltype="cf_sql_integer" }
+                            },
+                            { datasource = application.dsn }
+                        );
+                        preserveProgressOnRebuild = (qActiveLinkedPlans.recordCount GT 0);
+                        if (preserveProgressOnRebuild) {
+                            routeMutationGate = getMemberAccessGateService().requireTripOperationalAccess(
+                                arguments.userId,
+                                val(qActiveLinkedPlans.floatplanId[1])
+                            );
+                            if (!routeMutationGate.allowed) {
+                                return routeMutationGate.response;
+                            }
+                        }
+                    }
+
                     queryExecute(
                         "UPDATE loop_routes
                          SET name = :name,
@@ -12510,7 +12619,7 @@
                                      start_location = :startLocation,
                                      end_location = :endLocation,
                                      routegen_inputs_json = :routegenInputsJson,
-                                     status = 'PLANNED',
+                                     status = CASE WHEN :preserveActiveStatus = 1 THEN status ELSE 'PLANNED' END,
                                      updated_at = NOW()
                                  WHERE id = :id",
                                 {
@@ -12521,6 +12630,7 @@
                                     startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
                                     endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) },
                                     routegenInputsJson = { value=instanceInputsJson, cfsqltype="cf_sql_longvarchar", null=NOT len(instanceInputsJson) },
+                                    preserveActiveStatus = { value=(preserveProgressOnRebuild ? 1 : 0), cfsqltype="cf_sql_integer" },
                                     id = { value=routeInstanceId, cfsqltype="cf_sql_integer" }
                                 },
                                 { datasource = application.dsn }
@@ -12534,7 +12644,7 @@
                                      trip_type = :tripType,
                                      start_location = :startLocation,
                                      end_location = :endLocation,
-                                     status = 'PLANNED',
+                                     status = CASE WHEN :preserveActiveStatus = 1 THEN status ELSE 'PLANNED' END,
                                      updated_at = NOW()
                                  WHERE id = :id",
                                 {
@@ -12544,6 +12654,7 @@
                                     tripType = { value=tripTypeVal, cfsqltype="cf_sql_varchar" },
                                     startLocation = { value=startLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(startLocationVal) },
                                     endLocation = { value=endLocationVal, cfsqltype="cf_sql_varchar", null=NOT len(endLocationVal) },
+                                    preserveActiveStatus = { value=(preserveProgressOnRebuild ? 1 : 0), cfsqltype="cf_sql_integer" },
                                     id = { value=routeInstanceId, cfsqltype="cf_sql_integer" }
                                 },
                                 { datasource = application.dsn }

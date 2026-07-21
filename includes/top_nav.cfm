@@ -663,7 +663,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
       window.FPW_BASE = "#JSStringFormat(topNavBasePath)#";
       window.FPW_API_BASE = "#JSStringFormat(topNavBasePath)#/api/v1";
     </script>
-    <script src="#topNavBasePath#/assets/js/app/api.js?v=20260526-cache-bump"></script>
+    <script src="#topNavBasePath#/assets/js/app/api.js?v=20260721-premium-send-credits"></script>
     <script src="#topNavBasePath#/assets/js/app/auth.js?v=20260526-cache-bump"></script>
     <script src="#topNavBasePath#/assets/js/app/core.js"></script>
   </cfif>

@@ -31,9 +31,9 @@
     </cfif>
 
     <cffunction name="onApplicationStart" access="public" returntype="boolean" output="false">
-         <!---  swithc for prod environment  
-        <cfset var stripeConfigPath = expandPath("/_fpw_private/stripe-config.json")> --->
-        <cfset var stripeConfigPath = expandPath("/_fpw_private/stripe-config-prod.json")>
+         <!---  swithc for prod environment          
+        <cfset var stripeConfigPath = expandPath("/_fpw_private/stripe-config-prod.json")>--->
+        <cfset var stripeConfigPath = expandPath("/_fpw_private/stripe-config.json")> 
         <cfset var stripeConfigService = new fpw.api.v1.StripeConfigService().init(stripeConfigPath)>
         <cfset var stripeApplicationSettings = stripeConfigService.getApplicationSettings()>
         <cfset var productEventFailureConfig = {}>

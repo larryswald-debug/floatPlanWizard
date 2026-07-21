@@ -57,6 +57,12 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="getOneTripPriceId" access="public" returntype="string" output="false">
+    <cfscript>
+      return getOptionalValue("FPW_STRIPE_PRICE_ONE_TRIP");
+    </cfscript>
+  </cffunction>
+
   <cffunction name="getCheckoutSuccessUrl" access="public" returntype="string" output="false">
     <cfscript>
       return getRequiredValue("FPW_STRIPE_SUCCESS_URL");
@@ -106,6 +112,7 @@
         "FPW_STRIPE_PRICE_PREMIUM_MONTHLY" = getPremiumMonthlyPriceId(),
         "FPW_STRIPE_PRICE_PREMIUM_YEARLY" = getPremiumYearlyPriceId(),
         "FPW_STRIPE_PRICE_THREE_DAY_PASS" = getThreeDayPassPriceId(),
+        "FPW_STRIPE_PRICE_ONE_TRIP" = getOneTripPriceId(),
         "FPW_STRIPE_SUCCESS_URL" = getCheckoutSuccessUrl(),
         "FPW_STRIPE_CANCEL_URL" = getCheckoutCancelUrl(),
         "FPW_STRIPE_PORTAL_RETURN_URL" = getBillingPortalReturnUrl(),
@@ -127,6 +134,7 @@
         "hasPremiumMonthlyPriceId" = false,
         "hasPremiumYearlyPriceId" = false,
         "hasThreeDayPassPriceId" = false,
+        "hasOneTripPriceId" = false,
         "hasCheckoutSuccessUrl" = false,
         "hasCheckoutCancelUrl" = false,
         "hasBillingPortalReturnUrl" = false,
@@ -146,6 +154,7 @@
       response["hasPremiumMonthlyPriceId"] = len(readValue(loadResult.config, "FPW_STRIPE_PRICE_PREMIUM_MONTHLY")) GT 0;
       response["hasPremiumYearlyPriceId"] = len(readValue(loadResult.config, "FPW_STRIPE_PRICE_PREMIUM_YEARLY")) GT 0;
       response["hasThreeDayPassPriceId"] = len(readValue(loadResult.config, "FPW_STRIPE_PRICE_THREE_DAY_PASS")) GT 0;
+      response["hasOneTripPriceId"] = len(readValue(loadResult.config, "FPW_STRIPE_PRICE_ONE_TRIP")) GT 0;
       response["hasCheckoutSuccessUrl"] = len(readValue(loadResult.config, "FPW_STRIPE_SUCCESS_URL")) GT 0;
       response["hasCheckoutCancelUrl"] = len(readValue(loadResult.config, "FPW_STRIPE_CANCEL_URL")) GT 0;
       response["hasBillingPortalReturnUrl"] = len(readValue(loadResult.config, "FPW_STRIPE_PORTAL_RETURN_URL")) GT 0;

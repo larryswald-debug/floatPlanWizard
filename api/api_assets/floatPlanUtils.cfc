@@ -3,18 +3,22 @@
         <cfreturn this>
     </cffunction>
 
-    <cffunction name="createPDF" access="remote" output="false" returnformat="plain" hint="Populate the float plan PDF and save it locally">
+    <cffunction name="createPDF" access="public" output="false" returntype="any" hint="Populate an owner-authorized float plan PDF and save it outside the public web root">
         <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="userId" type="numeric" required="true">
         <cfscript>
             var ds = "fpw";
             var baseDir = getDirectoryFromPath(getCurrentTemplatePath());
-            var apiDir = getDirectoryFromPath(baseDir);
-            var rootDir = getDirectoryFromPath(apiDir);
             var templatePath = baseDir & "USCGFloatPlan_new.pdf";
             var continuationTemplatePath = baseDir & "USCGFloatPlan_itinerary_continuation.pdf";
-            var outputDir = rootDir & "floatPlans/user_float_plans";
+            var outputDir = getPdfOutputDirectory();
 
-            appendFpwPdfLog("information", "createPDF start floatPlanId=#arguments.floatPlanId# baseDir=#baseDir# rootDir=#rootDir# templatePath=#templatePath# outputDir=#outputDir#");
+            if (arguments.floatPlanId LTE 0 OR arguments.userId LTE 0) {
+                appendFpwPdfLog("warning", "createPDF rejected invalid owner context floatPlanId=#arguments.floatPlanId# userId=#arguments.userId#");
+                return false;
+            }
+
+            appendFpwPdfLog("information", "createPDF start floatPlanId=#arguments.floatPlanId# userId=#arguments.userId# baseDir=#baseDir# templatePath=#templatePath# outputDir=#outputDir#");
 
             if (!directoryExists(outputDir)) {
                 appendFpwPdfLog("information", "createPDF outputDir missing; creating #outputDir#");
@@ -25,16 +29,17 @@
                 appendFpwPdfLog("error", "createPDF template missing at #templatePath#");
             }
 
-            var plan = loadFloatPlan(arguments.floatPlanId, ds);
+            var plan = loadFloatPlan(arguments.floatPlanId, arguments.userId, ds);
             if (structIsEmpty(plan)) {
-                appendFpwPdfLog("error", "createPDF no plan found for floatPlanId=#arguments.floatPlanId#");
+                appendFpwPdfLog("error", "createPDF no owner-scoped plan found for floatPlanId=#arguments.floatPlanId# userId=#arguments.userId#");
                 return false;
             }
 
             var planName = getString(plan, "floatPlanName", "floatplan");
             var safePlanName = reReplace(planName, "[^A-Za-z0-9_-]+", "_", "all");
             var stamp = dateFormat(now(), "yyyymmdd") & "_" & timeFormat(now(), "HHmmss");
-            var fileName = safePlanName & "_" & stamp & ".pdf";
+            var requestToken = left(lCase(replace(createUUID(), "-", "", "all")), 12);
+            var fileName = safePlanName & "_" & stamp & "_" & requestToken & ".pdf";
             var destinationPath = outputDir & "/" & fileName;
             var readonlyFileName = reReplace(fileName, "\.pdf$", "_readonly.pdf", "all");
             if (readonlyFileName EQ fileName) {
@@ -42,11 +47,11 @@
             }
             var readonlyPath = outputDir & "/" & readonlyFileName;
 
-            var vessel = loadVessel(getNumeric(plan, "vesselId", 0), ds);
-            var operatorInfo = loadOperator(getNumeric(plan, "operatorId", 0), ds);
-	            var passengers = loadPassengers(arguments.floatPlanId, ds);
-	            var contacts = loadContacts(arguments.floatPlanId, ds);
-	            var waypoints = loadWaypoints(arguments.floatPlanId, ds);
+            var vessel = loadVessel(getNumeric(plan, "vesselId", 0), arguments.userId, ds);
+            var operatorInfo = loadOperator(getNumeric(plan, "operatorId", 0), arguments.userId, ds);
+	            var passengers = loadPassengers(arguments.floatPlanId, arguments.userId, ds);
+	            var contacts = loadContacts(arguments.floatPlanId, arguments.userId, ds);
+	            var waypoints = loadWaypoints(arguments.floatPlanId, arguments.userId, ds);
 	            var basicDetails = loadBasicDetails(arguments.floatPlanId, ds);
             var routeItinerary = {};
             var itineraryFields = {};
@@ -374,9 +379,12 @@
                 fileMove(assembledPath, destinationPath);
                 assembledPath = "";
             }
+            if (fileExists(destinationPath)) {
+                fileDelete(destinationPath);
+            }
             appendFpwPdfLog(
                 "information",
-                "createPDF complete readonlyFile=#readonlyFileName# routeLegCount=#arrayLen(routeItinerary.legs)# continuationPageCount=#arrayLen(routeItinerary.continuationPages)# destExists=#fileExists(destinationPath)# readonlyExists=#fileExists(readonlyPath)#"
+                "createPDF complete readonlyFile=#readonlyFileName# routeLegCount=#arrayLen(routeItinerary.legs)# continuationPageCount=#arrayLen(routeItinerary.continuationPages)# sourceExists=#fileExists(destinationPath)# readonlyExists=#fileExists(readonlyPath)#"
             );
         </cfscript>
         <cfcatch type="any">
@@ -561,11 +569,22 @@
     <cffunction name="getPdfPath" access="public" output="false" returntype="string" hint="Return absolute path to a generated float plan PDF">
         <cfargument name="fileName" type="string" required="true">
         <cfscript>
-            var baseDir = getDirectoryFromPath(getCurrentTemplatePath());
-            var apiDir = getDirectoryFromPath(baseDir);
-            var rootDir = getDirectoryFromPath(apiDir);
-            var outputDir = rootDir & "floatPlans/user_float_plans/";
-            return outputDir & arguments.fileName;
+            var requestedName = trim(arguments.fileName);
+            var safeName = getFileFromPath(replace(requestedName, "\", "/", "all"));
+            if (!len(safeName) OR safeName NEQ requestedName) {
+                throw(type = "FPW.InvalidPdfFileName", message = "Invalid generated PDF file name.");
+            }
+            return getPdfOutputDirectory() & "/" & safeName;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getPdfOutputDirectory" access="private" output="false" returntype="string">
+        <cfscript>
+            var outputDir = replace(getTempDirectory(), "\", "/", "all");
+            if (right(outputDir, 1) NEQ "/") {
+                outputDir &= "/";
+            }
+            return outputDir & "fpw_float_plans";
         </cfscript>
     </cffunction>
 
@@ -591,11 +610,24 @@
 
 	    <cffunction name="loadFloatPlan" access="private" output="false" returntype="struct">
 	        <cfargument name="floatPlanId" type="numeric" required="true">
+	        <cfargument name="userId" type="numeric" required="true">
 	        <cfargument name="datasource" type="string" required="true">
         <cfscript>
             var qPlan = queryExecute(
-                "SELECT * FROM floatplans WHERE floatplanId = :planId LIMIT 1",
-                { planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" } },
+                "SELECT fp.*
+                   FROM floatplans fp
+                   LEFT JOIN route_instances ri
+                     ON ri.id = fp.route_instance_id
+                    AND ri.user_id = :routeUserId
+                  WHERE fp.floatplanId = :planId
+                    AND fp.userId = :planUserId
+                    AND (fp.route_instance_id IS NULL OR ri.id IS NOT NULL)
+                  LIMIT 1",
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    planUserId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" },
+                    routeUserId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                },
                 { datasource = arguments.datasource }
             );
             return queryRowToStruct(qPlan);
@@ -624,14 +656,22 @@
 
 	    <cffunction name="loadVessel" access="private" output="false" returntype="struct">
         <cfargument name="vesselId" type="numeric" required="true">
+        <cfargument name="userId" type="numeric" required="true">
         <cfargument name="datasource" type="string" required="true">
         <cfscript>
             if (arguments.vesselId LTE 0) {
                 return {};
             }
             var qVessel = queryExecute(
-                "SELECT * FROM vessels WHERE vesselId = :vesselId LIMIT 1",
-                { vesselId = { value = arguments.vesselId, cfsqltype = "cf_sql_integer" } },
+                "SELECT *
+                   FROM vessels
+                  WHERE vesselId = :vesselId
+                    AND userId = :userId
+                  LIMIT 1",
+                {
+                    vesselId = { value = arguments.vesselId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                },
                 { datasource = arguments.datasource }
             );
             return queryRowToStruct(qVessel);
@@ -640,14 +680,22 @@
 
     <cffunction name="loadOperator" access="private" output="false" returntype="struct">
         <cfargument name="operatorId" type="numeric" required="true">
+        <cfargument name="userId" type="numeric" required="true">
         <cfargument name="datasource" type="string" required="true">
         <cfscript>
             if (arguments.operatorId LTE 0) {
                 return {};
             }
             var qOperator = queryExecute(
-                "SELECT * FROM operators WHERE opId = :operatorId LIMIT 1",
-                { operatorId = { value = arguments.operatorId, cfsqltype = "cf_sql_integer" } },
+                "SELECT *
+                   FROM operators
+                  WHERE opId = :operatorId
+                    AND userId = :userId
+                  LIMIT 1",
+                {
+                    operatorId = { value = arguments.operatorId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                },
                 { datasource = arguments.datasource }
             );
             return queryRowToStruct(qOperator);
@@ -656,16 +704,25 @@
 
     <cffunction name="loadPassengers" access="private" output="false" returntype="array">
         <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="userId" type="numeric" required="true">
         <cfargument name="datasource" type="string" required="true">
         <cfscript>
             var passengers = [];
             var qPassengers = queryExecute(
                 "SELECT fp.passId, fp.hasPdf, p.name, p.phone, p.age, p.gender, p.notes, p.plbuin
                  FROM floatplan_passengers fp
-                 LEFT JOIN passengers p ON p.passId = fp.passId
+                 INNER JOIN passengers p
+                   ON p.passId = fp.passId
+                  AND p.userId = :userId
+                 INNER JOIN floatplans ownerPlan
+                   ON ownerPlan.floatplanId = fp.floatplanId
+                  AND ownerPlan.userId = :userId
                  WHERE fp.floatplanId = :planId
                  ORDER BY fp.recId ASC",
-                { planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" } },
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                },
                 { datasource = arguments.datasource }
             );
 
@@ -678,16 +735,25 @@
 
     <cffunction name="loadContacts" access="private" output="false" returntype="array">
         <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="userId" type="numeric" required="true">
         <cfargument name="datasource" type="string" required="true">
         <cfscript>
             var contacts = [];
             var qContacts = queryExecute(
                 "SELECT fc.contactId, c.name, c.phone
                  FROM floatplan_contacts fc
-                 LEFT JOIN contacts c ON c.contactId = fc.contactId
+                 INNER JOIN contacts c
+                   ON c.contactId = fc.contactId
+                  AND c.userId = :userId
+                 INNER JOIN floatplans ownerPlan
+                   ON ownerPlan.floatplanId = fc.floatplanId
+                  AND ownerPlan.userId = :userId
                  WHERE fc.floatplanId = :planId
                  ORDER BY fc.recId ASC",
-                { planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" } },
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                },
                 { datasource = arguments.datasource }
             );
 
@@ -700,16 +766,25 @@
 
     <cffunction name="loadWaypoints" access="private" output="false" returntype="array">
         <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="userId" type="numeric" required="true">
         <cfargument name="datasource" type="string" required="true">
         <cfscript>
             var waypoints = [];
             var qWaypoints = queryExecute(
                 "SELECT fw.wayPointId, fw.reason, fw.departType, fw.arrival, fw.departure, w.name
                  FROM floatplan_waypoints fw
-                 LEFT JOIN waypoints w ON w.wpId = fw.wayPointId
+                 INNER JOIN waypoints w
+                   ON w.wpId = fw.wayPointId
+                  AND w.userId = :userId
+                 INNER JOIN floatplans ownerPlan
+                   ON ownerPlan.floatplanId = fw.floatplanId
+                  AND ownerPlan.userId = :userId
                  WHERE fw.floatplanId = :planId
                  ORDER BY fw.recId ASC",
-                { planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" } },
+                {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                },
                 { datasource = arguments.datasource }
             );
 
@@ -860,16 +935,3 @@
         </cfscript>
     </cffunction>
 </cfcomponent>
-
-
-
-
-
-
-
-
-
-
-
-
-

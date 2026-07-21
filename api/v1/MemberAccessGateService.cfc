@@ -5,6 +5,7 @@
     <cfscript>
       variables.datasource = len(trim(arguments.datasource)) ? trim(arguments.datasource) : "fpw";
       variables.entitlementService = "";
+      variables.premiumSendCreditService = "";
       return this;
     </cfscript>
   </cffunction>
@@ -45,6 +46,90 @@
         );
       }
       return allowed(access);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="requirePlanningAccess" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      return requireAuthenticated(arguments.userId);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="requirePremiumSend" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var access = getCurrentAccess(arguments.userId);
+      if (!structKeyExists(access, "authenticated") OR !access.authenticated) {
+        return denied(
+          errorCode = "AUTH_REQUIRED",
+          message = "Log in to continue.",
+          auth = false,
+          statusCode = 401,
+          includeUpgradeOptions = false,
+          access = access
+        );
+      }
+      if (structKeyExists(access, "canSendPremiumFloatPlan") AND access.canSendPremiumFloatPlan) {
+        return allowed(access);
+      }
+      return denied(
+        errorCode = "PREMIUM_SEND_ACCESS_REQUIRED",
+        message = "Buy one Premium Trip or join a monthly or annual membership to use Premium Save and Send.",
+        auth = true,
+        statusCode = 403,
+        includeUpgradeOptions = true,
+        access = access
+      );
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="requireTripOperationalAccess" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="floatPlanId" type="numeric" required="true">
+    <cfscript>
+      var access = getCurrentAccess(arguments.userId);
+      var tripAccess = {};
+
+      if (!structKeyExists(access, "authenticated") OR !access.authenticated) {
+        return denied(
+          errorCode = "AUTH_REQUIRED",
+          message = "Log in to continue.",
+          auth = false,
+          statusCode = 401,
+          includeUpgradeOptions = false,
+          access = access
+        );
+      }
+      if (arguments.floatPlanId LTE 0) {
+        return denied(
+          errorCode = "FLOAT_PLAN_REQUIRED",
+          message = "A valid float plan is required.",
+          auth = true,
+          statusCode = 400,
+          includeUpgradeOptions = false,
+          access = access
+        );
+      }
+
+      tripAccess = getPremiumSendCreditService().getTripOperationalAccess(
+        arguments.userId,
+        arguments.floatPlanId
+      );
+      if (tripAccess.allowed) {
+        access.tripOperationalAccessSource = tripAccess.accessSource;
+        access.tripOperationalFloatPlanId = val(arguments.floatPlanId);
+        return allowed(access);
+      }
+
+      return denied(
+        errorCode = "TRIP_OPERATION_ACCESS_REQUIRED",
+        message = "This float plan requires a Premium Trip credit or active monthly or annual membership.",
+        auth = true,
+        statusCode = 403,
+        includeUpgradeOptions = true,
+        access = access
+      );
     </cfscript>
   </cffunction>
 
@@ -97,8 +182,8 @@
       if (structKeyExists(access, "hasPremium") AND access.hasPremium) {
         return allowed(access);
       }
-      if (structKeyExists(access, "limits") AND structKeyExists(access.limits, "maxWaypoints") AND !isNull(access.limits.maxWaypoints)) {
-        maxWaypoints = val(access.limits.maxWaypoints);
+      if (structKeyExists(access, "basicSendLimits") AND structKeyExists(access.basicSendLimits, "maxWaypoints") AND !isNull(access.basicSendLimits.maxWaypoints)) {
+        maxWaypoints = val(access.basicSendLimits.maxWaypoints);
       }
       if (maxWaypoints GT 0 AND arguments.waypointCount GT maxWaypoints) {
         return denied(
@@ -139,8 +224,8 @@
       if (!isDate(arguments.departureAt) OR !isDate(arguments.returnAt)) {
         return allowed(access);
       }
-      if (structKeyExists(access, "limits") AND structKeyExists(access.limits, "maxTripDays") AND !isNull(access.limits.maxTripDays)) {
-        maxTripDays = val(access.limits.maxTripDays);
+      if (structKeyExists(access, "basicSendLimits") AND structKeyExists(access.basicSendLimits, "maxTripDays") AND !isNull(access.basicSendLimits.maxTripDays)) {
+        maxTripDays = val(access.basicSendLimits.maxTripDays);
       }
       maxMinutes = maxTripDays * 24 * 60;
       if (maxMinutes GT 0 AND dateDiff("n", arguments.departureAt, arguments.returnAt) GT maxMinutes) {
@@ -160,16 +245,13 @@
   <cffunction name="validateMonitoringMode" access="public" returntype="struct" output="false">
     <cfargument name="userId" type="numeric" required="true">
     <cfargument name="monitoringMode" type="string" required="true">
+    <cfargument name="floatPlanId" type="numeric" required="false" default="0">
     <cfscript>
       var modeValue = lCase(trim(arguments.monitoringMode));
       if (modeValue EQ "basic") {
         return requireAuthenticated(arguments.userId);
       }
-      return requirePremium(
-        userId = arguments.userId,
-        errorCode = "BASIC_ADVANCED_MONITORING_RESTRICTED",
-        message = "Upgrade to Premium to use Active Cruise and advanced route monitoring."
-      );
+      return requireTripOperationalAccess(arguments.userId, arguments.floatPlanId);
     </cfscript>
   </cffunction>
 
@@ -248,8 +330,9 @@
       };
       if (arguments.includeUpgradeOptions) {
         response.upgradeOptions = {
+          "oneTrip" = true,
           "monthly" = true,
-          "threeDayPass" = true
+          "annual" = true
         };
       }
       return response;
@@ -258,7 +341,21 @@
 
   <cffunction name="defaultPremiumMessage" access="private" returntype="string" output="false">
     <cfscript>
-      return "Upgrade to Premium to save routes, plan multi-day trips, use Active Cruise, share a Follow Page, and unlock advanced monitoring.";
+      return "An active Premium membership is required for this feature.";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="getPremiumSendCreditService" access="private" returntype="any" output="false">
+    <cfscript>
+      if (isObject(variables.premiumSendCreditService)) {
+        return variables.premiumSendCreditService;
+      }
+      try {
+        variables.premiumSendCreditService = createObject("component", "fpw.api.v1.PremiumSendCreditService").init(variables.datasource);
+      } catch (any primaryErr) {
+        variables.premiumSendCreditService = createObject("component", "api.v1.PremiumSendCreditService").init(variables.datasource);
+      }
+      return variables.premiumSendCreditService;
     </cfscript>
   </cffunction>
 

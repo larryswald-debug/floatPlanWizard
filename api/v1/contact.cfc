@@ -64,11 +64,7 @@
             </cfif>
 
 	            <cfif action EQ "save">
-	                <cfset memberGateResult = getMemberAccessGateService().requirePremium(
-	                    userId = userId,
-	                    errorCode = "BASIC_REUSABLE_CONTACT_RESTRICTED",
-	                    message = "Upgrade to Premium to save reusable contacts. Basic float plans use one-time notification contacts."
-	                )>
+	                <cfset memberGateResult = getMemberAccessGateService().requirePlanningAccess(userId)>
 	                <cfif NOT memberGateResult.allowed>
 	                    <cfoutput>#serializeJSON(memberGateResult.response)#</cfoutput>
 	                    <cfsetting enablecfoutputonly="false">

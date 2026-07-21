@@ -277,7 +277,9 @@
                       AND UPPER(TRIM(monitor_state)) <> 'CLOSED'
                     GROUP BY float_plan_id
                 ) latest ON latest.id = m.id
-                INNER JOIN floatplans fp ON fp.floatplanId = m.float_plan_id
+                INNER JOIN floatplans fp
+                    ON fp.floatPlanId = m.float_plan_id
+                   AND fp.userId = <cfqueryparam cfsqltype="cf_sql_varchar" value="#toString(val(userId))#">
                 LEFT JOIN vessels v ON fp.vesselId = v.vesselId
                 ORDER BY
                     CASE
@@ -294,8 +296,22 @@
 
             <cfset plans = []>
             <cfset counts = { active = 0, overdue = 0, escalated = 0 }>
+            <cftry>
+                <cfset monitoringAccessGateService = createObject("component", "fpw.api.v1.MemberAccessGateService").init("fpw")>
+                <cfcatch type="any">
+                    <cfset monitoringAccessGateService = createObject("component", "api.v1.MemberAccessGateService").init("fpw")>
+                </cfcatch>
+            </cftry>
 
             <cfloop query="qPlans">
+                <cfset monitoringPlanGate = monitoringAccessGateService.requireTripOperationalAccess(
+                    val(userId),
+                    val(qPlans.floatplanId)
+                )>
+                <cfif NOT monitoringPlanGate.allowed>
+                    <cfcontinue>
+                </cfif>
+
                 <cfset planStatus = trim(toString(qPlans.status))>
                 <cfset statusUpper = ucase(planStatus)>
                 <cfset displayName = trim(toString(qPlans.floatPlanName))>
@@ -386,4 +402,3 @@
 
 
 </cfcomponent>
-

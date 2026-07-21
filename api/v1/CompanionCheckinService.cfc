@@ -15,6 +15,7 @@
     <cfscript>
       var validation = validatePayload(arguments.payload);
       var activePlan = {};
+      var tripAccessGate = {};
       var existingEvent = {};
       var insertedEvent = {};
       var canonicalPayload = {};
@@ -32,6 +33,13 @@
       activePlan = validateActivePlan(arguments.userId, validation.floatPlanId);
       if (!activePlan.SUCCESS) {
         return activePlan;
+      }
+
+      tripAccessGate = createApiComponent("MemberAccessGateService")
+        .init(variables.datasource)
+        .requireTripOperationalAccess(arguments.userId, validation.floatPlanId);
+      if (!structKeyExists(tripAccessGate, "allowed") OR !tripAccessGate.allowed) {
+        return tripAccessGate.response;
       }
 
       validation.routeInstanceId = readNumber(activePlan, "routeInstanceId");

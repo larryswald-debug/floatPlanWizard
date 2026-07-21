@@ -230,63 +230,86 @@
                 <cfabort>
             </cfif>
 
-            <cfset queryExecute(
-                userInsert.sql,
-                userInsert.params,
-                { datasource = "fpw" }
-            )>
-            <cfset newIdQ = queryExecute("SELECT LAST_INSERT_ID() AS newId", {}, { datasource = "fpw" })>
-            <cfset newUserId = val(newIdQ.newId[1])>
+            <cftransaction>
+                <cfset queryExecute(
+                    userInsert.sql,
+                    userInsert.params,
+                    { datasource = "fpw" }
+                )>
+                <cfset newIdQ = queryExecute("SELECT LAST_INSERT_ID() AS newId", {}, { datasource = "fpw" })>
+                <cfset newUserId = val(newIdQ.newId[1])>
+                <cfif newUserId LTE 0>
+                    <cfthrow type="FPW.Signup.UserInsertFailed" message="The new member id was not created.">
+                </cfif>
 
-            <cfif newUserId GT 0>
-                <cftry>
-                    <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
-                        userId = newUserId,
-                        eventName = "sign_up",
-                        entityType = "user",
-                        entityId = newUserId,
-                        eventSource = "member_signup",
-                        metadata = {
-                            signup_method = "password",
-                            account_tier = "basic"
-                        },
-                        idempotencyKey = "sign_up:user:" & newUserId,
-                        requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
-                    )>
-                <cfcatch type="any">
-                    <cflog file="fpw_product_events" type="error" text="join.cfc PRODUCT_EVENT_CALL_FAILED | event=sign_up">
-                </cfcatch>
-                </cftry>
-            </cfif>
+                <!-- Optional address/phone insert -->
+                <cfif len(address) OR len(city) OR len(state) OR len(zip) OR len(phone)>
+                    <cfset addrValues = {}>
+                    <cfset addrValues.userid = newUserId>
+                    <cfset addrValues.address = address>
+                    <cfset addrValues.city = city>
+                    <cfset addrValues.state = state>
+                    <cfset addrValues.zip = zip>
+                    <cfset addrValues.phone = phone>
+                    <cfset addrValues.ishomeport = 0>
+                    <cfset addrValues.created = nowStamp>
+                    <cfset addrValues.lastupdate = nowStamp>
 
-            <!-- Optional address/phone insert -->
-            <cfif len(address) OR len(city) OR len(state) OR len(zip) OR len(phone)>
-                <cfset addrValues = {}>
-                <cfset addrValues.userid = newUserId>
-                <cfset addrValues.address = address>
-                <cfset addrValues.city = city>
-                <cfset addrValues.state = state>
-                <cfset addrValues.zip = zip>
-                <cfset addrValues.phone = phone>
-                <cfset addrValues.ishomeport = 0>
-                <cfset addrValues.created = nowStamp>
-                <cfset addrValues.lastupdate = nowStamp>
-
-                <cfset addrInsert = buildInsert("users_address", addrValues)>
-                <cfif addrInsert.ok>
+                    <cfset addrInsert = buildInsert("users_address", addrValues)>
+                    <cfif NOT addrInsert.ok>
+                        <cfthrow type="FPW.Signup.AddressInsertFailed" message="#addrInsert.message#">
+                    </cfif>
                     <cfset queryExecute(
                         addrInsert.sql,
                         addrInsert.params,
                         { datasource = "fpw" }
                     )>
                 </cfif>
-            </cfif>
 
-            <cfquery datasource="fpw">
-                UPDATE users
-                SET lastLogin = <cfqueryparam cfsqltype="cf_sql_timestamp" value="#nowStamp#">
-                WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#newUserId#">
-            </cfquery>
+                <cfquery datasource="fpw">
+                    UPDATE users
+                    SET lastLogin = <cfqueryparam cfsqltype="cf_sql_timestamp" value="#nowStamp#">
+                    WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#newUserId#">
+                </cfquery>
+
+                <cftry>
+                    <cfset creditService = createObject("component", "fpw.api.v1.PremiumSendCreditService").init("fpw")>
+                    <cfcatch>
+                        <cfset creditService = createObject("component", "api.v1.PremiumSendCreditService").init("fpw")>
+                    </cfcatch>
+                </cftry>
+                <cfset creditGrant = creditService.grantCreditInCurrentTransaction(
+                    userId = newUserId,
+                    source = "complimentary_signup",
+                    idempotencyKey = "complimentary_signup:user:" & newUserId
+                )>
+                <cfif NOT creditGrant.SUCCESS>
+                    <cfthrow
+                        type="FPW.Signup.PremiumSendCreditGrantFailed"
+                        message="#creditGrant.MESSAGE#"
+                        detail="#creditGrant.ERROR#">
+                </cfif>
+            </cftransaction>
+
+            <cftry>
+                <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
+                    userId = newUserId,
+                    eventName = "sign_up",
+                    entityType = "user",
+                    entityId = newUserId,
+                    eventSource = "member_signup",
+                    metadata = {
+                        signup_method = "password",
+                        account_tier = "basic",
+                        complimentary_premium_send_credit = true
+                    },
+                    idempotencyKey = "sign_up:user:" & newUserId,
+                    requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
+                )>
+                <cfcatch type="any">
+                    <cflog file="fpw_product_events" type="error" text="join.cfc PRODUCT_EVENT_CALL_FAILED | event=sign_up">
+                </cfcatch>
+            </cftry>
 
             <cfset session.user = {
                 id = newUserId,
