@@ -1,7 +1,7 @@
 (function (window, document) {
   "use strict";
 
-  var endpoint = "/fpw/api/v1/adminPassengers.cfc?method=handle";
+  var endpoint = (window.FPW_API_BASE || ((window.FPW_BASE || "") + "/api/v1")) + "/adminPassengers.cfc?method=handle";
 
   var state = {
     items: [],
@@ -56,7 +56,8 @@
       credentials: "same-origin",
       headers: {
         "Content-Type": "application/json; charset=utf-8",
-        "Accept": "application/json"
+        "Accept": "application/json",
+        "X-CSRF-Token": window.FPW_ADMIN_CSRF_TOKEN || ""
       },
       body: JSON.stringify(requestPayload)
     });
@@ -542,3 +543,4 @@
     init();
   }
 })(window, document);
+

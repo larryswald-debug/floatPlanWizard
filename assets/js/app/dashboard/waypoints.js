@@ -906,6 +906,10 @@
       utils.setFieldError(waypointNameInput, waypointNameError, "Name is required.");
       hasError = true;
     }
+    if (payload.WAYPOINTNAME.length > 45) {
+      utils.setFieldError(waypointNameInput, waypointNameError, "Waypoint name must be 45 characters or fewer.");
+      hasError = true;
+    }
     if (hasError) {
       return;
     }

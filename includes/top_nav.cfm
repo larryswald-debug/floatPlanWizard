@@ -1,917 +1,670 @@
-<!-- /includes/top_nav.cfm -->
 <cfscript>
-userDisplayName = "";
-if (structKeyExists(session, "user") && isStruct(session.user)) {
-  firstName = "";
-  lastName = "";
+topNavBasePath = "";
+topNavHasRequestBase = false;
+topNavHost = "";
+topNavIsProduction = false;
+topNavActive = "";
+topNavUserId = 0;
+topNavIsLoggedIn = false;
+topNavHasPremium = false;
+topNavUserDisplayName = "";
+topNavMemberDisplayInitials = "FP";
+topNavFirstName = "";
+topNavLastName = "";
+topNavEmail = "";
+topNavHowHref = "";
+
+if (structKeyExists(request, "fpwBase")) {
+  topNavHasRequestBase = true;
+  topNavBasePath = trim(toString(request.fpwBase));
+}
+
+if (!topNavHasRequestBase AND !len(topNavBasePath) AND structKeyExists(cgi, "script_name")) {
+  topNavBasePath = trim(toString(cgi.script_name));
+  topNavBasePath = reReplace(topNavBasePath, "[?##].*$", "");
+  topNavBasePath = replace(topNavBasePath, "\\", "/", "all");
+  topNavBasePath = reReplaceNoCase(topNavBasePath, "/api/v1(/.*)?$", "");
+  topNavBasePath = reReplaceNoCase(topNavBasePath, "/great-loop(/.*)?$", "");
+  topNavBasePath = reReplaceNoCase(topNavBasePath, "/(app|admin|assets|tests)(/.*)?$", "");
+  topNavBasePath = reReplaceNoCase(topNavBasePath, "/boat-fuel-calculator/boat-fuel-calculator\.cfm$", "");
+  topNavBasePath = reReplaceNoCase(topNavBasePath, "/[^/]*\.(cfm|cfc)$", "");
+  topNavBasePath = reReplace(topNavBasePath, "/$", "");
+}
+
+topNavBasePath = reReplace(topNavBasePath, "/$", "");
+if (topNavBasePath EQ "/") {
+  topNavBasePath = "";
+}
+if (len(topNavBasePath) AND left(topNavBasePath, 1) NEQ "/") {
+  topNavBasePath = "/" & topNavBasePath;
+}
+
+if (structKeyExists(request, "fpwTopNavActive")) {
+  topNavActive = lCase(trim(toString(request.fpwTopNavActive)));
+}
+
+topNavHowHref = topNavBasePath & "/##fpwHowItWorks";
+
+if (structKeyExists(session, "user") AND isStruct(session.user)) {
   if (structKeyExists(session.user, "firstName")) {
-    firstName = session.user.firstName;
+    topNavFirstName = trim(toString(session.user.firstName));
   } else if (structKeyExists(session.user, "FIRSTNAME")) {
-    firstName = session.user.FIRSTNAME;
+    topNavFirstName = trim(toString(session.user.FIRSTNAME));
   } else if (structKeyExists(session.user, "fName")) {
-    firstName = session.user.fName;
+    topNavFirstName = trim(toString(session.user.fName));
   } else if (structKeyExists(session.user, "FNAME")) {
-    firstName = session.user.FNAME;
+    topNavFirstName = trim(toString(session.user.FNAME));
   }
 
   if (structKeyExists(session.user, "lastName")) {
-    lastName = session.user.lastName;
+    topNavLastName = trim(toString(session.user.lastName));
   } else if (structKeyExists(session.user, "LASTNAME")) {
-    lastName = session.user.LASTNAME;
+    topNavLastName = trim(toString(session.user.LASTNAME));
   } else if (structKeyExists(session.user, "lName")) {
-    lastName = session.user.lName;
+    topNavLastName = trim(toString(session.user.lName));
   } else if (structKeyExists(session.user, "LNAME")) {
-    lastName = session.user.LNAME;
+    topNavLastName = trim(toString(session.user.LNAME));
   }
 
-  userDisplayName = trim(firstName & " " & lastName);
+  if (structKeyExists(session.user, "email")) {
+    topNavEmail = trim(toString(session.user.email));
+  } else if (structKeyExists(session.user, "EMAIL")) {
+    topNavEmail = trim(toString(session.user.EMAIL));
+  }
 
-  if (!len(userDisplayName)) {
-    if (structKeyExists(session.user, "email")) {
-      userDisplayName = session.user.email;
-    } else if (structKeyExists(session.user, "EMAIL")) {
-      userDisplayName = session.user.EMAIL;
+  if (structKeyExists(session.user, "userId") AND isNumeric(session.user.userId)) {
+    topNavUserId = val(session.user.userId);
+  } else if (structKeyExists(session.user, "id") AND isNumeric(session.user.id)) {
+    topNavUserId = val(session.user.id);
+  } else if (structKeyExists(session.user, "USERID") AND isNumeric(session.user.USERID)) {
+    topNavUserId = val(session.user.USERID);
+  } else if (structKeyExists(session.user, "ID") AND isNumeric(session.user.ID)) {
+    topNavUserId = val(session.user.ID);
+  }
+
+  topNavUserDisplayName = trim(topNavFirstName & " " & topNavLastName);
+  if (!len(topNavUserDisplayName)) {
+    topNavUserDisplayName = topNavEmail;
+  }
+}
+
+topNavIsLoggedIn = topNavUserId GT 0;
+
+if (topNavIsLoggedIn) {
+  if (!len(topNavUserDisplayName)) {
+    topNavUserDisplayName = "Member";
+  }
+
+  topNavInitialParts = listToArray(reReplace(topNavUserDisplayName, "\s+", " ", "all"), " ");
+  topNavMemberDisplayInitials = "";
+  topNavInitialLimit = arrayLen(topNavInitialParts);
+  if (topNavInitialLimit GT 2) {
+    topNavInitialLimit = 2;
+  }
+  for (topNavInitialPartIndex = 1; topNavInitialPartIndex LTE topNavInitialLimit; topNavInitialPartIndex++) {
+    if (len(topNavInitialParts[topNavInitialPartIndex])) {
+      topNavMemberDisplayInitials = topNavMemberDisplayInitials & left(topNavInitialParts[topNavInitialPartIndex], 1);
     }
   }
-}
-basePath = "";
-if (structKeyExists(request, "fpwBase")) {
-  basePath = request.fpwBase;
-}
-if (!len(trim(basePath)) && structKeyExists(cgi, "script_name")) {
-  scriptName = toString(cgi.script_name);
-  appPathPos = findNoCase("/app/", scriptName);
-  if (appPathPos > 1) {
-    basePath = left(scriptName, appPathPos - 1);
+  if (!len(topNavMemberDisplayInitials)) {
+    topNavMemberDisplayInitials = left(topNavUserDisplayName, 2);
+  }
+  topNavMemberDisplayInitials = uCase(topNavMemberDisplayInitials);
+
+  try {
+    topNavAccess = new fpw.api.v1.MemberEntitlementService().init("fpw").getCurrentAccess(topNavUserId);
+    if (structKeyExists(topNavAccess, "hasPremium") AND topNavAccess.hasPremium EQ true) {
+      topNavHasPremium = true;
+    }
+  } catch (any topNavAccessError) {
+    topNavHasPremium = false;
   }
 }
+
+function renderFpwNavIcon(required string name, string extraClass = "") output=false {
+  var iconName = lCase(trim(arguments.name));
+  var iconClass = "fpw-svg-icon";
+  var iconViewBox = "0 0 48 48";
+  var iconPaths = "";
+
+  if (len(trim(arguments.extraClass))) {
+    iconClass = iconClass & " " & trim(arguments.extraClass);
+  }
+
+  switch (iconName) {
+    case "brand-wheel":
+      iconClass = iconClass & " fpw-icon-brand-wheel";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<circle cx="32" cy="32" r="13"></circle><circle cx="32" cy="32" r="5"></circle><path d="M32 4v10"></path><path d="M32 50v10"></path><path d="M4 32h10"></path><path d="M50 32h10"></path><path d="M12.2 12.2l7.1 7.1"></path><path d="M44.7 44.7l7.1 7.1"></path><path d="M51.8 12.2l-7.1 7.1"></path><path d="M19.3 44.7l-7.1 7.1"></path><circle cx="32" cy="4" r="2.6"></circle><circle cx="32" cy="60" r="2.6"></circle><circle cx="4" cy="32" r="2.6"></circle><circle cx="60" cy="32" r="2.6"></circle><circle cx="12.2" cy="12.2" r="2.3"></circle><circle cx="51.8" cy="12.2" r="2.3"></circle><circle cx="12.2" cy="51.8" r="2.3"></circle><circle cx="51.8" cy="51.8" r="2.3"></circle>';
+      break;
+    case "how":
+      iconClass = iconClass & " fpw-icon-how";
+      iconPaths = '<circle cx="24" cy="24" r="15"></circle><path d="M14 34L34 14"></path><path d="M19 16h7"></path><path d="M22 32h7"></path>';
+      break;
+    case "route":
+      iconClass = iconClass & " fpw-icon-route";
+      iconPaths = '<path d="M14 38c8-8 13 6 22-3"></path><path d="M16 13c0 5-6 8-6 8s-6-3-6-8a6 6 0 0 1 12 0z"></path><circle cx="10" cy="13" r="2"></circle><path d="M44 17c0 5-6 8-6 8s-6-3-6-8a6 6 0 0 1 12 0z"></path><circle cx="38" cy="17" r="2"></circle><path d="M18 25h5"></path><path d="M27 25h3"></path>';
+      break;
+    case "map":
+      iconClass = iconClass & " fpw-icon-map";
+      iconPaths = '<path d="M7 12l10-4 14 4 10-4v28l-10 4-14-4-10 4z"></path><path d="M17 8v28"></path><path d="M31 12v28"></path>';
+      break;
+    case "tools":
+      iconClass = iconClass & " fpw-icon-tools";
+      iconPaths = '<path d="M31 6a10 10 0 0 0 11 13L20 41a6 6 0 0 1-8-8l22-22A10 10 0 0 0 31 6z"></path><circle cx="16" cy="36" r="2"></circle>';
+      break;
+    case "pricing":
+      iconClass = iconClass & " fpw-icon-pricing";
+      iconPaths = '<path d="M8 21L21 8h17v17L25 38z"></path><circle cx="32" cy="16" r="3"></circle>';
+      break;
+    case "user":
+      iconClass = iconClass & " fpw-icon-user";
+      iconPaths = '<circle cx="24" cy="24" r="18"></circle><circle cx="24" cy="18" r="6"></circle><path d="M13 36c3-7 19-7 22 0"></path>';
+      break;
+    case "lock":
+      iconClass = iconClass & " fpw-icon-lock-library";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<path d="M22 30v-8a10 10 0 0 1 20 0v8"></path><path d="M16 30h32v18H16z"></path><path d="M24 30v-8"></path><path d="M40 30v-8"></path><path d="M12 48c4 0 4 3 8 3s4-3 8-3 4 3 8 3 4-3 8-3 4 3 8 3"></path><path d="M12 56c4 0 4 3 8 3s4-3 8-3 4 3 8 3 4-3 8-3 4 3 8 3"></path>';
+      break;
+    case "bridge":
+      iconClass = iconClass & " fpw-icon-bridge-library";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<path d="M10 42h44"></path><path d="M16 42c5-14 27-14 32 0"></path><path d="M20 42V28"></path><path d="M32 42V22"></path><path d="M44 42V28"></path><path d="M14 34h36"></path><path d="M8 50c4 0 4 3 8 3s4-3 8-3 4 3 8 3 4-3 8-3 4 3 8 3 4-3 8-3"></path>';
+      break;
+    case "anchor":
+      iconClass = iconClass & " fpw-icon-anchor-library";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<circle cx="32" cy="12" r="5"></circle><path d="M32 17v32"></path><path d="M22 25h20"></path><path d="M16 38c0 10 7 18 16 18s16-8 16-18"></path><path d="M10 42l6-4 5 6"></path><path d="M54 42l-6-4-5 6"></path>';
+      break;
+    case "compass":
+      iconClass = iconClass & " fpw-icon-compass";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<circle cx="32" cy="32" r="24"></circle><path d="M40 20l-6 18-18 6 6-18z"></path><circle cx="32" cy="32" r="2"></circle>';
+      break;
+    case "fuel":
+      iconClass = iconClass & " fpw-icon-fuel";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<path d="M16 10h24v44H16z"></path><path d="M22 16h12v12H22z"></path><path d="M40 20h5l7 7v20a5 5 0 0 1-10 0v-9h-2"></path><path d="M45 20v10h7"></path><path d="M12 54h32"></path>';
+      break;
+    case "weather":
+      iconClass = iconClass & " fpw-icon-weather";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<path d="M20 42h28a9 9 0 0 0 0-18 14 14 0 0 0-27-4A11 11 0 0 0 20 42z"></path><path d="M16 16l-4-4"></path><path d="M28 10V4"></path><path d="M8 28H2"></path><path d="M12 44l-4 4"></path>';
+      break;
+    case "checklist":
+      iconClass = iconClass & " fpw-icon-checklist";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<path d="M18 12h28v44H18z"></path><path d="M26 12a6 6 0 0 1 12 0"></path><path d="M24 26l4 4 8-9"></path><path d="M24 40h16"></path><path d="M24 48h12"></path>';
+      break;
+    case "route-cta":
+      iconClass = iconClass & " fpw-icon-route-cta";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<path d="M14 44c12-14 22 10 36-8"></path><path d="M18 18c0 7-8 12-8 12s-8-5-8-12a8 8 0 0 1 16 0z"></path><circle cx="10" cy="18" r="2.5"></circle><path d="M60 24c0 7-8 12-8 12s-8-5-8-12a8 8 0 0 1 16 0z"></path><circle cx="52" cy="24" r="2.5"></circle><path d="M24 34h6"></path><path d="M36 34h3"></path>';
+      break;
+    case "launch":
+      iconClass = iconClass & " fpw-icon-launch";
+      iconPaths = '<path d="M29 5c6 2 11 7 14 14L30 32 16 18z"></path><path d="M16 18l-8 3-4 9 10-4"></path><path d="M30 32l-3 8-9 4 4-10"></path><circle cx="31" cy="17" r="3"></circle><path d="M12 34l-6 6"></path><path d="M18 38l-4 4"></path>';
+      break;
+    default:
+      return "";
+  }
+
+  return '<svg class="' & iconClass & '" viewBox="' & iconViewBox & '" aria-hidden="true" focusable="false">' & iconPaths & '</svg>';
+}
+
+topNavShowAppSubnav = topNavIsLoggedIn
+  AND listFindNoCase("dashboard,active-cruise,monitoring,weather,fuel", topNavActive) GT 0;
 </cfscript>
 
-<style>
-  :root{
-    --bg0:#07121f;
-    --bg1:#0a1a2b;
-    --panel:#0b1a2a;
-    --line:rgba(255,255,255,.08);
-    --text:rgba(255,255,255,.88);
-    --muted:rgba(255,255,255,.62);
-    --accent:#35d0c8;
-    --accent2:#4aa3ff;
-    --shadow: 0 18px 50px rgba(0,0,0,.35);
-    --radius:14px;
-    --radius2:12px;
-    --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-  }
+<cfoutput>
+  <header class="fpw-site-header<cfif topNavIsLoggedIn> fpw-site-header--logged-in</cfif><cfif topNavShowAppSubnav> fpw-site-header--app</cfif>" role="banner" data-fpw-nav>
+    <cfif NOT topNavIsLoggedIn>
+      <div class="fpw-launch-strip">
+        <div class="fpw-launch-inner">
+          <span class="fpw-launch-icon" aria-hidden="true">#renderFpwNavIcon("launch", "fpw-launch-svg")#</span>
+          <span class="fpw-launch-copy"><strong>Launch Offer</strong> &mdash; 1 Month of Premium Free for New Members <span aria-hidden="true">&bull;</span> No Credit Card Required</span>
+          <a class="fpw-launch-link" href="#topNavBasePath#/app/join.cfm">Learn More <span aria-hidden="true">&rarr;</span></a>
+        </div>
+      </div>
+    </cfif>
 
-  *{ box-sizing:border-box; }
-  body{
-    margin:0;
-    font-family:var(--font);
-    background:#0b1320;
-    color:var(--text);
-  }
+    <div class="fpw-nav-shell">
+      <div class="fpw-nav-inner">
+        <a class="fpw-brand" href="<cfif topNavIsLoggedIn>#topNavBasePath#/app/dashboard.cfm<cfelse>#topNavBasePath#/##top</cfif>" aria-label="FloatPlanWizard home">
+          <span class="fpw-brand__mark" aria-hidden="true">
+            #renderFpwNavIcon("brand-wheel", "fpw-helm-icon")#
+          </span>
 
-  /* ===== Toggle logic =====
-     body:not(.is-logged-in) shows pre-login
-     body.is-logged-in shows post-login
-  */
-  .nav--public{ display:block; }
-  .nav--app{ display:block; }
-  body.is-logged-in .nav--public,
-  body.is-logged-in .loginStrip{ display:none; }
-  body.is-logged-in .nav--app{ display:block; }
+          <span class="fpw-brand__text">
+            <span class="fpw-brand__name">FloatPlanWizard</span>
+            <span class="fpw-brand__tagline">Built for serious recreational boaters</span>
+          </span>
+        </a>
 
-  /* ===== Shell ===== */
-  .topbar{
-    position:sticky;
-    top:0;
-    z-index:1050;
-    background:
-      radial-gradient(1200px 90px at 10% 0%, rgba(53,208,200,.18), transparent 55%),
-      radial-gradient(900px 110px at 85% 10%, rgba(74,163,255,.16), transparent 60%),
-      linear-gradient(180deg, var(--bg0), var(--bg1));
-    border-bottom:1px solid var(--line);
-  }
-  .topbar.nav--public,
-  .topbar.nav--app{
-    position:sticky !important;
-    top:0 !important;
-    z-index:1051 !important;
-  }
-  .inner{
-    max-width:1200px;
-    margin:0 auto;
-    padding:12px 16px;
-    display:flex;
-    align-items:center;
-    gap:16px;
-  }
-
-  /* ===== Brand ===== */
-  .brand{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    text-decoration:none;
-    color:inherit;
-    min-width: 300px;
-  }
-  .logo{
-    width:34px; height:34px; border-radius:10px;
-    background:
-      radial-gradient(circle at 30% 20%, rgba(255,255,255,.35), transparent 40%),
-      linear-gradient(135deg, rgba(53,208,200,.95), rgba(74,163,255,.75));
-    box-shadow: 0 8px 18px rgba(0,0,0,.25);
-    flex:0 0 auto;
-  }
-  .brandTitle{
-    font-weight:900;
-    letter-spacing:.2px;
-    line-height:1.05;
-  }
-  .tagline{
-    font-size:.92rem;
-    color:var(--muted);
-    margin-top:2px;
-    line-height:1.15;
-  }
-
-  /* ===== Public nav ===== */
-  .navLinks{
-    display:flex;
-    align-items:center;
-    gap:14px;
-    flex-wrap:wrap;
-  }
-  .navLinks a{
-    color:var(--muted);
-    text-decoration:none;
-    font-weight:700;
-    padding:8px 6px;
-    border-radius:10px;
-  }
-  .navLinks a:hover{
-    color:var(--text);
-    background:rgba(255,255,255,.05);
-  }
-
-  /* ===== Actions / buttons ===== */
-  .actions{
-    margin-left:auto;
-    display:flex;
-    align-items:center;
-    gap:10px;
-  }
-  .btn{
-    border-radius:10px;
-    padding:8px 12px;
-    font-weight:800;
-    font-size:.92rem;
-    border:1px solid var(--line);
-    background: rgba(255,255,255,.04);
-    color:var(--text);
-    text-decoration:none;
-    display:inline-flex;
-    align-items:center;
-    gap:8px;
-    cursor:pointer;
-    user-select:none;
-  }
-  .btn:hover{ background: rgba(255,255,255,.07); }
-  .btnPrimary{
-    border-color: rgba(53,208,200,.35);
-    background: linear-gradient(135deg, rgba(53,208,200,.95), rgba(74,163,255,.75));
-    color:#021018;
-  }
-  .divider{
-    width:1px; height:26px;
-    background:var(--line);
-    margin:0 4px;
-  }
-
-  /* ===== Login strip (pre-login) ===== */
-  section.loginStrip{
-    position:fixed;
-    left:0;
-    right:0;
-    top:0;
-    z-index:1040;
-    display:block !important;
-    background:
-      radial-gradient(1200px 90px at 10% 0%, rgba(53,208,200,.18), transparent 55%),
-      radial-gradient(900px 110px at 85% 10%, rgba(74,163,255,.16), transparent 60%),
-      linear-gradient(180deg, var(--bg0), var(--bg1));
-    border-bottom:1px solid var(--line);
-    padding-top:2px !important;
-    padding-bottom:2px !important;
-    transform:translate3d(0, calc(-100% - 8px), 0);
-    pointer-events:none;
-    transition:transform .4s ease;
-    will-change:transform;
-    backface-visibility:hidden;
-  }
-  section.loginStrip.is-open{
-    transform:translate3d(0, var(--login-open-offset, 0px), 0);
-    pointer-events:auto;
-  }
-  .loginInner{
-    max-width:1200px;
-    margin:0 auto;
-    padding:2px 16px;
-    display:flex;
-    align-items:center;
-    justify-content:flex-end;
-    gap:10px;
-    flex-wrap:wrap;
-  }
-  #loginForm{
-    display:flex;
-    align-items:center;
-    gap:6px;
-    flex-wrap:nowrap;
-    margin:0;
-  }
-  #loginForm .field{
-    margin:0;
-    width:228px;
-  }
-  .field{
-    display:flex;
-    flex-direction:column;
-    gap:6px;
-  }
-  .field label{
-    font-size:.78rem;
-    color:var(--muted);
-    font-weight:700;
-    display:none; /* keep clean; placeholders handle */
-  }
-  .input{
-    background: rgba(255,255,255,.06);
-    border:1px solid var(--line);
-    color:var(--text);
-    border-radius:10px;
-    padding:8px 10px;
-    min-width: 220px;
-    outline:none;
-  }
-  #loginForm .input{
-    width:100% !important;
-    min-width:0 !important;
-    padding:5px 6px;
-    border-radius:6px;
-    font-size:0.75rem;
-  }
-  #loginButton{
-    border-color: rgba(53,208,200,.35) !important;
-    background: linear-gradient(135deg, rgba(53,208,200,.95), rgba(74,163,255,.75)) !important;
-    color:#021018 !important;
-    padding:5px 7px !important;
-    border-radius:6px !important;
-    font-size:0.75rem !important;
-  }
-  #loginAlert{
-    flex:0 0 auto;
-    margin:0 8px 0 0;
-    text-align:left;
-    white-space:nowrap;
-  }
-  #loginAlert.alert{
-    margin-bottom:0;
-    padding:4px 8px;
-    font-size:0.75rem;
-    line-height:1.2;
-  }
-  #loginAlert.d-none{
-    display:none !important;
-  }
-  .input::placeholder{ color: rgba(255,255,255,.45); }
-  .forgot{
-    color:var(--muted);
-    text-decoration:none;
-    font-weight:700;
-    padding:6px 8px;
-    border-radius:10px;
-  }
-  .forgot:hover{ color:var(--text); background:rgba(255,255,255,.05); }
-
-  /* ===== App nav ===== */
-  .brandCompact{
-    min-width:auto;
-  }
-  .brandCompact .tagline{ display:none; }
-  .brandCompact .brandTitle{ letter-spacing:.35px; }
-  .tabs{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    flex-wrap:wrap;
-  }
-  .tab{
-    color:var(--muted);
-    text-decoration:none;
-    font-weight:900;
-    padding:8px 10px;
-    border-radius:12px;
-    border:1px solid transparent;
-  }
-  .tab:hover{ color:var(--text); background:rgba(255,255,255,.05); }
-  .tab.active{
-    color:var(--text);
-    background: rgba(53,208,200,.12);
-    border-color: rgba(53,208,200,.22);
-  }
-
-  /* ===== Icon button + badge ===== */
-  .iconBtn{
-    position:relative;
-    width:38px; height:38px;
-    border-radius:12px;
-    border:1px solid var(--line);
-    background: rgba(255,255,255,.04);
-    color:var(--text);
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    cursor:pointer;
-  }
-  .iconBtn:hover{ background: rgba(255,255,255,.07); }
-  .fpwHamburger{
-    display:none;
-    font-size:1.05rem;
-    font-weight:900;
-    line-height:1;
-  }
-  .fpwHamburgerIcon--close{
-    display:none;
-  }
-  .fpwHamburger[aria-expanded="true"] .fpwHamburgerIcon--open{
-    display:none;
-  }
-  .fpwHamburger[aria-expanded="true"] .fpwHamburgerIcon--close{
-    display:inline;
-  }
-  .badge{
-    position:absolute;
-    top:-6px; right:-6px;
-    min-width:18px; height:18px;
-    border-radius:999px;
-    background: rgba(53,208,200,.95);
-    color:#021018;
-    font-size:.75rem;
-    font-weight:900;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:0 5px;
-    box-shadow: 0 10px 18px rgba(0,0,0,.25);
-  }
-
-  /* ===== Dropdown (pure HTML/CSS via <details>) ===== */
-  details.dd{
-    position:relative;
-  }
-  details.dd > summary{
-    list-style:none;
-  }
-  details.dd > summary::-webkit-details-marker{ display:none; }
-
-  .menu{
-    position:absolute;
-    right:0;
-    top: calc(100% + 10px);
-    min-width: 240px;
-    background: var(--panel);
-    border:1px solid rgba(255,255,255,.08);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding:8px;
-    z-index:1000;
-  }
-  .menu a, .menu button{
-    width:100%;
-    display:flex;
-    align-items:center;
-    gap:10px;
-    padding:10px 10px;
-    border-radius:12px;
-    border:0;
-    background: transparent;
-    color: rgba(255,255,255,.86);
-    text-decoration:none;
-    font-weight:800;
-    cursor:pointer;
-    text-align:left;
-    font-family:var(--font);
-    font-size:.95rem;
-  }
-  .menu a:hover, .menu button:hover{
-    background: rgba(255,255,255,.06);
-    color: rgba(255,255,255,.95);
-  }
-  .menu hr{
-    border:0;
-    border-top:1px solid rgba(255,255,255,.08);
-    margin:8px 0;
-  }
-  .fpwMobileBackdrop{
-    display:none;
-    position:fixed;
-    inset:0;
-    background:rgba(0,0,0,.45);
-    z-index:1048;
-  }
-  .fpwMobileMenu{
-    display:none;
-    position:fixed;
-    left:12px;
-    right:12px;
-    top:72px;
-    max-height:calc(100vh - 84px);
-    overflow:auto;
-    background: var(--panel);
-    border:1px solid rgba(255,255,255,.08);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding:8px;
-    z-index:1049;
-  }
-  .fpwMobileMenu a,
-  .fpwMobileMenu button{
-    width:100%;
-    display:flex;
-    align-items:center;
-    gap:10px;
-    padding:10px 10px;
-    border-radius:12px;
-    border:0;
-    background: transparent;
-    color: rgba(255,255,255,.86);
-    text-decoration:none;
-    font-weight:800;
-    cursor:pointer;
-    text-align:left;
-    font-family:var(--font);
-    font-size:.95rem;
-  }
-  .fpwMobileMenu a:hover,
-  .fpwMobileMenu button:hover{
-    background: rgba(255,255,255,.06);
-    color: rgba(255,255,255,.95);
-  }
-  .fpwMobileMenu hr{
-    border:0;
-    border-top:1px solid rgba(255,255,255,.08);
-    margin:8px 0;
-  }
-  .fpwMobileSection{
-    padding:6px 10px;
-    color:var(--muted);
-    font-size:.74rem;
-    font-weight:900;
-    letter-spacing:.08em;
-    text-transform:uppercase;
-  }
-  body.fpwMobileNavOpen{
-    overflow:hidden;
-  }
-  .hint{
-    max-width:1200px;
-    margin: 18px auto 0;
-    padding: 0 16px;
-    color: var(--muted);
-    font-weight:700;
-    font-size:.95rem;
-  }
-  .hint code{
-    background: rgba(255,255,255,.06);
-    border:1px solid rgba(255,255,255,.08);
-    padding:2px 8px;
-    border-radius:10px;
-    color: rgba(255,255,255,.86);
-  }
-
-  /* Responsive: hide center links on public; you’d add hamburger later */
-  @media (max-width: 980px){
-    .tagline{ display:none; }
-    .navLinks{ display:none; }
-    .tabs{ display:none; }
-    .brand{ min-width:auto; }
-    .actions > :not(.fpwHamburger){ display:none !important; }
-    .fpwHamburger{ display:inline-flex; }
-    .fpwMobileBackdrop.is-open{ display:block; }
-    .fpwMobileMenu.is-open{ display:block; }
-    .input{ min-width: 180px; }
-    #loginForm{
-      flex-wrap:wrap;
-      justify-content:flex-end;
-    }
-    #loginAlert{
-      flex:0 0 100%;
-      margin:4px 0 0;
-      text-align:right;
-    }
-    #loginForm .field{ width:136px; }
-  }
-</style>
-
-<cfif len(userDisplayName)>
-  <cfparam name="request.fpwTopNavActive" default="dashboard">
-
-  <header class="topbar nav--app" role="banner">
-    <div class="inner">
-      <a class="brand brandCompact" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm" aria-label="Dashboard">
-        <span class="logo" aria-hidden="true"></span>
-        <span>
-          <div class="brandTitle">FPW</div>
-        </span>
-      </a>
-
-      <nav class="tabs" aria-label="App Primary">
-        <a class="tab<cfif request.fpwTopNavActive EQ 'dashboard'> active</cfif>" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm">Dashboard</a>
-        <a class="tab" href="#monitoring">Monitoring</a>
-        <a class="tab<cfif request.fpwTopNavActive EQ 'weather'> active</cfif>" id="fpwNavWeatherLink" href="<cfoutput>#basePath#</cfoutput>/app/weather.cfm">Weather</a>
-        <a class="tab" href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm">Fuel Calculator</a>
-      </nav>
-
-      <div class="actions">
-        <button class="iconBtn" type="button" aria-label="Alerts" title="Alerts">
-          🔔
-          <span class="badge">3</span>
+        <button
+          class="fpw-mobile-toggle"
+          type="button"
+          aria-label="Open menu"
+          aria-controls="fpwPrimaryNav"
+          aria-expanded="false"
+          data-fpw-mobile-toggle>
+          <span></span>
+          <span></span>
+          <span></span>
         </button>
 
-        <span class="divider" aria-hidden="true"></span>
-
-        <details class="dd">
-          <summary class="btn"><cfoutput>#encodeForHTML(userDisplayName)#</cfoutput></summary>
-          <div class="menu" role="menu" aria-label="User menu">
-            <a href="<cfoutput>#basePath#</cfoutput>/app/account.cfm">👤 Account</a>
-            <a href="<cfoutput>#basePath#</cfoutput>/app/account.cfm">⚙️ Settings</a>
-            <hr />
-            <button id="logoutButton" type="button">🚪 Log out</button>
+        <div class="fpw-nav-menu" id="fpwPrimaryNav" data-fpw-nav-menu>
+          <div class="fpw-mobile-drawer-head">
+            <a class="fpw-mobile-brand" href="<cfif topNavIsLoggedIn>#topNavBasePath#/app/dashboard.cfm<cfelse>#topNavBasePath#/##top</cfif>" aria-label="FloatPlanWizard home">
+              <span class="fpw-brand__mark" aria-hidden="true">
+                #renderFpwNavIcon("brand-wheel", "fpw-helm-icon")#
+              </span>
+              <span>FPW</span>
+            </a>
+            <button class="fpw-mobile-close" type="button" aria-label="Close menu" data-fpw-mobile-close>&times;</button>
           </div>
-        </details>
 
-        <button class="iconBtn fpwHamburger" type="button" id="fpwAppMobileToggle" aria-controls="fpwMobileMenuApp" aria-expanded="false" aria-label="Toggle menu">
-          <span class="fpwHamburgerIcon fpwHamburgerIcon--open" aria-hidden="true">☰</span>
-          <span class="fpwHamburgerIcon fpwHamburgerIcon--close" aria-hidden="true">✕</span>
-        </button>
+          <nav class="fpw-primary-nav<cfif topNavIsLoggedIn> fpw-primary-nav--member</cfif>" aria-label="Primary navigation">
+            <cfif NOT topNavIsLoggedIn>
+              <a class="fpw-nav-link" href="#topNavHowHref#">
+                #renderFpwNavIcon("how", "fpw-nav-icon")#
+                <span>How It Works</span>
+              </a>
+              <a class="fpw-nav-link" href="#topNavBasePath#/##fpwFeatures">
+                #renderFpwNavIcon("route", "fpw-nav-icon")#
+                <span>Features</span>
+              </a>
+            </cfif>
+            <div class="fpw-dropdown fpw-dropdown--mega" data-fpw-dropdown>
+              <button class="fpw-nav-link fpw-dropdown-toggle" type="button" aria-expanded="false" aria-controls="fpwGreatLoopMenu" data-fpw-dropdown-toggle>
+                #renderFpwNavIcon("map", "fpw-nav-icon")#
+                <span class="fpw-nav-label-desktop">Great Loop</span>
+                <span class="fpw-nav-label-mobile">Great Loop Libraries</span>
+                <svg class="fpw-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>
+              </button>
+              <div class="fpw-dropdown-menu fpw-mega-menu" id="fpwGreatLoopMenu" role="menu">
+                <div class="fpw-menu-header">
+                  #renderFpwNavIcon("map", "fpw-menu-header-icon")#
+                  <div>
+                    <h2>Great Loop Libraries</h2>
+                    <p>Essential information for planning your Great Loop adventure</p>
+                  </div>
+                </div>
+                <div class="fpw-library-grid">
+                  <a class="fpw-library-card" href="#topNavBasePath#/great-loop/locks/" role="menuitem">
+                    #renderFpwNavIcon("lock", "fpw-card-icon")#
+                    <strong>Lock Library</strong>
+                    <span>Lock locations, VHF channels, phone numbers, and notes for 275+ locks.</span>
+                    <em aria-hidden="true">&rarr;</em>
+                  </a>
+                  <a class="fpw-library-card" href="#topNavBasePath#/great-loop/bridges/" role="menuitem">
+                    #renderFpwNavIcon("bridge", "fpw-card-icon")#
+                    <strong>Bridge Library</strong>
+                    <span>Bridge clearances, drawbridge schedules, contacts, and restrictions.</span>
+                    <em aria-hidden="true">&rarr;</em>
+                  </a>
+                  <a class="fpw-library-card" href="#topNavBasePath#/great-loop/ports/" role="menuitem">
+                    #renderFpwNavIcon("compass", "fpw-card-icon")#
+                    <strong>Ports Library</strong>
+                    <span>Great Loop ports, stopping points, maps, filters, and waypoint actions.</span>
+                    <em aria-hidden="true">&rarr;</em>
+                  </a>
+                  <a class="fpw-library-card" href="#topNavBasePath#/great-loop/anchorages/" role="menuitem">
+                    #renderFpwNavIcon("anchor", "fpw-card-icon")#
+                    <strong>Anchorage Library</strong>
+                    <span>Published anchorages, maps, filters, and planning notes.</span>
+                    <em aria-hidden="true">&rarr;</em>
+                  </a>
+                </div>
+                <div class="fpw-mega-cta">
+                  #renderFpwNavIcon("route-cta", "fpw-cta-icon")#
+                  <div>
+                    <strong>Planning your Great Loop?</strong>
+                    <span>Use our Route Builder</span>
+                  </div>
+                  <a class="fpw-secondary-cta" href="#topNavBasePath#/app/join.cfm">Start Free <span aria-hidden="true">&rarr;</span></a>
+                </div>
+              </div>
+            </div>
+            <div class="fpw-dropdown fpw-dropdown--tools" data-fpw-dropdown>
+              <button class="fpw-nav-link fpw-dropdown-toggle" type="button" aria-expanded="false" aria-controls="fpwToolsMenu" data-fpw-dropdown-toggle>
+                #renderFpwNavIcon("tools", "fpw-nav-icon")#
+                <span class="fpw-nav-label-desktop">Tools</span>
+                <span class="fpw-nav-label-mobile">Trip Tools</span>
+                <svg class="fpw-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>
+              </button>
+              <div class="fpw-dropdown-menu fpw-tools-menu" id="fpwToolsMenu" role="menu">
+                <div class="fpw-menu-header">
+                  #renderFpwNavIcon("tools", "fpw-menu-header-icon")#
+                  <div>
+                    <h2>Trip Tools</h2>
+                    <p>Practical tools for every boat trip</p>
+                  </div>
+                </div>
+                <a class="fpw-tool-row" href="#topNavBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm" role="menuitem">
+                  #renderFpwNavIcon("fuel", "fpw-tool-icon")#
+                  <span><strong>Fuel Calculator</strong><em>Estimate fuel usage, range, and costs.</em></span>
+                  <b aria-hidden="true">&rarr;</b>
+                </a>
+                <a class="fpw-tool-row" href="#topNavBasePath#/app/weather.cfm" role="menuitem">
+                  #renderFpwNavIcon("weather", "fpw-tool-icon")#
+                  <span><strong>Marine Weather</strong><em>Current conditions and extended forecasts.</em></span>
+                  <b aria-hidden="true">&rarr;</b>
+                </a>
+                <a class="fpw-tool-row" href="#topNavBasePath#/why-use-a-float-plan.cfm" role="menuitem">
+                  #renderFpwNavIcon("checklist", "fpw-tool-icon")#
+                  <span><strong>Float Plan Basics</strong><em>Learn what to include in your float plan.</em></span>
+                  <b aria-hidden="true">&rarr;</b>
+                </a>
+              </div>
+            </div>
+            <cfif NOT topNavIsLoggedIn>
+              <a class="fpw-nav-link" href="#topNavBasePath#/app/pricing.cfm">
+                #renderFpwNavIcon("pricing", "fpw-nav-icon")#
+                <span>Pricing</span>
+              </a>
+            </cfif>
+          </nav>
+
+          <div class="fpw-nav-actions">
+            <cfif topNavIsLoggedIn>
+              <cfif NOT topNavShowAppSubnav>
+                <a class="fpw-nav-link fpw-dashboard-link<cfif topNavActive EQ 'dashboard'> is-active</cfif>" href="#topNavBasePath#/app/dashboard.cfm"<cfif topNavActive EQ 'dashboard'> aria-current="page"</cfif>>
+                  <svg class="fpw-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="6" height="6"></rect><rect x="14" y="4" width="6" height="6"></rect><rect x="4" y="14" width="6" height="6"></rect><rect x="14" y="14" width="6" height="6"></rect></svg>
+                  <span>Dashboard</span>
+                </a>
+              </cfif>
+              <div class="fpw-dropdown fpw-account-dropdown" data-fpw-dropdown>
+                <button class="fpw-nav-link fpw-dropdown-toggle<cfif topNavActive EQ 'account'> is-active</cfif>" type="button" aria-expanded="false" aria-haspopup="true" data-fpw-dropdown-toggle>
+                  #renderFpwNavIcon("user", "fpw-nav-icon")#
+                  <span>Account</span>
+                  <svg class="fpw-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>
+                </button>
+                <div class="fpw-dropdown-menu fpw-dropdown-menu-right" role="menu">
+                  <a href="#topNavBasePath#/app/account.cfm" role="menuitem">
+                    #renderFpwNavIcon("user", "fpw-dropdown-icon")#
+                    <span><strong>My Account</strong><small>Profile and settings</small></span>
+                  </a>
+                  <a href="#topNavBasePath#/index.cfm" role="menuitem" data-fpw-member-logout>
+                    <svg class="fpw-dropdown-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 17 15 12 10 7"></path><path d="M15 12H3"></path><path d="M21 4v16"></path></svg>
+                    <span><strong>Logout</strong><small>Sign out securely</small></span>
+                  </a>
+                </div>
+              </div>
+              <a class="fpw-nav-link fpw-logout-direct" href="#topNavBasePath#/index.cfm" data-fpw-member-logout>Logout</a>
+            <cfelse>
+              <a class="fpw-cta fpw-cta-primary" href="#topNavBasePath#/app/join.cfm">
+                <span>Start Free</span>
+                <span class="fpw-cta-arrow" aria-hidden="true">&rarr;</span>
+              </a>
+              <a class="fpw-nav-link fpw-login-link" href="#topNavBasePath#/app/login.cfm">
+                #renderFpwNavIcon("user", "fpw-nav-icon")#
+                <span>Login</span>
+              </a>
+            </cfif>
+          </div>
+        </div>
       </div>
     </div>
-  </header>
 
-  <div class="fpwMobileBackdrop fpwMobileBackdrop--app" id="fpwMobileBackdropApp" aria-hidden="true"></div>
-  <nav class="fpwMobileMenu fpwMobileMenu--app" id="fpwMobileMenuApp" role="navigation" aria-label="Mobile app menu" aria-hidden="true">
-    <a href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm">Dashboard</a>
-    <a href="#monitoring">Monitoring</a>
-    <a id="fpwMobileWeatherLink" href="<cfoutput>#basePath#</cfoutput>/app/weather.cfm">Weather</a>
-    <a href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm">Fuel Calculator</a>
-    <hr />
-    <div class="fpwMobileSection">Account</div>
-    <a href="<cfoutput>#basePath#</cfoutput>/app/account.cfm">👤 Account</a>
-    <a href="<cfoutput>#basePath#</cfoutput>/app/account.cfm">⚙️ Settings</a>
-    <button type="button" id="fpwMobileLogoutBtn">🚪 Log out</button>
-  </nav>
+    <div class="fpw-mobile-backdrop" data-fpw-mobile-backdrop hidden></div>
 
-  <script>
-    (function () {
-      function initNavNewRouteLink() {
-        var newRouteLink = document.getElementById("fpwNavNewRouteLink");
-        var newFloatPlanLink = document.getElementById("fpwNavNewFloatPlanLink");
-        var weatherLinks = document.querySelectorAll("#fpwNavWeatherLink, #fpwMobileWeatherLink");
-        var appMobileToggle = document.getElementById("fpwAppMobileToggle");
-        var appMobileMenu = document.getElementById("fpwMobileMenuApp");
-        var appMobileBackdrop = document.getElementById("fpwMobileBackdropApp");
-        var mobileNewRouteBtn = document.getElementById("fpwMobileNewRouteBtn");
-        var mobileNewFloatPlanBtn = document.getElementById("fpwMobileNewFloatPlanBtn");
-        var mobileLogoutBtn = document.getElementById("fpwMobileLogoutBtn");
-        var appTopbar = document.querySelector(".topbar.nav--app");
-
-        function syncAppMobileMenuTop() {
-          if (!appTopbar || !appMobileMenu) return;
-          var rect = appTopbar.getBoundingClientRect();
-          var top = Math.max(0, Math.round(rect.bottom) + 8);
-          appMobileMenu.style.top = top + "px";
-          appMobileMenu.style.maxHeight = "calc(100vh - " + (top + 12) + "px)";
-        }
-
-        function setAppMobileOpen(isOpen) {
-          if (!appMobileMenu || !appMobileBackdrop || !appMobileToggle) return;
-          syncAppMobileMenuTop();
-          if (isOpen) {
-            appMobileMenu.classList.add("is-open");
-            appMobileBackdrop.classList.add("is-open");
-            appMobileMenu.setAttribute("aria-hidden", "false");
-            appMobileToggle.setAttribute("aria-expanded", "true");
-            document.body.classList.add("fpwMobileNavOpen");
-          } else {
-            appMobileMenu.classList.remove("is-open");
-            appMobileBackdrop.classList.remove("is-open");
-            appMobileMenu.setAttribute("aria-hidden", "true");
-            appMobileToggle.setAttribute("aria-expanded", "false");
-            document.body.classList.remove("fpwMobileNavOpen");
-          }
-        }
-
-        if (appMobileToggle) {
-          appMobileToggle.addEventListener("click", function (event) {
-            event.preventDefault();
-            setAppMobileOpen(!appMobileMenu || !appMobileMenu.classList.contains("is-open"));
-          });
-        }
-        if (appMobileBackdrop) {
-          appMobileBackdrop.addEventListener("click", function () {
-            setAppMobileOpen(false);
-          });
-        }
-        if (appMobileMenu) {
-          appMobileMenu.addEventListener("click", function (event) {
-            if (event.target.closest("a,button")) {
-              setAppMobileOpen(false);
-            }
-          });
-        }
-        document.addEventListener("keydown", function (event) {
-          if (event.key === "Escape") {
-            setAppMobileOpen(false);
-          }
-        });
-        window.addEventListener("resize", function () {
-          syncAppMobileMenuTop();
-          if (window.innerWidth > 980) {
-            setAppMobileOpen(false);
-          }
-        });
-
-        Array.prototype.forEach.call(weatherLinks, function (weatherLink) {
-          weatherLink.addEventListener("click", function () {
-            setAppMobileOpen(false);
-          });
-        });
-
-        if (newRouteLink) {
-          newRouteLink.addEventListener("click", function (event) {
-            var routeBuilderOpener = document.getElementById("openRouteBuilderBtn");
-            if (!routeBuilderOpener || typeof routeBuilderOpener.click !== "function") return;
-
-            event.preventDefault();
-            setAppMobileOpen(false);
-            routeBuilderOpener.click();
-
-            var newMenu = newRouteLink.closest("details.dd");
-            if (newMenu && newMenu.hasAttribute("open")) {
-              newMenu.removeAttribute("open");
-            }
-          });
-        }
-
-        if (newFloatPlanLink) {
-          newFloatPlanLink.addEventListener("click", function (event) {
-            var floatPlanOpener = document.getElementById("addFloatPlanBtn");
-            if (!floatPlanOpener || typeof floatPlanOpener.click !== "function") return;
-
-            event.preventDefault();
-            setAppMobileOpen(false);
-            floatPlanOpener.click();
-
-            var newMenu = newFloatPlanLink.closest("details.dd");
-            if (newMenu && newMenu.hasAttribute("open")) {
-              newMenu.removeAttribute("open");
-            }
-          });
-        }
-
-        if (mobileNewRouteBtn) {
-          mobileNewRouteBtn.addEventListener("click", function (event) {
-            var routeBuilderOpener = document.getElementById("openRouteBuilderBtn");
-            if (!routeBuilderOpener || typeof routeBuilderOpener.click !== "function") return;
-            event.preventDefault();
-            setAppMobileOpen(false);
-            routeBuilderOpener.click();
-          });
-        }
-
-        if (mobileNewFloatPlanBtn) {
-          mobileNewFloatPlanBtn.addEventListener("click", function (event) {
-            var floatPlanOpener = document.getElementById("addFloatPlanBtn");
-            if (!floatPlanOpener || typeof floatPlanOpener.click !== "function") return;
-            event.preventDefault();
-            setAppMobileOpen(false);
-            floatPlanOpener.click();
-          });
-        }
-
-        if (mobileLogoutBtn) {
-          mobileLogoutBtn.addEventListener("click", function (event) {
-            var logoutButton = document.getElementById("logoutButton");
-            if (!logoutButton || typeof logoutButton.click !== "function") return;
-            event.preventDefault();
-            setAppMobileOpen(false);
-            logoutButton.click();
-          });
-        }
-      }
-
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", initNavNewRouteLink);
-      } else {
-        initNavNewRouteLink();
-      }
-    })();
-  </script>
-<cfelse>
-  <header class="topbar nav--public" role="banner">
-    <div class="inner">
-      <a class="brand" href="<cfoutput>#basePath#</cfoutput>/index.cfm" aria-label="FloatPlanWizard Home">
-        <span class="logo" aria-hidden="true"></span>
-        <span>
-          <div class="brandTitle">FloatPlanWizard</div>
-        </span>
-      </a>
-
-      <nav class="navLinks" aria-label="Primary">
-        <a href="#features">Features</a>
-        <a href="#how">How it works</a>
-        <a href="#monitoring">Monitoring</a>
-        <a href="#pricing">Pricing</a>
-        <a href="#faq">FAQ</a>
-        <a href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm">Fuel Calculator</a>
+    <cfif topNavShowAppSubnav>
+      <nav class="fpw-app-subnav" aria-label="Member workspace navigation">
+        <div class="fpw-app-subnav-inner">
+          <a class="fpw-app-link<cfif topNavActive EQ 'dashboard'> is-active</cfif>" href="#topNavBasePath#/app/dashboard.cfm"<cfif topNavActive EQ 'dashboard'> aria-current="page"</cfif>>
+            <svg class="fpw-subnav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="6" height="6"></rect><rect x="14" y="4" width="6" height="6"></rect><rect x="4" y="14" width="6" height="6"></rect><rect x="14" y="14" width="6" height="6"></rect></svg>
+            <span>Dashboard</span>
+          </a>
+          <a class="fpw-app-link<cfif topNavActive EQ 'active-cruise'> is-active</cfif>" href="#topNavBasePath#/app/active-cruise.cfm"<cfif topNavActive EQ 'active-cruise'> aria-current="page"</cfif>>
+            <svg class="fpw-subnav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19h16"></path><path d="M7 16h8l3-4H9z"></path><path d="M9 12V5l6 7"></path></svg>
+            <span>Active Cruise</span>
+          </a>
+          <a class="fpw-app-link<cfif topNavActive EQ 'monitoring'> is-active</cfif>" href="#topNavBasePath#/app/monitoring.cfm"<cfif topNavActive EQ 'monitoring'> aria-current="page"</cfif>>
+            <svg class="fpw-subnav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 17h16"></path><path d="M7 14l4-4 3 3 4-6"></path><path d="M6 21h12"></path></svg>
+            <span>Monitor</span>
+          </a>
+          <a class="fpw-app-link<cfif topNavActive EQ 'weather'> is-active</cfif>" href="#topNavBasePath#/app/weather.cfm"<cfif topNavActive EQ 'weather'> aria-current="page"</cfif>>
+            <svg class="fpw-subnav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 18h9a4 4 0 0 0 .5-8 6 6 0 0 0-11-1.7A5 5 0 0 0 8 18z"></path><path d="M8 7V4"></path></svg>
+            <span>Weather</span>
+          </a>
+          <a class="fpw-app-link<cfif topNavActive EQ 'fuel'> is-active</cfif>" href="#topNavBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm"<cfif topNavActive EQ 'fuel'> aria-current="page"</cfif>>
+            <svg class="fpw-subnav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20V4h9v16"></path><path d="M8 8h3"></path><path d="M14 9h2.5L19 12v6a2 2 0 0 0 4 0v-4"></path></svg>
+            <span>Fuel Calculator</span>
+          </a>
+        </div>
       </nav>
-
-      <div class="actions">
-        <a class="btn" href="#login" id="publicLoginToggle">Log in</a>
-        <a class="btn btnPrimary" href="<cfoutput>#basePath#</cfoutput>/app/join.cfm">Start free</a>
-        <button class="iconBtn fpwHamburger" type="button" id="fpwPublicMobileToggle" aria-controls="fpwMobileMenuPublic" aria-expanded="false" aria-label="Toggle menu">
-          <span class="fpwHamburgerIcon fpwHamburgerIcon--open" aria-hidden="true">☰</span>
-          <span class="fpwHamburgerIcon fpwHamburgerIcon--close" aria-hidden="true">✕</span>
-        </button>
-      </div>
-    </div>
+    </cfif>
   </header>
-
-  <div class="fpwMobileBackdrop fpwMobileBackdrop--public" id="fpwMobileBackdropPublic" aria-hidden="true"></div>
-  <nav class="fpwMobileMenu fpwMobileMenu--public" id="fpwMobileMenuPublic" role="navigation" aria-label="Mobile public menu" aria-hidden="true">
-    <a href="#features">Features</a>
-    <a href="#how">How it works</a>
-    <a href="#monitoring">Monitoring</a>
-    <a href="#pricing">Pricing</a>
-    <a href="#faq">FAQ</a>
-    <a href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm">Fuel Calculator</a>
-    <hr />
-    <a href="#login" id="fpwMobilePublicLoginLink">Log in</a>
-    <a href="<cfoutput>#basePath#</cfoutput>/app/join.cfm">Start free</a>
-  </nav>
-
-  <section class="loginStrip" id="login" aria-label="Login">
-    <div class="loginInner">
-      <form id="loginForm" novalidate>
-        <div id="loginAlert" class="alert d-none fpwLoginAlert" role="alert"></div>
-        <div class="field">
-          <label for="email">Email</label>
-          <input
-            class="input fpwInput"
-            type="email"
-            id="email"
-            name="email"
-            required
-            autocomplete="username"
-            placeholder="Email"
-          >
-        </div>
-        <div class="field">
-          <label for="password">Password</label>
-          <input
-            class="input fpwInput"
-            type="password"
-            id="password"
-            name="password"
-            required
-            autocomplete="current-password"
-            placeholder="Password"
-          >
-        </div>
-        <button type="submit" class="btn btnPrimary fpwBtn primary" id="loginButton">Sign In</button>
-      </form>
-      <a class="forgot" href="<cfoutput>#basePath#</cfoutput>/app/forgot-password.cfm">Forgot?</a>
-    </div>
-  </section>
 
   <script>
     (function () {
-      function initPublicLoginToggle() {
-        var toggle = document.getElementById("publicLoginToggle");
-        var loginStrip = document.getElementById("login");
-        var publicHeader = document.querySelector(".topbar.nav--public");
-        var publicMobileToggle = document.getElementById("fpwPublicMobileToggle");
-        var publicMobileMenu = document.getElementById("fpwMobileMenuPublic");
-        var publicMobileBackdrop = document.getElementById("fpwMobileBackdropPublic");
-        var publicMobileLoginLink = document.getElementById("fpwMobilePublicLoginLink");
-        if (!toggle || !loginStrip || !publicHeader) return;
+      var shell = document.querySelector("[data-fpw-nav]");
+      if (!shell || shell.getAttribute("data-fpw-nav-bound") === "true") {
+        return;
+      }
+      shell.setAttribute("data-fpw-nav-bound", "true");
 
-        function syncLoginStripTop() {
-          var rect = publicHeader.getBoundingClientRect();
-          loginStrip.style.setProperty(
-            "--login-open-offset",
-            Math.max(0, Math.round(rect.bottom)) + "px"
-          );
+      var menuButton = shell.querySelector("[data-fpw-mobile-toggle]");
+      var closeButton = shell.querySelector("[data-fpw-mobile-close]");
+      var backdrop = shell.querySelector("[data-fpw-mobile-backdrop]");
+      var navMenu = shell.querySelector("[data-fpw-nav-menu]");
+      var dropdowns = Array.prototype.slice.call(shell.querySelectorAll("[data-fpw-dropdown]"));
+      var logoutLinks = shell.querySelectorAll("[data-fpw-member-logout]");
+      var mobileQuery = window.matchMedia("(max-width: 1023px)");
+      var previousBodyOverflow = "";
+
+      function isMobileNav() {
+        return mobileQuery.matches;
+      }
+
+      function setBodyLock(isOpen) {
+        if (!document.body) {
+          return;
         }
-
-        function openLoginStrip() {
-          syncLoginStripTop();
-          loginStrip.classList.add("is-open");
-          var emailInput = document.getElementById("email");
-          if (emailInput && typeof emailInput.focus === "function") {
-            emailInput.focus();
+        document.body.classList.toggle("fpw-nav-open", isOpen);
+        if (isOpen) {
+          if (!previousBodyOverflow) {
+            previousBodyOverflow = document.body.style.overflow || "";
           }
+          document.body.style.overflow = "hidden";
+        } else {
+          document.body.style.overflow = previousBodyOverflow;
+          previousBodyOverflow = "";
         }
+      }
 
-        function closeLoginStrip() {
-          loginStrip.classList.remove("is-open");
+      function setDropdownOpen(dropdown, isOpen, source) {
+        var toggle = dropdown ? dropdown.querySelector("[data-fpw-dropdown-toggle]") : null;
+        if (!dropdown || !toggle) {
+          return;
         }
-
-        function syncPublicMobileMenuTop() {
-          if (!publicMobileMenu) return;
-          var rect = publicHeader.getBoundingClientRect();
-          var top = Math.max(0, Math.round(rect.bottom) + 8);
-          publicMobileMenu.style.top = top + "px";
-          publicMobileMenu.style.maxHeight = "calc(100vh - " + (top + 12) + "px)";
+        dropdown.classList.toggle("is-open", isOpen);
+        toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        if (isOpen && source === "click") {
+          dropdown.setAttribute("data-fpw-click-open", "true");
+        } else if (!isOpen) {
+          dropdown.removeAttribute("data-fpw-click-open");
         }
+      }
 
-        function setPublicMobileOpen(isOpen) {
-          if (!publicMobileMenu || !publicMobileBackdrop || !publicMobileToggle) return;
-          syncPublicMobileMenuTop();
-          if (isOpen) {
-            publicMobileMenu.classList.add("is-open");
-            publicMobileBackdrop.classList.add("is-open");
-            publicMobileMenu.setAttribute("aria-hidden", "false");
-            publicMobileToggle.setAttribute("aria-expanded", "true");
-            document.body.classList.add("fpwMobileNavOpen");
-          } else {
-            publicMobileMenu.classList.remove("is-open");
-            publicMobileBackdrop.classList.remove("is-open");
-            publicMobileMenu.setAttribute("aria-hidden", "true");
-            publicMobileToggle.setAttribute("aria-expanded", "false");
-            document.body.classList.remove("fpwMobileNavOpen");
+      function closeDropdowns(exceptDropdown) {
+        dropdowns.forEach(function (dropdown) {
+          if (dropdown !== exceptDropdown) {
+            setDropdownOpen(dropdown, false);
           }
+        });
+      }
+
+      function openDropdown(dropdown) {
+        closeDropdowns(dropdown);
+        setDropdownOpen(dropdown, true);
+      }
+
+      function setMenuOpen(isOpen) {
+        shell.classList.toggle("is-menu-open", isOpen);
+        if (menuButton) {
+          menuButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
+          menuButton.setAttribute("aria-label", isOpen ? "Close menu" : "Open menu");
         }
+        if (backdrop) {
+          backdrop.hidden = !isOpen;
+        }
+        setBodyLock(isOpen);
+        if (!isOpen) {
+          closeDropdowns();
+        }
+      }
+
+      function blurActiveNavElement() {
+        var activeElement = document.activeElement;
+        if (activeElement && shell.contains(activeElement) && typeof activeElement.blur === "function") {
+          activeElement.blur();
+        }
+      }
+
+      function redirectAfterLogout() {
+        if (window.AppAuth && typeof window.AppAuth.redirectToLogin === "function") {
+          window.AppAuth.redirectToLogin();
+        } else {
+          window.location.href = "#JSStringFormat(topNavBasePath)#/index.cfm";
+        }
+      }
+
+      function postLogout() {
+        if (window.Api && typeof window.Api.logout === "function") {
+          return window.Api.logout();
+        }
+        if (window.fetch) {
+          return window.fetch("#JSStringFormat(topNavBasePath)#/api/v1/auth.cfc?method=handle", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            credentials: "same-origin",
+            body: JSON.stringify({ action: "logout" })
+          });
+        }
+        return Promise.reject(new Error("Logout endpoint is not available."));
+      }
+
+      function runLogout(event) {
+        event.preventDefault();
+        setMenuOpen(false);
+        postLogout()
+          .catch(function (err) {
+            console.error("Logout failed:", err);
+          })
+          .finally(redirectAfterLogout);
+      }
+
+      if (menuButton && navMenu) {
+        menuButton.addEventListener("click", function () {
+          setMenuOpen(!shell.classList.contains("is-menu-open"));
+        });
+      }
+
+      if (closeButton) {
+        closeButton.addEventListener("click", function () {
+          setMenuOpen(false);
+        });
+      }
+
+      if (backdrop) {
+        backdrop.addEventListener("click", function () {
+          setMenuOpen(false);
+        });
+      }
+
+      dropdowns.forEach(function (dropdown) {
+        var toggle = dropdown.querySelector("[data-fpw-dropdown-toggle]");
+        if (!toggle) {
+          return;
+        }
+
+        dropdown.addEventListener("mouseenter", function () {
+          if (!isMobileNav()) {
+            openDropdown(dropdown);
+          }
+        });
+
+        dropdown.addEventListener("mouseleave", function () {
+          if (!isMobileNav()) {
+            setDropdownOpen(dropdown, false);
+          }
+        });
+
+        dropdown.addEventListener("focusin", function () {
+          if (!isMobileNav()) {
+            openDropdown(dropdown);
+          }
+        });
+
+        dropdown.addEventListener("focusout", function () {
+          window.setTimeout(function () {
+            if (!isMobileNav() && !dropdown.contains(document.activeElement)) {
+              setDropdownOpen(dropdown, false);
+            }
+          }, 0);
+        });
 
         toggle.addEventListener("click", function (event) {
           event.preventDefault();
-          if (loginStrip.classList.contains("is-open")) {
-            closeLoginStrip();
+          var isOpen = dropdown.classList.contains("is-open");
+          var isClickOpen = dropdown.getAttribute("data-fpw-click-open") === "true";
+          if (isMobileNav()) {
+            setDropdownOpen(dropdown, !isOpen, "click");
           } else {
-            openLoginStrip();
+            closeDropdowns(dropdown);
+            setDropdownOpen(dropdown, !isClickOpen, "click");
           }
         });
+      });
 
-        if (publicMobileToggle) {
-          publicMobileToggle.addEventListener("click", function (event) {
-            event.preventDefault();
-            setPublicMobileOpen(!publicMobileMenu || !publicMobileMenu.classList.contains("is-open"));
-          });
-        }
-        if (publicMobileBackdrop) {
-          publicMobileBackdrop.addEventListener("click", function () {
-            setPublicMobileOpen(false);
-          });
-        }
-        if (publicMobileMenu) {
-          publicMobileMenu.addEventListener("click", function (event) {
-            if (event.target.closest("a,button")) {
-              setPublicMobileOpen(false);
+      if (navMenu) {
+        Array.prototype.forEach.call(navMenu.querySelectorAll("a"), function (link) {
+          link.addEventListener("click", function () {
+            if (isMobileNav()) {
+              setMenuOpen(false);
             }
           });
-        }
-        if (publicMobileLoginLink) {
-          publicMobileLoginLink.addEventListener("click", function (event) {
-            event.preventDefault();
-            setPublicMobileOpen(false);
-            toggle.click();
-          });
-        }
-
-        document.addEventListener("keydown", function (event) {
-          if (event.key === "Escape") {
-            setPublicMobileOpen(false);
-          }
         });
-
-        window.addEventListener("resize", function () {
-          syncLoginStripTop();
-          syncPublicMobileMenuTop();
-          if (window.innerWidth > 980) {
-            setPublicMobileOpen(false);
-          }
-        });
-        syncLoginStripTop();
-        syncPublicMobileMenuTop();
       }
 
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", initPublicLoginToggle);
-      } else {
-        initPublicLoginToggle();
-      }
+      Array.prototype.forEach.call(logoutLinks, function (logoutLink) {
+        logoutLink.addEventListener("click", runLogout);
+      });
+
+      document.addEventListener("click", function (event) {
+        if (!shell.contains(event.target)) {
+          setMenuOpen(false);
+          closeDropdowns();
+        }
+      });
+
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") {
+          setMenuOpen(false);
+          closeDropdowns();
+          blurActiveNavElement();
+        }
+      });
+
+      window.addEventListener("resize", function () {
+        if (!isMobileNav()) {
+          setMenuOpen(false);
+        }
+      });
     })();
   </script>
-</cfif>
+
+  <cfif NOT topNavIsLoggedIn>
+    <script>
+      window.FPW_BASE = "#JSStringFormat(topNavBasePath)#";
+      window.FPW_API_BASE = "#JSStringFormat(topNavBasePath)#/api/v1";
+    </script>
+    <script src="#topNavBasePath#/assets/js/app/api.js?v=20260526-cache-bump"></script>
+    <script src="#topNavBasePath#/assets/js/app/auth.js?v=20260526-cache-bump"></script>
+    <script src="#topNavBasePath#/assets/js/app/core.js"></script>
+  </cfif>
+</cfoutput>

@@ -90,6 +90,10 @@
                 }
             }
 
+            if (appliedCount GT 0) {
+                clearPortLibraryCache();
+            }
+
             summary = {
                 "SUCCESS" = true,
                 "mode" = (opts.apply ? "apply" : "dry-run"),
@@ -304,25 +308,10 @@
     <cffunction name="requestJson" access="private" returntype="struct" output="false">
         <cfargument name="url" type="string" required="true">
         <cfscript>
-            var primaryErr = "";
             var payload = {};
 
-            try {
-                payload = requestJsonByCfhttp(arguments.url);
-                return { "payload" = payload, "usedInsecureTls" = false };
-            } catch (any ePrimary) {
-                primaryErr = buildErrorMessage(ePrimary);
-                if (!shouldUseInsecureFallback(primaryErr)) {
-                    rethrow;
-                }
-            }
-
-            try {
-                payload = requestJsonByApacheTrustAll(arguments.url);
-                return { "payload" = payload, "usedInsecureTls" = true };
-            } catch (any eFallback) {
-                throw(message = "Reverse geocode request failed (cfhttp + insecure fallback). Primary: " & primaryErr & " | Fallback: " & buildErrorMessage(eFallback));
-            }
+            payload = requestJsonByCfhttp(arguments.url);
+            return { "payload" = payload, "usedInsecureTls" = false };
         </cfscript>
     </cffunction>
 
@@ -362,105 +351,6 @@
             } catch (any e) {
                 throw(message = "Invalid JSON response: " & e.message);
             }
-        </cfscript>
-    </cffunction>
-
-    <cffunction name="requestJsonByApacheTrustAll" access="private" returntype="struct" output="false">
-        <cfargument name="url" type="string" required="true">
-        <cfscript>
-            var trustAll = createObject("java", "org.apache.http.conn.ssl.TrustAllStrategy").INSTANCE;
-            var noopVerifier = createObject("java", "org.apache.http.conn.ssl.NoopHostnameVerifier").INSTANCE;
-            var sslBuilder = createObject("java", "org.apache.http.conn.ssl.SSLContexts").custom();
-            var sslContext = "";
-            var socketFactory = "";
-            var clientBuilder = "";
-            var client = "";
-            var requestObj = "";
-            var response = javacast("null", "");
-            var statusCode = 0;
-            var statusText = "";
-            var body = "";
-
-            sslBuilder.loadTrustMaterial(javacast("null", ""), trustAll);
-            sslContext = sslBuilder.build();
-            socketFactory = createObject("java", "org.apache.http.conn.ssl.SSLConnectionSocketFactory").init(sslContext, noopVerifier);
-            clientBuilder = createObject("java", "org.apache.http.impl.client.HttpClients").custom();
-            clientBuilder.setSSLSocketFactory(socketFactory);
-            clientBuilder.disableAutomaticRetries();
-            client = clientBuilder.build();
-
-            requestObj = createObject("java", "org.apache.http.client.methods.HttpGet").init(arguments.url);
-            requestObj.setHeader("Accept", "application/json");
-            requestObj.setHeader("User-Agent", variables.USER_AGENT);
-
-            try {
-                response = client.execute(requestObj);
-                statusCode = response.getStatusLine().getStatusCode();
-                statusText = toString(response.getStatusLine().toString());
-                body = readHttpEntityBody(response.getEntity());
-            } finally {
-                if (!isNull(response)) {
-                    try { response.close(); } catch (any ignoredCloseResponse) {}
-                }
-                try { client.close(); } catch (any ignoredCloseClient) {}
-            }
-
-            if (statusCode LT 200 OR statusCode GTE 300) {
-                if (len(trim(body))) {
-                    throw(message = "HTTP " & statusCode & ": " & left(body, 300));
-                }
-                throw(message = "HTTP " & statusCode & ": " & statusText);
-            }
-
-            if (!len(trim(body))) {
-                return {};
-            }
-
-            try {
-                return deserializeJSON(body, false);
-            } catch (any e) {
-                throw(message = "Invalid JSON response: " & e.message);
-            }
-        </cfscript>
-    </cffunction>
-
-    <cffunction name="readHttpEntityBody" access="private" returntype="string" output="false">
-        <cfargument name="entity" type="any" required="true">
-        <cfscript>
-            var body = "";
-            var entityUtils = "";
-            var stream = javacast("null", "");
-            var scanner = javacast("null", "");
-
-            if (isNull(arguments.entity)) {
-                return "";
-            }
-
-            try {
-                entityUtils = createObject("java", "org.apache.http.util.EntityUtils");
-                body = toString(entityUtils.toString(arguments.entity, "UTF-8"));
-                return body;
-            } catch (any ignoredEntityUtils) {
-                // Fallback stream reader if EntityUtils is unavailable.
-            }
-
-            stream = arguments.entity.getContent();
-            try {
-                scanner = createObject("java", "java.util.Scanner").init(stream, "UTF-8");
-                scanner = scanner.useDelimiter("\\A");
-                if (scanner.hasNext()) {
-                    body = toString(scanner.next());
-                }
-            } finally {
-                if (!isNull(scanner)) {
-                    try { scanner.close(); } catch (any ignoredScannerClose) {}
-                }
-                if (!isNull(stream)) {
-                    try { stream.close(); } catch (any ignoredStreamClose) {}
-                }
-            }
-
-            return body;
         </cfscript>
     </cffunction>
 
@@ -593,6 +483,26 @@
                 return arguments.source[arguments.key];
             }
             return arguments.defaultValue;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="clearPortLibraryCache" access="private" returntype="void" output="false">
+        <cfscript>
+            var portService = "";
+            try {
+                portService = createObject("component", "api.v1.PortsLibraryService").init(getDatasource());
+            } catch (any svcPathError) {
+                try {
+                    portService = createObject("component", "fpw.api.v1.PortsLibraryService").init(getDatasource());
+                } catch (any fallbackPathError) {
+                    return;
+                }
+            }
+
+            try {
+                portService.clearPortLibraryCache();
+            } catch (any cacheError) {
+            }
         </cfscript>
     </cffunction>
 

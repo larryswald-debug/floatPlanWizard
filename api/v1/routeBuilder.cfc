@@ -28,6 +28,19 @@
 
             <cfset var body = getBodyJson() />
             <cfset var act = lCase(trim(arguments.action)) />
+            <cfset var memberGateResult = {} />
+
+            <cfif shouldGateRouteBuilderAction(act, body)>
+                <cfset memberGateResult = getMemberAccessGateService().requirePremium(
+                    userId = userId,
+                    errorCode = "BASIC_SAVED_ROUTE_RESTRICTED",
+                    message = "Upgrade to Premium to save routes, use the route library, build route-backed float plans, and manage reusable routes."
+                ) />
+                <cfif NOT memberGateResult.allowed>
+                    <cfoutput>#serializeJSON(memberGateResult.response)#</cfoutput>
+                    <cfreturn>
+                </cfif>
+            </cfif>
 
             <cfif act EQ "generateroute">
                 <cfoutput>#serializeJSON({
@@ -490,7 +503,9 @@
                     <cfset cruisePreviewLegsRaw = body.legs_override />
                 </cfif>
                 <cfset var cruisePreviewLegs = (isArray(cruisePreviewLegsRaw) ? cruisePreviewLegsRaw : []) />
-                <cfset var cruiseTimeline = generateCruiseTimeline(
+                <cfset var cruiseTimelineService = getRouteTimelineService() />
+                <cfset var cruiseTimeline = cruiseTimelineService.generateCruiseTimeline(
+                    userId = userId,
                     routeId = cruiseRouteId,
                     startDate = cruiseStartDate,
                     maxHoursPerDay = cruiseMaxHoursPerDay,
@@ -928,7 +943,15 @@
                           AND ri.user_id = :uid
                         ORDER BY ri.id DESC
                         LIMIT 1
-                    ) AS route_instance_id
+                    ) AS route_instance_id,
+                    (
+                        SELECT ri.routegen_inputs_json
+                        FROM route_instances ri
+                        WHERE ri.generated_route_id = lr.id
+                          AND ri.user_id = :uid
+                        ORDER BY ri.id DESC
+                        LIMIT 1
+                    ) AS routegen_inputs_json
                  FROM loop_routes lr
                  WHERE lr.short_code LIKE :prefix
                  ORDER BY lr.id DESC",
@@ -942,6 +965,8 @@
             var timeline = {};
             var routeInstanceIdVal = 0;
             var currentRouteGroup = {};
+            var activeRouteSource = {};
+            var savedRouteInputs = {};
 
             floatPlanService = getFloatPlanService();
             if (!isObject(floatPlanService)) {
@@ -981,6 +1006,9 @@
                     "IS_DRAFT"=currentGroup.IS_DRAFT,
                     "IS_ACTIVE"=currentGroup.IS_ACTIVE
                 };
+                if (currentGroup.IS_ACTIVE AND currentGroup.ROUTE_INSTANCE_ID GT 0) {
+                    activeRouteSource = loadActiveOperationalRouteSource(arguments.userId, currentGroup.ROUTE_INSTANCE_ID);
+                }
             }
 
             for (i = 1; i LTE qRoutes.recordCount; i++) {
@@ -992,6 +1020,17 @@
                 currentRouteGroup = {};
                 if (currentGroup.SUCCESS AND currentGroup.HAS_CURRENT_GROUP AND routeInstanceIdVal GT 0 AND currentGroup.ROUTE_INSTANCE_ID EQ routeInstanceIdVal) {
                     currentRouteGroup = duplicate(out.CURRENT_GROUP);
+                } else if (currentGroup.SUCCESS AND currentGroup.HAS_CURRENT_GROUP AND currentGroup.IS_ACTIVE AND structCount(activeRouteSource) GT 0) {
+                    savedRouteInputs = routegenParseStoredInputs(isNull(qRoutes.routegen_inputs_json[i]) ? "" : qRoutes.routegen_inputs_json[i]);
+                    if (isSavedRouteSourceForActiveOperationalRoute(
+                        loopRouteId = val(qRoutes.id[i]),
+                        routeShortCode = qRoutes.short_code[i],
+                        routeInstanceId = routeInstanceIdVal,
+                        routeInputs = savedRouteInputs,
+                        activeRouteSource = activeRouteSource
+                    )) {
+                        currentRouteGroup = duplicate(out.CURRENT_GROUP);
+                    }
                 }
                 arrayAppend(out.ROUTES, {
                     "ID"=qRoutes.id[i],
@@ -1007,6 +1046,146 @@
             }
             out.ACTIVE_TRIP = resolveCanonicalDashboardActiveTrip(arguments.userId);
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="loadActiveOperationalRouteSource" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                "HAS_SOURCE"=false,
+                "SOURCE_ROUTE_INSTANCE_ID"=0,
+                "SOURCE_GENERATED_ROUTE_ID"=0,
+                "SOURCE_ROUTE_CODE"="",
+                "SOURCE_USER_ROUTE_ID"=0
+            };
+            var qRoute = queryNew("");
+            var routeInputs = {};
+            var routeCodeVal = "";
+            var templateCodeVal = "";
+            var explicitSourceFound = false;
+
+            if (arguments.userId LTE 0 OR arguments.routeInstanceId LTE 0) {
+                return result;
+            }
+
+            qRoute = queryExecute(
+                "SELECT
+                    ri.id,
+                    ri.template_route_code,
+                    ri.generated_route_code,
+                    ri.routegen_inputs_json
+                 FROM route_instances ri
+                 WHERE ri.id = :routeInstanceId
+                   AND ri.user_id = :userId
+                 LIMIT 1",
+                {
+                    routeInstanceId = { value=arguments.routeInstanceId, cfsqltype="cf_sql_integer" },
+                    userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
+                },
+                { datasource = application.dsn }
+            );
+
+            if (qRoute.recordCount EQ 0) {
+                return result;
+            }
+
+            routeCodeVal = trim(toString(isNull(qRoute.generated_route_code[1]) ? "" : qRoute.generated_route_code[1]));
+            templateCodeVal = uCase(trim(toString(isNull(qRoute.template_route_code[1]) ? "" : qRoute.template_route_code[1])));
+            routeInputs = routegenParseStoredInputs(isNull(qRoute.routegen_inputs_json[1]) ? "" : qRoute.routegen_inputs_json[1]);
+
+            result.SOURCE_ROUTE_INSTANCE_ID = (
+                structKeyExists(routeInputs, "source_route_instance_id")
+                    ? val(routeInputs.source_route_instance_id)
+                    : 0
+            );
+            result.SOURCE_GENERATED_ROUTE_ID = (
+                structKeyExists(routeInputs, "source_generated_route_id")
+                    ? val(routeInputs.source_generated_route_id)
+                    : 0
+            );
+            result.SOURCE_ROUTE_CODE = (
+                structKeyExists(routeInputs, "source_route_code")
+                    ? trim(toString(routeInputs.source_route_code))
+                    : ""
+            );
+            result.SOURCE_USER_ROUTE_ID = (
+                structKeyExists(routeInputs, "source_user_route_id")
+                    ? val(routeInputs.source_user_route_id)
+                    : 0
+            );
+
+            explicitSourceFound = (
+                result.SOURCE_ROUTE_INSTANCE_ID GT 0
+                OR result.SOURCE_GENERATED_ROUTE_ID GT 0
+                OR len(result.SOURCE_ROUTE_CODE)
+                OR result.SOURCE_USER_ROUTE_ID GT 0
+            );
+
+            if (!explicitSourceFound AND templateCodeVal EQ "MY_ROUTE" AND left(uCase(routeCodeVal), 6) EQ "FPWOP_" AND structKeyExists(routeInputs, "route_id")) {
+                result.SOURCE_USER_ROUTE_ID = val(routeInputs.route_id);
+            }
+
+            result.HAS_SOURCE = (
+                result.SOURCE_ROUTE_INSTANCE_ID GT 0
+                OR result.SOURCE_GENERATED_ROUTE_ID GT 0
+                OR len(result.SOURCE_ROUTE_CODE)
+                OR result.SOURCE_USER_ROUTE_ID GT 0
+            );
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="isSavedRouteSourceForActiveOperationalRoute" access="private" returntype="boolean" output="false">
+        <cfargument name="loopRouteId" type="numeric" required="true">
+        <cfargument name="routeShortCode" type="string" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="true">
+        <cfargument name="routeInputs" type="struct" required="true">
+        <cfargument name="activeRouteSource" type="struct" required="true">
+        <cfscript>
+            var sourceRouteInstanceId = (
+                structKeyExists(arguments.activeRouteSource, "SOURCE_ROUTE_INSTANCE_ID")
+                    ? val(arguments.activeRouteSource.SOURCE_ROUTE_INSTANCE_ID)
+                    : 0
+            );
+            var sourceGeneratedRouteId = (
+                structKeyExists(arguments.activeRouteSource, "SOURCE_GENERATED_ROUTE_ID")
+                    ? val(arguments.activeRouteSource.SOURCE_GENERATED_ROUTE_ID)
+                    : 0
+            );
+            var sourceRouteCode = (
+                structKeyExists(arguments.activeRouteSource, "SOURCE_ROUTE_CODE")
+                    ? trim(toString(arguments.activeRouteSource.SOURCE_ROUTE_CODE))
+                    : ""
+            );
+            var sourceUserRouteId = (
+                structKeyExists(arguments.activeRouteSource, "SOURCE_USER_ROUTE_ID")
+                    ? val(arguments.activeRouteSource.SOURCE_USER_ROUTE_ID)
+                    : 0
+            );
+            var savedRouteUserRouteId = (
+                structKeyExists(arguments.routeInputs, "route_id")
+                    ? val(arguments.routeInputs.route_id)
+                    : 0
+            );
+
+            if (!structKeyExists(arguments.activeRouteSource, "HAS_SOURCE") OR !arguments.activeRouteSource.HAS_SOURCE) {
+                return false;
+            }
+            if (sourceRouteInstanceId GT 0 AND arguments.routeInstanceId GT 0 AND sourceRouteInstanceId EQ arguments.routeInstanceId) {
+                return true;
+            }
+            if (sourceGeneratedRouteId GT 0 AND arguments.loopRouteId GT 0 AND sourceGeneratedRouteId EQ arguments.loopRouteId) {
+                return true;
+            }
+            if (len(sourceRouteCode) AND len(trim(arguments.routeShortCode)) AND compareNoCase(sourceRouteCode, trim(arguments.routeShortCode)) EQ 0) {
+                return true;
+            }
+            if (sourceUserRouteId GT 0 AND savedRouteUserRouteId GT 0 AND sourceUserRouteId EQ savedRouteUserRouteId) {
+                return true;
+            }
+            return false;
         </cfscript>
     </cffunction>
 
@@ -3348,7 +3527,7 @@
 
                     queryExecute(
                         "INSERT INTO floatplans
-                            (userId, floatPlanName, vesselId, departing, returning, notes, route_instance_id, route_day_number, status, dateCreated, lastUpdate)
+                            (userId, floatPlanName, vesselId, departing, `returning`, notes, route_instance_id, route_day_number, status, dateCreated, lastUpdate)
                          VALUES
                             (:userId, :planName, :vesselId, :departing, :returning, :notes, :routeInstanceId, :routeDayNumber, 'Draft', NOW(), NOW())",
                         {
@@ -4418,6 +4597,7 @@
         <cfargument name="routeInputs" type="struct" required="true">
         <cfargument name="distanceNm" type="numeric" required="true">
         <cfargument name="idleFuelGallons" type="any" required="false" default="0">
+        <cfargument name="includeIdleFuelFromInputs" type="any" required="false" default="false">
         <cfscript>
             var out = {
                 "SUCCESS"=false,
@@ -4426,18 +4606,24 @@
                 "PERFORMANCE_META"={},
                 "ALLOW_ANCHORED_BURN"=false,
                 "DISTANCE_NM"=0,
+                "IDLE_FUEL_GALLONS"=0,
+                "FUEL_PRICE_PER_GALLON"=0,
                 "WEATHER_FACTOR_PCT"=0,
                 "RESERVE_PCT"=33
             };
             var effectiveInputs = (isStruct(arguments.routeInputs) ? duplicate(arguments.routeInputs) : {});
             var distanceVal = val(arguments.distanceNm);
             var idleFuelGallonsVal = val(arguments.idleFuelGallons);
+            var includeIdleFuelFromInputsVal = false;
+            var idleBurnVal = 0;
+            var idleHoursVal = 0;
             var paceVal = "";
             var paceDefaults = {};
             var performanceMeta = {};
             var allowAnchoredBurnVal = false;
             var weatherFactorPctVal = 0;
             var reservePctVal = 33;
+            var fuelPriceVal = 0;
             var maxSpeedVal = 0;
             var maxBurnForEstimateVal = 0;
             var fuelBurnGphVal = 0;
@@ -4450,6 +4636,11 @@
 
             if (distanceVal LT 0) distanceVal = 0;
             if (idleFuelGallonsVal LT 0) idleFuelGallonsVal = 0;
+            includeIdleFuelFromInputsVal = (
+                isBoolean(arguments.includeIdleFuelFromInputs)
+                    ? arguments.includeIdleFuelFromInputs
+                    : (val(arguments.includeIdleFuelFromInputs) EQ 1)
+            );
 
             paceVal = routegenNormalizePace(structKeyExists(effectiveInputs, "pace") ? effectiveInputs.pace : "");
             paceDefaults = routegenPaceDefaults(paceVal);
@@ -4464,6 +4655,24 @@
                 structKeyExists(effectiveInputs, "reserve_pct") ? effectiveInputs.reserve_pct : "",
                 33
             );
+            fuelPriceVal = routegenNormalizeFuelPricePerGal(
+                structKeyExists(effectiveInputs, "fuel_price_per_gal")
+                    ? effectiveInputs.fuel_price_per_gal
+                    : (structKeyExists(effectiveInputs, "fuelPricePerGal") ? effectiveInputs.fuelPricePerGal : "")
+            );
+            if (includeIdleFuelFromInputsVal AND idleFuelGallonsVal LTE 0) {
+                idleBurnVal = routegenNormalizeFuelBurnGph(
+                    structKeyExists(effectiveInputs, "idle_burn_gph")
+                        ? effectiveInputs.idle_burn_gph
+                        : (structKeyExists(effectiveInputs, "idleBurnGph") ? effectiveInputs.idleBurnGph : "")
+                );
+                idleHoursVal = routegenNormalizeIdleHoursTotal(
+                    structKeyExists(effectiveInputs, "idle_hours_total")
+                        ? effectiveInputs.idle_hours_total
+                        : (structKeyExists(effectiveInputs, "idleHoursTotal") ? effectiveInputs.idleHoursTotal : "")
+                );
+                idleFuelGallonsVal = (idleBurnVal GT 0 AND idleHoursVal GT 0 ? round((idleBurnVal * idleHoursVal) * 10) / 10 : 0);
+            }
             maxSpeedVal = routegenNormalizeCruisingSpeed(performanceMeta.max_speed_kn, paceDefaults.MAX_SPEED_KN);
             maxBurnForEstimateVal = routegenNormalizeFuelBurnGph(performanceMeta.max_burn_for_estimate);
             fuelBurnGphVal = routegenNormalizeFuelBurnGph(performanceMeta.fuel_burn_gph);
@@ -4471,6 +4680,8 @@
             out.PERFORMANCE_META = performanceMeta;
             out.ALLOW_ANCHORED_BURN = allowAnchoredBurnVal;
             out.DISTANCE_NM = roundTo2(distanceVal);
+            out.IDLE_FUEL_GALLONS = roundTo2(idleFuelGallonsVal);
+            out.FUEL_PRICE_PER_GALLON = fuelPriceVal;
             out.WEATHER_FACTOR_PCT = weatherFactorPctVal;
             out.RESERVE_PCT = reservePctVal;
 
@@ -4494,6 +4705,7 @@
                 "weatherPct"=weatherFactorPctVal,
                 "idleFuelGallons"=idleFuelGallonsVal,
                 "reservePct"=reservePctVal,
+                "fuelPricePerGallon"=fuelPriceVal,
                 "allowAnchoredBurn"=allowAnchoredBurnVal
             });
 
@@ -5692,6 +5904,16 @@
             };
             out.days = days;
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getRouteTimelineService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.RouteTimelineService").init(application.dsn);
+            } catch (any primaryPathErr) {
+                return createObject("component", "api.v1.RouteTimelineService").init(application.dsn);
+            }
         </cfscript>
     </cffunction>
 
@@ -7111,6 +7333,28 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="routegenPreserveActiveTripOverrideInputs" access="private" returntype="struct" output="false">
+        <cfargument name="existingInputs" type="any" required="false" default="">
+        <cfargument name="newInputs" type="any" required="false" default="">
+        <cfscript>
+            var preservedInputs = (isStruct(arguments.newInputs) ? duplicate(arguments.newInputs) : {});
+            var storedInputs = (isStruct(arguments.existingInputs) ? arguments.existingInputs : {});
+            var keyName = "";
+
+            for (keyName in storedInputs) {
+                if (
+                    left(lCase(trim(toString(keyName))), 12) EQ "active_trip_"
+                    AND !structKeyExists(preservedInputs, keyName)
+                    AND !isNull(storedInputs[keyName])
+                ) {
+                    preservedInputs[keyName] = storedInputs[keyName];
+                }
+            }
+
+            return preservedInputs;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="routegenSerializeInputsForInstance" access="private" returntype="string" output="false">
         <cfargument name="inputData" type="any" required="false" default="">
         <cfscript>
@@ -7194,6 +7438,125 @@
             } catch (any e) {
                 return "";
             }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="syncFuelPriceToActiveRouteSnapshot" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeId" type="numeric" required="true">
+        <cfargument name="sourceRouteInstanceId" type="numeric" required="true">
+        <cfargument name="fuelPricePerGal" type="any" required="false" default="">
+        <cfscript>
+            var out = {
+                "success"=true,
+                "updated_count"=0,
+                "updated_route_instance_ids"=[],
+                "skipped_count"=0
+            };
+            var normalizedFuelPrice = routegenNormalizeFuelPricePerGal(arguments.fuelPricePerGal);
+            var storedFuelPrice = (normalizedFuelPrice GT 0 ? normalizedFuelPrice : "");
+            var qCandidates = queryNew("");
+            var i = 0;
+            var routeInputs = {};
+            var activeRouteId = 0;
+            var activeFloatPlanId = 0;
+            var routeInputsJson = "";
+            var routeInstanceIdVal = 0;
+
+            if (
+                arguments.userId LTE 0
+                OR arguments.routeId LTE 0
+                OR arguments.sourceRouteInstanceId LTE 0
+                OR !routegenHasInputsJsonColumn()
+            ) {
+                return out;
+            }
+
+            try {
+                qCandidates = queryExecute(
+                    "SELECT
+                        fp.floatPlanId,
+                        ri.id AS route_instance_id,
+                        ri.routegen_inputs_json
+                     FROM floatplans fp
+                     INNER JOIN route_instances ri
+                       ON ri.id = fp.route_instance_id
+                     WHERE fp.userId = :userId
+                       AND ri.user_id = :routeUserId
+                       AND ri.id <> :sourceRouteInstanceId
+                       AND ri.routegen_inputs_json IS NOT NULL
+                       AND TRIM(ri.routegen_inputs_json) <> ''
+                       AND UPPER(TRIM(fp.status)) IN (
+                            'ACTIVE',
+                            'DUE_NOW',
+                            'OVERDUE',
+                            'OVERDUE_1H',
+                            'OVERDUE_2H',
+                            'OVERDUE_3H',
+                            'OVERDUE_4H',
+                            'OVERDUE_12H',
+                            'OVERDUE_24H'
+                       )
+                     ORDER BY fp.floatPlanId DESC, ri.id DESC",
+                    {
+                        userId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                        routeUserId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
+                        sourceRouteInstanceId = { value=arguments.sourceRouteInstanceId, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource = application.dsn }
+                );
+
+                for (i = 1; i LTE qCandidates.recordCount; i++) {
+                    routeInputs = routegenParseStoredInputs(qCandidates.routegen_inputs_json[i]);
+                    if (!structCount(routeInputs)) {
+                        out.skipped_count += 1;
+                        continue;
+                    }
+
+                    activeRouteId = val(structKeyExists(routeInputs, "route_id") ? routeInputs.route_id : 0);
+                    activeFloatPlanId = val(structKeyExists(routeInputs, "active_trip_floatplan_id") ? routeInputs.active_trip_floatplan_id : 0);
+                    routeInstanceIdVal = val(qCandidates.route_instance_id[i]);
+
+                    if (
+                        activeRouteId NEQ arguments.routeId
+                        OR activeFloatPlanId NEQ val(qCandidates.floatPlanId[i])
+                        OR routeInstanceIdVal LTE 0
+                    ) {
+                        out.skipped_count += 1;
+                        continue;
+                    }
+
+                    routeInputs.fuel_price_per_gal = storedFuelPrice;
+                    routeInputsJson = routegenSerializeInputsForInstance(routeInputs);
+                    if (!len(trim(routeInputsJson))) {
+                        out.skipped_count += 1;
+                        continue;
+                    }
+
+                    queryExecute(
+                        "UPDATE route_instances
+                         SET routegen_inputs_json = :routegenInputsJson,
+                             updated_at = NOW()
+                         WHERE id = :routeInstanceId
+                           AND user_id = :routeUserId",
+                        {
+                            routegenInputsJson = { value=routeInputsJson, cfsqltype="cf_sql_longvarchar" },
+                            routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" },
+                            routeUserId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
+                        },
+                        { datasource = application.dsn }
+                    );
+                    arrayAppend(out.updated_route_instance_ids, routeInstanceIdVal);
+                }
+
+                out.updated_count = arrayLen(out.updated_route_instance_ids);
+            } catch (any syncFuelPriceErr) {
+                out.success = false;
+                out.message = "Unable to sync fuel price to active route snapshot.";
+                out.detail = syncFuelPriceErr.message;
+            }
+
+            return out;
         </cfscript>
     </cffunction>
 
@@ -11739,8 +12102,8 @@
             var q = queryNew("");
             var maxTry = max(1, int(arguments.maxAttempts));
             for (tryNum = 1; tryNum LTE maxTry; tryNum++) {
-                stamp = dateTimeFormat(now(), "yyyymmddHHnnss");
-                token = lCase(left(replace(createUUID(), "-", "", "all"), 8));
+                stamp = dateTimeFormat(now(), "yymmddHHnnss");
+                token = lCase(left(hash(createUUID(), "SHA-256"), 5));
                 candidate = "USER_ROUTE_" & int(arguments.userId) & "_" & stamp & "_" & token;
                 q = queryExecute(
                     "SELECT id
@@ -12057,8 +12420,33 @@
             if (!len(trim(toString(structKeyExists(instanceInputs, "start_date") ? instanceInputs.start_date : "")))) {
                 instanceInputs.start_date = trim(toString(arguments.input.start_date));
             }
-            var instanceInputsJson = routegenSerializeInputsForInstance(instanceInputs);
             var hasInputsJsonCol = routegenHasInputsJsonColumn();
+            var qExistingRouteInstanceInputs = queryNew("");
+            if (hasInputsJsonCol) {
+                qExistingRouteInstanceInputs = queryExecute(
+                    "SELECT routegen_inputs_json
+                     FROM route_instances
+                     WHERE generated_route_id = :rid
+                       AND user_id = :uid
+                     ORDER BY id DESC
+                     LIMIT 1",
+                    {
+                        rid = { value=routeId, cfsqltype="cf_sql_integer" },
+                        uid = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
+                    },
+                    { datasource = application.dsn }
+                );
+                if (
+                    qExistingRouteInstanceInputs.recordCount GT 0
+                    AND !isNull(qExistingRouteInstanceInputs.routegen_inputs_json[1])
+                ) {
+                    instanceInputs = routegenPreserveActiveTripOverrideInputs(
+                        routegenParseStoredInputs(qExistingRouteInstanceInputs.routegen_inputs_json[1]),
+                        instanceInputs
+                    );
+                }
+            }
+            var instanceInputsJson = routegenSerializeInputsForInstance(instanceInputs);
             var totals = (structKeyExists(data, "totals") ? data.totals : {});
             var totalNmBind = toNullableNumber((structKeyExists(totals, "total_nm") ? totals.total_nm : ""), "numeric");
             var totalLocksBind = toNullableNumber((structKeyExists(totals, "lock_count") ? totals.lock_count : ""), "integer");
@@ -12070,6 +12458,11 @@
             var qInst = queryNew("");
             var qActiveLinkedPlans = queryNew("");
             var preserveProgressOnRebuild = false;
+            var activeFuelPriceSync = {
+                "success"=true,
+                "updated_count"=0,
+                "updated_route_instance_ids"=[]
+            };
 
             try {
                 transaction {
@@ -12258,6 +12651,15 @@
                 rethrow;
             }
 
+            if (isMyRouteUpdate AND inputRouteIdVal GT 0 AND hasInputsJsonCol) {
+                activeFuelPriceSync = syncFuelPriceToActiveRouteSnapshot(
+                    userId = arguments.userId,
+                    routeId = inputRouteIdVal,
+                    sourceRouteInstanceId = routeInstanceId,
+                    fuelPricePerGal = (structKeyExists(instanceInputs, "fuel_price_per_gal") ? instanceInputs.fuel_price_per_gal : "")
+                );
+            }
+
             out.SUCCESS = true;
             out.MESSAGE = "Route updated";
             out.DATA = {
@@ -12267,7 +12669,8 @@
                 "route_instance_id"=routeInstanceId,
                 "generated_leg_count"=arrayLen(legs),
                 "totals"=data.totals,
-                "template"=data.template
+                "template"=data.template,
+                "active_fuel_price_sync"=activeFuelPriceSync
             };
             out.ROUTE_ID = routeId;
             out.ROUTE_CODE = routeCodeVal;
@@ -12352,6 +12755,39 @@
             <cfreturn url[arguments.fieldB] />
         </cfif>
         <cfreturn arguments.fallback />
+    </cffunction>
+
+    <cffunction name="shouldGateRouteBuilderAction" access="private" returntype="boolean" output="false">
+        <cfargument name="actionName" type="string" required="true">
+        <cfargument name="body" type="struct" required="true">
+        <cfscript>
+            var actionValue = lCase(trim(arguments.actionName));
+            var routeType = "";
+            var gatedActions = "listuserroutes,createuserroute,deleteuserroute,getuserroute,setuserroutestartwaypoint,addwaypointlegtouserroute,previewuserroute,addlegtouserroute,removelegfromuserroute,reorderuserroutelegs,getroutelegoverridegeometry,saveroutelegoverridegeometry,clearroutelegoverridegeometry,routegen_geteditcontext,routegen_generate,routegen_update,routegen_savelegoverride,routegen_clearlegoverride,routegen_savesegmentoverride,routegen_clearsegmentoverride,routegen_listlegoverrides,buildfloatplansfromroute,setactiveroute,deleteroute,gettimeline";
+
+            if (listFindNoCase(gatedActions, actionValue) GT 0) {
+                return true;
+            }
+
+            if (listFindNoCase("routegen_preview,generatecruisetimeline", actionValue) GT 0) {
+                routeType = lCase(trim(toString(pickArg(arguments.body, "route_type", "routeType", ""))));
+                if (listFindNoCase("my_route,my_routes,custom", routeType) GT 0) {
+                    return true;
+                }
+            }
+
+            return false;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getMemberAccessGateService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.MemberAccessGateService").init("fpw");
+            } catch (any e1) {
+                return createObject("component", "api.v1.MemberAccessGateService").init("fpw");
+            }
+        </cfscript>
     </cffunction>
 
     <cffunction name="pickStruct" access="private" returntype="any" output="false">
@@ -12451,11 +12887,3 @@
     </cffunction>
 
 </cfcomponent>
-
-
-
-
-
-
-
-

@@ -1,9 +1,10 @@
 <cfsetting showdebugoutput="false">
+<cfinclude template="../includes/fpw_base_path.cfm">
 
 <cfscript>
 userStruct = (structKeyExists(session, "user") AND isStruct(session.user)) ? session.user : {};
 isLoggedIn = structCount(userStruct) GT 0;
-adminWhitelist = "admin@floatplanwizard.com,lswald@yahoo.com";
+// Authorization is enforced centrally by Application.cfc.
 
 function boolLike(any value, boolean defaultValue=false) {
     var txt = lCase(trim(toString(arguments.value)));
@@ -80,7 +81,7 @@ function decodeHttpJson(required struct httpRes) {
 function callRouteBuilder(required string action, required struct payload) {
     var proto = (structKeyExists(cgi, "HTTPS") AND lCase(toString(cgi.HTTPS)) EQ "on") ? "https" : "http";
     var host = structKeyExists(cgi, "HTTP_HOST") ? toString(cgi.HTTP_HOST) : (toString(cgi.SERVER_NAME) & ":" & toString(cgi.SERVER_PORT));
-    var fpwBase = "/fpw";
+    var fpwBase = request.fpwBase;
     var res = {};
     var cookiePairs = getCookiePairs();
     var targetUrl = proto & "://" & host & fpwBase & "/api/v1/routeBuilder.cfc?method=handle&action=" & urlEncodedFormat(arguments.action);
@@ -272,23 +273,7 @@ function writeExposure(required numeric segmentId, required any exposureValue) {
     );
 }
 
-isAdmin = false;
-if (isLoggedIn) {
-    if (structKeyExists(userStruct, "isAdmin") AND boolLike(userStruct.isAdmin, false)) {
-        isAdmin = true;
-    } else if (structKeyExists(userStruct, "ISADMIN") AND boolLike(userStruct.ISADMIN, false)) {
-        isAdmin = true;
-    } else if (structKeyExists(userStruct, "is_admin") AND boolLike(userStruct.is_admin, false)) {
-        isAdmin = true;
-    } else if (roleFromUser(userStruct) EQ "admin") {
-        isAdmin = true;
-    } else if (len(emailFromUser(userStruct)) AND listFindNoCase(adminWhitelist, emailFromUser(userStruct))) {
-        isAdmin = true;
-    }
-}
-
-isAuthorized = isLoggedIn AND isAdmin;
-request.fpwBase = "/fpw";
+isAuthorized = structKeyExists(request, "fpwAdminAuthorization") AND request.fpwAdminAuthorization.authorized;
 activeUserId = resolveUserId(userStruct);
 
 defaults = {
@@ -634,4 +619,7 @@ if (didRun AND !len(runError)) {
 </div>
 </body>
 </html>
+
+
+
 

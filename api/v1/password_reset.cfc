@@ -2,8 +2,6 @@
 
     <cffunction name="sendResponse" access="private" returntype="void" output="true">
         <cfargument name="payload" type="struct" required="true">
-        <cfargument name="buildStamp" type="string" required="true">
-        <cfset arguments.payload.BUILD = arguments.buildStamp>
         <cfoutput>#serializeJSON(arguments.payload)#</cfoutput>
         <cfabort>
     </cffunction>
@@ -15,15 +13,25 @@
         <cfheader name="Pragma" value="no-cache">
         <cfheader name="Expires" value="0">
 
+        <cfset var httpData = {}>
+        <cfset var rawBody = "">
+        <cfset var body = {}>
+        <cfset var action = "">
+        <cfset var genericMessage = "If an account exists for that email, we sent a password reset link.">
+        <cfset var email = "">
+        <cfset var qUser = "">
+        <cfset var token = "">
+        <cfset var tokenHash = "">
+        <cfset var resetUrl = "">
+        <cfset var emailResult = {}>
+        <cfset var tokenStr = "">
+        <cfset var newPassword = "">
+        <cfset var qReset = "">
+        <cfset var newHash = "">
+
         <cftry>
-
-            <!-- Build stamp so you can confirm you're hitting THIS file -->
-            <cfset buildStamp = "PWRESET_BUILD_2025-12-12_A">
-
-            <!-- Read request body JSON -->
             <cfset httpData = getHttpRequestData()>
-            <cfset rawBody  = toString(httpData.content)>
-            <cfset body     = {}>
+            <cfset rawBody = toString(httpData.content)>
 
             <cfif len(trim(rawBody))>
                 <cfset body = deserializeJSON(rawBody, false)>
@@ -34,171 +42,300 @@
             <cfif NOT len(action)>
                 <cfset sendResponse({
                     SUCCESS = false,
-                    ERROR   = "MISSING_ACTION",
+                    ERROR = "MISSING_ACTION",
                     MESSAGE = "Missing action."
-                }, buildStamp)>
+                })>
             </cfif>
-
-            <!-- epoch seconds (INT) -->
-            <cfset nowEpoch = int(getTickCount()/1000)>
 
             <!-- ===================== -->
             <!-- ACTION: REQUEST RESET -->
             <!-- ===================== -->
             <cfif action EQ "request">
+                <cfset email = lcase(trim(body.email ?: ""))>
 
-                <cfset email = trim(body.email ?: "")>
-
-                <cfif NOT len(email)>
-                    <cfset sendResponse({ SUCCESS=false, ERROR="MISSING_EMAIL", MESSAGE="Email is required." }, buildStamp)>
+                <cfif NOT len(email) OR NOT isValid("email", email)>
+                    <cfset sendResponse({
+                        SUCCESS = true,
+                        MESSAGE = genericMessage
+                    })>
                 </cfif>
 
-                <!-- Look up userId (case-insensitive) -->
                 <cfquery name="qUser" datasource="fpw">
-                    SELECT userId
+                    SELECT userId, email
                     FROM users
                     WHERE LOWER(email) = LOWER(<cfqueryparam cfsqltype="cf_sql_varchar" value="#email#">)
                     LIMIT 1
                 </cfquery>
 
-                <!-- Always respond SUCCESS to prevent user enumeration -->
-                <cfset token = 0>
-
                 <cfif qUser.recordCount EQ 1>
+                    <cfset token = generatePasswordResetToken()>
+                    <cfset tokenHash = hashPasswordResetToken(token)>
+                    <cfset resetUrl = buildPasswordResetUrl(token)>
 
-                    <!-- generate unique 9-digit numeric token (fits INT) -->
-                    <cfset tries = 0>
-                    <cfloop condition="token EQ 0 AND tries LT 20">
-                        <cfset tries = tries + 1>
-                        <cfset candidate = randRange(100000000, 999999999)>
-
-                        <cfquery name="qTok" datasource="fpw">
-                            SELECT userId
-                            FROM users
-                            WHERE resetId = <cfqueryparam cfsqltype="cf_sql_integer" value="#candidate#">
-                            LIMIT 1
-                        </cfquery>
-
-                        <cfif qTok.recordCount EQ 0>
-                            <cfset token = candidate>
-                        </cfif>
-                    </cfloop>
-
-                    <!-- If we somehow didn't get unique token, fall back -->
-                    <cfif token EQ 0>
-                        <cfset token = randRange(100000000, 999999999)>
-                    </cfif>
-
-                    <!-- Store token + request time (epoch seconds) -->
                     <cfquery datasource="fpw">
                         UPDATE users
                         SET
-                            requestReset = <cfqueryparam cfsqltype="cf_sql_integer" value="#nowEpoch#">,
-                            resetId      = <cfqueryparam cfsqltype="cf_sql_integer" value="#token#">,
-                            lastUpdate   = <cfqueryparam cfsqltype="cf_sql_timestamp" value="#now()#">
+                            resetTokenHash = <cfqueryparam cfsqltype="cf_sql_char" value="#tokenHash#">,
+                            resetRequestedAt = <cfqueryparam cfsqltype="cf_sql_timestamp" value="#now()#">,
+                            resetExpiresAt = <cfqueryparam cfsqltype="cf_sql_timestamp" value="#dateAdd('n', 60, now())#">,
+                            requestReset = NULL,
+                            resetId = NULL,
+                            lastUpdate = <cfqueryparam cfsqltype="cf_sql_timestamp" value="#now()#">
                         WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#qUser.userId#">
                     </cfquery>
 
+                    <cfset emailResult = sendPasswordResetEmail(
+                        userId = qUser.userId,
+                        toEmail = qUser.email,
+                        resetUrl = resetUrl
+                    )>
                 </cfif>
-
-                <!-- Dev helper: if user not found, still provide a dummy token+url -->
-                <cfif token EQ 0>
-                    <cfset token = randRange(100000000, 999999999)>
-                </cfif>
-
-                <cfif NOT structKeyExists(request, "fpwBase")>
-                    <cfset request.fpwBase = getDirectoryFromPath(cgi.script_name)>
-                    <cfset request.fpwBase = reReplace(request.fpwBase, "/api/v1/?$", "")>
-                    <cfset request.fpwBase = reReplace(request.fpwBase, "/$", "")>
-                    <cfif request.fpwBase EQ "/">
-                        <cfset request.fpwBase = "">
-                    </cfif>
-                </cfif>
-                <cfset resetUrl = request.fpwBase & "/app/reset-password.cfm?token=" & token>
 
                 <cfset sendResponse({
-                    SUCCESS   = true,
-                    MESSAGE   = "If that email exists, we sent password reset instructions.",
-                    TOKEN     = token,
-                    RESET_URL = resetUrl
-                }, buildStamp)>
+                    SUCCESS = true,
+                    MESSAGE = genericMessage
+                })>
+
+            <!-- ===================== -->
+            <!-- ACTION: VALIDATE RESET -->
+            <!-- ===================== -->
+            <cfelseif action EQ "validate">
+                <cfset tokenStr = trim(body.token ?: "")>
+
+                <cfif NOT len(tokenStr)>
+                    <cfset sendResponse({
+                        SUCCESS = false,
+                        ERROR = "INVALID_OR_EXPIRED_LINK",
+                        MESSAGE = "This reset link is invalid or has expired. Please request a new password reset."
+                    })>
+                </cfif>
+
+                <cfset qReset = findActiveResetToken(tokenStr)>
+
+                <cfif qReset.recordCount EQ 0>
+                    <cfset sendResponse({
+                        SUCCESS = false,
+                        ERROR = "INVALID_OR_EXPIRED_LINK",
+                        MESSAGE = "This reset link is invalid or has expired. Please request a new password reset."
+                    })>
+                </cfif>
+
+                <cfset sendResponse({
+                    SUCCESS = true,
+                    MESSAGE = "Reset link is valid."
+                })>
 
             <!-- ===================== -->
             <!-- ACTION: CONFIRM RESET -->
             <!-- ===================== -->
             <cfelseif action EQ "confirm">
-
-                <cfset tokenStr    = trim(body.token ?: "")>
+                <cfset tokenStr = trim(body.token ?: "")>
                 <cfset newPassword = trim(body.newPassword ?: "")>
 
                 <cfif NOT len(tokenStr) OR NOT len(newPassword)>
-                    <cfset sendResponse({ SUCCESS=false, ERROR="MISSING_FIELDS", MESSAGE="token and newPassword are required." }, buildStamp)>
-                </cfif>
-
-                <cfif NOT isNumeric(tokenStr)>
-                    <cfset sendResponse({ SUCCESS=false, ERROR="INVALID_TOKEN", MESSAGE="Reset link is invalid or expired." }, buildStamp)>
+                    <cfset sendResponse({
+                        SUCCESS = false,
+                        ERROR = "MISSING_FIELDS",
+                        MESSAGE = "This reset link is invalid or has expired. Please request a new password reset."
+                    })>
                 </cfif>
 
                 <cfif len(newPassword) LT 8>
-                    <cfset sendResponse({ SUCCESS=false, ERROR="WEAK_PASSWORD", MESSAGE="Password must be at least 8 characters." }, buildStamp)>
+                    <cfset sendResponse({
+                        SUCCESS = false,
+                        ERROR = "WEAK_PASSWORD",
+                        MESSAGE = "Password must be at least 8 characters."
+                    })>
                 </cfif>
 
-                <cfset token = int(tokenStr)>
-
-                <!-- Find token -->
-                <cfquery name="qReset" datasource="fpw">
-                    SELECT userId, requestReset
-                    FROM users
-                    WHERE resetId = <cfqueryparam cfsqltype="cf_sql_integer" value="#token#">
-                    LIMIT 1
-                </cfquery>
+                <cfset qReset = findActiveResetToken(tokenStr)>
 
                 <cfif qReset.recordCount EQ 0>
-                    <cfset sendResponse({ SUCCESS=false, ERROR="INVALID_TOKEN", MESSAGE="Reset link is invalid or expired." }, buildStamp)>
+                    <cfset sendResponse({
+                        SUCCESS = false,
+                        ERROR = "INVALID_OR_EXPIRED_LINK",
+                        MESSAGE = "This reset link is invalid or has expired. Please request a new password reset."
+                    })>
                 </cfif>
 
-                <!-- Expiration window: 2 hours -->
-                <cfset expiresSeconds = 2 * 60 * 60>
-                <cfset reqEpoch = val(qReset.requestReset)>
-
-                <cfif reqEpoch LTE 0 OR (nowEpoch - reqEpoch) GT expiresSeconds>
-                    <cfset sendResponse({ SUCCESS=false, ERROR="EXPIRED_TOKEN", MESSAGE="Reset link has expired. Please request a new one." }, buildStamp)>
-                </cfif>
-
-                <!-- Store new password (SHA-256 uppercase hex to match your current approach) -->
                 <cfset newHash = ucase(hash(newPassword, "SHA-256", "UTF-8"))>
 
                 <cfquery datasource="fpw">
                     UPDATE users
                     SET
-                        password        = <cfqueryparam cfsqltype="cf_sql_varchar" value="#newHash#">,
+                        password = <cfqueryparam cfsqltype="cf_sql_varchar" value="#newHash#">,
                         passwordCreated = <cfqueryparam cfsqltype="cf_sql_timestamp" value="#now()#">,
-                        requestReset    = NULL,
-                        resetId         = NULL,
-                        lastUpdate      = <cfqueryparam cfsqltype="cf_sql_timestamp" value="#now()#">
+                        resetTokenHash = NULL,
+                        resetRequestedAt = NULL,
+                        resetExpiresAt = NULL,
+                        requestReset = NULL,
+                        resetId = NULL,
+                        lastUpdate = <cfqueryparam cfsqltype="cf_sql_timestamp" value="#now()#">
                     WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#qReset.userId#">
                 </cfquery>
 
-                <cfset sendResponse({ SUCCESS=true, MESSAGE="Password updated. You can now sign in." }, buildStamp)>
+                <cfset sendResponse({
+                    SUCCESS = true,
+                    MESSAGE = "Your password has been reset. You can now sign in."
+                })>
 
             <cfelse>
-                <cfset sendResponse({ SUCCESS=false, ERROR="INVALID_ACTION", MESSAGE="Invalid action." }, buildStamp)>
+                <cfset sendResponse({
+                    SUCCESS = false,
+                    ERROR = "INVALID_ACTION",
+                    MESSAGE = "Invalid action."
+                })>
             </cfif>
 
             <cfcatch type="any">
-                <cfoutput>#serializeJSON({
+                <cflog
+                    file="fpw_password_reset"
+                    type="error"
+                    text="password_reset.cfc SERVER_ERROR | action=#cleanLogValue(action)# | type=#cleanLogValue(structKeyExists(cfcatch, 'type') ? cfcatch.type : 'any')# | message=#cleanLogValue(cfcatch.message)# | time=#now()#">
+                <cfset sendResponse({
                     SUCCESS = false,
-                    ERROR   = "SERVER_ERROR",
-                    MESSAGE = "Password reset API error.",
-                    DETAIL  = cfcatch.message,
-                    DBDETAIL= (structKeyExists(cfcatch, "detail") ? cfcatch.detail : ""),
-                    BUILD   = "PWRESET_BUILD_2025-12-12_A"
-                })#</cfoutput>
+                    ERROR = "SERVER_ERROR",
+                    MESSAGE = "We could not process that password reset request right now."
+                })>
             </cfcatch>
-
         </cftry>
 
         <cfsetting enablecfoutputonly="false">
+    </cffunction>
+
+    <cffunction name="findActiveResetToken" access="private" returntype="query" output="false">
+        <cfargument name="token" type="string" required="true">
+
+        <cfset var tokenHash = hashPasswordResetToken(arguments.token)>
+        <cfset var qToken = "">
+
+        <cfquery name="qToken" datasource="fpw">
+            SELECT userId
+            FROM users
+            WHERE resetTokenHash = <cfqueryparam cfsqltype="cf_sql_char" value="#tokenHash#">
+              AND resetExpiresAt IS NOT NULL
+              AND resetExpiresAt >= <cfqueryparam cfsqltype="cf_sql_timestamp" value="#now()#">
+            LIMIT 1
+        </cfquery>
+
+        <cfreturn qToken>
+    </cffunction>
+
+    <cffunction name="generatePasswordResetToken" access="private" returntype="string" output="false">
+        <cfset var tokenValue = generateSecretKey("AES", 256)>
+
+        <cfset tokenValue = replace(tokenValue, "+", "-", "all")>
+        <cfset tokenValue = replace(tokenValue, "/", "_", "all")>
+        <cfset tokenValue = reReplace(tokenValue, "=+$", "", "all")>
+
+        <cfreturn tokenValue>
+    </cffunction>
+
+    <cffunction name="hashPasswordResetToken" access="private" returntype="string" output="false">
+        <cfargument name="token" type="string" required="true">
+
+        <cfreturn ucase(hash(trim(arguments.token), "SHA-256", "UTF-8"))>
+    </cffunction>
+
+    <cffunction name="buildPasswordResetUrl" access="private" returntype="string" output="false">
+        <cfargument name="token" type="string" required="true">
+
+        <cfreturn resolvePublicBaseUrl("https://www.floatplanwizard.com") & "/app/reset-password.cfm?token=" & encodeForURL(arguments.token)>
+    </cffunction>
+
+    <cffunction name="resolvePublicBaseUrl" access="private" returntype="string" output="false">
+        <cfargument name="fallbackBaseUrl" type="string" required="true">
+
+        <cfset var host = "">
+        <cfset var scheme = "https">
+        <cfset var forwardedProto = "">
+        <cfset var basePath = resolveFpwBasePath()>
+
+        <cfif structKeyExists(cgi, "http_host")>
+            <cfset host = trim(toString(cgi.http_host))>
+        <cfelseif structKeyExists(cgi, "HTTP_HOST")>
+            <cfset host = trim(toString(cgi.HTTP_HOST))>
+        </cfif>
+
+        <cfif NOT len(host)>
+            <cfreturn reReplace(trim(arguments.fallbackBaseUrl), "/+$", "", "all")>
+        </cfif>
+
+        <cfif structKeyExists(cgi, "http_x_forwarded_proto")>
+            <cfset forwardedProto = lcase(trim(listFirst(toString(cgi.http_x_forwarded_proto), ",")))>
+        <cfelseif structKeyExists(cgi, "HTTP_X_FORWARDED_PROTO")>
+            <cfset forwardedProto = lcase(trim(listFirst(toString(cgi.HTTP_X_FORWARDED_PROTO), ",")))>
+        </cfif>
+
+        <cfif listFindNoCase("http,https", forwardedProto)>
+            <cfset scheme = forwardedProto>
+        <cfelseif structKeyExists(cgi, "https") AND listFindNoCase("on,1,true", trim(toString(cgi.https)))>
+            <cfset scheme = "https">
+        <cfelseif structKeyExists(cgi, "HTTPS") AND listFindNoCase("on,1,true", trim(toString(cgi.HTTPS)))>
+            <cfset scheme = "https">
+        <cfelseif findNoCase("localhost", host) OR left(host, 4) EQ "127.">
+            <cfset scheme = "http">
+        </cfif>
+
+        <cfreturn reReplace(scheme & "://" & host & basePath, "/+$", "", "all")>
+    </cffunction>
+
+    <cffunction name="resolveFpwBasePath" access="private" returntype="string" output="false">
+        <cfset var basePath = "">
+
+        <cfif structKeyExists(request, "fpwBase") AND NOT isNull(request.fpwBase)>
+            <cfset basePath = trim(toString(request.fpwBase))>
+        <cfelse>
+            <cfif structKeyExists(cgi, "script_name")>
+                <cfset basePath = trim(toString(cgi.script_name))>
+            <cfelseif structKeyExists(cgi, "SCRIPT_NAME")>
+                <cfset basePath = trim(toString(cgi.SCRIPT_NAME))>
+            </cfif>
+
+            <cfset basePath = reReplace(basePath, "[?##].*$", "")>
+            <cfset basePath = replace(basePath, "\", "/", "all")>
+            <cfset basePath = reReplaceNoCase(basePath, "/api/v1(/.*)?$", "")>
+            <cfset basePath = reReplaceNoCase(basePath, "/(app|admin|assets|tests)(/.*)?$", "")>
+            <cfset basePath = reReplaceNoCase(basePath, "/[^/]*\.(cfm|cfc)$", "")>
+        </cfif>
+
+        <cfset basePath = reReplace(basePath, "/$", "")>
+        <cfif basePath EQ "/">
+            <cfset basePath = "">
+        </cfif>
+        <cfif len(basePath) AND left(basePath, 1) NEQ "/">
+            <cfset basePath = "/" & basePath>
+        </cfif>
+
+        <cfreturn basePath>
+    </cffunction>
+
+    <cffunction name="sendPasswordResetEmail" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="toEmail" type="string" required="true">
+        <cfargument name="resetUrl" type="string" required="true">
+
+        <cfset var emailService = "">
+
+        <cftry>
+            <cfset emailService = createObject("component", "api.v1.email").init()>
+            <cfcatch type="any">
+                <cfset emailService = createObject("component", "fpw.api.v1.email").init()>
+            </cfcatch>
+        </cftry>
+
+        <cfreturn emailService.sendPasswordResetEmail(
+            userId = arguments.userId,
+            toEmail = arguments.toEmail,
+            resetUrl = arguments.resetUrl,
+            expiresMinutes = 60
+        )>
+    </cffunction>
+
+    <cffunction name="cleanLogValue" access="private" returntype="string" output="false">
+        <cfargument name="value" type="string" required="false" default="">
+
+        <cfreturn left(reReplace(trim(arguments.value), "[\r\n\t]+", " ", "all"), 300)>
     </cffunction>
 
 </cfcomponent>

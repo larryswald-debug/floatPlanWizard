@@ -67,6 +67,21 @@
                 <cfset newFName = trim(body.fName ?: body.firstName ?: "")>
                 <cfset newLName = trim(body.lName ?: body.lastName  ?: "")>
                 <cfset newMobile = trim(body.mobilePhone ?: "")>
+                <cfset phoneValidation = normalizeOptionalUsPhone(newMobile)>
+
+                <cfif NOT phoneValidation.valid>
+                    <cfset response = {
+                        SUCCESS = false,
+                        AUTH    = true,
+                        ERROR   = "INVALID_PHONE",
+                        MESSAGE = "Please enter a valid US phone number or leave the phone field blank."
+                    }>
+                    <cfoutput>#serializeJSON(response)#</cfoutput>
+                    <cfsetting enablecfoutputonly="false">
+                    <cfabort>
+                </cfif>
+
+                <cfset newMobile = phoneValidation.value>
 
                 <!-- Update allowed fields only -->
                 <cfquery datasource="fpw">
@@ -270,6 +285,31 @@
         </cftry>
 
         <cfsetting enablecfoutputonly="false">
+    </cffunction>
+
+    <cffunction name="normalizeOptionalUsPhone" access="private" returntype="struct" output="false">
+        <cfargument name="phone" type="string" required="true">
+
+        <cfset var rawValue = trim(toString(arguments.phone))>
+        <cfset var digits = reReplace(rawValue, "[^0-9]", "", "all")>
+
+        <cfif NOT len(rawValue)>
+            <cfreturn { valid = true, value = "" }>
+        </cfif>
+        <cfif len(digits) EQ 11 AND left(digits, 1) EQ "1">
+            <cfset digits = right(digits, 10)>
+        </cfif>
+        <cfif len(digits) NEQ 10 OR NOT reFind("^[2-9][0-9]{2}[2-9][0-9]{6}$", digits)>
+            <cfreturn { valid = false, value = "" }>
+        </cfif>
+
+        <cfreturn { valid = true, value = formatUsPhoneDigits(digits) }>
+    </cffunction>
+
+    <cffunction name="formatUsPhoneDigits" access="private" returntype="string" output="false">
+        <cfargument name="digits" type="string" required="true">
+
+        <cfreturn "(" & left(arguments.digits, 3) & ") " & mid(arguments.digits, 4, 3) & "-" & right(arguments.digits, 4)>
     </cffunction>
 
 </cfcomponent>

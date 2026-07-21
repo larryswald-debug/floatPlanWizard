@@ -72,18 +72,37 @@
             <cfif vesselLimit GT 250><cfset vesselLimit = 250></cfif>
 
             <!-- Load vessels for this user -->
+            <cftry>
+                <cfset vesselImageService = createObject("component", "fpw.api.v1.VesselImageService").init("fpw")>
+                <cfcatch>
+                    <cfset vesselImageService = createObject("component", "api.v1.VesselImageService").init("fpw")>
+                </cfcatch>
+            </cftry>
+            <cfset vesselImageBasePath = reReplace(cgi.script_name, "/api/v1/.*$", "", "one")>
+
             <cfquery name="qVessels" datasource="fpw">
-                SELECT vesselId, userId, vesselName, registration, typeOfVessel, make, model,
-                       lengthOfVessel, max_speed, most_efficient_speed, gallons_per_hour, gph_at_max_speed, fuel_capacity, isDefaultVessel, hullColor, hailingPort
-                FROM vessels
-                WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
-                ORDER BY vesselId DESC
+                SELECT v.vesselId, v.userId, v.vesselName, v.registration, v.typeOfVessel, v.make, v.model,
+                       v.lengthOfVessel, v.max_speed, v.most_efficient_speed, v.gallons_per_hour, v.gph_at_max_speed,
+                       v.fuel_capacity, v.isDefaultVessel, v.hullColor, v.hailingPort,
+                       vi.local_image_path, vi.thumbnail_image_path, vi.original_filename, vi.mime_type
+                FROM vessels v
+                LEFT JOIN vessel_images vi
+                  ON vi.vessel_id = v.vesselId
+                WHERE v.userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                ORDER BY v.vesselId DESC
                 LIMIT #vesselLimit#
             </cfquery>
 
             <cfset vessels = []>
 
             <cfloop query="qVessels">
+                <cfset vesselImage = vesselImageService.buildImageAsset(
+                    isNull(qVessels.local_image_path) ? "" : qVessels.local_image_path,
+                    isNull(qVessels.thumbnail_image_path) ? "" : qVessels.thumbnail_image_path,
+                    isNull(qVessels.original_filename) ? "" : qVessels.original_filename,
+                    isNull(qVessels.mime_type) ? "" : qVessels.mime_type,
+                    vesselImageBasePath
+                )>
                 <cfset vesselStruct = {
                     VESSELID     = qVessels.vesselId,
                     USERID       = qVessels.userId,
@@ -103,7 +122,10 @@
                     GPH_AT_MOST_EFFICIENT_SPEED = qVessels.gallons_per_hour,
                     ISDEFAULTVESSEL = qVessels.isDefaultVessel,
                     COLOR        = qVessels.hullColor,
-                    HOMEPORT     = qVessels.hailingPort
+                    HOMEPORT     = qVessels.hailingPort,
+                    IMAGE        = vesselImage,
+                    IMAGE_URL    = vesselImage.thumbnailUrl,
+                    THUMBNAIL_URL = vesselImage.thumbnailUrl
                 }>
                 <cfset arrayAppend(vessels, vesselStruct)>
             </cfloop>
@@ -134,3 +156,7 @@
     </cffunction>
 
 </cfcomponent>
+
+
+
+

@@ -27,11 +27,19 @@
   var vesselModelInput = null;
   var vesselColorInput = null;
   var vesselHomePortInput = null;
+  var vesselImageInput = null;
+  var vesselImagePreviewImg = null;
+  var vesselImagePreviewEmpty = null;
+  var removeVesselImageBtn = null;
+  var vesselImageError = null;
   var vesselSaveBtn = null;
   var vesselNameError = null;
   var vesselTypeError = null;
   var vesselLengthError = null;
   var vesselColorError = null;
+  var vesselCurrentImage = null;
+  var vesselImageRemoveRequested = false;
+  var vesselImagePreviewObjectUrl = "";
 
   function setVesselsSummary(text) {
     var el = document.getElementById("vesselsSummary");
@@ -87,6 +95,11 @@
       var gallonsPerHour = utils.pick(vessel, ["GALLONS_PER_HOUR"], "");
       var gphAtMaxSpeed = utils.pick(vessel, ["GPH_AT_MAX_SPEED"], "");
       var color = utils.pick(vessel, ["COLOR"], "");
+      var image = utils.pick(vessel, ["IMAGE"], {}) || {};
+      var imageUrl = utils.pick(vessel, ["THUMBNAIL_URL", "IMAGE_URL"], "");
+      if (!imageUrl) {
+        imageUrl = utils.pick(image, ["thumbnailUrl", "THUMBNAILURL", "THUMBNAIL_URL", "sourceUrl", "SOURCEURL", "SOURCE_URL"], "");
+      }
       var nameText = name || "Unnamed vessel";
       var metaParts = [];
       if (reg) metaParts.push("Registration: " + reg);
@@ -101,10 +114,13 @@
       var metaLineOne = metaParts.slice(0, 4).join(" • ");
       var metaLineTwo = metaParts.slice(4, 7).join(" • ");
       var metaLineThree = metaParts.slice(7).join(" • ");
+      var thumbnailHtml = imageUrl
+        ? '<div class="fpw-manage-thumb fpw-vessel-thumb has-image" aria-hidden="true"><img src="' + utils.escapeHtml(imageUrl) + '" alt="" loading="lazy" decoding="async"></div>'
+        : '<div class="fpw-manage-thumb fpw-vessel-thumb" aria-hidden="true"></div>';
 
       return (
         '<div class="list-item fpw-manage-item fpw-vessel-item">' +
-          '<div class="fpw-manage-thumb fpw-vessel-thumb" aria-hidden="true"></div>' +
+          thumbnailHtml +
           '<div class="list-main fpw-manage-item-copy">' +
             '<div class="list-title">' + utils.escapeHtml(nameText) + "</div>" +
             (metaLineOne ? '<small class="list-meta-line">' + utils.escapeHtml(metaLineOne) + "</small>" : "") +
@@ -173,6 +189,165 @@
       });
   }
 
+  function getFpwBasePath() {
+    var configured = String(window.FPW_BASE || "").replace(/\/+$/, "");
+    if (configured) return configured;
+    return String(window.location.pathname || "").replace(/\/(app|admin)\/.*$/i, "").replace(/\/+$/, "");
+  }
+
+  function readVesselImageResponse(response) {
+    return response.text().then(function (text) {
+      var data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (error) {
+        data = { SUCCESS: false, MESSAGE: "Non-JSON response from vessel image API." };
+      }
+      if (!response.ok || data.SUCCESS === false) {
+        data.status = response.status;
+        throw data;
+      }
+      return data;
+    });
+  }
+
+  function uploadVesselImage(vesselId, imageFile) {
+    var normalizedVesselId = parseInt(vesselId, 10) || 0;
+    if (normalizedVesselId <= 0) {
+      return Promise.reject({
+        SUCCESS: false,
+        ERROR: "INVALID_VESSEL",
+        MESSAGE: "Vessel id is required."
+      });
+    }
+
+    var formData = new FormData();
+    formData.append("vessel_id", String(normalizedVesselId));
+    formData.append("image_file", imageFile);
+    return fetch(
+      getFpwBasePath() + "/api/v1/vesselImageUpload.cfm?vessel_id=" + encodeURIComponent(normalizedVesselId),
+      {
+        method: "POST",
+        credentials: "same-origin",
+        body: formData
+      }
+    ).then(readVesselImageResponse);
+  }
+
+  function removeVesselImage(vesselId) {
+    return fetch(getFpwBasePath() + "/api/v1/vessel.cfc?method=handle&returnFormat=json", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "removeimage", vesselId: vesselId })
+    }).then(readVesselImageResponse);
+  }
+
+  function clearVesselImagePreviewObjectUrl() {
+    if (vesselImagePreviewObjectUrl && window.URL && typeof window.URL.revokeObjectURL === "function") {
+      window.URL.revokeObjectURL(vesselImagePreviewObjectUrl);
+    }
+    vesselImagePreviewObjectUrl = "";
+  }
+
+  function setVesselImageError(message) {
+    if (vesselImageInput) {
+      vesselImageInput.classList.toggle("is-invalid", !!message);
+    }
+    if (vesselImageError) {
+      vesselImageError.textContent = message || "";
+    }
+  }
+
+  function getVesselImageUrl(vessel) {
+    var image = vessel ? (utils.pick(vessel, ["IMAGE"], {}) || {}) : {};
+    return (
+      utils.pick(image, ["sourceUrl", "SOURCEURL", "SOURCE_URL", "thumbnailUrl", "THUMBNAILURL", "THUMBNAIL_URL"], "") ||
+      (vessel ? utils.pick(vessel, ["IMAGE_URL", "THUMBNAIL_URL"], "") : "")
+    );
+  }
+
+  function renderVesselImagePreview(imageUrl, canRemove) {
+    if (vesselImagePreviewImg) {
+      if (imageUrl) {
+        vesselImagePreviewImg.src = imageUrl;
+        vesselImagePreviewImg.classList.remove("d-none");
+      } else {
+        vesselImagePreviewImg.removeAttribute("src");
+        vesselImagePreviewImg.classList.add("d-none");
+      }
+    }
+    if (vesselImagePreviewEmpty) {
+      vesselImagePreviewEmpty.classList.toggle("d-none", !!imageUrl);
+    }
+    if (removeVesselImageBtn) {
+      removeVesselImageBtn.classList.toggle("d-none", !canRemove);
+    }
+  }
+
+  function resetVesselImageState(vessel) {
+    clearVesselImagePreviewObjectUrl();
+    if (vesselImageInput) vesselImageInput.value = "";
+    setVesselImageError("");
+    vesselImageRemoveRequested = false;
+
+    var currentUrl = getVesselImageUrl(vessel);
+    vesselCurrentImage = currentUrl ? { url: currentUrl } : null;
+    renderVesselImagePreview(currentUrl, !!currentUrl);
+  }
+
+  function selectedVesselImageFile() {
+    if (!vesselImageInput || !vesselImageInput.files || !vesselImageInput.files.length) {
+      return null;
+    }
+    return vesselImageInput.files[0];
+  }
+
+  function validateVesselImageFile(file) {
+    var mime = String(file && file.type ? file.type : "").toLowerCase();
+    var fileName = String(file && file.name ? file.name : "");
+    if (!file) return "";
+    if (file.size > (5 * 1024 * 1024)) {
+      return "Image must be 5MB or smaller.";
+    }
+    if ((mime && !/^image\/(jpeg|pjpeg|png|webp|x-webp)$/i.test(mime)) || !/\.(jpe?g|png|webp)$/i.test(fileName)) {
+      return "Only JPG, PNG, and WebP images are allowed.";
+    }
+    return "";
+  }
+
+  function handleVesselImageSelection() {
+    var file = selectedVesselImageFile();
+    var errorMessage = validateVesselImageFile(file);
+    clearVesselImagePreviewObjectUrl();
+    setVesselImageError(errorMessage);
+
+    if (errorMessage) {
+      if (vesselImageInput) vesselImageInput.value = "";
+      renderVesselImagePreview(vesselCurrentImage ? vesselCurrentImage.url : "", !!vesselCurrentImage);
+      return;
+    }
+    if (!file) {
+      renderVesselImagePreview(vesselCurrentImage ? vesselCurrentImage.url : "", !!vesselCurrentImage);
+      return;
+    }
+
+    vesselImageRemoveRequested = false;
+    if (window.URL && typeof window.URL.createObjectURL === "function") {
+      vesselImagePreviewObjectUrl = window.URL.createObjectURL(file);
+      renderVesselImagePreview(vesselImagePreviewObjectUrl, true);
+    }
+  }
+
+  function handleVesselImageRemoval() {
+    var hadStoredImage = !!vesselCurrentImage;
+    clearVesselImagePreviewObjectUrl();
+    if (vesselImageInput) vesselImageInput.value = "";
+    setVesselImageError("");
+    vesselImageRemoveRequested = hadStoredImage;
+    renderVesselImagePreview("", false);
+  }
+
   function ensureVesselModal() {
     if (!vesselModalEl) {
       vesselModalEl = document.getElementById("vesselModal");
@@ -194,6 +369,11 @@
         vesselModelInput = vesselModalEl.querySelector("#vesselModel");
         vesselColorInput = vesselModalEl.querySelector("#vesselColor");
         vesselHomePortInput = vesselModalEl.querySelector("#vesselHomePort");
+        vesselImageInput = vesselModalEl.querySelector("#vesselImage");
+        vesselImagePreviewImg = vesselModalEl.querySelector("#vesselImagePreviewImg");
+        vesselImagePreviewEmpty = vesselModalEl.querySelector("#vesselImagePreviewEmpty");
+        removeVesselImageBtn = vesselModalEl.querySelector("#removeVesselImageBtn");
+        vesselImageError = vesselModalEl.querySelector("#vesselImageError");
         vesselSaveBtn = vesselModalEl.querySelector("#saveVesselBtn");
         vesselNameError = vesselModalEl.querySelector("#vesselNameError");
         vesselTypeError = vesselModalEl.querySelector("#vesselTypeError");
@@ -232,11 +412,18 @@
           utils.clearFieldError(vesselColorInput, vesselColorError);
         });
       }
+      if (vesselImageInput) {
+        vesselImageInput.addEventListener("change", handleVesselImageSelection);
+      }
+      if (removeVesselImageBtn) {
+        removeVesselImageBtn.addEventListener("click", handleVesselImageRemoval);
+      }
       if (vesselSaveBtn) {
         vesselSaveBtn.addEventListener("click", function () {
           saveVessel();
         });
       }
+      vesselModalEl.addEventListener("hidden.bs.modal", clearVesselImagePreviewObjectUrl);
       vesselModalEl.dataset.listenersAttached = "true";
     }
   }
@@ -254,6 +441,7 @@
     }
     if (vesselIdInput) vesselIdInput.value = "0";
     if (vesselIsDefaultInput) vesselIsDefaultInput.checked = false;
+    resetVesselImageState(null);
     clearVesselValidation();
   }
 
@@ -280,6 +468,7 @@
     if (vesselModelInput) vesselModelInput.value = utils.pick(vessel, ["MODEL"], "");
     if (vesselColorInput) vesselColorInput.value = utils.pick(vessel, ["COLOR"], "");
     if (vesselHomePortInput) vesselHomePortInput.value = utils.pick(vessel, ["HOMEPORT"], "");
+    resetVesselImageState(vessel);
     clearVesselValidation();
   }
 
@@ -323,8 +512,11 @@
     }
 
     var payload = buildVesselPayload();
+    var imageFile = selectedVesselImageFile();
+    var imageValidationMessage = validateVesselImageFile(imageFile);
     clearVesselValidation();
-    var hasError = false;
+    setVesselImageError(imageValidationMessage);
+    var hasError = !!imageValidationMessage;
     if (!payload.VESSELNAME) {
       utils.setFieldError(vesselNameInput, vesselNameError, "Vessel name is required.");
       hasError = true;
@@ -352,20 +544,54 @@
 
     Api.saveVessel({ vessel: payload })
       .then(function (data) {
+        var savedVesselId;
+        var imageAction = Promise.resolve(data);
+
         if (!utils.ensureAuthResponse(data)) {
-          return;
+          return null;
         }
         if (data.SUCCESS !== true) {
           throw data;
         }
+
+        savedVesselId = parseInt(data.VESSELID || payload.VESSELID || 0, 10) || 0;
+        if (vesselIdInput) vesselIdInput.value = String(savedVesselId);
+        if (vesselModalTitleEl && savedVesselId) vesselModalTitleEl.textContent = "Edit Vessel";
+
+        if (imageFile) {
+          if (vesselSaveBtn) vesselSaveBtn.textContent = "Uploading image…";
+          imageAction = uploadVesselImage(savedVesselId, imageFile);
+        } else if (vesselImageRemoveRequested) {
+          imageAction = removeVesselImage(savedVesselId);
+        }
+
+        return imageAction
+          .then(function () {
+            return data;
+          })
+          .catch(function (imageError) {
+            if (imageError && typeof imageError === "object") {
+              imageError.VESSEL_IMAGE_ERROR = true;
+              throw imageError;
+            }
+            throw { MESSAGE: "Vessel saved, but the image could not be updated.", VESSEL_IMAGE_ERROR: true };
+          });
+      })
+      .then(function (data) {
+        if (!data) return;
         if (vesselModal) {
           vesselModal.hide();
         }
         loadVessels();
       })
       .catch(function (err) {
+        var message = (err && err.MESSAGE) ? err.MESSAGE : "Unable to save vessel.";
         console.error("Failed to save vessel:", err);
-        utils.showAlertModal((err && err.MESSAGE) ? err.MESSAGE : "Unable to save vessel.");
+        if (err && err.VESSEL_IMAGE_ERROR) {
+          setVesselImageError(message);
+          message = "Vessel saved, but the image could not be updated. " + message;
+        }
+        utils.showAlertModal(message);
       })
       .finally(function () {
         if (vesselSaveBtn) {
@@ -494,3 +720,16 @@
     init: initVessels
   };
 })(window, document);
+
+
+
+
+
+
+
+
+
+
+
+
+

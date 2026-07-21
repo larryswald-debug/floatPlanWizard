@@ -63,7 +63,7 @@
         })
         .finally(function () {
           loginButton.disabled = false;
-          loginButton.textContent = "Sign In";
+          loginButton.textContent = "Log In";
         });
     });
   }

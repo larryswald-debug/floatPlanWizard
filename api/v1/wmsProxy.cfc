@@ -187,7 +187,7 @@ component output=false {
     };
     var allowedLayerRequests = {
       "fpw-wind-forecast"  = "ndfd_wind:wind_velocity",
-      "fpw-satellite"      = "satellite:goes_visible_imagery",
+      "fpw-satellite"      = "satellite:global_longwave_imagery_mosaic",
       "fpw-observed-wind"  = "1,2,3,4,5,6",
       "fpw-surface-fronts" = "34",
       "fpw-wwa"            = "0,1"
@@ -310,6 +310,12 @@ component output=false {
       arrayAppend(queryPairs, "FORMAT=" & urlEncodedFormat("image/png"));
     }
 
+    // Some NOAA WMS endpoints require STYLES to be present even when blank.
+    if (requestType == "GETMAP" && !structKeyExists(emitted, "STYLES")) {
+      arrayAppend(queryPairs, "STYLES=");
+      emitted["STYLES"] = true;
+    }
+
     var queryString = arrayToList(queryPairs, "&");
     var upstreamUrl = upstreamBase & (len(queryString) ? "?" & queryString : "");
 
@@ -354,7 +360,7 @@ component output=false {
           cfhttpparam(type="header", name="User-Agent", value="FPW-WMSProxy/1.0");
           cfhttpparam(type="header", name="Accept", value="image/png,image/*,*/*");
           cfhttpparam(type="header", name="Accept-Language", value="en-US,en;q=0.9");
-          cfhttpparam(type="header", name="Connection", value="keep-alive");
+          cfhttpparam(type="header", name="Connection", value="close");
         };
       } catch (any e) {
         httpRes = { statusCode="0", mimeType="", responseHeader={} };
@@ -587,3 +593,4 @@ component output=false {
   }
 
 }
+

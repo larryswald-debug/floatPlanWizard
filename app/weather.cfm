@@ -1,3 +1,5 @@
+<cfprocessingdirective pageencoding="utf-8">
+<cfinclude template="../includes/require_auth.cfm">
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <cfinclude template="../includes/header_styles.cfm">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260414a">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260629-nav-style">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 
     <style>
@@ -27,7 +29,7 @@
         --wx-red: #f05b5b;
         --wx-radius: 8px;
         --wx-radius-sm: 5px;
-        --wx-max: 1330px;
+        --wx-max: var(--fpw-wide-max, 1320px);
       }
 
       .dashboard-main {
@@ -39,7 +41,7 @@
       }
 
       .fpw-weather-page {
-        width: min(var(--wx-max), calc(100vw - 40px));
+        width: min(var(--wx-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
         margin: 0 auto;
         color: var(--wx-text);
         font-family: inherit;
@@ -70,6 +72,7 @@
         align-items: start;
         margin-bottom: 18px;
       }
+      .weather-briefing-title-block { padding-top: 15px; }
       .weather-title-row { display: flex; align-items: center; gap: 14px; }
       .weather-title-icon {
         width: 42px;
@@ -101,7 +104,7 @@
         font-size: 22px;
         line-height: 1;
       }
-      .weather-location-controls { min-width: 430px; padding-top: 2px; }
+      .weather-location-controls { min-width: 430px; padding-top: 15px; }
       .weather-control-row { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
       .weather-control-row label { font-size: 14px; color: var(--wx-muted); }
       .weather-select,
@@ -208,8 +211,216 @@
       .panel-subtitle { margin-top: 8px; color: var(--wx-muted); font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 500; }
       .panel-footnote { padding: 13px 18px 16px; color: var(--wx-muted); font-size: 12px; }
 
-      .weather-loading-pill { display: inline-flex; align-items: center; min-height: 28px; margin-bottom: 12px; padding: 4px 10px; border: 1px solid var(--wx-line); border-radius: var(--wx-radius-sm); color: #dff8ff; background: rgba(52, 210, 200, .12); font-weight: 800; }
+      .weather-scan-console {
+        margin-bottom: 16px;
+        padding: 16px 18px;
+        border: 1px solid rgba(52, 210, 200, .34);
+        border-radius: var(--wx-radius);
+        background: linear-gradient(135deg, rgba(52, 210, 200, .1), rgba(86, 168, 255, .07)), var(--wx-panel);
+        color: var(--wx-text);
+      }
+      .weather-scan-console__head { display: flex; align-items: center; gap: 14px; }
+      .weather-scan-console__pulse {
+        position: relative;
+        width: 38px;
+        height: 38px;
+        flex: 0 0 auto;
+        border: 1px solid rgba(52, 210, 200, .58);
+        border-radius: 50%;
+        background: rgba(52, 210, 200, .08);
+      }
+      .weather-scan-console__pulse::before,
+      .weather-scan-console__pulse::after {
+        content: "";
+        position: absolute;
+        inset: 9px;
+        border-radius: 50%;
+        border: 1px solid rgba(86, 168, 255, .5);
+      }
+      .weather-scan-console__pulse::after {
+        inset: 5px;
+        animation: weatherScanPulse 1.8s ease-in-out infinite;
+      }
+      .weather-scan-console__title { font-size: 16px; font-weight: 900; color: #fff; }
+      .weather-scan-console__subtitle { margin-top: 4px; color: var(--wx-muted); font-size: 13px; }
+      .weather-scan-console__timer {
+        margin-left: auto;
+        min-width: 84px;
+        padding: 8px 10px;
+        border: 1px solid rgba(126, 178, 220, .18);
+        border-radius: var(--wx-radius-sm);
+        background: rgba(2, 10, 18, .24);
+        text-align: right;
+      }
+      .weather-scan-console__timer span { display: block; color: var(--wx-muted); font-size: 12px; }
+      .weather-scan-console__timer strong { display: block; margin-top: 2px; color: #dff8ff; font-size: 18px; line-height: 1; }
+      .weather-scan-console__status {
+        margin-top: 14px;
+        padding: 11px 12px;
+        border: 1px solid rgba(126, 178, 220, .14);
+        border-radius: var(--wx-radius-sm);
+        background: rgba(255, 255, 255, .04);
+      }
+      .weather-scan-console__label { display: block; color: var(--wx-muted); font-size: 12px; font-weight: 800; }
+      .weather-scan-console__status strong { display: block; margin-top: 3px; color: #fff; font-size: 14px; }
+      .weather-scan-console__checklist {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 14px;
+        padding: 0;
+        list-style: none;
+      }
+      .weather-scan-console__checklist li {
+        min-height: 34px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        padding: 7px 9px;
+        border: 1px solid rgba(126, 178, 220, .14);
+        border-radius: var(--wx-radius-sm);
+        background: rgba(2, 10, 18, .2);
+        color: var(--wx-muted);
+        font-size: 12px;
+        line-height: 1.25;
+      }
+      .weather-scan-console__checklist li::before {
+        content: "";
+        width: 14px;
+        height: 14px;
+        flex: 0 0 auto;
+        border: 1px solid rgba(126, 178, 220, .45);
+        border-radius: 50%;
+      }
+      .weather-scan-console__checklist li.is-active { border-color: rgba(52, 210, 200, .55); color: #fff; }
+      .weather-scan-console__checklist li.is-active::before { border-color: rgba(52, 210, 200, .9); background: rgba(52, 210, 200, .2); }
+      .weather-scan-console__checklist li.is-done { color: #dff8ff; }
+      .weather-scan-console__checklist li.is-done::before { content: "✓"; display: grid; place-items: center; border-color: rgba(54, 208, 127, .8); background: rgba(54, 208, 127, .18); color: #bfffdc; font-size: 10px; font-weight: 900; }
+      .weather-scan-console__message {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border: 1px solid rgba(244, 197, 66, .3);
+        border-radius: var(--wx-radius-sm);
+        background: rgba(244, 197, 66, .08);
+        color: #ffe9a6;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      .weather-scan-console__message--extended { border-color: rgba(86, 168, 255, .28); background: rgba(86, 168, 255, .08); color: #d7e9fb; }
+      .weather-scan-console__skeletons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+      .weather-scan-console__skeleton-card {
+        position: relative;
+        min-height: 56px;
+        overflow: hidden;
+        border: 1px solid rgba(126, 178, 220, .12);
+        border-radius: var(--wx-radius-sm);
+        background: rgba(255, 255, 255, .035);
+      }
+      .weather-scan-console__skeleton-card::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 45%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .09), transparent);
+        animation: weatherScanSweep 1.6s linear infinite;
+      }
+      .weather-scan-console.is-error { border-color: rgba(244, 197, 66, .55); background: linear-gradient(135deg, rgba(244, 197, 66, .1), rgba(86, 168, 255, .05)), var(--wx-panel); }
+      .weather-scan-console__sr {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      .weather-marine-hydration-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 28px;
+        margin: -2px 0 14px;
+        padding: 4px 10px;
+        border: 1px solid rgba(52, 210, 200, .36);
+        border-radius: var(--wx-radius-sm);
+        color: #dff8ff;
+        background: rgba(52, 210, 200, .1);
+        font-size: 13px;
+        font-weight: 800;
+      }
+      .weather-marine-hydration-badge::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--wx-teal);
+        animation: weatherScanPulse 1.8s ease-in-out infinite;
+      }
+      @keyframes weatherScanPulse {
+        0%, 100% { opacity: .45; transform: scale(.9); }
+        50% { opacity: 1; transform: scale(1.08); }
+      }
+      @keyframes weatherScanSweep {
+        0% { left: -55%; }
+        100% { left: 110%; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .weather-scan-console__pulse::after,
+        .weather-scan-console__skeleton-card::after,
+        .weather-marine-hydration-badge::before { animation: none; }
+      }
+      @media (max-width: 760px) {
+        .weather-scan-console__head { align-items: flex-start; flex-direction: column; }
+        .weather-scan-console__timer { width: 100%; margin-left: 0; text-align: left; }
+        .weather-scan-console__checklist { grid-template-columns: 1fr; }
+        .weather-scan-console__skeletons { display: none; }
+      }
       .weather-error-box { margin-bottom: 14px; padding: 12px 14px; border: 1px solid rgba(244, 197, 66, .55); border-radius: var(--wx-radius-sm); color: #ffe9a6; background: rgba(244, 197, 66, .12); }
+      .weather-state-box {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 14px;
+        padding: 14px 16px;
+        border: 1px solid rgba(244, 197, 66, .42);
+        border-radius: var(--wx-radius);
+        background: linear-gradient(135deg, rgba(244, 197, 66, .12), rgba(86, 168, 255, .06)), var(--wx-panel);
+        color: #f5e8bc;
+      }
+      .weather-state-box strong { display: block; margin-bottom: 4px; color: #fff; }
+      .weather-state-box span { color: #d7e9fb; font-size: 14px; line-height: 1.45; }
+      .weather-state-action {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 38px;
+        padding: 0 14px;
+        border: 1px solid rgba(52, 210, 200, .55);
+        border-radius: var(--wx-radius-sm);
+        background: rgba(52, 210, 200, .08);
+        color: #dff8ff;
+        font-weight: 850;
+        white-space: nowrap;
+      }
+      .weather-state-action:hover,
+      .weather-state-action:focus-visible { background: rgba(52, 210, 200, .16); text-decoration: none; outline: none; }
+      .weather-approx-box {
+        margin-bottom: 14px;
+        padding: 11px 13px;
+        border: 1px solid rgba(86, 168, 255, .28);
+        border-radius: var(--wx-radius-sm);
+        background: rgba(86, 168, 255, .08);
+        color: #d7e9fb;
+        font-size: 14px;
+        line-height: 1.45;
+      }
+      .weather-approx-box strong { color: #fff; margin-right: 6px; }
 
       .marine-risk-panel {
         display: grid;
@@ -234,7 +445,8 @@
       .marine-risk-recommendation { grid-column: 1 / -1; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(126, 178, 220, .18); color: var(--wx-muted); text-align: center; font-size: 13px; }
       .marine-risk-recommendation span:first-child { color: #fff; margin-right: 8px; }
 
-      .weather-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 14px; }
+      .weather-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: stretch; margin-bottom: 14px; }
+      .weather-summary-grid > .weather-panel { height: 100%; }
       .conditions-hero { display: grid; grid-template-columns: 58px 1fr auto; gap: 12px; align-items: center; padding: 8px 18px 14px; border-bottom: 1px solid rgba(126, 178, 220, .14); }
       .conditions-symbol { font-size: 42px; color: var(--wx-yellow); line-height: 1; }
       .condition-label { font-size: 14px; color: #fff; font-weight: 800; }
@@ -260,9 +472,72 @@
       .watched-conditions { padding: 0 18px 14px; color: var(--wx-muted); font-size: 13px; }
       .watched-title { margin-bottom: 8px; color: #cfe4ff; }
       .watched-conditions ul { list-style: none; padding: 0; }
+      .weather-alert-types-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
       .watched-conditions li { position: relative; padding: 4px 0 4px 18px; }
       .watched-conditions li::before { content: "*"; position: absolute; left: 0; color: #cfe4ff; font-size: 10px; }
       .panel-link { display: block; margin: 0 18px 18px; padding-top: 13px; border-top: 1px solid rgba(126, 178, 220, .13); font-size: 13px; }
+      .weather-alerts-action { width: calc(100% - 36px); text-align: left; border: 0; border-top: 1px solid rgba(126, 178, 220, .13); background: transparent; color: var(--wx-teal); font: inherit; font-weight: 800; cursor: pointer; }
+      .weather-alerts-action:focus-visible { outline: 2px solid rgba(52, 210, 200, .7); outline-offset: 3px; }
+      .weather-alert-highest { margin-top: 5px; color: var(--wx-orange); font-size: 13px; font-weight: 800; }
+      .weather-alert-checked { margin: 0 18px 14px; padding: 9px 12px; border: 1px solid rgba(126, 178, 220, .15); border-radius: var(--wx-radius-sm); background: rgba(86, 168, 255, .08); color: var(--wx-muted); font-size: 13px; }
+      .weather-alert-active-now { padding: 0 18px 14px; color: var(--wx-muted); font-size: 13px; }
+      .weather-alert-active-now ul { list-style: none; margin: 0; padding: 0; }
+      .weather-alert-active-now li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 3px 0; }
+      .weather-alert-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--wx-blue); }
+      .weather-alert-dot.alert-risk-high { background: var(--wx-orange); }
+      .weather-alert-dot.alert-risk-caution { background: var(--wx-yellow); }
+      .weather-alert-dot.alert-risk-low { background: var(--wx-blue); }
+      .weather-alert-mini-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e9f4ff; }
+      .weather-alert-mini-expire { color: var(--wx-muted-2); white-space: nowrap; }
+      .weather-alert-source-note { margin: 0 18px 18px; color: var(--wx-muted-2); font-size: 12px; }
+      .weather-alerts-row { margin-bottom: 14px; }
+      .weather-alerts-card { width: 100%; }
+      .weather-alerts-card-inner { display: grid; grid-template-columns: minmax(220px, .9fr) minmax(280px, 1.3fr) minmax(260px, 1fr); gap: 18px; align-items: start; padding: 0 18px 18px; }
+      .weather-alerts-card-inner .alert-status-block,
+      .weather-alerts-card-inner .weather-alert-checked,
+      .weather-alerts-card-inner .watched-conditions,
+      .weather-alerts-card-inner .weather-alert-active-now,
+      .weather-alerts-card-inner .weather-alert-source-note { padding-left: 0; padding-right: 0; margin-left: 0; margin-right: 0; }
+      .weather-alerts-card-inner .alert-status-block { padding-top: 0; }
+      .weather-alerts-card-inner .weather-alerts-action { width: 100%; margin-left: 0; margin-right: 0; }
+
+      .weather-alerts-panel { margin-bottom: 14px; }
+      .weather-alerts-panel[hidden] { display: none !important; }
+      .weather-alerts-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 16px 18px 12px; border-bottom: 1px solid rgba(126, 178, 220, .13); cursor: pointer; }
+      .weather-alerts-panel-title { min-width: 0; flex: 1 1 auto; }
+      .weather-alerts-panel-toggle { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 1px solid rgba(126, 178, 220, .32); border-radius: 999px; background: rgba(86, 168, 255, .08); color: #dff8ff; font: inherit; font-size: 15px; font-weight: 900; line-height: 1; cursor: pointer; flex: 0 0 auto; }
+      .weather-alerts-panel-toggle:focus-visible { outline: 2px solid rgba(52, 210, 200, .7); outline-offset: 2px; }
+      .weather-alerts-panel-chevron { display: inline-block; transition: transform 150ms ease; }
+      .weather-alerts-panel-toggle[aria-expanded="true"] .weather-alerts-panel-chevron { transform: rotate(90deg); }
+      .weather-alerts-panel-body[hidden] { display: none !important; }
+      .weather-section-kicker { margin: 0 0 4px; color: var(--wx-blue); font-size: 12px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+      .weather-alerts-panel-header h2 { margin: 0; font-size: 16px; line-height: 1.3; }
+      .weather-alerts-count { display: inline-flex; align-items: center; justify-content: center; min-height: 24px; padding: 2px 9px; border: 1px solid rgba(126, 178, 220, .32); border-radius: var(--wx-radius-sm); background: rgba(86, 168, 255, .1); color: #fff; font-size: 12px; font-weight: 800; white-space: nowrap; }
+      .weather-alerts-panel-state { padding: 16px 18px; color: var(--wx-muted); }
+      .weather-alerts-panel-state strong { display: block; margin-bottom: 4px; color: #fff; }
+      .weather-alerts-list { display: grid; gap: 8px; padding: 12px 18px 18px; }
+      .weather-alert-row { overflow: hidden; border: 1px solid rgba(126, 178, 220, .18); border-radius: var(--wx-radius-sm); background: rgba(7, 35, 55, .72); }
+      .weather-alert-row__main { display: grid; grid-template-columns: minmax(220px, 1.15fr) minmax(380px, 2fr) auto; gap: 14px; align-items: start; padding: 12px 14px; border-left: 4px solid var(--wx-blue); }
+      .weather-alert-row.alert-risk-high .weather-alert-row__main { border-left-color: var(--wx-orange); }
+      .weather-alert-row.alert-risk-caution .weather-alert-row__main { border-left-color: var(--wx-yellow); }
+      .weather-alert-row h3 { margin: 0; color: #fff; font-size: 15px; }
+      .weather-alert-row p { margin: 5px 0 0; color: var(--wx-muted); font-size: 13px; line-height: 1.4; }
+      .weather-alert-meta-grid { display: grid; grid-template-columns: repeat(6, minmax(72px, 1fr)); gap: 10px; margin: 0; }
+      .weather-alert-meta-grid dt { color: var(--wx-muted-2); font-size: 11px; font-weight: 800; }
+      .weather-alert-meta-grid dd { margin: 2px 0 0; color: #fff; font-size: 12px; line-height: 1.3; }
+      .weather-alert-meta-grid .weather-alert-area { grid-column: span 2; }
+      .weather-alert-row__actions { display: flex; gap: 8px; justify-content: flex-end; white-space: nowrap; }
+      .weather-alert-detail-btn,
+      .weather-alert-official-link { display: inline-flex; align-items: center; justify-content: center; min-height: 31px; padding: 5px 10px; border: 1px solid rgba(126, 178, 220, .24); border-radius: var(--wx-radius-sm); background: rgba(255, 255, 255, .035); color: #e9f4ff; font: inherit; font-size: 12px; font-weight: 800; text-decoration: none; cursor: pointer; }
+      .weather-alert-official-link { color: var(--wx-blue); }
+      .weather-alert-detail-btn:focus-visible,
+      .weather-alert-official-link:focus-visible { outline: 2px solid rgba(52, 210, 200, .7); outline-offset: 2px; }
+      .weather-alert-detail { margin: 0 14px 14px; padding: 12px; border: 1px solid rgba(126, 178, 220, .14); border-radius: var(--wx-radius-sm); background: rgba(4, 19, 32, .55); }
+      .weather-alert-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .weather-alert-detail h4 { margin: 0 0 4px; color: #dff8ff; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
+      .weather-alert-detail p { margin: 0; color: var(--wx-muted); font-size: 13px; line-height: 1.45; }
+      .weather-alert-detail-wide { grid-column: 1 / -1; }
+      .weather-alert-disclaimer { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(126, 178, 220, .12); color: var(--wx-muted-2); font-size: 12px; }
 
       .weather-main-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(390px, 1fr); gap: 14px; margin-bottom: 14px; }
       .forecast-summary-line { color: var(--wx-muted); font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 500; }
@@ -281,25 +556,62 @@
 
       .tide-chart-header { justify-content: space-between; align-items: start; }
       .weather-toggle-group { display: inline-flex; border: 1px solid rgba(126, 178, 220, .2); border-radius: var(--wx-radius-sm); overflow: hidden; background: rgba(255, 255, 255, .04); }
-      .weather-toggle-group button { height: 32px; padding: 0 14px; border: 0; border-right: 1px solid rgba(126, 178, 220, .14); background: transparent; color: var(--wx-muted); font: inherit; font-size: 13px; cursor: default; }
+      .weather-toggle-group button { height: 32px; padding: 0 14px; border: 0; border-right: 1px solid rgba(126, 178, 220, .14); background: transparent; color: var(--wx-muted); font: inherit; font-size: 13px; cursor: pointer; }
       .weather-toggle-group button:last-child { border-right: 0; }
       .weather-toggle-group .toggle-active { background: rgba(86, 168, 255, .32); color: #fff; font-weight: 800; }
       .tide-chart-area { padding: 0 16px; }
-      .fpw-wx__tideGraph { display: block; border: 0; background: transparent; padding: 0; }
-      .fpw-wx__tideTitle { display: none; }
-      .fpw-wx__tideSvg { display: block; width: 100%; min-height: 230px; height: auto; background: rgba(2, 10, 18, .28); border: 1px solid rgba(126, 178, 220, .14); border-radius: var(--wx-radius-sm); }
-      .fpw-wx__tideAxis { display: flex; justify-content: space-between; color: var(--wx-muted); font-size: 12px; padding: 7px 2px 0; }
+      .fpw-wx__tideGraph {
+        display: block;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+      }
+      .fpw-wx__tideTitle {
+        display: none;
+      }
+      .fpw-wx__tideTitle > :first-child { justify-self: start; text-align: left; }
+      .fpw-wx__tideTitle > :nth-child(2) { justify-self: center; text-align: center; white-space: nowrap; }
+      .fpw-wx__tideTitle > :last-child { justify-self: end; max-width: 100%; overflow: hidden; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+      .fpw-wx__tideNow { color: rgba(165, 243, 252, .95); font-weight: 700; }
+      .fpw-wx__tideSvg {
+        display: block;
+        width: 100%;
+        min-height: 230px;
+        height: auto;
+        margin: 0;
+        background: rgba(2, 10, 18, .28);
+        border: 1px solid rgba(126, 178, 220, .14);
+        border-radius: var(--wx-radius-sm);
+      }
+      .fpw-wx__tideAxis {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        margin: 0;
+        padding: 7px 2px 0;
+        color: var(--wx-muted);
+        font-size: 12px;
+      }
+      .fpw-wx__tideAxis > :first-child { justify-self: start; text-align: left; }
+      .fpw-wx__tideAxis > :nth-child(2) { justify-self: center; min-width: 1px; text-align: center; }
+      .fpw-wx__tideAxis > :last-child { justify-self: end; text-align: right; }
       .fpw-wx__tideEmpty { color: var(--wx-muted); padding: 14px 0; }
-      .fpw-wx__tideAxisLine { stroke: rgba(214, 236, 255, .5); stroke-width: 1; }
-      .fpw-wx__tideAxisTick { stroke: rgba(214, 236, 255, .45); stroke-width: 1; }
-      .fpw-wx__tideAxisLabel { fill: #d4e6f8; font-size: 11px; }
+      .fpw-wx__tideAxisLine { stroke: rgba(148, 163, 184, .55); stroke-width: 1; }
+      .fpw-wx__tideAxisTick { stroke: rgba(148, 163, 184, .62); stroke-width: 1; }
+      .fpw-wx__tideAxisLabel { fill: rgba(203, 213, 225, .9); font-family: Arial, sans-serif; font-size: 9px; font-weight: 600; }
       .fpw-wx__tideAxisLabel.y { text-anchor: end; }
       .fpw-wx__tideAxisLabel.x { text-anchor: middle; }
-      .fpw-wx__tideGuide { stroke: rgba(52, 210, 200, .5); stroke-dasharray: 2 3; }
-      .fpw-wx__tideNowHalo { fill: rgba(52, 210, 200, .18); }
-      .fpw-wx__tideNowDot { fill: #b8f8ff; stroke: rgba(52, 210, 200, .85); }
-      .fpw-wx__tideExtDot { fill: #ffc24c; }
-      .fpw-wx__tideExtLabel { fill: #fff0b8; font-size: 11px; font-weight: 800; }
+      .fpw-wx__tideGuide { stroke: rgba(56, 189, 248, .4); stroke-width: 1.35; stroke-dasharray: 2 2; }
+      .fpw-wx__tideNowHalo { fill: rgba(56, 189, 248, .22); }
+      .fpw-wx__tideNowDot { fill: rgba(186, 230, 253, .98); stroke: rgba(14, 116, 144, .9); stroke-width: 1; }
+      .fpw-wx__tideExtDot { stroke-width: 1; }
+      .fpw-wx__tideExtDot.high { fill: rgba(253, 224, 71, .95); stroke: rgba(180, 83, 9, .9); }
+      .fpw-wx__tideExtDot.low { fill: rgba(147, 197, 253, .95); stroke: rgba(30, 64, 175, .9); }
+      .fpw-wx__tideExtLabel { font-family: Arial, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0; paint-order: normal; stroke: none; }
+      .fpw-wx__tideExtLabel.high { fill: rgba(253, 246, 178, .98); }
+      .fpw-wx__tideExtLabel.low { fill: rgba(191, 219, 254, .98); }
       .tide-summary-boxes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 0 18px 14px; }
       .tide-summary-boxes > div { padding: 12px 10px; border: 1px solid rgba(126, 178, 220, .14); border-radius: var(--wx-radius-sm); background: rgba(86, 168, 255, .07); text-align: center; }
       .tide-summary-boxes span,
@@ -309,7 +621,7 @@
       .tide-planning-note { margin-top: 0; }
       .tide-planning-note strong { display: block; margin-bottom: 4px; color: #8cc8ff; }
 
-      .weather-lower-grid { display: grid; grid-template-columns: 1.1fr .88fr .95fr; gap: 14px; margin-bottom: 14px; }
+      .weather-lower-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
       .source-detail-list { padding: 0 18px 18px; }
       .source-detail-list > div { display: grid; grid-template-columns: 160px 1fr; gap: 16px; padding: 5px 0; border-bottom: 1px solid rgba(126, 178, 220, .09); font-size: 13px; }
       .source-detail-list dt { color: var(--wx-muted); }
@@ -325,9 +637,12 @@
       .map-layer-header { justify-content: space-between; align-items: center; }
       .map-layers-panel p { padding: 2px 18px 12px; color: var(--wx-muted); line-height: 1.4; font-size: 14px; }
       .map-layer-section-label { padding: 0 18px 6px; color: #cfe4ff; font-size: 12px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
-      .map-layer-list { margin: 0 18px 14px; padding: 0; list-style: none; color: #eaf5ff; font-size: 14px; }
+      .map-layer-list { margin: 0 18px 14px; padding: 0 0 0 28px; list-style: none; color: #eaf5ff; font-size: 14px; display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 18px; row-gap: 2px; }
       .map-layer-list li { position: relative; padding: 4px 0 4px 22px; }
       .map-layer-list li::before { content: "✓"; position: absolute; left: 0; color: var(--wx-green); }
+      @media (max-width: 640px) {
+        .map-layer-list { grid-auto-flow: row; grid-template-rows: none; grid-template-columns: 1fr; }
+      }
       .weather-map-preview-button {
         display: block;
         width: calc(100% - 36px);
@@ -346,6 +661,10 @@
         border-color: rgba(86, 168, 255, .7);
         box-shadow: 0 0 0 3px rgba(86, 168, 255, .12);
         outline: none;
+      }
+      .weather-map-preview-button:disabled {
+        opacity: .58;
+        cursor: not-allowed;
       }
       .weather-map-preview {
         position: relative;
@@ -467,7 +786,7 @@
       .weather-version { margin-left: auto; }
 
       @media (max-width: 1180px) {
-        .fpw-weather-page { width: min(100% - 28px, var(--wx-max)); }
+        .fpw-weather-page { width: min(var(--wx-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2))); }
         .weather-briefing-header { grid-template-columns: 1fr; }
         .weather-location-controls { min-width: 0; }
         .weather-control-row,
@@ -476,8 +795,12 @@
         .marine-risk-main { border-right: 0; border-bottom: 1px solid var(--wx-line-strong); padding: 0 0 18px; }
         .marine-risk-why { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .marine-risk-why-title { grid-column: 1 / -1; }
-        .weather-summary-grid { grid-template-columns: repeat(2, 1fr); }
+        .weather-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .weather-alerts-card-inner { grid-template-columns: 1fr 1fr; }
+        .weather-alerts-active-column { grid-column: 1 / -1; }
         .weather-main-grid { grid-template-columns: 1fr; }
+        .weather-alert-row__main { grid-template-columns: 1fr; }
+        .weather-alert-row__actions { justify-content: flex-start; }
         .weather-lower-grid { grid-template-columns: 1fr 1fr; }
         .best-window-panel { grid-column: 1 / -1; }
         .active-cruise-weather-grid { grid-template-columns: repeat(2, 1fr); }
@@ -486,7 +809,7 @@
       }
 
       @media (max-width: 760px) {
-        .fpw-weather-page { width: min(100% - 20px, var(--wx-max)); }
+        .fpw-weather-page { width: min(var(--wx-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2))); }
         .fpw-weather-page h1 { font-size: 25px; }
         .weather-title-row { align-items: flex-start; }
         .weather-title-icon { width: 36px; height: 36px; font-size: 28px; }
@@ -503,6 +826,9 @@
         .marine-risk-recommendation { text-align: left; }
         .weather-summary-grid,
         .weather-lower-grid { grid-template-columns: 1fr; }
+        .weather-alerts-card-inner { grid-template-columns: 1fr; }
+        .weather-alert-types-list { grid-template-columns: 1fr; }
+        .weather-alerts-active-column { grid-column: auto; }
         .best-window-panel { grid-column: auto; }
         .conditions-hero { grid-template-columns: 52px 1fr; }
         .conditions-temp-block { grid-column: 1 / -1; text-align: left; }
@@ -522,6 +848,15 @@
         .weather-page-footer { display: block; line-height: 1.7; }
         .weather-page-footer .dot-separator { display: none; }
         .weather-version { display: block; margin-left: 0; margin-top: 8px; }
+        .weather-alerts-panel-header { flex-direction: column; }
+        .weather-alert-active-now li { grid-template-columns: auto minmax(0, 1fr); }
+        .weather-alert-mini-expire { grid-column: 2; }
+        .weather-alert-meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .weather-alert-meta-grid .weather-alert-area { grid-column: 1 / -1; }
+        .weather-alert-row__actions { flex-direction: column; }
+        .weather-alert-detail-grid { grid-template-columns: 1fr; }
+        .weather-state-box { align-items: stretch; flex-direction: column; }
+        .weather-state-action { width: 100%; }
       }
 
       @media (max-width: 460px) {
@@ -548,9 +883,53 @@
 <cfset request.fpwTopNavActive = "weather">
 <cfinclude template="../includes/top_nav.cfm">
 
-<main class="fpw-weather-page" id="fpwWeatherPage">
-  <div id="weatherLoading" class="weather-loading-pill d-none">Loading weather...</div>
+<main class="fpw-weather-page fpw-layout-rail" id="fpwWeatherPage">
+  <div id="weatherLoading" class="weather-scan-console d-none" aria-labelledby="weatherScanTitle">
+    <div class="weather-scan-console__head">
+      <div class="weather-scan-console__pulse" aria-hidden="true"></div>
+      <div>
+        <div class="weather-scan-console__title" id="weatherScanTitle">Building your boating weather briefing</div>
+        <div class="weather-scan-console__subtitle" id="weatherScanLocation">Checking your selected weather location</div>
+      </div>
+      <div class="weather-scan-console__timer" aria-hidden="true">
+        <span>Elapsed</span>
+        <strong id="weatherScanElapsed">0s</strong>
+      </div>
+    </div>
+    <div class="weather-scan-console__status">
+      <span class="weather-scan-console__label">Current scan</span>
+      <strong id="weatherScanStep">Resolving weather location…</strong>
+    </div>
+    <div id="weatherScanLiveStatus" class="weather-scan-console__sr" role="status" aria-live="polite" aria-atomic="true">Resolving weather location…</div>
+    <ol class="weather-scan-console__checklist" aria-label="Weather briefing progress">
+      <li data-weather-scan-step="0" class="is-active">Resolving weather location…</li>
+      <li data-weather-scan-step="1">Checking cached marine conditions…</li>
+      <li data-weather-scan-step="2">Requesting latest forecast…</li>
+      <li data-weather-scan-step="3">Reading coastal forecast and marine conditions…</li>
+      <li data-weather-scan-step="4">Checking advisories…</li>
+      <li data-weather-scan-step="5">Loading wind, wave, and tide context…</li>
+      <li data-weather-scan-step="6">Preparing your boating weather briefing…</li>
+    </ol>
+    <div id="weatherScanSlowMessage" class="weather-scan-console__message d-none">Fresh NOAA/NWS marine data can take a few seconds.</div>
+    <div id="weatherScanExtendedMessage" class="weather-scan-console__message weather-scan-console__message--extended d-none">Still working. Your briefing will appear automatically when the weather data returns.</div>
+    <div class="weather-scan-console__skeletons" aria-hidden="true">
+      <div class="weather-scan-console__skeleton-card"></div>
+      <div class="weather-scan-console__skeleton-card"></div>
+      <div class="weather-scan-console__skeleton-card"></div>
+    </div>
+  </div>
+  <div id="weatherMarineHydrationBadge" class="weather-marine-hydration-badge d-none" role="status" aria-live="polite">Updating detailed marine context…</div>
   <div id="weatherError" class="weather-error-box d-none" role="alert"></div>
+  <div id="weatherStateBox" class="weather-state-box d-none" role="status" aria-live="polite">
+    <div>
+      <strong id="weatherStateTitle">Weather needs a location</strong>
+      <span id="weatherStateMessage">Update your weather location to load local marine weather.</span>
+    </div>
+    <a id="weatherStateAction" class="weather-state-action d-none" href="<cfoutput>#request.fpwBase#</cfoutput>/app/account.cfm">Update Home Port</a>
+  </div>
+  <div id="weatherApproxBox" class="weather-approx-box d-none" role="note" aria-live="polite">
+    <strong>Approximate ZIP-area weather.</strong><span id="weatherApproxMessage">ZIP-area coordinates may not match an exact marina or home-port location.</span>
+  </div>
 
   <section class="weather-briefing-header">
     <div class="weather-briefing-title-block">
@@ -561,7 +940,7 @@
           <div class="weather-location-line">
             <span id="weatherResolvedLocation">—</span>
             <span class="dot-separator">&bull;</span>
-            <span>ZIP <span id="weatherZipDisplay">—</span></span>
+            <span><span id="weatherLocationDetailLabel">ZIP</span> <span id="weatherZipDisplay">—</span></span>
             <button type="button" class="weather-favorite-button" aria-label="Favorite location">☆</button>
           </div>
         </div>
@@ -680,15 +1059,47 @@
       </dl>
     </article>
 
-    <article class="weather-panel marine-alerts-panel">
+  </section>
+
+  <section class="weather-alerts-row">
+    <article class="weather-panel marine-alerts-panel weather-alerts-card">
       <header class="weather-panel-header"><span class="panel-icon alert-icon">⚠</span><h2>Marine Alerts</h2></header>
-      <div class="alert-status-block"><div class="alert-check-icon" aria-hidden="true">✓</div><div><div class="alert-status-value" id="weatherAlertStatus">—</div><div class="muted" id="weatherAlertSummary">—</div></div></div>
-      <div class="watched-conditions">
-        <div class="watched-title">Watched Conditions:</div>
-        <ul><li>Small Craft Advisory</li><li>Gale Warning</li><li>Special Marine Warning</li><li>Thunderstorm Warning</li><li>Dense Fog Advisory</li><li>Coastal Flood Advisory</li></ul>
+      <div class="weather-alerts-card-inner">
+        <div class="weather-alerts-status-column">
+          <div class="alert-status-block"><div class="alert-check-icon" id="weatherAlertIcon" aria-hidden="true">✓</div><div><div class="alert-status-value" id="weatherAlertStatus">—</div><div class="muted" id="weatherAlertSummary">—</div><div class="weather-alert-highest" id="weatherAlertHighest">—</div></div></div>
+          <div class="weather-alert-checked">Last checked: <span id="weatherAlertsCheckedAt">—</span></div>
+        </div>
+        <div class="weather-alerts-watch-column">
+          <div class="watched-conditions">
+            <div class="watched-title">Alert Types Watched:</div>
+            <ul class="weather-alert-types-list"><li>Small Craft Advisory</li><li>Gale Warning</li><li>Special Marine Warning</li><li>Thunderstorm Warning</li><li>Dense Fog Advisory</li><li>Coastal Flood Advisory</li></ul>
+          </div>
+        </div>
+        <div class="weather-alerts-active-column">
+          <div class="weather-alert-active-now">
+            <div class="watched-title">Active Now:</div>
+            <ul id="weatherAlertsActiveNow"><li>—</li></ul>
+          </div>
+          <button type="button" id="weatherDetailsLink" class="panel-link weather-alerts-action" aria-controls="activeNoaaAlertsPanel" aria-expanded="false">View active NOAA alerts</button>
+          <div class="weather-alert-source-note">Data from NOAA/NWS. Review official alerts before departure.</div>
+        </div>
       </div>
-      <a href="#" id="weatherDetailsLink" class="panel-link">View all NOAA marine alerts</a>
     </article>
+  </section>
+
+  <section id="activeNoaaAlertsPanel" class="weather-panel weather-alerts-panel d-none" hidden>
+    <div class="weather-alerts-panel-header" id="activeNoaaAlertsHeader">
+      <button type="button" id="activeNoaaAlertsToggle" class="weather-alerts-panel-toggle" aria-expanded="false" aria-controls="activeNoaaAlertsBody" aria-label="Show active NOAA alerts"><span class="weather-alerts-panel-chevron" aria-hidden="true">&gt;</span></button>
+      <div class="weather-alerts-panel-title">
+        <p class="weather-section-kicker">NOAA / NWS Alert Details</p>
+        <h2 id="weatherAlertsPanelTitle">Active NOAA Alerts</h2>
+      </div>
+      <span id="weatherAlertsPanelBadge" class="weather-alerts-count">—</span>
+    </div>
+    <div id="activeNoaaAlertsBody" class="weather-alerts-panel-body" hidden>
+      <div id="weatherAlertsPanelState" class="weather-alerts-panel-state"></div>
+      <div id="activeNoaaAlertsList" class="weather-alerts-list"></div>
+    </div>
   </section>
 
   <section class="weather-main-grid">
@@ -705,7 +1116,7 @@
     <article class="weather-panel tide-chart-panel">
       <header class="weather-panel-header tide-chart-header">
         <div><h2>Tide &amp; Water Level</h2><div class="panel-subtitle">Station: <span id="weatherTideChartStation">—</span></div></div>
-        <div class="weather-toggle-group" aria-label="Tide chart range"><button type="button" class="toggle-active">Today</button><button type="button">Tomorrow</button></div>
+        <div class="weather-toggle-group" aria-label="Tide chart range"><button type="button" class="toggle-active" data-tide-range="today" aria-pressed="true">Today</button><button type="button" data-tide-range="tomorrow" aria-pressed="false">Tomorrow</button></div>
       </header>
       <div class="tide-chart-area" id="weatherTideChart">
         <div id="tideGraph" class="fpw-wx__tideGraph d-none" aria-label="Tide graph">
@@ -716,7 +1127,7 @@
         </div>
       </div>
       <div class="tide-summary-boxes">
-        <div><span>Current</span><strong id="weatherTideSummaryCurrent">—</strong><small id="weatherTideSummaryCurrentTrend">—</small></div>
+        <div><span id="weatherTideSummaryCurrentLabel">Current</span><strong id="weatherTideSummaryCurrent">—</strong><small id="weatherTideSummaryCurrentTrend">—</small></div>
         <div><span>High</span><strong id="weatherTideSummaryHighTime">—</strong><small id="weatherTideSummaryHighHeight">—</small></div>
         <div><span>Low</span><strong id="weatherTideSummaryLowTime">—</strong><small id="weatherTideSummaryLowHeight">—</small></div>
         <div><span>Next High</span><strong id="weatherTideSummaryNextHighTime">—</strong><small id="weatherTideSummaryNextHighHeight">—</small></div>
@@ -743,27 +1154,20 @@
 
     <article class="weather-panel map-layers-panel">
       <header class="weather-panel-header map-layer-header"><h2>NOAA Weather Map</h2></header>
-      <p>NOAA nowCOAST layers are available for this location.</p>
+      <p id="weatherMapPanelCopy">NOAA nowCOAST layers are available for this location.</p>
       <div class="map-layer-section-label">Available layers</div>
       <ul class="map-layer-list" id="weatherMapLayerList"><li>No map layers delivered for this location.</li></ul>
       <button type="button" class="weather-map-preview-button" id="weatherMapLayersButton" aria-label="Open NOAA map. View radar and marine warning layers in a full-screen map.">
         <span class="weather-map-preview" aria-hidden="true">
           <span class="weather-map-preview__icon"></span>
           <span class="weather-map-preview__copy">
-            <span class="weather-map-preview__label">Open NOAA Map</span>
-            <span class="weather-map-preview__helper">View radar and marine warning layers in a full-screen map.</span>
+            <span class="weather-map-preview__label" id="weatherMapPreviewLabel">Open NOAA Map</span>
+            <span class="weather-map-preview__helper" id="weatherMapPreviewHelper">View radar and marine warning layers in a full-screen map.</span>
           </span>
         </span>
       </button>
     </article>
-
-    <article class="weather-panel best-window-panel">
-      <header class="weather-panel-header"><span class="panel-icon good-icon">✓</span><h2>Best Boating Window</h2></header>
-      <div class="best-window-time" id="weatherBestWindowTime">Based on current marine forecast</div>
-      <p id="weatherBestWindowSummary">Review the next 12 hours table before departure.</p>
-      <div class="best-window-divider"></div>
-      <div class="watch-after-block"><div><div class="watch-label">Watch after:</div><strong id="weatherWatchAfterTime">—</strong><p id="weatherWatchAfterSummary">Use the hourly forecast table for changing wind, rain, visibility, and marine risk.</p></div><div class="watch-icon" aria-hidden="true">◷</div></div>
-    </article>
+    <!-- Launch placeholder hidden. -->
   </section>
 
   <section class="weather-panel zone-forecast-panel" id="weatherZoneForecastPanel">
@@ -788,22 +1192,12 @@
     </div>
   </section>
 
-  <section class="weather-panel active-cruise-weather-panel">
-    <header class="active-cruise-weather-header"><div><h2>Active Cruise Weather <span>(Add-On)</span></h2></div><div class="active-route-label"><span>Current Route:</span><strong id="weatherActiveRouteName">—</strong><a href="<cfoutput>#request.fpwBase#</cfoutput>/app/active-cruise.cfm" class="mini-action-link" id="weatherManageRouteLink">Manage Route</a></div></header>
-    <div class="active-cruise-weather-grid" id="weatherActiveCruiseGrid">
-      <div class="active-weather-column"><div class="column-kicker">Current Leg Conditions</div><dl class="compact-detail-list"><div><dt>Wind</dt><dd id="weatherActiveWind">—</dd></div><div><dt>Gusts</dt><dd id="weatherActiveGusts">—</dd></div><div><dt>Seas</dt><dd id="weatherActiveSeas">—</dd></div><div><dt>Visibility</dt><dd id="weatherActiveVisibility">—</dd></div></dl></div>
-      <div class="active-weather-column active-weather-visual"><div class="muted">Updated <span id="weatherActiveUpdatedAt">—</span></div><div class="active-weather-sun" aria-hidden="true">☀</div></div>
-      <div class="active-weather-column"><div class="column-kicker">Next 6 Hours</div><ul class="impact-list" id="weatherActiveNextSix"><li>Weather context is loaded from this page only.</li></ul></div>
-      <div class="active-weather-column"><div class="column-kicker">Cruise Impact</div><p id="weatherActiveCruiseImpact">No active cruise weather context available on this page yet.</p></div>
-      <div class="active-weather-detail-card"><div>Want more detail?</div><a href="<cfoutput>#request.fpwBase#</cfoutput>/app/weather.cfm" class="weather-primary-button full-width-button">Open Full Marine Weather Forecast</a></div>
-    </div>
-    <div class="active-cruise-empty-state" id="weatherActiveCruiseEmpty">No active cruise weather context available on this page yet.</div>
-  </section>
-
   <footer class="weather-page-footer">
-    <span>Weather data provided by NOAA/NWS</span><span class="dot-separator">&bull;</span><span>Marine forecasts and tides from NOAA nowCOAST</span><span class="dot-separator">&bull;</span><span>Times in <span id="weatherTimezoneLabel">—</span></span><span class="weather-version" id="weatherVersionLabel"></span>
+    <span>Weather data provided by NOAA/NWS</span><span class="dot-separator">&bull;</span><span>Tides and water levels from NOAA CO-OPS where available</span><span class="dot-separator">&bull;</span><span>Times in <span id="weatherTimezoneLabel">—</span></span><span class="weather-version" id="weatherVersionLabel"></span>
   </footer>
 </main>
+
+<cfinclude template="../includes/footer.cfm">
 
 <div class="weather-map-modal" id="weatherMapModal" hidden aria-hidden="true">
   <div class="weather-map-modal__backdrop" data-weather-map-close></div>
@@ -821,9 +1215,11 @@
 
 <cfinclude template="../includes/footer_scripts.cfm">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/fpw-weather-overlays.js?v=20260430a"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260227c"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260501-map-card-center-a"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/fpw-weather-overlays.js?v=20260702-satellite-single-image"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/weather-page.js?v=20260702-visibility-fallback"></script>
 
 </body>
 </html>
+
+
+

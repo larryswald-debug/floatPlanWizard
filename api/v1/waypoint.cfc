@@ -83,6 +83,16 @@
                 <cfif NOT len(waypointName)>
                     <cfthrow message="Name is required.">
                 </cfif>
+                <cfif len(waypointName) GT 45>
+                    <cfset response = {
+                        SUCCESS = false,
+                        AUTH    = true,
+                        ERROR   = "VALIDATION",
+                        MESSAGE = "Waypoint name must be 45 characters or fewer."
+                    }>
+                    <cfoutput>#serializeJSON(response)#</cfoutput>
+                    <cfreturn>
+                </cfif>
 
                 <cfset latitude = structKeyExists(waypoint, "LATITUDE") ? trim(waypoint.LATITUDE) : (structKeyExists(waypoint, "latitude") ? trim(waypoint.latitude) : "")>
                 <cfset longitude = structKeyExists(waypoint, "LONGITUDE") ? trim(waypoint.LONGITUDE) : (structKeyExists(waypoint, "longitude") ? trim(waypoint.longitude) : "")>

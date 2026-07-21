@@ -358,7 +358,7 @@
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
             var row = {};
-            var q = queryExecute("\n                SELECT floatplanId, userId, status, returnTime, returnTimezone,\n                    floatPlanName, departing, returning, departureTime, departTimezone,\n                    rescueAuthority, rescueAuthorityPhone\n                FROM floatplans\n                WHERE floatplanId = :planId AND userId = :userId\n                LIMIT 1\n            ", {
+            var q = queryExecute("\n                SELECT floatplanId, userId, status, returnTime, returnTimezone,\n                    floatPlanName, departing, `returning`, departureTime, departTimezone,\n                    rescueAuthority, rescueAuthorityPhone\n                FROM floatplans\n                WHERE floatplanId = :planId AND userId = :userId\n                LIMIT 1\n            ", {
                 planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                 userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
             }, { datasource = "fpw" });

@@ -1,0 +1,11 @@
+{
+  "FPW_ENV": "dev",
+  "FPW_STRIPE_SECRET_KEY": "sk_test_51TM6CIResCaCdPO61ovXjUvMzvEUkyrZ1WlkVJKup6IA6S9Aabpr92W7zaCN2xLiwTtaeMF4G7vBHKbhm4tn0m5Z00y2qC59oZ",
+  "FPW_STRIPE_WEBHOOK_SECRET": "whsec_d2490b7736ec25199abbe75d8d4aea25e68a162e58187d4d0842c826ff737c76",
+  "FPW_STRIPE_PRICE_PREMIUM_MONTHLY": "price_1TX0xdResCaCdPO6EodpoAYQ",
+  "FPW_STRIPE_PRICE_PREMIUM_YEARLY": "price_1TX0ytResCaCdPO6ViRRur5h",
+  "FPW_STRIPE_SUCCESS_URL": "http://localhost:8500/fpw/app/account.cfm?stripe=success",
+  "FPW_STRIPE_CANCEL_URL": "http://localhost:8500/fpw/app/account.cfm?stripe=cancel",
+  "FPW_STRIPE_PORTAL_RETURN_URL": "http://localhost:8500/fpw/app/account.cfm",
+  "FPW_MONITOR_TOKEN": "local-dev-monitor-token"
+}
